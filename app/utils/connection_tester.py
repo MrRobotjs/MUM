@@ -123,7 +123,7 @@ def check_audiobookshelf(url: str, token: str) -> Tuple[bool, str]:
         
         # Get server info
         server_response = requests.get(
-            f"{url}/api/status",
+            f"{url}/status",
             headers={"Authorization": f"Bearer {token}"},
             timeout=get_api_timeout_with_fallback(10)
         )

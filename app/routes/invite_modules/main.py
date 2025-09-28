@@ -128,10 +128,12 @@ def process_invite_form(invite_path_or_token):
                 
                 # Store cross-server credential preferences
                 use_same_username = request.form.get('use_same_username') == 'true'
+                use_same_email = request.form.get('use_same_email') == 'true'
                 use_same_password = request.form.get('use_same_password') == 'true'
                 
                 session[f'invite_{invite.id}_cross_server_prefs'] = {
                     'use_same_username': use_same_username,
+                    'use_same_email': use_same_email,
                     'use_same_password': use_same_password
                 }
                 
@@ -258,11 +260,13 @@ def process_invite_form(invite_path_or_token):
     # Get cross-server preferences from session
     cross_server_prefs = session.get(f'invite_{invite.id}_cross_server_prefs', {})
     use_same_username = cross_server_prefs.get('use_same_username', False)
+    use_same_email = cross_server_prefs.get('use_same_email', False)
     use_same_password = cross_server_prefs.get('use_same_password', False)
     
-    # Get user account data for default username
+    # Get user account data for default username and email
     user_account_data = session.get(f'invite_{invite.id}_user_account_data', {})
     local_username = user_account_data.get('username', '')
+    local_email = user_account_data.get('email', '')
     
     # Generate invite steps for progress indicator
     invite_steps = []
@@ -394,10 +398,13 @@ def process_invite_form(invite_path_or_token):
                            current_step=current_step,
                            # Cross-server credential variables
                            use_same_username=use_same_username,
+                           use_same_email=use_same_email,
                            use_same_password=use_same_password,
                            server_username_taken=server_username_taken,
                            preferred_username=preferred_username,
                            default_username=default_username,
+                           # User account data
+                           user_account_data=user_account_data,
                            # Plex conflict variables
                            plex_conflict_info=plex_conflict_info
                            )

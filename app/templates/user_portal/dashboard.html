@@ -30,7 +30,7 @@
                     </h2>
                     
                     {% set user_servers = [] %}
-                    {% for service_user in user.linked_service_users %}
+                    {% for service_user in user.get_linked_users() %}
                         {% if service_user.server and service_user.is_active %}
                             {% set _ = user_servers.append(service_user.server) %}
                         {% endif %}

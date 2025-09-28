@@ -210,14 +210,25 @@ def accept_invite_and_grant_access(invite: Invite, plex_user_uuid: str, plex_use
             else:
                 # For other services (Jellyfin, Emby, etc.), create a new user
                 if hasattr(service, 'create_user'):
-                    # Determine the username and email for this service
-                    if app_user:
+                    # Determine the username and email for this service - check server-specific credentials first
+                    from flask import session
+                    server_credentials = session.get(f'invite_{invite.id}_server_{server.id}_credentials')
+                    
+                    if server_credentials and server_credentials.get('username'):
+                        # Use server-specific credentials if available (entered during invite process)
+                        service_username = server_credentials['username']
+                        service_email = server_credentials.get('email') or f"{service_username}@example.com"
+                        current_app.logger.info(f"Using server-specific credentials for {server.service_type.name} creation: username={service_username}, email={service_email}")
+                    elif app_user:
+                        # Use local user account credentials if user accounts are enabled
                         service_username = app_user.localUsername
                         service_email = app_user.email or f"{app_user.localUsername}@example.com"
+                        current_app.logger.info(f"Using local user credentials for {server.service_type.name} creation: username={service_username}, email={service_email}")
                     else:
-                        # Fallback to plex username if no app user
+                        # Last resort fallback to plex username if no app user or server credentials
                         service_username = plex_username or f"user_{int(datetime.now().timestamp())}"
                         service_email = plex_email or f"{service_username}@example.com"
+                        current_app.logger.info(f"Using fallback credentials for {server.service_type.name} creation: username={service_username}, email={service_email}")
                     
                     current_app.logger.debug(f"Invite service - Calling create_user for {server.service_type.name} user {service_username}")
                     # Step 1: Create user without library access (like manual process)
@@ -391,10 +402,26 @@ def accept_invite_and_grant_access(invite: Invite, plex_user_uuid: str, plex_use
                 service_email = plex_email
                 current_app.logger.info(f"Plex server - using username: {service_username}, email: {service_email}")
             else:
-                # For other services, use the same username as local user for consistency
-                service_username = user_app_access.localUsername
-                service_email = user_app_access.email
-                current_app.logger.info(f"Non-Plex server - using username: {service_username}, email: {service_email}")
+                # For other services, check for server-specific credentials first
+                from flask import session
+                server_credentials = session.get(f'invite_{invite.id}_server_{server.id}_credentials')
+                
+                if server_credentials and server_credentials.get('username'):
+                    # Use server-specific credentials if available
+                    service_username = server_credentials['username']
+                    service_email = server_credentials.get('email') or f"{service_username}@example.com"
+                    current_app.logger.info(f"Non-Plex server - using server-specific credentials: username={service_username}, email={service_email}")
+                else:
+                    # Fallback to local user credentials or plex user info
+                    if user_app_access and user_app_access.localUsername:
+                        service_username = user_app_access.localUsername
+                        service_email = user_app_access.email or f"{service_username}@example.com"
+                        current_app.logger.info(f"Non-Plex server - using local user credentials: username={service_username}, email={service_email}")
+                    else:
+                        # Last resort: use plex username if available
+                        service_username = plex_username or f"user_{int(datetime.now().timestamp())}"
+                        service_email = plex_email or f"{service_username}@example.com"
+                        current_app.logger.info(f"Non-Plex server - using fallback credentials: username={service_username}, email={service_email}")
             
             # Create service user record for this specific server
             user_media_access = User(

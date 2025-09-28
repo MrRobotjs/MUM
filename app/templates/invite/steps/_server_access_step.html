@@ -114,6 +114,27 @@
                     <input type="hidden" name="jellyfin_username" value="{{ default_username }}">
                 {% endif %}
                 
+                <!-- Email field (only show for Kavita) -->
+                {% if current_step.server_type == 'KAVITA' %}
+                    <div class="form-control">
+                        <label class="label">
+                            <span class="label-text font-medium text-sm">Email address for {{ current_step.server_name }}</span>
+                        </label>
+                        <input type="email" name="jellyfin_email" placeholder="your.email@example.com" 
+                               class="input input-bordered w-full h-11 bg-base-100 border-base-300 focus:border-primary focus:bg-base-100" 
+                               value="{% if already_authenticated_plex_user %}{{ already_authenticated_plex_user.email }}{% endif %}" required>
+                        <label class="label">
+                            <span class="label-text-alt text-xs text-base-content/60">
+                                {% if already_authenticated_plex_user %}
+                                    Default: Your Plex email
+                                {% else %}
+                                    Enter a valid email address for Kavita
+                                {% endif %}
+                            </span>
+                        </label>
+                    </div>
+                {% endif %}
+                
                 <!-- Password fields (only show if not using same password or if username was taken) -->
                 {% if not use_same_password or server_username_taken %}
                     <div class="form-control">

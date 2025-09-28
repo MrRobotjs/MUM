@@ -155,12 +155,21 @@ def process_invite_form(invite_path_or_token):
             return redirect(url_for('invites.initiate_discord_auth', invite_id=invite.id))
 
         elif action_taken == 'setup_server_access':
-            # REMOVED: Individual server setup that creates accounts prematurely
-            # Now we just mark the step as ready and wait for final acceptance
+            # Store server-specific credentials in session for later use
             current_server_id = request.form.get('current_server_id')
             if current_server_id:
-                # Just mark this server step as completed without creating accounts
+                # Store the username and password for this specific server
+                server_credentials = {
+                    'username': request.form.get('jellyfin_username', ''),
+                    'password': request.form.get('jellyfin_password', ''),
+                    'email': request.form.get('jellyfin_email', '')  # In case email field is added
+                }
+                
+                # Store server-specific credentials
+                session[f'invite_{invite.id}_server_{current_server_id}_credentials'] = server_credentials
                 session[f'invite_{invite.id}_server_{current_server_id}_completed'] = True
+                
+                current_app.logger.info(f"Stored credentials for server {current_server_id}: username={server_credentials['username']}")
                 flash("Server configuration saved. Complete all steps to create accounts.", "success")
             else:
                 flash("No server specified for setup.", "error")
@@ -224,9 +233,10 @@ def process_invite_form(invite_path_or_token):
                     session.pop(f'invite_{invite.id}_user_account_created', None)
                     session.pop(f'invite_{invite.id}_user_account_data', None)  # Clear stored account data
                     
-                    # Clear server completion flags
+                    # Clear server completion flags and credentials
                     for server in invite.servers:
                         session.pop(f'invite_{invite.id}_server_{server.id}_completed', None)
+                        session.pop(f'invite_{invite.id}_server_{server.id}_credentials', None)
                     
                     username = user_app_access.localUsername if user_app_access else (already_authenticated_plex_user_info.get('username') if already_authenticated_plex_user_info else 'User')
                     flash(f"Welcome, {username}! All accounts have been created and linked successfully.", "success")

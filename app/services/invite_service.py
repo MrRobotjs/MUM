@@ -116,7 +116,7 @@ def accept_invite_and_grant_access(invite: Invite, plex_user_uuid: str, plex_use
         
         plex_user_info = {'uuid': plex_user_uuid, 'username': plex_username, 'email': plex_email, 'thumb': plex_thumb}
         usage_log = record_invite_usage_attempt(invite.id, ip_address, plex_user_info=plex_user_info, discord_user_info=discord_user_info, status_message="User already managed by MUM.")
-        usage_log.linkedUserId = existing_mum_user.id
+        usage_log.userId = existing_mum_user.uuid
         usage_log.accepted_invite = True 
         
         invite.current_uses += 1
@@ -210,11 +210,20 @@ def accept_invite_and_grant_access(invite: Invite, plex_user_uuid: str, plex_use
             else:
                 # For other services (Jellyfin, Emby, etc.), create a new user
                 if hasattr(service, 'create_user'):
-                    current_app.logger.debug(f"Invite service - Calling create_user for {server.service_type.name} user {plex_username}")
+                    # Determine the username and email for this service
+                    if app_user:
+                        service_username = app_user.localUsername
+                        service_email = app_user.email or f"{app_user.localUsername}@example.com"
+                    else:
+                        # Fallback to plex username if no app user
+                        service_username = plex_username or f"user_{int(datetime.now().timestamp())}"
+                        service_email = plex_email or f"{service_username}@example.com"
+                    
+                    current_app.logger.debug(f"Invite service - Calling create_user for {server.service_type.name} user {service_username}")
                     # Step 1: Create user without library access (like manual process)
                     result = service.create_user(
-                        username=plex_username,
-                        email=plex_email or f"{plex_username}@example.com",
+                        username=service_username,
+                        email=service_email,
                         password=""  # Empty password for services that support it
                     )
                     if isinstance(result, dict) and result.get('error'):
@@ -302,7 +311,8 @@ def accept_invite_and_grant_access(invite: Invite, plex_user_uuid: str, plex_use
             base_email = plex_email or f"{base_username}@example.com"
             
             user_app_access = User(
-                username=base_username,
+                userType=UserType.LOCAL,
+                localUsername=base_username,
                 email=base_email,
                 used_invite_id=invite.id,
                 access_expires_at=user_access_expires_at,
@@ -388,7 +398,8 @@ def accept_invite_and_grant_access(invite: Invite, plex_user_uuid: str, plex_use
             
             # Create service user record for this specific server
             user_media_access = User(
-                linkedUserId=user_app_access.id,
+                userType=UserType.SERVICE,
+                linkedUserId=user_app_access.uuid,
                 server_id=server.id,
                 external_user_id=str(plex_user_uuid) if server.service_type.name.upper() == 'PLEX' else getattr(server, '_temp_external_user_id', None),
                 external_username=service_username,
@@ -430,7 +441,7 @@ def accept_invite_and_grant_access(invite: Invite, plex_user_uuid: str, plex_use
             current_app.logger.info(f"Service user - ID: {user_media_access.id}, external_username: {user_media_access.external_username}, server: {server.server_nickname}")
         
         # Set usage log user ID
-        usage_log.linkedUserId = new_user.id
+        usage_log.userId = new_user.uuid
         usage_log.accepted_invite = True
         db.session.add(usage_log)
         db.session.add(invite)

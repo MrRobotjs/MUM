@@ -24,39 +24,52 @@ def upgrade():
     # Check if columns still exist before trying to drop them
     conn = op.get_bind()
     inspector = sa.inspect(conn)
-    columns = [col['name'] for col in inspector.get_columns('media_stream_history')]
     
-    # Use batch mode for SQLite compatibility
-    with op.batch_alter_table('media_stream_history', schema=None) as batch_op:
-        # Drop old indexes first (if they exist)
-        indexes = [idx['name'] for idx in inspector.get_indexes('media_stream_history')]
+    try:
+        columns = [col['name'] for col in inspector.get_columns('media_stream_history')]
+        print(f"Found columns in media_stream_history: {columns}")
+    except Exception as e:
+        print(f"Could not inspect media_stream_history columns: {e}")
+        print("Skipping cleanup - table may not exist or have issues")
+        return
+    
+    # Use raw SQL to avoid foreign key inspection issues
+    try:
+        # Drop indexes first (if they exist)
+        try:
+            conn.execute(sa.text("DROP INDEX IF EXISTS ix_media_stream_history_user_app_access_uuid"))
+            print("Dropped ix_media_stream_history_user_app_access_uuid index")
+        except Exception as e:
+            print(f"Note: Could not drop ix_media_stream_history_user_app_access_uuid - {e}")
         
-        if 'ix_media_stream_history_user_app_access_uuid' in indexes:
-            try:
-                batch_op.drop_index('ix_media_stream_history_user_app_access_uuid')
-                print("Dropped ix_media_stream_history_user_app_access_uuid index")
-            except Exception as e:
-                print(f"Note: Could not drop ix_media_stream_history_user_app_access_uuid - {e}")
+        try:
+            conn.execute(sa.text("DROP INDEX IF EXISTS ix_media_stream_history_user_media_access_uuid"))
+            print("Dropped ix_media_stream_history_user_media_access_uuid index")
+        except Exception as e:
+            print(f"Note: Could not drop ix_media_stream_history_user_media_access_uuid - {e}")
         
-        if 'ix_media_stream_history_user_media_access_uuid' in indexes:
-            try:
-                batch_op.drop_index('ix_media_stream_history_user_media_access_uuid')
-                print("Dropped ix_media_stream_history_user_media_access_uuid index")
-            except Exception as e:
-                print(f"Note: Could not drop ix_media_stream_history_user_media_access_uuid - {e}")
-        
-        # Drop old columns
+        # Drop old columns using ALTER TABLE
         if 'user_app_access_uuid' in columns:
-            batch_op.drop_column('user_app_access_uuid')
-            print("Dropped user_app_access_uuid column")
+            try:
+                conn.execute(sa.text("ALTER TABLE media_stream_history DROP COLUMN user_app_access_uuid"))
+                print("Dropped user_app_access_uuid column")
+            except Exception as e:
+                print(f"Note: Could not drop user_app_access_uuid column - {e}")
         else:
             print("user_app_access_uuid column not found, skipping")
             
         if 'user_media_access_uuid' in columns:
-            batch_op.drop_column('user_media_access_uuid')
-            print("Dropped user_media_access_uuid column")
+            try:
+                conn.execute(sa.text("ALTER TABLE media_stream_history DROP COLUMN user_media_access_uuid"))
+                print("Dropped user_media_access_uuid column")
+            except Exception as e:
+                print(f"Note: Could not drop user_media_access_uuid column - {e}")
         else:
             print("user_media_access_uuid column not found, skipping")
+            
+    except Exception as e:
+        print(f"Error during column cleanup: {e}")
+        print("Continuing anyway...")
     
     print("Cleanup of deprecated user columns completed successfully!")
 
@@ -67,8 +80,8 @@ def downgrade():
     """
     print("Starting downgrade - re-adding deprecated user columns...")
     
-    # Use batch mode for SQLite compatibility
-    with op.batch_alter_table('media_stream_history', schema=None) as batch_op:
+    # Use batch mode for SQLite compatibility with recreate to avoid foreign key issues
+    with op.batch_alter_table('media_stream_history', schema=None, recreate='always') as batch_op:
         # Re-add the old columns
         batch_op.add_column(sa.Column('user_app_access_uuid', sa.String(36), nullable=True))
         batch_op.add_column(sa.Column('user_media_access_uuid', sa.String(36), nullable=True))

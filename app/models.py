@@ -590,7 +590,7 @@ class InviteUsage(db.Model): # ... (as before)
     plex_email = db.Column(db.String(120), nullable=True); plex_thumb = db.Column(db.String(512), nullable=True)
     plex_auth_successful = db.Column(db.Boolean, default=False, nullable=False); discord_user_id = db.Column(db.String(255), nullable=True) # Added nullable=False
     discord_username = db.Column(db.String(255), nullable=True); discord_auth_successful = db.Column(db.Boolean, default=False, nullable=False) # Added nullable=False
-    local_user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True); local_user = db.relationship('User', foreign_keys=[local_user_id])
+    userId = db.Column(db.String(36), db.ForeignKey('users.uuid'), nullable=True, index=True); user = db.relationship('User', foreign_keys=[userId])
     accepted_invite = db.Column(db.Boolean, default=False, nullable=False); status_message = db.Column(db.String(255), nullable=True) # Added nullable=False
 
 class HistoryLog(db.Model): # ... (as before)

@@ -467,7 +467,7 @@ class MediaServiceManager:
                         # In unified model, get linked user via linkedUserId
                         user_to_check = None
                         if access.linkedUserId:
-                            user_to_check = User.query.filter_by(userType=UserType.LOCAL).get(access.linkedUserId)
+                            user_to_check = User.query.filter_by(userType=UserType.LOCAL, id=access.linkedUserId).first()
                         display_name = user_to_check.get_display_name() if user_to_check else access.external_username or 'Unknown'
                         current_app.logger.info(f"Removing user access: {display_name} from server {server.server_nickname}")
                         

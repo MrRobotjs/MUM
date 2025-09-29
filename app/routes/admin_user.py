@@ -32,7 +32,7 @@ def view_local_user(username):
     if server_conflict:
         current_app.logger.warning(f"Potential conflict: app username '{username}' matches server nickname")
     
-    user_app_access = User.query.filter_by(userType=UserType.LOCAL).filter_by(localUsername=username).first_or_404()
+    local_user = User.query.filter_by(userType=UserType.LOCAL).filter_by(localUsername=username).first_or_404()
     
     # Get the active tab from the URL query, default to 'profile'
     tab = request.args.get('tab', 'profile')
@@ -45,23 +45,23 @@ def view_local_user(username):
         if linked_accounts:
             service_types = []
             server_names = []
-            for access in linked_accounts:
-                if access.server and access.server.service_type:
-                    service_types.append(access.server.service_type)
-                    server_names.append(access.server.server_nickname)
+            for linked_service_user in linked_accounts:
+                if linked_service_user.server and linked_service_user.server.service_type:
+                    service_types.append(linked_service_user.server.service_type)
+                    server_names.append(linked_service_user.server.server_nickname)
             
             if service_types:
-                user_service_types[user_app_access.uuid] = service_types
+                user_service_types[local_user.uuid] = service_types
             if server_names:
-                user_server_names[user_app_access.uuid] = server_names
+                user_server_names[local_user.uuid] = server_names
         
         return render_template('user/_partials/profile_tabs/local_history_tab.html', 
-                             user=user_app_access, 
+                             user=local_user, 
                              user_service_types=user_service_types,
                              user_server_names=user_server_names)
     
-    # Get linked media access accounts
-    linked_accounts = user_app_access.get_linked_users()
+    # Get linked service accounts
+    linked_accounts = local_user.get_linked_users()
     
     # Create context variables that the template expects (for local users)
     user_service_types = {}
@@ -71,15 +71,15 @@ def view_local_user(username):
     if linked_accounts:
         service_types = []
         server_names = []
-        for access in linked_accounts:
-            if access.server and access.server.service_type:
-                service_types.append(access.server.service_type)
-                server_names.append(access.server.server_nickname)
+        for linked_service_user in linked_accounts:
+            if linked_service_user.server and linked_service_user.server.service_type:
+                service_types.append(linked_service_user.server.service_type)
+                server_names.append(linked_service_user.server.server_nickname)
         
         if service_types:
-            user_service_types[user_app_access.uuid] = service_types
+            user_service_types[local_user.uuid] = service_types
         if server_names:
-            user_server_names[user_app_access.uuid] = server_names
+            user_server_names[local_user.uuid] = server_names
     
     
     # Create a form object for the settings tab
@@ -91,8 +91,8 @@ def view_local_user(username):
     
     return render_template(
         'user/index.html',
-        title=f"Admin - User Profile: {user_app_access.get_display_name()}",
-        user=user_app_access,
+        title=f"Admin - User Profile: {local_user.get_display_name()}",
+        user=local_user,
         active_tab=tab,
         is_local_user=True,
         linked_accounts=linked_accounts,
@@ -136,51 +136,51 @@ def view_service_user(server_nickname, server_username):
     # Find the server by nickname (name)
     server = MediaServer.query.filter_by(server_nickname=server_nickname).first_or_404()
     
-    # Find the service account by server and username
-    access = User.query.filter_by(userType=UserType.SERVICE).filter_by(
+    # Find the service user by server and username
+    service_user = User.query.filter_by(userType=UserType.SERVICE).filter_by(
         server_id=server.id,
         external_username=server_username
     ).first()
 
-    if not access:
-        current_app.logger.warning(f"Service account not found: {server_username} on {server_nickname}")
+    if not service_user:
+        current_app.logger.warning(f"Service user not found: {server_username} on {server_nickname}")
         abort(404)
 
-    # Create a mock user object for the template (using the same MockServiceUser from original)
+    # Create a mock user object for the template for backward compatibility
     class MockServiceUser:
-        def __init__(self, access):
-            self.id = access.id
-            self.uuid = access.uuid
-            self.localUsername = access.external_username
-            self.email = access.external_email
-            self.notes = access.notes
-            self.created_at = access.created_at
-            self.last_login_at = access.last_activity_at
-            self.media_accesses = [access]
-            self.access_expires_at = access.access_expires_at
-            self.discord_user_id = access.discord_user_id
-            self.is_active = access.is_active
+        def __init__(self, service_user):
+            self.id = service_user.id
+            self.uuid = service_user.uuid
+            self.localUsername = service_user.external_username
+            self.email = service_user.external_email
+            self.notes = service_user.notes
+            self.created_at = service_user.created_at
+            self.last_login_at = service_user.last_activity_at
+            self.media_accesses = [service_user]  # For template compatibility
+            self.access_expires_at = service_user.access_expires_at
+            self.discord_user_id = service_user.discord_user_id
+            self.is_active = service_user.is_active
             self._is_service_user = True
-            self._access_record = access
+            self._access_record = service_user
             self.userType = UserType.SERVICE
-            self.external_username = access.external_username
+            self.external_username = service_user.external_username
             
-            # Process avatar URL using the same logic as library stats
-            self.avatar_url = self._get_avatar_url(access)
+            # Process avatar URL
+            self.avatar_url = self._get_avatar_url(service_user)
         
-        def _get_avatar_url(self, access):
+        def _get_avatar_url(self, service_user):
             """Process avatar URL using the same logic as library stats chart"""
             avatar_url = None
             
             # First check for external avatar URL
-            if access.external_avatar_url:
-                avatar_url = access.external_avatar_url
-            elif access.server.service_type.value.lower() == 'plex':
+            if service_user.external_avatar_url:
+                avatar_url = service_user.external_avatar_url
+            elif service_user.server.service_type.value.lower() == 'plex':
                 # Simplified Plex avatar logic
-                if access.service_settings and access.service_settings.get('thumb'):
-                    thumb_url = access.service_settings['thumb']
+                if service_user.service_settings and service_user.service_settings.get('thumb'):
+                    thumb_url = service_user.service_settings['thumb']
                     if thumb_url.startswith('/'):
-                        avatar_url = f"{access.server.url.rstrip('/')}{thumb_url}"
+                        avatar_url = f"{service_user.server.url.rstrip('/')}{thumb_url}"
                     else:
                         avatar_url = thumb_url
             
@@ -192,13 +192,13 @@ def view_service_user(server_nickname, server_username):
         def get_avatar(self, default_url=None):
             return self.avatar_url or default_url
 
-    user = MockServiceUser(access)
+    user = MockServiceUser(service_user)
     user._user_type = 'service'
     
     # Check if this service user is linked to a local account
-    linked_user_app_access = None
-    if access.linkedUserId:
-        linked_user_app_access = User.query.filter_by(userType=UserType.LOCAL, uuid=access.linkedUserId).first()
+    linked_local_user = None
+    if service_user.linkedUserId:
+        linked_local_user = User.query.filter_by(userType=UserType.LOCAL, uuid=service_user.linkedUserId).first()
     
     # Get the active tab from the URL query
     tab = request.args.get('tab', 'settings' if request.method == 'POST' else 'profile')
@@ -206,8 +206,8 @@ def view_service_user(server_nickname, server_username):
     # Handle HTMX requests for specific tabs
     if request.headers.get('HX-Request') and tab == 'history':
         # Return just the history tab content for HTMX requests
-        user_service_types = {user.uuid: [access.server.service_type]}
-        user_server_names = {user.uuid: [access.server.server_nickname]}
+        user_service_types = {user.uuid: [service_user.server.service_type]}
+        user_server_names = {user.uuid: [service_user.server.server_nickname]}
         
         # Get actual history for this service user
         page = request.args.get('page', 1, type=int)
@@ -221,12 +221,12 @@ def view_service_user(server_nickname, server_username):
         return render_template('user/_partials/profile_tabs/history_tab_content.html', 
                              user=user, 
                              history_logs=history_pagination,
-                             user_service_types=user_service_types,
-                             user_server_names=user_server_names)
+                             user_service_types={user.uuid: [service_user.server.service_type]},
+                             user_server_names={user.uuid: [service_user.server.server_nickname]})
     
     # Handle POST request (settings tab form submission)
     if request.method == 'POST':
-        return handle_settings_tab_form_submission(access, server_nickname, server_username)
+        return handle_settings_tab_form_submission(service_user, server_nickname, server_username)
     
     # Create form for settings tab
     form = UserEditForm(obj=user)
@@ -235,13 +235,13 @@ def view_service_user(server_nickname, server_username):
     available_libraries = {}
     try:
         from app.models_media_services import MediaLibrary
-        db_libraries = MediaLibrary.query.filter_by(server_id=access.server.id).all()
+        db_libraries = MediaLibrary.query.filter_by(server_id=service_user.server.id).all()
         
         for lib in db_libraries:
             lib_id = lib.external_id
             lib_name = lib.name
             if lib_id:
-                if access.server.service_type.value == 'kavita':
+                if service_user.server.service_type.value == 'kavita':
                     compound_lib_id = f"{lib_id}_{lib_name}"
                     available_libraries[compound_lib_id] = lib_name
                 else:
@@ -250,7 +250,7 @@ def view_service_user(server_nickname, server_username):
         form.libraries.choices = [(lib_id, name) for lib_id, name in available_libraries.items()]
         
         # Set the current library selections - same logic as quick edit
-        current_library_ids = access.allowed_library_ids or []
+        current_library_ids = service_user.allowed_library_ids or []
         
         # Handle special case for Jellyfin users with '*' (all libraries access)
         if current_library_ids == ['*']:
@@ -320,7 +320,7 @@ def view_service_user(server_nickname, server_username):
         is_kavita_user = False
         kavita_user_id = None
         
-        user_access_records = [access]
+        user_access_records = [service_user]
         for access_record in user_access_records:
             if access_record.server.service_type.value == 'kavita':
                 is_kavita_user = True
@@ -356,12 +356,12 @@ def view_service_user(server_nickname, server_username):
     
     # Context variables for template
     user_sorted_libraries = {}
-    user_service_types = {user.uuid: [access.server.service_type]}
-    user_server_names = {user.uuid: [access.server.server_nickname]}
+    user_service_types = {user.uuid: [service_user.server.service_type]}
+    user_server_names = {user.uuid: [service_user.server.server_nickname]}
     
     # Add linked_service_users for Overseerr tab compatibility
-    # For service users, create a mock list containing the current user's access record
-    user.linked_service_users = [access]
+    # For service users, create a mock list containing the current service user record
+    user.linked_service_users = [service_user]
     
     return render_template(
         'user/index.html',
@@ -379,7 +379,7 @@ def view_service_user(server_nickname, server_username):
         stream_stats=stream_stats,
         user_service_types=user_service_types,
         user_server_names=user_server_names,
-        linked_user_app_access=linked_user_app_access,
+        linked_user_app_access=linked_local_user,
         current_user=current_user,
         form_action_override=f"/admin/user/{server_nickname}/{server_username}",
         now_utc=datetime.now(timezone.utc),
@@ -417,22 +417,22 @@ def get_overseerr_requests(server_id, server_nickname, server_username):
                                  is_admin_context=True)
         
         # Find the service user record for this user
-        media_access = User.query.filter_by(userType=UserType.SERVICE).join(MediaServer).filter(
+        service_user_record = User.query.filter_by(userType=UserType.SERVICE).join(MediaServer).filter(
             MediaServer.server_nickname == server_nickname,
             User.external_username == server_username,
             User.server_id == server_id
         ).first()
         
-        if not media_access:
-            current_app.logger.warning(f"No media_access found for server_nickname={server_nickname}, server_username={server_username}, server_id={server_id}")
+        if not service_user_record:
+            current_app.logger.warning(f"No service user found for server_nickname={server_nickname}, server_username={server_username}, server_id={server_id}")
             return render_template('user/_partials/profile_tabs/overseerr_error.html',
                                  error_type='no_plex_account',
                                  message='This user account was not found on the specified Plex server. Check the user\'s server access configuration.',
                                  is_admin_context=True)
         
-        plex_user_id = media_access.external_user_id
-        plex_username = media_access.external_username
-        plex_email = media_access.external_email
+        plex_user_id = service_user_record.external_user_id
+        plex_username = service_user_record.external_username
+        plex_email = service_user_record.external_email
         
         if not plex_user_id or not plex_username:
             return render_template('user/_partials/profile_tabs/overseerr_error.html',
@@ -599,15 +599,15 @@ def quick_edit_service_user(server_nickname, server_username):
     
     # Find the server and service user
     server = MediaServer.query.filter_by(server_nickname=server_nickname).first_or_404()
-    access = User.query.filter_by(userType=UserType.SERVICE).filter_by(
+    service_user = User.query.filter_by(userType=UserType.SERVICE).filter_by(
         server_id=server.id,
         external_username=server_username
     ).first_or_404()
     
-    return handle_quick_edit_form_submission(access, server_nickname, server_username)
+    return handle_quick_edit_form_submission(service_user, server_nickname, server_username)
 
 
-def handle_settings_tab_form_submission(access, server_nickname, server_username):
+def handle_settings_tab_form_submission(service_user, server_nickname, server_username):
     """Handle POST form submission from the settings tab (full page)"""
     from flask import flash, redirect, url_for
     from app.forms import UserEditForm
@@ -618,13 +618,13 @@ def handle_settings_tab_form_submission(access, server_nickname, server_username
     available_libraries = {}
     try:
         from app.models_media_services import MediaLibrary
-        db_libraries = MediaLibrary.query.filter_by(server_id=access.server.id).all()
+        db_libraries = MediaLibrary.query.filter_by(server_id=service_user.server.id).all()
         
         for lib in db_libraries:
             lib_id = lib.external_id
             lib_name = lib.name
             if lib_id:
-                if access.server.service_type.value == 'kavita':
+                if service_user.server.service_type.value == 'kavita':
                     compound_lib_id = f"{lib_id}_{lib_name}"
                     available_libraries[compound_lib_id] = lib_name
                 else:
@@ -639,31 +639,31 @@ def handle_settings_tab_form_submission(access, server_nickname, server_username
         try:
             # Update service user fields
             if hasattr(form, 'notes') and form.notes.data is not None:
-                access.notes = form.notes.data.strip() if form.notes.data else None
+                service_user.notes = form.notes.data.strip() if form.notes.data else None
             
             # Handle expiration date
             if hasattr(form, 'clear_access_expiration') and form.clear_access_expiration.data:
-                access.access_expires_at = None
+                service_user.access_expires_at = None
             elif hasattr(form, 'access_expires_at') and form.access_expires_at.data:
                 from datetime import datetime, time
                 expiration_date = form.access_expires_at.data
-                access.access_expires_at = datetime.combine(expiration_date, time.max)
+                service_user.access_expires_at = datetime.combine(expiration_date, time.max)
             
             # Update library access and sync to server
             if hasattr(form, 'libraries') and form.libraries.data:
-                current_libs = set(access.allowed_library_ids or [])
+                current_libs = set(service_user.allowed_library_ids or [])
                 new_libs = set(form.libraries.data)
                 
                 if current_libs != new_libs:
-                    access.allowed_library_ids = form.libraries.data
+                    service_user.allowed_library_ids = form.libraries.data
                     
                     # Sync to the actual server
                     try:
                         from app.services.media_service_factory import MediaServiceFactory
-                        service = MediaServiceFactory.create_service_from_db(access.server)
-                        if service and hasattr(service, 'update_user_access') and access.external_user_id:
-                            service.update_user_access(access.external_user_id, form.libraries.data)
-                            current_app.logger.info(f"Successfully synced library changes to {access.server.service_type.value} server for user {access.external_username}")
+                        service = MediaServiceFactory.create_service_from_db(service_user.server)
+                        if service and hasattr(service, 'update_user_access') and service_user.external_user_id:
+                            service.update_user_access(service_user.external_user_id, form.libraries.data)
+                            current_app.logger.info(f"Successfully synced library changes to {service_user.server.service_type.value} server for user {service_user.external_username}")
                         else:
                             current_app.logger.warning(f"Cannot sync library changes to server - service not available or user has no external_user_id")
                     except Exception as e:
@@ -671,9 +671,9 @@ def handle_settings_tab_form_submission(access, server_nickname, server_username
             
             # Update download and transcode permissions
             if hasattr(form, 'allow_downloads'):
-                access.allow_downloads = form.allow_downloads.data
+                service_user.allow_downloads = form.allow_downloads.data
             if hasattr(form, 'allow_4k_transcode'):
-                access.allow_4k_transcode = form.allow_4k_transcode.data
+                service_user.allow_4k_transcode = form.allow_4k_transcode.data
             
             db.session.commit()
             flash('User settings updated successfully!', 'success')
@@ -704,7 +704,7 @@ def handle_settings_tab_form_submission(access, server_nickname, server_username
                           tab='settings'))
 
 
-def handle_quick_edit_form_submission(access, server_nickname, server_username):
+def handle_quick_edit_form_submission(service_user, server_nickname, server_username):
     """Handle POST form submission from Quick Edit modal"""
     from flask import flash, redirect, url_for, jsonify
     from app.forms import UserEditForm
@@ -715,13 +715,13 @@ def handle_quick_edit_form_submission(access, server_nickname, server_username):
     available_libraries = {}
     try:
         from app.models_media_services import MediaLibrary
-        db_libraries = MediaLibrary.query.filter_by(server_id=access.server.id).all()
+        db_libraries = MediaLibrary.query.filter_by(server_id=service_user.server.id).all()
         
         for lib in db_libraries:
             lib_id = lib.external_id
             lib_name = lib.name
             if lib_id:
-                if access.server.service_type.value == 'kavita':
+                if service_user.server.service_type.value == 'kavita':
                     compound_lib_id = f"{lib_id}_{lib_name}"
                     available_libraries[compound_lib_id] = lib_name
                 else:
@@ -736,34 +736,34 @@ def handle_quick_edit_form_submission(access, server_nickname, server_username):
         try:
             # Update service user fields
             if hasattr(form, 'notes') and form.notes.data is not None:
-                access.notes = form.notes.data.strip() if form.notes.data else None
+                service_user.notes = form.notes.data.strip() if form.notes.data else None
             
             # Handle expiration date
             if hasattr(form, 'clear_access_expiration') and form.clear_access_expiration.data:
-                access.access_expires_at = None
+                service_user.access_expires_at = None
             elif hasattr(form, 'access_expires_at') and form.access_expires_at.data:
                 # Convert date to datetime for storage
                 from datetime import datetime, time
                 expiration_date = form.access_expires_at.data
-                access.access_expires_at = datetime.combine(expiration_date, time.max)
+                service_user.access_expires_at = datetime.combine(expiration_date, time.max)
             
             # Update library access and sync to server
             if hasattr(form, 'libraries') and form.libraries.data:
                 # Check if libraries actually changed
-                current_libs = set(access.allowed_library_ids or [])
+                current_libs = set(service_user.allowed_library_ids or [])
                 new_libs = set(form.libraries.data)
                 
                 if current_libs != new_libs:
                     # Update the database
-                    access.allowed_library_ids = form.libraries.data
+                    service_user.allowed_library_ids = form.libraries.data
                     
                     # Sync to the actual server
                     try:
                         from app.services.media_service_factory import MediaServiceFactory
-                        service = MediaServiceFactory.create_service_from_db(access.server)
-                        if service and hasattr(service, 'update_user_access') and access.external_user_id:
-                            service.update_user_access(access.external_user_id, form.libraries.data)
-                            current_app.logger.info(f"Successfully synced library changes to {access.server.service_type.value} server for user {access.external_username}")
+                        service = MediaServiceFactory.create_service_from_db(service_user.server)
+                        if service and hasattr(service, 'update_user_access') and service_user.external_user_id:
+                            service.update_user_access(service_user.external_user_id, form.libraries.data)
+                            current_app.logger.info(f"Successfully synced library changes to {service_user.server.service_type.value} server for user {service_user.external_username}")
                         else:
                             current_app.logger.warning(f"Cannot sync library changes to server - service not available or user has no external_user_id")
                     except Exception as e:
@@ -772,9 +772,9 @@ def handle_quick_edit_form_submission(access, server_nickname, server_username):
             
             # Update download and transcode permissions
             if hasattr(form, 'allow_downloads'):
-                access.allow_downloads = form.allow_downloads.data
+                service_user.allow_downloads = form.allow_downloads.data
             if hasattr(form, 'allow_4k_transcode'):
-                access.allow_4k_transcode = form.allow_4k_transcode.data
+                service_user.allow_4k_transcode = form.allow_4k_transcode.data
             
             db.session.commit()
             flash('User settings updated successfully!', 'success')

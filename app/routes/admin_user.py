@@ -81,6 +81,7 @@ def view_local_user(username):
         if server_names:
             user_server_names[user_app_access.uuid] = server_names
     
+    
     # Create a form object for the settings tab
     from app.forms import UserEditForm
     form = UserEditForm()
@@ -106,7 +107,7 @@ def view_local_user(username):
     )
 
 
-@admin_user_bp.route('/<server_nickname>/<server_username>')
+@admin_user_bp.route('/<server_nickname>/<server_username>', methods=['GET', 'POST'])
 @login_required  
 @permission_required('view_user')
 def view_service_user(server_nickname, server_username):
@@ -223,8 +224,12 @@ def view_service_user(server_nickname, server_username):
                              user_service_types=user_service_types,
                              user_server_names=user_server_names)
     
+    # Handle POST request (form submission)
+    if request.method == 'POST':
+        return handle_service_user_form_submission(access, server_nickname, server_username)
+    
     # Create form for settings tab
-    form = UserEditForm(request.form if request.method == 'POST' else None, obj=user)
+    form = UserEditForm(obj=user)
     
     # Get streaming stats and history for the user (enhanced from user route)
     stream_stats = user_service.get_user_stream_stats(user.uuid)
@@ -509,3 +514,112 @@ def delete_overseerr_request():
     except Exception as e:
         current_app.logger.error(f"Error deleting Overseerr request: {e}")
         return jsonify({'success': False, 'message': 'An unexpected error occurred'}), 500
+
+
+def handle_service_user_form_submission(access, server_nickname, server_username):
+    """Handle POST form submission for service user settings"""
+    from flask import flash, redirect, url_for, jsonify
+    from app.forms import UserEditForm
+    
+    form = UserEditForm(request.form)
+    
+    # Set up the library choices for validation - same logic as GET request
+    available_libraries = {}
+    try:
+        from app.models_media_services import MediaLibrary
+        db_libraries = MediaLibrary.query.filter_by(server_id=access.server.id).all()
+        
+        for lib in db_libraries:
+            lib_id = lib.external_id
+            lib_name = lib.name
+            if lib_id:
+                if access.server.service_type.value == 'kavita':
+                    compound_lib_id = f"{lib_id}_{lib_name}"
+                    available_libraries[compound_lib_id] = lib_name
+                else:
+                    available_libraries[str(lib_id)] = lib_name
+        
+        form.libraries.choices = [(lib_id, name) for lib_id, name in available_libraries.items()]
+    except Exception as e:
+        current_app.logger.error(f"Error setting up library choices for form validation: {e}")
+        form.libraries.choices = []
+    
+    if form.validate_on_submit():
+        try:
+            # Update service user fields
+            if hasattr(form, 'notes') and form.notes.data is not None:
+                access.notes = form.notes.data.strip() if form.notes.data else None
+            
+            # Handle expiration date
+            if hasattr(form, 'clear_access_expiration') and form.clear_access_expiration.data:
+                access.access_expires_at = None
+            elif hasattr(form, 'access_expires_at') and form.access_expires_at.data:
+                # Convert date to datetime for storage
+                from datetime import datetime, time
+                expiration_date = form.access_expires_at.data
+                access.access_expires_at = datetime.combine(expiration_date, time.max)
+            
+            # Update library access and sync to server
+            if hasattr(form, 'libraries') and form.libraries.data:
+                # Check if libraries actually changed
+                current_libs = set(access.allowed_library_ids or [])
+                new_libs = set(form.libraries.data)
+                
+                if current_libs != new_libs:
+                    # Update the database
+                    access.allowed_library_ids = form.libraries.data
+                    
+                    # Sync to the actual server
+                    try:
+                        from app.services.media_service_factory import MediaServiceFactory
+                        service = MediaServiceFactory.create_service_from_db(access.server)
+                        if service and hasattr(service, 'update_user_access') and access.external_user_id:
+                            service.update_user_access(access.external_user_id, form.libraries.data)
+                            current_app.logger.info(f"Successfully synced library changes to {access.server.service_type.value} server for user {access.external_username}")
+                        else:
+                            current_app.logger.warning(f"Cannot sync library changes to server - service not available or user has no external_user_id")
+                    except Exception as e:
+                        current_app.logger.error(f"Failed to sync library changes to server: {e}")
+                        # Continue with database update even if server sync fails
+            
+            # Update download and transcode permissions
+            if hasattr(form, 'allow_downloads'):
+                access.allow_downloads = form.allow_downloads.data
+            if hasattr(form, 'allow_4k_transcode'):
+                access.allow_4k_transcode = form.allow_4k_transcode.data
+            
+            db.session.commit()
+            flash('User settings updated successfully!', 'success')
+            
+            # Return HTMX response if it's an HTMX request
+            if request.headers.get('HX-Request'):
+                # For HTMX requests from modal, return a success response that closes the modal
+                from flask import make_response
+                response = make_response('')
+                response.headers['HX-Trigger'] = 'userUpdated'
+                response.headers['HX-Refresh'] = 'true'  # Refresh the page to show updated data
+                return response
+            else:
+                return redirect(url_for('admin_user.view_service_user', 
+                                      server_nickname=server_nickname, 
+                                      server_username=server_username))
+                
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.error(f"Error updating service user {server_username}: {e}")
+            flash('Error updating user settings. Please try again.', 'error')
+            
+            if request.headers.get('HX-Request'):
+                return jsonify({'success': False, 'message': 'Error updating user settings'}), 500
+    else:
+        # Form validation failed
+        current_app.logger.warning(f"Form validation failed for service user {server_username}: {form.errors}")
+        flash('Please correct the errors in the form.', 'error')
+        
+        if request.headers.get('HX-Request'):
+            return jsonify({'success': False, 'message': 'Form validation failed', 'errors': form.errors}), 400
+    
+    # If we get here, something went wrong - redirect back to the user page
+    return redirect(url_for('admin_user.view_service_user', 
+                          server_nickname=server_nickname, 
+                          server_username=server_username))

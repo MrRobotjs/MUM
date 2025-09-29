@@ -127,6 +127,7 @@ class MediaLibrary(db.Model):
     __tablename__ = 'media_libraries'
     
     id = db.Column(db.Integer, primary_key=True)
+    internal_id = db.Column(db.String(36), nullable=True, unique=True, default=lambda: str(uuid.uuid4()))  # Global unique identifier
     server_id = db.Column(db.Integer, db.ForeignKey('media_servers.id'), nullable=False)
     external_id = db.Column(db.String(100), nullable=False)  # ID from the service
     name = db.Column(db.String(255), nullable=False)

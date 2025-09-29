@@ -14,7 +14,7 @@
         {% set form_params = {'server_nickname': server_name, 'server_username': username, 'tab': 'settings'} %}
         {% if request.args.get('back') %}{% set _ = form_params.update({'back': request.args.get('back')}) %}{% endif %}
         {% if request.args.get('back_view') %}{% set _ = form_params.update({'back_view': request.args.get('back_view')}) %}{% endif %}
-        {% set form_action = url_for('admin_user.view_service_user', **form_params) %}
+        {% set form_action = url_for('admin_user.quick_edit_service_user', server_nickname=server_name, server_username=username) %}
     {% else %}
         {% set form_action = '#' %}
     {% endif %}

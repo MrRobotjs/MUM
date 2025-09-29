@@ -224,12 +224,75 @@ def view_service_user(server_nickname, server_username):
                              user_service_types=user_service_types,
                              user_server_names=user_server_names)
     
-    # Handle POST request (form submission)
+    # Handle POST request (settings tab form submission)
     if request.method == 'POST':
-        return handle_service_user_form_submission(access, server_nickname, server_username)
+        return handle_settings_tab_form_submission(access, server_nickname, server_username)
     
     # Create form for settings tab
     form = UserEditForm(obj=user)
+    
+    # Set up the library choices and current selections for the form
+    available_libraries = {}
+    try:
+        from app.models_media_services import MediaLibrary
+        db_libraries = MediaLibrary.query.filter_by(server_id=access.server.id).all()
+        
+        for lib in db_libraries:
+            lib_id = lib.external_id
+            lib_name = lib.name
+            if lib_id:
+                if access.server.service_type.value == 'kavita':
+                    compound_lib_id = f"{lib_id}_{lib_name}"
+                    available_libraries[compound_lib_id] = lib_name
+                else:
+                    available_libraries[str(lib_id)] = lib_name
+        
+        form.libraries.choices = [(lib_id, name) for lib_id, name in available_libraries.items()]
+        
+        # Set the current library selections - same logic as quick edit
+        current_library_ids = access.allowed_library_ids or []
+        
+        # Handle special case for Jellyfin users with '*' (all libraries access)
+        if current_library_ids == ['*']:
+            form.libraries.data = list(available_libraries.keys())
+        else:
+            # Match stored library IDs to available choices (handle Kavita compound IDs)
+            matched_libraries = []
+            for lib_id in current_library_ids:
+                lib_id_str = str(lib_id)
+                
+                # Direct match first
+                if lib_id_str in available_libraries:
+                    matched_libraries.append(lib_id_str)
+                else:
+                    # For Kavita, try name-based matching
+                    if '_' in lib_id_str:
+                        stored_name = lib_id_str.split('_', 1)[1] if '_' in lib_id_str else ''
+                        for avail_lib_id in available_libraries.keys():
+                            if '_' in avail_lib_id:
+                                avail_name = avail_lib_id.split('_', 1)[1]
+                                if stored_name.lower() == avail_name.lower():
+                                    matched_libraries.append(avail_lib_id)
+                                    break
+                    else:
+                        # Match simple numeric ID against compound IDs
+                        for avail_lib_id in available_libraries.keys():
+                            if '_' in avail_lib_id:
+                                numeric_part = avail_lib_id.split('_')[0]
+                                if numeric_part == lib_id_str:
+                                    matched_libraries.append(avail_lib_id)
+                                    break
+            
+            form.libraries.data = matched_libraries
+        
+        current_app.logger.info(f"Settings tab form setup - Available libraries: {available_libraries}")
+        current_app.logger.info(f"Settings tab form setup - Current user libraries: {current_library_ids}")
+        current_app.logger.info(f"Settings tab form setup - Form libraries data: {form.libraries.data}")
+        
+    except Exception as e:
+        current_app.logger.error(f"Error setting up library choices for settings tab: {e}")
+        form.libraries.choices = []
+        form.libraries.data = []
     
     # Get streaming stats and history for the user (enhanced from user route)
     stream_stats = user_service.get_user_stream_stats(user.uuid)
@@ -516,8 +579,133 @@ def delete_overseerr_request():
         return jsonify({'success': False, 'message': 'An unexpected error occurred'}), 500
 
 
-def handle_service_user_form_submission(access, server_nickname, server_username):
-    """Handle POST form submission for service user settings"""
+@admin_user_bp.route('/<server_nickname>/<server_username>/quick_edit', methods=['POST'])
+@login_required  
+@permission_required('edit_user')
+def quick_edit_service_user(server_nickname, server_username):
+    """Dedicated route for Quick Edit modal submissions"""
+    from flask import redirect, url_for
+    from app.models_media_services import MediaServer
+    import urllib.parse
+    
+    # URL decode the parameters to handle special characters
+    try:
+        server_nickname = urllib.parse.unquote(server_nickname)
+        server_username = urllib.parse.unquote(server_username)
+    except Exception as e:
+        current_app.logger.warning(f"Error decoding URL parameters: {e}")
+        from flask import jsonify
+        return jsonify({'success': False, 'message': 'Invalid URL parameters'}), 400
+    
+    # Find the server and service user
+    server = MediaServer.query.filter_by(server_nickname=server_nickname).first_or_404()
+    access = User.query.filter_by(userType=UserType.SERVICE).filter_by(
+        server_id=server.id,
+        external_username=server_username
+    ).first_or_404()
+    
+    return handle_quick_edit_form_submission(access, server_nickname, server_username)
+
+
+def handle_settings_tab_form_submission(access, server_nickname, server_username):
+    """Handle POST form submission from the settings tab (full page)"""
+    from flask import flash, redirect, url_for
+    from app.forms import UserEditForm
+    
+    form = UserEditForm(request.form)
+    
+    # Set up the library choices for validation
+    available_libraries = {}
+    try:
+        from app.models_media_services import MediaLibrary
+        db_libraries = MediaLibrary.query.filter_by(server_id=access.server.id).all()
+        
+        for lib in db_libraries:
+            lib_id = lib.external_id
+            lib_name = lib.name
+            if lib_id:
+                if access.server.service_type.value == 'kavita':
+                    compound_lib_id = f"{lib_id}_{lib_name}"
+                    available_libraries[compound_lib_id] = lib_name
+                else:
+                    available_libraries[str(lib_id)] = lib_name
+        
+        form.libraries.choices = [(lib_id, name) for lib_id, name in available_libraries.items()]
+    except Exception as e:
+        current_app.logger.error(f"Error setting up library choices for form validation: {e}")
+        form.libraries.choices = []
+    
+    if form.validate_on_submit():
+        try:
+            # Update service user fields
+            if hasattr(form, 'notes') and form.notes.data is not None:
+                access.notes = form.notes.data.strip() if form.notes.data else None
+            
+            # Handle expiration date
+            if hasattr(form, 'clear_access_expiration') and form.clear_access_expiration.data:
+                access.access_expires_at = None
+            elif hasattr(form, 'access_expires_at') and form.access_expires_at.data:
+                from datetime import datetime, time
+                expiration_date = form.access_expires_at.data
+                access.access_expires_at = datetime.combine(expiration_date, time.max)
+            
+            # Update library access and sync to server
+            if hasattr(form, 'libraries') and form.libraries.data:
+                current_libs = set(access.allowed_library_ids or [])
+                new_libs = set(form.libraries.data)
+                
+                if current_libs != new_libs:
+                    access.allowed_library_ids = form.libraries.data
+                    
+                    # Sync to the actual server
+                    try:
+                        from app.services.media_service_factory import MediaServiceFactory
+                        service = MediaServiceFactory.create_service_from_db(access.server)
+                        if service and hasattr(service, 'update_user_access') and access.external_user_id:
+                            service.update_user_access(access.external_user_id, form.libraries.data)
+                            current_app.logger.info(f"Successfully synced library changes to {access.server.service_type.value} server for user {access.external_username}")
+                        else:
+                            current_app.logger.warning(f"Cannot sync library changes to server - service not available or user has no external_user_id")
+                    except Exception as e:
+                        current_app.logger.error(f"Failed to sync library changes to server: {e}")
+            
+            # Update download and transcode permissions
+            if hasattr(form, 'allow_downloads'):
+                access.allow_downloads = form.allow_downloads.data
+            if hasattr(form, 'allow_4k_transcode'):
+                access.allow_4k_transcode = form.allow_4k_transcode.data
+            
+            db.session.commit()
+            flash('User settings updated successfully!', 'success')
+            
+            # Redirect back to the settings tab
+            return redirect(url_for('admin_user.view_service_user', 
+                                  server_nickname=server_nickname, 
+                                  server_username=server_username,
+                                  tab='settings'))
+                
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.error(f"Error updating service user {server_username}: {e}")
+            flash('Error updating user settings. Please try again.', 'error')
+            return redirect(url_for('admin_user.view_service_user', 
+                                  server_nickname=server_nickname, 
+                                  server_username=server_username,
+                                  tab='settings'))
+    else:
+        # Form validation failed
+        current_app.logger.warning(f"Form validation failed for service user {server_username}: {form.errors}")
+        flash('Please correct the errors in the form.', 'error')
+    
+    # Redirect back to the settings tab
+    return redirect(url_for('admin_user.view_service_user', 
+                          server_nickname=server_nickname, 
+                          server_username=server_username,
+                          tab='settings'))
+
+
+def handle_quick_edit_form_submission(access, server_nickname, server_username):
+    """Handle POST form submission from Quick Edit modal"""
     from flask import flash, redirect, url_for, jsonify
     from app.forms import UserEditForm
     

@@ -287,8 +287,9 @@ class KavitaMediaService(BaseMediaService):
                 if 'libraries' in user and isinstance(user['libraries'], list):
                     for lib in user['libraries']:
                         if isinstance(lib, dict) and 'id' in lib:
-                            # For Kavita, create unique IDs by combining ID and name since IDs can be duplicated
-                            lib_id = f"{lib['id']}_{lib.get('name', 'Unknown')}"
+                            # We need to map Kavita's library ID to our internal_id
+                            # For now, store the external_id - this will be converted during user sync
+                            lib_id = str(lib['id'])
                             lib_name = lib.get('name', f"Library {lib['id']}")
                             library_ids.append(lib_id)
                             library_names.append(lib_name)
@@ -345,16 +346,24 @@ class KavitaMediaService(BaseMediaService):
             self.log_info(f"Sending invite to {user_email} on Kavita")
 
             # Convert library IDs to integers for Kavita API
+            # Import the conversion function to maintain DRY principles
+            from app.utils.user_library_helpers import convert_internal_ids_to_external_for_kavita
+            from app.models_media_services import MediaServer
+            
+            # Get the server object for conversion
+            server = MediaServer.query.filter_by(url=self.url, api_key=self.api_key).first()
+            if server:
+                # Convert UUIDs to external IDs if this is a Kavita server
+                external_library_ids = convert_internal_ids_to_external_for_kavita(server, library_ids)
+            else:
+                # Fallback: treat as external IDs already
+                external_library_ids = library_ids
+            
             kavita_library_ids = []
-            if library_ids:
-                for lib_id in library_ids:
+            if external_library_ids:
+                for lib_id in external_library_ids:
                     try:
-                        # Handle compound library IDs (e.g., "2_Books" -> 2)
-                        if '_' in str(lib_id):
-                            numeric_id = str(lib_id).split('_')[0]
-                            kavita_library_ids.append(int(numeric_id))
-                        else:
-                            kavita_library_ids.append(int(lib_id))
+                        kavita_library_ids.append(int(lib_id))
                     except (ValueError, TypeError):
                         self.log_warning(f"Invalid library ID for Kavita: {lib_id}")
 
@@ -459,21 +468,27 @@ class KavitaMediaService(BaseMediaService):
                     self.log_error(f"User with ID {user_id} not found")
                     return False
                 
-                # Extract library IDs from compound format (e.g., "2_Books" -> 2)
+                # Convert UUIDs to external IDs using DRY function
+                from app.utils.user_library_helpers import convert_internal_ids_to_external_for_kavita
+                from app.models_media_services import MediaServer
+                
+                # Get the server object for conversion
+                server = MediaServer.query.filter_by(url=self.url, api_key=self.api_key).first()
+                if server:
+                    # Convert UUIDs to external IDs if this is a Kavita server
+                    external_library_ids = convert_internal_ids_to_external_for_kavita(server, library_ids)
+                    self.log_info(f"Converted library IDs for update: {library_ids} -> {external_library_ids}")
+                else:
+                    # Fallback: treat as external IDs already
+                    external_library_ids = library_ids
+                    self.log_warning("Could not find server object for library ID conversion")
+                
                 numeric_library_ids = []
-                for lib_id in library_ids:
-                    if '_' in str(lib_id):
-                        # Extract numeric ID from compound format
-                        numeric_id = str(lib_id).split('_')[0]
-                        try:
-                            numeric_library_ids.append(int(numeric_id))
-                        except ValueError:
-                            self.log_warning(f"Could not extract numeric ID from: {lib_id}")
-                    else:
-                        try:
-                            numeric_library_ids.append(int(lib_id))
-                        except ValueError:
-                            self.log_warning(f"Invalid library ID format: {lib_id}")
+                for lib_id in external_library_ids:
+                    try:
+                        numeric_library_ids.append(int(lib_id))
+                    except ValueError:
+                        self.log_warning(f"Invalid library ID format: {lib_id}")
                 
                 # Prepare the update payload
                 update_data = {

@@ -60,53 +60,15 @@ def list_invites():
     # Fetch all active servers
     all_servers = media_service_manager.get_all_servers(active_only=True)
 
-    # For now, populate libraries from the first available server for the form
-    # Don't pre-load libraries - they will be loaded dynamically based on server selection
+    # Build comprehensive library data for invite cards display using utility functions
+    from app.utils.user_library_helpers import get_multi_server_library_choices
+    
     available_libraries = {}
     form.libraries.choices = []
     
-    # Build comprehensive library data for invite cards display
-    # This will help map library IDs to names and service types in the template
-    libraries_by_server = {}
-    all_libraries_lookup = {}
-    
-    for server in all_servers:
-        try:
-            from app.models_media_services import MediaLibrary
-            # Load libraries from database for each server
-            db_libraries = MediaLibrary.query.filter_by(server_id=server.id).all()
-            server_libraries = {}
-            
-            for lib in db_libraries:
-                lib_data = {
-                    'id': lib.id,
-                    'external_id': lib.external_id,
-                    'name': lib.name,
-                    'server_id': server.id,
-                    'server_name': server.server_nickname,
-                    'service_type': server.service_type.value
-                }
-                server_libraries[lib.external_id] = lib_data
-                
-                # Store in global lookup - use prefixed format for Kavita to match invite creation
-                if server.service_type.name.upper() == 'KAVITA':
-                    prefixed_id = f"[{server.service_type.name.upper()}]-{server.server_nickname}-{lib.external_id}"
-                    all_libraries_lookup[prefixed_id] = lib_data
-                else:
-                    # For other services (including AudioBookshelf), use raw external_id
-                    all_libraries_lookup[lib.external_id] = lib_data
-                    
-                    # For AudioBookshelf, also add a prefixed version for backward compatibility
-                    if server.service_type.name.upper() == 'AUDIOBOOKSHELF':
-                        prefixed_id = f"[{server.service_type.name.upper()}]-{server.server_nickname}-{lib.external_id}"
-                        all_libraries_lookup[prefixed_id] = lib_data
-            
-            libraries_by_server[server.id] = server_libraries
-            current_app.logger.debug(f"Loaded {len(server_libraries)} libraries for server {server.server_nickname}")
-            
-        except Exception as e:
-            current_app.logger.error(f"Failed to load libraries for server {server.server_nickname}: {e}")
-            libraries_by_server[server.id] = {}
+    # Build library lookup for templates using utility function
+    from app.utils.user_library_helpers import build_libraries_lookup_for_templates
+    libraries_by_server, all_libraries_lookup = build_libraries_lookup_for_templates(all_servers)
     
     # Discord settings
     discord_oauth_enabled = Setting.get_bool('DISCORD_OAUTH_ENABLED', False)
@@ -171,35 +133,28 @@ def create_invite():
     selected_server_ids_str = request.form.get('server_ids', '')
     selected_server_ids = [id.strip() for id in selected_server_ids_str.split(',') if id.strip()]
     
-    # For the form, we'll use libraries from the database for fast loading
-    # The frontend will handle per-server library selection via AJAX
+    # Set up library choices using utility functions
+    from app.utils.user_library_helpers import setup_form_library_choices, get_server_library_choices
     available_libraries = {}
+    
     if selected_server_ids:
         first_server = media_service_manager.get_server_by_id(selected_server_ids[0])
         if first_server:
             try:
-                from app.models_media_services import MediaLibrary
-                # Load libraries from database (much faster than API calls)
-                db_libraries = MediaLibrary.query.filter_by(server_id=first_server.id).all()
-                available_libraries = {lib.external_id: lib.name for lib in db_libraries}
+                # Use utility function to get library choices
+                choices = get_server_library_choices(first_server.id, first_server.service_type.value)
+                available_libraries = {choice[0]: choice[1] for choice in choices}
                 current_app.logger.info(f"Loaded {len(available_libraries)} libraries from database for server {first_server.server_nickname}")
+                current_app.logger.info(f"Library choices for {first_server.service_type.value} server: {choices}")
             except Exception as e:
                 current_app.logger.error(f"Failed to fetch libraries from database for server {first_server.server_nickname}: {e}")
                 available_libraries = {}
     
-    # Set initial form choices, but handle Kavita prefixing early for validation
+    # Set initial form choices using utility functions
     if len(selected_server_ids) == 1:
         first_server = media_service_manager.get_server_by_id(selected_server_ids[0])
-        if first_server and first_server.service_type.name.upper() == 'KAVITA':
-            # For Kavita, always use prefixed format to avoid ID conflicts
-            unique_choices = []
-            for lib_id, lib_name in available_libraries.items():
-                unique_lib_id = f"[KAVITA]-{first_server.server_nickname}-{lib_id}"
-                unique_choices.append((unique_lib_id, lib_name))
-            form.libraries.choices = unique_choices
-        else:
-            # For other services, use simple format
-            form.libraries.choices = [(lib_id, name) for lib_id, name in available_libraries.items()]
+        if first_server:
+            setup_form_library_choices(form, server_id=first_server.id)
     else:
         # Multi-server case - will be handled below
         form.libraries.choices = [(lib_id, name) for lib_id, name in available_libraries.items()]
@@ -220,63 +175,37 @@ def create_invite():
             # Single server - choices already set above before validation
             pass
         else:
-            # Multi-server - use conflict handling logic
-            all_valid_choices = []
-            servers_libraries = {}  # server_id -> {lib_id: lib_name}
-            
-            # First pass: collect all libraries from all servers (using database)
-            for server_id in selected_server_ids:
-                server = media_service_manager.get_server_by_id(server_id)
-                if server:
-                    try:
-                        from app.models_media_services import MediaLibrary
-                        # Load libraries from database (much faster than API calls)
-                        db_libraries = MediaLibrary.query.filter_by(server_id=server.id).all()
-                        server_lib_dict = {lib.external_id: lib.name for lib in db_libraries}
-                        
-                        if not server_lib_dict:
-                            current_app.logger.warning(f"Server {server.server_nickname} has no libraries in database - may need sync")
-                            flash(f"Info: Server '{server.server_nickname}' has no libraries in database. Use the refresh button to sync from server.", "info")
-                        
-                        servers_libraries[server.id] = {
-                            'server': server,
-                            'libraries': server_lib_dict
-                        }
-                        current_app.logger.info(f"Loaded {len(server_lib_dict)} libraries from database for server {server.server_nickname}")
-                    except Exception as e:
-                        current_app.logger.error(f"Failed to fetch libraries from database for server {server.server_nickname}: {e}")
-                        flash(f"Error: Could not load libraries for server '{server.server_nickname}' from database.", "error")
-                        # Still add the server with empty libraries to avoid undefined errors
-                        servers_libraries[server.id] = {
-                            'server': server,
-                            'libraries': {}
-                        }
-            
-            # Second pass: detect conflicts and build choices
-            for server_id, server_data in servers_libraries.items():
-                server = server_data['server']
-                server_lib_dict = server_data['libraries']
+            # Multi-server - build simple UUID-based choices (no prefixes needed)
+            try:
+                # Since all services now use globally unique library identifiers, we don't need prefixes
+                from app.utils.user_library_helpers import get_server_library_choices
+                all_choices = []
+                for server_id in selected_server_ids:
+                    server = media_service_manager.get_server_by_id(server_id)
+                    if server:
+                        server_choices = get_server_library_choices(server_id, server.service_type.value)
+                        all_choices.extend(server_choices)
                 
-                for lib_id, lib_name in server_lib_dict.items():
-                    # Check if this lib_id exists in other servers
-                    conflicts_with_other_servers = any(
-                        lib_id in other_data['libraries'] 
-                        for other_server_id, other_data in servers_libraries.items() 
-                        if other_server_id != server_id
-                    )
+                form.libraries.choices = all_choices
+                
+                # Validate servers have libraries
+                servers_with_no_libs = []
+                for server_id in selected_server_ids:
+                    server = media_service_manager.get_server_by_id(server_id)
+                    if server:
+                        from app.models_media_services import MediaLibrary
+                        lib_count = MediaLibrary.query.filter_by(server_id=server.id).count()
+                        if lib_count == 0:
+                            servers_with_no_libs.append(server.server_nickname)
+                
+                # Show info messages for servers without libraries
+                for server_name in servers_with_no_libs:
+                    flash(f"Info: Server '{server_name}' has no libraries in database. Use the refresh button to sync from server.", "info")
                     
-                    service_type = server.service_type.name.upper()
-                    
-                    if conflicts_with_other_servers or service_type == 'KAVITA':
-                        # Use prefixed format for Kavita (always) or when there are ID conflicts
-                        unique_lib_id = f"[{service_type}]-{server.server_nickname}-{lib_id}"
-                        all_valid_choices.append((unique_lib_id, f"[{server.server_nickname}] {lib_name}"))
-                    else:
-                        # Use raw UUID for non-conflicting UUID-based services
-                        all_valid_choices.append((lib_id, f"[{server.server_nickname}] {lib_name}"))
-            
-            # Update form choices for multi-server
-            form.libraries.choices = all_valid_choices
+            except Exception as e:
+                current_app.logger.error(f"Failed to set up multi-server library choices: {e}")
+                flash("Error: Could not load libraries from database.", "error")
+                form.libraries.choices = []
             
             # The frontend now submits libraries in unique format, so we can use them directly
             if submitted_libraries:
@@ -284,7 +213,7 @@ def create_invite():
                 unique_submitted = list(dict.fromkeys(submitted_libraries))  # Preserves order, removes duplicates
                 
                 # Validate that submitted libraries exist in our available choices
-                valid_choices = [choice[0] for choice in all_valid_choices]
+                valid_choices = [choice[0] for choice in form.libraries.choices]
                 validated_libraries = []
                 
                 for submitted_lib_id in unique_submitted:
@@ -294,92 +223,67 @@ def create_invite():
                         continue
                     
                     if submitted_lib_id in valid_choices:
+                        # Direct match - library ID is valid
                         validated_libraries.append(submitted_lib_id)
                     else:
-                        # Check if this is a prefixed library ID format (used for Kavita)
-                        # Format: [SERVICE_TYPE]-ServerName-LibraryID
-                        if submitted_lib_id.startswith('[') and ']-' in submitted_lib_id and submitted_lib_id.count('-') >= 2:
-                            # Extract the actual library ID from the prefixed format
-                            try:
-                                # Split: [SERVICE_TYPE]-ServerName-LibraryID
-                                service_part, remainder = submitted_lib_id.split(']-', 1)
-                                service_type = service_part[1:]  # Remove the opening [
-                                server_name, library_id = remainder.split('-', 1)
+                        # Double-check against database (all services now use globally unique library identifiers)
+                        from app.models_media_services import MediaLibrary
+                        
+                        library_found = False
+                        for server_id in selected_server_ids:
+                            server = media_service_manager.get_server_by_id(server_id)
+                            if not server:
+                                continue
                                 
-                                # Check if this server is in our selected servers
-                                matching_server = None
-                                for server_id in selected_server_ids:
-                                    server = media_service_manager.get_server_by_id(server_id)
-                                    if server and server.server_nickname == server_name:
-                                        matching_server = server
-                                        break
-                                
-                                if matching_server:
-                                    # Server exists - store the actual library ID without prefix
-                                    validated_libraries.append(library_id)
-                                    current_app.logger.info(f"Extracted library ID from prefixed format: {submitted_lib_id} -> {library_id}")
-                                else:
-                                    current_app.logger.warning(f"Invalid library ID submitted (server not found): {submitted_lib_id}")
-                            except Exception as e:
-                                current_app.logger.warning(f"Error parsing prefixed library ID {submitted_lib_id}: {e}")
-                        else:
-                            # Raw UUID format (used for UUID-based services like Plex, Jellyfin, etc.)
-                            # Validate against database instead of live API to avoid server connectivity issues
-                            from app.models_media_services import MediaLibrary
-                            
-                            library_found = False
-                            for server_id in selected_server_ids:
-                                # Check if library exists in database for this server
+                            # Check if library exists in database for this server
+                            if server.service_type.value == 'kavita':
+                                # Use internal_id for Kavita
+                                db_library = MediaLibrary.query.filter_by(
+                                    server_id=server_id
+                                ).filter(
+                                    MediaLibrary.internal_id == submitted_lib_id
+                                ).first()
+                            else:
+                                # Use external_id for other services
                                 db_library = MediaLibrary.query.filter_by(
                                     server_id=server_id,
                                     external_id=submitted_lib_id
                                 ).first()
-                                
-                                if db_library:
-                                    validated_libraries.append(submitted_lib_id)
-                                    current_app.logger.info(f"Validated raw library ID: {submitted_lib_id} from server {db_library.server.server_nickname} (database)")
-                                    library_found = True
-                                    break
                             
-                            if not library_found:
-                                current_app.logger.warning(f"Invalid library ID submitted (not found in database for selected servers): {submitted_lib_id}")
+                            if db_library:
+                                # Use unique library identifier since all services now have globally unique IDs
+                                validated_libraries.append(submitted_lib_id)
+                                current_app.logger.info(f"Validated library ID: {submitted_lib_id} from server {server.server_nickname}")
+                                library_found = True
+                                break
+                        
+                        if not library_found:
+                            current_app.logger.warning(f"Invalid library ID submitted (not found in database for selected servers): {submitted_lib_id}")
                 
                 form.libraries.data = validated_libraries
         
         # Set the form data for single server case
         if len(selected_server_ids) == 1 and submitted_libraries:
             form.libraries.data = submitted_libraries
+            current_app.logger.info(f"Single server invite - Submitted libraries: {submitted_libraries}")
+            current_app.logger.info(f"Single server invite - Form choices: {form.libraries.choices}")
 
     toast_message_text = ""
     toast_category = "info"
 
-    # Set up library choices BEFORE form validation for multi-server invites
+    # Set up library choices BEFORE form validation using simple UUID approach
     if selected_server_ids and len(selected_server_ids) > 1:
-        # Multi-server invite - need to set up unique library choices
-        from app.models_media_services import MediaLibrary
-        all_valid_choices = []
-        
+        # Multi-server invite - combine all libraries (library identifiers are globally unique)
+        from app.utils.user_library_helpers import get_server_library_choices
+        all_choices = []
         for server_id in selected_server_ids:
-            server = MediaServer.query.get(server_id)
-            if not server:
-                continue
-                
-            # Get libraries for this server from database
-            db_libraries = MediaLibrary.query.filter_by(server_id=server.id).all()
-            for lib in db_libraries:
-                if server.service_type.name.upper() == 'KAVITA':
-                    # Use prefixed format for Kavita to avoid ID conflicts
-                    unique_lib_id = f"[{server.service_type.name.upper()}]-{server.server_nickname}-{lib.external_id}"
-                    all_valid_choices.append((unique_lib_id, f"[{server.server_nickname}] {lib.name}"))
-                else:
-                    # Use raw UUID for non-conflicting UUID-based services
-                    all_valid_choices.append((lib.external_id, f"[{server.server_nickname}] {lib.name}"))
-        
-        # Update form choices for multi-server
-        form.libraries.choices = all_valid_choices
+            server = media_service_manager.get_server_by_id(server_id)
+            if server:
+                server_choices = get_server_library_choices(server_id, server.service_type.value)
+                all_choices.extend(server_choices)
+        form.libraries.choices = all_choices
     elif selected_server_ids and len(selected_server_ids) == 1:
-        # Single server - use appropriate library choices (already set above, don't override)
-        # The choices were already set correctly earlier with Kavita prefixing if needed
+        # Single server - choices already set correctly earlier
         pass
     else:
         # No servers selected - empty choices
@@ -475,6 +379,13 @@ def create_invite():
                 return response
             flash(toast_message_text, toast_category); return redirect(url_for('invites_admin.list_invites'))
     else: 
+        # Log form validation errors for debugging
+        if form.errors:
+            current_app.logger.warning(f"Invite form validation failed. Errors: {form.errors}")
+            if 'libraries' in form.errors:
+                current_app.logger.warning(f"Libraries field error. Submitted data: {form.libraries.data}")
+                current_app.logger.warning(f"Available choices: {form.libraries.choices}")
+        
         if request.headers.get('HX-Request'):
             grouped_servers = {}
             for server in all_servers:
@@ -511,31 +422,9 @@ def toggle_invite_status(invite_id):
         media_service_manager = MediaServiceManager()
         all_servers = media_service_manager.get_all_servers(active_only=True)
         
-        # Build library lookup for template
-        all_libraries_lookup = {}
-        for server in all_servers:
-            try:
-                from app.models_media_services import MediaLibrary
-                db_libraries = MediaLibrary.query.filter_by(server_id=server.id).all()
-                for lib in db_libraries:
-                    lib_data = {
-                        'id': lib.id,
-                        'external_id': lib.external_id,
-                        'name': lib.name,
-                        'server_id': server.id,
-                        'server_name': server.server_nickname,
-                        'service_type': server.service_type.value
-                    }
-                    if server.service_type.name.upper() == 'KAVITA':
-                        prefixed_id = f"[{server.service_type.name.upper()}]-{server.server_nickname}-{lib.external_id}"
-                        all_libraries_lookup[prefixed_id] = lib_data
-                    else:
-                        all_libraries_lookup[lib.external_id] = lib_data
-                        if server.service_type.name.upper() == 'AUDIOBOOKSHELF':
-                            prefixed_id = f"[{server.service_type.name.upper()}]-{server.server_nickname}-{lib.external_id}"
-                            all_libraries_lookup[prefixed_id] = lib_data
-            except Exception as e:
-                current_app.logger.error(f"Failed to load libraries for server {server.server_nickname}: {e}")
+        # Build library lookup for template using utility function
+        from app.utils.user_library_helpers import build_libraries_lookup_for_templates
+        _, all_libraries_lookup = build_libraries_lookup_for_templates(all_servers)
         
         # Return just the toggle buttons for HTMX replacement
         response = make_response(render_template('invites/_partials/status_badge.html', invite=invite))

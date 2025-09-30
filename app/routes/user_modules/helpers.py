@@ -510,7 +510,10 @@ def check_if_user_is_admin(user):
 
 
 def get_libraries_from_database(servers):
-    """Get library data from database - NO API CALLS"""
+    """
+    Get library data from database - NO API CALLS
+    Returns: {server_id: {lib_id: lib_name}} where lib_id is internal_id for Kavita, external_id for others
+    """
     from app.models_media_services import MediaLibrary
     
     libraries_by_server = {}
@@ -521,11 +524,24 @@ def get_libraries_from_database(servers):
         server_lib_dict = {}
         
         for lib in db_libraries:
-            # Use external_id as the key (this matches what the API would return)
-            lib_id = lib.external_id
-            lib_name = lib.name
-            if lib_id:
-                server_lib_dict[str(lib_id)] = lib_name
+            if server.service_type.value == 'kavita':
+                # For Kavita, we should use internal_id as the primary key
+                # but we need to migrate users who have external_id stored
+                internal_id = getattr(lib, 'internal_id', None)
+                
+                if internal_id:
+                    server_lib_dict[str(internal_id)] = lib.name
+                    current_app.logger.debug(f"KAVITA DEBUG: Using internal_id '{internal_id}' -> '{lib.name}'")
+                else:
+                    # Fallback to external_id if internal_id is missing
+                    server_lib_dict[str(lib.external_id)] = lib.name
+                    current_app.logger.error(f"KAVITA DEBUG: Library '{lib.name}' has NO internal_id! external_id: '{lib.external_id}'")
+            else:
+                # Use external_id for other services
+                lib_key = lib.external_id
+                lib_name = lib.name
+                if lib_key:
+                    server_lib_dict[str(lib_key)] = lib_name
         
         libraries_by_server[server.id] = server_lib_dict
     

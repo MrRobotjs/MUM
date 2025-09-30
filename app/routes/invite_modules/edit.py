@@ -55,57 +55,59 @@ def get_edit_invite_form(invite_id):
             grouped_servers[service_type_name] = []
         grouped_servers[service_type_name].append(server)
 
-    # Get libraries from all attached servers
+    # Get libraries from all attached servers using utility functions
+    from app.utils.user_library_helpers import get_multi_server_library_choices
+    from app.models_media_services import MediaLibrary
+    
     available_libraries = {}
     servers_with_libraries = {}
     invite_servers = invite.servers if invite.servers else []
     
-    # Collect libraries from all servers (using database for fast loading)
-    for server in invite_servers:
-        try:
-            from app.models_media_services import MediaLibrary
-            # Load libraries from database (much faster than API calls)
-            db_libraries = MediaLibrary.query.filter_by(server_id=server.id).all()
-            server_lib_dict = {lib.external_id: lib.name for lib in db_libraries}
-            
-            if not server_lib_dict:
-                current_app.logger.warning(f"Server {server.server_nickname} has no libraries in database - may need sync")
-                flash(f"Info: Server '{server.server_nickname}' has no libraries in database. Use the refresh button to sync from server.", "info")
-            
-            servers_with_libraries[server.id] = {
-                'server': server,
-                'libraries': server_lib_dict
-            }
-            current_app.logger.info(f"Loaded {len(server_lib_dict)} libraries from database for server {server.server_nickname}")
-            
-            # Always use unique format for multi-server invites for consistency
-            for lib_id, lib_name in server_lib_dict.items():
-                service_type = server.service_type.name.upper()
-                if service_type == 'KAVITA':
-                    # Use prefixed format for Kavita (to avoid ID conflicts)
-                    unique_lib_id = f"[{service_type}]-{server.server_nickname}-{lib_id}"
-                    available_libraries[unique_lib_id] = f"[{server.server_nickname}] {lib_name}"
+    if invite_servers:
+        # Use utility function for multi-server library setup
+        server_ids = [server.id for server in invite_servers]
+        form.libraries.choices = get_multi_server_library_choices(server_ids, include_server_prefix=True)
+        
+        # Build available_libraries dict for legacy template compatibility
+        for lib_id, lib_name in form.libraries.choices:
+            available_libraries[lib_id] = lib_name
+        
+        # Build servers_with_libraries for template (simplified)
+        for server in invite_servers:
+            try:
+                db_libraries = MediaLibrary.query.filter_by(server_id=server.id).all()
+                # Use internal_id for Kavita, external_id for others
+                if server.service_type.value == 'kavita':
+                    server_lib_dict = {getattr(lib, 'internal_id', lib.external_id): lib.name for lib in db_libraries}
                 else:
-                    # For UUID-based services, we can use raw IDs but keep prefixed for edit form consistency
-                    unique_lib_id = f"[{service_type}]-{server.server_nickname}-{lib_id}"
-                    available_libraries[unique_lib_id] = f"[{server.server_nickname}] {lib_name}"
-        except Exception as e:
-            current_app.logger.error(f"Failed to fetch libraries from database for server {server.server_nickname}: {e}")
-            flash(f"Error: Could not load libraries for server '{server.server_nickname}' from database.", "error")
-            # Still add the server with empty libraries to avoid undefined errors
-            servers_with_libraries[server.id] = {
-                'server': server,
-                'libraries': {}
-            }
-    
-    form.libraries.choices = [(lib_id, name) for lib_id, name in available_libraries.items()]
+                    server_lib_dict = {lib.external_id: lib.name for lib in db_libraries}
+                
+                if not server_lib_dict:
+                    current_app.logger.warning(f"Server {server.server_nickname} has no libraries in database - may need sync")
+                    flash(f"Info: Server '{server.server_nickname}' has no libraries in database. Use the refresh button to sync from server.", "info")
+                
+                servers_with_libraries[server.id] = {
+                    'server': server,
+                    'libraries': server_lib_dict
+                }
+                current_app.logger.info(f"Loaded {len(server_lib_dict)} libraries from database for server {server.server_nickname}")
+                
+            except Exception as e:
+                current_app.logger.error(f"Failed to fetch libraries from database for server {server.server_nickname}: {e}")
+                flash(f"Error: Could not load libraries for server '{server.server_nickname}' from database.", "error")
+                servers_with_libraries[server.id] = {
+                    'server': server,
+                    'libraries': {}
+                }
+    else:
+        form.libraries.choices = []
 
     # If grant_library_ids is an empty list, it signifies access to ALL libraries.
     # In this case, we pre-select all the available library checkboxes in the form.
     if invite.grant_library_ids == []:
         form.libraries.data = list(available_libraries.keys())
     else:
-        # Handle legacy invites that may have raw UUIDs instead of prefixed IDs
+        # Handle legacy invites that may have unique library identifiers instead of prefixed IDs
         selected_libraries = []
         stored_library_ids = invite.grant_library_ids or []
         
@@ -114,23 +116,11 @@ def get_edit_invite_form(invite_id):
             if stored_id in available_libraries:
                 selected_libraries.append(stored_id)
             else:
-                # Legacy handling: stored_id might be a raw UUID, try to find matching prefixed version
-                for prefixed_id in available_libraries.keys():
-                    # Extract the actual library ID from prefixed format
-                    if ']-' in prefixed_id and prefixed_id.count('-') >= 2:
-                        try:
-                            service_part, remainder = prefixed_id.split(']-', 1)
-                            server_name, library_id = remainder.split('-', 1)
-                            if library_id == stored_id:
-                                selected_libraries.append(prefixed_id)
-                                current_app.logger.info(f"Mapped legacy library ID {stored_id} to prefixed format {prefixed_id}")
-                                break
-                        except Exception:
-                            continue
-                    elif prefixed_id == stored_id:
-                        # Direct match for non-prefixed IDs
-                        selected_libraries.append(prefixed_id)
-                        break
+                # Direct ID matching - no more complex prefixing needed
+                if stored_id in available_libraries:
+                    selected_libraries.append(stored_id)
+                else:
+                    current_app.logger.warning(f"Stored library ID not found in available libraries: {stored_id}")
         
         form.libraries.data = selected_libraries
 

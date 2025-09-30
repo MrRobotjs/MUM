@@ -497,16 +497,16 @@
                         let librariesHtml = '';
                         data.libraries.forEach(lib => {
                             // Only use prefixed format for Kavita (which doesn't have UUIDs)
-                            // For other services, use raw external_id to avoid unnecessary backend processing
+                            // For other services, use external_id (their unique library identifier)
                             const serviceType = data.service_type || 'UNKNOWN';
                             const serverName = data.server_name || 'Unknown Server';
                             
                             let libraryValue;
                             if (serviceType.toUpperCase() === 'KAVITA') {
-                                // Kavita needs prefixed format to avoid ID conflicts (uses integer IDs)
-                                libraryValue = `[${serviceType}]-${serverName}-${lib.external_id || lib.id}`;
+                                // Kavita uses internal_id (UUID format) for consistency with other services
+                                libraryValue = lib.internal_id || lib.external_id || lib.id;
                             } else {
-                                // UUID-based services can use raw external_id directly
+                                // Other services use external_id as their unique library identifier
                                 libraryValue = lib.external_id || lib.id;
                             }
                             

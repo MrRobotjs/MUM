@@ -485,28 +485,30 @@ def mass_update_user_libraries_by_server(user_ids: list, updates_by_server: dict
     processed_count = 0
     error_count = 0
     
-    # Convert UUIDs to actual user IDs for local users only
-    local_user_ids = []
+    # Convert UUIDs to get user objects and separate by type
+    local_users = []
+    service_users = []
     from app.utils.helpers import get_user_by_uuid
     
     for user_id in user_ids:
         try:
             user_obj, user_type = get_user_by_uuid(str(user_id))
             if user_obj and user_type == "user_app_access":
-                local_user_ids.append(user_obj.id)
-            # Note: mass library updates by server only apply to local users
+                local_users.append(user_obj)
+            elif user_obj and user_type == "user_media_access":
+                service_users.append(user_obj)
         except Exception as e:
             current_app.logger.error(f"Mass Update by Server Error: Invalid user UUID {user_id}: {e}")
             error_count += 1
     
-    users_to_update = User.query.filter_by(userType=UserType.LOCAL).filter(User.id.in_(local_user_ids)).all()
-    user_map = {user.id: user for user in users_to_update}
+    current_app.logger.info(f"Mass Update by Server: Processing {len(local_users)} local users and {len(service_users)} standalone service users")
+    current_app.logger.info(f"Mass Update by Server: updates_by_server = {updates_by_server}")
 
     for server_id, new_library_ids in updates_by_server.items():
         server = MediaServiceManager.get_server_by_id(server_id)
         if not server:
             current_app.logger.error(f"Mass Update: Could not find server with ID {server_id}. Skipping.")
-            error_count += len(user_ids) # Or be more specific if you can map users to this server
+            error_count += len(user_ids)
             continue
 
         service = MediaServiceFactory.create_service_from_db(server)
@@ -515,32 +517,113 @@ def mass_update_user_libraries_by_server(user_ids: list, updates_by_server: dict
             error_count += len(user_ids)
             continue
 
-        # Find which of the selected users have access to this server
-        access_records = User.query.filter_by(userType=UserType.SERVICE).filter(User.server_id == server_id, User.linkedUserId.in_(user_ids)).all()
-        
-        for access in access_records:
-            user = user_map.get(access.linkedUserId)
-            if not user:
-                continue
+        current_app.logger.info(f"Mass Update: Processing server {server.server_nickname} (ID: {server_id}) with {len(new_library_ids)} libraries")
 
-            try:
-                # This is a simplified update. The service method might need to be more generic.
-                if hasattr(service, 'update_user_access'):
-                    # Get the appropriate user ID from service user for this server
-                    access = user.get_server_access(server.id)
-                    service_user_id = access.external_user_id if access else None
-                    
-                    if service_user_id:
-                        service.update_user_access(service_user_id, new_library_ids)
+        # Handle linked service users (from local users)
+        if local_users:
+            local_user_uuids = [user.uuid for user in local_users]
+            linked_access_records = User.query.filter_by(userType=UserType.SERVICE).filter(
+                User.server_id == server_id, 
+                User.linkedUserId.in_(local_user_uuids)
+            ).all()
+            
+            for access in linked_access_records:
+                linked_user = next((u for u in local_users if u.uuid == access.linkedUserId), None)
+                if not linked_user:
+                    continue
+
+                try:
+                    # Handle Kavita library ID conversion if needed
+                    converted_library_ids = new_library_ids
+                    if server.service_type.value == 'kavita':
+                        current_app.logger.info(f"Mass Update: Converting Kavita library IDs for {access.external_username}")
+                        # For Kavita, need to convert UUIDs back to external_ids for API call
+                        from app.models_media_services import MediaLibrary
+                        external_library_ids = []
+                        for uuid_lib_id in new_library_ids:
+                            library = MediaLibrary.query.filter_by(
+                                server_id=server_id,
+                                internal_id=uuid_lib_id
+                            ).first()
+                            if library:
+                                external_library_ids.append(library.external_id)
+                                current_app.logger.info(f"Mass Update: Converted UUID {uuid_lib_id} to external_id {library.external_id}")
+                            else:
+                                current_app.logger.warning(f"Mass Update: Could not find library with UUID {uuid_lib_id}")
+                        
+                        # Use external IDs for the API call
+                        api_library_ids = external_library_ids
+                        # But still store UUIDs in the database
+                        converted_library_ids = new_library_ids
                     else:
-                        current_app.logger.warning(f"Cannot update user access - no external_user_id found for {user.get_display_name()} on {server.server_nickname}")
+                        # For non-Kavita services, use the IDs as-is
+                        api_library_ids = new_library_ids
+                        converted_library_ids = new_library_ids
+                    
+                    # Update the user on the actual media server via API
+                    if hasattr(service, 'update_user_access') and access.external_user_id:
+                        current_app.logger.info(f"Mass Update: Calling {server.service_type.value} API to update user {access.external_user_id} with libraries: {api_library_ids}")
+                        service.update_user_access(access.external_user_id, api_library_ids)
+                        current_app.logger.info(f"Mass Update: Successfully updated {access.external_username} on {server.server_nickname} via API")
+                    else:
+                        current_app.logger.warning(f"Mass Update: Cannot update {server.service_type.value} server - service doesn't support update_user_access or no external_user_id")
+                    
+                    # Update the service user record with converted IDs
+                    current_app.logger.info(f"Mass Update: Updating database record for {access.external_username} on {server.server_nickname} with libraries: {converted_library_ids}")
+                    access.allowed_library_ids = converted_library_ids
+                    linked_user.updated_at = datetime.utcnow()
+                    processed_count += 1
+                except Exception as e:
+                    current_app.logger.error(f"Mass Update Error for linked user {linked_user.get_display_name()} on server {server.server_nickname}: {e}")
+                    error_count += 1
+
+        # Handle standalone service users (no local user link)
+        standalone_access_records = [user for user in service_users if user.server_id == server_id]
+        
+        for access in standalone_access_records:
+            try:
+                # Handle Kavita library ID conversion if needed
+                converted_library_ids = new_library_ids
+                if server.service_type.value == 'kavita':
+                    current_app.logger.info(f"Mass Update: Converting Kavita library IDs for standalone user {access.external_username}")
+                    # For Kavita, need to convert UUIDs back to external_ids for API call
+                    from app.models_media_services import MediaLibrary
+                    external_library_ids = []
+                    for uuid_lib_id in new_library_ids:
+                        library = MediaLibrary.query.filter_by(
+                            server_id=server_id,
+                            internal_id=uuid_lib_id
+                        ).first()
+                        if library:
+                            external_library_ids.append(library.external_id)
+                            current_app.logger.info(f"Mass Update: Converted UUID {uuid_lib_id} to external_id {library.external_id}")
+                        else:
+                            current_app.logger.warning(f"Mass Update: Could not find library with UUID {uuid_lib_id}")
+                    
+                    # Use external IDs for the API call
+                    api_library_ids = external_library_ids
+                    # But still store UUIDs in the database
+                    converted_library_ids = new_library_ids
+                else:
+                    # For non-Kavita services, use the IDs as-is
+                    api_library_ids = new_library_ids
+                    converted_library_ids = new_library_ids
                 
-                # Update the service user record
-                access.allowed_library_ids = new_library_ids
-                user.updated_at = datetime.utcnow()
+                # Update the user on the actual media server via API
+                if hasattr(service, 'update_user_access') and access.external_user_id:
+                    current_app.logger.info(f"Mass Update: Calling {server.service_type.value} API to update user {access.external_user_id} with libraries: {api_library_ids}")
+                    service.update_user_access(access.external_user_id, api_library_ids)
+                    current_app.logger.info(f"Mass Update: Successfully updated {access.external_username} on {server.server_nickname} via API")
+                else:
+                    current_app.logger.warning(f"Mass Update: Cannot update {server.service_type.value} server - service doesn't support update_user_access or no external_user_id")
+                
+                # Update the standalone service user record in database
+                current_app.logger.info(f"Mass Update: Updating database record for standalone user {access.external_username} on {server.server_nickname} with libraries: {converted_library_ids}")
+                access.allowed_library_ids = converted_library_ids
+                access.updated_at = datetime.utcnow()
                 processed_count += 1
             except Exception as e:
-                current_app.logger.error(f"Mass Update Error for user {user.get_display_name()} on server {server.server_nickname}: {e}")
+                current_app.logger.error(f"Mass Update Error for standalone user {access.external_username} on server {server.server_nickname}: {e}")
                 error_count += 1
 
     if processed_count > 0 or error_count > 0:

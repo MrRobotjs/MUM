@@ -70,9 +70,27 @@ def process_invite_form(invite_path_or_token):
                 service = MediaServiceFactory.create_service_from_db(server)
                 if service:
                     libraries = service.get_libraries()
+                    # Build library lookup using the appropriate ID for each service type
+                    library_dict = {}
+                    for lib in libraries:
+                        if server.service_type.value == 'kavita':
+                            # For Kavita, use internal_id (UUID) to match stored invite data
+                            # Get internal_id from database since API doesn't provide it
+                            from app.models_media_services import MediaLibrary
+                            db_lib = MediaLibrary.query.filter_by(
+                                server_id=server.id,
+                                external_id=lib.get('external_id')
+                            ).first()
+                            if db_lib and db_lib.internal_id:
+                                library_dict[db_lib.internal_id] = lib['name']
+                        else:
+                            # For other services, use external_id (their unique identifier)
+                            if lib.get('external_id'):
+                                library_dict[lib.get('external_id')] = lib['name']
+                    
                     servers_with_libraries[server.id] = {
                         'server': server,
-                        'libraries': {lib.get('external_id'): lib['name'] for lib in libraries if lib.get('external_id')}
+                        'libraries': library_dict
                     }
             except Exception as e:
                 current_app.logger.error(f"Failed to fetch libraries for server {server.server_nickname}: {e}")

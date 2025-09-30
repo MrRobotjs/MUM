@@ -108,13 +108,17 @@ class MediaServiceManager:
                         current_app.logger.debug(f"No changes for library: {lib_data['name']}")
                 else:
                     # Add new library
+                    import uuid
+                    internal_id = str(uuid.uuid4())
                     lib = MediaLibrary(
                         server_id=server_id,
                         external_id=external_id,
                         name=lib_data['name'],
                         library_type=lib_data.get('type'),
-                        item_count=lib_data.get('item_count')
+                        item_count=lib_data.get('item_count'),
+                        internal_id=internal_id  # Explicitly set internal_id
                     )
+                    current_app.logger.info(f"KAVITA DEBUG: Creating library '{lib_data['name']}' with external_id '{external_id}' and internal_id '{internal_id}'")
                     db.session.add(lib)
                     added_count += 1
                     added_libraries.append({
@@ -199,8 +203,14 @@ class MediaServiceManager:
             added_details = []
             removed_details = []
 
-            # For enriching library change details
-            server_libraries = {lib.external_id: lib.name for lib in server.libraries}
+            # For enriching library change details - create lookup for both external_id and internal_id
+            server_libraries = {}
+            for lib in server.libraries:
+                # Map external_id to name (for non-Kavita services)
+                server_libraries[lib.external_id] = lib.name
+                # Also map internal_id to name (for Kavita services using UUIDs)
+                if hasattr(lib, 'internal_id') and lib.internal_id:
+                    server_libraries[lib.internal_id] = lib.name
             external_user_ids_from_service = {str(u.get('id')) for u in users_data if u.get('id')}
 
             for user_data in users_data:
@@ -242,7 +252,9 @@ class MediaServiceManager:
                             access.external_user_id = user_data.get('id')
                             access.external_username = user_data.get('username')
                             access.external_email = user_data.get('email')
-                            access.allowed_library_ids = user_data.get('library_ids', [])
+                            # Convert external_ids to internal_ids for Kavita users
+                            library_ids = user_data.get('library_ids', [])
+                            access.allowed_library_ids = MediaServiceManager._convert_library_ids_for_kavita(server, library_ids)
                             raw_data_to_store = user_data.get('raw_data') or {}
                             current_app.logger.info(f"AudioBookshelf sync - Updating user {user_data.get('username')} raw_data: {type(raw_data_to_store)} with {len(str(raw_data_to_store))} chars")
                             access.user_raw_data = raw_data_to_store
@@ -304,7 +316,7 @@ class MediaServiceManager:
                         external_user_alt_id=external_user_alt_id,  # For Plex: plex_uuid
                         external_username=user_data.get('username'),
                         external_email=user_data.get('email'),
-                        allowed_library_ids=user_data.get('library_ids', []),
+                        allowed_library_ids=MediaServiceManager._convert_library_ids_for_kavita(server, user_data.get('library_ids', [])),
                         user_raw_data=user_raw_data,  # Store raw data here instead of local user
                         is_active=True,
                         # Add the missing status fields
@@ -430,7 +442,9 @@ class MediaServiceManager:
                                 removed_names = [server_libraries.get(id, f"Unknown Library (ID: {id})") for id in removed_ids]
                             changes.append(f"Lost access to: {', '.join(removed_names)}")
 
-                        access.allowed_library_ids = user_data.get('library_ids', [])
+                        # Convert external_ids to internal_ids for Kavita users
+                        library_ids = user_data.get('library_ids', [])
+                        access.allowed_library_ids = MediaServiceManager._convert_library_ids_for_kavita(server, library_ids)
                     
                     # Check for changes in status fields (is_home_user, shares_back)
                     if access.is_home_user != user_data.get('is_home_user', False):
@@ -689,3 +703,46 @@ class MediaServiceManager:
         db.session.commit()
         
         return server
+    
+    @staticmethod
+    def _convert_library_ids_for_kavita(server, library_ids):
+        """Convert Kavita external_ids to internal_ids for proper storage"""
+        if server.service_type.value != 'kavita':
+            return library_ids
+        
+        from app.models_media_services import MediaLibrary
+        all_server_libraries = MediaLibrary.query.filter_by(server_id=server.id).all()
+        
+        converted_ids = []
+        has_all_libraries_permission = False
+        
+        for lib_id in library_ids:
+            # Special handling for Kavita's "all libraries" permission
+            if str(lib_id) == '0':
+                if not has_all_libraries_permission:  # Only process '0' once
+                    has_all_libraries_permission = True
+                    # '0' means all libraries, convert to all available internal_ids
+                    if all_server_libraries:
+                        for lib in all_server_libraries:
+                            if hasattr(lib, 'internal_id') and lib.internal_id:
+                                if lib.internal_id not in converted_ids:  # Avoid duplicates
+                                    converted_ids.append(lib.internal_id)
+                    else:
+                        current_app.logger.warning(f"Kavita server {server.server_nickname}: No libraries found to grant access to")
+                continue  # Skip further processing of '0'
+            
+            # Handle specific library IDs
+            library = MediaLibrary.query.filter_by(
+                server_id=server.id,
+                external_id=str(lib_id)
+            ).first()
+            
+            if library and hasattr(library, 'internal_id') and library.internal_id:
+                if library.internal_id not in converted_ids:  # Avoid duplicates
+                    converted_ids.append(library.internal_id)
+            else:
+                current_app.logger.warning(f"Kavita library conversion: Could not find library with external_id '{lib_id}' on server {server.server_nickname}")
+                if str(lib_id) not in converted_ids:  # Avoid duplicates
+                    converted_ids.append(str(lib_id))  # Fallback to original
+        
+        return converted_ids

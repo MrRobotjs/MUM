@@ -721,8 +721,9 @@ def enable_server(plugin_id, server_id):
 @setup_required
 @permission_required('manage_plugins')
 def delete_server(plugin_id, server_id):
-    """Delete a specific server"""
-    from app.models_media_services import MediaServer, ServiceType
+    """Delete a specific server and all associated data"""
+    from app.models_media_services import MediaServer, ServiceType, MediaStreamHistory
+    from app.models import User
     
     # Verify plugin exists
     from app.models_plugins import Plugin
@@ -739,11 +740,36 @@ def delete_server(plugin_id, server_id):
     server_name = server.server_nickname  # Store name before deletion
     
     try:
+        current_app.logger.info(f"Starting deletion of server '{server_name}' (ID: {server_id})")
+        
+        # Count data to be deleted for logging
+        users_count = User.query.filter_by(server_id=server_id).count()
+        libraries_count = len(server.libraries)
+        stream_history_count = MediaStreamHistory.query.filter_by(server_id=server_id).count()
+        
+        current_app.logger.info(f"Deleting server data: {users_count} users, {libraries_count} libraries, {stream_history_count} stream history records")
+        
+        # Delete stream history records first
+        MediaStreamHistory.query.filter_by(server_id=server_id).delete()
+        current_app.logger.info(f"Deleted {stream_history_count} stream history records")
+        
+        # Delete users associated with this server
+        User.query.filter_by(server_id=server_id).delete()
+        current_app.logger.info(f"Deleted {users_count} users")
+        
+        # MediaLibrary and MediaItem records will be automatically deleted due to cascade="all, delete-orphan"
+        # Delete the server (this will cascade delete libraries and media items)
         db.session.delete(server)
+        current_app.logger.info(f"Deleted server '{server_name}' and {libraries_count} associated libraries")
+        
         db.session.commit()
         
-        flash(f'Server "{server_name}" deleted successfully!', 'success')
-        log_event(EventType.SETTING_CHANGE, f"Server '{server_name}' deleted", admin_id=current_user.id)
+        flash(f'Server "{server_name}" and all associated data deleted successfully!', 'success')
+        log_event(
+            EventType.SETTING_CHANGE, 
+            f"Server '{server_name}' deleted with {users_count} users, {libraries_count} libraries, and {stream_history_count} stream history records", 
+            admin_id=current_user.id
+        )
         
     except Exception as e:
         db.session.rollback()

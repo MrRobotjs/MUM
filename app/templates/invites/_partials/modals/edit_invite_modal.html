@@ -96,10 +96,8 @@
                                             </label>
                                             <div class="max-h-40 overflow-y-auto p-2 border border-base-300 rounded-md bg-base-100/30 grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
                                                 {% for lib_id, lib_name in server_libraries.items() %}
-                                                    {% set service_type = server.service_type.name.upper() %}
-                                                    {% set unique_lib_id = "[" + service_type + "]-" + server.server_nickname + "-" + lib_id %}
                                                     <label class="label cursor-pointer justify-start py-1">
-                                                        <input type="checkbox" name="{{ form.libraries.name }}" value="{{ unique_lib_id }}" class="checkbox checkbox-primary checkbox-sm mr-2 library-checkbox library-checkbox-{{ server.id }}" {% if form.libraries.data and unique_lib_id in form.libraries.data %}checked{% endif %}>
+                                                        <input type="checkbox" name="{{ form.libraries.name }}" value="{{ lib_id }}" class="checkbox checkbox-primary checkbox-sm mr-2 library-checkbox library-checkbox-{{ server.id }}" {% if form.libraries.data and lib_id in form.libraries.data %}checked{% endif %}>
                                                         <span class="label-text" title="{{ lib_name }}">{{ lib_name | truncate(30, True) }}</span>
                                                     </label>
                                                 {% endfor %}
@@ -403,11 +401,11 @@
                     data.libraries.forEach(lib => {
                         let libraryValue;
                         if (serviceType === 'KAVITA') {
-                            // Kavita needs prefixed format to avoid ID conflicts
-                            libraryValue = `[${serviceType}]-${serverName}-${lib.external_id || lib.id}`;
+                            // Kavita uses internal_id directly - no prefixing needed
+                            libraryValue = lib.internal_id || lib.external_id || lib.id;
                         } else {
-                            // Keep prefixed format for edit form consistency
-                            libraryValue = `[${serviceType}]-${serverName}-${lib.external_id || lib.id}`;
+                            // Other services use external_id
+                            libraryValue = lib.external_id || lib.id;
                         }
                         
                         const label = document.createElement('label');

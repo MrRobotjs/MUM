@@ -457,53 +457,54 @@ def create_app(config_name=None):
                 if request.endpoint != 'setup.account_setup':
                      pass # Avoid redirect loop if account_setup itself errors
         
-        # --- Plugin validation logic (runs regardless of setup status) ---
+        # --- Plugin validation logic (only runs after setup is complete) ---
         # This ensures users can't access the app without at least one plugin enabled
-        try:
-            plugins_configured = False
+        # BUT only applies this restriction if setup is complete
+        if g.setup_complete:
             try:
-                from app.models_plugins import Plugin, PluginStatus
-                # Check plugin configuration status for access control
-                # Ensure any pending database changes are committed and refresh the session
-                db.session.commit()
-                db.session.close()  # Close current session to ensure fresh data
-                enabled_plugins = Plugin.query.filter(Plugin.status == PluginStatus.ENABLED).all()
-                plugins_configured = len(enabled_plugins) > 0
-                # Plugin status logging removed for cleaner logs
-            except Exception as e:
-                current_app.logger.error(f"Init.py - before_request_tasks(): Error checking plugins configuration: {e}")
                 plugins_configured = False
-            
-            if not plugins_configured:
-                # When no plugins are enabled, only allow access to plugin management endpoints
-                # and essential auth/static endpoints
-                allowed_endpoints = [
-                    'plugin_management.index', 'plugins.enable_plugin', 'plugins.disable_plugin',
-                    'plugins.reload_plugins', 'plugins.install_plugin', 'plugins.uninstall_plugin',
-                    'auth.app_login', 'auth.logout', 'static', 'api.health',
-                    # Plugin management endpoints for server configuration
-                    'plugin_management.configure', 'plugin_management.edit_server', 'plugin_management.add_server',
-                    'plugin_management.disable_server', 'plugin_management.enable_server', 'plugin_management.delete_server',
-                    'plugin_management.test_connection',
-                    # Media server setup endpoints
-                    'media_servers_setup.setup_list_servers', 'media_servers_setup.add_server_setup', 'media_servers_setup.setup_edit_server', 'media_servers_setup.test_connection_setup', 'media_servers_setup.delete_server_setup',
-                    # Setup endpoints - needed when no admin exists yet
-                    'setup.account_setup', 'setup.create_admin', 'setup.app_config', 'setup.servers', 'setup.add_server', 'setup.edit_server', 'setup.plugins'
-                ]
+                try:
+                    from app.models_plugins import Plugin, PluginStatus
+                    # Check plugin configuration status for access control
+                    # Ensure any pending database changes are committed and refresh the session
+                    db.session.commit()
+                    db.session.close()  # Close current session to ensure fresh data
+                    enabled_plugins = Plugin.query.filter(Plugin.status == PluginStatus.ENABLED).all()
+                    plugins_configured = len(enabled_plugins) > 0
+                    # Plugin status logging removed for cleaner logs
+                except Exception as e:
+                    current_app.logger.error(f"Init.py - before_request_tasks(): Error checking plugins configuration: {e}")
+                    plugins_configured = False
                 
-                # Block ALL routes except the explicitly allowed ones when no plugins are configured
-                # This prevents bypassing the lockdown via any route (users, invites, dashboard, etc.)
-                should_redirect = (not request.endpoint or request.endpoint not in allowed_endpoints)
-                
-                # Plugin redirect logging removed for cleaner logs
-                
-                if should_redirect:
-                    # Prevent redirect loop - don't redirect if we're already on the plugin management page
-                    if request.endpoint != 'plugin_management.index':
-                        current_app.logger.info(f"Init.py - before_request_tasks(): No plugins enabled, blocking access to '{request.endpoint}', redirecting to plugins settings.")
-                        return redirect(url_for('plugin_management.index'))
-        except Exception as e_plugin_check:
-            current_app.logger.error(f"Init.py - before_request_tasks(): DB error during plugin validation: {e_plugin_check}", exc_info=True)
+                if not plugins_configured:
+                    # When no plugins are enabled and setup is complete, only allow access to plugin management endpoints
+                    # and essential auth/static endpoints
+                    allowed_endpoints = [
+                        'plugin_management.index', 'plugins.enable_plugin', 'plugins.disable_plugin',
+                        'plugins.reload_plugins', 'plugins.install_plugin', 'plugins.uninstall_plugin',
+                        'auth.app_login', 'auth.admin_login', 'auth.logout', 'static', 'api.health',
+                        # Plugin management endpoints for server configuration
+                        'plugin_management.configure', 'plugin_management.edit_server', 'plugin_management.add_server',
+                        'plugin_management.disable_server', 'plugin_management.enable_server', 'plugin_management.delete_server',
+                        'plugin_management.test_connection', 'plugin_management.test_existing_server_connection',
+                        'plugin_management.get_raw_server_info',
+                        # Media server setup endpoints
+                        'media_servers_setup.setup_list_servers', 'media_servers_setup.add_server_setup', 'media_servers_setup.setup_edit_server', 'media_servers_setup.test_connection_setup', 'media_servers_setup.delete_server_setup'
+                    ]
+                    
+                    # Block ALL routes except the explicitly allowed ones when no plugins are configured
+                    # This prevents bypassing the lockdown via any route (users, invites, dashboard, etc.)
+                    should_redirect = (not request.endpoint or request.endpoint not in allowed_endpoints)
+                    
+                    # Plugin redirect logging removed for cleaner logs
+                    
+                    if should_redirect:
+                        # Prevent redirect loop - don't redirect if we're already on the plugin management page
+                        if request.endpoint != 'plugin_management.index':
+                            current_app.logger.info(f"Init.py - before_request_tasks(): No plugins enabled, blocking access to '{request.endpoint}', redirecting to plugins settings.")
+                            return redirect(url_for('plugin_management.index'))
+            except Exception as e_plugin_check:
+                current_app.logger.error(f"Init.py - before_request_tasks(): DB error during plugin validation: {e_plugin_check}", exc_info=True)
 
 
     # Register blueprints

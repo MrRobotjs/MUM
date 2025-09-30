@@ -363,13 +363,19 @@ def get_server_libraries(server_id):
         
         libraries = []
         for lib in db_libraries:
-            libraries.append({
+            lib_data = {
                 'id': lib.external_id,
                 'external_id': lib.external_id,
                 'name': lib.name,
                 'type': lib.library_type or 'unknown',
                 'item_count': lib.item_count or 0
-            })
+            }
+            
+            # For Kavita servers, include internal_id for UUID handling
+            if server.service_type.value == 'kavita' and hasattr(lib, 'internal_id') and lib.internal_id:
+                lib_data['internal_id'] = lib.internal_id
+                
+            libraries.append(lib_data)
         
         current_app.logger.info(f"Loaded {len(libraries)} libraries from database for server {server.server_nickname}")
         
@@ -405,6 +411,17 @@ def refresh_server_libraries(server_id):
         for lib in libraries:
             if 'external_id' in lib and 'id' not in lib:
                 lib['id'] = lib['external_id']
+        
+        # For Kavita servers, also add internal_id from database if available
+        if server.service_type.value == 'kavita':
+            from app.models_media_services import MediaLibrary
+            db_libraries = MediaLibrary.query.filter_by(server_id=server_id).all()
+            db_lib_map = {lib.external_id: lib.internal_id for lib in db_libraries if lib.internal_id}
+            
+            for lib in libraries:
+                external_id = lib.get('external_id') or lib.get('id')
+                if external_id and external_id in db_lib_map:
+                    lib['internal_id'] = db_lib_map[external_id]
         
         current_app.logger.info(f"Refreshed {len(libraries)} libraries from live API for server {server.server_nickname}")
         

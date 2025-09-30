@@ -373,14 +373,14 @@ def list_users():
             user_library_access_by_server[user_id][access.server_id] = access.allowed_library_ids or []
             
             # Track which service types this user has access to
-            if access.server.service_type not in user_service_types[user_id]:
+            if access.server and access.server.service_type not in user_service_types[user_id]:
                 user_service_types[user_id].append(access.server.service_type)
             
             # Track which server names this user has access to
-            if access.server.server_nickname not in user_server_names[user_id]:
+            if access.server and access.server.server_nickname not in user_server_names[user_id]:
                 user_server_names[user_id].append(access.server.server_nickname)
     
-    # Get library data from database for library name mapping
+    # Get library data from database for library name mapping using existing helper
     libraries_by_server = get_libraries_from_database(all_servers)
     
     # Create user library mappings
@@ -400,14 +400,55 @@ def list_users():
                 # Look up library names from the correct server
                 server_libraries = libraries_by_server.get(server_id, {})
                 lib_names = []
-                for lib_id in lib_ids:
-                    if '_' in str(lib_id) and str(lib_id).split('_', 1)[0].isdigit():
-                        # This looks like a Kavita unique ID (e.g., "0_Comics"), extract the name
-                        lib_name = str(lib_id).split('_', 1)[1]
+                # For Kavita users, migrate legacy external_id values to internal_id
+                if service_type.lower() == 'kavita':
+                    migrated_lib_ids = []
+                    for lib_id in lib_ids:
+                        # Check if this is a legacy external_id that needs migration
+                        if str(lib_id) not in server_libraries:
+                            # Try to find the internal_id for this external_id
+                            from app.models_media_services import MediaLibrary
+                            library = MediaLibrary.query.filter_by(
+                                server_id=server_id,
+                                external_id=str(lib_id)
+                            ).first()
+                            
+                            if library and hasattr(library, 'internal_id') and library.internal_id:
+                                current_app.logger.info(f"KAVITA MIGRATION: Converting external_id '{lib_id}' to internal_id '{library.internal_id}' for user {user_id}")
+                                migrated_lib_ids.append(library.internal_id)
+                                
+                                # Update the user's library access with the new internal_id
+                                user_access_record = next((u for u in user_access_records if u.server.id == server_id), None)
+                                if user_access_record:
+                                    # Replace old external_id with new internal_id
+                                    updated_ids = [library.internal_id if old_id == str(lib_id) else old_id 
+                                                 for old_id in (user_access_record.allowed_library_ids or [])]
+                                    user_access_record.allowed_library_ids = updated_ids
+                                    current_app.logger.info(f"KAVITA MIGRATION: Updated user {user_id} library access: {updated_ids}")
+                                    
+                                    # Commit the migration to database
+                                    try:
+                                        db.session.commit()
+                                        current_app.logger.info(f"KAVITA MIGRATION: Successfully saved migration for user {user_id}")
+                                    except Exception as e:
+                                        db.session.rollback()
+                                        current_app.logger.error(f"KAVITA MIGRATION: Failed to save migration for user {user_id}: {e}")
+                            else:
+                                current_app.logger.warning(f"KAVITA MIGRATION: Could not find internal_id for external_id '{lib_id}' for user {user_id}")
+                                migrated_lib_ids.append(lib_id)  # Keep original if migration fails
+                        else:
+                            migrated_lib_ids.append(lib_id)
+                    
+                    # Use migrated IDs for lookup
+                    current_app.logger.debug(f"KAVITA DEBUG: Looking up migrated_lib_ids {migrated_lib_ids} in server_libraries keys: {list(server_libraries.keys())}")
+                    for lib_id in migrated_lib_ids:
+                        lib_name = server_libraries.get(str(lib_id), f'Unknown Lib {lib_id}')
+                        current_app.logger.debug(f"KAVITA DEBUG: lib_id '{lib_id}' -> lib_name '{lib_name}'")
                         lib_names.append(lib_name)
                         user_library_service_mapping[user_id][lib_name] = service_type
-                    else:
-                        # Regular library ID lookup from the correct server
+                else:
+                    # For non-Kavita services, use normal lookup
+                    for lib_id in lib_ids:
                         lib_name = server_libraries.get(str(lib_id), f'Unknown Lib {lib_id}')
                         lib_names.append(lib_name)
                         user_library_service_mapping[user_id][lib_name] = service_type
@@ -520,8 +561,9 @@ def list_users():
     if user_type_filter in ['all', 'service'] and service_users:
         for service_user in service_users:
             if hasattr(service_user, '_is_standalone') and service_user._is_standalone:
-                # Add the service type for this standalone user
-                user_service_types[service_user.uuid] = [service_user._access_record.server.service_type]
+                # Add the service type for this standalone user (with null check for deleted servers)
+                if service_user._access_record and service_user._access_record.server:
+                    user_service_types[service_user.uuid] = [service_user._access_record.server.service_type]
     
     # Check if user accounts feature is enabled
     allow_user_accounts = Setting.get_bool('ALLOW_USER_ACCOUNTS', False)
@@ -653,106 +695,52 @@ def get_quick_edit_form(user_uuid):
         # Service user - get their specific service user record
         user_access_records = [user._access_record]
     
-    available_libraries = {}
+    # Set up library choices using utility functions
+    from app.utils.user_library_helpers import setup_form_library_choices, get_multi_server_library_choices
+    
     current_library_ids = []
     current_app.logger.info(f"KAVITA QUICK EDIT: Building available libraries for user {user.id}")
     
+    # Collect server IDs and current library IDs from user access records
+    server_ids = []
     for access in user_access_records:
-        try:
-            # Get libraries from database instead of making API calls
-            from app.models_media_services import MediaLibrary
-            db_libraries = MediaLibrary.query.filter_by(server_id=access.server.id).all()
-            current_app.logger.info(f"KAVITA QUICK EDIT: Processing server {access.server.server_nickname} (type: {access.server.service_type.value})")
-            current_app.logger.info(f"KAVITA QUICK EDIT: User access record allowed_library_ids: {access.allowed_library_ids}")
-            current_app.logger.info(f"KAVITA QUICK EDIT: Server libraries from DB: {[{lib.external_id: lib.name} for lib in db_libraries]}")
-            
-            for lib in db_libraries:
-                lib_id = lib.external_id
-                lib_name = lib.name
-                if lib_id:
-                    # For Kavita, create compound IDs to match the format used in user access records
-                    if access.server.service_type.value == 'kavita':
-                        compound_lib_id = f"{lib_id}_{lib_name}"
-                        available_libraries[compound_lib_id] = lib_name
-                        current_app.logger.info(f"KAVITA QUICK EDIT: Added Kavita library: {compound_lib_id} -> {lib_name}")
-                    else:
-                        available_libraries[str(lib_id)] = lib_name
-                        current_app.logger.info(f"KAVITA QUICK EDIT: Added non-Kavita library: {lib_id} -> {lib_name}")
-            
-            # Collect current library IDs from this server
-            current_library_ids.extend(access.allowed_library_ids or [])
-        except Exception as e:
-            current_app.logger.error(f"Error getting libraries from {access.server.server_nickname}: {e}")
+        server_ids.append(access.server.id)
+        current_library_ids.extend(access.allowed_library_ids or [])
+        current_app.logger.info(f"KAVITA QUICK EDIT: Processing server {access.server.server_nickname} (type: {access.server.service_type.value})")
+        current_app.logger.info(f"KAVITA QUICK EDIT: User access record allowed_library_ids: {access.allowed_library_ids}")
     
-    current_app.logger.info(f"KAVITA QUICK EDIT: Final available_libraries: {available_libraries}")
-    form.libraries.choices = [(lib_id, name) for lib_id, name in available_libraries.items()]
+    # Use utility function to set up form choices
+    if len(server_ids) == 1:
+        # Single server - use simple setup
+        setup_form_library_choices(form, server_id=server_ids[0])
+    elif len(server_ids) > 1:
+        # Multi-server - use multi-server setup with server prefixes
+        form.libraries.choices = get_multi_server_library_choices(server_ids, include_server_prefix=True)
+    else:
+        # No servers
+        form.libraries.choices = []
+    
     current_app.logger.info(f"KAVITA QUICK EDIT: Form choices set to: {form.libraries.choices}")
     
-    # Pre-populate the fields with the user's current settings from all their servers
-    current_app.logger.info(f"KAVITA QUICK EDIT: Current library IDs from access records: {current_library_ids}")
-    current_app.logger.info(f"KAVITA QUICK EDIT: Available library keys: {list(available_libraries.keys())}")
+    # Pre-populate the fields with the user's current settings using utility function
+    from app.utils.user_library_helpers import match_stored_library_ids_to_choices
     
-    # Handle special case for Jellyfin users with '*' (all libraries access)
-    if current_library_ids == ['*']:
-        # If user has "All Libraries" access, check all available library checkboxes
-        form.libraries.data = list(available_libraries.keys())
-        current_app.logger.info(f"KAVITA QUICK EDIT: User has '*' access, setting all libraries: {form.libraries.data}")
-    else:
-        # Set the current library selections - handle both simple and compound formats
-        matched_libraries = []
-        for lib_id in current_library_ids:
-            lib_id_str = str(lib_id)
-            current_app.logger.info(f"KAVITA QUICK EDIT: Processing stored library ID: {lib_id_str}")
-            
-            # Direct match first
-            if lib_id_str in available_libraries:
-                matched_libraries.append(lib_id_str)
-                current_app.logger.info(f"KAVITA QUICK EDIT: Direct match for library: {lib_id_str}")
-            else:
-                # For Kavita, try multiple matching strategies
-                found_match = False
-                
-                # Strategy 1: Extract numeric part from stored compound ID and match against available numeric parts
-                if '_' in lib_id_str:
-                    stored_numeric = lib_id_str.split('_')[0]
-                    stored_name = lib_id_str.split('_', 1)[1] if '_' in lib_id_str else ''
-                    current_app.logger.info(f"KAVITA QUICK EDIT: Stored compound ID - numeric: {stored_numeric}, name: {stored_name}")
-                    
-                    for avail_lib_id in available_libraries.keys():
-                        if '_' in avail_lib_id:
-                            avail_numeric = avail_lib_id.split('_')[0]
-                            avail_name = avail_lib_id.split('_', 1)[1]
-                            current_app.logger.info(f"KAVITA QUICK EDIT: Checking against available - numeric: {avail_numeric}, name: {avail_name}")
-                            
-                            # Match by name (case insensitive) since numeric IDs might not match
-                            if stored_name.lower() == avail_name.lower():
-                                matched_libraries.append(avail_lib_id)
-                                current_app.logger.info(f"KAVITA QUICK EDIT: Name match: {lib_id_str} -> {avail_lib_id}")
-                                found_match = True
-                                break
-                
-                # Strategy 2: If stored ID is simple numeric, match against available compound IDs
-                if not found_match:
-                    for avail_lib_id in available_libraries.keys():
-                        if '_' in avail_lib_id:
-                            # Extract numeric part from compound ID (e.g., "2_Books" -> "2")
-                            numeric_part = avail_lib_id.split('_')[0]
-                            if numeric_part == lib_id_str:
-                                matched_libraries.append(avail_lib_id)
-                                current_app.logger.info(f"KAVITA QUICK EDIT: Numeric match: {lib_id_str} -> {avail_lib_id}")
-                                found_match = True
-                                break
-                        elif avail_lib_id == lib_id_str:
-                            matched_libraries.append(avail_lib_id)
-                            current_app.logger.info(f"KAVITA QUICK EDIT: Simple match: {lib_id_str}")
-                            found_match = True
-                            break
-                
-                if not found_match:
-                    current_app.logger.warning(f"KAVITA QUICK EDIT: No match found for stored library ID: {lib_id_str}")
-        
-        form.libraries.data = matched_libraries
-        current_app.logger.info(f"KAVITA QUICK EDIT: Set form.libraries.data to: {form.libraries.data}")
+    current_app.logger.info(f"KAVITA QUICK EDIT: Current library IDs from access records: {current_library_ids}")
+    current_app.logger.info(f"KAVITA QUICK EDIT: Available choices: {form.libraries.choices}")
+    
+    # Use utility function to match stored IDs to form choices
+    # Determine server type for specialized matching (use first server if multiple)
+    server_type = None
+    if user_access_records:
+        server_type = user_access_records[0].server.service_type.value
+    
+    form.libraries.data = match_stored_library_ids_to_choices(
+        current_library_ids, 
+        form.libraries.choices, 
+        server_type
+    )
+    
+    current_app.logger.info(f"KAVITA QUICK EDIT: Set form.libraries.data to: {form.libraries.data}")
     
     # Get allow_downloads and allow_4k_transcode from service user records
     # Use the first access record's values, or default to False if no access records

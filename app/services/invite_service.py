@@ -163,31 +163,26 @@ def accept_invite_and_grant_access(invite: Invite, plex_user_uuid: str, plex_use
             if invite.grant_library_ids:
                 current_app.logger.debug(f"Invite service - Processing grant_library_ids: {invite.grant_library_ids}")
                 for lib_id in invite.grant_library_ids:
-                    # Check if this is a unique format library ID for multi-server invites
-                    if isinstance(lib_id, str) and lib_id.startswith('[') and ']-' in lib_id:
-                        # Format: [SERVICE_TYPE]-ServerName-LibraryID
-                        try:
-                            parts = lib_id.split(']-', 1)
-                            if len(parts) == 2:
-                                service_and_server = parts[0][1:]  # Remove the opening bracket
-                                server_and_lib = parts[1]
-                                
-                                # Extract server name and library ID
-                                server_lib_parts = server_and_lib.rsplit('-', 1)
-                                if len(server_lib_parts) == 2:
-                                    server_name_from_lib = server_lib_parts[0]
-                                    raw_lib_id = server_lib_parts[1]
-                                    
-                                    # Check if this library belongs to the current server
-                                    if server_name_from_lib == server.server_nickname:
-                                        server_library_ids.append(raw_lib_id)
-                                        current_app.logger.debug(f"Invite service - Added library {raw_lib_id} for server {server.server_nickname}")
-                        except Exception as e:
-                            current_app.logger.error(f"Invite service - Error parsing library ID {lib_id}: {e}")
+                    # All library IDs are now in simple format - validate they belong to this server
+                    from app.models_media_services import MediaLibrary
+                    
+                    if server.service_type.value == 'kavita':
+                        # Check by internal_id for Kavita
+                        db_library = MediaLibrary.query.filter_by(
+                            server_id=server.id
+                        ).filter(MediaLibrary.internal_id == lib_id).first()
                     else:
-                        # For legacy single-server invites or raw library IDs, include all
+                        # Check by external_id for other services
+                        db_library = MediaLibrary.query.filter_by(
+                            server_id=server.id,
+                            external_id=lib_id
+                        ).first()
+                    
+                    if db_library:
                         server_library_ids.append(lib_id)
-                        current_app.logger.debug(f"Invite service - Added raw library {lib_id} for server {server.server_nickname}")
+                        current_app.logger.debug(f"Invite service - Added library {lib_id} for server {server.server_nickname}")
+                    else:
+                        current_app.logger.debug(f"Invite service - Skipped library {lib_id} - not found in server {server.server_nickname}")
             
             current_app.logger.debug(f"Invite service - Final library IDs for server {server.server_nickname}: {server_library_ids}")
 
@@ -307,17 +302,22 @@ def accept_invite_and_grant_access(invite: Invite, plex_user_uuid: str, plex_use
             user_access_expires_at = datetime.now(timezone.utc) + timedelta(days=invite.membership_duration_days)
             current_app.logger.info(f"User access from invite {invite.id} will expire on {user_access_expires_at}.")
 
-        # Create single local user record for MUM login
-        current_app.logger.info(f"=== INVITE SERVICE DEBUG: Creating local user and service users for {len(servers_to_grant_access)} servers ===")
+        # Check if user accounts are enabled
+        allow_user_accounts = Setting.get_bool('ALLOW_USER_ACCOUNTS', False)
+        
+        # Create single local user record for MUM login only if user accounts are enabled
+        current_app.logger.info(f"=== INVITE SERVICE DEBUG: Creating service users for {len(servers_to_grant_access)} servers ===")
         current_app.logger.info(f"App user: {app_user.localUsername if app_user else 'None'} (ID: {app_user.id if app_user else 'None'})")
         current_app.logger.info(f"Plex user: {plex_username} (UUID: {plex_user_uuid})")
+        current_app.logger.info(f"Allow user accounts: {allow_user_accounts}")
         
-        # Use existing app_user or create new local user if needed
+        # Use existing app_user or create new local user only if user accounts are enabled
+        user_app_access = None
         if app_user:
             user_app_access = app_user
             current_app.logger.info(f"Using existing local user: {user_app_access.localUsername} (ID: {user_app_access.id})")
-        else:
-            # Create new local user record (for invites without user accounts enabled)
+        elif allow_user_accounts:
+            # Create new local user record only when user accounts are enabled
             base_username = plex_username or f"user_{int(datetime.now().timestamp())}"
             base_email = plex_email or f"{base_username}@example.com"
             
@@ -342,6 +342,8 @@ def accept_invite_and_grant_access(invite: Invite, plex_user_uuid: str, plex_use
             db.session.add(user_app_access)
             db.session.flush()  # Get the ID
             current_app.logger.info(f"Created new local user: {user_app_access.localUsername} (ID: {user_app_access.id})")
+        else:
+            current_app.logger.info("User accounts are disabled - creating service-only accounts without local user record")
         
         created_user_media_accesses = []
         
@@ -354,41 +356,29 @@ def accept_invite_and_grant_access(invite: Invite, plex_user_uuid: str, plex_use
             if invite.grant_library_ids:
                 current_app.logger.debug(f"Invite service - Processing grant_library_ids for {server.server_nickname}: {invite.grant_library_ids}")
                 for lib_id in invite.grant_library_ids:
-                    # Check if this is a prefixed format library ID
-                    if isinstance(lib_id, str) and lib_id.startswith('[') and ']-' in lib_id:
-                        # Format: [SERVICE_TYPE]-ServerName-LibraryID
-                        try:
-                            service_part, remainder = lib_id.split(']-', 1)
-                            service_type = service_part[1:]  # Remove the opening [
-                            server_name, library_id = remainder.split('-', 1)
-                            
-                            # Check if this library belongs to the current server
-                            if server_name == server.server_nickname:
-                                # For Kavita, keep the prefixed format; for others, use raw UUID
-                                if service_type == 'KAVITA':
-                                    server_library_ids.append(lib_id)  # Keep prefixed for Kavita
-                                else:
-                                    server_library_ids.append(library_id)  # Use raw UUID for others
-                                current_app.logger.info(f"Added library {lib_id} -> {server_library_ids[-1]} for server {server.server_nickname}")
-                        except Exception as e:
-                            current_app.logger.warning(f"Error parsing prefixed library ID {lib_id}: {e}")
-                    else:
-                        # Raw library ID - check if it belongs to this server
-                        try:
-                            from app.models_media_services import MediaLibrary
+                    # All library IDs are now in simple format - validate they belong to this server
+                    try:
+                        from app.models_media_services import MediaLibrary
+                        
+                        if server.service_type.value == 'kavita':
+                            # Check by internal_id for Kavita
+                            db_library = MediaLibrary.query.filter_by(
+                                server_id=server.id
+                            ).filter(MediaLibrary.internal_id == lib_id).first()
+                        else:
+                            # Check by external_id for other services  
                             db_library = MediaLibrary.query.filter_by(
                                 server_id=server.id,
                                 external_id=lib_id
                             ).first()
-                            
-                            if db_library:
-                                server_library_ids.append(lib_id)
-                                current_app.logger.info(f"Added validated raw library {lib_id} for server {server.server_nickname}")
-                            else:
-                                current_app.logger.debug(f"Skipped raw library {lib_id} - not found in server {server.server_nickname}")
-                        except Exception as e:
-                            current_app.logger.error(f"Database error validating library {lib_id} for server {server.server_nickname}: {e}")
-                            # No fallback - if database validation fails, skip the library
+                        
+                        if db_library:
+                            server_library_ids.append(lib_id)
+                            current_app.logger.info(f"Added validated library {lib_id} for server {server.server_nickname}")
+                        else:
+                            current_app.logger.debug(f"Skipped library {lib_id} - not found in server {server.server_nickname}")
+                    except Exception as e:
+                        current_app.logger.error(f"Database error validating library {lib_id} for server {server.server_nickname}: {e}")
             
             current_app.logger.info(f"Final library IDs for {server.server_nickname}: {server_library_ids}")
             
@@ -426,7 +416,7 @@ def accept_invite_and_grant_access(invite: Invite, plex_user_uuid: str, plex_use
             # Create service user record for this specific server
             user_media_access = User(
                 userType=UserType.SERVICE,
-                linkedUserId=user_app_access.uuid,
+                linkedUserId=user_app_access.uuid if user_app_access else None,
                 server_id=server.id,
                 external_user_id=str(plex_user_uuid) if server.service_type.name.upper() == 'PLEX' else getattr(server, '_temp_external_user_id', None),
                 external_username=service_username,
@@ -447,21 +437,22 @@ def accept_invite_and_grant_access(invite: Invite, plex_user_uuid: str, plex_use
             # Add service user to session
             db.session.add(user_media_access)
             created_user_media_accesses.append((user_media_access, server))
-            current_app.logger.info(f"✅ Created service user for {service_username} (Local User ID: {user_app_access.id}) on server {server.server_nickname}")
+            current_app.logger.info(f"✅ Created service user for {service_username} (Local User ID: {user_app_access.id if user_app_access else 'None'}) on server {server.server_nickname}")
             current_app.logger.debug(f"Service user details - ID: {user_media_access.id}, username: {user_media_access.external_username}, email: {user_media_access.external_email}")
         
-        # Use the local user as the primary user reference
+        # Use the local user as the primary user reference, or the first service user if no local user
         if not created_user_media_accesses:
             raise Exception("No user media access records created")
         
-        new_user = user_app_access
+        new_user = user_app_access if user_app_access else created_user_media_accesses[0][0]
         
         invite.current_uses += 1
         
         plex_user_info = {'uuid': plex_user_uuid, 'username': plex_username, 'email': plex_email, 'thumb': plex_thumb}
         usage_log = record_invite_usage_attempt(invite.id, ip_address, plex_user_info=plex_user_info, discord_user_info=discord_user_info, status_message="Invite accepted successfully.")
         
-        current_app.logger.info(f"=== COMMITTING SESSION - 1 local user and {len(created_user_media_accesses)} service user records ===")
+        local_users_count = 1 if user_app_access else 0
+        current_app.logger.info(f"=== COMMITTING SESSION - {local_users_count} local user and {len(created_user_media_accesses)} service user records ===")
         
         # Log all created user media access records
         for user_media_access, server in created_user_media_accesses:
@@ -474,7 +465,7 @@ def accept_invite_and_grant_access(invite: Invite, plex_user_uuid: str, plex_use
         db.session.add(invite)
 
         current_app.logger.info(f"=== COMMITTING TRANSACTION ===")
-        current_app.logger.info(f"About to commit: 1 local user, {len(created_user_media_accesses)} service user records, usage log, invite update")
+        current_app.logger.info(f"About to commit: {local_users_count} local user, {len(created_user_media_accesses)} service user records, usage log, invite update")
         
         db.session.commit()
         current_app.logger.info("✅ All changes committed to database")

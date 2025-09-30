@@ -5,7 +5,7 @@ from flask import render_template, request, current_app, session, make_response
 from flask_login import login_required, current_user
 from sqlalchemy import or_, func
 from app.models_media_services import MediaStreamHistory, MediaServer
-from app.models import User, UserType
+from app.models import User, UserType, Setting
 from app.forms import MassUserEditForm
 from app.extensions import db
 from app.utils.helpers import setup_required, permission_required
@@ -22,7 +22,7 @@ def mass_edit_libraries_form():
     """Get the mass edit libraries form for selected users"""
     current_app.logger.info("=== USERS PAGE: mass_edit_libraries_form() called - USING DATABASE DATA ===")
     user_ids_str = request.args.get('user_ids', '')
-    current_app.logger.debug(f"Raw user_ids_str received: '{user_ids_str}'")
+    #current_app.logger.debug(f"Raw user_ids_str received: '{user_ids_str}'")
     if not user_ids_str:
         return '<div class="alert alert-error">No users selected.</div>'
     
@@ -89,15 +89,16 @@ def mass_edit_libraries_form():
             }
         
         if server.id not in services_data[service_type_key]['servers']:
-            # Get libraries from database instead of making API calls
-            from app.models_media_services import MediaLibrary
-            db_libraries = MediaLibrary.query.filter_by(server_id=server.id).all()
+            # Get libraries using utility function
+            from app.utils.user_library_helpers import get_server_library_choices
+            
+            library_choices = get_server_library_choices(server.id, server.service_type.value)
             libraries = []
-            for lib in db_libraries:
+            for lib_id, lib_name in library_choices:
                 libraries.append({
-                    'id': lib.external_id,
-                    'external_id': lib.external_id,
-                    'name': lib.name
+                    'id': lib_id,
+                    'external_id': lib_id,
+                    'name': lib_name
                 })
             
             services_data[service_type_key]['servers'][server.id] = {
@@ -147,24 +148,14 @@ def mass_edit_users():
     # We still must populate the dynamic choices for the libraries field
     media_service_manager = MediaServiceManager()
     
-    # Get libraries from all active servers, not just Plex
-    available_libraries = {}
-    all_servers = media_service_manager.get_all_servers(active_only=True)
+    # Get libraries from all active servers using utility function
+    from app.utils.user_library_helpers import get_multi_server_library_choices
     
-    for server in all_servers:
-        try:
-            # Get libraries from database instead of making API calls
-            from app.models_media_services import MediaLibrary
-            db_libraries = MediaLibrary.query.filter_by(server_id=server.id).all()
-            for lib in db_libraries:
-                lib_id = lib.external_id
-                lib_name = lib.name
-                if lib_id:
-                    # Use just the library name since server name is now shown in a separate badge
-                    available_libraries[str(lib_id)] = lib_name
-        except Exception as e:
-            current_app.logger.error(f"Error getting libraries from {server.server_nickname}: {e}")
-    form.libraries.choices = [(lib_id, name) for lib_id, name in available_libraries.items()]
+    all_servers = media_service_manager.get_all_servers(active_only=True)
+    server_ids = [server.id for server in all_servers]
+    
+    # Use utility function to get choices - don't include server prefix for mass edit
+    form.libraries.choices = get_multi_server_library_choices(server_ids, include_server_prefix=False)
 
     # Manual validation for user_ids, then form validation for the rest
     if not user_ids_str:
@@ -216,12 +207,35 @@ def mass_edit_users():
                 if action == 'update_libraries':
                     # Parse libraries per server for service users
                     updates_by_server = {}
+                    
+                    # Get list of all servers that were shown in the form (even if no libraries selected)
+                    # Look for server_processed_X fields to identify which servers should be updated
+                    servers_to_process = set()
+                    for key in request.form.keys():
+                        if key.startswith('libraries_server_'):
+                            server_id = int(key.split('_')[-1])
+                            servers_to_process.add(server_id)
+                        elif key.startswith('server_processed_'):
+                            server_id = int(key.split('_')[-1])
+                            servers_to_process.add(server_id)
+                    
+                    # Process each server (including those with no libraries selected)
                     for key, value in request.form.items():
                         if key.startswith('libraries_server_'):
                             server_id = int(key.split('_')[-1])
                             if server_id not in updates_by_server:
                                 updates_by_server[server_id] = []
                             updates_by_server[server_id] = request.form.getlist(key)
+                    
+                    # Add servers that had no libraries selected (remove all access)
+                    for key in request.form.keys():
+                        if key.startswith('server_processed_'):
+                            server_id = int(key.split('_')[-1])
+                            if server_id not in updates_by_server:
+                                updates_by_server[server_id] = []  # Empty list = no libraries
+                                current_app.logger.info(f"Mass Edit: Server {server_id} had no libraries selected - removing all access")
+                    
+                    current_app.logger.info(f"Mass Edit: Form processing result - updates_by_server = {updates_by_server}")
 
                     processed_count, error_count = user_service.mass_update_user_libraries_by_server(user_ids, updates_by_server, admin_id=current_user.id)
                     toast_message = f"Mass library update: {processed_count} service users updated, {error_count} errors."
@@ -250,7 +264,6 @@ def mass_edit_users():
                     toast_category = "success" if error_count == 0 else "warning"
                 elif action == 'merge_into_local_account':
                     # Check if user accounts are enabled
-                    from app.models import User, UserType, Setting
                     allow_user_accounts = Setting.get_bool('ALLOW_USER_ACCOUNTS', False)
                     
                     if not allow_user_accounts:
@@ -457,23 +470,11 @@ def mass_edit_users():
             user_library_access_by_server[access.linkedUserId] = {}
         user_library_access_by_server[access.linkedUserId][access.server_id] = access.allowed_library_ids
 
-    # Get libraries from all active servers, organized by server to prevent ID collisions
-    libraries_by_server = {}  # server_id -> {lib_id: lib_name}
-    all_servers = media_service_manager.get_all_servers(active_only=True)
+    # Get libraries organized by server using existing helper function
+    from app.routes.user_modules.helpers import get_libraries_from_database
     
-    for server in all_servers:
-        try:
-            # Get libraries from database instead of making API calls
-            from app.models_media_services import MediaLibrary
-            db_libraries = MediaLibrary.query.filter_by(server_id=server.id).all()
-            libraries_by_server[server.id] = {}
-            for lib in db_libraries:
-                lib_id = lib.external_id
-                lib_name = lib.name
-                if lib_id:
-                    libraries_by_server[server.id][str(lib_id)] = lib_name
-        except Exception as e:
-            current_app.logger.error(f"Error getting libraries from {server.server_nickname}: {e}")
+    all_servers = media_service_manager.get_all_servers(active_only=True)
+    libraries_by_server = get_libraries_from_database(all_servers)
 
     # Create a mapping of user_id to User object for easy lookup
     users_by_id = {user.id: user for user in users_pagination.items}
@@ -496,14 +497,9 @@ def mass_edit_users():
                     server_libraries = libraries_by_server.get(server_id, {})
                     lib_names = []
                     for lib_id in lib_ids:
-                        if '_' in str(lib_id) and str(lib_id).split('_', 1)[0].isdigit():
-                            # This looks like a Kavita unique ID (e.g., "0_Comics"), extract the name
-                            lib_name = str(lib_id).split('_', 1)[1]
-                            lib_names.append(lib_name)
-                        else:
-                            # Regular library ID lookup from the correct server
-                            lib_name = server_libraries.get(str(lib_id), f'Unknown Lib {lib_id}')
-                            lib_names.append(lib_name)
+                        # Use internal_id to look up library name
+                        lib_name = server_libraries.get(str(lib_id), f'Unknown Lib {lib_id}')
+                        lib_names.append(lib_name)
             
             all_lib_names.extend(lib_names)
         

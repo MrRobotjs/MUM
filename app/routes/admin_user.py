@@ -232,60 +232,20 @@ def view_service_user(server_nickname, server_username):
     form = UserEditForm(obj=user)
     
     # Set up the library choices and current selections for the form
-    available_libraries = {}
+    from app.utils.user_library_helpers import setup_form_library_choices, match_stored_library_ids_to_choices
+    
     try:
-        from app.models_media_services import MediaLibrary
-        db_libraries = MediaLibrary.query.filter_by(server_id=service_user.server.id).all()
+        # Set up library choices using utility function
+        setup_form_library_choices(form, server_id=service_user.server.id)
         
-        for lib in db_libraries:
-            lib_id = lib.external_id
-            lib_name = lib.name
-            if lib_id:
-                if service_user.server.service_type.value == 'kavita':
-                    compound_lib_id = f"{lib_id}_{lib_name}"
-                    available_libraries[compound_lib_id] = lib_name
-                else:
-                    available_libraries[str(lib_id)] = lib_name
-        
-        form.libraries.choices = [(lib_id, name) for lib_id, name in available_libraries.items()]
-        
-        # Set the current library selections - same logic as quick edit
+        # Set current library selections using utility function
         current_library_ids = service_user.allowed_library_ids or []
+        form.libraries.data = match_stored_library_ids_to_choices(
+            current_library_ids, 
+            form.libraries.choices, 
+            service_user.server.service_type.value
+        )
         
-        # Handle special case for Jellyfin users with '*' (all libraries access)
-        if current_library_ids == ['*']:
-            form.libraries.data = list(available_libraries.keys())
-        else:
-            # Match stored library IDs to available choices (handle Kavita compound IDs)
-            matched_libraries = []
-            for lib_id in current_library_ids:
-                lib_id_str = str(lib_id)
-                
-                # Direct match first
-                if lib_id_str in available_libraries:
-                    matched_libraries.append(lib_id_str)
-                else:
-                    # For Kavita, try name-based matching
-                    if '_' in lib_id_str:
-                        stored_name = lib_id_str.split('_', 1)[1] if '_' in lib_id_str else ''
-                        for avail_lib_id in available_libraries.keys():
-                            if '_' in avail_lib_id:
-                                avail_name = avail_lib_id.split('_', 1)[1]
-                                if stored_name.lower() == avail_name.lower():
-                                    matched_libraries.append(avail_lib_id)
-                                    break
-                    else:
-                        # Match simple numeric ID against compound IDs
-                        for avail_lib_id in available_libraries.keys():
-                            if '_' in avail_lib_id:
-                                numeric_part = avail_lib_id.split('_')[0]
-                                if numeric_part == lib_id_str:
-                                    matched_libraries.append(avail_lib_id)
-                                    break
-            
-            form.libraries.data = matched_libraries
-        
-        current_app.logger.info(f"Settings tab form setup - Available libraries: {available_libraries}")
         current_app.logger.info(f"Settings tab form setup - Current user libraries: {current_library_ids}")
         current_app.logger.info(f"Settings tab form setup - Form libraries data: {form.libraries.data}")
         
@@ -615,25 +575,8 @@ def handle_settings_tab_form_submission(service_user, server_nickname, server_us
     form = UserEditForm(request.form)
     
     # Set up the library choices for validation
-    available_libraries = {}
-    try:
-        from app.models_media_services import MediaLibrary
-        db_libraries = MediaLibrary.query.filter_by(server_id=service_user.server.id).all()
-        
-        for lib in db_libraries:
-            lib_id = lib.external_id
-            lib_name = lib.name
-            if lib_id:
-                if service_user.server.service_type.value == 'kavita':
-                    compound_lib_id = f"{lib_id}_{lib_name}"
-                    available_libraries[compound_lib_id] = lib_name
-                else:
-                    available_libraries[str(lib_id)] = lib_name
-        
-        form.libraries.choices = [(lib_id, name) for lib_id, name in available_libraries.items()]
-    except Exception as e:
-        current_app.logger.error(f"Error setting up library choices for form validation: {e}")
-        form.libraries.choices = []
+    from app.utils.user_library_helpers import setup_form_library_choices
+    setup_form_library_choices(form, server_id=service_user.server.id)
     
     if form.validate_on_submit():
         try:
@@ -651,23 +594,10 @@ def handle_settings_tab_form_submission(service_user, server_nickname, server_us
             
             # Update library access and sync to server
             if hasattr(form, 'libraries') and form.libraries.data:
-                current_libs = set(service_user.allowed_library_ids or [])
-                new_libs = set(form.libraries.data)
-                
-                if current_libs != new_libs:
-                    service_user.allowed_library_ids = form.libraries.data
-                    
-                    # Sync to the actual server
-                    try:
-                        from app.services.media_service_factory import MediaServiceFactory
-                        service = MediaServiceFactory.create_service_from_db(service_user.server)
-                        if service and hasattr(service, 'update_user_access') and service_user.external_user_id:
-                            service.update_user_access(service_user.external_user_id, form.libraries.data)
-                            current_app.logger.info(f"Successfully synced library changes to {service_user.server.service_type.value} server for user {service_user.external_username}")
-                        else:
-                            current_app.logger.warning(f"Cannot sync library changes to server - service not available or user has no external_user_id")
-                    except Exception as e:
-                        current_app.logger.error(f"Failed to sync library changes to server: {e}")
+                from app.utils.user_library_helpers import update_user_library_access
+                success, message = update_user_library_access(service_user, form.libraries.data, sync_to_server=True)
+                if not success:
+                    current_app.logger.warning(f"Library update failed: {message}")
             
             # Update download and transcode permissions
             if hasattr(form, 'allow_downloads'):
@@ -712,25 +642,8 @@ def handle_quick_edit_form_submission(service_user, server_nickname, server_user
     form = UserEditForm(request.form)
     
     # Set up the library choices for validation - same logic as GET request
-    available_libraries = {}
-    try:
-        from app.models_media_services import MediaLibrary
-        db_libraries = MediaLibrary.query.filter_by(server_id=service_user.server.id).all()
-        
-        for lib in db_libraries:
-            lib_id = lib.external_id
-            lib_name = lib.name
-            if lib_id:
-                if service_user.server.service_type.value == 'kavita':
-                    compound_lib_id = f"{lib_id}_{lib_name}"
-                    available_libraries[compound_lib_id] = lib_name
-                else:
-                    available_libraries[str(lib_id)] = lib_name
-        
-        form.libraries.choices = [(lib_id, name) for lib_id, name in available_libraries.items()]
-    except Exception as e:
-        current_app.logger.error(f"Error setting up library choices for form validation: {e}")
-        form.libraries.choices = []
+    from app.utils.user_library_helpers import setup_form_library_choices
+    setup_form_library_choices(form, server_id=service_user.server.id)
     
     if form.validate_on_submit():
         try:
@@ -749,26 +662,10 @@ def handle_quick_edit_form_submission(service_user, server_nickname, server_user
             
             # Update library access and sync to server
             if hasattr(form, 'libraries') and form.libraries.data:
-                # Check if libraries actually changed
-                current_libs = set(service_user.allowed_library_ids or [])
-                new_libs = set(form.libraries.data)
-                
-                if current_libs != new_libs:
-                    # Update the database
-                    service_user.allowed_library_ids = form.libraries.data
-                    
-                    # Sync to the actual server
-                    try:
-                        from app.services.media_service_factory import MediaServiceFactory
-                        service = MediaServiceFactory.create_service_from_db(service_user.server)
-                        if service and hasattr(service, 'update_user_access') and service_user.external_user_id:
-                            service.update_user_access(service_user.external_user_id, form.libraries.data)
-                            current_app.logger.info(f"Successfully synced library changes to {service_user.server.service_type.value} server for user {service_user.external_username}")
-                        else:
-                            current_app.logger.warning(f"Cannot sync library changes to server - service not available or user has no external_user_id")
-                    except Exception as e:
-                        current_app.logger.error(f"Failed to sync library changes to server: {e}")
-                        # Continue with database update even if server sync fails
+                from app.utils.user_library_helpers import update_user_library_access
+                success, message = update_user_library_access(service_user, form.libraries.data, sync_to_server=True)
+                if not success:
+                    current_app.logger.warning(f"Library update failed: {message}")
             
             # Update download and transcode permissions
             if hasattr(form, 'allow_downloads'):

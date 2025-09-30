@@ -23,6 +23,9 @@
                             <p class="text-xs text-base-content/70 mb-2">
                                 Applies to users: {% for user in data.users %}{{ user }}{% if not loop.last %}, {% endif %}{% endfor %}
                             </p>
+                            {# Hidden field to track that this server was processed #}
+                            <input type="hidden" name="server_processed_{{ server_id }}" value="1">
+                            
                             <div class="max-h-48 overflow-y-auto p-2 border border-base-300 rounded-md grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
                                 {% for library in data.libraries %}
                                     <label class="label cursor-pointer justify-start mb-1">

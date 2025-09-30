@@ -3,6 +3,7 @@
 
 from flask import render_template, request, current_app
 from flask_login import login_required, current_user
+from app.models import User, UserType
 from app.utils.helpers import permission_required
 from . import users_bp
 
@@ -23,13 +24,13 @@ def get_user_debug_info(user_uuid):
     
     if user_type == "user_app_access":
         # This is a local UserAppAccess user
-        user = User.query.filter_by(userType=UserType.LOCAL).get(actual_id)
+        user = User.query.filter_by(userType=UserType.LOCAL, id=actual_id).first()
     
         if not user:
             return f"<p class='text-error'>Local user with ID {actual_id} not found</p>"
         
-        # This is a local UserAppAccess user - user variable already set above
-        pass
+        # Get linked service users for template compatibility
+        user.linked_service_users = User.query.filter_by(userType=UserType.SERVICE, linkedUserId=user.uuid).all()
     
     elif user_type == "user_media_access":
         # This is a standalone service user, get the UserMediaAccess record
@@ -44,6 +45,7 @@ def get_user_debug_info(user_uuid):
         class MockUser:
             def __init__(self, access, user_id):
                 self.id = user_id  # Keep the prefixed ID for display
+                self.uuid = user_id  # Add uuid for template compatibility
                 self.localUsername = access.external_username or 'Unknown'
                 self.email = access.external_email
                 self.notes = access.notes
@@ -58,6 +60,8 @@ def get_user_debug_info(user_uuid):
                 # Add template compatibility attributes
                 self.server = access.server
                 self.external_username = access.external_username
+                # Template expects linked_service_users for raw data display
+                self.linked_service_users = [access]
             
             def get_display_name(self):
                 return self._access_record.external_username or 'Unknown'
@@ -83,11 +87,18 @@ def get_user_debug_info(user_uuid):
         
         has_service_data = False
         for access in user_accesses:
-            if access.service_settings:
+            # Check both user_raw_data and service_settings for raw data
+            if access.user_raw_data or access.service_settings:
                 has_service_data = True
                 current_app.logger.info(f"Service data found for {access.server.service_type.value} server: {access.server.server_nickname}")
-                current_app.logger.info(f"Service settings type: {type(access.service_settings)}")
-                current_app.logger.info(f"Service settings preview: {str(access.service_settings)[:100]}...")
+                
+                if access.user_raw_data:
+                    current_app.logger.info(f"User raw data type: {type(access.user_raw_data)}")
+                    current_app.logger.info(f"User raw data preview: {str(access.user_raw_data)[:100]}...")
+                
+                if access.service_settings:
+                    current_app.logger.info(f"Service settings type: {type(access.service_settings)}")
+                    current_app.logger.info(f"Service settings preview: {str(access.service_settings)[:100]}...")
         
         if not has_service_data:
             current_app.logger.warning(f"No stored service data for user {user.get_display_name()} - user needs to sync")

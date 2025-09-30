@@ -250,7 +250,8 @@ class JellyfinMediaService(BaseMediaService):
                     'is_hidden': policy.get('IsHidden', False),
                     'library_ids': library_ids,
                     'last_login_date': user.get('LastLoginDate', ''),
-                    'last_activity_date': user.get('LastActivityDate', '')
+                    'last_activity_date': user.get('LastActivityDate', ''),
+                    'raw_data': user  # Include the complete raw user data from Jellyfin API
                 })
             
             self.log_info(f"Retrieved {len(users)} users from Jellyfin")

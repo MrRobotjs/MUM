@@ -23,7 +23,7 @@ def get_user_debug_info(user_uuid):
     actual_id = user_obj.id
     
     if user_type == "user_app_access":
-        # This is a local UserAppAccess user
+        # This is a local user (unified User model with userType=LOCAL)
         user = User.query.filter_by(userType=UserType.LOCAL, id=actual_id).first()
     
         if not user:
@@ -33,57 +33,28 @@ def get_user_debug_info(user_uuid):
         user.linked_service_users = User.query.filter_by(userType=UserType.SERVICE, linkedUserId=user.uuid).all()
     
     elif user_type == "user_media_access":
-        # This is a standalone service user, get the UserMediaAccess record
-        access = User.query.filter_by(userType=UserType.SERVICE).filter(
-            User.id == actual_id
-        ).first()
+        # This is a standalone service user (unified User model with userType=SERVICE)
+        user = User.query.filter_by(userType=UserType.SERVICE, id=actual_id).first()
         
-        if not access:
+        if not user:
             return f"<p class='text-error'>Service user with ID {actual_id} not found</p>"
         
-        # Create a mock user object for the template
-        class MockUser:
-            def __init__(self, access, user_id):
-                self.id = user_id  # Keep the prefixed ID for display
-                self.uuid = user_id  # Add uuid for template compatibility
-                self.localUsername = access.external_username or 'Unknown'
-                self.email = access.external_email
-                self.notes = access.notes
-                self.created_at = access.created_at
-                self.last_login_at = access.last_activity_at
-                self.media_accesses = [access]
-                self.access_expires_at = access.access_expires_at
-                self.discord_user_id = access.discord_user_id
-                self.is_active = access.is_active
-                self._is_standalone = True
-                self._access_record = access
-                # Add template compatibility attributes
-                self.server = access.server
-                self.external_username = access.external_username
-                # Template expects linked_service_users for raw data display
-                self.linked_service_users = [access]
-            
-            def get_display_name(self):
-                return self._access_record.external_username or 'Unknown'
-            
-            def get_avatar(self, default_url=None):
-                """Return avatar URL for MockUser - service users typically don't have avatars"""
-                return default_url
-        
-        user = MockUser(access, user_uuid)
+        # For standalone service users, set up template compatibility
+        user.linked_service_users = [user]  # The service user itself
+        user._is_standalone = True
     
     try:
         # Enhanced debugging for raw service data
         current_app.logger.info(f"=== DEBUG INFO REQUEST FOR USER {user_uuid} ===")
         current_app.logger.info(f"Username: {user.get_display_name()}")
         
-        # Check for service-specific data in UserMediaAccess records
+        # Check for service-specific data in User records (unified model)
         if hasattr(user, '_is_standalone') and user._is_standalone:
-            # For standalone users, the access record is stored in _access_record
-            user_accesses = [user._access_record]
+            # For standalone users, the service user itself contains the data
+            user_accesses = [user]
         else:
-            # For regular users, query by linkedUserId using actual_id
-            user_accesses = User.query.filter_by(userType=UserType.SERVICE).filter_by(linkedUserId=actual_id).all()
+            # For regular users, query by linkedUserId using user.uuid
+            user_accesses = User.query.filter_by(userType=UserType.SERVICE, linkedUserId=user.uuid).all()
         
         has_service_data = False
         for access in user_accesses:
@@ -105,11 +76,11 @@ def get_user_debug_info(user_uuid):
             
         # Check which services this user belongs to
         if hasattr(user, '_is_standalone') and user._is_standalone:
-            # For standalone users, use the access record we already have
-            user_access = [user._access_record]
+            # For standalone users, use the service user itself
+            user_access = [user]
         else:
             # For regular users, query by linkedUserId
-            user_access = User.query.filter_by(userType=UserType.SERVICE).filter_by(linkedUserId=user.uuid).all()
+            user_access = User.query.filter_by(userType=UserType.SERVICE, linkedUserId=user.uuid).all()
         current_app.logger.info(f"User has access to {len(user_access)} servers:")
         for access in user_access:
             current_app.logger.info(f"  - Server: {access.server.server_nickname} (Type: {access.server.service_type.value})")

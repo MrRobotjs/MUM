@@ -11,27 +11,27 @@
             <div class="flex flex-col gap-2 text-sm">
                 <div><span class="text-base-content/60">Username:</span> <span class="font-mono">{{ user.get_display_name() }}</span></div>
                 <div><span class="text-base-content/60">User UUID:</span> <span class="font-mono">{{ user.id }}</span></div>
-                {% if user._is_standalone and user._access_record.external_user_id %}
-                    {% if user._access_record.server.service_type.value == 'plex' %}
-                        <div><span class="text-base-content/60">Plex UUID:</span> <span class="font-mono">{{ user._access_record.external_user_id }}</span></div>
-                    {% elif user._access_record.server.service_type.value == 'jellyfin' %}
-                        <div><span class="text-base-content/60">Jellyfin User ID:</span> <span class="font-mono">{{ user._access_record.external_user_id }}</span></div>
-                    {% elif user._access_record.server.service_type.value == 'emby' %}
-                        <div><span class="text-base-content/60">Emby User ID:</span> <span class="font-mono">{{ user._access_record.external_user_id }}</span></div>
-                    {% elif user._access_record.server.service_type.value == 'kavita' %}
-                        <div><span class="text-base-content/60">Kavita User ID:</span> <span class="font-mono">{{ user._access_record.external_user_id }}</span></div>
-                    {% elif user._access_record.server.service_type.value == 'audiobookshelf' %}
-                        <div><span class="text-base-content/60">AudioBookshelf User ID:</span> <span class="font-mono">{{ user._access_record.external_user_id }}</span></div>
-                    {% elif user._access_record.server.service_type.value == 'komga' %}
-                        <div><span class="text-base-content/60">Komga User ID:</span> <span class="font-mono">{{ user._access_record.external_user_id }}</span></div>
-                    {% elif user._access_record.server.service_type.value == 'romm' %}
-                        <div><span class="text-base-content/60">RomM User ID:</span> <span class="font-mono">{{ user._access_record.external_user_id }}</span></div>
+                {% if user._is_standalone and user.external_user_id %}
+                    {% if user.server.service_type.value == 'plex' %}
+                        <div><span class="text-base-content/60">Plex UUID:</span> <span class="font-mono">{{ user.external_user_id }}</span></div>
+                    {% elif user.server.service_type.value == 'jellyfin' %}
+                        <div><span class="text-base-content/60">Jellyfin User ID:</span> <span class="font-mono">{{ user.external_user_id }}</span></div>
+                    {% elif user.server.service_type.value == 'emby' %}
+                        <div><span class="text-base-content/60">Emby User ID:</span> <span class="font-mono">{{ user.external_user_id }}</span></div>
+                    {% elif user.server.service_type.value == 'kavita' %}
+                        <div><span class="text-base-content/60">Kavita User ID:</span> <span class="font-mono">{{ user.external_user_id }}</span></div>
+                    {% elif user.server.service_type.value == 'audiobookshelf' %}
+                        <div><span class="text-base-content/60">AudioBookshelf User ID:</span> <span class="font-mono">{{ user.external_user_id }}</span></div>
+                    {% elif user.server.service_type.value == 'komga' %}
+                        <div><span class="text-base-content/60">Komga User ID:</span> <span class="font-mono">{{ user.external_user_id }}</span></div>
+                    {% elif user.server.service_type.value == 'romm' %}
+                        <div><span class="text-base-content/60">RomM User ID:</span> <span class="font-mono">{{ user.external_user_id }}</span></div>
                     {% else %}
-                        <div><span class="text-base-content/60">{{ user._access_record.server.service_type.value|title }} User ID:</span> <span class="font-mono">{{ user._access_record.external_user_id }}</span></div>
+                        <div><span class="text-base-content/60">{{ user.server.service_type.value|title }} User ID:</span> <span class="font-mono">{{ user.external_user_id }}</span></div>
                     {% endif %}
                 {% endif %}
-                {% if user._is_standalone and user._access_record.server.service_type.value == 'plex' and user._access_record.external_user_alt_id %}
-                <div><span class="text-base-content/60">Plex Alt UUID:</span> <span class="font-mono text-xs">{{ user._access_record.external_user_alt_id }}</span></div>
+                {% if user._is_standalone and user.server.service_type.value == 'plex' and user.external_user_alt_id %}
+                <div><span class="text-base-content/60">Plex Alt UUID:</span> <span class="font-mono text-xs">{{ user.external_user_alt_id }}</span></div>
                 {% endif %}
             </div>
         </div>

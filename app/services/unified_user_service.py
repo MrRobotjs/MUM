@@ -402,7 +402,7 @@ class UnifiedUserService:
     @staticmethod
     def delete_user_completely(user_id: int, admin_id: int = None) -> bool:
         """Delete user from all services and MUM database"""
-        user = User.query.filter_by(userType=UserType.LOCAL).get(user_id)
+        user = User.query.filter_by(userType=UserType.LOCAL, id=user_id).first()
         if not user:
             return False
         

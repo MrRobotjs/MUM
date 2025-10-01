@@ -179,30 +179,31 @@ def list_users():
     # Combine and process users
     all_users = []
     
-    # Add local users and process their avatars
+    # Add local users and process their avatars (only if user_type_filter allows local users)
     current_app.logger.debug(f"Found {len(app_users)} local users")
-    for app_user in app_users:
-        # Process avatar URL for local users using their linked media access accounts
-        app_user.avatar_url = _get_local_user_avatar_url(app_user)
-        # UUID is already available on the user object
-        
-        # Set _user_type for template logic
-        app_user._user_type = 'local'
-        
-        # Set plex_join_date for local users - use the earliest service join date or created_at
-        earliest_join_date = app_user.created_at
-        # Get linked service users for this local user
-        linked_service_users = User.query.filter_by(userType=UserType.SERVICE).filter_by(linkedUserId=app_user.uuid).all()
-        for service_user in linked_service_users:
-            if service_user.service_join_date and (not earliest_join_date or service_user.service_join_date < earliest_join_date):
-                earliest_join_date = service_user.service_join_date
-        app_user.plex_join_date = earliest_join_date
-        
-        # Attach linked service users to the user object for template access
-        # linked_service_users queried dynamically in templates
-        
-        all_users.append(app_user)
-        current_app.logger.debug(f"Local user {app_user.localUsername} (UUID: {app_user.uuid}) added to list")
+    if user_type_filter in ['all', 'local']:
+        for app_user in app_users:
+            # Process avatar URL for local users using their linked media access accounts
+            app_user.avatar_url = _get_local_user_avatar_url(app_user)
+            # UUID is already available on the user object
+            
+            # Set _user_type for template logic
+            app_user._user_type = 'local'
+            
+            # Set plex_join_date for local users - use the earliest service join date or created_at
+            earliest_join_date = app_user.created_at
+            # Get linked service users for this local user
+            linked_service_users = User.query.filter_by(userType=UserType.SERVICE).filter_by(linkedUserId=app_user.uuid).all()
+            for service_user in linked_service_users:
+                if service_user.service_join_date and (not earliest_join_date or service_user.service_join_date < earliest_join_date):
+                    earliest_join_date = service_user.service_join_date
+            app_user.plex_join_date = earliest_join_date
+            
+            # Attach linked service users to the user object for template access
+            # linked_service_users queried dynamically in templates
+            
+            all_users.append(app_user)
+            current_app.logger.debug(f"Local user {app_user.localUsername} (UUID: {app_user.uuid}) added to list")
     
     # Add service users with a type indicator  
     for service_user in service_users:

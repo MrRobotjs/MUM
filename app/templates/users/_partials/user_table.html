@@ -308,32 +308,32 @@
                     {{ user.total_duration | format_duration }}
                 </td>
                 <td data-col="roles">
-                    {% if user.is_home_user %}<span class="badge badge-primary badge-sm whitespace-nowrap" title="Plex Home User"><i class="fa-solid fa-home"></i>Home</span>{% endif %}
+                    {% if user.is_home_user %}<span class="inline-flex items-center rounded-md bg-purple-50 dark:bg-purple-400/10 px-2 py-1 text-xs font-medium text-purple-700 dark:text-purple-400 ring-1 ring-inset ring-purple-600/20 dark:ring-purple-500/20 gap-1 mt-1 whitespace-nowrap" title="Plex Home User"><i class="fa-solid fa-home w-2.5 h-2.5"></i>Home</span>{% endif %}
                     {% if user.shares_back %}
-                        <span class="badge badge-secondary badge-sm mt-1 whitespace-nowrap" title="Shares Libraries Back"><i class="fa-solid fa-share"></i>Shares Back</span>
+                        <span class="inline-flex items-center rounded-md bg-green-50 dark:bg-green-400/10 px-2 py-1 text-xs font-medium text-green-700 dark:text-green-400 ring-1 ring-inset ring-green-600/20 dark:ring-green-500/20 gap-1 mt-1 whitespace-nowrap" title="Shares Libraries Back"><i class="fa-solid fa-share w-2.5 h-2.5"></i>Shares Back</span>
                         {% if user.raw_data and user.raw_data.get('plex_user_obj_attrs') and user.raw_data.plex_user_obj_attrs.get('servers') %}
                             {% for server in user.raw_data.plex_user_obj_attrs.servers %}
                                 {% if not server.owned %}
-                                    <span class="badge badge-accent badge-sm mt-1 ml-1 whitespace-nowrap" title="Shared Server: {{ server.name }}"><i class="fa-solid fa-server"></i>{{ server.name }}</span>
+                                    <span class="inline-flex items-center rounded-md bg-orange-50 dark:bg-orange-400/10 px-2 py-1 text-xs font-medium text-orange-700 dark:text-orange-400 ring-1 ring-inset ring-orange-600/20 dark:ring-orange-500/20 gap-1 mt-1 ml-1 whitespace-nowrap" title="Shared Server: {{ server.name }}"><i class="fa-solid fa-server w-2.5 h-2.5"></i>{{ server.name }}</span>
                                 {% endif %}
                             {% endfor %}
                         {% endif %}
                     {% endif %}
-                    {% if user.discord_user_id %}<span class="badge badge-info badge-sm mt-1 whitespace-nowrap" title="Discord: {{ user.discord_username or 'Linked' }}"><i class="fa-brands fa-discord"></i>Discord</span>{% endif %}
+                    {% if user.discord_user_id %}<span class="inline-flex items-center rounded-md bg-indigo-50 dark:bg-indigo-400/10 px-2 py-1 text-xs font-medium text-indigo-700 dark:text-indigo-400 ring-1 ring-inset ring-indigo-600/20 dark:ring-indigo-500/20 gap-1 mt-1 whitespace-nowrap" title="Discord: {{ user.discord_username or 'Linked' }}"><i class="fa-brands fa-discord w-2.5 h-2.5"></i>Discord</span>{% endif %}
                     {% if user.is_purge_whitelisted %}
-                        <span class="badge badge-accent badge-sm mb-1 whitespace-nowrap" title="This user is immune to inactivity purges.">
-                            <i class="fa-solid fa-shield-halved"></i>Purge WL
+                        <span class="inline-flex items-center rounded-md bg-amber-50 dark:bg-amber-400/10 px-2 py-1 text-xs font-medium text-amber-700 dark:text-amber-400 ring-1 ring-inset ring-amber-600/20 dark:ring-amber-500/20 gap-1 mb-1 whitespace-nowrap" title="This user is immune to inactivity purges.">
+                            <i class="fa-solid fa-shield-halved w-2.5 h-2.5"></i>Purge WL
                         </span>
                     {% endif %}
                     {% if user.plex_uuid and user.plex_uuid in admins_by_uuid %}
                         {# First, display a generic Admin badge #}
-                        <div class="badge badge-error badge-outline badge-sm" title="This user is an administrator"><i class="fa-solid fa-user-shield"></i>Admin</div>
+                        <div class="inline-flex items-center rounded-md bg-red-50 dark:bg-red-400/10 px-2 py-1 text-xs font-medium text-red-700 dark:text-red-400 ring-1 ring-inset ring-red-600/20 dark:ring-red-500/20 gap-1 mt-1 whitespace-nowrap" title="This user is an administrator"><i class="fa-solid fa-user-shield w-2.5 h-2.5"></i>Admin</div>
                         
                         {# Then, loop through the roles for that admin and display colored badges #}
                         {% set admin = admins_by_uuid[user.plex_uuid] %}
                         {% for role in admin.roles %}
-                        <span class="badge badge-sm" style="background-color: {{ role.color or '#808080' }}; border-color: {{ role.color or '#808080' }}; color: {{ get_text_color_for_bg(role.color) }};" title="Role: {{ role.name }}">
-                            {% if role.icon %}<i class="{{ role.icon }}"></i>{% endif %}{{ role.name }}
+                        <span class="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset gap-1 mt-1 whitespace-nowrap" style="background-color: {{ (role.color or '#808080') }}20; color: {{ role.color or '#808080' }}; border-color: {{ (role.color or '#808080') }}40;" title="Role: {{ role.name }}">
+                            {% if role.icon %}<i class="{{ role.icon }} w-2.5 h-2.5"></i>{% endif %}{{ role.name }}
                         </span>
                         {% endfor %}
                     {% endif %}

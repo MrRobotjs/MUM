@@ -200,7 +200,7 @@
                                         {% set user_servers = user_server_names.get(user.uuid, []) %}
                                         {% if user_servers %}
                                             {% set server_name = user_servers[0] %}
-                                            <a href="{{ url_for('admin_user.view_service_user', server_nickname=server_name, server_username=user.username, back='users', back_view='table') }}" title="Service User Profile" class="link link-hover">
+                                            <a href="{{ url_for('admin_user.view_service_user', server_nickname=server_name, server_username=user.external_username, back='users', back_view='table') }}" title="Service User Profile" class="link link-hover">
                                                 <div class="font-bold truncate max-w-[150px] sm:max-w-xs {{ username_class }}" title="{{ user.get_display_name() }}">{{ user.get_display_name() }}</div>
                                             </a>
                                         {% else %}
@@ -442,7 +442,7 @@
                                     {% set user_servers = user_server_names.get(user.uuid, []) %}
                                     {% if user_servers %}
                                         {% set server_name = user_servers[0] %}
-                                        <a href="{{ url_for('admin_user.view_service_user', server_nickname=server_name, server_username=user.username, back='users', back_view='table') }}" title="Service User Profile" class="btn btn-xs btn-ghost text-info hover:bg-info/10"><i class="fa-solid fa-user"></i></a>
+                                        <a href="{{ url_for('admin_user.view_service_user', server_nickname=server_name, server_username=user.external_username, back='users', back_view='table') }}" title="Service User Profile" class="btn btn-xs btn-ghost text-info hover:bg-info/10"><i class="fa-solid fa-user"></i></a>
                                     {% else %}
                                         <span title="No server info available" class="btn btn-xs btn-ghost text-gray-500"><i class="fa-solid fa-eye-slash"></i></span>
                                     {% endif %}

@@ -235,11 +235,11 @@ class User(db.Model, UserMixin):
     def get_email(self):
         """Get the email for this user"""
         if self.userType == UserType.OWNER:
-            return self.discord_email
+            return self.email
         elif self.userType == UserType.LOCAL:
-            return self.discord_email
+            return self.email
         elif self.userType == UserType.SERVICE:
-            return self.external_email or self.discord_email
+            return self.external_email
         return None
     
     # Permission Methods

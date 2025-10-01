@@ -286,14 +286,14 @@
                         </div>
                     </div>
                 </td>
-                <td data-col="email" class="text-sm truncate max-w-xs" title="{{ user.email or 'No E-mail address' }}">
+                <td data-col="email" class="text-sm truncate max-w-xs" title="{{ user.get_email() or 'No E-mail address' }}">
                     <div class="flex items-center gap-1">
                         <i class="fa-solid fa-at fa-fw text-info text-xs"></i>
-                        <span>{{ user.email or 'No E-mail address' }}</span>
+                        <span>{{ user.get_email() or 'No E-mail address' }}</span>
                     </div>
                 </td>
                 <td data-col="plex_join_date" class="text-sm">
-                    {{ user.plex_join_date.strftime('%b %d, %Y') if user.plex_join_date else 'N/A' }}
+                    {{ (user.service_join_date or user.plex_join_date).strftime('%b %d, %Y') if (user.service_join_date or user.plex_join_date) else 'N/A' }}
                 </td>
                 <td data-col="last_known_ip" class="text-sm font-mono">
                     <div class="flex items-center gap-1">

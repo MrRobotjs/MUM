@@ -71,17 +71,4 @@ def _get_local_user_avatar_url(app_user):
     return None
 
 
-class MassEditMockUser:
-    """Mock user class for mass edit operations"""
-    def __init__(self, user_uuid, username, email, is_active, role_name, role_id, libraries_access):
-        self.uuid = user_uuid
-        self.localUsername = username
-        self.email = email
-        self.is_active = is_active
-        self.role_name = role_name
-        self.role_id = role_id
-        self.libraries_access = libraries_access
-        
-    def has_permission(self, permission):
-        # For mass edit, we'll assume basic permissions
-        return True
+# MassEditMockUser class removed - now using unified User model directly

@@ -57,9 +57,9 @@
                             <!-- Load user's requests via HTMX -->
                             <div id="overseerr-requests-{{ server.id }}" 
                                  {% if is_admin_context is defined and is_admin_context and user._is_service_user is defined and user._is_service_user %}
-                                 hx-get="{{ url_for('admin_user.get_overseerr_requests', server_id=server.id, server_nickname=user._access_record.server.server_nickname, server_username=user.external_username) }}"
+                                 hx-get="{{ url_for('admin_user.get_overseerr_requests', server_id=server.id, server_nickname=user.server.server_nickname, server_username=user.external_username) }}"
                                  {% elif user._is_service_user is defined and user._is_service_user %}
-                                 hx-get="{{ url_for('user.get_overseerr_requests', server_id=server.id, server_nickname=user._access_record.server.server_nickname, server_username=user.external_username) }}"
+                                 hx-get="{{ url_for('user.get_overseerr_requests', server_id=server.id, server_nickname=user.server.server_nickname, server_username=user.external_username) }}"
                                  {% else %}
                                  hx-get="{{ url_for('user.get_overseerr_requests', server_id=server.id) }}"
                                  {% endif %}

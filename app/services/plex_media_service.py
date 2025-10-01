@@ -789,14 +789,12 @@ class PlexMediaService(BaseMediaService):
                         if linked_user:
                             mum_users_map_by_plex_id[plex_id] = linked_user
                     else:
-                        # Standalone user - create a mock user object with negative ID
-                        class MockStandaloneUser:
-                            def __init__(self, access_record):
-                                self.id = -(access_record.id + 1000000)  # Negative ID for standalone users
-                                self.localUsername = access_record.external_username or 'Unknown'
-                                self._access_record = access_record
+                        # Standalone user - use the service user directly (unified model)
+                        access.localUsername = access.external_username or 'Unknown'
+                        # access._access_record removed - no longer needed
+                        access._is_standalone = True
                         
-                        mum_users_map_by_plex_id[plex_id] = MockStandaloneUser(access)
+                        mum_users_map_by_plex_id[plex_id] = access
         else:
             mum_users_map_by_plex_id = {}
         

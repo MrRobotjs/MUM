@@ -45,7 +45,7 @@ Common functions and classes used across multiple modules.
 **Key Functions:**
 - `get_libraries_from_database(servers)` - Retrieve library data from database
 - `_get_local_user_avatar_url(app_user)` - Get avatar URL for local users
-- `MassEditMockUser` - Mock user class for mass operations
+- Uses unified User model (userType=LOCAL or SERVICE) for all operations
 
 ### `main.py` - Core Listing
 Main user listing functionality with filtering, sorting, and pagination.

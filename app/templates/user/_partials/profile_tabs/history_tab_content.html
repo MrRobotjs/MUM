@@ -12,7 +12,7 @@
 
 <form id="history-delete-form"
       {% if user._is_service_user %}
-        hx-post="{{ url_for('user.delete_stream_history', server_nickname=user._access_record.server.server_nickname, server_username=user.username) }}"
+        hx-post="{{ url_for('user.delete_stream_history', server_nickname=user.server.server_nickname, server_username=user.username) }}"
       {% else %}
         hx-post="{{ url_for('user.delete_stream_history', username=user.username) }}"
       {% endif %}

@@ -126,63 +126,7 @@ def view_app_user(username):
     )
 
 
-class MockServiceUser:
-    """Mock user object that behaves like a User for service accounts"""
-    
-    def __init__(self, access_record):
-        self._access_record = access_record
-        # Map UserMediaAccess fields to User-like attributes
-        self.id = access_record.id
-        self.uuid = access_record.uuid
-        self.userType = UserType.SERVICE
-        self.created_at = access_record.created_at
-        self.updated_at = access_record.updated_at
-        self.notes = getattr(access_record, 'notes', None)
-        self.is_discord_bot_whitelisted = access_record.is_discord_bot_whitelisted
-        self.is_purge_whitelisted = access_record.is_purge_whitelisted
-        self.allow_4k_transcode = access_record.allow_4k_transcode
-        self.access_expires_at = access_record.access_expires_at
-        
-        # Set service user flag for template logic
-        self._is_service_user = True
-        self._user_type = 'service'
-        
-        # Attributes for template display
-        self.username = access_record.external_username
-        self.discord_username = None  # Service users don't have Discord usernames
-        self.discord_email = None     # Service users don't have Discord emails
-        self.server = access_record.server
-        
-    def get_avatar_url(self):
-        """Get avatar URL for service user"""
-        access = self._access_record
-        avatar_url = "/static/img/favicon.ico"  # Default
-        
-        if access.server.service_type.value.lower() == 'plex':
-            # For Plex, construct the avatar URL using the server's URL and the user's thumb
-            if access.external_user_avatar:
-                # Remove '/library/metadata/' prefix if present and construct full URL
-                thumb_path = access.external_user_avatar
-                if thumb_path.startswith('/library/metadata/'):
-                    # Remove the prefix, we'll construct the full URL
-                    thumb_path = thumb_path.replace('/library/metadata/', '')
-                server_url = access.server.server_url.rstrip('/')
-                avatar_url = f"{server_url}/photo/:/transcode?width=150&height=150&minSize=1&upscale=1&url=/library/metadata/{thumb_path}"
-        
-        elif access.server.service_type.value.lower() == 'emby':
-            # For Emby, use the external_user_id to get avatar  
-            if access.external_user_id:
-                avatar_url = f"/api/media/emby/users/avatar?user_id={access.external_user_id}"
-        
-        elif access.server.service_type.value.lower() == 'jellyfin':
-            # For Jellyfin, use the external_user_id to get avatar
-            if access.external_user_id:
-                avatar_url = f"/api/media/jellyfin/users/avatar?user_id={access.external_user_id}"
-        
-        return avatar_url
-    
-    def get_display_name(self):
-        return self._access_record.external_username or 'Unknown'
+# MockServiceUser class removed - service user profiles now handled via admin routes with unified User model
 
 
 # ROUTE REMOVED: This route conflicted with admin route at /admin/user/<server_nickname>/<server_username>

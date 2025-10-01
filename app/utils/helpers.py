@@ -535,7 +535,7 @@ def get_user_servers_and_types(user):
     Get server names and service types for a user.
     
     Args:
-        user: User instance (local user) or MockUser instance
+        user: User instance (unified model with userType=LOCAL or SERVICE)
         
     Returns:
         tuple: (server_names_list, service_types_list)
@@ -544,7 +544,7 @@ def get_user_servers_and_types(user):
     # Handle local users
     if user.userType == UserType.LOCAL:
         user_access_records = User.query.filter_by(userType=UserType.SERVICE).filter_by(linkedUserId=user.uuid).all()
-    # Handle MockUser or service users (check for _user_type attribute)
+    # Handle service users (check for _user_type attribute or userType)
     elif hasattr(user, '_user_type') and user._user_type == 'service':
         # This is a standalone service user - get their direct access record
         user_access_records = User.query.filter_by(userType=UserType.SERVICE).filter_by(id=user.id, linkedUserId=None).all()

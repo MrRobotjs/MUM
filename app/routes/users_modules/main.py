@@ -149,56 +149,23 @@ def list_users():
         
         # Convert service user records to user-like format for display
         for access in all_access_records:
-            # Create a mock user object with necessary attributes
-            class MockUser:
-                def __init__(self, access):
-                    self.uuid = access.uuid
-                    self.id = access.id
-                    self.localUsername = access.external_username or 'Unknown'
-                    self.email = access.external_email
-                    self.notes = access.notes
-                    self.created_at = access.created_at
-                    self.last_login_at = access.last_activity_at
-                    self.media_accesses = [access]
-                    self.access_expires_at = access.access_expires_at
-                    self.discord_user_id = access.discord_user_id
-                    self.is_active = access.is_active
-                    self._is_standalone = True
-                    self._access_record = access
-                    self.is_home_user = access.is_home_user
-                    self.shares_back = access.shares_back
-                    self.is_purge_whitelisted = access.is_purge_whitelisted
-                    self.plex_join_date = access.service_join_date or access.created_at
-                    self.avatar_url = None
-                    self.last_streamed_at = None
-                    # Add template compatibility attributes
-                    self.server = access.server
-                    self.external_username = access.external_username
-                
-                def get_display_name(self):
-                    return self._access_record.external_username or 'Unknown'
-                
-                def get_avatar(self, default_url=None):
-                    return default_url
-            
-            mock_user = MockUser(access)
-            mock_user._user_type = 'service'
-            # Set avatar URL for service users directly from the access record
-            mock_user.avatar_url = access.external_avatar_url  # Use the external_avatar_url directly
-            service_users.append(mock_user)
+            # Use the actual User object directly (unified model)
+            service_users.append(access)
         
         current_app.logger.info(f"Found {len(service_users)} service users")
     
     # Combine and process users
     all_users = []
     
-    # Add local users with a type indicator and process their avatars
+    # Add local users and process their avatars
     current_app.logger.debug(f"Found {len(app_users)} local users")
     for app_user in app_users:
-        app_user._user_type = 'local'
         # Process avatar URL for local users using their linked media access accounts
         app_user.avatar_url = _get_local_user_avatar_url(app_user)
         # UUID is already available on the user object
+        
+        # Set _user_type for template logic
+        app_user._user_type = 'local'
         
         # Set plex_join_date for local users - use the earliest service join date or created_at
         earliest_join_date = app_user.created_at
@@ -210,14 +177,26 @@ def list_users():
         app_user.plex_join_date = earliest_join_date
         
         # Attach linked service users to the user object for template access
-        app_user.linked_service_users = linked_service_users
+        # linked_service_users queried dynamically in templates
         
         all_users.append(app_user)
         current_app.logger.debug(f"Local user {app_user.localUsername} (UUID: {app_user.uuid}) added to list")
     
     # Add service users with a type indicator  
     for service_user in service_users:
+        # Normalize username for consistent sorting
+        service_user.localUsername = service_user.external_username
+        # Set _user_type for template logic
         service_user._user_type = 'service'
+        
+        # Set avatar URL for service users
+        if service_user.external_avatar_url:
+            service_user.avatar_url = service_user.external_avatar_url
+        elif service_user.server and service_user.server.service_type.value.lower() == 'jellyfin' and service_user.external_user_id:
+            service_user.avatar_url = f"/api/media/jellyfin/users/avatar?user_id={service_user.external_user_id}"
+        else:
+            service_user.avatar_url = None
+        
         all_users.append(service_user)
     
     # Store sort parameters for later use (after we populate streaming data)
@@ -229,13 +208,13 @@ def list_users():
         # Sort combined results immediately for non-streaming sorts
         reverse_sort = 'desc' in sort_by_param
         if 'username' in sort_by_param:
-            all_users.sort(key=lambda u: getattr(u, 'localUsername', '').lower(), reverse=reverse_sort)
+            all_users.sort(key=lambda u: (getattr(u, 'localUsername', '') or '').lower(), reverse=reverse_sort)
         elif 'created_at' in sort_by_param:
             all_users.sort(key=lambda u: getattr(u, 'created_at', datetime.min.replace(tzinfo=timezone.utc)) or datetime.min.replace(tzinfo=timezone.utc), reverse=reverse_sort)
         elif 'service_join_date' in sort_by_param:
             all_users.sort(key=lambda u: getattr(u, 'service_join_date', None) or getattr(u, 'plex_join_date', None) or datetime.min.replace(tzinfo=timezone.utc), reverse=reverse_sort)
         elif 'email' in sort_by_param:
-            all_users.sort(key=lambda u: getattr(u, 'email', '').lower(), reverse=reverse_sort)
+            all_users.sort(key=lambda u: (getattr(u, 'email', '') or '').lower(), reverse=reverse_sort)
     
     # For last_streamed sorting, we need to process ALL users before pagination
     # For other sorts, we can paginate first to improve performance
@@ -289,9 +268,8 @@ def list_users():
     all_user_uuids = []
     
     for user in users_on_page:
-        if hasattr(user, '_user_type'):
-            # Use UUIDs for both local and service users
-            all_user_uuids.append(user.uuid)
+        # Use UUIDs for both local and service users
+        all_user_uuids.append(user.uuid)
 
     # Fetch additional data for all users (using UUIDs)
     stream_stats = {}
@@ -303,11 +281,7 @@ def list_users():
     # Get last known IPs from streaming history for all users
     all_user_uuids_for_ips = []
     for user in users_on_page:
-        if hasattr(user, '_user_type'):
-            if user._user_type == 'local':
-                all_user_uuids_for_ips.append(user.uuid)
-            elif user._user_type == 'service':
-                all_user_uuids_for_ips.append(user.uuid)
+        all_user_uuids_for_ips.append(user.uuid)
     
     # Get most recent IP addresses from MediaStreamHistory for all users
     last_known_ips_from_streams = {}
@@ -328,16 +302,15 @@ def list_users():
 
     # Attach the additional data directly to each user object
     for user in users_on_page:
-        if hasattr(user, '_user_type'):
-            # Use UUID to get stats for both local and service users
-            stats = stream_stats.get(user.uuid, {})
-            user.total_plays = stats.get('play_count', 0)
-            user.total_duration = stats.get('total_duration', 0)
-            # Use IP from streaming history first, then fall back to bulk IP lookup
-            user.last_known_ip = last_known_ips_from_streams.get(user.uuid) or last_ips.get(user.uuid, 'N/A')
-            # Initialize last_streamed_at - will be set below if streaming history exists
-            if not hasattr(user, 'last_streamed_at'):
-                user.last_streamed_at = None
+        # Use UUID to get stats for both local and service users
+        stats = stream_stats.get(user.uuid, {})
+        user.total_plays = stats.get('play_count', 0)
+        user.total_duration = stats.get('total_duration', 0)
+        # Use IP from streaming history first, then fall back to bulk IP lookup
+        user.last_known_ip = last_known_ips_from_streams.get(user.uuid) or last_ips.get(user.uuid, 'N/A')
+        # Initialize last_streamed_at - will be set below if streaming history exists
+        if not hasattr(user, 'last_streamed_at'):
+            user.last_streamed_at = None
     
     # Get library access info for each user, organized by server
     user_library_access_by_server = {}  # user_id -> server_id -> [lib_ids]
@@ -361,7 +334,7 @@ def list_users():
                 access_records = User.query.filter_by(userType=UserType.SERVICE).filter(User.linkedUserId == user.uuid).all()
             elif user._user_type == 'service':
                 # Service user - get their specific service user record
-                access_records = [user._access_record]
+                access_records = [user]
             else:
                 access_records = []
         else:
@@ -377,7 +350,9 @@ def list_users():
                 user_service_types[user_id].append(access.server.service_type)
             
             # Track which server names this user has access to
-            if access.server and access.server.server_nickname not in user_server_names[user_id]:
+            if access.server and access.server.server_nickname not in user_server_names.get(user_id, []):
+                if user_id not in user_server_names:
+                    user_server_names[user_id] = []
                 user_server_names[user_id].append(access.server.server_nickname)
     
     # Get library data from database for library name mapping using existing helper
@@ -557,16 +532,46 @@ def list_users():
         # Update the pagination object with the newly sorted and paginated users
         users_pagination.items = users_on_page
 
-    # Add service types for standalone users to user_service_types
+    # Add service types, server names, and libraries for all service users (including those not on current page)
     if user_type_filter in ['all', 'service'] and service_users:
         for service_user in service_users:
-            if hasattr(service_user, '_is_standalone') and service_user._is_standalone:
-                # Add the service type for this standalone user (with null check for deleted servers)
-                if service_user._access_record and service_user._access_record.server:
-                    user_service_types[service_user.uuid] = [service_user._access_record.server.service_type]
+            # Add the service type for this service user (with null check for deleted servers)
+            if service_user.server:
+                user_service_types[service_user.uuid] = [service_user.server.service_type]
+                user_server_names[service_user.uuid] = [service_user.server.server_nickname]
+                
+                # Also ensure library data is populated for this service user
+                if service_user.uuid not in user_sorted_libraries:
+                    user_library_access_by_server[service_user.uuid] = {service_user.server_id: service_user.allowed_library_ids or []}
+                    
+                    # Process libraries for this service user
+                    server_libraries = libraries_by_server.get(service_user.server_id, {})
+                    lib_ids = service_user.allowed_library_ids or []
+                    
+                    if lib_ids == ['*']:
+                        lib_names = ['All Libraries']
+                        user_library_service_mapping[service_user.uuid] = {'All Libraries': service_user.server.service_type.value}
+                    elif len(lib_ids) > 0:
+                        lib_names = []
+                        user_library_service_mapping[service_user.uuid] = {}
+                        for lib_id in lib_ids:
+                            lib_name = server_libraries.get(str(lib_id), f'Unknown Lib {lib_id}')
+                            lib_names.append(lib_name)
+                            user_library_service_mapping[service_user.uuid][lib_name] = service_user.server.service_type.value
+                    else:
+                        # Empty lib_ids - no specific library access
+                        lib_names = []
+                        user_library_service_mapping[service_user.uuid] = {}
+                    
+                    user_sorted_libraries[service_user.uuid] = sorted(lib_names, key=str.lower)
     
     # Check if user accounts feature is enabled
     allow_user_accounts = Setting.get_bool('ALLOW_USER_ACCOUNTS', False)
+    
+    # Create user_servers for template compatibility (templates expect user_servers[0])
+    user_servers = {}
+    for user_id, server_names in user_server_names.items():
+        user_servers[user_id] = server_names
     
     # Template context with complete user data
     template_context = {
@@ -581,6 +586,7 @@ def list_users():
         'user_library_service_mapping': user_library_service_mapping,
         'user_service_types': user_service_types,
         'user_server_names': user_server_names,
+        'user_servers': user_servers,  # Add this for template compatibility
         'current_view': view_mode,
         'mass_edit_form': mass_edit_form,
         'selected_users_count': 0,
@@ -656,32 +662,19 @@ def get_quick_edit_form(user_uuid):
         # Local user - get local user record
         user = User.query.filter_by(id=actual_id, userType=UserType.LOCAL).first_or_404()
     elif user_type == "user_media_access":
-        # Service user - get service user record and create a compatible object
-        access = User.query.filter_by(id=actual_id, userType=UserType.SERVICE).first_or_404()
+        # Service user - get service user record and use it directly
+        user = User.query.filter_by(id=actual_id, userType=UserType.SERVICE).first_or_404()
         
-        # Create a mock user object that's compatible with the form
-        class MockUser:
-            def __init__(self, access):
-                self.id = actual_id  # Use actual ID for form processing
-                self.localUsername = access.external_username or 'Unknown'
-                self.email = access.external_email
-                self.notes = access.notes
-                self.created_at = access.created_at
-                self.last_login_at = access.last_activity_at
-                self.access_expires_at = access.access_expires_at
-                self.discord_user_id = access.discord_user_id
-                self.is_discord_bot_whitelisted = False  # Service users don't have this
-                self.is_purge_whitelisted = False  # Service users don't have this
-                self._access_record = access
-                self._is_service_user = True
-                # Add template compatibility attributes
-                self.server = access.server
-                self.external_username = access.external_username
-            
-            def get_display_name(self):
-                return self.localUsername or 'Unknown'
+        # Set display attributes for service users
+        user.localUsername = user.external_username or 'Unknown'
+        user.last_login_at = user.last_activity_at
+        user.is_discord_bot_whitelisted = False  # Service users don't have this
+        user.is_purge_whitelisted = False  # Service users don't have this
+        user._is_service_user = True
         
-        user = MockUser(access)
+        # Add get_display_name method if not present
+        if not hasattr(user, 'get_display_name'):
+            user.get_display_name = lambda: user.localUsername or 'Unknown'
     else:
         return '<div class="alert alert-error">Unknown user type.</div>'
     
@@ -693,7 +686,7 @@ def get_quick_edit_form(user_uuid):
         user_access_records = User.query.filter_by(userType=UserType.SERVICE).filter_by(linkedUserId=actual_id).all()
     elif user_type == "user_media_access":
         # Service user - get their specific service user record
-        user_access_records = [user._access_record]
+        user_access_records = [user]
     
     # Set up library choices using utility functions
     from app.utils.user_library_helpers import setup_form_library_choices, get_multi_server_library_choices

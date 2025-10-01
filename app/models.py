@@ -175,6 +175,22 @@ class User(db.Model, UserMixin):
                             backref=db.backref('users', lazy=True))
     server = db.relationship('MediaServer', foreign_keys=[server_id], back_populates='users')
     
+    # Template compatibility property - returns linked service users for templates
+    @property
+    def linked_service_users(self):
+        """Get linked service users for template compatibility"""
+        if self.userType == UserType.LOCAL:
+            return [child for child in self.linked_children if child.userType == UserType.SERVICE]
+        elif self.userType == UserType.SERVICE:
+            return [self]  # Service user returns itself
+        return []
+    
+    # Template compatibility property - returns service users for templates  
+    @property
+    def service_users(self):
+        """Get service users for template compatibility"""
+        return self.linked_service_users
+    
     def __repr__(self):
         if self.userType == UserType.OWNER:
             return f'<User(OWNER) {self.localUsername}>'

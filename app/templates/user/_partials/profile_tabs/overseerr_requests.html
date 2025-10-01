@@ -2,6 +2,8 @@
 {% if requests and requests|length > 0 %}
     <!-- CSRF Token for AJAX requests -->
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <!-- Server ID for JavaScript access -->
+    <input type="hidden" id="overseerr-server-id" value="{{ server_id if server_id else (server.id if server else '') }}">
     
     <!-- Requests List -->
     <div class="space-y-4">
@@ -87,12 +89,12 @@
                                 <div class="flex items-center gap-2">
                                     <span class="badge badge-warning badge-sm">Pending</span>
                                     <button class="btn btn-xs btn-success" 
-                                            onclick="updateRequestStatus({{ server_id }}, {{ request.id }}, 'approve', this)"
+                                            onclick="updateRequestStatus({{ server_id if server_id else 'null' }}, {{ request.id if request.id else 'null' }}, 'approve', this)"
                                             title="Approve Request">
                                         <i class="fa-solid fa-check"></i>
                                     </button>
                                     <button class="btn btn-xs btn-error" 
-                                            onclick="updateRequestStatus({{ server_id }}, {{ request.id }}, 'decline', this)"
+                                            onclick="updateRequestStatus({{ server_id if server_id else 'null' }}, {{ request.id if request.id else 'null' }}, 'decline', this)"
                                             title="Decline Request">
                                         <i class="fa-solid fa-times"></i>
                                     </button>
@@ -218,12 +220,12 @@
                             <div class="flex items-center gap-2">
                                 <span class="badge badge-warning badge-sm">Pending</span>
                                 <button class="btn btn-xs btn-success" 
-                                        onclick="updateRequestStatus({{ server_id }}, {{ request.id }}, 'approve', this)"
+                                        onclick="updateRequestStatus({{ server_id if server_id else 'null' }}, {{ request.id if request.id else 'null' }}, 'approve', this)"
                                         title="Approve Request">
                                     <i class="fa-solid fa-check"></i>
                                 </button>
                                 <button class="btn btn-xs btn-error" 
-                                        onclick="updateRequestStatus({{ server_id }}, {{ request.id }}, 'decline', this)"
+                                        onclick="updateRequestStatus({{ server_id if server_id else 'null' }}, {{ request.id if request.id else 'null' }}, 'decline', this)"
                                         title="Decline Request">
                                     <i class="fa-solid fa-times"></i>
                                 </button>
@@ -319,13 +321,43 @@
 
 <script>
 function updateRequestStatus(serverId, requestId, status, buttonElement) {
+    // Get server_id from hidden input if not provided or invalid
+    if (!serverId || serverId === 'null' || serverId === null || serverId === '') {
+        const serverIdInput = document.getElementById('overseerr-server-id');
+        serverId = serverIdInput ? serverIdInput.value : null;
+        console.log('Retrieved server_id from hidden input:', serverId);
+    }
+    
+    // Debug logging
+    console.log('updateRequestStatus called with:', {
+        serverId: serverId,
+        requestId: requestId,
+        status: status,
+        serverIdType: typeof serverId,
+        requestIdType: typeof requestId,
+        hiddenInputValue: document.getElementById('overseerr-server-id')?.value
+    });
+    
+    // Validate parameters
+    if (!serverId || serverId === 'null' || serverId === null || serverId === '') {
+        console.error('Invalid server_id:', serverId);
+        alert('Error: Invalid server ID. Check console for details.');
+        return;
+    }
+    
+    if (!requestId || requestId === 'null' || requestId === null) {
+        console.error('Invalid request_id:', requestId);
+        alert('Error: Invalid request ID');
+        return;
+    }
+    
     // Disable the button and show loading state
     const originalContent = buttonElement.innerHTML;
     buttonElement.disabled = true;
     buttonElement.innerHTML = '<span class="loading loading-spinner loading-xs"></span>';
     
     // Make the API call
-    fetch('/user/overseerr-request-update', {
+    fetch('/overseerr-request-update', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -387,6 +419,20 @@ function updateRequestStatus(serverId, requestId, status, buttonElement) {
 }
 
 function deleteRequest(serverId, requestId, buttonElement) {
+    // Get server_id from hidden input if not provided or invalid
+    if (!serverId || serverId === 'null' || serverId === null || serverId === '') {
+        const serverIdInput = document.getElementById('overseerr-server-id');
+        serverId = serverIdInput ? serverIdInput.value : null;
+        console.log('Retrieved server_id from hidden input for delete:', serverId);
+    }
+    
+    // Validate server_id
+    if (!serverId || serverId === 'null' || serverId === null || serverId === '') {
+        console.error('Invalid server_id for delete:', serverId);
+        alert('Error: Invalid server ID. Check console for details.');
+        return;
+    }
+    
     // Show confirmation dialog
     if (!confirm('Are you sure you want to delete this request? This action cannot be undone.')) {
         return;
@@ -398,7 +444,7 @@ function deleteRequest(serverId, requestId, buttonElement) {
     buttonElement.innerHTML = '<span class="loading loading-spinner loading-xs"></span>';
     
     // Make the API call
-    fetch('/user/overseerr-request-delete', {
+    fetch('/overseerr-request-delete', {
         method: 'DELETE',
         headers: {
             'Content-Type': 'application/json',

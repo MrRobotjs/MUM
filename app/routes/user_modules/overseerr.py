@@ -14,6 +14,7 @@ import urllib.parse
 @login_required
 def get_overseerr_requests(server_id, server_nickname=None, server_username=None):
     """Get Overseerr requests for the current user"""
+    current_app.logger.info(f"OVERSEERR DEBUG: Route called with server_id={server_id} (type: {type(server_id)}), server_nickname={server_nickname}, server_username={server_username}")
     try:
         from app.services.overseerr_service import OverseerrService
         from app.models_media_services import MediaServer
@@ -137,6 +138,10 @@ def get_overseerr_requests(server_id, server_nickname=None, server_username=None
             return render_template('user/_partials/profile_tabs/overseerr_error.html', 
                                  error_type='api_error',
                                  message=message)
+        
+        # Debug: Log template context
+        current_app.logger.info(f"OVERSEERR DEBUG: Rendering template with server_id={server_id} (type: {type(server_id)}), requests_count={len(requests_list) if requests_list else 0}")
+        current_app.logger.info(f"OVERSEERR DEBUG: Server object: {server.id if server else 'None'} - {server.server_nickname if server else 'None'}")
         
         # Render requests list with pagination using template
         return render_template('user/_partials/profile_tabs/overseerr_requests.html',

@@ -11,7 +11,7 @@ from app.extensions import db
 from app.utils.helpers import setup_required, permission_required
 from app.services import user_service
 from app.services.media_service_manager import MediaServiceManager
-from app.routes.user_modules.helpers import MassEditMockUser
+# MassEditMockUser import removed - now using unified User model directly
 from . import users_bp
 import json
 
@@ -453,6 +453,13 @@ def mass_edit_users():
     
     # Extract users from pagination results (handling complex queries that return tuples)
     users_on_page = [item[0] if isinstance(item, tuple) else item for item in users_pagination.items]
+    
+    # Set _user_type for template logic (mass_edit only deals with local users)
+    for user in users_pagination.items:
+        if isinstance(user, tuple):
+            user[0]._user_type = 'local'
+        else:
+            user._user_type = 'local'
     
     # Extract user UUIDs from pagination results for stats lookup
     user_uuids_on_page = [user.uuid for user in users_pagination.items if hasattr(user, 'uuid')]

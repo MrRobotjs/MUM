@@ -146,54 +146,42 @@ def view_service_user(server_nickname, server_username):
         current_app.logger.warning(f"Service user not found: {server_username} on {server_nickname}")
         abort(404)
 
-    # Create a mock user object for the template for backward compatibility
-    class MockServiceUser:
-        def __init__(self, service_user):
-            self.id = service_user.id
-            self.uuid = service_user.uuid
-            self.localUsername = service_user.external_username
-            self.email = service_user.external_email
-            self.notes = service_user.notes
-            self.created_at = service_user.created_at
-            self.last_login_at = service_user.last_activity_at
-            self.media_accesses = [service_user]  # For template compatibility
-            self.access_expires_at = service_user.access_expires_at
-            self.discord_user_id = service_user.discord_user_id
-            self.is_active = service_user.is_active
-            self._is_service_user = True
-            self._access_record = service_user
-            self.userType = UserType.SERVICE
-            self.external_username = service_user.external_username
-            
-            # Process avatar URL
-            self.avatar_url = self._get_avatar_url(service_user)
-        
-        def _get_avatar_url(self, service_user):
-            """Process avatar URL using the same logic as library stats chart"""
-            avatar_url = None
-            
-            # First check for external avatar URL
-            if service_user.external_avatar_url:
-                avatar_url = service_user.external_avatar_url
-            elif service_user.server.service_type.value.lower() == 'plex':
-                # Simplified Plex avatar logic
-                if service_user.service_settings and service_user.service_settings.get('thumb'):
-                    thumb_url = service_user.service_settings['thumb']
-                    if thumb_url.startswith('/'):
-                        avatar_url = f"{service_user.server.url.rstrip('/')}{thumb_url}"
-                    else:
-                        avatar_url = thumb_url
-            
-            return avatar_url
-        
-        def get_display_name(self):
-            return self.localUsername or 'Unknown'
-        
-        def get_avatar(self, default_url=None):
-            return self.avatar_url or default_url
-
-    user = MockServiceUser(service_user)
+    # Use the actual service User object directly (unified model)
+    user = service_user
     user._user_type = 'service'
+    user._is_service_user = True
+    
+    # Set display attributes for service users
+    user.localUsername = user.external_username
+    user.last_login_at = user.last_activity_at
+    
+    # Process avatar URL using the same logic as the previous service user implementation
+    def _get_service_user_avatar_url(service_user):
+        """Process avatar URL using the same logic as library stats chart"""
+        avatar_url = None
+        
+        # First check for external avatar URL
+        if service_user.external_avatar_url:
+            avatar_url = service_user.external_avatar_url
+        elif service_user.server.service_type.value.lower() == 'plex':
+            # Simplified Plex avatar logic
+            if service_user.service_settings and service_user.service_settings.get('thumb'):
+                thumb_url = service_user.service_settings['thumb']
+                if thumb_url.startswith('/'):
+                    avatar_url = f"{service_user.server.url.rstrip('/')}{thumb_url}"
+                else:
+                    avatar_url = thumb_url
+        
+        return avatar_url
+    
+    user.avatar_url = _get_service_user_avatar_url(user)
+    
+    # Add methods that might be expected by templates
+    if not hasattr(user, 'get_display_name'):
+        user.get_display_name = lambda: user.localUsername or 'Unknown'
+    
+    if not hasattr(user, 'get_avatar'):
+        user.get_avatar = lambda default_url=None: user.avatar_url or default_url
     
     # Check if this service user is linked to a local account
     linked_local_user = None
@@ -319,9 +307,36 @@ def view_service_user(server_nickname, server_username):
     user_service_types = {user.uuid: [service_user.server.service_type]}
     user_server_names = {user.uuid: [service_user.server.server_nickname]}
     
-    # Add linked_service_users for Overseerr tab compatibility
-    # For service users, create a mock list containing the current service user record
-    user.linked_service_users = [service_user]
+    # Populate library data for the service user (same logic as users_modules/main.py)
+    try:
+        from app.services.media_service_manager import MediaServiceManager
+        from app.routes.users_modules.helpers import get_libraries_from_database
+        media_service_manager = MediaServiceManager()
+        all_servers = media_service_manager.get_all_servers()
+        libraries_by_server = get_libraries_from_database(all_servers)
+        
+        # Process libraries for this service user
+        server_libraries = libraries_by_server.get(service_user.server_id, {})
+        lib_ids = service_user.allowed_library_ids or []
+        
+        if lib_ids == ['*']:
+            lib_names = ['All Libraries']
+        elif len(lib_ids) > 0:
+            lib_names = []
+            for lib_id in lib_ids:
+                lib_name = server_libraries.get(str(lib_id), f'Unknown Lib {lib_id}')
+                lib_names.append(lib_name)
+        else:
+            # Empty lib_ids - no specific library access
+            lib_names = []
+        
+        user_sorted_libraries[user.uuid] = sorted(lib_names, key=str.lower)
+        
+    except Exception as e:
+        current_app.logger.error(f"Error loading library data for service user: {e}")
+        user_sorted_libraries[user.uuid] = []
+    
+    # Service user - linked_service_users queried dynamically in templates
     
     return render_template(
         'user/index.html',

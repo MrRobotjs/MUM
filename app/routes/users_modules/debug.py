@@ -29,8 +29,7 @@ def get_user_debug_info(user_uuid):
         if not user:
             return f"<p class='text-error'>Local user with ID {actual_id} not found</p>"
         
-        # Get linked service users for template compatibility
-        user.linked_service_users = User.query.filter_by(userType=UserType.SERVICE, linkedUserId=user.uuid).all()
+        # linked_service_users queried dynamically in templates
     
     elif user_type == "user_media_access":
         # This is a standalone service user (unified User model with userType=SERVICE)
@@ -39,8 +38,7 @@ def get_user_debug_info(user_uuid):
         if not user:
             return f"<p class='text-error'>Service user with ID {actual_id} not found</p>"
         
-        # For standalone service users, set up template compatibility
-        user.linked_service_users = [user]  # The service user itself
+        # Service user - linked_service_users queried dynamically in templates
         user._is_standalone = True
     
     try:

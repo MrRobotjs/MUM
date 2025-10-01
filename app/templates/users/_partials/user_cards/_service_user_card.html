@@ -182,7 +182,7 @@
                                         {{ user_servers[0] }}
                                     </span>
                                     {# Check if Kavita user is owner (external_id: "1") #}
-                                    {% if user._access_record and user._access_record.external_user_id == "1" %}
+                                    {% if user.external_user_id == "1" %}
                                         <span class="inline-flex items-center rounded-md bg-amber-50 dark:bg-amber-400/10 px-2 py-1 text-xs font-medium text-amber-700 dark:text-amber-400 ring-1 ring-inset ring-amber-600/20 dark:ring-amber-500/20 gap-1 mt-1" title="Kavita Server Owner">
                                             <i class="fa-solid fa-crown w-3 h-3"></i>
                                             Owner
@@ -194,7 +194,7 @@
                                         {{ user_servers[0] }}
                                     </span>
                                     {# Check if AudioBookshelf user is owner (type: "root") #}
-                                    {% if user._access_record and user._access_record.user_raw_data and user._access_record.user_raw_data.get('type') == 'root' %}
+                                    {% if user.user_raw_data and user.user_raw_data.get('type') == 'root' %}
                                         <span class="inline-flex items-center rounded-md bg-amber-50 dark:bg-amber-400/10 px-2 py-1 text-xs font-medium text-amber-700 dark:text-amber-400 ring-1 ring-inset ring-amber-600/20 dark:ring-amber-500/20 gap-1 mt-1" title="AudioBookshelf Server Owner">
                                             <i class="fa-solid fa-crown w-3 h-3 mr-1"></i>
                                             Owner
@@ -211,7 +211,7 @@
                                         {{ user_servers[0] }}
                                     </span>
                                     {# Check if RomM user is owner (external_id: "1") #}
-                                    {% if user._access_record and user._access_record.external_user_id == "1" %}
+                                    {% if user.external_user_id == "1" %}
                                         <span class="inline-flex items-center rounded-md bg-amber-50 dark:bg-amber-400/10 px-2 py-1 text-xs font-medium text-amber-700 dark:text-amber-400 ring-1 ring-inset ring-amber-600/20 dark:ring-amber-500/20 gap-1 mt-1" title="RomM Server Owner">
                                             <i class="fa-solid fa-crown w-3 h-3"></i>
                                             Owner
@@ -242,8 +242,8 @@
                 {% endif %}
                 
                 {# Linked Account Badge - Show for service users that have a linked local account #}
-                {% if user._user_type is defined and user._user_type == 'service' and user._access_record and user._access_record.linkedUserId %}
-                    {% set linked_user = user._access_record.get_linked_parent() %}
+                {% if user._user_type is defined and user._user_type == 'service' and user.linkedUserId %}
+                    {% set linked_user = user.get_linked_parent() %}
                     {% if linked_user %}
                         <a href="{{ url_for('user.view_app_user', username=linked_user.localUsername, back='users', back_view='cards') }}" 
                            class="inline-flex items-center rounded-md px-2 py-1 bg-primary/10 text-primary ring-primary/20 hover:bg-primary/20 text-xs font-medium ring-1 ring-inset gap-1 mt-1 cursor-pointer transition-colors" 
@@ -396,7 +396,11 @@
                     </a>
                 {% else %}
                     {# Local user - route to /admin/user/{username} #}
+                    {% if user.localUsername %}
                     <a href="{{ url_for('admin_user.view_local_user', username=user.localUsername, back='users', back_view='cards') }}" title="User Profile" class="btn btn-xs btn-ghost text-info hover:bg-info/10">
+                    {% else %}
+                    <a href="{{ url_for('admin_user.view_service_user', server_nickname=user.server.server_nickname, server_username=user.external_username, back='users', back_view='cards') }}" title="User Profile" class="btn btn-xs btn-ghost text-info hover:bg-info/10">
+                    {% endif %}
                         <i class="fa-solid fa-user"></i>
                     </a>
                 {% endif %}

@@ -36,50 +36,383 @@
     {% if usages and usages|length > 0 %}
     <div class="space-y-3 max-h-[60vh] overflow-y-auto">
         {% for usage in usages %}
-        <div class="bg-base-200/30 rounded-lg p-4 border border-base-300 hover:border-base-300/60 transition-colors">
-            <div class="flex items-start justify-between gap-4">
+        {# Determine service-specific styling for each usage card #}
+        {% set card_bg_class = "bg-base-100" %}
+        {% set service_color = "#6b7280" %}
+        {% set service_color_class = "gray" %}
+        
+        {% if usage.plex_username %}
+            {% set card_bg_class = "bg-gradient-to-br from-base-200 to-plex/10" %}
+            {% set service_color = "var(--color-plex)" %}
+            {% set service_color_class = "plex" %}
+        {% elif usage.discord_username %}
+            {% set card_bg_class = "bg-gradient-to-br from-base-200 to-blue-500/10" %}
+            {% set service_color = "#3b82f6" %}
+            {% set service_color_class = "blue" %}
+        {% elif usage.user and usage.user.userType.name == 'SERVICE' %}
+            {% set service_type = usage.user.get_service_type() %}
+            {% if service_type == 'jellyfin' %}
+                {% set card_bg_class = "bg-gradient-to-br from-base-200 to-jellyfin/10" %}
+                {% set service_color = "var(--color-jellyfin)" %}
+                {% set service_color_class = "jellyfin" %}
+            {% elif service_type == 'emby' %}
+                {% set card_bg_class = "bg-gradient-to-br from-base-200 to-emby/10" %}
+                {% set service_color = "var(--color-emby)" %}
+                {% set service_color_class = "emby" %}
+            {% elif service_type == 'kavita' %}
+                {% set card_bg_class = "bg-gradient-to-br from-base-200 to-kavita/10" %}
+                {% set service_color = "var(--color-kavita)" %}
+                {% set service_color_class = "kavita" %}
+            {% elif service_type == 'audiobookshelf' %}
+                {% set card_bg_class = "bg-gradient-to-br from-base-200 to-audiobookshelf/10" %}
+                {% set service_color = "var(--color-audiobookshelf)" %}
+                {% set service_color_class = "audiobookshelf" %}
+            {% elif service_type == 'komga' %}
+                {% set card_bg_class = "bg-gradient-to-br from-base-200 to-komga/10" %}
+                {% set service_color = "var(--color-komga)" %}
+                {% set service_color_class = "komga" %}
+            {% elif service_type == 'romm' %}
+                {% set card_bg_class = "bg-gradient-to-br from-base-200 to-romm/10" %}
+                {% set service_color = "var(--color-romm)" %}
+                {% set service_color_class = "romm" %}
+            {% endif %}
+        {% elif usage.user and usage.user.userType.name == 'LOCAL' %}
+            {# Check if local user has linked service users - use service color if so #}
+            {% set linked_service_users = usage.user.linked_service_users %}
+            {% if linked_service_users and linked_service_users|length > 0 %}
+                {% set primary_service_user = linked_service_users[0] %}
+                {% set service_type = primary_service_user.get_service_type() %}
+                {% if service_type == 'plex' %}
+                    {% set card_bg_class = "bg-gradient-to-br from-base-200 to-plex/10" %}
+                    {% set service_color = "var(--color-plex)" %}
+                    {% set service_color_class = "plex" %}
+                {% elif service_type == 'jellyfin' %}
+                    {% set card_bg_class = "bg-gradient-to-br from-base-200 to-jellyfin/10" %}
+                    {% set service_color = "var(--color-jellyfin)" %}
+                    {% set service_color_class = "jellyfin" %}
+                {% elif service_type == 'emby' %}
+                    {% set card_bg_class = "bg-gradient-to-br from-base-200 to-emby/10" %}
+                    {% set service_color = "var(--color-emby)" %}
+                    {% set service_color_class = "emby" %}
+                {% elif service_type == 'kavita' %}
+                    {% set card_bg_class = "bg-gradient-to-br from-base-200 to-kavita/10" %}
+                    {% set service_color = "var(--color-kavita)" %}
+                    {% set service_color_class = "kavita" %}
+                {% elif service_type == 'audiobookshelf' %}
+                    {% set card_bg_class = "bg-gradient-to-br from-base-200 to-audiobookshelf/10" %}
+                    {% set service_color = "var(--color-audiobookshelf)" %}
+                    {% set service_color_class = "audiobookshelf" %}
+                {% elif service_type == 'komga' %}
+                    {% set card_bg_class = "bg-gradient-to-br from-base-200 to-komga/10" %}
+                    {% set service_color = "var(--color-komga)" %}
+                    {% set service_color_class = "komga" %}
+                {% elif service_type == 'romm' %}
+                    {% set card_bg_class = "bg-gradient-to-br from-base-200 to-romm/10" %}
+                    {% set service_color = "var(--color-romm)" %}
+                    {% set service_color_class = "romm" %}
+                {% endif %}
+            {% else %}
+                {# Local user with no service users - use primary color #}
+                {% set card_bg_class = "bg-gradient-to-br from-base-200 to-primary/10" %}
+                {% set service_color = "var(--color-primary)" %}
+                {% set service_color_class = "primary" %}
+            {% endif %}
+        {% endif %}
+        
+        <div class="card {{ card_bg_class }} border border-base-300 rounded-lg p-6 hover:border-base-300/80 hover:shadow-xl transition-all duration-200 ease-in-out">
+            <div class="flex items-start justify-between gap-6">
                 <!-- User Info -->
-                <div class="flex items-center gap-3 flex-1">
+                <div class="flex items-start gap-4 flex-1">
                     {% if usage.plex_username %}
-                        {% if usage.plex_thumb %}
-                        <div class="avatar">
-                            <div class="w-8 rounded-full">
-                                <img src="{{ usage.plex_thumb }}" alt="{{ usage.plex_username }} avatar" />
+                        <div class="avatar flex-shrink-0">
+                            {% if usage.plex_thumb %}
+                            <div class="w-12 h-12 rounded-full">
+                                <img src="{{ usage.plex_thumb }}" alt="{{ usage.plex_username }} avatar" class="rounded-full" />
                             </div>
+                            {% else %}
+                            <div class="w-12 h-12 rounded-full bg-plex/20 flex items-center justify-center">
+                                <i class="fa-brands fa-plex text-plex"></i>
+                            </div>
+                            {% endif %}
                         </div>
-                        {% else %}
-                        <div class="w-8 h-8 rounded-full bg-orange-400/20 flex items-center justify-center">
-                            <i class="fa-brands fa-plex text-orange-400 text-sm"></i>
-                        </div>
-                        {% endif %}
-                        <div>
-                            <div class="font-medium text-base-content">{{ usage.plex_username }}</div>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center gap-2 mb-1">
+                                <div class="font-semibold text-base-content">{{ usage.plex_username }}</div>
+                                <span class="inline-flex items-center rounded-md px-2 py-1 bg-plex/10 text-plex ring-plex/20 text-xs font-medium ring-1 ring-inset gap-1">
+                                    <i class="fa-brands fa-plex"></i>
+                                    Plex
+                                </span>
+                                {% if usage.user and usage.user.userType.name == 'SERVICE' and usage.user.linkedUserId %}
+                                    {% set linked_local = usage.user.get_linked_parent() %}
+                                    {% if linked_local and linked_local.localUsername %}
+                                    <span class="inline-flex items-center rounded-md px-2 py-1 bg-primary/10 text-primary ring-primary/20 text-xs font-medium ring-1 ring-inset gap-1">
+                                        <i class="fa-solid fa-user"></i>
+                                        {{ linked_local.localUsername }}
+                                    </span>
+                                    {% endif %}
+                                {% endif %}
+                            </div>
                             {% if usage.plex_email %}
-                            <div class="text-xs text-base-content/60">{{ usage.plex_email }}</div>
+                            <div class="text-sm text-base-content/70">{{ usage.plex_email }}</div>
                             {% endif %}
                         </div>
                     {% elif usage.discord_username %}
-                        <div class="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center">
-                            <i class="fa-brands fa-discord text-blue-500 text-sm"></i>
+                        <div class="avatar flex-shrink-0">
+                            <div class="w-12 h-12 rounded-full bg-blue-500/20 flex items-center justify-center">
+                                <i class="fa-brands fa-discord text-blue-600"></i>
+                            </div>
                         </div>
-                        <div>
-                            <div class="font-medium text-base-content">{{ usage.discord_username }}</div>
-                            <div class="text-xs text-base-content/60">ID: {{ usage.discord_user_id }}</div>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center gap-2 mb-1">
+                                <div class="font-semibold text-base-content">{{ usage.discord_username }}</div>
+                                <span class="inline-flex items-center rounded-md px-2 py-1 bg-blue-500/10 text-blue-600 ring-blue-500/20 text-xs font-medium ring-1 ring-inset gap-1">
+                                    <i class="fa-brands fa-discord"></i>
+                                    Discord
+                                </span>
+                                {% if usage.user and usage.user.userType.name == 'LOCAL' %}
+                                    {# Discord user is already a local account, no additional badge needed #}
+                                {% elif usage.user and usage.user.userType.name == 'SERVICE' and usage.user.linkedUserId %}
+                                    {% set linked_local = usage.user.get_linked_parent() %}
+                                    {% if linked_local and linked_local.localUsername %}
+                                    <span class="inline-flex items-center rounded-md px-2 py-1 bg-primary/10 text-primary ring-primary/20 text-xs font-medium ring-1 ring-inset gap-1">
+                                        <i class="fa-solid fa-user"></i>
+                                        {{ linked_local.localUsername }}
+                                    </span>
+                                    {% endif %}
+                                {% endif %}
+                            </div>
+                            <div class="text-sm text-base-content/70">ID: {{ usage.discord_user_id }}</div>
                         </div>
+                    {% elif usage.user and usage.user.userType.name == 'SERVICE' %}
+                        {# Handle other media service users #}
+                        {% set service_type = usage.user.get_service_type() %}
+                        <div class="avatar flex-shrink-0">
+                            {% if service_type == 'jellyfin' %}
+                            <div class="w-12 h-12 rounded-full bg-jellyfin/20 flex items-center justify-center">
+                                <i class="fa-solid fa-server text-jellyfin"></i>
+                            </div>
+                            {% elif service_type == 'emby' %}
+                            <div class="w-12 h-12 rounded-full bg-emby/20 flex items-center justify-center">
+                                <i class="fa-solid fa-video text-emby"></i>
+                            </div>
+                            {% elif service_type == 'kavita' %}
+                            <div class="w-12 h-12 rounded-full bg-kavita/20 flex items-center justify-center">
+                                <i class="fa-solid fa-book text-kavita"></i>
+                            </div>
+                            {% elif service_type == 'audiobookshelf' %}
+                            <div class="w-12 h-12 rounded-full bg-audiobookshelf/20 flex items-center justify-center">
+                                <i class="fa-solid fa-headphones text-audiobookshelf"></i>
+                            </div>
+                            {% elif service_type == 'komga' %}
+                            <div class="w-12 h-12 rounded-full bg-komga/20 flex items-center justify-center">
+                                <i class="fa-solid fa-book-open text-komga"></i>
+                            </div>
+                            {% elif service_type == 'romm' %}
+                            <div class="w-12 h-12 rounded-full bg-romm/20 flex items-center justify-center">
+                                <i class="fa-solid fa-gamepad text-romm"></i>
+                            </div>
+                            {% else %}
+                            <div class="w-12 h-12 rounded-full bg-base-300/50 flex items-center justify-center">
+                                <i class="fa-solid fa-server text-base-content/60"></i>
+                            </div>
+                            {% endif %}
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center gap-2 mb-1">
+                                <div class="font-semibold text-base-content">
+                                    {{ usage.user.external_username or usage.user.get_display_name() }}
+                                </div>
+                                {% if service_type == 'jellyfin' %}
+                                <span class="inline-flex items-center rounded-md px-2 py-1 bg-jellyfin/10 text-jellyfin ring-jellyfin/20 text-xs font-medium ring-1 ring-inset gap-1">
+                                    <i class="fa-solid fa-server"></i>
+                                    Jellyfin
+                                </span>
+                                {% elif service_type == 'emby' %}
+                                <span class="inline-flex items-center rounded-md px-2 py-1 bg-emby/10 text-emby ring-emby/20 text-xs font-medium ring-1 ring-inset gap-1">
+                                    <i class="fa-solid fa-video"></i>
+                                    Emby
+                                </span>
+                                {% elif service_type == 'kavita' %}
+                                <span class="inline-flex items-center rounded-md px-2 py-1 bg-kavita/10 text-kavita ring-kavita/20 text-xs font-medium ring-1 ring-inset gap-1">
+                                    <i class="fa-solid fa-book"></i>
+                                    Kavita
+                                </span>
+                                {% elif service_type == 'audiobookshelf' %}
+                                <span class="inline-flex items-center rounded-md px-2 py-1 bg-audiobookshelf/10 text-audiobookshelf ring-audiobookshelf/20 text-xs font-medium ring-1 ring-inset gap-1">
+                                    <i class="fa-solid fa-headphones"></i>
+                                    AudioBookshelf
+                                </span>
+                                {% elif service_type == 'komga' %}
+                                <span class="inline-flex items-center rounded-md px-2 py-1 bg-komga/10 text-komga ring-komga/20 text-xs font-medium ring-1 ring-inset gap-1">
+                                    <i class="fa-solid fa-book-open"></i>
+                                    Komga
+                                </span>
+                                {% elif service_type == 'romm' %}
+                                <span class="inline-flex items-center rounded-md px-2 py-1 bg-romm/10 text-romm ring-romm/20 text-xs font-medium ring-1 ring-inset gap-1">
+                                    <i class="fa-solid fa-gamepad"></i>
+                                    RomM
+                                </span>
+                                {% else %}
+                                <span class="inline-flex items-center rounded-md px-2 py-1 bg-base-300/50 text-base-content/70 ring-base-300 text-xs font-medium ring-1 ring-inset gap-1">
+                                    <i class="fa-solid fa-server"></i>
+                                    {{ service_type|title }}
+                                </span>
+                                {% endif %}
+                                {% if usage.user.linkedUserId %}
+                                    {% set linked_local = usage.user.get_linked_parent() %}
+                                    {% if linked_local and linked_local.localUsername %}
+                                    <span class="inline-flex items-center rounded-md px-2 py-1 bg-primary/10 text-primary ring-primary/20 text-xs font-medium ring-1 ring-inset gap-1">
+                                        <i class="fa-solid fa-user"></i>
+                                        {{ linked_local.localUsername }}
+                                    </span>
+                                    {% endif %}
+                                {% endif %}
+                            </div>
+                            {% if usage.user.external_email %}
+                            <div class="text-sm text-base-content/70">{{ usage.user.external_email }}</div>
+                            {% endif %}
+                        </div>
+                    {% elif usage.user and usage.user.userType.name == 'LOCAL' %}
+                        {# Check if local user has linked service users - if so, show the service user instead #}
+                        {% set linked_service_users = usage.user.linked_service_users %}
+                        {% if linked_service_users and linked_service_users|length > 0 %}
+                            {# Show the first/primary service user with local user as badge #}
+                            {% set primary_service_user = linked_service_users[0] %}
+                            {% set service_type = primary_service_user.get_service_type() %}
+                            <div class="avatar flex-shrink-0">
+                                {% if service_type == 'plex' %}
+                                <div class="w-12 h-12 rounded-full bg-plex/20 flex items-center justify-center">
+                                    <i class="fa-brands fa-plex text-plex"></i>
+                                </div>
+                                {% elif service_type == 'jellyfin' %}
+                                <div class="w-12 h-12 rounded-full bg-jellyfin/20 flex items-center justify-center">
+                                    <i class="fa-solid fa-server text-jellyfin"></i>
+                                </div>
+                                {% elif service_type == 'emby' %}
+                                <div class="w-12 h-12 rounded-full bg-emby/20 flex items-center justify-center">
+                                    <i class="fa-solid fa-video text-emby"></i>
+                                </div>
+                                {% elif service_type == 'kavita' %}
+                                <div class="w-12 h-12 rounded-full bg-kavita/20 flex items-center justify-center">
+                                    <i class="fa-solid fa-book text-kavita"></i>
+                                </div>
+                                {% elif service_type == 'audiobookshelf' %}
+                                <div class="w-12 h-12 rounded-full bg-audiobookshelf/20 flex items-center justify-center">
+                                    <i class="fa-solid fa-headphones text-audiobookshelf"></i>
+                                </div>
+                                {% elif service_type == 'komga' %}
+                                <div class="w-12 h-12 rounded-full bg-komga/20 flex items-center justify-center">
+                                    <i class="fa-solid fa-book-open text-komga"></i>
+                                </div>
+                                {% elif service_type == 'romm' %}
+                                <div class="w-12 h-12 rounded-full bg-romm/20 flex items-center justify-center">
+                                    <i class="fa-solid fa-gamepad text-romm"></i>
+                                </div>
+                                {% else %}
+                                <div class="w-12 h-12 rounded-full bg-base-300/50 flex items-center justify-center">
+                                    <i class="fa-solid fa-server text-base-content/60"></i>
+                                </div>
+                                {% endif %}
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-center gap-2 mb-1">
+                                    <div class="font-semibold text-base-content">
+                                        {{ primary_service_user.external_username or primary_service_user.get_display_name() }}
+                                    </div>
+                                    {% if service_type == 'plex' %}
+                                    <span class="inline-flex items-center rounded-md px-2 py-1 bg-plex/10 text-plex ring-plex/20 text-xs font-medium ring-1 ring-inset gap-1">
+                                        <i class="fa-brands fa-plex"></i>
+                                        Plex
+                                    </span>
+                                    {% elif service_type == 'jellyfin' %}
+                                    <span class="inline-flex items-center rounded-md px-2 py-1 bg-jellyfin/10 text-jellyfin ring-jellyfin/20 text-xs font-medium ring-1 ring-inset gap-1">
+                                        <i class="fa-solid fa-server"></i>
+                                        Jellyfin
+                                    </span>
+                                    {% elif service_type == 'emby' %}
+                                    <span class="inline-flex items-center rounded-md px-2 py-1 bg-emby/10 text-emby ring-emby/20 text-xs font-medium ring-1 ring-inset gap-1">
+                                        <i class="fa-solid fa-video"></i>
+                                        Emby
+                                    </span>
+                                    {% elif service_type == 'kavita' %}
+                                    <span class="inline-flex items-center rounded-md px-2 py-1 bg-kavita/10 text-kavita ring-kavita/20 text-xs font-medium ring-1 ring-inset gap-1">
+                                        <i class="fa-solid fa-book"></i>
+                                        Kavita
+                                    </span>
+                                    {% elif service_type == 'audiobookshelf' %}
+                                    <span class="inline-flex items-center rounded-md px-2 py-1 bg-audiobookshelf/10 text-audiobookshelf ring-audiobookshelf/20 text-xs font-medium ring-1 ring-inset gap-1">
+                                        <i class="fa-solid fa-headphones"></i>
+                                        AudioBookshelf
+                                    </span>
+                                    {% elif service_type == 'komga' %}
+                                    <span class="inline-flex items-center rounded-md px-2 py-1 bg-komga/10 text-komga ring-komga/20 text-xs font-medium ring-1 ring-inset gap-1">
+                                        <i class="fa-solid fa-book-open"></i>
+                                        Komga
+                                    </span>
+                                    {% elif service_type == 'romm' %}
+                                    <span class="inline-flex items-center rounded-md px-2 py-1 bg-romm/10 text-romm ring-romm/20 text-xs font-medium ring-1 ring-inset gap-1">
+                                        <i class="fa-solid fa-gamepad"></i>
+                                        RomM
+                                    </span>
+                                    {% else %}
+                                    <span class="inline-flex items-center rounded-md px-2 py-1 bg-base-300/50 text-base-content/70 ring-base-300 text-xs font-medium ring-1 ring-inset gap-1">
+                                        <i class="fa-solid fa-server"></i>
+                                        {{ service_type|title }}
+                                    </span>
+                                    {% endif %}
+                                    <span class="inline-flex items-center rounded-md px-2 py-1 bg-primary/10 text-primary ring-primary/20 text-xs font-medium ring-1 ring-inset gap-1">
+                                        <i class="fa-solid fa-user"></i>
+                                        {{ usage.user.localUsername or usage.user.get_display_name() }}
+                                    </span>
+                                </div>
+                                {% if primary_service_user.external_email %}
+                                <div class="text-sm text-base-content/70">{{ primary_service_user.external_email }}</div>
+                                {% endif %}
+                            </div>
+                        {% else %}
+                            {# Local user with no linked service users - show as local account #}
+                            <div class="avatar flex-shrink-0">
+                                <div class="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center">
+                                    <span class="font-semibold text-primary">{{ (usage.user.localUsername or usage.user.get_display_name())[0]|upper if (usage.user.localUsername or usage.user.get_display_name()) else 'L' }}</span>
+                                </div>
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-center gap-2 mb-1">
+                                    <div class="font-semibold text-base-content">
+                                        {{ usage.user.localUsername or usage.user.get_display_name() }}
+                                    </div>
+                                    <span class="inline-flex items-center rounded-md px-2 py-1 bg-primary/10 text-primary ring-primary/20 text-xs font-medium ring-1 ring-inset gap-1">
+                                        <i class="fa-solid fa-user"></i>
+                                        Local Account
+                                    </span>
+                                </div>
+                                {% if usage.user.email or usage.user.discord_email %}
+                                <div class="text-sm text-base-content/70">{{ usage.user.email or usage.user.discord_email }}</div>
+                                {% endif %}
+                            </div>
+                        {% endif %}
                     {% else %}
-                        <div class="w-8 h-8 rounded-full bg-base-300/50 flex items-center justify-center">
-                            <i class="fa-solid fa-user text-base-content/40 text-sm"></i>
+                        <div class="avatar flex-shrink-0">
+                            <div class="w-12 h-12 rounded-full bg-base-300/50 flex items-center justify-center">
+                                <i class="fa-solid fa-user text-base-content/40"></i>
+                            </div>
                         </div>
-                        <div>
-                            <div class="font-medium text-base-content/60">Anonymous User</div>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center gap-2 mb-1">
+                                <div class="font-semibold text-base-content/60">Anonymous User</div>
+                                <span class="inline-flex items-center rounded-md px-2 py-1 bg-base-300/50 text-base-content/70 ring-base-300 text-xs font-medium ring-1 ring-inset gap-1">
+                                    <i class="fa-solid fa-question"></i>
+                                    Unknown
+                                </span>
+                            </div>
                         </div>
                     {% endif %}
                 </div>
                 
                 <!-- Status and Time -->
-                <div class="text-right">
-                    <div class="mb-2">
-                        {% if usage.accepted_invite and usage.mum_user %}
+                <div class="flex flex-col items-end gap-3">
+                    <div class="flex flex-col items-end gap-2">
+                        {% if usage.accepted_invite and usage.user %}
                             <span class="badge badge-success badge-sm gap-1">
                                 <i class="fa-solid fa-check-circle"></i>
                                 Accepted
@@ -90,27 +423,57 @@
                             <span class="badge badge-info badge-sm">Plex Auth</span>
                         {% elif usage.discord_auth_successful %}
                             <span class="badge badge-info badge-sm">Discord Auth</span>
+                        {% elif usage.user and usage.user.userType.name == 'LOCAL' %}
+                            <span class="badge badge-success badge-sm">Local Account</span>
+                        {% elif usage.user and usage.user.userType.name == 'SERVICE' %}
+                            {% set service_type = usage.user.get_service_type() %}
+                            <span class="badge badge-info badge-sm">{{ service_type|title }} Auth</span>
                         {% else %}
                             <span class="badge badge-warning badge-sm">Attempted</span>
                         {% endif %}
+                        
+                        <div class="text-xs text-base-content/60 text-right" title="{{ usage.used_at | format_datetime_user }}">
+                            <i class="fa-solid fa-clock mr-1"></i>{{ usage.used_at | time_ago }}
+                        </div>
+                        
+                        {% if usage.ip_address %}
+                        <div class="text-xs text-base-content/40 text-right">
+                            <i class="fa-solid fa-globe mr-1"></i>{{ usage.ip_address }}
+                        </div>
+                        {% endif %}
                     </div>
-                    <div class="text-xs text-base-content/60" title="{{ usage.used_at | format_datetime_user }}">
-                        {{ usage.used_at | time_ago }}
-                    </div>
-                    {% if usage.ip_address %}
-                    <div class="text-xs text-base-content/40 mt-1">
-                        {{ usage.ip_address }}
-                    </div>
-                    {% endif %}
                 </div>
             </div>
             
             {% if usage.status_message %}
-            <div class="mt-3 pt-3 border-t border-base-300">
-                <div class="flex items-start gap-2">
-                    <i class="fa-solid fa-exclamation-triangle text-error text-sm mt-0.5"></i>
-                    <p class="text-sm text-error">{{ usage.status_message }}</p>
-                </div>
+            <div class="mt-4 pt-4 border-t border-base-300/50">
+                {% if 'successfully' in usage.status_message.lower() or 'accepted' in usage.status_message.lower() or 'success' in usage.status_message.lower() or usage.status_message.lower().startswith('invite accepted') %}
+                    {# Success message #}
+                    <div class="bg-success/10 border border-success/20 rounded-lg p-3">
+                        <div class="flex items-start gap-3">
+                            <div class="w-5 h-5 rounded-full bg-success/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                                <i class="fa-solid fa-check text-success text-xs"></i>
+                            </div>
+                            <div>
+                                <div class="text-sm font-medium text-success mb-1">Success</div>
+                                <p class="text-sm text-base-content/80">{{ usage.status_message }}</p>
+                            </div>
+                        </div>
+                    </div>
+                {% else %}
+                    {# Error message #}
+                    <div class="bg-error/10 border border-error/20 rounded-lg p-3">
+                        <div class="flex items-start gap-3">
+                            <div class="w-5 h-5 rounded-full bg-error/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                                <i class="fa-solid fa-exclamation text-error text-xs"></i>
+                            </div>
+                            <div>
+                                <div class="text-sm font-medium text-error mb-1">Error</div>
+                                <p class="text-sm text-base-content/80">{{ usage.status_message }}</p>
+                            </div>
+                        </div>
+                    </div>
+                {% endif %}
             </div>
             {% endif %}
         </div>

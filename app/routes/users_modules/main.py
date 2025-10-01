@@ -113,6 +113,28 @@ def list_users():
         
         app_users = app_user_query.all()
         current_app.logger.info(f"Found {len(app_users)} local users")
+        
+        # Apply server filter to local users based on their linked service users
+        server_filter_id = request.args.get('server_id', 'all')
+        if server_filter_id != 'all':
+            try:
+                server_filter_id_int = int(server_filter_id)
+                filtered_app_users = []
+                for app_user in app_users:
+                    # Check if this local user has any linked service users on the specified server
+                    has_server_access = User.query.filter_by(
+                        userType=UserType.SERVICE,
+                        linkedUserId=app_user.uuid,
+                        server_id=server_filter_id_int
+                    ).first()
+                    
+                    if has_server_access:
+                        filtered_app_users.append(app_user)
+                
+                app_users = filtered_app_users
+                current_app.logger.info(f"After server filter: {len(app_users)} local users have access to server {server_filter_id_int}")
+            except ValueError:
+                current_app.logger.warning(f"Invalid server_id received for local users: {server_filter_id}")
     
     if user_type_filter in ['all', 'service']:
         # Query service users - standalone service user records

@@ -522,7 +522,7 @@ def create_app(config_name=None):
     from .routes.admin_management import bp as admin_management_bp
     app.register_blueprint(admin_management_bp, url_prefix='/admin/settings/admins')
     from .routes.role_management import bp as role_management_bp
-    app.register_blueprint(role_management_bp, url_prefix='/admin/settings/roles')
+    app.register_blueprint(role_management_bp, url_prefix='/admin/settings/admin/roles')
     from .routes.users import bp as users_bp
     app.register_blueprint(users_bp, url_prefix='/admin/users')
     from .routes.admin_user import admin_user_bp

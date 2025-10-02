@@ -32,7 +32,7 @@ def index():
     # The first one the user has access to will be their destination.
     permission_map = [
         ('manage_general_settings', 'settings.general'),
-        ('manage_general_settings', 'settings.user_accounts'),
+        ('manage_users_general', 'settings.users_general'),
         ('view_admins_tab', 'admin_management.index'),
         ('view_admins_tab', 'role_management.index'), # Use same perm for both admin tabs
         ('manage_discord_settings', 'settings.discord'),
@@ -99,31 +99,6 @@ def general():
         active_tab='general'
     )
 
-@bp.route('/user_accounts', methods=['GET', 'POST'])
-@login_required
-@setup_required
-@permission_required('manage_general_settings')
-def user_accounts():
-    # Redirect AppUsers without admin permissions away from admin pages
-    if current_user.userType == UserType.LOCAL and not current_user.has_permission('manage_general_settings'):
-        flash('You do not have permission to access the user accounts settings page.', 'danger')
-        return redirect(url_for('user.index'))
-    from app.forms import UserAccountsSettingsForm
-    form = UserAccountsSettingsForm()
-    if form.validate_on_submit():
-        Setting.set('ALLOW_USER_ACCOUNTS', form.allow_user_accounts.data, SettingValueType.BOOLEAN, "Allow User Accounts")
-        
-        log_event(EventType.SETTING_CHANGE, "User account settings updated.", admin_id=current_user.id)
-        flash('User account settings saved successfully.', 'success')
-        return redirect(url_for('settings.user_accounts'))
-    elif request.method == 'GET':
-        form.allow_user_accounts.data = Setting.get_bool('ALLOW_USER_ACCOUNTS', False)
-    return render_template(
-        'settings/index.html',
-        title="User Account Settings", 
-        form=form, 
-        active_tab='user_accounts'
-    )
 
 @bp.route('/account', methods=['GET', 'POST'])
 @login_required
@@ -747,3 +722,79 @@ def api_debug_execute():
     except Exception as e:
         current_app.logger.error(f"API Debug error: {e}")
         return jsonify({'error': f'Unexpected error: {str(e)}'}), 500
+
+
+# Users General Management Routes
+@bp.route('/users/general', methods=['GET', 'POST'])
+@login_required
+@setup_required
+@permission_required('manage_users_general')
+def users_general():
+    """Display users general settings page"""
+    from app.forms import UserAccountsSettingsForm
+    form = UserAccountsSettingsForm()
+    
+    if form.validate_on_submit():
+        # Handle user account settings
+        Setting.set('ALLOW_USER_ACCOUNTS', form.allow_user_accounts.data, SettingValueType.BOOLEAN, "Allow User Accounts")
+        
+        log_event(EventType.SETTING_CHANGE, "User account settings updated.", admin_id=current_user.id)
+        flash('User account settings saved successfully.', 'success')
+        return redirect(url_for('settings.users_general'))
+    elif request.method == 'GET':
+        # Load current settings from database
+        form.allow_user_accounts.data = Setting.get_bool('ALLOW_USER_ACCOUNTS', False)
+    
+    return render_template(
+        'settings/index.html',
+        title="Users General Settings",
+        form=form,
+        active_tab='users_general'
+    )
+
+# User Roles Management Routes
+@bp.route('/users/roles')
+@login_required
+@setup_required
+@permission_required('manage_user_roles')
+def user_roles():
+    """Display user roles management page"""
+    # For now, return empty list until user roles model is implemented
+    user_roles = []
+    
+    return render_template(
+        'settings/index.html',
+        title="User Role Management",
+        user_roles=user_roles,
+        active_tab='user_roles'
+    )
+
+@bp.route('/users/roles/create')
+@login_required
+@setup_required
+@permission_required('create_user_role')
+def create_user_role():
+    """Create new user role page"""
+    # Placeholder for future implementation
+    flash('User role creation is not yet implemented.', 'info')
+    return redirect(url_for('settings.user_roles'))
+
+@bp.route('/users/roles/<int:role_id>/edit')
+@login_required
+@setup_required
+@permission_required('edit_user_role')
+def edit_user_role(role_id):
+    """Edit user role page"""
+    # Placeholder for future implementation
+    flash('User role editing is not yet implemented.', 'info')
+    return redirect(url_for('settings.user_roles'))
+
+@bp.route('/users/roles/<int:role_id>/delete', methods=['POST'])
+@login_required
+@setup_required
+@permission_required('delete_user_role')
+def delete_user_role(role_id):
+    """Delete user role"""
+    # Placeholder for future implementation
+    flash('User role deletion is not yet implemented.', 'info')
+    return redirect(url_for('settings.user_roles'))

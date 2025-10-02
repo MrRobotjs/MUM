@@ -92,7 +92,24 @@
                             <ul class="ml-4">
                                 {% if current_user.__class__.__name__ == 'Owner' or current_user.has_permission('manage_general_settings') %}
                                 <li><a href="{{ url_for('settings.general') }}" class="{{ 'active menu-active' if request.endpoint == 'settings.general' else '' }}"><i class="fa-solid fa-sliders fa-fw"></i> General</a></li>
-                                <li><a href="{{ url_for('settings.user_accounts') }}" class="{{ 'active menu-active' if request.endpoint == 'settings.user_accounts' else '' }}"><i class="fa-solid fa-user-plus fa-fw"></i> User Accounts</a></li>
+                                {% endif %}
+                                {% if current_user.__class__.__name__ == 'Owner' or current_user.has_permission('view_users_tab') %}
+                                    {% set users_area_active = request.endpoint and (request.endpoint.startswith('settings.users_') or request.endpoint.startswith('settings.user_roles')) %}
+                                    <li>
+                                        <details {% if users_area_active %}open{% endif %}>
+                                            <summary class="{{ 'active' if users_area_active else '' }}">
+                                                <i class="fa-solid fa-users fa-fw mr-2"></i> Users
+                                            </summary>
+                                            <ul class="ml-4">
+                                                {% if current_user.__class__.__name__ == 'Owner' or current_user.has_permission('manage_users_general') %}
+                                                <li><a href="{{ url_for('settings.users_general') }}" class="{{ 'active menu-active' if request.endpoint == 'settings.users_general' else '' }}"><i class="fa-solid fa-cog mr-2"></i> General</a></li>
+                                                {% endif %}
+                                                {% if current_user.__class__.__name__ == 'Owner' or current_user.has_permission('manage_user_roles') %}
+                                                <li><a href="{{ url_for('settings.user_roles') }}" class="{{ 'active menu-active' if request.endpoint == 'settings.user_roles' else '' }}"><i class="fa-solid fa-user-tag mr-2"></i> Roles</a></li>
+                                                {% endif %}
+                                            </ul>
+                                        </details>
+                                    </li>
                                 {% endif %}
                                 {% if current_user.__class__.__name__ == 'Owner' or current_user.has_permission('view_admins_tab') %}
                                     {% set admin_area_active = request.endpoint and (request.endpoint.startswith('admin_management.') or request.endpoint.startswith('role_management.')) %}

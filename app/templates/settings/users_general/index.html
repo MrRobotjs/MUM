@@ -1,0 +1,205 @@
+<!-- File: app/templates/settings/users_general/index.html -->
+
+<!-- Clean Header -->
+<div class="mb-8">
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+            <h1 class="text-2xl font-bold text-base-content mb-2">Users General Settings</h1>
+            <p class="text-base-content/70 text-sm">Configure general user management settings and preferences</p>
+        </div>
+    </div>
+</div>
+
+<!-- Under Development Notice -->
+<div class="bg-warning/10 border border-warning/20 rounded-lg p-4 mb-6">
+    <div class="flex items-start gap-3">
+        <div class="w-6 h-6 rounded-full bg-warning/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+            <i class="fa-solid fa-triangle-exclamation text-warning text-xs"></i>
+        </div>
+        <div>
+            <h4 class="font-medium text-warning mb-1">Under Development</h4>
+            <p class="text-sm text-base-content/80">
+                This page is currently under development. Some settings shown are placeholders and not yet functional, except for the User Accounts section which is fully operational.
+            </p>
+        </div>
+    </div>
+</div>
+
+<!-- General Settings Overview Section -->
+<div class="bg-base-100 border border-base-300 rounded-lg p-6 mb-6">
+    <div class="flex items-center gap-3 mb-6">
+        <div class="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
+            <i class="fa-solid fa-users-cog text-primary text-lg"></i>
+        </div>
+        <div>
+            <h2 class="text-xl font-semibold text-base-content mb-1">User Management</h2>
+            <p class="text-sm text-base-content/70">General configuration for user accounts and settings</p>
+        </div>
+    </div>
+    
+    <!-- Info Card -->
+    <div class="bg-info/10 border border-info/20 rounded-lg p-4">
+        <div class="flex items-start gap-3">
+            <div class="w-6 h-6 rounded-full bg-info/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <i class="fa-solid fa-info text-info text-xs"></i>
+            </div>
+            <div>
+                <h4 class="font-medium text-info mb-1">User Settings</h4>
+                <p class="text-sm text-base-content/80">
+                    Configure general user management settings including default permissions, account policies, and user preferences.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Settings Form Section -->
+<div class="bg-base-200/30 border border-base-300 rounded-lg p-6">
+    <div class="flex items-center gap-3 mb-6">
+        <div class="w-8 h-8 rounded-full bg-secondary/20 flex items-center justify-center">
+            <i class="fa-solid fa-cog text-secondary text-sm"></i>
+        </div>
+        <div>
+            <h3 class="text-lg font-semibold text-base-content">Configuration Settings</h3>
+        </div>
+    </div>
+    
+    <!-- Placeholder form content -->
+    <div class="space-y-6">
+        <!-- User Accounts Feature Section -->
+        <div class="bg-base-100 border border-base-300 rounded-lg p-4">
+            <h4 class="font-medium text-base-content mb-3 flex items-center gap-2">
+                <i class="fa-solid fa-user-plus text-primary text-sm"></i>
+                User Accounts
+            </h4>
+            <p class="text-sm text-base-content/70 mb-4">
+                Control whether users can create and manage their own accounts.
+            </p>
+            
+            <form method="POST" action="{{ url_for('settings.users_general') }}" class="space-y-4">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                
+                <!-- Allow User Accounts Toggle -->
+                <div class="form-control">
+                    <label class="cursor-pointer flex items-center gap-3 p-3 rounded-lg border border-base-300 hover:border-primary/30 transition-colors">
+                        <input type="checkbox" 
+                               name="allow_user_accounts" 
+                               class="toggle toggle-primary" 
+                               {% if form and form.allow_user_accounts and form.allow_user_accounts.data %}checked{% endif %}>
+                        <div class="flex-1">
+                            <div class="font-medium text-base-content">Allow User Account Creation</div>
+                            <div class="text-sm text-base-content/70 mt-1">
+                                When enabled, users can create their own accounts without admin approval. When disabled, only administrators can create user accounts.
+                            </div>
+                        </div>
+                    </label>
+                </div>
+                
+                <!-- Additional Info -->
+                <div class="bg-info/10 border border-info/20 rounded-lg p-3">
+                    <div class="flex items-start gap-2">
+                        <i class="fa-solid fa-info-circle text-info text-sm mt-0.5"></i>
+                        <div class="text-sm text-base-content/80">
+                            <strong>Note:</strong> User accounts are separate from media service accounts. Users will still need to be invited to media servers separately through the invitation system.
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Save Button -->
+                <div class="flex justify-end">
+                    <button type="submit" class="btn btn-primary btn-sm">
+                        <i class="fa-solid fa-save mr-2"></i>
+                        Save User Account Settings
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Account Policies Section -->
+        <div class="bg-base-100 border border-base-300 rounded-lg p-4">
+            <h4 class="font-medium text-base-content mb-3 flex items-center gap-2">
+                <i class="fa-solid fa-shield-alt text-primary text-sm"></i>
+                Account Policies
+            </h4>
+            <p class="text-sm text-base-content/70 mb-4">
+                Configure account security and behavior policies.
+            </p>
+            
+            <div class="space-y-4">
+                <!-- Password Requirements -->
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text text-sm font-medium">Minimum Password Length</span>
+                    </label>
+                    <input type="number" class="input input-bordered input-sm w-24" value="8" min="6" max="50" disabled>
+                </div>
+                
+                <!-- Session Timeout -->
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text text-sm font-medium">Session Timeout (hours)</span>
+                    </label>
+                    <input type="number" class="input input-bordered input-sm w-24" value="24" min="1" max="168" disabled>
+                </div>
+                
+                <!-- Account Expiration -->
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text text-sm font-medium">Default Account Expiration (days)</span>
+                    </label>
+                    <input type="number" class="input input-bordered input-sm w-24" value="365" min="1" max="3650" disabled>
+                    <label class="label">
+                        <span class="label-text-alt">Set to 0 for no expiration</span>
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <!-- User Preferences Section -->
+        <div class="bg-base-100 border border-base-300 rounded-lg p-4">
+            <h4 class="font-medium text-base-content mb-3 flex items-center gap-2">
+                <i class="fa-solid fa-sliders text-primary text-sm"></i>
+                Default User Preferences
+            </h4>
+            <p class="text-sm text-base-content/70 mb-4">
+                Set default preferences for new user accounts.
+            </p>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <!-- Default Theme -->
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text text-sm font-medium">Default Theme</span>
+                    </label>
+                    <select class="select select-bordered select-sm" disabled>
+                        <option>Auto (System)</option>
+                        <option>Light</option>
+                        <option>Dark</option>
+                    </select>
+                </div>
+                
+                <!-- Default Language -->
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text text-sm font-medium">Default Language</span>
+                    </label>
+                    <select class="select select-bordered select-sm" disabled>
+                        <option>English</option>
+                        <option>Spanish</option>
+                        <option>French</option>
+                        <option>German</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Save Button (disabled for now) -->
+    <div class="flex items-center justify-end gap-3 mt-6 pt-6 border-t border-base-300">
+        <button type="button" class="btn btn-primary btn-sm" disabled>
+            <i class="fa-solid fa-save mr-2"></i>
+            Save Settings
+        </button>
+    </div>
+</div>
+

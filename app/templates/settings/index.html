@@ -17,7 +17,6 @@
                     <ul>
                         {% if current_user.__class__.__name__ == 'Owner' or current_user.has_permission('manage_general_settings') %}
                         <li><a href="{{ url_for('settings.general') }}" class="{{ 'active menu-active' if active_tab == 'general' else '' }}"><i class="fa-solid fa-sliders mr-2"></i> General</a></li>
-                        <li><a href="{{ url_for('settings.user_accounts') }}" class="{{ 'active menu-active' if active_tab == 'user_accounts' else '' }}"><i class="fa-solid fa-user-plus mr-2"></i> User Accounts</a></li>
                         {% endif %}
                         {% if current_user.__class__.__name__ == 'Owner' or current_user.has_permission('view_admins_tab') %}
                         <h2 class="menu-title"><span><i class="fa-solid fa-user-shield fa-fw mr-2"></i> Manage Admins</span></h2>
@@ -27,6 +26,17 @@
                             {% endif %}
                             {% if current_user.__class__.__name__ == 'Owner' or current_user.has_permission('create_role') or current_user.has_permission('edit_role') or current_user.has_permission('delete_role') %}
                                 <li><a href="{{ url_for('role_management.index') }}" class="{{ 'active menu-active' if active_tab in ['roles', 'roles_edit'] else '' }}"><i class="fa-solid fa-shield mr-2"></i> Roles</a></li>
+                            {% endif %}
+                        </ul>
+                        {% endif %}
+                        {% if current_user.__class__.__name__ == 'Owner' or current_user.has_permission('view_users_tab') %}
+                        <h2 class="menu-title"><span><i class="fa-solid fa-users fa-fw mr-2"></i> Users</span></h2>
+                        <ul>
+                            {% if current_user.__class__.__name__ == 'Owner' or current_user.has_permission('manage_users_general') %}
+                                <li><a href="{{ url_for('settings.users_general') }}" class="{{ 'active menu-active' if active_tab in ['users_general', 'users_general_edit'] else '' }}"><i class="fa-solid fa-cog mr-2"></i> General</a></li>
+                            {% endif %}
+                            {% if current_user.__class__.__name__ == 'Owner' or current_user.has_permission('manage_user_roles') %}
+                                <li><a href="{{ url_for('settings.user_roles') }}" class="{{ 'active menu-active' if active_tab in ['user_roles', 'user_roles_edit'] else '' }}"><i class="fa-solid fa-user-tag mr-2"></i> Roles</a></li>
                             {% endif %}
                         </ul>
                         {% endif %}
@@ -57,13 +67,18 @@
                 <select class="select select-bordered" onchange="if (this.value) window.location.href=this.value;">
                     {% if current_user.__class__.__name__ == 'Owner' or current_user.has_permission('manage_general_settings') %}
                     <option value="{{ url_for('settings.general') }}" {% if active_tab == 'general' %}selected{% endif %}>General</option>
-                    <option value="{{ url_for('settings.user_accounts') }}" {% if active_tab == 'user_accounts' %}selected{% endif %}>User Accounts</option>
                     {% endif %}
                     {% if current_user.__class__.__name__ == 'Owner' or current_user.has_permission('create_admin') or current_user.has_permission('edit_admin') or current_user.has_permission('delete_admin') %}
                     <option value="{{ url_for('admin_management.index') }}" {% if active_tab == 'admins' %}selected{% endif %}>Manage Admins</option>
                     {% endif %}
                     {% if current_user.__class__.__name__ == 'Owner' or current_user.has_permission('create_role') or current_user.has_permission('edit_role') or current_user.has_permission('delete_role') %}
                     <option value="{{ url_for('role_management.index') }}" {% if active_tab == 'roles' %}selected{% endif %}>Manage Roles</option>
+                    {% endif %}
+                    {% if current_user.__class__.__name__ == 'Owner' or current_user.has_permission('manage_users_general') %}
+                    <option value="{{ url_for('settings.users_general') }}" {% if active_tab == 'users_general' %}selected{% endif %}>Users General</option>
+                    {% endif %}
+                    {% if current_user.__class__.__name__ == 'Owner' or current_user.has_permission('manage_user_roles') %}
+                    <option value="{{ url_for('settings.user_roles') }}" {% if active_tab == 'user_roles' %}selected{% endif %}>User Roles</option>
                     {% endif %}
                     {% if current_user.__class__.__name__ == 'Owner' or current_user.has_permission('manage_discord_settings') %}
                     <option value="{{ url_for('settings.discord') }}" {% if active_tab == 'discord' %}selected{% endif %}>Discord</option>
@@ -94,9 +109,6 @@
                 {% elif active_tab == 'general' %}
                     {% include 'settings/general/index.html' %}
                     
-                {% elif active_tab == 'user_accounts' %}
-                    {% include 'settings/user_accounts/index.html' %}
-                    
                 {% elif active_tab == 'discord' %}
                     {% include 'settings/discord/index.html' %}
 
@@ -122,6 +134,14 @@
                     {% include 'settings/roles/index.html' %}
                 {% elif active_tab == 'roles_edit' %}
                     {% include 'settings/roles/edit.html' %}
+                {% elif active_tab == 'users_general' %}
+                    {% include 'settings/users_general/index.html' %}
+                {% elif active_tab == 'users_general_edit' %}
+                    {% include 'settings/users_general/edit.html' %}
+                {% elif active_tab == 'user_roles' %}
+                    {% include 'settings/user_roles/index.html' %}
+                {% elif active_tab == 'user_roles_edit' %}
+                    {% include 'settings/user_roles/edit.html' %}
                 {% elif active_tab == 'logs' %}
                     {% include 'settings/logs/index.html' %}
                 {% else %}

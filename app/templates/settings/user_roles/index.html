@@ -1,15 +1,15 @@
-<!-- File: app/templates/settings/_roles_settings.html -->
+<!-- File: app/templates/settings/user_roles/index.html -->
 
 <!-- Clean Header -->
 <div class="mb-8">
     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-            <h1 class="text-2xl font-bold text-base-content mb-2">Role Management</h1>
-            <p class="text-base-content/70 text-sm">Create and manage administrator roles with custom permissions</p>
+            <h1 class="text-2xl font-bold text-base-content mb-2">User Role Management</h1>
+            <p class="text-base-content/70 text-sm">Create and manage user roles with custom permissions</p>
         </div>
-        {% if current_user.__class__.__name__ == 'Owner' or current_user.has_permission('create_role') %}
-        <a href="{{ url_for('role_management.create') }}" class="btn btn-primary">
-            <i class="fa-solid fa-plus mr-2"></i> Create New Role
+        {% if current_user.__class__.__name__ == 'Owner' or current_user.has_permission('create_user_role') %}
+        <a href="{{ url_for('settings.create_user_role') }}" class="btn btn-primary">
+            <i class="fa-solid fa-plus mr-2"></i> Create New User Role
         </a>
         {% endif %}
     </div>
@@ -30,15 +30,15 @@
     </div>
 </div>
 
-<!-- Roles Overview Section -->
+<!-- User Roles Overview Section -->
 <div class="bg-base-100 border border-base-300 rounded-lg p-6 mb-6">
     <div class="flex items-center gap-3 mb-6">
         <div class="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
-            <i class="fa-solid fa-shield-halved text-primary text-lg"></i>
+            <i class="fa-solid fa-user-tag text-primary text-lg"></i>
         </div>
         <div>
-            <h2 class="text-xl font-semibold text-base-content mb-1">System Roles</h2>
-            <p class="text-sm text-base-content/70">{{ roles|length }} role{{ 's' if roles|length != 1 else '' }} configured</p>
+            <h2 class="text-xl font-semibold text-base-content mb-1">User Roles</h2>
+            <p class="text-sm text-base-content/70">{{ user_roles|length if user_roles is defined else 0 }} role{{ 's' if (user_roles|length if user_roles is defined else 0) != 1 else '' }} configured</p>
         </div>
     </div>
     
@@ -49,17 +49,17 @@
                 <i class="fa-solid fa-info text-info text-xs"></i>
             </div>
             <div>
-                <h4 class="font-medium text-info mb-1">Role Guidelines</h4>
+                <h4 class="font-medium text-info mb-1">User Role Guidelines</h4>
                 <p class="text-sm text-base-content/80">
-                    Roles define what actions administrators can perform. Admin ID 1 automatically has all permissions. You cannot edit or delete roles you're assigned to.
+                    User roles define what actions regular users can perform in the system. These are different from admin roles and control user-level permissions.
                 </p>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Roles List Section -->
-{% if roles %}
+<!-- User Roles List Section -->
+{% if user_roles is defined and user_roles %}
 <div class="bg-base-200/30 border border-base-300 rounded-lg p-6">
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div class="flex items-center gap-3">
@@ -67,7 +67,7 @@
                 <i class="fa-solid fa-list text-secondary text-sm"></i>
             </div>
             <div>
-                <h3 class="text-lg font-semibold text-base-content">Roles List</h3>
+                <h3 class="text-lg font-semibold text-base-content">User Roles List</h3>
             </div>
         </div>
         
@@ -75,9 +75,9 @@
         <div class="form-control w-full sm:w-auto">
             <div class="relative">
                 <input type="text" 
-                       placeholder="Search roles..." 
+                       placeholder="Search user roles..." 
                        class="input input-bordered w-full sm:w-64 h-10 bg-base-100 border-base-300 focus:border-primary focus:bg-base-100 pl-10 pr-4"
-                       id="roleSearch">
+                       id="userRoleSearch">
                 <i class="fa-solid fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-base-content/40 text-sm"></i>
             </div>
         </div>
@@ -94,10 +94,10 @@
                 </tr>
             </thead>
             <tbody>
-                {% for role in roles %}
+                {% for role in user_roles %}
                 <tr class="hover:bg-base-200/50 border-base-300">
                     <td class="py-4">
-                        <span class="badge text-sm px-3 py-2" style="background-color: {{ role.color or '#808080' }}; border-color: {{ role.color or '#808080' }}; color: {{ get_text_color_for_bg(role.color) }};">
+                        <span class="badge text-sm px-3 py-2" style="background-color: {{ role.color or '#808080' }}; border-color: {{ role.color or '#808080' }}; color: {{ get_text_color_for_bg(role.color) if get_text_color_for_bg is defined else '#ffffff' }};">
                             {% if role.icon %}
                                 <i class="{{ role.icon }} mr-1"></i>
                             {% endif %}
@@ -114,20 +114,20 @@
                     <td class="py-4">
                         <div class="flex items-center gap-2">
                             <i class="fa-solid fa-users text-base-content/60 text-xs"></i>
-                            <span class="text-base-content">{{ role.admins|length }}</span>
+                            <span class="text-base-content">{{ role.users|length if role.users is defined else 0 }}</span>
                         </div>
                     </td>
                     <td class="py-4 text-right">
                         <div class="flex items-center justify-end gap-2">
-                            {% if current_user.__class__.__name__ == 'Owner' or current_user.has_permission('edit_role') and current_user not in role.admins %}
-                                <a href="{{ url_for('role_management.edit', role_id=role.id) }}" 
+                            {% if current_user.__class__.__name__ == 'Owner' or current_user.has_permission('edit_user_role') %}
+                                <a href="{{ url_for('settings.edit_user_role', role_id=role.id) }}" 
                                    class="btn btn-sm btn-ghost hover:bg-primary/10" 
-                                   title="Edit Role">
+                                   title="Edit User Role">
                                     <i class="fa-solid fa-pen-to-square mr-1"></i>
                                     <span class="hidden md:inline">Edit</span>
                                 </a>
                             {% else %}
-                                <div class="tooltip tooltip-top" data-tip="You cannot edit a role you are assigned to">
+                                <div class="tooltip tooltip-top" data-tip="You don't have permission to edit user roles">
                                     <button class="btn btn-sm btn-ghost opacity-50 cursor-not-allowed" disabled>
                                         <i class="fa-solid fa-lock mr-1"></i>
                                         <span class="hidden md:inline">Locked</span>
@@ -135,21 +135,21 @@
                                 </div>
                             {% endif %}
                             
-                            {% if current_user.__class__.__name__ == 'Owner' or current_user.has_permission('delete_role') and current_user not in role.admins %}
-                                <form action="{{ url_for('role_management.delete', role_id=role.id) }}" 
+                            {% if current_user.__class__.__name__ == 'Owner' or current_user.has_permission('delete_user_role') %}
+                                <form action="{{ url_for('settings.delete_user_role', role_id=role.id) }}" 
                                       method="POST" 
                                       class="inline" 
-                                      onsubmit="return confirm('Are you sure you want to delete the {{ role.name }} role? This action cannot be undone.');">
+                                      onsubmit="return confirm('Are you sure you want to delete the {{ role.name }} user role? This action cannot be undone.');">
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                     <button type="submit" 
                                             class="btn btn-sm btn-ghost text-error hover:bg-error/10" 
-                                            title="Delete Role">
+                                            title="Delete User Role">
                                         <i class="fa-solid fa-trash-can mr-1"></i>
                                         <span class="hidden md:inline">Delete</span>
                                     </button>
                                 </form>
                             {% else %}
-                                <div class="tooltip tooltip-top" data-tip="You cannot delete a role you are assigned to">
+                                <div class="tooltip tooltip-top" data-tip="You don't have permission to delete user roles">
                                     <button class="btn btn-sm btn-ghost text-error opacity-50 cursor-not-allowed" disabled>
                                         <i class="fa-solid fa-lock mr-1"></i>
                                         <span class="hidden md:inline">Locked</span>
@@ -169,15 +169,15 @@
 <div class="bg-base-100 border border-base-300 rounded-lg p-12">
     <div class="text-center">
         <div class="w-16 h-16 rounded-full bg-base-200 flex items-center justify-center mx-auto mb-4">
-            <i class="fa-solid fa-shield-halved text-base-content/40 text-2xl"></i>
+            <i class="fa-solid fa-user-tag text-base-content/40 text-2xl"></i>
         </div>
-        <h3 class="text-lg font-semibold text-base-content mb-2">No Roles Created</h3>
+        <h3 class="text-lg font-semibold text-base-content mb-2">No User Roles Created</h3>
         <p class="text-sm text-base-content/70 mb-6">
-            Create your first role to start organizing administrator permissions and access control.
+            Create your first user role to start organizing user permissions and access control.
         </p>
-        {% if current_user.__class__.__name__ == 'Owner' or current_user.has_permission('create_role') %}
-        <a href="{{ url_for('role_management.create') }}" class="btn btn-primary">
-            <i class="fa-solid fa-plus mr-2"></i> Create First Role
+        {% if current_user.__class__.__name__ == 'Owner' or current_user.has_permission('create_user_role') %}
+        <a href="{{ url_for('settings.create_user_role') }}" class="btn btn-primary">
+            <i class="fa-solid fa-plus mr-2"></i> Create First User Role
         </a>
         {% endif %}
     </div>
@@ -186,7 +186,7 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const searchInput = document.getElementById('roleSearch');
+    const searchInput = document.getElementById('userRoleSearch');
     const tableRows = document.querySelectorAll('tbody tr');
     
     if (searchInput && tableRows.length > 0) {
@@ -218,7 +218,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         <td colspan="4" class="text-center py-8">
                             <div class="text-base-content/60">
                                 <i class="fa-solid fa-search text-2xl mb-2"></i>
-                                <p class="text-sm">No roles found matching "${searchTerm}"</p>
+                                <p class="text-sm">No user roles found matching "${searchTerm}"</p>
                             </div>
                         </td>
                     `;

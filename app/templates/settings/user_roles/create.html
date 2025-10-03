@@ -1,177 +1,311 @@
+<!-- File: app/templates/user_roles/create.html -->
 {% extends "settings/index.html" %}
 
-{% block settings_content %}
-<!-- Clean Header -->
-<div class="mb-8">
-    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-            <h1 class="text-2xl font-bold text-base-content mb-2">Create User Role</h1>
-            <p class="text-base-content/70 text-sm">Create a new visual role for organizing and labeling users</p>
-        </div>
-        <a href="{{ url_for('settings.user_roles') }}" class="btn btn-ghost btn-sm">
-            <i class="fa-solid fa-arrow-left mr-2"></i>
-            Back to User Roles
-        </a>
-    </div>
-</div>
+{% block title %}{{ super() }} - Create User Role{% endblock %}
 
-<!-- Main Content -->
-<div class="bg-base-100 border border-base-300 rounded-lg p-6">
-    <!-- Tab Navigation -->
-    <div class="tabs tabs-bordered mb-6">
-        <a class="tab tab-active" data-tab="display">
-            <i class="fa-solid fa-eye mr-2"></i>
-            Display
+{% block settings_content %}
+    <!-- Navigation -->
+    <div class="flex items-center mb-8">
+        <a href="{{ url_for('settings.user_roles') }}" class="btn btn-ghost btn-sm">
+            <i class="fa-solid fa-arrow-left mr-2"></i> Back to User Roles
         </a>
-        <!-- Note: No permissions tab for user roles as they are permissionless -->
     </div>
-    
-    <!-- Tab Content -->
-    <div id="display-tab" class="tab-content">
-        <form method="POST" action="{{ url_for('settings.create_user_role') }}">
-            {{ form.hidden_tag() }}
-                
+
+    <!-- Clean Header -->
+    <div class="mb-8">
+        <div class="flex items-center gap-4 mb-4">
+            <div class="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
+                <i class="fa-solid fa-plus text-primary text-xl"></i>
+            </div>
+            <div>
+                <h1 class="text-2xl font-bold text-base-content mb-1">Create New User Role</h1>
+                <p class="text-sm text-base-content/70">Define a new visual role for organizing and labeling users</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Progress Tabs -->
+    <div class="mb-6">
+        <div class="overflow-x-auto">
+            <div role="tablist" class="tabs tabs-bordered">
+                <a role="tab" class="tab tab-active">
+                    <i class="fa-solid fa-palette mr-2"></i>
+                    Display Settings
+                </a>
+                <div class="tooltip tooltip-top" data-tip="Save the role first to manage members">
+                    <a role="tab" class="tab tab-disabled opacity-50">
+                        <i class="fa-solid fa-users mr-2"></i>
+                        Members
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Description Card -->
+    <div class="bg-info/10 border border-info/20 rounded-lg p-4 mb-6">
+        <div class="flex items-start gap-3">
+            <div class="w-6 h-6 rounded-full bg-info/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <i class="fa-solid fa-info text-info text-xs"></i>
+            </div>
+            <div>
+                <h4 class="font-medium text-info mb-1">User Role Configuration</h4>
+                <p class="text-sm text-base-content/80">
+                    Customize the role's name, description, and visual appearance. User roles are cosmetic labels for organizing users and do not grant permissions. After creating the role, you'll be able to assign members.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <form method="POST" action="{{ url_for('settings.create_user_role') }}" id="createUserRoleForm">
+        {{ form.hidden_tag() }}
+
+        <!-- Basic Settings Section -->
+        <div class="space-y-4 mb-6">
+            <h4 class="font-medium text-base-content text-lg mb-3">
+                <i class="fa-solid fa-id-badge text-primary text-sm mr-2"></i>
+                Basic Settings
+            </h4>
+
             <!-- Role Name -->
-            <div class="form-control mb-6">
-                {{ form.name.label(class="label") }}
-                <span class="label-text font-medium">{{ form.name.label.text }}</span>
-                {{ form.name(class="input input-bordered w-full bg-base-100 border-base-300 focus:border-primary focus:bg-base-100", placeholder="Enter role name") }}
-                {% if form.name.errors %}
-                    <div class="label">
-                        {% for error in form.name.errors %}
-                            <span class="label-text-alt text-error">{{ error }}</span>
-                        {% endfor %}
+            <div class="bg-base-200/30 rounded-lg p-4 border border-base-300 hover:border-base-300/60 transition-colors">
+                <div class="flex items-center justify-between mb-2">
+                    <div class="flex items-center gap-2">
+                        <i class="fa-solid fa-tag text-primary text-sm"></i>
+                        <h5 class="font-medium text-base-content">{{ form.name.label.text }}</h5>
+                        <span class="inline-flex items-center rounded-full bg-red-50 dark:bg-red-400/10 px-2 py-1 text-xs font-medium text-red-700 dark:text-red-400 ring-1 ring-inset ring-red-600/20 dark:ring-red-500/20">
+                            Required
+                        </span>
                     </div>
+                </div>
+                {{ form.name(class="input input-bordered w-full " + ("input-error" if form.name.errors else ""), id="create_user_role_name") }}
+                {% if form.name.errors %}
+                    <span class="text-error text-xs mt-1 block">{{ form.name.errors[0] }}</span>
+                {% else %}
+                    <span class="text-base-content/60 text-xs mt-1 block">A unique name for this user role</span>
                 {% endif %}
             </div>
 
             <!-- Description -->
-            <div class="form-control mb-6">
-                {{ form.description.label(class="label") }}
-                <span class="label-text font-medium">{{ form.description.label.text }}</span>
-                {{ form.description(class="textarea textarea-bordered w-full h-24 bg-base-100 border-base-300 focus:border-primary focus:bg-base-100", placeholder="Describe what this role represents...") }}
-                {% if form.description.errors %}
-                    <div class="label">
-                        {% for error in form.description.errors %}
-                            <span class="label-text-alt text-error">{{ error }}</span>
-                        {% endfor %}
-                    </div>
-                {% endif %}
-            </div>
-
-            <!-- Badge Styling Section -->
-            <div class="bg-base-200/30 border border-base-300 rounded-lg p-4 mb-6">
-                <h3 class="text-lg font-semibold text-base-content mb-4 flex items-center gap-2">
-                    <i class="fa-solid fa-palette text-primary"></i>
-                    Badge Styling
-                </h3>
-                
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <!-- Color -->
-                    <div class="form-control">
-                        {{ form.color.label(class="label") }}
-                        <span class="label-text font-medium">{{ form.color.label.text }}</span>
-                        <div class="flex items-center gap-2">
-                            {{ form.color(class="input input-bordered w-20 h-10", type="color") }}
-                            {{ form.color(class="input input-bordered flex-1 bg-base-100 border-base-300 focus:border-primary", placeholder="#808080") }}
-                        </div>
-                        {% if form.color.errors %}
-                            <div class="label">
-                                {% for error in form.color.errors %}
-                                    <span class="label-text-alt text-error">{{ error }}</span>
-                                {% endfor %}
-                            </div>
-                        {% endif %}
-                    </div>
-
-                    <!-- Icon -->
-                    <div class="form-control">
-                        {{ form.icon.label(class="label") }}
-                        <span class="label-text font-medium">{{ form.icon.label.text }}</span>
-                        {{ form.icon(class="input input-bordered w-full bg-base-100 border-base-300 focus:border-primary", placeholder="fa-solid fa-star") }}
-                        <div class="label">
-                            <span class="label-text-alt text-base-content/60">{{ form.icon.description }}</span>
-                        </div>
-                        {% if form.icon.errors %}
-                            <div class="label">
-                                {% for error in form.icon.errors %}
-                                    <span class="label-text-alt text-error">{{ error }}</span>
-                                {% endfor %}
-                            </div>
-                        {% endif %}
-                    </div>
-                </div>
-                
-                <!-- Preview -->
-                <div class="form-control mt-6">
-                    <div class="label">
-                        <span class="label-text font-medium">Badge Preview</span>
-                    </div>
-                    <div class="bg-base-100 border border-base-300 rounded-lg p-4">
-                        <span id="role-preview" class="inline-flex items-center rounded-md bg-gray-50 dark:bg-gray-400/10 px-2 py-1 text-xs font-medium text-gray-700 dark:text-gray-400 ring-1 ring-inset ring-gray-600/20 dark:ring-gray-500/20 gap-1">
-                            <i id="preview-icon" class="fa-solid fa-star w-3 h-3"></i>
-                            <span id="preview-name">Role Name</span>
+            <div class="bg-base-200/30 rounded-lg p-4 border border-base-300 hover:border-base-300/60 transition-colors">
+                <div class="flex items-center justify-between mb-2">
+                    <div class="flex items-center gap-2">
+                        <i class="fa-solid fa-align-left text-secondary text-sm"></i>
+                        <h5 class="font-medium text-base-content">{{ form.description.label.text }}</h5>
+                        <span class="inline-flex items-center rounded-full bg-yellow-50 dark:bg-yellow-400/10 px-2 py-1 text-xs font-medium text-yellow-700 dark:text-yellow-400 ring-1 ring-inset ring-yellow-600/20 dark:ring-yellow-500/20">
+                            Optional
                         </span>
                     </div>
                 </div>
+                {{ form.description(class="input input-bordered w-full " + ("input-error" if form.description.errors else "")) }}
+                {% if form.description.errors %}
+                    <span class="text-error text-xs mt-1 block">{{ form.description.errors[0] }}</span>
+                {% else %}
+                    <span class="text-base-content/60 text-xs mt-1 block">Optional description of what this role represents</span>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Visual Appearance Section -->
+        <div class="space-y-4 mb-6">
+            <h4 class="font-medium text-base-content text-lg mb-3">
+                <i class="fa-solid fa-palette text-secondary text-sm mr-2"></i>
+                Visual Appearance
+            </h4>
+
+            <!-- Color -->
+            <div class="bg-base-200/30 rounded-lg p-4 border border-base-300 hover:border-base-300/60 transition-colors">
+                <div class="flex items-center justify-between mb-3">
+                    <div class="flex items-center gap-2">
+                        <i class="fa-solid fa-paint-brush text-warning text-sm"></i>
+                        <h5 class="font-medium text-base-content">{{ form.color.label.text }}</h5>
+                    </div>
+                </div>
+
+                <!-- Color Input and Presets -->
+                <div class="flex gap-4 mb-4">
+                    <!-- Color Preview and Hidden Picker -->
+                    <div class="relative">
+                        <div class="w-12 h-11 rounded-lg border border-base-300 overflow-hidden cursor-pointer" id="create_color_preview" style="background-color: {{ form.color.data or '#808080' }}"></div>
+                        <input type="color" value="{{ form.color.data or '#808080' }}"
+                               class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" id="create_color_picker">
+                        {{ form.color(class="hidden", id="create_color_text") }}
+                    </div>
+
+                    <!-- Preset Colors -->
+                    <div class="flex-1">
+                        <span class="text-xs font-medium text-base-content/70 mb-2 block">Preset Colors</span>
+                        <div class="flex gap-2 flex-wrap">
+                            <div class="w-8 h-8 rounded-full cursor-pointer border-2 border-transparent hover:border-base-300 transition-colors preset-color"
+                                 style="background-color: #f04747" data-color="#f04747" title="Red"></div>
+                            <div class="w-8 h-8 rounded-full cursor-pointer border-2 border-transparent hover:border-base-300 transition-colors preset-color"
+                                 style="background-color: #faa61a" data-color="#faa61a" title="Orange"></div>
+                            <div class="w-8 h-8 rounded-full cursor-pointer border-2 border-transparent hover:border-base-300 transition-colors preset-color"
+                                 style="background-color: #fee75c" data-color="#fee75c" title="Yellow"></div>
+                            <div class="w-8 h-8 rounded-full cursor-pointer border-2 border-transparent hover:border-base-300 transition-colors preset-color"
+                                 style="background-color: #57f287" data-color="#57f287" title="Green"></div>
+                            <div class="w-8 h-8 rounded-full cursor-pointer border-2 border-transparent hover:border-base-300 transition-colors preset-color"
+                                 style="background-color: #5865f2" data-color="#5865f2" title="Blurple"></div>
+                            <div class="w-8 h-8 rounded-full cursor-pointer border-2 border-transparent hover:border-base-300 transition-colors preset-color"
+                                 style="background-color: #eb459e" data-color="#eb459e" title="Pink"></div>
+                            <div class="w-8 h-8 rounded-full cursor-pointer border-2 border-transparent hover:border-base-300 transition-colors preset-color"
+                                 style="background-color: #9c84ef" data-color="#9c84ef" title="Purple"></div>
+                            <div class="w-8 h-8 rounded-full cursor-pointer border-2 border-transparent hover:border-base-300 transition-colors preset-color"
+                                 style="background-color: #808080" data-color="#808080" title="Gray"></div>
+                        </div>
+                    </div>
+                </div>
+
+                {% if form.color.errors %}
+                    <span class="text-error text-xs mt-1 block">{{ form.color.errors[0] }}</span>
+                {% else %}
+                    <span class="text-base-content/60 text-xs block">Choose a color for role badges and highlights</span>
+                {% endif %}
             </div>
 
-            <!-- Form Actions -->
-            <div class="flex items-center justify-end gap-3 pt-4 border-t border-base-300">
-                <a href="{{ url_for('settings.user_roles') }}" class="btn btn-ghost">
-                    <i class="fa-solid fa-times mr-2"></i>
-                    Cancel
-                </a>
-                <button type="submit" class="btn btn-primary">
-                    <i class="fa-solid fa-plus mr-2"></i>
-                    Create User Role
-                </button>
+            <!-- Icon -->
+            <div class="bg-base-200/30 rounded-lg p-4 border border-base-300 hover:border-base-300/60 transition-colors">
+                <div class="flex items-center justify-between mb-2">
+                    <div class="flex items-center gap-2">
+                        <i class="fa-solid fa-icons text-accent text-sm"></i>
+                        <h5 class="font-medium text-base-content">{{ form.icon.label.text }}</h5>
+                        <span class="inline-flex items-center rounded-full bg-yellow-50 dark:bg-yellow-400/10 px-2 py-1 text-xs font-medium text-yellow-700 dark:text-yellow-400 ring-1 ring-inset ring-yellow-600/20 dark:ring-yellow-500/20">
+                            Optional
+                        </span>
+                    </div>
+                </div>
+                {{ form.icon(class="input input-bordered w-full " + ("input-error" if form.icon.errors else ""), id="create_user_role_icon", placeholder="e.g., fa-solid fa-star") }}
+                {% if form.icon.errors %}
+                    <span class="text-error text-xs mt-1 block">{{ form.icon.errors[0] }}</span>
+                {% else %}
+                    <span class="text-base-content/60 text-xs mt-1 block">
+                        Find icons on <a href="https://fontawesome.com/search" target="_blank" class="link link-primary">Font Awesome</a>
+                    </span>
+                {% endif %}
             </div>
-        </form>
-    </div>
-</div>
+        </div>
 
+        <!-- Live Preview Section -->
+        <div class="space-y-4 mb-6">
+            <h4 class="font-medium text-base-content text-lg mb-3">
+                <i class="fa-solid fa-eye text-success text-sm mr-2"></i>
+                Live Preview
+            </h4>
+
+            <div class="bg-base-200/30 rounded-lg p-6 border border-base-300">
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="w-8 h-8 rounded-full bg-success/20 flex items-center justify-center flex-shrink-0">
+                        <i class="fa-solid fa-sparkles text-success text-sm"></i>
+                    </div>
+                    <div>
+                        <h5 class="font-medium text-base-content">Badge Preview</h5>
+                        <p class="text-xs text-base-content/60">How the role badge will appear throughout the interface</p>
+                    </div>
+                </div>
+                <div class="bg-base-100 border border-base-300 rounded-lg p-6 text-center">
+                    <span class="badge text-sm px-3 py-2" id="create_badge_preview">
+                        <i id="create_badge_icon_preview" class="mr-1"></i>
+                        <span id="create_badge_text_preview">New Role</span>
+                    </span>
+                </div>
+                <div class="text-center mt-3">
+                    <span class="text-base-content/60 text-xs">Preview updates automatically as you make changes</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="flex items-center justify-end gap-3 pt-6 border-t border-base-300">
+            <button type="submit" class="btn btn-primary h-12 gap-2">
+                <i class="fa-solid fa-plus"></i>
+                Create User Role and Continue
+            </button>
+        </div>
+    </form>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    const nameInput = document.getElementById('name');
-    const colorInput = document.querySelectorAll('input[name="color"]');
-    const iconInput = document.getElementById('icon');
-    const preview = document.getElementById('role-preview');
-    const previewIcon = document.getElementById('preview-icon');
-    const previewName = document.getElementById('preview-name');
-
-    function updatePreview() {
-        const name = nameInput.value || 'Role Name';
-        const color = colorInput[0].value || '#808080';
-        const icon = iconInput.value || 'fa-solid fa-star';
-
-        previewName.textContent = name;
-        previewIcon.className = `${icon} w-3 h-3`;
-        
-        // Update preview badge color
-        preview.style.backgroundColor = color + '20';
-        preview.style.borderColor = color + '40';
-        preview.style.color = color;
+    // Helper function for calculating text color based on background
+    function getTextColorForBg(hexColor) {
+        if (!hexColor || hexColor.length !== 7) return '#FFFFFF';
+        try {
+            const r = parseInt(hexColor.substr(1, 2), 16);
+            const g = parseInt(hexColor.substr(3, 2), 16);
+            const b = parseInt(hexColor.substr(5, 2), 16);
+            const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+            return luminance > 0.5 ? '#000000' : '#FFFFFF';
+        } catch (e) { return '#FFFFFF'; }
     }
 
-    // Update preview on input changes
-    nameInput.addEventListener('input', updatePreview);
-    colorInput.forEach(input => input.addEventListener('input', updatePreview));
-    iconInput.addEventListener('input', updatePreview);
-    
-    // Sync color inputs
-    colorInput[0].addEventListener('input', function() {
-        colorInput[1].value = this.value;
-        updatePreview();
-    });
-    
-    colorInput[1].addEventListener('input', function() {
-        colorInput[0].value = this.value;
-        updatePreview();
+    const createPicker = document.getElementById('create_color_picker');
+    const createText = document.getElementById('create_color_text');
+    const createColorPreview = document.getElementById('create_color_preview');
+    const createName = document.getElementById('create_user_role_name');
+    const createBadgePreview = document.getElementById('create_badge_preview');
+    const createIconInput = document.getElementById('create_user_role_icon');
+    const createBadgeIcon = document.getElementById('create_badge_icon_preview');
+    const createBadgeText = document.getElementById('create_badge_text_preview');
+    const presetColors = document.querySelectorAll('.preset-color');
+
+    function updateCreatePreview() {
+        if (!createBadgePreview || !createName || !createIconInput || !createBadgeIcon || !createBadgeText) return;
+        const name = createName.value.trim() || 'New Role';
+        const color = createPicker ? createPicker.value : '#808080';
+        const iconClasses = createIconInput.value.trim();
+
+        // Update the text and icon independently
+        createBadgeText.textContent = name;
+        createBadgeIcon.className = iconClasses ? `${iconClasses}` : '';
+
+        // Update the parent badge's style
+        createBadgePreview.style.backgroundColor = color;
+        createBadgePreview.style.borderColor = color;
+        createBadgePreview.style.color = getTextColorForBg(color);
+
+        // Update the color preview
+        if (createColorPreview) {
+            createColorPreview.style.backgroundColor = color;
+        }
+
+        // Update the hidden form field
+        if (createText) {
+            createText.value = color;
+        }
+    }
+
+    function updateColorInputs(color) {
+        if (createPicker) createPicker.value = color;
+        if (createText) createText.value = color;
+        updateCreatePreview();
+    }
+
+    // Preset color click handlers
+    presetColors.forEach(colorDiv => {
+        colorDiv.addEventListener('click', () => {
+            const color = colorDiv.getAttribute('data-color');
+            updateColorInputs(color);
+        });
     });
 
-    // Initial preview update
-    updatePreview();
-});
+    // Attach event listeners
+    if (createPicker) {
+        createPicker.addEventListener('input', () => {
+            updateCreatePreview();
+        });
+        createPicker.addEventListener('change', () => {
+            updateCreatePreview();
+        });
+    }
+    if (createName) {
+        createName.addEventListener('input', updateCreatePreview);
+    }
+    if (createIconInput) {
+        createIconInput.addEventListener('input', updateCreatePreview);
+    }
+
+    // Set the initial state of the preview on page load
+    updateCreatePreview();
 </script>
 {% endblock %}

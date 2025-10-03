@@ -900,14 +900,14 @@ def edit_user_role(role_id):
         # Create member form with available users
         member_form = UserRoleMemberForm()
 
-        # Get all regular users (not service users)
-        all_users = User.query.filter(User.userType == UserType.LOCAL).all()
+        # Get all users (LOCAL and SERVICE types, excluding OWNER)
+        all_users = User.query.filter(User.userType.in_([UserType.LOCAL, UserType.SERVICE])).all()
 
         # Filter out users who already have this role
         users_to_add = [u for u in all_users if role not in (u.user_roles if hasattr(u, 'user_roles') else [])]
 
-        # Set choices for the form
-        member_form.users_to_add.choices = [(str(u.id), u.localUsername or u.get_display_name()) for u in users_to_add]
+        # Set choices for the form with better display names
+        member_form.users_to_add.choices = [(str(u.id), u.get_display_name()) for u in users_to_add]
 
         if request.method == 'POST' and member_form.validate_on_submit():
             try:

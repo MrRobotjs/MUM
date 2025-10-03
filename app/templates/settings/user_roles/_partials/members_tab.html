@@ -94,12 +94,28 @@
                                         </div>
                                     </div>
                                     <div>
-                                        <div class="font-semibold text-base-content">{{ user.localUsername or user.get_display_name() }}</div>
-                                        {% if user.userType.value == 'owner' %}
-                                            <div class="badge badge-primary badge-sm mt-1">Owner</div>
-                                        {% elif user.userType.value == 'local' %}
-                                            <div class="badge badge-secondary badge-sm mt-1">User</div>
-                                        {% endif %}
+                                        <div class="font-semibold text-base-content">{{ user.get_display_name() }}</div>
+                                        <div class="flex items-center gap-1 mt-1">
+                                            {% if user.userType.value == 'owner' %}
+                                                <span class="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset gap-1"
+                                                      style="background-color: #faa61a20; color: #faa61a; border-color: #faa61a40;">
+                                                    <i class="fa-solid fa-crown w-3 h-3"></i>
+                                                    Owner
+                                                </span>
+                                            {% elif user.userType.value == 'local' %}
+                                                <span class="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset gap-1"
+                                                      style="background-color: #5865f220; color: #5865f2; border-color: #5865f240;">
+                                                    <i class="fa-solid fa-user w-3 h-3"></i>
+                                                    Local
+                                                </span>
+                                            {% elif user.userType.value == 'service' %}
+                                                <span class="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset gap-1"
+                                                      style="background-color: #57f28720; color: #57f287; border-color: #57f28740;">
+                                                    <i class="fa-solid fa-server w-3 h-3"></i>
+                                                    {{ user.get_service_type()|title if user.get_service_type() else 'Service' }}
+                                                </span>
+                                            {% endif %}
+                                        </div>
                                     </div>
                                 </div>
                                 <div class="flex items-center gap-2">

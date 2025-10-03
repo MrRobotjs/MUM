@@ -623,6 +623,47 @@ class UserResetPasswordForm(FlaskForm):
     confirm_password = PasswordField('Confirm New Password', validators=[DataRequired(), EqualTo('password')])
     submit = SubmitField('Reset Password')
 
+class UserRoleCreateForm(FlaskForm):
+    name = StringField('Role Name', validators=[DataRequired(), Length(min=2, max=100)])
+    description = TextAreaField('Description', validators=[Optional(), Length(max=500)])
+    color = StringField('Badge Color', default='#808080', validators=[
+        Optional(), Regexp(r'^#[0-9A-Fa-f]{6}$', message='Must be a valid hex color (e.g., #FF5733)')
+    ])
+    icon = StringField('Badge Icon Classes', validators=[
+        Optional(), Length(max=100)
+    ], description='CSS classes for the badge icon (e.g., "fa-solid fa-star")')
+    submit = SubmitField('Create User Role')
+
+    def validate_name(self, field):
+        from app.models import UserRole
+        # Check if role name already exists
+        existing_role = UserRole.query.filter_by(name=field.data).first()
+        if existing_role:
+            raise ValidationError('A user role with this name already exists. Please choose a different name.')
+
+class UserRoleEditForm(FlaskForm):
+    name = StringField('Role Name', validators=[DataRequired(), Length(min=2, max=100)])
+    description = TextAreaField('Description', validators=[Optional(), Length(max=500)])
+    color = StringField('Badge Color', default='#808080', validators=[
+        Optional(), Regexp(r'^#[0-9A-Fa-f]{6}$', message='Must be a valid hex color (e.g., #FF5733)')
+    ])
+    icon = StringField('Badge Icon Classes', validators=[
+        Optional(), Length(max=100)
+    ], description='CSS classes for the badge icon (e.g., "fa-solid fa-star")')
+    submit = SubmitField('Update User Role')
+
+    def __init__(self, original_name=None, *args, **kwargs):
+        super(UserRoleEditForm, self).__init__(*args, **kwargs)
+        self.original_name = original_name
+
+    def validate_name(self, field):
+        from app.models import UserRole
+        # Check if role name already exists (excluding current role)
+        if self.original_name and field.data != self.original_name:
+            existing_role = UserRole.query.filter_by(name=field.data).first()
+            if existing_role:
+                raise ValidationError('A user role with this name already exists. Please choose a different name.')
+
 class MergeIntoLocalAccountForm(FlaskForm):
     username = StringField(
         'Username',

@@ -759,42 +759,158 @@ def users_general():
 @permission_required('manage_user_roles')
 def user_roles():
     """Display user roles management page"""
-    # For now, return empty list until user roles model is implemented
-    user_roles = []
+    from app.models import UserRole
+    
+    # Get all user roles (visual roles) ordered by name
+    user_roles = UserRole.query.order_by(UserRole.name).all()
+    
+    # Transform for template (similar to admin roles structure)
+    roles_data = []
+    for role in user_roles:
+        roles_data.append({
+            'type': 'visual',
+            'role': role,
+            'is_staff': role.name == 'Staff'
+        })
     
     return render_template(
         'settings/index.html',
         title="User Role Management",
-        user_roles=user_roles,
+        roles=roles_data,
+        user_roles=user_roles,  # For forms that need only user roles
         active_tab='user_roles'
     )
 
-@bp.route('/users/roles/create')
+@bp.route('/users/roles/create', methods=['GET', 'POST'])
 @login_required
 @setup_required
 @permission_required('create_user_role')
 def create_user_role():
     """Create new user role page"""
-    # Placeholder for future implementation
-    flash('User role creation is not yet implemented.', 'info')
-    return redirect(url_for('settings.user_roles'))
+    from app.forms import UserRoleCreateForm
+    from app.models import UserRole
+    from flask import current_app
+    
+    form = UserRoleCreateForm()
+    
+    if request.method == 'POST' and form.validate_on_submit():
+        try:
+            current_app.logger.info(f"Creating user role - Form data: name={form.name.data}, description={form.description.data}, color={form.color.data}, icon={form.icon.data}")
+            
+            # Create new visual user role
+            new_role = UserRole(
+                name=form.name.data,
+                description=form.description.data,
+                color=form.color.data,
+                icon=form.icon.data.strip() if form.icon.data else None
+            )
+            
+            current_app.logger.info(f"Created UserRole object - ID: {new_role.id}, Name: {new_role.name}")
+            
+            db.session.add(new_role)
+            current_app.logger.info("Added user role to session, about to flush")
+            db.session.flush()
+            current_app.logger.info(f"Flush successful, role ID: {new_role.id}")
+            
+            db.session.commit()
+            current_app.logger.info("Commit successful")
+            
+            flash(f"User role '{new_role.name}' created successfully.", "success")
+            return redirect(url_for('settings.user_roles'))
+            
+        except Exception as e:
+            current_app.logger.error(f"Error creating user role: {str(e)}")
+            db.session.rollback()
+            flash(f"Error creating user role: {str(e)}", 'error')
+    else:
+        current_app.logger.warning(f"Form validation failed: {form.errors}")
+    
+    return render_template(
+        'settings/user_roles/create.html',
+        title="Create User Role",
+        form=form,
+        active_tab='user_roles'
+    )
 
-@bp.route('/users/roles/<int:role_id>/edit')
+@bp.route('/users/roles/<string:role_id>/edit', methods=['GET', 'POST'])
 @login_required
 @setup_required
 @permission_required('edit_user_role')
 def edit_user_role(role_id):
     """Edit user role page"""
-    # Placeholder for future implementation
-    flash('User role editing is not yet implemented.', 'info')
-    return redirect(url_for('settings.user_roles'))
+    from app.forms import UserRoleEditForm
+    from app.models import UserRole
+    from flask import current_app
+    
+    role = UserRole.query.get_or_404(role_id)
+    
+    # Prevent editing the Staff role
+    if role.is_staff_role():
+        flash('The Staff role cannot be edited as it is system-managed.', 'warning')
+        return redirect(url_for('settings.user_roles'))
+    
+    form = UserRoleEditForm(obj=role)
+    
+    if request.method == 'POST' and form.validate_on_submit():
+        try:
+            current_app.logger.info(f"Editing user role {role.name} - Form data: name={form.name.data}, description={form.description.data}, color={form.color.data}, icon={form.icon.data}")
+            
+            role.name = form.name.data
+            role.description = form.description.data
+            role.color = form.color.data
+            role.icon = form.icon.data.strip() if form.icon.data else None
+            
+            db.session.commit()
+            current_app.logger.info(f"User role '{role.name}' updated successfully")
+            
+            flash(f"User role '{role.name}' updated successfully.", "success")
+            return redirect(url_for('settings.user_roles'))
+            
+        except Exception as e:
+            current_app.logger.error(f"Error updating user role: {str(e)}")
+            db.session.rollback()
+            flash(f"Error updating user role: {str(e)}", 'error')
+    
+    return render_template(
+        'settings/user_roles/edit.html',
+        title=f"Edit User Role: {role.name}",
+        form=form,
+        role=role,
+        active_tab='user_roles'
+    )
 
-@bp.route('/users/roles/<int:role_id>/delete', methods=['POST'])
+@bp.route('/users/roles/<string:role_id>/delete', methods=['POST'])
 @login_required
 @setup_required
 @permission_required('delete_user_role')
 def delete_user_role(role_id):
     """Delete user role"""
-    # Placeholder for future implementation
-    flash('User role deletion is not yet implemented.', 'info')
+    from app.models import UserRole
+    from flask import current_app
+    
+    role = UserRole.query.get_or_404(role_id)
+    
+    # Prevent deletion of the Staff role
+    if not role.can_be_deleted():
+        flash('The Staff role cannot be deleted as it is system-managed.', 'danger')
+        return redirect(url_for('settings.user_roles'))
+    
+    # Check if role is assigned to any users
+    if role.users:
+        flash(f"Cannot delete '{role.name}' because it is assigned to {len(role.users)} user(s). Remove the role from all users first.", 'danger')
+        return redirect(url_for('settings.user_roles'))
+    
+    try:
+        role_name = role.name
+        db.session.delete(role)
+        db.session.commit()
+        
+        current_app.logger.info(f"User role '{role_name}' deleted successfully")
+        flash(f"User role '{role_name}' deleted successfully.", "success")
+        
+    except Exception as e:
+        current_app.logger.error(f"Error deleting user role: {str(e)}")
+        db.session.rollback()
+        flash(f"Error deleting user role: {str(e)}", 'error')
+    
     return redirect(url_for('settings.user_roles'))

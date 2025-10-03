@@ -212,7 +212,7 @@
                         {% for role in admin.admin_roles %}
                             <span class="badge badge-sm" style="background-color: {{ role.color or '#808080' }}; border-color: {{ role.color or '#808080' }}; color: {{ '#ffffff' if role.color else '#ffffff' }};">
                                 {% if role.icon %}<i class="{{ role.icon }} mr-1"></i>{% endif %}
-                                {{ role.name }} ({{ role.position }})
+                                {{ role.name }}
                             </span>
                         {% else %}
                             <span class="text-xs italic text-base-content/60">No admin roles assigned</span>

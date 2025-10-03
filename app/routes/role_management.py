@@ -278,3 +278,34 @@ def delete(role_id):
     db.session.commit()
     flash(f"Role '{role.name}' deleted.", "success")
     return redirect(url_for('role_management.index'))
+
+@bp.route('/reorder', methods=['POST'])
+@login_required
+@setup_required
+@permission_required('edit_role')
+def reorder_roles():
+    """Reorder admin roles by updating their position values"""
+    try:
+        data = request.get_json()
+        role_ids = data.get('role_ids', [])
+
+        if not role_ids:
+            return jsonify({'success': False, 'error': 'No role IDs provided'}), 400
+
+        # Update positions based on new order
+        # Higher position = higher in hierarchy (like Discord)
+        # Reverse the list so the first item gets the highest position
+        role_ids_reversed = list(reversed(role_ids))
+
+        for index, role_id in enumerate(role_ids_reversed):
+            role = AdminRole.query.get(role_id)
+            if role:
+                # Start from position 1 (position 0 is reserved or can be special)
+                role.position = index + 1
+
+        db.session.commit()
+        return jsonify({'success': True})
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500

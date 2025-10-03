@@ -87,18 +87,27 @@
         <table class="table table-zebra w-full">
             <thead class="bg-base-200/50">
                 <tr class="border-base-300">
+                    <th class="text-base-content font-semibold w-8"></th>
                     <th class="text-base-content font-semibold">Role</th>
                     <th class="text-base-content font-semibold">Description</th>
                     <th class="text-base-content font-semibold">Members</th>
                     <th class="text-base-content font-semibold text-right">Actions</th>
                 </tr>
             </thead>
-            <tbody>
+            <tbody id="roles-tbody">
                 {% for role_item in roles %}
                 {% set role = role_item.role %}
                 {% set role_type = role_item.type %}
                 {% set is_staff = role_item.is_staff %}
-                <tr class="hover:bg-base-200/50 border-base-300">
+                <tr class="hover:bg-base-200/50 border-base-300 {% if role_type == 'admin' and not is_staff %}draggable-role cursor-move{% endif %}"
+                    data-role-id="{{ role.id if role_type == 'admin' else '' }}"
+                    data-role-type="{{ role_type }}"
+                    data-is-staff="{{ 'true' if is_staff else 'false' }}">
+                    <td class="py-4 w-8">
+                        {% if role_type == 'admin' and not is_staff %}
+                            <i class="fa-solid fa-grip-vertical text-base-content/40 cursor-grab"></i>
+                        {% endif %}
+                    </td>
                     <td class="py-4">
                         {% if is_staff %}
                             <span class="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset gap-1"
@@ -227,8 +236,8 @@ document.addEventListener('DOMContentLoaded', function() {
             const searchTerm = this.value.toLowerCase().trim();
             
             tableRows.forEach(row => {
-                const roleName = row.querySelector('td:first-child .badge')?.textContent?.toLowerCase() || '';
-                const roleDescription = row.querySelector('td:nth-child(2)')?.textContent?.toLowerCase() || '';
+                const roleName = row.querySelector('td:nth-child(2) span')?.textContent?.toLowerCase() || '';
+                const roleDescription = row.querySelector('td:nth-child(3)')?.textContent?.toLowerCase() || '';
                 
                 const matches = roleName.includes(searchTerm) || roleDescription.includes(searchTerm);
                 
@@ -248,7 +257,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     noResultsRow = document.createElement('tr');
                     noResultsRow.id = 'no-search-results';
                     noResultsRow.innerHTML = `
-                        <td colspan="4" class="text-center py-8">
+                        <td colspan="5" class="text-center py-8">
                             <div class="text-base-content/60">
                                 <i class="fa-solid fa-search text-2xl mb-2"></i>
                                 <p class="text-sm">No roles found matching "${searchTerm}"</p>
@@ -260,6 +269,91 @@ document.addEventListener('DOMContentLoaded', function() {
             } else if (noResultsRow) {
                 noResultsRow.remove();
             }
+        });
+    }
+
+    // Drag and drop functionality for role reordering
+    const tbody = document.getElementById('roles-tbody');
+    if (tbody) {
+        let draggedRow = null;
+
+        tbody.addEventListener('dragstart', function(e) {
+            if (e.target.classList.contains('draggable-role')) {
+                draggedRow = e.target;
+                e.target.style.opacity = '0.4';
+                e.dataTransfer.effectAllowed = 'move';
+            }
+        });
+
+        tbody.addEventListener('dragend', function(e) {
+            if (e.target.classList.contains('draggable-role')) {
+                e.target.style.opacity = '';
+            }
+        });
+
+        tbody.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+
+            const target = e.target.closest('tr');
+            if (target && target.classList.contains('draggable-role') && target !== draggedRow) {
+                const rect = target.getBoundingClientRect();
+                const midpoint = rect.top + rect.height / 2;
+
+                if (e.clientY < midpoint) {
+                    target.parentNode.insertBefore(draggedRow, target);
+                } else {
+                    target.parentNode.insertBefore(draggedRow, target.nextSibling);
+                }
+            }
+        });
+
+        tbody.addEventListener('drop', function(e) {
+            e.preventDefault();
+            if (draggedRow) {
+                // Get new order of role IDs
+                const rows = tbody.querySelectorAll('.draggable-role');
+                const roleIds = Array.from(rows).map(row => row.dataset.roleId).filter(id => id);
+
+                // Send to backend
+                fetch('{{ url_for("role_management.reorder_roles") }}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token() }}'
+                    },
+                    body: JSON.stringify({ role_ids: roleIds })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Show success message
+                        const toast = document.createElement('div');
+                        toast.className = 'alert alert-success fixed top-4 right-4 w-auto z-50 shadow-lg';
+                        toast.innerHTML = '<span>Role hierarchy updated successfully</span>';
+                        document.body.appendChild(toast);
+                        setTimeout(() => toast.remove(), 3000);
+                    } else {
+                        throw new Error(data.error || 'Failed to update role hierarchy');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    const toast = document.createElement('div');
+                    toast.className = 'alert alert-error fixed top-4 right-4 w-auto z-50 shadow-lg';
+                    toast.innerHTML = `<span>Error: ${error.message}</span>`;
+                    document.body.appendChild(toast);
+                    setTimeout(() => toast.remove(), 5000);
+                    // Reload to restore original order
+                    location.reload();
+                });
+            }
+        });
+
+        // Make draggable rows actually draggable
+        const draggableRows = tbody.querySelectorAll('.draggable-role');
+        draggableRows.forEach(row => {
+            row.setAttribute('draggable', 'true');
         });
     }
 });

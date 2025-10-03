@@ -135,6 +135,38 @@ class UserRole(db.Model):
     def get_users_with_role(cls, role_id):
         """Get all users that have this visual role assigned"""
         return User.query.join(users_roles_assignments).filter(users_roles_assignments.c.visual_role_id == role_id).all()
+    
+    def is_staff_role(self):
+        """Check if this is the special Staff role"""
+        return self.name == 'Staff'
+    
+    def can_be_deleted(self):
+        """Check if this role can be deleted (Staff role cannot be deleted)"""
+        return not self.is_staff_role()
+    
+    @classmethod
+    def get_or_create_staff_role(cls):
+        """Get the Staff role, creating it if it doesn't exist"""
+        staff_role = cls.query.filter_by(name='Staff').first()
+        if not staff_role:
+            staff_role = cls(
+                name='Staff',
+                description='Visual indicator for users with admin access',
+                color='#6366f1',  # Indigo color
+                icon='fa-solid fa-user-tie'
+            )
+            from app.extensions import db
+            db.session.add(staff_role)
+            db.session.flush()
+        return staff_role
+    
+    @classmethod
+    def get_staff_users(cls):
+        """Get all users who have the Staff role (for admin management page)"""
+        staff_role = cls.query.filter_by(name='Staff').first()
+        if staff_role:
+            return cls.get_users_with_role(staff_role.id)
+        return []
 
 class UserType(enum.Enum):
     """User type enumeration for the unified User model"""
@@ -290,9 +322,14 @@ class User(db.Model, UserMixin):
         return any(role.id == role_id for role in self.admin_roles)
     
     def add_admin_role(self, role):
-        """Add an admin role to this user"""
+        """Add an admin role to this user (Local users only)"""
+        if self.userType != UserType.LOCAL:
+            raise ValueError("Admin roles can only be assigned to Local users")
+        
         if role not in self.admin_roles:
             self.admin_roles.append(role)
+            # Automatically assign "Staff" visual role when any admin role is given
+            self._ensure_staff_role()
     
     def remove_admin_role(self, role):
         """Remove an admin role from this user"""
@@ -300,8 +337,16 @@ class User(db.Model, UserMixin):
             self.admin_roles.remove(role)
     
     def set_admin_roles(self, roles):
-        """Set the admin roles for this user (replaces all existing)"""
+        """Set the admin roles for this user (replaces all existing - Local users only)"""
+        if self.userType != UserType.LOCAL:
+            raise ValueError("Admin roles can only be assigned to Local users")
+        
         self.admin_roles = roles
+        # Automatically assign "Staff" visual role if user has any admin roles
+        if roles:
+            self._ensure_staff_role()
+        else:
+            self._remove_staff_role_if_no_admin_roles()
     
     def clear_admin_roles(self):
         """Remove all admin roles from this user"""
@@ -319,6 +364,38 @@ class User(db.Model, UserMixin):
     def get_admin_role(self):
         """Legacy method - returns first admin role if any"""
         return self.admin_roles[0] if self.admin_roles else None
+    
+    # Staff Role Management (Special Visual Role)
+    def _ensure_staff_role(self):
+        """Automatically assign 'Staff' visual role when user gets admin roles"""
+        staff_role = UserRole.get_or_create_staff_role()
+        if staff_role not in self.visual_roles:
+            self.visual_roles.append(staff_role)
+    
+    def _remove_staff_role_if_no_admin_roles(self):
+        """Remove 'Staff' visual role if user has no admin roles"""
+        if not self.admin_roles:
+            staff_role = UserRole.query.filter_by(name='Staff').first()
+            if staff_role and staff_role in self.visual_roles:
+                self.visual_roles.remove(staff_role)
+    
+    def has_admin_access(self):
+        """Check if user has admin dashboard access (has any admin roles)"""
+        return self.userType == UserType.OWNER or (self.userType == UserType.LOCAL and len(self.admin_roles) > 0)
+    
+    def is_staff_member(self):
+        """Check if user is a staff member (has Staff visual role)"""
+        return any(role.name == 'Staff' for role in self.visual_roles)
+    
+    @classmethod
+    def create_admin_user(cls, username, password, email=None):
+        """Create a new Local user for admin purposes with automatic Staff role"""
+        user = cls.create_local_user(username, password, email)
+        
+        # Automatically assign Staff visual role
+        staff_role = UserRole.get_or_create_staff_role()
+        user.visual_roles.append(staff_role)
+        return user
     
     def __repr__(self):
         if self.userType == UserType.OWNER:

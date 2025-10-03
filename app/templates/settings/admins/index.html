@@ -25,7 +25,7 @@
         </div>
         <div>
             <h2 class="text-xl font-semibold text-base-content mb-1">System Administrators</h2>
-            <p class="text-sm text-base-content/70">{{ admins|length }} administrator{{ 's' if admins|length != 1 else '' }} configured</p>
+            <p class="text-sm text-base-content/70">{{ (admins|length) + (1 if owner else 0) }} administrator{{ 's' if (admins|length + (1 if owner else 0)) != 1 else '' }} configured</p>
         </div>
     </div>
     
@@ -77,7 +77,7 @@
             <div class="relative">
                 <input type="text" 
                        placeholder="Search administrators..." 
-                       class="input input-bordered w-full sm:w-64 h-10 bg-base-100 border-base-300 focus:border-primary focus:bg-base-100 pl-10 pr-4"
+                       class="input input-bordered w-full sm:w-64 h-10 bg-base-200 border-base-300 focus:border-primary focus:bg-base-100 pl-10 pr-4"
                        id="adminSearch">
                 <i class="fa-solid fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-base-content/40 text-sm"></i>
             </div>
@@ -96,15 +96,62 @@
                 </tr>
             </thead>
             <tbody>
+            <!-- Owner (always shown first) -->
+            {% if owner %}
+            <tr class="hover:bg-base-200/50 border-base-300">
+                <td class="py-4">
+                    <div class="flex items-center gap-2">
+                        <div class="w-6 h-6 rounded-full bg-warning/20 flex items-center justify-center">
+                            <i class="fa-solid fa-crown text-warning text-xs"></i>
+                        </div>
+                        <span class="font-mono text-sm">{{ owner.id }}</span>
+                    </div>
+                </td>
+                
+                <td class="py-4">
+                    <div class="flex items-center gap-3">
+                        <div class="avatar">
+                            <div class="w-12 h-12 rounded-full">
+                                {% if owner.plex_thumb %}
+                                    <img src="{{ owner.plex_thumb }}" alt="{{ owner.localUsername }} avatar" class="rounded-full" />
+                                {% else %}
+                                    <div class="bg-warning text-warning-content w-12 h-12 rounded-full flex items-center justify-center">
+                                        <i class="fa-solid fa-crown"></i>
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div>
+                            <div class="font-medium text-base-content">{{ owner.localUsername }}</div>
+                            {% if owner.email %}
+                                <div class="text-sm text-base-content/70">{{ owner.email }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </td>
+                
+                <td class="py-4">
+                    <span class="badge badge-warning font-medium">Owner</span>
+                </td>
+                
+                <td class="py-4">
+                    <span class="badge badge-warning">All Permissions</span>
+                </td>
+                
+                <td class="py-4 text-right">
+                    <span class="text-base-content/60 text-sm">System Account</span>
+                </td>
+            </tr>
+            {% endif %}
+            
+            <!-- Staff Users (Local users with admin roles) -->
             {% for admin in admins %}
             <tr class="hover:bg-base-200/50 border-base-300">
                 <td class="py-4">
                     <div class="flex items-center gap-2">
-                        {% if admin.id == 1 %}
-                            <div class="w-6 h-6 rounded-full bg-success/20 flex items-center justify-center">
-                                <i class="fa-solid fa-crown text-success text-xs"></i>
-                            </div>
-                        {% endif %}
+                        <div class="w-6 h-6 rounded-full bg-info/20 flex items-center justify-center">
+                            <i class="fa-solid fa-user-tie text-info text-xs"></i>
+                        </div>
                         <span class="font-mono text-sm">{{ admin.id }}</span>
                     </div>
                 </td>
@@ -136,41 +183,44 @@
                                 <i class="fa-solid fa-user text-primary"></i>
                             </div>
                             <div>
-                                <div class="font-semibold text-base-content">{{ admin.username }}</div>
-                                <div class="text-sm text-base-content/60">Local account</div>
+                                <div class="font-semibold text-base-content">{{ admin.localUsername }}</div>
+                                {% if admin.email %}
+                                    <div class="text-sm text-base-content/60">{{ admin.email }}</div>
+                                {% else %}
+                                    <div class="text-sm text-base-content/60">Local account</div>
+                                {% endif %}
                             </div>
                         </div>
                     {% endif %}
                 </td>
 
                 <td class="py-4">
-                    {% if admin.plex_uuid %}
-                        <span class="badge badge-warning badge-sm">
-                            <i class="fa-solid fa-link mr-1"></i> Plex Linked
+                    <div class="flex items-center gap-2">
+                        <span class="badge badge-info badge-sm">
+                            <i class="fa-solid fa-user-tie mr-1"></i> Staff
                         </span>
-                    {% else %}
-                        <span class="badge badge-ghost badge-sm">
-                            <i class="fa-solid fa-user mr-1"></i> Local Only
-                        </span>
-                    {% endif %}
+                        {% if admin.plex_uuid %}
+                            <span class="badge badge-warning badge-sm">
+                                <i class="fa-solid fa-link mr-1"></i> Plex Linked
+                            </span>
+                        {% else %}
+                            <span class="badge badge-ghost badge-sm">
+                                <i class="fa-solid fa-user mr-1"></i> Local Only
+                            </span>
+                        {% endif %}
+                    </div>
                 </td>
                 
                 <td class="py-4">
                     <div class="flex flex-wrap gap-1">
-                        {% if admin.id == 1 %} 
-                            <span class="badge badge-success badge-sm">
-                                <i class="fa-solid fa-crown mr-1"></i> Owner
+                        {% for role in admin.admin_roles %}
+                            <span class="badge badge-sm" style="background-color: {{ role.color or '#808080' }}; border-color: {{ role.color or '#808080' }}; color: {{ '#ffffff' if role.color else '#ffffff' }};">
+                                {% if role.icon %}<i class="{{ role.icon }} mr-1"></i>{% endif %}
+                                {{ role.name }} ({{ role.position }})
                             </span>
                         {% else %}
-                            {% for role in admin.roles %}
-                                <span class="badge badge-sm" style="background-color: {{ role.color or '#808080' }}; border-color: {{ role.color or '#808080' }}; color: {{ get_text_color_for_bg(role.color) }};">
-                                    {% if role.icon %}<i class="{{ role.icon }} mr-1"></i>{% endif %}
-                                    {{ role.name }}
-                                </span>
-                            {% else %}
-                                <span class="text-xs italic text-base-content/60">No roles assigned</span>
-                            {% endfor %}
-                        {% endif %}
+                            <span class="text-xs italic text-base-content/60">No admin roles assigned</span>
+                        {% endfor %}
                     </div>
                 </td>
                 

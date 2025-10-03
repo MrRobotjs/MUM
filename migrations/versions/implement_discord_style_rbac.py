@@ -83,20 +83,25 @@ def upgrade():
         )
         print("Created admin_user_roles_assignments table")
         
-        # 5. Update users_roles table to use UUIDs
-        if 'users_roles' not in tables:
-            op.create_table('users_roles',
-                sa.Column('id', sa.String(36), nullable=False),
-                sa.Column('name', sa.String(100), nullable=False),
-                sa.Column('description', sa.Text(), nullable=True),
-                sa.Column('color', sa.String(7), nullable=True),
-                sa.Column('icon', sa.String(100), nullable=True),
-                sa.Column('created_at', sa.DateTime(), nullable=False),
-                sa.Column('updated_at', sa.DateTime(), nullable=False),
-                sa.PrimaryKeyConstraint('id'),
-                sa.UniqueConstraint('name')
-            )
-            print("Created users_roles table")
+        # 5. Recreate users_roles table with UUID support
+        if 'users_roles' in tables:
+            # Drop existing users_roles table if it exists (will be recreated with UUIDs)
+            op.drop_table('users_roles')
+            print("Dropped existing users_roles table")
+            
+        # Create new users_roles table with UUID IDs
+        op.create_table('users_roles',
+            sa.Column('id', sa.String(36), nullable=False),
+            sa.Column('name', sa.String(100), nullable=False),
+            sa.Column('description', sa.Text(), nullable=True),
+            sa.Column('color', sa.String(7), nullable=True),
+            sa.Column('icon', sa.String(100), nullable=True),
+            sa.Column('created_at', sa.DateTime(), nullable=False),
+            sa.Column('updated_at', sa.DateTime(), nullable=False),
+            sa.PrimaryKeyConstraint('id'),
+            sa.UniqueConstraint('name')
+        )
+        print("Created users_roles table with UUID support")
         
         # 6. Create users_roles_assignments junction table
         op.create_table('users_roles_assignments',

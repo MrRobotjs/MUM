@@ -54,7 +54,7 @@
 </div>
 
 <!-- Settings Form Section -->
-<div class="bg-base-200/30 border border-base-300 rounded-lg p-6">
+<div class="bg-base-100 border border-base-300 rounded-lg p-6">
     <div class="flex items-center gap-3 mb-6">
         <div class="w-8 h-8 rounded-full bg-secondary/20 flex items-center justify-center">
             <i class="fa-solid fa-cog text-secondary text-sm"></i>
@@ -67,7 +67,7 @@
     <!-- Placeholder form content -->
     <div class="space-y-6">
         <!-- User Accounts Feature Section -->
-        <div class="bg-base-100 border border-base-300 rounded-lg p-4">
+        <div class="bg-base-200 border border-base-300 rounded-lg p-4">
             <h4 class="font-medium text-base-content mb-3 flex items-center gap-2">
                 <i class="fa-solid fa-user-plus text-primary text-sm"></i>
                 User Accounts
@@ -81,7 +81,7 @@
                 
                 <!-- Allow User Accounts Toggle -->
                 <div class="form-control">
-                    <label class="cursor-pointer flex items-center gap-3 p-3 rounded-lg border border-base-300 hover:border-primary/30 transition-colors">
+                    <label class="cursor-pointer flex items-center gap-3 p-3 rounded-lg bg-base-100 border border-base-300 hover:border-primary/30 transition-colors">
                         <input type="checkbox" 
                                name="allow_user_accounts" 
                                class="toggle toggle-primary" 
@@ -116,7 +116,7 @@
         </div>
 
         <!-- Account Policies Section -->
-        <div class="bg-base-100 border border-base-300 rounded-lg p-4">
+        <div class="bg-base-200 border border-base-300 rounded-lg p-4">
             <h4 class="font-medium text-base-content mb-3 flex items-center gap-2">
                 <i class="fa-solid fa-shield-alt text-primary text-sm"></i>
                 Account Policies
@@ -131,7 +131,7 @@
                     <label class="label">
                         <span class="label-text text-sm font-medium">Minimum Password Length</span>
                     </label>
-                    <input type="number" class="input input-bordered input-sm w-24" value="8" min="6" max="50" disabled>
+                    <input type="number" class="input bg-base-100 input-bordered input-sm w-24" value="8" min="6" max="50" disabled>
                 </div>
                 
                 <!-- Session Timeout -->
@@ -139,7 +139,7 @@
                     <label class="label">
                         <span class="label-text text-sm font-medium">Session Timeout (hours)</span>
                     </label>
-                    <input type="number" class="input input-bordered input-sm w-24" value="24" min="1" max="168" disabled>
+                    <input type="number" class="input bg-base-100 input-bordered input-sm w-24" value="24" min="1" max="168" disabled>
                 </div>
                 
                 <!-- Account Expiration -->
@@ -147,7 +147,7 @@
                     <label class="label">
                         <span class="label-text text-sm font-medium">Default Account Expiration (days)</span>
                     </label>
-                    <input type="number" class="input input-bordered input-sm w-24" value="365" min="1" max="3650" disabled>
+                    <input type="number" class="input bg-base-100 input-bordered input-sm w-24" value="365" min="1" max="3650" disabled>
                     <label class="label">
                         <span class="label-text-alt">Set to 0 for no expiration</span>
                     </label>
@@ -156,7 +156,7 @@
         </div>
 
         <!-- User Preferences Section -->
-        <div class="bg-base-100 border border-base-300 rounded-lg p-4">
+        <div class="bg-base-200 border border-base-300 rounded-lg p-4">
             <h4 class="font-medium text-base-content mb-3 flex items-center gap-2">
                 <i class="fa-solid fa-sliders text-primary text-sm"></i>
                 Default User Preferences
@@ -171,7 +171,7 @@
                     <label class="label">
                         <span class="label-text text-sm font-medium">Default Theme</span>
                     </label>
-                    <select class="select select-bordered select-sm" disabled>
+                    <select class="select select-bordered select-sm bg-base-100" disabled>
                         <option>Auto (System)</option>
                         <option>Light</option>
                         <option>Dark</option>
@@ -183,7 +183,7 @@
                     <label class="label">
                         <span class="label-text text-sm font-medium">Default Language</span>
                     </label>
-                    <select class="select select-bordered select-sm" disabled>
+                    <select class="select bg-base-100 select-bordered select-sm" disabled>
                         <option>English</option>
                         <option>Spanish</option>
                         <option>French</option>

@@ -4,7 +4,7 @@ from flask import (
     flash, request, current_app, make_response
 )
 from flask_login import login_required, current_user
-from app.models import User, UserType, Role, EventType
+from app.models import User, UserType, AdminRole, UserRole, EventType
 from app.forms import UserCreateForm, LocalUserEditForm, UserResetPasswordForm
 from app.extensions import db
 from app.utils.helpers import log_event, setup_required, permission_required, any_permission_required
@@ -16,14 +16,14 @@ bp = Blueprint('admin_management', __name__)
 @login_required
 @any_permission_required(['create_admin', 'edit_admin', 'delete_admin'])
 def index():
-    # Get Owner and LOCAL users with admin roles
+    # Get Owner and LOCAL users with Staff role (indicating admin access)
     owner = User.get_owner()
-    local_users = User.query.filter_by(userType=UserType.LOCAL).order_by(User.id).all()
+    staff_users = UserRole.get_staff_users()  # Only show users with Staff role
     return render_template(
         'settings/index.html',
-        title="Manage Users",
+        title="Manage Admins",
         owner=owner,
-        app_users=local_users,
+        admins=staff_users,  # Changed from app_users to admins
         active_tab='admins'
     )
 
@@ -33,7 +33,8 @@ def index():
 def create():
     form = UserCreateForm()
     if form.validate_on_submit():
-        new_user = User.create_local_user(
+        # Create admin user with automatic Staff role assignment
+        new_user = User.create_admin_user(
             username=form.username.data,
             password=form.password.data,
             email=form.email.data
@@ -42,7 +43,7 @@ def create():
         db.session.add(new_user)
         db.session.commit()
         
-        toast = {"showToastEvent": {"message": f"User '{new_user.localUsername}' created.", "category": "success"}}
+        toast = {"showToastEvent": {"message": f"Admin user '{new_user.localUsername}' created with Staff role.", "category": "success"}}
         response = make_response("", 204) # No Content
         response.headers['HX-Trigger'] = json.dumps({"refreshAdminList": True, **toast})
         return response
@@ -93,16 +94,18 @@ def edit(admin_id):
         return redirect(url_for('dashboard.account'))
         
     form = LocalUserEditForm(obj=user)
-    form.roles.choices = [(r.id, r.name) for r in Role.query.order_by('name')]
+    form.roles.choices = [(r.id, r.name) for r in AdminRole.query.order_by('name')]
 
     if form.validate_on_submit():
-        user.roles = Role.query.filter(Role.id.in_(form.roles.data)).all()
+        # Update admin roles (will automatically manage Staff visual role)
+        selected_roles = AdminRole.query.filter(AdminRole.id.in_(form.roles.data)).all()
+        user.set_admin_roles(selected_roles)
         db.session.commit()
-        flash(f"Roles for '{user.localUsername}' updated.", "success")
+        flash(f"Admin roles for '{user.localUsername}' updated.", "success")
         return redirect(url_for('admin_management.index'))
         
     if request.method == 'GET':
-        form.roles.data = [r.id for r in user.roles]
+        form.roles.data = [r.id for r in user.admin_roles]
 
     return render_template(
         'settings/admins/edit.html',

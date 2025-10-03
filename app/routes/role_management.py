@@ -4,7 +4,7 @@ from flask import (
     flash, request, current_app, make_response
 )
 from flask_login import login_required, current_user
-from app.models import User, UserType, Role
+from app.models import User, UserType, AdminRole, UserRole, Role
 from app.forms import RoleEditForm, RoleCreateForm, RoleMemberForm
 from app.extensions import db
 from app.utils.helpers import setup_required, permission_required, any_permission_required
@@ -16,11 +16,34 @@ bp = Blueprint('role_management', __name__)
 @login_required
 @any_permission_required(['create_role', 'edit_role', 'delete_role'])
 def index():
-    roles = Role.query.order_by(Role.name).all()
+    # Get admin roles (RBAC roles)
+    admin_roles = AdminRole.query.order_by(AdminRole.position.desc(), AdminRole.name).all()
+    
+    # Get the special Staff visual role
+    staff_role = UserRole.query.filter_by(name='Staff').first()
+    
+    # Combine roles for display (Staff role + Admin roles)
+    all_roles = []
+    if staff_role:
+        all_roles.append({
+            'type': 'visual',
+            'role': staff_role,
+            'is_staff': True
+        })
+    
+    for admin_role in admin_roles:
+        all_roles.append({
+            'type': 'admin',
+            'role': admin_role,
+            'is_staff': False
+        })
+    
     return render_template(
         'settings/index.html',
         title="Manage Roles",
-        roles=roles,
+        roles=all_roles,  # Mixed list of role objects with metadata
+        admin_roles=admin_roles,  # For forms that need only admin roles
+        staff_role=staff_role,
         active_tab='roles'
     )
 

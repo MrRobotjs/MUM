@@ -895,7 +895,7 @@ def edit_user_role(role_id):
         # Get search query
         search_query = request.args.get('search_members', '').strip()
         if search_query:
-            current_members = [u for u in current_members if search_query.lower() in (u.localUsername or u.get_display_name()).lower()]
+            current_members = [u for u in current_members if search_query.lower() in u.get_display_name().lower()]
 
         # Create member form with available users
         member_form = UserRoleMemberForm()
@@ -904,7 +904,7 @@ def edit_user_role(role_id):
         all_users = User.query.filter(User.userType.in_([UserType.LOCAL, UserType.SERVICE])).all()
 
         # Filter out users who already have this role
-        users_to_add = [u for u in all_users if role not in (u.user_roles if hasattr(u, 'user_roles') else [])]
+        users_to_add = [u for u in all_users if role not in u.user_roles]
 
         # Set choices for the form with better display names
         member_form.users_to_add.choices = [(str(u.id), u.get_display_name()) for u in users_to_add]
@@ -914,19 +914,32 @@ def edit_user_role(role_id):
                 users_added = []
                 for user_id in member_form.users_to_add.data:
                     user = User.query.get(user_id)
-                    if user and role not in (user.user_roles if hasattr(user, 'user_roles') else []):
-                        if not hasattr(user, 'user_roles'):
-                            user.user_roles = []
+                    if user and role not in user.user_roles:
                         user.user_roles.append(role)
-                        users_added.append(user.localUsername or user.get_display_name())
+                        users_added.append(user.get_display_name())
 
-                if users_added:
-                    db.session.commit()
-                    flash(f"Added {len(users_added)} user(s) to '{role.name}'.", "success")
+                db.session.commit()
+                current_app.logger.info(f"Added {len(users_added)} user(s) to role '{role.name}'")
+
+                # Check if this is an HTMX request
+                if request.headers.get('HX-Request'):
+                    # Re-fetch updated data to render modal
+                    member_form = UserRoleMemberForm()
+                    all_users = User.query.filter(User.userType.in_([UserType.LOCAL, UserType.SERVICE])).all()
+                    users_to_add = [u for u in all_users if role not in (u.user_roles if hasattr(u, 'user_roles') else [])]
+                    member_form.users_to_add.choices = [(str(u.id), u.get_display_name()) for u in users_to_add]
+
+                    # Trigger refresh of member list
+                    response = make_response(render_template(
+                        'settings/user_roles/_partials/modals/add_member_modal.html',
+                        role=role,
+                        member_form=member_form
+                    ))
+                    response.headers['HX-Trigger'] = 'refreshMembersList'
+                    return response
                 else:
-                    flash("No users were added.", "info")
-
-                return redirect(url_for('settings.edit_user_role', role_id=role.id, tab='members'))
+                    flash(f"Added {len(users_added)} user(s) to '{role.name}'.", "success")
+                    return redirect(url_for('settings.edit_user_role', role_id=role.id, tab='members'))
 
             except Exception as e:
                 current_app.logger.error(f"Error adding users to role: {str(e)}")
@@ -959,10 +972,10 @@ def remove_user_role_member(role_id, user_id):
     user = User.query.get_or_404(user_id)
 
     try:
-        if hasattr(user, 'user_roles') and role in user.user_roles:
+        if role in user.user_roles:
             user.user_roles.remove(role)
             db.session.commit()
-            current_app.logger.info(f"Removed user '{user.localUsername or user.get_display_name()}' from user role '{role.name}'")
+            current_app.logger.info(f"Removed user '{user.get_display_name()}' from user role '{role.name}'")
 
             # Return empty response for HTMX to remove the row
             return '', 200

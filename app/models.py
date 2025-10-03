@@ -274,9 +274,11 @@ class User(db.Model, UserMixin):
     # Discord-style RBAC relationships
     admin_roles = db.relationship('AdminRole', secondary=admin_user_roles_assignments, lazy='subquery',
                                  backref=db.backref('users', lazy=True))
-    visual_roles = db.relationship('UserRole', secondary=users_roles_assignments, lazy='subquery',
+    # Note: This is the relationship for UserRole (visual/cosmetic roles), stored as 'visual_roles'
+    # but commonly referred to as 'user_roles' in the codebase
+    user_roles = db.relationship('UserRole', secondary=users_roles_assignments, lazy='subquery',
                                   backref=db.backref('users', lazy=True))
-    
+
     # Template compatibility property - returns linked service users for templates
     @property
     def linked_service_users(self):

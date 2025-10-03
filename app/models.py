@@ -605,7 +605,7 @@ class User(db.Model, UserMixin):
         owner = cls(
             userType=UserType.OWNER,
             localUsername=username,
-            discord_email=email
+            email=email
         )
         owner.set_password(password)
         return owner
@@ -616,7 +616,7 @@ class User(db.Model, UserMixin):
         user = cls(
             userType=UserType.LOCAL,
             localUsername=username,
-            discord_email=email
+            email=email
         )
         user.set_password(password)
         return user

@@ -5,7 +5,7 @@ from flask import (
 )
 from flask_login import login_required, current_user
 from app.models import User, UserType, AdminRole, UserRole, EventType
-from app.forms import UserCreateForm, LocalUserEditForm, UserResetPasswordForm
+from app.forms import AdminCreateForm, LocalUserEditForm, UserResetPasswordForm
 from app.extensions import db
 from app.utils.helpers import log_event, setup_required, permission_required, any_permission_required
 import json
@@ -31,22 +31,38 @@ def index():
 @login_required
 @permission_required('create_admin')
 def create():
-    form = UserCreateForm()
+    from flask import current_app
+    current_app.logger.info(f"Admin creation attempt - Request data: {request.form}")
+    
+    form = AdminCreateForm()
+    current_app.logger.info(f"Form CSRF token: {form.csrf_token.data if hasattr(form, 'csrf_token') else 'No CSRF field'}")
+    current_app.logger.info(f"Form validation errors: {form.errors}")
+    
     if form.validate_on_submit():
-        # Create admin user with automatic Staff role assignment
-        new_user = User.create_admin_user(
-            username=form.username.data,
-            password=form.password.data,
-            email=form.email.data
-        )
-        new_user.force_password_change = True
-        db.session.add(new_user)
-        db.session.commit()
-        
-        toast = {"showToastEvent": {"message": f"Admin user '{new_user.localUsername}' created with Staff role.", "category": "success"}}
-        response = make_response("", 204) # No Content
-        response.headers['HX-Trigger'] = json.dumps({"refreshAdminList": True, **toast})
-        return response
+        try:
+            current_app.logger.info("Form validation passed, creating admin user")
+            # Create admin user with automatic Staff role assignment
+            new_user = User.create_admin_user(
+                username=form.username.data,
+                password=form.password.data,
+                email=None  # AdminCreateForm doesn't have email field
+            )
+            new_user.force_password_change = True
+            db.session.add(new_user)
+            db.session.commit()
+            
+            current_app.logger.info(f"Admin user '{new_user.localUsername}' created successfully")
+            toast = {"showToastEvent": {"message": f"Admin user '{new_user.localUsername}' created with Staff role.", "category": "success"}}
+            response = make_response("", 204) # No Content
+            response.headers['HX-Trigger'] = json.dumps({"refreshAdminList": True, **toast})
+            return response
+            
+        except Exception as e:
+            current_app.logger.error(f"Error creating admin user: {str(e)}")
+            db.session.rollback()
+            form.username.errors.append("Error creating user. Please try again.")
+    else:
+        current_app.logger.warning(f"Form validation failed: {form.errors}")
     
     # If validation fails, re-render the form partial with errors
     return render_template('settings/admins/_partials/create_admin_modal.html', form=form), 422
@@ -55,7 +71,7 @@ def create():
 @login_required
 @permission_required('create_admin')
 def create_form():
-    form = UserCreateForm()
+    form = AdminCreateForm()
     return render_template('settings/admins/_partials/create_admin_modal.html', form=form)
 
 @bp.route('/delete/<int:admin_id>', methods=['POST'])

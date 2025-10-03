@@ -1,7 +1,7 @@
 # File: app/routes/role_management.py
 from flask import (
-    Blueprint, render_template, redirect, url_for, 
-    flash, request, current_app, make_response
+    Blueprint, render_template, redirect, url_for,
+    flash, request, current_app, make_response, jsonify
 )
 from flask_login import login_required, current_user
 from app.models import User, UserType, AdminRole, UserRole, Role
@@ -16,12 +16,19 @@ bp = Blueprint('role_management', __name__)
 @login_required
 @any_permission_required(['create_role', 'edit_role', 'delete_role'])
 def index():
+    from flask import current_app
+
     # Get admin roles (RBAC roles)
     admin_roles = AdminRole.query.order_by(AdminRole.position.desc(), AdminRole.name).all()
-    
+
     # Get the special Staff visual role
     staff_role = UserRole.query.filter_by(name='Staff').first()
-    
+
+    # Debug logging
+    current_app.logger.info(f"Role Index - Current User: {current_user.__class__.__name__}")
+    current_app.logger.info(f"Role Index - User Type: {current_user.userType}")
+    current_app.logger.info(f"Role Index - Has edit_role permission: {current_user.has_permission('edit_role') if hasattr(current_user, 'has_permission') else 'N/A'}")
+
     # Combine roles for display (Staff role + Admin roles)
     all_roles = []
     if staff_role:
@@ -30,14 +37,16 @@ def index():
             'role': staff_role,
             'is_staff': True
         })
-    
+
     for admin_role in admin_roles:
+        can_manage = current_user.can_manage_role(admin_role) if hasattr(current_user, 'can_manage_role') else False
+        current_app.logger.info(f"Role: {admin_role.name}, Position: {admin_role.position}, Can Manage: {can_manage}")
         all_roles.append({
             'type': 'admin',
             'role': admin_role,
             'is_staff': False
         })
-    
+
     return render_template(
         'settings/index.html',
         title="Manage Roles",
@@ -286,11 +295,31 @@ def delete(role_id):
 def reorder_roles():
     """Reorder admin roles by updating their position values"""
     try:
+        current_app.logger.info(f"Reorder request from user: {current_user.__class__.__name__}")
+
         data = request.get_json()
-        role_ids = data.get('role_ids', [])
+        current_app.logger.info(f"Received data: {data}")
+
+        role_ids = data.get('role_ids', []) if data else []
 
         if not role_ids:
+            current_app.logger.warning("No role IDs provided")
             return jsonify({'success': False, 'error': 'No role IDs provided'}), 400
+
+        # If not Owner, check if user can reorder these roles
+        if current_user.userType != UserType.OWNER:
+            user_highest_position = current_user.get_highest_role_position()
+            current_app.logger.info(f"Non-owner user highest position: {user_highest_position}")
+
+            # Check all roles being reordered
+            for role_id in role_ids:
+                role = AdminRole.query.get(role_id)
+                if role and role.position >= user_highest_position:
+                    current_app.logger.warning(f"User cannot reorder role {role.name} (position {role.position})")
+                    return jsonify({
+                        'success': False,
+                        'error': f'You cannot reorder roles at or above your role level'
+                    }), 403
 
         # Update positions based on new order
         # Higher position = higher in hierarchy (like Discord)
@@ -300,12 +329,15 @@ def reorder_roles():
         for index, role_id in enumerate(role_ids_reversed):
             role = AdminRole.query.get(role_id)
             if role:
-                # Start from position 1 (position 0 is reserved or can be special)
+                old_position = role.position
                 role.position = index + 1
+                current_app.logger.info(f"Updated {role.name}: position {old_position} -> {role.position}")
 
         db.session.commit()
+        current_app.logger.info("Role reordering completed successfully")
         return jsonify({'success': True})
 
     except Exception as e:
+        current_app.logger.error(f"Error reordering roles: {str(e)}", exc_info=True)
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)}), 500

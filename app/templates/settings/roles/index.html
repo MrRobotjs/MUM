@@ -99,12 +99,13 @@
                 {% set role = role_item.role %}
                 {% set role_type = role_item.type %}
                 {% set is_staff = role_item.is_staff %}
-                <tr class="hover:bg-base-200/50 border-base-300 {% if role_type == 'admin' and not is_staff %}draggable-role cursor-move{% endif %}"
+                <tr class="hover:bg-base-200/50 border-base-300 {% if role_type == 'admin' and not is_staff and (current_user.__class__.__name__ == 'Owner' or (current_user.has_permission('edit_role') and current_user.can_manage_role(role))) %}draggable-role cursor-move{% endif %}"
                     data-role-id="{{ role.id if role_type == 'admin' else '' }}"
                     data-role-type="{{ role_type }}"
-                    data-is-staff="{{ 'true' if is_staff else 'false' }}">
+                    data-is-staff="{{ 'true' if is_staff else 'false' }}"
+                    data-role-position="{{ role.position if role_type == 'admin' else '' }}">
                     <td class="py-4 w-8">
-                        {% if role_type == 'admin' and not is_staff %}
+                        {% if role_type == 'admin' and not is_staff and (current_user.__class__.__name__ == 'Owner' or (current_user.has_permission('edit_role') and current_user.can_manage_role(role))) %}
                             <i class="fa-solid fa-grip-vertical text-base-content/40 cursor-grab"></i>
                         {% endif %}
                     </td>
@@ -276,12 +277,55 @@ document.addEventListener('DOMContentLoaded', function() {
     const tbody = document.getElementById('roles-tbody');
     if (tbody) {
         let draggedRow = null;
+        const userHighestPosition = {{ 999999 if current_user.__class__.__name__ == 'Owner' else (current_user.get_highest_role_position() if current_user.get_highest_role_position() < 999999 else 999999) }};
+        const isOwner = {{ 'true' if current_user.__class__.__name__ == 'Owner' else 'false' }};
+
+        console.log('Drag-drop initialized:', {
+            isOwner: isOwner,
+            userHighestPosition: userHighestPosition,
+            draggableRows: tbody.querySelectorAll('.draggable-role').length
+        });
+
+        // Make draggable rows actually draggable
+        const draggableRows = tbody.querySelectorAll('.draggable-role');
+        draggableRows.forEach(row => {
+            row.setAttribute('draggable', 'true');
+            console.log('Set draggable for role:', {
+                roleId: row.dataset.roleId,
+                rolePosition: row.dataset.rolePosition,
+                isDraggable: row.getAttribute('draggable')
+            });
+        });
 
         tbody.addEventListener('dragstart', function(e) {
+            console.log('Dragstart event:', {
+                target: e.target.tagName,
+                classList: Array.from(e.target.classList),
+                hasDraggableRole: e.target.classList.contains('draggable-role')
+            });
+
             if (e.target.classList.contains('draggable-role')) {
+                const rolePosition = parseInt(e.target.dataset.rolePosition);
+
+                console.log('Attempting to drag role:', {
+                    roleId: e.target.dataset.roleId,
+                    rolePosition: rolePosition,
+                    isOwner: isOwner,
+                    userHighestPosition: userHighestPosition,
+                    canDrag: isOwner || rolePosition < userHighestPosition
+                });
+
+                // Prevent dragging if user doesn't have permission
+                if (!isOwner && rolePosition >= userHighestPosition) {
+                    console.log('Drag prevented - insufficient permissions');
+                    e.preventDefault();
+                    return;
+                }
+
                 draggedRow = e.target;
                 e.target.style.opacity = '0.4';
                 e.dataTransfer.effectAllowed = 'move';
+                console.log('Drag started successfully');
             }
         });
 
@@ -348,12 +392,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     location.reload();
                 });
             }
-        });
-
-        // Make draggable rows actually draggable
-        const draggableRows = tbody.querySelectorAll('.draggable-role');
-        draggableRows.forEach(row => {
-            row.setAttribute('draggable', 'true');
         });
     }
 });

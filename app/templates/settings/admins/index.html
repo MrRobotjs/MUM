@@ -131,11 +131,19 @@
                 </td>
                 
                 <td class="py-4">
-                    <span class="badge badge-warning font-medium">Owner</span>
+                    <span class="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset gap-1"
+                          style="background-color: #faa61a20; color: #faa61a; border-color: #faa61a40;">
+                        <i class="fa-solid fa-crown w-3 h-3"></i>
+                        Owner
+                    </span>
                 </td>
-                
+
                 <td class="py-4">
-                    <span class="badge badge-warning">All Permissions</span>
+                    <span class="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset gap-1"
+                          style="background-color: #faa61a20; color: #faa61a; border-color: #faa61a40;">
+                        <i class="fa-solid fa-key w-3 h-3"></i>
+                        All Permissions
+                    </span>
                 </td>
                 
                 <td class="py-4 text-right">
@@ -196,12 +204,16 @@
 
                 <td class="py-4">
                     <div class="flex items-center gap-2">
-                        <span class="badge badge-info badge-sm">
-                            <i class="fa-solid fa-user-tie mr-1"></i> Staff
+                        <span class="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset gap-1"
+                              style="background-color: #5865f220; color: #5865f2; border-color: #5865f240;">
+                            <i class="fa-solid fa-user-tie w-3 h-3"></i>
+                            Staff
                         </span>
                         {% if admin.plex_uuid %}
-                            <span class="badge badge-warning badge-sm">
-                                <i class="fa-solid fa-link mr-1"></i> Plex Linked
+                            <span class="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset gap-1"
+                                  style="background-color: #faa61a20; color: #faa61a; border-color: #faa61a40;">
+                                <i class="fa-solid fa-link w-3 h-3"></i>
+                                Plex Linked
                             </span>
                         {% endif %}
                     </div>
@@ -210,8 +222,9 @@
                 <td class="py-4">
                     <div class="flex flex-wrap gap-1">
                         {% for role in admin.admin_roles %}
-                            <span class="badge badge-sm" style="background-color: {{ role.color or '#808080' }}; border-color: {{ role.color or '#808080' }}; color: {{ '#ffffff' if role.color else '#ffffff' }};">
-                                {% if role.icon %}<i class="{{ role.icon }} mr-1"></i>{% endif %}
+                            <span class="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset gap-1"
+                                  style="background-color: {{ role.color or '#808080' }}20; color: {{ role.color or '#808080' }}; border-color: {{ role.color or '#808080' }}40;">
+                                {% if role.icon %}<i class="{{ role.icon }} w-3 h-3"></i>{% endif %}
                                 {{ role.name }}
                             </span>
                         {% else %}

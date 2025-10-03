@@ -51,22 +51,43 @@ def index():
 @login_required
 @permission_required('create_role')
 def create():
+    from flask import current_app
     form = RoleCreateForm()
+    
     if form.validate_on_submit():
-        new_role = Role(
-            name=form.name.data,
-            description=form.description.data,
-            color=form.color.data,
-            icon=form.icon.data.strip()
-        )
-        db.session.add(new_role)
-        db.session.flush()  # Flush to get the ID before commit
-        role_id = new_role.id  # Store the ID
-        db.session.commit()
-        
-        flash(f"Role '{new_role.name}' created successfully. You can now set its permissions.", "success")
-        # Redirect to the 'edit' page for the newly created role
-        return redirect(url_for('role_management.edit', role_id=role_id))
+        try:
+            current_app.logger.info(f"Creating admin role - Form data: name={form.name.data}, description={form.description.data}, color={form.color.data}, icon={form.icon.data}")
+            
+            # Use AdminRole instead of Role and include position field
+            new_role = AdminRole(
+                name=form.name.data,
+                description=form.description.data,
+                position=0,  # Default position for new roles
+                color=form.color.data,
+                icon=form.icon.data.strip() if form.icon.data else None
+            )
+            
+            current_app.logger.info(f"Created AdminRole object - ID: {new_role.id}, Name: {new_role.name}")
+            
+            db.session.add(new_role)
+            current_app.logger.info("Added role to session, about to flush")
+            db.session.flush()  # Flush to get the ID before commit
+            current_app.logger.info(f"Flush successful, role ID: {new_role.id}")
+            
+            role_id = new_role.id  # Store the ID
+            db.session.commit()
+            current_app.logger.info("Commit successful")
+            
+            flash(f"Role '{new_role.name}' created successfully. You can now set its permissions.", "success")
+            # Redirect to the 'edit' page for the newly created role
+            return redirect(url_for('role_management.edit', role_id=role_id))
+            
+        except Exception as e:
+            current_app.logger.error(f"Error creating admin role: {str(e)}")
+            db.session.rollback()
+            flash(f"Error creating role: {str(e)}", 'error')
+    else:
+        current_app.logger.warning(f"Form validation failed: {form.errors}")
 
     # The GET request rendering remains the same, but the template it renders will be changed.
     return render_template(
@@ -76,16 +97,16 @@ def create():
         active_tab='roles' # Keep 'roles' highlighted in the main settings sidebar
     )
 
-@bp.route('/edit/<int:role_id>', methods=['GET', 'POST'])
+@bp.route('/edit/<string:role_id>', methods=['GET', 'POST'])
 @login_required
 @permission_required('edit_role')
 def edit(role_id):
     tab = request.args.get('tab', 'display')
-    role = Role.query.get_or_404(role_id)
+    role = AdminRole.query.get_or_404(role_id)
     form = RoleEditForm(original_name=role.name, obj=role)
     member_form = RoleMemberForm()
 
-    if current_user.id != 1 and current_user in role.admins:
+    if current_user.id != 1 and current_user in role.users:
         flash("You cannot edit a role you are currently assigned to.", "danger")
         return redirect(url_for('role_management.index'))
 
@@ -163,7 +184,7 @@ def edit(role_id):
     
     # Populate choices for the 'Add Members' modal form
     users_not_in_role = User.query.filter_by(userType=UserType.LOCAL).filter(
-        ~User.roles.any(id=role.id)
+        ~User.admin_roles.any(id=role.id)
     ).order_by(User.localUsername).all()
     member_form.admins_to_add.choices = [(u.id, u.localUsername) for u in users_not_in_role]
 
@@ -189,8 +210,8 @@ def edit(role_id):
             users_to_add = User.query.filter_by(userType=UserType.LOCAL).filter(User.id.in_(member_form.admins_to_add.data)).all()
             if users_to_add:
                 for user in users_to_add:
-                    if user not in role.user_app_access:
-                        role.user_app_access.append(user)
+                    if user not in role.users:
+                        role.users.append(user)
                 db.session.commit()
                 
                 # On SUCCESS, send back a trigger for a toast and a list refresh
@@ -219,37 +240,37 @@ def edit(role_id):
         edit_form=form,
         form=form,
         member_form=member_form,
-        current_members=role.user_app_access,
+        current_members=role.users,
         permissions_structure=permissions_structure, # Pass the hierarchy
         active_tab='roles_edit', 
         active_role_tab=tab 
     )
 
-@bp.route('/edit/<int:role_id>/remove_member/<int:admin_id>', methods=['POST'])
+@bp.route('/edit/<string:role_id>/remove_member/<int:admin_id>', methods=['POST'])
 @login_required
 @permission_required('edit_role')
 def remove_member(role_id, admin_id):
-    role = Role.query.get_or_404(role_id)
+    role = AdminRole.query.get_or_404(role_id)
     user = User.query.filter_by(userType=UserType.LOCAL).get_or_404(admin_id)
-    if user in role.user_app_access:
-        role.user_app_access.remove(user)
+    if user in role.users:
+        role.users.remove(user)
         db.session.commit()
         flash(f"Removed '{user.localUsername}' from role '{role.name}'.", "success")
     # Redirect back to the members tab
     return redirect(url_for('role_management.edit', role_id=role.id, tab='members'))
 
-@bp.route('/delete/<int:role_id>', methods=['POST'])
+@bp.route('/delete/<string:role_id>', methods=['POST'])
 @login_required
 @permission_required('delete_role')
 def delete(role_id):
-    role = Role.query.get_or_404(role_id)
+    role = AdminRole.query.get_or_404(role_id)
 
     # Prevent deletion if current user is assigned to this role (unless Owner)
-    if current_user.userType == UserType.LOCAL and current_user in role.user_app_access:
+    if current_user.userType == UserType.LOCAL and current_user in role.users:
         flash("You cannot delete a role you are currently assigned to.", "danger")
         return redirect(url_for('role_management.index'))
     
-    if role.user_app_access:
+    if role.users:
         flash(f"Cannot delete role '{role.name}' as it is currently assigned to one or more users.", "danger")
         return redirect(url_for('role_management.index'))
     

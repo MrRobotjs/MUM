@@ -209,8 +209,9 @@
                     </div>
                 </div>
                 <div class="bg-base-100 border border-base-300 rounded-lg p-6 text-center">
-                    <span class="badge text-sm px-3 py-2" id="create_badge_preview">
-                        <i id="create_badge_icon_preview" class="mr-1"></i>
+                    <span class="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset gap-1" id="create_badge_preview"
+                          style="background-color: #80808020; color: #808080; border-color: #80808040;">
+                        <i id="create_badge_icon_preview" class="w-3 h-3"></i>
                         <span id="create_badge_text_preview">New Role</span>
                     </span>
                 </div>
@@ -263,18 +264,18 @@
 
         // Update the text and icon independently
         createBadgeText.textContent = name;
-        createBadgeIcon.className = iconClasses ? `${iconClasses}` : '';
+        createBadgeIcon.className = iconClasses ? `${iconClasses} w-3 h-3` : 'w-3 h-3';
 
-        // Update the parent badge's style
-        createBadgePreview.style.backgroundColor = color;
-        createBadgePreview.style.borderColor = color;
-        createBadgePreview.style.color = getTextColorForBg(color);
-        
+        // Update the parent badge's style with Tailwind-like styling
+        createBadgePreview.style.backgroundColor = color + '20'; // 20 = ~12.5% opacity
+        createBadgePreview.style.borderColor = color + '40'; // 40 = ~25% opacity
+        createBadgePreview.style.color = color;
+
         // Update the color preview
         if (createColorPreview) {
             createColorPreview.style.backgroundColor = color;
         }
-        
+
         // Update the hidden form field
         if (createText) {
             createText.value = color;

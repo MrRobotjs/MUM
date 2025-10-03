@@ -10,15 +10,12 @@ from sqlalchemy.types import TypeDecorator, TEXT
 from sqlalchemy.ext.mutable import MutableDict, MutableList
 from app.extensions import db, JSONEncodedDict
 import secrets
+import uuid
 from flask import current_app 
 from sqlalchemy import Table, Column, Integer, ForeignKey
 from app.models_media_services import MediaServer
 
-# Many-to-many relationship table for users and roles
-app_user_roles = db.Table('app_user_roles',
-    db.Column('app_user_id', db.Integer, db.ForeignKey('users.id'), primary_key=True),
-    db.Column('role_id', db.Integer, db.ForeignKey('roles.id'), primary_key=True)
-)
+
 
 # Many-to-many relationship table for invites and servers
 invite_servers = db.Table('invite_servers',
@@ -61,18 +58,83 @@ class EventType(enum.Enum): # ... (as before, will add bot-specific events later
     DISCORD_BOT_GUILD_MEMBER_CHECK_FAIL = "DISCORD_BOT_GUILD_MEMBER_CHECK_FAIL" # Failed guild check on invite page
     # Add Bot Specific Event Types Later, e.g., BOT_USER_PURGED, BOT_INVITE_SENT
 
-class Role(db.Model):
-    __tablename__ = 'roles'
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(80), unique=True, nullable=False)
-    description = db.Column(db.String(255), nullable=True)
-    # Permissions for this role will be stored as a simple JSON list of strings.
-    permissions = db.Column(MutableList.as_mutable(JSONEncodedDict), nullable=True, default=list)
-    color = db.Column(db.String(7), nullable=True, default='#808080') # Default to a neutral gray
-    icon = db.Column(db.String(100), nullable=True)
+# Junction tables for Discord-style RBAC
+admin_role_permissions = db.Table('admin_role_permissions',
+    db.Column('role_id', db.String(36), db.ForeignKey('admins_roles.id', ondelete='CASCADE'), primary_key=True),
+    db.Column('permission_id', db.String(36), db.ForeignKey('admin_permissions.id', ondelete='CASCADE'), primary_key=True)
+)
+
+admin_user_roles_assignments = db.Table('admin_user_roles_assignments',
+    db.Column('user_id', db.String(36), db.ForeignKey('users.uuid', ondelete='CASCADE'), primary_key=True),
+    db.Column('role_id', db.String(36), db.ForeignKey('admins_roles.id', ondelete='CASCADE'), primary_key=True)
+)
+
+users_roles_assignments = db.Table('users_roles_assignments',
+    db.Column('user_id', db.String(36), db.ForeignKey('users.uuid', ondelete='CASCADE'), primary_key=True),
+    db.Column('visual_role_id', db.String(36), db.ForeignKey('users_roles.id', ondelete='CASCADE'), primary_key=True)
+)
+
+class AdminPermission(db.Model):
+    """Individual permissions that can be assigned to admin roles"""
+    __tablename__ = 'admin_permissions'
+    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    name = db.Column(db.String(100), unique=True, nullable=False)
+    description = db.Column(db.Text, nullable=True)
 
     def __repr__(self):
-        return f'<Role {self.name}>'
+        return f'<AdminPermission {self.name}>'
+
+class AdminRole(db.Model):
+    """Admin roles with Discord-style hierarchy and permissions"""
+    __tablename__ = 'admins_roles'
+    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    name = db.Column(db.String(80), unique=True, nullable=False)
+    description = db.Column(db.String(255), nullable=True)
+    position = db.Column(db.Integer, nullable=False, default=0)  # Hierarchy position (higher = more powerful)
+    color = db.Column(db.String(7), nullable=True, default='#808080')
+    icon = db.Column(db.String(100), nullable=True)
+    
+    # Many-to-many relationship with permissions
+    permissions = db.relationship('AdminPermission', secondary=admin_role_permissions, 
+                                 lazy='subquery', backref=db.backref('roles', lazy=True))
+
+    def __repr__(self):
+        return f'<AdminRole {self.name} (pos: {self.position})>'
+    
+    def has_permission(self, permission_name):
+        """Check if this role has a specific permission"""
+        return any(perm.name == permission_name for perm in self.permissions)
+    
+    def can_manage_role(self, other_role):
+        """Check if this role can manage another role (hierarchy check)"""
+        return self.position > other_role.position
+    
+    @classmethod
+    def get_users_with_role(cls, role_id):
+        """Get all users that have this admin role assigned"""
+        return User.query.join(admin_user_roles_assignments).filter(admin_user_roles_assignments.c.role_id == role_id).all()
+
+# Legacy alias for backward compatibility
+Role = AdminRole
+
+class UserRole(db.Model):
+    """Visual user roles are labels for admins to assign to users (like 'Friend', 'Family', etc.)"""
+    __tablename__ = 'users_roles'
+    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    name = db.Column(db.String(100), unique=True, nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    color = db.Column(db.String(7), nullable=True, default='#808080')
+    icon = db.Column(db.String(100), nullable=True)
+    created_at = db.Column(db.DateTime, default=utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=utcnow, onupdate=utcnow, nullable=False)
+
+    def __repr__(self):
+        return f'<UserRole {self.name}>'
+    
+    @classmethod
+    def get_users_with_role(cls, role_id):
+        """Get all users that have this visual role assigned"""
+        return User.query.join(users_roles_assignments).filter(users_roles_assignments.c.visual_role_id == role_id).all()
 
 class UserType(enum.Enum):
     """User type enumeration for the unified User model"""
@@ -169,11 +231,19 @@ class User(db.Model, UserMixin):
     plex_username = db.Column(db.String(255), nullable=True)
     plex_thumb = db.Column(db.String(512), nullable=True)
     
+    # Legacy columns (kept for backward compatibility but not used in new RBAC system)
+    user_role_ids = db.Column(MutableList.as_mutable(JSONEncodedDict), default=list)
+    admin_roles_id = db.Column(db.Integer, nullable=True)  # Legacy column, not used
+    
     # Relationships
     linked_parent = db.relationship('User', remote_side=[uuid], backref='linked_children')
-    roles = db.relationship('Role', secondary='app_user_roles', lazy='subquery',
-                            backref=db.backref('users', lazy=True))
     server = db.relationship('MediaServer', foreign_keys=[server_id], back_populates='users')
+    
+    # Discord-style RBAC relationships
+    admin_roles = db.relationship('AdminRole', secondary=admin_user_roles_assignments, lazy='subquery',
+                                 backref=db.backref('users', lazy=True))
+    visual_roles = db.relationship('UserRole', secondary=users_roles_assignments, lazy='subquery',
+                                  backref=db.backref('users', lazy=True))
     
     # Template compatibility property - returns linked service users for templates
     @property
@@ -190,6 +260,65 @@ class User(db.Model, UserMixin):
     def service_users(self):
         """Get service users for template compatibility"""
         return self.linked_service_users
+    
+    # Visual Role Methods (new many-to-many system)
+    def get_visual_roles(self):
+        """Get all visual roles assigned to this user"""
+        return self.visual_roles
+    
+    def has_visual_role(self, role_id):
+        """Check if user has a specific visual role"""
+        return any(role.id == role_id for role in self.visual_roles)
+    
+    def add_visual_role(self, role):
+        """Add a visual role to this user"""
+        if role not in self.visual_roles:
+            self.visual_roles.append(role)
+    
+    def remove_visual_role(self, role):
+        """Remove a visual role from this user"""
+        if role in self.visual_roles:
+            self.visual_roles.remove(role)
+    
+    # Admin Role Methods (new many-to-many system)
+    def get_admin_roles(self):
+        """Get all admin roles assigned to this user"""
+        return self.admin_roles
+    
+    def has_admin_role(self, role_id):
+        """Check if user has a specific admin role"""
+        return any(role.id == role_id for role in self.admin_roles)
+    
+    def add_admin_role(self, role):
+        """Add an admin role to this user"""
+        if role not in self.admin_roles:
+            self.admin_roles.append(role)
+    
+    def remove_admin_role(self, role):
+        """Remove an admin role from this user"""
+        if role in self.admin_roles:
+            self.admin_roles.remove(role)
+    
+    def set_admin_roles(self, roles):
+        """Set the admin roles for this user (replaces all existing)"""
+        self.admin_roles = roles
+    
+    def clear_admin_roles(self):
+        """Remove all admin roles from this user"""
+        self.admin_roles = []
+    
+    # Legacy methods for backward compatibility
+    def get_user_roles(self):
+        """Legacy method - returns visual roles"""
+        return self.get_visual_roles()
+    
+    def has_user_role(self, role_id):
+        """Legacy method - checks visual roles"""
+        return self.has_visual_role(role_id)
+    
+    def get_admin_role(self):
+        """Legacy method - returns first admin role if any"""
+        return self.admin_roles[0] if self.admin_roles else None
     
     def __repr__(self):
         if self.userType == UserType.OWNER:
@@ -242,20 +371,48 @@ class User(db.Model, UserMixin):
             return self.external_email
         return None
     
-    # Permission Methods
+    # Permission Methods (Discord-style RBAC)
     def has_permission(self, permission_name):
-        """Check if user has a specific permission"""
+        """Check if user has a specific permission through any of their admin roles"""
         if self.userType == UserType.OWNER:
             return True  # Owners have all permissions
         elif self.userType == UserType.LOCAL:
-            # Check role-based permissions for local users
-            for role in self.roles:
-                if permission_name in (role.permissions or []):
+            # Check permissions across all admin roles (union of permissions)
+            for role in self.admin_roles:
+                if role.has_permission(permission_name):
                     return True
             return False
         elif self.userType == UserType.SERVICE:
             return False  # Service users have no app permissions
         return False
+    
+    def get_all_permissions(self):
+        """Get all permissions this user has across all their admin roles"""
+        if self.userType == UserType.OWNER:
+            # Owners have all permissions
+            return AdminPermission.query.all()
+        elif self.userType == UserType.LOCAL:
+            # Collect unique permissions from all roles
+            permissions = set()
+            for role in self.admin_roles:
+                permissions.update(role.permissions)
+            return list(permissions)
+        return []
+    
+    def get_highest_role_position(self):
+        """Get the highest position among all admin roles (for hierarchy checks)"""
+        if self.userType == UserType.OWNER:
+            return float('inf')  # Owners are above all roles
+        elif self.userType == UserType.LOCAL and self.admin_roles:
+            return max(role.position for role in self.admin_roles)
+        return 0
+    
+    def can_manage_role(self, target_role):
+        """Check if user can manage a specific role (hierarchy check)"""
+        if self.userType == UserType.OWNER:
+            return True
+        user_highest_position = self.get_highest_role_position()
+        return user_highest_position > target_role.position
     
     # Service-Specific Methods
     def get_service_type(self):

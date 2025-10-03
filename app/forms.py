@@ -665,7 +665,13 @@ class UserRoleEditForm(FlaskForm):
                 raise ValidationError('A user role with this name already exists. Please choose a different name.')
 
 class UserRoleMemberForm(FlaskForm):
-    users_to_add = SelectMultipleField('Users to Add', coerce=str, validators=[Optional()])
+    users_to_add = SelectMultipleField(
+        'Add Users to Role',
+        coerce=str,
+        validators=[Optional()],
+        widget=ListWidget(prefix_label=False),
+        option_widget=CheckboxInput()
+    )
     submit_add_members = SubmitField('Add Selected Users')
 
 class MergeIntoLocalAccountForm(FlaskForm):

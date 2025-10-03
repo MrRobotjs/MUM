@@ -837,47 +837,142 @@ def create_user_role():
 @setup_required
 @permission_required('edit_user_role')
 def edit_user_role(role_id):
-    """Edit user role page"""
-    from app.forms import UserRoleEditForm
+    """Edit user role page with tabs"""
+    from app.forms import UserRoleEditForm, UserRoleMemberForm
     from app.models import UserRole
     from flask import current_app
-    
+
     role = UserRole.query.get_or_404(role_id)
-    
+
     # Prevent editing the Staff role
     if role.is_staff_role():
         flash('The Staff role cannot be edited as it is system-managed.', 'warning')
         return redirect(url_for('settings.user_roles'))
-    
-    form = UserRoleEditForm(obj=role)
-    
-    if request.method == 'POST' and form.validate_on_submit():
-        try:
-            current_app.logger.info(f"Editing user role {role.name} - Form data: name={form.name.data}, description={form.description.data}, color={form.color.data}, icon={form.icon.data}")
-            
-            role.name = form.name.data
-            role.description = form.description.data
-            role.color = form.color.data
-            role.icon = form.icon.data.strip() if form.icon.data else None
-            
+
+    # Determine active tab
+    active_user_role_tab = request.args.get('tab', 'display')
+
+    # Display tab - edit role settings
+    if active_user_role_tab == 'display':
+        form = UserRoleEditForm(obj=role)
+
+        if request.method == 'POST' and form.validate_on_submit():
+            try:
+                current_app.logger.info(f"Editing user role {role.name} - Form data: name={form.name.data}, description={form.description.data}, color={form.color.data}, icon={form.icon.data}")
+
+                role.name = form.name.data
+                role.description = form.description.data
+                role.color = form.color.data
+                role.icon = form.icon.data.strip() if form.icon.data else None
+
+                db.session.commit()
+                current_app.logger.info(f"User role '{role.name}' updated successfully")
+
+                flash(f"User role '{role.name}' updated successfully.", "success")
+                return redirect(url_for('settings.edit_user_role', role_id=role.id, tab='display'))
+
+            except Exception as e:
+                current_app.logger.error(f"Error updating user role: {str(e)}")
+                db.session.rollback()
+                flash(f"Error updating user role: {str(e)}", 'error')
+
+        return render_template(
+            'settings/user_roles/edit.html',
+            title=f"Edit User Role: {role.name}",
+            edit_form=form,
+            role=role,
+            active_tab='user_roles',
+            active_user_role_tab=active_user_role_tab
+        )
+
+    # Members tab - manage role assignments
+    elif active_user_role_tab == 'members':
+        from app.models import User, UserType
+
+        # Get current members (users with this role)
+        current_members = role.users if role.users else []
+
+        # Get search query
+        search_query = request.args.get('search_members', '').strip()
+        if search_query:
+            current_members = [u for u in current_members if search_query.lower() in (u.localUsername or u.get_display_name()).lower()]
+
+        # Create member form with available users
+        member_form = UserRoleMemberForm()
+
+        # Get all regular users (not service users)
+        all_users = User.query.filter(User.userType == UserType.LOCAL).all()
+
+        # Filter out users who already have this role
+        users_to_add = [u for u in all_users if role not in (u.user_roles if hasattr(u, 'user_roles') else [])]
+
+        # Set choices for the form
+        member_form.users_to_add.choices = [(str(u.id), u.localUsername or u.get_display_name()) for u in users_to_add]
+
+        if request.method == 'POST' and member_form.validate_on_submit():
+            try:
+                users_added = []
+                for user_id in member_form.users_to_add.data:
+                    user = User.query.get(user_id)
+                    if user and role not in (user.user_roles if hasattr(user, 'user_roles') else []):
+                        if not hasattr(user, 'user_roles'):
+                            user.user_roles = []
+                        user.user_roles.append(role)
+                        users_added.append(user.localUsername or user.get_display_name())
+
+                if users_added:
+                    db.session.commit()
+                    flash(f"Added {len(users_added)} user(s) to '{role.name}'.", "success")
+                else:
+                    flash("No users were added.", "info")
+
+                return redirect(url_for('settings.edit_user_role', role_id=role.id, tab='members'))
+
+            except Exception as e:
+                current_app.logger.error(f"Error adding users to role: {str(e)}")
+                db.session.rollback()
+                flash(f"Error adding users: {str(e)}", 'error')
+
+        return render_template(
+            'settings/user_roles/edit.html',
+            title=f"Edit User Role: {role.name}",
+            role=role,
+            current_members=current_members,
+            member_form=member_form,
+            active_tab='user_roles',
+            active_user_role_tab=active_user_role_tab
+        )
+
+    # Invalid tab, redirect to display
+    return redirect(url_for('settings.edit_user_role', role_id=role.id, tab='display'))
+
+@bp.route('/users/roles/<string:role_id>/members/<string:user_id>/remove', methods=['POST'])
+@login_required
+@setup_required
+@permission_required('edit_user_role')
+def remove_user_role_member(role_id, user_id):
+    """Remove a user from a user role"""
+    from app.models import UserRole, User
+    from flask import current_app
+
+    role = UserRole.query.get_or_404(role_id)
+    user = User.query.get_or_404(user_id)
+
+    try:
+        if hasattr(user, 'user_roles') and role in user.user_roles:
+            user.user_roles.remove(role)
             db.session.commit()
-            current_app.logger.info(f"User role '{role.name}' updated successfully")
-            
-            flash(f"User role '{role.name}' updated successfully.", "success")
-            return redirect(url_for('settings.user_roles'))
-            
-        except Exception as e:
-            current_app.logger.error(f"Error updating user role: {str(e)}")
-            db.session.rollback()
-            flash(f"Error updating user role: {str(e)}", 'error')
-    
-    return render_template(
-        'settings/user_roles/edit.html',
-        title=f"Edit User Role: {role.name}",
-        form=form,
-        role=role,
-        active_tab='user_roles'
-    )
+            current_app.logger.info(f"Removed user '{user.localUsername or user.get_display_name()}' from user role '{role.name}'")
+
+            # Return empty response for HTMX to remove the row
+            return '', 200
+        else:
+            return jsonify({'error': 'User is not a member of this role'}), 400
+
+    except Exception as e:
+        current_app.logger.error(f"Error removing user from role: {str(e)}")
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
 
 @bp.route('/users/roles/<string:role_id>/delete', methods=['POST'])
 @login_required

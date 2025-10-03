@@ -1,0 +1,143 @@
+<!-- File: app/templates/user_roles/partials/members_tab.html -->
+{# Expects 'role', 'current_members', and 'member_form' in context #}
+
+<div class="space-y-6">
+
+    <!-- Members Overview Section -->
+    <div class="bg-base-200/30 border border-base-300 rounded-lg p-6">
+        <div class="flex items-center justify-between mb-6">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
+                    <i class="fa-solid fa-users text-primary text-lg"></i>
+                </div>
+                <div>
+                    <h2 class="text-xl font-semibold text-base-content mb-1">Role Members</h2>
+                    <p class="text-sm text-base-content/70">Manage users assigned to this role</p>
+                </div>
+            </div>
+            <button class="btn btn-primary" onclick="add_member_modal.showModal()">
+                <i class="fa-solid fa-user-plus mr-2"></i> Add User
+            </button>
+        </div>
+
+        <!-- Stats Card -->
+        <div class="bg-info/10 border border-info/20 rounded-lg p-4">
+            <div class="flex items-center gap-3">
+                <div class="w-6 h-6 rounded-full bg-info/20 flex items-center justify-center flex-shrink-0">
+                    <i class="fa-solid fa-chart-simple text-info text-xs"></i>
+                </div>
+                <div>
+                    <h4 class="font-medium text-info mb-1">Current Members</h4>
+                    <p class="text-sm text-base-content/80">
+                        {{ current_members|length }} user{{ 's' if current_members|length != 1 else '' }} assigned to this role
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Members List Section -->
+    <div class="bg-base-200/30 border border-base-300 rounded-lg p-6">
+        <div class="flex items-center gap-3 mb-6">
+            <div class="w-8 h-8 rounded-full bg-secondary/20 flex items-center justify-center">
+                <i class="fa-solid fa-list text-secondary text-sm"></i>
+            </div>
+            <div>
+                <h3 class="text-lg font-semibold text-base-content">Member List</h3>
+            </div>
+        </div>
+
+        {# Container for the member list, with HTMX refresh trigger #}
+        <div id="user-role-members-list-container"
+             hx-get="{{ url_for('settings.edit_user_role', role_id=role.id, tab='members') }}"
+             hx-trigger="load, refreshMembersList from:body"
+             hx-select="#user-role-members-list-container > *"
+             hx-swap="innerHTML">
+
+            <!-- Search Bar -->
+            <div class="form-control mb-6">
+                <label class="label">
+                    <span class="label-text font-medium text-sm">Search Members</span>
+                </label>
+                <div class="relative">
+                    <input class="input input-bordered w-full h-11 bg-base-100 border-base-300 focus:border-primary focus:bg-base-100 pl-10"
+                           type="text"
+                           name="search_members"
+                           placeholder="Search current members..."
+                           value="{{ request.args.get('search_members', '') }}"
+                           hx-get="{{ url_for('settings.edit_user_role', role_id=role.id, tab='members') }}"
+                           hx-trigger="keyup changed delay:500ms"
+                           hx-target="#user-role-members-list-container"
+                           hx-select="#user-role-members-list-container > *"
+                           hx-indicator="next .htmx-indicator">
+                    <i class="fa-solid fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-base-content/40"></i>
+                    <span class="htmx-indicator loading loading-dots loading-xs absolute right-3 top-1/2 transform -translate-y-1/2"></span>
+                </div>
+            </div>
+
+            <!-- Members List -->
+            {% if current_members %}
+                <div class="space-y-3">
+                    {% for user in current_members %}
+                        <div id="member-row-{{ user.id }}" class="bg-base-100 border border-base-300 rounded-lg p-4 hover:bg-base-200/50 transition-colors">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center gap-4">
+                                    <div class="avatar">
+                                        <div class="w-12 h-12 rounded-full">
+                                            {% if user.external_avatar_url %}
+                                                <img src="{{ user.external_avatar_url }}" alt="{{ user.localUsername or user.get_display_name() }} avatar" class="rounded-full"/>
+                                            {% else %}
+                                                <div class="bg-primary text-primary-content w-12 h-12 rounded-full flex items-center justify-center">
+                                                    <span class="text-sm font-bold">{{ (user.localUsername or user.get_display_name())[0]|upper if (user.localUsername or user.get_display_name()) else 'U' }}</span>
+                                                </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div class="font-semibold text-base-content">{{ user.localUsername or user.get_display_name() }}</div>
+                                        {% if user.userType.value == 'owner' %}
+                                            <div class="badge badge-primary badge-sm mt-1">Owner</div>
+                                        {% elif user.userType.value == 'local' %}
+                                            <div class="badge badge-secondary badge-sm mt-1">User</div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <button class="btn btn-sm btn-ghost text-error hover:bg-error/10"
+                                            hx-post="{{ url_for('settings.remove_user_role_member', role_id=role.id, user_id=user.id) }}"
+                                            hx-target="closest div"
+                                            hx-swap="outerHTML"
+                                            hx-confirm="Remove {{ user.localUsername or user.get_display_name() }} from this role?">
+                                        <i class="fa-solid fa-user-minus mr-1"></i>
+                                        Remove
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="text-center py-12">
+                    <i class="fa-solid fa-users-slash text-base-content/30 text-4xl mb-4"></i>
+                    <h4 class="text-lg font-semibold text-base-content mb-2">No Members</h4>
+                    <p class="text-sm text-base-content/70 mb-4">This role doesn't have any members assigned yet.</p>
+                    <button class="btn btn-primary btn-sm" onclick="add_member_modal.showModal()">
+                        <i class="fa-solid fa-user-plus mr-2"></i> Add First Member
+                    </button>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Add Member Modal -->
+<dialog id="add_member_modal" class="modal">
+  <div class="modal-box">
+    <form method="dialog"><button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button></form>
+    <h3 class="font-bold text-lg">Add Users to Role</h3>
+    <div id="add_member_modal_content">
+        {# Pass role and member_form from the parent template's context #}
+        {% include 'settings/user_roles/_partials/modals/add_member_modal.html' %}
+    </div>
+  </div>
+</dialog>

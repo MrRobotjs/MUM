@@ -1,0 +1,266 @@
+<!-- File: app/templates/user_roles/partials/display_tab.html -->
+{# Expects 'edit_form' and 'role' in context #}
+
+<!-- Description Card -->
+<div class="bg-info/10 border border-info/20 rounded-lg p-4 mb-6">
+    <div class="flex items-start gap-3">
+        <div class="w-6 h-6 rounded-full bg-info/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+            <i class="fa-solid fa-info text-info text-xs"></i>
+        </div>
+        <div>
+            <h4 class="font-medium text-info mb-1">User Role Configuration</h4>
+            <p class="text-sm text-base-content/80">
+                Customize the role's name, description, and visual appearance. Changes will be reflected throughout the interface.
+            </p>
+        </div>
+    </div>
+</div>
+
+<form method="POST" action="{{ url_for('settings.edit_user_role', role_id=role.id, tab='display') }}">
+    {{ edit_form.hidden_tag() }}
+
+    <!-- Basic Settings Section -->
+    <div class="space-y-4 mb-6">
+        <h4 class="font-medium text-base-content text-lg mb-3">
+            <i class="fa-solid fa-id-badge text-primary text-sm mr-2"></i>
+            Basic Settings
+        </h4>
+
+        <!-- Role Name -->
+        <div class="bg-base-200/30 rounded-lg p-4 border border-base-300 hover:border-base-300/60 transition-colors">
+            <div class="flex items-center justify-between mb-2">
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-tag text-primary text-sm"></i>
+                    <h5 class="font-medium text-base-content">{{ edit_form.name.label.text }}</h5>
+                    <span class="inline-flex items-center rounded-full bg-red-50 dark:bg-red-400/10 px-2 py-1 text-xs font-medium text-red-700 dark:text-red-400 ring-1 ring-inset ring-red-600/20 dark:ring-red-500/20">
+                        Required
+                    </span>
+                </div>
+            </div>
+            {{ edit_form.name(class="input input-bordered w-full h-11 bg-base-100 border-base-300 focus:border-primary focus:bg-base-100 " + ("input-error" if edit_form.name.errors else ""), id="edit_user_role_name") }}
+            {% if edit_form.name.errors %}
+                <span class="text-error text-xs mt-1 block">{{ edit_form.name.errors[0] }}</span>
+            {% else %}
+                <span class="text-base-content/60 text-xs mt-1 block">A unique name for this user role</span>
+            {% endif %}
+        </div>
+
+        <!-- Description -->
+        <div class="bg-base-200/30 rounded-lg p-4 border border-base-300 hover:border-base-300/60 transition-colors">
+            <div class="flex items-center justify-between mb-2">
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-align-left text-secondary text-sm"></i>
+                    <h5 class="font-medium text-base-content">{{ edit_form.description.label.text }}</h5>
+                    <span class="inline-flex items-center rounded-full bg-yellow-50 dark:bg-yellow-400/10 px-2 py-1 text-xs font-medium text-yellow-700 dark:text-yellow-400 ring-1 ring-inset ring-yellow-600/20 dark:ring-yellow-500/20">
+                        Optional
+                    </span>
+                </div>
+            </div>
+            {{ edit_form.description(class="input input-bordered w-full h-11 bg-base-100 border-base-300 focus:border-primary focus:bg-base-100 " + ("input-error" if edit_form.description.errors else "")) }}
+            {% if edit_form.description.errors %}
+                <span class="text-error text-xs mt-1 block">{{ edit_form.description.errors[0] }}</span>
+            {% else %}
+                <span class="text-base-content/60 text-xs mt-1 block">Optional description of what this role represents</span>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Visual Appearance Section -->
+    <div class="space-y-4 mb-6">
+        <h4 class="font-medium text-base-content text-lg mb-3">
+            <i class="fa-solid fa-palette text-secondary text-sm mr-2"></i>
+            Visual Appearance
+        </h4>
+
+        <!-- Color -->
+        <div class="bg-base-200/30 rounded-lg p-4 border border-base-300 hover:border-base-300/60 transition-colors">
+            <div class="flex items-center justify-between mb-3">
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-paint-brush text-warning text-sm"></i>
+                    <h5 class="font-medium text-base-content">{{ edit_form.color.label.text }}</h5>
+                </div>
+            </div>
+
+            <!-- Color Input and Presets -->
+            <div class="flex gap-4 mb-4">
+                <!-- Color Preview and Hidden Picker -->
+                <div class="relative">
+                    <div class="w-12 h-11 rounded-lg border border-base-300 overflow-hidden cursor-pointer" id="edit_color_preview" style="background-color: {{ edit_form.color.data or '#808080' }}"></div>
+                    <input type="color" value="{{ edit_form.color.data or '#808080' }}"
+                           class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" id="edit_color_picker">
+                    {{ edit_form.color(class="hidden", id="edit_color_text") }}
+                </div>
+
+                <!-- Preset Colors -->
+                <div class="flex-1">
+                    <span class="text-xs font-medium text-base-content/70 mb-2 block">Preset Colors</span>
+                    <div class="flex gap-2 flex-wrap">
+                        <div class="w-8 h-8 rounded-full cursor-pointer border-2 border-transparent hover:border-base-300 transition-colors preset-color"
+                             style="background-color: #f04747" data-color="#f04747" title="Red"></div>
+                        <div class="w-8 h-8 rounded-full cursor-pointer border-2 border-transparent hover:border-base-300 transition-colors preset-color"
+                             style="background-color: #faa61a" data-color="#faa61a" title="Orange"></div>
+                        <div class="w-8 h-8 rounded-full cursor-pointer border-2 border-transparent hover:border-base-300 transition-colors preset-color"
+                             style="background-color: #fee75c" data-color="#fee75c" title="Yellow"></div>
+                        <div class="w-8 h-8 rounded-full cursor-pointer border-2 border-transparent hover:border-base-300 transition-colors preset-color"
+                             style="background-color: #57f287" data-color="#57f287" title="Green"></div>
+                        <div class="w-8 h-8 rounded-full cursor-pointer border-2 border-transparent hover:border-base-300 transition-colors preset-color"
+                             style="background-color: #5865f2" data-color="#5865f2" title="Blurple"></div>
+                        <div class="w-8 h-8 rounded-full cursor-pointer border-2 border-transparent hover:border-base-300 transition-colors preset-color"
+                             style="background-color: #eb459e" data-color="#eb459e" title="Pink"></div>
+                        <div class="w-8 h-8 rounded-full cursor-pointer border-2 border-transparent hover:border-base-300 transition-colors preset-color"
+                             style="background-color: #9c84ef" data-color="#9c84ef" title="Purple"></div>
+                        <div class="w-8 h-8 rounded-full cursor-pointer border-2 border-transparent hover:border-base-300 transition-colors preset-color"
+                             style="background-color: #808080" data-color="#808080" title="Gray"></div>
+                    </div>
+                </div>
+            </div>
+
+            {% if edit_form.color.errors %}
+                <span class="text-error text-xs mt-1 block">{{ edit_form.color.errors[0] }}</span>
+            {% else %}
+                <span class="text-base-content/60 text-xs block">Choose a color for role badges and highlights</span>
+            {% endif %}
+        </div>
+
+        <!-- Icon -->
+        <div class="bg-base-200/30 rounded-lg p-4 border border-base-300 hover:border-base-300/60 transition-colors">
+            <div class="flex items-center justify-between mb-2">
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-icons text-accent text-sm"></i>
+                    <h5 class="font-medium text-base-content">{{ edit_form.icon.label.text }}</h5>
+                    <span class="inline-flex items-center rounded-full bg-yellow-50 dark:bg-yellow-400/10 px-2 py-1 text-xs font-medium text-yellow-700 dark:text-yellow-400 ring-1 ring-inset ring-yellow-600/20 dark:ring-yellow-500/20">
+                        Optional
+                    </span>
+                </div>
+            </div>
+            {{ edit_form.icon(class="input input-bordered w-full h-11 bg-base-100 border-base-300 focus:border-primary focus:bg-base-100 " + ("input-error" if edit_form.icon.errors else ""), id="edit_user_role_icon", placeholder="e.g., fa-solid fa-star") }}
+            {% if edit_form.icon.errors %}
+                <span class="text-error text-xs mt-1 block">{{ edit_form.icon.errors[0] }}</span>
+            {% else %}
+                <span class="text-base-content/60 text-xs mt-1 block">
+                    Find icons on <a href="https://fontawesome.com/search" target="_blank" class="link link-primary">Font Awesome</a>
+                </span>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Live Preview Section -->
+    <div class="space-y-4 mb-6">
+        <h4 class="font-medium text-base-content text-lg mb-3">
+            <i class="fa-solid fa-eye text-success text-sm mr-2"></i>
+            Live Preview
+        </h4>
+
+        <div class="bg-base-200/30 rounded-lg p-6 border border-base-300">
+            <div class="flex items-center gap-3 mb-4">
+                <div class="w-8 h-8 rounded-full bg-success/20 flex items-center justify-center flex-shrink-0">
+                    <i class="fa-solid fa-sparkles text-success text-sm"></i>
+                </div>
+                <div>
+                    <h5 class="font-medium text-base-content">Badge Preview</h5>
+                    <p class="text-xs text-base-content/60">How the role badge will appear throughout the interface</p>
+                </div>
+            </div>
+            <div class="bg-base-100 border border-base-300 rounded-lg p-6 text-center">
+                <span class="badge text-sm px-3 py-2" id="edit_badge_preview">
+                    <i id="edit_badge_icon_preview" class="{{ role.icon if role.icon else '' }} mr-1"></i>
+                    <span id="edit_badge_text_preview">{{ role.name }}</span>
+                </span>
+            </div>
+            <div class="text-center mt-3">
+                <span class="text-base-content/60 text-xs">Preview updates automatically as you make changes</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="flex items-center justify-end gap-3 pt-6 border-t border-base-300">
+        <button type="submit" name="submit_display" value="Save" class="btn btn-primary h-12 gap-2">
+            <i class="fa-solid fa-save"></i>
+            Save Display Settings
+        </button>
+    </div>
+</form>
+
+<script>
+    // Helper function for calculating text color based on background
+    function getTextColorForBg(hexColor) {
+        if (!hexColor || hexColor.length !== 7) return '#FFFFFF';
+        try {
+            const r = parseInt(hexColor.substr(1, 2), 16);
+            const g = parseInt(hexColor.substr(3, 2), 16);
+            const b = parseInt(hexColor.substr(5, 2), 16);
+            const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+            return luminance > 0.5 ? '#000000' : '#FFFFFF';
+        } catch (e) { return '#FFFFFF'; }
+    }
+
+    const editPicker = document.getElementById('edit_color_picker');
+    const editText = document.getElementById('edit_color_text');
+    const editColorPreview = document.getElementById('edit_color_preview');
+    const editName = document.getElementById('edit_user_role_name');
+    const editBadgePreview = document.getElementById('edit_badge_preview');
+    const editIconInput = document.getElementById('edit_user_role_icon');
+    const editBadgeIcon = document.getElementById('edit_badge_icon_preview');
+    const editBadgeText = document.getElementById('edit_badge_text_preview');
+    const presetColors = document.querySelectorAll('.preset-color');
+
+    function updateEditPreview() {
+        if (!editBadgePreview || !editName || !editIconInput || !editBadgeIcon || !editBadgeText) return;
+        const name = editName.value.trim() || 'Role Name';
+        const color = editPicker ? editPicker.value : '#808080';
+        const iconClasses = editIconInput.value.trim();
+
+        // Update the text and icon independently
+        editBadgeText.textContent = name;
+        editBadgeIcon.className = iconClasses ? `${iconClasses}` : '';
+
+        // Update the parent badge's style
+        editBadgePreview.style.backgroundColor = color;
+        editBadgePreview.style.borderColor = color;
+        editBadgePreview.style.color = getTextColorForBg(color);
+
+        // Update the color preview
+        if (editColorPreview) {
+            editColorPreview.style.backgroundColor = color;
+        }
+
+        // Update the hidden form field
+        if (editText) {
+            editText.value = color;
+        }
+    }
+
+    function updateColorInputs(color) {
+        if (editPicker) editPicker.value = color;
+        if (editText) editText.value = color;
+        updateEditPreview();
+    }
+
+    // Preset color click handlers
+    presetColors.forEach(colorDiv => {
+        colorDiv.addEventListener('click', () => {
+            const color = colorDiv.getAttribute('data-color');
+            updateColorInputs(color);
+        });
+    });
+
+    // Attach event listeners
+    if (editPicker) {
+        editPicker.addEventListener('input', () => {
+            updateEditPreview();
+        });
+        editPicker.addEventListener('change', () => {
+            updateEditPreview();
+        });
+    }
+    if (editName) {
+        editName.addEventListener('input', updateEditPreview);
+    }
+    if (editIconInput) {
+        editIconInput.addEventListener('input', updateEditPreview);
+    }
+
+    // Set the initial state of the preview on page load
+    updateEditPreview();
+</script>

@@ -20,6 +20,30 @@ import time
 from datetime import datetime, timezone, timedelta
 
 
+def _get_available_user_roles():
+    """Helper function to get all available user roles and admin roles for filtering"""
+    from app.models import UserRole, AdminRole
+
+    # Get all visual/cosmetic user roles
+    user_roles = UserRole.query.order_by(UserRole.name).all()
+
+    # Get all admin roles (permission-based)
+    admin_roles = AdminRole.query.order_by(AdminRole.position.desc(), AdminRole.name).all()
+
+    # Combine both types, marking each with a type indicator
+    all_roles = []
+
+    for role in user_roles:
+        role._role_type = 'user'
+        all_roles.append(role)
+
+    for role in admin_roles:
+        role._role_type = 'admin'
+        all_roles.append(role)
+
+    return all_roles
+
+
 @users_bp.route('/')
 @login_required
 @setup_required
@@ -70,14 +94,17 @@ def list_users():
 
     # Check if we should show local users, service users, or both
     user_type_filter = request.args.get('user_type', 'all')  # 'all', 'local', 'service'
-    
+
     # Handle separate search fields
     search_username = request.args.get('search_username', '').strip()
     search_email = request.args.get('search_email', '').strip()
     search_notes = request.args.get('search_notes', '').strip()
-    
+
     # Legacy search field for backward compatibility with the main search bar
     search_term = request.args.get('search', '').strip()
+
+    # Role filter
+    role_filter = request.args.get('role_filter', '').strip()
     
     # Get server information early (needed for various operations)
     media_service_manager = MediaServiceManager()
@@ -95,7 +122,11 @@ def list_users():
     if user_type_filter in ['all', 'local']:
         # Query local users
         current_app.logger.info("=== QUERYING LOCAL USERS ===")
-        app_user_query = User.query.filter_by(userType=UserType.LOCAL)
+        from sqlalchemy.orm import joinedload
+        app_user_query = User.query.filter_by(userType=UserType.LOCAL).options(
+            joinedload(User.user_roles),
+            joinedload(User.admin_roles)
+        )
         
         # Build search filters for local users
         local_search_filters = []
@@ -139,7 +170,10 @@ def list_users():
     if user_type_filter in ['all', 'service']:
         # Query service users - standalone service user records
         current_app.logger.info("=== QUERYING SERVICE USERS ===")
-        all_access_query = User.query.filter_by(userType=UserType.SERVICE)
+        from sqlalchemy.orm import joinedload
+        all_access_query = User.query.filter_by(userType=UserType.SERVICE).options(
+            joinedload(User.user_roles)
+        )
         
         # Build search filters for service users
         search_filters = []
@@ -221,7 +255,38 @@ def list_users():
             service_user.avatar_url = None
         
         all_users.append(service_user)
-    
+
+    # Apply role filter if specified
+    if role_filter:
+        current_app.logger.info(f"Role filter received: '{role_filter}'")
+        current_app.logger.info(f"Users before role filter: {len(all_users)}")
+        # role_filter format: "user_<uuid>" or "admin_<uuid>"
+        if role_filter.startswith('user_'):
+            role_id = role_filter.replace('user_', '')
+            current_app.logger.info(f"Filtering by user role ID: {role_id}")
+            # Filter users to only those who have this user role
+            filtered_users = []
+            for u in all_users:
+                user_role_ids = [r.id for r in getattr(u, 'user_roles', [])]
+                current_app.logger.debug(f"User {u.uuid} has user_roles: {user_role_ids}")
+                if role_id in user_role_ids:
+                    filtered_users.append(u)
+            all_users = filtered_users
+            current_app.logger.info(f"Applied user role filter: {role_filter}, {len(all_users)} users match")
+        elif role_filter.startswith('admin_'):
+            role_id = role_filter.replace('admin_', '')
+            current_app.logger.info(f"Filtering by admin role ID: {role_id}")
+            # Filter users to only those who have this admin role (LOCAL users only)
+            filtered_users = []
+            for u in all_users:
+                if getattr(u, 'userType', None) == UserType.LOCAL:
+                    admin_role_ids = [r.id for r in getattr(u, 'admin_roles', [])]
+                    current_app.logger.debug(f"User {u.uuid} has admin_roles: {admin_role_ids}")
+                    if role_id in admin_role_ids:
+                        filtered_users.append(u)
+            all_users = filtered_users
+            current_app.logger.info(f"Applied admin role filter: {role_filter}, {len(all_users)} users match")
+
     # Store sort parameters for later use (after we populate streaming data)
     sort_by_param = request.args.get('sort_by', 'username_asc')
     
@@ -624,7 +689,8 @@ def list_users():
         'current_user_type': user_type_filter,
         'app_users': app_users,
         'service_users': service_users if user_type_filter in ['all', 'service'] else [],
-        'allow_user_accounts': allow_user_accounts
+        'allow_user_accounts': allow_user_accounts,
+        'available_user_roles': _get_available_user_roles()
     }
     
     if is_htmx:

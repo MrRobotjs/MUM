@@ -58,6 +58,7 @@
                 <!-- Hidden inputs to preserve current filters -->
                 <input type="hidden" name="server_id" value="{{ request.args.get('server_id', 'all') }}">
                 <input type="hidden" name="filter_type" value="{{ request.args.get('filter_type', '') }}">
+                <input type="hidden" name="role_filter" value="{{ request.args.get('role_filter', '') }}">
                 <input type="hidden" name="sort_by" value="{{ request.args.get('sort_by', 'username_asc') }}">
                 <input type="hidden" name="per_page" value="{{ current_per_page }}">
                 <input type="hidden" name="view" value="{{ current_view }}">
@@ -175,6 +176,38 @@
                                 <option value="shares_back" {% if request.args.get('filter_type')=='shares_back' %}selected{% endif %}>Shares Back</option>
                                 <option value="has_discord" {% if request.args.get('filter_type')=='has_discord' %}selected{% endif %}>Discord Linked</option>
                                 <option value="no_discord" {% if request.args.get('filter_type')=='no_discord' %}selected{% endif %}>No Discord Linked</option>
+                            </select>
+                        </div>
+
+                        <!-- Role Filter -->
+                        <div class="form-control">
+                            <label class="label">
+                                <span class="label-text font-medium">
+                                    <i class="fa-solid fa-user-tag mr-2"></i>Filter by Role
+                                </span>
+                            </label>
+                            <select name="role_filter" class="select select-bordered">
+                                <option value="" {% if not request.args.get('role_filter') %}selected{% endif %}>All Roles</option>
+
+                                {# Group user roles and admin roles separately #}
+                                {% set user_roles = available_user_roles | selectattr('_role_type', 'equalto', 'user') | list %}
+                                {% set admin_roles = available_user_roles | selectattr('_role_type', 'equalto', 'admin') | list %}
+
+                                {% if user_roles %}
+                                    <optgroup label="User Roles">
+                                        {% for role in user_roles %}
+                                            <option value="user_{{ role.id }}" {% if request.args.get('role_filter')=='user_' + role.id|string %}selected{% endif %}>{{ role.name }}</option>
+                                        {% endfor %}
+                                    </optgroup>
+                                {% endif %}
+
+                                {% if admin_roles %}
+                                    <optgroup label="Admin Roles">
+                                        {% for role in admin_roles %}
+                                            <option value="admin_{{ role.id }}" {% if request.args.get('role_filter')=='admin_' + role.id|string %}selected{% endif %}>{{ role.name }}</option>
+                                        {% endfor %}
+                                    </optgroup>
+                                {% endif %}
                             </select>
                         </div>
                         

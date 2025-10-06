@@ -646,21 +646,25 @@ def preview_purge_inactive_users():
         ignore_creation_date = request.form.get('ignore_creation_date') == 'true'
         
         # Get preview from service
-        preview_data = user_service.preview_purge_inactive_users(
+        eligible_users = user_service.get_users_eligible_for_purge(
             inactive_days_threshold=inactive_days,
             exclude_sharers=exclude_sharers,
             exclude_whitelisted=exclude_whitelisted,
             ignore_creation_date_for_never_streamed=ignore_creation_date
         )
-        
-        return render_template('users/_partials/purge_preview_modal.html', 
-                               preview_data=preview_data,
-                               inactive_days=inactive_days,
-                               exclude_sharers=exclude_sharers,
-                               exclude_whitelisted=exclude_whitelisted,
-                               ignore_creation_date=ignore_creation_date)
+
+        purge_criteria = {
+            'inactive_days': inactive_days,
+            'exclude_sharers': exclude_sharers,
+            'exclude_whitelisted': exclude_whitelisted,
+            'ignore_creation_date': ignore_creation_date
+        }
+
+        return render_template('users/_partials/purge_preview_modal.html',
+                               eligible_users=eligible_users,
+                               purge_criteria=purge_criteria)
     except Exception as e:
         current_app.logger.error(f"Error during purge preview: {e}", exc_info=True)
-        return render_template('partials/_alert_message.html', 
-                               message=f"Error generating preview: {e}", 
+        return render_template('components/alerts/alert_message.html',
+                               message=f"Error generating preview: {e}",
                                category='error'), 500

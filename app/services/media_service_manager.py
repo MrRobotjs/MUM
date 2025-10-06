@@ -260,7 +260,7 @@ class MediaServiceManager:
                             access.user_raw_data = raw_data_to_store
                             access.is_active = True
                             access.updated_at = datetime.utcnow()
-                            # Update the missing status fields
+                            # Update the status via UserRole properties
                             access.is_home_user = user_data.get('is_home_user', False)
                             access.shares_back = user_data.get('shares_back', False)
                             
@@ -452,7 +452,7 @@ class MediaServiceManager:
                         new_value = user_data.get('is_home_user', False)
                         changes.append(f"Home User status changed from {old_value} to {new_value}")
                         access.is_home_user = new_value
-                    
+
                     if access.shares_back != user_data.get('shares_back', False):
                         old_value = access.shares_back
                         new_value = user_data.get('shares_back', False)

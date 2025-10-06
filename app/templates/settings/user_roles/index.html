@@ -38,7 +38,8 @@
         </div>
         <div>
             <h2 class="text-xl font-semibold text-base-content mb-1">Visual User Roles</h2>
-            <p class="text-sm text-base-content/70">{{ user_roles|length if user_roles is defined else 0 }} role{{ 's' if (user_roles|length if user_roles is defined else 0) != 1 else '' }} configured</p>
+            {% set visible_roles_count = user_roles|rejectattr('name', 'equalto', 'Staff')|list|length if user_roles is defined else 0 %}
+            <p class="text-sm text-base-content/70">{{ visible_roles_count }} role{{ 's' if visible_roles_count != 1 else '' }} configured</p>
         </div>
     </div>
 

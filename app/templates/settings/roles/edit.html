@@ -18,27 +18,48 @@
             <p class="text-base-content/70 text-sm">Manage settings and permissions for <strong>{{ role.name }}</strong></p>
         </div>
     </div>
+
+    {# Show notice for Staff role #}
+    {% if role.name == 'Staff' %}
+        <div class="bg-info/10 border border-info/20 rounded-lg p-4 mt-4">
+            <div class="flex items-start gap-3">
+                <div class="w-6 h-6 rounded-full bg-info/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <i class="fa-solid fa-info text-info text-xs"></i>
+                </div>
+                <div>
+                    <h4 class="font-medium text-info mb-1">Automatically Managed Role</h4>
+                    <p class="text-sm text-base-content/80">
+                        The Staff role is automatically assigned to all administrators who have admin roles.
+                        It has no permissions and serves as a visual indicator. You can customize its appearance only.
+                    </p>
+                </div>
+            </div>
+        </div>
+    {% endif %}
 </div>
 
 <!-- Navigation Tabs -->
 <div class="mb-6">
     <div class="overflow-x-auto">
         <div role="tablist" class="tabs tabs-bordered">
-            <a role="tab" href="{{ url_for('role_management.edit', role_id=role.id, tab='display') }}" 
+            <a role="tab" href="{{ url_for('role_management.edit', role_id=role.id, tab='display') }}"
                class="tab {{ 'tab-active' if active_role_tab == 'display' else '' }}">
                 <i class="fa-solid fa-palette mr-2"></i>
                 Display Settings
             </a>
-            <a role="tab" href="{{ url_for('role_management.edit', role_id=role.id, tab='permissions') }}" 
-               class="tab {{ 'tab-active' if active_role_tab == 'permissions' else '' }}">
-                <i class="fa-solid fa-key mr-2"></i>
-                Permissions
-            </a>
-            <a role="tab" href="{{ url_for('role_management.edit', role_id=role.id, tab='members') }}" 
-               class="tab {{ 'tab-active' if active_role_tab == 'members' else '' }}">
-                <i class="fa-solid fa-users mr-2"></i>
-                Members ({{ role.admins|length }})
-            </a>
+            {# Hide Permissions and Members tabs for Staff role #}
+            {% if role.name != 'Staff' %}
+                <a role="tab" href="{{ url_for('role_management.edit', role_id=role.id, tab='permissions') }}"
+                   class="tab {{ 'tab-active' if active_role_tab == 'permissions' else '' }}">
+                    <i class="fa-solid fa-key mr-2"></i>
+                    Permissions
+                </a>
+                <a role="tab" href="{{ url_for('role_management.edit', role_id=role.id, tab='members') }}"
+                   class="tab {{ 'tab-active' if active_role_tab == 'members' else '' }}">
+                    <i class="fa-solid fa-users mr-2"></i>
+                    Members ({{ role.admins|length }})
+                </a>
+            {% endif %}
         </div>
     </div>
 </div>
@@ -46,9 +67,9 @@
 <div class="min-h-[400px]">
     {% if active_role_tab == 'display' %}
         {% include 'settings/roles/_partials/display_tab.html' %}
-    {% elif active_role_tab == 'permissions' %}
+    {% elif active_role_tab == 'permissions' and role.name != 'Staff' %}
         {% include 'settings/roles/_partials/permissions_tab.html' %}
-    {% elif active_role_tab == 'members' %}
+    {% elif active_role_tab == 'members' and role.name != 'Staff' %}
         {% include 'settings/roles/_partials/members_tab.html' %}
     {% endif %}
 </div>

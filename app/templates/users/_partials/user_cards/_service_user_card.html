@@ -310,37 +310,11 @@
 
         <!-- User Roles Section -->
         <div class="user-roles-section">
-            {% set has_roles = user.is_home_user or user.shares_back or user.discord_user_id or user.is_purge_whitelisted or user.user_roles %}
+            {% set has_roles = user.discord_user_id or user.is_purge_whitelisted or user.user_roles %}
             {% if has_roles %}
             <div class="mb-3">
                 <div class="text-xs font-medium mb-1">Roles:</div>
                 <div class="flex flex-wrap gap-1">
-                    {% if user.is_home_user %}
-                        <span class="inline-flex items-center rounded-md bg-purple-50 dark:bg-purple-400/10 px-2 py-1 text-xs font-medium text-purple-700 dark:text-purple-400 ring-1 ring-inset ring-purple-600/20 dark:ring-purple-500/20 gap-1" title="Plex Home User">
-                            <i class="fa-solid fa-home w-3 h-3"></i>
-                            Home User
-                        </span>
-                    {% endif %}
-                    {% if user.shares_back %}
-                        <span class="inline-flex items-center rounded-md bg-green-50 dark:bg-green-400/10 px-2 py-1 text-xs font-medium text-green-700 dark:text-green-400 ring-1 ring-inset ring-green-600/20 dark:ring-green-500/20 gap-1" title="Shares Libraries Back">
-                            <i class="fa-solid fa-share w-3 h-3"></i>
-                            Shares Back
-                        </span>
-                        <!-- Debug: Check if user has raw_data and what's in it -->
-                        {% if user.raw_data %}
-                            {% set plex_attrs = user.raw_data.get('plex_user_obj_attrs') %}
-                            {% if plex_attrs and plex_attrs.get('servers') %}
-                                {% for server in plex_attrs.servers %}
-                                    {% if not server.get('owned', True) %}
-                                        <span class="inline-flex items-center rounded-md bg-orange-50 dark:bg-orange-400/10 px-2 py-1 text-xs font-medium text-orange-700 dark:text-orange-400 ring-1 ring-inset ring-orange-600/20 dark:ring-orange-500/20 gap-1" title="Shared Server: {{ server.get('name', 'Unknown') }}">
-                                            <i class="fa-solid fa-server w-3 h-3"></i>
-                                            {{ server.get('name', 'Unknown') }}
-                                        </span>
-                                    {% endif %}
-                                {% endfor %}
-                            {% endif %}
-                        {% endif %}
-                    {% endif %}
                     {% if user.discord_user_id %}
                         <span class="inline-flex items-center rounded-md bg-indigo-50 dark:bg-indigo-400/10 px-2 py-1 text-xs font-medium text-indigo-700 dark:text-indigo-400 ring-1 ring-inset ring-indigo-600/20 dark:ring-indigo-500/20 gap-1" title="Discord: {{ user.discord_username or 'Linked' }}">
                             <i class="fa-brands fa-discord w-3 h-3"></i>
@@ -353,7 +327,7 @@
                             Purge Protected
                         </span>
                     {% endif %}
-                    {# User Roles (Visual/Cosmetic Roles) #}
+                    {# User Roles (Visual/Cosmetic Roles) - includes Home User and Shares Back #}
                     {% if user.user_roles %}
                         {% for role in user.user_roles %}
                             <span class="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset gap-1"

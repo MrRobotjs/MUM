@@ -844,13 +844,14 @@ def edit_user_role(role_id):
 
     role = UserRole.query.get_or_404(role_id)
 
-    # Prevent editing the Staff role
-    if role.is_staff_role():
-        flash('The Staff role cannot be edited as it is system-managed.', 'warning')
-        return redirect(url_for('settings.user_roles'))
-
     # Determine active tab
     active_user_role_tab = request.args.get('tab', 'display')
+
+    # Auto-managed roles (Home User, Shares Back) can only edit display settings
+    is_auto_managed = role.name in ['Home User', 'Shares Back']
+    if is_auto_managed and active_user_role_tab == 'members':
+        flash(f'The {role.name} role is automatically managed. Member assignments cannot be modified manually.', 'warning')
+        return redirect(url_for('settings.edit_user_role', role_id=role.id, tab='display'))
 
     # Display tab - edit role settings
     if active_user_role_tab == 'display':

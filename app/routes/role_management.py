@@ -18,27 +18,37 @@ bp = Blueprint('role_management', __name__)
 def index():
     from flask import current_app
 
-    # Get admin roles (RBAC roles)
+    # Get admin roles (RBAC roles) ordered by position (descending)
     admin_roles = AdminRole.query.order_by(AdminRole.position.desc(), AdminRole.name).all()
-
-    # Get the special Staff visual role
-    staff_role = UserRole.query.filter_by(name='Staff').first()
 
     # Debug logging
     current_app.logger.info(f"Role Index - Current User: {current_user.__class__.__name__}")
     current_app.logger.info(f"Role Index - User Type: {current_user.userType}")
     current_app.logger.info(f"Role Index - Has edit_role permission: {current_user.has_permission('edit_role') if hasattr(current_user, 'has_permission') else 'N/A'}")
 
-    # Combine roles for display (Staff role + Admin roles)
+    # Separate Staff role from other admin roles
+    staff_role = None
+    other_admin_roles = []
+
+    for admin_role in admin_roles:
+        if admin_role.name == 'Staff':
+            staff_role = admin_role
+        else:
+            other_admin_roles.append(admin_role)
+
+    # Combine roles for display (Staff role at the top + other admin roles)
     all_roles = []
+
+    # Add Staff role first (at the top)
     if staff_role:
         all_roles.append({
-            'type': 'visual',
+            'type': 'admin',
             'role': staff_role,
             'is_staff': True
         })
 
-    for admin_role in admin_roles:
+    # Add other admin roles
+    for admin_role in other_admin_roles:
         can_manage = current_user.can_manage_role(admin_role) if hasattr(current_user, 'can_manage_role') else False
         current_app.logger.info(f"Role: {admin_role.name}, Position: {admin_role.position}, Can Manage: {can_manage}")
         all_roles.append({
@@ -321,10 +331,20 @@ def reorder_roles():
                         'error': f'You cannot reorder roles at or above your role level'
                     }), 403
 
+        # Filter out Staff role - it should not be reordered
+        role_ids = [rid for rid in role_ids if rid]
+        roles_to_reorder = []
+        for role_id in role_ids:
+            role = AdminRole.query.get(role_id)
+            if role and role.name != 'Staff':
+                roles_to_reorder.append(role_id)
+            elif role and role.name == 'Staff':
+                current_app.logger.info(f"Skipping Staff role from reordering")
+
         # Update positions based on new order
         # Higher position = higher in hierarchy (like Discord)
         # Reverse the list so the first item gets the highest position
-        role_ids_reversed = list(reversed(role_ids))
+        role_ids_reversed = list(reversed(roles_to_reorder))
 
         for index, role_id in enumerate(role_ids_reversed):
             role = AdminRole.query.get(role_id)
@@ -332,6 +352,12 @@ def reorder_roles():
                 old_position = role.position
                 role.position = index + 1
                 current_app.logger.info(f"Updated {role.name}: position {old_position} -> {role.position}")
+
+        # Ensure Staff role always has position -1
+        staff_role = AdminRole.query.filter_by(name='Staff').first()
+        if staff_role and staff_role.position != -1:
+            staff_role.position = -1
+            current_app.logger.info(f"Reset Staff role to position -1")
 
         db.session.commit()
         current_app.logger.info("Role reordering completed successfully")

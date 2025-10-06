@@ -22,6 +22,39 @@
                 <p class="text-base-content/70 text-sm">Manage settings for <strong>{{ role.name }}</strong></p>
             </div>
         </div>
+
+        {# Show notice for auto-managed roles #}
+        {% if role.name in ['Home User', 'Shares Back'] %}
+            <div class="bg-info/10 border border-info/20 rounded-lg p-4 mt-4">
+                <div class="flex items-start gap-3">
+                    <div class="w-6 h-6 rounded-full bg-info/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <i class="fa-solid fa-info text-info text-xs"></i>
+                    </div>
+                    <div>
+                        <h4 class="font-medium text-info mb-1">Automatically Managed Role</h4>
+                        <p class="text-sm text-base-content/80">
+                            This role is automatically assigned and removed during media server synchronization.
+                            You can customize its appearance, but member assignments are managed by the system.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        {% elif role.name == 'Staff' %}
+            <div class="bg-info/10 border border-info/20 rounded-lg p-4 mt-4">
+                <div class="flex items-start gap-3">
+                    <div class="w-6 h-6 rounded-full bg-info/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <i class="fa-solid fa-info text-info text-xs"></i>
+                    </div>
+                    <div>
+                        <h4 class="font-medium text-info mb-1">Automatically Managed Role</h4>
+                        <p class="text-sm text-base-content/80">
+                            This role is automatically assigned to all administrators who have admin roles.
+                            You can customize its appearance, but member assignments are managed by the system.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        {% endif %}
     </div>
 
     <!-- Navigation Tabs -->
@@ -33,11 +66,14 @@
                     <i class="fa-solid fa-palette mr-2"></i>
                     Display Settings
                 </a>
-                <a role="tab" href="{{ url_for('settings.edit_user_role', role_id=role.id, tab='members') }}"
-                   class="tab {{ 'tab-active' if active_user_role_tab == 'members' else '' }}">
-                    <i class="fa-solid fa-users mr-2"></i>
-                    Members ({{ role.users|length if role.users else 0 }})
-                </a>
+                {# Hide Members tab for auto-managed roles #}
+                {% if role.name not in ['Home User', 'Shares Back', 'Staff'] %}
+                    <a role="tab" href="{{ url_for('settings.edit_user_role', role_id=role.id, tab='members') }}"
+                       class="tab {{ 'tab-active' if active_user_role_tab == 'members' else '' }}">
+                        <i class="fa-solid fa-users mr-2"></i>
+                        Members ({{ role.users|length if role.users else 0 }})
+                    </a>
+                {% endif %}
             </div>
         </div>
     </div>
@@ -45,7 +81,7 @@
     <div class="min-h-[400px]">
         {% if active_user_role_tab == 'display' %}
             {% include 'settings/user_roles/_partials/display_tab.html' %}
-        {% elif active_user_role_tab == 'members' %}
+        {% elif active_user_role_tab == 'members' and role.name not in ['Home User', 'Shares Back', 'Staff'] %}
             {% include 'settings/user_roles/_partials/members_tab.html' %}
         {% endif %}
     </div>

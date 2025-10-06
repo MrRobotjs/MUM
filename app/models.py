@@ -114,6 +114,27 @@ class AdminRole(db.Model):
         """Get all users that have this admin role assigned"""
         return User.query.join(admin_user_roles_assignments).filter(admin_user_roles_assignments.c.role_id == role_id).all()
 
+    @classmethod
+    def get_or_create_staff_role(cls):
+        """Get the Staff admin role, creating it if it doesn't exist"""
+        staff_role = cls.query.filter_by(name='Staff').first()
+        if not staff_role:
+            staff_role = cls(
+                name='Staff',
+                description='Visual indicator for administrators - automatically assigned to users with admin roles',
+                color='#5865f2',  # Discord blurple
+                icon='fa-solid fa-user-tie',
+                position=-1  # Lowest position so it can't manage other roles
+            )
+            from app.extensions import db
+            db.session.add(staff_role)
+            db.session.commit()
+        return staff_role
+
+    def is_staff_role(self):
+        """Check if this is the special Staff admin role"""
+        return self.name == 'Staff'
+
 # Legacy alias for backward compatibility
 Role = AdminRole
 
@@ -136,29 +157,6 @@ class UserRole(db.Model):
         """Get all users that have this visual role assigned"""
         return User.query.join(users_roles_assignments).filter(users_roles_assignments.c.visual_role_id == role_id).all()
     
-    def is_staff_role(self):
-        """Check if this is the special Staff role"""
-        return self.name == 'Staff'
-    
-    def can_be_deleted(self):
-        """Check if this role can be deleted (Staff role cannot be deleted)"""
-        return not self.is_staff_role()
-    
-    @classmethod
-    def get_or_create_staff_role(cls):
-        """Get the Staff role, creating it if it doesn't exist"""
-        staff_role = cls.query.filter_by(name='Staff').first()
-        if not staff_role:
-            staff_role = cls(
-                name='Staff',
-                description='Visual indicator for users with admin access',
-                color='#6366f1',  # Indigo color
-                icon='fa-solid fa-user-tie'
-            )
-            from app.extensions import db
-            db.session.add(staff_role)
-            db.session.flush()
-        return staff_role
     
     @classmethod
     def get_staff_users(cls):
@@ -226,8 +224,7 @@ class User(db.Model, UserMixin):
     is_purge_whitelisted = db.Column(db.Boolean, default=False, nullable=False)
     
     # Service-Specific Status (primarily for Plex)
-    is_home_user = db.Column(db.Boolean, default=False, nullable=False)
-    shares_back = db.Column(db.Boolean, default=False, nullable=False)
+    # Note: is_home_user and shares_back are now managed via UserRole assignments
     
     # Discord Integration (can be global or service-specific)
     discord_user_id = db.Column(db.String(255), nullable=True, index=True)
@@ -366,37 +363,72 @@ class User(db.Model, UserMixin):
     def get_admin_role(self):
         """Legacy method - returns first admin role if any"""
         return self.admin_roles[0] if self.admin_roles else None
-    
-    # Staff Role Management (Special Visual Role)
+
+    # Helper properties for backwards compatibility with templates
+    @property
+    def is_home_user(self):
+        """Check if user has the 'Home User' role"""
+        home_user_role = UserRole.query.filter_by(name='Home User').first()
+        return home_user_role in self.user_roles if home_user_role else False
+
+    @is_home_user.setter
+    def is_home_user(self, value):
+        """Set or remove the 'Home User' role"""
+        home_user_role = UserRole.query.filter_by(name='Home User').first()
+        if home_user_role:
+            if value and home_user_role not in self.user_roles:
+                self.user_roles.append(home_user_role)
+            elif not value and home_user_role in self.user_roles:
+                self.user_roles.remove(home_user_role)
+
+    @property
+    def shares_back(self):
+        """Check if user has the 'Shares Back' role"""
+        shares_back_role = UserRole.query.filter_by(name='Shares Back').first()
+        return shares_back_role in self.user_roles if shares_back_role else False
+
+    @shares_back.setter
+    def shares_back(self, value):
+        """Set or remove the 'Shares Back' role"""
+        shares_back_role = UserRole.query.filter_by(name='Shares Back').first()
+        if shares_back_role:
+            if value and shares_back_role not in self.user_roles:
+                self.user_roles.append(shares_back_role)
+            elif not value and shares_back_role in self.user_roles:
+                self.user_roles.remove(shares_back_role)
+
+    # Staff Role Management (Special Admin Role)
     def _ensure_staff_role(self):
-        """Automatically assign 'Staff' visual role when user gets admin roles"""
-        staff_role = UserRole.get_or_create_staff_role()
-        if staff_role not in self.visual_roles:
-            self.visual_roles.append(staff_role)
+        """Automatically assign 'Staff' admin role when user gets admin roles"""
+        staff_role = AdminRole.get_or_create_staff_role()
+        if staff_role not in self.admin_roles:
+            self.admin_roles.append(staff_role)
     
     def _remove_staff_role_if_no_admin_roles(self):
-        """Remove 'Staff' visual role if user has no admin roles"""
-        if not self.admin_roles:
-            staff_role = UserRole.query.filter_by(name='Staff').first()
-            if staff_role and staff_role in self.visual_roles:
-                self.visual_roles.remove(staff_role)
+        """Remove 'Staff' admin role if user has no other admin roles"""
+        # Get all admin roles except Staff
+        non_staff_roles = [r for r in self.admin_roles if r.name != 'Staff']
+        if not non_staff_roles:
+            staff_role = AdminRole.query.filter_by(name='Staff').first()
+            if staff_role and staff_role in self.admin_roles:
+                self.admin_roles.remove(staff_role)
     
     def has_admin_access(self):
         """Check if user has admin dashboard access (has any admin roles)"""
         return self.userType == UserType.OWNER or (self.userType == UserType.LOCAL and len(self.admin_roles) > 0)
     
     def is_staff_member(self):
-        """Check if user is a staff member (has Staff visual role)"""
-        return any(role.name == 'Staff' for role in self.visual_roles)
+        """Check if user is a staff member (has Staff admin role)"""
+        return any(role.name == 'Staff' for role in self.admin_roles)
     
     @classmethod
     def create_admin_user(cls, username, password, email=None):
         """Create a new Local user for admin purposes with automatic Staff role"""
         user = cls.create_local_user(username, password, email)
-        
-        # Automatically assign Staff visual role
-        staff_role = UserRole.get_or_create_staff_role()
-        user.visual_roles.append(staff_role)
+
+        # Automatically assign Staff admin role
+        staff_role = AdminRole.get_or_create_staff_role()
+        user.admin_roles.append(staff_role)
         return user
     
     def __repr__(self):

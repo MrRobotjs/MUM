@@ -152,13 +152,22 @@
                     <td class="py-4 text-right">
                         <div class="flex items-center justify-end gap-2">
                             {% if is_staff %}
-                                <!-- Staff role cannot be edited or deleted -->
-                                <div class="tooltip tooltip-top" data-tip="Staff role is system-managed and cannot be modified">
-                                    <button class="btn btn-sm btn-ghost opacity-50 cursor-not-allowed" disabled>
-                                        <i class="fa-solid fa-shield mr-1"></i>
-                                        <span class="hidden md:inline">Protected</span>
-                                    </button>
-                                </div>
+                                <!-- Staff role - can edit appearance only (display tab) -->
+                                {% if current_user.__class__.__name__ == 'Owner' or current_user.has_permission('edit_role') %}
+                                    <a href="{{ url_for('role_management.edit', role_id=role.id, tab='display') }}"
+                                       class="btn btn-sm btn-ghost hover:bg-primary/10"
+                                       title="Edit Staff Role Appearance">
+                                        <i class="fa-solid fa-pen-to-square mr-1"></i>
+                                        <span class="hidden md:inline">Edit Appearance</span>
+                                    </a>
+                                {% else %}
+                                    <div class="tooltip tooltip-top" data-tip="You don't have permission to edit roles">
+                                        <button class="btn btn-sm btn-ghost opacity-50 cursor-not-allowed" disabled>
+                                            <i class="fa-solid fa-lock mr-1"></i>
+                                            <span class="hidden md:inline">Locked</span>
+                                        </button>
+                                    </div>
+                                {% endif %}
                             {% elif role_type == 'admin' %}
                                 <!-- Admin roles can be edited/deleted -->
                                 {% if current_user.__class__.__name__ == 'Owner' or current_user.has_permission('edit_role') and current_user not in role.users %}

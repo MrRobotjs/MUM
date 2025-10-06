@@ -270,7 +270,7 @@ def edit(role_id):
 @permission_required('edit_role')
 def remove_member(role_id, admin_id):
     role = AdminRole.query.get_or_404(role_id)
-    user = User.query.filter_by(userType=UserType.LOCAL).get_or_404(admin_id)
+    user = User.query.filter_by(id=admin_id, userType=UserType.LOCAL).first_or_404()
     if user in role.users:
         role.users.remove(user)
         db.session.commit()

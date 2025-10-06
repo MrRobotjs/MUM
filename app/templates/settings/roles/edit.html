@@ -57,7 +57,7 @@
                 <a role="tab" href="{{ url_for('role_management.edit', role_id=role.id, tab='members') }}"
                    class="tab {{ 'tab-active' if active_role_tab == 'members' else '' }}">
                     <i class="fa-solid fa-users mr-2"></i>
-                    Members ({{ role.admins|length }})
+                    Members ({{ role.users|length }})
                 </a>
             {% endif %}
         </div>

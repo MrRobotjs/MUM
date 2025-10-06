@@ -156,12 +156,39 @@
             {% endif %}
         </div>
 
-        <div class="flex flex-wrap gap-1 mb-3">
-            {% if user.is_purge_whitelisted %}<div class="badge badge-accent badge-sm" title="This user is immune to inactivity purges."><i class="fa-solid fa-shield-halved"></i>Purge Whitelisted</div>{% endif %}
+        <!-- User Roles Section -->
+        {% set has_user_roles = user.is_purge_whitelisted or user.user_roles %}
+        {% if has_user_roles %}
+        <div class="mb-3">
+            <div class="text-xs font-medium mb-1">Roles:</div>
+            <div class="flex flex-wrap gap-1">
+                {% if user.is_purge_whitelisted %}
+                    <span class="inline-flex items-center rounded-md bg-amber-50 dark:bg-amber-400/10 px-2 py-1 text-xs font-medium text-amber-700 dark:text-amber-400 ring-1 ring-inset ring-amber-600/20 dark:ring-amber-500/20 gap-1" title="This user is immune to inactivity purges">
+                        <i class="fa-solid fa-shield-halved w-3 h-3"></i>
+                        Purge Protected
+                    </span>
+                {% endif %}
+                {# User Roles (Visual/Cosmetic Roles) #}
+                {% if user.user_roles %}
+                    {% for role in user.user_roles %}
+                        <span class="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset gap-1"
+                              style="background-color: {{ role.color or '#808080' }}20; color: {{ role.color or '#808080' }}; border-color: {{ role.color or '#808080' }}40;"
+                              title="{{ role.description or role.name }}">
+                            {% if role.icon %}<i class="{{ role.icon }} w-3 h-3"></i>{% endif %}
+                            {{ role.name }}
+                        </span>
+                    {% endfor %}
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
 
-            {# User Roles (Visual/Cosmetic Roles) #}
-            {% if user.user_roles %}
-                {% for role in user.user_roles %}
+        <!-- Admin Roles Section -->
+        {% if user.admin_roles %}
+        <div class="mb-3">
+            <div class="text-xs font-medium mb-1">Admin:</div>
+            <div class="flex flex-wrap gap-1">
+                {% for role in user.admin_roles %}
                     <span class="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset gap-1"
                           style="background-color: {{ role.color or '#808080' }}20; color: {{ role.color or '#808080' }}; border-color: {{ role.color or '#808080' }}40;"
                           title="{{ role.description or role.name }}">
@@ -169,8 +196,9 @@
                         {{ role.name }}
                     </span>
                 {% endfor %}
-            {% endif %}
+            </div>
         </div>
+        {% endif %}
 
 
         <!-- Action Footer -->

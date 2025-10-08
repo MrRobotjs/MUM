@@ -15,8 +15,9 @@ from .extensions import (
     login_manager,
     csrf,
     scheduler,
-    babel, 
-    htmx
+    babel,
+    htmx,
+    socketio
 )
 from .models import User, UserType, Setting, EventType
 from .utils import helpers 
@@ -127,7 +128,21 @@ def create_app(config_name=None):
     csrf.init_app(app)
     htmx.init_app(app)
     babel.init_app(app, locale_selector=get_locale_for_babel)
-    
+
+    # Initialize SocketIO for WebSocket support
+    socketio.init_app(
+        app,
+        cors_allowed_origins="*",  # TODO: Restrict in production to your domain
+        async_mode='threading',     # Compatible with gunicorn
+        logger=app.debug,
+        engineio_logger=app.debug,
+        ping_timeout=60,
+        ping_interval=25
+    )
+
+    # Import WebSocket handlers after SocketIO is initialized
+    from app.sockets import streaming_socket
+
     # Define custom unauthorized handler to route to correct login page based on requested endpoint
     @login_manager.unauthorized_handler
     def unauthorized():

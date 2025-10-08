@@ -854,7 +854,8 @@ class PlexMediaService(BaseMediaService):
                 thumb_path = raw_session.thumb
                 if media_type == 'Episode' and hasattr(raw_session, 'grandparentThumb'):
                     thumb_path = raw_session.grandparentThumb
-                thumb_url = url_for('api.plex_image_proxy', path=thumb_path.lstrip('/')) if thumb_path else None
+                # Generate URL directly without url_for() to avoid request context requirement
+                thumb_url = f"/admin/api/media/plex/images/proxy?path={thumb_path.lstrip('/')}" if thumb_path else None
                 
                 # Transcoding info
                 transcode_session = raw_session.transcodeSession
@@ -882,10 +883,8 @@ class PlexMediaService(BaseMediaService):
                     if user_thumb_url.startswith('https://plex.tv/') or user_thumb_url.startswith('http://plex.tv/'):
                         user_avatar_url = user_thumb_url
                     else:
-                        try:
-                            user_avatar_url = url_for('api.plex_image_proxy', path=user_thumb_url.lstrip('/'))
-                        except Exception:
-                            user_avatar_url = None
+                        # Generate URL directly without url_for() to avoid request context requirement
+                        user_avatar_url = f"/admin/api/media/plex/images/proxy?path={user_thumb_url.lstrip('/')}"
                 
                 # Media details
                 original_media = None

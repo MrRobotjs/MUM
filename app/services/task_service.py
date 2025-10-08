@@ -13,6 +13,18 @@ _active_stream_sessions = {}
 
 # --- Scheduled Tasks ---
 
+def websocket_session_broadcast_task():
+    """
+    Background task that checks for session changes and broadcasts via WebSocket.
+    Runs every 10 seconds to provide near real-time updates to connected clients.
+    """
+    with scheduler.app.app_context():
+        try:
+            from app.services.session_websocket_service import session_ws_service
+            session_ws_service.check_and_broadcast_changes()
+        except Exception as e:
+            current_app.logger.error(f"Error in WebSocket session broadcast task: {e}", exc_info=True)
+
 def monitor_media_sessions_task():
     """
     Statefully monitors media sessions from all services (Plex, Jellyfin, etc.), with corrected session tracking and duration calculation.
@@ -520,6 +532,17 @@ def schedule_all_tasks():
         next_run_time=datetime.now(timezone.utc) + timedelta(seconds=10) # Start shortly after app start
     ):
         log_event(EventType.APP_STARTUP, f"Media session monitoring scheduled ({session_interval_seconds}s interval)")
+
+    # 1b. WebSocket Session Broadcasting (for real-time updates)
+    # Check for changes more frequently (10 seconds) and broadcast via WebSocket when detected
+    if _schedule_job_if_not_exists_or_reschedule(
+        job_id='websocket_session_broadcast',
+        func=websocket_session_broadcast_task,
+        trigger_type='interval',
+        seconds=10,  # Check every 10 seconds for WebSocket updates
+        next_run_time=datetime.now(timezone.utc) + timedelta(seconds=15)
+    ):
+        log_event(EventType.APP_STARTUP, "WebSocket session broadcasting scheduled (10s interval)")
 
     # 2. User Access Expiration Check
     if _schedule_job_if_not_exists_or_reschedule(

@@ -263,7 +263,7 @@
         </button>
         <button type="submit" id="add-server-btn" class="btn btn-primary h-12 gap-2" disabled>
             <i class="fa-solid fa-plus"></i>
-            Add Server
+            Sync and Add Server
         </button>
     </div>
 </form>
@@ -388,6 +388,11 @@ document.querySelector('form').addEventListener('submit', function(e) {
         showToast('Please test the connection successfully before adding the server.', 'error');
         return false;
     }
+
+    // Update button to show syncing state
+    const addBtn = document.getElementById('add-server-btn');
+    addBtn.disabled = true;
+    addBtn.innerHTML = '<span class="loading loading-spinner loading-sm"></span> Syncing...';
 });
 
 // Reset connection test status when form fields change

@@ -265,19 +265,38 @@ def add_server(plugin_id):
             # Enable the plugin if it's not already enabled
             from app.services.plugin_manager import plugin_manager
             plugin_enabled = plugin_manager.enable_plugin(plugin_id)
-            
+
             # Sync libraries for the new server
             from app.services.media_service_manager import MediaServiceManager
-            MediaServiceManager.sync_server_libraries(new_server.id)
-            
+            library_sync_result = MediaServiceManager.sync_server_libraries(new_server.id)
+
+            # Sync users for the new server
+            user_sync_result = MediaServiceManager.sync_server_users(new_server.id)
+
+            # Build success message with sync details
+            libraries_added = library_sync_result.get('added', 0) if library_sync_result.get('success') else 0
+            users_added = user_sync_result.get('added', 0) if user_sync_result.get('success') else 0
+
+            success_message = f'Server "{new_server.server_nickname}" added successfully! '
+            sync_details = []
+            if libraries_added > 0:
+                sync_details.append(f'{libraries_added} {"library" if libraries_added == 1 else "libraries"}')
+            if users_added > 0:
+                sync_details.append(f'{users_added} {"user" if users_added == 1 else "users"}')
+
+            if sync_details:
+                success_message += f'Synced {" and ".join(sync_details)}.'
+            else:
+                success_message += 'Sync completed with no new items.'
+
             log_event(
                 EventType.SETTING_CHANGE,
                 f"Added new media server: {new_server.server_nickname}",
                 admin_id=current_user.id
             )
-            
+
             response = make_response(redirect(url_for('plugin_management.configure', plugin_id=plugin_id)))
-            response.headers['HX-Trigger'] = json.dumps({"showToastEvent": {"message": f'Media server "{new_server.server_nickname}" added successfully!', "category": "success"}})
+            response.headers['HX-Trigger'] = json.dumps({"showToastEvent": {"message": success_message, "category": "success"}})
             return response
             
         except Exception as e:

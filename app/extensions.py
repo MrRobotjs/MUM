@@ -40,10 +40,6 @@ babel = Babel()
 # Flask-HTMX
 htmx = HTMX()
 
-# Flask-SocketIO for WebSocket support
-from flask_socketio import SocketIO
-socketio = SocketIO()
-
 # Global in-memory cache example (e.g., for Plex libraries, server status for short periods)
 # Cache for 5 minutes, max 100 items
 # You might want more sophisticated caching (e.g., Flask-Caching with Redis/Memcached) for a larger app.

@@ -4,12 +4,6 @@
 {% block title %}{{ super() }} - Active Streams{% endblock %}
 
 {% block head_extra %}
-<!-- Socket.IO Client Library (without integrity check to avoid CSRF blocking) -->
-<script src="https://cdn.socket.io/4.5.4/socket.io.min.js" crossorigin="anonymous"></script>
-
-<!-- WebSocket Client for Streaming -->
-<script src="{{ url_for('static', filename='js/streaming_websocket.js') }}"></script>
-
 <style>
     #countdown-circle-progress {
         stroke-dasharray: 251.2; /* Circumference of a circle with r=40: 2 * PI * 40 ~= 251.2 */
@@ -29,14 +23,6 @@
             <span id="streaming-auto-refresh-loader" class="htmx-indicator loading loading-spinner loading-sm text-primary ml-2"></span>
         </div>
         <div class="flex items-center space-x-2 mt-4 sm:mt-0">
-            <!-- WebSocket connection status indicator -->
-            <div class="tooltip" data-tip="WebSocket status">
-                <div id="ws-connection-indicator"
-                     class="w-3 h-3 rounded-full bg-warning animate-pulse"
-                     title="Connecting to live updates...">
-                </div>
-            </div>
-
             <button class="btn btn-ghost btn-sm" onclick="streaming_settings_modal.showModal()" title="Streaming Settings">
                 <i class="fa-solid fa-cog"></i>
             </button>
@@ -87,9 +73,9 @@
         </div>
     </div>
 
-    <div id="streaming-sessions-container"
-         hx-get="{{ url_for('streaming.sessions_partial') }}?view={{ request.args.get('view', 'merged') }}"
-         hx-trigger="load"
+    <div id="streaming-sessions-container" 
+         hx-get="{{ url_for('streaming.sessions_partial') }}?view={{ request.args.get('view', 'merged') }}" 
+         hx-trigger="load, every {{ streaming_refresh_interval | default(15) }}s"
          hx-swap="innerHTML"
          hx-indicator="#streaming-auto-refresh-loader">
         
@@ -500,24 +486,10 @@ document.addEventListener('DOMContentLoaded', function () {
     // Listen for HTMX afterSettle event on the container to reset the countdown
     // after an auto-refresh or manual refresh completes.
     if (streamingContainer) {
-        streamingContainer.addEventListener('htmx:afterSettle', function(event) {
-            // Check if this was a websocket update
-            const isWsUpdate = streamingContainer.getAttribute('data-ws-update') === 'true';
-
-            console.log('🔄 HTMX afterSettle fired - isWsUpdate:', isWsUpdate, 'event:', event);
-
-            if (isWsUpdate) {
-                // Remove the flag
-                streamingContainer.removeAttribute('data-ws-update');
-                // Don't reset the countdown for websocket updates
-                console.log('✅ WebSocket update - keeping timer running');
-            } else {
-                // HTMX request has completed and content is settled.
-                // This is a good time to reset our JS countdown to sync up.
-                console.log('🔄 Non-WS update - resetting timer');
-                resetAndStartCountdown();
-            }
-
+        streamingContainer.addEventListener('htmx:afterSettle', function() {
+            // HTMX request has completed and content is settled.
+            // This is a good time to reset our JS countdown to sync up.
+            resetAndStartCountdown();
             // Ensure the auto-refresh URL is updated with current view
             updateAutoRefreshUrl();
             // Restart fake real-time timestamps after content update
@@ -526,17 +498,15 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
     
-    // Manual refresh button click handler
-    // Note: If websocket is active, the button's HTMX attributes are removed
-    // and it uses websocket instead, which sets data-ws-update flag
+    // If manual refresh button is clicked, we also want to reset the countdown
+    // immediately to give visual feedback, HTMX will handle the actual refresh.
     if(manualRefreshButton) {
         manualRefreshButton.addEventListener('click', function() {
-            // Only reset if the button still has HTMX attributes (no websocket)
-            if (manualRefreshButton.hasAttribute('hx-get')) {
-                currentCountdownValue = refreshIntervalSeconds; // Visually reset
-                updateCountdownDisplay();
-            }
-            // If websocket is handling it, the data-ws-update flag will prevent reset
+            // The htmx:afterSettle will also fire, so this provides immediate feedback
+            // and the afterSettle ensures it's correctly synced post-refresh.
+            currentCountdownValue = refreshIntervalSeconds; // Visually reset
+            updateCountdownDisplay();
+            // No need to call resetAndStartCountdown() here as afterSettle will handle it
         });
     }
 

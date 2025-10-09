@@ -1,7 +1,6 @@
 import os
 import logging
 from app import create_app, db
-from app.extensions import socketio
 from app.models import Setting, User # Import models that might be needed for initial checks or commands
 from flask_migrate import Migrate
 
@@ -119,5 +118,4 @@ if __name__ == '__main__':
     # For production, Gunicorn is used as defined in the Dockerfile/docker-compose.yml
     # The host '0.0.0.0' makes it accessible externally if not in Docker,
     # or to the mapped port if in Docker.
-    # Use socketio.run() instead of app.run() for WebSocket support
-    socketio.run(app, host='0.0.0.0', port=int(os.environ.get('PORT', 5000)), debug=True)
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))

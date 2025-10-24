@@ -135,6 +135,15 @@ MUM provides comprehensive configuration management through an intuitive web int
 
 MUM's modular nature makes it easy to extend. If you're interested in adding support for a new media service, you can create your own plugin. For more information, see the [Plugin Development Guide](PLUGIN_DEVELOPMENT_GUIDE.md).
 
+## Frontend Development (React Migration)
+
+The admin experience is being migrated to a React SPA that lives in `frontend/`.
+
+- Install dependencies: `npm install` inside `frontend/`.
+- Local development: `npm run dev` (honors `FRONTEND_PORT`, defaults to 5173) and proxies API calls to the Flask backend specified by `FLASK_PORT`.
+- Production build: `npm run build` emits assets into `app/static/dist`, which Flask serves alongside existing Jinja templates during the transition.
+- Docker users can override exposed ports via `HOST_FRONTEND_PORT`, `FRONTEND_PORT`, and `FLASK_PORT` while still running a single `mum` service (keep `FRONTEND_PORT` aligned with `FLASK_PORT` unless you run the Vite dev server inside the container).
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request or open an Issue.

@@ -1,14 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
-import { UsersTable, SyncUsersButton, ViewToggle, UserCardsGrid, PurgeUsersModal } from '../components';
+import { UsersTable, UserCardsGrid, PurgeUsersModal, PageHeader } from '../components';
 import { UserDisplaySettingsModal } from '../components/users/UserDisplaySettingsModal';
 import { MassEditUsersModal } from '../components/users/MassEditUsersModal';
 import { useUsersPaginated } from '../hooks/useUsersPaginated';
 import { useServerOptions } from '../hooks/useServerOptions';
 import { useAuth } from '../contexts/AuthContext';
+import { useAlerts } from '../contexts/AlertContext';
 import type { UserColumns } from '../components/users/UsersTable';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
+import { Badge } from '../components/ui/badge';
+import { requestJson } from '../util/apiClient';
 import {
   Select,
   SelectContent,
@@ -30,8 +33,13 @@ import {
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuTrigger,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuPortal,
 } from '../components/ui/dropdown-menu';
 import { Card, CardContent } from '../components/ui/card';
+import { IconDots } from '@tabler/icons-react';
 
 export const UsersListPage = () => {
   const [view, setView] = useState<'table' | 'cards'>('cards');
@@ -39,7 +47,9 @@ export const UsersListPage = () => {
   const [showDisplaySettingsModal, setShowDisplaySettingsModal] = useState(false);
   const [showMassEditModal, setShowMassEditModal] = useState(false);
   const [showFilterDrawer, setShowFilterDrawer] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const { hasPermission } = useAuth();
+  const { success, error } = useAlerts();
 
   // Selection state
   const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
@@ -48,7 +58,7 @@ export const UsersListPage = () => {
   const [userType, setUserType] = useState('all');
   const [role, setRole] = useState('');
   const [serverId, setServerId] = useState('all');
-  const [filterType, setFilterType] = useState('');
+  const [filterType, setFilterType] = useState('none');
   const [searchEmail, setSearchEmail] = useState('');
   const [searchUsername, setSearchUsername] = useState('');
   const [searchNotes, setSearchNotes] = useState('');
@@ -61,7 +71,7 @@ export const UsersListPage = () => {
       userType: userType === 'all' ? undefined : userType,
       role: role || undefined,
       serverId,
-      filterType: filterType || undefined,
+      filterType: filterType === 'none' ? undefined : filterType,
       searchEmail: searchEmail || undefined,
       searchUsername: searchUsername || undefined,
       searchNotes: searchNotes || undefined,
@@ -70,7 +80,7 @@ export const UsersListPage = () => {
     [page, search, userType, role, serverId, filterType, searchEmail, searchUsername, searchNotes, sort]
   );
 
-  const { users, loading, error, pagination, mutate } = useUsersPaginated(filters);
+  const { users, loading, error: fetchError, pagination, mutate } = useUsersPaginated(filters);
   const { servers } = useServerOptions();
   const [columns, setColumns] = useState<UserColumns>({
     name: true,
@@ -127,57 +137,152 @@ export const UsersListPage = () => {
       ? 'all'
       : 'some';
 
-  return (
-    <div className="container mx-auto px-4 py-2">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">Managed Users ({pagination?.total_items || 0})</h1>
-        <div className="flex items-center gap-2 mt-4 sm:mt-0">
-          <SyncUsersButton />
+  const handleSync = async () => {
+    setSyncing(true);
+    try {
+      const result = await requestJson<{
+        data: {
+          results: Array<{
+            server_id: number;
+            server_name: string;
+            service_type: string;
+            success: boolean;
+            added: number;
+            updated: number;
+            removed: number;
+            message: string;
+          }>;
+          summary: {
+            total_servers: number;
+            successful: number;
+            failed: number;
+            total_added: number;
+            total_updated: number;
+            total_removed: number;
+          };
+        };
+      }>('/admin/api/v1/users/sync-all', {
+        method: 'POST'
+      });
 
-          <Button
-            onClick={() => setShowDisplaySettingsModal(true)}
-            variant="ghost"
-            size="sm"
-            title="User Display Settings"
+      const { summary, results } = result.data;
+
+      // Show summary toast
+      if (summary.failed === 0) {
+        success(
+          `Synced ${summary.total_servers} server${summary.total_servers !== 1 ? 's' : ''}: ` +
+          `${summary.total_added} added, ${summary.total_updated} updated, ${summary.total_removed} removed`
+        );
+      } else {
+        error(
+          `Sync completed with errors: ${summary.successful}/${summary.total_servers} servers successful. ` +
+          `${summary.total_added} added, ${summary.total_updated} updated, ${summary.total_removed} removed`
+        );
+      }
+
+      // Log detailed results
+      results.forEach((result) => {
+        if (!result.success) {
+          console.error(`Sync failed for ${result.server_name}: ${result.message}`);
+        }
+      });
+
+      // Refresh the user list
+      mutate();
+    } catch (err) {
+      error(`Failed to sync users: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const headerActions = (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="sm" type="button" title="More options">
+          <IconDots className="h-4 w-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuPortal>
+        <DropdownMenuContent
+          className="w-56 rounded-lg"
+          align="end"
+          side="bottom"
+          sideOffset={8}
+          collisionPadding={8}
+        >
+          <DropdownMenuItem onSelect={handleSync} disabled={syncing}>
+            {syncing ? (
+              <span className="loading loading-spinner loading-xs mr-2" />
+            ) : (
+              <i className="fa-solid fa-sync fa-fw mr-2" />
+            )}
+            Sync All Users
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => setShowDisplaySettingsModal(true)}>
+            <i className="fa-solid fa-cog fa-fw mr-2" />
+            Display Settings
+          </DropdownMenuItem>
+
+          <DropdownMenuSeparator />
+          <DropdownMenuLabel>View Mode</DropdownMenuLabel>
+          <DropdownMenuItem
+            onSelect={() => setView('table')}
+            className={view === 'table' ? 'bg-primary/10' : ''}
           >
-            <i className="fa-solid fa-cog" />
-          </Button>
+            <i className="fa-solid fa-list fa-fw mr-2" />
+            <span className="flex-1">Table View</span>
+            {view === 'table' && <i className="fa-solid fa-check fa-fw ml-2 text-primary" />}
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onSelect={() => setView('cards')}
+            className={view === 'cards' ? 'bg-primary/10' : ''}
+          >
+            <i className="fa-solid fa-th-large fa-fw mr-2" />
+            <span className="flex-1">Card View</span>
+            <div className="flex items-center gap-2">
+              <Badge variant="secondary" className="text-xs">Default</Badge>
+              {view === 'cards' && <i className="fa-solid fa-check fa-fw text-primary" />}
+            </div>
+          </DropdownMenuItem>
 
           {view === 'table' && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm">
-                  <i className="fa-solid fa-table-columns mr-2" />
-                  Columns
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent>
-                {(
-                  [
-                    { key: 'name', label: 'Name' },
-                    { key: 'email', label: 'Email' },
-                    { key: 'type', label: 'Type' },
-                    { key: 'roles', label: 'Roles' },
-                    { key: 'linked', label: 'Linked services' },
-                    { key: 'lastLogin', label: 'Last login' }
-                  ] as Array<{ key: keyof UserColumns; label: string }>
-                ).map(({ key, label }) => (
-                  <DropdownMenuCheckboxItem
-                    key={key}
-                    checked={columns[key]}
-                    onCheckedChange={() => toggleColumn(key)}
-                  >
-                    {label}
-                  </DropdownMenuCheckboxItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel>Table Columns</DropdownMenuLabel>
+              {(
+                [
+                  { key: 'name', label: 'Name' },
+                  { key: 'email', label: 'Email' },
+                  { key: 'type', label: 'Type' },
+                  { key: 'roles', label: 'Roles' },
+                  { key: 'linked', label: 'Linked services' },
+                  { key: 'lastLogin', label: 'Last login' }
+                ] as Array<{ key: keyof UserColumns; label: string }>
+              ).map(({ key, label }) => (
+                <DropdownMenuCheckboxItem
+                  key={key}
+                  checked={columns[key]}
+                  onCheckedChange={() => toggleColumn(key)}
+                  onSelect={(e) => e.preventDefault()}
+                >
+                  {label}
+                </DropdownMenuCheckboxItem>
+              ))}
+            </>
           )}
+        </DropdownMenuContent>
+      </DropdownMenuPortal>
+    </DropdownMenu>
+  );
 
-          <ViewToggle view={view} onChange={setView} />
-        </div>
-      </div>
+  return (
+    <div className="container mx-auto px-4 py-2 space-y-6">
+      <PageHeader
+        title={`Managed Users (${pagination?.total_items || 0})`}
+        description="View and manage all users across your media services"
+        actions={headerActions}
+      />
 
       {/* Search Bar */}
       <Card className="mb-6">
@@ -312,7 +417,7 @@ export const UsersListPage = () => {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">All Users</SelectItem>
+                      <SelectItem value="none">All Users</SelectItem>
                       <SelectItem value="home_user">Home Users</SelectItem>
                       <SelectItem value="shares_back">Shares Back</SelectItem>
                       <SelectItem value="has_discord">Discord Linked</SelectItem>
@@ -368,7 +473,7 @@ export const UsersListPage = () => {
                       setUserType('all');
                       setRole('');
                       setServerId('all');
-                      setFilterType('');
+                      setFilterType('none');
                       setSort('username_asc');
                     }}
                   >
@@ -430,9 +535,9 @@ export const UsersListPage = () => {
       )}
 
       {/* Users Display */}
-      {error ? (
+      {fetchError ? (
         <div className="rounded border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">
-          Failed to load users: {(error as Error).message}
+          Failed to load users: {(fetchError as Error).message}
         </div>
       ) : view === 'table' ? (
         <UsersTable

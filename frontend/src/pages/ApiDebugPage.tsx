@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { requestJson } from '../util/apiClient';
 import { useToast } from '../util/toast';
+import { PageHeader } from '../components';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -274,31 +275,23 @@ const ApiDebugPage = () => {
   };
 
   return (
-    <div className="space-y-8">
-      {/* Header */}
-      <div className="mb-8">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center flex-shrink-0">
-            <i className="fa-solid fa-code text-blue-500 text-lg" />
+    <div className="space-y-6">
+      <PageHeader
+        title="API Debug"
+        description="Test API endpoints for your configured media servers"
+      />
+
+      {/* Info Notice */}
+      <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4">
+        <div className="flex items-start gap-3">
+          <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+            <i className="fa-solid fa-info-circle text-blue-500 text-xs" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold mb-1">API Debug</h1>
-            <p className="text-sm text-muted-foreground">Test API endpoints for your configured media servers</p>
-          </div>
-        </div>
-
-        {/* Info Notice */}
-        <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4">
-          <div className="flex items-start gap-3">
-            <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-              <i className="fa-solid fa-info-circle text-blue-500 text-xs" />
-            </div>
-            <div>
-              <h4 className="font-medium text-blue-500 mb-1">Debug Tool</h4>
-              <p className="text-sm text-foreground/80">
-                This tool allows you to test API endpoints using the stored server credentials. All requests are authenticated automatically using your configured server settings.
-              </p>
-            </div>
+            <h4 className="font-medium text-blue-500 mb-1">Debug Tool</h4>
+            <p className="text-sm text-foreground/80">
+              This tool allows you to test API endpoints using the stored server credentials. All requests are authenticated automatically using your configured server settings.
+            </p>
           </div>
         </div>
       </div>

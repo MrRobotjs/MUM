@@ -247,7 +247,7 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection }: UserCa
   return (
     <Card
       className={clsx(
-        'shadow-lg hover:shadow-xl transition-all duration-200 ease-in-out relative group cursor-pointer flex flex-col',
+        'shadow-lg hover:shadow-xl transition-all p-0 duration-200 ease-in-out relative group cursor-pointer flex flex-col',
         cardGradient(),
         isSelected && 'ring-2 ring-primary ring-offset-2 ring-offset-background'
       )}
@@ -344,8 +344,8 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection }: UserCa
 
         <div className="text-xs space-y-1 mb-3">
           {settings.show_email_section && (
-            <p className="text-xs text-muted-foreground truncate" title={user.email ?? 'No email'}>
-              <i className="fa-solid fa-at fa-fw mr-1 text-blue-400" /> Email: {user.email ?? 'No email'}
+            <p className="text-xs text-muted-foreground truncate" title={user.external_email ?? 'No email'}>
+              <i className="fa-solid fa-at fa-fw mr-1 text-blue-400" /> Email: {user.external_email ?? 'No email'}
             </p>
           )}
           {settings.show_added_section && (

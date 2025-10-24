@@ -9,8 +9,8 @@ type PageHeaderProps = {
 export const PageHeader = ({ title, description, actions }: PageHeaderProps) => {
   return (
     <div className="flex flex-col gap-4 border-b border-base-300 pb-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0 flex-1">
           <h1 className="text-3xl font-semibold text-base-content md:text-4xl">
             {title}
           </h1>
@@ -20,7 +20,7 @@ export const PageHeader = ({ title, description, actions }: PageHeaderProps) => 
             </p>
           ) : null}
         </div>
-        {actions ? <div className="flex items-center gap-2">{actions}</div> : null}
+        {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
       </div>
     </div>
   );

@@ -106,27 +106,19 @@ export const LogsPage = () => {
   const totalPages = pagination?.total_pages || 1;
   const hasFilters = searchMessage || eventType || relatedUser;
 
+  const headerActions = (
+    <Button variant="destructive" size="sm" onClick={() => setShowClearModal(true)}>
+      <i className="fa-solid fa-trash-can mr-2" /> Clear Logs
+    </Button>
+  );
+
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="mb-8">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center flex-shrink-0">
-            <i className="fa-solid fa-timeline text-blue-500 text-lg" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold mb-1">Application Logs</h1>
-            <p className="text-sm text-muted-foreground">View system events, user actions, and errors</p>
-          </div>
-        </div>
-
-        {/* Clear Logs Button */}
-        <div className="flex justify-end">
-          <Button variant="destructive" size="sm" onClick={() => setShowClearModal(true)}>
-            <i className="fa-solid fa-trash-can mr-2" /> Clear Logs
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title="Application Logs"
+        description="View system events, user actions, and errors"
+        actions={headerActions}
+      />
 
       {/* Filter Section */}
       <Card>

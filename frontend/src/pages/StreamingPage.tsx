@@ -17,6 +17,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { IconDots } from '@tabler/icons-react';
 
 type ActiveSession = {
   // Basic identifiers
@@ -754,21 +755,10 @@ export const StreamingPage = () => {
         </div>
       )}
 
-      <button
-        type="button"
-        className="btn btn-ghost btn-sm"
-        onClick={() => setSettingsOpen(true)}
-        title="Streaming Settings"
-      >
-        <i className="fa-solid fa-cog" />
-      </button>
-
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="sm" type="button" title="Change view">
-            <i className="fa-solid fa-eye mr-1" />
-            View
-            <i className="fa-solid fa-chevron-down fa-xs ml-1" />
+          <Button variant="ghost" size="sm" type="button" title="More options">
+            <IconDots className="h-4 w-4" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuPortal>
@@ -779,42 +769,50 @@ export const StreamingPage = () => {
             sideOffset={8}
             collisionPadding={8}
           >
-            <DropdownMenuLabel>View mode</DropdownMenuLabel>
+            <DropdownMenuItem onSelect={() => setSettingsOpen(true)}>
+              <i className="fa-solid fa-cog fa-fw mr-2" />
+              Settings
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={handleManualRefresh} disabled={loading}>
+              {loading ? (
+                <span className="loading loading-spinner loading-xs mr-2" />
+              ) : (
+                <i className="fa-solid fa-sync fa-fw mr-2" />
+              )}
+              Refresh
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={() => setViewMode('merged')}>
+            <DropdownMenuLabel>View mode</DropdownMenuLabel>
+            <DropdownMenuItem
+              onSelect={() => setViewMode('merged')}
+              className={viewMode === 'merged' ? 'bg-primary/10' : ''}
+            >
               <i className="fa-solid fa-layer-group fa-fw mr-2" />
-              {viewMode === 'merged' ? <span className="font-semibold">Merged</span> : 'Merged'}
+              <span className="flex-1">Merged</span>
+              <div className="flex items-center gap-2">
+                <Badge variant="secondary" className="text-xs">Default</Badge>
+                {viewMode === 'merged' && <i className="fa-solid fa-check fa-fw text-primary" />}
+              </div>
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => setViewMode('categorized')}>
+            <DropdownMenuItem
+              onSelect={() => setViewMode('categorized')}
+              className={viewMode === 'categorized' ? 'bg-primary/10' : ''}
+            >
               <i className="fa-solid fa-server fa-fw mr-2" />
-              {viewMode === 'categorized' ? (
-                <span className="font-semibold">Categorized by Server</span>
-              ) : (
-                'Categorized by Server'
-              )}
+              <span className="flex-1">Categorized by Server</span>
+              {viewMode === 'categorized' && <i className="fa-solid fa-check fa-fw ml-2 text-primary" />}
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => setViewMode('service')}>
+            <DropdownMenuItem
+              onSelect={() => setViewMode('service')}
+              className={viewMode === 'service' ? 'bg-primary/10' : ''}
+            >
               <i className="fa-solid fa-cogs fa-fw mr-2" />
-              {viewMode === 'service' ? (
-                <span className="font-semibold">Categorized by Service</span>
-              ) : (
-                'Categorized by Service'
-              )}
+              <span className="flex-1">Categorized by Service</span>
+              {viewMode === 'service' && <i className="fa-solid fa-check fa-fw ml-2 text-primary" />}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenuPortal>
       </DropdownMenu>
-
-      <button
-        type="button"
-        className="btn btn-secondary btn-sm"
-        onClick={handleManualRefresh}
-        disabled={loading}
-      >
-        {loading && <span className="loading loading-spinner loading-xs" />}
-        {!loading && <i className="fa-solid fa-sync mr-1" />}
-        Refresh
-      </button>
     </div>
   );
 

@@ -71,9 +71,14 @@ def list_users():
     sort = (request.args.get('sort') or '').lower()
 
     if sort == 'username_asc':
-        query = query.order_by(func.lower(User.localUsername).asc())
+        # Sort by username, using localUsername for local users and external_username for service users
+        query = query.order_by(
+            func.lower(func.coalesce(User.localUsername, User.external_username)).asc()
+        )
     elif sort == 'username_desc':
-        query = query.order_by(func.lower(User.localUsername).desc())
+        query = query.order_by(
+            func.lower(func.coalesce(User.localUsername, User.external_username)).desc()
+        )
     elif sort == 'created_asc':
         query = query.order_by(User.created_at.asc())
     else:
@@ -88,6 +93,7 @@ def list_users():
             'uuid': user.uuid,
             'username': user.localUsername or user.external_username,
             'email': user.email or user.discord_email,
+            'external_email': user.external_email,
             'user_type': user.userType.value,
             'display_name': user.get_display_name() if hasattr(user, 'get_display_name') else None,
             'avatar_url': _get_avatar_url(user),

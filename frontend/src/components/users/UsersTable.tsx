@@ -1,14 +1,17 @@
+import { useState, useEffect } from 'react';
 import { Pagination } from '../common/Pagination';
 import { useNavigate } from 'react-router-dom';
 import { buildUserProfilePath } from '../../util/routes';
 import { Checkbox } from '../ui/checkbox';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { Skeleton } from '../ui/skeleton';
+import clsx from 'clsx';
 
 export type UserRow = {
   uuid: string;
   username?: string;
   email?: string;
+  external_email?: string;
   user_type: string;
   display_name?: string;
   avatar_url?: string | null;
@@ -56,6 +59,43 @@ type UsersTableProps = {
   onToggleSelection?: (userId: string) => void;
   onToggleSelectAll?: () => void;
   selectAllState?: 'none' | 'some' | 'all';
+};
+
+const UserAvatar = ({ user }: { user: UserRow }) => {
+  const [avatarError, setAvatarError] = useState(false);
+  const serviceType = user.service_type?.toLowerCase();
+  const isService = user.user_type.toLowerCase() === 'service';
+
+  const avatarClasses = clsx(
+    'w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium text-white',
+    isService
+      ? serviceType === 'plex' ? 'bg-plex'
+      : serviceType === 'jellyfin' ? 'bg-jellyfin'
+      : serviceType === 'emby' ? 'bg-emby'
+      : serviceType === 'kavita' ? 'bg-kavita'
+      : serviceType === 'audiobookshelf' ? 'bg-audiobookshelf'
+      : serviceType === 'komga' ? 'bg-komga'
+      : serviceType === 'romm' ? 'bg-romm'
+      : 'bg-primary'
+      : 'bg-primary'
+  );
+
+  if (user.avatar_url && !avatarError) {
+    return (
+      <img
+        src={user.avatar_url}
+        alt={user.display_name || user.username || 'User'}
+        className="w-8 h-8 rounded-full object-cover ring-2 ring-primary/20"
+        onError={() => setAvatarError(true)}
+      />
+    );
+  }
+
+  return (
+    <div className={avatarClasses}>
+      {(user.display_name || user.username || 'U')[0].toUpperCase()}
+    </div>
+  );
 };
 
 export const UsersTable = ({
@@ -106,6 +146,7 @@ export const UsersTable = ({
                 />
               </TableHead>
             )}
+            {columns.name ? <TableHead className="w-12"></TableHead> : null}
             {columns.name ? <TableHead>Name</TableHead> : null}
             {columns.email ? <TableHead>Email</TableHead> : null}
             {columns.type ? <TableHead>Type</TableHead> : null}
@@ -123,6 +164,11 @@ export const UsersTable = ({
                     <Skeleton className="h-4 w-4" />
                   </TableCell>
                 )}
+                {columns.name ? (
+                  <TableCell>
+                    <Skeleton className="h-8 w-8 rounded-full" />
+                  </TableCell>
+                ) : null}
                 {columns.name ? (
                   <TableCell>
                     <Skeleton className="h-4 w-32" />
@@ -178,11 +224,16 @@ export const UsersTable = ({
                       </TableCell>
                     )}
                     {columns.name ? (
+                      <TableCell>
+                        <UserAvatar user={user} />
+                      </TableCell>
+                    ) : null}
+                    {columns.name ? (
                       <TableCell className="font-medium">
                         {user.display_name || user.username || 'Unnamed User'}
                       </TableCell>
                     ) : null}
-                    {columns.email ? <TableCell className="text-muted-foreground">{user.email ?? '—'}</TableCell> : null}
+                    {columns.email ? <TableCell className="text-muted-foreground">{user.external_email ?? '—'}</TableCell> : null}
                     {columns.type ? <TableCell className="capitalize text-muted-foreground">{user.user_type}</TableCell> : null}
                     {columns.roles ? (
                       <TableCell>
@@ -224,7 +275,7 @@ export const UsersTable = ({
               })}
               {users.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={(Object.values(columns).filter(Boolean).length || 1) + (onToggleSelection ? 1 : 0)} className="py-12 text-center text-sm text-muted-foreground">
+                  <TableCell colSpan={(Object.values(columns).filter(Boolean).length || 1) + (onToggleSelection ? 1 : 0) + (columns.name ? 1 : 0)} className="py-12 text-center text-sm text-muted-foreground">
                     No users match the current filters.
                   </TableCell>
                 </TableRow>

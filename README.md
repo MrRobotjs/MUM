@@ -67,7 +67,7 @@ The easiest way to deploy MUM is with Docker.
     ```yaml
     services:
       mum:
-        image: ghcr.io/mrrobotjs/mum:latest
+        image: ghcr.io/mrrobotjs/mum:latest # Highly encouraged to check github releases and use the latest version instead of using ‘latest’
         container_name: mum
         restart: unless-stopped
         ports:

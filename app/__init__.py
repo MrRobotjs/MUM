@@ -5,7 +5,7 @@ from logging.handlers import RotatingFileHandler
 import secrets
 from datetime import datetime 
 from werkzeug.middleware.proxy_fix import ProxyFix
-from flask import Flask, g, request, redirect, url_for, current_app, render_template, flash
+from flask import Flask, g, request, redirect, url_for, current_app, render_template, flash, send_from_directory, jsonify
 from flask_login import current_user
 
 from .config import config
@@ -15,8 +15,9 @@ from .extensions import (
     login_manager,
     csrf,
     scheduler,
-    babel, 
-    htmx
+    babel,
+    htmx,
+    socketio
 )
 from .models import User, UserType, Setting, EventType
 from .utils import helpers 
@@ -72,11 +73,40 @@ def register_error_handlers(app):
     def bad_request_page(error): 
         # Check if this is a CSRF error
         error_description = str(error.description) if hasattr(error, 'description') else ""
+        wants_json = (
+            request.path.startswith('/admin/api/')
+            or request.accept_mimetypes['application/json'] >= request.accept_mimetypes['text/html']
+        )
+        if wants_json:
+            response = jsonify({
+                'error': {
+                    'code': 'BAD_REQUEST',
+                    'message': error_description or 'Bad request.'
+                }
+            })
+            response.status_code = 400
+            return response
         return render_template("errors/400.html", error_description=error_description), 400
     @app.errorhandler(403)
     def forbidden_page(error): return render_template("errors/403.html"), 403
+    @app.route('/favicon.ico')
+    def favicon():
+        return send_from_directory(os.path.join(app.root_path, 'static'), 'favicon.ico', mimetype='image/x-icon')
+
     @app.errorhandler(404)
-    def page_not_found(error): return render_template("errors/404.html"), 404
+    def page_not_found(error):
+        from flask import current_app
+        from flask_login import current_user
+
+        if request.path.startswith('/admin') and current_user.is_authenticated:
+            dist_path = os.path.join(current_app.root_path, 'static', 'dist')
+            index_path = os.path.join(dist_path, 'index.html')
+            if os.path.exists(index_path):
+                current_app.logger.debug('Serving React SPA for 404 path: %s', request.path)
+                return send_from_directory(dist_path, 'index.html')
+
+        return render_template("errors/404.html"), 404
+
     @app.errorhandler(500)
     def server_error_page(error): return render_template("errors/500.html"), 500
     
@@ -127,6 +157,7 @@ def create_app(config_name=None):
     csrf.init_app(app)
     htmx.init_app(app)
     babel.init_app(app, locale_selector=get_locale_for_babel)
+    socketio.init_app(app)
     
     # Define custom unauthorized handler to route to correct login page based on requested endpoint
     @login_manager.unauthorized_handler
@@ -231,13 +262,23 @@ def create_app(config_name=None):
                         try:
                             engine_conn_scheduler = db.engine.connect()
                             if db.engine.dialect.has_table(engine_conn_scheduler, Setting.__tablename__):
-                                from .services import task_service 
+                                from .services import task_service
                                 task_service.schedule_all_tasks()
                                 app.logger.info("Scheduled background tasks successfully.")
+
+                                try:
+                                    from .services.plex_websocket_monitor import start_plex_websocket_monitor
+                                    start_plex_websocket_monitor(app)
+                                except Exception as plex_ws_error:
+                                    app.logger.error(
+                                        "Failed to start Plex WebSocket monitor: %s",
+                                        plex_ws_error,
+                                        exc_info=True,
+                                    )
                             else:
                                 app.logger.warning("Init.py - Settings table not found when trying to schedule tasks; task scheduling that depends on DB settings is skipped.")
                         except Exception as e_task_sched:
-                             app.logger.error(f"Init.py - Error during task scheduling DB interaction or call: {e_task_sched}", exc_info=True)
+                            app.logger.error(f"Init.py - Error during task scheduling DB interaction or call: {e_task_sched}", exc_info=True)
                         finally:
                             if engine_conn_scheduler:
                                 engine_conn_scheduler.close()
@@ -523,15 +564,21 @@ def create_app(config_name=None):
     app.register_blueprint(admin_management_bp, url_prefix='/admin/settings/admins')
     from .routes.role_management import bp as role_management_bp
     app.register_blueprint(role_management_bp, url_prefix='/admin/settings/admin/roles')
-    from .routes.users import bp as users_bp
-    app.register_blueprint(users_bp, url_prefix='/admin/users')
+    # Legacy users blueprint disabled - now using React SPA for /admin/users
+    # from .routes.users import bp as users_bp
+    # app.register_blueprint(users_bp, url_prefix='/admin/users')
     from .routes.admin_user import admin_user_bp
     app.register_blueprint(admin_user_bp, url_prefix='/admin/user')
+    # Legacy invites blueprints - admin disabled, public still active for invite acceptance
     from .routes.invites import bp_public as invites_public_bp, bp_admin as invites_admin_bp
-    app.register_blueprint(invites_public_bp)
-    app.register_blueprint(invites_admin_bp, url_prefix='/admin/invites')
+    app.register_blueprint(invites_public_bp)  # Keep public invites active for accepting invites
+    # app.register_blueprint(invites_admin_bp, url_prefix='/admin/invites')  # Disabled - using React SPA
     from .routes.api import bp as api_bp
     app.register_blueprint(api_bp, url_prefix='/admin/api')
+    from .routes.public_api_v1 import bp as public_api_v1_bp
+    app.register_blueprint(public_api_v1_bp, url_prefix='/api/v1')
+    from .routes.api_v1 import bp as api_v1_bp
+    app.register_blueprint(api_v1_bp, url_prefix='/admin/api/v1')
     from .routes.user import bp as user_bp
     app.register_blueprint(user_bp)
     # Media servers - needed for setup routes
@@ -544,9 +591,48 @@ def create_app(config_name=None):
     app.register_blueprint(user_preferences_bp, url_prefix='/settings/preferences')
     from .routes.streaming import bp as streaming_bp
     app.register_blueprint(streaming_bp, url_prefix='/admin')
-    from .routes.libraries import bp as libraries_bp
-    app.register_blueprint(libraries_bp, url_prefix='/admin')
-    
+    # Legacy libraries blueprint disabled - now using React SPA for /admin/libraries
+    # from .routes.libraries import bp as libraries_bp
+    # app.register_blueprint(libraries_bp, url_prefix='/admin')
+    from .routes.websockets import bp as websockets_bp
+    app.register_blueprint(websockets_bp)
+
+    # Register React SPA blueprint LAST to act as catch-all for /admin UI routes
+    # This serves the React app for any /admin path not handled by the above blueprints
+    # IMPORTANT: Must be registered after all other /admin blueprints
+    from .routes.admin_spa import admin_spa_bp
+    app.register_blueprint(admin_spa_bp, url_prefix='/admin')
+
+    def _serve_admin_settings_spa():
+        dist_path = os.path.join(app.root_path, 'static', 'dist')
+        index_path = os.path.join(dist_path, 'index.html')
+        if not os.path.exists(index_path):
+            current_app.logger.error('React SPA build not found at %s', index_path)
+            return (
+                '<h1>React App Not Built</h1>'
+                '<p>The React admin interface has not been built yet.</p>'
+                '<p>Please run: <code>cd frontend && npm run build</code></p>'
+            ), 500
+
+        return send_from_directory(dist_path, 'index.html')
+
+    @app.before_request
+    def _intercept_admin_settings_spa():
+        if request.method != 'GET':
+            return None
+
+        path = request.path.rstrip('/')
+        if not path.startswith('/admin/settings'):
+            return None
+
+        if path.startswith('/admin/api'):
+            return None
+
+        if path == '/admin/settings' or path.startswith('/admin/settings'):
+            return _serve_admin_settings_spa()
+
+        return None
+
 
     register_error_handlers(app)
 

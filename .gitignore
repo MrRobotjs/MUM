@@ -23,3 +23,4 @@ MUM/
 node_modules/*
 acli.exe
 geminilog.txt
+node_modules

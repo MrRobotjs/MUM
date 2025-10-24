@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, current_app, request
+from flask import Blueprint, current_app, request, send_from_directory
 from flask_login import login_required
 from datetime import datetime, timezone, timedelta
 from collections import defaultdict
@@ -8,6 +8,7 @@ from app.extensions import db
 from app.utils.helpers import setup_required, permission_required, format_duration
 from app.services.media_service_factory import MediaServiceFactory
 from app.services.media_service_manager import MediaServiceManager
+import os
 
 bp = Blueprint('dashboard', __name__)
 
@@ -449,143 +450,35 @@ def _generate_admin_streaming_chart_data(days=7):
         'date_range_days': days
     }
 
+def _render_react_spa(sub_path: str = 'dashboard'):
+    """Serve the compiled React SPA instead of legacy templates."""
+    dist_path = os.path.join(current_app.root_path, 'static', 'dist')
+    index_path = os.path.join(dist_path, 'index.html')
+
+    if not os.path.exists(index_path):
+        current_app.logger.error("React SPA build not found at %s", index_path)
+        current_app.logger.error("Please run: cd frontend && npm run build")
+        return (
+            "<h1>React App Not Built</h1>"
+            "<p>The React admin interface has not been built yet.</p>"
+            "<p>Please run: <code>cd frontend && npm run build</code></p>"
+        ), 500
+
+    current_app.logger.debug("Routing admin %s view to React SPA", sub_path)
+    return send_from_directory(dist_path, 'index.html')
+
+
 @bp.route('/')
 @bp.route('/dashboard')
 @login_required
 @setup_required
 @permission_required('view_dashboard')
 def index():
-    current_app.logger.info("=== ADMIN DASHBOARD ROUTE START ===")
-    
-    current_app.logger.debug("Dashboard: Fetching total users count (local + service users)")
-    
-    # Count local users (userType=LOCAL)
-    local_users_count = User.query.filter_by(userType=UserType.LOCAL).count()
-    current_app.logger.debug(f"Dashboard: Local users: {local_users_count}")
-    
-    # Count ALL service users (userType=SERVICE records - both standalone AND linked)
-    # This matches the /users page logic which shows each service user as a separate card
-    all_service_users_count = User.query.filter_by(userType=UserType.SERVICE).count()
-    current_app.logger.debug(f"Dashboard: All service users (standalone + linked): {all_service_users_count}")
-    
-    # Total managed users (matches /users page logic exactly)
-    total_users = local_users_count + all_service_users_count
-    current_app.logger.debug(f"Dashboard: Total managed users: {total_users}")
-    
-    current_app.logger.debug("Dashboard: Fetching active invites count")
-    active_invites_count = Invite.query.filter(
-        Invite.is_active == True,
-        (Invite.expires_at == None) | (Invite.expires_at > db.func.now()), # Use db.func.now() for DB comparison
-        (Invite.max_uses == None) | (Invite.current_uses < Invite.max_uses)
-    ).count()
-    current_app.logger.debug(f"Dashboard: Active invites: {active_invites_count}")
-
-    # Get active streams count - Load asynchronously to avoid blocking dashboard
-    current_app.logger.debug("Dashboard: Setting active streams count to 0 for initial load (will be fetched asynchronously)")
-    active_streams_count = 0
-    # NOTE: Active streams will be loaded via HTMX after page load to avoid blocking
-
-    # Server Status Card Logic - Check for cached status first
-    current_app.logger.debug("Dashboard: Getting server list and checking for cached status")
-    all_servers = MediaServiceManager.get_all_servers(active_only=True)
-    server_count = len(all_servers)
-    current_app.logger.debug(f"Dashboard: Found {server_count} servers in database")
-    
-    # Check if any servers have never been checked (last_status is None)
-    unchecked_servers = [server for server in all_servers if server.last_status is None]
-    
-    if unchecked_servers:
-        current_app.logger.info(f"Dashboard: Found {len(unchecked_servers)} servers that have never been checked - performing automatic first check")
-        # Perform automatic first check for all servers
-        from app.routes.api import get_fresh_server_status
-        server_status_data = get_fresh_server_status()
-        current_app.logger.debug("Dashboard: Automatic first server check completed")
-    else:
-        # Check for stored server status in database
-        from app.routes.api import get_stored_server_status
-        stored_status = get_stored_server_status()
-        
-        if stored_status:
-            current_app.logger.debug("Dashboard: Using stored server status from database")
-            server_status_data = stored_status
-        else:
-            current_app.logger.debug("Dashboard: No stored status, showing initial state")
-            # Just pass basic server info for initial load, actual status will be loaded via HTMX
-            server_status_data = {
-                'loading': True,
-                'server_count': server_count,
-                'servers': [{'id': server.id, 'name': server.server_nickname, 'service_type': server.service_type.value} for server in all_servers]
-            }
-    current_app.logger.debug("Dashboard: Server status data prepared")
-
-    current_app.logger.debug("Dashboard: Fetching recent activities")
-    recent_activities = HistoryLog.query.order_by(HistoryLog.timestamp.desc()).limit(10).all()
-    recent_activities_count = HistoryLog.query.count()
-    current_app.logger.debug(f"Dashboard: Recent activities: {len(recent_activities)}, total count: {recent_activities_count}")
-
-    # Generate admin streaming chart data (last 7 days by default)
-    current_app.logger.debug("Dashboard: Generating admin streaming chart data")
-    days_param = request.args.get('days', '7')
-    try:
-        if days_param == 'all':
-            days = -1
-        else:
-            days = int(days_param)
-            if days not in [7, 30, 90]:
-                days = 7
-    except (ValueError, TypeError):
-        days = 7
-    
-    chart_data = _generate_admin_streaming_chart_data(days)
-    current_app.logger.debug(f"Dashboard: Chart data generated for {days} days")
-
-    # Get service filters from request
-    service_filters = request.args.getlist('services')  # Get list of selected services
-    if not service_filters:
-        service_filters = None  # Show all services by default
-    
-    # Get available services for the filter dropdown
-    from app.models_media_services import MediaServer, ServiceType
-    available_services = db.session.query(MediaServer.service_type).distinct().all()
-    available_services = [service.service_type for service in available_services]
-    
-    # Generate watch statistics data
-    current_app.logger.debug("Dashboard: Generating watch statistics data")
-    watch_statistics_data = _generate_watch_statistics_data(days, service_filters)
-    current_app.logger.debug(f"Dashboard: Watch statistics data generated")
-    
-    # Generate top users data
-    current_app.logger.debug("Dashboard: Generating top users data")
-    top_users_data = _generate_top_users_data(days, limit=5)
-    current_app.logger.debug(f"Dashboard: Top users data generated with {len(top_users_data)} users")
-
-    current_app.logger.info("Dashboard: Rendering template with data")
-    current_app.logger.debug(f"Dashboard: Template data - users: {total_users}, invites: {active_invites_count}, streams: {active_streams_count}, servers: {server_count}, activities: {len(recent_activities)}")
-    
-    result = render_template('dashboard/index.html',
-                           title="Dashboard",
-                           total_users=total_users,
-                           active_invites_count=active_invites_count,
-                           active_streams_count=active_streams_count,
-                           server_status=server_status_data,
-                           recent_activities=recent_activities,
-                           recent_activities_count=recent_activities_count,
-                           chart_data=chart_data,
-                           watch_statistics_data=watch_statistics_data,
-                           top_users_data=top_users_data,
-                           selected_days=days,
-                           available_services=available_services,
-                           selected_services=service_filters or [])
-    
-    current_app.logger.info("=== ADMIN DASHBOARD ROUTE COMPLETE ===")
-    return result
+    return _render_react_spa('dashboard')
 
 @bp.route('/account', methods=['GET', 'POST'])
 @login_required
 @setup_required
 @permission_required('manage_general_settings')
 def account():
-    """Admin account page - redirects to settings implementation"""
-    # Import here to avoid circular imports
-    from app.routes.settings import account as settings_account_handler
-    return settings_account_handler()
+    return _render_react_spa('account')

@@ -1,148 +1,328 @@
 # File: app/services/task_service.py
 from flask import current_app
-from app.extensions import scheduler 
+from app.extensions import scheduler
 from app.models import Setting, EventType, User, UserType
-from app.models_media_services import ServiceType, MediaStreamHistory
+from app.models_media_services import MediaServer, MediaStreamHistory, ServiceType
 from app.utils.helpers import log_event
-from . import user_service # user_service is needed for deleting users
+from . import user_service  # user_service is needed for deleting users
 from app.services.media_service_manager import MediaServiceManager
-from datetime import datetime, timezone, timedelta 
+from datetime import datetime, timezone, timedelta
 from app.extensions import db
+from typing import Any, Dict, Iterable, Optional, Set, Union
 
-_active_stream_sessions = {}
+# session_key -> {'history_id': int, 'service_type': str, 'server_id': Optional[int]}
+_active_stream_sessions: Dict[str, Dict[str, Any]] = {}
+
+def _normalize_service_type_set(
+    types: Optional[Iterable[Union[ServiceType, str]]]
+) -> Optional[Set[ServiceType]]:
+    if types is None:
+        return None
+    normalized: Set[ServiceType] = set()
+    for svc_type in types:
+        if isinstance(svc_type, ServiceType):
+            normalized.add(svc_type)
+        elif isinstance(svc_type, str):
+            try:
+                normalized.add(ServiceType(svc_type.lower()))
+            except ValueError:
+                current_app.logger.warning(
+                    "task_service: Ignoring unknown service type '%s' in filter",
+                    svc_type,
+                )
+        else:
+            current_app.logger.warning(
+                "task_service: Unsupported service type filter value %s (%s)",
+                svc_type,
+                type(svc_type),
+            )
+    return normalized
+
+def _get_total_tracked_session_count() -> int:
+    return len(_active_stream_sessions)
 
 # --- Scheduled Tasks ---
 
 def monitor_media_sessions_task():
     """
-    Statefully monitors media sessions from all services (Plex, Jellyfin, etc.), with corrected session tracking and duration calculation.
-    - Creates a new MediaStreamHistory record when a new session starts.
-    - Continuously updates the view offset (progress) on the SAME record for an ongoing session.
-    - Correctly calculates final playback duration from the last known viewOffset when the session stops.
-    - Enforces "No 4K Transcoding" user setting with improved detection.
+    Background scheduler entry point. Delegates to _run_media_session_monitor with the standard
+    configuration (exclude Plex, which is handled by the WebSocket monitor).
+    """
+    with scheduler.app.app_context():
+        _run_media_session_monitor(
+            source="scheduler",
+            exclude_service_types={ServiceType.PLEX},
+        )
+
+def _run_media_session_monitor(
+    include_service_types: Optional[Iterable[Union[ServiceType, str]]] = None,
+    exclude_service_types: Optional[Iterable[Union[ServiceType, str]]] = None,
+    source: str = "manual",
+    live_service_types: Optional[Iterable[Union[ServiceType, str]]] = None,
+) -> None:
+    """
+    Core logic for processing active media sessions, parameterised so it can be invoked from the
+    APScheduler job as well as real-time WebSocket monitors (e.g. Plex).
     """
     global _active_stream_sessions
-    with scheduler.app.app_context():
-        current_app.logger.info("=== MEDIA SESSION MONITOR TASK STARTING ===")
-        
-        # Check for any active media servers from the database
-        all_servers = MediaServiceManager.get_all_servers(active_only=True)
-        current_app.logger.debug(f"Found {len(all_servers)} active media servers in database")
-        
-        for server in all_servers:
-            current_app.logger.debug(f"Server - Name: {server.server_nickname}, Type: {server.service_type.value}, Active: {server.is_active}")
-        
-        if not all_servers:
-            current_app.logger.warning("No active media servers configured in the database. Skipping task.")
-            return
 
-        try:
-            # This gets sessions from all active servers (Plex, Jellyfin, etc.)
-            current_app.logger.debug("Calling MediaServiceManager.get_all_active_sessions()...")
-            active_sessions = MediaServiceManager.get_all_active_sessions()
-            now_utc = datetime.now(timezone.utc)
-            current_app.logger.debug(f"Retrieved {len(active_sessions)} active sessions from MediaServiceManager")
-            
-            if len(active_sessions) == 0:
-                current_app.logger.debug("No active sessions found - this could be normal if no one is streaming")
-            else:
-                current_app.logger.debug(f"Active sessions details:")
-                for i, session in enumerate(active_sessions):
-                    if isinstance(session, dict):
-                        current_app.logger.debug(f"  Session {i+1}: Jellyfin session ID {session.get('Id', 'unknown')}")
-                    else:
-                        current_app.logger.debug(f"  Session {i+1}: Plex session key {getattr(session, 'sessionKey', 'unknown')}")
-            
-            current_app.logger.info(f"Found {len(active_sessions)} active sessions across all servers.")
+    source_label = source.upper()
+    current_app.logger.info("=== MEDIA SESSION MONITOR (%s) STARTING ===", source_label)
 
-            # Handle both Plex and Jellyfin session formats
-            current_sessions_dict = {}
-            for session in active_sessions:
-                # Extract session key based on session type
+    target_include = _normalize_service_type_set(include_service_types)
+    target_exclude = _normalize_service_type_set(exclude_service_types)
+    live_service_filter = _normalize_service_type_set(live_service_types)
+
+    # Check for any active media servers from the database
+    all_servers = MediaServiceManager.get_all_servers(active_only=True)
+    target_servers = []
+    for server in all_servers:
+        include_server = True
+        if target_include is not None:
+            include_server = server.service_type in target_include
+        if include_server and target_exclude is not None:
+            include_server = server.service_type not in target_exclude
+        if include_server:
+            target_servers.append(server)
+
+    current_app.logger.debug(
+        "[%s] Considering %d/%d active media servers for monitoring",
+        source_label,
+        len(target_servers),
+        len(all_servers),
+    )
+
+    for server in target_servers:
+        current_app.logger.debug(
+            "[%s] Server - Name: %s, Type: %s, Active: %s",
+            source_label,
+            server.server_nickname,
+            server.service_type.value,
+            server.is_active,
+        )
+
+    if not target_servers:
+        current_app.logger.warning(
+            "[%s] No matching active media servers configured in the database. Skipping monitor.",
+            source_label,
+        )
+        return
+
+    try:
+        target_service_types = {server.service_type for server in target_servers}
+        live_services_payload = (
+            sorted(service.value for service in live_service_filter)
+            if live_service_filter
+            else []
+        )
+
+        # This gets sessions from the targeted servers
+        current_app.logger.debug(
+            "[%s] Calling MediaServiceManager.get_all_active_sessions() for %s",
+            source_label,
+            ", ".join(sorted(s.value for s in target_service_types)),
+        )
+        active_sessions = MediaServiceManager.get_all_active_sessions(target_service_types)
+        now_utc = datetime.now(timezone.utc)
+        current_app.logger.debug(
+            "[%s] Retrieved %d active sessions from MediaServiceManager",
+            source_label,
+            len(active_sessions),
+        )
+
+        if not active_sessions:
+            current_app.logger.debug(
+                "[%s] No active sessions found - this could be normal if no one is streaming",
+                source_label,
+            )
+        else:
+            current_app.logger.debug("[%s] Active sessions details:", source_label)
+            for index, session in enumerate(active_sessions, start=1):
                 if isinstance(session, dict):
-                    # Jellyfin session (dict format)
-                    session_key = session.get('Id')
+                    current_app.logger.debug(
+                        "  Session %d: Jellyfin session ID %s",
+                        index,
+                        session.get('Id', 'unknown'),
+                    )
                 else:
-                    # Plex session (object format)
-                    session_key = getattr(session, 'sessionKey', None)
-                
-                if session_key:
-                    current_sessions_dict[session_key] = session
-                else:
-                    session_type = "Jellyfin" if isinstance(session, dict) else "Plex"
-                    current_app.logger.warning(f"Session missing key: {session_type} - {type(session)}")
-            
-            current_session_keys = set(current_sessions_dict.keys())
+                    current_app.logger.debug(
+                        "  Session %d: Plex session key %s",
+                        index,
+                        getattr(session, 'sessionKey', 'unknown'),
+                    )
 
-            # Step 1: Check for stopped streams
-            stopped_session_keys = set(_active_stream_sessions.keys()) - current_session_keys
-            if stopped_session_keys:
-                current_app.logger.info(f"Found {len(stopped_session_keys)} stopped sessions: {list(stopped_session_keys)}")
-                for session_key in stopped_session_keys:
-                    stream_history_id = _active_stream_sessions.pop(session_key, None)
+        current_app.logger.info(
+            "[%s] Found %d active sessions across monitored servers.",
+            source_label,
+            len(active_sessions),
+        )
+
+        # Handle both Plex and Jellyfin session formats
+        current_sessions_dict: Dict[str, Any] = {}
+        session_service_map: Dict[str, str] = {}
+        session_server_map: Dict[str, Optional[int]] = {}
+        target_service_type_values = {svc.value for svc in target_service_types}
+        server_lookup = {server.id: server for server in target_servers}
+
+        for session in active_sessions:
+            if isinstance(session, dict):
+                session_key = session.get('Id')
+                service_type_value = session.get('service_type') or ServiceType.JELLYFIN.value
+                server_id = session.get('server_id')
+            else:
+                session_key = getattr(session, 'sessionKey', None)
+                service_type_attr = getattr(session, 'service_type', None)
+                if isinstance(service_type_attr, ServiceType):
+                    service_type_value = service_type_attr.value
+                elif isinstance(service_type_attr, str):
+                    service_type_value = service_type_attr
+                else:
+                    service_type_value = ServiceType.PLEX.value
+                server_id = getattr(session, 'server_id', None)
+
+            if session_key:
+                session_key_str = str(session_key)
+                current_sessions_dict[session_key_str] = session
+                session_service_map[session_key_str] = str(service_type_value).lower()
+                if isinstance(server_id, int):
+                    session_server_map[session_key_str] = server_id
+                elif isinstance(server_id, str) and server_id.isdigit():
+                    session_server_map[session_key_str] = int(server_id)
+                else:
+                    session_server_map[session_key_str] = None
+            else:
+                session_type = "Jellyfin" if isinstance(session, dict) else "Plex"
+                current_app.logger.warning(
+                    "[%s] Session missing key: %s - %s",
+                    source_label,
+                    session_type,
+                    type(session),
+                )
+
+        current_session_keys = set(current_sessions_dict.keys())
+
+        # Step 1: Check for stopped streams (only for monitored service types)
+        tracked_keys_in_scope = {
+            key
+            for key, meta in _active_stream_sessions.items()
+            if meta.get('service_type') in target_service_type_values
+        }
+        stopped_session_keys = tracked_keys_in_scope - current_session_keys
+        if stopped_session_keys:
+            current_app.logger.info(
+                "[%s] Found %d stopped sessions: %s",
+                source_label,
+                len(stopped_session_keys),
+                list(stopped_session_keys),
+            )
+            for session_key in stopped_session_keys:
+                session_meta = _active_stream_sessions.pop(session_key, None)
+                if session_meta:
+                    stream_history_id = session_meta.get('history_id')
                     if stream_history_id:
                         history_record = db.session.get(MediaStreamHistory, stream_history_id)
                         if history_record and not history_record.stopped_at:
                             final_duration = history_record.view_offset_at_end_seconds
-                            history_record.duration_seconds = final_duration if final_duration and final_duration > 0 else 0
+                            history_record.duration_seconds = (
+                                final_duration if final_duration and final_duration > 0 else 0
+                            )
                             history_record.stopped_at = now_utc
-                            current_app.logger.info(f"DURATION DEBUG: Session {session_key} stopped - view_offset_at_end_seconds: {history_record.view_offset_at_end_seconds}s, final duration_seconds: {history_record.duration_seconds}s")
-                            current_app.logger.info(f"Marked session {session_key} (DB ID: {stream_history_id}) as stopped. Final duration: {history_record.duration_seconds}s.")
+                            current_app.logger.info(
+                                "[%s] DURATION DEBUG: Session %s stopped - view_offset_at_end_seconds: %ss, final duration_seconds: %ss",
+                                source_label,
+                                session_key,
+                                history_record.view_offset_at_end_seconds,
+                                history_record.duration_seconds,
+                            )
+                            current_app.logger.info(
+                                "[%s] Marked session %s (DB ID: %s) as stopped. Final duration: %ss.",
+                                source_label,
+                                session_key,
+                                stream_history_id,
+                                history_record.duration_seconds,
+                            )
                         else:
-                            current_app.logger.warning(f"Could not find or already stopped history record for DB ID {stream_history_id}")
-            
-            # Step 2: Check for new and ongoing streams
-            if not current_sessions_dict:
-                current_app.logger.info("No new or ongoing sessions to process.")
-            else:
-                current_app.logger.info(f"Processing {len(current_sessions_dict)} new or ongoing sessions...")
+                            current_app.logger.warning(
+                                "[%s] Could not find or already stopped history record for DB ID %s",
+                                source_label,
+                                stream_history_id,
+                            )
+                else:
+                    current_app.logger.debug(
+                        "[%s] Session metadata missing when attempting to stop session %s",
+                        source_label,
+                        session_key,
+                    )
 
-            # Import MediaServer for both Plex and Jellyfin session handling
-            from app.models_media_services import MediaServer
-            
+        # Step 2: Check for new and ongoing streams
+        if not current_sessions_dict:
+            current_app.logger.info("[%s] No new or ongoing sessions to process.", source_label)
+        else:
+            current_app.logger.info(
+                "[%s] Processing %d new or ongoing sessions...",
+                source_label,
+                len(current_sessions_dict),
+            )
+
             for session_key, session in current_sessions_dict.items():
+                service_type_value = session_service_map.get(session_key, ServiceType.PLEX.value)
+                try:
+                    service_type_enum = ServiceType(service_type_value)
+                except ValueError:
+                    service_type_enum = ServiceType.JELLYFIN if isinstance(session, dict) else ServiceType.PLEX
+
+                server_id = session_server_map.get(session_key)
+                current_server = None
+                if server_id is not None:
+                    current_server = server_lookup.get(server_id)
+                if not current_server:
+                    current_server = next(
+                        (srv for srv in target_servers if srv.service_type == service_type_enum),
+                        None,
+                    )
+
+                if not current_server:
+                    current_app.logger.warning(
+                        "[%s] Could not determine media server for session %s (service=%s). Skipping.",
+                        source_label,
+                        session_key,
+                        service_type_enum.value,
+                    )
+                    continue
+
                 # Handle different session formats for user lookup
                 mum_user = None
                 user_media_access = None
                 
-                if isinstance(session, dict):
-                    # Jellyfin session - look up by username
+                if service_type_enum == ServiceType.JELLYFIN and isinstance(session, dict):
                     jellyfin_username = session.get('UserName')
                     if jellyfin_username:
-                        # Find service user for Jellyfin username on the correct server
-                        jellyfin_server = MediaServer.query.filter_by(service_type=ServiceType.JELLYFIN).first()
-                        if jellyfin_server:
-                            user_media_access = User.query.filter_by(userType=UserType.SERVICE).filter_by(
-                                server_id=jellyfin_server.id,
-                                external_username=jellyfin_username
-                            ).first()
-                            if user_media_access:
-                                # Check if it's linked to a local user account
-                                current_app.logger.debug(f"LINKED: Found service user for Jellyfin username '{jellyfin_username}' (ID: {user_media_access.id})")
-                                current_app.logger.debug(f"LINKED: linkedUserId = {user_media_access.linkedUserId}")
-                                current_app.logger.debug(f"LINKED: external_username = {user_media_access.external_username}")
-                                current_app.logger.debug(f"LINKED: server = {user_media_access.server.server_nickname}")
-                                
-                                # In unified model, get linked user via linkedUserId
-                                mum_user = None
-                                if user_media_access.linkedUserId:
-                                    mum_user = User.query.filter_by(userType=UserType.LOCAL, uuid=user_media_access.linkedUserId).first()
-                                current_app.logger.debug(f"LINKED: linked user = {mum_user}")
-                                
-                                if not mum_user:
-                                    current_app.logger.info(f"Found standalone service user for Jellyfin username '{jellyfin_username}' (ID: {user_media_access.id}). Processing as standalone user.")
-                                else:
-                                    current_app.logger.info(f"Found linked service user for Jellyfin username '{jellyfin_username}' (ID: {user_media_access.id}) linked to local user (ID: {mum_user.id}, username: {mum_user.localUsername}). Processing as linked user.")
+                        user_media_access = User.query.filter_by(userType=UserType.SERVICE).filter_by(
+                            server_id=current_server.id,
+                            external_username=jellyfin_username
+                        ).first()
+                        if user_media_access:
+                            current_app.logger.debug(f"LINKED: Found service user for Jellyfin username '{jellyfin_username}' (ID: {user_media_access.id})")
+                            current_app.logger.debug(f"LINKED: linkedUserId = {user_media_access.linkedUserId}")
+                            current_app.logger.debug(f"LINKED: external_username = {user_media_access.external_username}")
+                            current_app.logger.debug(f"LINKED: server = {user_media_access.server.server_nickname}")
+                            
+                            mum_user = None
+                            if user_media_access.linkedUserId:
+                                mum_user = User.query.filter_by(userType=UserType.LOCAL, uuid=user_media_access.linkedUserId).first()
+                            current_app.logger.debug(f"LINKED: linked user = {mum_user}")
+                            
+                            if not mum_user:
+                                current_app.logger.info(f"Found standalone service user for Jellyfin username '{jellyfin_username}' (ID: {user_media_access.id}). Processing as standalone user.")
                             else:
-                                current_app.logger.warning(f"No service user found for Jellyfin username '{jellyfin_username}' on server '{jellyfin_server.server_nickname}'. Skipping session.")
-                                continue
+                                current_app.logger.info(f"Found linked service user for Jellyfin username '{jellyfin_username}' (ID: {user_media_access.id}) linked to local user (ID: {mum_user.id}, username: {mum_user.localUsername}). Processing as linked user.")
                         else:
-                            current_app.logger.warning(f"No Jellyfin server configured. Skipping session {session_key}.")
+                            current_app.logger.warning(f"No service user found for Jellyfin username '{jellyfin_username}' on server '{current_server.server_nickname}'. Skipping session.")
                             continue
                     else:
                         current_app.logger.warning(f"Jellyfin session {session_key} is missing UserName. Skipping.")
                         continue
-                else:
+                elif service_type_enum == ServiceType.PLEX:
                     # Plex session - look up by user ID via service user
                     user_id_from_session = None
                     
@@ -160,7 +340,7 @@ def monitor_media_sessions_task():
                     
                     if user_id_from_session:
                         # Look up user by external_user_id in service user for Plex server
-                        plex_server = MediaServer.query.filter_by(service_type=ServiceType.PLEX).first()
+                        plex_server = current_server
                         if plex_server:
                             user_media_access = User.query.filter_by(userType=UserType.SERVICE).filter_by(
                                 server_id=plex_server.id,
@@ -192,6 +372,14 @@ def monitor_media_sessions_task():
                     else:
                         current_app.logger.warning(f"Could not extract user ID from Plex session {session_key}. Skipping.")
                         continue
+                else:
+                    current_app.logger.debug(
+                        "[%s] Unsupported service type %s for session %s. Skipping.",
+                        source_label,
+                        service_type_enum.value,
+                        session_key,
+                    )
+                    continue
                 
                 # Process session for user
 
@@ -264,20 +452,6 @@ def monitor_media_sessions_task():
                             # Try alternative fields that might contain library information
                             library_name = now_playing.get('ChannelName', None) or now_playing.get('CollectionType', None)
 
-                    # Determine which server this session belongs to
-                    if isinstance(session, dict):
-                        # Jellyfin session - find Jellyfin server
-                        jellyfin_server = MediaServer.query.filter_by(service_type=ServiceType.JELLYFIN).first()
-                        current_server = jellyfin_server
-                    else:
-                        # Plex session - find Plex server
-                        plex_server = MediaServer.query.filter_by(service_type=ServiceType.PLEX).first()
-                        current_server = plex_server
-                    
-                    if not current_server:
-                        current_app.logger.warning(f"Could not find server for session {session_key}. Skipping.")
-                        continue
-                    
                     # Safety check to ensure we have either a linked user or standalone user
                     if not mum_user and not user_media_access:
                         current_app.logger.warning(f"No user found for session {session_key}. Skipping.")
@@ -325,14 +499,22 @@ def monitor_media_sessions_task():
                     current_app.logger.debug(f"About to flush database session...")
                     db.session.flush() # Flush to get the ID
                     
-                    _active_stream_sessions[session_key] = new_history_record.id
+                    _active_stream_sessions[session_key] = {
+                        "history_id": new_history_record.id,
+                        "service_type": service_type_enum.value,
+                        "server_id": current_server.id if current_server else None,
+                    }
                     current_app.logger.debug(f"Successfully created MediaStreamHistory record (ID: {new_history_record.id}) for session {session_key}.")
                     current_app.logger.debug(f"Added session {session_key} to _active_stream_sessions tracking")
                 
                 # If the session is ongoing, update its progress
                 else:
                     current_app.logger.debug(f"Updating existing session {session_key}")
-                    history_record_id = _active_stream_sessions.get(session_key)
+                    session_meta = _active_stream_sessions.get(session_key)
+                    if session_meta is not None:
+                        session_meta["server_id"] = current_server.id if current_server else session_meta.get("server_id")
+                        session_meta["service_type"] = service_type_enum.value
+                    history_record_id = session_meta.get("history_id") if session_meta else None
                     if history_record_id:
                         current_app.logger.debug(f"Found history record ID {history_record_id} for session {session_key}")
                         history_record = db.session.get(MediaStreamHistory, history_record_id)
@@ -371,11 +553,26 @@ def monitor_media_sessions_task():
             current_app.logger.debug("About to commit all database changes...")
             db.session.commit()
             current_app.logger.debug("Database commit successful!")
-            current_app.logger.info("=== MEDIA SESSION MONITOR TASK FINISHED ===")
-            
-        except Exception as e:
-            db.session.rollback()
-            current_app.logger.error(f"Fatal error in monitor_plex_sessions_task: {e}", exc_info=True)
+
+            # Broadcast WebSocket update with current active session count
+            try:
+                from app.routes.websockets import broadcast_streaming_update
+                active_count = _get_total_tracked_session_count()
+                broadcast_streaming_update(active_count, live_services=live_services_payload)
+                current_app.logger.debug(f"Broadcasted WebSocket update: {active_count} active sessions")
+            except Exception as ws_error:
+                current_app.logger.warning(f"Failed to broadcast WebSocket update: {ws_error}")
+
+            current_app.logger.info("=== MEDIA SESSION MONITOR (%s) FINISHED ===", source_label)
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(
+            "Fatal error in media session monitor (%s): %s",
+            source_label,
+            e,
+            exc_info=True,
+        )
 
 def check_user_access_expirations_task():
     """

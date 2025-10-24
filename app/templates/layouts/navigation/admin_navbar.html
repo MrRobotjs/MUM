@@ -17,9 +17,9 @@
     <div class="navbar-center hidden lg:flex"> {# Desktop main navigation, shown only on lg and up #}
         <ul class="menu menu-horizontal px-1">
             <li><a href="{{ url_for('dashboard.index') }}" class="{{ 'active menu-active' if request.endpoint == 'dashboard.index' else '' }}"><i class="fa-solid fa-chart-line mr-1"></i> Dashboard</a></li>
-            <li><a href="{{ url_for('users.list_users') }}" class="{{ 'active menu-active' if request.endpoint and request.endpoint.startswith('users.') else '' }}"><i class="fa-solid fa-users mr-1"></i> Users</a></li>
-            <li><a href="{{ url_for('invites_admin.list_invites') }}" class="{{ 'active menu-active' if request.endpoint and request.endpoint.startswith('invites_admin.') else '' }}"><i class="fa-solid fa-ticket mr-1"></i> Invites</a></li>
-            <li><a href="{{ url_for('libraries.index') }}" class="{{ 'active menu-active' if request.endpoint == 'libraries.index' else '' }}"><i class="fa-solid fa-layer-group mr-1"></i> Libraries</a></li>
+            <li><a href="/admin/users" class="{{ 'active menu-active' if request.path.startswith('/admin/users') else '' }}"><i class="fa-solid fa-users mr-1"></i> Users</a></li>
+            <li><a href="/admin/invites" class="{{ 'active menu-active' if request.path.startswith('/admin/invites') else '' }}"><i class="fa-solid fa-ticket mr-1"></i> Invites</a></li>
+            <li><a href="/admin/libraries" class="{{ 'active menu-active' if request.path.startswith('/admin/libraries') else '' }}"><i class="fa-solid fa-layer-group mr-1"></i> Libraries</a></li>
             <li><a href="{{ url_for('streaming.index') }}" class="{{ 'active menu-active' if request.endpoint == 'streaming.index' else '' }}"><i class="fa-solid fa-tower-broadcast mr-1"></i> Streaming <span id="streaming-badge-desktop" class="badge badge-primary badge-sm ml-1" style="display: none;">0</span></a></li>
         </ul>
     </div>

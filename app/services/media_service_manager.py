@@ -1,5 +1,5 @@
 # File: app/services/media_service_manager.py
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, Iterable, List, Optional, Set, Union
 from flask import current_app
 from app.models_media_services import MediaServer, MediaLibrary, ServiceType
 from app.models import User, UserType, Setting
@@ -622,13 +622,52 @@ class MediaServiceManager:
         return user
     
     @staticmethod
-    def get_all_active_sessions() -> List[Dict[str, Any]]:
-        """Get active sessions from all servers"""
-        current_app.logger.warning("MediaServiceManager.get_all_active_sessions() called - THIS MAKES API CALLS TO ALL SERVERS")
+    def get_all_active_sessions(
+        service_types: Optional[Iterable[Union[ServiceType, str]]] = None,
+    ) -> List[Dict[str, Any]]:
+        """Get active sessions from all (or selected) servers"""
+        type_filter: Optional[Set[ServiceType]] = None
+        if service_types is not None:
+            type_filter = set()
+            for svc_type in service_types:
+                if isinstance(svc_type, ServiceType):
+                    type_filter.add(svc_type)
+                elif isinstance(svc_type, str):
+                    try:
+                        type_filter.add(ServiceType(svc_type.lower()))
+                    except ValueError:
+                        current_app.logger.warning(
+                            "MediaServiceManager: Ignoring unknown service type '%s' in get_all_active_sessions filter",
+                            svc_type,
+                        )
+                else:
+                    current_app.logger.warning(
+                        "MediaServiceManager: Unsupported service type filter value %s (%s)",
+                        svc_type,
+                        type(svc_type),
+                    )
+
+        if type_filter:
+            current_app.logger.warning(
+                "MediaServiceManager.get_all_active_sessions() called for service types: %s - THIS MAKES API CALLS TO MATCHING SERVERS",
+                ", ".join(sorted(t.value for t in type_filter)),
+            )
+        else:
+            current_app.logger.warning(
+                "MediaServiceManager.get_all_active_sessions() called with no filter - THIS MAKES API CALLS TO ALL SERVERS"
+            )
+
         all_sessions = []
         
         servers = MediaServiceManager.get_all_servers()
-        current_app.logger.debug(f"MediaServiceManager: Found {len(servers)} servers to check for active sessions")
+        if type_filter:
+            servers = [server for server in servers if server.service_type in type_filter]
+
+        current_app.logger.debug(
+            "MediaServiceManager: Found %d servers to check for active sessions (filter=%s)",
+            len(servers),
+            ", ".join(sorted(t.value for t in type_filter)) if type_filter else "none",
+        )
         
         for server in servers:
             current_app.logger.warning(f"MediaServiceManager: Making API call to server '{server.server_nickname}' ({server.service_type.value}) at {server.url}")

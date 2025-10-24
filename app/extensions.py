@@ -7,6 +7,7 @@ from flask_session import Session # If using Flask-Session
 from flask_apscheduler import APScheduler
 from flask_babel import Babel
 from flask_htmx import HTMX
+from flask_socketio import SocketIO
 from cachetools import TTLCache
 
 # Database
@@ -39,6 +40,10 @@ babel = Babel()
 
 # Flask-HTMX
 htmx = HTMX()
+
+# Flask-SocketIO for WebSocket support
+# Use eventlet for production (Gunicorn compatibility)
+socketio = SocketIO(cors_allowed_origins="*", async_mode='eventlet')
 
 # Global in-memory cache example (e.g., for Plex libraries, server status for short periods)
 # Cache for 5 minutes, max 100 items

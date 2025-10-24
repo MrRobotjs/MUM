@@ -1,9 +1,10 @@
-from flask import Blueprint, render_template, request, current_app, flash, redirect, url_for
+from flask import Blueprint, request, current_app, flash, redirect, url_for, send_from_directory
 from flask_login import login_required, current_user
 from app.utils.helpers import setup_required, permission_required
 from app.services.media_service_manager import MediaServiceManager
 from app.services.media_service_factory import MediaServiceFactory
 from app.models import User, UserType, Setting
+import os
 
 bp = Blueprint('streaming', __name__)
 
@@ -34,10 +35,20 @@ def index():
         streaming_refresh_interval_seconds = default_interval
 
     current_app.logger.debug(f"Streaming page will use refresh interval: {streaming_refresh_interval_seconds} seconds.")
-    
-    return render_template('streaming/index.html', 
-                           title="Active Streams", 
-                           streaming_refresh_interval=streaming_refresh_interval_seconds)
+
+    dist_path = os.path.join(current_app.root_path, 'static', 'dist')
+    index_path = os.path.join(dist_path, 'index.html')
+
+    if not os.path.exists(index_path):
+        current_app.logger.error("React SPA build not found at %s", index_path)
+        return (
+            "<h1>React App Not Built</h1>"
+            "<p>The React admin interface has not been built yet.</p>"
+            "<p>Please run: <code>cd frontend && npm run build</code></p>"
+        ), 500
+
+    current_app.logger.debug("Serving React SPA for streaming page")
+    return send_from_directory(dist_path, 'index.html')
 
 @bp.route('/streaming/partial')
 @login_required

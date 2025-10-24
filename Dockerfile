@@ -51,10 +51,7 @@ RUN mkdir -p /app/instance /.cache
 
 # Healthcheck and expose (already good)
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-  CMD curl -fs http://localhost:5000/health || exit 1
+  CMD sh -c "curl -fs http://localhost:${FLASK_PORT:-5000}/health || exit 1"
 EXPOSE 5000
 ENTRYPOINT ["/bin/sh", "/usr/local/bin/entrypoint.sh"]
-CMD ["gunicorn", \
-     "--bind", "0.0.0.0:5000", \
-     "--forwarded-allow-ips", "*", \
-     "run:app"]
+CMD ["sh", "-c", "gunicorn --worker-class eventlet -w 1 --bind 0.0.0.0:${FLASK_PORT:-5000} --forwarded-allow-ips='*' run:app"]

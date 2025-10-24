@@ -35,7 +35,7 @@ def plex_oauth_callback():
         temp_invite_for_redirect = Invite.query.get(invite_id)
         if temp_invite_for_redirect: 
             invite_path_or_token_for_redirect = temp_invite_for_redirect.custom_path or temp_invite_for_redirect.token
-    
+
     fallback_redirect = url_for('invites.process_invite_form', invite_path_or_token=invite_path_or_token_for_redirect)
     
     if not invite_id or not pin_code_from_session or not pin_id_from_session or not client_id_from_session:
@@ -52,6 +52,10 @@ def plex_oauth_callback():
     if not invite: 
         flash('Invite not found. Try again.', 'danger')
         return redirect(url_for('invites.invite_landing_page'))
+
+    return_path = session.get(f'invite_{invite.id}_return_path')
+    if return_path:
+        fallback_redirect = return_path
     
     try:
         # Use direct API approach exactly like the sample code
@@ -231,6 +235,10 @@ def discord_oauth_callback():
         flash('Discord login failed: Invite information is no longer available. Please try a fresh invite link.', 'danger')
         current_app.logger.warning(f"Discord OAuth Callback: Invite ID {invite_id_from_session} not found in DB after state check.")
         return redirect(generic_invite_landing_url)
+
+    return_path = session.get(f'invite_{invite_object_for_redirect.id}_return_path')
+    if return_path:
+        public_invite_page_url_with_path = return_path
 
     code = request.args.get('code')
     if not code:

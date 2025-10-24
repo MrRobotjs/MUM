@@ -9,6 +9,7 @@ from typing import List, Dict, Any, Optional, Tuple
 from flask import current_app
 from app.services.base_media_service import BaseMediaService
 from app.models_media_services import ServiceType
+from app.models import User, UserType
 from app.utils.timeout_helper import get_api_timeout_with_fallback
 
 
@@ -489,12 +490,21 @@ class JellyfinMediaService(BaseMediaService):
                 # Handle Jellyfin thumbnails
                 thumb_url = None
                 item_id = now_playing.get('Id')
+                series_image_tag = now_playing.get('SeriesPrimaryImageTag') or (now_playing.get('ImageTags') or {}).get('SeriesPrimary')
+                primary_image_tag = now_playing.get('PrimaryImageTag') or (now_playing.get('ImageTags') or {}).get('Primary')
+
                 if item_id:
                     # For episodes, prefer series poster; for movies, use primary image
                     if media_type == 'Episode' and now_playing.get('SeriesId'):
-                        thumb_url = url_for('api.jellyfin_image_proxy', item_id=now_playing.get('SeriesId'), image_type='Primary')
+                        params = {'item_id': now_playing.get('SeriesId'), 'image_type': 'Primary'}
+                        if series_image_tag:
+                            params['image_tag'] = series_image_tag
+                        thumb_url = url_for('api.jellyfin_image_proxy', **params)
                     else:
-                        thumb_url = url_for('api.jellyfin_image_proxy', item_id=item_id, image_type='Primary')
+                        params = {'item_id': item_id, 'image_type': 'Primary'}
+                        if primary_image_tag:
+                            params['image_tag'] = primary_image_tag
+                        thumb_url = url_for('api.jellyfin_image_proxy', **params)
                 
                 is_transcoding = play_state.get('PlayMethod') == 'Transcode'
                 

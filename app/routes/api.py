@@ -710,91 +710,47 @@ def sync_library_content(library_id):
                 raise
             
             if has_changes:
-                # Use the original result (which already has the correct list and count fields)
-                normalized_result = result.copy()
-                current_app.logger.debug(f"About to render template with normalized_result keys: {list(normalized_result.keys())}")
-                
-                try:
-                    # Show modal for changes or errors
-                    modal_html = render_template('libraries/_partials/library_content_sync_results_modal.html',
-                                               sync_result=normalized_result,
-                                               library_name=library.name)
-                    current_app.logger.debug(f"Template rendered successfully")
-                except Exception as e:
-                    current_app.logger.debug(f"Error rendering template: {e}")
-                    current_app.logger.debug(f"normalized_result data: {normalized_result}")
-                    raise
-                
-                try:
-                    if result.get('errors') and len(result.get('errors', [])) > 0:
-                        message = f"Library sync completed with {len(result.get('errors', []))} errors. See details."
-                        category = "warning"
-                    else:
-                        message = f"Library sync complete. {added} added, {updated} updated, {removed} removed."
-                        category = "success"
-                    current_app.logger.debug(f"Message created: {message}")
-                except Exception as e:
-                    current_app.logger.debug(f"Error creating message: {e}")
-                    raise
-                
-                trigger_payload = {
-                    "showToastEvent": {"message": message, "category": category},
-                    "openLibraryContentSyncResultsModal": True,
-                    "refreshLibraryPage": True
-                }
-                headers = {
-                    'HX-Retarget': '#library_content_sync_results_modal',
-                    'HX-Reswap': 'innerHTML',
-                    'HX-Trigger-After-Swap': json.dumps(trigger_payload)
-                }
-                return make_response(modal_html, 200, headers)
+                # Return JSON response for React frontend
+                current_app.logger.debug(f"Library sync has changes, returning JSON response")
+
+                # Create success message
+                if result.get('errors') and len(result.get('errors', [])) > 0:
+                    message = f"Library sync completed with {len(result.get('errors', []))} errors. See details."
+                else:
+                    message = f"Library sync complete. {added} added, {updated} updated, {removed} removed."
+
+                return jsonify({
+                    'success': True,
+                    'message': message,
+                    'result': result
+                })
             else:
-                # No changes - just show toast (no page refresh needed)
-                current_app.logger.debug("Taking NO CHANGES path - should show toast only")
+                # No changes - return JSON response
+                current_app.logger.debug("Taking NO CHANGES path - returning JSON")
                 total_items = result.get('total_items', 0)
-                trigger_payload = {
-                    "showToastEvent": {
-                        "message": f"Library sync complete. No changes were made to {total_items} items.",
-                        "category": "success"
-                    }
-                }
-                headers = {
-                    'HX-Trigger': json.dumps(trigger_payload)
-                }
-                current_app.logger.debug(f"Returning empty response with headers: {headers}")
-                current_app.logger.debug(f"Trigger payload: {trigger_payload}")
-                response = make_response("", 200, headers)
-                current_app.logger.debug(f"Response created successfully, returning to client")
-                return response
+
+                return jsonify({
+                    'success': True,
+                    'message': f"Library sync complete. No changes were made to {total_items} items.",
+                    'result': result
+                })
         else:
             current_app.logger.error(f"Library sync failed: {result.get('error', 'Unknown error')}")
-            
-            # Return error response
-            toast_payload = {
-                "showToastEvent": {
-                    "message": f"Library sync failed: {result.get('error', 'Unknown error')}",
-                    "category": "error"
-                }
-            }
-            
-            response = make_response("", 500)
-            response.headers['HX-Trigger'] = json.dumps(toast_payload)
-            return response
-            
+
+            # Return JSON error response
+            return jsonify({
+                'success': False,
+                'error': result.get('error', 'Unknown error')
+            }), 500
+
     except Exception as e:
         current_app.logger.error(f"Error in library sync endpoint: {e}")
-        
-        # Return error response
-        toast_payload = {
-            "showToastEvent": {
-                "message": f"Library sync failed: {str(e)}",
-                "category": "error"
-            }
-        }
-        
-        response = make_response("", 500)
-        response.headers['HX-Trigger'] = json.dumps(toast_payload)
-        return response
+
+        # Return JSON error response
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 @bp.route('/libraries/<int:library_id>/purge', methods=['POST'])
 @login_required
@@ -894,6 +850,7 @@ def jellyfin_image_proxy():
     """Proxy Jellyfin images through the application"""
     item_id = request.args.get('item_id')
     image_type = request.args.get('image_type', 'Primary')
+    image_tag = request.args.get('image_tag')
     
     #current_app.logger.info(f"API jellyfin_image_proxy: Received request for item_id='{item_id}', image_type='{image_type}'")
     
@@ -919,6 +876,8 @@ def jellyfin_image_proxy():
 
         # Construct Jellyfin image URL
         jellyfin_image_url = f"{jellyfin_server.url.rstrip('/')}/Items/{item_id}/Images/{image_type}"
+        if image_tag:
+            jellyfin_image_url = f"{jellyfin_image_url}?tag={image_tag}"
         
         #current_app.logger.info(f"API jellyfin_image_proxy: Fetching image from Jellyfin URL: {jellyfin_image_url}")
 

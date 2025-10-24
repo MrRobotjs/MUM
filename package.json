@@ -2,10 +2,7 @@
   "name": "mum-multimedia-user-management",
   "version": "1.0.0",
   "description": "MUM (Multimedia User Management) frontend assets",
-  "scripts": {
-    "build:css": "npx @tailwindcss/cli -i ./app/static/css/input.css -o ./app/static/css/output.css --minify",
-    "watch:css": "npx @tailwindcss/cli -i ./app/static/css/input.css -o ./app/static/css/output.css --watch"
-  },
+  "scripts": {},
   "main": "index.js",
   "author": "",
   "license": "ISC",
@@ -13,5 +10,8 @@
     "@tailwindcss/cli": "^4.1.8",
     "daisyui": "^5.0.43",
     "tailwindcss": "^4.1.8"
+  },
+  "devDependencies": {
+    "shadcn": "^3.4.0"
   }
 }

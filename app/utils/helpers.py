@@ -1,6 +1,7 @@
 # File: app/utils/helpers.py
 import re
 from datetime import datetime, timezone, timedelta
+from flask_wtf.csrf import generate_csrf
 from app.utils.timezone_utils import to_app_timezone, format_datetime_human as tz_format_datetime_human
 from flask import current_app, flash, url_for, g as flask_g, redirect, request # Use flask_g to avoid conflict with local g
 from functools import wraps
@@ -129,6 +130,11 @@ def log_event(event_type, message: str, details: dict = None, # Removed type hin
     except Exception as e:
         db.session.rollback()
         current_app.logger.error(f"Error logging event (original: {event_type.name} - {message}): {e}")
+
+
+def get_csrf_token():
+    """Generate a CSRF token using Flask-WTF's generator."""
+    return generate_csrf()
 
 def calculate_expiry_date(days: int) -> datetime | None:
     if days is None or days <= 0: return None

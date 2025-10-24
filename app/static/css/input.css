@@ -119,42 +119,6 @@ body {
   @apply font-sans;
 }
 
-/* Default state (no .htmx-request on button) */
-button:not(.htmx-request) > .sync-loader.htmx-indicator {
-  display: none !important; /* Loader hidden */
-}
-button:not(.htmx-request) > .sync-icon.default-icon-state {
-  display: inline-flex !important; /* Icon shown */
-  align-items: center;
-}
-
-/* Loading state (button has .htmx-request) */
-button.htmx-request > .sync-loader.htmx-indicator {
-  display: inline-block !important; /* Loader shown */
-}
-button.htmx-request > .sync-icon.default-icon-state {
-  display: none !important; /* Icon hidden */
-}
-
-/* The .sync-text span has no specific rules here, so it should always inherit 
-   its default display (inline for a span) or be influenced by the parent button's flex properties.
-   DaisyUI's .btn class usually makes children align nicely.
-*/
-
-/* --- General HTMX Indicator Rules (can be kept as fallbacks for other indicators) --- */
-.htmx-indicator {
-  display: none; /* Start transparent for any transition effects */
-  /* display:none; /* This general rule can sometimes be too broad; let specific rules above control button children */
-}
-.htmx-request .htmx-indicator{
-  display: inline-block;
-  /* display:inline-block; /* Again, let specific rules handle display for button children */
-}
-.htmx-request.htmx-indicator{ /* If the element IS the indicator and has htmx-request */
-  display: inline-block;
-}
-/* --- End General --- */
-
 /* --- Custom Animations & Utilities --- */
 
 /* 1. Define Keyframes (standard CSS, Tailwind will include this) */

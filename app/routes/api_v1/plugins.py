@@ -41,10 +41,6 @@ def _plugin_action(plugin_id: str, action: str):
         success = plugin_manager.enable_plugin(plugin_id)
     elif action == 'disable':
         success = plugin_manager.disable_plugin(plugin_id)
-    elif action == 'install':
-        success = plugin_manager.install_plugin(plugin_id)
-    elif action == 'uninstall':
-        success = plugin_manager.uninstall_plugin(plugin_id)
     else:
         return jsonify({'error': {'code': 'INVALID_ACTION', 'message': 'Unsupported plugin action.'}, 'meta': {'request_id': request_id}}), 400
 
@@ -95,20 +91,6 @@ def enable_plugin(plugin_id):
 @permission_required('manage_plugins')
 def disable_plugin(plugin_id):
     return _plugin_action(plugin_id, 'disable')
-
-
-@bp.route('/plugins/<plugin_id>/install', methods=['POST'])
-@login_required
-@permission_required('manage_plugins')
-def install_plugin(plugin_id):
-    return _plugin_action(plugin_id, 'install')
-
-
-@bp.route('/plugins/<plugin_id>/uninstall', methods=['POST'])
-@login_required
-@permission_required('manage_plugins')
-def uninstall_plugin(plugin_id):
-    return _plugin_action(plugin_id, 'uninstall')
 
 
 @bp.route('/plugin-repositories', methods=['GET'])

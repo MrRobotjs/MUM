@@ -11,6 +11,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 
 const normalizeServerPayload = (values: ServerFormValues, pluginId: string) => {
   const payload: Record<string, unknown> = {
@@ -53,22 +55,28 @@ export const PluginDetailPage = () => {
   const { success, error: showError } = useAlerts();
 
   const [modalOpen, setModalOpen] = useState(false);
-  const [editingServer, setEditingServer] = useState<Server | null>(null);
   const [saving, setSaving] = useState(false);
 
   const handleCloseModal = () => {
     setModalOpen(false);
-    setEditingServer(null);
   };
 
   const handleAddServer = () => {
-    setEditingServer(null);
     setModalOpen(true);
   };
 
-  const handleEditServer = (server: Server) => {
-    setEditingServer(server);
-    setModalOpen(true);
+  const handleToggleServerStatus = async (server: Server) => {
+    const newStatus = !server.is_active;
+    try {
+      await requestJson(`/admin/api/v1/servers/${server.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ is_active: newStatus })
+      });
+      success(`Server "${server.server_nickname}" ${newStatus ? 'enabled' : 'disabled'}`);
+      await Promise.all([refreshServers(), refreshPlugins()]);
+    } catch (err) {
+      showError(`Failed to update server status: ${(err as Error).message}`);
+    }
   };
 
   const handleDeleteServer = async (server: Server) => {
@@ -97,19 +105,11 @@ export const PluginDetailPage = () => {
 
     try {
       setSaving(true);
-      if (editingServer) {
-        await requestJson(`/admin/api/v1/servers/${editingServer.id}`, {
-          method: 'PATCH',
-          body: JSON.stringify(payload)
-        });
-        success(`Server "${formValues.server_nickname}" updated`);
-      } else {
-        await requestJson('/admin/api/v1/servers', {
-          method: 'POST',
-          body: JSON.stringify(payload)
-        });
-        success(`Server "${formValues.server_nickname}" added`);
-      }
+      await requestJson('/admin/api/v1/servers', {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      });
+      success(`Server "${formValues.server_nickname}" added`);
 
       await Promise.all([refreshServers(), refreshPlugins()]);
       handleCloseModal();
@@ -155,36 +155,19 @@ export const PluginDetailPage = () => {
 
   const configuredCount = servers.length;
 
+  const headerActions = (
+    <Button onClick={handleAddServer}>
+      Add Server
+    </Button>
+  );
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <Button variant="ghost" onClick={() => navigate('/admin/settings/plugins')}>
-          ← Back
-        </Button>
-        <Button onClick={handleAddServer}>
-          Add Server
-        </Button>
-      </div>
-
       <PageHeader
         title={`${plugin.name} Servers`}
         description="Configure media servers linked to this plugin."
-      >
-        <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-          <Badge variant="outline">Version {plugin.version ?? '—'}</Badge>
-          {plugin.availableVersion && plugin.availableVersion !== plugin.version ? (
-            <Badge variant="secondary">Update available: {plugin.availableVersion}</Badge>
-          ) : null}
-          <Badge variant="outline">
-            {configuredCount} server{configuredCount === 1 ? '' : 's'}
-          </Badge>
-          {plugin.status ? (
-            <Badge variant={plugin.enabled ? 'success' : 'secondary'} className="capitalize">
-              {plugin.status}
-            </Badge>
-          ) : null}
-        </div>
-      </PageHeader>
+        actions={headerActions}
+      />
 
       <Card>
         <CardHeader className="space-y-1">
@@ -359,16 +342,28 @@ export const PluginDetailPage = () => {
                     <Separator />
 
                     <div className="flex items-center justify-between gap-2">
-                      <Button size="sm" variant="outline" onClick={() => handleEditServer(server)}>
-                        Edit
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        onClick={() => handleDeleteServer(server)}
-                      >
-                        Remove
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          id={`server-${server.id}-status`}
+                          checked={server.is_active}
+                          onCheckedChange={() => handleToggleServerStatus(server)}
+                        />
+                        <Label htmlFor={`server-${server.id}-status`} className="text-sm cursor-pointer">
+                          {server.is_active ? 'Enabled' : 'Disabled'}
+                        </Label>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button size="sm" variant="outline" onClick={() => navigate(`/admin/settings/plugins/${pluginId}/servers/${server.id}`)}>
+                          Edit
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => handleDeleteServer(server)}
+                        >
+                          Remove
+                        </Button>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
@@ -381,7 +376,6 @@ export const PluginDetailPage = () => {
       <ServerModal
         open={modalOpen}
         onClose={handleCloseModal}
-        initialValues={editingServer ?? undefined}
         onSubmit={handleSubmit}
         loading={saving}
         serviceTypeLocked

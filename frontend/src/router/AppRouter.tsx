@@ -20,6 +20,7 @@ import UserSettingsGeneralPage from '../pages/UserSettingsGeneralPage';
 import AdminsSettingsPage from '../pages/AdminsSettingsPage';
 import PluginsPage from '../pages/PluginsPage';
 import PluginDetailPage from '../pages/PluginDetailPage';
+import { ServerEditPage } from '../pages/ServerEditPage';
 import DiscordSettingsPage from '../pages/DiscordSettingsPage';
 import AdvancedSettingsPage from '../pages/AdvancedSettingsPage';
 import LogsPage from '../pages/LogsPage';
@@ -52,6 +53,7 @@ export const AppRouter = () => (
           <Route path="settings/user-roles/:roleId/edit" element={<UserRoleEditPage />} />
           <Route path="settings/plugins" element={<PluginsPage />} />
           <Route path="settings/plugins/:pluginId" element={<PluginDetailPage />} />
+          <Route path="settings/plugins/:pluginId/servers/:serverId" element={<ServerEditPage />} />
           <Route path="settings/discord" element={<DiscordSettingsPage />} />
           <Route path="settings/advanced" element={<AdvancedSettingsPage />} />
           <Route path="settings/logs" element={<LogsPage />} />

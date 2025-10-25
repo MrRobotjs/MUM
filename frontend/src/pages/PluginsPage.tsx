@@ -35,21 +35,12 @@ export const PluginsPage = () => {
 
   const handleAction = async (
     plugin: Plugin,
-    action: 'enable' | 'disable' | 'install' | 'uninstall'
+    action: 'enable' | 'disable'
   ) => {
     const pluginId = getPluginKey(plugin)
     if (!pluginId) {
       showError('Plugin identifier missing; cannot perform action.')
       return
-    }
-
-    if (action === 'uninstall') {
-      const confirmed = window.confirm(
-        `Are you sure you want to uninstall "${plugin.name}"?`
-      )
-      if (!confirmed) {
-        return
-      }
     }
 
     const endpoint = `/admin/api/v1/plugins/${pluginId}/${action}`
@@ -60,8 +51,6 @@ export const PluginsPage = () => {
       const pastTense = {
         enable: 'enabled',
         disable: 'disabled',
-        install: 'installed',
-        uninstall: 'uninstalled',
       }[action]
       success(`Plugin "${plugin.name}" ${pastTense}`)
       await refresh()
@@ -172,46 +161,26 @@ export const PluginsPage = () => {
           <Separator />
 
           <div className="flex flex-wrap items-center gap-2">
-            {plugin.installed ? (
-              <>
-                <Button
-                  size="sm"
-                  variant={plugin.enabled ? 'outline' : 'default'}
-                  onClick={() =>
-                    plugin.enabled
-                      ? handleAction(plugin, 'disable')
-                      : handleAction(plugin, 'enable')
-                  }
-                  disabled={isLoading || (!plugin.enabled && !hasServers)}
-                >
-                  {isLoading ? 'Working…' : plugin.enabled ? 'Disable' : 'Enable'}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => handleAction(plugin, 'uninstall')}
-                  disabled={isLoading}
-                >
-                  {isLoading ? 'Working…' : 'Uninstall'}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => navigate(`/admin/settings/plugins/${pluginKey}`)}
-                  disabled={isLoading}
-                >
-                  Configure
-                </Button>
-              </>
-            ) : (
-              <Button
-                size="sm"
-                onClick={() => handleAction(plugin, 'install')}
-                disabled={isLoading}
-              >
-                {isLoading ? 'Working…' : 'Install Plugin'}
-              </Button>
-            )}
+            <Button
+              size="sm"
+              variant={plugin.enabled ? 'outline' : 'default'}
+              onClick={() =>
+                plugin.enabled
+                  ? handleAction(plugin, 'disable')
+                  : handleAction(plugin, 'enable')
+              }
+              disabled={isLoading || (!plugin.enabled && !hasServers)}
+            >
+              {isLoading ? 'Working…' : plugin.enabled ? 'Disable' : 'Enable'}
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => navigate(`/admin/settings/plugins/${pluginKey}`)}
+              disabled={isLoading}
+            >
+              Configure
+            </Button>
             {plugin.repository_url ? (
               <Button
                 asChild
@@ -253,21 +222,11 @@ export const PluginsPage = () => {
       )}
 
       <Card>
-        <CardHeader className="flex flex-col gap-2 pb-2 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <CardTitle>Available Plugins</CardTitle>
-            <p className="text-sm text-muted-foreground">
-              {plugins.length} plugin{plugins.length === 1 ? '' : 's'} available
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={refresh} disabled={loading}>
-              <i className="fa-solid fa-rotate mr-2" /> Reload Plugins
-            </Button>
-            <Button onClick={() => navigate('/admin/settings/plugins/install')}>
-              <i className="fa-solid fa-plus mr-2" /> Install Plugin
-            </Button>
-          </div>
+        <CardHeader>
+          <CardTitle>Available Plugins</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            {plugins.length} plugin{plugins.length === 1 ? '' : 's'} available
+          </p>
         </CardHeader>
         <CardContent className="space-y-8">
           {loading ? (
@@ -314,10 +273,6 @@ export const PluginsPage = () => {
         </CardContent>
       </Card>
 
-      <p className="text-sm text-muted-foreground">
-        {plugins.filter((plugin) => plugin.installed).length} of {plugins.length} plugin
-        {plugins.length === 1 ? '' : 's'} installed
-      </p>
     </div>
   )
 }

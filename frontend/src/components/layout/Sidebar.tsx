@@ -1,8 +1,29 @@
+/**
+ * @deprecated This component is deprecated and no longer used.
+ *
+ * This is the old DaisyUI-based sidebar that was replaced by AppSidebar.tsx (shadcn/ui).
+ *
+ * DO NOT USE THIS COMPONENT. It is kept for reference only.
+ * Use AppSidebar.tsx instead.
+ *
+ * This file can be safely deleted.
+ */
+
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import clsx from 'clsx';
 import { clearCsrfToken, requestJson } from '../../util/apiClient';
 import { useNavigate } from 'react-router-dom';
+import { useState } from 'react';
+import { useAlerts } from '../../contexts/AlertContext';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+  DropdownMenuItem,
+  DropdownMenuPortal,
+} from '../ui/dropdown-menu';
+import { Button } from '../ui/button';
 
 type NavItem = {
   label: string;
@@ -10,6 +31,15 @@ type NavItem = {
   icon: string;
   permission?: string;
   badge?: string | number;
+  hasDropdown?: boolean;
+  dropdownItems?: DropdownItem[];
+};
+
+type DropdownItem = {
+  label: string;
+  icon: string;
+  onClick: () => void;
+  permission?: string;
 };
 
 type NavSection = {
@@ -26,6 +56,8 @@ type SidebarProps = {
 export const Sidebar = ({ onNavigate }: SidebarProps) => {
   const { hasPermission, hasAnyPermission, isOwner, refresh } = useAuth();
   const navigate = useNavigate();
+  const { success, error } = useAlerts();
+  const [isSyncing, setIsSyncing] = useState(false);
 
   const handleLogout = async () => {
     try {
@@ -42,9 +74,44 @@ export const Sidebar = ({ onNavigate }: SidebarProps) => {
     }
   };
 
+  const handleSyncUsers = async () => {
+    if (isSyncing) return;
+
+    setIsSyncing(true);
+    try {
+      const response = await requestJson('/admin/api/v1/users/sync-all', {
+        method: 'POST',
+      });
+
+      success('User sync started successfully');
+    } catch (err: any) {
+      if (err.status === 409) {
+        error(err.message || 'A sync is already in progress');
+      } else {
+        error('Failed to start user sync');
+      }
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   const mainNavItems: NavItem[] = [
     { label: 'Dashboard', path: '/admin/dashboard', icon: 'fa-chart-line' },
-    { label: 'Users', path: '/admin/users', icon: 'fa-users', permission: 'view_users' },
+    {
+      label: 'Users',
+      path: '/admin/users',
+      icon: 'fa-users',
+      permission: 'view_users',
+      hasDropdown: true,
+      dropdownItems: [
+        {
+          label: 'Sync Users',
+          icon: 'fa-rotate',
+          onClick: handleSyncUsers,
+          permission: 'edit_user',
+        },
+      ],
+    },
     { label: 'Invites', path: '/admin/invites', icon: 'fa-ticket', permission: 'view_invites' },
     { label: 'Libraries', path: '/admin/libraries', icon: 'fa-layer-group', permission: 'view_servers' },
     { label: 'Streaming', path: '/admin/streaming', icon: 'fa-tower-broadcast', permission: 'view_streaming' },
@@ -161,21 +228,111 @@ export const Sidebar = ({ onNavigate }: SidebarProps) => {
   return (
     <ul className="menu w-60 min-h-full bg-base-100 p-4 text-base-content shadow-sm sm:w-80">
       {/* Main Navigation */}
-      {mainNavItems.filter(filterByPermission).map((item) => (
-        <li key={item.path}>
-          <NavLink
-            to={item.path}
-            className={({ isActive }) => clsx({ active: isActive })}
-            onClick={onNavigate}
-          >
-            <i className={`fa-solid ${item.icon} fa-fw`}></i>
-            {item.label}
-            {item.badge !== undefined && (
-              <span className="badge badge-primary badge-sm">{item.badge}</span>
-            )}
-          </NavLink>
-        </li>
-      ))}
+      {mainNavItems.filter(filterByPermission).map((item) => {
+        // Check if this item has a dropdown
+        const shouldShowDropdown = item.hasDropdown && item.dropdownItems && item.dropdownItems.length > 0;
+
+        if (shouldShowDropdown) {
+          const visibleDropdownItems = item.dropdownItems!.filter(
+            (dropdownItem) => !dropdownItem.permission || isOwner || hasPermission(dropdownItem.permission)
+          );
+
+          if (visibleDropdownItems.length === 0) {
+            // No dropdown items visible, render as regular link
+            return (
+              <li key={item.path}>
+                <NavLink
+                  to={item.path}
+                  className={({ isActive }) => clsx({ active: isActive })}
+                  onClick={onNavigate}
+                >
+                  <i className={`fa-solid ${item.icon} fa-fw`}></i>
+                  {item.label}
+                  {item.badge !== undefined && (
+                    <span className="badge badge-primary badge-sm">{item.badge}</span>
+                  )}
+                </NavLink>
+              </li>
+            );
+          }
+
+          // Render with shadcn dropdown
+          return (
+            <li key={item.path}>
+              <div className="flex items-center gap-1 w-full">
+                <NavLink
+                  to={item.path}
+                  className={({ isActive }) => clsx('flex-1', { active: isActive })}
+                  onClick={onNavigate}
+                >
+                  <i className={`fa-solid ${item.icon} fa-fw`}></i>
+                  {item.label}
+                  {item.badge !== undefined && (
+                    <span className="badge badge-primary badge-sm">{item.badge}</span>
+                  )}
+                </NavLink>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0 hover:bg-base-200 shrink-0"
+                      type="button"
+                      title="More options"
+                    >
+                      <i className="fa-solid fa-ellipsis-vertical fa-fw" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuPortal>
+                    <DropdownMenuContent
+                      className="w-56 rounded-lg"
+                      align="end"
+                      side="right"
+                      sideOffset={8}
+                      collisionPadding={8}
+                    >
+                      {visibleDropdownItems.map((dropdownItem, idx) => (
+                        <DropdownMenuItem
+                          key={idx}
+                          onSelect={() => {
+                            dropdownItem.onClick();
+                            if (onNavigate) onNavigate();
+                          }}
+                          disabled={isSyncing && dropdownItem.label === 'Sync Users'}
+                        >
+                          {isSyncing && dropdownItem.label === 'Sync Users' ? (
+                            <span className="loading loading-spinner loading-xs mr-2" />
+                          ) : (
+                            <i className={`fa-solid ${dropdownItem.icon} fa-fw mr-2`} />
+                          )}
+                          {dropdownItem.label}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenuPortal>
+                </DropdownMenu>
+              </div>
+            </li>
+          );
+        }
+
+        // Regular nav item without dropdown
+        return (
+          <li key={item.path}>
+            <NavLink
+              to={item.path}
+              className={({ isActive }) => clsx({ active: isActive })}
+              onClick={onNavigate}
+            >
+              <i className={`fa-solid ${item.icon} fa-fw`}></i>
+              {item.label}
+              {item.badge !== undefined && (
+                <span className="badge badge-primary badge-sm">{item.badge}</span>
+              )}
+            </NavLink>
+          </li>
+        );
+      })}
 
       {/* Settings Section */}
       {canAccessSettings && (

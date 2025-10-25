@@ -4,6 +4,7 @@ import { UserDisplaySettingsModal } from '../components/users/UserDisplaySetting
 import { MassEditUsersModal } from '../components/users/MassEditUsersModal';
 import { useUsersPaginated } from '../hooks/useUsersPaginated';
 import { useServerOptions } from '../hooks/useServerOptions';
+import { useSyncStatus } from '../hooks/useSyncStatus';
 import { useAuth } from '../contexts/AuthContext';
 import { useAlerts } from '../contexts/AlertContext';
 import type { UserColumns } from '../components/users/UsersTable';
@@ -39,6 +40,7 @@ import {
   DropdownMenuPortal,
 } from '../components/ui/dropdown-menu';
 import { Card, CardContent } from '../components/ui/card';
+import { Progress } from '../components/ui/progress';
 import { IconDots } from '@tabler/icons-react';
 
 export const UsersListPage = () => {
@@ -47,7 +49,7 @@ export const UsersListPage = () => {
   const [showDisplaySettingsModal, setShowDisplaySettingsModal] = useState(false);
   const [showMassEditModal, setShowMassEditModal] = useState(false);
   const [showFilterDrawer, setShowFilterDrawer] = useState(false);
-  const [syncing, setSyncing] = useState(false);
+  const { syncStatus } = useSyncStatus();
   const { hasPermission } = useAuth();
   const { success, error } = useAlerts();
 
@@ -138,7 +140,6 @@ export const UsersListPage = () => {
       : 'some';
 
   const handleSync = async () => {
-    setSyncing(true);
     try {
       const result = await requestJson<{
         data: {
@@ -191,8 +192,6 @@ export const UsersListPage = () => {
       mutate();
     } catch (err) {
       error(`Failed to sync users: ${err instanceof Error ? err.message : 'Unknown error'}`);
-    } finally {
-      setSyncing(false);
     }
   };
 
@@ -211,8 +210,8 @@ export const UsersListPage = () => {
           sideOffset={8}
           collisionPadding={8}
         >
-          <DropdownMenuItem onSelect={handleSync} disabled={syncing}>
-            {syncing ? (
+          <DropdownMenuItem onSelect={handleSync} disabled={syncStatus.is_syncing}>
+            {syncStatus.is_syncing ? (
               <span className="loading loading-spinner loading-xs mr-2" />
             ) : (
               <i className="fa-solid fa-sync fa-fw mr-2" />
@@ -283,6 +282,44 @@ export const UsersListPage = () => {
         description="View and manage all users across your media services"
         actions={headerActions}
       />
+
+      {/* Sync Progress Bar */}
+      {syncStatus.is_syncing && (
+        <Card className="border-primary/50 bg-primary/5">
+          <CardContent className="p-4">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-sm">
+                <div className="flex items-center gap-2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary" />
+                  <span className="font-medium">
+                    {syncStatus.progress.current_server_name
+                      ? `Syncing ${syncStatus.progress.current_server_name}...`
+                      : 'Syncing users from all servers...'}
+                  </span>
+                </div>
+                <span className="text-xs text-muted-foreground">
+                  {syncStatus.progress.current_server} / {syncStatus.progress.total_servers} servers
+                </span>
+              </div>
+              <Progress
+                value={syncStatus.progress.total_servers > 0
+                  ? (syncStatus.progress.current_server / syncStatus.progress.total_servers) * 100
+                  : 0
+                }
+                className="h-2"
+              />
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-muted-foreground">
+                  {syncStatus.started_by_username && `Started by ${syncStatus.started_by_username}`}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  This may take a few moments...
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Search Bar */}
       <Card className="mb-6">

@@ -8,6 +8,7 @@ import {
   IconStack2,
   IconBroadcast as IconRadio,
   IconDeviceDesktop,
+  IconRefresh,
 } from "@tabler/icons-react"
 
 import { NavMain } from "@/components/layout/NavMain"
@@ -24,14 +25,39 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar"
 import { useAuth } from "@/contexts/AuthContext"
+import { useAlerts } from "@/contexts/AlertContext"
+import { requestJson } from "@/util/apiClient"
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { hasPermission, user: currentUser } = useAuth()
   const { isMobile, setOpenMobile } = useSidebar()
+  const { success, error } = useAlerts()
+  const [isSyncing, setIsSyncing] = React.useState(false)
 
   const handleLogoClick = () => {
     if (isMobile) {
       setOpenMobile(false)
+    }
+  }
+
+  const handleSyncUsers = async () => {
+    if (isSyncing) return
+
+    setIsSyncing(true)
+    try {
+      await requestJson('/admin/api/v1/users/sync-all', {
+        method: 'POST',
+      })
+
+      success('User sync started successfully')
+    } catch (err: any) {
+      if (err.status === 409) {
+        error(err.message || 'A sync is already in progress')
+      } else {
+        error('Failed to start user sync')
+      }
+    } finally {
+      setIsSyncing(false)
     }
   }
 
@@ -45,7 +71,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       title: 'Users',
       url: '/admin/users',
       icon: IconUsers,
-      permission: 'view_users'
+      permission: 'view_users',
+      actions: hasPermission('edit_user') ? [
+        {
+          label: 'Sync Users',
+          icon: IconRefresh,
+          onClick: handleSyncUsers,
+        }
+      ] : undefined,
     },
     {
       title: 'Invites',

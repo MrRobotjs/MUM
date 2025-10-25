@@ -4,6 +4,7 @@ from flask import jsonify, current_app
 from flask_login import login_required, current_user
 
 from app.routes.api_v1 import bp
+from app.routes.api_v1.sync_status import get_sync_status, start_sync, update_sync_progress, end_sync
 from app.models import User, UserType, EventType
 from app.models_media_services import MediaServer
 from app.services.media_service_manager import MediaServiceManager
@@ -26,6 +27,17 @@ def sync_all_users():
     """Sync users from all enabled media servers."""
     request_id = str(uuid4())
 
+    # Check if sync is already in progress
+    current_status = get_sync_status()
+    if current_status['is_syncing']:
+        return jsonify({
+            'error': {
+                'code': 'SYNC_IN_PROGRESS',
+                'message': f'User sync is already in progress (started by {current_status["started_by_username"]} at {current_status["started_at"]})'
+            },
+            'meta': {'request_id': request_id}
+        }), 409
+
     # Get all active media servers
     servers = MediaServer.query.filter_by(is_active=True).all()
 
@@ -41,48 +53,58 @@ def sync_all_users():
             }
         }), 200
 
+    # Mark sync as started
+    start_sync(len(servers))
+
     results = []
     total_added = 0
     total_updated = 0
     total_removed = 0
 
-    for server in servers:
-        try:
-            current_app.logger.info(f"Syncing users for server: {server.server_nickname}")
-            sync_result = MediaServiceManager.sync_server_users(server.id)
-            success = bool(sync_result.get('success'))
-            message = sync_result.get('message', 'Sync completed.' if success else 'Sync failed.')
+    try:
+        for idx, server in enumerate(servers, 1):
+            # Update progress
+            update_sync_progress(idx, len(servers), server.server_nickname)
 
-            added = sync_result.get('added', 0)
-            updated = sync_result.get('updated', 0)
-            removed = sync_result.get('removed', 0)
+            try:
+                current_app.logger.info(f"Syncing users for server: {server.server_nickname}")
+                sync_result = MediaServiceManager.sync_server_users(server.id)
+                success = bool(sync_result.get('success'))
+                message = sync_result.get('message', 'Sync completed.' if success else 'Sync failed.')
 
-            total_added += added
-            total_updated += updated
-            total_removed += removed
+                added = sync_result.get('added', 0)
+                updated = sync_result.get('updated', 0)
+                removed = sync_result.get('removed', 0)
 
-            results.append({
-                'server_id': server.id,
-                'server_name': server.server_nickname,
-                'service_type': server.service_type.value if hasattr(server.service_type, 'value') else str(server.service_type),
-                'success': success,
-                'added': added,
-                'updated': updated,
-                'removed': removed,
-                'message': message
-            })
-        except Exception as exc:
-            current_app.logger.error(f"User sync failed for server {server.id} ({server.server_nickname}): {exc}", exc_info=True)
-            results.append({
-                'server_id': server.id,
-                'server_name': server.server_nickname,
-                'service_type': server.service_type.value if hasattr(server.service_type, 'value') else str(server.service_type),
-                'success': False,
-                'added': 0,
-                'updated': 0,
-                'removed': 0,
-                'message': str(exc)
-            })
+                total_added += added
+                total_updated += updated
+                total_removed += removed
+
+                results.append({
+                    'server_id': server.id,
+                    'server_name': server.server_nickname,
+                    'service_type': server.service_type.value if hasattr(server.service_type, 'value') else str(server.service_type),
+                    'success': success,
+                    'added': added,
+                    'updated': updated,
+                    'removed': removed,
+                    'message': message
+                })
+            except Exception as exc:
+                current_app.logger.error(f"User sync failed for server {server.id} ({server.server_nickname}): {exc}", exc_info=True)
+                results.append({
+                    'server_id': server.id,
+                    'server_name': server.server_nickname,
+                    'service_type': server.service_type.value if hasattr(server.service_type, 'value') else str(server.service_type),
+                    'success': False,
+                    'added': 0,
+                    'updated': 0,
+                    'removed': 0,
+                    'message': str(exc)
+                })
+    finally:
+        # Always end sync status when done
+        end_sync()
 
     log_event(
         EventType.SETTING_CHANGE,

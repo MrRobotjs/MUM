@@ -201,23 +201,23 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection }: UserCa
 
   const cardGradient = () => {
     if (!isService) {
-      return 'bg-gradient-to-br from-card to-primary/10';
+      return 'bg-gradient-to-br from-card to-primary/20';
     }
     switch (serviceType) {
       case 'plex':
-        return 'bg-gradient-to-br from-card to-plex/10';
+        return 'bg-gradient-to-br from-card to-plex/20';
       case 'jellyfin':
-        return 'bg-gradient-to-br from-card to-jellyfin/10';
+        return 'bg-gradient-to-br from-card to-jellyfin/20';
       case 'emby':
-        return 'bg-gradient-to-br from-card to-emby/10';
+        return 'bg-gradient-to-br from-card to-emby/20';
       case 'kavita':
-        return 'bg-gradient-to-br from-card to-kavita/10';
+        return 'bg-gradient-to-br from-card to-kavita/20';
       case 'audiobookshelf':
-        return 'bg-gradient-to-br from-card to-audiobookshelf/10';
+        return 'bg-gradient-to-br from-card to-audiobookshelf/20';
       case 'komga':
-        return 'bg-gradient-to-br from-card to-komga/10';
+        return 'bg-gradient-to-br from-card to-komga/20';
       case 'romm':
-        return 'bg-gradient-to-br from-card to-romm/10';
+        return 'bg-gradient-to-br from-card to-romm/20';
       default:
         return 'bg-card';
     }

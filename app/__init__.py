@@ -17,7 +17,8 @@ from .extensions import (
     scheduler,
     babel,
     htmx,
-    socketio
+    socketio,
+    cache
 )
 from .models import User, UserType, Setting, EventType
 from .utils import helpers 
@@ -158,6 +159,13 @@ def create_app(config_name=None):
     htmx.init_app(app)
     babel.init_app(app, locale_selector=get_locale_for_babel)
     socketio.init_app(app)
+
+    # Initialize Flask-Caching with simple in-memory backend
+    # For production with multiple workers, change to Redis
+    cache.init_app(app, config={
+        'CACHE_TYPE': 'simple',  # In-memory cache for single worker
+        'CACHE_DEFAULT_TIMEOUT': 3600  # 1 hour default timeout
+    })
     
     # Define custom unauthorized handler to route to correct login page based on requested endpoint
     @login_manager.unauthorized_handler

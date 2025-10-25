@@ -8,7 +8,7 @@ from flask_apscheduler import APScheduler
 from flask_babel import Babel
 from flask_htmx import HTMX
 from flask_socketio import SocketIO
-from cachetools import TTLCache
+from flask_caching import Cache
 
 # Database
 db = SQLAlchemy()
@@ -45,16 +45,10 @@ htmx = HTMX()
 # Use eventlet for production (Gunicorn compatibility)
 socketio = SocketIO(cors_allowed_origins="*", async_mode='eventlet')
 
-# Global in-memory cache example (e.g., for Plex libraries, server status for short periods)
-# Cache for 5 minutes, max 100 items
-# You might want more sophisticated caching (e.g., Flask-Caching with Redis/Memcached) for a larger app.
-# For this project, simple TTLCache might suffice for some non-critical, frequently accessed data.
-# Example: plex_server_info_cache = TTLCache(maxsize=10, ttl=300) # 10 items, 5 min TTL
-# Example: plex_libraries_cache = TTLCache(maxsize=5, ttl=3600) # 5 items, 1 hour TTL
-
-# We'll initialize these caches within services or where appropriate to avoid global state issues at import time
-# if they depend on app context or configuration that's not yet available.
-# For now, just declaring the extension instances.
+# Flask-Caching for in-memory caching
+# Uses 'simple' backend for single-worker deployments
+# Can be easily upgraded to Redis by changing CACHE_TYPE in config
+cache = Cache()
 import json
 from sqlalchemy.types import TypeDecorator, TEXT
 

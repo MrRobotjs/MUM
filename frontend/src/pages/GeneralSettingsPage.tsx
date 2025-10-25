@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react';
+import { IconSettings, IconUserPlus } from '@tabler/icons-react';
+
 import { useGeneralSettings, type GeneralSettings } from '../hooks/useSettings';
-import { PageHeader, FormField } from '../components';
+import { PageHeader } from '../components';
 import { requestJson } from '../util/apiClient';
 import { useAlerts } from '../contexts';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Switch } from '../components/ui/switch';
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 
 export const GeneralSettingsPage = () => {
   const { settings, loading, error, refresh } = useGeneralSettings();
@@ -86,7 +88,15 @@ export const GeneralSettingsPage = () => {
       <form onSubmit={handleSubmit} className="space-y-6">
         <Card>
           <CardHeader>
-            <CardTitle>Application</CardTitle>
+            <div className="flex items-center gap-3">
+              <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/20">
+                <IconSettings className="size-5 text-primary" />
+              </div>
+              <div>
+                <CardTitle className="mb-1 text-xl font-semibold">Application</CardTitle>
+                <CardDescription>Set the basics that users see across the app</CardDescription>
+              </div>
+            </div>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
@@ -127,7 +137,15 @@ export const GeneralSettingsPage = () => {
 
         <Card>
           <CardHeader>
-            <CardTitle>User Registration</CardTitle>
+            <div className="flex items-center gap-3">
+              <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/20">
+                <IconUserPlus className="size-5 text-primary" />
+              </div>
+              <div>
+                <CardTitle className="mb-1 text-xl font-semibold">User Registration</CardTitle>
+                <CardDescription>Manage invite flows and required details</CardDescription>
+              </div>
+            </div>
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="space-y-2">

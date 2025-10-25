@@ -1,5 +1,10 @@
 import { useState, useEffect } from 'react';
-import { IconAlertTriangle, IconShieldLock } from '@tabler/icons-react';
+import {
+  IconAlertTriangle,
+  IconShieldLock,
+  IconShieldCheck,
+  IconClockHour4,
+} from '@tabler/icons-react';
 
 import { useAdvancedSettings, type AdvancedSettings } from '../hooks/useSettings';
 import { PageHeader } from '../components';
@@ -8,7 +13,7 @@ import { useAlerts } from '../contexts';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import {
   Alert,
   AlertDescription,
@@ -98,7 +103,15 @@ export const AdvancedSettingsPage = () => {
           <form onSubmit={handleSubmit} className="space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle>Security</CardTitle>
+                <div className="flex items-center gap-3">
+                  <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/20">
+                    <IconShieldCheck className="size-5 text-primary" />
+                  </div>
+                  <div>
+                    <CardTitle className="mb-1 text-xl font-semibold">Security</CardTitle>
+                    <CardDescription>Adjust token and login protection thresholds</CardDescription>
+                  </div>
+                </div>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
@@ -142,7 +155,15 @@ export const AdvancedSettingsPage = () => {
 
             <Card>
               <CardHeader>
-                <CardTitle>Sessions</CardTitle>
+                <div className="flex items-center gap-3">
+                  <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/20">
+                    <IconClockHour4 className="size-5 text-primary" />
+                  </div>
+                  <div>
+                    <CardTitle className="mb-1 text-xl font-semibold">Sessions</CardTitle>
+                    <CardDescription>Control how long signed-in sessions remain active</CardDescription>
+                  </div>
+                </div>
               </CardHeader>
               <CardContent className="space-y-2">
                 <Label htmlFor="session_lifetime">

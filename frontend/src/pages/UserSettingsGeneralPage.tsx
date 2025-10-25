@@ -7,7 +7,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardHeader } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
 import {
   Select,
@@ -94,8 +94,8 @@ const UserSettingsGeneralPage = () => {
               <IconUsers className="size-5 text-primary" />
             </div>
             <div>
-              <h2 className="mb-1 text-xl font-semibold">User Management</h2>
-              <p className="text-sm text-muted-foreground">General configuration for user accounts and settings</p>
+              <CardTitle className="mb-1 text-xl font-semibold">User Management</CardTitle>
+              <CardDescription>General configuration for user accounts and settings</CardDescription>
             </div>
           </div>
         </CardHeader>

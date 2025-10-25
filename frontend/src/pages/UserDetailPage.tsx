@@ -18,6 +18,11 @@ import {
 } from '../components/users';
 import type { ServiceAccount } from '../components/users/ServiceAccountsCard';
 import type { UserSettings } from '../components/users/UserSettingsCard';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Separator } from '@/components/ui/separator';
 
 type TabKey = 'profile' | 'history' | 'settings' | 'overseerr' | 'security';
 
@@ -142,11 +147,11 @@ const ProfileTab = ({ user }: { user: UserDetail }) => {
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
       <div className="space-y-6">
-        <section className="card border border-base-300 bg-base-100 shadow-sm">
-          <div className="card-body space-y-4">
+        <section className="rounded-lg border border-border bg-background shadow-sm">
+          <div className="p-6 space-y-4">
             <header>
               <h3 className="text-lg font-semibold">Account Snapshot</h3>
-              <p className="text-sm text-base-content/60">
+              <p className="text-sm text-muted-foreground">
                 Core identity and service information pulled from connected systems.
               </p>
             </header>
@@ -155,7 +160,7 @@ const ProfileTab = ({ user }: { user: UserDetail }) => {
               <div className="flex items-start gap-3">
                 <i className="fa-solid fa-at mt-1 text-info" />
                 <div>
-                  <div className="text-base-content/70">Email</div>
+                  <div className="text-muted-foreground">Email</div>
                   <div className="font-medium">{user.email ?? user.external_email ?? 'Not provided'}</div>
                 </div>
               </div>
@@ -163,7 +168,7 @@ const ProfileTab = ({ user }: { user: UserDetail }) => {
               <div className="flex items-start gap-3">
                 <i className="fa-solid fa-id-card mt-1 text-success" />
                 <div>
-                  <div className="text-base-content/70">Username</div>
+                  <div className="text-muted-foreground">Username</div>
                   <div className="font-medium">
                     {user.local_username ?? user.external_username ?? user.username ?? 'Unknown'}
                   </div>
@@ -174,7 +179,7 @@ const ProfileTab = ({ user }: { user: UserDetail }) => {
                 <div className="flex items-start gap-3">
                   <i className="fa-solid fa-fingerprint mt-1 text-warning" />
                   <div>
-                    <div className="text-base-content/70">External User ID</div>
+                    <div className="text-muted-foreground">External User ID</div>
                     <div className="font-mono text-sm">{user.external_user_id}</div>
                   </div>
                 </div>
@@ -184,7 +189,7 @@ const ProfileTab = ({ user }: { user: UserDetail }) => {
                 <div className="flex items-start gap-3">
                   <i className="fa-solid fa-calendar-plus mt-1 text-primary" />
                   <div>
-                    <div className="text-base-content/70">Service Join Date</div>
+                    <div className="text-muted-foreground">Service Join Date</div>
                     <div className="font-medium">{formatDateTime(user.service_join_date, false)}</div>
                   </div>
                 </div>
@@ -194,7 +199,7 @@ const ProfileTab = ({ user }: { user: UserDetail }) => {
                 <div className="flex items-start gap-3">
                   <i className="fa-solid fa-server mt-1 text-secondary" />
                   <div className="space-y-1">
-                    <div className="text-base-content/70">
+                    <div className="text-muted-foreground">
                       Connected {user.server_names.length > 1 ? 'Servers' : 'Server'}
                     </div>
                     <div className="flex flex-wrap gap-2">
@@ -219,12 +224,12 @@ const ProfileTab = ({ user }: { user: UserDetail }) => {
                 <div className="flex items-start gap-3">
                   <i className="fa-solid fa-link mt-1 text-primary" />
                   <div>
-                    <div className="text-base-content/70">Linked Local Account</div>
+                    <div className="text-muted-foreground">Linked Local Account</div>
                     <div className="font-medium">
                       {user.linked_local_user.display_name ?? user.linked_local_user.username ?? 'Local account'}
                     </div>
                     {user.linked_local_user.email ? (
-                      <div className="text-xs text-base-content/60">{user.linked_local_user.email}</div>
+                      <div className="text-xs text-muted-foreground">{user.linked_local_user.email}</div>
                     ) : null}
                   </div>
                 </div>
@@ -234,12 +239,12 @@ const ProfileTab = ({ user }: { user: UserDetail }) => {
                 <div className="flex items-start gap-3">
                   <i className="fa-brands fa-discord mt-1 text-indigo-500" />
                   <div>
-                    <div className="text-base-content/70">Discord</div>
+                    <div className="text-muted-foreground">Discord</div>
                     <div className="font-medium">
                       {user.discord_username ?? user.discord_user_id ?? 'Linked account'}
                     </div>
                     {user.discord_email ? (
-                      <div className="text-xs text-base-content/60">{user.discord_email}</div>
+                      <div className="text-xs text-muted-foreground">{user.discord_email}</div>
                     ) : null}
                   </div>
                 </div>
@@ -247,8 +252,8 @@ const ProfileTab = ({ user }: { user: UserDetail }) => {
             </div>
 
             {statusBadges.length > 0 ? (
-              <div className="border-t border-base-200 pt-4">
-                <div className="text-sm font-semibold text-base-content/80">Status Flags</div>
+              <div className="border-t border-border pt-4">
+                <div className="text-sm font-semibold text-foreground">Status Flags</div>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {statusBadges.map((badge) => (
                     <span key={badge.label} className={clsx('badge gap-2 text-xs', badge.className)}>
@@ -261,12 +266,12 @@ const ProfileTab = ({ user }: { user: UserDetail }) => {
             ) : null}
 
             {user.libraries.length > 0 || isServiceUser ? (
-              <div className="border-t border-base-200 pt-4">
-                <div className="text-sm font-semibold text-base-content/80">Library Access</div>
+              <div className="border-t border-border pt-4">
+                <div className="text-sm font-semibold text-foreground">Library Access</div>
                 {user.has_all_libraries ? (
-                  <p className="mt-2 text-sm text-base-content/70">Has access to all libraries on this server.</p>
+                  <p className="mt-2 text-sm text-muted-foreground">Has access to all libraries on this server.</p>
                 ) : user.libraries.length === 0 ? (
-                  <p className="mt-2 text-sm text-base-content/60">No specific libraries assigned.</p>
+                  <p className="mt-2 text-sm text-muted-foreground">No specific libraries assigned.</p>
                 ) : (
                   <div className="mt-3 flex flex-wrap gap-2">
                     {user.libraries.map((library) => (
@@ -288,19 +293,19 @@ const ProfileTab = ({ user }: { user: UserDetail }) => {
           </div>
         </section>
 
-        <section className="card border border-base-300 bg-base-100 shadow-sm">
-          <div className="card-body space-y-4">
+        <section className="rounded-lg border border-border bg-background shadow-sm">
+          <div className="p-6 space-y-4">
             <header>
               <h3 className="text-lg font-semibold">Roles & Permissions</h3>
-              <p className="text-sm text-base-content/60">
+              <p className="text-sm text-muted-foreground">
                 Visual roles and administrative access assigned to this account.
               </p>
             </header>
 
             <div>
-              <div className="text-xs uppercase text-base-content/50">Admin Roles</div>
+              <div className="text-xs uppercase text-muted-foreground/60">Admin Roles</div>
               {user.roles.admin_roles.length === 0 ? (
-                <p className="mt-1 text-sm text-base-content/60">No admin roles assigned.</p>
+                <p className="mt-1 text-sm text-muted-foreground">No admin roles assigned.</p>
               ) : (
                 <div className="mt-2 flex flex-wrap gap-2">
                   {user.roles.admin_roles.map((role) => (
@@ -317,9 +322,9 @@ const ProfileTab = ({ user }: { user: UserDetail }) => {
             </div>
 
             <div>
-              <div className="text-xs uppercase text-base-content/50">User Roles</div>
+              <div className="text-xs uppercase text-muted-foreground/60">User Roles</div>
               {roleBadges.length === 0 ? (
-                <p className="mt-1 text-sm text-base-content/60">No visual roles have been added yet.</p>
+                <p className="mt-1 text-sm text-muted-foreground">No visual roles have been added yet.</p>
               ) : (
                 <div className="mt-2 flex flex-wrap gap-2">
                   {roleBadges.map((role) => (
@@ -348,16 +353,16 @@ const ProfileTab = ({ user }: { user: UserDetail }) => {
       </div>
 
       <div className="space-y-6 lg:col-span-2">
-        <section className="card border border-base-300 bg-base-100 shadow-sm">
-          <div className="card-body space-y-4">
+        <section className="rounded-lg border border-border bg-background shadow-sm">
+          <div className="p-6 space-y-4">
             <header>
               <h3 className="text-lg font-semibold">Global Streaming Stats</h3>
-              <p className="text-sm text-base-content/60">
+              <p className="text-sm text-muted-foreground">
                 Aggregated playback history compiled across all connected services.
               </p>
             </header>
             {Object.keys(globalStats).length === 0 ? (
-              <div className="flex flex-col items-center gap-3 py-8 text-base-content/50">
+              <div className="flex flex-col items-center gap-3 py-8 text-muted-foreground/60">
                 <i className="fa-solid fa-chart-simple text-3xl" />
                 <p className="text-sm">No streaming activity has been recorded for this user yet.</p>
               </div>
@@ -396,19 +401,19 @@ const ProfileTab = ({ user }: { user: UserDetail }) => {
                   <div
                     key={stat.title}
                     className={clsx(
-                      'rounded-xl border border-base-200 p-4 shadow-sm transition-shadow hover:shadow-md',
+                      'rounded-xl border border-border p-4 shadow-sm transition-shadow hover:shadow-md',
                       `bg-gradient-to-br ${stat.gradient}`
                     )}
                   >
-                    <div className="flex items-center gap-2 text-sm font-medium text-base-content/70">
+                    <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
                       {stat.icon}
                       {stat.title}
                     </div>
                     <div className="mt-3 flex items-baseline gap-2">
-                      <span className="text-3xl font-bold text-base-content">{formatNumber(stat.plays)}</span>
-                      <span className="text-xs uppercase tracking-wide text-base-content/50">plays</span>
+                      <span className="text-3xl font-bold text-foreground">{formatNumber(stat.plays)}</span>
+                      <span className="text-xs uppercase tracking-wide text-muted-foreground/60">plays</span>
                     </div>
-                    <div className="mt-2 text-xs text-base-content/60">
+                    <div className="mt-2 text-xs text-muted-foreground">
                       Watch time: {formatDuration(stat.duration)}
                     </div>
                   </div>
@@ -418,22 +423,22 @@ const ProfileTab = ({ user }: { user: UserDetail }) => {
           </div>
         </section>
 
-        <section className="card border border-base-300 bg-base-100 shadow-sm">
-          <div className="card-body space-y-4">
+        <section className="rounded-lg border border-border bg-background shadow-sm">
+          <div className="p-6 space-y-4">
             <header className="flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-semibold">Preferred Players</h3>
-                <p className="text-sm text-base-content/60">Top devices or apps used to play content.</p>
+                <p className="text-sm text-muted-foreground">Top devices or apps used to play content.</p>
               </div>
               {playerStats.length > 0 ? (
-                <span className="badge badge-ghost badge-sm">
+                <span className="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium bg-muted text-muted-foreground">
                   <i className="fa-solid fa-layer-group mr-1" />
                   {playerStats.length} unique players
                 </span>
               ) : null}
             </header>
             {playerStats.length === 0 ? (
-              <div className="flex flex-col items-center gap-3 py-8 text-base-content/50">
+              <div className="flex flex-col items-center gap-3 py-8 text-muted-foreground/60">
                 <i className="fa-solid fa-tv text-3xl" />
                 <p className="text-sm">No player telemetry has been captured yet.</p>
               </div>
@@ -442,16 +447,16 @@ const ProfileTab = ({ user }: { user: UserDetail }) => {
                 {playerStats.map((player) => (
                   <div
                     key={player?.name ?? 'unknown'}
-                    className="rounded-xl border border-base-200 bg-base-200/40 p-4 text-center shadow-sm transition-shadow hover:shadow-md dark:border-base-300/70 dark:bg-base-200/20"
+                    className="rounded-xl border border-border bg-muted/40 p-4 text-center shadow-sm transition-shadow hover:shadow-md dark:border-border/70 dark:bg-muted/20"
                   >
-                    <div className="mb-3 text-sm font-semibold text-base-content" title={player?.name ?? 'Unknown'}>
+                    <div className="mb-3 text-sm font-semibold text-foreground" title={player?.name ?? 'Unknown'}>
                       {player?.name ?? 'Unknown Player'}
                     </div>
                     <div className="flex items-baseline justify-center gap-1">
                       <span className="text-2xl font-bold text-primary">
                         {formatNumber(player?.plays ?? 0)}
                       </span>
-                      <span className="text-xs text-base-content/60">plays</span>
+                      <span className="text-xs text-muted-foreground">plays</span>
                     </div>
                   </div>
                 ))}
@@ -475,8 +480,8 @@ type HistoryTabProps = {
 const HistoryTab = ({ entries, loading, error, onLoadMore, hasMore }: HistoryTabProps) => (
   <section className="space-y-4">
     {loading && entries.length === 0 ? (
-      <div className="flex items-center gap-3 rounded border border-base-200 bg-base-200/40 px-4 py-3 text-sm text-base-content/60">
-        <span className="loading loading-spinner loading-sm" />
+      <div className="flex items-center gap-3 rounded border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
+        <span className="inline-flex size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
         Fetching recent history…
       </div>
     ) : null}
@@ -487,27 +492,27 @@ const HistoryTab = ({ entries, loading, error, onLoadMore, hasMore }: HistoryTab
     ) : null}
 
     {entries.length === 0 && !loading ? (
-      <div className="flex flex-col items-center gap-3 py-10 text-base-content/50">
+      <div className="flex flex-col items-center gap-3 py-10 text-muted-foreground/60">
         <i className="fa-solid fa-clock-rotate-left text-3xl" />
         <p className="text-sm">No history entries to display yet.</p>
       </div>
     ) : (
       <ul className="space-y-3">
         {entries.map((entry) => (
-          <li key={entry.id} className="relative rounded border border-base-200 bg-base-200/40 p-4 dark:border-base-300/60 dark:bg-base-200/10">
+          <li key={entry.id} className="relative rounded border border-border bg-muted/40 p-4 dark:border-border/60 dark:bg-muted/10">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <div className="text-xs uppercase tracking-wide text-primary">
                   {entry.event_type ?? 'EVENT'}
                 </div>
-                <div className="mt-1 text-sm font-medium text-base-content">{entry.message ?? '—'}</div>
+                <div className="mt-1 text-sm font-medium text-foreground">{entry.message ?? '—'}</div>
               </div>
-              <div className="text-xs text-base-content/50">
+              <div className="text-xs text-muted-foreground/60">
                 {entry.timestamp ? formatDateTime(entry.timestamp) : 'No timestamp'}
               </div>
             </div>
             {entry.details && Object.keys(entry.details).length > 0 ? (
-              <pre className="mt-3 overflow-x-auto rounded bg-base-300/40 p-3 text-xs text-base-content/70">
+              <pre className="mt-3 overflow-x-auto rounded bg-muted/40 p-3 text-xs text-muted-foreground">
                 {JSON.stringify(entry.details, null, 2)}
               </pre>
             ) : null}
@@ -518,13 +523,13 @@ const HistoryTab = ({ entries, loading, error, onLoadMore, hasMore }: HistoryTab
 
     <div className="flex justify-center">
       {loading && entries.length > 0 ? (
-        <span className="loading loading-spinner loading-sm" />
+        <span className="inline-flex size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
       ) : hasMore ? (
-        <button type="button" className="btn btn-ghost btn-sm" onClick={onLoadMore}>
+        <button type="button" className="text-sm font-medium text-primary hover:underline" onClick={onLoadMore}>
           Load more history
         </button>
       ) : entries.length > 0 ? (
-        <span className="text-xs text-base-content/50">End of history</span>
+        <span className="text-xs text-muted-foreground/60">End of history</span>
       ) : null}
     </div>
   </section>
@@ -577,35 +582,35 @@ type SecurityTabProps = {
 
 const SecurityTab = ({ user, onResetPassword, resetting }: SecurityTabProps) => (
   <div className="space-y-6">
-    <section className="card border border-base-300 bg-base-100 shadow-sm">
-      <div className="card-body space-y-4">
+    <section className="rounded-lg border border-border bg-background shadow-sm">
+      <div className="p-6 space-y-4">
         <header className="flex items-center justify-between">
           <div>
             <h3 className="text-lg font-semibold">Login Activity</h3>
-            <p className="text-sm text-base-content/60">Recent access details for this local account.</p>
+            <p className="text-sm text-muted-foreground">Recent access details for this local account.</p>
           </div>
-          <span className="badge badge-ghost">
+          <span className="inline-flex items-center rounded-md px-2.5 py-0.5 text-xs font-semibold bg-muted text-muted-foreground">
             <i className="fa-solid fa-user-clock mr-1" />
             {user.is_active ? 'Active' : 'Inactive'}
           </span>
         </header>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <div className="rounded-lg border border-base-200 bg-base-200/40 p-4">
-            <div className="text-xs uppercase text-base-content/50">Last Login</div>
-            <div className="mt-1 text-lg font-semibold text-base-content">{formatDateTime(user.last_login_at)}</div>
+          <div className="rounded-lg border border-border bg-muted/40 p-4">
+            <div className="text-xs uppercase text-muted-foreground/60">Last Login</div>
+            <div className="mt-1 text-lg font-semibold text-foreground">{formatDateTime(user.last_login_at)}</div>
           </div>
-          <div className="rounded-lg border border-base-200 bg-base-200/40 p-4">
-            <div className="text-xs uppercase text-base-content/50">Last Activity</div>
-            <div className="mt-1 text-lg font-semibold text-base-content">{formatDateTime(user.last_activity_at)}</div>
+          <div className="rounded-lg border border-border bg-muted/40 p-4">
+            <div className="text-xs uppercase text-muted-foreground/60">Last Activity</div>
+            <div className="mt-1 text-lg font-semibold text-foreground">{formatDateTime(user.last_activity_at)}</div>
           </div>
-          <div className="rounded-lg border border-base-200 bg-base-200/40 p-4">
-            <div className="text-xs uppercase text-base-content/50">Account Created</div>
-            <div className="mt-1 text-lg font-semibold text-base-content">{formatDateTime(user.created_at)}</div>
+          <div className="rounded-lg border border-border bg-muted/40 p-4">
+            <div className="text-xs uppercase text-muted-foreground/60">Account Created</div>
+            <div className="mt-1 text-lg font-semibold text-foreground">{formatDateTime(user.created_at)}</div>
           </div>
-          <div className="rounded-lg border border-base-200 bg-base-200/40 p-4">
-            <div className="text-xs uppercase text-base-content/50">Access Expires</div>
-            <div className="mt-1 text-lg font-semibold text-base-content">
+          <div className="rounded-lg border border-border bg-muted/40 p-4">
+            <div className="text-xs uppercase text-muted-foreground/60">Access Expires</div>
+            <div className="mt-1 text-lg font-semibold text-foreground">
               {user.access_expires_at ? formatDateTime(user.access_expires_at) : 'Never'}
             </div>
           </div>
@@ -613,37 +618,37 @@ const SecurityTab = ({ user, onResetPassword, resetting }: SecurityTabProps) => 
       </div>
     </section>
 
-    <section className="card border border-base-300 bg-base-100 shadow-sm">
-      <div className="card-body space-y-4">
+    <section className="rounded-lg border border-border bg-background shadow-sm">
+      <div className="p-6 space-y-4">
         <header className="flex items-center justify-between">
           <div>
             <h3 className="text-lg font-semibold">Password & Account Security</h3>
-            <p className="text-sm text-base-content/60">Enforce password resets and review security posture.</p>
+            <p className="text-sm text-muted-foreground">Enforce password resets and review security posture.</p>
           </div>
           {user.has_password ? (
-            <span className="badge badge-success gap-2">
+            <span className="inline-flex items-center rounded-md px-2.5 py-0.5 text-xs font-semibold bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-300 gap-2">
               <i className="fa-solid fa-lock" />
               Password Protected
             </span>
           ) : (
-            <span className="badge badge-warning gap-2">
+            <span className="inline-flex items-center rounded-md px-2.5 py-0.5 text-xs font-semibold bg-amber-100 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300 gap-2">
               <i className="fa-solid fa-unlock" />
               No Password Set
             </span>
           )}
         </header>
 
-        <div className="rounded-lg border border-base-200 bg-base-200/30 p-4">
+        <div className="rounded-lg border border-border bg-muted/30 p-4">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <div className="font-semibold text-base-content">Force Password Change</div>
-              <p className="text-sm text-base-content/60">
+              <div className="font-semibold text-foreground">Force Password Change</div>
+              <p className="text-sm text-muted-foreground">
                 Trigger a password reset flow for the next login session.
               </p>
             </div>
             <button
               type="button"
-              className="btn btn-warning btn-outline"
+              className="inline-flex items-center justify-center rounded-md text-sm font-medium border border-amber-300 bg-transparent text-amber-700 hover:bg-amber-50 h-9 px-4 py-2 dark:border-amber-700 dark:text-amber-300 dark:hover:bg-amber-900/20"
               onClick={onResetPassword}
               disabled={resetting}
             >
@@ -654,18 +659,18 @@ const SecurityTab = ({ user, onResetPassword, resetting }: SecurityTabProps) => 
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2">
-          <div className="rounded border border-base-200 bg-base-200/30 p-4 text-sm">
-            <div className="text-base-content/70">Invite Usage</div>
-            <div className="mt-1 text-base font-semibold text-base-content">
+          <div className="rounded border border-border bg-muted/30 p-4 text-sm">
+            <div className="text-muted-foreground">Invite Usage</div>
+            <div className="mt-1 text-base font-semibold text-foreground">
               {user.used_invite ? 'Linked to invite code' : 'No invite usage recorded'}
             </div>
           </div>
-          <div className="rounded border border-base-200 bg-base-200/30 p-4 text-sm">
-            <div className="text-base-content/70">Download Permissions</div>
-            <div className="mt-1 text-base font-semibold text-base-content">
+          <div className="rounded border border-border bg-muted/30 p-4 text-sm">
+            <div className="text-muted-foreground">Download Permissions</div>
+            <div className="mt-1 text-base font-semibold text-foreground">
               {user.allow_downloads ? 'Downloads enabled' : 'Downloads disabled'}
             </div>
-            <div className="text-xs text-base-content/50">
+            <div className="text-xs text-muted-foreground/60">
               4K transcode {user.allow_4k_transcode ? 'permitted' : 'blocked'}.
             </div>
           </div>
@@ -742,8 +747,8 @@ export const UserDetailPage = () => {
   if (!effectiveUuid) {
     if (slugLoading) {
       return (
-        <div className="flex items-center gap-2 text-sm text-base-content/60">
-          <span className="loading loading-spinner loading-sm" />
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <span className="inline-flex size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
           Resolving user path…
         </div>
       );
@@ -759,20 +764,20 @@ export const UserDetailPage = () => {
 
     if (serverNickname && username) {
       return (
-        <div className="rounded border border-base-300 bg-base-100 p-4 text-sm text-base-content/70">
+        <div className="rounded border border-border bg-background p-4 text-sm text-muted-foreground">
           Could not locate a user for <span className="font-semibold">{serverNickname}</span> /{' '}
           <span className="font-semibold">{username}</span>.
         </div>
       );
     }
 
-    return <div className="text-sm text-base-content/60">No user selected.</div>;
+    return <div className="text-sm text-muted-foreground">No user selected.</div>;
   }
 
   if (loading) {
     return (
-      <div className="flex items-center gap-2 text-sm text-base-content/60">
-        <span className="loading loading-spinner loading-sm" />
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <span className="inline-flex size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
         Loading user profile…
       </div>
     );
@@ -787,7 +792,7 @@ export const UserDetailPage = () => {
   }
 
   if (!user) {
-    return <div className="text-sm text-base-content/60">User not found.</div>;
+    return <div className="text-sm text-muted-foreground">User not found.</div>;
   }
 
   const isServiceUser = user.user_type.toLowerCase() === 'service';
@@ -877,12 +882,12 @@ export const UserDetailPage = () => {
 
   return (
     <div className="space-y-6">
-      <section className="overflow-hidden rounded-xl border border-base-300 bg-base-100 shadow-lg">
-        <div className={clsx('bg-gradient-to-r p-8 text-center border-b border-base-300', heroTheme.gradient)}>
+      <section className="overflow-hidden rounded-xl border border-border bg-background shadow-lg">
+        <div className={clsx('bg-gradient-to-r p-8 text-center border-b border-border', heroTheme.gradient)}>
           <div className="flex flex-col items-center space-y-4">
             {/* Avatar */}
             <div className="avatar">
-              <div className="w-24 h-24 rounded-full ring-4 ring-primary/30 ring-offset-4 ring-offset-base-100">
+              <div className="w-24 h-24 rounded-full ring-4 ring-primary/30 ring-offset-4 ring-offset-background">
                 {effectiveAvatar ? (
                   <img
                     src={effectiveAvatar}
@@ -906,7 +911,7 @@ export const UserDetailPage = () => {
 
             {/* User Info */}
             <div>
-              <h1 className="text-3xl font-bold text-base-content mb-2">
+              <h1 className="text-3xl font-bold text-foreground mb-2">
                 {user.display_name ?? user.username ?? 'User'}
               </h1>
               <div className="flex items-center justify-center gap-2 flex-wrap">
@@ -973,16 +978,16 @@ export const UserDetailPage = () => {
         </div>
       </section>
 
-      <section className="card border border-base-300 bg-base-100 shadow">
-        <div className="border-b border-base-200 bg-base-200/40">
-          <nav className="tabs tabs-boxed tabs-lg flex-wrap bg-transparent px-4">
+      <section className="rounded-lg border border-border bg-background shadow">
+        <div className="border-b border-border bg-muted/40">
+          <nav className="flex flex-wrap gap-1 p-1">
             {tabs
               .filter((tab) => !tab.hidden)
               .map((tab) => (
                 <button
                   key={tab.key}
                   type="button"
-                  className={clsx('tab h-auto py-3 text-sm font-semibold', activeTab === tab.key && 'tab-active')}
+                  className={clsx('px-4 py-2 rounded-md text-sm font-medium transition-colors', activeTab === tab.key ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground')}
                   onClick={() => setActiveTab(tab.key)}
                 >
                   {tab.label}
@@ -990,7 +995,7 @@ export const UserDetailPage = () => {
               ))}
           </nav>
         </div>
-        <div className="card-body">
+        <div className="p-6">
           {activeTab === 'profile' ? (
             <ProfileTab user={user} />
           ) : activeTab === 'history' ? (

@@ -8,6 +8,7 @@ import { Checkbox } from '../ui/checkbox';
 import { Button } from '../ui/button';
 import { Card, CardContent } from '../ui/card';
 import { Skeleton } from '../ui/skeleton';
+import { UserDebugModal } from './UserDebugModal';
 
 interface UserCardProps {
   user: UserRow;
@@ -140,6 +141,9 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection }: UserCa
   const [avatarLoading, setAvatarLoading] = useState(true);
   const [avatarError, setAvatarError] = useState(false);
   const effectiveAvatar = user.avatar_url;
+
+  // Debug modal state
+  const [debugModalOpen, setDebugModalOpen] = useState(false);
 
   // Load display settings from localStorage
   const [settings, setSettings] = useState<UserDisplaySettings>({
@@ -478,7 +482,19 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection }: UserCa
         {/* Spacer to push footer to bottom */}
         <div className="flex-1" />
 
-        <div className="flex justify-end pt-3 border-t">
+        <div className="flex justify-end pt-3 border-t border-border/90">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              setDebugModalOpen(true);
+            }}
+            title="Show Raw User Data"
+            className="text-warning hover:bg-warning/10"
+          >
+            <i className="fa-solid fa-info" />
+          </Button>
           <Button
             variant="ghost"
             size="sm"
@@ -492,6 +508,12 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection }: UserCa
           </Button>
         </div>
       </CardContent>
+
+      <UserDebugModal
+        open={debugModalOpen}
+        onClose={() => setDebugModalOpen(false)}
+        userUuid={user.uuid}
+      />
     </Card>
   );
 };

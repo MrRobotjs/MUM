@@ -9,3 +9,4 @@ export * from './ViewToggle';
 export * from './UserCard';
 export * from './UserCardsGrid';
 export * from './PurgeUsersModal';
+export * from './UserDebugModal';

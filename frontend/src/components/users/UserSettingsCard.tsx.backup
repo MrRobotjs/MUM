@@ -55,10 +55,10 @@ export const UserSettingsCard = ({ settings, loading, error, onSave }: UserSetti
 
   if (loading) {
     return (
-      <section className="rounded-lg border border-border bg-background shadow-sm">
-        <div className="p-6">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <span className="inline-flex size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+      <section className="card border border-base-300 bg-base-100 shadow-sm">
+        <div className="card-body">
+          <div className="flex items-center gap-2 text-sm text-base-content/60">
+            <span className="loading loading-spinner loading-sm" />
             Loading user settings…
           </div>
         </div>
@@ -68,8 +68,8 @@ export const UserSettingsCard = ({ settings, loading, error, onSave }: UserSetti
 
   if (error) {
     return (
-      <section className="rounded-lg border border-border bg-background shadow-sm">
-        <div className="p-6 text-sm text-error">Failed to load settings: {error.message}</div>
+      <section className="card border border-base-300 bg-base-100 shadow-sm">
+        <div className="card-body text-sm text-error">Failed to load settings: {error.message}</div>
       </section>
     );
   }
@@ -130,36 +130,36 @@ export const UserSettingsCard = ({ settings, loading, error, onSave }: UserSetti
   return (
     <div className="space-y-6">
       {/* Notes Section */}
-      <div className="bg-background border border-border rounded-lg shadow-sm overflow-hidden">
-        <div className="bg-gradient-to-r from-yellow-50 dark:from-yellow-900/20 to-yellow-100 dark:to-yellow-800/20 p-4 border-b border-border">
+      <div className="bg-base-100 border border-base-300 rounded-lg shadow-sm overflow-hidden">
+        <div className="bg-gradient-to-r from-yellow-50 dark:from-yellow-900/20 to-yellow-100 dark:to-yellow-800/20 p-4 border-b border-base-300">
           <h3 className="text-lg font-semibold flex items-center gap-2">
             <i className="fa-solid fa-sticky-note text-yellow-600 dark:text-yellow-400" />
             Notes & Comments
           </h3>
         </div>
         <div className="p-4">
-          <div className="space-y-2">
-            <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70" htmlFor="notes">
-              Notes
+          <div className="form-control">
+            <label className="label" htmlFor="notes">
+              <span className="label-text">Notes</span>
             </label>
-            <span className="text-sm text-muted-foreground mb-2 block">
+            <span className="label-text text-sm text-base-content/70 mb-2 block">
               Add personal notes or important information about this user
             </span>
             <textarea
               id="notes"
-              className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              className="textarea textarea-bordered h-24 w-full bg-base-50 dark:bg-base-800/50 border-base-300 focus:border-primary focus:ring-2 focus:ring-primary/20"
               placeholder="Add any notes about this user..."
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
             />
-            <p className="text-xs text-muted-foreground mt-2">Administrative notes are only visible to administrators</p>
+            <p className="text-xs text-base-content/60 mt-2">Administrative notes are only visible to administrators</p>
           </div>
         </div>
       </div>
 
       {/* User Permissions Section */}
-      <div className="bg-background border border-border rounded-lg shadow-sm overflow-hidden">
-        <div className="bg-gradient-to-r from-blue-50 dark:from-blue-900/20 to-blue-100 dark:to-blue-800/20 p-4 border-b border-border">
+      <div className="bg-base-100 border border-base-300 rounded-lg shadow-sm overflow-hidden">
+        <div className="bg-gradient-to-r from-blue-50 dark:from-blue-900/20 to-blue-100 dark:to-blue-800/20 p-4 border-b border-base-300">
           <h3 className="text-lg font-semibold flex items-center gap-2">
             <i className="fa-solid fa-user-cog text-blue-600 dark:text-blue-400" />
             User Permissions
@@ -180,7 +180,7 @@ export const UserSettingsCard = ({ settings, loading, error, onSave }: UserSetti
               </div>
               <input
                 type="checkbox"
-                className="h-5 w-5 shrink-0 cursor-pointer rounded border border-input bg-background accent-primary"
+                className="toggle toggle-primary ml-4"
                 checked={isDiscordBotWhitelisted}
                 onChange={(e) => setIsDiscordBotWhitelisted(e.target.checked)}
               />
@@ -201,7 +201,7 @@ export const UserSettingsCard = ({ settings, loading, error, onSave }: UserSetti
               </div>
               <input
                 type="checkbox"
-                className="h-5 w-5 shrink-0 cursor-pointer rounded border border-input bg-background accent-primary"
+                className="toggle toggle-primary ml-4"
                 checked={isPurgeWhitelisted}
                 onChange={(e) => setIsPurgeWhitelisted(e.target.checked)}
               />
@@ -211,8 +211,8 @@ export const UserSettingsCard = ({ settings, loading, error, onSave }: UserSetti
       </div>
 
       {/* Stream Permissions Section */}
-      <div className="bg-background border border-border rounded-lg shadow-sm overflow-hidden">
-        <div className="bg-gradient-to-r from-green-50 dark:from-green-900/20 to-green-100 dark:to-green-800/20 p-4 border-b border-border">
+      <div className="bg-base-100 border border-base-300 rounded-lg shadow-sm overflow-hidden">
+        <div className="bg-gradient-to-r from-green-50 dark:from-green-900/20 to-green-100 dark:to-green-800/20 p-4 border-b border-base-300">
           <h3 className="text-lg font-semibold flex items-center gap-2">
             <i className="fa-solid fa-play text-green-600 dark:text-green-400" />
             Stream Permissions
@@ -223,8 +223,8 @@ export const UserSettingsCard = ({ settings, loading, error, onSave }: UserSetti
           <div className="p-4 rounded-lg border border-gray-200 dark:border-gray-500/30 bg-gray-50 dark:bg-gray-900/20 opacity-60 relative">
             <div className="absolute top-2 right-2">
               <div
-                className="relative"
-                title="This setting can't be changed here due to a Plex API limitation. Please update 'Allow Sync' directly in Plex for now."
+                className="tooltip tooltip-left"
+                data-tip="This setting can't be changed here due to a Plex API limitation. Please update 'Allow Sync' directly in Plex for now."
               >
                 <i className="fa-solid fa-info-circle text-orange-500" />
               </div>
@@ -239,7 +239,7 @@ export const UserSettingsCard = ({ settings, loading, error, onSave }: UserSetti
                   Allow user to download content for offline viewing
                 </p>
               </div>
-              <input type="checkbox" className="h-5 w-5 shrink-0 cursor-pointer rounded border border-input bg-background accent-primary" checked={allowDownloads} disabled />
+              <input type="checkbox" className="toggle toggle-primary ml-4" checked={allowDownloads} disabled />
             </div>
           </div>
 
@@ -257,7 +257,7 @@ export const UserSettingsCard = ({ settings, loading, error, onSave }: UserSetti
               </div>
               <input
                 type="checkbox"
-                className="h-5 w-5 shrink-0 cursor-pointer rounded border border-input bg-background accent-primary"
+                className="toggle toggle-primary ml-4"
                 checked={allow4kTranscode}
                 onChange={(e) => setAllow4kTranscode(e.target.checked)}
               />
@@ -267,8 +267,8 @@ export const UserSettingsCard = ({ settings, loading, error, onSave }: UserSetti
       </div>
 
       {/* Access Duration Section */}
-      <div className="bg-background border border-border rounded-lg shadow-sm overflow-hidden">
-        <div className="bg-gradient-to-r from-red-50 dark:from-red-900/20 to-red-100 dark:to-red-800/20 p-4 border-b border-border">
+      <div className="bg-base-100 border border-base-300 rounded-lg shadow-sm overflow-hidden">
+        <div className="bg-gradient-to-r from-red-50 dark:from-red-900/20 to-red-100 dark:to-red-800/20 p-4 border-b border-base-300">
           <h3 className="text-lg font-semibold flex items-center gap-2">
             <i className="fa-solid fa-calendar-times text-red-600 dark:text-red-400" />
             Access Expiration
@@ -287,38 +287,38 @@ export const UserSettingsCard = ({ settings, loading, error, onSave }: UserSetti
           </div>
 
           {/* Access Expiration Input */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70" htmlFor="access_expiration">
-              Access Expiration
+          <div className="form-control">
+            <label className="label" htmlFor="access_expiration">
+              <span className="label-text">Access Expiration</span>
             </label>
-            <span className="text-sm text-muted-foreground mb-2 block">
+            <span className="label-text text-sm text-base-content/70 mb-2 block">
               Choose when this user's access should expire
             </span>
             <input
               type="date"
               id="access_expiration"
-              className="flex h-10 w-full max-w-sm rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              className="input input-bordered w-full max-w-sm bg-base-50 dark:bg-base-800/50 border-base-300 focus:border-primary focus:ring-2 focus:ring-primary/20"
               value={accessExpiration}
               onChange={(e) => setAccessExpiration(e.target.value)}
               disabled={clearAccessExpiration}
             />
-            <p className="text-xs text-muted-foreground mt-2">
+            <p className="text-xs text-base-content/60 mt-2">
               User access will be automatically revoked at midnight on this date
             </p>
           </div>
 
           {/* Clear Expiration Option */}
           <div className="p-3 rounded-lg border border-orange-200 dark:border-orange-500/30 bg-orange-50 dark:bg-orange-900/20">
-            <div className="space-y-2">
-              <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer justify-start">
+            <div className="form-control">
+              <label className="label cursor-pointer justify-start">
                 <input
                   type="checkbox"
-                  className="h-4 w-4 shrink-0 rounded border border-input bg-background accent-primary mr-3"
+                  className="checkbox checkbox-primary mr-3"
                   checked={clearAccessExpiration}
                   onChange={(e) => setClearAccessExpiration(e.target.checked)}
                 />
                 <div className="flex flex-col">
-                  <span className="font-medium">Clear Access Expiration</span>
+                  <span className="label-text font-medium">Clear Access Expiration</span>
                   <span className="text-xs text-orange-700 dark:text-orange-300">
                     Remove any existing expiration date and grant permanent access
                   </span>
@@ -331,8 +331,8 @@ export const UserSettingsCard = ({ settings, loading, error, onSave }: UserSetti
 
       {/* Library Access Section */}
       {settings?.libraries && settings.libraries.length > 0 ? (
-        <div className="bg-background border border-border rounded-lg shadow-sm overflow-hidden">
-          <div className="bg-gradient-to-r from-primary/5 to-primary/10 p-4 border-b border-border">
+        <div className="bg-base-100 border border-base-300 rounded-lg shadow-sm overflow-hidden">
+          <div className="bg-gradient-to-r from-primary/5 to-primary/10 p-4 border-b border-base-300">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold flex items-center gap-2">
                 <i className="fa-solid fa-folder-open text-primary" />
@@ -372,19 +372,19 @@ export const UserSettingsCard = ({ settings, loading, error, onSave }: UserSetti
               </div>
 
               {/* Library list */}
-              <div className="max-h-80 overflow-y-auto border border-border rounded-lg bg-muted dark:bg-muted">
+              <div className="max-h-80 overflow-y-auto border border-base-300 rounded-lg bg-base-50 dark:bg-base-800/50">
                 {settings.libraries.map((library) => (
-                  <div key={library.id} className="space-y-2 border-b border-border last:border-b-0">
-                    <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer justify-start py-3 px-4 hover:bg-background dark:hover:bg-muted/50 transition-colors">
+                  <div key={library.id} className="form-control border-b border-base-300 last:border-b-0">
+                    <label className="label cursor-pointer justify-start py-3 px-4 hover:bg-base-100 dark:hover:bg-base-700/50 transition-colors">
                       <input
                         type="checkbox"
-                        className="h-4 w-4 shrink-0 rounded border border-input bg-background accent-primary mr-3"
+                        className="checkbox checkbox-primary checkbox-sm"
                         checked={selectedLibraries.has(library.id)}
                         onChange={() => handleToggleLibrary(library.id)}
                       />
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 ml-3">
                         <i className="fa-solid fa-folder w-3 h-3 text-blue-500" />
-                        <span className="font-medium">{library.name}</span>
+                        <span className="label-text font-medium">{library.name}</span>
                       </div>
                     </label>
                   </div>
@@ -407,7 +407,7 @@ export const UserSettingsCard = ({ settings, loading, error, onSave }: UserSetti
       ) : null}
 
       {/* Action Buttons */}
-      <div className="flex items-center justify-end gap-3 pt-6 border-t border-border">
+      <div className="flex items-center justify-end gap-3 pt-6 border-t border-base-300">
         <Button variant="primary" onClick={handleSubmit} disabled={submitting}>
           <i className="fa-solid fa-save w-4 h-4 mr-2" />
           {submitting ? 'Saving…' : 'Save Changes'}

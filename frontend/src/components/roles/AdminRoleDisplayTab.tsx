@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { IconTag, IconAlignLeft, IconPalette, IconIcons, IconEye, IconDeviceFloppy, IconSparkles } from '@tabler/icons-react'
+import { IconTag, IconAlignLeft, IconPalette, IconIcons, IconEye, IconDeviceFloppy, IconSparkles, IconInfoCircle } from '@tabler/icons-react'
 import { AdminRole } from '../../hooks/useAdminRoles'
 import { useAlerts } from '../../contexts'
 import { requestJson } from '../../util/apiClient'
@@ -72,18 +72,12 @@ export const AdminRoleDisplayTab = ({ role, onUpdate }: AdminRoleDisplayTabProps
     <form onSubmit={handleSubmit} className="space-y-6">
       {/* Description Card */}
       <Alert variant="info">
-        <div className="flex items-start gap-3">
-          <div className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-info/20">
-            <i className="fa-solid fa-info text-xs text-info" />
-          </div>
-          <div>
-            <AlertTitle>Role Configuration</AlertTitle>
-            <AlertDescription>
-              Customize the role's name, description, and visual appearance. Changes will be
-              reflected throughout the interface.
-            </AlertDescription>
-          </div>
-        </div>
+        <IconInfoCircle />
+        <AlertTitle>Role Configuration</AlertTitle>
+        <AlertDescription>
+          Customize the role's name, description, and visual appearance. Changes will be
+          reflected throughout the interface.
+        </AlertDescription>
       </Alert>
 
       {/* Basic Settings Section */}

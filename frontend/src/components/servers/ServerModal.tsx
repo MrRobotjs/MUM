@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { IconWifi, IconCheck, IconX } from '@tabler/icons-react';
+import { IconWifi, IconCheck, IconX, IconAlertCircle } from '@tabler/icons-react';
 import { FormField } from '../';
 import type { Server } from '../../hooks/useServers';
 import { ResponsiveDialog } from '../ui/responsive-dialog';
 import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription } from '../ui/alert';
 import { requestJson } from '../../util/apiClient';
 import { useAlerts } from '../../contexts';
 
@@ -317,9 +318,10 @@ export const ServerModal = ({
     >
       <form id={formId} onSubmit={handleSubmit} className="space-y-4">
         {error && (
-          <div className="alert alert-error">
-            <span>{error}</span>
-          </div>
+          <Alert variant="destructive">
+            <IconAlertCircle />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
         )}
 
         <FormField id="server_nickname" label="Server Nickname" required>

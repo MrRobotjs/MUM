@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { IconUsers, IconUserPlus, IconUserMinus, IconSearch, IconSave } from '@tabler/icons-react'
+import { IconUsers, IconUserPlus, IconUserMinus, IconSearch, IconSave, IconInfoCircle } from '@tabler/icons-react'
 import useSWR from 'swr'
 import { AdminRole } from '../../hooks/useAdminRoles'
 import { useAlerts } from '../../contexts'
@@ -207,17 +207,11 @@ export const AdminRoleMembersTab = ({ role, onUpdate }: AdminRoleMembersTabProps
 
         {/* Stats Card */}
         <Alert variant="info">
-          <div className="flex items-center gap-3">
-            <div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-info/20">
-              <i className="fa-solid fa-chart-simple text-xs text-info" />
-            </div>
-            <div>
-              <AlertTitle>Current Members</AlertTitle>
-              <AlertDescription>
-                {members.length} administrator{members.length !== 1 ? 's' : ''} assigned to this role
-              </AlertDescription>
-            </div>
-          </div>
+          <IconInfoCircle />
+          <AlertTitle>Current Members</AlertTitle>
+          <AlertDescription>
+            {members.length} administrator{members.length !== 1 ? 's' : ''} assigned to this role
+          </AlertDescription>
         </Alert>
       </div>
 
@@ -336,6 +330,7 @@ export const AdminRoleMembersTab = ({ role, onUpdate }: AdminRoleMembersTabProps
         <div className="space-y-4">
           {availableUsers.length === 0 ? (
             <Alert variant="info">
+              <IconInfoCircle />
               <AlertDescription>
                 All local users are already members of this role.
               </AlertDescription>

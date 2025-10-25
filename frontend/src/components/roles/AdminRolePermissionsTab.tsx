@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { IconShieldHalf, IconDeviceFloppy } from '@tabler/icons-react'
+import { IconShieldHalf, IconDeviceFloppy, IconInfoCircle } from '@tabler/icons-react'
 import { AdminRole, AdminPermission } from '../../hooks/useAdminRoles'
 import { useAlerts } from '../../contexts'
 import { requestJson } from '../../util/apiClient'
@@ -245,18 +245,12 @@ export const AdminRolePermissionsTab = ({
 
         {/* Info Card */}
         <Alert variant="info">
-          <div className="flex items-start gap-3">
-            <div className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-info/20">
-              <i className="fa-solid fa-info text-xs text-info" />
-            </div>
-            <div>
-              <AlertTitle>Permission Guidelines</AlertTitle>
-              <AlertDescription>
-                Select the permissions that members of this role will have. Admin ID 1 automatically
-                has all permissions regardless of role assignments.
-              </AlertDescription>
-            </div>
-          </div>
+          <IconInfoCircle />
+          <AlertTitle>Permission Guidelines</AlertTitle>
+          <AlertDescription>
+            Select the permissions that members of this role will have. Admin ID 1 automatically
+            has all permissions regardless of role assignments.
+          </AlertDescription>
         </Alert>
       </div>
 

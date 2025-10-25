@@ -4,6 +4,8 @@ import { ServerModal, type ServerFormValues } from '../components/servers/Server
 import { Table, type Column, Button, PageHeader } from '../components';
 import { requestJson } from '../util/apiClient';
 import { useAlerts } from '../contexts';
+import { Alert, AlertDescription } from '../components/ui/alert';
+import { IconAlertCircle } from '@tabler/icons-react';
 
 const buildServerPayload = (values: ServerFormValues) => {
   const payload: Record<string, unknown> = {
@@ -237,9 +239,12 @@ export const ServersPage = () => {
       />
 
       {error && (
-        <div className="alert alert-error">
-          <span>Failed to load servers: {(error as Error).message}</span>
-        </div>
+        <Alert variant="destructive">
+          <IconAlertCircle />
+          <AlertDescription>
+            Failed to load servers: {(error as Error).message}
+          </AlertDescription>
+        </Alert>
       )}
 
       <div className="rounded-xl border border-base-300 bg-base-100 p-4 shadow-sm">

@@ -1,10 +1,12 @@
 import { useState, type ReactNode } from 'react';
+import { IconAlertTriangle, IconInfoCircle } from '@tabler/icons-react';
 import { requestJson } from '../../util/apiClient';
 import { useAlerts } from '../../contexts/AlertContext';
 import { Input } from '../ui/input';
 import { Checkbox } from '../ui/checkbox';
 import { Label } from '../ui/label';
 import { Button } from '../ui/button';
+import { Alert, AlertDescription } from '../ui/alert';
 import { ResponsiveDialog } from '../ui/responsive-dialog';
 
 interface EligibleUser {
@@ -145,12 +147,12 @@ export const PurgeUsersModal = ({ onClose, onPurgeComplete }: PurgeUsersModalPro
   const renderCriteriaStep = (): { body: ReactNode; footer: ReactNode[] } => ({
     body: (
       <div className="space-y-4">
-        <div className="alert alert-warning">
-          <i className="fa-solid fa-triangle-exclamation" />
-          <span>
+        <Alert variant="warning">
+          <IconAlertTriangle />
+          <AlertDescription>
             This will permanently delete selected users and all their associated data. This action cannot be undone.
-          </span>
-        </div>
+          </AlertDescription>
+        </Alert>
 
         <div className="space-y-2">
           <Label htmlFor="inactive-days" className="font-semibold">Inactive for (days)</Label>
@@ -225,13 +227,13 @@ export const PurgeUsersModal = ({ onClose, onPurgeComplete }: PurgeUsersModalPro
   const renderPreviewStep = (): { body: ReactNode; footer: ReactNode[] } => ({
     body: (
       <div className="space-y-4">
-        <div className="alert alert-info">
-          <i className="fa-solid fa-info-circle" />
-          <span>
+        <Alert variant="info">
+          <IconInfoCircle />
+          <AlertDescription>
             Found {eligibleUsers.length} user{eligibleUsers.length !== 1 ? 's' : ''} matching your criteria.
             Review and select which users to purge.
-          </span>
-        </div>
+          </AlertDescription>
+        </Alert>
 
         <div className="flex items-center gap-2 border-b border-base-300 pb-3">
           <Checkbox
@@ -293,16 +295,16 @@ export const PurgeUsersModal = ({ onClose, onPurgeComplete }: PurgeUsersModalPro
   const renderConfirmStep = (): { body: ReactNode; footer: ReactNode[] } => ({
     body: (
       <div className="space-y-4">
-        <div className="alert alert-error">
-          <i className="fa-solid fa-exclamation-triangle" />
-          <div>
+        <Alert variant="destructive">
+          <IconAlertTriangle />
+          <AlertDescription>
             <p className="font-semibold">Final Confirmation</p>
             <p className="text-sm">
               You are about to permanently delete {selectedUserUuids.size} user{selectedUserUuids.size !== 1 ? 's' : ''}.
               This action cannot be undone.
             </p>
-          </div>
-        </div>
+          </AlertDescription>
+        </Alert>
 
         <div className="bg-base-200 rounded-lg p-4">
           <h3 className="font-semibold mb-2">Purge Criteria:</h3>

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { IconGripVertical } from '@tabler/icons-react'
+import { IconGripVertical, IconAlertCircle, IconInfoCircle } from '@tabler/icons-react'
 import {
   DndContext,
   MouseSensor,
@@ -292,12 +292,14 @@ export const AdminRolesPage = () => {
 
       {error ? (
         <Alert variant="destructive">
+          <IconAlertCircle />
           <AlertTitle>Failed to load roles</AlertTitle>
           <AlertDescription>{(error as Error).message}</AlertDescription>
         </Alert>
       ) : null}
 
       <Alert variant="info">
+        <IconInfoCircle />
         <AlertTitle>Role hierarchy</AlertTitle>
         <AlertDescription>
           Drag roles using the handle to adjust their hierarchy. Higher positions have more

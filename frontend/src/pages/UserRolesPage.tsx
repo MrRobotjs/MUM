@@ -287,24 +287,20 @@ export const UserRolesPage = () => {
       />
 
       {error && (
-        <Alert variant="destructive" className="flex items-start gap-3">
-          <IconAlertTriangle className="h-5 w-5" />
-          <div>
-            <AlertTitle>Unable to load roles</AlertTitle>
-            <AlertDescription>{(error as Error).message}</AlertDescription>
-          </div>
+        <Alert variant="destructive">
+          <IconAlertTriangle />
+          <AlertTitle>Unable to load roles</AlertTitle>
+          <AlertDescription>{(error as Error).message}</AlertDescription>
         </Alert>
       )}
 
-      <Alert variant="info" className="flex items-start gap-3">
-        <IconInfoCircle className="h-5 w-5" />
-        <div>
-          <AlertTitle>Visual roles only</AlertTitle>
-          <AlertDescription>
-            User roles are cosmetic and do not grant permissions. Use Admin Roles to manage access
-            levels.
-          </AlertDescription>
-        </div>
+      <Alert variant="info">
+        <IconInfoCircle />
+        <AlertTitle>Visual roles only</AlertTitle>
+        <AlertDescription>
+          User roles are cosmetic and do not grant permissions. Use Admin Roles to manage access
+          levels.
+        </AlertDescription>
       </Alert>
 
       <Card>

@@ -1,77 +1,39 @@
-import { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import { createContext, useContext, useCallback, ReactNode } from 'react';
+import { toast } from 'sonner';
 
 export type AlertType = 'success' | 'error' | 'warning' | 'info';
 
-export type Alert = {
-  id: string;
-  type: AlertType;
-  message: string;
-  duration?: number;
-};
-
 export type AlertContextValue = {
-  alerts: Alert[];
-  showAlert: (type: AlertType, message: string, duration?: number) => void;
   success: (message: string, duration?: number) => void;
   error: (message: string, duration?: number) => void;
   warning: (message: string, duration?: number) => void;
   info: (message: string, duration?: number) => void;
-  dismissAlert: (id: string) => void;
 };
 
 const AlertContext = createContext<AlertContextValue | undefined>(undefined);
 
 export const AlertProvider = ({ children }: { children: ReactNode }) => {
-  const [alerts, setAlerts] = useState<Alert[]>([]);
-
-  const dismissAlert = useCallback((id: string) => {
-    setAlerts((prev) => prev.filter((alert) => alert.id !== id));
+  const success = useCallback((message: string, duration?: number) => {
+    toast.success(message, { duration: duration ?? 5000 });
   }, []);
 
-  const showAlert = useCallback(
-    (type: AlertType, message: string, duration = 5000) => {
-      const id = `alert-${Date.now()}-${Math.random()}`;
-      const alert: Alert = { id, type, message, duration };
+  const error = useCallback((message: string, duration?: number) => {
+    toast.error(message, { duration: duration ?? 5000 });
+  }, []);
 
-      setAlerts((prev) => [...prev, alert]);
+  const warning = useCallback((message: string, duration?: number) => {
+    toast.warning(message, { duration: duration ?? 5000 });
+  }, []);
 
-      if (duration > 0) {
-        setTimeout(() => {
-          dismissAlert(id);
-        }, duration);
-      }
-    },
-    [dismissAlert]
-  );
-
-  const success = useCallback(
-    (message: string, duration?: number) => showAlert('success', message, duration),
-    [showAlert]
-  );
-
-  const error = useCallback(
-    (message: string, duration?: number) => showAlert('error', message, duration),
-    [showAlert]
-  );
-
-  const warning = useCallback(
-    (message: string, duration?: number) => showAlert('warning', message, duration),
-    [showAlert]
-  );
-
-  const info = useCallback(
-    (message: string, duration?: number) => showAlert('info', message, duration),
-    [showAlert]
-  );
+  const info = useCallback((message: string, duration?: number) => {
+    toast.info(message, { duration: duration ?? 5000 });
+  }, []);
 
   const value: AlertContextValue = {
-    alerts,
-    showAlert,
     success,
     error,
     warning,
     info,
-    dismissAlert,
   };
 
   return <AlertContext.Provider value={value}>{children}</AlertContext.Provider>;

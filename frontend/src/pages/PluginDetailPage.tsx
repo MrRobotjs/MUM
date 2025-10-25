@@ -13,6 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { IconAlertCircle, IconInfoCircle } from '@tabler/icons-react';
 
 const normalizeServerPayload = (values: ServerFormValues, pluginId: string) => {
   const payload: Record<string, unknown> = {
@@ -133,6 +134,7 @@ export const PluginDetailPage = () => {
   if (pluginsError) {
     return (
       <Alert variant="destructive">
+        <IconAlertCircle />
         <AlertTitle>Failed to load plugins</AlertTitle>
         <AlertDescription>{(pluginsError as Error).message}</AlertDescription>
       </Alert>
@@ -146,6 +148,7 @@ export const PluginDetailPage = () => {
           ← Back to Plugins
         </Button>
         <Alert variant="destructive">
+          <IconAlertCircle />
           <AlertTitle>Plugin not found</AlertTitle>
           <AlertDescription>Plugin "{pluginId}" could not be located.</AlertDescription>
         </Alert>
@@ -230,6 +233,7 @@ export const PluginDetailPage = () => {
 
           {plugin.lastError ? (
             <Alert variant="destructive">
+              <IconAlertCircle />
               <AlertTitle>Plugin warning</AlertTitle>
               <AlertDescription>{plugin.lastError}</AlertDescription>
             </Alert>
@@ -250,6 +254,7 @@ export const PluginDetailPage = () => {
         <CardContent className="space-y-4">
           {serversError ? (
             <Alert variant="destructive">
+              <IconAlertCircle />
               <AlertTitle>Failed to load servers</AlertTitle>
               <AlertDescription>{(serversError as Error).message}</AlertDescription>
             </Alert>
@@ -262,6 +267,7 @@ export const PluginDetailPage = () => {
             </div>
           ) : servers.length === 0 ? (
             <Alert variant="info">
+              <IconInfoCircle />
               <AlertTitle>No servers configured</AlertTitle>
               <AlertDescription>
                 There are no servers linked to this plugin yet.

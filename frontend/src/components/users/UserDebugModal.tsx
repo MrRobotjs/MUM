@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { requestJson } from '../../util/apiClient';
 import { useAlerts } from '../../contexts';
+import { IconAlertCircle } from '@tabler/icons-react';
 
 interface UserDebugModalProps {
   open: boolean;
@@ -113,6 +114,7 @@ export const UserDebugModal = ({ open, onClose, userUuid }: UserDebugModalProps)
 
         {error && (
           <Alert variant="destructive">
+            <IconAlertCircle />
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}

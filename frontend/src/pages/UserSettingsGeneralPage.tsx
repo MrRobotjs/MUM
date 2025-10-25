@@ -7,7 +7,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Card, CardContent } from '@/components/ui/card'
+import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
 import {
   Select,
@@ -78,24 +78,18 @@ const UserSettingsGeneralPage = () => {
       />
 
       {/* Under Development Notice */}
-      <Alert className="border-warning/30 bg-warning/10">
-        <div className="flex items-start gap-3">
-          <div className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-warning/20">
-            <IconAlertTriangle className="size-3 text-warning" />
-          </div>
-          <div>
-            <AlertTitle className="text-warning">Under Development</AlertTitle>
-            <AlertDescription>
-              This page is currently under development. Some settings shown are placeholders and not yet functional, except for the User Accounts section which is fully operational.
-            </AlertDescription>
-          </div>
-        </div>
+      <Alert variant="warning">
+        <IconAlertTriangle />
+        <AlertTitle>Under Development</AlertTitle>
+        <AlertDescription>
+          This page is currently under development. Some settings shown are placeholders and not yet functional, except for the User Accounts section which is fully operational.
+        </AlertDescription>
       </Alert>
 
       {/* General Settings Overview */}
       <Card>
-        <CardContent className="p-6">
-          <div className="mb-6 flex items-center gap-3">
+        <CardHeader>
+          <div className="flex items-center gap-3">
             <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/20">
               <IconUsers className="size-5 text-primary" />
             </div>
@@ -104,26 +98,21 @@ const UserSettingsGeneralPage = () => {
               <p className="text-sm text-muted-foreground">General configuration for user accounts and settings</p>
             </div>
           </div>
-
+        </CardHeader>
+        <CardContent>
           <Alert variant="info">
-            <div className="flex items-start gap-3">
-              <div className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-info/20">
-                <IconAlertCircle className="size-3 text-info" />
-              </div>
-              <div>
-                <AlertTitle>User Settings</AlertTitle>
-                <AlertDescription>
-                  Configure general user management settings including default permissions, account policies, and user preferences.
-                </AlertDescription>
-              </div>
-            </div>
+            <IconInfoCircle />
+            <AlertTitle>User Settings</AlertTitle>
+            <AlertDescription>
+              Configure general user management settings including default permissions, account policies, and user preferences.
+            </AlertDescription>
           </Alert>
         </CardContent>
       </Card>
 
       {/* Settings Form Section */}
       <Card>
-        <CardContent className="p-6">
+        <CardContent>
           <div className="mb-6 flex items-center gap-3">
             <div className="flex size-8 items-center justify-center rounded-full bg-secondary/20">
               <i className="fa-solid fa-cog text-sm text-secondary" />
@@ -162,12 +151,10 @@ const UserSettingsGeneralPage = () => {
 
                 {/* Additional Info */}
                 <Alert variant="info">
-                  <div className="flex items-start gap-2">
-                    <IconInfoCircle className="mt-0.5 size-4 text-info" />
-                    <AlertDescription>
-                      <strong>Note:</strong> User accounts are separate from media service accounts. Users will still need to be invited to media servers separately through the invitation system.
-                    </AlertDescription>
-                  </div>
+                  <IconInfoCircle />
+                  <AlertDescription>
+                    <strong>Note:</strong> User accounts are separate from media service accounts. Users will still need to be invited to media servers separately through the invitation system.
+                  </AlertDescription>
                 </Alert>
 
                 {/* Save Button */}

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { IconAlertCircle, IconInfoCircle } from '@tabler/icons-react'
 
 import { usePlugins, type Plugin } from '../hooks/usePlugins'
 import { useServers } from '../hooks/useServers'
@@ -208,11 +209,13 @@ export const PluginsPage = () => {
 
       {error ? (
         <Alert variant="destructive">
+          <IconAlertCircle />
           <AlertTitle>Failed to load plugins</AlertTitle>
           <AlertDescription>{(error as Error).message}</AlertDescription>
         </Alert>
       ) : (
         <Alert variant="info">
+          <IconInfoCircle />
           <AlertTitle>Plugin Management</AlertTitle>
           <AlertDescription>
             Enable and configure media service plugins to connect to your servers. Each

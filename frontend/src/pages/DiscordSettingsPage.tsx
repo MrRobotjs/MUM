@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { IconDeviceFloppy, IconRefresh, IconTestPipe } from '@tabler/icons-react'
+import { IconDeviceFloppy, IconRefresh, IconTestPipe, IconAlertCircle, IconInfoCircle } from '@tabler/icons-react'
 import { useDiscordSettings, type DiscordSettings } from '../hooks/useSettings'
 import { PageHeader } from '../components'
 import { requestJson } from '../util/apiClient'
@@ -95,6 +95,7 @@ export const DiscordSettingsPage = () => {
   if (error) {
     return (
       <Alert variant="destructive">
+        <IconAlertCircle />
         <AlertTitle>Error</AlertTitle>
         <AlertDescription>
           Failed to load Discord settings: {(error as Error).message}
@@ -111,24 +112,20 @@ export const DiscordSettingsPage = () => {
       />
 
       <Alert variant="info">
-        <div className="flex items-start gap-3">
-          <i className="fa-brands fa-discord text-2xl text-info"></i>
-          <div>
-            <AlertTitle>Discord Integration Setup</AlertTitle>
-            <AlertDescription>
-              Create a Discord application at{' '}
-              <a
-                href="https://discord.com/developers/applications"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="font-medium underline underline-offset-4 hover:text-info"
-              >
-                Discord Developer Portal
-              </a>{' '}
-              to get your Client ID and Secret.
-            </AlertDescription>
-          </div>
-        </div>
+        <IconInfoCircle />
+        <AlertTitle>Discord Integration Setup</AlertTitle>
+        <AlertDescription>
+          Create a Discord application at{' '}
+          <a
+            href="https://discord.com/developers/applications"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-medium underline underline-offset-4 hover:text-info"
+          >
+            Discord Developer Portal
+          </a>{' '}
+          to get your Client ID and Secret.
+        </AlertDescription>
       </Alert>
 
       <form onSubmit={handleSubmit} className="space-y-6">

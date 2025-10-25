@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { IconArrowLeft, IconPalette, IconKey, IconUsers, IconPencil } from '@tabler/icons-react'
+import { IconArrowLeft, IconPalette, IconKey, IconUsers, IconPencil, IconAlertCircle, IconInfoCircle } from '@tabler/icons-react'
 import { useAdminRoles, useAdminPermissions } from '../hooks/useAdminRoles'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -42,6 +42,7 @@ export const AdminRoleEditPage = () => {
     return (
       <div className="space-y-6">
         <Alert variant="destructive">
+          <IconAlertCircle />
           <AlertTitle>Role not found</AlertTitle>
           <AlertDescription>The requested role could not be found.</AlertDescription>
         </Alert>
@@ -82,19 +83,13 @@ export const AdminRoleEditPage = () => {
         {/* Staff Role Notice */}
         {isStaffRole && (
           <Alert variant="info">
-            <div className="flex items-start gap-3">
-              <div className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-info/20">
-                <i className="fa-solid fa-info text-xs text-info" />
-              </div>
-              <div>
-                <AlertTitle>Automatically Managed Role</AlertTitle>
-                <AlertDescription>
-                  The Staff role is automatically assigned to all administrators who have admin roles.
-                  It has no permissions and serves as a visual indicator. You can customize its
-                  appearance only.
-                </AlertDescription>
-              </div>
-            </div>
+            <IconInfoCircle />
+            <AlertTitle>Automatically Managed Role</AlertTitle>
+            <AlertDescription>
+              The Staff role is automatically assigned to all administrators who have admin roles.
+              It has no permissions and serves as a visual indicator. You can customize its
+              appearance only.
+            </AlertDescription>
           </Alert>
         )}
       </div>

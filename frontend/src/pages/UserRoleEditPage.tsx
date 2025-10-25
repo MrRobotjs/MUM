@@ -1,5 +1,5 @@
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { IconArrowLeft, IconPalette, IconPencil, IconUsers } from '@tabler/icons-react'
+import { IconArrowLeft, IconPalette, IconPencil, IconUsers, IconAlertCircle, IconInfoCircle } from '@tabler/icons-react'
 import { useUserRoles } from '../hooks/useUserRoles'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -39,6 +39,7 @@ export const UserRoleEditPage = () => {
     return (
       <div className="space-y-6">
         <Alert variant="destructive">
+          <IconAlertCircle />
           <AlertTitle>Role not found</AlertTitle>
           <AlertDescription>The requested role could not be found.</AlertDescription>
         </Alert>
@@ -76,17 +77,11 @@ export const UserRoleEditPage = () => {
 
         {/* Info Notice */}
         <Alert variant="info">
-          <div className="flex items-start gap-3">
-            <div className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-info/20">
-              <i className="fa-solid fa-info text-xs text-info" />
-            </div>
-            <div>
-              <AlertTitle>Visual Role Only</AlertTitle>
-              <AlertDescription>
-                User roles are cosmetic badges and do not grant any permissions or access. Use Admin Roles to manage access levels.
-              </AlertDescription>
-            </div>
-          </div>
+          <IconInfoCircle />
+          <AlertTitle>Visual Role Only</AlertTitle>
+          <AlertDescription>
+            User roles are cosmetic badges and do not grant any permissions or access. Use Admin Roles to manage access levels.
+          </AlertDescription>
         </Alert>
       </div>
 

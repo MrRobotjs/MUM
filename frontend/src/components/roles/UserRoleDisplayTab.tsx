@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { IconPalette, IconDroplet, IconSparkles, IconDeviceFloppy } from '@tabler/icons-react'
+import { IconPalette, IconDroplet, IconSparkles, IconDeviceFloppy, IconInfoCircle } from '@tabler/icons-react'
 import { UserRole } from '../../hooks/useUserRoles'
 import { useAlerts } from '../../contexts'
 import { requestJson } from '../../util/apiClient'
@@ -81,17 +81,11 @@ export const UserRoleDisplayTab = ({ role, onUpdate }: UserRoleDisplayTabProps) 
         </div>
 
         <Alert variant="info">
-          <div className="flex items-start gap-3">
-            <div className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-info/20">
-              <i className="fa-solid fa-info text-xs text-info" />
-            </div>
-            <div>
-              <AlertTitle>Cosmetic Only</AlertTitle>
-              <AlertDescription>
-                User roles are visual badges only and do not grant any permissions or access.
-              </AlertDescription>
-            </div>
-          </div>
+          <IconInfoCircle />
+          <AlertTitle>Cosmetic Only</AlertTitle>
+          <AlertDescription>
+            User roles are visual badges only and do not grant any permissions or access.
+          </AlertDescription>
         </Alert>
       </div>
 

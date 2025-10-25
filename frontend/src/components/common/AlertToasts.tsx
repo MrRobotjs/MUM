@@ -1,3 +1,16 @@
+/**
+ * @deprecated This component is deprecated and no longer used.
+ *
+ * AlertToasts has been replaced by shadcn Sonner component for toast notifications.
+ *
+ * DO NOT USE THIS COMPONENT. It is kept for reference only.
+ * Use the Toaster component from '@/components/ui/sonner' instead.
+ *
+ * Toast notifications are now triggered via the useAlerts hook which uses Sonner internally.
+ *
+ * This file can be safely deleted.
+ */
+
 import { useAlerts } from '../../contexts/AlertContext';
 
 const alertTypeToClass = {

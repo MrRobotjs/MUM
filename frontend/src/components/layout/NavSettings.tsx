@@ -60,7 +60,15 @@ export function NavSettings() {
     }
   }
 
-  const settingsSections: NavSection[] = [
+  type SettingsItem = NavItem | NavSection
+
+  const settingsItems: SettingsItem[] = [
+    {
+      title: 'General',
+      url: '/admin/settings/general',
+      icon: IconAdjustments,
+      permission: 'manage_general_settings',
+    },
     {
       title: 'Users',
       icon: IconUsers,
@@ -99,15 +107,6 @@ export function NavSettings() {
         },
       ],
     },
-  ]
-
-  const additionalSettingsItems: NavItem[] = [
-    {
-      title: 'General',
-      url: '/admin/settings/general',
-      icon: IconAdjustments,
-      permission: 'manage_general_settings',
-    },
     {
       title: 'Plugins',
       url: '/admin/settings/plugins',
@@ -121,16 +120,16 @@ export function NavSettings() {
       permission: 'manage_discord_settings',
     },
     {
-      title: 'Advanced',
-      url: '/admin/settings/advanced',
-      icon: IconGauge,
-      permission: 'manage_advanced_settings',
-    },
-    {
       title: 'Logs',
       url: '/admin/settings/logs',
       icon: IconTimeline,
       permission: 'view_logs',
+    },
+    {
+      title: 'Advanced',
+      url: '/admin/settings/advanced',
+      icon: IconGauge,
+      permission: 'manage_advanced_settings',
     },
     {
       title: 'API Debug',
@@ -161,6 +160,10 @@ export function NavSettings() {
     return section.items.some(filterByPermission)
   }
 
+  const isNavSection = (item: SettingsItem): item is NavSection => {
+    return 'items' in item
+  }
+
   if (!canAccessSettings) {
     return null
   }
@@ -169,50 +172,57 @@ export function NavSettings() {
     <SidebarGroup>
       <SidebarGroupLabel>Settings</SidebarGroupLabel>
       <SidebarMenu>
-        {settingsSections.filter(filterSectionByPermission).map((section) => {
-          const visibleItems = section.items.filter(filterByPermission)
-          if (visibleItems.length === 0) return null
+        {settingsItems.map((item) => {
+          // Check if it's a section (has items) or a simple nav item
+          if (isNavSection(item)) {
+            // Collapsible section
+            if (!filterSectionByPermission(item)) return null
+            const visibleItems = item.items.filter(filterByPermission)
+            if (visibleItems.length === 0) return null
 
-          return (
-            <Collapsible key={section.title} asChild defaultOpen={false}>
-              <SidebarMenuItem>
-                <CollapsibleTrigger asChild>
-                  <SidebarMenuButton tooltip={section.title}>
-                    <section.icon />
-                    <span>{section.title}</span>
-                    <IconChevronRight className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
-                  </SidebarMenuButton>
-                </CollapsibleTrigger>
-                <CollapsibleContent>
-                  <SidebarMenuSub>
-                    {visibleItems.map((item) => (
-                      <SidebarMenuSubItem key={item.title}>
-                        <SidebarMenuSubButton asChild>
-                          <NavLink to={item.url} onClick={handleNavLinkClick}>
-                            <item.icon />
-                            <span>{item.title}</span>
-                          </NavLink>
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
-                    ))}
-                  </SidebarMenuSub>
-                </CollapsibleContent>
+            return (
+              <Collapsible key={item.title} asChild defaultOpen={false}>
+                <SidebarMenuItem>
+                  <CollapsibleTrigger asChild>
+                    <SidebarMenuButton tooltip={item.title}>
+                      <item.icon />
+                      <span>{item.title}</span>
+                      <IconChevronRight className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+                    </SidebarMenuButton>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <SidebarMenuSub>
+                      {visibleItems.map((subItem) => (
+                        <SidebarMenuSubItem key={subItem.title}>
+                          <SidebarMenuSubButton asChild>
+                            <NavLink to={subItem.url} onClick={handleNavLinkClick}>
+                              <subItem.icon />
+                              <span>{subItem.title}</span>
+                            </NavLink>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                      ))}
+                    </SidebarMenuSub>
+                  </CollapsibleContent>
+                </SidebarMenuItem>
+              </Collapsible>
+            )
+          } else {
+            // Simple nav item
+            if (!filterByPermission(item)) return null
+
+            return (
+              <SidebarMenuItem key={item.title}>
+                <SidebarMenuButton asChild tooltip={item.title}>
+                  <NavLink to={item.url} onClick={handleNavLinkClick}>
+                    <item.icon />
+                    <span>{item.title}</span>
+                  </NavLink>
+                </SidebarMenuButton>
               </SidebarMenuItem>
-            </Collapsible>
-          )
+            )
+          }
         })}
-
-        {/* Additional flat settings items */}
-        {additionalSettingsItems.filter(filterByPermission).map((item) => (
-          <SidebarMenuItem key={item.title}>
-            <SidebarMenuButton asChild tooltip={item.title}>
-              <NavLink to={item.url} onClick={handleNavLinkClick}>
-                <item.icon />
-                <span>{item.title}</span>
-              </NavLink>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        ))}
       </SidebarMenu>
     </SidebarGroup>
   )

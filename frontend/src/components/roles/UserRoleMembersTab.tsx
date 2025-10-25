@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { IconUsers, IconUserPlus, IconUserMinus, IconSearch } from '@tabler/icons-react'
+import { IconUsers, IconUserPlus, IconUserMinus, IconSearch, IconInfoCircle } from '@tabler/icons-react'
 import useSWR from 'swr'
 import { UserRole } from '../../hooks/useUserRoles'
 import { useAlerts } from '../../contexts'
@@ -143,17 +143,11 @@ export const UserRoleMembersTab = ({ role, onUpdate }: UserRoleMembersTabProps) 
 
         {/* Stats Card */}
         <Alert variant="info">
-          <div className="flex items-center gap-3">
-            <div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-info/20">
-              <i className="fa-solid fa-chart-simple text-xs text-info" />
-            </div>
-            <div>
-              <AlertTitle>Current Members</AlertTitle>
-              <AlertDescription>
-                {members.length} user{members.length !== 1 ? 's' : ''} assigned to this role
-              </AlertDescription>
-            </div>
-          </div>
+          <IconInfoCircle />
+          <AlertTitle>Current Members</AlertTitle>
+          <AlertDescription>
+            {members.length} user{members.length !== 1 ? 's' : ''} assigned to this role
+          </AlertDescription>
         </Alert>
       </div>
 
@@ -265,6 +259,7 @@ export const UserRoleMembersTab = ({ role, onUpdate }: UserRoleMembersTabProps) 
         <div className="space-y-4">
           {availableUsers.length === 0 ? (
             <Alert variant="info">
+              <IconInfoCircle />
               <AlertDescription>
                 All local users are already members of this role.
               </AlertDescription>

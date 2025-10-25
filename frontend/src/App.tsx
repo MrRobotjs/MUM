@@ -1,6 +1,6 @@
 import AppRouter from './router/AppRouter';
 import { AuthProvider, AlertProvider, ThemeProvider } from './contexts';
-import { AlertToasts } from './components';
+import { Toaster } from './components/ui/sonner';
 
 const App = () => {
   return (
@@ -8,7 +8,7 @@ const App = () => {
       <AuthProvider>
         <AlertProvider>
           <AppRouter />
-          <AlertToasts />
+          <Toaster />
         </AlertProvider>
       </AuthProvider>
     </ThemeProvider>

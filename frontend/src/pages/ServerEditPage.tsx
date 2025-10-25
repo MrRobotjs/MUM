@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { IconWifi, IconCheck, IconX } from '@tabler/icons-react';
+import { IconWifi, IconCheck, IconX, IconAlertCircle } from '@tabler/icons-react';
 import { PageHeader } from '../components';
 import { FormField } from '../components';
 import { useServers, useServerDetail } from '../hooks/useServers';
@@ -245,6 +245,7 @@ export const ServerEditPage = () => {
           ← Back
         </Button>
         <Alert variant="destructive">
+          <IconAlertCircle />
           <AlertTitle>Server not found</AlertTitle>
           <AlertDescription>
             {serverError ? (serverError as Error).message : 'The requested server could not be found.'}
@@ -310,6 +311,7 @@ export const ServerEditPage = () => {
             <div className="space-y-4">
               {error && (
                 <Alert variant="destructive">
+                  <IconAlertCircle />
                   <AlertTitle>Error</AlertTitle>
                   <AlertDescription>{error}</AlertDescription>
                 </Alert>

@@ -4,6 +4,7 @@ from flask import (
     flash, request, current_app, g, make_response, session, jsonify
 )
 import requests
+from urllib.parse import urlparse, urlunparse
 from flask_login import login_required, current_user, logout_user 
 import secrets
 from app.models import User, UserType, Invite, HistoryLog, Setting, EventType, SettingValueType, Role, UserPreferences
@@ -606,6 +607,7 @@ def api_debug_execute():
         response_format = data.get('response_format', 'json')
         parameters = data.get('parameters', [])
         server_id = data.get('server_id')
+        protocol = data.get('protocol')
         
         if not server_id or not endpoint:
             return jsonify({'error': 'Server and endpoint are required'}), 400
@@ -616,7 +618,28 @@ def api_debug_execute():
             return jsonify({'error': 'Server not found'}), 404
             
         # Construct full URL with parameters
-        base_url = server.url.rstrip('/')
+        base_url = (server.url or '').strip()
+        if protocol not in ('http', 'https'):
+            protocol = None
+
+        if protocol:
+            sanitized = base_url or ''
+            if sanitized:
+                try:
+                    parsed = urlparse(sanitized)
+                    if not parsed.scheme:
+                        parsed = urlparse(f"{protocol}://{sanitized.lstrip('/')}")
+                    parsed = parsed._replace(scheme=protocol)
+                    if not parsed.netloc and parsed.path:
+                        parsed = parsed._replace(netloc=parsed.path, path='')
+                    base_url = urlunparse(parsed)
+                except ValueError:
+                    without_scheme = sanitized.replace('://', '').lstrip('/')
+                    base_url = f"{protocol}://{without_scheme}"
+            else:
+                base_url = f"{protocol}://"
+
+        base_url = base_url.rstrip('/')
         if not endpoint.startswith('/'):
             endpoint = '/' + endpoint
         full_url = base_url + endpoint

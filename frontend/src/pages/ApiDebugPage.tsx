@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { requestJson } from '../util/apiClient';
 import { useToast } from '../util/toast';
 import { PageHeader } from '../components';
@@ -51,6 +51,19 @@ const ApiDebugPage = () => {
   const [selectedServer, setSelectedServer] = useState<string>('');
   const [parameters, setParameters] = useState<QueryParameter[]>([{ key: '', value: '' }]);
   const [servers, setServers] = useState<Server[]>([]);
+  const availableServers = useMemo(() => {
+    const plexRemote: Server = {
+      id: 'plex.tv',
+      server_nickname: 'plex.tv (Remote)',
+      service_type: 'plex',
+      url: 'https://plex.tv'
+    };
+
+    const hasPlexRemote = servers.some((server) => server.id === plexRemote.id);
+    return hasPlexRemote ? servers : [...servers, plexRemote];
+  }, [servers]);
+  const [protocol, setProtocol] = useState<'http' | 'https'>('https');
+  const previousServerRef = useRef<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [response, setResponse] = useState<ApiResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -60,6 +73,32 @@ const ApiDebugPage = () => {
   useEffect(() => {
     fetchServers();
   }, []);
+
+  useEffect(() => {
+    if (!selectedServer) {
+      return;
+    }
+
+    if (previousServerRef.current === selectedServer) {
+      return;
+    }
+
+    const server = availableServers.find((s) => s.id === selectedServer);
+    if (!server) {
+      return;
+    }
+
+    const scheme = server.url.startsWith('http://') ? 'http' : server.url.startsWith('https://') ? 'https' : 'https';
+    setProtocol(scheme);
+    previousServerRef.current = selectedServer;
+  }, [selectedServer, availableServers]);
+
+  const buildBaseUrlWithProtocol = (url: string, scheme: 'http' | 'https'): string => {
+    const trimmed = url.trim();
+    const withoutProtocol = trimmed.replace(/^(https?:)?\/\//i, '');
+    const combined = `${scheme}://${withoutProtocol}`;
+    return combined.replace(/\/$/, '');
+  };
 
   const fetchServers = async () => {
     try {
@@ -91,12 +130,12 @@ const ApiDebugPage = () => {
   };
 
   const getFullUrl = (): string => {
-    const server = servers.find((s) => s.id === selectedServer);
+    const server = availableServers.find((s) => s.id === selectedServer);
     if (!server || !apiEndpoint) {
       return 'Select a server and enter an endpoint to see the full URL';
     }
 
-    const baseUrl = server.url.replace(/\/$/, '');
+    const baseUrl = buildBaseUrlWithProtocol(server.url, protocol);
     const endpoint = apiEndpoint.startsWith('/') ? apiEndpoint : '/' + apiEndpoint;
 
     const validParams = parameters.filter((p) => p.key && p.value);
@@ -130,7 +169,8 @@ const ApiDebugPage = () => {
           endpoint: apiEndpoint,
           response_format: responseFormat,
           parameters: parameters.filter((p) => p.key && p.value),
-          server_id: selectedServer
+          server_id: selectedServer,
+          protocol,
         })
       });
 
@@ -310,7 +350,7 @@ const ApiDebugPage = () => {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
             {/* HTTP Method */}
             <div className="space-y-2">
               <Label htmlFor="http-method">HTTP Method</Label>
@@ -365,11 +405,25 @@ const ApiDebugPage = () => {
                   <SelectValue placeholder="Select a server..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {servers.map((server) => (
+                  {availableServers.map((server) => (
                     <SelectItem key={server.id} value={server.id}>
                       {server.server_nickname} ({server.service_type})
                     </SelectItem>
                   ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Protocol Selection */}
+            <div className="space-y-2">
+              <Label htmlFor="protocol-select">Protocol</Label>
+              <Select value={protocol} onValueChange={(value) => setProtocol(value as 'http' | 'https')}>
+                <SelectTrigger id="protocol-select">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="https">https://</SelectItem>
+                  <SelectItem value="http">http://</SelectItem>
                 </SelectContent>
               </Select>
             </div>

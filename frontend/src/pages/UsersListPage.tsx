@@ -13,6 +13,7 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Badge } from '../components/ui/badge';
 import { requestJson } from '../util/apiClient';
+import { cn } from '@/lib/utils';
 import {
   Select,
   SelectContent,
@@ -41,7 +42,7 @@ import {
 } from '../components/ui/dropdown-menu';
 import { Card, CardContent } from '../components/ui/card';
 import { Progress } from '../components/ui/progress';
-import { IconDots } from '@tabler/icons-react';
+import { IconDots, IconRefresh } from '@tabler/icons-react';
 
 export const UsersListPage = () => {
   const [view, setView] = useState<'table' | 'cards'>('cards');
@@ -140,6 +141,9 @@ export const UsersListPage = () => {
       : 'some';
 
   const handleSync = async () => {
+    if (syncStatus.is_syncing) {
+      return;
+    }
     try {
       const result = await requestJson<{
         data: {
@@ -210,12 +214,22 @@ export const UsersListPage = () => {
           sideOffset={8}
           collisionPadding={8}
         >
-          <DropdownMenuItem onSelect={handleSync} disabled={syncStatus.is_syncing}>
-            {syncStatus.is_syncing ? (
-              <span className="loading loading-spinner loading-xs mr-2" />
-            ) : (
-              <i className="fa-solid fa-sync fa-fw mr-2" />
-            )}
+          <DropdownMenuItem
+            disabled={syncStatus.is_syncing}
+            onSelect={(event) => {
+              if (syncStatus.is_syncing) {
+                event.preventDefault();
+                return;
+              }
+              handleSync();
+            }}
+          >
+            <IconRefresh
+              className={cn(
+                'mr-2 h-4 w-4',
+                syncStatus.is_syncing && 'animate-spin text-primary'
+              )}
+            />
             Sync All Users
           </DropdownMenuItem>
           <DropdownMenuItem onSelect={() => setShowDisplaySettingsModal(true)}>

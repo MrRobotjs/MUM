@@ -9,6 +9,7 @@ import {
   IconBroadcast as IconRadio,
   IconDeviceDesktop,
   IconRefresh,
+  IconCheck,
 } from "@tabler/icons-react"
 
 import { NavMain } from "@/components/layout/NavMain"
@@ -27,12 +28,16 @@ import {
 import { useAuth } from "@/contexts/AuthContext"
 import { useAlerts } from "@/contexts/AlertContext"
 import { requestJson } from "@/util/apiClient"
+import { useSyncStatus } from "@/hooks/useSyncStatus"
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { hasPermission, user: currentUser } = useAuth()
   const { isMobile, setOpenMobile } = useSidebar()
   const { success, error } = useAlerts()
-  const [isSyncing, setIsSyncing] = React.useState(false)
+  const { syncStatus } = useSyncStatus()
+  const [isStartingSync, setIsStartingSync] = React.useState(false)
+  const [showSyncComplete, setShowSyncComplete] = React.useState(false)
+  const previousSyncingRef = React.useRef(syncStatus.is_syncing)
 
   const handleLogoClick = () => {
     if (isMobile) {
@@ -41,9 +46,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   }
 
   const handleSyncUsers = async () => {
-    if (isSyncing) return
+    if (isStartingSync || syncStatus.is_syncing) return
 
-    setIsSyncing(true)
+    setIsStartingSync(true)
     try {
       await requestJson('/admin/api/v1/users/sync-all', {
         method: 'POST',
@@ -56,10 +61,58 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       } else {
         error('Failed to start user sync')
       }
-    } finally {
-      setIsSyncing(false)
+      setIsStartingSync(false)
     }
   }
+
+  React.useEffect(() => {
+    if (syncStatus.is_syncing) {
+      setIsStartingSync(false)
+    }
+  }, [syncStatus.is_syncing])
+
+  React.useEffect(() => {
+    const wasSyncing = previousSyncingRef.current
+    const isSyncingNow = syncStatus.is_syncing
+
+    previousSyncingRef.current = isSyncingNow
+
+    if (!isSyncingNow && wasSyncing) {
+      setShowSyncComplete(true)
+      const timeout = window.setTimeout(() => setShowSyncComplete(false), 3000)
+      return () => window.clearTimeout(timeout)
+    }
+
+    if (isSyncingNow) {
+      setShowSyncComplete(false)
+    }
+  }, [syncStatus.is_syncing])
+
+  React.useEffect(() => {
+    if (!isStartingSync) {
+      return
+    }
+
+    const timeout = window.setTimeout(() => {
+      setIsStartingSync(false)
+    }, 6000)
+
+    return () => {
+      window.clearTimeout(timeout)
+    }
+  }, [isStartingSync])
+
+  const syncInProgress = syncStatus.is_syncing || isStartingSync
+
+  const syncStatusIndicator = hasPermission('edit_user')
+    ? (
+        syncInProgress ? (
+          <IconRefresh className="size-4 text-primary animate-spin" />
+        ) : showSyncComplete ? (
+          <IconCheck className="size-4 text-emerald-500" />
+        ) : null
+      )
+    : null
 
   const navMainItems = [
     {
@@ -76,9 +129,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         {
           label: 'Sync Users',
           icon: IconRefresh,
+          iconClassName: syncInProgress ? 'animate-spin text-primary' : undefined,
           onClick: handleSyncUsers,
+          disabled: syncInProgress,
         }
       ] : undefined,
+      statusIndicator: syncStatusIndicator,
     },
     {
       title: 'Invites',

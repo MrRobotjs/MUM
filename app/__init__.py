@@ -6,6 +6,7 @@ import secrets
 from datetime import datetime 
 from werkzeug.middleware.proxy_fix import ProxyFix
 from flask import Flask, g, request, redirect, url_for, current_app, render_template, flash, send_from_directory, jsonify
+from flask_openapi3 import OpenAPI, Info, Server
 from flask_login import current_user
 
 from .config import config
@@ -115,7 +116,18 @@ def create_app(config_name=None):
     if config_name is None:
         config_name = os.environ.get('FLASK_ENV', 'default')
     
-    app = Flask(__name__, instance_relative_config=True)
+    # Use OpenAPI (subclass of Flask) to enable automatic OpenAPI 3.1 generation for api_v2
+    # Do NOT set servers with a base path because paths registered below already
+    # include '/admin/api/v2', and adding a server with that prefix would duplicate it in examples.
+    info = Info(title="Media User Manager API", version="2.0.0")
+    app = OpenAPI(
+        __name__,
+        info=info,
+        instance_relative_config=True,
+        # Expose docs and JSON under admin namespace to avoid conflicts
+        doc_prefix="/admin/api/v2/openapi",
+        doc_url="/openapi.json",
+    )
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
     app.jinja_env.add_extension('jinja2.ext.do')
     
@@ -587,6 +599,12 @@ def create_app(config_name=None):
     app.register_blueprint(public_api_v1_bp, url_prefix='/api/v1')
     from .routes.api_v1 import bp as api_v1_bp
     app.register_blueprint(api_v1_bp, url_prefix='/admin/api/v1')
+    # Register OpenAPI3-powered API v2
+    try:
+        from .routes.api_v2 import api_v2 as api_v2_bp
+        app.register_api(api_v2_bp, url_prefix='/admin/api/v2')
+    except Exception as e:
+        app.logger.error(f"Failed to register api_v2 (OpenAPI): {e}")
     from .routes.user import bp as user_bp
     app.register_blueprint(user_bp)
     # Media servers - needed for setup routes
@@ -604,9 +622,7 @@ def create_app(config_name=None):
     # app.register_blueprint(libraries_bp, url_prefix='/admin')
     from .routes.websockets import bp as websockets_bp
     app.register_blueprint(websockets_bp)
-    # OpenAPI documentation endpoint
-    from .routes.openapi import openapi_bp
-    app.register_blueprint(openapi_bp, url_prefix='/admin/api')
+    # (legacy handcrafted OpenAPI spec removed; v2 auto docs are used)
 
     # Register React SPA blueprint LAST to act as catch-all for /admin UI routes
     # This serves the React app for any /admin path not handled by the above blueprints

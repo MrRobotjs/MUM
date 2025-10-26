@@ -1,0 +1,21 @@
+import { ApiReferenceReact } from '@scalar/api-reference-react';
+import '@scalar/api-reference-react/style.css';
+
+export const ApiDocsPage = () => {
+  return (
+    <div className="h-screen w-full">
+      <ApiReferenceReact
+        configuration={{
+          url: '/admin/api/openapi.json',
+          theme: 'default',
+          layout: 'modern',
+          darkMode: document.documentElement.classList.contains('dark'),
+          searchHotKey: 'k',
+          showSidebar: true,
+        }}
+      />
+    </div>
+  );
+};
+
+export default ApiDocsPage;

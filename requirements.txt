@@ -12,6 +12,7 @@ pytz>=2023.3
 Flask-Babel>=4.0.0 # For potential i18n/l10n in the future, good to have
 Flask-Caching>=2.1.0  # For caching sync status and other data
 Flask-HTMX>=0.4.0
+flask-openapi3>=4.3.0  # For OpenAPI 3.0 documentation
 SQLAlchemy>=2.0.41
 gunicorn>=22.0.0
 python-dotenv>=1.1.0

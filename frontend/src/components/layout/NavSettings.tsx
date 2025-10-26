@@ -15,6 +15,7 @@ import {
   IconCode,
   IconGauge,
   IconChevronRight,
+  IconBook,
 } from "@tabler/icons-react"
 import { NavLink } from "react-router-dom"
 
@@ -137,6 +138,12 @@ export function NavSettings() {
       icon: IconCode,
       permission: 'manage_advanced_settings',
     },
+    {
+      title: 'API Docs',
+      url: '/admin/api-docs',
+      icon: IconBook,
+      permission: 'manage_advanced_settings',
+    },
   ]
 
   const canAccessSettings =
@@ -210,6 +217,20 @@ export function NavSettings() {
           } else {
             // Simple nav item
             if (!filterByPermission(item)) return null
+
+            // Special handling for API Docs - open in new tab
+            if (item.title === 'API Docs') {
+              return (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton asChild tooltip={item.title}>
+                    <a href={item.url} target="_blank" rel="noopener noreferrer">
+                      <item.icon />
+                      <span>{item.title}</span>
+                    </a>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )
+            }
 
             return (
               <SidebarMenuItem key={item.title}>

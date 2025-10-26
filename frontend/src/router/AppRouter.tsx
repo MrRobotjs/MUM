@@ -25,6 +25,7 @@ import DiscordSettingsPage from '../pages/DiscordSettingsPage';
 import AdvancedSettingsPage from '../pages/AdvancedSettingsPage';
 import LogsPage from '../pages/LogsPage';
 import ApiDebugPage from '../pages/ApiDebugPage';
+import ApiDocsPage from '../pages/ApiDocsPage';
 import AdminAccountPage from '../pages/AdminAccountPage';
 
 export const AppRouter = () => (
@@ -33,6 +34,7 @@ export const AppRouter = () => (
       <Route path="/auth/login" element={<LoginPage />} />
       <Route path="/auth/admin_login" element={<LoginPage />} />
       <Route element={<AdminGuard />}>
+        <Route path="/admin/api-docs" element={<ApiDocsPage />} />
         <Route path="/admin" element={<AdminShell />}>
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<DashboardPage />} />

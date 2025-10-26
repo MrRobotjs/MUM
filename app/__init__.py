@@ -604,6 +604,9 @@ def create_app(config_name=None):
     # app.register_blueprint(libraries_bp, url_prefix='/admin')
     from .routes.websockets import bp as websockets_bp
     app.register_blueprint(websockets_bp)
+    # OpenAPI documentation endpoint
+    from .routes.openapi import openapi_bp
+    app.register_blueprint(openapi_bp, url_prefix='/admin/api')
 
     # Register React SPA blueprint LAST to act as catch-all for /admin UI routes
     # This serves the React app for any /admin path not handled by the above blueprints

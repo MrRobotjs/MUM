@@ -31,6 +31,8 @@ from . import invites_bulk  # noqa: E402,F401
 from . import invite_public  # noqa: E402,F401
 from . import streams_api  # noqa: E402,F401
 from . import libraries  # noqa: E402,F401
+from . import libraries_actions  # noqa: E402,F401
+from . import servers_libraries  # noqa: E402,F401
 from . import settings_general  # noqa: E402,F401
 from . import settings_user_accounts  # noqa: E402,F401
 from . import settings_advanced  # noqa: E402,F401
@@ -48,3 +50,4 @@ from . import streams  # noqa: E402,F401
 from . import statistics  # noqa: E402,F401
 from . import history  # noqa: E402,F401
 from . import auth  # noqa: E402,F401
+from . import media_proxy  # noqa: E402,F401

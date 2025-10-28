@@ -60,7 +60,7 @@ export const useDiscordSettings = () => {
 
 export const useAdvancedSettings = () => {
   const { data, error, isLoading, mutate } = useSWR<SettingsResponse<AdvancedSettings>>(
-    '/admin/api/v1/settings/advanced',
+    '/admin/api/v2/settings/advanced',
     (url: string) => requestJson(url)
   );
 

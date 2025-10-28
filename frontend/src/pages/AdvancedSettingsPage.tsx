@@ -48,7 +48,7 @@ export const AdvancedSettingsPage = () => {
     setSubmitting(true);
 
     try {
-      await requestJson('/admin/api/v1/settings/advanced', {
+      await requestJson('/admin/api/v2/settings/advanced', {
         method: 'PATCH',
         body: JSON.stringify(formValues),
       });

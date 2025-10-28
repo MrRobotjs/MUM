@@ -43,7 +43,7 @@ export const useAdminRoles = (includePermissions = false, includeUsers = false) 
   if (includePermissions) params.append('include_permissions', 'true');
   if (includeUsers) params.append('include_users', 'true');
 
-  const url = `/admin/api/v1/admin-roles${params.toString() ? `?${params.toString()}` : ''}`;
+  const url = `/admin/api/v2/admin-roles${params.toString() ? `?${params.toString()}` : ''}`;
 
   const { data, error, isLoading, mutate } = useSWR<AdminRolesResponse>(
     url,
@@ -60,7 +60,7 @@ export const useAdminRoles = (includePermissions = false, includeUsers = false) 
 
 export const useAdminPermissions = () => {
   const { data, error, isLoading } = useSWR<AdminPermissionsResponse>(
-    '/admin/api/v1/admin-permissions',
+    '/admin/api/v2/admin-permissions',
     (url: string) => requestJson(url)
   );
 
@@ -73,7 +73,7 @@ export const useAdminPermissions = () => {
 
 export const useAdminRoleDetail = (roleId?: string) => {
   const url = roleId
-    ? `/admin/api/v1/admin-roles/${roleId}`
+    ? `/admin/api/v2/admin-roles/${roleId}`
     : null;
 
   const { data, error, isLoading, mutate } = useSWR(

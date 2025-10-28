@@ -177,13 +177,13 @@ export const AdminRolesPage = () => {
       }
 
       if (editingRole) {
-        await requestJson(`/admin/api/v1/admin-roles/${editingRole.id}`, {
+        await requestJson(`/admin/api/v2/admin-roles/${editingRole.id}`, {
           method: 'PATCH',
           body: JSON.stringify(payload),
         })
         success('Role updated successfully')
       } else {
-        await requestJson('/admin/api/v1/admin-roles', {
+        await requestJson('/admin/api/v2/admin-roles', {
           method: 'POST',
           body: JSON.stringify(payload),
         })
@@ -212,7 +212,7 @@ export const AdminRolesPage = () => {
     try {
       await Promise.all(
         changedRoles.map((role) =>
-          requestJson(`/admin/api/v1/admin-roles/${role.id}`, {
+          requestJson(`/admin/api/v2/admin-roles/${role.id}`, {
             method: 'PATCH',
             body: JSON.stringify({ position: role.position }),
           })

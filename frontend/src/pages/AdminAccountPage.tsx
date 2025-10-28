@@ -109,7 +109,7 @@ const AdminAccountPage = () => {
     setLoading(true);
     setFetchError(null);
     try {
-      const response = await requestJson<AccountResponse>('/admin/api/v1/account');
+      const response = await requestJson<AccountResponse>('/admin/api/v2/account');
       setAccount(response.data);
       const tz = response.data.timezone;
       setTimezoneForm({
@@ -156,7 +156,7 @@ const AdminAccountPage = () => {
 
     setCredentialsSubmitting(true);
     try {
-      const response = await requestJson<AccountResponse>('/admin/api/v1/account/initial-credentials', {
+      const response = await requestJson<AccountResponse>('/admin/api/v2/account/initial-credentials', {
         method: 'POST',
         body: JSON.stringify({
           username: credentialsForm.username,
@@ -192,7 +192,7 @@ const AdminAccountPage = () => {
 
     setPasswordSubmitting(true);
     try {
-      await requestJson('/admin/api/v1/auth/change-password', {
+      await requestJson('/admin/api/v2/auth/change-password', {
         method: 'POST',
         body: JSON.stringify({
           current_password: passwordForm.currentPassword,
@@ -222,7 +222,7 @@ const AdminAccountPage = () => {
 
     setTimezoneSubmitting(true);
     try {
-      const response = await requestJson<AccountResponse>('/admin/api/v1/account/timezone', {
+      const response = await requestJson<AccountResponse>('/admin/api/v2/account/timezone', {
         method: 'PUT',
         body: JSON.stringify({
           preference: timezoneForm.preference,

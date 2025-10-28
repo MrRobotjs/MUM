@@ -88,7 +88,7 @@ const AdminsSettingsPage = () => {
   const fetchAdmins = async () => {
     try {
       setLoading(true)
-      const response = await requestJson<{ data: Admin[] }>('/admin/api/v1/admins')
+      const response = await requestJson<{ data: Admin[] }>('/admin/api/v2/admins')
       setAdmins(response.data || [])
     } catch (error) {
       showError(`Failed to load admins: ${error}`)
@@ -99,7 +99,7 @@ const AdminsSettingsPage = () => {
 
   const fetchRoles = async () => {
     try {
-      const response = await requestJson<{ data: AdminRoleOption[] }>('/admin/api/v1/admin-roles')
+      const response = await requestJson<{ data: AdminRoleOption[] }>('/admin/api/v2/admin-roles')
       setRoles(response.data || [])
     } catch (error) {
       console.error('Failed to load roles:', error)
@@ -134,7 +134,7 @@ const AdminsSettingsPage = () => {
 
     try {
       setSubmitting(true)
-      await requestJson('/admin/api/v1/admins', {
+      await requestJson('/admin/api/v2/admins', {
         method: 'POST',
         body: JSON.stringify({
           username: createUsername,
@@ -164,7 +164,7 @@ const AdminsSettingsPage = () => {
 
     try {
       setSubmitting(true)
-      await requestJson(`/admin/api/v1/admins/${selectedAdmin.id}`, {
+      await requestJson(`/admin/api/v2/admins/${selectedAdmin.id}`, {
         method: 'PATCH',
         body: JSON.stringify({
           role_ids: editRoleIds
@@ -195,7 +195,7 @@ const AdminsSettingsPage = () => {
 
     try {
       setSubmitting(true)
-      await requestJson(`/admin/api/v1/admins/${selectedAdmin.id}/reset-password`, {
+      await requestJson(`/admin/api/v2/admins/${selectedAdmin.id}/reset-password`, {
         method: 'POST',
         body: JSON.stringify({
           password: resetPassword
@@ -221,7 +221,7 @@ const AdminsSettingsPage = () => {
     }
 
     try {
-      await requestJson(`/admin/api/v1/admins/${admin.id}`, {
+      await requestJson(`/admin/api/v2/admins/${admin.id}`, {
         method: 'DELETE'
       })
 

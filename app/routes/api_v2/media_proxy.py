@@ -396,4 +396,3 @@ def audiobookshelf_image_proxy_v2():
             exc_info=True,
         )
         abort(500)
-

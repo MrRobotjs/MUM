@@ -1,15 +1,12 @@
-version: '3.8' # Specifies the Docker Compose file format version
-
 services:
   mum: # Service name (Multimedia User Manager)
     container_name: mum
     build:
       context: . # The build context is the current directory
       dockerfile: Dockerfile # Specifies the Dockerfile to use
-    restart: unless-stopped # Restart policy
+    restart: unless-stopped
     ports:
-      - "5699:5000" # Maps port 5699 on the host to port 5000 in the container
-                    # Gunicorn will run on port 5000 inside the container
+      - "${HOST_FRONTEND_PORT:-5699}:${FRONTEND_PORT:-5000}" # Host port → React/Flask entrypoint (defaults to 5699→5000)
     volumes:
       # Mounts the ./MUM directory on the host to /app/instance in the container.
       # This is used for persistent data like the SQLite database.
@@ -31,3 +28,5 @@ services:
       # For example, if you decide to pass some secrets or configurations this way:
       # - FLASK_ENV=production # Handled by .flaskenv or run.py for production
       # - SECRET_KEY=your_very_secret_key # Will be handled via .env and app config
+      - FLASK_PORT=${FLASK_PORT:-5000} # Internal Flask API port (mirrors gunicorn bind)
+      - FRONTEND_PORT=${FRONTEND_PORT:-5000} # Port exposed for the React frontend (defaults to Flask port)

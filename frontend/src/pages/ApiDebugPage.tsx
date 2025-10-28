@@ -102,7 +102,7 @@ const ApiDebugPage = () => {
 
   const fetchServers = async () => {
     try {
-      const response = await requestJson<{ data: Server[] }>('/admin/api/v1/servers');
+      const response = await requestJson<{ data: Server[] }>('/admin/api/v2/servers');
       setServers(response.data || []);
     } catch (error) {
       toast.showToast({

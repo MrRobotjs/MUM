@@ -16,11 +16,8 @@ __pycache__/
 *.pyd
 .Python
 *.egg-info/
-dist/
 build/
 *.log
 MUM/
 node_modules/*
-acli.exe
-geminilog.txt
 node_modules

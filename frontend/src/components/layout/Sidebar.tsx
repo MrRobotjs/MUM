@@ -61,7 +61,7 @@ export const Sidebar = ({ onNavigate }: SidebarProps) => {
 
   const handleLogout = async () => {
     try {
-      await requestJson('/admin/api/v1/auth/logout', { method: 'POST' });
+      await requestJson('/admin/api/v2/auth/logout', { method: 'POST' });
     } catch (error) {
       console.warn('Failed to logout via API, falling back to legacy endpoint', error);
     } finally {
@@ -79,7 +79,7 @@ export const Sidebar = ({ onNavigate }: SidebarProps) => {
 
     setIsSyncing(true);
     try {
-      const response = await requestJson('/admin/api/v1/users/sync-all', {
+      const response = await requestJson('/admin/api/v2/users/sync-all', {
         method: 'POST',
       });
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from uuid import uuid4
 from datetime import datetime, timedelta
+from decimal import Decimal
 from typing import Optional
 
 from flask import jsonify, request
@@ -220,25 +221,39 @@ def streams_summary(query: StreamsSummaryQuery):
         except ValueError:
             pass
 
-    base_q = MediaStreamHistory.query
-    q = _apply_filters(base_q, user_uuid, service_type, None, start_dt, end_dt)
+    # Build filtered base query similar to v1 semantics
+    base_q = _apply_filters(MediaStreamHistory.query, user_uuid, service_type, None, start_dt, end_dt)
 
-    total_streams = q.count()
-    active_streams = q.filter(MediaStreamHistory.stopped_at.is_(None)).count()
-    completed_streams = q.filter(MediaStreamHistory.stopped_at.isnot(None)).count()
+    total_streams = base_q.count()
+    active_streams = _apply_filters(MediaStreamHistory.query, user_uuid, service_type, "active", start_dt, end_dt).count()
+    completed_streams = _apply_filters(MediaStreamHistory.query, user_uuid, service_type, "completed", start_dt, end_dt).count()
 
-    total_duration = q.with_entities(func.sum(MediaStreamHistory.duration_seconds)).scalar() or 0
-    average_duration = q.with_entities(func.avg(MediaStreamHistory.duration_seconds)).scalar() or 0
+    total_duration = base_q.with_entities(func.coalesce(func.sum(MediaStreamHistory.duration_seconds), 0)).scalar()
+    average_duration = base_q.with_entities(func.coalesce(func.avg(MediaStreamHistory.duration_seconds), 0)).scalar()
+
+    def _to_int_safe(value) -> int:
+        if value is None:
+            return 0
+        try:
+            if isinstance(value, Decimal):
+                return int(value)
+            return int(value)
+        except Exception:
+            try:
+                return int(float(value))
+            except Exception:
+                return 0
 
     from sqlalchemy import cast, Date
     daily_counts = (
-        q.with_entities(cast(MediaStreamHistory.started_at, Date).label("day"), func.count(MediaStreamHistory.id))
+        _apply_filters(MediaStreamHistory.query, user_uuid, service_type, None, start_dt, end_dt)
+        .with_entities(func.date(MediaStreamHistory.started_at).label("day"), func.count(MediaStreamHistory.id))
         .group_by("day")
         .order_by("day")
         .all()
     )
     per_service = (
-        q.join(MediaServer, MediaServer.id == MediaStreamHistory.server_id)
+        _apply_filters(MediaStreamHistory.query.join(MediaServer), user_uuid, service_type, None, start_dt, end_dt)
         .with_entities(MediaServer.service_type, func.count(MediaStreamHistory.id))
         .group_by(MediaServer.service_type)
         .order_by(MediaServer.service_type)
@@ -249,9 +264,15 @@ def streams_summary(query: StreamsSummaryQuery):
         {
             "data": {
                 "counts": {"total": total_streams, "active": active_streams, "completed": completed_streams},
-                "duration": {"total_seconds": int(total_duration), "average_seconds": int(average_duration)},
-                "daily": [{"date": (day.isoformat() if hasattr(day, "isoformat") else str(day)), "count": count} for day, count in daily_counts],
-                "by_service": [{"service_type": (svc.value if isinstance(svc, ServiceType) else str(svc)), "count": count} for svc, count in per_service],
+                "duration": {"total_seconds": _to_int_safe(total_duration), "average_seconds": _to_int_safe(average_duration)},
+                "daily": [
+                    {"date": (getattr(day, "isoformat", lambda: str(day))()), "count": _to_int_safe(count)}
+                    for day, count in daily_counts
+                ],
+                "by_service": [
+                    {"service_type": (getattr(svc, "value", None) or str(svc)), "count": _to_int_safe(count)}
+                    for svc, count in per_service
+                ],
             },
             "meta": {
                 "request_id": request_id,
@@ -314,4 +335,3 @@ def terminate_stream(path: StreamPath, body: TerminateBody):
     )
 
     return jsonify({"data": {"success": True, "message": f"Termination command sent for session {session_key}."}, "meta": {"request_id": request_id}})
-

@@ -32,7 +32,7 @@ type SettingsResponse<T> = {
 
 export const useGeneralSettings = () => {
   const { data, error, isLoading, mutate } = useSWR<SettingsResponse<GeneralSettings>>(
-    '/admin/api/v1/settings/general',
+    '/admin/api/v2/settings/general',
     (url: string) => requestJson(url)
   );
 
@@ -46,7 +46,7 @@ export const useGeneralSettings = () => {
 
 export const useDiscordSettings = () => {
   const { data, error, isLoading, mutate } = useSWR<SettingsResponse<DiscordSettings>>(
-    '/admin/api/v1/settings/discord',
+    '/admin/api/v2/settings/discord',
     (url: string) => requestJson(url)
   );
 

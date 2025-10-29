@@ -43,7 +43,7 @@ export const DiscordSettingsPage = () => {
     setSubmitting(true)
 
     try {
-      await requestJson('/admin/api/v1/settings/discord', {
+      await requestJson('/admin/api/v2/settings/discord', {
         method: 'PATCH',
         body: JSON.stringify(formValues),
       })
@@ -61,7 +61,7 @@ export const DiscordSettingsPage = () => {
     setTesting(true)
     try {
       const response = await requestJson<{ data: { success: boolean; message?: string } }>(
-        '/admin/api/v1/settings/discord/test',
+        '/admin/api/v2/settings/discord/test',
         { method: 'POST' }
       )
       if (response.data?.success) {

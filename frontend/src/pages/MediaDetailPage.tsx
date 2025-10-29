@@ -108,7 +108,7 @@ export const MediaDetailPage = () => {
     try {
       setLoading(true);
       const response = await requestJson(
-        `/admin/api/v1/libraries/${libraryId}/media/${mediaId}?include_library=true`
+        `/admin/api/v2/libraries/${libraryId}/media/${mediaId}?include_library=true`
       );
 
       if (response.data) {
@@ -136,7 +136,7 @@ export const MediaDetailPage = () => {
       }
 
       const response = await requestJson(
-        `/admin/api/v1/libraries/${libraryId}/media/${mediaId}/episodes?${params}`
+        `/admin/api/v2/libraries/${libraryId}/media/${mediaId}/episodes?${params}`
       );
 
       if (response.data) {
@@ -157,7 +157,7 @@ export const MediaDetailPage = () => {
     try {
       setSyncing(true);
       const response = await requestJson(
-        `/admin/api/v1/libraries/${libraryId}/media/${mediaId}/episodes/sync`,
+        `/admin/api/v2/libraries/${libraryId}/media/${mediaId}/episodes/sync`,
         { method: 'POST' }
       );
 

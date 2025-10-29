@@ -18,7 +18,7 @@ export const useInvites = (filters: InviteFilters = {}) => {
   if (filters.serverId) params.set('server_id', String(filters.serverId));
 
   const { data, error, isLoading, mutate } = useSWR(
-    `/admin/api/v1/invites?${params.toString()}`,
+    `/admin/api/v2/invites?${params.toString()}`,
     (url: string) => requestJson(url),
     {
       revalidateOnFocus: false

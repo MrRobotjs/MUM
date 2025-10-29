@@ -140,7 +140,7 @@ export const AdminRolesPage = () => {
     }
 
     try {
-      await requestJson(`/admin/api/v1/admin-roles/${role.id}`, {
+      await requestJson(`/admin/api/v2/admin-roles/${role.id}`, {
         method: 'DELETE',
       })
       success('Role deleted successfully')

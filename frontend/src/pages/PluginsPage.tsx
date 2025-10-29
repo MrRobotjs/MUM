@@ -44,7 +44,9 @@ export const PluginsPage = () => {
       return
     }
 
-    const endpoint = `/admin/api/v1/plugins/${pluginId}/${action}`
+    const endpoint = action === 'enable'
+      ? `/admin/api/v2/plugins/${pluginId}/enable`
+      : `/admin/api/v2/plugins/${pluginId}/disable`
 
     setActionLoading(pluginId)
     try {

@@ -64,14 +64,9 @@ export const useUsers = (filters: UsersFilters = {}) => {
     if (filters.search) params.set('search', filters.search);
     if (filters.userType) params.set('user_type', filters.userType);
     if (filters.role) params.set('role', filters.role);
-    if (filters.serverId && filters.serverId !== 'all') params.set('server_id', filters.serverId);
-    if (filters.filterType) params.set('filter_type', filters.filterType);
-    if (filters.searchEmail) params.set('search_email', filters.searchEmail);
-    if (filters.searchUsername) params.set('search_username', filters.searchUsername);
-    if (filters.searchNotes) params.set('search_notes', filters.searchNotes);
     if (filters.sort) params.set('sort', filters.sort);
 
-    return `/admin/api/v1/users?${params.toString()}`;
+    return `/admin/api/v2/users?${params.toString()}`;
   };
 
   const { data, error, size, setSize, isLoading, mutate } = useSWRInfinite<UsersResponse>(

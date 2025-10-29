@@ -68,7 +68,7 @@ export const UserDebugModal = ({ open, onClose, userUuid }: UserDebugModalProps)
       setLoading(true);
       setError(null);
       try {
-        const response = await requestJson<DebugResponse>(`/admin/api/v1/users/${userUuid}/debug`);
+        const response = await requestJson<DebugResponse>(`/admin/api/v2/users/${userUuid}/debug`);
         console.log('Debug API Response:', response);
         setDebugData(response.data);
       } catch (err) {

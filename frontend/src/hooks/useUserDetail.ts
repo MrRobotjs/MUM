@@ -110,7 +110,7 @@ const normalizeUserDetail = (detail: UserDetail): UserDetail => ({
 export const useUserDetail = (uuid?: string) => {
   const shouldFetch = Boolean(uuid);
   const { data, error, isLoading, mutate } = useSWR<UserDetailResponse>(
-    shouldFetch ? `/admin/api/v1/users/${uuid}` : null,
+    shouldFetch ? `/admin/api/v2/users/${uuid}` : null,
     (url: string) => requestJson<UserDetailResponse>(url),
     { revalidateOnFocus: false }
   );

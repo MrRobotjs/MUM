@@ -44,7 +44,7 @@ export function NavUser({
 
   const handleLogout = async () => {
     try {
-      await requestJson('/admin/api/v1/auth/logout', { method: 'POST' })
+      await requestJson('/admin/api/v2/auth/logout', { method: 'POST' })
     } catch (error) {
       console.warn('Failed to logout via API, falling back to legacy endpoint', error)
     } finally {

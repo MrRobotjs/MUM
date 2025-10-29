@@ -69,7 +69,7 @@ export const PluginDetailPage = () => {
   const handleToggleServerStatus = async (server: Server) => {
     const newStatus = !server.is_active;
     try {
-      await requestJson(`/admin/api/v1/servers/${server.id}`, {
+      await requestJson(`/admin/api/v2/servers/${server.id}`, {
         method: 'PATCH',
         body: JSON.stringify({ is_active: newStatus })
       });
@@ -86,7 +86,7 @@ export const PluginDetailPage = () => {
     }
 
     try {
-      await requestJson(`/admin/api/v1/servers/${server.id}`, {
+      await requestJson(`/admin/api/v2/servers/${server.id}`, {
         method: 'DELETE'
       });
       success(`Server "${server.server_nickname}" removed`);
@@ -106,7 +106,7 @@ export const PluginDetailPage = () => {
 
     try {
       setSaving(true);
-      await requestJson('/admin/api/v1/servers', {
+      await requestJson('/admin/api/v2/servers', {
         method: 'POST',
         body: JSON.stringify(payload)
       });

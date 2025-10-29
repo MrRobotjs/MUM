@@ -115,14 +115,22 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
             .filter(([_, state]) => state === 'remove')
             .map(([id]) => Number(id));
 
-          await requestJson('/admin/api/v1/users/mass-edit/libraries', {
+          const operations: any[] = [];
+          if (grantAllLibraries) {
+            operations.push({ action: 'update_libraries', library_ids: [] });
+          } else {
+            operations.push({
+              action: 'update_libraries',
+              libraries_to_add: librariesToAdd,
+              libraries_to_remove: librariesToRemove,
+            });
+          }
+
+          await requestJson('/admin/api/v2/users/bulk', {
             method: 'POST',
             body: JSON.stringify({
               user_uuids: userUuids,
-              server_id: Number(selectedServerId),
-              libraries_to_add: librariesToAdd,
-              libraries_to_remove: librariesToRemove,
-              grant_all_libraries: grantAllLibraries
+              operations
             })
           });
 
@@ -131,11 +139,11 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
         }
 
         case 'extend_access': {
-          await requestJson('/admin/api/v1/users/mass-edit/extend-access', {
+          await requestJson('/admin/api/v2/users/bulk', {
             method: 'POST',
             body: JSON.stringify({
               user_uuids: userUuids,
-              days: extendDays
+              operations: [{ action: 'extend_access', days: extendDays }]
             })
           });
 
@@ -149,11 +157,11 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
             return;
           }
 
-          await requestJson('/admin/api/v1/users/mass-edit/set-expiration', {
+          await requestJson('/admin/api/v2/users/bulk', {
             method: 'POST',
             body: JSON.stringify({
               user_uuids: userUuids,
-              expiration_date: expirationDate.toISOString()
+              operations: [{ action: 'set_expiration', expires_at: expirationDate.toISOString() }]
             })
           });
 
@@ -162,10 +170,11 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
         }
 
         case 'clear_expiration': {
-          await requestJson('/admin/api/v1/users/mass-edit/clear-expiration', {
+          await requestJson('/admin/api/v2/users/bulk', {
             method: 'POST',
             body: JSON.stringify({
-              user_uuids: userUuids
+              user_uuids: userUuids,
+              operations: [{ action: 'clear_expiration' }]
             })
           });
 
@@ -179,7 +188,7 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
             return;
           }
 
-          await requestJson('/admin/api/v1/users/mass-edit/merge', {
+          await requestJson('/admin/api/v2/users/merge', {
             method: 'POST',
             body: JSON.stringify({
               service_user_uuids: userUuids,
@@ -196,10 +205,11 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
             return;
           }
 
-          await requestJson('/admin/api/v1/users/mass-edit/delete', {
+          await requestJson('/admin/api/v2/users/bulk', {
             method: 'POST',
             body: JSON.stringify({
-              user_uuids: userUuids
+              user_uuids: userUuids,
+              operations: [{ action: 'delete_users' }]
             })
           });
 

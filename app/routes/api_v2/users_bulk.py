@@ -124,14 +124,34 @@ def bulk_user_operations(body: BulkBody):
                     results.append(_status_entry(user, action, "updated"))
 
                 elif action == "update_libraries":
-                    library_ids = operation.library_ids or []
                     if user.userType != UserType.SERVICE:
                         stats["skipped"] += 1
                         results.append(_status_entry(user, action, "skipped", "Libraries can only be set for service accounts."))
                         continue
-                    if not isinstance(library_ids, list):
-                        raise ValueError("library_ids must be a list.")
-                    user.allowed_library_ids = library_ids
+
+                    # Support either explicit final list (library_ids) or deltas (libraries_to_add / libraries_to_remove)
+                    library_ids = getattr(operation, "library_ids", None)
+                    libs_to_add = getattr(operation, "libraries_to_add", None)
+                    libs_to_remove = getattr(operation, "libraries_to_remove", None)
+
+                    if library_ids is not None:
+                        if not isinstance(library_ids, list):
+                            raise ValueError("library_ids must be a list.")
+                        user.allowed_library_ids = library_ids
+                    else:
+                        # Compute final set from deltas against current setting
+                        current = set(user.allowed_library_ids or [])
+                        if isinstance(libs_to_add, list):
+                            for lid in libs_to_add:
+                                current.add(lid)
+                        if isinstance(libs_to_remove, list):
+                            for lid in libs_to_remove:
+                                try:
+                                    current.remove(lid)
+                                except KeyError:
+                                    pass
+                        user.allowed_library_ids = list(current)
+
                     stats["updated"] += 1
                     results.append(_status_entry(user, action, "updated"))
 

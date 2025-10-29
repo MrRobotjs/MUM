@@ -24,7 +24,7 @@ type LogsResponse = {
 };
 
 export const useLogs = (page = 1, pageSize = 50) => {
-  const url = `/admin/api/v1/settings/logs?page=${page}&page_size=${pageSize}`;
+  const url = `/admin/api/v2/settings/logs?page=${page}&page_size=${pageSize}`;
 
   const { data, error, isLoading, mutate } = useSWR<LogsResponse>(
     url,

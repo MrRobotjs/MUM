@@ -212,7 +212,7 @@ export const AdminRolePermissionsTab = ({
         .map((name) => permissionNameToId[name])
         .filter((id) => id !== undefined)
 
-      await requestJson(`/admin/api/v1/admin-roles/${role.id}`, {
+      await requestJson(`/admin/api/v2/admin-roles/${role.id}`, {
         method: 'PATCH',
         body: JSON.stringify({
           permission_ids: permissionIds,

@@ -42,7 +42,7 @@ type InviteSummaryResponse = {
 
 export const useInviteSummary = () => {
   const { data, error, isLoading } = useSWR<InviteSummaryResponse>(
-    '/admin/api/v1/invites/summary',
+    '/admin/api/v2/invites/summary',
     (url: string) => requestJson<InviteSummaryResponse>(url),
     {
       revalidateOnFocus: false,

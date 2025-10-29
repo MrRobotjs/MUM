@@ -127,6 +127,27 @@ def admin_login():
     return jsonify({'data': _issue_session_payload(candidate), 'meta': {'request_id': request_id}}), 200
 
 
+class LogoutResponse(BaseModel):
+    data: dict
+    meta: dict
+
+
+@api_v2.post(
+    "/auth/logout",
+    tags=[auth_tag],
+    summary="Admin logout",
+    responses={200: LogoutResponse},
+)
+@login_required
+def admin_logout_v2():
+    request_id = str(uuid4())
+    actor = _serialize_user(current_user)
+    logout_user()
+    if actor:
+        log_event(EventType.ADMIN_LOGOUT, f"User '{actor.get('username')}' logged out.")
+    return jsonify({'data': {'success': True}, 'meta': {'request_id': request_id, 'deprecated': False}}), 200
+
+
 class ChangePasswordBody(BaseModel):
     current_password: str
     new_password: str
@@ -205,4 +226,3 @@ def set_password():
 def get_session():
     request_id = str(uuid4())
     return jsonify({'data': _issue_session_payload(current_user), 'meta': {'request_id': request_id, 'deprecated': False, 'config': {'allow_user_accounts': Setting.get_bool('ALLOW_USER_ACCOUNTS', False)}}}), 200
-

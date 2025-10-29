@@ -41,7 +41,7 @@ export const useServers = (options: UseServersOptions = {}) => {
   if (options.activeOnly) params.append('active_only', 'true');
   if (options.serviceType) params.append('service_type', options.serviceType);
 
-  const url = `/admin/api/v1/servers${params.toString() ? `?${params.toString()}` : ''}`;
+  const url = `/admin/api/v2/servers${params.toString() ? `?${params.toString()}` : ''}`;
 
   const { data, error, isLoading, mutate } = useSWR<ServersResponse>(
     url,
@@ -57,7 +57,7 @@ export const useServers = (options: UseServersOptions = {}) => {
 };
 
 export const useServerDetail = (serverId?: number) => {
-  const url = serverId ? `/admin/api/v1/servers/${serverId}?include_status=true&include_libraries=true` : null;
+  const url = serverId ? `/admin/api/v2/servers/${serverId}?include_status=true&include_libraries=true` : null;
 
   const { data, error, isLoading, mutate } = useSWR(
     url,

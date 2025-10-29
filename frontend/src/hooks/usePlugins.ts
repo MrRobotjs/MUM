@@ -104,7 +104,7 @@ const normalizePlugin = (item: PluginApi): Plugin => {
 
 export const usePlugins = () => {
   const { data, error, isLoading, mutate } = useSWR<PluginsResponse>(
-    '/admin/api/v1/plugins',
+    '/admin/api/v2/plugins',
     (url: string) => requestJson<PluginsResponse>(url)
   );
 

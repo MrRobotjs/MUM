@@ -40,7 +40,7 @@ export const GeneralSettingsPage = () => {
     setSubmitting(true);
 
     try {
-      await requestJson('/admin/api/v1/settings/general', {
+      await requestJson('/admin/api/v2/settings/general', {
         method: 'PATCH',
         body: JSON.stringify(formValues),
       });

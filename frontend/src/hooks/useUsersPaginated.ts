@@ -67,6 +67,7 @@ export const useUsersPaginated = (filters: UsersFilters = {}) => {
   if (filters.search) params.set('search', filters.search);
   if (filters.userType) params.set('user_type', filters.userType);
   if (filters.role) params.set('role', filters.role);
+  // Include extended filters supported by our v2 implementation
   if (filters.serverId && filters.serverId !== 'all') params.set('server_id', filters.serverId);
   if (filters.filterType) params.set('filter_type', filters.filterType);
   if (filters.searchEmail) params.set('search_email', filters.searchEmail);
@@ -75,7 +76,7 @@ export const useUsersPaginated = (filters: UsersFilters = {}) => {
   if (filters.sort) params.set('sort', filters.sort);
 
   const { data, error, isLoading, mutate } = useSWR<UsersResponse>(
-    `/admin/api/v1/users?${params.toString()}`,
+    `/admin/api/v2/users?${params.toString()}`,
     (url: string) => requestJson<UsersResponse>(url),
     {
       revalidateOnFocus: false

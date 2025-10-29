@@ -27,6 +27,7 @@ from . import users_sync  # noqa: E402,F401
 from . import sync_status  # noqa: E402,F401
 from . import users_purge  # noqa: E402,F401
 from . import users_debug  # noqa: E402,F401
+from . import users_merge  # noqa: E402,F401
 from . import invites_bulk  # noqa: E402,F401
 from . import invite_public  # noqa: E402,F401
 from . import streams_api  # noqa: E402,F401

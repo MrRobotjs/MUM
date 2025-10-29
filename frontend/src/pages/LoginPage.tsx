@@ -35,7 +35,7 @@ const LoginPage = () => {
           csrf_token?: string | null;
         };
       }>(
-        '/admin/api/v1/auth/login',
+        '/admin/api/v2/auth/login',
         {
           method: 'POST',
           body: JSON.stringify({

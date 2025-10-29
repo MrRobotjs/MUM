@@ -13,7 +13,7 @@ type StreamingSettingsResponse = {
 
 export const useStreamingSettings = () => {
   const { data, error, isLoading, mutate } = useSWR<StreamingSettingsResponse>(
-    '/admin/api/v1/settings/streaming',
+    '/admin/api/v2/settings/streaming',
     (url: string) => requestJson<StreamingSettingsResponse>(url),
     {
       revalidateOnFocus: false

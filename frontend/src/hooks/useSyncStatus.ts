@@ -41,7 +41,7 @@ export const useSyncStatus = (pollInterval = 2000) => {
 
     const fetchStatus = async () => {
       try {
-        const response = await requestJson<SyncStatusResponse>('/admin/api/v1/sync-status');
+        const response = await requestJson<SyncStatusResponse>('/admin/api/v2/sync-status');
         setSyncStatus(response.data);
         setLoading(false);
       } catch (err) {

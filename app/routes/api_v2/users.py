@@ -28,6 +28,12 @@ class UsersQuery(BaseModel):
         "created_desc",
         description="username_asc|username_desc|created_asc|created_desc",
     )
+    # Extended filters to support UI controls
+    server_id: Optional[int] = Field(None, description="Filter service users by server id")
+    filter_type: Optional[str] = Field(None, description="has_discord|no_discord|home_user|shares_back (partial support)")
+    search_email: Optional[str] = None
+    search_username: Optional[str] = None
+    search_notes: Optional[str] = None
 
 
 class UserItem(BaseModel):
@@ -167,16 +173,31 @@ def list_users(query: UsersQuery):
         except Exception:
             pass
 
-    # Search (case-insensitive) on username/email variations similar to v1
+    # Search (case-insensitive) aggregate term
     if query.search:
         term = f"%{query.search.strip()}%"
         q = q.filter(
             sa_or(
-                func.lower(User.localUsername).like(func.lower(term)),
-                func.lower(User.email).like(func.lower(term)),
-                func.lower(User.discord_email).like(func.lower(term)),
+                func.lower(func.coalesce(User.localUsername, getattr(User, 'external_username', None))).like(func.lower(term)),
+                func.lower(func.coalesce(User.email, User.discord_email, getattr(User, 'external_email', None))).like(func.lower(term)),
             )
         )
+
+    # Specific search fields
+    if query.search_username:
+        term = f"%{query.search_username.strip()}%"
+        q = q.filter(
+            func.lower(func.coalesce(User.localUsername, getattr(User, 'external_username', None))).like(func.lower(term))
+        )
+    if query.search_email:
+        term = f"%{query.search_email.strip()}%"
+        q = q.filter(
+            func.lower(func.coalesce(User.email, User.discord_email, getattr(User, 'external_email', None))).like(func.lower(term))
+        )
+    if query.search_notes:
+        term = f"%{query.search_notes.strip()}%"
+        if hasattr(User, 'notes'):
+            q = q.filter(func.lower(User.notes).like(func.lower(term)))
 
     # Filter by admin role name (if relationship available)
     if query.role:
@@ -184,6 +205,45 @@ def list_users(query: UsersQuery):
             # Use any() with lower comparison when possible
             from app.models import AdminRole
             q = q.filter(User.admin_roles.any(func.lower(AdminRole.name) == func.lower(query.role)))
+        except Exception:
+            pass
+
+    # Server filter (applies to service users only)
+    if query.server_id:
+        try:
+            q = q.filter(User.server_id == int(query.server_id))
+        except Exception:
+            pass
+
+    # Filter type hints
+    if query.filter_type:
+        ft = (query.filter_type or '').lower()
+        try:
+            if ft == 'has_discord':
+                if hasattr(User, 'discord_user_id'):
+                    q = q.filter(User.discord_user_id.isnot(None))
+            elif ft == 'no_discord':
+                if hasattr(User, 'discord_user_id'):
+                    q = q.filter(User.discord_user_id.is_(None))
+            elif ft == 'home_user':
+                # Prefer boolean column when available; fallback to role membership
+                if hasattr(User, 'is_home_user'):
+                    q = q.filter(User.is_home_user.is_(True))
+                else:
+                    try:
+                        from app.models import UserRole
+                        q = q.filter(User.user_roles.any(func.lower(UserRole.name) == func.lower('Home User')))
+                    except Exception:
+                        pass
+            elif ft == 'shares_back':
+                if hasattr(User, 'shares_back'):
+                    q = q.filter(User.shares_back.is_(True))
+                else:
+                    try:
+                        from app.models import UserRole
+                        q = q.filter(User.user_roles.any(func.lower(UserRole.name) == func.lower('Shares Back')))
+                    except Exception:
+                        pass
         except Exception:
             pass
 

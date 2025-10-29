@@ -35,7 +35,7 @@ const UserSettingsGeneralPage = () => {
   const fetchSettings = async () => {
     try {
       setLoading(true)
-      const response = await requestJson<{ data: UserAccountSettings }>('/admin/api/v1/settings/user-accounts')
+      const response = await requestJson<{ data: UserAccountSettings }>('/admin/api/v2/settings/user-accounts')
       setSettings(response.data)
       setAllowUserAccounts(response.data.allow_user_accounts)
     } catch (error) {
@@ -48,7 +48,7 @@ const UserSettingsGeneralPage = () => {
   const handleSave = async () => {
     try {
       setSaving(true)
-      await requestJson('/admin/api/v1/settings/user-accounts', {
+      await requestJson('/admin/api/v2/settings/user-accounts', {
         method: 'PATCH',
         body: JSON.stringify({ allow_user_accounts: allowUserAccounts })
       })

@@ -166,7 +166,7 @@ export const UsersListPage = () => {
             total_removed: number;
           };
         };
-      }>('/admin/api/v1/users/sync-all', {
+      }>('/admin/api/v2/users/sync-all', {
         method: 'POST'
       });
 
@@ -360,7 +360,7 @@ export const UsersListPage = () => {
                 <span className="hidden sm:inline">Sort & Filter</span>
               </Button>
             </SheetTrigger>
-            <SheetContent>
+            <SheetContent className="w-[92vw] sm:max-w-md p-6">
               <SheetHeader>
                 <SheetTitle>
                   <i className="fa-solid fa-filter mr-2" />
@@ -371,9 +371,9 @@ export const UsersListPage = () => {
                 </SheetDescription>
               </SheetHeader>
 
-              <div className="space-y-4 mt-6">
+              <div className="space-y-4 mt-6 overflow-y-auto pr-1">
                 {/* Server Filter */}
-                <div className="space-y-2">
+                <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
                   <Label htmlFor="serverId">
                     <i className="fa-solid fa-server mr-2" />
                     Server
@@ -394,7 +394,7 @@ export const UsersListPage = () => {
                 </div>
 
                 {/* User Type Filter */}
-                <div className="space-y-2">
+                <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
                   <Label htmlFor="userType">
                     <i className="fa-solid fa-users mr-2" />
                     User Type
@@ -413,7 +413,7 @@ export const UsersListPage = () => {
                 </div>
 
                 {/* Search Username */}
-                <div className="space-y-2">
+                <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
                   <Label htmlFor="searchUsername">
                     <i className="fa-solid fa-user mr-2" />
                     Search Username
@@ -428,7 +428,7 @@ export const UsersListPage = () => {
                 </div>
 
                 {/* Search Email */}
-                <div className="space-y-2">
+                <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
                   <Label htmlFor="searchEmail">
                     <i className="fa-solid fa-envelope mr-2" />
                     Search Email
@@ -443,7 +443,7 @@ export const UsersListPage = () => {
                 </div>
 
                 {/* Search Notes */}
-                <div className="space-y-2">
+                <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
                   <Label htmlFor="searchNotes">
                     <i className="fa-solid fa-sticky-note mr-2" />
                     Search Notes
@@ -458,7 +458,7 @@ export const UsersListPage = () => {
                 </div>
 
                 {/* Filter Type */}
-                <div className="space-y-2">
+                <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
                   <Label htmlFor="filterType">
                     <i className="fa-solid fa-filter mr-2" />
                     Filter by
@@ -478,7 +478,7 @@ export const UsersListPage = () => {
                 </div>
 
                 {/* Role Filter */}
-                <div className="space-y-2">
+                <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
                   <Label htmlFor="role">
                     <i className="fa-solid fa-user-tag mr-2" />
                     Filter by Role

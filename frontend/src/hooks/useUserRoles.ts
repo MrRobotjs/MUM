@@ -23,7 +23,7 @@ export const useUserRoles = (includeUsers = false) => {
   const params = new URLSearchParams();
   if (includeUsers) params.append('include_users', 'true');
 
-  const url = `/admin/api/v1/user-roles${params.toString() ? `?${params.toString()}` : ''}`;
+  const url = `/admin/api/v2/user-roles${params.toString() ? `?${params.toString()}` : ''}`;
 
   const { data, error, isLoading, mutate } = useSWR<UserRolesResponse>(
     url,

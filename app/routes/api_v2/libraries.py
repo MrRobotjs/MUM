@@ -337,3 +337,411 @@ def get_library_stats(path: LibraryPath):
         }
     )
 
+
+# Additional library endpoints migrated from v1
+
+
+class ActivityListResponse(BaseModel):
+    data: list[dict]
+    meta: dict
+
+
+@api_v2.get(
+    "/libraries/<library_id>/activity",
+    tags=[libraries_tag],
+    summary="Get recent activity for a library",
+    responses={200: ActivityListResponse, 404: ErrorResponse},
+)
+@login_required
+@permission_required("view_servers")
+def get_library_activity(path: LibraryPath):
+    request_id = uuid4().hex
+    library = MediaLibrary.query.get(path.library_id)
+    if not library:
+        return (
+            jsonify(
+                {
+                    "error": {
+                        "code": "LIBRARY_NOT_FOUND",
+                        "message": f"Library with ID {path.library_id} not found",
+                        "details": {"library_id": path.library_id},
+                    },
+                    "meta": {"request_id": request_id},
+                }
+            ),
+            404,
+        )
+
+    days = request.args.get("days", 30, type=int)
+    page = request.args.get("page", 1, type=int)
+    page_size = min(request.args.get("page_size", 50, type=int), 100)
+
+    from app.models_media_services import MediaStreamHistory, MediaItem
+    from datetime import timedelta, timezone
+
+    end_date = datetime.now(timezone.utc)
+    start_date = end_date - timedelta(days=days)
+
+    q = (
+        MediaStreamHistory.query.filter(
+            MediaStreamHistory.server_id == library.server_id,
+            MediaStreamHistory.library_name == library.name,
+            MediaStreamHistory.started_at >= start_date,
+            MediaStreamHistory.started_at <= end_date,
+        )
+        .order_by(MediaStreamHistory.started_at.desc())
+    )
+    total_items = q.count()
+    total_pages = (total_items + page_size - 1) // page_size
+    streams = q.offset((page - 1) * page_size).limit(page_size).all()
+
+    streams_data: list[dict] = []
+    for stream in streams:
+        user_avatar_url = stream.user.get_avatar(fallback=None) if getattr(stream, "user", None) else None
+        thumb_path = None
+        media_type = None
+        media_item = None
+        if stream.grandparent_title:
+            media_item = MediaItem.query.filter_by(
+                library_id=library.id, title=stream.grandparent_title
+            ).first()
+            media_type = "episode"
+        elif stream.media_title:
+            media_item = MediaItem.query.filter_by(
+                library_id=library.id, title=stream.media_title
+            ).first()
+            if media_item and getattr(media_item, "item_type", None):
+                media_type = media_item.item_type
+        if media_item and getattr(media_item, "thumb_path", None):
+            if media_item.thumb_path.startswith("/admin/api/"):
+                thumb_path = media_item.thumb_path
+            elif media_item.thumb_path.startswith("/api/"):
+                thumb_path = f"/admin{media_item.thumb_path}"
+            elif media_item.thumb_path.startswith("http"):
+                thumb_path = media_item.thumb_path
+            else:
+                thumb_path = f"/admin/api/media/{library.server.service_type.value}/images/proxy?path={media_item.thumb_path.lstrip('/')}"
+
+        streams_data.append(
+            {
+                "id": stream.id,
+                "media_title": stream.media_title,
+                "grandparent_title": stream.grandparent_title,
+                "parent_title": stream.parent_title,
+                "media_type": media_type,
+                "thumb_path": thumb_path,
+                "user_display_name": stream.user.get_display_name() if getattr(stream, "user", None) else "Unknown",
+                "user_avatar_url": user_avatar_url,
+                "started_at": stream.started_at.isoformat() if stream.started_at else None,
+                "duration_seconds": stream.duration_seconds,
+                "platform": stream.platform,
+                "player": stream.player,
+                "product": stream.product,
+            }
+        )
+
+    return jsonify(
+        {
+            "data": streams_data,
+            "meta": {
+                "request_id": request_id,
+                "pagination": {
+                    "page": page,
+                    "page_size": page_size,
+                    "total_items": total_items,
+                    "total_pages": total_pages,
+                },
+                "filters": {"days": days},
+                "generated_at": datetime.utcnow().isoformat() + "Z",
+            },
+        }
+    )
+
+
+class CollectionsResponse(BaseModel):
+    data: dict
+    meta: dict
+
+
+@api_v2.get(
+    "/libraries/<library_id>/collections",
+    tags=[libraries_tag],
+    summary="Get collections for a Plex library",
+    responses={200: CollectionsResponse, 400: ErrorResponse, 404: ErrorResponse, 503: ErrorResponse},
+)
+@login_required
+@permission_required("view_servers")
+def get_library_collections(path: LibraryPath):
+    request_id = uuid4().hex
+    library = MediaLibrary.query.get(path.library_id)
+    if not library:
+        return (
+            jsonify(
+                {
+                    "error": {
+                        "code": "LIBRARY_NOT_FOUND",
+                        "message": f"Library with ID {path.library_id} not found",
+                        "details": {"library_id": path.library_id},
+                    },
+                    "meta": {"request_id": request_id},
+                }
+            ),
+            404,
+        )
+
+    if library.server.service_type.value.lower() != "plex":
+        return (
+            jsonify(
+                {
+                    "error": {
+                        "code": "UNSUPPORTED_SERVICE",
+                        "message": "Collections are only available for Plex libraries",
+                        "details": {"service_type": library.server.service_type.value},
+                    },
+                    "meta": {"request_id": request_id},
+                }
+            ),
+            400,
+        )
+
+    try:
+        from app.services.media_service_factory import MediaServiceFactory
+
+        service = MediaServiceFactory.create_service_from_db(library.server)
+        if not service or not hasattr(service, "get_library_collections"):
+            return (
+                jsonify(
+                    {
+                        "error": {
+                            "code": "SERVICE_UNAVAILABLE",
+                            "message": "Plex service is not available or does not support collections",
+                            "details": {},
+                        },
+                        "meta": {"request_id": request_id},
+                    }
+                ),
+                503,
+            )
+
+        collections_data = service.get_library_collections(library.external_id)
+        if collections_data.get("success"):
+            return jsonify(
+                {
+                    "data": {
+                        "collections": collections_data.get("collections", []),
+                        "library_name": collections_data.get("library_name", library.name),
+                        "library_type": collections_data.get("library_type", "unknown"),
+                    },
+                    "meta": {
+                        "request_id": request_id,
+                        "total_count": len(collections_data.get("collections", [])),
+                        "generated_at": datetime.utcnow().isoformat() + "Z",
+                    },
+                }
+            )
+        else:
+            return (
+                jsonify(
+                    {
+                        "error": {
+                            "code": "COLLECTION_FETCH_FAILED",
+                            "message": collections_data.get("error", "Failed to fetch collections"),
+                            "details": {},
+                        },
+                        "meta": {"request_id": request_id},
+                    }
+                ),
+                500,
+            )
+    except Exception as e:
+        return (
+            jsonify(
+                {
+                    "error": {
+                        "code": "INTERNAL_ERROR",
+                        "message": f"Error fetching collections: {str(e)}",
+                        "details": {},
+                    },
+                    "meta": {"request_id": request_id},
+                }
+            ),
+            500,
+        )
+
+
+class EpisodesResponse(BaseModel):
+    data: dict
+    meta: dict
+
+
+@api_v2.get(
+    "/libraries/<library_id>/media/<int:media_id>/episodes",
+    tags=[libraries_tag],
+    summary="List episodes for a show",
+    responses={200: EpisodesResponse, 400: ErrorResponse, 404: ErrorResponse},
+)
+@login_required
+@permission_required("view_servers")
+def get_media_episodes(path: MediaPath):
+    request_id = uuid4().hex
+    from app.models_media_services import MediaItem
+    media_item = MediaItem.query.filter_by(id=path.media_id, library_id=path.library_id).first()
+    if not media_item:
+        return jsonify({"error": {"code": "MEDIA_NOT_FOUND", "message": f"Media item with ID {path.media_id} not found in library {path.library_id}", "details": {"media_id": path.media_id, "library_id": path.library_id}}, "meta": {"request_id": request_id}}), 404
+
+    library = MediaLibrary.query.get(path.library_id)
+    if not library:
+        return jsonify({"error": {"code": "LIBRARY_NOT_FOUND", "message": f"Library with ID {path.library_id} not found", "details": {"library_id": path.library_id}}, "meta": {"request_id": request_id}}), 404
+
+    library_type = (library.library_type or "").lower()
+    if library_type not in ["show", "tv", "series", "tvshows"]:
+        return jsonify({"error": {"code": "NOT_A_TV_SHOW_LIBRARY", "message": "This library is not a TV show library", "details": {"library_type": library.library_type}}, "meta": {"request_id": request_id}}), 400
+
+    page = request.args.get("page", 1, type=int)
+    page_size = min(request.args.get("page_size", 24, type=int), 100)
+    search = (request.args.get("search", "") or "").strip()
+    sort_by = request.args.get("sort_by", "season_episode_asc")
+
+    from sqlalchemy import or_
+    q = MediaItem.query.filter(
+        MediaItem.library_id == path.library_id,
+        MediaItem.item_type == "episode",
+        or_(MediaItem.parent_id == media_item.external_id, MediaItem.parent_id == media_item.rating_key),
+    )
+
+    if search:
+        search_term = f"%{search}%"
+        q = q.filter(or_(MediaItem.title.ilike(search_term), MediaItem.summary.ilike(search_term)))
+
+    total_items = q.count()
+    total_pages = (total_items + page_size - 1) // page_size
+
+    if sort_by.startswith("season_episode") or sort_by.startswith("total_streams"):
+        all_eps = q.all()
+        episodes_data = [ep.to_dict() for ep in all_eps]
+        from app.models_media_services import MediaStreamHistory
+        for ep_dict in episodes_data:
+            ep_obj = next((e for e in all_eps if e.id == ep_dict.get("id")), None)
+            if ep_obj:
+                stream_count = (
+                    MediaStreamHistory.query.filter(
+                        MediaStreamHistory.server_id == ep_obj.server_id,
+                        MediaStreamHistory.media_title == ep_obj.title,
+                    ).count()
+                )
+                ep_dict["stream_count"] = stream_count
+            else:
+                ep_dict["stream_count"] = 0
+        if sort_by.startswith("season_episode"):
+            reverse = sort_by.endswith("_desc")
+            episodes_data.sort(
+                key=lambda e: ((e.get("season_number") or 0), (e.get("episode_number") or 0)),
+                reverse=reverse,
+            )
+        elif sort_by == "total_streams_desc":
+            episodes_data.sort(key=lambda x: x.get("stream_count", 0), reverse=True)
+        elif sort_by == "total_streams_asc":
+            episodes_data.sort(key=lambda x: x.get("stream_count", 0), reverse=False)
+        start_idx = (page - 1) * page_size
+        end_idx = start_idx + page_size
+        episodes_data = episodes_data[start_idx:end_idx]
+    else:
+        if sort_by == "title_asc":
+            q = q.order_by(MediaItem.sort_title.asc())
+        elif sort_by == "title_desc":
+            q = q.order_by(MediaItem.sort_title.desc())
+        elif sort_by == "year_asc":
+            q = q.order_by(MediaItem.year.asc())
+        elif sort_by == "year_desc":
+            q = q.order_by(MediaItem.year.desc())
+        elif sort_by == "added_at_asc":
+            q = q.order_by(MediaItem.added_at.asc())
+        elif sort_by == "added_at_desc":
+            q = q.order_by(MediaItem.added_at.desc())
+        else:
+            q = q.order_by(MediaItem.sort_title.asc())
+        episodes = q.offset((page - 1) * page_size).limit(page_size).all()
+        episodes_data = [ep.to_dict() for ep in episodes]
+
+    needs_sync = False
+    if getattr(media_item, "last_synced", None):
+        from datetime import timedelta
+        sync_age = datetime.utcnow() - media_item.last_synced
+        needs_sync = sync_age > timedelta(hours=24)
+    else:
+        needs_sync = True
+
+    return jsonify(
+        {
+            "data": {
+                "episodes": episodes_data,
+                "show_info": {
+                    "id": media_item.id,
+                    "title": media_item.title,
+                    "external_id": media_item.external_id,
+                    "rating_key": media_item.rating_key,
+                    "last_synced": media_item.last_synced.isoformat() if getattr(media_item, "last_synced", None) else None,
+                },
+            },
+            "meta": {
+                "request_id": request_id,
+                "pagination": {
+                    "page": page,
+                    "page_size": page_size,
+                    "total_items": total_items,
+                    "total_pages": total_pages,
+                },
+                "filters": {"search": search, "sort_by": sort_by},
+                "needs_sync": needs_sync,
+                "generated_at": datetime.utcnow().isoformat() + "Z",
+            },
+        }
+    )
+
+
+class SyncEpisodesResponse(BaseModel):
+    success: bool
+    message: str | None = None
+    result: dict | None = None
+    meta: dict | None = None
+
+
+@api_v2.post(
+    "/libraries/<library_id>/media/<int:media_id>/episodes/sync",
+    tags=[libraries_tag],
+    summary="Sync episodes for a show",
+    responses={200: SyncEpisodesResponse, 400: ErrorResponse, 404: ErrorResponse, 500: ErrorResponse},
+)
+@login_required
+@permission_required("view_servers")
+def sync_media_episodes(path: MediaPath):
+    request_id = uuid4().hex
+    from app.models_media_services import MediaItem
+    from app.services.media_sync_service import MediaSyncService
+    media_item = MediaItem.query.filter_by(id=path.media_id, library_id=path.library_id).first()
+    if not media_item:
+        return jsonify({"error": {"code": "MEDIA_NOT_FOUND", "message": f"Media item with ID {path.media_id} not found in library {path.library_id}", "details": {"media_id": path.media_id, "library_id": path.library_id}}, "meta": {"request_id": request_id}}), 404
+    library = MediaLibrary.query.get(path.library_id)
+    if not library:
+        return jsonify({"error": {"code": "LIBRARY_NOT_FOUND", "message": f"Library with ID {path.library_id} not found", "details": {"library_id": path.library_id}}, "meta": {"request_id": request_id}}), 404
+    library_type = (library.library_type or "").lower()
+    if library_type not in ["show", "tv", "series", "tvshows"]:
+        return jsonify({"error": {"code": "NOT_A_TV_SHOW_LIBRARY", "message": "This library is not a TV show library", "details": {"library_type": library.library_type}}, "meta": {"request_id": request_id}}), 400
+    try:
+        result = MediaSyncService.sync_show_episodes(path.media_id)
+        if result.get("success"):
+            return jsonify({
+                "success": True,
+                "message": f"Episodes synced for {media_item.title}",
+                "result": {
+                    "added": result.get("added", 0),
+                    "updated": result.get("updated", 0),
+                    "removed": result.get("removed", 0),
+                    "total": result.get("total", 0),
+                },
+                "meta": {"request_id": request_id},
+            })
+        else:
+            return jsonify({"error": {"code": "SYNC_FAILED", "message": result.get("error", "Failed to sync episodes"), "details": {}}, "meta": {"request_id": request_id}}), 500
+    except Exception as e:
+        return jsonify({"error": {"code": "INTERNAL_ERROR", "message": f"Error syncing episodes: {str(e)}", "details": {}}, "meta": {"request_id": request_id}}), 500

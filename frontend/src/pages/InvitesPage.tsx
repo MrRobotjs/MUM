@@ -103,7 +103,7 @@ export const InvitesPage = () => {
   const handleBulkAction = async (action: 'enable' | 'disable' | 'delete') => {
     if (selectedIds.size === 0) return;
     try {
-      await requestJson('/admin/api/v1/invites/bulk', {
+      await requestJson('/admin/api/v2/invites/bulk', {
         method: 'POST',
         body: JSON.stringify({ ids: Array.from(selectedIds), action })
       });
@@ -142,7 +142,7 @@ export const InvitesPage = () => {
   const handleSaveInvite = async (values: InviteFormValues) => {
     setSaving(true);
     try {
-      const endpoint = editingInvite ? `/admin/api/v1/invites/${editingInvite.id}` : '/admin/api/v1/invites';
+      const endpoint = editingInvite ? `/admin/api/v2/invites/${editingInvite.id}` : '/admin/api/v2/invites';
       const method = editingInvite ? 'PATCH' : 'POST';
       await requestJson(endpoint, {
         method,

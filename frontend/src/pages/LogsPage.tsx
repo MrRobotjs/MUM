@@ -44,7 +44,7 @@ export const LogsPage = () => {
 
   const handleClearLogs = async () => {
     try {
-      await requestJson('/admin/api/v1/logs/clear', { method: 'DELETE' });
+      await requestJson('/admin/api/v2/logs/clear', { method: 'DELETE' });
       success('Logs cleared successfully');
       setShowClearModal(false);
       refresh();

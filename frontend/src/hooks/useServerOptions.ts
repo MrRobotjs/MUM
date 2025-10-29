@@ -13,7 +13,7 @@ type ServersResponse = {
 
 export const useServerOptions = () => {
   const { data, error, isLoading } = useSWR<ServersResponse>(
-    '/admin/api/v1/servers',
+    '/admin/api/v2/servers',
     (url: string) => requestJson<ServersResponse>(url),
     {
       revalidateOnFocus: false

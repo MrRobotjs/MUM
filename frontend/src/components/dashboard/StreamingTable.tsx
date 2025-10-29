@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useAdminApi } from '../../hooks/useAdminApi';
+import useSWR from 'swr';
 import { useToast } from '../../util/toast';
 import { FormField } from '../index';
 import { requestJson } from '../../util/apiClient';
@@ -62,7 +62,11 @@ export const StreamingTable = ({
   if (userUuid) params.set('user_uuid', userUuid);
   if (startDate) params.set('start', startDate);
   if (endDate) params.set('end', endDate);
-  const { data, loading, error, mutate } = useAdminApi<StreamsResponse>(`/streams?${params.toString()}`);
+  const { data, isLoading: loading, error, mutate } = useSWR<StreamsResponse>(
+    `/admin/api/v2/streams?${params.toString()}`,
+    (url: string) => requestJson<StreamsResponse>(url),
+    { revalidateOnFocus: false }
+  );
 
   const requestTerminate = (stream: StreamRow) => {
     if (stream.stopped_at) return;
@@ -74,7 +78,7 @@ export const StreamingTable = ({
     if (!terminateTarget) return;
     setTerminating(true);
     try {
-      await requestJson(`/admin/api/v1/streams/${terminateTarget.id}/terminate`, {
+      await requestJson(`/admin/api/v2/streams/${terminateTarget.id}/terminate`, {
         method: 'POST',
         body: JSON.stringify({ message: terminateMessage || undefined })
       });

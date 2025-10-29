@@ -53,8 +53,8 @@ export const ServersPage = () => {
 
   const handleSubmit = async (values: ServerFormValues) => {
     const endpoint = editingServer
-      ? `/admin/api/v1/servers/${editingServer.id}`
-      : '/admin/api/v1/servers';
+      ? `/admin/api/v2/servers/${editingServer.id}`
+      : '/admin/api/v2/servers';
     const method = editingServer ? 'PATCH' : 'POST';
 
     await requestJson(endpoint, {
@@ -72,7 +72,7 @@ export const ServersPage = () => {
     }
 
     try {
-      await requestJson(`/admin/api/v1/servers/${server.id}`, {
+      await requestJson(`/admin/api/v2/servers/${server.id}`, {
         method: 'DELETE',
       });
       success('Server deleted successfully');
@@ -85,7 +85,7 @@ export const ServersPage = () => {
   const handleSyncLibraries = async (server: Server) => {
     setActionLoading(server.id);
     try {
-      await requestJson(`/admin/api/v1/servers/${server.id}/sync-libraries`, {
+      await requestJson(`/admin/api/v2/servers/${server.id}/sync-libraries`, {
         method: 'POST',
       });
       success('Library sync started');
@@ -100,7 +100,7 @@ export const ServersPage = () => {
   const handleSyncUsers = async (server: Server) => {
     setActionLoading(server.id);
     try {
-      await requestJson(`/admin/api/v1/servers/${server.id}/sync-users`, {
+      await requestJson(`/admin/api/v2/servers/${server.id}/sync-users`, {
         method: 'POST',
       });
       success('User sync started');
@@ -116,7 +116,7 @@ export const ServersPage = () => {
     setActionLoading(server.id);
     try {
       const response = await requestJson<{ data: { online: boolean; server_info?: unknown } }>(
-        `/admin/api/v1/servers/${server.id}/test`,
+        `/admin/api/v2/servers/${server.id}/test`,
         { method: 'POST' }
       );
       if (response.data?.online) {

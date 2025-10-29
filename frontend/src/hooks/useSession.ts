@@ -3,7 +3,7 @@ import useSWR from 'swr';
 import { ApiError, requestJson, setCsrfToken } from '../util/apiClient';
 
 export const useSession = () => {
-  const { data, error, isLoading, mutate } = useSWR('/admin/api/v1/auth/session', (url: string) => requestJson(url), {
+  const { data, error, isLoading, mutate } = useSWR('/admin/api/v2/auth/session', (url: string) => requestJson(url), {
     revalidateOnFocus: false
   });
 

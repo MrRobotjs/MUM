@@ -156,7 +156,7 @@ const CollectionCard = ({ collection }: { collection: any }) => {
               <Skeleton className="absolute inset-0 rounded-lg" />
             )}
             <img
-              src={`/admin/api/media/plex/images/proxy?path=${encodeURIComponent(collection.thumb.replace(/^\//, ''))}`}
+              src={`/admin/api/v2/media/plex/images/proxy?path=${encodeURIComponent(collection.thumb.replace(/^\//, ''))}`}
               alt={collection.title}
               className={`w-full h-full object-cover ${imageLoading ? 'opacity-0' : 'opacity-100'} transition-opacity duration-200`}
               loading="lazy"
@@ -264,7 +264,7 @@ export const LibraryDetailPage = () => {
 
     try {
       setCollectionsLoading(true);
-      const response = await requestJson(`/admin/api/v1/libraries/${libraryId}/collections`);
+      const response = await requestJson(`/admin/api/v2/libraries/${libraryId}/collections`);
       setCollections(response.data?.collections || []);
     } catch (err) {
       console.error('Failed to load collections:', err);
@@ -279,7 +279,7 @@ export const LibraryDetailPage = () => {
 
     try {
       setStatsLoading(true);
-      const response = await requestJson(`/admin/api/v1/libraries/${libraryId}/stats?days=${statsDays}`);
+      const response = await requestJson(`/admin/api/v2/libraries/${libraryId}/stats?days=${statsDays}`);
       setStatsData(response.data);
     } catch (err) {
       console.error('Failed to load stats:', err);
@@ -294,7 +294,7 @@ export const LibraryDetailPage = () => {
 
     try {
       setActivityLoading(true);
-      const response = await requestJson(`/admin/api/v1/libraries/${libraryId}/activity?days=${activityDays}&page=${activityPage}&page_size=20`);
+      const response = await requestJson(`/admin/api/v2/libraries/${libraryId}/activity?days=${activityDays}&page=${activityPage}&page_size=20`);
       setActivityData(response.data || []);
       setActivityTotalPages(response.meta?.pagination?.total_pages || 1);
     } catch (err) {
@@ -398,7 +398,7 @@ export const LibraryDetailPage = () => {
 
     try {
       setLoading(true);
-      const response = await requestJson(`/admin/api/v1/libraries/${libraryId}?include_server=true`);
+      const response = await requestJson(`/admin/api/v2/libraries/${libraryId}?include_server=true`);
 
       if (response.data) {
         setLibrary(response.data);
@@ -421,7 +421,7 @@ export const LibraryDetailPage = () => {
     try {
       setMediaLoading(true);
       const response = await requestJson(
-        `/admin/api/v1/libraries/${libraryId}/media?page=${currentPage}&page_size=${pageSize}&sort_by=${sortBy}${searchQuery ? `&search=${encodeURIComponent(searchQuery)}` : ''}`
+        `/admin/api/v2/libraries/${libraryId}/media?page=${currentPage}&page_size=${pageSize}&sort_by=${sortBy}${searchQuery ? `&search=${encodeURIComponent(searchQuery)}` : ''}`
       );
 
       if (response.data && response.meta) {

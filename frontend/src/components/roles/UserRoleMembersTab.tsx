@@ -46,11 +46,11 @@ export const UserRoleMembersTab = ({ role, onUpdate }: UserRoleMembersTabProps) 
     data: membersData,
     mutate: refreshMembers,
     isLoading: membersLoading,
-  } = useSWR<{ data: RoleMember[] }>(`/admin/api/v1/user-roles/${role.id}/users`, requestJson)
+  } = useSWR<{ data: RoleMember[] }>(`/admin/api/v2/user-roles/${role.id}/users`, requestJson)
 
   // Fetch all local users (for adding new members)
   const { data: localUsersData } = useSWR<{ data: LocalUser[] }>(
-    '/admin/api/v1/users?user_type=local&page_size=1000',
+    '/admin/api/v2/users?user_type=local&page_size=1000',
     requestJson
   )
 
@@ -76,7 +76,7 @@ export const UserRoleMembersTab = ({ role, onUpdate }: UserRoleMembersTabProps) 
     try {
       await Promise.all(
         selectedUsers.map((userUuid) =>
-          requestJson(`/admin/api/v1/user-roles/${role.id}/users`, {
+          requestJson(`/admin/api/v2/user-roles/${role.id}/users`, {
             method: 'POST',
             body: JSON.stringify({ user_uuid: userUuid }),
           })
@@ -101,7 +101,7 @@ export const UserRoleMembersTab = ({ role, onUpdate }: UserRoleMembersTabProps) 
     }
 
     try {
-      await requestJson(`/admin/api/v1/user-roles/${role.id}/users/${memberUuid}`, {
+      await requestJson(`/admin/api/v2/user-roles/${role.id}/users/${memberUuid}`, {
         method: 'DELETE',
       })
 

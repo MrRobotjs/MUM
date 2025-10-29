@@ -66,7 +66,7 @@ const fetchCsrfToken = async (csrfUrl: string) => {
   }
 };
 
-export const ensureCsrfToken = async (csrfUrl = '/admin/api/v1/auth/csrf-token') => {
+export const ensureCsrfToken = async (csrfUrl = '/admin/api/v2/auth/csrf-token') => {
   if (csrfToken) {
     return csrfToken;
   }

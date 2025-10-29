@@ -16,7 +16,7 @@ from app.services.media_service_manager import MediaServiceManager
 from app.utils.helpers import permission_required, log_event
 
 # Reuse sync status helpers from v1 for now
-from app.routes.api_v1.sync_status import get_sync_status, start_sync, update_sync_progress, end_sync
+from app.routes.api_v2.sync_status import get_sync_status, start_sync, update_sync_progress, end_sync
 
 
 users_tag = Tag(name="Users", description="User management endpoints")

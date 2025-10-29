@@ -198,7 +198,7 @@ export const StreamingPage = () => {
         if (!silent) {
           setLoading(true);
         }
-        const response = await requestJson<ActiveSessionsResponse>('/admin/api/v1/streaming/active');
+        const response = await requestJson<ActiveSessionsResponse>('/admin/api/v2/streaming/active');
         setActiveSessions(response);
         const fetchCompletedAt = new Date();
         const liveServicesCurrent = new Set(liveServicesRef.current);
@@ -381,7 +381,7 @@ export const StreamingPage = () => {
     if (!selectedSession) return;
 
     try {
-      await requestJson('/admin/api/v1/streaming/terminate', {
+      await requestJson('/admin/api/v2/streaming/terminate', {
         method: 'POST',
         body: JSON.stringify({
           session_key: selectedSession.session_key,

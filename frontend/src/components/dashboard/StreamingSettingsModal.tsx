@@ -41,11 +41,13 @@ export const StreamingSettingsModal = ({ open, onClose }: StreamingSettingsModal
 
     setSaving(true);
     try {
-      await requestJson('/admin/api/v1/settings/streaming', {
+      await requestJson('/admin/api/v2/settings/streaming', {
         method: 'PATCH',
         body: JSON.stringify({
           enable_navbar_stream_badge: enableBadge,
-          session_monitoring_interval: interval
+          session_monitoring_interval: interval,
+          // Preserve current websocket refresh interval (required by v2)
+          websocket_refresh_interval: settings?.websocket_refresh_interval ?? 30
         })
       });
 

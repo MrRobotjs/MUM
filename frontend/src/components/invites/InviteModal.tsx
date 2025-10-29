@@ -105,7 +105,7 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, loading }:
   const loadServers = async () => {
     setLoadingServers(true);
     try {
-      const response = await requestJson('/admin/api/v1/servers', { method: 'GET' });
+      const response = await requestJson('/admin/api/v2/servers', { method: 'GET' });
       setServers(response.data || []);
       setLoadingServers(false);
     } catch (error) {
@@ -121,8 +121,8 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, loading }:
 
     try {
       const endpoint = forceRefresh
-        ? `/admin/api/servers/${serverId}/libraries/refresh`
-        : `/admin/api/servers/${serverId}/libraries`;
+        ? `/admin/api/v2/servers/${serverId}/libraries/refresh`
+        : `/admin/api/v2/servers/${serverId}/libraries`;
       const method = forceRefresh ? 'POST' : 'GET';
 
       const response = await requestJson(endpoint, { method });

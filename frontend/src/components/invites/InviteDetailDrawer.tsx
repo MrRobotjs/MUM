@@ -96,7 +96,7 @@ export const InviteDetailDrawer = ({ inviteId, onClose }: InviteDetailDrawerProp
       setLoading(true);
       setError(null);
       try {
-        const json = await requestJson<ApiResponse>(`/admin/api/v1/invites/${inviteId}`);
+        const json = await requestJson<ApiResponse>(`/admin/api/v2/invites/${inviteId}`);
         setDetail(json.data);
       } catch (err) {
         const message = (err as Error).message || 'Failed to load invite details';

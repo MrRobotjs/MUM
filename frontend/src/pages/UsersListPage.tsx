@@ -4,6 +4,8 @@ import { UserDisplaySettingsModal } from '../components/users/UserDisplaySetting
 import { MassEditUsersModal } from '../components/users/MassEditUsersModal';
 import { useUsersPaginated } from '../hooks/useUsersPaginated';
 import { useServerOptions } from '../hooks/useServerOptions';
+import { useAdminRoles } from '../hooks/useAdminRoles';
+import { useUserRoles } from '../hooks/useUserRoles';
 import { useSyncStatus } from '../hooks/useSyncStatus';
 import { useAuth } from '../contexts/AuthContext';
 import { useAlerts } from '../contexts/AlertContext';
@@ -17,6 +19,9 @@ import { cn } from '@/lib/utils';
 import {
   Select,
   SelectContent,
+  SelectGroup,
+  SelectLabel,
+  SelectSeparator,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -43,6 +48,7 @@ import {
 import { Card, CardContent } from '../components/ui/card';
 import { Progress } from '../components/ui/progress';
 import { IconDots, IconRefresh } from '@tabler/icons-react';
+import { Separator } from '../components/ui/separator';
 
 export const UsersListPage = () => {
   const [view, setView] = useState<'table' | 'cards'>('cards');
@@ -85,6 +91,8 @@ export const UsersListPage = () => {
 
   const { users, loading, error: fetchError, pagination, mutate } = useUsersPaginated(filters);
   const { servers } = useServerOptions();
+  const { roles: adminRoles } = useAdminRoles(false, false);
+  const { roles: userRoles } = useUserRoles(false);
   const [columns, setColumns] = useState<UserColumns>({
     name: true,
     email: true,
@@ -371,7 +379,10 @@ export const UsersListPage = () => {
                 </SheetDescription>
               </SheetHeader>
 
-              <div className="space-y-4 mt-6 overflow-y-auto pr-1">
+              <div className="space-y-5 mt-6 overflow-y-auto pr-1">
+                {/* Basic */}
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Basic</h4>
+                <Separator className="my-2" />
                 {/* Server Filter */}
                 <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
                   <Label htmlFor="serverId">
@@ -412,6 +423,9 @@ export const UsersListPage = () => {
                   </Select>
                 </div>
 
+                {/* Search */}
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Search</h4>
+                <Separator className="my-2" />
                 {/* Search Username */}
                 <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
                   <Label htmlFor="searchUsername">
@@ -457,6 +471,9 @@ export const UsersListPage = () => {
                   />
                 </div>
 
+                {/* Advanced */}
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Advanced</h4>
+                <Separator className="my-2" />
                 {/* Filter Type */}
                 <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
                   <Label htmlFor="filterType">
@@ -483,17 +500,37 @@ export const UsersListPage = () => {
                     <i className="fa-solid fa-user-tag mr-2" />
                     Filter by Role
                   </Label>
-                  <Input
-                    id="role"
-                    type="text"
-                    placeholder="Role name"
-                    value={role}
-                    onChange={(e) => setRole(e.target.value)}
-                  />
+                  <Select value={role || 'all'} onValueChange={(val) => setRole(val === 'all' ? '' : val)}>
+                    <SelectTrigger id="role">
+                      <SelectValue placeholder="All roles" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Roles</SelectItem>
+                      {/* Admin Roles */}
+                      <SelectGroup>
+                        <SelectLabel>Admin Roles</SelectLabel>
+                        {adminRoles.map((r) => (
+                          <SelectItem key={`admin-${r.id}`} value={r.name}>
+                            {r.name}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                      <SelectSeparator />
+                      {/* User Roles */}
+                      <SelectGroup>
+                        <SelectLabel>User Roles</SelectLabel>
+                        {userRoles.map((r) => (
+                          <SelectItem key={`user-${r.id}`} value={r.name}>
+                            {r.name}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 {/* Sort Options */}
-                <div className="space-y-2">
+                <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
                   <Label htmlFor="sort">
                     <i className="fa-solid fa-sort mr-2" />
                     Sort by

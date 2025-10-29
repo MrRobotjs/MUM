@@ -199,14 +199,23 @@ def list_users(query: UsersQuery):
         if hasattr(User, 'notes'):
             q = q.filter(func.lower(User.notes).like(func.lower(term)))
 
-    # Filter by admin role name (if relationship available)
+    # Filter by role name (admin or user role)
     if query.role:
         try:
-            # Use any() with lower comparison when possible
-            from app.models import AdminRole
-            q = q.filter(User.admin_roles.any(func.lower(AdminRole.name) == func.lower(query.role)))
+            from app.models import AdminRole, UserRole as MUserRole  # type: ignore
+            q = q.filter(
+                sa_or(
+                    User.admin_roles.any(func.lower(AdminRole.name) == func.lower(query.role)),
+                    User.user_roles.any(func.lower(MUserRole.name) == func.lower(query.role)),
+                )
+            )
         except Exception:
-            pass
+            # Fallback: try admin role only
+            try:
+                from app.models import AdminRole
+                q = q.filter(User.admin_roles.any(func.lower(AdminRole.name) == func.lower(query.role)))
+            except Exception:
+                pass
 
     # Server filter (applies to service users only)
     if query.server_id:

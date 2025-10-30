@@ -9,6 +9,7 @@ from app.routes.api_v2 import api_v2
 from app.services.media_service_manager import MediaServiceManager
 from app.services.media_service_factory import MediaServiceFactory
 from app.models_media_services import ServiceType, MediaServer
+from app.utils.timeout_helper import get_api_timeout
 
 import requests
 
@@ -106,7 +107,8 @@ def jellyfin_image_proxy_v2():
             jellyfin_image_url = f"{jellyfin_image_url}?tag={image_tag}"
 
         headers = {'X-Emby-Token': jellyfin_server.api_key}
-        timeout = current_app.config.get('API_TIMEOUT_SECONDS', 10)
+        # Match v1 behavior for request timeouts
+        timeout = get_api_timeout()
         img_response = requests.get(jellyfin_image_url, headers=headers, stream=True, timeout=timeout)
         img_response.raise_for_status()
         content_type = img_response.headers.get('Content-Type', 'image/jpeg')
@@ -146,7 +148,8 @@ def jellyfin_user_avatar_proxy_v2():
         headers = {'X-Emby-Token': jellyfin_server.api_key}
 
         user_info_url = f"{jellyfin_server.url.rstrip('/')}/Users/{user_id}"
-        timeout = current_app.config.get('API_TIMEOUT_SECONDS', 10)
+        # Match v1 behavior for request timeouts
+        timeout = get_api_timeout()
         user_response = requests.get(user_info_url, headers=headers, timeout=timeout)
         user_response.raise_for_status()
         user_data = user_response.json()
@@ -347,7 +350,8 @@ def audiobookshelf_image_proxy_v2():
             ])
 
         headers = abs_service._get_headers()
-        timeout = current_app.config.get('API_TIMEOUT_SECONDS', 10)
+        # Match v1 behavior for request timeouts
+        timeout = get_api_timeout()
         urls_to_try = [full_image_url] + alternative_urls
         last_error: Exception | None = None
 

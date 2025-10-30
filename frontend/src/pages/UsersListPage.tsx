@@ -379,7 +379,7 @@ export const UsersListPage = () => {
                 </SheetDescription>
               </SheetHeader>
 
-              <div className="space-y-5 mt-6 overflow-y-auto pr-1">
+              <div className="space-y-5 overflow-y-auto pr-1">
                 {/* Basic */}
                 <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Basic</h4>
                 <Separator className="my-2" />

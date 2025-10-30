@@ -12,7 +12,7 @@ from app.extensions import db, JSONEncodedDict
 import secrets
 import uuid
 from flask import current_app 
-from sqlalchemy import Table, Column, Integer, ForeignKey
+from sqlalchemy import Table, Column, Integer, ForeignKey, inspect
 from app.models_media_services import MediaServer
 
 
@@ -781,16 +781,16 @@ class Setting(db.Model): # ... (Setting model remains the same structure, new ke
     @staticmethod
     def get(key_name, default=None):
         if current_app:
-            engine_conn_setting_get = None
             try:
-                engine_conn_setting_get = db.engine.connect()
-                if db.engine.dialect.has_table(engine_conn_setting_get, Setting.__tablename__):
+                inspector = inspect(db.engine)
+                if inspector.has_table(Setting.__tablename__):
                     setting_obj = Setting.query.filter_by(key=key_name).first()
-                    if setting_obj: return setting_obj.get_value()
-            except Exception as e: current_app.logger.debug(f"Setting.get({key_name}): DB query failed: {e}")
-            finally:
-                if engine_conn_setting_get: engine_conn_setting_get.close()
-            if key_name in current_app.config: return current_app.config.get(key_name, default)
+                    if setting_obj:
+                        return setting_obj.get_value()
+            except Exception as e:
+                current_app.logger.debug(f"Setting.get({key_name}): DB query failed: {e}")
+            if key_name in current_app.config:
+                return current_app.config.get(key_name, default)
         return default
     @staticmethod
     def set(key_name, value, v_type=SettingValueType.STRING, name=None, description=None, is_public=False):

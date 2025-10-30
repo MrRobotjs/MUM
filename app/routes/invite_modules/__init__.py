@@ -20,7 +20,6 @@ invites_admin_bp = Blueprint("invites_admin", __name__)
 
 # Import submodules so their routes are registered to the appropriate blueprint
 # Public modules
-from . import main  # uses invites_public_bp
 from . import auth  # uses invites_public_bp
 from . import callbacks  # uses invites_public_bp
 

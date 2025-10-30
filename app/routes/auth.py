@@ -30,7 +30,7 @@ def app_login():
     if current_user.is_authenticated and getattr(g, 'setup_complete', False):
         # If already logged in, redirect to the appropriate dashboard
         if current_user.userType == UserType.OWNER:
-            return redirect(url_for('dashboard.index'))
+            return redirect('/admin/dashboard')
         else:
             return redirect(url_for('user.index'))
     
@@ -65,7 +65,7 @@ def app_login():
 def admin_login():
     """Admin-specific login endpoint"""
     if current_user.is_authenticated and current_user.userType == UserType.OWNER and getattr(g, 'setup_complete', False):
-        return redirect(url_for('dashboard.index'))
+        return redirect('/admin/dashboard')
     
     # Check if owner account exists for the setup redirect
     try:
@@ -123,7 +123,7 @@ def admin_login():
 
             next_page = request.args.get('next')
             if not next_page or not is_safe_url(next_page):
-                next_page = url_for('dashboard.index')
+                next_page = '/admin/dashboard'
             return redirect(next_page)
         else:
             # Admin login failed
@@ -145,7 +145,7 @@ def user_login():
     if current_user.is_authenticated:
         if current_user.userType == UserType.OWNER:
             # Admin user should be at admin dashboard
-            return redirect(url_for('dashboard.index'))
+            return redirect('/admin/dashboard')
         else:
             # Regular user at user dashboard
             return redirect(url_for('user.index'))
@@ -221,7 +221,7 @@ def plex_sso_login_admin():
     # Only redirect to dashboard if already logged in AND already linked to Plex.
     # This allows a logged-in, non-linked user to proceed.
     if current_user.is_authenticated and current_user.plex_uuid and getattr(g, 'setup_complete', False):
-        return redirect(url_for('dashboard.index'))
+        return redirect('/admin/dashboard')
 
     try:
         # Use direct API calls like the working invite flow
@@ -277,7 +277,7 @@ def plex_sso_login_admin():
         if current_user.is_authenticated:
             session['plex_admin_login_next_url'] = url_for('dashboard.account')
         else:
-            session['plex_admin_login_next_url'] = request.args.get('next') or url_for('dashboard.index')
+            session['plex_admin_login_next_url'] = request.args.get('next') or '/admin/dashboard'
 
         return redirect(auth_url_for_user_to_visit)
         
@@ -393,7 +393,7 @@ def plex_sso_callback_admin():
         login_user(admin_to_update, remember=True)
         log_event(EventType.ADMIN_LOGIN_SUCCESS, log_message, admin_id=admin_to_update.id)
         
-        next_url = session.pop('plex_admin_login_next_url', url_for('dashboard.index'))
+        next_url = session.pop('plex_admin_login_next_url', '/admin/dashboard')
         if not is_safe_url(next_url):
             next_url = fallback_url
         

@@ -48,11 +48,13 @@ def index():
     # Find the first settings page the user has permission to view.
     for permission, endpoint in permission_map:
         if current_user.has_permission(permission):
+            if endpoint == 'plugin_management.index':
+                return redirect('/admin/settings/plugins')
             return redirect(url_for(endpoint))
 
     # If the user has a login but no settings permissions at all, deny access.
     flash("You do not have permission to view any settings pages.", "danger")
-    return redirect(url_for('dashboard.index'))
+    return redirect('/admin/dashboard')
 
 @bp.route('/general', methods=['GET', 'POST'])
 @login_required

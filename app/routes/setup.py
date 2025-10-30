@@ -9,6 +9,7 @@ import urllib.parse
 from app.models import User, UserType, Setting, EventType, SettingValueType
 from app.forms import AccountSetupForm, AppBaseUrlForm, DiscordConfigForm
 from app.extensions import db
+from sqlalchemy import inspect
 from app.utils.helpers import log_event
 from app.utils.plex_auth_helpers import create_plex_pin_login, check_plex_pin_status, get_plex_auth_url
 
@@ -18,13 +19,12 @@ bp = Blueprint('setup', __name__)
 
 def get_completed_steps():
     completed = set()
-    engine_conn_steps, admin_table_exists_steps = None, False
+    owner_table_exists_steps = False
     try:
-        engine_conn_steps = db.engine.connect()
-        if engine_conn_steps: owner_table_exists_steps = db.engine.dialect.has_table(engine_conn_steps, User.__tablename__)
-    except Exception as e: current_app.logger.error(f"DB connection error in get_completed_steps: {e}")
-    finally:
-        if engine_conn_steps: engine_conn_steps.close()
+        inspector = inspect(db.engine)
+        owner_table_exists_steps = inspector.has_table(User.__tablename__)
+    except Exception as e:
+        current_app.logger.error(f"DB inspection error in get_completed_steps: {e}")
     if owner_table_exists_steps and User.get_owner(): completed.add('account')
     if Setting.get('APP_BASE_URL'): completed.add('app')
     
@@ -201,13 +201,22 @@ def account_setup():
                 current_app.logger.warning(f"Form validation failed. Errors: {form.errors}")
                 # Don't set a generic error message - let the individual field errors show in the template
     
-    # Fallback: Render the page if it's an initial GET, or if a POST/GET for SSO had an error,
-    # or if username/password POST validation failed.
-    return render_template('setup/account.html',
-                           form=form,
-                           error_message=error_message,
-                           completed_steps=get_completed_steps(),
-                           current_step_id='account')
+    # For SPA replacement, serve the React app for GET or error cases
+    if request.method == 'GET' or error_message is not None:
+        from flask import send_from_directory
+        dist_path = os.path.join(current_app.root_path, 'static', 'dist')
+        index_path = os.path.join(dist_path, 'index.html')
+        if not os.path.exists(index_path):
+            current_app.logger.error("React SPA build not found at %s", index_path)
+            return (
+                "<h1>React App Not Built</h1>"
+                "<p>The React admin interface has not been built yet.</p>"
+                "<p>Please run: <code>cd frontend && npm run build</code></p>",
+                500,
+            )
+        return send_from_directory(dist_path, 'index.html')
+    # Otherwise fall back to redirecting to plugins (should not normally happen)
+    return redirect(url_for('setup.plugins'))
 
 @bp.route('/plex_sso_callback_setup_admin') 
 def plex_sso_callback_setup_admin():
@@ -245,10 +254,12 @@ def plex_sso_callback_setup_admin():
             current_app.logger.warning(f"Plex SSO Callback (Setup): PIN {pin_id_from_session} checked, but no authToken found.")
             return redirect(url_for('setup.account_setup', show_pin_retry_message=True, pin_code_to_display=session.get('plex_pin_code_admin_setup')))
         plex_account = MyPlexAccount(token=plex_auth_token)
-        engine_conn_cb, admin_table_exists_cb = None, False
-        try: engine_conn_cb = db.engine.connect(); owner_table_exists_cb = db.engine.dialect.has_table(engine_conn_cb, User.__tablename__)
-        finally:
-            if engine_conn_cb: engine_conn_cb.close()
+        owner_table_exists_cb = False
+        try:
+            inspector = inspect(db.engine)
+            owner_table_exists_cb = inspector.has_table(User.__tablename__)
+        except Exception:
+            owner_table_exists_cb = False
         if owner_table_exists_cb and User.get_owner():
             flash('Owner account already exists.', 'warning'); existing_owner = User.query.filter_by(userType=UserType.OWNER).filter_by(plex_uuid=plex_account.uuid).first()
             if existing_owner: login_user(existing_owner, remember=True); return redirect(url_for('setup.plugins'))
@@ -300,12 +311,23 @@ def app_config():
         flash('Application settings saved.', 'success')
         return redirect(url_for('setup.discord_config'))
         
-    elif request.method == 'GET':
-        form.app_name.data = Setting.get('APP_NAME') or current_app.config.get('APP_NAME')
-        form.app_base_url.data = Setting.get('APP_BASE_URL') or request.url_root.rstrip('/')
-        form.app_local_url.data = Setting.get('APP_LOCAL_URL')
-        
-    return render_template('setup/app_config.html', form=form, completed_steps=get_completed_steps(), current_step_id='app')
+    if request.method == 'GET':
+        from flask import send_from_directory
+        dist_path = os.path.join(current_app.root_path, 'static', 'dist')
+        index_path = os.path.join(dist_path, 'index.html')
+        if not os.path.exists(index_path):
+            current_app.logger.error("React SPA build not found at %s", index_path)
+            return (
+                "<h1>React App Not Built</h1>"
+                "<p>The React admin interface has not been built yet.</p>"
+                "<p>Please run: <code>cd frontend && npm run build</code></p>",
+                500,
+            )
+        return send_from_directory(dist_path, 'index.html')
+    # For POST validation failures, serve SPA as well
+    from flask import send_from_directory
+    dist_path = os.path.join(current_app.root_path, 'static', 'dist')
+    return send_from_directory(dist_path, 'index.html')
 
 @bp.route('/discord', methods=['GET', 'POST'])
 @login_required
@@ -330,14 +352,23 @@ def discord_config():
             Setting.set('DISCORD_CLIENT_ID', "", SettingValueType.STRING); Setting.set('DISCORD_CLIENT_SECRET', "", SettingValueType.SECRET)
             log_event(EventType.DISCORD_CONFIG_SAVE, "Discord OAuth disabled.", admin_id=current_user.id); flash('Discord OAuth disabled.', 'info')
         return redirect(url_for('setup.finish_setup'))
-    elif request.method == 'GET':
-        retrieved_setting = Setting.get('DISCORD_OAUTH_ENABLED', False) # Default to Python bool False
-        if isinstance(retrieved_setting, bool): current_discord_enabled = retrieved_setting
-        else: current_discord_enabled = str(retrieved_setting).lower() == 'true' # Handle if somehow stored as string
-        form.enable_discord_oauth.data = current_discord_enabled
-        if current_discord_enabled: form.discord_client_id.data = Setting.get('DISCORD_CLIENT_ID')
-    saved_discord_enabled_for_partial = form.enable_discord_oauth.data 
-    return render_template('setup/discord/index.html', form=form, discord_invite_redirect_uri=discord_invite_redirect_uri, discord_admin_link_redirect_uri=discord_admin_link_redirect_uri, saved_discord_enabled=saved_discord_enabled_for_partial, prev_step_url=url_for('setup.app_config'), completed_steps=get_completed_steps(), current_step_id='discord')
+    if request.method == 'GET':
+        from flask import send_from_directory
+        dist_path = os.path.join(current_app.root_path, 'static', 'dist')
+        index_path = os.path.join(dist_path, 'index.html')
+        if not os.path.exists(index_path):
+            current_app.logger.error("React SPA build not found at %s", index_path)
+            return (
+                "<h1>React App Not Built</h1>"
+                "<p>The React admin interface has not been built yet.</p>"
+                "<p>Please run: <code>cd frontend && npm run build</code></p>",
+                500,
+            )
+        return send_from_directory(dist_path, 'index.html')
+    # For POST (including validation errors), fall back to SPA
+    from flask import send_from_directory
+    dist_path = os.path.join(current_app.root_path, 'static', 'dist')
+    return send_from_directory(dist_path, 'index.html')
 
 @bp.route('/discord/toggle_partial', methods=['POST'])
 @login_required
@@ -366,55 +397,9 @@ def finish_setup():
         log_event(EventType.SETTING_CHANGE, "SECRET_KEY generated at finish.")
     flash('Application setup complete!', 'success'); log_event(EventType.APP_STARTUP, "Setup completed.", admin_id=current_user.id)
     if hasattr(g, 'setup_complete'): g.setup_complete = True; current_app.config['SETUP_COMPLETE'] = True
-    return redirect(url_for('dashboard.index'))
+    return redirect('/admin/dashboard')
 
 @bp.route('/plugins')
 def plugins():
-    """Plugin selection during initial setup"""
-    # Initialize core plugins if not already done
-    from app.services.plugin_manager import plugin_manager
-    plugin_manager.initialize_core_plugins()
-    
-    # Manually refresh servers_count for all plugins to ensure accuracy
-    try:
-        from app.models_media_services import MediaServer, ServiceType
-        from app.models_plugins import Plugin
-        plugins = Plugin.query.all()
-        
-        for plugin in plugins:
-            try:
-                # Find the corresponding ServiceType enum value
-                service_type = None
-                for st in ServiceType:
-                    if st.value == plugin.plugin_id:
-                        service_type = st
-                        break
-                
-                if service_type:
-                    # Count actual servers
-                    actual_count = MediaServer.query.filter_by(service_type=service_type).count()
-                    if plugin.servers_count != actual_count:
-                        plugin.servers_count = actual_count
-                        db.session.add(plugin)
-                else:
-                    # For plugins without corresponding ServiceType, set to 0
-                    if plugin.servers_count != 0:
-                        plugin.servers_count = 0
-                        db.session.add(plugin)
-            except Exception as e:
-                current_app.logger.error(f"Error updating servers_count for plugin {plugin.plugin_id}: {e}")
-        
-        db.session.commit()
-    except Exception as e:
-        current_app.logger.error(f"Error refreshing plugin servers count in setup: {e}")
-    
-    from app.models_plugins import PluginType
-    plugins = plugin_manager.get_available_plugins()
-    core_plugins = [p for p in plugins if p.plugin_type == PluginType.CORE]
-    
-    completed_steps = get_completed_steps()
-    
-    return render_template('setup/plugins/index.html', 
-                           plugins=core_plugins,
-                           completed_steps=completed_steps,
-                           current_step_id='plugins')
+    """Redirect to admin Plugins settings (SPA)."""
+    return redirect('/admin/settings/plugins')

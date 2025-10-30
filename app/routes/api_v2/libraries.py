@@ -420,7 +420,7 @@ def get_library_activity(path: LibraryPath):
             elif media_item.thumb_path.startswith("http"):
                 thumb_path = media_item.thumb_path
             else:
-                thumb_path = f"/admin/api/media/{library.server.service_type.value}/images/proxy?path={media_item.thumb_path.lstrip('/')}"
+                thumb_path = f"/admin/api/v2/media/{library.server.service_type.value}/images/proxy?path={media_item.thumb_path.lstrip('/')}"
 
         streams_data.append(
             {

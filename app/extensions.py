@@ -6,7 +6,6 @@ from flask_wtf.csrf import CSRFProtect
 from flask_session import Session # If using Flask-Session
 from flask_apscheduler import APScheduler
 from flask_babel import Babel
-from flask_htmx import HTMX
 from flask_socketio import SocketIO
 from flask_caching import Cache
 
@@ -35,11 +34,8 @@ csrf = CSRFProtect()
 # APScheduler for background tasks
 scheduler = APScheduler()
 
-# Babel for i18n/l10n (even if not immediately used, good to have)
+# Babel for i18n/l10n (initialized without a custom locale selector)
 babel = Babel()
-
-# Flask-HTMX
-htmx = HTMX()
 
 # Flask-SocketIO for WebSocket support
 # Use eventlet for production (Gunicorn compatibility)

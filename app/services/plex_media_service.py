@@ -854,7 +854,7 @@ class PlexMediaService(BaseMediaService):
                 thumb_path = raw_session.thumb
                 if media_type == 'Episode' and hasattr(raw_session, 'grandparentThumb'):
                     thumb_path = raw_session.grandparentThumb
-                thumb_url = url_for('api.plex_image_proxy', path=thumb_path.lstrip('/')) if thumb_path else None
+                thumb_url = url_for('api_v2.plex_image_proxy_v2', path=thumb_path.lstrip('/')) if thumb_path else None
                 
                 # Transcoding info
                 transcode_session = raw_session.transcodeSession
@@ -883,7 +883,7 @@ class PlexMediaService(BaseMediaService):
                         user_avatar_url = user_thumb_url
                     else:
                         try:
-                            user_avatar_url = url_for('api.plex_image_proxy', path=user_thumb_url.lstrip('/'))
+                            user_avatar_url = url_for('api_v2.plex_image_proxy_v2', path=user_thumb_url.lstrip('/'))
                         except Exception:
                             user_avatar_url = None
                 
@@ -1226,11 +1226,11 @@ class PlexMediaService(BaseMediaService):
                     thumb_url = None
                     if hasattr(item, 'thumb') and item.thumb:
                         # Manually construct relative URL to avoid url_for issues with external hosts
-                        thumb_url = f"/admin/api/media/plex/images/proxy?path={item.thumb.lstrip('/')}"
+                        thumb_url = f"/admin/api/v2/media/plex/images/proxy?path={item.thumb.lstrip('/')}"
                         # current_app.logger.debug(f"Generated Plex thumb URL: {thumb_url}")
                     elif hasattr(item, 'art') and item.art:
                         # Manually construct relative URL to avoid url_for issues with external hosts
-                        thumb_url = f"/admin/api/media/plex/images/proxy?path={item.art.lstrip('/')}"
+                        thumb_url = f"/admin/api/v2/media/plex/images/proxy?path={item.art.lstrip('/')}"
                         # current_app.logger.debug(f"Generated Plex art URL: {thumb_url}")
                     
                     # Extract year from originallyAvailableAt
@@ -1440,10 +1440,10 @@ class PlexMediaService(BaseMediaService):
                     thumb_url = None
                     if hasattr(episode, 'thumb') and episode.thumb:
                         # Manually construct relative URL to avoid url_for issues with external hosts
-                        thumb_url = f"/admin/api/media/plex/images/proxy?path={episode.thumb.lstrip('/')}"
+                        thumb_url = f"/admin/api/v2/media/plex/images/proxy?path={episode.thumb.lstrip('/')}"
                     elif hasattr(episode, 'art') and episode.art:
                         # Fallback to art if thumb is not available
-                        thumb_url = f"/admin/api/media/plex/images/proxy?path={episode.art.lstrip('/')}"
+                        thumb_url = f"/admin/api/v2/media/plex/images/proxy?path={episode.art.lstrip('/')}"
                     
                     # Extract year from originallyAvailableAt
                     year = None

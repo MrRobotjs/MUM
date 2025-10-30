@@ -343,7 +343,7 @@ class KomgaMediaService(BaseMediaService):
                 series_id = series.get('id')
                 if series_id:
                     # Use the image proxy to handle authentication
-                    thumb_url = f"/admin/api/media/komga/images/proxy?series_id={series_id}&server_id={self.server_id}"
+                    thumb_url = f"/admin/api/v2/media/komga/images/proxy?series_id={series_id}&server_id={self.server_id}"
                 
                 items.append({
                     'id': str(series.get('id', '')),
@@ -425,7 +425,7 @@ class KomgaMediaService(BaseMediaService):
                 book_id = book.get('id')
                 if book_id:
                     # Use the image proxy to handle authentication for book thumbnails
-                    thumb_url = f"/admin/api/media/komga/images/proxy?book_id={book_id}&server_id={self.server_id}"
+                    thumb_url = f"/admin/api/v2/media/komga/images/proxy?book_id={book_id}&server_id={self.server_id}"
                 
                 items.append({
                     'id': str(book.get('id', '')),

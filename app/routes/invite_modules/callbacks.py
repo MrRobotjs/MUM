@@ -36,7 +36,7 @@ def plex_oauth_callback():
         if temp_invite_for_redirect: 
             invite_path_or_token_for_redirect = temp_invite_for_redirect.custom_path or temp_invite_for_redirect.token
 
-    fallback_redirect = url_for('invites.process_invite_form', invite_path_or_token=invite_path_or_token_for_redirect)
+    fallback_redirect = url_for('public_spa.invite_token_spa', invite_path_or_token=invite_path_or_token_for_redirect)
     
     if not invite_id or not pin_code_from_session or not pin_id_from_session or not client_id_from_session:
         flash('Plex login callback invalid. Try invite again.', 'danger')
@@ -51,7 +51,7 @@ def plex_oauth_callback():
     invite = Invite.query.get(invite_id)
     if not invite: 
         flash('Invite not found. Try again.', 'danger')
-        return redirect(url_for('invites.invite_landing_page'))
+        return redirect(url_for('public_spa.invite_landing_spa'))
 
     return_path = session.get(f'invite_{invite.id}_return_path')
     if return_path:
@@ -223,8 +223,8 @@ def discord_oauth_callback():
         if invite_object_for_redirect:
             invite_path_for_redirect_on_error = invite_object_for_redirect.custom_path or invite_object_for_redirect.token
     
-    public_invite_page_url_with_path = url_for('invites.process_invite_form', invite_path_or_token=invite_path_for_redirect_on_error)
-    generic_invite_landing_url = url_for('invites.invite_landing_page')
+    public_invite_page_url_with_path = url_for('public_spa.invite_token_spa', invite_path_or_token=invite_path_for_redirect_on_error)
+    generic_invite_landing_url = url_for('public_spa.invite_landing_spa')
 
     if not invite_id_from_session or not returned_state or returned_state != session.pop('discord_oauth_state_invite', None):
         flash('Discord login failed: Invalid session or state. Please try the invite link again.', 'danger')

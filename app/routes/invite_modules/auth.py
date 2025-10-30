@@ -68,7 +68,7 @@ def initiate_plex_auth(invite_id):
     except Exception as e:
         flash(f"Could not initiate Plex login: {str(e)[:150]}", "danger")
         log_event(EventType.ERROR_PLEX_API, f"Invite {invite.id}: Plex PIN init failed: {e}", invite_id=invite.id)
-        return redirect(url_for('invites.process_invite_form', invite_path_or_token=invite.custom_path or invite.token))
+        return redirect(url_for('public_spa.invite_token_spa', invite_path_or_token=invite.custom_path or invite.token))
 
 @invites_bp.route('/discord_auth/<int:invite_id>')
 @setup_required
@@ -79,7 +79,7 @@ def initiate_discord_auth(invite_id):
     oauth_is_generally_enabled = Setting.get_bool('DISCORD_OAUTH_ENABLED', False)
     if not oauth_is_generally_enabled:
         flash("Discord login is not currently available.", "warning")
-        return redirect(url_for('invites.process_invite_form', invite_path_or_token=invite.custom_path or invite.token))
+        return redirect(url_for('public_spa.invite_token_spa', invite_path_or_token=invite.custom_path or invite.token))
     
     admin_provided_oauth_url = Setting.get('DISCORD_OAUTH_AUTH_URL')
     client_id_from_settings = Setting.get('DISCORD_CLIENT_ID')
@@ -116,4 +116,4 @@ def initiate_discord_auth(invite_id):
         return redirect(discord_auth_url)
     else: 
         flash("Discord integration is not properly configured by admin for login.", "danger")
-        return redirect(url_for('invites.process_invite_form', invite_path_or_token=invite.custom_path or invite.token))
+        return redirect(url_for('public_spa.invite_token_spa', invite_path_or_token=invite.custom_path or invite.token))

@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from flask_openapi3 import Tag
 
 from app.routes.api_v2 import api_v2
-from app.routes.api import get_fresh_server_status
+from app.routes.api_v2.status_helpers import get_fresh_server_status
 
 
 dashboard_tag = Tag(name="Dashboard", description="Dashboard widgets")
@@ -91,4 +91,3 @@ def get_server_status():
     normalized = _normalize_server_status(raw_status)
     request_id = str(uuid4())
     return jsonify({'data': normalized, 'meta': {'request_id': request_id, 'generated_at': datetime.utcnow().isoformat() + 'Z', 'deprecated': False}}), 200
-

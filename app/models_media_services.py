@@ -229,7 +229,7 @@ class MediaItem(db.Model):
                 thumb_url = self.thumb_path
             else:
                 # Plex format: regular path that needs proxy construction
-                thumb_url = f"/admin/api/media/{self.server.service_type.value}/images/proxy?path={self.thumb_path.lstrip('/')}"
+                thumb_url = f"/admin/api/v2/media/{self.server.service_type.value}/images/proxy?path={self.thumb_path.lstrip('/')}"
         
         # Extract season and episode numbers for episodes
         season_number = None

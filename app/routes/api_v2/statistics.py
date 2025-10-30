@@ -54,7 +54,7 @@ def _construct_poster_url(thumb_path, service_type):
     elif thumb_path.startswith('http'):
         return thumb_path
     else:
-        return f"/admin/api/media/{service_type}/images/proxy?path={thumb_path.lstrip('/')}"
+        return f"/admin/api/v2/media/{service_type}/images/proxy?path={thumb_path.lstrip('/')}"
 
 
 @api_v2.get(
@@ -158,4 +158,3 @@ def get_watch_statistics(query: WatchStatsQuery):
 
     response = {'data': payload, 'meta': {'request_id': request_id, 'generated_at': datetime.utcnow().isoformat() + 'Z', 'deprecated': False}}
     return jsonify(response), 200
-

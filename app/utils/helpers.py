@@ -6,6 +6,7 @@ from app.utils.timezone_utils import to_app_timezone, format_datetime_human as t
 from flask import current_app, flash, url_for, g as flask_g, redirect, request # Use flask_g to avoid conflict with local g
 from functools import wraps
 from flask_login import current_user
+from sqlalchemy import inspect
 # app.models import HistoryLog, EventType # This creates circular import if models also import helpers
 # from app.extensions import db # Same here
 
@@ -80,14 +81,12 @@ def log_event(event_type, message: str, details: dict = None, # Removed type hin
     try:
         # Check if HistoryLog table exists before trying to write to it
         # This is especially for early startup/CLI commands like `flask db upgrade`
-        engine_conn = None
         history_table_exists = False
         try:
-            engine_conn = db.engine.connect()
-            history_table_exists = db.engine.dialect.has_table(engine_conn, HistoryLog.__tablename__)
-        finally:
-            if engine_conn:
-                engine_conn.close()
+            inspector = inspect(db.engine)
+            history_table_exists = inspector.has_table(HistoryLog.__tablename__)
+        except Exception:
+            history_table_exists = False
 
         if not history_table_exists:
             current_app.logger.info(f"History_logs table not found. Skipping log: {event_type.name} - {message}")
@@ -273,7 +272,7 @@ def any_permission_required(permissions):
             
             # If no permissions found, deny access
             flash("You do not have permission to access this page.", "danger")
-            return redirect(url_for('dashboard.index'))
+            return redirect('/admin/dashboard')
         return decorated_function
     return decorator
 
@@ -411,7 +410,7 @@ def super_admin_required(f):
         
         if not current_user.is_authenticated:
             flash("You do not have permission to access this page.", "danger")
-            return redirect(url_for('dashboard.index'))
+            return redirect('/admin/dashboard')
         
         # For Owner, check if ID is 1
         if current_user.userType == UserType.OWNER:
@@ -423,7 +422,7 @@ def super_admin_required(f):
                 return f(*args, **kwargs)
         
         flash("You do not have permission to access this page.", "danger")
-        return redirect(url_for('dashboard.index'))
+        return redirect('/admin/dashboard')
     return decorated_function
 
 

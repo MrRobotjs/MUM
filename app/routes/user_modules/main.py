@@ -17,7 +17,7 @@ def index():
     # Ensure this is a regular user, not an owner
     from app.models import User, UserType
     if current_user.userType == UserType.OWNER:
-        return redirect(url_for('dashboard.index'))
+        return redirect('/admin/dashboard')
     
     # Ensure this is a LOCAL user account
     if current_user.userType != UserType.LOCAL:

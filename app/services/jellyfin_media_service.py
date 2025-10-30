@@ -499,12 +499,12 @@ class JellyfinMediaService(BaseMediaService):
                         params = {'item_id': now_playing.get('SeriesId'), 'image_type': 'Primary'}
                         if series_image_tag:
                             params['image_tag'] = series_image_tag
-                        thumb_url = url_for('api.jellyfin_image_proxy', **params)
+                        thumb_url = url_for('api_v2.jellyfin_image_proxy_v2', **params)
                     else:
                         params = {'item_id': item_id, 'image_type': 'Primary'}
                         if primary_image_tag:
                             params['image_tag'] = primary_image_tag
-                        thumb_url = url_for('api.jellyfin_image_proxy', **params)
+                        thumb_url = url_for('api_v2.jellyfin_image_proxy_v2', **params)
                 
                 is_transcoding = play_state.get('PlayMethod') == 'Transcode'
                 
@@ -525,7 +525,7 @@ class JellyfinMediaService(BaseMediaService):
                         # Check if user has an avatar before generating URL
                         user_info = self._get_user_info(jellyfin_user_id)
                         if user_info and user_info.get('PrimaryImageTag'):
-                            user_avatar_url = url_for('api.jellyfin_user_avatar_proxy', user_id=jellyfin_user_id)
+                            user_avatar_url = url_for('api_v2.jellyfin_user_avatar_proxy_v2', user_id=jellyfin_user_id)
                     except Exception:
                         user_avatar_url = None
                 
@@ -852,7 +852,7 @@ class JellyfinMediaService(BaseMediaService):
                     thumb_url = None
                     if item.get('Id'):
                         # Manually construct relative URL to avoid url_for issues with external hosts
-                        thumb_url = f"/admin/api/media/jellyfin/images/proxy?item_id={item['Id']}&image_type=Primary"
+                        thumb_url = f"/admin/api/v2/media/jellyfin/images/proxy?item_id={item['Id']}&image_type=Primary"
                         #current_app.logger.debug(f"Generated Jellyfin thumb URL: {thumb_url}")
                     
                     # Extract year from PremiereDate

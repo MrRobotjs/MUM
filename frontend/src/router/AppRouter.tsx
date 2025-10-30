@@ -7,6 +7,7 @@ import UserDetailPage from '../pages/UserDetailPage';
 import StreamingPage from '../pages/StreamingPage';
 import InvitesPage from '../pages/InvitesPage';
 import InviteWizardPage from '../pages/InviteWizardPage';
+import InviteLandingPage from '../pages/InviteLandingPage';
 import LoginPage from '../pages/LoginPage';
 import LibrariesPage from '../pages/LibrariesPage';
 import LibraryDetailPage from '../pages/LibraryDetailPage';
@@ -27,6 +28,10 @@ import LogsPage from '../pages/LogsPage';
 import ApiDebugPage from '../pages/ApiDebugPage';
 import ApiDocsPage from '../pages/ApiDocsPage';
 import AdminAccountPage from '../pages/AdminAccountPage';
+import SetupAccountPage from '../pages/SetupAccountPage';
+import SetupAppConfigPage from '../pages/SetupAppConfigPage';
+import SetupPluginsPage from '../pages/SetupPluginsPage';
+import SetupDiscordPage from '../pages/SetupDiscordPage';
 
 export const AppRouter = () => (
   <BrowserRouter>
@@ -65,7 +70,15 @@ export const AppRouter = () => (
         </Route>
       </Route>
 
+      <Route path="/invite" element={<InviteLandingPage />} />
       <Route path="/invite/:token" element={<InviteWizardPage />} />
+      {/* Public setup UI routes (SPA) */}
+      <Route path="/setup/ui/account" element={<SetupAccountPage />} />
+      <Route path="/setup/ui/app" element={<SetupAppConfigPage />} />
+      <Route path="/setup/ui/plugins" element={<SetupPluginsPage />} />
+      <Route path="/setup/ui/discord" element={<SetupDiscordPage />} />
+      <Route path="/setup" element={<Navigate to="/setup/ui/account" replace />} />
+      <Route path="/setup/*" element={<Navigate to="/setup/ui/account" replace />} />
       <Route path="/" element={<Navigate to="/admin/dashboard" replace />} />
       <Route path="*" element={<Navigate to="/admin/dashboard" replace />} />
     </Routes>

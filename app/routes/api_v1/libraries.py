@@ -339,7 +339,7 @@ def get_library_stats(library_id):
 
     days = request.args.get('days', 30, type=int)
 
-    from app.routes.library_modules.statistics import get_advanced_library_statistics, get_library_user_engagement_metrics
+    from app.routes.library_modules_deprecated.statistics import get_advanced_library_statistics, get_library_user_engagement_metrics
     from app.models_media_services import MediaStreamHistory
     from datetime import timedelta, timezone
     from collections import defaultdict

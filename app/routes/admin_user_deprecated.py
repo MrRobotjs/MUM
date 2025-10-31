@@ -310,7 +310,7 @@ def view_service_user(server_nickname, server_username):
     # Populate library data for the service user (same logic as users_modules/main.py)
     try:
         from app.services.media_service_manager import MediaServiceManager
-        from app.routes.users_modules.helpers_deprecated import get_libraries_from_database
+        from app.routes.users_modules_deprecated.helpers_deprecated import get_libraries_from_database
         media_service_manager = MediaServiceManager()
         all_servers = media_service_manager.get_all_servers()
         libraries_by_server = get_libraries_from_database(all_servers)

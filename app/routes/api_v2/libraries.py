@@ -308,7 +308,7 @@ def get_library_stats(path: LibraryPath):
         return jsonify({"error": {"code": "LIBRARY_NOT_FOUND", "message": f"Library with ID {path.library_id} not found", "details": {"library_id": path.library_id}}, "meta": {"request_id": request_id}}), 404
 
     days = request.args.get("days", type=int, default=30)
-    from app.routes.library_modules.statistics import get_advanced_library_statistics, get_library_user_engagement_metrics
+    from app.routes.library_modules_deprecated.statistics import get_advanced_library_statistics, get_library_user_engagement_metrics
     stats = get_advanced_library_statistics(lib, days=days)
     user_metrics = get_library_user_engagement_metrics(lib, days=days)
 

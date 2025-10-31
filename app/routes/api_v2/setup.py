@@ -7,9 +7,9 @@ from pydantic import BaseModel
 from flask_openapi3 import Tag
 
 from app.routes.api_v2 import api_v2
-from app.routes.setup import get_completed_steps
+from app.utils.setup_helpers import get_completed_steps
 from app.models_media_services import ServiceType, MediaServer
-from app.routes.media_servers_modules.setup import test_connection_setup
+from flask import request, current_app
 
 
 setup_tag = Tag(name="Setup", description="Application setup helpers")
@@ -98,10 +98,39 @@ class TestConnectionResponse(BaseModel):
 def setup_test_connection(plugin_id: str):
     request_id = str(uuid4())
     try:
-        response = test_connection_setup(plugin_id)
-        if isinstance(response, tuple):
-            return response
-        return response
-    except Exception as exc:
-        return jsonify({'error': {'code': 'SETUP_TEST_FAILED', 'message': str(exc)}, 'meta': {'request_id': request_id}}), 500
+        try:
+            service_type = ServiceType(plugin_id)
+        except Exception:
+            return jsonify({'error': {'code': 'UNKNOWN_PLUGIN', 'message': f'Unknown plugin: {plugin_id}'} , 'meta': {'request_id': request_id}}), 400
 
+        data = request.get_json(silent=True) or {}
+        server_name = (data.get('name') or '').strip()
+        server_url = (data.get('url') or '').strip()
+        api_key = (data.get('api_key') or '').strip()
+        username = (data.get('username') or '').strip()
+        password = (data.get('password') or '').strip()
+        public_url = (data.get('public_url') or '').strip()
+
+        if not server_url:
+            return jsonify({'error': {'code': 'VALIDATION_ERROR', 'message': 'Server URL is required.'}, 'meta': {'request_id': request_id}}), 400
+
+        temp_server = MediaServer(
+            server_nickname=server_name or 'Test Server',
+            url=server_url,
+            api_key=api_key,
+            localUsername=username,
+            password=password,
+            public_url=public_url,
+            service_type=service_type,
+        )
+
+        from app.services.media_service_factory import MediaServiceFactory
+        service = MediaServiceFactory.create_service_from_db(temp_server)
+        if not service:
+            return jsonify({'error': {'code': 'SERVICE_CREATION_FAILED', 'message': f'Could not create service for {plugin_id}'}, 'meta': {'request_id': request_id}}), 500
+
+        success, message = service.test_connection()
+        return jsonify({'data': {'success': bool(success), 'message': message}, 'meta': {'request_id': request_id}}), 200
+    except Exception as exc:
+        current_app.logger.exception("Setup test connection failed: %s", exc)
+        return jsonify({'error': {'code': 'SETUP_TEST_FAILED', 'message': str(exc)}, 'meta': {'request_id': request_id}}), 500

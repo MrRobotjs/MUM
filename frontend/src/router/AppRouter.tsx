@@ -28,6 +28,7 @@ import LogsPage from '../pages/LogsPage';
 import ApiDebugPage from '../pages/ApiDebugPage';
 import ApiDocsPage from '../pages/ApiDocsPage';
 import AdminAccountPage from '../pages/AdminAccountPage';
+import UserDashboardPage from '../pages/UserDashboardPage';
 import SetupAccountPage from '../pages/SetupAccountPage';
 import SetupAppConfigPage from '../pages/SetupAppConfigPage';
 import SetupPluginsPage from '../pages/SetupPluginsPage';
@@ -72,6 +73,9 @@ export const AppRouter = () => (
 
       <Route path="/invite" element={<InviteLandingPage />} />
       <Route path="/invite/:token" element={<InviteWizardPage />} />
+      {/* User portal (SPA) */}
+      <Route path="/user" element={<UserDashboardPage />} />
+      <Route path="/user/dashboard" element={<UserDashboardPage />} />
       {/* Public setup UI routes (SPA) */}
       <Route path="/setup/ui/account" element={<SetupAccountPage />} />
       <Route path="/setup/ui/app" element={<SetupAppConfigPage />} />

@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import uuid4
 
-from flask import jsonify, request, current_app, g
+from flask import jsonify, request, current_app, g, url_for, session, redirect, flash
 from flask_login import login_required, current_user, login_user, logout_user
 from sqlalchemy import func
 from pydantic import BaseModel, Field
@@ -13,6 +13,13 @@ from app.extensions import db
 from app.models import User, UserType, Setting, EventType
 from app.routes.api_v2 import api_v2
 from app.utils.helpers import get_csrf_token, log_event
+from app.utils.timeout_helper import get_api_timeout
+from plexapi.myplex import MyPlexAccount
+from plexapi.exceptions import PlexApiException
+import requests
+from urllib.parse import urlencode
+from urllib.parse import urlencode
+import requests
 
 
 auth_tag = Tag(name="Authentication", description="Authentication and session management")
@@ -226,3 +233,286 @@ def set_password():
 def get_session():
     request_id = str(uuid4())
     return jsonify({'data': _issue_session_payload(current_user), 'meta': {'request_id': request_id, 'deprecated': False, 'config': {'allow_user_accounts': Setting.get_bool('ALLOW_USER_ACCOUNTS', False)}}}), 200
+
+
+class RedirectResponse(BaseModel):
+    data: dict
+    meta: dict
+
+
+@api_v2.post(
+    "/auth/plex/start",
+    tags=[auth_tag],
+    summary="Initiate Plex SSO for admin (returns redirect URL)",
+    responses={200: RedirectResponse, 400: RedirectResponse, 500: RedirectResponse},
+)
+def start_admin_plex_sso():
+    request_id = str(uuid4())
+    try:
+        app_name = Setting.get('APP_NAME', 'MUM')
+        client_id = "MUM-AdminLogin"
+
+        # Create PIN with Plex API
+        pin_response = requests.post(
+            "https://plex.tv/api/v2/pins",
+            headers={"Accept": "application/json"},
+            data={"strong": "true", "X-Plex-Product": app_name, "X-Plex-Client-Identifier": client_id},
+        )
+        if pin_response.status_code != 201:
+            return jsonify({'error': {'code': 'PLEX_PIN_CREATE_FAILED', 'message': f'Failed to create PIN: {pin_response.status_code}'}, 'meta': {'request_id': request_id}}), 500
+        pin_data = pin_response.json()
+        pin_id = pin_data.get('id')
+        pin_code = pin_data.get('code')
+        if not pin_id or not pin_code:
+            return jsonify({'error': {'code': 'PLEX_PIN_INVALID', 'message': 'PIN response missing id or code.'}, 'meta': {'request_id': request_id}}), 500
+
+        # Store session details for callback
+        session['plex_pin_id_admin_login'] = pin_id
+        session['plex_pin_code_admin_login'] = pin_code
+        session['plex_client_id_admin_login'] = client_id
+        session['plex_app_name_admin_login'] = app_name
+
+        app_base_url = Setting.get('APP_BASE_URL', request.url_root.rstrip('/'))
+        callback_url = url_for('api_v2.plex_sso_callback_admin_v2', _external=True)
+        encoded = urlencode({
+            "clientID": client_id,
+            "code": pin_code,
+            "context[device][product]": app_name,
+            "forwardUrl": callback_url,
+        })
+        redirect_url = f"https://app.plex.tv/auth#?{encoded}"
+
+        # Decide where to go after callback
+        session['plex_admin_login_next_url'] = request.args.get('next') or '/admin/dashboard'
+
+        return jsonify({'data': {'redirect_url': redirect_url}, 'meta': {'request_id': request_id}}), 200
+    except Exception as exc:
+        current_app.logger.error(f"Failed to start Plex SSO: {exc}", exc_info=True)
+        return jsonify({'error': {'code': 'PLEX_SSO_START_FAILED', 'message': 'Unable to initiate Plex SSO.'}, 'meta': {'request_id': request_id}}), 500
+
+
+@api_v2.post(
+    "/auth/discord/link",
+    tags=[auth_tag],
+    summary="Initiate Discord link for admin (returns redirect URL)",
+    responses={200: RedirectResponse, 400: RedirectResponse, 500: RedirectResponse},
+)
+@login_required
+def start_admin_discord_link():
+    request_id = str(uuid4())
+    try:
+        enabled_setting_val = Setting.get('DISCORD_OAUTH_ENABLED', False)
+        client_id_val = Setting.get('DISCORD_CLIENT_ID')
+        app_base_url_val = Setting.get('APP_BASE_URL')
+
+        if not (isinstance(enabled_setting_val, bool) and enabled_setting_val) and str(enabled_setting_val).lower() != 'true':
+            return jsonify({'error': {'code': 'DISCORD_DISABLED', 'message': 'Discord OAuth is not enabled.'}, 'meta': {'request_id': request_id}}), 400
+        if not client_id_val or not app_base_url_val:
+            return jsonify({'error': {'code': 'DISCORD_NOT_CONFIGURED', 'message': 'Discord client_id or APP_BASE_URL missing.'}, 'meta': {'request_id': request_id}}), 400
+
+        from flask import session
+        session['discord_oauth_state_admin_link'] = str(uuid4())
+        redirect_uri = url_for('api_v2.discord_callback_admin_v2', _external=True)
+        Setting.set('DISCORD_REDIRECT_URI_ADMIN_LINK', redirect_uri)
+
+        params = {
+            'client_id': client_id_val,
+            'redirect_uri': redirect_uri,
+            'response_type': 'code',
+            'scope': 'identify email guilds.join',
+            'state': session['discord_oauth_state_admin_link'],
+            'prompt': 'consent'
+        }
+        discord_api_base = 'https://discord.com/api/v10'
+        redirect_url = f"{discord_api_base}/oauth2/authorize?{urlencode(params)}"
+        return jsonify({'data': {'redirect_url': redirect_url}, 'meta': {'request_id': request_id}}), 200
+    except Exception as exc:
+        current_app.logger.error(f"Failed to start Discord link: {exc}", exc_info=True)
+        return jsonify({'error': {'code': 'DISCORD_LINK_START_FAILED', 'message': 'Unable to initiate Discord link.'}, 'meta': {'request_id': request_id}}), 500
+
+
+@api_v2.get(
+    "/auth/plex/callback",
+    tags=[auth_tag],
+    summary="Plex SSO callback (admin)",
+)
+def plex_sso_callback_admin_v2():
+    pin_id_from_session = session.get('plex_pin_id_admin_login')
+    pin_code_from_session = session.get('plex_pin_code_admin_login')
+    client_id_from_session = session.get('plex_client_id_admin_login')
+
+    fallback_url = '/admin/account' if current_user.is_authenticated else '/auth/login'
+
+    if not pin_id_from_session or not pin_code_from_session or not client_id_from_session:
+        flash('Plex login callback invalid or session expired.', 'danger')
+        session.pop('plex_pin_id_admin_login', None)
+        session.pop('plex_pin_code_admin_login', None)
+        session.pop('plex_client_id_admin_login', None)
+        session.pop('plex_app_name_admin_login', None)
+        return redirect(fallback_url)
+
+    try:
+        current_app.logger.debug(f"Checking admin PIN status for PIN ID: {pin_id_from_session} (PIN code: {pin_code_from_session})")
+        max_retries = 3
+        retry_delay = 1
+        plex_auth_token = None
+        for attempt in range(max_retries):
+            try:
+                headers = {"accept": "application/json"}
+                data = {"code": pin_code_from_session, "X-Plex-Client-Identifier": client_id_from_session}
+                check_url = f"https://plex.tv/api/v2/pins/{pin_id_from_session}"
+                timeout = get_api_timeout()
+                response = requests.get(check_url, headers=headers, data=data, timeout=timeout)
+                current_app.logger.debug(f"Admin PIN check - Response status: {response.status_code}")
+                if response.status_code == 200:
+                    pin_data = response.json()
+                    if pin_data.get('authToken'):
+                        plex_auth_token = pin_data['authToken']
+                        break
+            except Exception as e:
+                current_app.logger.error(f"Admin PIN check - Error checking PIN via API: {e}")
+            if attempt < max_retries - 1:
+                time.sleep(retry_delay)
+        if not plex_auth_token:
+            flash('Plex PIN not yet linked or has expired.', 'warning')
+            return redirect(fallback_url)
+
+        plex_account = MyPlexAccount(token=plex_auth_token)
+        if current_user.is_authenticated:
+            admin_to_update = current_user
+        else:
+            admin_to_update = User.query.filter_by(userType=UserType.OWNER).filter_by(plex_uuid=plex_account.uuid).first()
+        if not admin_to_update:
+            flash(f"Plex account '{plex_account.localUsername}' is not a configured admin.", 'danger')
+            return redirect(fallback_url)
+        if admin_to_update.plex_uuid and admin_to_update.plex_uuid != plex_account.uuid:
+            flash('This Plex account is already linked to a different admin.', 'danger')
+            return redirect(fallback_url)
+
+        admin_to_update.plex_uuid = plex_account.uuid
+        admin_to_update.plex_username = plex_account.localUsername
+        admin_to_update.plex_thumb = plex_account.thumb
+        admin_to_update.email = plex_account.email
+        admin_to_update.last_login_at = db.func.now()
+        db.session.commit()
+        login_user(admin_to_update, remember=True)
+        log_event(EventType.ADMIN_LOGIN_SUCCESS, f"Admin '{admin_to_update.localUsername or admin_to_update.plex_username}' linked/logged via Plex.", admin_id=admin_to_update.id)
+
+        next_url = session.pop('plex_admin_login_next_url', '/admin/dashboard')
+        return redirect(next_url if is_safe_url(next_url) else fallback_url)
+    except PlexApiException as e_plex:
+        flash(f'Plex API error: {str(e_plex)}', 'danger')
+        current_app.logger.error(f"Plex admin callback PlexApiException: {e_plex}", exc_info=True)
+    except Exception as e:
+        current_app.logger.error(f"Error during Plex admin callback: {e}", exc_info=True)
+        flash(f'An unexpected error occurred: {e}', 'danger')
+    session.pop('plex_pin_id_admin_login', None)
+    session.pop('plex_pin_code_admin_login', None)
+    session.pop('plex_headers_admin_login', None)
+    return redirect(fallback_url)
+
+
+@api_v2.get(
+    "/auth/discord/callback",
+    tags=[auth_tag],
+    summary="Discord link callback (admin)",
+)
+@login_required
+def discord_callback_admin_v2():
+    returned_state = request.args.get('state')
+    if not returned_state or returned_state != session.pop('discord_oauth_state_admin_link', None):
+        flash('Discord linking failed: Invalid state.', 'danger')
+        return redirect('/admin/settings/discord')
+    code = request.args.get('code')
+    if not code:
+        flash(f"Discord linking failed: {request.args.get('error_description', 'No code.')}", 'danger')
+        return redirect('/admin/settings/discord')
+    client_id = Setting.get('DISCORD_CLIENT_ID')
+    client_secret = Setting.get('DISCORD_CLIENT_SECRET')
+    redirect_uri = Setting.get('DISCORD_REDIRECT_URI_ADMIN_LINK')
+    if not client_id or not client_secret or not redirect_uri:
+        flash('Discord app details not fully configured in MUM settings.', 'danger')
+        return redirect('/admin/settings/discord')
+    token_url = "https://discord.com/api/v10/oauth2/token"
+    payload = {
+        'client_id': client_id,
+        'client_secret': client_secret,
+        'grant_type': 'authorization_code',
+        'code': code,
+        'redirect_uri': redirect_uri,
+    }
+    headers = {'Content-Type': 'application/x-www-form-urlencoded'}
+    try:
+        token_response = requests.post(token_url, data=payload, headers=headers)
+        token_response.raise_for_status()
+        token_data = token_response.json()
+        access_token = token_data['access_token']
+        refresh_token = token_data.get('refresh_token')
+        expires_in = token_data['expires_in']
+        token_expires_at = datetime.utcnow() + timedelta(seconds=expires_in)
+        user_info_url = "https://discord.com/api/v10/users/@me"
+        auth_headers = {'Authorization': f'Bearer {access_token}'}
+        user_response = requests.get(user_info_url, headers=auth_headers)
+        user_response.raise_for_status()
+        discord_user = user_response.json()
+        admin_to_update = current_user
+        existing_link = User.query.filter(User.id != admin_to_update.id, User.discord_user_id == discord_user['id']).first()
+        if existing_link:
+            flash(f"Discord account '{discord_user['username']}' is already linked to another admin.", 'danger')
+            return redirect('/admin/settings/discord')
+        admin_to_update.discord_user_id = discord_user['id']
+        admin_to_update.discord_username = discord_user['username'] if discord_user.get('discriminator') in (None, '0') else f"{discord_user['username']}#{discord_user['discriminator']}"
+        admin_to_update.discord_avatar_hash = discord_user.get('avatar')
+        admin_to_update.discord_email = discord_user.get('email')
+        admin_to_update.discord_email_verified = discord_user.get('verified')
+        admin_to_update.discord_access_token = access_token
+        admin_to_update.discord_refresh_token = refresh_token
+        admin_to_update.discord_token_expires_at = token_expires_at
+        db.session.commit()
+        login_user(admin_to_update, remember=True)
+        log_event(EventType.DISCORD_ADMIN_LINK_SUCCESS, f"Admin '{admin_to_update.localUsername or admin_to_update.plex_username}' linked Discord '{admin_to_update.discord_username}'.", admin_id=admin_to_update.id)
+        flash('Discord account linked successfully!', 'success')
+    except requests.exceptions.RequestException as e:
+        error_detail = str(e)
+        if getattr(e, 'response', None) is not None:
+            try:
+                error_detail = e.response.json().get('error_description', str(e.response.text))
+            except Exception:
+                error_detail = str(e.response.content)
+        current_app.logger.error(f"Discord OAuth admin error: {error_detail}", exc_info=True)
+        flash(f'Failed to link Discord: {error_detail}', 'danger')
+    except Exception as e_gen:
+        current_app.logger.error(f"Unexpected error during Discord admin link callback: {e_gen}", exc_info=True)
+        flash('An unexpected error occurred while linking Discord.', 'danger')
+    return redirect('/admin/settings/discord')
+
+
+class UnlinkResponse(BaseModel):
+    data: dict
+    meta: dict
+
+
+@api_v2.post(
+    "/auth/discord/unlink",
+    tags=[auth_tag],
+    summary="Unlink Discord from current admin",
+    responses={200: UnlinkResponse},
+)
+@login_required
+def discord_unlink_admin_v2():
+    request_id = str(uuid4())
+    discord_username_log = getattr(current_user, 'discord_username', None)
+    current_user.discord_user_id = None
+    current_user.discord_username = None
+    current_user.discord_avatar_hash = None
+    current_user.discord_access_token = None
+    current_user.discord_refresh_token = None
+    current_user.discord_token_expires_at = None
+    try:
+        db.session.commit()
+    except Exception as exc:
+        current_app.logger.error(f"Failed to unlink Discord: {exc}")
+        db.session.rollback()
+        return jsonify({'error': {'code': 'DISCORD_UNLINK_FAILED', 'message': 'Unable to unlink Discord.'}, 'meta': {'request_id': request_id}}), 500
+    log_event(EventType.DISCORD_ADMIN_UNLINK, f"Admin '{current_user.localUsername or current_user.plex_username}' unlinked Discord '{discord_username_log}'.", admin_id=current_user.id)
+    return jsonify({'data': {'success': True}, 'meta': {'request_id': request_id}}), 200

@@ -4,10 +4,10 @@ from flask import jsonify
 from flask_login import login_required
 
 from app.routes.api_v1 import bp
-from app.routes.setup import get_completed_steps
+from app.utils.setup_helpers import get_completed_steps
 from app.models_plugins import Plugin
 from app.models_media_services import ServiceType, MediaServer
-from app.routes.media_servers_modules.setup import test_connection_setup
+from app.routes.media_servers_modules.setup_deprecated import test_connection_setup
 
 
 def _serialize_setup_status():

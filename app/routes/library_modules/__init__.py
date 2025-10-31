@@ -15,10 +15,11 @@ from flask import Blueprint
 # Create the main libraries blueprint
 libraries_bp = Blueprint("libraries", __name__)
 
-# Import submodules so their routes are registered to the blueprint
-from . import main
-from . import sync
-from . import details
-from . import api
-from . import helpers
-from . import statistics
+# DEPRECATED: SSR libraries blueprint modules are not used by the React SPA.
+# Leave blueprint defined for reference; do not register submodules.
+# from . import main
+# from . import sync
+# from . import details
+# from . import api
+# from . import helpers
+# from . import statistics

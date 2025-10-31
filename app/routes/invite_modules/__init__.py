@@ -19,11 +19,11 @@ invites_public_bp = Blueprint("invites", __name__)
 invites_admin_bp = Blueprint("invites_admin", __name__)
 
 # Import submodules so their routes are registered to the appropriate blueprint
-# Public modules
-from . import auth  # uses invites_public_bp
-from . import callbacks  # uses invites_public_bp
+# Public modules (deprecated; SPA + v2 now handle these flows)
+# from . import auth
+# from . import callbacks
 
-# Admin modules
-from . import manage  # uses invites_admin_bp
-from . import edit  # uses invites_admin_bp
-from . import bulk_operations  # uses invites_admin_bp
+# Admin modules (deprecated SSR/legacy endpoints); not imported/registered
+# from . import manage
+# from . import edit
+# from . import bulk_operations

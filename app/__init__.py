@@ -174,13 +174,23 @@ def create_app(config_name=None):
             requested_endpoint.startswith(prefix) for prefix in admin_endpoint_prefixes
         )
         if is_admin_path or is_admin_endpoint:
-            return redirect(url_for('auth.admin_login', next=next_url))
+            # Redirect to SPA login without depending on auth blueprint
+            login_path = '/auth/login'
+            if next_url:
+                sep = '&' if '?' in login_path else '?'
+                return redirect(f"{login_path}{sep}next={next_url}")
+            return redirect(login_path)
 
         # Public portal → user login when enabled, else admin login
         allow_user_accounts = Setting.get_bool('ALLOW_USER_ACCOUNTS', False)
         if allow_user_accounts:
-            return redirect(url_for('auth.user_login', next=next_url))
-        return redirect(url_for('auth.admin_login', next=next_url))
+            login_path = '/auth/login'
+            if next_url:
+                sep = '&' if '?' in login_path else '?'
+                return redirect(f"{login_path}{sep}next={next_url}")
+            return redirect(login_path)
+        # Default to admin login path
+        return redirect('/auth/login')
 
     with app.app_context():
         initialize_settings_from_db(app)
@@ -273,11 +283,12 @@ def create_app(config_name=None):
     register_app_hooks(app)
     
     # Register blueprints
-    # Authentication blueprint - register without url_prefix to enable root-level routes
-    from .routes.auth import bp as auth_bp
-    app.register_blueprint(auth_bp)
-    from .routes.setup import bp as setup_bp
-    app.register_blueprint(setup_bp, url_prefix='/setup')
+    # Authentication blueprint deprecated; SPA handles login, API v2 handles auth
+    # from .routes.auth_deprecated import bp as auth_bp
+    # app.register_blueprint(auth_bp)
+    # Setup SSR blueprint deprecated; SPA + API v2 handle setup flows
+    # from .routes.setup_deprecated import bp as setup_bp
+    # app.register_blueprint(setup_bp, url_prefix='/setup')
     # Deprecated HTML admin UI blueprints disabled in favor of React SPA
     # from .routes.dashboard import bp as dashboard_bp
     # app.register_blueprint(dashboard_bp, url_prefix='/admin')  # React SPA handles /admin
@@ -294,16 +305,15 @@ def create_app(config_name=None):
     # app.register_blueprint(users_bp, url_prefix='/admin/users')
     # from .routes.admin_user import admin_user_bp
     # app.register_blueprint(admin_user_bp, url_prefix='/admin/user')
-    # Legacy invites blueprints - admin disabled, public still active for invite acceptance
-    from .routes.invites import bp_public as invites_public_bp, bp_admin as invites_admin_bp
-    app.register_blueprint(invites_public_bp)  # Keep public invites active for accepting invites
-    # app.register_blueprint(invites_admin_bp, url_prefix='/admin/invites')  # Disabled - using React SPA
-    from .routes.api import bp as api_bp
-    app.register_blueprint(api_bp, url_prefix='/admin/api')
-    from .routes.public_api_v1 import bp as public_api_v1_bp
-    app.register_blueprint(public_api_v1_bp, url_prefix='/api/v1')
-    from .routes.api_v1 import bp as api_v1_bp
-    app.register_blueprint(api_v1_bp, url_prefix='/admin/api/v1')
+    # Legacy invites blueprints deprecated; use API v2 public endpoints + SPA
+    # from .routes.invites_deprecated import bp_public as invites_public_bp, bp_admin as invites_admin_bp
+    # app.register_blueprint(invites_public_bp)
+    # app.register_blueprint(invites_admin_bp, url_prefix='/admin/invites')
+    # Legacy API v1 blueprints deprecated; React SPA uses API v2 only
+    # from .routes.public_api_v1 import bp as public_api_v1_bp
+    # app.register_blueprint(public_api_v1_bp, url_prefix='/api/v1')
+    # from .routes.api_v1 import bp as api_v1_bp
+    # app.register_blueprint(api_v1_bp, url_prefix='/admin/api/v1')
     # Register OpenAPI3-powered API v2 (admin)
     try:
         from .routes.api_v2 import api_v2 as api_v2_bp
@@ -316,16 +326,17 @@ def create_app(config_name=None):
         app.register_api(api_v2_public_bp, url_prefix='/api/v2')
     except Exception as e:
         app.logger.error(f"Failed to register api_v2_public (OpenAPI): {e}")
-    from .routes.user import bp as user_bp
-    app.register_blueprint(user_bp)
-    # Media servers - needed for setup routes
-    from .routes.media_servers import bp_setup as media_servers_setup_bp, bp_admin as media_servers_admin_bp
-    app.register_blueprint(media_servers_setup_bp)  # Setup routes stay at /setup/plugins/...
-    # app.register_blueprint(media_servers_admin_bp, url_prefix='/admin')  # Disabled - React SPA
+    # User SSR blueprint deprecated; user portal served by SPA at /user
+    # app.register_blueprint(user_bp)
+    # Media servers (legacy SSR) - deprecated; SPA + API v2 replace these
+    # from .routes.media_servers import bp_setup as media_servers_setup_bp, bp_admin as media_servers_admin_bp
+    # app.register_blueprint(media_servers_setup_bp)  # Deprecated SSR setup routes
+    # app.register_blueprint(media_servers_admin_bp, url_prefix='/admin')  # Deprecated SSR admin routes
     # from .routes.plugins import bp as plugins_bp
     # app.register_blueprint(plugins_bp, url_prefix='/admin')
-    from .routes.user_preferences import user_preferences_bp
-    app.register_blueprint(user_preferences_bp, url_prefix='/settings/preferences')
+    # User preferences SSR deprecated; use /admin/api/v2/account/timezone
+    # from .routes.user_preferences_deprecated import user_preferences_bp
+    # app.register_blueprint(user_preferences_bp, url_prefix='/settings/preferences')
     # from .routes.streaming import bp as streaming_bp
     # app.register_blueprint(streaming_bp, url_prefix='/admin')
     # Legacy libraries blueprint disabled - now using React SPA for /admin/libraries

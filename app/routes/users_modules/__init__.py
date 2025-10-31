@@ -1,16 +1,6 @@
-# File: app/routes/user_modules/__init__.py
 """
-Users module package following Flask blueprint best practices
-
-This package contains all user management functionality split into focused modules:
-- main: Core user listing and view preferences  
-- sync: User synchronization with external services
-- delete: User deletion operations
-- mass_edit: Bulk operations on multiple users
-- linking: Account linking/unlinking functionality
-- api: API endpoints for user management
-- debug: Debug and quick edit functionality
-- helpers: Shared utility functions and classes
+DEPRECATED: Legacy SSR users module package. The admin Users UI migrated to the React SPA
+and communicates via `/admin/api/v2`. This package remains only for historical reference.
 """
 
 from flask import Blueprint
@@ -18,12 +8,12 @@ from flask import Blueprint
 # Create the main users blueprint
 users_bp = Blueprint("users", __name__)
 
-# Import submodules so their routes are registered to the blueprint
-from . import main
-from . import sync
-from . import delete
-from . import mass_edit
-from . import linking
-from . import api
-from . import debug
-from . import helpers
+# Import deprecated submodules so their routes are registered to the blueprint
+from . import main_deprecated as main
+from . import sync_deprecated as sync
+from . import delete_deprecated as delete
+from . import mass_edit_deprecated as mass_edit
+from . import linking_deprecated as linking
+from . import api_deprecated as api
+from . import debug_deprecated as debug
+from . import helpers_deprecated as helpers

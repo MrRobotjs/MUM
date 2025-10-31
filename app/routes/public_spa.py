@@ -86,3 +86,15 @@ def setup_any_spa(subpath: str):
 def setup_ui_spa(path: str | None = None):
     return _serve_index()
 
+# ----- User portal SPA routes -----
+
+@public_spa_bp.route('/user', methods=['GET'])
+@public_spa_bp.route('/user/<path:path>', methods=['GET'])
+def user_portal_spa(path: str | None = None):
+    return _serve_index()
+
+# ----- Auth SPA routes -----
+
+@public_spa_bp.route('/auth/login', methods=['GET'])
+def auth_login_spa():
+    return _serve_index()

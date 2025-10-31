@@ -28,17 +28,21 @@ class InviteResponse(BaseModel):
     meta: dict
 
 
+class InvitePath(BaseModel):
+    token: str
+
+
 @api_v2_public.get(
     "/public/invite/<token>",
     tags=[public_invite_tag],
     summary="Validate a public invite token or custom path",
     responses={200: InviteResponse, 404: InviteResponse},
 )
-def validate_public_invite_v2(token):
+def validate_public_invite_v2(path: InvitePath):
     request_id = str(uuid4())
+    token = path.token
     invite = Invite.query.filter((Invite.token == token) | (Invite.custom_path == token)).first()
     if not invite:
         return jsonify({'error': {'code': 'INVITE_NOT_FOUND', 'message': 'Invite not found.'}, 'meta': {'request_id': request_id}}), 404
 
     return jsonify({'data': _serialize_invite(invite), 'meta': {'request_id': request_id, 'deprecated': False}}), 200
-

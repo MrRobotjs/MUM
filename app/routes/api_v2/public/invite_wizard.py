@@ -254,14 +254,23 @@ class WizardStateResponse(BaseModel):
     meta: dict
 
 
+class InvitePath(BaseModel):
+    token: str
+
+class InviteServerPath(BaseModel):
+    token: str
+    server_id: int
+
+
 @api_v2_public.get(
     "/public/invite/<token>/wizard",
     tags=[public_wizard_tag],
     summary="Get invite wizard state",
     responses={200: WizardStateResponse, 404: WizardStateResponse},
 )
-def get_invite_wizard_state_v2(token):
+def get_invite_wizard_state_v2(path: InvitePath):
     request_id = str(uuid4())
+    token = path.token
     invite = _get_invite(token)
     if not invite:
         return _error_response(request_id, 404, 'INVITE_NOT_FOUND', 'Invite not found.')
@@ -275,8 +284,9 @@ def get_invite_wizard_state_v2(token):
     summary="Save invite account details",
     responses={200: WizardStateResponse, 400: WizardStateResponse, 404: WizardStateResponse},
 )
-def save_invite_account_v2(token):
+def save_invite_account_v2(path: InvitePath):
     request_id = str(uuid4())
+    token = path.token
     invite = _get_invite(token)
     if not invite:
         return _error_response(request_id, 404, 'INVITE_NOT_FOUND', 'Invite not found.')
@@ -319,8 +329,9 @@ def save_invite_account_v2(token):
     summary="Start Plex authentication for invite",
     responses={200: WizardStateResponse, 400: WizardStateResponse, 404: WizardStateResponse, 502: WizardStateResponse},
 )
-def start_plex_auth_v2(token):
+def start_plex_auth_v2(path: InvitePath):
     request_id = str(uuid4())
+    token = path.token
     invite = _get_invite(token)
     if not invite:
         return _error_response(request_id, 404, 'INVITE_NOT_FOUND', 'Invite not found.')
@@ -381,8 +392,9 @@ def start_plex_auth_v2(token):
     tags=[public_wizard_tag],
     summary="Plex OAuth callback (public invite)",
 )
-def plex_oauth_callback_v2(token):
+def plex_oauth_callback_v2(path: InvitePath):
     request_id = str(uuid4())
+    token = path.token
     invite = _get_invite(token)
     if not invite:
         return _error_response(request_id, 404, 'INVITE_NOT_FOUND', 'Invite not found.')
@@ -423,8 +435,9 @@ def plex_oauth_callback_v2(token):
     summary="Resolve Plex account conflict",
     responses={200: WizardStateResponse, 400: WizardStateResponse, 404: WizardStateResponse},
 )
-def resolve_plex_conflict_v2(token):
+def resolve_plex_conflict_v2(path: InvitePath):
     request_id = str(uuid4())
+    token = path.token
     invite = _get_invite(token)
     if not invite:
         return _error_response(request_id, 404, 'INVITE_NOT_FOUND', 'Invite not found.')
@@ -457,8 +470,9 @@ def resolve_plex_conflict_v2(token):
     summary="Start Discord OAuth for invite",
     responses={200: WizardStateResponse, 400: WizardStateResponse, 404: WizardStateResponse},
 )
-def start_discord_auth_v2(token):
+def start_discord_auth_v2(path: InvitePath):
     request_id = str(uuid4())
+    token = path.token
     invite = _get_invite(token)
     if not invite:
         return _error_response(request_id, 404, 'INVITE_NOT_FOUND', 'Invite not found.')
@@ -505,8 +519,10 @@ def start_discord_auth_v2(token):
     summary="Save per-server credentials in wizard session",
     responses={200: WizardStateResponse, 400: WizardStateResponse, 404: WizardStateResponse},
 )
-def save_server_credentials_v2(token, server_id: int):
+def save_server_credentials_v2(path: InviteServerPath):
     request_id = str(uuid4())
+    token = path.token
+    server_id = path.server_id
     invite = _get_invite(token)
     if not invite:
         return _error_response(request_id, 404, 'INVITE_NOT_FOUND', 'Invite not found.')
@@ -540,8 +556,9 @@ class CompletionResponse(BaseModel):
     tags=[public_wizard_tag],
     summary="Discord OAuth callback (public invite)",
 )
-def discord_oauth_callback_v2(token):
+def discord_oauth_callback_v2(path: InvitePath):
     request_id = str(uuid4())
+    token = path.token
     invite = _get_invite(token)
     if not invite:
         return _error_response(request_id, 404, 'INVITE_NOT_FOUND', 'Invite not found.')
@@ -593,8 +610,9 @@ def discord_oauth_callback_v2(token):
     summary="Complete invite and grant access",
     responses={200: CompletionResponse, 400: CompletionResponse, 500: CompletionResponse},
 )
-def complete_invite_v2(token):
+def complete_invite_v2(path: InvitePath):
     request_id = str(uuid4())
+    token = path.token
     invite = _get_invite(token)
     if not invite:
         return _error_response(request_id, 404, 'INVITE_NOT_FOUND', 'Invite not found.')

@@ -9,4 +9,8 @@
 
 # For now, keeping it simple.
 
-from . import history_service
+# Deprecated services re-exports for backwards compatibility in deprecated routes
+try:
+    from . import history_service_deprecated as history_service  # noqa: F401
+except Exception:
+    pass

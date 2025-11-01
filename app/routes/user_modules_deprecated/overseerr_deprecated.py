@@ -16,7 +16,7 @@ def get_overseerr_requests(server_id, server_nickname=None, server_username=None
     """Get Overseerr requests for the current user"""
     current_app.logger.info(f"OVERSEERR DEBUG: Route called with server_id={server_id} (type: {type(server_id)}), server_nickname={server_nickname}, server_username={server_username}")
     try:
-        from app.services.overseerr_service import OverseerrService
+        from app.services.overseerr_service_deprecated import OverseerrService
         from app.models_media_services import MediaServer
         from flask import render_template
         
@@ -165,7 +165,7 @@ def update_request_status():
     """Update the status of an Overseerr request (approve/decline)"""
     current_app.logger.info("UPDATE REQUEST STATUS ROUTE HIT!")
     try:
-        from app.services.overseerr_service import OverseerrService
+        from app.services.overseerr_service_deprecated import OverseerrService
         from app.models_media_services import MediaServer
         from flask import jsonify, request as flask_request
         
@@ -222,7 +222,7 @@ def update_request_status():
 def delete_request():
     """Delete an Overseerr request"""
     try:
-        from app.services.overseerr_service import OverseerrService
+        from app.services.overseerr_service_deprecated import OverseerrService
         from app.models_media_services import MediaServer
         from flask import jsonify, request as flask_request
         

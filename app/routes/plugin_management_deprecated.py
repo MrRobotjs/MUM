@@ -421,7 +421,7 @@ def test_connection(plugin_id):
                     })
                 
                 # Test Overseerr connection
-                from app.services.overseerr_service import OverseerrService
+                from app.services.overseerr_service_deprecated import OverseerrService
                 overseerr = OverseerrService(overseerr_url, overseerr_api_key)
                 overseerr_success, overseerr_message = overseerr.test_connection()
                 
@@ -535,7 +535,7 @@ def test_existing_server_connection(plugin_id, server_id):
                     })
                 
                 # Test Overseerr connection using current form values
-                from app.services.overseerr_service import OverseerrService
+                from app.services.overseerr_service_deprecated import OverseerrService
                 current_app.logger.info(f"OVERSEERR TEST DEBUG: Testing connection to {overseerr_url} with API key {overseerr_api_key[:10]}...")
                 
                 overseerr = OverseerrService(overseerr_url, overseerr_api_key)

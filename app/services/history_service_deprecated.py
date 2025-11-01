@@ -1,4 +1,7 @@
-# File: app/services/history_service.py
+"""DEPRECATED: History maintenance helpers used by legacy settings SSR.
+
+Kept for deprecated routes only.
+"""
 from flask import current_app
 from app.models import User, UserType, HistoryLog, EventType
 from app.extensions import db

@@ -1,4 +1,7 @@
-# File: app/services/overseerr_service.py
+"""DEPRECATED: Overseerr service helpers used by legacy SSR flows.
+
+API v2 endpoints for Overseerr listing do not require this.
+"""
 import requests
 from typing import Dict, List, Tuple, Optional
 from flask import current_app

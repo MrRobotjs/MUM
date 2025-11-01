@@ -1,4 +1,4 @@
-# File: app/services/unified_invite_service.py
+"""DEPRECATED: Unified invite service (unused by API v2 + SPA)."""
 from typing import List, Dict, Any, Optional
 from flask import current_app
 from datetime import datetime, timedelta

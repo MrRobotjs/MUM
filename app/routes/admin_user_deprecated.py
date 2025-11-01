@@ -368,7 +368,7 @@ def view_service_user(server_nickname, server_username):
 def get_overseerr_requests(server_id, server_nickname, server_username):
     """Get Overseerr requests for a service user (admin view)"""
     try:
-        from app.services.overseerr_service import OverseerrService
+from app.services.overseerr_service_deprecated import OverseerrService
         
         # URL decode the parameters to handle special characters
         try:
@@ -476,7 +476,7 @@ def get_overseerr_requests(server_id, server_nickname, server_username):
 def update_overseerr_request():
     """Update the status of an Overseerr request (admin context)"""
     try:
-        from app.services.overseerr_service import OverseerrService
+        from app.services.overseerr_service_deprecated import OverseerrService
         
         # Get parameters from request JSON
         data = request.get_json()
@@ -520,7 +520,7 @@ def update_overseerr_request():
 def delete_overseerr_request():
     """Delete an Overseerr request (admin context)"""
     try:
-        from app.services.overseerr_service import OverseerrService
+        from app.services.overseerr_service_deprecated import OverseerrService
         
         # Get parameters from request JSON
         data = request.get_json()

@@ -1,4 +1,4 @@
-# File: app/services/unified_user_service.py
+"""DEPRECATED: Unified user service (unused by API v2 + SPA)."""
 from typing import List, Dict, Any, Optional
 from flask import current_app
 from sqlalchemy.exc import IntegrityError

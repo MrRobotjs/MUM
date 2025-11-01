@@ -77,7 +77,7 @@ class OverseerrUserLink(db.Model):
     @classmethod
     def link_single_user(cls, server_id: int, plex_user_id: str, plex_username: str, plex_email: str = None):
         """Attempt to link a single Plex user to Overseerr on-demand"""
-        from app.services.overseerr_service import OverseerrService
+        from app.services.overseerr_service_deprecated import OverseerrService
         from app.models_media_services import MediaServer
         from app.extensions import db
         from datetime import datetime

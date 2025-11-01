@@ -16,7 +16,7 @@ from app.forms import AccountSetupForm, AppBaseUrlForm, DiscordConfigForm
 from app.extensions import db
 from sqlalchemy import inspect
 from app.utils.helpers import log_event
-from app.utils.plex_auth_helpers import create_plex_pin_login, check_plex_pin_status, get_plex_auth_url
+from app.utils.plex_auth_helpers_deprecated import create_plex_pin_login, check_plex_pin_status, get_plex_auth_url
 
 bp = Blueprint('setup', __name__)
 

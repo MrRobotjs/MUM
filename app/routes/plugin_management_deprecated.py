@@ -8,7 +8,7 @@ from app.models import User, UserType, Setting, EventType
 from app.forms import PluginSettingsForm
 from app.extensions import db
 from app.utils.helpers import log_event, setup_required, permission_required
-from app.utils.connection_tester import test_server_connection
+from app.utils.connection_tester_deprecated import test_server_connection
 from app.services.plugin_manager import plugin_manager
 import traceback
 import json

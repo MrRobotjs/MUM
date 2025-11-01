@@ -1,4 +1,7 @@
-# File: app/utils/plex_auth_helpers.py
+"""DEPRECATED: Helper functions for legacy Plex auth flows (SSR setup/login).
+
+API v2 now uses direct HTTP calls in handlers instead.
+"""
 """
 Helper functions for Plex authentication using python-plexapi instead of direct HTTP calls.
 Replaces direct requests to plex.tv/api/v2/pins with plexapi.myplex.MyPlexPinLogin.

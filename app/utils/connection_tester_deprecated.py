@@ -1,6 +1,6 @@
-"""
-Connection testing utilities for media servers.
-Provides functions to test connectivity and authentication for various media services.
+"""DEPRECATED: Connection testing utilities for media servers (SSR-era).
+
+Kept only for deprecated plugin management routes.
 """
 
 import requests

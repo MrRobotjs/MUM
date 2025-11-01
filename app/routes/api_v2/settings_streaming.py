@@ -55,7 +55,7 @@ class StreamingSettingsResponse(BaseModel):
     responses={200: StreamingSettingsResponse},
 )
 @login_required
-@permission_required('view_settings')
+@permission_required('administrator')
 def get_streaming_settings():
     request_id = uuid4().hex
     data = _load_streaming_settings()
@@ -85,7 +85,7 @@ class ErrorResponse(BaseModel):
     responses={200: StreamingSettingsResponse, 400: ErrorResponse, 500: ErrorResponse},
 )
 @login_required
-@permission_required('edit_settings')
+@permission_required('administrator')
 def update_streaming_settings(body: UpdateStreamingBody):
     request_id = uuid4().hex
     enable_badge = bool(body.enable_navbar_stream_badge)
@@ -124,7 +124,7 @@ class ActiveSessionsResponse(BaseModel):
     responses={200: ActiveSessionsResponse, 500: ErrorResponse},
 )
 @login_required
-@permission_required('view_streaming')
+@permission_required('administrator')
 def get_active_sessions():
     request_id = uuid4().hex
     try:
@@ -177,7 +177,7 @@ class TerminateResponse(BaseModel):
     responses={200: TerminateResponse, 400: TerminateResponse, 404: TerminateResponse, 500: TerminateResponse},
 )
 @login_required
-@permission_required('terminate_stream')
+@permission_required('administrator')
 def terminate_session(body: TerminateBody):
     request_id = uuid4().hex
     session_key = body.session_key
@@ -207,4 +207,3 @@ def terminate_session(body: TerminateBody):
     except Exception as exc:
         current_app.logger.error(f"Failed to terminate session: {exc}", exc_info=True)
         return jsonify({'error': {'code': 'TERMINATION_ERROR', 'message': str(exc)}, 'meta': {'request_id': request_id}}), 500
-

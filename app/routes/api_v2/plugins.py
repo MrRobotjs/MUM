@@ -93,7 +93,7 @@ def _plugin_action(plugin_id: str, action: str):
     responses={200: PluginsListResponse},
 )
 @login_required
-@permission_required('manage_plugins')
+@permission_required('administrator')
 def list_plugins():
     request_id = str(uuid4())
     plugins = Plugin.query.order_by(Plugin.name.asc()).all()
@@ -124,7 +124,7 @@ def list_plugins():
     summary="Enable a plugin",
 )
 @login_required
-@permission_required('manage_plugins')
+@permission_required('administrator')
 def enable_plugin(plugin_id):
     return _plugin_action(plugin_id, 'enable')
 
@@ -135,7 +135,7 @@ def enable_plugin(plugin_id):
     summary="Disable a plugin",
 )
 @login_required
-@permission_required('manage_plugins')
+@permission_required('administrator')
 def disable_plugin(plugin_id):
     return _plugin_action(plugin_id, 'disable')
 
@@ -163,7 +163,7 @@ class ReposListResponse(BaseModel):
     responses={200: ReposListResponse},
 )
 @login_required
-@permission_required('manage_plugins')
+@permission_required('administrator')
 def list_plugin_repositories():
     request_id = str(uuid4())
     repos = PluginRepository.query.order_by(PluginRepository.name.asc()).all()
@@ -201,7 +201,7 @@ class CreateRepoResponse(BaseModel):
     responses={201: CreateRepoResponse, 400: CreateRepoResponse},
 )
 @login_required
-@permission_required('manage_plugins')
+@permission_required('administrator')
 def create_plugin_repository():
     request_id = str(uuid4())
     payload = request.get_json(silent=True) or {}
@@ -231,7 +231,7 @@ class DeleteRepoResponse(BaseModel):
     responses={200: DeleteRepoResponse},
 )
 @login_required
-@permission_required('manage_plugins')
+@permission_required('administrator')
 def delete_plugin_repository(repo_id):
     request_id = str(uuid4())
     repo = PluginRepository.query.get_or_404(repo_id)
@@ -239,4 +239,3 @@ def delete_plugin_repository(repo_id):
     db.session.commit()
     log_event(EventType.SETTING_CHANGE, f"Plugin repository '{repo.name}' removed.", admin_id=current_user.id)
     return jsonify({'data': {'success': True}, 'meta': {'request_id': request_id}})
-

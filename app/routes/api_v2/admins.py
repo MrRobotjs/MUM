@@ -105,7 +105,7 @@ class AdminResponse(BaseModel):
     responses={201: AdminResponse, 400: AdminResponse, 409: AdminResponse, 500: AdminResponse},
 )
 @login_required
-@permission_required('create_admin')
+@permission_required('administrator')
 def create_admin():
     request_id = str(uuid4())
     payload = request.get_json(silent=True) or {}
@@ -146,7 +146,7 @@ class UpdateAdminBody(BaseModel):
     responses={200: AdminResponse, 400: AdminResponse, 404: AdminResponse, 500: AdminResponse},
 )
 @login_required
-@permission_required('edit_admin')
+@permission_required('administrator')
 def update_admin(admin_id):
     request_id = str(uuid4())
     if current_user.id == admin_id:
@@ -182,7 +182,7 @@ class ResetAdminPasswordBody(BaseModel):
     responses={200: AdminResponse, 400: AdminResponse, 404: AdminResponse, 500: AdminResponse},
 )
 @login_required
-@permission_required('edit_admin')
+@permission_required('administrator')
 def reset_admin_password(admin_id):
     request_id = str(uuid4())
     if current_user.id == admin_id:
@@ -216,7 +216,7 @@ def reset_admin_password(admin_id):
     responses={200: AdminResponse, 400: AdminResponse, 404: AdminResponse, 500: AdminResponse},
 )
 @login_required
-@permission_required('delete_admin')
+@permission_required('administrator')
 def delete_admin(admin_id):
     request_id = str(uuid4())
     if current_user.id == admin_id:
@@ -235,4 +235,3 @@ def delete_admin(admin_id):
         return jsonify({'error': {'code': 'DELETE_FAILED', 'message': str(exc)}, 'meta': {'request_id': request_id}}), 500
 
     return jsonify({'data': {'success': True}, 'meta': {'request_id': request_id}}), 200
-

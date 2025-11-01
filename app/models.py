@@ -489,7 +489,11 @@ class User(db.Model, UserMixin):
         if self.userType == UserType.OWNER:
             return True  # Owners have all permissions
         elif self.userType == UserType.LOCAL:
-            # Check permissions across all admin roles (union of permissions)
+            # Administrators (role with 'administrator' permission) have full access
+            for role in self.admin_roles:
+                if role.has_permission('administrator'):
+                    return True
+            # Fallback: check exact permission (legacy; effectively disabled by API not exposing others)
             for role in self.admin_roles:
                 if role.has_permission(permission_name):
                     return True

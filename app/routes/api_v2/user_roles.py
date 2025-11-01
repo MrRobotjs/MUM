@@ -57,7 +57,7 @@ def _serialize_user_role(role, include_users=False):
     responses={200: RolesListResponse},
 )
 @login_required
-@permission_required('view_users')
+@permission_required('administrator')
 def list_user_roles():
     request_id = str(uuid4())
     include_users = request.args.get('include_users', 'false').lower() == 'true'
@@ -81,7 +81,7 @@ class RoleResponse(BaseModel):
     responses={200: RoleResponse, 404: RoleResponse},
 )
 @login_required
-@permission_required('view_users')
+@permission_required('administrator')
 def get_user_role(path: RolePath):
     request_id = str(uuid4())
     role = UserRole.query.get(path.role_id)
@@ -105,7 +105,7 @@ class CreateRoleBody(BaseModel):
     summary="Create user role",
 )
 @login_required
-@permission_required('manage_users')
+@permission_required('administrator')
 def create_user_role():
     request_id = str(uuid4())
     data = request.get_json()
@@ -141,7 +141,7 @@ class UpdateRoleBody(BaseModel):
     summary="Update user role",
 )
 @login_required
-@permission_required('manage_users')
+@permission_required('administrator')
 def update_user_role(path: RolePath):
     request_id = str(uuid4())
     role = UserRole.query.get(path.role_id)
@@ -179,7 +179,7 @@ class RoleUsersResponse(BaseModel):
     responses={200: RoleUsersResponse, 404: RoleUsersResponse},
 )
 @login_required
-@permission_required('view_users')
+@permission_required('administrator')
 def get_user_role_users(path: RolePath):
     request_id = str(uuid4())
     role = UserRole.query.get(path.role_id)
@@ -187,4 +187,3 @@ def get_user_role_users(path: RolePath):
         return jsonify({'error': {'code': 'ROLE_NOT_FOUND', 'message': f'User role with ID {path.role_id} not found', 'details': {'role_id': path.role_id}}, 'meta': {'request_id': request_id}}), 404
     users = UserRole.get_users_with_role(role.id)
     return jsonify({'data': [{'uuid': u.uuid, 'username': u.get_display_name(), 'user_type': u.userType.value, 'email': u.get_email(), 'is_active': u.is_active} for u in users], 'meta': {'request_id': request_id, 'deprecated': False, 'role': {'id': role.id, 'name': role.name}, 'total_count': len(users), 'generated_at': datetime.utcnow().isoformat() + 'Z'}})
-

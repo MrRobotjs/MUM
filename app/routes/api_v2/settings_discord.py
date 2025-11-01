@@ -85,7 +85,7 @@ def _serialize_discord_settings() -> dict:
     responses={200: DiscordSettingsResponse},
 )
 @login_required
-@permission_required('manage_discord_settings')
+@permission_required('administrator')
 def get_discord_settings():
     request_id = uuid4().hex
     return jsonify({'data': _serialize_discord_settings(), 'meta': {'request_id': request_id}})
@@ -124,7 +124,7 @@ class ErrorResponse(BaseModel):
     responses={200: DiscordSettingsResponse, 400: ErrorResponse},
 )
 @login_required
-@permission_required('manage_discord_settings')
+@permission_required('administrator')
 def update_discord_settings(body: UpdateDiscordBody):
     request_id = uuid4().hex
 
@@ -249,7 +249,7 @@ class TestDiscordResponse(BaseModel):
     responses={200: TestDiscordResponse, 400: TestDiscordResponse},
 )
 @login_required
-@permission_required('manage_discord_settings')
+@permission_required('administrator')
 def test_discord_settings():
     request_id = uuid4().hex
     payload = request.get_json(silent=True) or {}
@@ -264,4 +264,3 @@ def test_discord_settings():
         return jsonify({'data': {'success': True, 'message': 'Discord OAuth credentials are configured.'}, 'meta': {'request_id': request_id}})
 
     return jsonify({'error': {'code': 'OAUTH_NOT_CONFIGURED', 'message': 'Discord OAuth credentials are not fully configured.'}, 'meta': {'request_id': request_id}}), 400
-

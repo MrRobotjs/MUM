@@ -74,7 +74,7 @@ def _serialize_admin_role(role, include_permissions=False, include_users=False):
     responses={200: RolesListResponse},
 )
 @login_required
-@permission_required('manage_roles')
+@permission_required('administrator')
 def list_admin_roles():
     request_id = str(uuid4())
     include_permissions = request.args.get('include_permissions', 'false').lower() == 'true'
@@ -99,7 +99,7 @@ class RoleResponse(BaseModel):
     responses={200: RoleResponse, 404: RoleResponse},
 )
 @login_required
-@permission_required('manage_roles')
+@permission_required('administrator')
 def get_admin_role(path: RolePath):
     request_id = str(uuid4())
     role = AdminRole.query.get(path.role_id)
@@ -126,7 +126,7 @@ class CreateRoleBody(BaseModel):
     summary="Create admin role",
 )
 @login_required
-@permission_required('manage_roles')
+@permission_required('administrator')
 def create_admin_role():
     request_id = str(uuid4())
     data = request.get_json()
@@ -147,9 +147,10 @@ def create_admin_role():
     permission_ids = data.get('permissions', []) or []
 
     new_role = AdminRole(name=name, description=description, position=position, color=color, icon=icon)
+    # Only allow the single 'administrator' permission
     if permission_ids:
-        permissions = AdminPermission.query.filter(AdminPermission.id.in_(permission_ids)).all()
-        new_role.permissions = permissions
+        admin_perm = AdminPermission.query.filter_by(name='administrator').first()
+        new_role.permissions = [admin_perm] if (admin_perm and admin_perm.id in permission_ids) else []
     db.session.add(new_role)
     db.session.commit()
     return jsonify({'data': _serialize_admin_role(new_role, include_permissions=True, include_users=False), 'meta': {'request_id': request_id}}), 201
@@ -170,7 +171,7 @@ class UpdateRoleBody(BaseModel):
     summary="Update admin role",
 )
 @login_required
-@permission_required('manage_roles')
+@permission_required('administrator')
 def update_admin_role(path: RolePath):
     request_id = str(uuid4())
     role = AdminRole.query.get(path.role_id)
@@ -195,8 +196,8 @@ def update_admin_role(path: RolePath):
         role.icon = data['icon']
     if 'permissions' in data:
         permission_ids = data.get('permissions') or []
-        permissions = AdminPermission.query.filter(AdminPermission.id.in_(permission_ids)).all()
-        role.permissions = permissions
+        admin_perm = AdminPermission.query.filter_by(name='administrator').first()
+        role.permissions = [admin_perm] if (admin_perm and admin_perm.id in permission_ids) else []
     try:
         db.session.commit()
         return jsonify({'data': _serialize_admin_role(role, include_permissions=True, include_users=False), 'meta': {'request_id': request_id}})
@@ -211,7 +212,7 @@ def update_admin_role(path: RolePath):
     summary="Delete admin role",
 )
 @login_required
-@permission_required('manage_roles')
+@permission_required('administrator')
 def delete_admin_role(path: RolePath):
     request_id = str(uuid4())
     role = AdminRole.query.get(path.role_id)
@@ -246,7 +247,7 @@ class RoleUsersResponse(BaseModel):
     responses={200: RoleUsersResponse, 404: RoleUsersResponse},
 )
 @login_required
-@permission_required('manage_roles')
+@permission_required('administrator')
 def get_admin_role_users(path: RolePath):
     request_id = str(uuid4())
     role = AdminRole.query.get(path.role_id)
@@ -268,8 +269,14 @@ class PermissionsListResponse(BaseModel):
     responses={200: PermissionsListResponse},
 )
 @login_required
-@permission_required('manage_roles')
+@permission_required('administrator')
 def list_admin_permissions():
     request_id = str(uuid4())
-    permissions = AdminPermission.query.order_by(AdminPermission.name).all()
-    return jsonify({'data': [{'id': perm.id, 'name': perm.name, 'description': perm.description} for perm in permissions], 'meta': {'request_id': request_id, 'deprecated': False, 'total_count': len(permissions), 'generated_at': datetime.utcnow().isoformat() + 'Z'}})
+    # Ensure the single 'administrator' permission exists and return only it
+    admin_perm = AdminPermission.query.filter_by(name='administrator').first()
+    if not admin_perm:
+        admin_perm = AdminPermission(name='administrator', description='Full administrative access to the admin dashboard')
+        db.session.add(admin_perm)
+        db.session.commit()
+    data = [{'id': admin_perm.id, 'name': 'Administrator', 'description': admin_perm.description}]
+    return jsonify({'data': data, 'meta': {'request_id': request_id, 'deprecated': False, 'total_count': 1, 'generated_at': datetime.utcnow().isoformat() + 'Z'}})

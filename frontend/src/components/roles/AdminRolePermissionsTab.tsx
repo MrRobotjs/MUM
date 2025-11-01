@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { IconShieldHalf, IconDeviceFloppy, IconInfoCircle } from '@tabler/icons-react'
+import { IconShieldHalf, IconDeviceFloppy, IconInfoCircle, IconLock } from '@tabler/icons-react'
 import { AdminRole, AdminPermission } from '../../hooks/useAdminRoles'
 import { useAlerts } from '../../contexts'
 import { requestJson } from '../../util/apiClient'
@@ -136,87 +136,45 @@ const PERMISSIONS_STRUCTURE: Record<
   },
 }
 
-export const AdminRolePermissionsTab = ({
-  role,
-  permissions,
-  onUpdate,
-}: AdminRolePermissionsTabProps) => {
+export const AdminRolePermissionsTab = ({ role, permissions, onUpdate }: AdminRolePermissionsTabProps) => {
   const { success, error: showError } = useAlerts()
   const [submitting, setSubmitting] = useState(false)
 
-  // Map permission names to IDs
-  const permissionNameToId = Object.fromEntries(permissions.map((p) => [p.name, p.id]))
+  // Resolve the single Administrator permission (case-insensitive)
+  const adminPermission = permissions.find(
+    (p) => (p.name || '').trim().toLowerCase() === 'administrator' || (p.name || '').trim().toLowerCase() === 'admin'
+  )
 
-  // Track selected permission names
+  // Track whether Administrator is enabled for this role
+  const [isAdministrator, setIsAdministrator] = useState<boolean>(false)
+
+  // For UI only: keep legacy structure disabled/greyed
   const [selectedPermissions, setSelectedPermissions] = useState<Set<string>>(new Set())
 
   useEffect(() => {
-    const rolePermissionNames = new Set(role.permissions?.map((p) => p.name) || [])
+    const rolePermissionNames = new Set((role.permissions || []).map((p) => (p.name || '').toLowerCase()))
     setSelectedPermissions(rolePermissionNames)
+    setIsAdministrator(rolePermissionNames.has('administrator'))
   }, [role])
 
-  const togglePermission = (permissionName: string) => {
-    setSelectedPermissions((prev) => {
-      const next = new Set(prev)
-      if (next.has(permissionName)) {
-        next.delete(permissionName)
-      } else {
-        next.add(permissionName)
-      }
+  // Legacy toggles are disabled; keep handler as no-op
+  const togglePermission = (_permissionName: string) => {}
 
-      // Auto-check view_admins_tab if any admin permission is selected
-      if (permissionName !== 'view_admins_tab') {
-        const adminPermissions = Object.keys(PERMISSIONS_STRUCTURE.Admins.children).filter(
-          (name) => name !== 'view_admins_tab'
-        )
-        const anyAdminChecked = adminPermissions.some((name) => next.has(name))
-        if (anyAdminChecked) {
-          next.add('view_admins_tab')
-        } else {
-          next.delete('view_admins_tab')
-        }
-      }
+  const toggleCategory = (_category: string, _checked: boolean) => {}
 
-      return next
-    })
-  }
-
-  const toggleCategory = (category: string, checked: boolean) => {
-    setSelectedPermissions((prev) => {
-      const next = new Set(prev)
-      const categoryPermissions = Object.keys(PERMISSIONS_STRUCTURE[category].children)
-
-      categoryPermissions.forEach((permName) => {
-        if (checked) {
-          next.add(permName)
-        } else {
-          next.delete(permName)
-        }
-      })
-
-      return next
-    })
-  }
-
-  const isCategoryChecked = (category: string) => {
-    const categoryPermissions = Object.keys(PERMISSIONS_STRUCTURE[category].children)
-    return categoryPermissions.some((name) => selectedPermissions.has(name))
-  }
+  const isCategoryChecked = (_category: string) => false
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
     setSubmitting(true)
 
     try {
-      const permissionIds = Array.from(selectedPermissions)
-        .map((name) => permissionNameToId[name])
-        .filter((id) => id !== undefined)
+      // Only send the Administrator permission ID when enabled
+      const permissionIds = isAdministrator && adminPermission ? [adminPermission.id] : []
 
       await requestJson(`/admin/api/v2/admin-roles/${role.id}`, {
         method: 'PATCH',
-        body: JSON.stringify({
-          permission_ids: permissionIds,
-        }),
+        body: JSON.stringify({ permissions: permissionIds }),
       })
       success('Permissions saved successfully')
       await onUpdate()
@@ -248,10 +206,31 @@ export const AdminRolePermissionsTab = ({
           <IconInfoCircle />
           <AlertTitle>Permission Guidelines</AlertTitle>
           <AlertDescription>
-            Select the permissions that members of this role will have. Admin ID 1 automatically
-            has all permissions regardless of role assignments.
+            Administrator grants full access across the admin dashboard. Other legacy permissions
+            are deprecated and shown for reference only.
           </AlertDescription>
         </Alert>
+      </div>
+
+      {/* Administrator Permission */}
+      <div className="rounded-lg border border-border bg-card/30 p-6">
+        <div className="mb-2 flex items-center gap-3">
+          <div className="flex size-8 items-center justify-center rounded-full bg-primary/20">
+            <IconLock className="text-primary" />
+          </div>
+          <div className="flex-1">
+            <h3 className="text-lg font-semibold">Administrator</h3>
+            <p className="text-sm text-muted-foreground">Full administrative access to all features</p>
+          </div>
+          <Switch
+            checked={isAdministrator}
+            onCheckedChange={(checked) => setIsAdministrator(checked === true)}
+            disabled={!adminPermission}
+          />
+        </div>
+        {!adminPermission && (
+          <p className="text-xs text-muted-foreground">No Administrator permission available. Contact your server admin.</p>
+        )}
       </div>
 
       {/* Permission Categories */}
@@ -266,7 +245,8 @@ export const AdminRolePermissionsTab = ({
                 <Label className="flex cursor-pointer items-center gap-3">
                   <Checkbox
                     checked={categoryChecked}
-                    onCheckedChange={(checked) => toggleCategory(category, checked === true)}
+                    onCheckedChange={() => {}}
+                    disabled
                   />
                   <div className="flex items-center gap-3">
                     <div className="flex size-8 items-center justify-center rounded-full bg-primary/20">
@@ -274,6 +254,7 @@ export const AdminRolePermissionsTab = ({
                     </div>
                     <div>
                       <h3 className="text-lg font-semibold">{data.label}</h3>
+                      <p className="text-xs text-muted-foreground">Deprecated — covered by Administrator</p>
                     </div>
                   </div>
                 </Label>
@@ -288,13 +269,14 @@ export const AdminRolePermissionsTab = ({
                   return (
                     <Label
                       key={permKey}
-                      className="flex cursor-pointer items-start gap-3 rounded-lg p-3 hover:bg-accent/50"
+                      className="flex cursor-not-allowed items-start gap-3 rounded-lg p-3 opacity-50"
                       title={permData.description}
                     >
                       <Switch
-                        checked={selectedPermissions.has(permKey)}
-                        onCheckedChange={() => togglePermission(permKey)}
+                        checked={false}
+                        onCheckedChange={() => {}}
                         className="mt-1"
+                        disabled
                       />
                       <div className="flex-1">
                         <span className="block text-sm font-medium">{permData.label}</span>

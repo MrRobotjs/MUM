@@ -234,6 +234,13 @@ def permission_required(permission_name):
             # Owner always has all permissions
             if current_user.userType == UserType.OWNER:
                 return f(*args, **kwargs)
+
+            # Administrators (role with 'administrator' permission) have full access
+            try:
+                if current_user.has_permission('administrator'):
+                    return f(*args, **kwargs)
+            except Exception:
+                pass
             
             # Check permissions for LOCAL users (role-based)
             if current_user.userType == UserType.LOCAL:
@@ -263,6 +270,13 @@ def any_permission_required(permissions):
             # Owner always has all permissions
             if current_user.userType == UserType.OWNER:
                 return f(*args, **kwargs)
+
+            # Administrators (role with 'administrator' permission) have full access
+            try:
+                if current_user.has_permission('administrator'):
+                    return f(*args, **kwargs)
+            except Exception:
+                pass
             
             # Check if local user has ANY of the permissions in the list
             if current_user.userType == UserType.LOCAL:

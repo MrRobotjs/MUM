@@ -9,7 +9,7 @@ from flask_openapi3 import Tag
 from app.routes.api_v2 import api_v2
 from app.models import User, UserType, AdminRole, EventType
 from app.extensions import db
-from app.utils.helpers import permission_required, any_permission_required, log_event
+from app.utils.helpers import permission_required, log_event
 
 
 admins_tag = Tag(name="Admins", description="Admin management")
@@ -70,7 +70,7 @@ def _serialize_admin(user: User):
     responses={200: AdminsListResponse},
 )
 @login_required
-@any_permission_required(['create_admin', 'edit_admin', 'delete_admin'])
+@permission_required('administrator')
 def list_admins():
     request_id = str(uuid4())
     owner = User.get_owner()

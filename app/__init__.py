@@ -14,7 +14,6 @@ from .extensions import (
     db,
     migrate,
     scheduler,
-    babel,
     socketio,
     cache,
     jwt
@@ -136,7 +135,6 @@ def create_app(config_name=None):
 
     db.init_app(app)
     migrate.init_app(app, db)
-    babel.init_app(app)
     socketio.init_app(app)
 
     # Initialize Flask-Caching honoring existing app.config. If unset, provide safe defaults.

@@ -2,7 +2,6 @@
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_apscheduler import APScheduler
-from flask_babel import Babel
 from flask_socketio import SocketIO
 from flask_caching import Cache
 from flask_jwt_extended import JWTManager
@@ -17,9 +16,6 @@ migrate = Migrate()
 
 # APScheduler for background tasks
 scheduler = APScheduler()
-
-# Babel for i18n/l10n (initialized without a custom locale selector)
-babel = Babel()
 
 # Flask-SocketIO for WebSocket support
 # Use eventlet for production (Gunicorn compatibility)

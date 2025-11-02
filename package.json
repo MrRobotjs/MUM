@@ -1,17 +1,11 @@
 {
   "name": "mum-multimedia-user-management",
   "version": "1.0.0",
-  "description": "MUM (Multimedia User Management) frontend assets",
+  "description": "MUM (Multimedia User Management) - Root package",
   "scripts": {},
-  "main": "index.js",
+  "private": true,
   "author": "",
   "license": "ISC",
-  "dependencies": {
-    "@tailwindcss/cli": "^4.1.8",
-    "daisyui": "^5.0.43",
-    "tailwindcss": "^4.1.8"
-  },
-  "devDependencies": {
-    "shadcn": "^3.4.0"
-  }
+  "dependencies": {},
+  "devDependencies": {}
 }

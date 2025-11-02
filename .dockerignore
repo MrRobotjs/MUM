@@ -1,0 +1,88 @@
+# Git files
+.git
+.gitignore
+.gitattributes
+
+# Python cache and compiled files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Node.js (frontend source not needed in container - only built dist/)
+frontend/
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+.pnpm-debug.log*
+
+# Root node_modules
+node_modules/
+
+# Documentation files
+*.md
+!README.md
+docs/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Environment files
+.env
+.env.local
+.env.*.local
+.flaskenv
+
+# Database files (instance data)
+instance/*.db
+instance/*.db-journal
+multimediausermanager/*.db
+multimediausermanager/*.db-journal
+*.db
+*.db-journal
+
+# Log files
+*.log
+log.txt
+
+# Temporary files
+.tmp/
+tmp/
+.cache/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Docker files (don't need in build context)
+docker-compose*.yml
+Dockerfile*
+.dockerignore
+
+# Migration files (keep migrations/ directory structure but not pyc files)
+migrations/**/__pycache__/
+migrations/**/*.pyc
+
+# Test files (if any)
+tests/
+test_*.py
+*_test.py
+
+# Backup files
+*.backup
+*.bak
+
+# Strange files found in root
+=*.txt
+

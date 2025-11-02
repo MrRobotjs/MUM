@@ -1,4 +1,5 @@
 # File: Dockerfile
+# syntax=docker/dockerfile:1.4
 
 FROM python:3.11-alpine
 
@@ -9,20 +10,12 @@ ENV PGID=1000
 # Install necessary system packages FIRST to maximize pip cache hits
 # ONLY install what's strictly necessary before pip.
 # This step is critical for Alpine images if Python packages need compilation.
-RUN apk add --no-cache curl tzdata su-exec \
+RUN apk add --no-cache curl tzdata su-exec dos2unix \
     # Add build tools for Python packages (if needed).
     # You'll need these if your Python packages are compiled from source.
     # Check your pip install logs for "Building wheel for X" or "Failed building wheel for X".
-    # Common build deps:
     build-base \
-    python3-dev \
-    # Other potential deps for common libraries:
-    # libffi-dev \ # for cryptography
-    # openssl-dev # for cryptography
-    # jpeg-dev zlib-dev # for Pillow/image processing libs
-    # postgresql-dev # for psycopg2
-    # mariadb-dev # for mysqlclient
-    && rm -rf /var/lib/apt/lists/*
+    python3-dev
 
 # Set up the working directory for our code.
 WORKDIR /app
@@ -31,10 +24,11 @@ WORKDIR /app
 # 1. Copy *only* requirements.txt
 COPY requirements.txt .
 
-# 2. Install Python dependencies
+# 2. Install Python dependencies with BuildKit cache mount for pip cache
 # This layer will be cached unless requirements.txt changes or a layer above it changes.
-# Remove --no-cache-dir for faster local builds, keep for production to save image size.
-RUN pip install --no-cache-dir -r requirements.txt
+# Using cache mount significantly speeds up pip install on subsequent builds
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --no-cache-dir -r requirements.txt
 # --- CACHE LAYER OPTIMIZATION ENDS HERE ---
 
 # Copy entrypoint script first and make it executable

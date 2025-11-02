@@ -1,2 +1,69 @@
-# Auto detect text files and perform LF normalization
+# Line ending settings for cross-platform compatibility
+# Shell scripts must use LF for Linux containers
+*.sh text eol=lf
+entrypoint.sh text eol=lf
+
+# Python files
+*.py text eol=lf
+*.pyc binary
+*.pyo binary
+*.pyd binary
+
+# Configuration files
+*.ini text eol=lf
+*.conf text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+*.json text eol=lf
+*.toml text eol=lf
+*.env text eol=lf
+*.flaskenv text eol=lf
+
+# Docker files
+Dockerfile text eol=lf
+docker-compose*.yml text eol=lf
+.dockerignore text eol=lf
+
+# Web files
+*.html text eol=lf
+*.css text eol=lf
+*.js text eol=lf
+*.ts text eol=lf
+*.tsx text eol=lf
+*.jsx text eol=lf
+
+# SQL files
+*.sql text eol=lf
+
+# Text files
+*.txt text eol=lf
+*.md text eol=lf
+*.log text eol=lf
+
+# Binary files
+*.db binary
+*.db-journal binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.svg binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+
+# Archives
+*.zip binary
+*.tar binary
+*.tar.gz binary
+*.tgz binary
+
+# Keep Windows line endings for batch files (if you have any)
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Default: use LF for all text files
 * text=auto

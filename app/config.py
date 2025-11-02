@@ -52,6 +52,22 @@ class Config:
     DEFAULT_INVITES_PER_PAGE = 10
     DEFAULT_HISTORY_PER_PAGE = 20
 
+    # JWT settings (secure defaults; can be overridden by DB settings)
+    # Note: SECRET_KEY is separate; JWT uses its own key
+    JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY') or secrets.token_hex(32)
+    # Access via Authorization header; Refresh via HttpOnly cookie
+    JWT_TOKEN_LOCATION = ["headers", "cookies"]
+    from datetime import timedelta as _td  # local alias to avoid top-level import collisions
+    JWT_ACCESS_TOKEN_EXPIRES = _td(minutes=10)
+    JWT_REFRESH_TOKEN_EXPIRES = _td(days=14)
+    JWT_COOKIE_SECURE = False  # Set True in production with HTTPS
+    JWT_COOKIE_HTTPONLY = True
+    JWT_COOKIE_SAMESITE = "Strict"  # Browser-level CSRF protection for refresh cookie
+    JWT_COOKIE_CSRF_PROTECT = False  # We rely on SameSite=Strict; no double-submit header
+    JWT_REFRESH_COOKIE_PATH = "/"  # Ensure cookie is sent reliably
+    JWT_HEADER_NAME = "Authorization"
+    JWT_HEADER_TYPE = "Bearer"
+
     @staticmethod
     def init_app(app):
         # Create instance folder if it doesn't exist

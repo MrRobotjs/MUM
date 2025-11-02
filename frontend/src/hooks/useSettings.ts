@@ -18,7 +18,6 @@ export type DiscordSettings = {
 };
 
 export type AdvancedSettings = {
-  csrf_timeout: number;
   session_lifetime: number;
   max_login_attempts: number;
 };

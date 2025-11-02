@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Optional
 
 from flask import jsonify
-from flask_login import login_required
+from app.utils.jwt_decorators import jwt_required_with_user, jwt_permission_required
 from pydantic import BaseModel, Field
 from flask_openapi3 import Tag
 
@@ -161,8 +161,8 @@ def _to_item(u: User) -> dict:
     summary="List users",
     responses={200: UsersListResponse},
 )
-@login_required
-def list_users(query: UsersQuery):
+@jwt_required_with_user()
+def list_users(query: UsersQuery, current_user):
     q = User.query
 
     # Filter by user type

@@ -2,13 +2,13 @@ from __future__ import annotations
 
 from uuid import uuid4
 from flask import jsonify, request, current_app, g
-from flask_login import login_required, current_user
+from app.utils.jwt_decorators import jwt_required_with_user, jwt_permission_required
 from pydantic import BaseModel, Field
 from flask_openapi3 import Tag
 
 from app.routes.api_v2 import api_v2
 from app.models import Setting, SettingValueType, EventType
-from app.utils.helpers import permission_required, log_event
+# JWT permission checking handled by jwt_permission_required, log_event
 
 
 settings_tag = Tag(name="Settings", description="Application settings")
@@ -49,7 +49,7 @@ class DiscordSettingsResponse(BaseModel):
     meta: dict
 
 
-def _serialize_discord_settings() -> dict:
+def _serialize_discord_settings(current_user) -> dict:
     invite_redirect, admin_redirect = _compute_redirects()
     stored_client_secret = Setting.get('DISCORD_CLIENT_SECRET')
     stored_bot_token = Setting.get('DISCORD_BOT_TOKEN')
@@ -84,11 +84,11 @@ def _serialize_discord_settings() -> dict:
     summary="Get Discord settings",
     responses={200: DiscordSettingsResponse},
 )
-@login_required
-@permission_required('administrator')
-def get_discord_settings():
+@jwt_required_with_user()
+@jwt_permission_required('administrator')
+def get_discord_settings(current_user):
     request_id = uuid4().hex
-    return jsonify({'data': _serialize_discord_settings(), 'meta': {'request_id': request_id}})
+    return jsonify({'data': _serialize_discord_settings(current_user), 'meta': {'request_id': request_id}})
 
 
 class UpdateDiscordBody(BaseModel):
@@ -123,9 +123,9 @@ class ErrorResponse(BaseModel):
     summary="Update Discord settings",
     responses={200: DiscordSettingsResponse, 400: ErrorResponse},
 )
-@login_required
-@permission_required('administrator')
-def update_discord_settings(body: UpdateDiscordBody):
+@jwt_required_with_user()
+@jwt_permission_required('administrator')
+def update_discord_settings(body: UpdateDiscordBody, current_user):
     request_id = uuid4().hex
 
     enable_oauth = bool(body.enable_oauth)
@@ -229,7 +229,7 @@ def update_discord_settings(body: UpdateDiscordBody):
 
     log_event(EventType.DISCORD_CONFIG_SAVE, "Discord settings updated via API.", admin_id=current_user.id)
 
-    return jsonify({'data': _serialize_discord_settings(), 'meta': {'request_id': request_id}}), 200
+    return jsonify({'data': _serialize_discord_settings(current_user), 'meta': {'request_id': request_id}}), 200
 
 
 class TestDiscordBody(BaseModel):
@@ -248,9 +248,9 @@ class TestDiscordResponse(BaseModel):
     summary="Test Discord settings",
     responses={200: TestDiscordResponse, 400: TestDiscordResponse},
 )
-@login_required
-@permission_required('administrator')
-def test_discord_settings():
+@jwt_required_with_user()
+@jwt_permission_required('administrator')
+def test_discord_settings(current_user):
     request_id = uuid4().hex
     payload = request.get_json(silent=True) or {}
     test_type = (payload.get('type') or 'oauth').lower()

@@ -3,7 +3,7 @@ from __future__ import annotations
 from uuid import uuid4
 from datetime import datetime
 from flask import jsonify, request
-from flask_login import login_required
+from app.utils.jwt_decorators import jwt_required_with_user, jwt_permission_required
 from pydantic import BaseModel, Field
 from flask_openapi3 import Tag
 
@@ -46,8 +46,8 @@ class HistoryListResponse(BaseModel):
     summary="Recent history logs",
     responses={200: HistoryListResponse},
 )
-@login_required
-def get_recent_history(query: RecentHistoryQuery):
+@jwt_required_with_user()
+def get_recent_history(query: RecentHistoryQuery, current_user):
     request_id = str(uuid4())
     page = query.page
     page_size = query.page_size
@@ -109,8 +109,8 @@ class HistorySearchQuery(BaseModel):
     summary="Search history logs",
     responses={200: HistoryListResponse},
 )
-@login_required
-def search_history(query: HistorySearchQuery):
+@jwt_required_with_user()
+def search_history(query: HistorySearchQuery, current_user):
     request_id = str(uuid4())
     page = query.page
     page_size = query.page_size

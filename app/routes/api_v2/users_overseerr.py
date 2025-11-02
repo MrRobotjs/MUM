@@ -4,7 +4,7 @@ from uuid import uuid4
 from typing import Optional, List
 
 from flask import jsonify
-from flask_login import login_required
+from app.utils.jwt_decorators import jwt_required_with_user, jwt_permission_required
 from pydantic import BaseModel, Field
 from flask_openapi3 import Tag
 
@@ -63,8 +63,8 @@ def _serialize_overseerr_link(link: OverseerrUserLink) -> dict:
     summary="Get Overseerr link info for a user",
     responses={200: ListResponse, 404: ErrorResponse},
 )
-@login_required
-def get_user_overseerr(path: UserPath):
+@jwt_required_with_user()
+def get_user_overseerr(path: UserPath, current_user):
     request_id = uuid4().hex
     user = User.query.filter_by(uuid=path.uuid).first()
     if not user:

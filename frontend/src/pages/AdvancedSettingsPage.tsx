@@ -24,7 +24,6 @@ export const AdvancedSettingsPage = () => {
   const { settings, loading, error, refresh } = useAdvancedSettings();
   const { success, error: showError } = useAlerts();
   const [formValues, setFormValues] = useState<AdvancedSettings>({
-    csrf_timeout: 3600,
     session_lifetime: 86400,
     max_login_attempts: 5,
   });
@@ -114,24 +113,7 @@ export const AdvancedSettingsPage = () => {
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="csrf_timeout">
-                    CSRF Token Timeout (seconds) <span className="text-destructive">*</span>
-                  </Label>
-                  <Input
-                    id="csrf_timeout"
-                    type="number"
-                    value={formValues.csrf_timeout}
-                    onChange={(e) => handleChange('csrf_timeout', Number(e.target.value))}
-                    required
-                    min="300"
-                    max="86400"
-                    step="60"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    How long CSRF tokens remain valid (300-86400 seconds, default: 3600)
-                  </p>
-                </div>
+                {/* CSRF settings removed (JWT + SameSite=Strict used instead) */}
 
                 <div className="space-y-2">
                   <Label htmlFor="max_login_attempts">

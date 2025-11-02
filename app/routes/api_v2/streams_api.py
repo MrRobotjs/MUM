@@ -6,14 +6,14 @@ from decimal import Decimal
 from typing import Optional
 
 from flask import jsonify, request
-from flask_login import login_required, current_user
+from app.utils.jwt_decorators import jwt_required_with_user, jwt_permission_required
 from pydantic import BaseModel, Field
 from flask_openapi3 import Tag
 
 from app.routes.api_v2 import api_v2
 from app.models_media_services import MediaStreamHistory, MediaServer, ServiceType
 from app.models import User, EventType
-from app.utils.helpers import permission_required, log_event
+# JWT permission checking handled by jwt_permission_required, log_event
 from app.services.media_service_factory import MediaServiceFactory
 from sqlalchemy import desc, func
 
@@ -96,9 +96,9 @@ def _apply_filters(query, user_uuid=None, service_type=None, status=None, start_
     summary="List streams",
     responses={200: StreamsListResponse},
 )
-@login_required
-@permission_required("view_streaming")
-def list_streams(query: StreamsQuery):
+@jwt_required_with_user()
+@jwt_permission_required("view_streaming")
+def list_streams(query: StreamsQuery, current_user):
     request_id = uuid4().hex
 
     start_dt = None
@@ -169,9 +169,9 @@ class ErrorResponse(BaseModel):
     summary="Get stream details",
     responses={200: StreamResponse, 404: ErrorResponse},
 )
-@login_required
-@permission_required("view_streaming")
-def get_stream(path: StreamPath):
+@jwt_required_with_user()
+@jwt_permission_required("view_streaming")
+def get_stream(path: StreamPath, current_user):
     request_id = uuid4().hex
     stream = MediaStreamHistory.query.get(path.stream_id)
     if not stream:
@@ -197,9 +197,9 @@ class StreamsSummaryResponse(BaseModel):
     summary="Streams summary",
     responses={200: StreamsSummaryResponse},
 )
-@login_required
-@permission_required("view_streaming")
-def streams_summary(query: StreamsSummaryQuery):
+@jwt_required_with_user()
+@jwt_permission_required("view_streaming")
+def streams_summary(query: StreamsSummaryQuery, current_user):
     request_id = uuid4().hex
     start_date_str = query.start
     end_date_str = query.end
@@ -298,9 +298,9 @@ class TerminateResponse(BaseModel):
     summary="Terminate a stream on the media server",
     responses={200: TerminateResponse, 400: ErrorResponse, 500: ErrorResponse, 502: ErrorResponse},
 )
-@login_required
-@permission_required("kill_stream")
-def terminate_stream(path: StreamPath, body: TerminateBody):
+@jwt_required_with_user()
+@jwt_permission_required("kill_stream")
+def terminate_stream(path: StreamPath, body: TerminateBody, current_user):
     request_id = uuid4().hex
     message = body.message
     stream = MediaStreamHistory.query.get(path.stream_id)

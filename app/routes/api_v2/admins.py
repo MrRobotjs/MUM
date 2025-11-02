@@ -2,14 +2,14 @@ from __future__ import annotations
 
 from uuid import uuid4
 from flask import jsonify, request
-from flask_login import login_required, current_user
+from app.utils.jwt_decorators import jwt_required_with_user, jwt_permission_required
 from pydantic import BaseModel, Field
 from flask_openapi3 import Tag
 
 from app.routes.api_v2 import api_v2
 from app.models import User, UserType, AdminRole, EventType
 from app.extensions import db
-from app.utils.helpers import permission_required, log_event
+# JWT permission checking handled by jwt_permission_required, log_event
 
 
 admins_tag = Tag(name="Admins", description="Admin management")
@@ -69,9 +69,9 @@ def _serialize_admin(user: User):
     summary="List admins",
     responses={200: AdminsListResponse},
 )
-@login_required
-@permission_required('administrator')
-def list_admins():
+@jwt_required_with_user()
+@jwt_permission_required('administrator')
+def list_admins(current_user):
     request_id = str(uuid4())
     owner = User.get_owner()
     admins = User.query.filter(
@@ -104,9 +104,9 @@ class AdminResponse(BaseModel):
     summary="Create admin",
     responses={201: AdminResponse, 400: AdminResponse, 409: AdminResponse, 500: AdminResponse},
 )
-@login_required
-@permission_required('administrator')
-def create_admin():
+@jwt_required_with_user()
+@jwt_permission_required('administrator')
+def create_admin(current_user):
     request_id = str(uuid4())
     payload = request.get_json(silent=True) or {}
     username = (payload.get('username') or '').strip()
@@ -145,9 +145,9 @@ class UpdateAdminBody(BaseModel):
     summary="Update admin roles",
     responses={200: AdminResponse, 400: AdminResponse, 404: AdminResponse, 500: AdminResponse},
 )
-@login_required
-@permission_required('administrator')
-def update_admin(admin_id):
+@jwt_required_with_user()
+@jwt_permission_required('administrator')
+def update_admin(admin_id, current_user):
     request_id = str(uuid4())
     if current_user.id == admin_id:
         return jsonify({'error': {'code': 'SELF_EDIT_FORBIDDEN', 'message': 'Use the account page to manage your own roles.'}, 'meta': {'request_id': request_id}}), 400
@@ -181,9 +181,9 @@ class ResetAdminPasswordBody(BaseModel):
     summary="Reset admin password",
     responses={200: AdminResponse, 400: AdminResponse, 404: AdminResponse, 500: AdminResponse},
 )
-@login_required
-@permission_required('administrator')
-def reset_admin_password(admin_id):
+@jwt_required_with_user()
+@jwt_permission_required('administrator')
+def reset_admin_password(admin_id, current_user):
     request_id = str(uuid4())
     if current_user.id == admin_id:
         return jsonify({'error': {'code': 'SELF_RESET_FORBIDDEN', 'message': 'Cannot reset your own password via this endpoint.'}, 'meta': {'request_id': request_id}}), 400
@@ -215,9 +215,9 @@ def reset_admin_password(admin_id):
     summary="Delete admin user",
     responses={200: AdminResponse, 400: AdminResponse, 404: AdminResponse, 500: AdminResponse},
 )
-@login_required
-@permission_required('administrator')
-def delete_admin(admin_id):
+@jwt_required_with_user()
+@jwt_permission_required('administrator')
+def delete_admin(admin_id, current_user):
     request_id = str(uuid4())
     if current_user.id == admin_id:
         return jsonify({'error': {'code': 'SELF_DELETE_FORBIDDEN', 'message': 'You cannot delete your own account.'}, 'meta': {'request_id': request_id}}), 400

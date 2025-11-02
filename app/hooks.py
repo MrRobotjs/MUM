@@ -1,67 +1,13 @@
 from __future__ import annotations
 
 from flask import current_app, g, request, redirect, url_for, flash
-from flask_login import current_user
-
-from app.extensions import login_manager, db
+from app.extensions import db
 from sqlalchemy import inspect
 from app.models import User, UserType, Setting
 
 
 def register_app_hooks(app):
-    @login_manager.user_loader
-    def load_user(user_id):
-        try:
-            with app.app_context():
-                if ':' in str(user_id):
-                    user_type_str, user_uuid = str(user_id).split(':', 1)
-                    type_mapping = {
-                        'owner': UserType.OWNER,
-                        'local': UserType.LOCAL,
-                        'service': UserType.SERVICE,
-                    }
-                    user_type_enum = type_mapping.get(user_type_str.lower())
-                    if user_type_enum:
-                        user = User.query.filter_by(uuid=user_uuid, userType=user_type_enum).first()
-                        return user
-
-                try:
-                    user = User.query.filter_by(uuid=str(user_id)).first()
-                    if user:
-                        return user
-                except Exception:
-                    pass
-
-                try:
-                    actual_id = int(user_id)
-                    user = User.query.get(actual_id)
-                    if user:
-                        return user
-                except ValueError:
-                    pass
-
-                return None
-        except Exception as e_load_user:
-            app.logger.error(f"hooks.load_user(): Error loading user: {e_load_user}")
-            return None
-
-    @app.before_request
-    def check_force_password_change():
-        if not current_user.is_authenticated:
-            return None
-        if not getattr(current_user, 'force_password_change', False):
-            return None
-        allowed_prefixes = (
-            '/admin/api/v2/auth/change-password',
-            '/admin/api/v2/auth/set-password',
-            '/admin/api/v2/auth/logout',
-        )
-        if request.path.startswith(allowed_prefixes):
-            return None
-        if request.method == 'GET' and request.path.startswith('/admin') and not request.path.startswith('/admin/api'):
-            flash("For security, please change your password before proceeding.", "warning")
-            return redirect('/admin/account')
-        return None
+    # Flask-Login user loader and session-based hooks removed (JWT-only)
 
     @app.before_request
     def before_request_tasks():

@@ -73,13 +73,17 @@ def format_datetime_user(dt: Optional[datetime], include_time: bool = True) -> s
     if dt is None:
         return "N/A"
 
-    from flask_login import current_user
+    # Use JWT-provided current_user when available
+    try:
+        from flask_jwt_extended import current_user as jwt_current_user
+    except Exception:
+        jwt_current_user = None
     from app.models import User, UserType, UserPreferences
 
-    if not current_user.is_authenticated:
+    if not jwt_current_user:
         return format_datetime(dt)
 
-    prefs = UserPreferences.get_timezone_preference(current_user.id)
+    prefs = UserPreferences.get_timezone_preference(jwt_current_user.id)
     preference = prefs.get('preference', 'local')
     local_timezone_str = prefs.get('local_timezone')
     time_format = prefs.get('time_format', '12')

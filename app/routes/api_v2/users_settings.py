@@ -4,13 +4,13 @@ from uuid import uuid4
 from typing import Optional
 
 from flask import jsonify
-from flask_login import login_required
+from app.utils.jwt_decorators import jwt_required_with_user, jwt_permission_required
 from pydantic import BaseModel, Field
 from flask_openapi3 import Tag
 
 from app.routes.api_v2 import api_v2
 from app.models import User, UserType
-from app.utils.helpers import permission_required
+# JWT permission checking handled by jwt_permission_required
 from app.extensions import db
 
 
@@ -69,9 +69,9 @@ class ErrorResponse(BaseModel):
     summary="Get user settings",
     responses={200: GetSettingsResponse, 404: ErrorResponse},
 )
-@login_required
-@permission_required("edit_user")
-def get_user_settings(path: UserPath):
+@jwt_required_with_user()
+@jwt_permission_required("edit_user")
+def get_user_settings(path: UserPath, current_user):
     request_id = uuid4().hex
     user = User.query.filter_by(uuid=path.user_uuid).first()
     if not user:
@@ -90,9 +90,9 @@ def get_user_settings(path: UserPath):
     summary="Update user settings",
     responses={200: UpdateSettingsResponse, 400: ErrorResponse, 404: ErrorResponse},
 )
-@login_required
-@permission_required("edit_user")
-def update_user_settings(path: UserPath, body: UpdateSettingsBody):
+@jwt_required_with_user()
+@jwt_permission_required("edit_user")
+def update_user_settings(path: UserPath, body: UpdateSettingsBody, current_user):
     request_id = uuid4().hex
     user = User.query.filter_by(uuid=path.user_uuid).first()
     if not user:

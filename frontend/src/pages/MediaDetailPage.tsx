@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { requestJson } from '../util/apiClient';
+// Images are authenticated via cookie; no token param needed
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -297,7 +298,7 @@ export const MediaDetailPage = () => {
               {mediaItem.thumb ? (
                 <div className="w-48 h-72 rounded-lg overflow-hidden shadow-lg bg-accent">
                   <img
-                    src={mediaItem.thumb}
+                    src={mediaItem.thumb || ''}
                     alt={mediaItem.title}
                     className="w-full h-full object-cover"
                   />
@@ -581,7 +582,7 @@ export const MediaDetailPage = () => {
                         <div className="relative aspect-[2/3] bg-accent rounded-lg overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 group-hover:scale-105">
                           {episode.thumb ? (
                             <img
-                              src={episode.thumb}
+                              src={episode.thumb || ''}
                               alt={episode.title}
                               className="w-full h-full object-cover"
                               loading="lazy"

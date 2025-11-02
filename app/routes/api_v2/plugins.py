@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from uuid import uuid4
 from flask import jsonify, request
-from flask_login import login_required, current_user
+from app.utils.jwt_decorators import jwt_required_with_user, jwt_permission_required
 from pydantic import BaseModel, Field
 from flask_openapi3 import Tag
 
@@ -10,7 +10,7 @@ from app.routes.api_v2 import api_v2
 from app.models_plugins import Plugin, PluginRepository
 from app.services.plugin_manager import plugin_manager
 from app.extensions import db
-from app.utils.helpers import permission_required, log_event
+# JWT permission checking handled by jwt_permission_required, log_event
 from app.models import EventType
 
 
@@ -92,9 +92,9 @@ def _plugin_action(plugin_id: str, action: str):
     summary="List installed plugins",
     responses={200: PluginsListResponse},
 )
-@login_required
-@permission_required('administrator')
-def list_plugins():
+@jwt_required_with_user()
+@jwt_permission_required('administrator')
+def list_plugins(current_user):
     request_id = str(uuid4())
     plugins = Plugin.query.order_by(Plugin.name.asc()).all()
     available_plugins = plugin_manager.get_available_plugins()
@@ -123,9 +123,9 @@ def list_plugins():
     tags=[plugins_tag],
     summary="Enable a plugin",
 )
-@login_required
-@permission_required('administrator')
-def enable_plugin(plugin_id):
+@jwt_required_with_user()
+@jwt_permission_required('administrator')
+def enable_plugin(plugin_id, current_user):
     return _plugin_action(plugin_id, 'enable')
 
 
@@ -134,9 +134,9 @@ def enable_plugin(plugin_id):
     tags=[plugins_tag],
     summary="Disable a plugin",
 )
-@login_required
-@permission_required('administrator')
-def disable_plugin(plugin_id):
+@jwt_required_with_user()
+@jwt_permission_required('administrator')
+def disable_plugin(plugin_id, current_user):
     return _plugin_action(plugin_id, 'disable')
 
 
@@ -162,9 +162,9 @@ class ReposListResponse(BaseModel):
     summary="List plugin repositories",
     responses={200: ReposListResponse},
 )
-@login_required
-@permission_required('administrator')
-def list_plugin_repositories():
+@jwt_required_with_user()
+@jwt_permission_required('administrator')
+def list_plugin_repositories(current_user):
     request_id = str(uuid4())
     repos = PluginRepository.query.order_by(PluginRepository.name.asc()).all()
     data = [
@@ -200,9 +200,9 @@ class CreateRepoResponse(BaseModel):
     summary="Create a plugin repository",
     responses={201: CreateRepoResponse, 400: CreateRepoResponse},
 )
-@login_required
-@permission_required('administrator')
-def create_plugin_repository():
+@jwt_required_with_user()
+@jwt_permission_required('administrator')
+def create_plugin_repository(current_user):
     request_id = str(uuid4())
     payload = request.get_json(silent=True) or {}
     name = (payload.get('name') or '').strip()
@@ -230,9 +230,9 @@ class DeleteRepoResponse(BaseModel):
     summary="Delete a plugin repository",
     responses={200: DeleteRepoResponse},
 )
-@login_required
-@permission_required('administrator')
-def delete_plugin_repository(repo_id):
+@jwt_required_with_user()
+@jwt_permission_required('administrator')
+def delete_plugin_repository(repo_id, current_user):
     request_id = str(uuid4())
     repo = PluginRepository.query.get_or_404(repo_id)
     db.session.delete(repo)

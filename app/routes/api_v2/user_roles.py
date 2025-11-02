@@ -3,12 +3,12 @@ from __future__ import annotations
 from uuid import uuid4
 from datetime import datetime
 from flask import jsonify, request
-from flask_login import login_required
+from app.utils.jwt_decorators import jwt_required_with_user, jwt_permission_required
 from pydantic import BaseModel, Field
 from flask_openapi3 import Tag
 
 from app.routes.api_v2 import api_v2
-from app.utils.helpers import permission_required
+# JWT permission checking handled by jwt_permission_required
 from app.models import UserRole, User
 from app.extensions import db
 
@@ -56,9 +56,9 @@ def _serialize_user_role(role, include_users=False):
     summary="List user roles",
     responses={200: RolesListResponse},
 )
-@login_required
-@permission_required('administrator')
-def list_user_roles():
+@jwt_required_with_user()
+@jwt_permission_required('administrator')
+def list_user_roles(current_user):
     request_id = str(uuid4())
     include_users = request.args.get('include_users', 'false').lower() == 'true'
     roles = UserRole.query.order_by(UserRole.name).all()
@@ -80,9 +80,9 @@ class RoleResponse(BaseModel):
     summary="Get user role",
     responses={200: RoleResponse, 404: RoleResponse},
 )
-@login_required
-@permission_required('administrator')
-def get_user_role(path: RolePath):
+@jwt_required_with_user()
+@jwt_permission_required('administrator')
+def get_user_role(path: RolePath, current_user):
     request_id = str(uuid4())
     role = UserRole.query.get(path.role_id)
     if not role:
@@ -104,9 +104,9 @@ class CreateRoleBody(BaseModel):
     tags=[roles_tag],
     summary="Create user role",
 )
-@login_required
-@permission_required('administrator')
-def create_user_role():
+@jwt_required_with_user()
+@jwt_permission_required('administrator')
+def create_user_role(current_user):
     request_id = str(uuid4())
     data = request.get_json()
     if not data:
@@ -140,9 +140,9 @@ class UpdateRoleBody(BaseModel):
     tags=[roles_tag],
     summary="Update user role",
 )
-@login_required
-@permission_required('administrator')
-def update_user_role(path: RolePath):
+@jwt_required_with_user()
+@jwt_permission_required('administrator')
+def update_user_role(path: RolePath, current_user):
     request_id = str(uuid4())
     role = UserRole.query.get(path.role_id)
     if not role:
@@ -178,9 +178,9 @@ class RoleUsersResponse(BaseModel):
     summary="List users with a user role",
     responses={200: RoleUsersResponse, 404: RoleUsersResponse},
 )
-@login_required
-@permission_required('administrator')
-def get_user_role_users(path: RolePath):
+@jwt_required_with_user()
+@jwt_permission_required('administrator')
+def get_user_role_users(path: RolePath, current_user):
     request_id = str(uuid4())
     role = UserRole.query.get(path.role_id)
     if not role:

@@ -5,12 +5,12 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional, List
 
 from flask import jsonify, request
-from flask_login import login_required
+from app.utils.jwt_decorators import jwt_required_with_user, jwt_permission_required
 from pydantic import BaseModel, Field
 from flask_openapi3 import Tag
 
 from app.routes.api_v2 import api_v2
-from app.utils.helpers import permission_required
+# JWT permission checking handled by jwt_permission_required
 from app.models_media_services import MediaLibrary, MediaServer
 
 
@@ -83,9 +83,9 @@ class LibrariesListResponse(BaseModel):
     summary="List libraries",
     responses={200: LibrariesListResponse},
 )
-@login_required
-@permission_required("view_servers")
-def list_libraries(query: LibrariesQuery):
+@jwt_required_with_user()
+@jwt_permission_required("view_servers")
+def list_libraries(query: LibrariesQuery, current_user):
     request_id = uuid4().hex
     q = MediaLibrary.query
     if query.server_id:
@@ -131,9 +131,9 @@ class LibraryResponse(BaseModel):
     summary="Get library",
     responses={200: LibraryResponse, 404: ErrorResponse},
 )
-@login_required
-@permission_required("view_servers")
-def get_library(path: LibraryPath):
+@jwt_required_with_user()
+@jwt_permission_required("view_servers")
+def get_library(path: LibraryPath, current_user):
     request_id = uuid4().hex
     lib = MediaLibrary.query.get(path.library_id)
     if not lib:
@@ -179,9 +179,9 @@ class LibraryMediaResponse(BaseModel):
     summary="List media items for a library",
     responses={200: LibraryMediaResponse, 404: ErrorResponse},
 )
-@login_required
-@permission_required("view_servers")
-def list_library_media(path: LibraryPath, query: LibraryMediaQuery):
+@jwt_required_with_user()
+@jwt_permission_required("view_servers")
+def list_library_media(path: LibraryPath, query: LibraryMediaQuery, current_user):
     request_id = uuid4().hex
     lib = MediaLibrary.query.get(path.library_id)
     if not lib:
@@ -263,9 +263,9 @@ class MediaItemResponse(BaseModel):
     summary="Get a media item",
     responses={200: MediaItemResponse, 404: ErrorResponse},
 )
-@login_required
-@permission_required("view_servers")
-def get_media_item(path: MediaPath):
+@jwt_required_with_user()
+@jwt_permission_required("view_servers")
+def get_media_item(path: MediaPath, current_user):
     request_id = uuid4().hex
     from app.models_media_services import MediaItem
     media_item = MediaItem.query.filter_by(id=path.media_id, library_id=path.library_id).first()
@@ -299,9 +299,9 @@ class LibraryStatsResponse(BaseModel):
     summary="Get library statistics",
     responses={200: LibraryStatsResponse, 404: ErrorResponse},
 )
-@login_required
-@permission_required("view_servers")
-def get_library_stats(path: LibraryPath):
+@jwt_required_with_user()
+@jwt_permission_required("view_servers")
+def get_library_stats(path: LibraryPath, current_user):
     request_id = uuid4().hex
     lib = MediaLibrary.query.get(path.library_id)
     if not lib:
@@ -352,9 +352,9 @@ class ActivityListResponse(BaseModel):
     summary="Get recent activity for a library",
     responses={200: ActivityListResponse, 404: ErrorResponse},
 )
-@login_required
-@permission_required("view_servers")
-def get_library_activity(path: LibraryPath):
+@jwt_required_with_user()
+@jwt_permission_required("view_servers")
+def get_library_activity(path: LibraryPath, current_user):
     request_id = uuid4().hex
     library = MediaLibrary.query.get(path.library_id)
     if not library:
@@ -469,9 +469,9 @@ class CollectionsResponse(BaseModel):
     summary="Get collections for a Plex library",
     responses={200: CollectionsResponse, 400: ErrorResponse, 404: ErrorResponse, 503: ErrorResponse},
 )
-@login_required
-@permission_required("view_servers")
-def get_library_collections(path: LibraryPath):
+@jwt_required_with_user()
+@jwt_permission_required("view_servers")
+def get_library_collections(path: LibraryPath, current_user):
     request_id = uuid4().hex
     library = MediaLibrary.query.get(path.library_id)
     if not library:
@@ -580,9 +580,9 @@ class EpisodesResponse(BaseModel):
     summary="List episodes for a show",
     responses={200: EpisodesResponse, 400: ErrorResponse, 404: ErrorResponse},
 )
-@login_required
-@permission_required("view_servers")
-def get_media_episodes(path: MediaPath):
+@jwt_required_with_user()
+@jwt_permission_required("view_servers")
+def get_media_episodes(path: MediaPath, current_user):
     request_id = uuid4().hex
     from app.models_media_services import MediaItem
     media_item = MediaItem.query.filter_by(id=path.media_id, library_id=path.library_id).first()
@@ -712,9 +712,9 @@ class SyncEpisodesResponse(BaseModel):
     summary="Sync episodes for a show",
     responses={200: SyncEpisodesResponse, 400: ErrorResponse, 404: ErrorResponse, 500: ErrorResponse},
 )
-@login_required
-@permission_required("view_servers")
-def sync_media_episodes(path: MediaPath):
+@jwt_required_with_user()
+@jwt_permission_required("view_servers")
+def sync_media_episodes(path: MediaPath, current_user):
     request_id = uuid4().hex
     from app.models_media_services import MediaItem
     from app.services.media_sync_service import MediaSyncService

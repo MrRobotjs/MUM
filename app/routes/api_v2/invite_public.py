@@ -4,7 +4,6 @@ from uuid import uuid4
 from typing import Optional
 
 from flask import jsonify
-from flask_login import login_required
 from pydantic import BaseModel, Field
 from flask_openapi3 import Tag
 
@@ -70,4 +69,3 @@ def validate_invite(path: InvitePath):
     if not inv:
         return jsonify({"error": {"code": "INVITE_NOT_FOUND", "message": "Invite not found."}, "meta": {"request_id": request_id}}), 404
     return jsonify({"data": _serialize_invite(inv), "meta": {"request_id": request_id}}), 200
-

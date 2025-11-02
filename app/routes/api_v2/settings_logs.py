@@ -2,13 +2,13 @@ from __future__ import annotations
 
 from uuid import uuid4
 from flask import jsonify
-from flask_login import login_required
+from app.utils.jwt_decorators import jwt_required_with_user, jwt_permission_required
 from pydantic import BaseModel, Field
 from flask_openapi3 import Tag
 
 from app.routes.api_v2 import api_v2
 from app.models import HistoryLog, EventType, User
-from app.utils.helpers import permission_required
+# JWT permission checking handled by jwt_permission_required
 from sqlalchemy import or_, func
 from sqlalchemy.orm import aliased
 
@@ -77,9 +77,9 @@ def _serialize_log(log: HistoryLog):
     summary="List history logs",
     responses={200: LogsListResponse},
 )
-@login_required
-@permission_required("view_logs")
-def list_history_logs(query: LogsQuery):
+@jwt_required_with_user()
+@jwt_permission_required("view_logs")
+def list_history_logs(query: LogsQuery, current_user):
     request_id = uuid4().hex
     owner_alias = aliased(User)
     local_alias = aliased(User)

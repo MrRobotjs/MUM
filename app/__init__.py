@@ -5,18 +5,19 @@ from logging.handlers import RotatingFileHandler
 import secrets
 from werkzeug.middleware.proxy_fix import ProxyFix
 from flask import request, redirect, url_for, current_app, send_from_directory, jsonify
+from urllib.parse import quote
+from flask_jwt_extended import verify_jwt_in_request, get_jwt_identity
 from flask_openapi3 import OpenAPI, Info
 
 from .config import config
 from .extensions import (
     db,
     migrate,
-    login_manager,
-    csrf,
     scheduler,
     babel,
     socketio,
-    cache
+    cache,
+    jwt
 )
 from .models import Setting
 from sqlalchemy import inspect
@@ -135,8 +136,6 @@ def create_app(config_name=None):
 
     db.init_app(app)
     migrate.init_app(app, db)
-    login_manager.init_app(app)
-    csrf.init_app(app)
     babel.init_app(app)
     socketio.init_app(app)
 
@@ -146,51 +145,15 @@ def create_app(config_name=None):
         app.config.setdefault('CACHE_DEFAULT_TIMEOUT', 3600)  # 1 hour default
     cache.init_app(app)
     
-    # Define custom unauthorized handler to route to correct login page or return JSON for APIs
-    @login_manager.unauthorized_handler
-    def unauthorized():
-        requested_endpoint = request.endpoint
-        requested_path = request.path
-        next_url = request.full_path if request.full_path != '/' else None
-
-        # Prefer JSON when client asks for it or hitting explicit API paths
-        accepts = request.accept_mimetypes
-        prefers_json = accepts.accept_json and (
-            not accepts.accept_html or accepts['application/json'] >= accepts['text/html']
-        )
-        is_api_path = requested_path.startswith('/admin/api/') or requested_path.startswith('/api/v2')
-        if prefers_json or is_api_path:
-            return jsonify({'error': {'code': 'UNAUTHORIZED', 'message': 'Authentication required.'}}), 401
-
-        # Admin area → admin login
-        admin_path_prefixes = ['/admin/', '/admin?', '/admin#']
-        admin_endpoint_prefixes = [
-            'dashboard.', 'settings.', 'plugin_management.', 'admin_management.',
-            'role_management.', 'users.', 'invites_admin.', 'media_servers_admin.',
-            'plugins.', 'streaming.', 'libraries.'
-        ]
-        is_admin_path = any(requested_path.startswith(prefix) for prefix in admin_path_prefixes)
-        is_admin_endpoint = bool(requested_endpoint) and any(
-            requested_endpoint.startswith(prefix) for prefix in admin_endpoint_prefixes
-        )
-        if is_admin_path or is_admin_endpoint:
-            # Redirect to SPA login without depending on auth blueprint
-            login_path = '/auth/login'
-            if next_url:
-                sep = '&' if '?' in login_path else '?'
-                return redirect(f"{login_path}{sep}next={next_url}")
-            return redirect(login_path)
-
-        # Public portal → user login when enabled, else admin login
-        allow_user_accounts = Setting.get_bool('ALLOW_USER_ACCOUNTS', False)
-        if allow_user_accounts:
-            login_path = '/auth/login'
-            if next_url:
-                sep = '&' if '?' in login_path else '?'
-                return redirect(f"{login_path}{sep}next={next_url}")
-            return redirect(login_path)
-        # Default to admin login path
-        return redirect('/auth/login')
+    # Initialize JWT with app and register callbacks
+    jwt.init_app(app)
+    try:
+        from .utils.jwt_helpers import register_jwt_callbacks
+        register_jwt_callbacks(jwt)
+    except Exception as e:
+        app.logger.error(f"Failed to register JWT callbacks: {e}")
+    
+    # Unauthorized handling is enforced at the API layer via JWT. The SPA handles client-side redirects.
 
     with app.app_context():
         initialize_settings_from_db(app)
@@ -359,5 +322,66 @@ def create_app(config_name=None):
     # Removed legacy admin settings SPA interception helpers.
     
     register_error_handlers(app)
+
+    @app.before_request
+    def redirect_unauthenticated_ui():
+        """Redirect unauthenticated UI requests to the SPA login with a next= param.
+
+        - Skips API and static endpoints
+        - Applies to GET/HEAD only
+        - If visiting '/', or any '/admin' UI route without a valid access token,
+          redirect to '/auth/login?next=<original>'
+        """
+        if request.method not in ("GET", "HEAD"):
+            return None
+
+        path = request.path or "/"
+        # Skip API and technical endpoints
+        if (
+            path.startswith('/admin/api/') or
+            path.startswith('/api/v2') or
+            path.startswith('/socket.io') or
+            path.startswith('/static') or
+            path in ('/favicon.ico',)
+        ):
+            return None
+
+        # Allow auth and public pages to load without redirect loops
+        if path.startswith('/auth') or path.startswith('/invite') or path.startswith('/public'):
+            return None
+
+        # UI entrypoints (root or admin paths)
+        is_ui_target = (path == '/') or path.startswith('/admin')
+        if not is_ui_target:
+            return None
+
+        # Check for a valid access token in headers (JWT)
+        identity = None
+        try:
+            verify_jwt_in_request(optional=True)
+            identity = get_jwt_identity()
+        except Exception:
+            identity = None
+
+        if identity:
+            # Already authenticated → let the request through (SPA will render)
+            return None
+
+        # Not authenticated → choose appropriate SPA entry with next
+        next_param = request.full_path if request.query_string else request.path
+        next_encoded = quote(next_param, safe='/:?&=')
+
+        # If admin path, allow SPA shell to load unauthenticated; client will redirect to login
+        if path.startswith('/admin'):
+            return None
+
+        # Otherwise, prefer user portal when enabled
+        allow_user_accounts = Setting.get_bool('ALLOW_USER_ACCOUNTS', False)
+        if allow_user_accounts:
+            # Send to user portal root; SPA can read ?next and show login/landing
+            return redirect(f"/user?next={next_encoded}")
+        else:
+            # Fall back to admin login
+            return redirect(f"/auth/login?next={next_encoded}")
 
     return app

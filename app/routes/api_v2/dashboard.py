@@ -4,7 +4,7 @@ from uuid import uuid4
 from datetime import datetime
 
 from flask import jsonify
-from flask_login import login_required
+from app.utils.jwt_decorators import jwt_required_with_user, jwt_permission_required
 from pydantic import BaseModel
 from flask_openapi3 import Tag
 
@@ -85,8 +85,8 @@ class ServerStatusResponse(BaseModel):
     summary="Dashboard server status",
     responses={200: ServerStatusResponse},
 )
-@login_required
-def get_server_status():
+@jwt_required_with_user()
+def get_server_status(current_user):
     raw_status = get_fresh_server_status()
     normalized = _normalize_server_status(raw_status)
     request_id = str(uuid4())

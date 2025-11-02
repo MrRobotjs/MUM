@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from uuid import uuid4
 from flask import jsonify
-from flask_login import login_required
+from app.utils.jwt_decorators import jwt_required_with_user, jwt_permission_required
 from pydantic import BaseModel
 from flask_openapi3 import Tag
 
@@ -45,8 +45,8 @@ def _serialize_setup_status() -> dict:
     summary="Get setup status",
     responses={200: SetupStatusResponse},
 )
-@login_required
-def setup_status():
+@jwt_required_with_user()
+def setup_status(current_user):
     request_id = str(uuid4())
     return jsonify({'data': _serialize_setup_status(), 'meta': {'request_id': request_id}})
 
@@ -62,8 +62,8 @@ class PluginServersResponse(BaseModel):
     summary="List servers for a plugin (by service type)",
     responses={200: PluginServersResponse, 404: PluginServersResponse},
 )
-@login_required
-def setup_plugin_servers(plugin_id: str):
+@jwt_required_with_user()
+def setup_plugin_servers(plugin_id: str, current_user):
     request_id = str(uuid4())
     try:
         service_type = ServiceType[plugin_id.upper()]

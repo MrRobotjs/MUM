@@ -5,13 +5,13 @@ from datetime import datetime
 from typing import Optional, List
 
 from flask import jsonify, request, current_app
-from flask_login import login_required, current_user
+from app.utils.jwt_decorators import jwt_required_with_user, jwt_permission_required
 from pydantic import BaseModel, Field
 from flask_openapi3 import Tag
 
 from app.routes.api_v2 import api_v2
 from app.models import User, EventType
-from app.utils.helpers import permission_required, log_event
+# JWT permission checking handled by jwt_permission_required, log_event
 from app.services import user_service
 
 
@@ -68,9 +68,9 @@ class ErrorResponse(BaseModel):
     summary="Get users eligible for purge",
     responses={200: EligibleResponse, 500: ErrorResponse},
 )
-@login_required
-@permission_required("purge_users")
-def get_eligible_for_purge(query: EligibleQuery):
+@jwt_required_with_user()
+@jwt_permission_required("purge_users")
+def get_eligible_for_purge(query: EligibleQuery, current_user):
     """Get users eligible for purge based on criteria."""
     request_id = uuid4().hex
     try:
@@ -169,9 +169,9 @@ class PurgeResponse(BaseModel):
     summary="Purge selected users",
     responses={200: PurgeResponse, 400: ErrorResponse, 500: ErrorResponse},
 )
-@login_required
-@permission_required("purge_users")
-def purge_users():
+@jwt_required_with_user()
+@jwt_permission_required("purge_users")
+def purge_users(current_user):
     """Purge selected users."""
     request_id = uuid4().hex
     try:
@@ -301,4 +301,3 @@ def purge_users():
             ),
             500,
         )
-

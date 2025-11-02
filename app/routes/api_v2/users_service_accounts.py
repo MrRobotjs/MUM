@@ -4,13 +4,13 @@ from uuid import uuid4
 from typing import Optional
 
 from flask import jsonify
-from flask_login import login_required
+from app.utils.jwt_decorators import jwt_required_with_user, jwt_permission_required
 from pydantic import BaseModel, Field
 from flask_openapi3 import Tag
 
 from app.routes.api_v2 import api_v2
 from app.models import User, UserType, EventType
-from app.utils.helpers import log_event, permission_required
+from app.utils.helpers import log_event
 from app.extensions import db
 
 
@@ -90,9 +90,9 @@ def _get_local_user(uuid: str) -> User:
     summary="List linked service accounts",
     responses={200: ListResponse},
 )
-@login_required
-@permission_required("edit_user")
-def list_service_accounts(path: LocalUserPath):
+@jwt_required_with_user()
+@jwt_permission_required("edit_user")
+def list_service_accounts(path: LocalUserPath, current_user):
     request_id = uuid4().hex
     user = _get_local_user(path.user_uuid)
     accounts = getattr(user, "linked_children", []) or []
@@ -106,9 +106,9 @@ def list_service_accounts(path: LocalUserPath):
     summary="Link a service account to local user",
     responses={200: ServiceAccountItem, 400: ErrorResponse, 404: ErrorResponse, 409: ErrorResponse},
 )
-@login_required
-@permission_required("edit_user")
-def link_service_account(path: LocalUserPath, body: LinkBody):
+@jwt_required_with_user()
+@jwt_permission_required("edit_user")
+def link_service_account(path: LocalUserPath, body: LinkBody, current_user):
     request_id = uuid4().hex
     user = _get_local_user(path.user_uuid)
 
@@ -142,9 +142,9 @@ def link_service_account(path: LocalUserPath, body: LinkBody):
     summary="Unlink a service account from local user",
     responses={200: SuccessResponse, 404: ErrorResponse},
 )
-@login_required
-@permission_required("edit_user")
-def unlink_service_account(path: ServiceUserPath):
+@jwt_required_with_user()
+@jwt_permission_required("edit_user")
+def unlink_service_account(path: ServiceUserPath, current_user):
     request_id = uuid4().hex
     user = _get_local_user(path.user_uuid)
     service_user = User.query.filter_by(uuid=path.service_uuid, userType=UserType.SERVICE).first()
@@ -171,9 +171,9 @@ def unlink_service_account(path: ServiceUserPath):
     summary="List available (unlinked) service accounts",
     responses={200: ListResponse},
 )
-@login_required
-@permission_required("edit_user")
-def list_available_service_accounts(path: LocalUserPath):
+@jwt_required_with_user()
+@jwt_permission_required("edit_user")
+def list_available_service_accounts(path: LocalUserPath, current_user):
     request_id = uuid4().hex
     _ = _get_local_user(path.user_uuid)
 

@@ -1,4 +1,5 @@
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS', 'TRACE']);
+import { getAccessToken, setAccessToken, clearAccessToken } from './tokenStore';
 
 export type ApiFetchOptions = {
   csrfUrl?: string;
@@ -30,55 +31,11 @@ export class ApiError extends Error {
   }
 }
 
-let csrfToken: string | null = null;
-let inflightCsrf: Promise<string | null> | null = null;
-
-export const setCsrfToken = (token: string | null) => {
-  csrfToken = token || null;
-};
-
-export const clearCsrfToken = () => {
-  csrfToken = null;
-};
-
-const fetchCsrfToken = async (csrfUrl: string) => {
-  const response = await fetch(csrfUrl, {
-    credentials: 'include',
-    headers: {
-      Accept: 'application/json'
-    }
-  });
-
-  if (!response.ok) {
-    clearCsrfToken();
-    throw new ApiError('Unable to obtain CSRF token', response.status);
-  }
-
-  try {
-    const json = (await response.json()) as ParsedJson<{ csrf_token?: string }>;
-    const token =
-      (typeof json === 'object' && json && 'data' in json && (json.data as Record<string, unknown>)?.csrf_token) || null;
-    csrfToken = typeof token === 'string' ? token : null;
-    return csrfToken;
-  } catch (error) {
-    clearCsrfToken();
-    throw error;
-  }
-};
-
-export const ensureCsrfToken = async (csrfUrl = '/admin/api/v2/auth/csrf-token') => {
-  if (csrfToken) {
-    return csrfToken;
-  }
-
-  if (!inflightCsrf) {
-    inflightCsrf = fetchCsrfToken(csrfUrl).finally(() => {
-      inflightCsrf = null;
-    });
-  }
-
-  return inflightCsrf;
-};
+// CSRF removed in JWT migration; no-ops retained for compatibility
+const csrfToken: string | null = null;
+export const setCsrfToken = (_token: string | null) => {};
+export const clearCsrfToken = () => {};
+export const ensureCsrfToken = async (_csrfUrl = '/admin/api/v2/auth/csrf-token') => null;
 
 const getJson = async (response: Response): Promise<ParsedJson | null> => {
   const text = await response.text();
@@ -111,26 +68,112 @@ export const apiFetch = async (
     }
   }
 
-  if (!SAFE_METHODS.has(method)) {
-    if (!csrfToken) {
-      await ensureCsrfToken(options.csrfUrl);
+  // No CSRF header needed with JWT Authorization scheme
+  // Attach Authorization header if we have an access token
+  let token = getAccessToken();
+  if (!token) {
+    // Bootstrap: attempt a refresh once to obtain an access token before first request
+    try {
+      const refreshResp = await fetch('/admin/api/v2/auth/jwt/refresh', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { Accept: 'application/json' },
+      });
+      if (refreshResp.ok) {
+        const json = await getJson(refreshResp);
+        const newToken = (json && typeof json === 'object' && 'data' in json)
+          ? (json.data as any)?.access_token as string | undefined
+          : undefined;
+        if (newToken) {
+          setAccessToken(newToken);
+          try { window.dispatchEvent(new CustomEvent('auth_token_updated', { detail: { accessToken: newToken } })); } catch {}
+          token = newToken;
+        }
+      }
+    } catch {
+      // ignore; we'll proceed without token and rely on 401 path to recover
     }
-    if (csrfToken) {
-      headers.set('X-CSRF-Token', csrfToken);
+  }
+  if (token && !headers.has('Authorization')) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(input, {
+      ...init,
+      method,
+      credentials: 'include',
+      headers
+    });
+  } catch (networkErr) {
+    // Network-level failure: attempt a refresh once, then retry original request
+    try {
+      const refreshResp = await fetch('/admin/api/v2/auth/jwt/refresh', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { Accept: 'application/json' },
+      });
+      if (refreshResp.ok) {
+        const json = await getJson(refreshResp);
+        const newToken = (json && typeof json === 'object' && 'data' in json)
+          ? (json.data as any)?.access_token as string | undefined
+          : undefined;
+        if (newToken) {
+          setAccessToken(newToken);
+          try { window.dispatchEvent(new CustomEvent('auth_token_updated', { detail: { accessToken: newToken } })); } catch {}
+          headers.set('Authorization', `Bearer ${newToken}`);
+          response = await fetch(input, { ...init, method, credentials: 'include', headers });
+        } else {
+          throw networkErr;
+        }
+      } else {
+        throw networkErr;
+      }
+    } catch {
+      // Propagate original error so callers can handle/log
+      throw networkErr;
     }
   }
 
-  const response = await fetch(input, {
-    ...init,
-    method,
-    credentials: 'include',
-    headers
-  });
-
+  // On 401, attempt refresh flow once, then retry original request
   if (response.status === 401) {
-    clearCsrfToken();
+    try {
+      const refreshResp = await fetch('/admin/api/v2/auth/jwt/refresh', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { Accept: 'application/json' },
+      });
+      if (refreshResp.ok) {
+        const json = await getJson(refreshResp);
+        const newToken = (json && typeof json === 'object' && 'data' in json)
+          ? (json.data as any)?.access_token as string | undefined
+          : undefined;
+        if (newToken) {
+          // Persist new token for subsequent requests
+          setAccessToken(newToken);
+          try {
+            // Notify interested listeners (e.g., WebSocket hook) that token changed
+            window.dispatchEvent(new CustomEvent('auth_token_updated', { detail: { accessToken: newToken } }));
+          } catch {}
+          // Update Authorization header and retry original request
+          headers.set('Authorization', `Bearer ${newToken}`);
+          response = await fetch(input, {
+            ...init,
+            method,
+            credentials: 'include',
+            headers,
+          });
+        }
+      } else {
+        // Refresh failed; clear any stale token
+        clearAccessToken();
+      }
+    } catch (e) {
+      // fall through to return original 401
+    }
   }
-
+  
   return response;
 };
 

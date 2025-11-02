@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from flask import jsonify, request, abort, Response, current_app
-from flask_login import login_required
+from app.utils.jwt_decorators import jwt_header_or_cookie as jwt_required_with_user, jwt_permission_required
 from flask_openapi3 import Tag
 from pydantic import BaseModel
 
@@ -32,8 +32,8 @@ class ErrorResponse(BaseModel):
     tags=[media_tag],
     summary="Proxy Plex images",
 )
-@login_required
-def plex_image_proxy_v2():
+@jwt_required_with_user()
+def plex_image_proxy_v2(current_user):
     image_path_on_plex = request.args.get("path")
     if not image_path_on_plex:
         current_app.logger.warning("API v2 plex_image_proxy: 'path' parameter is missing.")
@@ -57,11 +57,41 @@ def plex_image_proxy_v2():
         plex = plex_service._get_server_instance()
         full_authed_plex_image_url = plex.url(path_for_plexapi, includeToken=True)
 
+        # Forward conditional headers for better caching
+        forward_headers = {}
+        if_none_match = request.headers.get('If-None-Match')
+        if if_none_match:
+            forward_headers['If-None-Match'] = if_none_match
+        if_modified_since = request.headers.get('If-Modified-Since')
+        if if_modified_since:
+            forward_headers['If-Modified-Since'] = if_modified_since
+
         plex_timeout = current_app.config.get('PLEX_TIMEOUT', 10)
-        img_response = plex._session.get(full_authed_plex_image_url, stream=True, timeout=plex_timeout)
+        img_response = plex._session.get(
+            full_authed_plex_image_url,
+            stream=True,
+            timeout=plex_timeout,
+            headers=forward_headers or None,
+        )
+        if img_response.status_code == 304:
+            # Not modified; let the browser use its cache
+            return Response(status=304)
         img_response.raise_for_status()
         content_type = img_response.headers.get('Content-Type', 'image/jpeg')
-        return Response(img_response.iter_content(chunk_size=1024*8), content_type=content_type)
+        resp = Response(img_response.iter_content(chunk_size=1024*8), content_type=content_type)
+        # Propagate cache validators and encourage private caching
+        etag = img_response.headers.get('ETag')
+        last_mod = img_response.headers.get('Last-Modified')
+        if etag:
+            resp.headers['ETag'] = etag
+        if last_mod:
+            resp.headers['Last-Modified'] = last_mod
+        content_len = img_response.headers.get('Content-Length')
+        if content_len:
+            resp.headers['Content-Length'] = content_len
+        # Cache privately for a short period; artwork rarely changes
+        resp.headers['Cache-Control'] = 'private, max-age=3600'
+        return resp
     except requests.exceptions.HTTPError as e_http:
         current_app.logger.error(
             f"API v2 plex_image_proxy: HTTPError ({e_http.response.status_code}) fetching from Plex: {e_http} for path {image_path_on_plex}"
@@ -80,8 +110,8 @@ def plex_image_proxy_v2():
     tags=[media_tag],
     summary="Proxy Jellyfin images",
 )
-@login_required
-def jellyfin_image_proxy_v2():
+@jwt_required_with_user()
+def jellyfin_image_proxy_v2(current_user):
     item_id = request.args.get('item_id')
     image_type = request.args.get('image_type', 'Primary')
     image_tag = request.args.get('image_tag')
@@ -107,12 +137,32 @@ def jellyfin_image_proxy_v2():
             jellyfin_image_url = f"{jellyfin_image_url}?tag={image_tag}"
 
         headers = {'X-Emby-Token': jellyfin_server.api_key}
+        # Forward conditional headers for better caching
+        if_none_match = request.headers.get('If-None-Match')
+        if if_none_match:
+            headers['If-None-Match'] = if_none_match
+        if_modified_since = request.headers.get('If-Modified-Since')
+        if if_modified_since:
+            headers['If-Modified-Since'] = if_modified_since
         # Match v1 behavior for request timeouts
         timeout = get_api_timeout()
         img_response = requests.get(jellyfin_image_url, headers=headers, stream=True, timeout=timeout)
+        if img_response.status_code == 304:
+            return Response(status=304)
         img_response.raise_for_status()
         content_type = img_response.headers.get('Content-Type', 'image/jpeg')
-        return Response(img_response.content, content_type=content_type)
+        resp = Response(img_response.content, content_type=content_type)
+        etag = img_response.headers.get('ETag')
+        last_mod = img_response.headers.get('Last-Modified')
+        if etag:
+            resp.headers['ETag'] = etag
+        if last_mod:
+            resp.headers['Last-Modified'] = last_mod
+        content_len = img_response.headers.get('Content-Length')
+        if content_len:
+            resp.headers['Content-Length'] = content_len
+        resp.headers['Cache-Control'] = 'private, max-age=3600'
+        return resp
     except requests.exceptions.HTTPError as e_http:
         current_app.logger.error(
             f"API v2 jellyfin_image_proxy: HTTPError ({e_http.response.status_code}) fetching from Jellyfin: {e_http} for item {item_id}"
@@ -131,8 +181,8 @@ def jellyfin_image_proxy_v2():
     tags=[media_tag],
     summary="Proxy Jellyfin user avatar",
 )
-@login_required
-def jellyfin_user_avatar_proxy_v2():
+@jwt_required_with_user()
+def jellyfin_user_avatar_proxy_v2(current_user):
     user_id = request.args.get('user_id')
     if not user_id:
         current_app.logger.warning("API v2 jellyfin_user_avatar_proxy: 'user_id' parameter is missing.")
@@ -194,8 +244,8 @@ def jellyfin_user_avatar_proxy_v2():
     tags=[media_tag],
     summary="Proxy RomM images",
 )
-@login_required
-def romm_image_proxy_v2():
+@jwt_required_with_user()
+def romm_image_proxy_v2(current_user):
     image_path = request.args.get('path')
     server_id = request.args.get('server_id')
     if not image_path:
@@ -247,8 +297,8 @@ def romm_image_proxy_v2():
     tags=[media_tag],
     summary="Proxy Komga images",
 )
-@login_required
-def komga_image_proxy_v2():
+@jwt_required_with_user()
+def komga_image_proxy_v2(current_user):
     series_id = request.args.get('series_id')
     book_id = request.args.get('book_id')
     server_id = request.args.get('server_id')
@@ -305,8 +355,8 @@ def komga_image_proxy_v2():
     tags=[media_tag],
     summary="Proxy AudioBookshelf images",
 )
-@login_required
-def audiobookshelf_image_proxy_v2():
+@jwt_required_with_user()
+def audiobookshelf_image_proxy_v2(current_user):
     image_path = request.args.get('path')
     current_app.logger.info(f"API v2 audiobookshelf_image_proxy: Called with path='{image_path}'")
     if not image_path:

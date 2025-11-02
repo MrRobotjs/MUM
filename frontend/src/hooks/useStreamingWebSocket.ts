@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
+import { getAccessToken } from '../util/tokenStore';
 
 interface StreamingUpdate {
   active_count: number;
@@ -37,6 +38,36 @@ export const useStreamingWebSocket = (options: UseStreamingWebSocketOptions = {}
     onUpdateRef.current = onUpdate;
   }, [onUpdate]);
 
+  // Listen for auth token updates to refresh socket auth without reconnect
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const ce = e as CustomEvent;
+      const token = (ce.detail && (ce.detail as any).accessToken) as string | undefined;
+      const sock = socketRef.current;
+      if (sock && sock.connected && token) {
+        sock.emit('auth_update', { access_token: token });
+      }
+    };
+    window.addEventListener('auth_token_updated', handler as EventListener);
+    return () => window.removeEventListener('auth_token_updated', handler as EventListener);
+  }, []);
+
+  // Cleanly disconnect on logout to avoid noisy errors
+  useEffect(() => {
+    const onLogout = () => {
+      const sock = socketRef.current;
+      if (sock) {
+        try { sock.emit('unsubscribe_streaming'); } catch {}
+        try { sock.disconnect(); } catch {}
+        socketRef.current = null;
+        setIsConnected(false);
+        setLiveServices([]);
+      }
+    };
+    window.addEventListener('auth_logged_out', onLogout as EventListener);
+    return () => window.removeEventListener('auth_logged_out', onLogout as EventListener);
+  }, []);
+
   const initializeSocket = useCallback(() => {
     if (socketRef.current?.connected) {
       return socketRef.current;
@@ -49,12 +80,18 @@ export const useStreamingWebSocket = (options: UseStreamingWebSocketOptions = {}
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
       reconnectionAttempts: 5,
+      auth: { access_token: getAccessToken() || undefined },
     });
 
     socket.on('connect', () => {
       console.log('[WebSocket] Connected to streaming updates');
       setIsConnected(true);
       socket.emit('subscribe_streaming');
+    });
+
+    socket.io.on('reconnect_attempt', () => {
+      // Update auth with latest token before reconnection
+      socket.auth = { access_token: getAccessToken() || undefined };
     });
 
     socket.on('disconnect', () => {

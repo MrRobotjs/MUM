@@ -4,14 +4,14 @@ from uuid import uuid4
 from typing import List, Literal
 
 from flask import jsonify
-from flask_login import login_required
+from app.utils.jwt_decorators import jwt_required_with_user, jwt_permission_required
 from pydantic import BaseModel, Field
 from flask_openapi3 import Tag
 
 from app.routes.api_v2 import api_v2
 from app.models import Invite
 from app.extensions import db
-from app.utils.helpers import permission_required
+# JWT permission checking handled by jwt_permission_required
 
 
 invites_tag = Tag(name="Invites", description="Invitation management")
@@ -49,9 +49,9 @@ class ErrorResponse(BaseModel):
     summary="Bulk update or delete invites",
     responses={200: BulkInviteResponse, 400: ErrorResponse},
 )
-@login_required
-@permission_required("manage_invites")
-def bulk_invite_action(body: BulkInviteBody):
+@jwt_required_with_user()
+@jwt_permission_required("manage_invites")
+def bulk_invite_action(body: BulkInviteBody, current_user):
     request_id = uuid4().hex
     ids = body.ids
     action = body.action

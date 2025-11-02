@@ -2,13 +2,14 @@ from __future__ import annotations
 
 from uuid import uuid4
 from flask import jsonify, request, current_app, g
-from flask_login import login_required, current_user
+from app.utils.jwt_decorators import jwt_required_with_user, jwt_permission_required
 from pydantic import BaseModel, Field, field_validator
 from flask_openapi3 import Tag
 
 from app.routes.api_v2 import api_v2
+from app.utils.helpers import log_event
 from app.models import Setting, SettingValueType, EventType
-from app.utils.helpers import permission_required, log_event
+# JWT permission checking handled by jwt_permission_required, log_event
 
 
 settings_tag = Tag(name="Settings", description="Application settings")
@@ -21,6 +22,7 @@ class GeneralSettingsData(BaseModel):
     enable_navbar_stream_badge: bool
     session_monitoring_interval: int
     api_timeout_seconds: int
+    jwt_cookie_secure: bool
 
 
 class GeneralSettingsResponse(BaseModel):
@@ -36,6 +38,7 @@ def _serialize_general_settings() -> dict:
         "enable_navbar_stream_badge": Setting.get_bool("ENABLE_NAVBAR_STREAM_BADGE", False),
         "session_monitoring_interval": Setting.get("SESSION_MONITORING_INTERVAL_SECONDS", 30),
         "api_timeout_seconds": Setting.get("API_TIMEOUT_SECONDS", current_app.config.get("API_TIMEOUT_SECONDS", 3)),
+        "jwt_cookie_secure": Setting.get_bool("JWT_COOKIE_SECURE", bool(current_app.config.get("JWT_COOKIE_SECURE", False))),
     }
 
 
@@ -45,9 +48,9 @@ def _serialize_general_settings() -> dict:
     summary="Get general application settings",
     responses={200: GeneralSettingsResponse},
 )
-@login_required
-@permission_required("manage_general_settings")
-def get_general_settings():
+@jwt_required_with_user()
+@jwt_permission_required("manage_general_settings")
+def get_general_settings(current_user):
     request_id = uuid4().hex
     return jsonify({"data": _serialize_general_settings(), "meta": {"request_id": request_id}})
 
@@ -59,6 +62,7 @@ class UpdateGeneralBody(BaseModel):
     enable_navbar_stream_badge: bool = Field(default=False)
     session_monitoring_interval: int
     api_timeout_seconds: int
+    jwt_cookie_secure: bool = Field(default=False, description="Use Secure cookie flag for refresh tokens (enable on HTTPS)")
 
     @field_validator("app_base_url")
     @classmethod
@@ -95,9 +99,9 @@ class ErrorResponse(BaseModel):
     summary="Update general application settings",
     responses={200: GeneralSettingsResponse, 400: ErrorResponse},
 )
-@login_required
-@permission_required("manage_general_settings")
-def update_general_settings(body: UpdateGeneralBody):
+@jwt_required_with_user()
+@jwt_permission_required("manage_general_settings")
+def update_general_settings(body: UpdateGeneralBody, current_user):
     request_id = uuid4().hex
 
     app_name = (body.app_name or "").strip()
@@ -106,6 +110,7 @@ def update_general_settings(body: UpdateGeneralBody):
     enable_badge = bool(body.enable_navbar_stream_badge)
     session_interval = body.session_monitoring_interval
     api_timeout = body.api_timeout_seconds
+    jwt_cookie_secure = bool(body.jwt_cookie_secure)
 
     if not app_base_url:
         return jsonify({"error": {"code": "BASE_URL_REQUIRED", "message": "Application base URL is required."}, "meta": {"request_id": request_id}}), 400
@@ -128,12 +133,14 @@ def update_general_settings(body: UpdateGeneralBody):
     Setting.set("ENABLE_NAVBAR_STREAM_BADGE", enable_badge, SettingValueType.BOOLEAN, "Enable Nav Bar Stream Badge")
     Setting.set("SESSION_MONITORING_INTERVAL_SECONDS", session_interval, SettingValueType.INTEGER, "Session Monitoring Interval")
     Setting.set("API_TIMEOUT_SECONDS", api_timeout, SettingValueType.INTEGER, "API Request Timeout")
+    Setting.set("JWT_COOKIE_SECURE", jwt_cookie_secure, SettingValueType.BOOLEAN, "JWT Refresh Cookie Secure Flag")
 
     current_app.config["APP_NAME"] = app_name or current_app.config.get("APP_NAME")
     current_app.config["APP_BASE_URL"] = app_base_url.rstrip("/")
     current_app.config["APP_LOCAL_URL"] = app_local_url.rstrip("/") if app_local_url else None
     current_app.config["SESSION_MONITORING_INTERVAL_SECONDS"] = session_interval
     current_app.config["API_TIMEOUT_SECONDS"] = api_timeout
+    current_app.config["JWT_COOKIE_SECURE"] = jwt_cookie_secure
     if hasattr(g, "app_name"):
         g.app_name = current_app.config["APP_NAME"]
     if hasattr(g, "app_base_url"):
@@ -144,4 +151,3 @@ def update_general_settings(body: UpdateGeneralBody):
     log_event(EventType.SETTING_CHANGE, "General application settings updated via API.", admin_id=current_user.id)
 
     return jsonify({"data": _serialize_general_settings(), "meta": {"request_id": request_id}}), 200
-

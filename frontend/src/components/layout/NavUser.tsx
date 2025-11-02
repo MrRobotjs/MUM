@@ -27,7 +27,8 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar"
-import { clearCsrfToken, requestJson } from "@/util/apiClient"
+import { requestJson } from "@/util/apiClient"
+import { clearAccessToken } from "@/util/tokenStore"
 import { useNavigate } from "react-router-dom"
 
 export function NavUser({
@@ -44,11 +45,13 @@ export function NavUser({
 
   const handleLogout = async () => {
     try {
-      await requestJson('/admin/api/v2/auth/logout', { method: 'POST' })
-    } catch (error) {
-      console.warn('Failed to logout via API, falling back to legacy endpoint', error)
+      // Use keepalive so the request can complete even during navigation/unload
+      await requestJson('/admin/api/v2/auth/jwt/logout', { method: 'POST', keepalive: true })
+    } catch (_error) {
+      // Ignore logout errors; proceed with client-side cleanup
     } finally {
-      clearCsrfToken()
+      try { window.dispatchEvent(new CustomEvent('auth_logged_out')); } catch {}
+      clearAccessToken()
       navigate('/auth/login', { replace: true })
     }
   }

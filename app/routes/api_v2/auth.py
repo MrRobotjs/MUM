@@ -4,7 +4,7 @@ from datetime import datetime
 from uuid import uuid4
 
 from flask import jsonify, request, current_app, g, url_for, session, redirect, flash
-from flask_login import login_required, current_user, login_user, logout_user
+## Flask-Login removed (JWT-only)
 from sqlalchemy import func
 from pydantic import BaseModel, Field
 from flask_openapi3 import Tag
@@ -12,7 +12,7 @@ from flask_openapi3 import Tag
 from app.extensions import db
 from app.models import User, UserType, Setting, EventType
 from app.routes.api_v2 import api_v2
-from app.utils.helpers import get_csrf_token, log_event
+from app.utils.helpers import log_event
 from app.utils.timeout_helper import get_api_timeout
 from plexapi.myplex import MyPlexAccount
 from plexapi.exceptions import PlexApiException
@@ -20,6 +20,18 @@ import requests
 from urllib.parse import urlencode
 from urllib.parse import urlencode
 import requests
+from flask_jwt_extended import (
+    create_access_token,
+    create_refresh_token,
+    jwt_required,
+    get_jwt_identity,
+    get_jwt,
+    set_refresh_cookies,
+    set_access_cookies,
+    unset_jwt_cookies,
+)
+from app.utils.jwt_decorators import jwt_required_with_user
+from app.utils.jwt_helpers import make_access_token, make_refresh_token, set_refresh_cookie, clear_jwt_cookies, revoke_token
 
 
 auth_tag = Tag(name="Authentication", description="Authentication and session management")
@@ -64,74 +76,13 @@ def _find_admin_user(identifier: str) -> User | None:
 def _issue_session_payload(user: User | None):
     return {
         'user': _serialize_user(user),
-        'csrf_token': get_csrf_token(),
         'feature_flags': {},
         'setup_complete': getattr(g, 'setup_complete', False),
         'force_password_change': getattr(user, 'force_password_change', False) if user else False
     }
 
 
-class CSRFResponse(BaseModel):
-    data: dict
-    meta: dict
-
-
-@api_v2.get(
-    "/auth/csrf-token",
-    tags=[auth_tag],
-    summary="Get CSRF token",
-    responses={200: CSRFResponse},
-)
-def issue_csrf_token():
-    request_id = str(uuid4())
-    token = get_csrf_token()
-    response = jsonify({'data': {'csrf_token': token}, 'meta': {'request_id': request_id, 'deprecated': False}})
-    response.headers['Cache-Control'] = 'no-store'
-    return response, 200
-
-
-class LoginBody(BaseModel):
-    username: str
-    password: str
-    remember: bool = False
-
-
-class SessionResponse(BaseModel):
-    data: dict
-    meta: dict
-
-
-@api_v2.post(
-    "/auth/login",
-    tags=[auth_tag],
-    summary="Admin login",
-    responses={200: SessionResponse, 400: SessionResponse, 401: SessionResponse, 409: SessionResponse},
-)
-def admin_login():
-    request_id = str(uuid4())
-    payload = request.get_json(silent=True) or {}
-    username = (payload.get('username') or '').strip()
-    password = payload.get('password') or ''
-    remember = bool(payload.get('remember', False))
-    if not username or not password:
-        return jsonify({'error': {'code': 'INVALID_PAYLOAD', 'message': 'Username and password are required.'}, 'meta': {'request_id': request_id}}), 400
-    if not User.get_owner():
-        return jsonify({'error': {'code': 'SETUP_REQUIRED', 'message': 'Owner account not configured. Complete setup before logging in.'}, 'meta': {'request_id': request_id}}), 409
-    candidate = _find_admin_user(username)
-    if not candidate or not candidate.check_password(password):
-        log_event(EventType.ADMIN_LOGIN_FAIL, f"Failed admin login attempt for '{username}'.")
-        return jsonify({'error': {'code': 'INVALID_CREDENTIALS', 'message': 'Invalid username or password.'}, 'meta': {'request_id': request_id}}), 401
-    if not candidate.is_active:
-        return jsonify({'error': {'code': 'ACCOUNT_DISABLED', 'message': 'Account is disabled.'}, 'meta': {'request_id': request_id}}), 403
-    login_user(candidate, remember=remember)
-    candidate.last_login_at = datetime.utcnow()
-    try:
-        db.session.commit()
-    except Exception as exc:
-        current_app.logger.error(f"Failed to update last login: {exc}")
-        db.session.rollback()
-    log_event(EventType.ADMIN_LOGIN_SUCCESS, f"Admin '{candidate.localUsername}' logged in.")
-    return jsonify({'data': _issue_session_payload(candidate), 'meta': {'request_id': request_id}}), 200
+    # CSRF token endpoint removed (JWT migration): use Authorization header.
 
 
 class LogoutResponse(BaseModel):
@@ -139,17 +90,22 @@ class LogoutResponse(BaseModel):
     meta: dict
 
 
+class SessionResponse(BaseModel):
+    data: dict | None = None
+    error: dict | None = None
+    meta: dict
+
+
 @api_v2.post(
     "/auth/logout",
     tags=[auth_tag],
-    summary="Admin logout",
+    summary="Admin logout (no-op; use /auth/jwt/logout)",
     responses={200: LogoutResponse},
 )
-@login_required
-def admin_logout_v2():
+@jwt_required_with_user()
+def admin_logout_v2(current_user):
     request_id = str(uuid4())
     actor = _serialize_user(current_user)
-    logout_user()
     if actor:
         log_event(EventType.ADMIN_LOGOUT, f"User '{actor.get('username')}' logged out.")
     return jsonify({'data': {'success': True}, 'meta': {'request_id': request_id, 'deprecated': False}}), 200
@@ -166,8 +122,8 @@ class ChangePasswordBody(BaseModel):
     summary="Change current user's password",
     responses={200: SessionResponse, 400: SessionResponse, 401: SessionResponse, 422: SessionResponse, 500: SessionResponse},
 )
-@login_required
-def change_password():
+@jwt_required_with_user()
+def change_password(current_user):
     request_id = str(uuid4())
     payload = request.get_json(silent=True) or {}
     current_password = payload.get('current_password') or ''
@@ -200,8 +156,8 @@ class SetPasswordBody(BaseModel):
     summary="Set initial password for flagged accounts",
     responses={200: SessionResponse, 400: SessionResponse, 409: SessionResponse, 422: SessionResponse, 500: SessionResponse},
 )
-@login_required
-def set_password():
+@jwt_required_with_user()
+def set_password(current_user):
     request_id = str(uuid4())
     payload = request.get_json(silent=True) or {}
     new_password = payload.get('new_password') or ''
@@ -229,10 +185,126 @@ def set_password():
     summary="Get current session",
     responses={200: SessionResponse},
 )
-@login_required
-def get_session():
+@jwt_required_with_user()
+def get_session(current_user):
     request_id = str(uuid4())
     return jsonify({'data': _issue_session_payload(current_user), 'meta': {'request_id': request_id, 'deprecated': False, 'config': {'allow_user_accounts': Setting.get_bool('ALLOW_USER_ACCOUNTS', False)}}}), 200
+
+
+class JwtLoginBody(BaseModel):
+    username: str
+    password: str
+
+
+class JwtLoginResponse(BaseModel):
+    data: dict
+    meta: dict
+
+
+@api_v2.post(
+    "/auth/jwt/login",
+    tags=[auth_tag],
+    summary="JWT login (returns access token; sets refresh cookie)",
+    responses={200: JwtLoginResponse, 400: JwtLoginResponse, 401: JwtLoginResponse, 409: JwtLoginResponse},
+)
+def jwt_login():
+    request_id = str(uuid4())
+    payload = request.get_json(silent=True) or {}
+    username = (payload.get('username') or '').strip()
+    password = payload.get('password') or ''
+
+    if not username or not password:
+        return jsonify({'error': {'code': 'INVALID_PAYLOAD', 'message': 'Username and password are required.'}, 'meta': {'request_id': request_id}}), 400
+    if not User.get_owner():
+        return jsonify({'error': {'code': 'SETUP_REQUIRED', 'message': 'Owner account not configured. Complete setup before logging in.'}, 'meta': {'request_id': request_id}}), 409
+
+    user = _find_admin_user(username)
+    if not user or not user.check_password(password):
+        log_event(EventType.ADMIN_LOGIN_FAIL, f"Failed admin login attempt for '{username}'.")
+        return jsonify({'error': {'code': 'INVALID_CREDENTIALS', 'message': 'Invalid username or password.'}, 'meta': {'request_id': request_id}}), 401
+    if not user.is_active:
+        return jsonify({'error': {'code': 'ACCOUNT_DISABLED', 'message': 'Account is disabled.'}, 'meta': {'request_id': request_id}}), 403
+
+    # Issue JWTs
+    access_token = make_access_token(user)
+    refresh_token = make_refresh_token(user)
+
+    user.last_login_at = datetime.utcnow()
+    try:
+        db.session.commit()
+    except Exception as exc:
+        current_app.logger.error(f"Failed to update last login: {exc}")
+        db.session.rollback()
+
+    resp = jsonify({'data': {'access_token': access_token, 'user': _serialize_user(user)}, 'meta': {'request_id': request_id}})
+    # Set both access (for browser primitives) and refresh cookies
+    try:
+        set_access_cookies(resp, access_token)
+    except Exception:
+        pass
+    set_refresh_cookie(resp, refresh_token)
+    log_event(EventType.ADMIN_LOGIN_SUCCESS, f"Admin '{user.localUsername}' logged in (JWT).")
+    return resp, 200
+
+
+class JwtRefreshResponse(BaseModel):
+    data: dict
+    meta: dict
+
+
+@api_v2.post(
+    "/auth/jwt/refresh",
+    tags=[auth_tag],
+    summary="Refresh access token (uses refresh cookie)",
+    responses={200: JwtRefreshResponse, 401: JwtRefreshResponse},
+)
+@jwt_required(refresh=True)
+def jwt_refresh():
+    request_id = str(uuid4())
+    identity = get_jwt_identity()
+    if not identity:
+        return jsonify({'error': {'code': 'UNAUTHORIZED', 'message': 'Invalid refresh token.'}, 'meta': {'request_id': request_id}}), 401
+    user = User.query.filter_by(uuid=identity).first()
+    if not user or not user.is_active:
+        return jsonify({'error': {'code': 'FORBIDDEN', 'message': 'Account is disabled.'}, 'meta': {'request_id': request_id}}), 403
+
+    # Optional: rotate refresh token (revoke old; set new)
+    old_jti = get_jwt().get('jti')
+    if old_jti:
+        revoke_token(old_jti, 'refresh', user_uuid=user.uuid)
+    new_refresh = make_refresh_token(user)
+    new_access = make_access_token(user)
+
+    resp = jsonify({'data': {'access_token': new_access}, 'meta': {'request_id': request_id}})
+    try:
+        set_access_cookies(resp, new_access)
+    except Exception:
+        pass
+    set_refresh_cookie(resp, new_refresh)
+    return resp, 200
+
+
+class JwtLogoutResponse(BaseModel):
+    data: dict
+    meta: dict
+
+
+@api_v2.post(
+    "/auth/jwt/logout",
+    tags=[auth_tag],
+    summary="Logout (revokes refresh; clears cookie)",
+    responses={200: JwtLogoutResponse},
+)
+@jwt_required(refresh=True)
+def jwt_logout():
+    request_id = str(uuid4())
+    jti = get_jwt().get('jti')
+    identity = get_jwt_identity()
+    if jti:
+        revoke_token(jti, 'refresh', user_uuid=identity)
+    resp = jsonify({'data': {'success': True}, 'meta': {'request_id': request_id}})
+    clear_jwt_cookies(resp)
+    return resp, 200
 
 
 class RedirectResponse(BaseModel):
@@ -297,8 +369,8 @@ def start_admin_plex_sso():
     summary="Initiate Discord link for admin (returns redirect URL)",
     responses={200: RedirectResponse, 400: RedirectResponse, 500: RedirectResponse},
 )
-@login_required
-def start_admin_discord_link():
+@jwt_required_with_user()
+def start_admin_discord_link(current_user):
     request_id = str(uuid4())
     try:
         enabled_setting_val = Setting.get('DISCORD_OAUTH_ENABLED', False)
@@ -378,10 +450,7 @@ def plex_sso_callback_admin_v2():
             return redirect(fallback_url)
 
         plex_account = MyPlexAccount(token=plex_auth_token)
-        if current_user.is_authenticated:
-            admin_to_update = current_user
-        else:
-            admin_to_update = User.query.filter_by(userType=UserType.OWNER).filter_by(plex_uuid=plex_account.uuid).first()
+        admin_to_update = current_user
         if not admin_to_update:
             flash(f"Plex account '{plex_account.localUsername}' is not a configured admin.", 'danger')
             return redirect(fallback_url)
@@ -395,11 +464,10 @@ def plex_sso_callback_admin_v2():
         admin_to_update.email = plex_account.email
         admin_to_update.last_login_at = db.func.now()
         db.session.commit()
-        login_user(admin_to_update, remember=True)
-        log_event(EventType.ADMIN_LOGIN_SUCCESS, f"Admin '{admin_to_update.localUsername or admin_to_update.plex_username}' linked/logged via Plex.", admin_id=admin_to_update.id)
+        log_event(EventType.ADMIN_LOGIN_SUCCESS, f"Admin '{admin_to_update.localUsername or admin_to_update.plex_username}' linked via Plex.", admin_id=admin_to_update.id)
 
-        next_url = session.pop('plex_admin_login_next_url', '/admin/dashboard')
-        return redirect(next_url if is_safe_url(next_url) else fallback_url)
+        next_url = session.pop('plex_admin_login_next_url', '/admin/settings/discord')
+        return redirect(next_url)
     except PlexApiException as e_plex:
         flash(f'Plex API error: {str(e_plex)}', 'danger')
         current_app.logger.error(f"Plex admin callback PlexApiException: {e_plex}", exc_info=True)
@@ -417,8 +485,8 @@ def plex_sso_callback_admin_v2():
     tags=[auth_tag],
     summary="Discord link callback (admin)",
 )
-@login_required
-def discord_callback_admin_v2():
+@jwt_required_with_user()
+def discord_callback_admin_v2(current_user):
     returned_state = request.args.get('state')
     if not returned_state or returned_state != session.pop('discord_oauth_state_admin_link', None):
         flash('Discord linking failed: Invalid state.', 'danger')
@@ -469,7 +537,6 @@ def discord_callback_admin_v2():
         admin_to_update.discord_refresh_token = refresh_token
         admin_to_update.discord_token_expires_at = token_expires_at
         db.session.commit()
-        login_user(admin_to_update, remember=True)
         log_event(EventType.DISCORD_ADMIN_LINK_SUCCESS, f"Admin '{admin_to_update.localUsername or admin_to_update.plex_username}' linked Discord '{admin_to_update.discord_username}'.", admin_id=admin_to_update.id)
         flash('Discord account linked successfully!', 'success')
     except requests.exceptions.RequestException as e:
@@ -498,8 +565,8 @@ class UnlinkResponse(BaseModel):
     summary="Unlink Discord from current admin",
     responses={200: UnlinkResponse},
 )
-@login_required
-def discord_unlink_admin_v2():
+@jwt_required_with_user()
+def discord_unlink_admin_v2(current_user):
     request_id = str(uuid4())
     discord_username_log = getattr(current_user, 'discord_username', None)
     current_user.discord_user_id = None

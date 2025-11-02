@@ -3,7 +3,7 @@ from __future__ import annotations
 from uuid import uuid4
 from datetime import datetime, timezone, timedelta
 from flask import jsonify, request
-from flask_login import login_required
+from app.utils.jwt_decorators import jwt_required_with_user, jwt_permission_required
 from pydantic import BaseModel, Field
 from flask_openapi3 import Tag
 
@@ -63,8 +63,8 @@ def _construct_poster_url(thumb_path, service_type):
     summary="Aggregated watch statistics",
     responses={200: WatchStatsResponse},
 )
-@login_required
-def get_watch_statistics(query: WatchStatsQuery):
+@jwt_required_with_user()
+def get_watch_statistics(query: WatchStatsQuery, current_user):
     request_id = str(uuid4())
     days = _parse_days_param(query.days)
     service_filters = _parse_services_param(query.services)

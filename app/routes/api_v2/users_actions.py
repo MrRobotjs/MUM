@@ -3,13 +3,13 @@ from __future__ import annotations
 from uuid import uuid4
 
 from flask import jsonify
-from flask_login import login_required, current_user
+from app.utils.jwt_decorators import jwt_required_with_user, jwt_permission_required
 from pydantic import BaseModel, Field
 from flask_openapi3 import Tag
 
 from app.routes.api_v2 import api_v2
 from app.models import User, UserType, EventType
-from app.utils.helpers import log_event, permission_required
+from app.utils.helpers import log_event
 from app.extensions import db
 
 
@@ -50,9 +50,9 @@ class ErrorResponse(BaseModel):
     summary="Flag user to reset password",
     responses={200: ActionResponse, 400: ErrorResponse, 404: ErrorResponse},
 )
-@login_required
-@permission_required("edit_user")
-def reset_user_password(path: UserPath):
+@jwt_required_with_user()
+@jwt_permission_required("edit_user")
+def reset_user_password(path: UserPath, current_user):
     request_id = uuid4().hex
     user = User.query.filter_by(uuid=path.uuid).first()
     if not user:
@@ -97,4 +97,3 @@ def reset_user_password(path: UserPath):
         ),
         200,
     )
-

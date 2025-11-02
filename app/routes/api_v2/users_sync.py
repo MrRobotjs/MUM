@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Optional, List
 
 from flask import jsonify, current_app
-from flask_login import login_required, current_user
+from app.utils.jwt_decorators import jwt_required_with_user, jwt_permission_required
 from pydantic import BaseModel, Field
 from flask_openapi3 import Tag
 
@@ -13,7 +13,7 @@ from app.routes.api_v2 import api_v2
 from app.models import User, UserType, EventType
 from app.models_media_services import MediaServer
 from app.services.media_service_manager import MediaServiceManager
-from app.utils.helpers import permission_required, log_event
+# JWT permission checking handled by jwt_permission_required, log_event
 
 # Reuse sync status helpers from v1 for now
 from app.routes.api_v2.sync_status import get_sync_status, start_sync, update_sync_progress, end_sync
@@ -54,9 +54,9 @@ class ErrorResponse(BaseModel):
     summary="Sync users from all active servers",
     responses={200: SyncAllResponse, 409: ErrorResponse},
 )
-@login_required
-@permission_required("edit_user")
-def sync_all_users():
+@jwt_required_with_user()
+@jwt_permission_required("edit_user")
+def sync_all_users(current_user):
     request_id = uuid4().hex
 
     # Check if sync is already in progress
@@ -80,7 +80,7 @@ def sync_all_users():
         return jsonify({"data": {"results": [], "message": "No active media servers found."}, "meta": {"request_id": request_id, "deprecated": False}}), 200
 
     # Mark sync as started
-    start_sync(len(servers))
+    start_sync(len(servers), current_user)
 
     results = []
     total_added = total_updated = total_removed = 0
@@ -175,9 +175,9 @@ class SyncUserResponse(BaseModel):
     summary="Sync a single user's linked service accounts",
     responses={200: SyncUserResponse, 404: ErrorResponse},
 )
-@login_required
-@permission_required("edit_user")
-def sync_user_accounts(path: UserPath):
+@jwt_required_with_user()
+@jwt_permission_required("edit_user")
+def sync_user_accounts(path: UserPath, current_user):
     request_id = uuid4().hex
     user = User.query.filter_by(uuid=path.user_uuid).first()
     if not user:

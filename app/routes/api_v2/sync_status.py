@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from uuid import uuid4
 from flask import jsonify
-from flask_login import login_required, current_user
+from app.utils.jwt_decorators import jwt_required_with_user
 from pydantic import BaseModel
 from flask_openapi3 import Tag
 
@@ -47,12 +47,12 @@ def set_sync_status(status_data: dict):
     cache.set(SYNC_STATUS_KEY, status_data, timeout=3600)
 
 
-def start_sync(total_servers: int):
+def start_sync(total_servers: int, actor=None):
     status = {
         "is_syncing": True,
         "started_at": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(),
-        "started_by": current_user.id if getattr(current_user, "is_authenticated", False) else None,
-        "started_by_username": getattr(current_user, "localUsername", None) if getattr(current_user, "is_authenticated", False) else "Unknown",
+        "started_by": getattr(actor, "id", None),
+        "started_by_username": getattr(actor, "localUsername", None) or getattr(actor, "external_username", None) if actor else "Unknown",
         "progress": {
             "current_server": 0,
             "total_servers": total_servers,
@@ -94,8 +94,8 @@ def end_sync():
     summary="Get current sync status",
     responses={200: SyncStatusResponse},
 )
-@login_required
-def get_sync_status_endpoint():
+@jwt_required_with_user()
+def get_sync_status_endpoint(current_user):
     request_id = uuid4().hex
     status = get_sync_status() or {}
     return jsonify({"data": status, "meta": {"request_id": request_id}})

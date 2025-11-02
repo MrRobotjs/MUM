@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Optional
 
 from flask import jsonify
-from flask_login import login_required
+from app.utils.jwt_decorators import jwt_required_with_user, jwt_permission_required
 from pydantic import BaseModel, Field, ConfigDict
 
 from app.extensions import db
@@ -100,8 +100,8 @@ def _to_item(server: MediaServer) -> dict:
     summary="List servers",
     responses={200: ServerListResponse},
 )
-@login_required
-def list_servers():
+@jwt_required_with_user()
+def list_servers(current_user):
     servers = MediaServer.query.all()
     items = [_to_item(s) for s in servers]
     return jsonify({"data": items}), 200
@@ -113,8 +113,8 @@ def list_servers():
     summary="Create server",
     responses={201: ServerItem, 409: ErrorResponse, 422: ErrorResponse},
 )
-@login_required
-def create_server(body: CreateServerBody):
+@jwt_required_with_user()
+def create_server(body: CreateServerBody, current_user):
     # Uniqueness on server_nickname
     existing = MediaServer.query.filter_by(server_nickname=body.server_nickname).first()
     if existing:
@@ -156,8 +156,8 @@ class ServerPath(BaseModel):
     summary="Get server",
     responses={200: ServerItem, 404: ErrorResponse},
 )
-@login_required
-def get_server(path: ServerPath):
+@jwt_required_with_user()
+def get_server(path: ServerPath, current_user):
     server = MediaServer.query.get(path.server_id)
     if not server:
         return jsonify({"error": {"code": "NOT_FOUND", "message": "Server not found"}}), 404
@@ -170,8 +170,8 @@ def get_server(path: ServerPath):
     summary="Update server",
     responses={200: ServerItem, 404: ErrorResponse},
 )
-@login_required
-def update_server(path: ServerPath, body: UpdateServerBody):
+@jwt_required_with_user()
+def update_server(path: ServerPath, body: UpdateServerBody, current_user):
     server = MediaServer.query.get(path.server_id)
     if not server:
         return jsonify({"error": {"code": "NOT_FOUND", "message": "Server not found"}}), 404
@@ -192,8 +192,8 @@ def update_server(path: ServerPath, body: UpdateServerBody):
     summary="Delete server",
     responses={200: ServerItem, 404: ErrorResponse},
 )
-@login_required
-def delete_server(path: ServerPath):
+@jwt_required_with_user()
+def delete_server(path: ServerPath, current_user):
     server = MediaServer.query.get(path.server_id)
     if not server:
         return jsonify({"error": {"code": "NOT_FOUND", "message": "Server not found"}}), 404
@@ -220,8 +220,8 @@ class ServerPathOp(BaseModel):
     summary="Test server connection",
     responses={200: SimpleResult, 404: ErrorResponse},
 )
-@login_required
-def test_server_connection(path: ServerPathOp):
+@jwt_required_with_user()
+def test_server_connection(path: ServerPathOp, current_user):
     server = MediaServer.query.get(path.server_id)
     if not server:
         return jsonify({"error": {"code": "NOT_FOUND", "message": "Server not found"}}), 404
@@ -235,8 +235,8 @@ def test_server_connection(path: ServerPathOp):
     summary="Sync server libraries",
     responses={200: SimpleResult, 404: ErrorResponse},
 )
-@login_required
-def sync_server_libraries(path: ServerPathOp):
+@jwt_required_with_user()
+def sync_server_libraries(path: ServerPathOp, current_user):
     server = MediaServer.query.get(path.server_id)
     if not server:
         return jsonify({"error": {"code": "NOT_FOUND", "message": "Server not found"}}), 404
@@ -250,8 +250,8 @@ def sync_server_libraries(path: ServerPathOp):
     summary="Sync server users",
     responses={200: SimpleResult, 404: ErrorResponse},
 )
-@login_required
-def sync_server_users(path: ServerPathOp):
+@jwt_required_with_user()
+def sync_server_users(path: ServerPathOp, current_user):
     server = MediaServer.query.get(path.server_id)
     if not server:
         return jsonify({"error": {"code": "NOT_FOUND", "message": "Server not found"}}), 404

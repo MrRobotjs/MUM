@@ -3,7 +3,7 @@ from __future__ import annotations
 from uuid import uuid4
 from datetime import datetime, timedelta
 from flask import jsonify, request
-from flask_login import login_required
+from app.utils.jwt_decorators import jwt_required_with_user, jwt_permission_required
 from pydantic import BaseModel, Field
 from flask_openapi3 import Tag
 
@@ -27,8 +27,8 @@ class MetricsResponse(BaseModel):
     summary="Get aggregated metrics",
     responses={200: MetricsResponse},
 )
-@login_required
-def get_metrics():
+@jwt_required_with_user()
+def get_metrics(current_user):
     request_id = str(uuid4())
 
     now = datetime.utcnow()
@@ -110,8 +110,8 @@ class UserMetricsResponse(BaseModel):
     summary="Get detailed user metrics",
     responses={200: UserMetricsResponse},
 )
-@login_required
-def get_user_metrics():
+@jwt_required_with_user()
+def get_user_metrics(current_user):
     request_id = str(uuid4())
     from sqlalchemy import func as sql_func
     users_by_type = db.session.query(User.userType, sql_func.count(User.id).label('count')).group_by(User.userType).all()
@@ -138,8 +138,8 @@ class StreamingMetricsResponse(BaseModel):
     summary="Get detailed streaming metrics",
     responses={200: StreamingMetricsResponse},
 )
-@login_required
-def get_streaming_metrics(query: StreamingMetricsQuery):
+@jwt_required_with_user()
+def get_streaming_metrics(query: StreamingMetricsQuery, current_user):
     request_id = str(uuid4())
     cutoff = datetime.utcnow() - timedelta(days=query.days)
     total_streams = MediaStreamHistory.query.filter(MediaStreamHistory.started_at >= cutoff).count()

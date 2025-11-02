@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import List, Optional
 
 from flask import jsonify
-from flask_login import login_required
+from app.utils.jwt_decorators import jwt_required_with_user, jwt_permission_required
 from pydantic import BaseModel, Field
 from flask_openapi3 import Tag
 
@@ -93,8 +93,8 @@ def _apply_user_filter(query, user: User):
     summary="Get user history",
     responses={200: HistoryListResponse, 404: ErrorResponse},
 )
-@login_required
-def get_user_history(path: UserPath, query: HistoryQuery):
+@jwt_required_with_user()
+def get_user_history(path: UserPath, query: HistoryQuery, current_user):
     request_id = __import__("uuid").uuid4().hex
     user = User.query.filter_by(uuid=path.uuid).first()
     if not user:

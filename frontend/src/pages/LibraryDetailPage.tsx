@@ -22,6 +22,7 @@ import {
   ChartOptions,
 } from 'chart.js';
 import { Bar } from 'react-chartjs-2';
+// Images are authenticated via HttpOnly access cookie; no token param needed
 
 // Register Chart.js components
 ChartJS.register(
@@ -92,7 +93,7 @@ const MediaPosterCard = ({ item, libraryId }: { item: MediaItem; libraryId: stri
               <Skeleton className="absolute inset-0 rounded-lg" />
             )}
             <img
-              src={item.thumb}
+              src={item.thumb || ''}
               alt={item.title}
               className={`w-full h-full object-cover ${imageLoading ? 'opacity-0' : 'opacity-100'} transition-opacity duration-200`}
               loading="lazy"

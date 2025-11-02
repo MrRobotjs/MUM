@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from flask import jsonify
-from flask_login import login_required
+from app.utils.jwt_decorators import jwt_required_with_user, jwt_permission_required
 from pydantic import BaseModel, Field
 from flask_openapi3 import Tag
 
@@ -49,8 +49,8 @@ class ErrorResponse(BaseModel):
     summary="List libraries for a server (from DB)",
     responses={200: ServerLibrariesResponse, 404: ErrorResponse, 500: ErrorResponse},
 )
-@login_required
-def v2_get_server_libraries(path: ServerLibPath):
+@jwt_required_with_user()
+def v2_get_server_libraries(path: ServerLibPath, current_user):
     from flask import current_app
     from app.models_media_services import MediaLibrary
 
@@ -122,8 +122,8 @@ class ServerLibrariesRefreshResponse(ServerLibrariesResponse):
     summary="Refresh libraries for a server (live API)",
     responses={200: ServerLibrariesRefreshResponse, 404: ErrorResponse, 503: ErrorResponse, 500: ErrorResponse},
 )
-@login_required
-def v2_refresh_server_libraries(path: ServerLibPath):
+@jwt_required_with_user()
+def v2_refresh_server_libraries(path: ServerLibPath, current_user):
     from flask import current_app
     from app.models_media_services import MediaLibrary
 

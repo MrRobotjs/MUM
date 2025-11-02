@@ -1,7 +1,8 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { AppLayout, PageHeader } from '../components';
-import { ensureCsrfToken, requestJson, setCsrfToken, ApiError } from '../util/apiClient';
+// Login page uses a standalone layout (no app navbar)
+import { requestJson, ApiError } from '../util/apiClient';
+import { setAccessToken } from '../util/tokenStore';
 import { useSession } from '../hooks/useSession';
 
 type LocationState = {
@@ -18,11 +19,12 @@ const LoginPage = () => {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const fromPath = (location.state as LocationState | undefined)?.from ?? '/admin/dashboard';
+  // Prefer ?next= query, then location.state.from, else dashboard
+  const search = new URLSearchParams(location.search);
+  const nextParam = search.get('next');
+  const fromPath = nextParam || (location.state as LocationState | undefined)?.from || '/admin/dashboard';
 
-  useEffect(() => {
-    ensureCsrfToken().catch((err) => console.warn('Unable to prime CSRF token', err));
-  }, []);
+  // No CSRF priming needed under JWT
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -32,10 +34,11 @@ const LoginPage = () => {
     try {
       const response = await requestJson<{
         data?: {
-          csrf_token?: string | null;
+          access_token?: string;
+          user?: unknown;
         };
       }>(
-        '/admin/api/v2/auth/login',
+        '/admin/api/v2/auth/jwt/login',
         {
           method: 'POST',
           body: JSON.stringify({
@@ -46,10 +49,10 @@ const LoginPage = () => {
         }
       );
 
-      if (response && typeof response === 'object' && 'data' in response) {
-        const csrf = (response.data as { csrf_token?: string | null })?.csrf_token ?? null;
-        setCsrfToken(csrf);
-      }
+      const token = (response && typeof response === 'object' && 'data' in response)
+        ? (response.data as { access_token?: string })?.access_token
+        : undefined;
+      if (token) setAccessToken(token);
 
       await refresh();
       navigate(fromPath, { replace: true });
@@ -62,15 +65,39 @@ const LoginPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-base-200">
-      <AppLayout>
-        <PageHeader
-          title="Sign in"
-          description="Use your admin credentials to access the Multimedia User Manager dashboard."
-        />
+    <div className="min-h-screen bg-base-200 flex items-center justify-center p-4">
+      <div className="w-full max-w-6xl">
+        <div className="grid lg:grid-cols-2 gap-8 items-center">
+          {/* Left: Branding */}
+          <div className="order-2 lg:order-1 text-center lg:text-left card bg-base-100 border border-base-300 p-8 shadow-2xl">
+            <div className="mb-6 flex flex-col items-center lg:flex-row lg:justify-start">
+              <div className="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center mb-4 lg:mb-0 lg:mr-4">
+                <i className="fas fa-crown text-primary text-2xl" />
+              </div>
+              <div className="text-center lg:text-left">
+                <h1 className="text-4xl lg:text-5xl font-bold text-base-content">MUM</h1>
+                <p className="text-lg text-base-content/70 font-medium">Multimedia User Manager</p>
+              </div>
+            </div>
+            <div className="space-y-3 text-base-content/80">
+              <p className="text-lg">Administrator access portal. Sign in to manage your services and users.</p>
+              <div className="flex flex-wrap justify-center lg:justify-start gap-4 text-sm">
+                <div className="flex items-center"><i className="fas fa-cog text-primary mr-2" />System Management</div>
+                <div className="flex items-center"><i className="fas fa-chart-line text-primary mr-2" />Analytics</div>
+                <div className="flex items-center"><i className="fas fa-shield-alt text-primary mr-2" />Security</div>
+              </div>
+            </div>
+          </div>
 
-        <div className="mx-auto mt-8 max-w-lg rounded-xl border border-base-300 bg-base-100 p-8 shadow-sm">
-          <form className="space-y-5" onSubmit={handleSubmit}>
+          {/* Right: Login Card */}
+          <div className="order-1 lg:order-2">
+            <div className="bg-base-100 border border-base-300 rounded-2xl shadow-2xl p-8 max-w-md mx-auto">
+              <div className="text-center mb-6">
+                <h2 className="text-2xl font-bold text-base-content mb-1">Admin Login</h2>
+                <p className="text-base-content/60">Administrator access required</p>
+              </div>
+
+              <form className="space-y-5" onSubmit={handleSubmit}>
             <div>
               <label htmlFor="username" className="label">
                 <span className="label-text">Username</span>
@@ -115,14 +142,16 @@ const LoginPage = () => {
 
             <button
               type="submit"
-              className={`btn btn-primary w-full ${submitting ? 'loading' : ''}`}
+              className={"btn btn-primary w-full " + (submitting ? 'loading' : '')}
               disabled={submitting}
             >
               {submitting ? 'Signing in…' : 'Sign in'}
             </button>
-          </form>
+              </form>
+            </div>
+          </div>
         </div>
-      </AppLayout>
+      </div>
     </div>
   );
 };

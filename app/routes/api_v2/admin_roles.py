@@ -3,12 +3,12 @@ from __future__ import annotations
 from uuid import uuid4
 from datetime import datetime
 from flask import jsonify, request
-from flask_login import login_required, current_user
+from app.utils.jwt_decorators import jwt_required_with_user, jwt_permission_required
 from pydantic import BaseModel, Field
 from flask_openapi3 import Tag
 
 from app.routes.api_v2 import api_v2
-from app.utils.helpers import permission_required
+# JWT permission checking handled by jwt_permission_required
 from app.models import AdminRole, AdminPermission, User
 from app.extensions import db
 
@@ -73,9 +73,9 @@ def _serialize_admin_role(role, include_permissions=False, include_users=False):
     summary="List admin roles",
     responses={200: RolesListResponse},
 )
-@login_required
-@permission_required('administrator')
-def list_admin_roles():
+@jwt_required_with_user()
+@jwt_permission_required('administrator')
+def list_admin_roles(current_user):
     request_id = str(uuid4())
     include_permissions = request.args.get('include_permissions', 'false').lower() == 'true'
     include_users = request.args.get('include_users', 'false').lower() == 'true'
@@ -98,9 +98,9 @@ class RoleResponse(BaseModel):
     summary="Get admin role",
     responses={200: RoleResponse, 404: RoleResponse},
 )
-@login_required
-@permission_required('administrator')
-def get_admin_role(path: RolePath):
+@jwt_required_with_user()
+@jwt_permission_required('administrator')
+def get_admin_role(path: RolePath, current_user):
     request_id = str(uuid4())
     role = AdminRole.query.get(path.role_id)
     if not role:
@@ -125,9 +125,9 @@ class CreateRoleBody(BaseModel):
     tags=[roles_tag],
     summary="Create admin role",
 )
-@login_required
-@permission_required('administrator')
-def create_admin_role():
+@jwt_required_with_user()
+@jwt_permission_required('administrator')
+def create_admin_role(current_user):
     request_id = str(uuid4())
     data = request.get_json()
     if not data:
@@ -170,9 +170,9 @@ class UpdateRoleBody(BaseModel):
     tags=[roles_tag],
     summary="Update admin role",
 )
-@login_required
-@permission_required('administrator')
-def update_admin_role(path: RolePath):
+@jwt_required_with_user()
+@jwt_permission_required('administrator')
+def update_admin_role(path: RolePath, current_user):
     request_id = str(uuid4())
     role = AdminRole.query.get(path.role_id)
     if not role:
@@ -211,9 +211,9 @@ def update_admin_role(path: RolePath):
     tags=[roles_tag],
     summary="Delete admin role",
 )
-@login_required
-@permission_required('administrator')
-def delete_admin_role(path: RolePath):
+@jwt_required_with_user()
+@jwt_permission_required('administrator')
+def delete_admin_role(path: RolePath, current_user):
     request_id = str(uuid4())
     role = AdminRole.query.get(path.role_id)
     if not role:
@@ -246,9 +246,9 @@ class RoleUsersResponse(BaseModel):
     summary="List users assigned to an admin role",
     responses={200: RoleUsersResponse, 404: RoleUsersResponse},
 )
-@login_required
-@permission_required('administrator')
-def get_admin_role_users(path: RolePath):
+@jwt_required_with_user()
+@jwt_permission_required('administrator')
+def get_admin_role_users(path: RolePath, current_user):
     request_id = str(uuid4())
     role = AdminRole.query.get(path.role_id)
     if not role:
@@ -268,9 +268,9 @@ class PermissionsListResponse(BaseModel):
     summary="List admin permissions",
     responses={200: PermissionsListResponse},
 )
-@login_required
-@permission_required('administrator')
-def list_admin_permissions():
+@jwt_required_with_user()
+@jwt_permission_required('administrator')
+def list_admin_permissions(current_user):
     request_id = str(uuid4())
     # Ensure the single 'administrator' permission exists and return only it
     admin_perm = AdminPermission.query.filter_by(name='administrator').first()

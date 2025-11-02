@@ -4,14 +4,14 @@ from uuid import uuid4
 from typing import Optional, List
 
 from flask import jsonify
-from flask_login import login_required, current_user
+from app.utils.jwt_decorators import jwt_required_with_user, jwt_permission_required
 from pydantic import BaseModel, Field
 from flask_openapi3 import Tag
 
 from app.routes.api_v2 import api_v2
 from app.extensions import db
 from app.models import User, UserType, EventType
-from app.utils.helpers import permission_required, log_event
+# JWT permission checking handled by jwt_permission_required, log_event
 from app.utils.helpers import get_user_by_uuid
 from app.services import user_service
 
@@ -57,9 +57,9 @@ class ErrorResponse(BaseModel):
     summary="Merge service users into a local account (link to existing or create new)",
     responses={200: MergeResponse, 400: ErrorResponse, 404: ErrorResponse},
 )
-@login_required
-@permission_required("mass_edit_users")
-def merge_users(body: MergeBody):
+@jwt_required_with_user()
+@jwt_permission_required("mass_edit_users")
+def merge_users(body: MergeBody, current_user):
     request_id = uuid4().hex
 
     service_uuids = body.service_user_uuids or []
@@ -188,4 +188,3 @@ def merge_users(body: MergeBody):
         }),
         200,
     )
-

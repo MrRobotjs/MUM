@@ -5,7 +5,6 @@ import uuid
 from datetime import datetime, timedelta
 from app.utils.timezone_utils import utcnow
 from werkzeug.security import generate_password_hash, check_password_hash
-from flask_login import UserMixin
 from sqlalchemy.types import TypeDecorator, TEXT
 from sqlalchemy.ext.mutable import MutableDict, MutableList
 from app.extensions import db, JSONEncodedDict
@@ -173,7 +172,7 @@ class UserType(enum.Enum):
     LOCAL = "local"      # Local accounts that can login (replaces UserAppAccess)
     SERVICE = "service"  # Service-specific accounts (replaces UserMediaAccess)
 
-class User(db.Model, UserMixin):
+class User(db.Model):
     """
     Unified User model that replaces Owner, UserAppAccess, and UserMediaAccess
     

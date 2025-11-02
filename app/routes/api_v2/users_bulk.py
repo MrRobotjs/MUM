@@ -5,14 +5,14 @@ from uuid import uuid4
 from typing import List, Optional
 
 from flask import jsonify, current_app
-from flask_login import login_required, current_user
+from app.utils.jwt_decorators import jwt_required_with_user, jwt_permission_required
 from pydantic import BaseModel, Field
 from flask_openapi3 import Tag
 
 from app.routes.api_v2 import api_v2
 from app.extensions import db
 from app.models import User, UserType, EventType
-from app.utils.helpers import permission_required, log_event
+# JWT permission checking handled by jwt_permission_required, log_event
 
 
 users_tag = Tag(name="Users", description="User management endpoints")
@@ -79,9 +79,9 @@ def _status_entry(user: User, action: str, status: str, message: str | None = No
     summary="Perform bulk operations on users",
     responses={200: BulkResponse, 400: ErrorResponse, 404: ErrorResponse, 500: ErrorResponse},
 )
-@login_required
-@permission_required("mass_edit_users")
-def bulk_user_operations(body: BulkBody):
+@jwt_required_with_user()
+@jwt_permission_required("mass_edit_users")
+def bulk_user_operations(body: BulkBody, current_user):
     request_id = uuid4().hex
     user_uuids = body.user_uuids
     operations = body.operations

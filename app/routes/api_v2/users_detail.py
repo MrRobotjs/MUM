@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Optional
 
 from flask import jsonify
-from flask_login import login_required
+from app.utils.jwt_decorators import jwt_required_with_user, jwt_permission_required
 from pydantic import BaseModel, Field
 from flask_openapi3 import Tag
 
@@ -126,8 +126,8 @@ def _to_detail(u: User) -> dict:
     summary="Get user detail",
     responses={200: UserDetail, 404: ErrorResponse},
 )
-@login_required
-def get_user(path: UserPath):
+@jwt_required_with_user()
+def get_user(path: UserPath, current_user):
     user = User.query.filter_by(uuid=path.uuid).first()
     if not user:
         return jsonify({"error": {"code": "NOT_FOUND", "message": "User not found"}}), 404

@@ -4,7 +4,7 @@ from datetime import datetime
 from uuid import uuid4
 
 from flask import jsonify, current_app
-from flask_login import login_required, current_user
+from app.utils.jwt_decorators import jwt_required_with_user
 from pydantic import BaseModel, Field, field_validator
 
 from app.extensions import db
@@ -89,19 +89,19 @@ class ErrorResponse(BaseModel):
     meta: MetaModel
 
 
-def _serialize_account_payload() -> dict:
-    prefs = UserPreferences.get_timezone_preference(current_user.id)
+def _serialize_account_payload(user: User) -> dict:
+    prefs = UserPreferences.get_timezone_preference(user.id)
 
     user_payload = {
-        "uuid": current_user.uuid,
-        "username": current_user.localUsername,
-        "email": current_user.email or current_user.discord_email,
-        "display_name": getattr(current_user, "get_display_name", lambda: None)(),
-        "user_type": current_user.userType.value if hasattr(current_user.userType, "value") else str(current_user.userType),
-        "force_password_change": bool(getattr(current_user, "force_password_change", False)),
-        "has_password": bool(current_user.password_hash),
-        "last_login_at": current_user.last_login_at.isoformat() if current_user.last_login_at else None,
-        "is_owner": current_user.userType == UserType.OWNER,
+        "uuid": user.uuid,
+        "username": user.localUsername,
+        "email": user.email or user.discord_email,
+        "display_name": getattr(user, "get_display_name", lambda: None)(),
+        "user_type": user.userType.value if hasattr(user.userType, "value") else str(user.userType),
+        "force_password_change": bool(getattr(user, "force_password_change", False)),
+        "has_password": bool(user.password_hash),
+        "last_login_at": user.last_login_at.isoformat() if user.last_login_at else None,
+        "is_owner": user.userType == UserType.OWNER,
     }
 
     return {
@@ -124,12 +124,12 @@ def _serialize_account_payload() -> dict:
     summary="Get account",
     responses={200: AccountResponse},
 )
-@login_required
-def get_account():
+@jwt_required_with_user()
+def get_account(current_user):
     request_id = str(uuid4())
 
     response = {
-        "data": _serialize_account_payload(),
+        "data": _serialize_account_payload(current_user),
         "meta": {
             "request_id": request_id,
             "generated_at": datetime.utcnow().isoformat() + "Z",
@@ -145,8 +145,8 @@ def get_account():
     summary="Update account timezone",
     responses={200: AccountResponse, 400: ErrorResponse, 500: ErrorResponse},
 )
-@login_required
-def update_account_timezone(body: UpdateTimezoneBody):
+@jwt_required_with_user()
+def update_account_timezone(body: UpdateTimezoneBody, current_user):
     request_id = str(uuid4())
 
     # Additional business rule: local_timezone required when preference is 'local'
@@ -188,7 +188,7 @@ def update_account_timezone(body: UpdateTimezoneBody):
         )
 
     response = {
-        "data": _serialize_account_payload(),
+        "data": _serialize_account_payload(current_user),
         "meta": {"request_id": request_id},
     }
     return jsonify(response), 200
@@ -200,8 +200,8 @@ def update_account_timezone(body: UpdateTimezoneBody):
     summary="Set initial credentials",
     responses={200: AccountResponse, 400: ErrorResponse, 409: ErrorResponse, 422: ErrorResponse, 500: ErrorResponse},
 )
-@login_required
-def set_initial_credentials(body: InitialCredentialsBody):
+@jwt_required_with_user()
+def set_initial_credentials(body: InitialCredentialsBody, current_user):
     request_id = str(uuid4())
 
     if current_user.password_hash:
@@ -264,7 +264,7 @@ def set_initial_credentials(body: InitialCredentialsBody):
     )
 
     response = {
-        "data": _serialize_account_payload(),
+        "data": _serialize_account_payload(current_user),
         "meta": {"request_id": request_id},
     }
     return jsonify(response), 200

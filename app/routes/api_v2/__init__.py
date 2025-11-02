@@ -51,4 +51,5 @@ from . import streams  # noqa: E402,F401
 from . import statistics  # noqa: E402,F401
 from . import history  # noqa: E402,F401
 from . import auth  # noqa: E402,F401
+from . import auth_deprecated  # noqa: E402,F401
 from . import media_proxy  # noqa: E402,F401

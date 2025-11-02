@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+// Images use cookie-based auth; no token param needed
 import { StreamingTable, StreamingSummaryCard, StreamingSettingsModal } from '../components/dashboard';
 import { useServers } from '../hooks/useServers';
 import { useStreamingSettings } from '../hooks/useStreamingSettings';
@@ -468,7 +469,7 @@ export const StreamingPage = () => {
                 <div className="w-30 h-45 rounded">
                   {session.thumb_url ? (
                     <img
-                      src={session.thumb_url}
+                      src={session.thumb_url || ''}
                       alt={`${session.media_title} Poster`}
                       className="w-full h-full object-cover"
                       loading="lazy"
@@ -500,7 +501,7 @@ export const StreamingPage = () => {
                       <div className="avatar avatar-xs mr-1.5">
                         <div className="w-4 h-4 rounded-full">
                           <img
-                            src={session.user_avatar_url}
+                            src={session.user_avatar_url || ''}
                             alt={`${session.user} avatar`}
                             onError={(e) => {
                               e.currentTarget.style.display = 'none';

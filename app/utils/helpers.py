@@ -1,11 +1,15 @@
 # File: app/utils/helpers.py
 import re
 from datetime import datetime, timezone, timedelta
-from flask_wtf.csrf import generate_csrf
+# CSRF removed (JWT-only)
 from app.utils.timezone_utils import to_app_timezone, format_datetime_human as tz_format_datetime_human
 from flask import current_app, flash, url_for, g as flask_g, redirect, request # Use flask_g to avoid conflict with local g
 from functools import wraps
-from flask_login import current_user
+# Prefer JWT current_user, fall back to None
+try:
+    from flask_jwt_extended import current_user as jwt_current_user
+except Exception:  # pragma: no cover - optional
+    jwt_current_user = None
 from sqlalchemy import inspect
 # app.models import HistoryLog, EventType # This creates circular import if models also import helpers
 # from app.extensions import db # Same here
@@ -72,7 +76,7 @@ def log_event(event_type, message: str, details: dict = None, # Removed type hin
     """Logs an event to the HistoryLog. Gracefully handles DB not ready."""
     from app.models import HistoryLog, EventType as EventTypeEnum # Local import for models and Enum
     from app.extensions import db # Local import for db
-    from flask_login import current_user # Local import for current_user
+    # Use JWT current_user if available
 
     if not isinstance(event_type, EventTypeEnum): # Use the imported Enum
         current_app.logger.error(f"Invalid event_type provided to log_event: {event_type}")
@@ -98,10 +102,15 @@ def log_event(event_type, message: str, details: dict = None, # Removed type hin
             details=details or {}
         )
 
-        if admin_id is None and current_user and current_user.is_authenticated and hasattr(current_user, 'id'):
+        cu = None
+        try:
+            cu = jwt_current_user
+        except Exception:
+            cu = None
+        if admin_id is None and cu and hasattr(cu, 'id'):
             from app.models import UserType
-            if current_user.userType == UserType.OWNER:
-                log_entry.admin_id = current_user.id
+            if cu.userType == UserType.OWNER:
+                log_entry.admin_id = cu.id
         elif admin_id: # Ensure explicitly passed admin_id is used
              log_entry.admin_id = admin_id
 
@@ -132,8 +141,8 @@ def log_event(event_type, message: str, details: dict = None, # Removed type hin
 
 
 def get_csrf_token():
-    """Generate a CSRF token using Flask-WTF's generator."""
-    return generate_csrf()
+    """JWT-only mode: CSRF tokens are not used."""
+    return ""
 
 def calculate_expiry_date(days: int) -> datetime | None:
     if days is None or days <= 0: return None

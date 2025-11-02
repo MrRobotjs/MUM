@@ -2,13 +2,13 @@ from __future__ import annotations
 
 from uuid import uuid4
 from flask import jsonify, request, current_app
-from flask_login import login_required, current_user
+from app.utils.jwt_decorators import jwt_required_with_user, jwt_permission_required
 from pydantic import BaseModel, Field
 from flask_openapi3 import Tag
 
 from app.routes.api_v2 import api_v2
 from app.models import Setting, EventType
-from app.utils.helpers import permission_required, log_event
+# JWT permission checking handled by jwt_permission_required, log_event
 from app.services.media_service_manager import MediaServiceManager
 from app.services.media_service_factory import MediaServiceFactory
 from app.extensions import db
@@ -54,9 +54,9 @@ class StreamingSettingsResponse(BaseModel):
     summary="Get streaming settings",
     responses={200: StreamingSettingsResponse},
 )
-@login_required
-@permission_required('administrator')
-def get_streaming_settings():
+@jwt_required_with_user()
+@jwt_permission_required('administrator')
+def get_streaming_settings(current_user):
     request_id = uuid4().hex
     data = _load_streaming_settings()
     return jsonify({'data': data, 'meta': {'request_id': request_id, 'deprecated': False}})
@@ -84,9 +84,9 @@ class ErrorResponse(BaseModel):
     summary="Update streaming settings",
     responses={200: StreamingSettingsResponse, 400: ErrorResponse, 500: ErrorResponse},
 )
-@login_required
-@permission_required('administrator')
-def update_streaming_settings(body: UpdateStreamingBody):
+@jwt_required_with_user()
+@jwt_permission_required('administrator')
+def update_streaming_settings(body: UpdateStreamingBody, current_user):
     request_id = uuid4().hex
     enable_badge = bool(body.enable_navbar_stream_badge)
     interval_value = body.session_monitoring_interval
@@ -123,9 +123,9 @@ class ActiveSessionsResponse(BaseModel):
     summary="Get currently active streaming sessions",
     responses={200: ActiveSessionsResponse, 500: ErrorResponse},
 )
-@login_required
-@permission_required('administrator')
-def get_active_sessions():
+@jwt_required_with_user()
+@jwt_permission_required('administrator')
+def get_active_sessions(current_user):
     request_id = uuid4().hex
     try:
         all_servers = MediaServiceManager.get_all_servers()
@@ -176,9 +176,9 @@ class TerminateResponse(BaseModel):
     summary="Terminate an active streaming session",
     responses={200: TerminateResponse, 400: TerminateResponse, 404: TerminateResponse, 500: TerminateResponse},
 )
-@login_required
-@permission_required('administrator')
-def terminate_session(body: TerminateBody):
+@jwt_required_with_user()
+@jwt_permission_required('administrator')
+def terminate_session(body: TerminateBody, current_user):
     request_id = uuid4().hex
     session_key = body.session_key
     service_type = body.service_type

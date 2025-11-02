@@ -4,7 +4,7 @@ from uuid import uuid4
 from datetime import datetime
 
 from flask import jsonify
-from flask_login import login_required
+from app.utils.jwt_decorators import jwt_required_with_user, jwt_permission_required
 from pydantic import BaseModel, Field
 from flask_openapi3 import Tag
 
@@ -77,8 +77,8 @@ def _serialize_session(session_dict: dict) -> dict:
     summary="Active stream preview for dashboard",
     responses={200: StreamsActiveResponse},
 )
-@login_required
-def get_active_streams():
+@jwt_required_with_user()
+def get_active_streams(current_user):
     request_id = str(uuid4())
     sessions = []
     try:

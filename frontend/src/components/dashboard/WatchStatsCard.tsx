@@ -2,6 +2,7 @@ import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAdminApi } from '../../hooks/useAdminApi';
 import { DashboardCard } from './DashboardLayout';
+// Images use cookie-based auth; no token param needed
 import {
   IconRefresh,
   IconMovie,
@@ -71,7 +72,7 @@ const MediaList = ({ items, type }: { items: Array<{ title?: string; name?: stri
       return (
         <li key={index} className="flex items-center gap-3 rounded-lg border bg-card p-2 transition-colors hover:bg-accent/50">
           <Avatar className="h-12 w-12 rounded-md">
-            <AvatarImage src={item.poster_url} alt={title} className="object-cover" />
+            <AvatarImage src={item.poster_url || ''} alt={title} className="object-cover" />
             <AvatarFallback className="rounded-md bg-primary/10 text-primary">
               {type === 'movie' ? <IconMovie className="h-5 w-5" /> : <IconDeviceTv className="h-5 w-5" />}
             </AvatarFallback>

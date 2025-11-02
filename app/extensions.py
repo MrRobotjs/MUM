@@ -1,13 +1,11 @@
 # File: app/extensions.py
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
-from flask_login import LoginManager
-from flask_wtf.csrf import CSRFProtect
-from flask_session import Session # If using Flask-Session
 from flask_apscheduler import APScheduler
 from flask_babel import Babel
 from flask_socketio import SocketIO
 from flask_caching import Cache
+from flask_jwt_extended import JWTManager
 
 # Database
 db = SQLAlchemy()
@@ -15,21 +13,7 @@ db = SQLAlchemy()
 # Migrations
 migrate = Migrate()
 
-# Login Manager
-login_manager = LoginManager()
-# Users who are not logged in and try to access a protected page will be redirected by the unauthorized_handler below
-login_manager.login_view = 'auth.admin_login'  # Fallback if handler fails
-login_manager.login_message_category = 'info'
-login_manager.needs_refresh_message_category = "info"
-# login_manager.session_protection = "strong" # Can help prevent session fixation
-
-# Custom unauthorized handler will be attached in app/__init__.py to properly route to admin or user login pages
-
-# CSRF Protection
-csrf = CSRFProtect()
-
-# Server-side Session (optional, if you choose to use it over default client-side sessions)
-# server_session = Session()
+## Flask-Login and CSRF removed (JWT-only)
 
 # APScheduler for background tasks
 scheduler = APScheduler()
@@ -61,3 +45,6 @@ class JSONEncodedDict(TypeDecorator):
         if value is not None:
             return json.loads(value)
         return value
+
+# JWT Manager (configured in app/__init__.py)
+jwt = JWTManager()

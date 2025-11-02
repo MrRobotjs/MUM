@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Optional
 
 from flask import jsonify, current_app
-from flask_login import login_required, current_user
+from app.utils.jwt_decorators import jwt_required_with_user, jwt_permission_required
 from pydantic import BaseModel, Field, field_validator
 from flask_openapi3 import Tag
 
@@ -131,8 +131,8 @@ def _invite_item(i: Invite) -> dict:
     summary="List invites",
     responses={200: InvitesListResponse},
 )
-@login_required
-def list_invites(query: InvitesQuery):
+@jwt_required_with_user()
+def list_invites(query: InvitesQuery, current_user):
     q = Invite.query
 
     # Server filter
@@ -198,8 +198,8 @@ def list_invites(query: InvitesQuery):
     summary="Create invite",
     responses={201: InviteItem, 409: ErrorResponse, 422: ErrorResponse},
 )
-@login_required
-def create_invite(body: CreateInviteBody):
+@jwt_required_with_user()
+def create_invite(body: CreateInviteBody, current_user):
     # Unique custom_path if provided
     if body.custom_path:
         exists = Invite.query.filter_by(custom_path=body.custom_path).first()
@@ -245,8 +245,8 @@ class InvitePath(BaseModel):
     summary="Get invite",
     responses={200: InviteItem, 404: ErrorResponse},
 )
-@login_required
-def get_invite(path: InvitePath):
+@jwt_required_with_user()
+def get_invite(path: InvitePath, current_user):
     inv = Invite.query.get(path.invite_id)
     if not inv:
         return jsonify({"error": {"code": "NOT_FOUND", "message": "Invite not found"}}), 404
@@ -268,8 +268,8 @@ class UpdateInviteBody(BaseModel):
     summary="Update invite",
     responses={200: InviteItem, 404: ErrorResponse},
 )
-@login_required
-def update_invite(path: InvitePath, body: UpdateInviteBody):
+@jwt_required_with_user()
+def update_invite(path: InvitePath, body: UpdateInviteBody, current_user):
     inv = Invite.query.get(path.invite_id)
     request_id = __import__("uuid").uuid4().hex
     if not inv:
@@ -301,8 +301,8 @@ def update_invite(path: InvitePath, body: UpdateInviteBody):
     summary="Delete invite",
     responses={200: InviteItem, 404: ErrorResponse},
 )
-@login_required
-def delete_invite(path: InvitePath):
+@jwt_required_with_user()
+def delete_invite(path: InvitePath, current_user):
     inv = Invite.query.get(path.invite_id)
     if not inv:
         return jsonify({"error": {"code": "NOT_FOUND", "message": "Invite not found"}}), 404
@@ -360,8 +360,8 @@ class InviteSummaryResponse(BaseModel):
     summary="Get invites summary",
     responses={200: InviteSummaryResponse},
 )
-@login_required
-def invite_summary():
+@jwt_required_with_user()
+def invite_summary(current_user):
     request_id = __import__("uuid").uuid4().hex
     from app.utils.timezone_utils import utcnow
     now = utcnow()

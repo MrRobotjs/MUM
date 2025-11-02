@@ -4,7 +4,7 @@ from uuid import uuid4
 from typing import Optional, Any
 
 from flask import jsonify
-from flask_login import login_required
+from app.utils.jwt_decorators import jwt_required_with_user, jwt_permission_required
 from pydantic import BaseModel, Field
 from flask_openapi3 import Tag
 
@@ -65,8 +65,8 @@ class ErrorResponse(BaseModel):
     summary="Get raw user data for debugging",
     responses={200: DebugResponse, 400: ErrorResponse, 404: ErrorResponse},
 )
-@login_required
-def get_user_debug_data(path: UserPath):
+@jwt_required_with_user()
+def get_user_debug_data(path: UserPath, current_user):
     """Get raw user data for debugging purposes - returns JSON"""
     request_id = uuid4().hex
 

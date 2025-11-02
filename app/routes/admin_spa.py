@@ -7,7 +7,6 @@ for any /admin routes not handled by API or legacy blueprints.
 """
 
 from flask import Blueprint, send_from_directory, current_app, request
-from flask_login import login_required
 from app.utils.helpers import setup_required
 import os
 
@@ -17,7 +16,6 @@ admin_spa_bp = Blueprint('admin_spa', __name__)
 
 @admin_spa_bp.route('/', defaults={'path': ''})
 @admin_spa_bp.route('/<path:path>')
-@login_required
 @setup_required
 def serve_spa(path):
     """

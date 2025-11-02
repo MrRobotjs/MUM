@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from flask import jsonify
-from flask_login import login_required
+from app.utils.jwt_decorators import jwt_required_with_user, jwt_permission_required
 from pydantic import BaseModel
 from pydantic import ConfigDict
 from flask_openapi3 import Tag
@@ -49,8 +49,8 @@ class LibrarySyncResponse(BaseModel):
     summary="Sync library content",
     responses={200: LibrarySyncResponse, 404: ErrorResponse, 500: ErrorResponse},
 )
-@login_required
-def v2_sync_library_content(path: LibraryPath):
+@jwt_required_with_user()
+def v2_sync_library_content(path: LibraryPath, current_user):
     from flask import current_app
     from app.services.media_sync_service import MediaSyncService
     from app.models_media_services import MediaLibrary
@@ -122,8 +122,8 @@ class LibraryPurgeResponse(BaseModel):
     summary="Purge cached media items for a library",
     responses={200: LibraryPurgeResponse, 404: ErrorResponse, 500: ErrorResponse},
 )
-@login_required
-def v2_purge_library_content(path: LibraryPath):
+@jwt_required_with_user()
+def v2_purge_library_content(path: LibraryPath, current_user):
     from flask import current_app
     from app.extensions import db
     from app.models_media_services import MediaLibrary, MediaItem

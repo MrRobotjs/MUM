@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { IconUserPlus, IconPencil, IconKey, IconTrash, IconSearch, IconShield, IconLock, IconUsersGroup, IconAlertCircle, IconCheck } from '@tabler/icons-react'
+import { IconUserPlus, IconPencil, IconKey, IconTrash, IconSearch, IconShield, IconLock, IconUsersGroup, IconAlertCircle, IconCheck, IconInfoCircle } from '@tabler/icons-react'
 import { requestJson } from '../util/apiClient'
 import { useAlerts } from '../contexts'
 import { useAuth } from '../contexts/AuthContext'
@@ -295,17 +295,11 @@ const AdminsSettingsPage = () => {
           </div>
 
           <Alert variant="info">
-            <div className="flex items-start gap-3">
-              <div className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-info/20">
-                <IconAlertCircle className="size-3 text-info" />
-              </div>
-              <div>
-                <AlertTitle>Admin Guidelines</AlertTitle>
-                <AlertDescription>
-                  The primary owner cannot be edited or deleted. You cannot modify your own account for security reasons.
-                </AlertDescription>
-              </div>
-            </div>
+            <IconInfoCircle />
+            <AlertTitle>Admin Guidelines</AlertTitle>
+            <AlertDescription>
+              The primary owner cannot be edited or deleted. You cannot modify your own account for security reasons.
+            </AlertDescription>
           </Alert>
         </CardContent>
       </Card>

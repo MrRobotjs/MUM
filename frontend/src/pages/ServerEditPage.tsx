@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from '@tanstack/react-router';
 import { IconWifi, IconCheck, IconX, IconAlertCircle } from '@tabler/icons-react';
 import { PageHeader } from '../components';
 import { FormField } from '../components';

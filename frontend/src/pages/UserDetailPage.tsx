@@ -1,6 +1,6 @@
 import { ReactNode, useMemo, useState } from 'react';
 import clsx from 'clsx';
-import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from '@tanstack/react-router';
 import { useToast } from '../util/toast';
 import { useUserDetail, UserDetail, UserHistoryEntry } from '../hooks/useUserDetail';
 import { useUserHistory } from '../hooks/useUserHistory';

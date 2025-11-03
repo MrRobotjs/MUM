@@ -6,6 +6,14 @@ interface StreamingUpdate {
   active_count: number;
   timestamp?: string;
   live_services?: string[];
+  // Optional per-session snapshots for real-time corrections (e.g., Plex backend)
+  sessions?: Array<{
+    session_key: string;
+    current_time?: string;
+    state?: string;
+    service_type?: string;
+    duration?: string;
+  }>;
   summary?: {
     counts?: {
       total: number;
@@ -84,8 +92,8 @@ export const useStreamingWebSocket = (options: UseStreamingWebSocketOptions = {}
     });
 
     socket.on('connect', () => {
-      console.log('[WebSocket] Connected to streaming updates');
       setIsConnected(true);
+      // Request streaming updates channel
       socket.emit('subscribe_streaming');
     });
 
@@ -95,17 +103,25 @@ export const useStreamingWebSocket = (options: UseStreamingWebSocketOptions = {}
     });
 
     socket.on('disconnect', () => {
-      console.log('[WebSocket] Disconnected from streaming updates');
       setIsConnected(false);
       setLiveServices([]);
     });
 
-    socket.on('subscribed', (data: { channel: string }) => {
-      console.log('[WebSocket] Subscribed to', data.channel);
+    socket.on('subscribed', (_data: { channel: string }) => {
+      // no-op
+    });
+
+    // Log any socket.io event to help diagnose missing payloads
+    socket.onAny((event, ...args) => {
+      try {
+        const payload = args && args.length ? args[0] : undefined
+        console.log('[WebSocket] Event:', event, payload)
+      } catch {
+        console.log('[WebSocket] Event:', event)
+      }
     });
 
     socket.on('streaming_update', (data: StreamingUpdate) => {
-      console.log('[WebSocket] Received streaming update:', data);
       setActiveCount(data.active_count);
       setLastUpdate(new Date());
       setLiveServices((data.live_services ?? []).map((service) => service.toLowerCase()));
@@ -115,8 +131,8 @@ export const useStreamingWebSocket = (options: UseStreamingWebSocketOptions = {}
       }
     });
 
-    socket.on('connect_error', (error) => {
-      console.error('[WebSocket] Connection error:', error);
+    socket.on('connect_error', (_error) => {
+      // no-op
     });
 
     socketRef.current = socket;

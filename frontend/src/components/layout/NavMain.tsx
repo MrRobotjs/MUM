@@ -2,7 +2,7 @@
 
 import { type Icon } from "@tabler/icons-react"
 import { type ReactNode } from "react"
-import { NavLink } from "react-router-dom"
+import { Link } from "@tanstack/react-router"
 import { IconDots } from "@tabler/icons-react"
 
 import {
@@ -55,10 +55,10 @@ export function NavMain({
           {items.map((item) => (
             <SidebarMenuItem key={item.title}>
               <SidebarMenuButton asChild tooltip={item.title} isActive={item.isActive}>
-                <NavLink to={item.url} onClick={handleNavLinkClick}>
+                <Link to={item.url} onClick={handleNavLinkClick}>
                   {item.icon && <item.icon />}
                   <span>{item.title}</span>
-                </NavLink>
+                </Link>
               </SidebarMenuButton>
               {item.statusIndicator && (
                 <span

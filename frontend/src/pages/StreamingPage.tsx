@@ -166,26 +166,31 @@ export const StreamingPage = () => {
   const liveServicesRef = useRef<string[]>([]);
   const lastUpdateRef = useRef<Date | null>(null);
   const truthTimeoutRef = useRef<number | null>(null);
+  const [wsTruthActive, setWsTruthActive] = useState(false);
   const [bootstrapping, setBootstrapping] = useState(true);
 
-  const websocketTruthIntervalMs = websocketTruthIntervalSeconds * 1000;
+  // Simplified: Only refresh truth every 30s on the frontend. In between, we tick locally.
+  const TRUTH_REFRESH_MS = 30_000;
+  // Debug logs removed for production
 
   const fetchActiveSessions = useCallback(
     async (options?: { silent?: boolean; force?: boolean; reason?: 'websocket' | 'timeout' | 'manual' | 'interval-change' | 'initial' }) => {
+      if (wsTruthActive) {
+        // WS is authoritative; skip HTTP backstop
+        return;
+      }
       const silent = options?.silent ?? false;
       const force = options?.force ?? false;
       const reason = options?.reason ?? 'manual';
       const previousUpdateAt = lastUpdateRef.current;
       const now = new Date();
-      const hasNonWebsocketServers = mediaServers.some((server) => server.service_type !== 'plex');
-      if (!hasNonWebsocketServers && (reason === 'manual' || reason === 'initial' || reason === 'interval-change')) {
-        return;
-      }
+      // Always allow an initial fetch to bootstrap UI even if all services provide live timestamps via websocket.
+      // no-op debug removed
       const shouldFetch =
         !silent ||
         force ||
         !previousUpdateAt ||
-        now.getTime() - previousUpdateAt.getTime() >= websocketTruthIntervalMs;
+        now.getTime() - previousUpdateAt.getTime() >= TRUTH_REFRESH_MS;
 
       if (!shouldFetch) {
         setBootstrapping(false);
@@ -202,7 +207,8 @@ export const StreamingPage = () => {
         const response = await requestJson<ActiveSessionsResponse>('/admin/api/v2/streaming/active');
         setActiveSessions(response);
         const fetchCompletedAt = new Date();
-        const liveServicesCurrent = new Set(liveServicesRef.current);
+        // no-op debug removed
+        const liveServicesCurrent = new Set(['plex', ...liveServicesRef.current]);
         setSessionOffsets((previous) => {
           const offsets: Record<string, number> = {};
           response.sessions.forEach((session) => {
@@ -225,6 +231,7 @@ export const StreamingPage = () => {
                 const predicted = previousBase + elapsed;
                 if (predicted > value && predicted - value <= 3) {
                   value = predicted;
+                  // no-op debug removed
                 }
               }
             }
@@ -239,9 +246,14 @@ export const StreamingPage = () => {
         if (truthTimeoutRef.current) {
           window.clearTimeout(truthTimeoutRef.current);
         }
-        truthTimeoutRef.current = window.setTimeout(() => {
-          fetchActiveSessions({ silent: true, reason: 'timeout', force: true });
-        }, websocketTruthIntervalMs);
+        // Always refresh truth every 30s from the frontend.
+        // Only schedule HTTP truth refresh if WS truth has not become active
+        if (!wsTruthActive) {
+          truthTimeoutRef.current = window.setTimeout(() => {
+          // no-op debug removed
+            fetchActiveSessions({ silent: true, reason: 'timeout', force: true });
+          }, TRUTH_REFRESH_MS);
+        }
       } catch (error) {
         console.error('Failed to fetch active sessions:', error);
       } finally {
@@ -251,21 +263,46 @@ export const StreamingPage = () => {
         setBootstrapping(false);
       }
     },
-    [websocketTruthIntervalMs, mediaServers]
+    [TRUTH_REFRESH_MS, mediaServers, wsTruthActive]
   );
 
   // Use WebSocket for real-time updates instead of polling
   const { isConnected, liveServices } = useStreamingWebSocket({
     autoConnect: true,
-    onUpdate: (data) => {
+    onUpdate: (data: any) => {
+      // no-op debug removed
       if (Array.isArray(data.live_services)) {
         liveServicesRef.current = data.live_services.map((service) =>
           String(service).toLowerCase()
         );
       }
-      // When we receive a WebSocket update, refresh the active sessions
-      console.log('[StreamingPage] WebSocket update received, refreshing sessions');
-      fetchActiveSessions({ silent: true, reason: 'websocket' });
+      // Only accept websocket session snapshots at the 30s cadence; otherwise ignore to keep smooth ticking
+      if (Array.isArray(data.sessions) && data.sessions.length > 0) {
+        const now = new Date()
+        const last = lastUpdateRef.current
+        const elapsed = last ? (now.getTime() - last.getTime()) : Infinity
+        if (elapsed >= TRUTH_REFRESH_MS || !last) {
+          // no-op debug removed
+          const offsets: Record<string, number> = {}
+          for (const s of data.sessions as Array<{ session_key: string; current_time?: string }>) {
+            if (!s.session_key) continue
+            offsets[s.session_key] = parseDurationToSeconds(s.current_time)
+          }
+          setSessionOffsets(offsets)
+          setLastUpdateAt(now)
+          lastUpdateRef.current = now
+          setWsTruthActive(true)
+          // Reschedule truth timer from now
+          if (truthTimeoutRef.current) {
+            window.clearTimeout(truthTimeoutRef.current)
+            truthTimeoutRef.current = null
+          }
+        } else {
+          // no-op debug removed
+        }
+      }
+      // Do not refetch on every websocket event; truth fetch is driven by a timeout (every ~30s)
+      // no-op debug removed
     }
   });
 
@@ -273,31 +310,48 @@ export const StreamingPage = () => {
     liveServicesRef.current = liveServices;
   }, [liveServices]);
 
+  // Consider Plex as a live service by default so interpolation works even before first WS payload
   const liveServiceSet = useMemo(
-    () => new Set(liveServices.map((service) => service.toLowerCase())),
+    () => new Set(['plex', ...liveServices.map((service) => service.toLowerCase())]),
     [liveServices]
   );
 
+  // Bootstrap: if no WS truth arrives promptly, do a one-time HTTP fetch
   useEffect(() => {
-    fetchActiveSessions({ silent: false, reason: 'initial' });
-  }, [fetchActiveSessions]);
+    const t = window.setTimeout(() => {
+      if (!lastUpdateRef.current && !wsTruthActive) {
+        fetchActiveSessions({ silent: false, reason: 'initial' })
+      }
+    }, 5000)
+    return () => window.clearTimeout(t)
+  }, [fetchActiveSessions, wsTruthActive])
 
-  useEffect(() => {
-    fetchActiveSessions({ silent: false, reason: 'interval-change' });
-  }, [websocketTruthIntervalSeconds, fetchActiveSessions]);
+  // No interval-change fetches; rely on WS cadence.
 
   useEffect(() => {
     // Drive a lightweight animation tick so we can advance "playing" sessions locally
-    // between source-of-truth refreshes. This keeps the UI feeling live without
-    // hammering Plex for every heartbeat.
-    const interval = window.setInterval(() => {
-      forceTick((prev) => prev + 1);
-    }, 1000);
+    // between source-of-truth refreshes. Using requestAnimationFrame avoids timer clamping
+    // in background tabs and provides smoother updates while still only committing once/sec.
+    let rafId: number | null = null
+    let lastSecondEmitted = -1
+
+    const loop = () => {
+      const nowSec = Math.floor(Date.now() / 1000)
+      if (nowSec !== lastSecondEmitted) {
+        lastSecondEmitted = nowSec
+        forceTick((prev) => prev + 1)
+      }
+      rafId = window.requestAnimationFrame(loop)
+    }
+
+    rafId = window.requestAnimationFrame(loop)
 
     return () => {
-      window.clearInterval(interval);
-    };
-  }, []);
+      if (rafId !== null) {
+        window.cancelAnimationFrame(rafId)
+      }
+    }
+  }, [])
 
   useEffect(() => {
     return () => {
@@ -370,6 +424,25 @@ export const StreamingPage = () => {
   const handleManualRefresh = () => {
     fetchActiveSessions({ silent: false, reason: 'manual' });
   };
+
+  // Countdown to next truth snapshot (30s cadence). Resets when lastUpdateAt is set
+  const nextTruthSec = useMemo(() => {
+    if (!lastUpdateAt) return null;
+    const msRemaining = TRUTH_REFRESH_MS - (Date.now() - lastUpdateAt.getTime());
+    return Math.max(0, Math.ceil(msRemaining / 1000));
+  }, [lastUpdateAt, /* update once per second */ tick]);
+
+  // Debug: log ticking and interpolation context every 5 seconds
+  useEffect(() => {
+    if (!activeSessions) return
+    if (tick % 5 !== 0) return
+    const playingLive = activeSessions.sessions.filter((s) => {
+      const st = s.service_type?.toLowerCase() || ''
+      return (st === 'plex' || liveServiceSet.has(st)) && s.state?.toLowerCase() === 'playing'
+    }).length
+    const baselineSec = lastUpdateAt ? Math.round((Date.now() - lastUpdateAt.getTime()) / 1000) : 0
+    // no-op debug removed
+  }, [tick, activeSessions, lastUpdateAt, sessionOffsets, liveServiceSet])
 
   const hasLiveWebsocketSessions = Boolean(
     sessionsData?.sessions?.some((session) =>
@@ -837,6 +910,11 @@ export const StreamingPage = () => {
               <Badge variant="secondary">{sessionsData.total_count}</Badge>
             )}
           </div>
+          {nextTruthSec !== null ? (
+            <div className="text-xs text-base-content/60" title="Time until next truth snapshot">
+              Next sync in {nextTruthSec}s
+            </div>
+          ) : null}
         </div>
 
         {bootstrapping || (loading && !sessionsData) ? (

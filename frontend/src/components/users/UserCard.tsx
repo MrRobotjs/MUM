@@ -1,7 +1,7 @@
 
 import { useState, useEffect } from 'react';
 import clsx from 'clsx';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from '@tanstack/react-router';
 import { buildUserProfilePath } from '../../util/routes';
 import type { UserRow } from './UsersTable';
 import { Checkbox } from '../ui/checkbox';

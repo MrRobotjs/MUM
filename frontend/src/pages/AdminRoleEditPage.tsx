@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearch } from '@tanstack/react-router'
 import { IconArrowLeft, IconPalette, IconKey, IconUsers, IconPencil, IconAlertCircle, IconInfoCircle } from '@tabler/icons-react'
 import { useAdminRoles, useAdminPermissions } from '../hooks/useAdminRoles'
 import { Button } from '@/components/ui/button'
@@ -12,19 +12,19 @@ import { AdminRoleMembersTab } from '../components/roles/AdminRoleMembersTab'
 export const AdminRoleEditPage = () => {
   const { roleId } = useParams<{ roleId: string }>()
   const navigate = useNavigate()
-  const [searchParams, setSearchParams] = useSearchParams()
+  const search = useSearch()
   const { roles, loading, refresh } = useAdminRoles(true, true)
   const { permissions } = useAdminPermissions()
 
-  const activeTab = searchParams.get('tab') || 'display'
+  const activeTab = (search as any).tab || 'display'
   const role = roles.find((r) => r.id === roleId)
 
   const handleTabChange = (value: string) => {
-    setSearchParams({ tab: value })
+    navigate({ search: (prev: any) => ({ ...prev, tab: value }) })
   }
 
   const handleBack = () => {
-    navigate('/admin/settings/admin-roles')
+    navigate({ to: '/admin/settings/admin-roles' })
   }
 
   if (loading) {

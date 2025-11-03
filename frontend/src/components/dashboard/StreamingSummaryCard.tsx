@@ -3,7 +3,7 @@ import { useStreamingSummary } from '../../hooks/useStreamingSummary';
 import { useStreamingWebSocket } from '../../hooks/useStreamingWebSocket';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
-import { Link } from 'react-router-dom';
+import { Link } from '@tanstack/react-router';
 
 const countCardClasses = ['bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300', 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300', 'bg-muted text-foreground'];
 

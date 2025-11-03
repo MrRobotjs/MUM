@@ -1,4 +1,4 @@
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearch } from '@tanstack/react-router'
 import { IconArrowLeft, IconPalette, IconPencil, IconUsers, IconAlertCircle, IconInfoCircle } from '@tabler/icons-react'
 import { useUserRoles } from '../hooks/useUserRoles'
 import { Button } from '@/components/ui/button'
@@ -10,18 +10,18 @@ import { UserRoleMembersTab } from '../components/roles/UserRoleMembersTab'
 export const UserRoleEditPage = () => {
   const { roleId } = useParams<{ roleId: string }>()
   const navigate = useNavigate()
-  const [searchParams, setSearchParams] = useSearchParams()
+  const search = useSearch()
   const { roles, loading, refresh } = useUserRoles(true)
 
-  const activeTab = searchParams.get('tab') || 'display'
+  const activeTab = (search as any).tab || 'display'
   const role = roles.find((r) => r.id === roleId)
 
   const handleTabChange = (value: string) => {
-    setSearchParams({ tab: value })
+    navigate({ search: (prev: any) => ({ ...prev, tab: value }) })
   }
 
   const handleBack = () => {
-    navigate('/admin/settings/user-roles')
+    navigate({ to: '/admin/settings/user-roles' })
   }
 
   if (loading) {

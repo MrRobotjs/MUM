@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from '@tanstack/react-router';
 import clsx from 'clsx';
 import { useLibraries, type Library } from '../hooks/useLibraries';
 import { useServers, type Server } from '../hooks/useServers';

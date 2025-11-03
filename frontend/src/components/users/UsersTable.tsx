@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Pagination } from '../common/Pagination';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from '@tanstack/react-router';
 import { buildUserProfilePath } from '../../util/routes';
 import { Checkbox } from '../ui/checkbox';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';

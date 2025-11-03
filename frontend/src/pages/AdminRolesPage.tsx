@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate } from '@tanstack/react-router'
 import { IconGripVertical, IconAlertCircle, IconInfoCircle } from '@tabler/icons-react'
 import {
   DndContext,

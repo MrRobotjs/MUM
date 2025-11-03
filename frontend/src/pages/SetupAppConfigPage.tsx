@@ -1,6 +1,6 @@
 import { FormEvent, useState } from 'react';
 import { ensureCsrfToken, apiFetch } from '../util/apiClient';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from '@tanstack/react-router';
 
 export default function SetupAppConfigPage() {
   const navigate = useNavigate();

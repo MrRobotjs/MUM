@@ -17,7 +17,7 @@ import {
   IconChevronRight,
   IconBook,
 } from "@tabler/icons-react"
-import { NavLink } from "react-router-dom"
+import { Link } from "@tanstack/react-router"
 
 import {
   Collapsible,
@@ -202,10 +202,10 @@ export function NavSettings() {
                       {visibleItems.map((subItem) => (
                         <SidebarMenuSubItem key={subItem.title}>
                           <SidebarMenuSubButton asChild>
-                            <NavLink to={subItem.url} onClick={handleNavLinkClick}>
+                            <Link to={subItem.url} onClick={handleNavLinkClick}>
                               <subItem.icon />
                               <span>{subItem.title}</span>
-                            </NavLink>
+                            </Link>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
                       ))}
@@ -235,10 +235,10 @@ export function NavSettings() {
             return (
               <SidebarMenuItem key={item.title}>
                 <SidebarMenuButton asChild tooltip={item.title}>
-                  <NavLink to={item.url} onClick={handleNavLinkClick}>
+                  <Link to={item.url} onClick={handleNavLinkClick}>
                     <item.icon />
                     <span>{item.title}</span>
-                  </NavLink>
+                  </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             )

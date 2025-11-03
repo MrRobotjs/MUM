@@ -3,7 +3,7 @@ import { useInviteSummary } from '../../hooks/useInviteSummary';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
-import { Link } from 'react-router-dom';
+import { Link } from '@tanstack/react-router';
 
 const metricClassNames: Record<string, string> = {
   total: 'bg-primary/10 text-primary',

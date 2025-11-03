@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from '@tanstack/react-router';
 import { usePlugins } from '../hooks/usePlugins';
 import { useServers, type Server } from '../hooks/useServers';
 import { ServerModal, type ServerFormValues } from '../components/servers';

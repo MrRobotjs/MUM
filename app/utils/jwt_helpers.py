@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from flask import current_app
+from sqlalchemy.exc import IntegrityError
 from flask_jwt_extended import (
     create_access_token,
     create_refresh_token,
@@ -35,6 +36,9 @@ def revoke_token(jti: str, token_type: str, user_uuid: Optional[str] = None, exp
     try:
         db.session.add(TokenBlocklist(jti=jti, token_type=token_type, user_uuid=user_uuid, expires_at=expires_at))
         db.session.commit()
+    except IntegrityError:
+        # Token already revoked (duplicate jti). Treat as idempotent and ignore.
+        db.session.rollback()
     except Exception as exc:
         current_app.logger.error(f"Failed to revoke token: {exc}")
         db.session.rollback()
@@ -84,4 +88,3 @@ def register_jwt_callbacks(jwt):
             return User.query.filter_by(uuid=identity).first()
         except Exception:
             return None
-

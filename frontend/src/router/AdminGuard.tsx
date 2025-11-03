@@ -1,8 +1,12 @@
-import { Navigate, Outlet, useLocation } from 'react-router-dom';
+import { Navigate, Outlet, useLocation } from '@tanstack/react-router';
 import { useSession } from '../hooks/useSession';
 import { ApiError } from '../util/apiClient';
 
-const AdminGuard = () => {
+type Props = {
+  children?: React.ReactNode
+}
+
+const AdminGuard = ({ children }: Props) => {
   const location = useLocation();
   const { session, loading, error } = useSession();
 
@@ -33,7 +37,8 @@ const AdminGuard = () => {
     return <Navigate to="/auth/login" replace state={{ from: location.pathname }} />;
   }
 
-  return <Outlet />;
+  // If children are provided, render them, otherwise fall back to an Outlet
+  return children ? <>{children}</> : <Outlet />;
 };
 
 export default AdminGuard;

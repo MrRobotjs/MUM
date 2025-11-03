@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useParams, useSearchParams, Link } from 'react-router-dom';
+import { useParams, useSearch, useNavigate, Link } from '@tanstack/react-router';
 import { requestJson } from '../util/apiClient';
 import { useToast } from '../util/toast';
 import { Button } from '../components/ui/button';
@@ -210,7 +210,8 @@ const CollectionCard = ({ collection }: { collection: any }) => {
 
 export const LibraryDetailPage = () => {
   const { libraryId } = useParams<{ libraryId: string }>();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const search = useSearch();
+  const navigate = useNavigate();
   const { showToast } = useToast();
 
   const [library, setLibrary] = useState<Library | null>(null);
@@ -242,7 +243,7 @@ export const LibraryDetailPage = () => {
   const [activityPage, setActivityPage] = useState(1);
   const [activityTotalPages, setActivityTotalPages] = useState(1);
 
-  const activeTab = (searchParams.get('tab') as TabType) || 'overview';
+  const activeTab = ((search as any).tab as TabType) || 'overview';
 
   useEffect(() => {
     loadLibraryData();
@@ -438,7 +439,7 @@ export const LibraryDetailPage = () => {
   };
 
   const setTab = (tab: TabType) => {
-    setSearchParams({ tab });
+    navigate({ search: (prev: any) => ({ ...prev, tab }) });
   };
 
   const getServiceBadge = (serviceType?: ServiceType) => {

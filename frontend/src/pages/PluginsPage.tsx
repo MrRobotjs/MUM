@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate } from '@tanstack/react-router'
 import { IconAlertCircle, IconInfoCircle } from '@tabler/icons-react'
 
 import { usePlugins, type Plugin } from '../hooks/usePlugins'

@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/sidebar"
 import { requestJson } from "@/util/apiClient"
 import { clearAccessToken } from "@/util/tokenStore"
-import { useNavigate } from "react-router-dom"
+import { useNavigate } from "@tanstack/react-router"
 
 export function NavUser({
   user,
@@ -52,7 +52,7 @@ export function NavUser({
     } finally {
       try { window.dispatchEvent(new CustomEvent('auth_logged_out')); } catch {}
       clearAccessToken()
-      navigate('/auth/login', { replace: true })
+      navigate({ to: '/auth/login', replace: true })
     }
   }
 
@@ -113,7 +113,7 @@ export function NavUser({
               <DropdownMenuItem
                 onSelect={(event) => {
                   event.preventDefault()
-                  navigate("/admin/account")
+                  navigate({ to: "/admin/account" })
                 }}
               >
                 <IconUserCircle />
@@ -122,7 +122,7 @@ export function NavUser({
               <DropdownMenuItem
                 onSelect={(event) => {
                   event.preventDefault()
-                  navigate("/admin/settings/general")
+                  navigate({ to: "/admin/settings/general" })
                 }}
               >
                 <IconSettings />

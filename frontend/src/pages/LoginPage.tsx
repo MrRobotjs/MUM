@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from '@tanstack/react-router';
 // Login page uses a standalone layout (no app navbar)
 import { requestJson, ApiError } from '../util/apiClient';
 import { setAccessToken } from '../util/tokenStore';
@@ -20,7 +20,7 @@ const LoginPage = () => {
   const [error, setError] = useState<string | null>(null);
 
   // Prefer ?next= query, then location.state.from, else dashboard
-  const search = new URLSearchParams(location.search);
+  const search = new URLSearchParams(((location as any).searchStr) ?? (typeof window !== 'undefined' ? window.location.search : ''));
   const nextParam = search.get('next');
   const fromPath = nextParam || (location.state as LocationState | undefined)?.from || '/admin/dashboard';
 
@@ -55,7 +55,7 @@ const LoginPage = () => {
       if (token) setAccessToken(token);
 
       await refresh();
-      navigate(fromPath, { replace: true });
+      navigate({ to: fromPath, replace: true });
     } catch (err) {
       const apiError = err as ApiError;
       setError(apiError.message || 'Login failed');

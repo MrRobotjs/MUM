@@ -1,5 +1,5 @@
 import { ReactNode } from 'react';
-import { useLocation, Link } from 'react-router-dom';
+import { useLocation, Link } from '@tanstack/react-router';
 import { AppSidebar } from './AppSidebar';
 import { ModeToggle } from './ModeToggle';
 import { useAuth } from '../../contexts/AuthContext';

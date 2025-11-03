@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link, useSearchParams } from 'react-router-dom';
+import { useParams, Link, useSearch, useNavigate } from '@tanstack/react-router';
 import { requestJson } from '../util/apiClient';
 // Images are authenticated via cookie; no token param needed
 import { Button } from '../components/ui/button';
@@ -73,7 +73,8 @@ interface Episode {
 
 export const MediaDetailPage = () => {
   const { libraryId, mediaId } = useParams<{ libraryId: string; mediaId: string }>();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const search = useSearch();
+  const navigate = useNavigate();
 
   const [mediaItem, setMediaItem] = useState<MediaItem | null>(null);
   const [loading, setLoading] = useState(true);
@@ -88,7 +89,7 @@ export const MediaDetailPage = () => {
   const [episodesSortBy, setEpisodesSortBy] = useState('season_episode_asc');
   const [syncing, setSyncing] = useState(false);
 
-  const activeTab = (searchParams.get('tab') as TabType) || 'overview';
+  const activeTab = ((search as any).tab as TabType) || 'overview';
   // Check if this is a TV show library (show, tv, series, tvshows)
   const libraryType = mediaItem?.library?.library_type?.toLowerCase() || '';
   const isTVShow = ['show', 'tv', 'series', 'tvshows'].includes(libraryType);
@@ -173,7 +174,7 @@ export const MediaDetailPage = () => {
   };
 
   const setTab = (tab: TabType) => {
-    setSearchParams({ tab });
+    navigate({ search: (prev: any) => ({ ...prev, tab }) });
   };
 
   const getServiceBadge = (serviceType?: ServiceType) => {

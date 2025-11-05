@@ -314,6 +314,11 @@ class PlexWebsocketMonitor:
             except Exception:
                 limit_int = 200
 
+            # Get server nickname
+            server = MediaServer.query.get(server_id)
+            server_nickname = server.server_nickname if server else None
+            nickname_suffix = f" [{server_nickname}]" if server_nickname else ""
+            
             # Extract message type identifier
             msg_type = self._extract_message_type(text)
             type_prefix = f" {msg_type}" if msg_type else ""
@@ -321,9 +326,9 @@ class PlexWebsocketMonitor:
             if limit_int and limit_int > 0:
                 snippet = text[:limit_int]
                 suffix = " (truncated)" if len(text) > limit_int else ""
-                msg = f"PlexWebsocketMonitor: Message from server {server_id}{type_prefix}{suffix}: {snippet}"
+                msg = f"PlexWebsocketMonitor: Message from server {server_id}{nickname_suffix}{type_prefix}{suffix}: {snippet}"
             else:
-                msg = f"PlexWebsocketMonitor: Message from server {server_id}{type_prefix}: {text}"
+                msg = f"PlexWebsocketMonitor: Message from server {server_id}{nickname_suffix}{type_prefix}: {text}"
             
             # Always log to app logger
             current_app.logger.debug(msg)

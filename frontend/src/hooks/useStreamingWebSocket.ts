@@ -32,42 +32,170 @@ interface UseStreamingWebSocketOptions {
   onUpdate?: (data: StreamingUpdate) => void;
 }
 
+// Singleton socket instance shared across all components
+let globalSocket: Socket | null = null;
+let globalSocketListeners: Set<(data: StreamingUpdate) => void> = new Set();
+let globalState = {
+  isConnected: false,
+  activeCount: 0,
+  lastUpdate: null as Date | null,
+  liveServices: [] as string[],
+};
+
+// Initialize singleton socket
+function getOrCreateSocket(): Socket {
+  if (globalSocket?.connected) {
+    return globalSocket;
+  }
+
+  if (globalSocket) {
+    // Socket exists but not connected, clean it up
+    try {
+      globalSocket.removeAllListeners();
+      globalSocket.disconnect();
+    } catch {}
+  }
+
+  const socket = io({
+    path: '/socket.io/',
+    transports: ['websocket', 'polling'],
+    reconnection: true,
+    reconnectionDelay: 1000,
+    reconnectionDelayMax: 5000,
+    reconnectionAttempts: 5,
+    auth: { access_token: getAccessToken() || undefined },
+  });
+
+  socket.on('connect', () => {
+    globalState.isConnected = true;
+    socket.emit('subscribe_streaming');
+  });
+
+  socket.io.on('reconnect_attempt', () => {
+    socket.auth = { access_token: getAccessToken() || undefined };
+  });
+
+  socket.on('disconnect', () => {
+    globalState.isConnected = false;
+    globalState.liveServices = [];
+  });
+
+  socket.on('subscribed', (_data: { channel: string }) => {
+    console.log('[WebSocket] Successfully subscribed to streaming updates channel')
+  });
+
+  socket.on('error', (data: any) => {
+    console.error('[WebSocket] Error:', data)
+  });
+
+  socket.on('subscription_error', (data: any) => {
+    console.error('[WebSocket] Subscription error:', data)
+  });
+
+  socket.on('streaming_update', (data: StreamingUpdate) => {
+    globalState.activeCount = data.active_count;
+    globalState.lastUpdate = new Date();
+    globalState.liveServices = (data.live_services ?? []).map((service) => service.toLowerCase());
+    
+    // Notify all registered listeners
+    globalSocketListeners.forEach((listener) => {
+      try {
+        listener(data);
+      } catch (error) {
+        console.error('[WebSocket] Error in update listener:', error);
+      }
+    });
+  });
+
+  socket.on('connect_error', (_error) => {
+    // no-op
+  });
+
+  // Log any socket.io event to help diagnose missing payloads
+  socket.onAny((event, ...args) => {
+    try {
+      const payload = args && args.length ? args[0] : undefined
+      console.log('[WebSocket] Event:', event, payload)
+    } catch {
+      console.log('[WebSocket] Event:', event)
+    }
+  });
+
+  globalSocket = socket;
+  return socket;
+}
+
 export const useStreamingWebSocket = (options: UseStreamingWebSocketOptions = {}) => {
   const { autoConnect = true, onUpdate } = options;
 
-  const [isConnected, setIsConnected] = useState(false);
-  const [activeCount, setActiveCount] = useState<number>(0);
-  const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
-  const [liveServices, setLiveServices] = useState<string[]>([]);
-  const socketRef = useRef<Socket | null>(null);
+  const [isConnected, setIsConnected] = useState(globalState.isConnected);
+  const [activeCount, setActiveCount] = useState<number>(globalState.activeCount);
+  const [lastUpdate, setLastUpdate] = useState<Date | null>(globalState.lastUpdate);
+  const [liveServices, setLiveServices] = useState<string[]>(globalState.liveServices);
   const onUpdateRef = useRef(onUpdate);
 
+  // Update ref when callback changes
   useEffect(() => {
     onUpdateRef.current = onUpdate;
   }, [onUpdate]);
 
-  // Listen for auth token updates to refresh socket auth without reconnect
+  // Register/unregister update listener
+  useEffect(() => {
+    if (!onUpdate) return;
+
+    const listener = (data: StreamingUpdate) => {
+      if (onUpdateRef.current) {
+        onUpdateRef.current(data);
+      }
+    };
+
+    globalSocketListeners.add(listener);
+
+    return () => {
+      globalSocketListeners.delete(listener);
+    };
+  }, [onUpdate]);
+
+  // Sync state from global state
+  useEffect(() => {
+    const syncState = () => {
+      setIsConnected(globalState.isConnected);
+      setActiveCount(globalState.activeCount);
+      setLastUpdate(globalState.lastUpdate);
+      setLiveServices([...globalState.liveServices]);
+    };
+
+    // Sync immediately
+    syncState();
+
+    // Set up interval to sync state changes
+    const interval = setInterval(syncState, 100);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // Listen for auth token updates
   useEffect(() => {
     const handler = (e: Event) => {
       const ce = e as CustomEvent;
       const token = (ce.detail && (ce.detail as any).accessToken) as string | undefined;
-      const sock = socketRef.current;
-      if (sock && sock.connected && token) {
-        sock.emit('auth_update', { access_token: token });
+      if (globalSocket && globalSocket.connected && token) {
+        globalSocket.emit('auth_update', { access_token: token });
       }
     };
     window.addEventListener('auth_token_updated', handler as EventListener);
     return () => window.removeEventListener('auth_token_updated', handler as EventListener);
   }, []);
 
-  // Cleanly disconnect on logout to avoid noisy errors
+  // Cleanly disconnect on logout
   useEffect(() => {
     const onLogout = () => {
-      const sock = socketRef.current;
-      if (sock) {
-        try { sock.emit('unsubscribe_streaming'); } catch {}
-        try { sock.disconnect(); } catch {}
-        socketRef.current = null;
+      if (globalSocket) {
+        try { globalSocket.emit('unsubscribe_streaming'); } catch {}
+        try { globalSocket.disconnect(); } catch {}
+        globalSocket = null;
+        globalState.isConnected = false;
+        globalState.liveServices = [];
         setIsConnected(false);
         setLiveServices([]);
       }
@@ -76,104 +204,31 @@ export const useStreamingWebSocket = (options: UseStreamingWebSocketOptions = {}
     return () => window.removeEventListener('auth_logged_out', onLogout as EventListener);
   }, []);
 
-  const initializeSocket = useCallback(() => {
-    if (socketRef.current?.connected) {
-      return socketRef.current;
-    }
-
-    const socket = io({
-      path: '/socket.io/',
-      transports: ['websocket', 'polling'],
-      reconnection: true,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 5000,
-      reconnectionAttempts: 5,
-      auth: { access_token: getAccessToken() || undefined },
-    });
-
-    socket.on('connect', () => {
-      setIsConnected(true);
-      // Request streaming updates channel
-      socket.emit('subscribe_streaming');
-    });
-
-    socket.io.on('reconnect_attempt', () => {
-      // Update auth with latest token before reconnection
-      socket.auth = { access_token: getAccessToken() || undefined };
-    });
-
-    socket.on('disconnect', () => {
-      setIsConnected(false);
-      setLiveServices([]);
-    });
-
-    socket.on('subscribed', (_data: { channel: string }) => {
-      console.log('[WebSocket] Successfully subscribed to streaming updates channel')
-    });
-
-    socket.on('error', (data: any) => {
-      console.error('[WebSocket] Error:', data)
-    });
-
-    socket.on('subscription_error', (data: any) => {
-      console.error('[WebSocket] Subscription error:', data)
-    });
-
-    // Log any socket.io event to help diagnose missing payloads
-    socket.onAny((event, ...args) => {
-      try {
-        const payload = args && args.length ? args[0] : undefined
-        console.log('[WebSocket] Event:', event, payload)
-      } catch {
-        console.log('[WebSocket] Event:', event)
-      }
-    });
-
-    socket.on('streaming_update', (data: StreamingUpdate) => {
-      setActiveCount(data.active_count);
-      setLastUpdate(new Date());
-      setLiveServices((data.live_services ?? []).map((service) => service.toLowerCase()));
-
-      if (onUpdateRef.current) {
-        onUpdateRef.current(data);
-      }
-    });
-
-    socket.on('connect_error', (_error) => {
-      // no-op
-    });
-
-    socketRef.current = socket;
-    return socket;
-  }, []);
-
+  // Initialize socket if autoConnect is true
   useEffect(() => {
     if (!autoConnect) {
       return;
     }
 
-    const socket = initializeSocket();
+    getOrCreateSocket();
 
+    // No cleanup - socket is singleton and shared
     return () => {
-      if (socketRef.current) {
-        socketRef.current.emit('unsubscribe_streaming');
-        socketRef.current.disconnect();
-        socketRef.current = null;
-        setIsConnected(false);
-        setLiveServices([]);
-      }
+      // Don't disconnect on unmount - let other components continue using it
     };
-  }, [autoConnect, initializeSocket]);
+  }, [autoConnect]);
 
   const connect = useCallback(() => {
-    initializeSocket();
-  }, [initializeSocket]);
+    getOrCreateSocket();
+  }, []);
 
   const disconnect = useCallback(() => {
-    if (socketRef.current) {
-      socketRef.current.emit('unsubscribe_streaming');
-      socketRef.current.disconnect();
-      socketRef.current = null;
+    if (globalSocket) {
+      globalSocket.emit('unsubscribe_streaming');
+      globalSocket.disconnect();
+      globalSocket = null;
+      globalState.isConnected = false;
+      globalState.liveServices = [];
       setIsConnected(false);
       setLiveServices([]);
     }

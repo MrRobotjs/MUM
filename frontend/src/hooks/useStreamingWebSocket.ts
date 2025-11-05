@@ -108,7 +108,15 @@ export const useStreamingWebSocket = (options: UseStreamingWebSocketOptions = {}
     });
 
     socket.on('subscribed', (_data: { channel: string }) => {
-      // no-op
+      console.log('[WebSocket] Successfully subscribed to streaming updates channel')
+    });
+
+    socket.on('error', (data: any) => {
+      console.error('[WebSocket] Error:', data)
+    });
+
+    socket.on('subscription_error', (data: any) => {
+      console.error('[WebSocket] Subscription error:', data)
     });
 
     // Log any socket.io event to help diagnose missing payloads

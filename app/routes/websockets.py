@@ -2,7 +2,7 @@
 from flask import Blueprint, current_app, request
 from flask_socketio import emit, join_room, leave_room
 from app.extensions import socketio
-from app.models import User
+from app.models import User, UserType
 from functools import wraps
 from flask_jwt_extended import decode_token
 
@@ -13,9 +13,23 @@ _ws_clients: dict[str, dict] = {}
 
 
 def _set_client_auth(sid: str, user: User):
+    """Store user authentication info for websocket client"""
+    # Get role names for permission checking
+    role_names = [r.name for r in getattr(user, 'admin_roles', [])]
+    
+    # Check if user has 'administrator' permission through any role
+    has_administrator = False
+    if user.userType == UserType.LOCAL:
+        for role in user.admin_roles:
+            if role.has_permission('administrator'):
+                has_administrator = True
+                break
+    
     _ws_clients[sid] = {
         'uuid': user.uuid,
-        'permissions': [r.name for r in getattr(user, 'admin_roles', [])],
+        'user_type': user.userType,  # Store user type (Owner, Local, Service)
+        'permissions': role_names,  # Role names
+        'has_administrator': has_administrator,  # Has administrator permission
         'is_active': bool(getattr(user, 'is_active', True)),
     }
 
@@ -25,11 +39,22 @@ def _clear_client_auth(sid: str):
 
 
 def _has_permission(sid: str, perm: str) -> bool:
+    """Check if websocket client has permission (matches User.has_permission logic)"""
     info = _ws_clients.get(sid)
     if not info:
         return False
+    
+    # Owner users have all permissions
+    if info.get('user_type') == UserType.OWNER:
+        return True
+    
+    # Administrators (role with 'administrator' permission) have full access
+    if info.get('has_administrator', False):
+        return True
+    
+    # Check if user has the specific permission through role names
     perms = set(info.get('permissions') or [])
-    return 'administrator' in perms or perm in perms
+    return perm in perms
 
 
 @socketio.on('connect')
@@ -73,10 +98,16 @@ def jwt_ws_required(perm: str | None = None):
         def wrapped(*args, **kwargs):
             sid = request.sid
             if sid not in _ws_clients:
-                current_app.logger.warning('WebSocket event rejected: unauthenticated sid')
+                current_app.logger.warning(f'WebSocket event rejected: unauthenticated sid {sid}')
+                emit('error', {'message': 'Not authenticated'})
                 return False
             if perm and not _has_permission(sid, perm):
-                current_app.logger.warning('WebSocket event rejected: insufficient permissions')
+                user_info = _ws_clients.get(sid, {})
+                user_perms = user_info.get('permissions', [])
+                current_app.logger.warning(
+                    f'WebSocket event rejected: insufficient permissions. Required: {perm}, User perms: {user_perms}, SID: {sid}'
+                )
+                emit('error', {'message': f'Insufficient permissions: {perm}'})
                 return False
             return f(*args, **kwargs)
         return wrapped
@@ -87,8 +118,13 @@ def jwt_ws_required(perm: str | None = None):
 @jwt_ws_required('view_streaming')
 def handle_subscribe_streaming():
     """Subscribe to streaming updates (requires view_streaming permission)"""
-    join_room('streaming_updates')
-    emit('subscribed', {'channel': 'streaming_updates'})
+    try:
+        join_room('streaming_updates')
+        current_app.logger.info(f"WebSocket client {request.sid} subscribed to streaming_updates room")
+        emit('subscribed', {'channel': 'streaming_updates'})
+    except Exception as e:
+        current_app.logger.error(f"Failed to subscribe client {request.sid} to streaming_updates: {e}", exc_info=True)
+        emit('subscription_error', {'message': str(e)})
 
 
 @socketio.on('unsubscribe_streaming')
@@ -132,7 +168,7 @@ def handle_auth_update(data):
         return False
 
 
-def broadcast_streaming_update(active_count, summary_data=None, live_services=None):
+def broadcast_streaming_update(active_count, summary_data=None, live_services=None, sessions=None):
     """
     Broadcast streaming updates to all subscribed clients.
     This is called from the task_service when session monitoring completes.
@@ -141,6 +177,7 @@ def broadcast_streaming_update(active_count, summary_data=None, live_services=No
         active_count: Number of active streaming sessions
         summary_data: Optional summary data (for dashboard card)
         live_services: Optional iterable of service types delivering live updates (e.g., websocket-backed)
+        sessions: Optional list of formatted session dictionaries (full session data for instant frontend updates)
     """
     from datetime import datetime, timezone
 
@@ -158,5 +195,18 @@ def broadcast_streaming_update(active_count, summary_data=None, live_services=No
         except TypeError:
             payload['live_services'] = []
 
+    # ✅ ADD: Full session data for instant frontend updates
+    if sessions is not None:
+        payload['sessions'] = sessions
+
     socketio.emit('streaming_update', payload, room='streaming_updates', namespace='/')
-    current_app.logger.debug(f"Broadcasted streaming update: {active_count} active sessions")
+    current_app.logger.debug(
+        f"Broadcasted streaming update: {active_count} active sessions, {len(sessions) if sessions else 0} session objects"
+    )
+    # Log room membership for debugging
+    try:
+        from flask_socketio import rooms
+        room_clients = rooms(namespace='/', room='streaming_updates')
+        current_app.logger.debug(f"Room 'streaming_updates' has {len(room_clients) if room_clients else 0} clients")
+    except Exception:
+        pass

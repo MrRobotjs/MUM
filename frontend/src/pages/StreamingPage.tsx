@@ -165,34 +165,26 @@ export const StreamingPage = () => {
   const toast = useToast();
   const liveServicesRef = useRef<string[]>([]);
   const lastUpdateRef = useRef<Date | null>(null);
-  const truthTimeoutRef = useRef<number | null>(null);
   const [wsTruthActive, setWsTruthActive] = useState(false);
   const [bootstrapping, setBootstrapping] = useState(true);
 
-  // Simplified: Only refresh truth every 30s on the frontend. In between, we tick locally.
-  const TRUTH_REFRESH_MS = 30_000;
-  // Debug logs removed for production
-
+  // HTTP fetch only for initial bootstrap and manual refresh (like Tautulli - no polling)
   const fetchActiveSessions = useCallback(
-    async (options?: { silent?: boolean; force?: boolean; reason?: 'websocket' | 'timeout' | 'manual' | 'interval-change' | 'initial' }) => {
-      if (wsTruthActive) {
-        // WS is authoritative; skip HTTP backstop
-        return;
+    async (options?: { silent?: boolean; force?: boolean; reason?: 'manual' | 'initial' }) => {
+      // Skip HTTP fetch if websocket is active and providing recent updates (< 5s)
+      if (wsTruthActive && lastUpdateRef.current) {
+        const timeSinceLastUpdate = Date.now() - lastUpdateRef.current.getTime()
+        if (timeSinceLastUpdate < 5000) {
+          // Websocket is providing fresh data - no HTTP fetch needed (like Tautulli)
+          return;
+        }
       }
+      
       const silent = options?.silent ?? false;
       const force = options?.force ?? false;
-      const reason = options?.reason ?? 'manual';
-      const previousUpdateAt = lastUpdateRef.current;
-      const now = new Date();
-      // Always allow an initial fetch to bootstrap UI even if all services provide live timestamps via websocket.
-      // no-op debug removed
-      const shouldFetch =
-        !silent ||
-        force ||
-        !previousUpdateAt ||
-        now.getTime() - previousUpdateAt.getTime() >= TRUTH_REFRESH_MS;
-
-      if (!shouldFetch) {
+      
+      // Only fetch if forced (manual refresh) or initial bootstrap
+      if (!force && silent && lastUpdateRef.current) {
         setBootstrapping(false);
         return;
       }
@@ -242,18 +234,6 @@ export const StreamingPage = () => {
         });
         setLastUpdateAt(fetchCompletedAt);
         lastUpdateRef.current = fetchCompletedAt;
-
-        if (truthTimeoutRef.current) {
-          window.clearTimeout(truthTimeoutRef.current);
-        }
-        // Always refresh truth every 30s from the frontend.
-        // Only schedule HTTP truth refresh if WS truth has not become active
-        if (!wsTruthActive) {
-          truthTimeoutRef.current = window.setTimeout(() => {
-          // no-op debug removed
-            fetchActiveSessions({ silent: true, reason: 'timeout', force: true });
-          }, TRUTH_REFRESH_MS);
-        }
       } catch (error) {
         console.error('Failed to fetch active sessions:', error);
       } finally {
@@ -263,48 +243,61 @@ export const StreamingPage = () => {
         setBootstrapping(false);
       }
     },
-    [TRUTH_REFRESH_MS, mediaServers, wsTruthActive]
+    [wsTruthActive]
   );
 
-  // Use WebSocket for real-time updates instead of polling
+  // Use WebSocket for real-time updates (like Tautulli - no polling, only websocket push)
   const { isConnected, liveServices } = useStreamingWebSocket({
     autoConnect: true,
     onUpdate: (data: any) => {
-      // no-op debug removed
+      // Update live services list
       if (Array.isArray(data.live_services)) {
         liveServicesRef.current = data.live_services.map((service) =>
           String(service).toLowerCase()
         );
       }
-      // Only accept websocket session snapshots at the 30s cadence; otherwise ignore to keep smooth ticking
+      
+      // ✅ ACCEPT WEBSOCKET UPDATES IMMEDIATELY (like Tautulli)
       if (Array.isArray(data.sessions) && data.sessions.length > 0) {
         const now = new Date()
-        const last = lastUpdateRef.current
-        const elapsed = last ? (now.getTime() - last.getTime()) : Infinity
-        if (elapsed >= TRUTH_REFRESH_MS || !last) {
-          // no-op debug removed
-          const offsets: Record<string, number> = {}
-          for (const s of data.sessions as Array<{ session_key: string; current_time?: string }>) {
-            if (!s.session_key) continue
-            offsets[s.session_key] = parseDurationToSeconds(s.current_time)
-          }
-          setSessionOffsets(offsets)
-          setLastUpdateAt(now)
-          lastUpdateRef.current = now
-          setWsTruthActive(true)
-          // Reschedule truth timer from now
-          if (truthTimeoutRef.current) {
-            window.clearTimeout(truthTimeoutRef.current)
-            truthTimeoutRef.current = null
-          }
-        } else {
-          // no-op debug removed
+        
+        // Update session offsets immediately from websocket data
+        const offsets: Record<string, number> = {}
+        for (const s of data.sessions as Array<{ session_key: string; current_time?: string }>) {
+          if (!s.session_key) continue
+          offsets[s.session_key] = parseDurationToSeconds(s.current_time ?? '0:00')
         }
+        
+        // ✅ IMMEDIATE UPDATE - no throttling (like Tautulli)
+        setSessionOffsets(offsets)
+        setLastUpdateAt(now)
+        lastUpdateRef.current = now
+        setWsTruthActive(true)
+        
+        // Update active sessions state immediately (like Tautulli - instant websocket updates)
+        setActiveSessions({
+          sessions: data.sessions,
+          total_count: data.active_count ?? data.sessions.length,
+          by_server: {},
+          by_service: {},
+        })
+      } else if (data.active_count !== undefined) {
+        // Even without session data, update count immediately
+        setActiveSessions((prev) => ({
+          ...prev,
+          total_count: data.active_count,
+        }))
       }
-      // Do not refetch on every websocket event; truth fetch is driven by a timeout (every ~30s)
-      // no-op debug removed
     }
   });
+
+  // Fetch initial data when websocket connects (if we don't have data yet)
+  useEffect(() => {
+    if (isConnected && !activeSessions && !bootstrapping) {
+      // Websocket connected but no data yet - fetch initial state
+      fetchActiveSessions({ silent: true, reason: 'initial', force: true });
+    }
+  }, [isConnected, activeSessions, bootstrapping, fetchActiveSessions]);
 
   useEffect(() => {
     liveServicesRef.current = liveServices;
@@ -316,17 +309,16 @@ export const StreamingPage = () => {
     [liveServices]
   );
 
-  // Bootstrap: if no WS truth arrives promptly, do a one-time HTTP fetch
+  // Bootstrap: if no WS data arrives after connection, do a one-time HTTP fetch
   useEffect(() => {
     const t = window.setTimeout(() => {
-      if (!lastUpdateRef.current && !wsTruthActive) {
-        fetchActiveSessions({ silent: false, reason: 'initial' })
+      // Only fetch if websocket connected but no data received yet
+      if (isConnected && !lastUpdateRef.current && !wsTruthActive) {
+        fetchActiveSessions({ silent: false, reason: 'initial', force: true });
       }
-    }, 5000)
+    }, 2000) // Reduced to 2s since websocket should connect quickly
     return () => window.clearTimeout(t)
-  }, [fetchActiveSessions, wsTruthActive])
-
-  // No interval-change fetches; rely on WS cadence.
+  }, [isConnected, wsTruthActive, fetchActiveSessions])
 
   useEffect(() => {
     // Drive a lightweight animation tick so we can advance "playing" sessions locally
@@ -353,13 +345,6 @@ export const StreamingPage = () => {
     }
   }, [])
 
-  useEffect(() => {
-    return () => {
-      if (truthTimeoutRef.current) {
-        window.clearTimeout(truthTimeoutRef.current);
-      }
-    };
-  }, []);
 
   const interpolatedSessions = useMemo(() => {
     if (!activeSessions) return null;
@@ -421,16 +406,7 @@ export const StreamingPage = () => {
 
   const sessionsData = interpolatedSessions ?? activeSessions;
 
-  const handleManualRefresh = () => {
-    fetchActiveSessions({ silent: false, reason: 'manual' });
-  };
 
-  // Countdown to next truth snapshot (30s cadence). Resets when lastUpdateAt is set
-  const nextTruthSec = useMemo(() => {
-    if (!lastUpdateAt) return null;
-    const msRemaining = TRUTH_REFRESH_MS - (Date.now() - lastUpdateAt.getTime());
-    return Math.max(0, Math.ceil(msRemaining / 1000));
-  }, [lastUpdateAt, /* update once per second */ tick]);
 
   // Debug: log ticking and interpolation context every 5 seconds
   useEffect(() => {
@@ -847,14 +823,6 @@ export const StreamingPage = () => {
               <i className="fa-solid fa-cog fa-fw mr-2" />
               Settings
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={handleManualRefresh} disabled={loading}>
-              {loading ? (
-                <span className="loading loading-spinner loading-xs mr-2" />
-              ) : (
-                <i className="fa-solid fa-sync fa-fw mr-2" />
-              )}
-              Refresh
-            </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuLabel>View mode</DropdownMenuLabel>
             <DropdownMenuItem
@@ -909,12 +877,14 @@ export const StreamingPage = () => {
             {sessionsData && (
               <Badge variant="secondary">{sessionsData.total_count}</Badge>
             )}
+            {/* Show live indicator when websocket is active */}
+            {wsTruthActive && isConnected && lastUpdateAt && (Date.now() - lastUpdateAt.getTime() < 5000) && (
+              <Badge variant="outline" className="text-xs text-green-600 border-green-600">
+                <span className="inline-flex h-2 w-2 rounded-full bg-green-500 animate-pulse mr-1" />
+                Live
+              </Badge>
+            )}
           </div>
-          {nextTruthSec !== null ? (
-            <div className="text-xs text-base-content/60" title="Time until next truth snapshot">
-              Next sync in {nextTruthSec}s
-            </div>
-          ) : null}
         </div>
 
         {bootstrapping || (loading && !sessionsData) ? (

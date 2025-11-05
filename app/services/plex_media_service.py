@@ -761,7 +761,6 @@ class PlexMediaService(BaseMediaService):
     def get_formatted_sessions(self) -> List[Dict[str, Any]]:
         """Get active Plex sessions formatted for display"""
         from app.models import User, UserType
-        from flask import url_for
         import re
         
         raw_sessions = self.get_active_sessions()
@@ -854,7 +853,8 @@ class PlexMediaService(BaseMediaService):
                 thumb_path = raw_session.thumb
                 if media_type == 'Episode' and hasattr(raw_session, 'grandparentThumb'):
                     thumb_path = raw_session.grandparentThumb
-                thumb_url = url_for('api_v2.plex_image_proxy_v2', path=thumb_path.lstrip('/')) if thumb_path else None
+                # Manually construct URL to avoid url_for issues when called outside request context (e.g., websocket events)
+                thumb_url = f"/admin/api/v2/media/plex/images/proxy?path={thumb_path.lstrip('/')}" if thumb_path else None
                 
                 # Transcoding info
                 transcode_session = raw_session.transcodeSession
@@ -882,10 +882,8 @@ class PlexMediaService(BaseMediaService):
                     if user_thumb_url.startswith('https://plex.tv/') or user_thumb_url.startswith('http://plex.tv/'):
                         user_avatar_url = user_thumb_url
                     else:
-                        try:
-                            user_avatar_url = url_for('api_v2.plex_image_proxy_v2', path=user_thumb_url.lstrip('/'))
-                        except Exception:
-                            user_avatar_url = None
+                        # Manually construct URL to avoid url_for issues when called outside request context (e.g., websocket events)
+                        user_avatar_url = f"/admin/api/v2/media/plex/images/proxy?path={user_thumb_url.lstrip('/')}"
                 
                 # Media details
                 original_media = None

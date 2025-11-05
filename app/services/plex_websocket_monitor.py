@@ -284,19 +284,56 @@ class PlexWebsocketMonitor:
                     return "[playing]"
                 return "[playing]"
             
+            # Handle timeline events (progress updates)
+            if msg_type == "timeline":
+                return "[timeline]"
+            
+            # Handle activity events
+            if msg_type == "activity":
+                return "[activity]"
+            
+            # Handle transcode events
+            if msg_type in ["transcodeSession.start", "transcodeSession.end"]:
+                return f"[{msg_type}]"
+            
             # For other types, use the type directly
             return f"[{msg_type}]"
         except (json.JSONDecodeError, KeyError, TypeError, AttributeError):
             # If parsing fails, return empty string (fallback to no type indicator)
             return ""
+    
+    def _is_session_related_event(self, msg_type: str) -> bool:
+        """Filter to only process session-related websocket events."""
+        if not msg_type:
+            return True  # Process unknown events by default
+        
+        session_events = [
+            'playing',
+            'playing:playing',
+            'playing:paused',
+            'playing:buffering',
+            'playing:stopped',
+            'transcodeSession.start',
+            'transcodeSession.end',
+            'timeline',
+            'activity',
+        ]
+        
+        # Check if message type matches any session event (remove brackets for comparison)
+        msg_type_clean = msg_type.replace('[', '').replace(']', '')
+        return any(msg_type_clean.startswith(evt) for evt in session_events)
 
     def _handle_message(self, server_id: int, message) -> None:
         text = message.decode("utf-8", errors="ignore") if isinstance(message, bytes) else str(message)
-        now = time.time()
-        last_refresh = self.last_refresh_at.get(server_id, 0)
-        if now - last_refresh < 2:
+        # ✅ REMOVED: Rate limiting - process every websocket message immediately for instant updates
+        
+        # Extract message type early to filter non-session events (optimization)
+        msg_type = self._extract_message_type(text)
+        
+        # Only process session-related events (like Tautulli does)
+        if not self._is_session_related_event(msg_type):
+            # Log skipped events only in debug mode to reduce noise
             return
-        self.last_refresh_at[server_id] = now
 
         with self.app.app_context():
             # Configurable truncation of logged payloads
@@ -371,6 +408,24 @@ class PlexWebsocketMonitor:
                     self._file_logger_error_logged = True
             
             try:
+                # ✅ IMMEDIATE HTTP FETCH (like Tautulli)
+                # Fetch fresh session data immediately when websocket fires
+                server = MediaServer.query.get(server_id)
+                websocket_received_at = time.time()
+                
+                if server and server.is_active:
+                    from app.services.media_service_manager import MediaServiceFactory
+                    service = MediaServiceFactory.create_service_from_db(server)
+                    if service:
+                        # Force immediate fresh fetch - don't rely on cached data
+                        fresh_sessions = service.get_active_sessions()
+                        http_fetch_completed_at = time.time()
+                        current_app.logger.debug(
+                            f"PlexWebsocketMonitor: Fetched {len(fresh_sessions)} fresh sessions immediately after websocket event "
+                            f"(latency: {http_fetch_completed_at - websocket_received_at:.3f}s)"
+                        )
+                
+                # Now process with fresh data
                 _run_media_session_monitor(
                     include_service_types={ServiceType.PLEX},
                     source=f"plex-websocket:{server_id}",

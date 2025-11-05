@@ -554,12 +554,41 @@ def _run_media_session_monitor(
             db.session.commit()
             current_app.logger.debug("Database commit successful!")
 
-            # Broadcast WebSocket update with current active session count
+            # Broadcast WebSocket update with current active session count AND full session data
             try:
                 from app.routes.websockets import broadcast_streaming_update
+                from app.services.media_service_manager import MediaServiceFactory
                 active_count = _get_total_tracked_session_count()
-                broadcast_streaming_update(active_count, live_services=live_services_payload)
-                current_app.logger.debug(f"Broadcasted WebSocket update: {active_count} active sessions")
+                
+                # ✅ FETCH AND FORMAT SESSION DATA FOR IMMEDIATE BROADCAST
+                formatted_sessions = []
+                try:
+                    # Get formatted sessions from all monitored servers
+                    for server in target_servers:
+                        service = MediaServiceFactory.create_service_from_db(server)
+                        if service:
+                            try:
+                                formatted = service.get_formatted_sessions()
+                                formatted_sessions.extend(formatted)
+                            except Exception as format_err:
+                                current_app.logger.warning(
+                                    f"[{source_label}] Failed to format sessions for {server.server_nickname}: {format_err}"
+                                )
+                except Exception as fetch_err:
+                    current_app.logger.warning(
+                        f"[{source_label}] Failed to fetch formatted sessions for broadcast: {fetch_err}"
+                    )
+                
+                # Broadcast with full session data (always broadcast, even if 0 sessions)
+                # This ensures frontend always receives updates (like Tautulli)
+                broadcast_streaming_update(
+                    active_count,
+                    live_services=live_services_payload,
+                    sessions=formatted_sessions  # ✅ Full session data (empty array if no sessions)
+                )
+                current_app.logger.debug(
+                    f"Broadcasted WebSocket update: {active_count} active sessions, {len(formatted_sessions)} formatted sessions"
+                )
             except Exception as ws_error:
                 current_app.logger.warning(f"Failed to broadcast WebSocket update: {ws_error}")
 

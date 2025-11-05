@@ -40,6 +40,7 @@ let globalState = {
   activeCount: 0,
   lastUpdate: null as Date | null,
   liveServices: [] as string[],
+  lastSessionData: null as StreamingUpdate | null,  // Store last received session data
 };
 
 // Initialize singleton socket
@@ -96,6 +97,7 @@ function getOrCreateSocket(): Socket {
     globalState.activeCount = data.active_count;
     globalState.lastUpdate = new Date();
     globalState.liveServices = (data.live_services ?? []).map((service) => service.toLowerCase());
+    globalState.lastSessionData = data;  // Store last received data
     
     // Notify all registered listeners
     globalSocketListeners.forEach((listener) => {
@@ -239,6 +241,7 @@ export const useStreamingWebSocket = (options: UseStreamingWebSocketOptions = {}
     activeCount,
     lastUpdate,
     liveServices,
+    lastSessionData: globalState.lastSessionData,  // Expose last session data
     connect,
     disconnect,
   };

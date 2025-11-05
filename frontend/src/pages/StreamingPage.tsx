@@ -247,7 +247,7 @@ export const StreamingPage = () => {
   );
 
   // Use WebSocket for real-time updates (like Tautulli - no polling, only websocket push)
-  const { isConnected, liveServices } = useStreamingWebSocket({
+  const { isConnected, liveServices, lastSessionData } = useStreamingWebSocket({
     autoConnect: true,
     onUpdate: (data: any) => {
       // Update live services list
@@ -290,6 +290,37 @@ export const StreamingPage = () => {
       }
     }
   });
+
+  // Initialize from websocket data if available (when navigating to page)
+  useEffect(() => {
+    if (lastSessionData && !activeSessions) {
+      // Websocket already has data - use it immediately instead of showing loading
+      if (Array.isArray(lastSessionData.sessions) && lastSessionData.sessions.length > 0) {
+        const now = new Date()
+        
+        // Update session offsets
+        const offsets: Record<string, number> = {}
+        for (const s of lastSessionData.sessions as Array<{ session_key: string; current_time?: string }>) {
+          if (!s.session_key) continue
+          offsets[s.session_key] = parseDurationToSeconds(s.current_time ?? '0:00')
+        }
+        
+        setSessionOffsets(offsets)
+        setLastUpdateAt(now)
+        lastUpdateRef.current = now
+        setWsTruthActive(true)
+        setBootstrapping(false)
+        
+        // Update active sessions state from websocket data
+        setActiveSessions({
+          sessions: lastSessionData.sessions,
+          total_count: lastSessionData.active_count ?? lastSessionData.sessions.length,
+          by_server: {},
+          by_service: {},
+        })
+      }
+    }
+  }, [lastSessionData, activeSessions]);
 
   // Fetch initial data when websocket connects (if we don't have data yet)
   useEffect(() => {
@@ -887,7 +918,8 @@ export const StreamingPage = () => {
           </div>
         </div>
 
-        {bootstrapping || (loading && !sessionsData) ? (
+        {/* Only show loading if we truly don't have data yet and websocket hasn't provided any */}
+        {(bootstrapping && !wsTruthActive && !activeSessions) || (loading && !sessionsData) ? (
           <div className="text-center py-12">
             <span className="loading loading-lg loading-spinner text-primary" />
             <p className="text-lg text-base-content/70 mt-4">Loading active streams...</p>

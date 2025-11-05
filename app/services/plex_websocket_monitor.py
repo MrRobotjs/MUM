@@ -14,6 +14,7 @@ import time
 from datetime import datetime
 from typing import Dict, List, Optional
 from urllib.parse import urlparse
+import json
 
 from flask import current_app
 import os
@@ -260,6 +261,35 @@ class PlexWebsocketMonitor:
         with self.app.app_context():
             current_app.logger.info("PlexWebsocketMonitor: Stop signal received for server %s", server_id)
 
+    def _extract_message_type(self, text: str) -> str:
+        """Extract message type identifier from Plex websocket message.
+        
+        Returns format like [transcodeSession.end], [playing:playing], [playing:buffering], etc.
+        """
+        try:
+            data = json.loads(text)
+            notification_container = data.get("NotificationContainer", {})
+            msg_type = notification_container.get("type", "")
+            
+            if not msg_type:
+                return ""
+            
+            # Special handling for "playing" type - check state
+            if msg_type == "playing":
+                play_session = notification_container.get("PlaySessionStateNotification", [])
+                if play_session and isinstance(play_session, list) and len(play_session) > 0:
+                    state = play_session[0].get("state", "")
+                    if state:
+                        return f"[playing:{state}]"
+                    return "[playing]"
+                return "[playing]"
+            
+            # For other types, use the type directly
+            return f"[{msg_type}]"
+        except (json.JSONDecodeError, KeyError, TypeError, AttributeError):
+            # If parsing fails, return empty string (fallback to no type indicator)
+            return ""
+
     def _handle_message(self, server_id: int, message) -> None:
         text = message.decode("utf-8", errors="ignore") if isinstance(message, bytes) else str(message)
         now = time.time()
@@ -284,12 +314,16 @@ class PlexWebsocketMonitor:
             except Exception:
                 limit_int = 200
 
+            # Extract message type identifier
+            msg_type = self._extract_message_type(text)
+            type_prefix = f" {msg_type}" if msg_type else ""
+            
             if limit_int and limit_int > 0:
                 snippet = text[:limit_int]
                 suffix = " (truncated)" if len(text) > limit_int else ""
-                msg = f"PlexWebsocketMonitor: Message from server {server_id}{suffix}: {snippet}"
+                msg = f"PlexWebsocketMonitor: Message from server {server_id}{type_prefix}{suffix}: {snippet}"
             else:
-                msg = f"PlexWebsocketMonitor: Message from server {server_id}: {text}"
+                msg = f"PlexWebsocketMonitor: Message from server {server_id}{type_prefix}: {text}"
             
             # Always log to app logger
             current_app.logger.debug(msg)

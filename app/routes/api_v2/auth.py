@@ -29,6 +29,7 @@ from flask_jwt_extended import (
     set_refresh_cookies,
     set_access_cookies,
     unset_jwt_cookies,
+    verify_jwt_in_request,
 )
 from app.utils.jwt_decorators import jwt_required_with_user
 from app.utils.jwt_helpers import make_access_token, make_refresh_token, set_refresh_cookie, clear_jwt_cookies, revoke_token
@@ -74,8 +75,10 @@ def _find_admin_user(identifier: str) -> User | None:
 
 
 def _issue_session_payload(user: User | None):
+    user_data = _serialize_user(user)
     return {
-        'user': _serialize_user(user),
+        'user': user_data,
+        'permissions': user_data.get('permissions', []) if user_data else [],
         'feature_flags': {},
         'setup_complete': getattr(g, 'setup_complete', False),
         'force_password_change': getattr(user, 'force_password_change', False) if user else False
@@ -295,13 +298,21 @@ class JwtLogoutResponse(BaseModel):
     summary="Logout (revokes refresh; clears cookie)",
     responses={200: JwtLogoutResponse},
 )
-@jwt_required(refresh=True)
 def jwt_logout():
     request_id = str(uuid4())
-    jti = get_jwt().get('jti')
-    identity = get_jwt_identity()
-    if jti:
-        revoke_token(jti, 'refresh', user_uuid=identity)
+    # Try to revoke refresh token if present and valid
+    # Use verify_jwt_in_request with optional=True to avoid 422 errors
+    try:
+        verify_jwt_in_request(optional=True, refresh=True)
+        jwt_data = get_jwt()
+        jti = jwt_data.get('jti') if jwt_data else None
+        identity = get_jwt_identity()
+        if jti and identity:
+            revoke_token(jti, 'refresh', user_uuid=identity)
+    except Exception:
+        # If token is invalid/missing/expired, continue with cleanup anyway
+        # Logout should always succeed to clear client-side state
+        pass
     resp = jsonify({'data': {'success': True}, 'meta': {'request_id': request_id}})
     clear_jwt_cookies(resp)
     return resp, 200

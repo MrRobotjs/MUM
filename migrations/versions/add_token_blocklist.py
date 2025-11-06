@@ -31,6 +31,10 @@ def upgrade():
             sa.Column('revoked_at', sa.DateTime(), nullable=False),
             sa.Column('expires_at', sa.DateTime(), nullable=True),
         )
+    else:
+        # Table exists - the revoked_at column will be added by a later migration
+        # (add_revoked_at_column) to handle SQLite limitations properly
+        pass
 
     # Ensure indexes exist
     existing_indexes = {idx['name'] for idx in insp.get_indexes('token_blocklist')}

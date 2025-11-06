@@ -1,3 +1,4 @@
+import React from 'react';
 import { Navigate, Outlet, useLocation } from '@tanstack/react-router';
 import { useSession } from '../hooks/useSession';
 import { ApiError } from '../util/apiClient';
@@ -10,6 +11,7 @@ const AdminGuard = ({ children }: Props) => {
   const location = useLocation();
   const { session, loading, error } = useSession();
 
+  // Show loading while session is being fetched
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-base-200 text-base-content/70">

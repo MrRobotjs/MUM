@@ -1,9 +1,8 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useState } from 'react';
 import { useLocation, useNavigate } from '@tanstack/react-router';
 // Login page uses a standalone layout (no app navbar)
 import { requestJson, ApiError } from '../util/apiClient';
 import { setAccessToken } from '../util/tokenStore';
-import { useSession } from '../hooks/useSession';
 
 type LocationState = {
   from?: string;
@@ -12,7 +11,6 @@ type LocationState = {
 const LoginPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { refresh } = useSession();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
@@ -52,9 +50,15 @@ const LoginPage = () => {
       const token = (response && typeof response === 'object' && 'data' in response)
         ? (response.data as { access_token?: string })?.access_token
         : undefined;
-      if (token) setAccessToken(token);
+      if (token) {
+        setAccessToken(token);
+        
+        // Fire event to notify useSession hooks to refresh
+        try {
+          window.dispatchEvent(new CustomEvent('auth_token_updated', { detail: { accessToken: token } }));
+        } catch {}
+      }
 
-      await refresh();
       navigate({ to: fromPath, replace: true });
     } catch (err) {
       const apiError = err as ApiError;

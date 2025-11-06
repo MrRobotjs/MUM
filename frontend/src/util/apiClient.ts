@@ -73,25 +73,35 @@ export const apiFetch = async (
   let token = getAccessToken();
   if (!token) {
     // Bootstrap: attempt a refresh once to obtain an access token before first request
-    try {
-      const refreshResp = await fetch('/admin/api/v2/auth/jwt/refresh', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { Accept: 'application/json' },
-      });
-      if (refreshResp.ok) {
-        const json = await getJson(refreshResp);
-        const newToken = (json && typeof json === 'object' && 'data' in json)
-          ? (json.data as any)?.access_token as string | undefined
-          : undefined;
-        if (newToken) {
-          setAccessToken(newToken);
-          try { window.dispatchEvent(new CustomEvent('auth_token_updated', { detail: { accessToken: newToken } })); } catch {}
-          token = newToken;
+    // Skip bootstrap refresh for login endpoint (would cause infinite loop)
+    const url = typeof input === 'string' ? input : input.url;
+    const isLoginEndpoint = url && (url.includes('/auth/jwt/login') || url.includes('/auth/jwt/refresh'));
+    
+    if (!isLoginEndpoint) {
+      try {
+        const refreshResp = await fetch('/admin/api/v2/auth/jwt/refresh', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { Accept: 'application/json' },
+        });
+        if (refreshResp.ok) {
+          const json = await getJson(refreshResp);
+          const newToken = (json && typeof json === 'object' && 'data' in json)
+            ? (json.data as any)?.access_token as string | undefined
+            : undefined;
+          if (newToken) {
+            setAccessToken(newToken);
+            try { window.dispatchEvent(new CustomEvent('auth_token_updated', { detail: { accessToken: newToken } })); } catch {}
+            token = newToken;
+          }
+        } else if (refreshResp.status === 401) {
+          // Refresh failed with 401 - user is logged out, don't retry bootstrap refresh
+          // This prevents repeated retry attempts after logout
         }
+      } catch {
+        // Silently fail bootstrap refresh - the request will proceed and handle 401 if needed
+        // This prevents errors after login when refresh cookie might not be immediately available
       }
-    } catch {
-      // ignore; we'll proceed without token and rely on 401 path to recover
     }
   }
   if (token && !headers.has('Authorization')) {

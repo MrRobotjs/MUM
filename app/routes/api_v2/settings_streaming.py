@@ -8,7 +8,7 @@ from flask_openapi3 import Tag
 
 from app.routes.api_v2 import api_v2
 from app.models import Setting, EventType
-# JWT permission checking handled by jwt_permission_required, log_event
+from app.utils.helpers import log_event
 from app.services.media_service_manager import MediaServiceManager
 from app.services.media_service_factory import MediaServiceFactory
 from app.extensions import db

@@ -29,12 +29,17 @@ import { useAuth } from "@/contexts/AuthContext"
 import { useAlerts } from "@/contexts/AlertContext"
 import { requestJson } from "@/util/apiClient"
 import { useSyncStatus } from "@/hooks/useSyncStatus"
+import { useStreamingSettings } from "@/hooks/useStreamingSettings"
+import { useStreamingWebSocket } from "@/hooks/useStreamingWebSocket"
+import { Badge } from "@/components/ui/badge"
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-  const { hasPermission, user: currentUser } = useAuth()
+  const { isAdministrator, isOwner, hasAdminAccess, user: currentUser } = useAuth()
   const { isMobile, setOpenMobile } = useSidebar()
   const { success, error } = useAlerts()
   const { syncStatus } = useSyncStatus()
+  const { settings: streamingSettings } = useStreamingSettings()
+  const { activeCount } = useStreamingWebSocket({ autoConnect: true })
   const [isStartingSync, setIsStartingSync] = React.useState(false)
   const [showSyncComplete, setShowSyncComplete] = React.useState(false)
   const previousSyncingRef = React.useRef(syncStatus.is_syncing)
@@ -104,7 +109,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   const syncInProgress = syncStatus.is_syncing || isStartingSync
 
-  const syncStatusIndicator = hasPermission('edit_user')
+  // Only show sync indicator if user has admin access (can edit users)
+  const syncStatusIndicator = isAdministrator
     ? (
         syncInProgress ? (
           <IconRefresh className="size-4 text-primary animate-spin" />
@@ -114,7 +120,18 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       )
     : null
 
-  const navMainItems = [
+  // Stream badge indicator - show when enabled and there are active streams
+  const streamBadgeEnabled = streamingSettings?.enable_navbar_stream_badge ?? false
+  const streamBadgeIndicator = streamBadgeEnabled && activeCount > 0
+    ? (
+        <Badge variant="default" className="h-5 min-w-5 px-1.5 text-[10px] font-semibold">
+          {activeCount}
+        </Badge>
+      )
+    : null
+
+  // All nav items are visible to administrators (owner or users with admin roles)
+  const navMainItems = isAdministrator ? [
     {
       title: 'Dashboard',
       url: '/admin/dashboard',
@@ -124,8 +141,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       title: 'Users',
       url: '/admin/users',
       icon: IconUsers,
-      permission: 'view_users',
-      actions: hasPermission('edit_user') ? [
+      actions: [
         {
           label: 'Sync Users',
           icon: IconRefresh,
@@ -133,33 +149,31 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           onClick: handleSyncUsers,
           disabled: syncInProgress,
         }
-      ] : undefined,
+      ],
       statusIndicator: syncStatusIndicator,
     },
     {
       title: 'Invites',
       url: '/admin/invites',
       icon: IconTicket,
-      permission: 'view_invites'
     },
     {
       title: 'Libraries',
       url: '/admin/libraries',
       icon: IconStack2,
-      permission: 'view_servers'
     },
     {
       title: 'Streaming',
       url: '/admin/streaming',
       icon: IconRadio,
-      permission: 'view_streaming'
+      statusIndicator: streamBadgeIndicator,
     },
-  ].filter(item => !item.permission || hasPermission(item.permission))
+  ] : []
 
   const user = {
     name: currentUser?.display_name || currentUser?.username || 'User',
     email: currentUser?.email || currentUser?.username || 'user@example.com',
-    avatar: currentUser?.avatar || '',
+    avatar: '', // Avatar not available in User type - will use fallback
   }
 
   return (

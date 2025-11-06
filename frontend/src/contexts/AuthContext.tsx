@@ -12,6 +12,7 @@ export type User = {
   user_type: string;
   is_active: boolean;
   created_at: string;
+  has_admin_access?: boolean;
 };
 
 export type SessionData = {
@@ -35,6 +36,8 @@ export type AuthContextValue = {
   hasAnyPermission: (...permissions: Permission[]) => boolean;
   hasAllPermissions: (...permissions: Permission[]) => boolean;
   isOwner: boolean;
+  isAdministrator: boolean;
+  hasAdminAccess: boolean;
   refresh: () => Promise<void>;
 };
 
@@ -48,18 +51,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const isAuthenticated = !!user;
   const isOwner = user?.user_type === 'owner';
 
+  // Check if user has administrator access (owner or user with admin roles)
+  const hasAdminAccess = user?.has_admin_access ?? false;
+  const isAdministrator = isOwner || hasAdminAccess;
+
   const hasPermission = (permission: Permission): boolean => {
-    if (isOwner) return true; // Owners have all permissions
+    // Owner and administrators have all permissions
+    if (isAdministrator) return true;
+    // For backwards compatibility, check permissions array (contains role names)
     return permissions.includes(permission);
   };
 
   const hasAnyPermission = (...requiredPermissions: Permission[]): boolean => {
-    if (isOwner) return true;
+    if (isAdministrator) return true;
     return requiredPermissions.some((perm) => permissions.includes(perm));
   };
 
   const hasAllPermissions = (...requiredPermissions: Permission[]): boolean => {
-    if (isOwner) return true;
+    if (isAdministrator) return true;
     return requiredPermissions.every((perm) => permissions.includes(perm));
   };
 
@@ -74,6 +83,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     hasAnyPermission,
     hasAllPermissions,
     isOwner,
+    isAdministrator,
+    hasAdminAccess,
     refresh,
   };
 

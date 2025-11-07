@@ -94,7 +94,13 @@ function getOrCreateSocket(): Socket {
   });
 
   socket.on('streaming_update', (data: StreamingUpdate) => {
-    globalState.activeCount = data.active_count;
+    // Use sessions.length as source of truth when sessions array is provided (matches actual current state)
+    // This ensures the count updates correctly when streams stop (empty array = 0)
+    if (Array.isArray(data.sessions)) {
+      globalState.activeCount = data.sessions.length;
+    } else {
+      globalState.activeCount = data.active_count;
+    }
     globalState.lastUpdate = new Date();
     globalState.liveServices = (data.live_services ?? []).map((service) => service.toLowerCase());
     globalState.lastSessionData = data;  // Store last received data

@@ -258,7 +258,8 @@ export const StreamingPage = () => {
       }
       
       // ✅ ACCEPT WEBSOCKET UPDATES IMMEDIATELY (like Tautulli)
-      if (Array.isArray(data.sessions) && data.sessions.length > 0) {
+      // Handle sessions array (even if empty - this clears stopped streams from UI)
+      if (Array.isArray(data.sessions)) {
         const now = new Date()
         
         // Update session offsets immediately from websocket data
@@ -275,18 +276,31 @@ export const StreamingPage = () => {
         setWsTruthActive(true)
         
         // Update active sessions state immediately (like Tautulli - instant websocket updates)
+        // This handles both adding new sessions AND removing stopped sessions (empty array clears UI)
+        // Use sessions.length as source of truth when sessions array is provided (it's the actual current state)
         setActiveSessions({
           sessions: data.sessions,
-          total_count: data.active_count ?? data.sessions.length,
+          total_count: data.sessions.length,
           by_server: {},
           by_service: {},
         })
       } else if (data.active_count !== undefined) {
         // Even without session data, update count immediately
-        setActiveSessions((prev) => ({
-          ...prev,
-          total_count: data.active_count,
-        }))
+        // If active_count is 0 and we have no sessions array, clear sessions
+        if (data.active_count === 0) {
+          setActiveSessions({
+            sessions: [],
+            total_count: 0,
+            by_server: {},
+            by_service: {},
+          })
+          setSessionOffsets({})
+        } else {
+          setActiveSessions((prev) => ({
+            ...prev,
+            total_count: data.active_count,
+          }))
+        }
       }
     }
   });
@@ -312,9 +326,10 @@ export const StreamingPage = () => {
         setBootstrapping(false)
         
         // Update active sessions state from websocket data
+        // Use sessions.length as source of truth when sessions array is provided
         setActiveSessions({
           sessions: lastSessionData.sessions,
-          total_count: lastSessionData.active_count ?? lastSessionData.sessions.length,
+          total_count: lastSessionData.sessions.length,
           by_server: {},
           by_service: {},
         })

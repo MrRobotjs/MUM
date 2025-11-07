@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useLocation, useNavigate } from '@tanstack/react-router';
+import { useNavigate, useSearch } from '@tanstack/react-router';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -81,12 +81,11 @@ type TabType = 'overview' | 'credentials' | 'preferences';
 
 const AdminAccountPage = () => {
   const toast = useToast();
-  const location = useLocation();
   const navigate = useNavigate();
 
-  // Extract active tab from URL search params
-  const searchParams = new URLSearchParams(location.search);
-  const activeTab = (searchParams.get('tab') as TabType) || 'overview';
+  // Use TanStack Router search for tab state
+  const search = useSearch({ from: '/admin/account', strict: false }) as { tab?: TabType };
+  const activeTab: TabType = search.tab ?? 'overview';
 
   const [loading, setLoading] = useState(true);
   const [account, setAccount] = useState<AccountResponse['data'] | null>(null);
@@ -173,10 +172,12 @@ const AdminAccountPage = () => {
   }, [account]);
 
   const setTab = (tab: TabType) => {
-    navigate({ 
-      to: location.pathname,
-      search: { tab } as any,
-      replace: true 
+    navigate({
+      search: (prev) => ({
+        ...prev,
+        tab,
+      }),
+      replace: true,
     });
   };
 

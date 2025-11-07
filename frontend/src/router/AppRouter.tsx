@@ -105,14 +105,59 @@ const adminIndexRedirect = createRoute({
   component: () => <Navigate to="/admin/dashboard" replace />,
 })
 const adminDashboard = createRoute({ getParentRoute: () => adminRoute, path: 'dashboard', component: DashboardPage })
-const adminAccount = createRoute({ getParentRoute: () => adminRoute, path: 'account', component: AdminAccountPage })
+const adminAccountTabs = ['overview', 'credentials', 'preferences'] as const
+type AdminAccountTab = typeof adminAccountTabs[number]
+const adminAccount = createRoute({
+  getParentRoute: () => adminRoute,
+  path: 'account',
+  component: AdminAccountPage,
+  validateSearch: (search) => {
+    const tabVal = typeof search.tab === 'string' && (adminAccountTabs as readonly string[]).includes(search.tab)
+      ? (search.tab as AdminAccountTab)
+      : undefined
+    return { tab: tabVal }
+  },
+})
 const adminStreaming = createRoute({ getParentRoute: () => adminRoute, path: 'streaming', component: StreamingPage })
 const adminUsers = createRoute({ getParentRoute: () => adminRoute, path: 'users', component: UsersListPage })
-const adminUserByNick = createRoute({ getParentRoute: () => adminRoute, path: 'users/$serverNickname/$username', component: UserDetailPage })
-const adminUserByUuid = createRoute({ getParentRoute: () => adminRoute, path: 'users/$uuid', component: UserDetailPage })
+const userTabs = ['profile', 'history', 'settings', 'overseerr', 'security'] as const
+type UserTab = typeof userTabs[number]
+
+const adminUserByNick = createRoute({
+  getParentRoute: () => adminRoute,
+  path: 'users/$serverNickname/$username',
+  component: UserDetailPage,
+  validateSearch: (search) => {
+    const tabVal = typeof search.tab === 'string' && (userTabs as readonly string[]).includes(search.tab)
+      ? (search.tab as UserTab)
+      : undefined
+    return { tab: tabVal }
+  },
+})
+const adminUserByUuid = createRoute({
+  getParentRoute: () => adminRoute,
+  path: 'users/$uuid',
+  component: UserDetailPage,
+  validateSearch: (search) => {
+    const tabVal = typeof search.tab === 'string' && (userTabs as readonly string[]).includes(search.tab)
+      ? (search.tab as UserTab)
+      : undefined
+    return { tab: tabVal }
+  },
+})
 const adminInvites = createRoute({ getParentRoute: () => adminRoute, path: 'invites', component: InvitesPage })
 const adminLibraries = createRoute({ getParentRoute: () => adminRoute, path: 'libraries', component: LibrariesPage })
-const adminLibraryDetail = createRoute({ getParentRoute: () => adminRoute, path: 'libraries/$libraryId', component: LibraryDetailPage })
+const adminLibraryDetail = createRoute({
+  getParentRoute: () => adminRoute,
+  path: 'libraries/$libraryId',
+  component: LibraryDetailPage,
+  // Validate search param "tab" for stronger typing
+  validateSearch: (search) => {
+    const allowed = ['overview', 'media', 'collections', 'stats', 'activity'] as const
+    const tabVal = typeof search.tab === 'string' && allowed.includes(search.tab as any) ? (search.tab as typeof allowed[number]) : undefined
+    return { tab: tabVal }
+  },
+})
 const adminMediaDetail = createRoute({ getParentRoute: () => adminRoute, path: 'libraries/$libraryId/$mediaId', component: MediaDetailPage })
 const adminSettingsRedirect = createRoute({
   getParentRoute: () => adminRoute,
@@ -224,7 +269,11 @@ const routeTree = rootRoute.addChildren([
   rootWildcardRedirect,
 ])
 
-const router = createRouter({ routeTree })
+const router = createRouter({
+  routeTree,
+  // Keep '+' characters unencoded in path params (e.g., server nicknames like 'Kavita++')
+  pathParamsAllowedCharacters: ['+'],
+})
 
 declare module '@tanstack/react-router' {
   interface Register {

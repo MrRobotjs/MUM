@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
-import { useNavigate, Link, useLocation } from '@tanstack/react-router';
+import { useState, useEffect } from 'react';
+import { useNavigate, Link, useParams, useSearch } from '@tanstack/react-router';
 import { requestJson } from '../util/apiClient';
 import { useToast } from '../util/toast';
 import { Button } from '../components/ui/button';
@@ -209,16 +209,10 @@ const CollectionCard = ({ collection }: { collection: any }) => {
 };
 
 export const LibraryDetailPage = () => {
-  const location = useLocation();
-  // Extract libraryId from URL pathname to avoid useParams route context errors
-  // This works around the "Cannot read properties of undefined (reading 'from')" error
-  const pathMatch = location.pathname.match(/\/admin\/libraries\/([^/]+)/);
-  const libraryId = pathMatch ? pathMatch[1] : undefined;
-  
-  // Extract search params from URL to avoid useSearch route context errors
-  // Derive from location.search so it updates when URL changes
-  const searchParams = new URLSearchParams(location.search);
-  const activeTab = (searchParams.get('tab') as TabType) || 'overview';
+  // Use TanStack Router APIs for params and search
+  const { libraryId } = useParams({ from: '/admin/libraries/$libraryId' });
+  const search = useSearch({ from: '/admin/libraries/$libraryId', strict: false }) as { tab?: TabType };
+  const activeTab: TabType = search.tab ?? 'overview';
   
   const navigate = useNavigate();
   const { showToast } = useToast();
@@ -455,12 +449,12 @@ export const LibraryDetailPage = () => {
   };
 
   const setTab = (tab: TabType) => {
-    const newSearchParams = new URLSearchParams(location.search);
-    newSearchParams.set('tab', tab);
-    navigate({ 
-      to: location.pathname,
-      search: { tab } as any,
-      replace: true 
+    navigate({
+      search: (prev) => ({
+        ...prev,
+        tab,
+      }),
+      replace: true,
     });
   };
 

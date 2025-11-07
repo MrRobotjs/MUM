@@ -1,6 +1,6 @@
 import { ReactNode, useMemo, useState } from 'react';
 import clsx from 'clsx';
-import { useLocation, useNavigate, useParams } from '@tanstack/react-router';
+import { useLocation, useNavigate, useParams, useSearch } from '@tanstack/react-router';
 import { useToast } from '../util/toast';
 import { useUserDetail, UserDetail, UserHistoryEntry } from '../hooks/useUserDetail';
 import { useUserHistory } from '../hooks/useUserHistory';
@@ -689,6 +689,7 @@ export const UserDetailPage = () => {
     serverNickname?: string;
     username?: string;
   });
+  const currentFrom = (uuidParam ? '/admin/users/$uuid' : '/admin/users/$serverNickname/$username') as const;
   
   const locationState = location.state as { userUuid?: string } | undefined;
   const stateUuid = locationState?.userUuid;
@@ -701,7 +702,8 @@ export const UserDetailPage = () => {
   } = useUserUuidBySlug(needsSlugLookup ? serverNickname : undefined, needsSlugLookup ? username : undefined);
   const effectiveUuid = uuidParam ?? stateUuid ?? slugUuid ?? undefined;
 
-  const [activeTab, setActiveTab] = useState<TabKey>('profile');
+  const search = useSearch({ from: currentFrom, strict: false }) as { tab?: TabKey };
+  const activeTab: TabKey = search.tab ?? 'profile';
   const [linkModalOpen, setLinkModalOpen] = useState(false);
   const [resyncing, setResyncing] = useState(false);
   const [resettingPassword, setResettingPassword] = useState(false);
@@ -990,7 +992,15 @@ export const UserDetailPage = () => {
                   key={tab.key}
                   type="button"
                   className={clsx('px-4 py-2 rounded-md text-sm font-medium transition-colors', activeTab === tab.key ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground')}
-                  onClick={() => setActiveTab(tab.key)}
+                  onClick={() =>
+                    navigate({
+                      from: currentFrom,
+                      search: (prev) => ({
+                        ...prev,
+                        tab: tab.key,
+                      }),
+                    })
+                  }
                 >
                   {tab.label}
                 </button>

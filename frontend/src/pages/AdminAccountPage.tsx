@@ -116,6 +116,9 @@ const AdminAccountPage = () => {
   const [timezoneError, setTimezoneError] = useState<string | null>(null);
   const [timezoneSubmitting, setTimezoneSubmitting] = useState(false);
 
+  const [plexLoading, setPlexLoading] = useState(false);
+  const [plexError, setPlexError] = useState<string | null>(null);
+
   const refreshAccount = async () => {
     setLoading(true);
     setFetchError(null);
@@ -149,6 +152,19 @@ const AdminAccountPage = () => {
 
   useEffect(() => {
     void refreshAccount();
+    
+    // Check for error query parameter from Plex SSO callback
+    const searchParams = new URLSearchParams(location.search);
+    const errorParam = searchParams.get('error');
+    if (errorParam && activeTab === 'credentials') {
+      setPlexError(decodeURIComponent(errorParam));
+      // Clear error from URL
+      navigate({ 
+        to: location.pathname,
+        search: { tab: 'credentials' } as any,
+        replace: true 
+      });
+    }
   }, []);
 
   const showInitialCredentialsCard = useMemo(() => {
@@ -264,6 +280,38 @@ const AdminAccountPage = () => {
       setTimezoneError(getApiErrorMessage(error));
     } finally {
       setTimezoneSubmitting(false);
+    }
+  };
+
+  const handlePlexSSO = async () => {
+    setPlexLoading(true);
+    setPlexError(null);
+
+    try {
+      const response = await requestJson<{
+        data?: {
+          redirect_url?: string;
+        };
+      }>(
+        '/admin/api/v2/auth/plex/start',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            next: '/admin/account?tab=credentials'
+          })
+        }
+      );
+
+      const redirectUrl = response?.data?.redirect_url;
+      if (redirectUrl) {
+        window.location.href = redirectUrl;
+      } else {
+        setPlexError('Failed to initiate Plex login');
+        setPlexLoading(false);
+      }
+    } catch (err) {
+      setPlexError(getApiErrorMessage(err));
+      setPlexLoading(false);
     }
   };
 
@@ -516,6 +564,49 @@ const AdminAccountPage = () => {
               </CardContent>
             </Card>
           </div>
+
+          {/* Plex SSO Link Section */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Plex SSO Link</CardTitle>
+              <CardDescription>
+                Link your Plex account to enable single sign-on authentication.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {plexError && (
+                  <Alert variant="destructive">
+                    <AlertDescription>{plexError}</AlertDescription>
+                  </Alert>
+                )}
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handlePlexSSO}
+                  className="w-full text-lg h-12 hover:-translate-y-0.5 hover:shadow-lg transition-all duration-200 ease-in-out border-orange-600 text-orange-700 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-950 hover:border-orange-600"
+                  disabled={plexLoading}
+                >
+                  {plexLoading ? (
+                    <>
+                      <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2" />
+                      Connecting...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-5 h-5 mr-3" viewBox="0 0 192 192" xmlns="http://www.w3.org/2000/svg" fill="currentColor" stroke="transparent" strokeLinejoin="round" strokeWidth="12">
+                        <path d="M22 25.5h48L116 94l-46 68.5H22L68.5 94Zm109.8 56L108 46l14-20.5h48zm-.3 23.5c10.979 17.625 25.52 38.875 38.5 49.5-11.149 13.635-34.323 32.278-62.5-14z"/>
+                      </svg>
+                      Link Plex Account
+                    </>
+                  )}
+                </Button>
+                <p className="text-sm text-muted-foreground">
+                  After linking, you'll be able to sign in using your Plex credentials. You'll be redirected back to this page after authentication.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="preferences" className="space-y-6">

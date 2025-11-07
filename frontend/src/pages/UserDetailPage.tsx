@@ -1,6 +1,6 @@
 import { ReactNode, useMemo, useState } from 'react';
 import clsx from 'clsx';
-import { useLocation, useNavigate, useParams } from '@tanstack/react-router';
+import { useLocation, useNavigate } from '@tanstack/react-router';
 import { useToast } from '../util/toast';
 import { useUserDetail, UserDetail, UserHistoryEntry } from '../hooks/useUserDetail';
 import { useUserHistory } from '../hooks/useUserHistory';
@@ -681,13 +681,22 @@ const SecurityTab = ({ user, onResetPassword, resetting }: SecurityTabProps) => 
 );
 
 export const UserDetailPage = () => {
-  const { uuid: uuidParam, serverNickname, username } = useParams<{
-    uuid?: string;
-    serverNickname?: string;
-    username?: string;
-  }>();
   const location = useLocation();
   const navigate = useNavigate();
+  
+  // Extract params from URL pathname to avoid useParams route context errors
+  // This works around the "Cannot read properties of undefined (reading 'from')" error
+  // Routes: /admin/users/$serverNickname/$username or /admin/users/$uuid
+  const pathMatch = location.pathname.match(/\/admin\/users\/([^/]+)(?:\/([^/]+))?/);
+  const firstSegment = pathMatch ? pathMatch[1] : undefined;
+  const secondSegment = pathMatch && pathMatch[2] ? pathMatch[2] : undefined;
+  
+  // Determine if first segment is UUID (36 chars with dashes) or server nickname
+  const isUuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const uuidParam = firstSegment && isUuidPattern.test(firstSegment) ? firstSegment : undefined;
+  const serverNickname = !uuidParam && firstSegment ? firstSegment : undefined;
+  const username = !uuidParam && secondSegment ? secondSegment : undefined;
+  
   const locationState = location.state as { userUuid?: string } | undefined;
   const stateUuid = locationState?.userUuid;
 

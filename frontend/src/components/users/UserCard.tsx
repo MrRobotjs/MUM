@@ -188,7 +188,7 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection }: UserCa
     if (onToggleSelection) {
       onToggleSelection(user.uuid);
     } else {
-      navigate(buildUserProfilePath(user), { state: { userUuid: user.uuid } });
+      navigate({ to: buildUserProfilePath(user), state: { userUuid: user.uuid } });
     }
   };
 
@@ -500,7 +500,7 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection }: UserCa
             size="sm"
             onClick={(e) => {
               e.stopPropagation();
-              navigate(buildUserProfilePath(user), { state: { userUuid: user.uuid } });
+              navigate({ to: buildUserProfilePath(user), state: { userUuid: user.uuid } });
             }}
             title="View User Profile"
           >

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useParams, useSearch, useNavigate, Link } from '@tanstack/react-router';
+import { useNavigate, Link, useLocation } from '@tanstack/react-router';
 import { requestJson } from '../util/apiClient';
 import { useToast } from '../util/toast';
 import { Button } from '../components/ui/button';
@@ -209,8 +209,17 @@ const CollectionCard = ({ collection }: { collection: any }) => {
 };
 
 export const LibraryDetailPage = () => {
-  const { libraryId } = useParams<{ libraryId: string }>();
-  const search = useSearch();
+  const location = useLocation();
+  // Extract libraryId from URL pathname to avoid useParams route context errors
+  // This works around the "Cannot read properties of undefined (reading 'from')" error
+  const pathMatch = location.pathname.match(/\/admin\/libraries\/([^/]+)/);
+  const libraryId = pathMatch ? pathMatch[1] : undefined;
+  
+  // Extract search params from URL to avoid useSearch route context errors
+  // Derive from location.search so it updates when URL changes
+  const searchParams = new URLSearchParams(location.search);
+  const activeTab = (searchParams.get('tab') as TabType) || 'overview';
+  
   const navigate = useNavigate();
   const { showToast } = useToast();
 
@@ -220,6 +229,15 @@ export const LibraryDetailPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [mediaLoading, setMediaLoading] = useState(false);
+  
+  // Early return if libraryId is not available
+  if (!libraryId) {
+    return (
+      <div className="p-6">
+        <p className="text-destructive">Library ID not found in route parameters.</p>
+      </div>
+    );
+  }
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -242,8 +260,6 @@ export const LibraryDetailPage = () => {
   const [activityDays, setActivityDays] = useState(30);
   const [activityPage, setActivityPage] = useState(1);
   const [activityTotalPages, setActivityTotalPages] = useState(1);
-
-  const activeTab = ((search as any).tab as TabType) || 'overview';
 
   useEffect(() => {
     loadLibraryData();
@@ -439,7 +455,13 @@ export const LibraryDetailPage = () => {
   };
 
   const setTab = (tab: TabType) => {
-    navigate({ search: (prev: any) => ({ ...prev, tab }) });
+    const newSearchParams = new URLSearchParams(location.search);
+    newSearchParams.set('tab', tab);
+    navigate({ 
+      to: location.pathname,
+      search: { tab } as any,
+      replace: true 
+    });
   };
 
   const getServiceBadge = (serviceType?: ServiceType) => {

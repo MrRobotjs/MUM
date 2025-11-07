@@ -27,6 +27,7 @@ const LoginPage = () => {
   // Prefer ?next= query, then location.state.from, else dashboard
   const search = new URLSearchParams(((location as any).searchStr) ?? (typeof window !== 'undefined' ? window.location.search : ''));
   const nextParam = search.get('next');
+  const errorParam = search.get('error');
   const fromPath = nextParam || (location.state as LocationState | undefined)?.from || '/admin/dashboard';
 
   // Check if user accounts are enabled
@@ -42,6 +43,18 @@ const LoginPage = () => {
     };
     checkUserAccounts();
   }, []);
+
+  // Check for error query parameter (e.g., from Plex SSO callback)
+  useEffect(() => {
+    if (errorParam) {
+      setError(errorParam);
+      // Clear the error from URL to prevent it from showing again on refresh
+      const newSearch = new URLSearchParams(window.location.search);
+      newSearch.delete('error');
+      const newUrl = window.location.pathname + (newSearch.toString() ? `?${newSearch.toString()}` : '');
+      window.history.replaceState({}, '', newUrl);
+    }
+  }, [errorParam]);
 
   // Auto-focus first input on desktop
   useEffect(() => {

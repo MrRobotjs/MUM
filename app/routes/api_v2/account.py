@@ -112,8 +112,8 @@ def _serialize_account_payload(user: User) -> dict:
             "time_format": prefs.get("time_format"),
         },
         "capabilities": {
-            "can_set_initial_credentials": not current_user.password_hash,
-            "can_change_password": bool(current_user.password_hash),
+            "can_set_initial_credentials": not user.password_hash,
+            "can_change_password": bool(user.password_hash),
         },
     }
 

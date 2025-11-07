@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from '@tanstack/react-router';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,9 +6,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { ApiError, requestJson } from '@/util/apiClient';
 import { useToast } from '@/util/toast';
-import { IconArrowLeft, IconUserShield } from '@tabler/icons-react';
+import { IconUserShield } from '@tabler/icons-react';
 
 type AccountUser = {
   uuid: string;
@@ -251,12 +252,6 @@ const AdminAccountPage = () => {
   if (loading && !account) {
     return (
       <div className="mx-auto w-full max-w-5xl space-y-6">
-        <div className="flex">
-          <span className="inline-flex items-center gap-2 rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-sm text-base-content/70 shadow-sm">
-            <IconArrowLeft className="h-4 w-4" />
-            Loading account…
-          </span>
-        </div>
         <div className="overflow-hidden rounded-xl border bg-card shadow-lg">
           <div className="bg-gradient-to-r from-primary/10 to-primary/20 p-8 text-center">
             <div className="flex flex-col items-center gap-4">
@@ -284,20 +279,13 @@ const AdminAccountPage = () => {
   if (fetchError) {
     return (
       <div className="mx-auto w-full max-w-5xl space-y-6">
-        <Link
-          to="/admin/dashboard"
-          className="inline-flex items-center gap-2 rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-sm text-base-content/70 shadow-sm transition hover:bg-base-200"
-        >
-          <IconArrowLeft className="h-4 w-4" />
-          Back to Dashboard
-        </Link>
-        <div className="overflow-hidden rounded-xl border border-destructive/40 bg-destructive/10 p-6 shadow-lg">
-          <h2 className="text-lg font-semibold text-destructive">Unable to load account details</h2>
-          <p className="mt-2 text-sm text-destructive/80">{fetchError}</p>
+        <Alert variant="destructive" className="rounded-xl">
+          <AlertTitle>Unable to load account details</AlertTitle>
+          <AlertDescription>{fetchError}</AlertDescription>
           <Button className="mt-4" onClick={() => void refreshAccount()}>
             Retry
           </Button>
-        </div>
+        </Alert>
       </div>
     );
   }
@@ -310,14 +298,6 @@ const AdminAccountPage = () => {
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-6">
-      <Link
-        to="/admin/dashboard"
-        className="inline-flex items-center gap-2 rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-sm text-base-content/70 shadow-sm transition hover:bg-base-200"
-      >
-        <IconArrowLeft className="h-4 w-4" />
-        Back to Dashboard
-      </Link>
-
       <div className="overflow-hidden rounded-xl border bg-card shadow-lg">
         <div className="bg-gradient-to-r from-primary/10 to-primary/20 px-6 py-8 text-center sm:px-10">
           <div className="flex flex-col items-center gap-4">
@@ -325,13 +305,13 @@ const AdminAccountPage = () => {
               <IconUserShield className="h-10 w-10" />
             </div>
             <div className="space-y-1">
-              <h1 className="text-3xl font-semibold text-base-content md:text-4xl">{displayName}</h1>
-              <p className="text-sm text-base-content/70">{account.user.email || account.user.username || 'Administrator'}</p>
+              <h1 className="text-3xl font-semibold text-foreground md:text-4xl">{displayName}</h1>
+              <p className="text-sm text-muted-foreground">{account.user.email || account.user.username || 'Administrator'}</p>
             </div>
-            <span className="inline-flex items-center gap-2 rounded-md bg-primary/15 px-3 py-1 text-xs font-medium uppercase tracking-wide text-primary ring-1 ring-primary/30">
+            <Badge variant="outline" className="gap-2 uppercase tracking-wide">
               <IconUserShield className="h-3.5 w-3.5" />
               System Administrator
-            </span>
+            </Badge>
           </div>
         </div>
 
@@ -345,38 +325,46 @@ const AdminAccountPage = () => {
 
         <div className="space-y-6 p-6">
           <div className="grid gap-6 lg:grid-cols-3">
-            <div className="rounded-lg border border-base-300 bg-base-200/60 p-4 text-left lg:col-span-1">
-              <h3 className="text-sm font-semibold text-base-content/80">Account Details</h3>
-              <dl className="mt-3 space-y-2 text-sm text-base-content/70">
-                <div className="flex justify-between gap-4">
-                  <dt className="font-medium text-base-content/60">Username</dt>
-                  <dd>{account.user.username || 'Not configured'}</dd>
-                </div>
-                <div className="flex justify-between gap-4">
-                  <dt className="font-medium text-base-content/60">Email</dt>
-                  <dd className="text-right">{account.user.email || '—'}</dd>
-                </div>
-                <div className="flex justify-between gap-4">
-                  <dt className="font-medium text-base-content/60">Last Login</dt>
-                  <dd className="text-right">{formatIsoDate(account.user.last_login_at)}</dd>
-                </div>
-              </dl>
-            </div>
-            <div className="rounded-lg border border-base-300 bg-base-200/60 p-4 text-left lg:col-span-2">
-              <h3 className="text-sm font-semibold text-base-content/80">Session Status</h3>
-              <p className="mt-2 text-sm text-base-content/70">
-                You are signed in as an administrator with full access to system settings and user
-                management features.
-              </p>
-            </div>
+            <Card className="lg:col-span-1">
+              <CardHeader>
+                <CardTitle className="text-sm">Account Details</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <dl className="space-y-2 text-sm text-muted-foreground">
+                  <div className="flex justify-between gap-4">
+                    <dt className="font-medium text-foreground/60">Username</dt>
+                    <dd className="text-foreground">{account.user.username || 'Not configured'}</dd>
+                  </div>
+                  <div className="flex justify-between gap-4">
+                    <dt className="font-medium text-foreground/60">Email</dt>
+                    <dd className="text-right text-foreground">{account.user.email || '—'}</dd>
+                  </div>
+                  <div className="flex justify-between gap-4">
+                    <dt className="font-medium text-foreground/60">Last Login</dt>
+                    <dd className="text-right text-foreground">{formatIsoDate(account.user.last_login_at)}</dd>
+                  </div>
+                </dl>
+              </CardContent>
+            </Card>
+            <Card className="lg:col-span-2">
+              <CardHeader>
+                <CardTitle className="text-sm">Session Status</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground">
+                  You are signed in as an administrator with full access to system settings and user
+                  management features.
+                </p>
+              </CardContent>
+            </Card>
           </div>
 
           <div className="grid gap-6 lg:grid-cols-2">
             <div className="space-y-6">
               {showInitialCredentialsCard ? (
-                <Card className="border-base-300 bg-base-200/60 shadow-none">
+                <Card>
                   <CardHeader>
-                    <CardTitle className="text-base">Set Local Credentials</CardTitle>
+                    <CardTitle>Set Local Credentials</CardTitle>
                     <CardDescription>
                       Configure a local username and password to sign in without Plex SSO.
                     </CardDescription>
@@ -426,7 +414,9 @@ const AdminAccountPage = () => {
                         />
                       </div>
                       {credentialsError ? (
-                        <p className="text-sm text-destructive">{credentialsError}</p>
+                        <Alert variant="destructive">
+                          <AlertDescription>{credentialsError}</AlertDescription>
+                        </Alert>
                       ) : null}
                       <Button type="submit" disabled={credentialsSubmitting} className="w-full sm:w-auto">
                         {credentialsSubmitting ? 'Saving…' : 'Save Credentials'}
@@ -436,9 +426,9 @@ const AdminAccountPage = () => {
                 </Card>
               ) : null}
 
-              <Card className="border-base-300 bg-base-200/60 shadow-none">
+              <Card>
                 <CardHeader>
-                  <CardTitle className="text-base">Change Password</CardTitle>
+                  <CardTitle>Change Password</CardTitle>
                   <CardDescription>Update your password for this admin account.</CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -490,7 +480,11 @@ const AdminAccountPage = () => {
                         required
                       />
                     </div>
-                    {passwordError ? <p className="text-sm text-destructive">{passwordError}</p> : null}
+                    {passwordError ? (
+                      <Alert variant="destructive">
+                        <AlertDescription>{passwordError}</AlertDescription>
+                      </Alert>
+                    ) : null}
                     <Button type="submit" disabled={passwordSubmitting} className="w-full sm:w-auto">
                       {passwordSubmitting ? 'Updating…' : 'Update Password'}
                     </Button>
@@ -500,9 +494,9 @@ const AdminAccountPage = () => {
             </div>
 
             <div>
-              <Card className="border-base-300 bg-base-200/60 shadow-none">
+              <Card>
                 <CardHeader>
-                  <CardTitle className="text-base">Timezone Settings</CardTitle>
+                  <CardTitle>Timezone Settings</CardTitle>
                   <CardDescription>
                     Choose how timestamps are displayed throughout the application.
                   </CardDescription>
@@ -583,7 +577,11 @@ const AdminAccountPage = () => {
                         </SelectContent>
                       </Select>
                     </div>
-                    {timezoneError ? <p className="text-sm text-destructive">{timezoneError}</p> : null}
+                    {timezoneError ? (
+                      <Alert variant="destructive">
+                        <AlertDescription>{timezoneError}</AlertDescription>
+                      </Alert>
+                    ) : null}
                     <Button type="submit" disabled={timezoneSubmitting} className="w-full sm:w-auto">
                       {timezoneSubmitting ? 'Saving…' : 'Save Preferences'}
                     </Button>

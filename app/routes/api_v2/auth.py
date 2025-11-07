@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from uuid import uuid4
+import time
 
 from flask import jsonify, request, current_app, g, url_for, session, redirect, flash
 ## Flask-Login removed (JWT-only)
@@ -424,15 +425,28 @@ def plex_sso_callback_admin_v2():
     pin_code_from_session = session.get('plex_pin_code_admin_login')
     client_id_from_session = session.get('plex_client_id_admin_login')
 
-    fallback_url = '/admin/account' if current_user.is_authenticated else '/admin/login'
+    # Check if user is authenticated via JWT (optional check)
+    admin_to_update = None
+    is_authenticated = False
+    try:
+        verify_jwt_in_request(optional=True, locations=["headers", "cookies"])
+        identity = get_jwt_identity()
+        if identity:
+            admin_to_update = User.query.filter_by(uuid=identity).filter(User.userType.in_([UserType.OWNER, UserType.LOCAL])).first()
+            if admin_to_update:
+                is_authenticated = True
+    except Exception:
+        pass  # Not authenticated, will find admin by Plex UUID below
+
+    fallback_url = '/admin/account' if is_authenticated else '/admin/login'
 
     if not pin_id_from_session or not pin_code_from_session or not client_id_from_session:
-        flash('Plex login callback invalid or session expired.', 'danger')
         session.pop('plex_pin_id_admin_login', None)
         session.pop('plex_pin_code_admin_login', None)
         session.pop('plex_client_id_admin_login', None)
         session.pop('plex_app_name_admin_login', None)
-        return redirect(fallback_url)
+        error_msg = urlencode({'error': 'Plex login callback invalid or session expired.'})
+        return redirect(f'{fallback_url}?{error_msg}')
 
     try:
         current_app.logger.debug(f"Checking admin PIN status for PIN ID: {pin_id_from_session} (PIN code: {pin_code_from_session})")
@@ -457,38 +471,63 @@ def plex_sso_callback_admin_v2():
             if attempt < max_retries - 1:
                 time.sleep(retry_delay)
         if not plex_auth_token:
-            flash('Plex PIN not yet linked or has expired.', 'warning')
-            return redirect(fallback_url)
+            error_msg = urlencode({'error': 'Plex PIN not yet linked or has expired.'})
+            return redirect(f'{fallback_url}?{error_msg}')
 
         plex_account = MyPlexAccount(token=plex_auth_token)
-        admin_to_update = current_user
+        
+        # Determine if we're linking an existing account or logging in a new one
         if not admin_to_update:
-            flash(f"Plex account '{plex_account.localUsername}' is not a configured admin.", 'danger')
-            return redirect(fallback_url)
+            # Find admin by Plex UUID (for login via SSO)
+            admin_to_update = User.query.filter(User.userType.in_([UserType.OWNER, UserType.LOCAL])).filter_by(plex_uuid=plex_account.uuid).first()
+        
+        if not admin_to_update:
+            error_msg = urlencode({'error': f"Plex account '{plex_account.localUsername}' is not linked to any admin account. Please contact your administrator to link your Plex account."})
+            return redirect(f'{fallback_url}?{error_msg}')
+        
+        # Check if the returning Plex account is already assigned to a different MUM admin
         if admin_to_update.plex_uuid and admin_to_update.plex_uuid != plex_account.uuid:
-            flash('This Plex account is already linked to a different admin.', 'danger')
-            return redirect(fallback_url)
+            error_msg = urlencode({'error': 'This Plex account is already linked to a different admin.'})
+            return redirect(f'{fallback_url}?{error_msg}')
 
+        # Update the admin record with the latest details from Plex
         admin_to_update.plex_uuid = plex_account.uuid
         admin_to_update.plex_username = plex_account.localUsername
         admin_to_update.plex_thumb = plex_account.thumb
         admin_to_update.email = plex_account.email
         admin_to_update.last_login_at = db.func.now()
         db.session.commit()
-        log_event(EventType.ADMIN_LOGIN_SUCCESS, f"Admin '{admin_to_update.localUsername or admin_to_update.plex_username}' linked via Plex.", admin_id=admin_to_update.id)
-
-        next_url = session.pop('plex_admin_login_next_url', '/admin/settings/discord')
-        return redirect(next_url)
+        
+        # If not authenticated, create JWT session for SSO login
+        if not is_authenticated:
+            access_token = make_access_token(admin_to_update)
+            refresh_token = make_refresh_token(admin_to_update)
+            resp = redirect(session.pop('plex_admin_login_next_url', '/admin/dashboard'))
+            try:
+                set_access_cookies(resp, access_token)
+            except Exception:
+                pass
+            set_refresh_cookie(resp, refresh_token)
+            log_event(EventType.ADMIN_LOGIN_SUCCESS, f"Admin '{admin_to_update.localUsername or admin_to_update.plex_username}' logged in via Plex SSO.", admin_id=admin_to_update.id)
+            return resp
+        else:
+            log_event(EventType.ADMIN_LOGIN_SUCCESS, f"Admin '{admin_to_update.localUsername or admin_to_update.plex_username}' linked via Plex.", admin_id=admin_to_update.id)
+            next_url = session.pop('plex_admin_login_next_url', '/admin/settings/discord')
+            return redirect(next_url)
     except PlexApiException as e_plex:
-        flash(f'Plex API error: {str(e_plex)}', 'danger')
         current_app.logger.error(f"Plex admin callback PlexApiException: {e_plex}", exc_info=True)
+        error_msg = urlencode({'error': f'Plex API error: {str(e_plex)}'})
+        session.pop('plex_pin_id_admin_login', None)
+        session.pop('plex_pin_code_admin_login', None)
+        session.pop('plex_headers_admin_login', None)
+        return redirect(f'{fallback_url}?{error_msg}')
     except Exception as e:
         current_app.logger.error(f"Error during Plex admin callback: {e}", exc_info=True)
-        flash(f'An unexpected error occurred: {e}', 'danger')
-    session.pop('plex_pin_id_admin_login', None)
-    session.pop('plex_pin_code_admin_login', None)
-    session.pop('plex_headers_admin_login', None)
-    return redirect(fallback_url)
+        error_msg = urlencode({'error': f'An unexpected error occurred: {e}'})
+        session.pop('plex_pin_id_admin_login', None)
+        session.pop('plex_pin_code_admin_login', None)
+        session.pop('plex_headers_admin_login', None)
+        return redirect(f'{fallback_url}?{error_msg}')
 
 
 @api_v2.get(

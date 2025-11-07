@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useLocation, useNavigate } from '@tanstack/react-router';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,9 +9,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ApiError, requestJson } from '@/util/apiClient';
 import { useToast } from '@/util/toast';
-import { IconUserShield } from '@tabler/icons-react';
+import { IconUserShield, IconInfoCircle, IconKey, IconClock } from '@tabler/icons-react';
 
 type AccountUser = {
   uuid: string;
@@ -75,8 +77,16 @@ const getApiErrorMessage = (error: unknown) => {
   return 'Unexpected error';
 };
 
+type TabType = 'overview' | 'credentials' | 'preferences';
+
 const AdminAccountPage = () => {
   const toast = useToast();
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  // Extract active tab from URL search params
+  const searchParams = new URLSearchParams(location.search);
+  const activeTab = (searchParams.get('tab') as TabType) || 'overview';
 
   const [loading, setLoading] = useState(true);
   const [account, setAccount] = useState<AccountResponse['data'] | null>(null);
@@ -145,6 +155,14 @@ const AdminAccountPage = () => {
     if (!account) return false;
     return account.capabilities.can_set_initial_credentials;
   }, [account]);
+
+  const setTab = (tab: TabType) => {
+    navigate({ 
+      to: location.pathname,
+      search: { tab } as any,
+      replace: true 
+    });
+  };
 
   const handleSetInitialCredentials = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -252,25 +270,19 @@ const AdminAccountPage = () => {
   if (loading && !account) {
     return (
       <div className="mx-auto w-full max-w-5xl space-y-6">
-        <div className="overflow-hidden rounded-xl border bg-card shadow-lg">
-          <div className="bg-gradient-to-r from-primary/10 to-primary/20 p-8 text-center">
+        <Card className="bg-gradient-to-r from-primary/10 to-primary/20">
+          <CardContent className="p-8">
             <div className="flex flex-col items-center gap-4">
               <Skeleton className="h-24 w-24 rounded-full" />
               <Skeleton className="h-6 w-40" />
               <Skeleton className="h-5 w-32" />
             </div>
-          </div>
-          <div className="border-b bg-muted/40 px-6">
-            <div className="flex h-12 items-center text-sm font-medium">
-              <span className="inline-flex h-full items-center border-b-2 border-primary px-4 text-primary">
-                Account Settings
-              </span>
-            </div>
-          </div>
-          <div className="space-y-6 p-6">
-            <Skeleton className="h-32 w-full rounded-lg" />
-            <Skeleton className="h-48 w-full rounded-lg" />
-          </div>
+          </CardContent>
+        </Card>
+        <div className="space-y-6">
+          <Skeleton className="h-12 w-full rounded-lg" />
+          <Skeleton className="h-32 w-full rounded-lg" />
+          <Skeleton className="h-48 w-full rounded-lg" />
         </div>
       </div>
     );
@@ -298,9 +310,10 @@ const AdminAccountPage = () => {
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-6">
-      <div className="overflow-hidden rounded-xl border bg-card shadow-lg">
-        <div className="bg-gradient-to-r from-primary/10 to-primary/20 px-6 py-8 text-center sm:px-10">
-          <div className="flex flex-col items-center gap-4">
+      {/* Header Section */}
+      <Card className="bg-gradient-to-r from-primary/10 to-primary/20">
+        <CardContent className="p-8">
+          <div className="flex flex-col items-center space-y-4">
             <div className="flex h-24 w-24 items-center justify-center rounded-full border-4 border-primary/30 bg-primary text-primary-foreground shadow-lg">
               <IconUserShield className="h-10 w-10" />
             </div>
@@ -313,17 +326,27 @@ const AdminAccountPage = () => {
               System Administrator
             </Badge>
           </div>
-        </div>
+        </CardContent>
+      </Card>
 
-        <div className="border-b bg-muted/40 px-6">
-          <div className="flex h-12 items-center text-sm font-medium">
-            <span className="inline-flex h-full items-center border-b-2 border-primary px-4 text-primary">
-              Account Settings
-            </span>
-          </div>
-        </div>
+      {/* Tabs */}
+      <Tabs value={activeTab} onValueChange={(value) => setTab(value as TabType)}>
+        <TabsList className="w-full justify-start overflow-x-auto">
+          <TabsTrigger value="overview">
+            <IconInfoCircle className="mr-2 h-4 w-4" />
+            Overview
+          </TabsTrigger>
+          <TabsTrigger value="credentials">
+            <IconKey className="mr-2 h-4 w-4" />
+            Credentials
+          </TabsTrigger>
+          <TabsTrigger value="preferences">
+            <IconClock className="mr-2 h-4 w-4" />
+            Preferences
+          </TabsTrigger>
+        </TabsList>
 
-        <div className="space-y-6 p-6">
+        <TabsContent value="overview" className="space-y-6">
           <div className="grid gap-6 lg:grid-cols-3">
             <Card className="lg:col-span-1">
               <CardHeader>
@@ -358,240 +381,240 @@ const AdminAccountPage = () => {
               </CardContent>
             </Card>
           </div>
+        </TabsContent>
 
+        <TabsContent value="credentials" className="space-y-6">
           <div className="grid gap-6 lg:grid-cols-2">
-            <div className="space-y-6">
-              {showInitialCredentialsCard ? (
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Set Local Credentials</CardTitle>
-                    <CardDescription>
-                      Configure a local username and password to sign in without Plex SSO.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <form className="space-y-4" onSubmit={handleSetInitialCredentials}>
-                      <div className="space-y-2">
-                        <Label htmlFor="initial-username">Username</Label>
-                        <Input
-                          id="initial-username"
-                          value={credentialsForm.username}
-                          onChange={(event) =>
-                            setCredentialsForm((prev) => ({ ...prev, username: event.target.value }))
-                          }
-                          required
-                          minLength={3}
-                          maxLength={80}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="initial-password">Password</Label>
-                        <Input
-                          id="initial-password"
-                          type="password"
-                          value={credentialsForm.password}
-                          onChange={(event) =>
-                            setCredentialsForm((prev) => ({ ...prev, password: event.target.value }))
-                          }
-                          required
-                          minLength={8}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="initial-confirm-password">Confirm Password</Label>
-                        <Input
-                          id="initial-confirm-password"
-                          type="password"
-                          value={credentialsForm.confirmPassword}
-                          onChange={(event) =>
-                            setCredentialsForm((prev) => ({
-                              ...prev,
-                              confirmPassword: event.target.value,
-                            }))
-                          }
-                          required
-                          minLength={8}
-                        />
-                      </div>
-                      {credentialsError ? (
-                        <Alert variant="destructive">
-                          <AlertDescription>{credentialsError}</AlertDescription>
-                        </Alert>
-                      ) : null}
-                      <Button type="submit" disabled={credentialsSubmitting} className="w-full sm:w-auto">
-                        {credentialsSubmitting ? 'Saving…' : 'Save Credentials'}
-                      </Button>
-                    </form>
-                  </CardContent>
-                </Card>
-              ) : null}
-
+            {showInitialCredentialsCard ? (
               <Card>
                 <CardHeader>
-                  <CardTitle>Change Password</CardTitle>
-                  <CardDescription>Update your password for this admin account.</CardDescription>
+                  <CardTitle>Set Local Credentials</CardTitle>
+                  <CardDescription>
+                    Configure a local username and password to sign in without Plex SSO.
+                  </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <form className="space-y-4" onSubmit={handleChangePassword}>
+                  <form className="space-y-4" onSubmit={handleSetInitialCredentials}>
                     <div className="space-y-2">
-                      <Label htmlFor="current-password">Current Password</Label>
+                      <Label htmlFor="initial-username">Username</Label>
                       <Input
-                        id="current-password"
-                        type="password"
-                        value={passwordForm.currentPassword}
+                        id="initial-username"
+                        value={credentialsForm.username}
                         onChange={(event) =>
-                          setPasswordForm((prev) => ({
-                            ...prev,
-                            currentPassword: event.target.value,
-                          }))
+                          setCredentialsForm((prev) => ({ ...prev, username: event.target.value }))
                         }
                         required
+                        minLength={3}
+                        maxLength={80}
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="new-password">New Password</Label>
+                      <Label htmlFor="initial-password">Password</Label>
                       <Input
-                        id="new-password"
+                        id="initial-password"
                         type="password"
-                        value={passwordForm.newPassword}
+                        value={credentialsForm.password}
                         onChange={(event) =>
-                          setPasswordForm((prev) => ({
-                            ...prev,
-                            newPassword: event.target.value,
-                          }))
+                          setCredentialsForm((prev) => ({ ...prev, password: event.target.value }))
                         }
+                        required
                         minLength={8}
-                        required
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="confirm-new-password">Confirm New Password</Label>
+                      <Label htmlFor="initial-confirm-password">Confirm Password</Label>
                       <Input
-                        id="confirm-new-password"
+                        id="initial-confirm-password"
                         type="password"
-                        value={passwordForm.confirmPassword}
+                        value={credentialsForm.confirmPassword}
                         onChange={(event) =>
-                          setPasswordForm((prev) => ({
+                          setCredentialsForm((prev) => ({
                             ...prev,
                             confirmPassword: event.target.value,
                           }))
                         }
-                        minLength={8}
                         required
+                        minLength={8}
                       />
                     </div>
-                    {passwordError ? (
+                    {credentialsError ? (
                       <Alert variant="destructive">
-                        <AlertDescription>{passwordError}</AlertDescription>
+                        <AlertDescription>{credentialsError}</AlertDescription>
                       </Alert>
                     ) : null}
-                    <Button type="submit" disabled={passwordSubmitting} className="w-full sm:w-auto">
-                      {passwordSubmitting ? 'Updating…' : 'Update Password'}
+                    <Button type="submit" disabled={credentialsSubmitting} className="w-full sm:w-auto">
+                      {credentialsSubmitting ? 'Saving…' : 'Save Credentials'}
                     </Button>
                   </form>
                 </CardContent>
               </Card>
-            </div>
+            ) : null}
 
-            <div>
-              <Card>
-                <CardHeader>
-                  <CardTitle>Timezone Settings</CardTitle>
-                  <CardDescription>
-                    Choose how timestamps are displayed throughout the application.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <form className="space-y-4" onSubmit={handleTimezoneSubmit}>
-                    <div className="space-y-2">
-                      <Label>Display Time In</Label>
-                      <Select
-                        value={timezoneForm.preference}
-                        onValueChange={(value: 'local' | 'utc') =>
-                          setTimezoneForm((prev) => ({
-                            ...prev,
-                            preference: value,
-                            local_timezone: value === 'local' ? (prev.local_timezone ?? detectedTimezone) : null,
-                          }))
-                        }
-                      >
-                        <SelectTrigger className="w-full">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="local">
-                            My Timezone {timezoneForm.local_timezone ? `(${timezoneForm.local_timezone})` : ''}
-                          </SelectItem>
-                          <SelectItem value="utc">UTC</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    {timezoneForm.preference === 'local' ? (
-                      <div className="space-y-2">
-                        <Label htmlFor="local-timezone">Local Timezone</Label>
-                        <Input
-                          id="local-timezone"
-                          placeholder="e.g. America/New_York"
-                          value={timezoneForm.local_timezone ?? ''}
-                          onChange={(event) =>
-                            setTimezoneForm((prev) => ({
-                              ...prev,
-                              local_timezone: event.target.value,
-                            }))
-                          }
-                          required
-                        />
-                        {detectedTimezone ? (
-                          <button
-                            type="button"
-                            className="text-sm text-primary underline-offset-4 hover:underline"
-                            onClick={() =>
-                              setTimezoneForm((prev) => ({
-                                ...prev,
-                                local_timezone: detectedTimezone,
-                              }))
-                            }
-                          >
-                            Use detected timezone ({detectedTimezone})
-                          </button>
-                        ) : null}
-                      </div>
-                    ) : null}
-                    <div className="space-y-2">
-                      <Label>Time Format</Label>
-                      <Select
-                        value={timezoneForm.time_format}
-                        onValueChange={(value: '12' | '24') =>
-                          setTimezoneForm((prev) => ({
-                            ...prev,
-                            time_format: value,
-                          }))
-                        }
-                      >
-                        <SelectTrigger className="w-full">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="12">12-hour (AM/PM)</SelectItem>
-                          <SelectItem value="24">24-hour</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    {timezoneError ? (
-                      <Alert variant="destructive">
-                        <AlertDescription>{timezoneError}</AlertDescription>
-                      </Alert>
-                    ) : null}
-                    <Button type="submit" disabled={timezoneSubmitting} className="w-full sm:w-auto">
-                      {timezoneSubmitting ? 'Saving…' : 'Save Preferences'}
-                    </Button>
-                  </form>
-                </CardContent>
-              </Card>
-            </div>
+            <Card>
+              <CardHeader>
+                <CardTitle>Change Password</CardTitle>
+                <CardDescription>Update your password for this admin account.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form className="space-y-4" onSubmit={handleChangePassword}>
+                  <div className="space-y-2">
+                    <Label htmlFor="current-password">Current Password</Label>
+                    <Input
+                      id="current-password"
+                      type="password"
+                      value={passwordForm.currentPassword}
+                      onChange={(event) =>
+                        setPasswordForm((prev) => ({
+                          ...prev,
+                          currentPassword: event.target.value,
+                        }))
+                      }
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="new-password">New Password</Label>
+                    <Input
+                      id="new-password"
+                      type="password"
+                      value={passwordForm.newPassword}
+                      onChange={(event) =>
+                        setPasswordForm((prev) => ({
+                          ...prev,
+                          newPassword: event.target.value,
+                        }))
+                      }
+                      minLength={8}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="confirm-new-password">Confirm New Password</Label>
+                    <Input
+                      id="confirm-new-password"
+                      type="password"
+                      value={passwordForm.confirmPassword}
+                      onChange={(event) =>
+                        setPasswordForm((prev) => ({
+                          ...prev,
+                          confirmPassword: event.target.value,
+                        }))
+                      }
+                      minLength={8}
+                      required
+                    />
+                  </div>
+                  {passwordError ? (
+                    <Alert variant="destructive">
+                      <AlertDescription>{passwordError}</AlertDescription>
+                    </Alert>
+                  ) : null}
+                  <Button type="submit" disabled={passwordSubmitting} className="w-full sm:w-auto">
+                    {passwordSubmitting ? 'Updating…' : 'Update Password'}
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
           </div>
-        </div>
-      </div>
+        </TabsContent>
+
+        <TabsContent value="preferences" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Timezone Settings</CardTitle>
+              <CardDescription>
+                Choose how timestamps are displayed throughout the application.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form className="space-y-4" onSubmit={handleTimezoneSubmit}>
+                <div className="space-y-2">
+                  <Label>Display Time In</Label>
+                  <Select
+                    value={timezoneForm.preference}
+                    onValueChange={(value: 'local' | 'utc') =>
+                      setTimezoneForm((prev) => ({
+                        ...prev,
+                        preference: value,
+                        local_timezone: value === 'local' ? (prev.local_timezone ?? detectedTimezone) : null,
+                      }))
+                    }
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="local">
+                        My Timezone {timezoneForm.local_timezone ? `(${timezoneForm.local_timezone})` : ''}
+                      </SelectItem>
+                      <SelectItem value="utc">UTC</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {timezoneForm.preference === 'local' ? (
+                  <div className="space-y-2">
+                    <Label htmlFor="local-timezone">Local Timezone</Label>
+                    <Input
+                      id="local-timezone"
+                      placeholder="e.g. America/New_York"
+                      value={timezoneForm.local_timezone ?? ''}
+                      onChange={(event) =>
+                        setTimezoneForm((prev) => ({
+                          ...prev,
+                          local_timezone: event.target.value,
+                        }))
+                      }
+                      required
+                    />
+                    {detectedTimezone ? (
+                      <button
+                        type="button"
+                        className="text-sm text-primary underline-offset-4 hover:underline"
+                        onClick={() =>
+                          setTimezoneForm((prev) => ({
+                            ...prev,
+                            local_timezone: detectedTimezone,
+                          }))
+                        }
+                      >
+                        Use detected timezone ({detectedTimezone})
+                      </button>
+                    ) : null}
+                  </div>
+                ) : null}
+                <div className="space-y-2">
+                  <Label>Time Format</Label>
+                  <Select
+                    value={timezoneForm.time_format}
+                    onValueChange={(value: '12' | '24') =>
+                      setTimezoneForm((prev) => ({
+                        ...prev,
+                        time_format: value,
+                      }))
+                    }
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="12">12-hour (AM/PM)</SelectItem>
+                      <SelectItem value="24">24-hour</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {timezoneError ? (
+                  <Alert variant="destructive">
+                    <AlertDescription>{timezoneError}</AlertDescription>
+                  </Alert>
+                ) : null}
+                <Button type="submit" disabled={timezoneSubmitting} className="w-full sm:w-auto">
+                  {timezoneSubmitting ? 'Saving…' : 'Save Preferences'}
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };

@@ -21,7 +21,7 @@ const AdminGuard = ({ children }: Props) => {
   }
 
   if (error && (error as ApiError).status === 401) {
-    return <Navigate to="/auth/login" replace state={{ from: location.pathname }} />;
+    return <Navigate to="/admin/login" replace state={{ from: location.pathname }} />;
   }
 
   if (error) {
@@ -36,7 +36,7 @@ const AdminGuard = ({ children }: Props) => {
   }
 
   if (!session?.user?.has_admin_access) {
-    return <Navigate to="/auth/login" replace state={{ from: location.pathname }} />;
+    return <Navigate to="/admin/login" replace state={{ from: location.pathname }} />;
   }
 
   // If children are provided, render them, otherwise fall back to an Outlet

@@ -1,4 +1,48 @@
+import { useEffect } from 'react';
+import { useNavigate, useLocation } from '@tanstack/react-router';
+import { useAuth } from '../contexts/AuthContext';
+
 export default function UserDashboardPage() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { isAuthenticated, isAdministrator, loading } = useAuth();
+
+  useEffect(() => {
+    // Wait for auth to load
+    if (loading) return;
+
+    // Get next parameter from URL (same way LoginPage does it)
+    const search = new URLSearchParams(((location as any).searchStr) ?? (typeof window !== 'undefined' ? window.location.search : ''));
+    const nextParam = search.get('next');
+
+    // If authenticated as admin, redirect to admin dashboard (or next param if valid)
+    if (isAuthenticated && isAdministrator) {
+      const redirectTo = nextParam && nextParam !== '/' ? nextParam : '/admin/dashboard';
+      navigate({ to: redirectTo, replace: true });
+      return;
+    }
+
+    // If not authenticated, redirect to user login with next parameter
+    if (!isAuthenticated) {
+      const redirectNext = nextParam || '/';
+      navigate({ to: `/login?next=${encodeURIComponent(redirectNext)}`, replace: true });
+      return;
+    }
+
+    // If authenticated as regular user (not admin), show user dashboard
+    // This is the intended behavior for regular user accounts
+  }, [isAuthenticated, isAdministrator, loading, navigate, location]);
+
+  // Show loading while checking auth
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-base-200">
+        <span className="loading loading-spinner loading-lg" />
+      </div>
+    );
+  }
+
+  // If we get here, user is authenticated but not an admin (regular user)
   return (
     <div className="container mx-auto max-w-3xl p-6">
       <h1 className="text-2xl font-semibold mb-2">User Dashboard</h1>

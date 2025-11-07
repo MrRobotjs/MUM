@@ -52,7 +52,7 @@ export function NavUser({
     } finally {
       try { window.dispatchEvent(new CustomEvent('auth_logged_out')); } catch {}
       clearAccessToken()
-      navigate({ to: '/auth/login', replace: true })
+      navigate({ to: '/admin/login', replace: true })
     }
   }
 

@@ -328,7 +328,7 @@ def create_app(config_name=None):
         - Skips API and static endpoints
         - Applies to GET/HEAD only
         - If visiting '/', or any '/admin' UI route without a valid access token,
-          redirect to '/auth/login?next=<original>'
+          redirect to '/admin/login?next=<original>'
         """
         if request.method not in ("GET", "HEAD"):
             return None
@@ -344,8 +344,8 @@ def create_app(config_name=None):
         ):
             return None
 
-        # Allow auth and public pages to load without redirect loops
-        if path.startswith('/auth') or path.startswith('/invite') or path.startswith('/public'):
+        # Allow auth, login, user portal, and public pages to load without redirect loops
+        if path.startswith('/auth') or path.startswith('/invite') or path.startswith('/public') or path.startswith('/login') or path.startswith('/user'):
             return None
 
         # UI entrypoints (root or admin paths)
@@ -373,13 +373,13 @@ def create_app(config_name=None):
         if path.startswith('/admin'):
             return None
 
-        # Otherwise, prefer user portal when enabled
+        # Otherwise, choose login based on ALLOW_USER_ACCOUNTS setting
         allow_user_accounts = Setting.get_bool('ALLOW_USER_ACCOUNTS', False)
         if allow_user_accounts:
-            # Send to user portal root; SPA can read ?next and show login/landing
-            return redirect(f"/user?next={next_encoded}")
+            # Send to regular user login portal
+            return redirect(f"/login?next={next_encoded}")
         else:
             # Fall back to admin login
-            return redirect(f"/auth/login?next={next_encoded}")
+            return redirect(f"/admin/login?next={next_encoded}")
 
     return app

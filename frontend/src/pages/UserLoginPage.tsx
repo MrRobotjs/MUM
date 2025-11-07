@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../co
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Button } from '../components/ui/button';
+import { Checkbox } from '../components/ui/checkbox';
 import { Separator } from '../components/ui/separator';
 import { Alert, AlertDescription } from '../components/ui/alert';
 
@@ -13,35 +14,19 @@ type LocationState = {
   from?: string;
 };
 
-const LoginPage = () => {
+const UserLoginPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [plexLoading, setPlexLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [allowUserAccounts, setAllowUserAccounts] = useState(false);
 
-  // Prefer ?next= query, then location.state.from, else dashboard
+  // Prefer ?next= query, then location.state.from, else user dashboard
   const search = new URLSearchParams(((location as any).searchStr) ?? (typeof window !== 'undefined' ? window.location.search : ''));
   const nextParam = search.get('next');
-  const fromPath = nextParam || (location.state as LocationState | undefined)?.from || '/admin/dashboard';
-
-  // Check if user accounts are enabled
-  useEffect(() => {
-    const checkUserAccounts = async () => {
-      try {
-        const response = await requestJson<{ data: { allow_user_accounts: boolean } }>('/admin/api/v2/settings/user-accounts');
-        setAllowUserAccounts(response.data?.allow_user_accounts || false);
-      } catch {
-        // If check fails, default to false
-        setAllowUserAccounts(false);
-      }
-    };
-    checkUserAccounts();
-  }, []);
+  const fromPath = nextParam || (location.state as LocationState | undefined)?.from || '/user/dashboard';
 
   // Auto-focus first input on desktop
   useEffect(() => {
@@ -65,7 +50,7 @@ const LoginPage = () => {
           user?: unknown;
         };
       }>(
-        '/admin/api/v2/auth/jwt/login',
+        '/api/v2/public/auth/jwt/login',
         {
           method: 'POST',
           body: JSON.stringify({
@@ -97,39 +82,6 @@ const LoginPage = () => {
     }
   };
 
-  const handlePlexSSO = async () => {
-    setPlexLoading(true);
-    setError(null);
-
-    try {
-      const response = await requestJson<{
-        data?: {
-          redirect_url?: string;
-        };
-      }>(
-        '/admin/api/v2/auth/plex/start',
-        {
-          method: 'POST',
-          body: JSON.stringify({
-            next: fromPath
-          })
-        }
-      );
-
-      const redirectUrl = response?.data?.redirect_url;
-      if (redirectUrl) {
-        window.location.href = redirectUrl;
-      } else {
-        setError('Failed to initiate Plex login');
-        setPlexLoading(false);
-      }
-    } catch (err) {
-      const apiError = err as ApiError;
-      setError(apiError.message || 'Plex login failed');
-      setPlexLoading(false);
-    }
-  };
-
   return (
     <div className="min-h-screen lg:min-h-[calc(100vh-4rem)] flex items-center justify-center p-4 bg-muted/30">
       <div className="w-full max-w-6xl">
@@ -141,7 +93,7 @@ const LoginPage = () => {
                 <div className="mb-8">
                   <div className="flex flex-col items-center lg:flex-row lg:justify-start mb-6">
                     <div className="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center mb-4 lg:mb-0 lg:mr-4">
-                      <i className="fas fa-crown text-primary text-2xl" />
+                      <i className="fas fa-film text-primary text-2xl" />
                     </div>
                     <div className="text-center lg:text-left">
                       <h1 className="text-4xl lg:text-5xl font-bold">MUM</h1>
@@ -150,19 +102,19 @@ const LoginPage = () => {
                   </div>
                   
                   <div className="space-y-4 text-muted-foreground">
-                    <p className="text-lg">Administrator access portal. Sign in to manage your media services and user accounts.</p>
+                    <p className="text-lg">Welcome to your personal media hub! Access your content, manage your preferences, and explore your multimedia library.</p>
                     <div className="flex flex-wrap justify-center lg:justify-start gap-4 text-sm">
                       <div className="flex items-center">
-                        <i className="fas fa-crown text-primary mr-2" />
-                        <span>Admin Controls</span>
+                        <i className="fas fa-play text-primary mr-2" />
+                        <span>Stream Content</span>
                       </div>
                       <div className="flex items-center">
-                        <i className="fas fa-cog text-primary mr-2" />
-                        <span>System Management</span>
+                        <i className="fas fa-user-cog text-primary mr-2" />
+                        <span>Personal Dashboard</span>
                       </div>
                       <div className="flex items-center">
-                        <i className="fas fa-chart-line text-primary mr-2" />
-                        <span>Analytics & Reports</span>
+                        <i className="fas fa-server text-primary mr-2" />
+                        <span>Multi-Service Access</span>
                       </div>
                     </div>
                   </div>
@@ -170,27 +122,27 @@ const LoginPage = () => {
                 
                 {/* Feature Highlights */}
                 <div className="hidden lg:block">
-                  <h3 className="text-xl font-semibold mb-4">Administrative Features</h3>
+                  <h3 className="text-xl font-semibold mb-4">Platform Features</h3>
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div className="bg-muted/50 rounded-lg p-3 hover:bg-muted/80 hover:-translate-y-0.5 hover:shadow-md transition-all duration-200 ease-in-out">
-                      <i className="fas fa-users text-primary mb-2 block" />
-                      <div className="font-medium">User Management</div>
-                      <div className="text-muted-foreground">Manage accounts & access</div>
+                      <i className="fas fa-film text-primary mb-2 block" />
+                      <div className="font-medium">Your Library</div>
+                      <div className="text-muted-foreground">Personal media collection</div>
                     </div>
                     <div className="bg-muted/50 rounded-lg p-3 hover:bg-muted/80 hover:-translate-y-0.5 hover:shadow-md transition-all duration-200 ease-in-out">
-                      <i className="fas fa-server text-primary mb-2 block" />
-                      <div className="font-medium">Server Control</div>
-                      <div className="text-muted-foreground">Multi-service support</div>
+                      <i className="fas fa-history text-primary mb-2 block" />
+                      <div className="font-medium">Watch History</div>
+                      <div className="text-muted-foreground">Track your viewing</div>
                     </div>
                     <div className="bg-muted/50 rounded-lg p-3 hover:bg-muted/80 hover:-translate-y-0.5 hover:shadow-md transition-all duration-200 ease-in-out">
-                      <i className="fas fa-chart-bar text-primary mb-2 block" />
-                      <div className="font-medium">Analytics</div>
-                      <div className="text-muted-foreground">Usage insights</div>
+                      <i className="fas fa-download text-primary mb-2 block" />
+                      <div className="font-medium">Offline Access</div>
+                      <div className="text-muted-foreground">Download for later</div>
                     </div>
                     <div className="bg-muted/50 rounded-lg p-3 hover:bg-muted/80 hover:-translate-y-0.5 hover:shadow-md transition-all duration-200 ease-in-out">
-                      <i className="fas fa-shield-alt text-primary mb-2 block" />
-                      <div className="font-medium">Security</div>
-                      <div className="text-muted-foreground">Access control</div>
+                      <i className="fas fa-mobile-alt text-primary mb-2 block" />
+                      <div className="font-medium">Multi-Device</div>
+                      <div className="text-muted-foreground">Access anywhere</div>
                     </div>
                   </div>
                 </div>
@@ -202,8 +154,8 @@ const LoginPage = () => {
           <div className="order-2 lg:order-2">
             <Card className="rounded-2xl shadow-2xl p-8 max-w-md mx-auto">
               <CardHeader className="text-center pb-6">
-                <CardTitle className="text-2xl mb-2">Admin Login</CardTitle>
-                <CardDescription>Administrator access required</CardDescription>
+                <CardTitle className="text-2xl mb-2">Sign In</CardTitle>
+                <CardDescription>Enter your credentials to access your media dashboard</CardDescription>
               </CardHeader>
 
               <CardContent className="space-y-6">
@@ -217,13 +169,13 @@ const LoginPage = () => {
                   {/* Username Field */}
                   <div className="space-y-2">
                     <Label htmlFor="username" className="flex items-center gap-2">
-                      <i className="fas fa-user-shield text-muted-foreground text-sm" />
-                      <span>Username</span>
+                      <i className="fas fa-user text-muted-foreground text-sm" />
+                      <span>Username or Email</span>
                     </Label>
                     <Input
                       id="username"
                       type="text"
-                      placeholder="Admin username"
+                      placeholder="Enter your username or email"
                       value={username}
                       autoComplete="username"
                       onChange={(event) => setUsername(event.target.value)}
@@ -250,6 +202,18 @@ const LoginPage = () => {
                     />
                   </div>
 
+                  {/* Remember Me Checkbox */}
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="remember"
+                      checked={rememberMe}
+                      onCheckedChange={(checked) => setRememberMe(checked === true)}
+                    />
+                    <Label htmlFor="remember" className="text-sm font-normal cursor-pointer">
+                      Remember this device
+                    </Label>
+                  </div>
+
                   {/* Sign In Button */}
                   <Button
                     type="submit"
@@ -267,52 +231,17 @@ const LoginPage = () => {
                   </Button>
                 </form>
 
-                {/* Divider */}
-                <div className="relative">
-                  <div className="absolute inset-0 flex items-center">
-                    <Separator />
-                  </div>
-                  <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-card px-2 text-muted-foreground">or continue with</span>
-                  </div>
-                </div>
-
-                {/* Plex SSO Button */}
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handlePlexSSO}
-                  className="w-full text-lg h-12 hover:-translate-y-0.5 hover:shadow-lg transition-all duration-200 ease-in-out border-orange-600 text-orange-700 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-950 hover:border-orange-600"
-                  disabled={plexLoading}
-                >
-                  {plexLoading ? (
-                    <>
-                      <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2" />
-                      Connecting...
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-5 h-5 mr-3" viewBox="0 0 192 192" xmlns="http://www.w3.org/2000/svg" fill="currentColor" stroke="transparent" strokeLinejoin="round" strokeWidth="12">
-                        <path d="M22 25.5h48L116 94l-46 68.5H22L68.5 94Zm109.8 56L108 46l14-20.5h48zm-.3 23.5c10.979 17.625 25.52 38.875 38.5 49.5-11.149 13.635-34.323 32.278-62.5-14z"/>
-                      </svg>
-                      Sign in with Plex
-                    </>
-                  )}
-                </Button>
-
                 {/* Additional Info */}
                 <div className="pt-6">
                   <Separator className="mb-6" />
                   <div className="text-center text-sm text-muted-foreground">
-                    <p className="mb-4">Secure administrator access to MUM</p>
-                    {allowUserAccounts && (
-                      <div>
-                        <p className="text-muted-foreground mb-1">Need to access your user account?</p>
-                        <Link to="/login" className="text-primary hover:underline">
-                          User Login
-                        </Link>
-                      </div>
-                    )}
+                    <p className="mb-4">New here? You'll need an invite from your administrator to create an account.</p>
+                    <div>
+                      <p className="text-muted-foreground mb-1">Administrator access?</p>
+                      <Link to="/admin/login" className="text-primary hover:underline">
+                        Admin Login
+                      </Link>
+                    </div>
                   </div>
                 </div>
               </CardContent>
@@ -332,4 +261,5 @@ const LoginPage = () => {
   );
 };
 
-export default LoginPage;
+export default UserLoginPage;
+

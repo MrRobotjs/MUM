@@ -16,6 +16,7 @@ import InvitesPage from '../pages/InvitesPage';
 import InviteWizardPage from '../pages/InviteWizardPage';
 import InviteLandingPage from '../pages/InviteLandingPage';
 import LoginPage from '../pages/LoginPage';
+import UserLoginPage from '../pages/UserLoginPage';
 import LibrariesPage from '../pages/LibrariesPage';
 import LibraryDetailPage from '../pages/LibraryDetailPage';
 import MediaDetailPage from '../pages/MediaDetailPage';
@@ -59,6 +60,27 @@ const authAdminLoginRoute = createRoute({
   getParentRoute: () => authRoute,
   path: 'admin_login',
   component: LoginPage,
+})
+
+// User login route (regular user portal)
+const userLoginRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: 'login',
+  component: UserLoginPage,
+})
+
+// Admin login route (actual admin login page)
+const adminLoginRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: 'admin/login',
+  component: LoginPage,
+})
+
+// Legacy auth/login route (redirects to admin/login for backwards compatibility)
+const authLoginRedirectRoute = createRoute({
+  getParentRoute: () => authRoute,
+  path: 'login',
+  component: () => <Navigate to="/admin/login" replace />,
 })
 
 // Admin layout wrapped with guard
@@ -158,7 +180,9 @@ const rootIndexRedirect = createRoute({ getParentRoute: () => rootRoute, path: '
 const rootWildcardRedirect = createRoute({ getParentRoute: () => rootRoute, path: '*', component: () => <Navigate to="/admin/dashboard" replace /> })
 
 const routeTree = rootRoute.addChildren([
-  authRoute.addChildren([authLoginRoute, authAdminLoginRoute]),
+  authRoute.addChildren([authLoginRedirectRoute, authAdminLoginRoute]),
+  userLoginRoute,
+  adminLoginRoute,
   adminRoute.addChildren([
     adminIndexRedirect,
     adminDashboard,

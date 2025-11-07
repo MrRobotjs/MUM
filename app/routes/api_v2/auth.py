@@ -424,7 +424,7 @@ def plex_sso_callback_admin_v2():
     pin_code_from_session = session.get('plex_pin_code_admin_login')
     client_id_from_session = session.get('plex_client_id_admin_login')
 
-    fallback_url = '/admin/account' if current_user.is_authenticated else '/auth/login'
+    fallback_url = '/admin/account' if current_user.is_authenticated else '/admin/login'
 
     if not pin_id_from_session or not pin_code_from_session or not client_id_from_session:
         flash('Plex login callback invalid or session expired.', 'danger')

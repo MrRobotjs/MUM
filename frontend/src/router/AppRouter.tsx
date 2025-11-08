@@ -167,7 +167,19 @@ const adminLibraryDetail = createRoute({
     return { tab: tabVal }
   },
 })
-const adminMediaDetail = createRoute({ getParentRoute: () => adminRoute, path: 'libraries/$libraryId/$mediaId', component: MediaDetailPage })
+const mediaTabs = ['overview', 'episodes', 'activity'] as const
+type MediaTab = typeof mediaTabs[number]
+const adminMediaDetail = createRoute({
+  getParentRoute: () => adminRoute,
+  path: 'libraries/$libraryId/$mediaId',
+  component: MediaDetailPage,
+  validateSearch: (search) => {
+    const tabVal = typeof search.tab === 'string' && (mediaTabs as readonly string[]).includes(search.tab)
+      ? (search.tab as MediaTab)
+      : undefined
+    return { tab: tabVal }
+  },
+})
 const adminSettingsRedirect = createRoute({
   getParentRoute: () => adminRoute,
   path: 'settings',

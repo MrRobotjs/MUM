@@ -983,34 +983,30 @@ export const UserDetailPage = () => {
       </section>
 
       <section className="rounded-lg border border-border bg-background shadow">
-        <div className="border-b border-border bg-muted/40">
-          <nav className="flex flex-wrap gap-1 p-1">
+        <Tabs
+          value={activeTab}
+          onValueChange={(value) =>
+            navigate({
+              from: currentFrom,
+              search: (prev) => ({ ...prev, tab: value as TabKey }),
+            })
+          }
+        >
+          <TabsList className="w-full justify-start overflow-x-auto">
             {tabs
               .filter((tab) => !tab.hidden)
               .map((tab) => (
-                <button
-                  key={tab.key}
-                  type="button"
-                  className={clsx('px-4 py-2 rounded-md text-sm font-medium transition-colors', activeTab === tab.key ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground')}
-                  onClick={() =>
-                    navigate({
-                      from: currentFrom,
-                      search: (prev) => ({
-                        ...prev,
-                        tab: tab.key,
-                      }),
-                    })
-                  }
-                >
+                <TabsTrigger key={tab.key} value={tab.key}>
                   {tab.label}
-                </button>
+                </TabsTrigger>
               ))}
-          </nav>
-        </div>
-        <div className="p-6">
-          {activeTab === 'profile' ? (
+          </TabsList>
+
+          <TabsContent value="profile" className="p-6">
             <ProfileTab user={user} />
-          ) : activeTab === 'history' ? (
+          </TabsContent>
+
+          <TabsContent value="history" className="p-6">
             <HistoryTab
               entries={combinedHistory}
               loading={historyLoading}
@@ -1018,7 +1014,9 @@ export const UserDetailPage = () => {
               onLoadMore={loadMore}
               hasMore={hasMore}
             />
-          ) : activeTab === 'settings' ? (
+          </TabsContent>
+
+          <TabsContent value="settings" className="p-6">
             <SettingsTab
               settings={settings}
               settingsLoading={settingsLoading}
@@ -1040,16 +1038,20 @@ export const UserDetailPage = () => {
               onUnlinkAccount={handleUnlink}
               allowLinking={!isServiceUser}
             />
-          ) : activeTab === 'overseerr' ? (
+          </TabsContent>
+
+          <TabsContent value="overseerr" className="p-6">
             <OverseerrCard
               links={overseerrLinks}
               loading={overseerrLoading}
               error={(overseerrError as Error) ?? undefined}
             />
-          ) : activeTab === 'security' ? (
+          </TabsContent>
+
+          <TabsContent value="security" className="p-6">
             <SecurityTab user={user} onResetPassword={handleResetPassword} resetting={resettingPassword} />
-          ) : null}
-        </div>
+          </TabsContent>
+        </Tabs>
       </section>
 
       <ServiceAccountLinkModal

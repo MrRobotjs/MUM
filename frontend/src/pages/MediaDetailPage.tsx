@@ -72,8 +72,11 @@ interface Episode {
 }
 
 export const MediaDetailPage = () => {
-  const { libraryId, mediaId } = useParams<{ libraryId: string; mediaId: string }>();
-  const search = useSearch();
+  const { libraryId, mediaId } = useParams({ from: '/admin/libraries/$libraryId/$mediaId' }) as {
+    libraryId: string
+    mediaId: string
+  };
+  const search = useSearch({ from: '/admin/libraries/$libraryId/$mediaId', strict: false }) as { tab?: TabType };
   const navigate = useNavigate();
 
   const [mediaItem, setMediaItem] = useState<MediaItem | null>(null);
@@ -89,7 +92,7 @@ export const MediaDetailPage = () => {
   const [episodesSortBy, setEpisodesSortBy] = useState('season_episode_asc');
   const [syncing, setSyncing] = useState(false);
 
-  const activeTab = ((search as any).tab as TabType) || 'overview';
+  const activeTab: TabType = search.tab ?? 'overview';
   // Check if this is a TV show library (show, tv, series, tvshows)
   const libraryType = mediaItem?.library?.library_type?.toLowerCase() || '';
   const isTVShow = ['show', 'tv', 'series', 'tvshows'].includes(libraryType);
@@ -174,7 +177,7 @@ export const MediaDetailPage = () => {
   };
 
   const setTab = (tab: TabType) => {
-    navigate({ search: (prev: any) => ({ ...prev, tab }) });
+    navigate({ from: '/admin/libraries/$libraryId/$mediaId', search: (prev) => ({ ...prev, tab }) });
   };
 
   const getServiceBadge = (serviceType?: ServiceType) => {

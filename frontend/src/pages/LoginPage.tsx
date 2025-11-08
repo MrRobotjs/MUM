@@ -1,5 +1,5 @@
 import { FormEvent, useState, useEffect } from 'react';
-import { useLocation, useNavigate, Link } from '@tanstack/react-router';
+import { useLocation, useNavigate, Link, useSearch } from '@tanstack/react-router';
 import { requestJson, ApiError } from '../util/apiClient';
 import { setAccessToken } from '../util/tokenStore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
@@ -25,9 +25,9 @@ const LoginPage = () => {
   const [allowUserAccounts, setAllowUserAccounts] = useState(false);
 
   // Prefer ?next= query, then location.state.from, else dashboard
-  const search = new URLSearchParams(((location as any).searchStr) ?? (typeof window !== 'undefined' ? window.location.search : ''));
-  const nextParam = search.get('next');
-  const errorParam = search.get('error');
+  const search = useSearch({ from: '/admin/login', strict: false }) as { next?: string; error?: string };
+  const nextParam = search.next;
+  const errorParam = search.error;
   const fromPath = nextParam || (location.state as LocationState | undefined)?.from || '/admin/dashboard';
 
   // Check if user accounts are enabled
@@ -49,12 +49,9 @@ const LoginPage = () => {
     if (errorParam) {
       setError(errorParam);
       // Clear the error from URL to prevent it from showing again on refresh
-      const newSearch = new URLSearchParams(window.location.search);
-      newSearch.delete('error');
-      const newUrl = window.location.pathname + (newSearch.toString() ? `?${newSearch.toString()}` : '');
-      window.history.replaceState({}, '', newUrl);
+      navigate({ from: '/admin/login', search: (prev) => ({ ...prev, error: undefined }), replace: true });
     }
-  }, [errorParam]);
+  }, [errorParam, navigate]);
 
   // Auto-focus first input on desktop
   useEffect(() => {

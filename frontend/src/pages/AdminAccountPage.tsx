@@ -84,7 +84,7 @@ const AdminAccountPage = () => {
   const navigate = useNavigate();
 
   // Use TanStack Router search for tab state
-  const search = useSearch({ from: '/admin/account', strict: false }) as { tab?: TabType };
+  const search = useSearch({ from: '/admin/account', strict: false }) as { tab?: TabType; error?: string };
   const activeTab: TabType = search.tab ?? 'overview';
 
   const [loading, setLoading] = useState(true);
@@ -151,20 +151,12 @@ const AdminAccountPage = () => {
 
   useEffect(() => {
     void refreshAccount();
-    
-    // Check for error query parameter from Plex SSO callback
-    const searchParams = new URLSearchParams(location.search);
-    const errorParam = searchParams.get('error');
-    if (errorParam && activeTab === 'credentials') {
-      setPlexError(decodeURIComponent(errorParam));
-      // Clear error from URL
-      navigate({ 
-        to: location.pathname,
-        search: { tab: 'credentials' } as any,
-        replace: true 
-      });
+    // Handle error from Plex SSO callback and clear from URL
+    if (search.error && activeTab === 'credentials') {
+      setPlexError(search.error);
+      navigate({ from: '/admin/account', search: (prev) => ({ ...prev, error: undefined, tab: 'credentials' }), replace: true });
     }
-  }, []);
+  }, [search.error, activeTab]);
 
   const showInitialCredentialsCard = useMemo(() => {
     if (!account) return false;

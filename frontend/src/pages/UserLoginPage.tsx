@@ -1,5 +1,5 @@
 import { FormEvent, useState, useEffect } from 'react';
-import { useLocation, useNavigate, Link } from '@tanstack/react-router';
+import { useLocation, useNavigate, Link, useSearch } from '@tanstack/react-router';
 import { requestJson, ApiError } from '../util/apiClient';
 import { setAccessToken } from '../util/tokenStore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
@@ -17,6 +17,7 @@ type LocationState = {
 const UserLoginPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const search = useSearch({ from: '/login', strict: false }) as { next?: string };
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
@@ -24,8 +25,7 @@ const UserLoginPage = () => {
   const [error, setError] = useState<string | null>(null);
 
   // Prefer ?next= query, then location.state.from, else user dashboard
-  const search = new URLSearchParams(((location as any).searchStr) ?? (typeof window !== 'undefined' ? window.location.search : ''));
-  const nextParam = search.get('next');
+  const nextParam = search.next;
   const fromPath = nextParam || (location.state as LocationState | undefined)?.from || '/user/dashboard';
 
   // Auto-focus first input on desktop

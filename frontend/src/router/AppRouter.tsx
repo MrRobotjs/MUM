@@ -67,6 +67,9 @@ const userLoginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: 'login',
   component: UserLoginPage,
+  validateSearch: (search) => {
+    return { next: typeof search.next === 'string' ? (search.next as string) : undefined }
+  },
 })
 
 // Admin login route (actual admin login page)
@@ -74,6 +77,12 @@ const adminLoginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: 'admin/login',
   component: LoginPage,
+  validateSearch: (search) => {
+    return {
+      next: typeof search.next === 'string' ? (search.next as string) : undefined,
+      error: typeof search.error === 'string' ? (search.error as string) : undefined,
+    }
+  },
 })
 
 // Legacy auth/login route (redirects to admin/login for backwards compatibility)
@@ -207,8 +216,18 @@ const inviteWizard = createRoute({ getParentRoute: () => inviteRoute, path: '$to
 
 // User portal
 const userRoute = createRoute({ getParentRoute: () => rootRoute, path: 'user' })
-const userIndex = createRoute({ getParentRoute: () => userRoute, path: '/', component: UserDashboardPage })
-const userDashboard = createRoute({ getParentRoute: () => userRoute, path: 'dashboard', component: UserDashboardPage })
+const userIndex = createRoute({
+  getParentRoute: () => userRoute,
+  path: '/',
+  component: UserDashboardPage,
+  validateSearch: (search) => ({ next: typeof search.next === 'string' ? (search.next as string) : undefined }),
+})
+const userDashboard = createRoute({
+  getParentRoute: () => userRoute,
+  path: 'dashboard',
+  component: UserDashboardPage,
+  validateSearch: (search) => ({ next: typeof search.next === 'string' ? (search.next as string) : undefined }),
+})
 
 // Setup UI
 const setupRoute = createRoute({ getParentRoute: () => rootRoute, path: 'setup' })

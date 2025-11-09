@@ -77,6 +77,15 @@ interface LibraryStats {
   popular_content: PopularContent[];
 }
 
+// API response types for stronger typing
+type CollectionsApi = { data?: { collections?: any[] } };
+type StatsApi = { data?: any };
+type ActivityApi = { data?: any[]; meta?: { pagination?: { total_pages?: number } } };
+type LibraryApi = { data?: Library };
+type MediaListApi = { data?: MediaItem[]; meta?: { pagination?: { total_pages?: number; total_items?: number } } };
+type SyncApi = { success?: boolean; result?: { added?: number; updated?: number; removed?: number }; message?: string };
+type PurgeApi = { success?: boolean; deleted_count?: number };
+
 type TabType = 'overview' | 'media' | 'collections' | 'stats' | 'activity';
 
 // Component for individual media poster with loading state
@@ -211,10 +220,10 @@ const CollectionCard = ({ collection }: { collection: any }) => {
 export const LibraryDetailPage = () => {
   // Use TanStack Router APIs for params and search
   const { libraryId } = useParams({ from: '/admin/libraries/$libraryId' });
-  const search = useSearch({ from: '/admin/libraries/$libraryId', strict: false }) as { tab?: TabType };
+  const search = useSearch({ strict: false }) as { tab?: TabType };
   const activeTab: TabType = search.tab ?? 'overview';
   
-  const navigate = useNavigate();
+  const navigate = useNavigate({ from: '/admin/libraries/$libraryId' });
   const { showToast } = useToast();
 
   const [library, setLibrary] = useState<Library | null>(null);
@@ -276,7 +285,7 @@ export const LibraryDetailPage = () => {
 
     try {
       setCollectionsLoading(true);
-      const response = await requestJson(`/admin/api/v2/libraries/${libraryId}/collections`);
+      const response = await requestJson<CollectionsApi>(`/admin/api/v2/libraries/${libraryId}/collections`);
       setCollections(response.data?.collections || []);
     } catch (err) {
       console.error('Failed to load collections:', err);
@@ -291,7 +300,7 @@ export const LibraryDetailPage = () => {
 
     try {
       setStatsLoading(true);
-      const response = await requestJson(`/admin/api/v2/libraries/${libraryId}/stats?days=${statsDays}`);
+      const response = await requestJson<StatsApi>(`/admin/api/v2/libraries/${libraryId}/stats?days=${statsDays}`);
       setStatsData(response.data);
     } catch (err) {
       console.error('Failed to load stats:', err);
@@ -306,7 +315,7 @@ export const LibraryDetailPage = () => {
 
     try {
       setActivityLoading(true);
-      const response = await requestJson(`/admin/api/v2/libraries/${libraryId}/activity?days=${activityDays}&page=${activityPage}&page_size=20`);
+      const response = await requestJson<ActivityApi>(`/admin/api/v2/libraries/${libraryId}/activity?days=${activityDays}&page=${activityPage}&page_size=20`);
       setActivityData(response.data || []);
       setActivityTotalPages(response.meta?.pagination?.total_pages || 1);
     } catch (err) {
@@ -323,7 +332,7 @@ export const LibraryDetailPage = () => {
     try {
       setSyncing(true);
       // Sync library content (all media items within this library)
-      const response = await requestJson(`/admin/api/libraries/${libraryId}/sync`, {
+      const response = await requestJson<SyncApi>(`/admin/api/v2/libraries/${libraryId}/sync`, {
         method: 'POST'
       });
 
@@ -375,7 +384,7 @@ export const LibraryDetailPage = () => {
 
     try {
       setPurging(true);
-      const response = await requestJson(`/admin/api/libraries/${libraryId}/purge`, {
+      const response = await requestJson<PurgeApi>(`/admin/api/v2/libraries/${libraryId}/purge`, {
         method: 'POST'
       });
 
@@ -410,7 +419,7 @@ export const LibraryDetailPage = () => {
 
     try {
       setLoading(true);
-      const response = await requestJson(`/admin/api/v2/libraries/${libraryId}?include_server=true`);
+      const response = await requestJson<LibraryApi>(`/admin/api/v2/libraries/${libraryId}?include_server=true`);
 
       if (response.data) {
         setLibrary(response.data);
@@ -432,7 +441,7 @@ export const LibraryDetailPage = () => {
 
     try {
       setMediaLoading(true);
-      const response = await requestJson(
+      const response = await requestJson<MediaListApi>(
         `/admin/api/v2/libraries/${libraryId}/media?page=${currentPage}&page_size=${pageSize}&sort_by=${sortBy}${searchQuery ? `&search=${encodeURIComponent(searchQuery)}` : ''}`
       );
 
@@ -450,10 +459,7 @@ export const LibraryDetailPage = () => {
 
   const setTab = (tab: TabType) => {
     navigate({
-      search: (prev) => ({
-        ...prev,
-        tab,
-      }),
+      search: (prev: { tab?: TabType }) => ({ ...prev, tab }),
       replace: true,
     });
   };

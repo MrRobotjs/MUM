@@ -165,7 +165,6 @@ class LibraryMediaQuery(BaseModel):
             "total_streams_desc|total_streams_asc"
         ),
     )
-    debug_streams: Optional[bool] = Field(False, description="Enable verbose logging for stream_count aggregation")
 
 
 class MediaItemRef(BaseModel):
@@ -238,15 +237,10 @@ def list_library_media(path: LibraryPath, query: LibraryMediaQuery, current_user
 
     # Compute stream counts for current page items. For TV libraries, sum episode streams per show.
     try:
-        from flask import current_app
         lib_type = (lib.library_type or "").lower()
         from sqlalchemy import func, or_
-        # Temporarily force debug logging for stream aggregation
-        dbg = True
-        if dbg:
-            current_app.logger.info(
-                f"[v2.media] library_id={path.library_id} type={lib_type} items_on_page={len(items)} sort={sort}"
-            )
+        # Debug logging disabled by default
+        dbg = False
         if lib_type in {"show", "tv", "series", "tvshows"}:
             # Map each show's identifiers (external_id and rating_key) to its id
             parent_to_show: dict[str, int] = {}
@@ -258,10 +252,7 @@ def list_library_media(path: LibraryPath, query: LibraryMediaQuery, current_user
                     if getattr(show, "rating_key", None):
                         parent_to_show[str(show.rating_key)] = show.id
 
-            if dbg:
-                current_app.logger.info(
-                    f"[v2.media] shows_on_page={len(parent_to_show)} show_ids_page={list(parent_to_show.values())}"
-                )
+            
 
             if parent_to_show:
                 # Fetch episodes that belong to these shows by parent_id
@@ -314,49 +305,16 @@ def list_library_media(path: LibraryPath, query: LibraryMediaQuery, current_user
                         .group_by('ep_key')
                         .all()
                     )
-                    if dbg:
-                        current_app.logger.info(
-                            f"[v2.media] ep_map={len(ep_key_to_show)} ep_idents={len(ep_idents)} counts_rows={len(counts)}"
-                        )
+                    
                     for key, cnt in counts:
                         show_id = ep_key_to_show.get(str(key))
                         if show_id:
                             stream_counts_by_show[show_id] = stream_counts_by_show.get(show_id, 0) + int(cnt)
 
-                # Fallback: If no counts found, aggregate by grandparent_title (show title)
-                if not stream_counts_by_show:
-                    show_titles = [getattr(s, 'title', None) for s in items if getattr(s, 'item_type', None) == 'show']
-                    show_title_to_id = {getattr(s, 'title'): s.id for s in items if getattr(s, 'item_type', None) == 'show'}
-                    if show_titles:
-                        title_counts = (
-                            MediaStreamHistory.query
-                            .filter(
-                                MediaStreamHistory.server_id == lib.server_id,
-                                MediaStreamHistory.grandparent_title.in_(show_titles),
-                            )
-                            .with_entities(MediaStreamHistory.grandparent_title, func.count(MediaStreamHistory.id))
-                            .group_by(MediaStreamHistory.grandparent_title)
-                            .all()
-                        )
-                        for gp_title, cnt in title_counts:
-                            sid = show_title_to_id.get(gp_title)
-                            if sid:
-                                stream_counts_by_show[sid] = int(cnt)
-                        if dbg:
-                            current_app.logger.info(
-                                f"[v2.media] title_fallback_rows={len(title_counts)}"
-                            )
+                # Title fallback removed
 
                 # If some shows still have 0, try per-show fallback using episode titles/ids
-                # Track strategy usage per show for diagnostics
-                show_strategy: dict[int, str] = {sid: 'none' for sid in parent_to_show.values()}
-                for sid, cnt in stream_counts_by_show.items():
-                    if cnt > 0:
-                        show_strategy[sid] = 'identifiers'
-                if dbg:
-                    current_app.logger.info(
-                        f"[v2.media] pre_fallback_zero_shows={[sid for sid in parent_to_show.values() if stream_counts_by_show.get(sid,0)==0]}"
-                    )
+                
                 if parent_to_show:
                     from app.models_media_services import MediaItem as _MediaItem
                     for show in items:
@@ -403,29 +361,13 @@ def list_library_media(path: LibraryPath, query: LibraryMediaQuery, current_user
                             .scalar()
                         )
                         stream_counts_by_show[sid] = int(sub_counts or 0)
-                        if stream_counts_by_show[sid] > 0 and show_strategy.get(sid) == 'none':
-                            show_strategy[sid] = 'per_show'
-                        if dbg:
-                            current_app.logger.info(
-                                f"[v2.media] per_show_fallback id={sid} title={getattr(show,'title',None)} eps={len(eps_for_show)} rk={len(rk_list)} ext={len(ext_list)} titles={len(title_list)} count={stream_counts_by_show[sid]}"
-                            )
+                        
 
                 # Attach stream_count to items_data
                 for d in items_data:
                     if d.get("type") == "show":
                         d["stream_count"] = int(stream_counts_by_show.get(d.get("id"), 0))
-                if dbg:
-                    strat_counts = {'identifiers': 0, 'title': 0, 'per_show': 0, 'none': 0}
-                    for sid in parent_to_show.values():
-                        s = show_strategy.get(sid, 'none')
-                        strat_counts[s] = strat_counts.get(s, 0) + 1
-                    current_app.logger.info(f"[v2.media] strategy_counts={strat_counts}")
-                if dbg:
-                    sample = [
-                        {"id": d.get("id"), "stream_count": d.get("stream_count", 0)}
-                        for d in items_data if d.get("type") == "show"
-                    ]
-                    current_app.logger.info(f"[v2.media] show_stream_counts_page={sample}")
+                
         else:
             # Non-TV libraries: count by item rating_key for current items
             idents = []

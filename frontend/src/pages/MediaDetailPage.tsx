@@ -91,6 +91,7 @@ export const MediaDetailPage = () => {
   const [episodesTotalItems, setEpisodesTotalItems] = useState(0);
   const [episodesSearch, setEpisodesSearch] = useState('');
   const [episodesSortBy, setEpisodesSortBy] = useState('season_episode_asc');
+  const [episodesPerPage, setEpisodesPerPage] = useState('24');
   const [syncing, setSyncing] = useState(false);
 
   const activeTab: TabType = search.tab ?? 'overview';
@@ -106,7 +107,7 @@ export const MediaDetailPage = () => {
     if (isTVShow && activeTab === 'episodes') {
       loadEpisodes();
     }
-  }, [activeTab, episodesPage, episodesSearch, episodesSortBy, isTVShow]);
+  }, [activeTab, episodesPage, episodesSearch, episodesSortBy, episodesPerPage, isTVShow]);
 
   const loadMediaItem = async () => {
     if (!libraryId || !mediaId) return;
@@ -134,7 +135,7 @@ export const MediaDetailPage = () => {
       setEpisodesLoading(true);
       const params = new URLSearchParams({
         page: episodesPage.toString(),
-        page_size: '24',
+        page_size: episodesPerPage,
         sort_by: episodesSortBy
       });
       if (episodesSearch) {
@@ -565,6 +566,29 @@ export const MediaDetailPage = () => {
                         </SelectContent>
                       </Select>
                     </div>
+
+                    {/* Per Page Dropdown */}
+                    <div className="flex items-center gap-2">
+                      <Label className="text-sm whitespace-nowrap">Per page:</Label>
+                      <Select
+                        value={episodesPerPage}
+                        onValueChange={(value) => {
+                          setEpisodesPerPage(value);
+                          setEpisodesPage(1);
+                        }}
+                      >
+                        <SelectTrigger className="w-[100px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="12">12</SelectItem>
+                          <SelectItem value="24">24</SelectItem>
+                          <SelectItem value="48">48</SelectItem>
+                          <SelectItem value="96">96</SelectItem>
+                          <SelectItem value="200">200</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -647,26 +671,80 @@ export const MediaDetailPage = () => {
 
                   {/* Pagination */}
                   {episodesTotalPages > 1 && (
-                    <div className="flex justify-center gap-2">
+                    <div className="flex justify-center gap-2 flex-wrap">
                       {episodesPage > 1 && (
                         <Button variant="outline" size="sm" onClick={() => setEpisodesPage(episodesPage - 1)}>
                           <i className="fa-solid fa-chevron-left"></i>
                         </Button>
                       )}
 
-                      {Array.from({ length: Math.min(5, episodesTotalPages) }, (_, i) => {
-                        const pageNum = i + 1;
-                        return (
-                          <Button
-                            key={pageNum}
-                            variant={episodesPage === pageNum ? "default" : "outline"}
-                            size="sm"
-                            onClick={() => setEpisodesPage(pageNum)}
-                          >
-                            {pageNum}
-                          </Button>
-                        );
-                      })}
+                      {(() => {
+                        const pages: (number | string)[] = [];
+                        const maxPagesToShow = 7; // Show up to 7 page buttons
+                        const halfWindow = Math.floor((maxPagesToShow - 3) / 2); // Pages on each side of current
+
+                        if (episodesTotalPages <= maxPagesToShow) {
+                          // Show all pages if total is small
+                          for (let i = 1; i <= episodesTotalPages; i++) {
+                            pages.push(i);
+                          }
+                        } else {
+                          // Always show first page
+                          pages.push(1);
+
+                          // Calculate start and end of the middle range
+                          let start = Math.max(2, episodesPage - halfWindow);
+                          let end = Math.min(episodesTotalPages - 1, episodesPage + halfWindow);
+
+                          // Adjust if we're near the start
+                          if (episodesPage <= halfWindow + 2) {
+                            end = Math.min(episodesTotalPages - 1, maxPagesToShow - 1);
+                          }
+
+                          // Adjust if we're near the end
+                          if (episodesPage >= episodesTotalPages - halfWindow - 1) {
+                            start = Math.max(2, episodesTotalPages - maxPagesToShow + 2);
+                          }
+
+                          // Add ellipsis after first page if needed
+                          if (start > 2) {
+                            pages.push('ellipsis-start');
+                          }
+
+                          // Add middle pages
+                          for (let i = start; i <= end; i++) {
+                            pages.push(i);
+                          }
+
+                          // Add ellipsis before last page if needed
+                          if (end < episodesTotalPages - 1) {
+                            pages.push('ellipsis-end');
+                          }
+
+                          // Always show last page
+                          pages.push(episodesTotalPages);
+                        }
+
+                        return pages.map((page, index) => {
+                          if (typeof page === 'string') {
+                            return (
+                              <span key={page} className="px-2 py-1 text-muted-foreground">
+                                ...
+                              </span>
+                            );
+                          }
+                          return (
+                            <Button
+                              key={page}
+                              variant={episodesPage === page ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => setEpisodesPage(page)}
+                            >
+                              {page}
+                            </Button>
+                          );
+                        });
+                      })()}
 
                       {episodesPage < episodesTotalPages && (
                         <Button variant="outline" size="sm" onClick={() => setEpisodesPage(episodesPage + 1)}>

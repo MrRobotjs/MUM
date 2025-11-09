@@ -46,10 +46,15 @@ def get_library_sync_status(library_id: int) -> dict:
     "started_by": None,
     "started_by_username": None,
     "progress": {
+      "phase": None,
       "current_page": 0,
       "total_pages": 0,
       "total_items": 0,
       "total_fetched": 0,
+      "shows_current": 0,
+      "shows_total": 0,
+      "episodes_current": 0,
+      "episodes_total": 0,
       "message": None,
     },
   }
@@ -88,14 +93,21 @@ def start_library_sync(library_id: int, actor=None) -> dict:
 def update_library_sync_progress(
   library_id: int,
   *,
+  phase: str | None = None,
   current_page: int | None = None,
   total_pages: int | None = None,
   total_items: int | None = None,
   total_fetched: int | None = None,
+  shows_current: int | None = None,
+  shows_total: int | None = None,
+  episodes_current: int | None = None,
+  episodes_total: int | None = None,
   message: str | None = None,
 ) -> None:
   status = get_library_sync_status(library_id)
   progress = status.get("progress", {})
+  if phase is not None:
+    progress["phase"] = phase
   if current_page is not None:
     progress["current_page"] = current_page
   if total_pages is not None:
@@ -104,6 +116,14 @@ def update_library_sync_progress(
     progress["total_items"] = total_items
   if total_fetched is not None:
     progress["total_fetched"] = total_fetched
+  if shows_current is not None:
+    progress["shows_current"] = shows_current
+  if shows_total is not None:
+    progress["shows_total"] = shows_total
+  if episodes_current is not None:
+    progress["episodes_current"] = episodes_current
+  if episodes_total is not None:
+    progress["episodes_total"] = episodes_total
   if message is not None:
     progress["message"] = message
   status["progress"] = progress

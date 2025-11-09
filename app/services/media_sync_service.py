@@ -17,7 +17,7 @@ class MediaSyncService:
     """Service for syncing media items from external services to local database"""
     
     @staticmethod
-    def sync_library_content(library_id: int, force_full_sync: bool = False) -> Dict[str, Any]:
+    def sync_library_content(library_id: int, force_full_sync: bool = False, sync_episodes: bool = False) -> Dict[str, Any]:
         """
         Sync content for a specific library
         
@@ -49,6 +49,16 @@ class MediaSyncService:
             page = 1
             per_page = 50  # Smaller batches to prevent timeouts
             max_pages = 100  # Limit total pages to prevent infinite loops
+            # Initialize phase for UI
+            update_library_sync_progress(
+                library.id,
+                phase="shows",
+                current_page=0,
+                total_pages=0,
+                total_items=0,
+                total_fetched=0,
+                message=f"Syncing shows in {library.name}"
+            )
             
             while page <= max_pages:
                 try:
@@ -75,18 +85,15 @@ class MediaSyncService:
                     current_app.logger.debug(f"Retrieved {len(items)} items from page {page}, total so far: {len(all_items)}")
 
                     # Update per-page progress for UI
-                    try:
-                        update_library_sync_progress(
-                            library.id,
-                            current_page=page,
-                            total_pages=int(total_pages) if total_pages else 0,
-                            total_items=int(total_items) if total_items else 0,
-                            total_fetched=len(all_items),
-                            message=f"Syncing {library.name}, page {page}{'/' + str(total_pages) if total_pages else ''}"
-                        )
-                    except Exception as _e:
-                        # Non-fatal for sync
-                        current_app.logger.debug(f"Progress update failed: {_e}")
+                    update_library_sync_progress(
+                        library.id,
+                        phase="shows",
+                        current_page=page,
+                        total_pages=int(total_pages) if total_pages else 0,
+                        total_items=int(total_items) if total_items else 0,
+                        total_fetched=len(all_items),
+                        message=f"Syncing shows, page {page}{'/' + str(total_pages) if total_pages else ''}"
+                    )
                     
                     # Check if we've got all items
                     if len(items) < per_page:
@@ -108,7 +115,14 @@ class MediaSyncService:
             # Sync items to database
             sync_results = MediaSyncService._sync_items_to_db(library, all_items)
             
-            # Note: Episodes are synced on-demand when users visit show pages, not during library sync
+            # Optionally sync episodes after shows
+            episodes_result = None
+            is_tv_library = (library.library_type or '').lower()
+            if sync_episodes and ('show' in is_tv_library or 'tv' in is_tv_library):
+                try:
+                    episodes_result = MediaSyncService._sync_episodes_for_shows(library, service)
+                except Exception as e:
+                    current_app.logger.error(f"Error syncing episodes for library {library.name}: {e}")
             
             # Update library last sync time
             library.last_scanned = datetime.utcnow()
@@ -117,12 +131,15 @@ class MediaSyncService:
             
             current_app.logger.info(f"Completed sync for library {library.name}: {sync_results}")
             
-            return {
+            result_payload = {
                 'success': True,
                 'library_name': library.name,
                 'total_items': len(all_items),
                 **sync_results
             }
+            if episodes_result is not None:
+                result_payload['episodes'] = episodes_result
+            return result_payload
             
         except Exception as e:
             current_app.logger.error(f"Error syncing library {library_id}: {e}")
@@ -391,9 +408,17 @@ class MediaSyncService:
                 library_id=library.id,
                 item_type='show'
             ).all()
-            
-            current_app.logger.info(f"Syncing episodes for {len(tv_shows)} TV shows in library {library.name}")
-            
+            shows_total = len(tv_shows)
+            update_library_sync_progress(
+                library.id,
+                phase="episodes",
+                shows_current=0,
+                shows_total=shows_total,
+                message=f"Syncing episodes for {shows_total} shows"
+            )
+
+            current_app.logger.info(f"Syncing episodes for {shows_total} TV shows in library {library.name}")
+            processed = 0
             for show in tv_shows:
                 try:
                     # Use rating_key if available, otherwise external_id
@@ -468,6 +493,16 @@ class MediaSyncService:
                     current_app.logger.error(error_msg)
                     errors.append(error_msg)
                     continue
+
+                # Update progress after each show
+                processed += 1
+                update_library_sync_progress(
+                    library.id,
+                    phase="episodes",
+                    shows_current=processed,
+                    shows_total=shows_total,
+                    message=f"Syncing episodes ({processed}/{shows_total})"
+                )
             
             # Commit episode changes
             try:

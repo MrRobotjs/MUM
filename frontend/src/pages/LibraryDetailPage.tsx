@@ -12,6 +12,7 @@ import { Skeleton } from '../components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { Pagination } from '../components/common/Pagination';
 import { Progress } from '../components/ui/progress';
+import { ResponsiveDialog } from '../components/ui/responsive-dialog';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -257,6 +258,7 @@ export const LibraryDetailPage = () => {
   const [purging, setPurging] = useState(false);
   const [pollMs, setPollMs] = useState(2000);
   const { status: libSyncStatus, refetch: refetchLibSync } = useLibrarySyncStatus(libraryId, pollMs);
+  const [showSyncDialog, setShowSyncDialog] = useState(false);
   const [collections, setCollections] = useState<any[]>([]);
   const [collectionsLoading, setCollectionsLoading] = useState(false);
   const [statsData, setStatsData] = useState<any>(null);
@@ -338,16 +340,27 @@ export const LibraryDetailPage = () => {
     }
   };
 
-  const handleSyncLibrary = async () => {
+  const handleSyncLibrary = async (syncEpisodes: boolean | null = null) => {
     if (!libraryId) return;
+
+    // Check if this is a TV library
+    const isTvLibrary = library?.library_type?.toLowerCase().includes('show') ||
+                       library?.library_type?.toLowerCase().includes('tv');
+
+    // If it's a TV library and syncEpisodes hasn't been specified, show dialog
+    if (isTvLibrary && syncEpisodes === null) {
+      setShowSyncDialog(true);
+      return;
+    }
 
     try {
       setSyncing(true);
+      setShowSyncDialog(false);
       // Immediately fetch server status to avoid initial lag
       refetchLibSync();
       // Backend publishes real progress; no local timer
       // Sync library content (all media items within this library)
-      const response = await requestJson<SyncApi>(`/admin/api/v2/libraries/${libraryId}/sync`, {
+      const response = await requestJson<SyncApi>(`/admin/api/v2/libraries/${libraryId}/sync${syncEpisodes ? '?sync_episodes=true' : ''}`, {
         method: 'POST'
       });
 
@@ -391,6 +404,16 @@ export const LibraryDetailPage = () => {
     } finally {
       setSyncing(false);
     }
+  };
+
+  const handleSyncClick = () => {
+    const type = (library?.library_type || '').toLowerCase();
+    const isTvLibrary = type.includes('show') || type.includes('tv');
+    if (isTvLibrary) {
+      setShowSyncDialog(true);
+      return;
+    }
+    void handleSyncLibrary(false);
   };
 
   const handlePurgeLibrary = async () => {
@@ -598,6 +621,9 @@ export const LibraryDetailPage = () => {
   let pagesTotal = 0;
   let itemsTotal = 0;
   let itemsFetched = 0;
+  const phase = (libSyncStatus?.progress as any)?.phase as 'shows' | 'episodes' | undefined;
+  const showsCurrent = (libSyncStatus?.progress as any)?.shows_current || 0;
+  const showsTotal = (libSyncStatus?.progress as any)?.shows_total || 0;
   let progressValue = 0;
 
   if (backendSyncing) {
@@ -605,10 +631,17 @@ export const LibraryDetailPage = () => {
     pagesTotal = libSyncStatus?.progress?.total_pages || 0;
     itemsTotal = libSyncStatus?.progress?.total_items || 0;
     itemsFetched = libSyncStatus?.progress?.total_fetched || 0;
-    if (pagesTotal > 0) {
-      progressValue = (pagesDone / pagesTotal) * 100;
-    } else if (itemsTotal > 0) {
-      progressValue = (itemsFetched / itemsTotal) * 100;
+    if (phase === 'episodes') {
+      // Use shows progress during episodes phase
+      if (showsTotal > 0) {
+        progressValue = (showsCurrent / showsTotal) * 100;
+      }
+    } else {
+      if (pagesTotal > 0) {
+        progressValue = (pagesDone / pagesTotal) * 100;
+      } else if (itemsTotal > 0) {
+        progressValue = (itemsFetched / itemsTotal) * 100;
+      }
     }
   } else if (syncing) {
     // A new sync just started locally but backend hasn't published yet
@@ -758,12 +791,16 @@ export const LibraryDetailPage = () => {
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary" />
                       <span className="font-medium">
                         {(backendSyncing && libSyncStatus?.progress?.message) || (
-                          <>Syncing library content from {library?.server?.server_nickname || 'server'}...</>
+                          phase === 'episodes'
+                            ? <>Syncing episodes…</>
+                            : <>Syncing library content from {library?.server?.server_nickname || 'server'}...</>
                         )}
                       </span>
                     </div>
                     <span className="text-xs text-muted-foreground min-w-[3ch] text-right">
-                      {pagesTotal > 0 ? (
+                      {phase === 'episodes' && showsTotal > 0 ? (
+                        <>{showsCurrent} / {showsTotal} shows</>
+                      ) : pagesTotal > 0 ? (
                         <>Page {pagesDone} / {pagesTotal}</>
                       ) : (
                         <>{Math.round(progressValue)}%</>
@@ -771,6 +808,13 @@ export const LibraryDetailPage = () => {
                     </span>
                   </div>
                   <Progress value={progressValue} className="h-2" />
+                  {phase === 'episodes' && (
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs text-muted-foreground">
+                        Syncing episodes across shows
+                      </p>
+                    </div>
+                  )}
                   <div className="flex items-center justify-between">
                     <p className="text-xs text-muted-foreground">
                       This may take a few moments...
@@ -801,7 +845,7 @@ export const LibraryDetailPage = () => {
                 </>
               )}
             </Button>
-            <Button onClick={handleSyncLibrary} disabled={syncing || purging}>
+            <Button onClick={handleSyncClick} disabled={syncing || purging}>
               {syncing ? (
                 <>
                   <IconRefresh className="mr-2 h-4 w-4 animate-spin" />
@@ -1529,6 +1573,57 @@ export const LibraryDetailPage = () => {
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* TV Library Sync Options Dialog */}
+      <ResponsiveDialog
+        open={showSyncDialog}
+        onOpenChange={setShowSyncDialog}
+        title="Sync TV Library"
+        description="Choose what you want to sync for this TV show library"
+        footer={
+          <>
+            <Button
+              variant="outline"
+              onClick={() => setShowSyncDialog(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => handleSyncLibrary(false)}
+            >
+              TV Shows Only
+            </Button>
+            <Button
+              onClick={() => handleSyncLibrary(true)}
+            >
+              TV Shows + Episodes
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4 py-4">
+          <div className="space-y-2">
+            <h4 className="font-medium flex items-center gap-2">
+              <IconMovie className="h-4 w-4" />
+              TV Shows Only
+            </h4>
+            <p className="text-sm text-muted-foreground">
+              Syncs only the TV show entries. Episodes will not be synced. Use this for a quick library update.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <h4 className="font-medium flex items-center gap-2">
+              <IconStack2 className="h-4 w-4" />
+              TV Shows + Episodes
+            </h4>
+            <p className="text-sm text-muted-foreground">
+              Syncs TV shows and all their episodes. This will take significantly longer but ensures all episodes are up to date.
+            </p>
+          </div>
+        </div>
+      </ResponsiveDialog>
     </div>
   );
 };

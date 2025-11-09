@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from flask import jsonify
+from flask import jsonify, request
 from app.utils.jwt_decorators import jwt_required_with_user, jwt_permission_required
 from pydantic import BaseModel
 from pydantic import ConfigDict
@@ -73,7 +73,15 @@ def v2_sync_library_content(path: LibraryPath, current_user):
 
         start_time = time.time()
         try:
-            result = MediaSyncService.sync_library_content(path.library_id)
+            sync_episodes_flag = False
+            try:
+                arg_val = request.args.get("sync_episodes")
+                if isinstance(arg_val, str):
+                    sync_episodes_flag = arg_val.lower() in ("1", "true", "yes", "on")
+            except Exception:
+                pass
+
+            result = MediaSyncService.sync_library_content(path.library_id, sync_episodes=sync_episodes_flag)
         finally:
             # Mark as ended regardless of success
             end_library_sync(library.id)

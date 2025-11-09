@@ -7,6 +7,11 @@ interface LibrarySyncProgress {
   total_items?: number;
   total_fetched?: number;
   message?: string | null;
+  phase?: 'shows' | 'episodes' | null;
+  shows_current?: number;
+  shows_total?: number;
+  episodes_current?: number;
+  episodes_total?: number;
 }
 
 interface LibrarySyncStatus {

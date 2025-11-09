@@ -974,7 +974,7 @@ export const UserDetailPage = () => {
         </div>
       </section>
 
-      <section className="rounded-lg border border-border bg-background shadow">
+      <section className="rounded-lg bg-background">
         <Tabs
           value={activeTab}
           onValueChange={(value) =>

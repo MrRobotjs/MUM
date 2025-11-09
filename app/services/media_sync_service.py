@@ -334,51 +334,75 @@ class MediaSyncService:
         """Update an existing MediaItem with new data"""
         try:
             changes = []
-            
+
             # Extract rating_key for Plex items - every Plex item has a ratingKey
             new_rating_key = None
             raw_data = item_data.get('raw_data', {})
             if raw_data and isinstance(raw_data, dict):
                 new_rating_key = raw_data.get('ratingKey')
-            
+
             new_rating_key = str(new_rating_key) if new_rating_key else None
-            
+
             # Check if key fields have changed
             new_title = item_data.get('title', 'Unknown Title')
             new_summary = item_data.get('summary') or item_data.get('plot') or item_data.get('overview')
             new_year = item_data.get('year')
             new_rating = item_data.get('rating')
-            
+
+            # Extract and update thumb_path (handle different service formats)
+            new_thumb_path = None
+            if item_data.get('thumb'):
+                thumb_url = item_data['thumb']
+                if thumb_url.startswith('/api/'):
+                    # Already a proxy URL (Jellyfin or other services) - store as-is
+                    new_thumb_path = thumb_url
+                elif '/api/media/plex/images/proxy' in thumb_url and 'path=' in thumb_url:
+                    # Plex proxy URL: extract path
+                    new_thumb_path = thumb_url.split('path=')[1]
+                elif '/api/media/audiobookshelf/images/proxy' in thumb_url and 'path=' in thumb_url:
+                    # AudioBookshelf proxy URL: store as-is (full proxy URL)
+                    new_thumb_path = thumb_url
+                elif thumb_url.startswith('/'):
+                    # Direct path
+                    new_thumb_path = thumb_url
+                elif thumb_url.startswith('http'):
+                    # Full URL (like RomM) - store as-is
+                    new_thumb_path = thumb_url
+
             if item.title != new_title:
                 changes.append(f"Title: '{item.title}' → '{new_title}'")
                 item.title = new_title
                 item.sort_title = item_data.get('sort_title') or new_title
-            
+
             if item.summary != new_summary:
                 changes.append("Summary updated")
                 item.summary = new_summary
-            
+
             if item.year != new_year:
                 changes.append(f"Year: {item.year} → {new_year}")
                 item.year = new_year
-            
+
             if item.rating != new_rating:
                 old_rating = f"{item.rating:.1f}" if item.rating else "None"
                 new_rating_str = f"{new_rating:.1f}" if new_rating else "None"
                 changes.append(f"Rating: {old_rating} → {new_rating_str}")
                 item.rating = new_rating
-            
+
             if item.rating_key != new_rating_key:
                 changes.append(f"Rating Key: {item.rating_key} → {new_rating_key}")
                 item.rating_key = new_rating_key
-            
+
+            if item.thumb_path != new_thumb_path:
+                changes.append("Thumbnail updated")
+                item.thumb_path = new_thumb_path
+
             # Always update last_synced and extra_metadata
             item.last_synced = datetime.utcnow()
             item.extra_metadata = item_data.get('raw_data', {})
-            
+
             if changes:
                 db.session.add(item)
-            
+
             return changes
             
         except Exception as e:

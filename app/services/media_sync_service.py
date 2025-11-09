@@ -454,9 +454,10 @@ class MediaSyncService:
         
         try:
             # Get all TV shows in this library
-            tv_shows = MediaItem.query.filter_by(
-                library_id=library.id,
-                item_type='show'
+            # Note: Plex uses 'show', Jellyfin uses 'series'
+            tv_shows = MediaItem.query.filter(
+                MediaItem.library_id == library.id,
+                or_(MediaItem.item_type == 'show', MediaItem.item_type == 'series')
             ).all()
             shows_total = len(tv_shows)
             update_library_sync_progress(
@@ -608,7 +609,8 @@ class MediaSyncService:
         try:
             # Get the show from database
             show = MediaItem.query.get(show_id)
-            if not show or show.item_type != 'show':
+            # Note: Plex uses 'show', Jellyfin uses 'series'
+            if not show or show.item_type not in ('show', 'series'):
                 return {'success': False, 'error': 'Show not found or not a TV show'}
             
             library = show.library

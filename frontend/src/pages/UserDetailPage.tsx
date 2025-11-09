@@ -994,11 +994,11 @@ export const UserDetailPage = () => {
               ))}
           </TabsList>
 
-          <TabsContent value="profile" className="p-6">
+          <TabsContent value="profile" className="pt-5">
             <ProfileTab user={user} />
           </TabsContent>
 
-          <TabsContent value="history" className="p-6">
+          <TabsContent value="history" className="pt-5">
             <HistoryTab
               entries={combinedHistory}
               loading={historyLoading}
@@ -1008,7 +1008,7 @@ export const UserDetailPage = () => {
             />
           </TabsContent>
 
-          <TabsContent value="settings" className="p-6">
+          <TabsContent value="settings" className="pt-5">
             <SettingsTab
               settings={settings}
               settingsLoading={settingsLoading}
@@ -1032,7 +1032,7 @@ export const UserDetailPage = () => {
             />
           </TabsContent>
 
-          <TabsContent value="overseerr" className="p-6">
+          <TabsContent value="overseerr" className="pt-5">
             <OverseerrCard
               links={overseerrLinks}
               loading={overseerrLoading}
@@ -1040,7 +1040,7 @@ export const UserDetailPage = () => {
             />
           </TabsContent>
 
-          <TabsContent value="security" className="p-6">
+          <TabsContent value="security" className="pt-5">
             <SecurityTab user={user} onResetPassword={handleResetPassword} resetting={resettingPassword} />
           </TabsContent>
         </Tabs>

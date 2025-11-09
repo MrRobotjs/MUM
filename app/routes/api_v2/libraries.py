@@ -254,7 +254,7 @@ def list_library_media(path: LibraryPath, query: LibraryMediaQuery, current_user
                 )
                 .filter(
                     S.library_id == path.library_id,
-                    S.item_type == 'show',
+                    S.item_type.in_(['show', 'series']),
                 )
                 .subquery('ep_map')
             )
@@ -419,8 +419,8 @@ def list_library_media(path: LibraryPath, query: LibraryMediaQuery, current_user
             # Map each show's identifiers (external_id and rating_key) to its id
             parent_to_show: dict[str, int] = {}
             for show in items:
-                # Only for shows
-                if getattr(show, "item_type", None) == "show":
+                # Only for shows (Plex uses 'show', Jellyfin uses 'series')
+                if getattr(show, "item_type", None) in ("show", "series"):
                     if getattr(show, "external_id", None):
                         parent_to_show[str(show.external_id)] = show.id
                     if getattr(show, "rating_key", None):

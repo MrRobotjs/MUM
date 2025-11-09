@@ -991,6 +991,128 @@ class JellyfinMediaService(BaseMediaService):
             self.log_error(f"Error getting user info for {user_id}: {e}")
             return {}
 
+    def get_show_episodes(self, show_id: str, page: int = 1, per_page: int = 1000) -> Dict[str, Any]:
+        """Get episodes for a specific TV show from Jellyfin"""
+        try:
+            if not self._authenticated and not self._authenticate():
+                self.log_error("Failed to authenticate for episode retrieval")
+                return {
+                    'items': [],
+                    'total': 0,
+                    'page': page,
+                    'per_page': per_page,
+                    'pages': 0,
+                    'has_prev': False,
+                    'has_next': False,
+                    'error': 'Authentication failed'
+                }
+
+            # Get all episodes for this show using Jellyfin API
+            # ParentId is the show's ID, IncludeItemTypes=Episode, Recursive=true
+            response = self.session.get(
+                f"{self.url.rstrip('/')}/Items",
+                params={
+                    'ParentId': show_id,
+                    'IncludeItemTypes': 'Episode',
+                    'Recursive': 'true',
+                    'Fields': 'BasicSyncInfo,PrimaryImageAspectRatio,ProductionYear',
+                    'SortBy': 'SortName',
+                    'SortOrder': 'Ascending'
+                },
+                timeout=get_api_timeout_with_fallback(30)
+            )
+            response.raise_for_status()
+
+            data = response.json()
+            episodes = data.get('Items', [])
+            total_count = len(episodes)
+
+            self.log_info(f"Retrieved {total_count} episodes for show {show_id}")
+
+            # Process episodes to match expected format
+            processed_episodes = []
+            for episode in episodes:
+                try:
+                    # Get episode thumbnail URL
+                    thumb_url = None
+                    if episode.get('Id'):
+                        thumb_url = f"/admin/api/v2/media/jellyfin/images/proxy?item_id={episode['Id']}&image_type=Primary"
+
+                    # Extract year from PremiereDate
+                    year = None
+                    if episode.get('PremiereDate'):
+                        try:
+                            year = int(episode['PremiereDate'][:4])
+                        except (ValueError, TypeError):
+                            pass
+                    elif episode.get('ProductionYear'):
+                        year = episode['ProductionYear']
+
+                    # Get parent show ID for linking
+                    parent_id = episode.get('SeriesId', show_id)
+
+                    # Jellyfin provides IndexNumber (episode) and ParentIndexNumber (season)
+                    # Store them in raw_data for to_dict() to extract
+                    raw_episode_data = episode.copy()
+                    raw_episode_data['episodeNumber'] = episode.get('IndexNumber')
+                    raw_episode_data['seasonNumber'] = episode.get('ParentIndexNumber')
+
+                    processed_episode = {
+                        'id': episode.get('Id', ''),
+                        'title': episode.get('Name', 'Unknown Episode'),
+                        'year': year,
+                        'thumb': thumb_url,
+                        'type': 'episode',
+                        'item_type': 'episode',
+                        'summary': episode.get('Overview', ''),
+                        'rating': episode.get('CommunityRating'),
+                        'duration': episode.get('RunTimeTicks'),
+                        'added_at': episode.get('DateCreated'),
+                        'parent_id': parent_id,
+                        'raw_data': raw_episode_data
+                    }
+
+                    processed_episodes.append(processed_episode)
+
+                except Exception as e:
+                    self.log_warning(f"Error processing episode {episode.get('Id', 'unknown')}: {e}")
+                    continue
+
+            return {
+                'items': processed_episodes,
+                'total': total_count,
+                'page': page,
+                'per_page': per_page,
+                'pages': 1,  # All episodes returned in one call
+                'has_prev': False,
+                'has_next': False
+            }
+
+        except requests.exceptions.RequestException as e:
+            self.log_error(f"Jellyfin API error getting episodes for show {show_id}: {e}")
+            return {
+                'items': [],
+                'total': 0,
+                'page': page,
+                'per_page': per_page,
+                'pages': 0,
+                'has_prev': False,
+                'has_next': False,
+                'error': f'Failed to connect to Jellyfin server: {str(e)}'
+            }
+        except Exception as e:
+            self.log_error(f"Error getting episodes for show {show_id}: {e}")
+            return {
+                'items': [],
+                'total': 0,
+                'page': page,
+                'per_page': per_page,
+                'pages': 0,
+                'has_prev': False,
+                'has_next': False,
+                'error': str(e)
+            }
+
     def get_geoip_info(self, ip_address: str) -> Dict[str, Any]:
         """Get GeoIP information for a given IP address"""
         # Use the base class implementation

@@ -88,6 +88,7 @@ export const MediaDetailPage = () => {
   const [episodesLoading, setEpisodesLoading] = useState(false);
   const [episodesPage, setEpisodesPage] = useState(1);
   const [episodesTotalPages, setEpisodesTotalPages] = useState(1);
+  const [episodesTotalItems, setEpisodesTotalItems] = useState(0);
   const [episodesSearch, setEpisodesSearch] = useState('');
   const [episodesSortBy, setEpisodesSortBy] = useState('season_episode_asc');
   const [syncing, setSyncing] = useState(false);
@@ -147,6 +148,7 @@ export const MediaDetailPage = () => {
       if (response.data) {
         setEpisodes(response.data.episodes || []);
         setEpisodesTotalPages(response.meta?.pagination?.total_pages || 1);
+        setEpisodesTotalItems(response.meta?.pagination?.total_items || 0);
       }
     } catch (err) {
       console.error('Failed to load episodes:', err);
@@ -492,7 +494,7 @@ export const MediaDetailPage = () => {
                   <IconList className="text-primary mr-2 h-5 w-5" />
                   Episodes
                   <span className="text-sm text-muted-foreground ml-2">
-                    ({episodes.length} episodes)
+                    ({episodesTotalItems} episodes)
                   </span>
                 </h3>
 
@@ -632,7 +634,7 @@ export const MediaDetailPage = () => {
                           <h4 className="font-medium text-sm line-clamp-2 group-hover:text-primary transition-colors" title={episode.title}>
                             {episode.title}
                           </h4>
-                          {episode.season_number !== undefined && episode.episode_number !== undefined && (
+                          {episode.season_number != null && episode.episode_number != null && (
                             <p className="text-xs text-muted-foreground mt-1">
                               S{episode.season_number.toString().padStart(2, '0')}E{episode.episode_number.toString().padStart(2, '0')}
                               {episode.year && ` • ${episode.year}`}

@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ApiError, requestJson } from '@/util/apiClient';
-import { useToast } from '@/util/toast';
+import { useAlerts } from '../contexts/AlertContext';
 import { IconUserShield, IconInfoCircle, IconKey, IconClock } from '@tabler/icons-react';
 
 type AccountUser = {
@@ -80,7 +80,7 @@ const getApiErrorMessage = (error: unknown) => {
 type TabType = 'overview' | 'credentials' | 'preferences';
 
 const AdminAccountPage = () => {
-  const toast = useToast();
+  const { success, error: showError } = useAlerts();
   const navigate = useNavigate();
 
   // Use TanStack Router search for tab state
@@ -192,11 +192,7 @@ const AdminAccountPage = () => {
         }),
       });
       setAccount(response.data);
-      toast.showToast({
-        type: 'success',
-        title: 'Credentials saved',
-        description: 'Local credentials are now configured for your account.',
-      });
+      success('Local credentials are now configured for your account.');
       setCredentialsForm({
         username: response.data.user.username ?? '',
         password: '',
@@ -227,11 +223,7 @@ const AdminAccountPage = () => {
           new_password: passwordForm.newPassword,
         }),
       });
-      toast.showToast({
-        type: 'success',
-        title: 'Password updated',
-        description: 'Your password was changed successfully.',
-      });
+      success('Your password was changed successfully.');
       setPasswordForm({
         currentPassword: '',
         newPassword: '',
@@ -264,11 +256,7 @@ const AdminAccountPage = () => {
         time_format: response.data.timezone.time_format,
         local_timezone: response.data.timezone.local_timezone,
       });
-      toast.showToast({
-        type: 'success',
-        title: 'Timezone updated',
-        description: 'Display preferences saved.',
-      });
+      success('Display preferences saved.');
     } catch (error) {
       setTimezoneError(getApiErrorMessage(error));
     } finally {

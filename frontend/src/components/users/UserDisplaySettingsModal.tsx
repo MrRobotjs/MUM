@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useToast } from '../../util/toast';
+import { useAlerts } from '../../contexts/AlertContext';
 import { Switch } from '../ui/switch';
 import { Label } from '../ui/label';
 import { Button } from '../ui/button';
@@ -24,7 +24,7 @@ interface UserDisplaySettingsModalProps {
 export const UserDisplaySettingsModal = ({ isOpen, onClose }: UserDisplaySettingsModalProps) => {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const toast = useToast();
+  const { success, error: showError } = useAlerts();
 
   // Settings state
   const [showUserNotes, setShowUserNotes] = useState(false);
@@ -81,19 +81,11 @@ export const UserDisplaySettingsModal = ({ isOpen, onClose }: UserDisplaySetting
 
       localStorage.setItem('userDisplaySettings', JSON.stringify(settings));
 
-      toast.showToast({
-        type: 'success',
-        title: 'Settings saved',
-        description: 'User display settings have been updated. Refresh the page to see changes.'
-      });
+      success('User display settings have been updated. Refresh the page to see changes.');
 
       onClose();
     } catch (err) {
-      toast.showToast({
-        type: 'error',
-        title: 'Save failed',
-        description: err instanceof Error ? err.message : 'Failed to save settings'
-      });
+      showError(err instanceof Error ? err.message : 'Failed to save settings');
     } finally {
       setSaving(false);
     }

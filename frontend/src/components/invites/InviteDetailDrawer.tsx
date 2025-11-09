@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import clsx from 'clsx';
 import { Button } from '../common/Button';
-import { useToast } from '../../util/toast';
+import { useAlerts } from '../../contexts/AlertContext';
 import { requestJson } from '../../util/apiClient';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 
@@ -82,7 +82,7 @@ type ApiResponse = {
 };
 
 export const InviteDetailDrawer = ({ inviteId, onClose }: InviteDetailDrawerProps) => {
-  const toast = useToast();
+  const { success, error: showError } = useAlerts();
   const [loading, setLoading] = useState(false);
   const [detail, setDetail] = useState<InviteDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -101,22 +101,22 @@ export const InviteDetailDrawer = ({ inviteId, onClose }: InviteDetailDrawerProp
       } catch (err) {
         const message = (err as Error).message || 'Failed to load invite details';
         setError(message);
-        toast.showToast({ type: 'error', title: 'Invite detail failed', description: message });
+        showError('Invite detail failed: ' + message);
       } finally {
         setLoading(false);
       }
     };
 
     void load();
-  }, [inviteId, toast]);
+  }, [inviteId]);
 
   const handleCopyShareUrl = async () => {
     if (!detail?.share_url) return;
     try {
       await navigator.clipboard.writeText(detail.share_url);
-      toast.showToast({ type: 'success', title: 'Link copied' });
+      success('Link copied');
     } catch (err) {
-      toast.showToast({ type: 'error', title: 'Copy failed', description: String(err) });
+      showError('Copy failed: ' + String(err));
     }
   };
 

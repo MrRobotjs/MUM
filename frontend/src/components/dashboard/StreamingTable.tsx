@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import useSWR from 'swr';
-import { useToast } from '../../util/toast';
+import { useAlerts } from '../../contexts/AlertContext';
 import { FormField } from '../index';
 import { requestJson } from '../../util/apiClient';
 import { Button } from '@/components/ui/button';
@@ -51,7 +51,7 @@ export const StreamingTable = ({
   endDate,
   onLoadMore
 }: StreamingTableProps) => {
-  const toast = useToast();
+  const { success, error: showError } = useAlerts();
   const [terminateTarget, setTerminateTarget] = useState<StreamRow | null>(null);
   const [terminateMessage, setTerminateMessage] = useState('');
   const [terminating, setTerminating] = useState(false);
@@ -82,11 +82,11 @@ export const StreamingTable = ({
         method: 'POST',
         body: JSON.stringify({ message: terminateMessage || undefined })
       });
-      toast.showToast({ type: 'success', title: 'Termination command sent' });
+      success('Termination command sent');
       await mutate();
       setTerminateTarget(null);
     } catch (err) {
-      toast.showToast({ type: 'error', title: 'Failed to terminate stream', description: String(err) });
+      showError('Failed to terminate stream: ' + String(err));
     } finally {
       setTerminating(false);
     }

@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, Link, useParams, useSearch } from '@tanstack/react-router';
 import { requestJson } from '../util/apiClient';
-import { useToast } from '../util/toast';
+import { useAlerts } from '../contexts/AlertContext';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Skeleton } from '../components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { Pagination } from '../components/common/Pagination';
+import { Progress } from '../components/ui/progress';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -224,7 +225,7 @@ export const LibraryDetailPage = () => {
   const activeTab: TabType = search.tab ?? 'overview';
   
   const navigate = useNavigate({ from: '/admin/libraries/$libraryId' });
-  const { showToast } = useToast();
+  const { success, error: showError, info } = useAlerts();
 
   const [library, setLibrary] = useState<Library | null>(null);
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
@@ -349,26 +350,19 @@ export const LibraryDetailPage = () => {
                            library?.library_type?.toLowerCase().includes('tv');
 
         if (added > 0 || updated > 0 || removed > 0) {
-          let description = `${added} added, ${updated} updated`;
+          let message = `${added} added, ${updated} updated`;
 
           // Only show removed count for non-TV libraries
           // TV libraries sync shows at this level; episodes sync from show detail pages
           if (!isTvLibrary && removed > 0) {
-            description += `, ${removed} removed`;
+            message += `, ${removed} removed`;
+          } else if (isTvLibrary && removed > 0) {
+            message += ` (${removed} shows no longer available)`;
           }
 
-          showToast({
-            type: 'success',
-            title: 'Library Sync Complete',
-            description: isTvLibrary && removed > 0
-              ? `${description} (${removed} shows no longer available)`
-              : description
-          });
+          success(message);
         } else {
-          showToast({
-            type: 'info',
-            title: response.message || 'No changes detected'
-          });
+          info(response.message || 'No changes detected');
         }
 
         // Reload library data after sync
@@ -379,11 +373,7 @@ export const LibraryDetailPage = () => {
       }
     } catch (err) {
       console.error('Failed to sync library content:', err);
-      showToast({
-        type: 'error',
-        title: 'Failed to sync library content',
-        description: err instanceof Error ? err.message : undefined
-      });
+      showError(err instanceof Error ? err.message : 'Failed to sync library content');
     } finally {
       setSyncing(false);
     }
@@ -405,11 +395,7 @@ export const LibraryDetailPage = () => {
 
       if (response.success) {
         const deletedCount = response.deleted_count || 0;
-        showToast({
-          type: 'success',
-          title: 'Library Purged',
-          description: `Purged ${deletedCount} item${deletedCount === 1 ? '' : 's'} from library`
-        });
+        success(`Purged ${deletedCount} item${deletedCount === 1 ? '' : 's'} from library`);
 
         // Reload library data after purge
         await loadLibraryData();
@@ -419,11 +405,7 @@ export const LibraryDetailPage = () => {
       }
     } catch (err) {
       console.error('Failed to purge library:', err);
-      showToast({
-        type: 'error',
-        title: 'Failed to purge library',
-        description: err instanceof Error ? err.message : undefined
-      });
+      showError(err instanceof Error ? err.message : 'Failed to purge library');
     } finally {
       setPurging(false);
     }
@@ -721,6 +703,30 @@ export const LibraryDetailPage = () => {
         </TabsContent>
 
         <TabsContent value="media" className="space-y-6">
+          {/* Sync Progress Bar */}
+          {syncing && (
+            <Card className="border-primary/50 bg-primary/5">
+              <CardContent className="p-4">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <div className="flex items-center gap-2">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary" />
+                      <span className="font-medium">
+                        Syncing library content from {library?.server?.server_nickname || 'server'}...
+                      </span>
+                    </div>
+                  </div>
+                  <Progress value={100} className="h-2 progress-indeterminate" />
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs text-muted-foreground">
+                      This may take a few moments...
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Action Buttons */}
           <div className="flex justify-end gap-2">
             <Button

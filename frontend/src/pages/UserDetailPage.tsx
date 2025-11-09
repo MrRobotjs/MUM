@@ -1,7 +1,7 @@
 import { ReactNode, useMemo, useState } from 'react';
 import clsx from 'clsx';
 import { useLocation, useNavigate, useParams, useSearch } from '@tanstack/react-router';
-import { useToast } from '../util/toast';
+import { useAlerts } from '../contexts/AlertContext';
 import { useUserDetail, UserDetail, UserHistoryEntry } from '../hooks/useUserDetail';
 import { useUserHistory } from '../hooks/useUserHistory';
 import { useServiceAccounts } from '../hooks/useServiceAccounts';
@@ -708,7 +708,7 @@ export const UserDetailPage = () => {
   const [resyncing, setResyncing] = useState(false);
   const [resettingPassword, setResettingPassword] = useState(false);
 
-  const toast = useToast();
+  const { success, error: showError } = useAlerts();
   const { user, loading, error } = useUserDetail(effectiveUuid);
   const userType = user?.user_type?.toLowerCase();
   const canManageServiceAccounts = Boolean(effectiveUuid) && Boolean(userType) && userType !== 'service';
@@ -822,13 +822,9 @@ export const UserDetailPage = () => {
       await requestJson(`/admin/api/v2/users/${user.uuid}/reset-password`, {
         method: 'POST'
       });
-      toast.showToast({
-        type: 'success',
-        title: 'Password reset initiated',
-        description: 'User will be prompted to set a new password on next login.'
-      });
+      success('User will be prompted to set a new password on next login.');
     } catch (err) {
-      toast.showToast({ type: 'error', title: 'Password reset failed', description: String(err) });
+      showError('Password reset failed: ' + String(err));
     } finally {
       setResettingPassword(false);
     }
@@ -840,9 +836,9 @@ export const UserDetailPage = () => {
         method: 'DELETE'
       });
       await refreshAccounts();
-      toast.showToast({ type: 'success', title: 'Service account unlinked' });
+      success('Service account unlinked');
     } catch (err) {
-      toast.showToast({ type: 'error', title: 'Unlink failed', description: String(err) });
+      showError('Unlink failed: ' + String(err));
     }
   };
 
@@ -852,7 +848,7 @@ export const UserDetailPage = () => {
       body: JSON.stringify({ service_uuid: serviceUuid })
     });
     await Promise.all([refreshAccounts(), refreshAvailable()]);
-    toast.showToast({ type: 'success', title: 'Service account linked' });
+    success('Service account linked');
   };
 
   const handleSaveSettings = async (payload: Partial<UserSettings>) => {
@@ -861,7 +857,7 @@ export const UserDetailPage = () => {
       body: JSON.stringify(payload)
     });
     await refreshSettings();
-    toast.showToast({ type: 'success', title: 'Settings saved' });
+    success('Settings saved');
   };
 
   const handleResync = async () => {
@@ -872,13 +868,9 @@ export const UserDetailPage = () => {
         method: 'POST'
       });
       await Promise.all([refreshAccounts(), refreshAvailable()]);
-      toast.showToast({
-        type: 'success',
-        title: 'Sync started',
-        description: 'Linked service accounts are being refreshed.'
-      });
+      success('Linked service accounts are being refreshed.');
     } catch (err) {
-      toast.showToast({ type: 'error', title: 'Sync failed', description: String(err) });
+      showError('Sync failed: ' + String(err));
     } finally {
       setResyncing(false);
     }
@@ -1065,7 +1057,7 @@ export const UserDetailPage = () => {
             await handleLink(serviceUuid);
             setLinkModalOpen(false);
           } catch (err) {
-            toast.showToast({ type: 'error', title: 'Link failed', description: String(err) });
+            showError('Link failed: ' + String(err));
             throw err;
           }
         }}

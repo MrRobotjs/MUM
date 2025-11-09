@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, type FormEvent } from 'react';
-import { useToast } from '../util/toast';
+import { useAlerts } from '../contexts/AlertContext';
 import { useInvites } from '../hooks/useInvites';
 import { useAdminApi } from '../hooks/useAdminApi';
 import { useInviteSummary } from '../hooks/useInviteSummary';
@@ -58,7 +58,7 @@ const getServiceIcon = (serviceType: string): string => {
 };
 
 export const InvitesPage = () => {
-  const toast = useToast();
+  const { success, error: showError } = useAlerts();
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [serverFilter, setServerFilter] = useState<string>('all');
   const [page, setPage] = useState(1);
@@ -107,11 +107,11 @@ export const InvitesPage = () => {
         method: 'POST',
         body: JSON.stringify({ ids: Array.from(selectedIds), action })
       });
-      toast.showToast({ type: 'success', title: `Invites ${action}d successfully` });
+      success(`Invites ${action}d successfully`);
       setSelectedIds(new Set());
       await refresh();
     } catch (err) {
-      toast.showToast({ type: 'error', title: 'Bulk action failed', description: String(err) });
+      showError('Bulk action failed: ' + String(err));
     }
   };
 
@@ -148,12 +148,12 @@ export const InvitesPage = () => {
         method,
         body: JSON.stringify(values)
       });
-      toast.showToast({ type: 'success', title: editingInvite ? 'Invite updated' : 'Invite created' });
+      success(editingInvite ? 'Invite updated' : 'Invite created');
       setModalOpen(false);
       setEditingInvite(null);
       await refresh();
     } catch (err) {
-      toast.showToast({ type: 'error', title: 'Failed to save invite', description: String(err) });
+      showError('Failed to save invite: ' + String(err));
       throw err;
     } finally {
       setSaving(false);
@@ -373,7 +373,7 @@ export const InvitesPage = () => {
                           const invitePath = invite.custom_path || invite.token;
                           const fullUrl = `${window.location.origin}/invite/${invitePath}`;
                           navigator.clipboard.writeText(fullUrl);
-                          toast.showToast({ type: 'success', title: 'Invite link copied!' });
+                          success('Invite link copied!');
                         }}
                       >
                         {invite.custom_path || invite.token.substring(0, 12)}

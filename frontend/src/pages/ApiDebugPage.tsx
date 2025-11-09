@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { requestJson } from '../util/apiClient';
-import { useToast } from '../util/toast';
+import { useAlerts } from '../contexts/AlertContext';
 import { PageHeader } from '../components';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -68,7 +68,7 @@ const ApiDebugPage = () => {
   const [response, setResponse] = useState<ApiResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'formatted' | 'raw' | 'headers' | 'curl'>('formatted');
-  const toast = useToast();
+  const { success, error: showError } = useAlerts();
 
   useEffect(() => {
     fetchServers();
@@ -105,11 +105,7 @@ const ApiDebugPage = () => {
       const response = await requestJson<{ data: Server[] }>('/admin/api/v2/servers');
       setServers(response.data || []);
     } catch (error) {
-      toast.showToast({
-        type: 'error',
-        title: 'Failed to load servers',
-        description: String(error)
-      });
+      showError('Failed to load servers: ' + String(error));
     }
   };
 
@@ -148,11 +144,7 @@ const ApiDebugPage = () => {
 
   const executeRequest = async () => {
     if (!selectedServer || !apiEndpoint) {
-      toast.showToast({
-        type: 'error',
-        title: 'Validation Error',
-        description: 'Please select a server and enter an endpoint'
-      });
+      showError('Please select a server and enter an endpoint');
       return;
     }
 
@@ -255,17 +247,9 @@ const ApiDebugPage = () => {
     const curlCmd = generateCurlCommand();
     try {
       await navigator.clipboard.writeText(curlCmd);
-      toast.showToast({
-        type: 'success',
-        title: 'Copied',
-        description: 'cURL command copied to clipboard'
-      });
+      success('cURL command copied to clipboard');
     } catch {
-      toast.showToast({
-        type: 'error',
-        title: 'Copy Failed',
-        description: 'Failed to copy to clipboard'
-      });
+      showError('Failed to copy to clipboard');
     }
   };
 

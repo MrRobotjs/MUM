@@ -7,7 +7,7 @@ import { useStreamingSummary } from '../hooks/useStreamingSummary';
 import { useStreamingWebSocket } from '../hooks/useStreamingWebSocket';
 import { Button, PageHeader } from '../components';
 import { requestJson } from '../util/apiClient';
-import { useToast } from '../util/toast';
+import { useAlerts } from '../contexts/AlertContext';
 import { Badge } from '@/components/ui/badge';
 import {
   DropdownMenu,
@@ -162,7 +162,7 @@ export const StreamingPage = () => {
   const [selectedSession, setSelectedSession] = useState<ActiveSession | null>(null);
   const [terminateMessage, setTerminateMessage] = useState('');
 
-  const toast = useToast();
+  const { success, error: showError } = useAlerts();
   const liveServicesRef = useRef<string[]>([]);
   const lastUpdateRef = useRef<Date | null>(null);
   const [wsTruthActive, setWsTruthActive] = useState(false);
@@ -487,22 +487,14 @@ export const StreamingPage = () => {
         })
       });
 
-      toast.showToast({
-        type: 'success',
-        title: 'Session Terminated',
-        description: `Session for ${selectedSession.user} has been terminated`
-      });
+      success(`Session for ${selectedSession.user} has been terminated`);
 
       setShowTerminateModal(false);
       setSelectedSession(null);
       setTerminateMessage('');
       fetchActiveSessions();
     } catch (error) {
-      toast.showToast({
-        type: 'error',
-        title: 'Failed to terminate session',
-        description: String(error)
-      });
+      showError('Failed to terminate session: ' + String(error));
     }
   };
 

@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { FormField } from '../index';
 import { useStreamingSettings } from '../../hooks/useStreamingSettings';
-import { useToast } from '../../util/toast';
+import { useAlerts } from '../../contexts/AlertContext';
 import { requestJson } from '../../util/apiClient';
 import { ResponsiveDialog } from '../ui/responsive-dialog';
 import { Button } from '@/components/ui/button';
@@ -19,7 +19,7 @@ type StreamingSettingsModalProps = {
 };
 
 export const StreamingSettingsModal = ({ open, onClose }: StreamingSettingsModalProps) => {
-  const toast = useToast();
+  const { success, error: showError } = useAlerts();
   const { settings, loading, error, refresh } = useStreamingSettings();
   const [enableBadge, setEnableBadge] = useState(false);
   const [interval, setInterval] = useState(30);
@@ -47,9 +47,9 @@ export const StreamingSettingsModal = ({ open, onClose }: StreamingSettingsModal
 
   useEffect(() => {
     if (error) {
-      toast.showToast({ type: 'error', title: 'Failed to load settings', description: String(error) });
+      showError('Failed to load settings: ' + String(error));
     }
-  }, [error, toast]);
+  }, [error, showError]);
 
   const handleSubmit = async () => {
     setValidationError(null);
@@ -71,11 +71,11 @@ export const StreamingSettingsModal = ({ open, onClose }: StreamingSettingsModal
         })
       });
 
-      toast.showToast({ type: 'success', title: 'Streaming settings saved' });
+      success('Streaming settings saved');
       await refresh();
       onClose();
     } catch (err) {
-      toast.showToast({ type: 'error', title: 'Failed to save settings', description: String(err) });
+      showError('Failed to save settings: ' + String(err));
     } finally {
       setSaving(false);
     }

@@ -6,7 +6,7 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Checkbox } from '../components/ui/checkbox';
-import { useToast } from '../util/toast';
+import { useAlerts } from '../contexts/AlertContext';
 
 type WizardStep = {
   id: string;
@@ -187,7 +187,7 @@ const defaultAccountFormState: AccountFormState = {
 
 export const InviteWizardPage = () => {
   const { token = '' } = useParams<{ token: string }>();
-  const toast = useToast();
+  const { success, error: showError } = useAlerts();
 
   const [state, setState] = useState<WizardState | null>(null);
   const [loading, setLoading] = useState(true);
@@ -273,17 +273,13 @@ export const InviteWizardPage = () => {
         body: JSON.stringify(payload)
       });
       setState(response.data);
-      toast.showToast({ type: 'success', title: 'Account details saved' });
+      success('Account details saved');
     } catch (err) {
       const apiError = err as ApiError;
       if (apiError.details) {
         setAccountErrors(apiError.details);
       }
-      toast.showToast({
-        type: 'error',
-        title: 'Failed to save account',
-        description: apiError.message
-      });
+      showError('Failed to save account: ' + apiError.message);
     } finally {
       setSavingAccount(false);
     }
@@ -309,11 +305,7 @@ export const InviteWizardPage = () => {
         window.location.href = redirect;
       }
     } catch (err) {
-      toast.showToast({
-        type: 'error',
-        title: 'Plex login failed',
-        description: (err as Error).message
-      });
+      showError('Plex login failed: ' + (err as Error).message);
     } finally {
       setStartingPlex(false);
     }
@@ -327,13 +319,9 @@ export const InviteWizardPage = () => {
         body: JSON.stringify({ action })
       });
       setState(response.data);
-      toast.showToast({ type: 'success', title: 'Plex account updated' });
+      success('Plex account updated');
     } catch (err) {
-      toast.showToast({
-        type: 'error',
-        title: 'Unable to update Plex account',
-        description: (err as Error).message
-      });
+      showError('Unable to update Plex account: ' + (err as Error).message);
     }
   };
 
@@ -357,11 +345,7 @@ export const InviteWizardPage = () => {
         window.location.href = redirect;
       }
     } catch (err) {
-      toast.showToast({
-        type: 'error',
-        title: 'Discord login failed',
-        description: (err as Error).message
-      });
+      showError('Discord login failed: ' + (err as Error).message);
     } finally {
       setStartingDiscord(false);
     }
@@ -382,7 +366,7 @@ export const InviteWizardPage = () => {
     if (!form) return;
 
     if (form.password !== form.password_confirm) {
-      toast.showToast({ type: 'error', title: 'Passwords do not match' });
+      showError('Passwords do not match');
       return;
     }
 
@@ -402,13 +386,9 @@ export const InviteWizardPage = () => {
         }
       );
       setState(response.data);
-      toast.showToast({ type: 'success', title: 'Server saved' });
+      success('Server saved');
     } catch (err) {
-      toast.showToast({
-        type: 'error',
-        title: 'Failed to save server',
-        description: (err as Error).message
-      });
+      showError('Failed to save server: ' + (err as Error).message);
     } finally {
       setSavingServerId(null);
     }
@@ -424,11 +404,7 @@ export const InviteWizardPage = () => {
       setState(response.data.state);
       setCompletion(response.data);
     } catch (err) {
-      toast.showToast({
-        type: 'error',
-        title: 'Invite not ready',
-        description: (err as Error).message
-      });
+      showError('Invite not ready: ' + (err as Error).message);
     } finally {
       setCompleting(false);
     }

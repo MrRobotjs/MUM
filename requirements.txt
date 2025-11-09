@@ -1,26 +1,26 @@
-Flask>=3.0.0
+Flask>=3.1.2
 Flask-SQLAlchemy>=3.1.1
 Flask-Migrate>=4.1.0
 ## Flask-Login and Flask-Session removed (JWT-only auth)
 Flask-JWT-Extended>=4.6.0  # For JWT authentication
 Flask-APScheduler>=1.13.1
 Flask-SocketIO>=5.3.6
-python-socketio>=5.11.0
+python-socketio>=5.14.3
 eventlet>=0.36.1
 pytz>=2023.3
 Flask-Caching>=2.1.0  # For caching sync status and other data
 flask-openapi3>=4.3.0  # For OpenAPI 3.0 documentation
-SQLAlchemy>=2.0.41
+SQLAlchemy>=2.0.44
 gunicorn>=22.0.0
-python-dotenv>=1.1.0
+python-dotenv>=1.2.1
 markupsafe>=2.0
-requests>=2.32.3
-plexapi>=4.17.0
+requests>=2.32.5
+plexapi>=4.17.1
 websocket-client>=1.7.0
 jellyfin-apiclient-python>=1.9.2
-discord.py>=2.5.2 # For Discord OAuth and potential bot interactions
-cachetools>=5.3.0  # For simple in-memory caching if needed beyond Flask-Caching
+discord.py>=2.6.4 # For Discord OAuth and potential bot interactions
+cachetools>=6.2.1  # For simple in-memory caching if needed beyond Flask-Caching
 packaging>=24.0 # Often a dependency of other packages, good to pin
-xmltodict>=0.13.0
+xmltodict>=1.0.2
 # boto3 is removed as it was not explicitly requested for a core feature yet.
 # Markdown is removed as it's not directly used in core features yet.

@@ -335,10 +335,10 @@ export const MediaDetailPage = () => {
                   </span>
                 </Link>
 
-                {mediaItem.item_type && (
+                {(mediaItem as any).type && (
                   <span className="inline-flex items-center rounded-md bg-purple-50 dark:bg-purple-400/10 px-2 py-1 text-xs font-medium text-purple-700 dark:text-purple-400 ring-1 ring-inset ring-purple-600/20 dark:ring-purple-500/20 gap-1">
                     <IconTag className="w-3 h-3" />
-                    {mediaItem.item_type}
+                    {(mediaItem as any).type}
                   </span>
                 )}
 
@@ -416,10 +416,10 @@ export const MediaDetailPage = () => {
                     <span className="text-muted-foreground mr-2">Title:</span>
                     <span className="font-medium">{mediaItem.title}</span>
                   </div>
-                  {mediaItem.item_type && (
+                  {(mediaItem as any).type && (
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Type:</span>
-                      <span className="font-medium capitalize">{mediaItem.item_type}</span>
+                      <span className="font-medium capitalize">{(mediaItem as any).type}</span>
                     </div>
                   )}
                   {mediaItem.year && (

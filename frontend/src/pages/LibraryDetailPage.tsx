@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, Link, useParams, useSearch } from '@tanstack/react-router';
 import { requestJson } from '../util/apiClient';
 import { useToast } from '../util/toast';
@@ -124,9 +124,9 @@ const MediaPosterCard = ({ item, libraryId }: { item: MediaItem; libraryId: stri
           </div>
         )}
 
-        {item.item_type && (
+        {(item as any).type && (
           <div className="absolute top-2 left-2 bg-primary/80 text-primary-foreground text-xs px-2 py-1 rounded-full capitalize">
-            {item.item_type}
+            {(item as any).type}
           </div>
         )}
       </div>
@@ -262,14 +262,14 @@ export const LibraryDetailPage = () => {
   useEffect(() => {
     if (activeTab === 'media') {
       loadMediaItems();
-    } else if (activeTab === 'collections' && library?.service_type === 'plex') {
+    } else if (activeTab === 'collections' && library?.server?.service_type === 'plex') {
       loadCollections();
     } else if (activeTab === 'stats') {
       loadStats();
     } else if (activeTab === 'activity') {
       loadActivity();
     }
-  }, [activeTab, currentPage, pageSize, sortBy, searchQuery, statsDays, activityDays, activityPage]);
+  }, [activeTab, currentPage, pageSize, sortBy, searchQuery, statsDays, activityDays, activityPage, library?.server?.service_type]);
 
   const loadCollections = async () => {
     if (!library || library.server?.service_type !== 'plex') return;
@@ -797,8 +797,8 @@ export const LibraryDetailPage = () => {
             </div>
           )}
 
-          {/* Media Grid */}
-          {mediaLoading ? (
+  {/* Media Grid */}
+  {mediaLoading ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4">
               {Array.from({ length: pageSize }).map((_, idx) => (
                 <div key={idx} className="space-y-2">

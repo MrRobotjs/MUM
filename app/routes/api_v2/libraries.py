@@ -155,7 +155,17 @@ class LibraryMediaQuery(BaseModel):
     page_size: int = Field(25, ge=1, le=100)
     search: Optional[str] = None
     item_type: Optional[str] = Field(None, description="movie|show|season|episode|album|track|book|comic|audiobook|game")
-    sort_by: Optional[str] = Field(None, description="title_asc|title_desc|added_desc|added_asc|total_streams_desc|total_streams_asc")
+    sort_by: Optional[str] = Field(
+        None,
+        description=(
+            "title_asc|title_desc|"
+            "added_desc|added_asc|added_at_desc|added_at_asc|"
+            "year_desc|year_asc|"
+            "rating_desc|rating_asc|"
+            "total_streams_desc|total_streams_asc"
+        ),
+    )
+    debug_streams: Optional[bool] = Field(False, description="Enable verbose logging for stream_count aggregation")
 
 
 class MediaItemRef(BaseModel):
@@ -193,16 +203,29 @@ def list_library_media(path: LibraryPath, query: LibraryMediaQuery, current_user
         q = q.filter(MediaItem.title.ilike(f"%{query.search}%"))
     if query.item_type:
         q = q.filter(MediaItem.item_type == query.item_type)
+    else:
+        # Default behavior: for TV libraries, exclude episodes from the top-level media grid
+        lib_type = (lib.library_type or "").lower()
+        if lib_type in {"show", "tv", "series", "tvshows"}:
+            q = q.filter(MediaItem.item_type != "episode")
 
-    # Sorting by title/added
+    # Sorting by title/added/year/rating (supports added_at_* aliases)
     sort = (query.sort_by or "").lower()
     if sort == "title_asc":
         q = q.order_by(MediaItem.title.asc())
     elif sort == "title_desc":
         q = q.order_by(MediaItem.title.desc())
-    elif sort == "added_asc":
+    elif sort in {"added_asc", "added_at_asc"}:
         q = q.order_by(MediaItem.created_at.asc())
-    else:  # added_desc default
+    elif sort == "year_asc":
+        q = q.order_by(MediaItem.year.asc())
+    elif sort == "year_desc":
+        q = q.order_by(MediaItem.year.desc())
+    elif sort == "rating_desc":
+        q = q.order_by(MediaItem.rating.desc())
+    elif sort == "rating_asc":
+        q = q.order_by(MediaItem.rating.asc())
+    else:  # added_desc default (supports added_at_desc alias)
         q = q.order_by(MediaItem.created_at.desc())
 
     # Pagination first
@@ -213,20 +236,244 @@ def list_library_media(path: LibraryPath, query: LibraryMediaQuery, current_user
 
     items_data = [item.to_dict() for item in items]
 
-    # Optional stream count sort: compute counts for current page items
-    if sort in {"total_streams_desc", "total_streams_asc"}:
-        ids = [i.id for i in items]
-        counts = (
-            MediaStreamHistory.query
-            .filter(MediaStreamHistory.library_name == lib.name, MediaStreamHistory.server_id == lib.server_id)
-            .with_entities(MediaStreamHistory.media_item_id, func.count(MediaStreamHistory.id))
-            .group_by(MediaStreamHistory.media_item_id)
-            .all()
-        )
-        count_map = {mid: cnt for mid, cnt in counts}
-        for d in items_data:
-            d["stream_count"] = count_map.get(d.get("id"), 0)
-        items_data.sort(key=lambda x: x.get("stream_count", 0), reverse=(sort == "total_streams_desc"))
+    # Compute stream counts for current page items. For TV libraries, sum episode streams per show.
+    try:
+        from flask import current_app
+        lib_type = (lib.library_type or "").lower()
+        from sqlalchemy import func, or_
+        # Temporarily force debug logging for stream aggregation
+        dbg = True
+        if dbg:
+            current_app.logger.info(
+                f"[v2.media] library_id={path.library_id} type={lib_type} items_on_page={len(items)} sort={sort}"
+            )
+        if lib_type in {"show", "tv", "series", "tvshows"}:
+            # Map each show's identifiers (external_id and rating_key) to its id
+            parent_to_show: dict[str, int] = {}
+            for show in items:
+                # Only for shows
+                if getattr(show, "item_type", None) == "show":
+                    if getattr(show, "external_id", None):
+                        parent_to_show[str(show.external_id)] = show.id
+                    if getattr(show, "rating_key", None):
+                        parent_to_show[str(show.rating_key)] = show.id
+
+            if dbg:
+                current_app.logger.info(
+                    f"[v2.media] shows_on_page={len(parent_to_show)} show_ids_page={list(parent_to_show.values())}"
+                )
+
+            if parent_to_show:
+                # Fetch episodes that belong to these shows by parent_id
+                from app.models_media_services import MediaItem as _MediaItem
+                eps = (
+                    _MediaItem.query
+                    .with_entities(_MediaItem.parent_id, _MediaItem.rating_key, _MediaItem.external_id)
+                    .filter(
+                        _MediaItem.library_id == path.library_id,
+                        _MediaItem.item_type == "episode",
+                        _MediaItem.parent_id.in_(list(parent_to_show.keys())),
+                    )
+                    .all()
+                )
+                # Map episode rating_key -> show_id
+                ep_key_to_show: dict[str, int] = {}
+                ep_idents: list[str] = []
+                for parent_id, ep_rating_key, ep_external_id in eps:
+                    ep_key = None
+                    if ep_rating_key:
+                        ep_key = str(ep_rating_key)
+                    elif ep_external_id:
+                        ep_key = str(ep_external_id)
+                    if not ep_key:
+                        continue
+                    show_id = parent_to_show.get(str(parent_id))
+                    if show_id:
+                        ep_key_to_show[ep_key] = show_id
+                        ep_idents.append(ep_key)
+
+                stream_counts_by_show: dict[int, int] = {}
+                if ep_idents:
+                    # Count streams by episode identity (rating_key or external_media_item_id) for this library/server
+                    counts = (
+                        MediaStreamHistory.query
+                        .filter(
+                            MediaStreamHistory.server_id == lib.server_id,
+                            or_(
+                                MediaStreamHistory.rating_key.in_(ep_idents),
+                                MediaStreamHistory.external_media_item_id.in_(ep_idents),
+                            ),
+                        )
+                        .with_entities(
+                            func.coalesce(
+                                MediaStreamHistory.rating_key,
+                                MediaStreamHistory.external_media_item_id,
+                            ).label('ep_key'),
+                            func.count(MediaStreamHistory.id),
+                        )
+                        .group_by('ep_key')
+                        .all()
+                    )
+                    if dbg:
+                        current_app.logger.info(
+                            f"[v2.media] ep_map={len(ep_key_to_show)} ep_idents={len(ep_idents)} counts_rows={len(counts)}"
+                        )
+                    for key, cnt in counts:
+                        show_id = ep_key_to_show.get(str(key))
+                        if show_id:
+                            stream_counts_by_show[show_id] = stream_counts_by_show.get(show_id, 0) + int(cnt)
+
+                # Fallback: If no counts found, aggregate by grandparent_title (show title)
+                if not stream_counts_by_show:
+                    show_titles = [getattr(s, 'title', None) for s in items if getattr(s, 'item_type', None) == 'show']
+                    show_title_to_id = {getattr(s, 'title'): s.id for s in items if getattr(s, 'item_type', None) == 'show'}
+                    if show_titles:
+                        title_counts = (
+                            MediaStreamHistory.query
+                            .filter(
+                                MediaStreamHistory.server_id == lib.server_id,
+                                MediaStreamHistory.grandparent_title.in_(show_titles),
+                            )
+                            .with_entities(MediaStreamHistory.grandparent_title, func.count(MediaStreamHistory.id))
+                            .group_by(MediaStreamHistory.grandparent_title)
+                            .all()
+                        )
+                        for gp_title, cnt in title_counts:
+                            sid = show_title_to_id.get(gp_title)
+                            if sid:
+                                stream_counts_by_show[sid] = int(cnt)
+                        if dbg:
+                            current_app.logger.info(
+                                f"[v2.media] title_fallback_rows={len(title_counts)}"
+                            )
+
+                # If some shows still have 0, try per-show fallback using episode titles/ids
+                # Track strategy usage per show for diagnostics
+                show_strategy: dict[int, str] = {sid: 'none' for sid in parent_to_show.values()}
+                for sid, cnt in stream_counts_by_show.items():
+                    if cnt > 0:
+                        show_strategy[sid] = 'identifiers'
+                if dbg:
+                    current_app.logger.info(
+                        f"[v2.media] pre_fallback_zero_shows={[sid for sid in parent_to_show.values() if stream_counts_by_show.get(sid,0)==0]}"
+                    )
+                if parent_to_show:
+                    from app.models_media_services import MediaItem as _MediaItem
+                    for show in items:
+                        if getattr(show, "item_type", None) != "show":
+                            continue
+                        sid = show.id
+                        if stream_counts_by_show.get(sid, 0) > 0:
+                            continue
+                        # Collect this show's episode identifiers and titles
+                        parent_keys = []
+                        if getattr(show, "external_id", None):
+                            parent_keys.append(str(show.external_id))
+                        if getattr(show, "rating_key", None):
+                            parent_keys.append(str(show.rating_key))
+                        if not parent_keys:
+                            continue
+                        eps_for_show = (
+                            _MediaItem.query
+                            .with_entities(_MediaItem.rating_key, _MediaItem.external_id, _MediaItem.title)
+                            .filter(
+                                _MediaItem.library_id == path.library_id,
+                                _MediaItem.item_type == "episode",
+                                _MediaItem.parent_id.in_(parent_keys),
+                            )
+                            .all()
+                        )
+                        rk_list = [str(rk) for rk, ext, _ in eps_for_show if rk]
+                        ext_list = [str(ext) for rk, ext, _ in eps_for_show if ext]
+                        title_list = [t for _, _, t in eps_for_show if t]
+                        if not (rk_list or ext_list or title_list):
+                            continue
+                        # Count streams for this show's episodes by any identifier or title
+                        sub_counts = (
+                            MediaStreamHistory.query
+                            .filter(
+                                MediaStreamHistory.server_id == lib.server_id,
+                                or_(
+                                    MediaStreamHistory.rating_key.in_(rk_list) if rk_list else False,
+                                    MediaStreamHistory.external_media_item_id.in_(ext_list) if ext_list else False,
+                                    MediaStreamHistory.media_title.in_(title_list) if title_list else False,
+                                ),
+                            )
+                            .with_entities(func.count(MediaStreamHistory.id))
+                            .scalar()
+                        )
+                        stream_counts_by_show[sid] = int(sub_counts or 0)
+                        if stream_counts_by_show[sid] > 0 and show_strategy.get(sid) == 'none':
+                            show_strategy[sid] = 'per_show'
+                        if dbg:
+                            current_app.logger.info(
+                                f"[v2.media] per_show_fallback id={sid} title={getattr(show,'title',None)} eps={len(eps_for_show)} rk={len(rk_list)} ext={len(ext_list)} titles={len(title_list)} count={stream_counts_by_show[sid]}"
+                            )
+
+                # Attach stream_count to items_data
+                for d in items_data:
+                    if d.get("type") == "show":
+                        d["stream_count"] = int(stream_counts_by_show.get(d.get("id"), 0))
+                if dbg:
+                    strat_counts = {'identifiers': 0, 'title': 0, 'per_show': 0, 'none': 0}
+                    for sid in parent_to_show.values():
+                        s = show_strategy.get(sid, 'none')
+                        strat_counts[s] = strat_counts.get(s, 0) + 1
+                    current_app.logger.info(f"[v2.media] strategy_counts={strat_counts}")
+                if dbg:
+                    sample = [
+                        {"id": d.get("id"), "stream_count": d.get("stream_count", 0)}
+                        for d in items_data if d.get("type") == "show"
+                    ]
+                    current_app.logger.info(f"[v2.media] show_stream_counts_page={sample}")
+        else:
+            # Non-TV libraries: count by item rating_key for current items
+            idents = []
+            for i in items:
+                rk = getattr(i, "rating_key", None)
+                if rk:
+                    idents.append(str(rk))
+                else:
+                    ext = getattr(i, "external_id", None)
+                    if ext:
+                        idents.append(str(ext))
+            if idents:
+                counts = (
+                    MediaStreamHistory.query
+                    .filter(
+                        MediaStreamHistory.server_id == lib.server_id,
+                        or_(
+                            MediaStreamHistory.rating_key.in_(idents),
+                            MediaStreamHistory.external_media_item_id.in_(idents),
+                        ),
+                    )
+                    .with_entities(MediaStreamHistory.rating_key, func.count(MediaStreamHistory.id))
+                    .group_by(MediaStreamHistory.rating_key)
+                    .all()
+                )
+                rk_count = {str(rk): int(cnt) for rk, cnt in counts}
+                for d, i in zip(items_data, items):
+                    rk = getattr(i, "rating_key", None)
+                    ext = getattr(i, "external_id", None)
+                    key = str(rk) if rk else (str(ext) if ext else None)
+                    if key is not None:
+                        d["stream_count"] = rk_count.get(key, 0)
+
+        # If sorting by total streams, sort items_data accordingly
+        if sort in {"total_streams_desc", "total_streams_asc"}:
+            items_data.sort(key=lambda x: x.get("stream_count", 0), reverse=(sort == "total_streams_desc"))
+    except Exception:
+        # Best-effort; if counting fails, continue without stream_count
+        pass
+
+    # Debug: log which items have stream_count > 0
+    if dbg:
+        from flask import current_app
+        nonzero = [
+            {"id": d.get("id"), "title": d.get("title"), "stream_count": d.get("stream_count", 0)}
+            for d in items_data if d.get("stream_count", 0) > 0
+        ]
+        current_app.logger.info(f"[v2.media] nonzero_stream_items={nonzero}")
 
     return jsonify(
         {

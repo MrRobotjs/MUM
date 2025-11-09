@@ -15,7 +15,29 @@ from app.routes.api_v2.library_sync_status import update_library_sync_progress
 
 class MediaSyncService:
     """Service for syncing media items from external services to local database"""
-    
+
+    @staticmethod
+    def _get_media_type_name(library_type: str) -> str:
+        """Get a user-friendly media type name based on library type"""
+        if not library_type:
+            return "items"
+
+        lib_type = library_type.lower()
+        if lib_type in {"show", "tv", "series", "tvshows"}:
+            return "shows"
+        elif lib_type in {"movie", "movies"}:
+            return "movies"
+        elif lib_type in {"music", "audio", "album", "albums"}:
+            return "albums"
+        elif lib_type in {"book", "books", "ebook", "ebooks"}:
+            return "books"
+        elif lib_type in {"photo", "photos"}:
+            return "photos"
+        elif lib_type in {"game", "games"}:
+            return "games"
+        else:
+            return "items"
+
     @staticmethod
     def sync_library_content(library_id: int, force_full_sync: bool = False, sync_episodes: bool = False) -> Dict[str, Any]:
         """
@@ -49,6 +71,10 @@ class MediaSyncService:
             page = 1
             per_page = 50  # Smaller batches to prevent timeouts
             max_pages = 100  # Limit total pages to prevent infinite loops
+
+            # Get media type name for progress messages
+            media_type = MediaSyncService._get_media_type_name(library.library_type)
+
             # Initialize phase for UI
             update_library_sync_progress(
                 library.id,
@@ -57,7 +83,7 @@ class MediaSyncService:
                 total_pages=0,
                 total_items=0,
                 total_fetched=0,
-                message=f"Syncing shows in {library.name}"
+                message=f"Syncing {media_type} in {library.name}"
             )
             
             while page <= max_pages:
@@ -92,7 +118,7 @@ class MediaSyncService:
                         total_pages=int(total_pages) if total_pages else 0,
                         total_items=int(total_items) if total_items else 0,
                         total_fetched=len(all_items),
-                        message=f"Syncing shows, page {page}{'/' + str(total_pages) if total_pages else ''}"
+                        message=f"Syncing {media_type}, page {page}{'/' + str(total_pages) if total_pages else ''}"
                     )
                     
                     # Check if we've got all items

@@ -328,7 +328,25 @@ class MediaSyncService:
             raw_data = item_data.get('raw_data', {})
             if raw_data and isinstance(raw_data, dict):
                 rating_key = raw_data.get('ratingKey')
-            
+
+            # Extract season/episode numbers for episodes
+            season_number = None
+            episode_number = None
+            if item_data.get('type') == 'episode' and raw_data:
+                # Try different possible field names for season/episode numbers
+                season_number = (
+                    raw_data.get('seasonNumber') or
+                    raw_data.get('season_number') or
+                    raw_data.get('season') or
+                    raw_data.get('parentIndex')
+                )
+                episode_number = (
+                    raw_data.get('episodeNumber') or
+                    raw_data.get('episode_number') or
+                    raw_data.get('episode') or
+                    raw_data.get('index')
+                )
+
             media_item = MediaItem(
                 library_id=library.id,
                 server_id=library.server_id,
@@ -342,6 +360,8 @@ class MediaSyncService:
                 year=item_data.get('year'),
                 rating=item_data.get('rating'),
                 duration=duration,
+                season_number=season_number,
+                episode_number=episode_number,
                 thumb_path=thumb_path,
                 added_at=added_at,
                 last_synced=datetime.utcnow(),
@@ -421,6 +441,29 @@ class MediaSyncService:
             if item.thumb_path != new_thumb_path:
                 changes.append("Thumbnail updated")
                 item.thumb_path = new_thumb_path
+
+            # Update season/episode numbers for episodes
+            if item.item_type == 'episode' and raw_data:
+                new_season = (
+                    raw_data.get('seasonNumber') or
+                    raw_data.get('season_number') or
+                    raw_data.get('season') or
+                    raw_data.get('parentIndex')
+                )
+                new_episode = (
+                    raw_data.get('episodeNumber') or
+                    raw_data.get('episode_number') or
+                    raw_data.get('episode') or
+                    raw_data.get('index')
+                )
+
+                if item.season_number != new_season:
+                    changes.append(f"Season: {item.season_number} → {new_season}")
+                    item.season_number = new_season
+
+                if item.episode_number != new_episode:
+                    changes.append(f"Episode: {item.episode_number} → {new_episode}")
+                    item.episode_number = new_episode
 
             # Always update last_synced and extra_metadata
             item.last_synced = datetime.utcnow()

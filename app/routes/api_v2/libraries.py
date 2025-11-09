@@ -979,7 +979,26 @@ def get_media_episodes(path: MediaPath, current_user):
     total_items = q.count()
     total_pages = (total_items + page_size - 1) // page_size
 
-    if sort_by.startswith("season_episode") or sort_by.startswith("total_streams"):
+    if sort_by.startswith("season_episode"):
+        # Sort by season/episode numbers using dedicated database columns
+        reverse = sort_by.endswith("_desc")
+        from sqlalchemy import desc, asc, func
+
+        # Use coalesce to treat NULL as 0 for sorting
+        season_expr = func.coalesce(MediaItem.season_number, 0)
+        episode_expr = func.coalesce(MediaItem.episode_number, 0)
+
+        if reverse:
+            q = q.order_by(desc(season_expr), desc(episode_expr))
+        else:
+            q = q.order_by(asc(season_expr), asc(episode_expr))
+
+        episodes = q.offset((page - 1) * page_size).limit(page_size).all()
+        episodes_data = [ep.to_dict() for ep in episodes]
+
+    elif sort_by.startswith("total_streams"):
+        # For stream sorting, we need to load all and sort in Python
+        # This is slow but necessary for accurate stream counts
         all_eps = q.all()
         episodes_data = [ep.to_dict() for ep in all_eps]
         from app.models_media_services import MediaStreamHistory
@@ -995,13 +1014,8 @@ def get_media_episodes(path: MediaPath, current_user):
                 ep_dict["stream_count"] = stream_count
             else:
                 ep_dict["stream_count"] = 0
-        if sort_by.startswith("season_episode"):
-            reverse = sort_by.endswith("_desc")
-            episodes_data.sort(
-                key=lambda e: ((e.get("season_number") or 0), (e.get("episode_number") or 0)),
-                reverse=reverse,
-            )
-        elif sort_by == "total_streams_desc":
+
+        if sort_by == "total_streams_desc":
             episodes_data.sort(key=lambda x: x.get("stream_count", 0), reverse=True)
         elif sort_by == "total_streams_asc":
             episodes_data.sort(key=lambda x: x.get("stream_count", 0), reverse=False)

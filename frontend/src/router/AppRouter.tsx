@@ -49,19 +49,6 @@ const rootRoute = createRootRoute({
   component: () => <Outlet />,
 })
 
-// Auth routes
-const authRoute = createRoute({ getParentRoute: () => rootRoute, path: 'auth' })
-const authLoginRoute = createRoute({
-  getParentRoute: () => authRoute,
-  path: 'login',
-  component: LoginPage,
-})
-const authAdminLoginRoute = createRoute({
-  getParentRoute: () => authRoute,
-  path: 'admin_login',
-  component: LoginPage,
-})
-
 // User login route (regular user portal)
 const userLoginRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -83,13 +70,6 @@ const adminLoginRoute = createRoute({
       error: typeof search.error === 'string' ? (search.error as string) : undefined,
     }
   },
-})
-
-// Legacy auth/login route (redirects to admin/login for backwards compatibility)
-const authLoginRedirectRoute = createRoute({
-  getParentRoute: () => authRoute,
-  path: 'login',
-  component: () => <Navigate to="/admin/login" replace />,
 })
 
 // Admin layout wrapped with guard
@@ -256,7 +236,6 @@ const rootIndexRedirect = createRoute({ getParentRoute: () => rootRoute, path: '
 const rootWildcardRedirect = createRoute({ getParentRoute: () => rootRoute, path: '*', component: () => <Navigate to="/admin/dashboard" replace /> })
 
 const routeTree = rootRoute.addChildren([
-  authRoute.addChildren([authLoginRedirectRoute, authAdminLoginRoute]),
   userLoginRoute,
   adminLoginRoute,
   adminRoute.addChildren([

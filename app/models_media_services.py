@@ -177,7 +177,11 @@ class MediaItem(db.Model):
     year = db.Column(db.Integer)
     rating = db.Column(db.Float)
     duration = db.Column(db.BigInteger)  # Duration in milliseconds/ticks
-    
+
+    # Episode-specific metadata
+    season_number = db.Column(db.Integer, nullable=True)  # For episodes only
+    episode_number = db.Column(db.Integer, nullable=True)  # For episodes only
+
     # Media file info
     file_path = db.Column(db.String(1000))
     file_size = db.Column(db.BigInteger)

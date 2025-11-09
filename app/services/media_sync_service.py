@@ -503,16 +503,30 @@ class MediaSyncService:
                     shows_total=shows_total,
                     message=f"Syncing episodes ({processed}/{shows_total})"
                 )
+
+                # Commit after each show to reduce long-lived write locks
+                try:
+                    db.session.commit()
+                except Exception as e:
+                    current_app.logger.error(f"Error committing episode changes for show {show.title}: {e}")
+                    db.session.rollback()
+                    # Continue to next show even if this one failed to commit
+                    continue
+
+                # Brief yield to avoid starving other requests
+                try:
+                    import time
+                    time.sleep(0.02)
+                except Exception:
+                    pass
             
-            # Commit episode changes
+            # Final commit in case any pending changes remain
             try:
                 db.session.commit()
-                current_app.logger.info(f"Episode sync completed: {added_count} added, {updated_count} updated, {removed_count} removed")
             except Exception as e:
-                current_app.logger.error(f"Error committing episode sync changes: {e}")
+                current_app.logger.error(f"Final commit error after episode sync loop: {e}")
                 db.session.rollback()
-                raise
-            
+
             return {
                 'added': added_count,
                 'updated': updated_count,

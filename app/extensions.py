@@ -27,6 +27,26 @@ socketio = SocketIO(cors_allowed_origins="*", async_mode='eventlet')
 cache = Cache()
 import json
 from sqlalchemy.types import TypeDecorator, TEXT
+from sqlalchemy import event
+from sqlalchemy.engine import Engine
+
+# Enable better SQLite concurrency (WAL, busy timeout) when using SQLite
+@event.listens_for(Engine, "connect")
+def _set_sqlite_pragma(dbapi_connection, connection_record):
+    try:
+        import sqlite3
+        if isinstance(dbapi_connection, sqlite3.Connection):
+            cursor = dbapi_connection.cursor()
+            # Allow concurrent readers during writes
+            cursor.execute("PRAGMA journal_mode=WAL")
+            # Reasonable durability/performance tradeoff for WAL
+            cursor.execute("PRAGMA synchronous=NORMAL")
+            # Back off and wait if database is busy/locked
+            cursor.execute("PRAGMA busy_timeout=5000")
+            cursor.close()
+    except Exception:
+        # Do not fail app startup if PRAGMAs cannot be applied
+        pass
 
 class JSONEncodedDict(TypeDecorator):
     """Enables JSON storage by encoding and decoding on the fly."""

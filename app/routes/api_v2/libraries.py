@@ -12,6 +12,7 @@ from flask_openapi3 import Tag
 from app.routes.api_v2 import api_v2
 # JWT permission checking handled by jwt_permission_required
 from app.models_media_services import MediaLibrary, MediaServer
+from app.extensions import db
 
 
 libraries_tag = Tag(name="Libraries", description="Media libraries and items")
@@ -210,6 +211,179 @@ def list_library_media(path: LibraryPath, query: LibraryMediaQuery, current_user
 
     # Sorting by title/added/year/rating (supports added_at_* aliases)
     sort = (query.sort_by or "").lower()
+
+    # If sorting by total_streams, compute counts across all matched items,
+    # then sort and paginate in-memory to return correct global ordering.
+    if sort in {"total_streams_desc", "total_streams_asc"}:
+        from sqlalchemy import func, or_ as _or, and_ as _and
+        from sqlalchemy.orm import aliased
+
+        # Base filtered items as subquery (limit scope to current filters)
+        base_subq = (
+            q.with_entities(
+                MediaItem.id.label('id'),
+                MediaItem.item_type.label('item_type'),
+                MediaItem.external_id.label('external_id'),
+                MediaItem.rating_key.label('rating_key'),
+            ).subquery('base_items')
+        )
+
+        # Build a query that returns MediaItem plus computed stream_count, ordered by it
+        order_desc = (sort == "total_streams_desc")
+
+        lib_type = (lib.library_type or "").lower()
+        if lib_type in {"show", "tv", "series", "tvshows"}:
+            # Map episodes to shows and aggregate stream counts per show using indexed UNION ALL subqueries
+            S = aliased(MediaItem)
+            E = aliased(MediaItem)
+
+            # Map each episode key to its show id, limited to filtered shows
+            ep_map = (
+                db.session.query(
+                    S.id.label('show_id'),
+                    func.coalesce(E.rating_key, E.external_id).label('ep_key'),
+                )
+                .join(base_subq, S.id == base_subq.c.id)
+                .join(
+                    E,
+                    _and(
+                        E.library_id == path.library_id,
+                        E.item_type == 'episode',
+                        _or(E.parent_id == S.external_id, E.parent_id == S.rating_key),
+                    ),
+                )
+                .filter(
+                    S.library_id == path.library_id,
+                    S.item_type == 'show',
+                )
+                .subquery('ep_map')
+            )
+
+            # Build counts per key using UNION ALL to allow index usage on each column
+            counts_union = (
+                db.session.query(
+                    MediaStreamHistory.rating_key.label('mkey'),
+                    func.count(MediaStreamHistory.id).label('cnt'),
+                )
+                .filter(
+                    MediaStreamHistory.server_id == lib.server_id,
+                    MediaStreamHistory.rating_key.isnot(None),
+                )
+                .group_by(MediaStreamHistory.rating_key)
+                .union_all(
+                    db.session.query(
+                        MediaStreamHistory.external_media_item_id.label('mkey'),
+                        func.count(MediaStreamHistory.id).label('cnt'),
+                    )
+                    .filter(
+                        MediaStreamHistory.server_id == lib.server_id,
+                        MediaStreamHistory.external_media_item_id.isnot(None),
+                    )
+                    .group_by(MediaStreamHistory.external_media_item_id)
+                )
+                .subquery('counts_union')
+            )
+
+            counts = (
+                db.session.query(
+                    ep_map.c.show_id.label('show_id'),
+                    func.sum(counts_union.c.cnt).label('stream_count'),
+                )
+                .join(counts_union, counts_union.c.mkey == ep_map.c.ep_key)
+                .group_by(ep_map.c.show_id)
+                .subquery('counts')
+            )
+
+            final_q = (
+                MediaItem.query
+                .join(base_subq, MediaItem.id == base_subq.c.id)
+                .outerjoin(counts, counts.c.show_id == MediaItem.id)
+                .add_columns(func.coalesce(counts.c.stream_count, 0).label('stream_count'))
+                .order_by(func.coalesce(counts.c.stream_count, 0).desc() if order_desc else func.coalesce(counts.c.stream_count, 0).asc(), MediaItem.title.asc())
+            )
+        else:
+            # Non-TV: aggregate directly per key using UNION ALL to leverage indexes, then join
+            counts_union = (
+                db.session.query(
+                    MediaStreamHistory.rating_key.label('mkey'),
+                    func.count(MediaStreamHistory.id).label('cnt'),
+                )
+                .filter(
+                    MediaStreamHistory.server_id == lib.server_id,
+                    MediaStreamHistory.rating_key.isnot(None),
+                )
+                .group_by(MediaStreamHistory.rating_key)
+                .union_all(
+                    db.session.query(
+                        MediaStreamHistory.external_media_item_id.label('mkey'),
+                        func.count(MediaStreamHistory.id).label('cnt'),
+                    )
+                    .filter(
+                        MediaStreamHistory.server_id == lib.server_id,
+                        MediaStreamHistory.external_media_item_id.isnot(None),
+                    )
+                    .group_by(MediaStreamHistory.external_media_item_id)
+                )
+                .subquery('counts_union')
+            )
+
+            counts = (
+                db.session.query(
+                    counts_union.c.mkey.label('mkey'),
+                    func.sum(counts_union.c.cnt).label('stream_count'),
+                )
+                .group_by(counts_union.c.mkey)
+                .subquery('counts')
+            )
+
+            final_q = (
+                MediaItem.query
+                .join(base_subq, MediaItem.id == base_subq.c.id)
+                .outerjoin(
+                    counts,
+                    _or(
+                        counts.c.mkey == base_subq.c.rating_key,
+                        counts.c.mkey == base_subq.c.external_id,
+                    ),
+                )
+                .add_columns(func.coalesce(counts.c.stream_count, 0).label('stream_count'))
+                .order_by(func.coalesce(counts.c.stream_count, 0).desc() if order_desc else func.coalesce(counts.c.stream_count, 0).asc(), MediaItem.title.asc())
+            )
+
+        # Paginate with DB
+        pagination = final_q.paginate(page=query.page, per_page=query.page_size, error_out=False)
+        rows = pagination.items  # Each row is (MediaItem, stream_count)
+        items_data = []
+        for row in rows:
+            if isinstance(row, tuple) and len(row) == 2:
+                item_obj, stream_count = row
+            else:
+                # Fallback in case ORM returns differently
+                item_obj = row[0]
+                stream_count = row[1] if len(row) > 1 else 0
+            d = item_obj.to_dict()
+            d['stream_count'] = int(stream_count or 0)
+            items_data.append(d)
+
+        return jsonify(
+            {
+                "data": items_data,
+                "meta": {
+                    "request_id": request_id,
+                    "deprecated": False,
+                    "pagination": {
+                        "page": pagination.page,
+                        "page_size": pagination.per_page,
+                        "total_items": pagination.total,
+                        "total_pages": pagination.pages or 1,
+                    },
+                    "filters": {"search": query.search, "item_type": query.item_type, "sort_by": query.sort_by},
+                    "generated_at": datetime.utcnow().isoformat() + "Z",
+                },
+            }
+        )
+
+    # Otherwise, apply standard DB ordering and paginate
     if sort == "title_asc":
         q = q.order_by(MediaItem.title.asc())
     elif sort == "title_desc":

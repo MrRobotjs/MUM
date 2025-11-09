@@ -7,6 +7,10 @@ from pydantic import ConfigDict
 from flask_openapi3 import Tag
 
 from app.routes.api_v2 import api_v2
+from app.routes.api_v2.library_sync_status import (
+    start_library_sync,
+    end_library_sync,
+)
 
 
 libraries_tag = Tag(name="Libraries", description="Media libraries and items")
@@ -64,8 +68,15 @@ def v2_sync_library_content(path: LibraryPath, current_user):
             }), 404
 
         current_app.logger.info(f"API v2: Starting library content sync for: {library.name}")
+        # Publish sync start for UI
+        start_library_sync(library.id, current_user)
+
         start_time = time.time()
-        result = MediaSyncService.sync_library_content(path.library_id)
+        try:
+            result = MediaSyncService.sync_library_content(path.library_id)
+        finally:
+            # Mark as ended regardless of success
+            end_library_sync(library.id)
         duration = time.time() - start_time
 
         if result.get("success"):

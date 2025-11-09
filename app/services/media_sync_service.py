@@ -10,6 +10,7 @@ from sqlalchemy import and_, or_
 from app.extensions import db
 from app.models_media_services import MediaItem, MediaLibrary, MediaServer
 from app.services.media_service_factory import MediaServiceFactory
+from app.routes.api_v2.library_sync_status import update_library_sync_progress
 
 
 class MediaSyncService:
@@ -60,12 +61,32 @@ class MediaSyncService:
                         break
                     
                     items = content_data.get('items', [])
-                    
+                    total_items = content_data.get('total') or 0
+                    total_pages = (
+                        content_data.get('pages')
+                        or ((total_items + per_page - 1) // per_page if total_items else None)
+                        or 0
+                    )
+
                     if not items:
                         break
                         
                     all_items.extend(items)
                     current_app.logger.debug(f"Retrieved {len(items)} items from page {page}, total so far: {len(all_items)}")
+
+                    # Update per-page progress for UI
+                    try:
+                        update_library_sync_progress(
+                            library.id,
+                            current_page=page,
+                            total_pages=int(total_pages) if total_pages else 0,
+                            total_items=int(total_items) if total_items else 0,
+                            total_fetched=len(all_items),
+                            message=f"Syncing {library.name}, page {page}{'/' + str(total_pages) if total_pages else ''}"
+                        )
+                    except Exception as _e:
+                        # Non-fatal for sync
+                        current_app.logger.debug(f"Progress update failed: {_e}")
                     
                     # Check if we've got all items
                     if len(items) < per_page:

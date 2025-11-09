@@ -35,6 +35,7 @@ ChartJS.register(
   Legend
 );
 import { IconArrowLeft, IconRefresh, IconSearch, IconInfoCircle, IconStar, IconMovie, IconStack2, IconChartBar, IconHistory, IconServer, IconTag, IconEye, IconTrash, IconUsers, IconClock } from '@tabler/icons-react';
+import { useLibrarySyncStatus } from '../hooks/useLibrarySyncStatus';
 
 type ServiceType = 'plex' | 'jellyfin' | 'emby' | 'kavita' | 'audiobookshelf' | 'komga' | 'romm';
 
@@ -254,6 +255,8 @@ export const LibraryDetailPage = () => {
   const [sortBy, setSortBy] = useState('title_asc');
   const [syncing, setSyncing] = useState(false);
   const [purging, setPurging] = useState(false);
+  const [pollMs, setPollMs] = useState(2000);
+  const { status: libSyncStatus, refetch: refetchLibSync } = useLibrarySyncStatus(libraryId, pollMs);
   const [collections, setCollections] = useState<any[]>([]);
   const [collectionsLoading, setCollectionsLoading] = useState(false);
   const [statsData, setStatsData] = useState<any>(null);
@@ -269,6 +272,8 @@ export const LibraryDetailPage = () => {
     loadLibraryData();
   }, [libraryId]);
 
+  // no timer fallback
+
   useEffect(() => {
     if (activeTab === 'media') {
       loadMediaItems();
@@ -280,6 +285,12 @@ export const LibraryDetailPage = () => {
       loadActivity();
     }
   }, [activeTab, currentPage, pageSize, sortBy, searchQuery, statsDays, activityDays, activityPage, library?.server?.service_type]);
+
+  // Adapt polling interval for snappy updates during active sync
+  useEffect(() => {
+    const fast = (syncing || Boolean((libSyncStatus as any)?.is_syncing)) ? 250 : 2000;
+    setPollMs((prev) => (prev === fast ? prev : fast));
+  }, [syncing, libSyncStatus?.is_syncing]);
 
   const loadCollections = async () => {
     if (!library || library.server?.service_type !== 'plex') return;
@@ -332,6 +343,9 @@ export const LibraryDetailPage = () => {
 
     try {
       setSyncing(true);
+      // Immediately fetch server status to avoid initial lag
+      refetchLibSync();
+      // Backend publishes real progress; no local timer
       // Sync library content (all media items within this library)
       const response = await requestJson<SyncApi>(`/admin/api/v2/libraries/${libraryId}/sync`, {
         method: 'POST'
@@ -577,6 +591,37 @@ export const LibraryDetailPage = () => {
 
   const serviceType = library.server?.service_type;
 
+  // Compute sync display state
+  const backendSyncing = Boolean(libSyncStatus?.is_syncing);
+  const effectiveIsSyncing = syncing || backendSyncing;
+  let pagesDone = 0;
+  let pagesTotal = 0;
+  let itemsTotal = 0;
+  let itemsFetched = 0;
+  let progressValue = 0;
+
+  if (backendSyncing) {
+    pagesDone = libSyncStatus?.progress?.current_page || 0;
+    pagesTotal = libSyncStatus?.progress?.total_pages || 0;
+    itemsTotal = libSyncStatus?.progress?.total_items || 0;
+    itemsFetched = libSyncStatus?.progress?.total_fetched || 0;
+    if (pagesTotal > 0) {
+      progressValue = (pagesDone / pagesTotal) * 100;
+    } else if (itemsTotal > 0) {
+      progressValue = (itemsFetched / itemsTotal) * 100;
+    }
+  } else if (syncing) {
+    // A new sync just started locally but backend hasn't published yet
+    pagesDone = 0;
+    pagesTotal = 0;
+    itemsTotal = 0;
+    itemsFetched = 0;
+    progressValue = 0;
+  }
+  progressValue = Math.min(100, Math.max(0, progressValue));
+
+  
+
   return (
     <div className="container mx-auto px-4 py-8 space-y-6">
       {/* Header Section */}
@@ -704,7 +749,7 @@ export const LibraryDetailPage = () => {
 
         <TabsContent value="media" className="space-y-6">
           {/* Sync Progress Bar */}
-          {syncing && (
+          {effectiveIsSyncing && (
             <Card className="border-primary/50 bg-primary/5">
               <CardContent className="p-4">
                 <div className="space-y-2">
@@ -712,11 +757,20 @@ export const LibraryDetailPage = () => {
                     <div className="flex items-center gap-2">
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary" />
                       <span className="font-medium">
-                        Syncing library content from {library?.server?.server_nickname || 'server'}...
+                        {(backendSyncing && libSyncStatus?.progress?.message) || (
+                          <>Syncing library content from {library?.server?.server_nickname || 'server'}...</>
+                        )}
                       </span>
                     </div>
+                    <span className="text-xs text-muted-foreground min-w-[3ch] text-right">
+                      {pagesTotal > 0 ? (
+                        <>Page {pagesDone} / {pagesTotal}</>
+                      ) : (
+                        <>{Math.round(progressValue)}%</>
+                      )}
+                    </span>
                   </div>
-                  <Progress value={100} className="h-2 progress-indeterminate" />
+                  <Progress value={progressValue} className="h-2" />
                   <div className="flex items-center justify-between">
                     <p className="text-xs text-muted-foreground">
                       This may take a few moments...

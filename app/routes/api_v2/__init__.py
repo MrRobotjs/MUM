@@ -33,6 +33,7 @@ from . import invite_public  # noqa: E402,F401
 from . import streams_api  # noqa: E402,F401
 from . import libraries  # noqa: E402,F401
 from . import libraries_actions  # noqa: E402,F401
+from . import library_sync_status  # noqa: E402,F401
 from . import servers_libraries  # noqa: E402,F401
 from . import settings_general  # noqa: E402,F401
 from . import settings_user_accounts  # noqa: E402,F401

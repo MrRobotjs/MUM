@@ -172,9 +172,12 @@ class MediaSyncService:
                 continue
         
         # Remove items that no longer exist on the service
-        items_to_remove = [item for external_id, item in existing_items.items() 
-                          if external_id not in current_external_ids]
-        
+        # IMPORTANT: For TV libraries, library sync only handles shows (not episodes)
+        # Episodes are managed separately via sync_show_episodes()
+        # So we should NOT delete episodes during library sync - only remove shows/movies/etc
+        items_to_remove = [item for external_id, item in existing_items.items()
+                          if external_id not in current_external_ids and item.item_type != 'episode']
+
         removed_count = 0
         removed_items = []
         for item in items_to_remove:

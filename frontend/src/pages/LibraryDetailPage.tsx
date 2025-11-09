@@ -343,11 +343,26 @@ export const LibraryDetailPage = () => {
         const updated = result.updated || 0;
         const removed = result.removed || 0;
 
+        // For TV show libraries, library sync only handles shows (not episodes)
+        // Episodes are synced from individual show detail pages
+        const isTvLibrary = library?.library_type?.toLowerCase().includes('show') ||
+                           library?.library_type?.toLowerCase().includes('tv');
+
         if (added > 0 || updated > 0 || removed > 0) {
+          let description = `${added} added, ${updated} updated`;
+
+          // Only show removed count for non-TV libraries
+          // TV libraries sync shows at this level; episodes sync from show detail pages
+          if (!isTvLibrary && removed > 0) {
+            description += `, ${removed} removed`;
+          }
+
           showToast({
             type: 'success',
             title: 'Library Sync Complete',
-            description: `${added} added, ${updated} updated, ${removed} removed`
+            description: isTvLibrary && removed > 0
+              ? `${description} (${removed} shows no longer available)`
+              : description
           });
         } else {
           showToast({

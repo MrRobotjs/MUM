@@ -93,12 +93,6 @@ def setup_ui_spa(path: str | None = None):
 def user_portal_spa(path: str | None = None):
     return _serve_index()
 
-# ----- Auth SPA routes (legacy - redirects to admin/login) -----
-
-@public_spa_bp.route('/auth/login', methods=['GET'])
-def auth_login_spa():
-    return redirect('/admin/login')
-
 # ----- User login SPA route -----
 
 @public_spa_bp.route('/login', methods=['GET'])

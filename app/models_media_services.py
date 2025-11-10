@@ -235,29 +235,9 @@ class MediaItem(db.Model):
                 # Plex format: regular path that needs proxy construction
                 thumb_url = f"/admin/api/v2/media/{self.server.service_type.value}/images/proxy?path={self.thumb_path.lstrip('/')}"
         
-        # Extract season and episode numbers for episodes
-        season_number = None
-        episode_number = None
-        if self.item_type == 'episode' and self.extra_metadata:
-            # Try different possible field names for season/episode numbers
-            # Use 'is not None' to handle season 0 (specials) correctly
-            if self.extra_metadata.get('seasonNumber') is not None:
-                season_number = self.extra_metadata.get('seasonNumber')
-            elif self.extra_metadata.get('season_number') is not None:
-                season_number = self.extra_metadata.get('season_number')
-            elif self.extra_metadata.get('season') is not None:
-                season_number = self.extra_metadata.get('season')
-            elif self.extra_metadata.get('parentIndex') is not None:
-                season_number = self.extra_metadata.get('parentIndex')
-            
-            if self.extra_metadata.get('episodeNumber') is not None:
-                episode_number = self.extra_metadata.get('episodeNumber')
-            elif self.extra_metadata.get('episode_number') is not None:
-                episode_number = self.extra_metadata.get('episode_number')
-            elif self.extra_metadata.get('episode') is not None:
-                episode_number = self.extra_metadata.get('episode')
-            elif self.extra_metadata.get('index') is not None:
-                episode_number = self.extra_metadata.get('index')
+        # Use dedicated columns for season and episode numbers
+        season_number = self.season_number if self.item_type == 'episode' else None
+        episode_number = self.episode_number if self.item_type == 'episode' else None
 
         return {
             'id': self.id,  # Use database ID for new URL structure

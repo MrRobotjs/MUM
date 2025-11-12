@@ -26,7 +26,8 @@ import {
   IconPlus,
   IconEye,
   IconDeviceTv,
-  IconX
+  IconX,
+  IconTrash
 } from '@tabler/icons-react';
 
 type ServiceType = 'plex' | 'jellyfin' | 'emby' | 'kavita' | 'audiobookshelf' | 'komga' | 'romm';
@@ -93,6 +94,7 @@ export const MediaDetailPage = () => {
   const [episodesSortBy, setEpisodesSortBy] = useState('season_episode_asc');
   const [episodesPerPage, setEpisodesPerPage] = useState('24');
   const [syncing, setSyncing] = useState(false);
+  const [purgingEpisodes, setPurgingEpisodes] = useState(false);
 
   const activeTab: TabType = search.tab ?? 'overview';
   // Check if this is a TV show library (show, tv, series, tvshows)
@@ -176,6 +178,33 @@ export const MediaDetailPage = () => {
       console.error('Failed to sync episodes:', err);
     } finally {
       setSyncing(false);
+    }
+  };
+
+  const handlePurgeEpisodes = async () => {
+    if (!libraryId || !mediaId) return;
+    const confirmed = window.confirm(
+      'Purge all cached episodes for this show? They will need to be re-synced from the server.'
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setPurgingEpisodes(true);
+      const response = await requestJson(
+        `/admin/api/v2/libraries/${libraryId}/media/${mediaId}/episodes/purge`,
+        { method: 'POST' }
+      );
+
+      if (response.success) {
+        setEpisodesPage(1);
+        await loadEpisodes();
+      }
+    } catch (err) {
+      console.error('Failed to purge episodes:', err);
+    } finally {
+      setPurgingEpisodes(false);
     }
   };
 
@@ -499,20 +528,41 @@ export const MediaDetailPage = () => {
                   </span>
                 </h3>
 
-                {/* Sync Button */}
-                <Button onClick={handleSyncEpisodes} disabled={syncing} size="sm">
-                  {syncing ? (
-                    <>
-                      <IconRefresh className="mr-2 h-4 w-4 animate-spin" />
-                      Syncing...
-                    </>
-                  ) : (
-                    <>
-                      <IconRefresh className="mr-2 h-4 w-4" />
-                      Sync
-                    </>
-                  )}
-                </Button>
+                {/* Actions */}
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={handlePurgeEpisodes}
+                    disabled={purgingEpisodes || syncing}
+                    title="Delete cached episodes for this show from the database"
+                  >
+                    {purgingEpisodes ? (
+                      <>
+                        <IconRefresh className="mr-2 h-4 w-4 animate-spin" />
+                        Purging...
+                      </>
+                    ) : (
+                      <>
+                        <IconTrash className="mr-2 h-4 w-4" />
+                        Purge
+                      </>
+                    )}
+                  </Button>
+                  <Button onClick={handleSyncEpisodes} disabled={syncing || purgingEpisodes} size="sm">
+                    {syncing ? (
+                      <>
+                        <IconRefresh className="mr-2 h-4 w-4 animate-spin" />
+                        Syncing...
+                      </>
+                    ) : (
+                      <>
+                        <IconRefresh className="mr-2 h-4 w-4" />
+                        Sync
+                      </>
+                    )}
+                  </Button>
+                </div>
               </div>
 
               {/* Search and Sort */}

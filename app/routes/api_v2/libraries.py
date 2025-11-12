@@ -937,6 +937,13 @@ class EpisodesResponse(BaseModel):
     meta: dict
 
 
+class EpisodePurgeResponse(BaseModel):
+    success: bool
+    deleted_count: int | None = None
+    show_title: str | None = None
+    message: str | None = None
+
+
 @api_v2.get(
     "/libraries/<library_id>/media/<int:media_id>/episodes",
     tags=[libraries_tag],
@@ -1122,3 +1129,53 @@ def sync_media_episodes(path: MediaPath, current_user):
             return jsonify({"error": {"code": "SYNC_FAILED", "message": result.get("error", "Failed to sync episodes"), "details": {}}, "meta": {"request_id": request_id}}), 500
     except Exception as e:
         return jsonify({"error": {"code": "INTERNAL_ERROR", "message": f"Error syncing episodes: {str(e)}", "details": {}}, "meta": {"request_id": request_id}}), 500
+
+
+@api_v2.post(
+    "/libraries/<library_id>/media/<int:media_id>/episodes/purge",
+    tags=[libraries_tag],
+    summary="Purge cached episodes for a show",
+    responses={200: EpisodePurgeResponse, 400: ErrorResponse, 404: ErrorResponse, 500: ErrorResponse},
+)
+@jwt_required_with_user()
+@jwt_permission_required('administrator')
+def purge_media_episodes(path: MediaPath, current_user):
+    request_id = uuid4().hex
+    from flask import current_app
+    from app.models_media_services import MediaItem
+
+    media_item = MediaItem.query.filter_by(id=path.media_id, library_id=path.library_id).first()
+    if not media_item:
+        return jsonify({"error": {"code": "MEDIA_NOT_FOUND", "message": f"Media item with ID {path.media_id} not found in library {path.library_id}", "details": {"media_id": path.media_id, "library_id": path.library_id}}, "meta": {"request_id": request_id}}), 404
+
+    library = MediaLibrary.query.get(path.library_id)
+    if not library:
+        return jsonify({"error": {"code": "LIBRARY_NOT_FOUND", "message": f"Library with ID {path.library_id} not found", "details": {"library_id": path.library_id}}, "meta": {"request_id": request_id}}), 404
+
+    parent_ids = [pid for pid in (media_item.external_id, media_item.rating_key) if pid]
+    if not parent_ids:
+        return jsonify({"error": {"code": "MISSING_PARENT_ID", "message": "Cannot determine episode parent identifiers for this show", "details": {"media_id": path.media_id}}, "meta": {"request_id": request_id}}), 400
+
+    try:
+        deleted_count = MediaItem.query.filter(
+            MediaItem.library_id == path.library_id,
+            MediaItem.item_type == "episode",
+            MediaItem.parent_id.in_(parent_ids),
+        ).delete(synchronize_session=False)
+        db.session.commit()
+
+        current_app.logger.info(
+            f"[v2.media] Purged {deleted_count} cached episodes for show {media_item.title} (library_id={path.library_id})"
+        )
+        return jsonify({
+            "success": True,
+            "deleted_count": deleted_count,
+            "show_title": media_item.title,
+            "message": f"Purged {deleted_count} cached episodes for {media_item.title}",
+        })
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(
+            f"[v2.media] Error purging episodes for show {media_item.id} in library {path.library_id}: {e}"
+        )
+        return jsonify({"error": {"code": "PURGE_FAILED", "message": "Failed to purge cached episodes", "details": {"error": str(e)}}, "meta": {"request_id": request_id}}), 500

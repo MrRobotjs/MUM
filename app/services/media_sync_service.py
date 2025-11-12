@@ -525,6 +525,11 @@ class MediaSyncService:
                     if not show_id:
                         current_app.logger.warning(f"No show ID available for show: {show.title}")
                         continue
+
+                    show_parent_ids = [pid for pid in {show.rating_key, show.external_id} if pid]
+                    if not show_parent_ids:
+                        current_app.logger.warning(f"No valid parent identifiers for show: {show.title}")
+                        continue
                     
                     current_app.logger.debug(f"Syncing episodes for show: {show.title} (ID: {show_id})")
 
@@ -542,10 +547,7 @@ class MediaSyncService:
                             existing_episodes_query = MediaItem.query.filter(
                                 MediaItem.library_id == library.id,
                                 MediaItem.item_type == 'episode',
-                                or_(
-                                    MediaItem.parent_id == show.external_id,
-                                    MediaItem.parent_id == show.rating_key
-                                )
+                                MediaItem.parent_id.in_(show_parent_ids)
                             )
                             existing_episodes = {ep.external_id: ep for ep in existing_episodes_query.all()}
                             
@@ -556,6 +558,23 @@ class MediaSyncService:
                                     episode_external_id = str(episode_data.get('id', ''))
                                     if not episode_external_id:
                                         continue
+
+                                    # Ensure the episode actually belongs to this show
+                                    episode_parent_from_payload = (
+                                        episode_data.get('parent_id')
+                                        or (episode_data.get('raw_data') or {}).get('SeriesId')
+                                        or (episode_data.get('raw_data') or {}).get('ParentId')
+                                    )
+                                    if episode_parent_from_payload and episode_parent_from_payload not in show_parent_ids:
+                                        current_app.logger.debug(
+                                            f"Skipping episode {episode_data.get('title', 'unknown')} "
+                                            f"({episode_external_id}) due to parent mismatch "
+                                            f"{episode_parent_from_payload} not in {show_parent_ids}"
+                                        )
+                                        continue
+                                    
+                                    if not episode_data.get('parent_id'):
+                                        episode_data['parent_id'] = episode_parent_from_payload or show_id
                                     
                                     current_episode_ids.add(episode_external_id)
                                     
@@ -568,8 +587,7 @@ class MediaSyncService:
                                         if changes:
                                             updated_count += 1
                                     else:
-                                        # Create new episode - use rating_key as parent_id if available, otherwise external_id
-                                        episode_data['parent_id'] = show.rating_key if show.rating_key else show.external_id
+                                        # Create new episode
                                         new_episode = MediaSyncService._create_media_item(library, episode_data)
                                         if new_episode:
                                             added_count += 1
@@ -686,6 +704,7 @@ class MediaSyncService:
             updated_count = 0
             removed_count = 0
             errors = []
+            existing_episodes = {}
             
             # Get episodes from service
             if hasattr(service, 'get_show_episodes'):

@@ -6,6 +6,7 @@ Provides integration with Jellyfin servers for media management.
 import requests
 import json
 from typing import List, Dict, Any, Optional, Tuple
+from urllib.parse import urlencode
 from flask import current_app
 from app.services.base_media_service import BaseMediaService
 from app.models_media_services import ServiceType
@@ -1025,7 +1026,7 @@ class JellyfinMediaService(BaseMediaService):
 
             while True:
                 params = {
-                    'SeriesId': show_id,               # filter by series
+                    'ParentId': show_id,               # strict filter by parent series
                     'IncludeItemTypes': 'Episode',
                     'Recursive': 'true',
                     'Fields': 'BasicSyncInfo,PrimaryImageAspectRatio,ProductionYear',
@@ -1034,6 +1035,10 @@ class JellyfinMediaService(BaseMediaService):
                     'StartIndex': start_index,
                     'Limit': limit,
                 }
+                query_string = urlencode(params)
+                self.log_debug(
+                    f"Jellyfin episode fetch request: /Items?{query_string}"
+                )
                 try:
                     resp = requests.get(base_url, params=params, headers=headers, timeout=get_api_timeout_with_fallback(30))
                     resp.raise_for_status()

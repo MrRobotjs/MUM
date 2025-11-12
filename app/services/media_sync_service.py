@@ -144,7 +144,12 @@ class MediaSyncService:
             # Optionally sync episodes after shows
             episodes_result = None
             is_tv_library = (library.library_type or '').lower()
-            if sync_episodes and ('show' in is_tv_library or 'tv' in is_tv_library):
+            if sync_episodes and (
+                'show' in is_tv_library
+                or 'tv' in is_tv_library
+                or 'series' in is_tv_library
+                or 'tvshows' in is_tv_library
+            ):
                 try:
                     episodes_result = MediaSyncService._sync_episodes_for_shows(library, service)
                 except Exception as e:
@@ -522,9 +527,13 @@ class MediaSyncService:
                         continue
                     
                     current_app.logger.debug(f"Syncing episodes for show: {show.title} (ID: {show_id})")
-                    
+
                     # Get episodes from service
                     if hasattr(service, 'get_show_episodes'):
+                        current_app.logger.info(
+                            f"Episode sync: calling {service.__class__.__name__}.get_show_episodes for show '{show.title}' "
+                            f"(series_id={show_id})"
+                        )
                         episodes_data = service.get_show_episodes(show_id, page=1, per_page=1000)
                         if episodes_data and episodes_data.get('items'):
                             episodes = episodes_data['items']

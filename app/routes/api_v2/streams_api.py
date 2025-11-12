@@ -97,7 +97,7 @@ def _apply_filters(query, user_uuid=None, service_type=None, status=None, start_
     responses={200: StreamsListResponse},
 )
 @jwt_required_with_user()
-@jwt_permission_required("view_streaming")
+@jwt_permission_required('administrator')
 def list_streams(query: StreamsQuery, current_user):
     request_id = uuid4().hex
 
@@ -170,7 +170,7 @@ class ErrorResponse(BaseModel):
     responses={200: StreamResponse, 404: ErrorResponse},
 )
 @jwt_required_with_user()
-@jwt_permission_required("view_streaming")
+@jwt_permission_required('administrator')
 def get_stream(path: StreamPath, current_user):
     request_id = uuid4().hex
     stream = MediaStreamHistory.query.get(path.stream_id)
@@ -198,7 +198,7 @@ class StreamsSummaryResponse(BaseModel):
     responses={200: StreamsSummaryResponse},
 )
 @jwt_required_with_user()
-@jwt_permission_required("view_streaming")
+@jwt_permission_required('administrator')
 def streams_summary(query: StreamsSummaryQuery, current_user):
     request_id = uuid4().hex
     start_date_str = query.start
@@ -299,7 +299,7 @@ class TerminateResponse(BaseModel):
     responses={200: TerminateResponse, 400: ErrorResponse, 500: ErrorResponse, 502: ErrorResponse},
 )
 @jwt_required_with_user()
-@jwt_permission_required("kill_stream")
+@jwt_permission_required('administrator')
 def terminate_stream(path: StreamPath, body: TerminateBody, current_user):
     request_id = uuid4().hex
     message = body.message

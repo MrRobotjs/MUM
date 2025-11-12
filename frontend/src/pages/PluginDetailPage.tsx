@@ -43,16 +43,22 @@ const normalizeServerPayload = (values: ServerFormValues, pluginId: string) => {
 };
 
 export const PluginDetailPage = () => {
-  const { pluginId = '' } = useParams<{ pluginId: string }>();
+  const { pluginId } = useParams({ from: '/admin/settings/plugins/$pluginId' });
+  const resolvedPluginId = pluginId ?? '';
   const navigate = useNavigate();
   const { plugins, loading: pluginsLoading, error: pluginsError, refresh: refreshPlugins } = usePlugins();
-  const plugin = useMemo(() => plugins.find((item) => item.pluginId === pluginId), [plugins, pluginId]);
+  const plugin = useMemo(() => plugins.find((item) => item.pluginId === resolvedPluginId), [plugins, resolvedPluginId]);
   const {
     servers,
     loading: serversLoading,
     error: serversError,
     refresh: refreshServers
-  } = useServers({ serviceType: pluginId || undefined });
+  } = useServers({ serviceType: resolvedPluginId || undefined });
+
+  const pluginServers = useMemo(() => {
+    const target = resolvedPluginId.toLowerCase();
+    return servers.filter((server) => (server.service_type || '').toLowerCase() === target);
+  }, [servers, resolvedPluginId]);
   const { success, error: showError } = useAlerts();
 
   const [modalOpen, setModalOpen] = useState(false);
@@ -97,12 +103,12 @@ export const PluginDetailPage = () => {
   };
 
   const handleSubmit = async (formValues: ServerFormValues) => {
-    if (!pluginId) {
+    if (!resolvedPluginId) {
       showError('Unknown plugin id');
       return;
     }
 
-    const payload = normalizeServerPayload(formValues, pluginId);
+    const payload = normalizeServerPayload(formValues, resolvedPluginId);
 
     try {
       setSaving(true);
@@ -150,13 +156,13 @@ export const PluginDetailPage = () => {
         <Alert variant="destructive">
           <IconAlertCircle />
           <AlertTitle>Plugin not found</AlertTitle>
-          <AlertDescription>Plugin "{pluginId}" could not be located.</AlertDescription>
+          <AlertDescription>Plugin "{resolvedPluginId}" could not be located.</AlertDescription>
         </Alert>
       </div>
     );
   }
 
-  const configuredCount = servers.length;
+  const configuredCount = pluginServers.length;
 
   const headerActions = (
     <Button onClick={handleAddServer}>
@@ -265,7 +271,7 @@ export const PluginDetailPage = () => {
               <span className="inline-flex size-4 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
               Loading servers…
             </div>
-          ) : servers.length === 0 ? (
+          ) : pluginServers.length === 0 ? (
             <Alert variant="info">
               <IconInfoCircle />
               <AlertTitle>No servers configured</AlertTitle>
@@ -274,8 +280,8 @@ export const PluginDetailPage = () => {
               </AlertDescription>
             </Alert>
           ) : (
-            <div className="grid gap-4 md:grid-cols-2">
-              {servers.map((server) => (
+              <div className="grid gap-4 md:grid-cols-2">
+                {pluginServers.map((server) => (
                 <Card key={server.id} className="border border-border/60">
                   <CardHeader className="flex flex-row items-start justify-between gap-4">
                     <div>
@@ -359,7 +365,16 @@ export const PluginDetailPage = () => {
                         </Label>
                       </div>
                       <div className="flex items-center gap-2">
-                        <Button size="sm" variant="outline" onClick={() => navigate(`/admin/settings/plugins/${pluginId}/servers/${server.id}`)}>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() =>
+                            navigate({
+                              to: '/admin/settings/plugins/$pluginId/servers/$serverId',
+                              params: { pluginId: resolvedPluginId, serverId: String(server.id) }
+                            })
+                          }
+                        >
                           Edit
                         </Button>
                         <Button
@@ -385,7 +400,7 @@ export const PluginDetailPage = () => {
         onSubmit={handleSubmit}
         loading={saving}
         serviceTypeLocked
-        defaultServiceType={pluginId}
+        defaultServiceType={resolvedPluginId}
       />
     </div>
   );

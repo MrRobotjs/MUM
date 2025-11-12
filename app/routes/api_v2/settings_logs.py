@@ -78,7 +78,7 @@ def _serialize_log(log: HistoryLog):
     responses={200: LogsListResponse},
 )
 @jwt_required_with_user()
-@jwt_permission_required("view_logs")
+@jwt_permission_required('administrator')
 def list_history_logs(query: LogsQuery, current_user):
     request_id = uuid4().hex
     owner_alias = aliased(User)

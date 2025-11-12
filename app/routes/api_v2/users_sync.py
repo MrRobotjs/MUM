@@ -55,7 +55,7 @@ class ErrorResponse(BaseModel):
     responses={200: SyncAllResponse, 409: ErrorResponse},
 )
 @jwt_required_with_user()
-@jwt_permission_required("edit_user")
+@jwt_permission_required('administrator')
 def sync_all_users(current_user):
     request_id = uuid4().hex
 
@@ -176,7 +176,7 @@ class SyncUserResponse(BaseModel):
     responses={200: SyncUserResponse, 404: ErrorResponse},
 )
 @jwt_required_with_user()
-@jwt_permission_required("edit_user")
+@jwt_permission_required('administrator')
 def sync_user_accounts(path: UserPath, current_user):
     request_id = uuid4().hex
     user = User.query.filter_by(uuid=path.user_uuid).first()

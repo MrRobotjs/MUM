@@ -992,7 +992,12 @@ class JellyfinMediaService(BaseMediaService):
             return {}
 
     def get_show_episodes(self, show_id: str, page: int = 1, per_page: int = 1000) -> Dict[str, Any]:
-        """Get episodes for a specific TV show from Jellyfin"""
+        """Get all episodes for a specific TV show from Jellyfin.
+
+        Uses the Items API filtered by SeriesId and paginates internally to
+        retrieve the full set of episodes. This ensures very large shows (thousands
+        of episodes) are fully synchronized.
+        """
         try:
             if not self._authenticated and not self._authenticate():
                 self.log_error("Failed to authenticate for episode retrieval")
@@ -1007,38 +1012,60 @@ class JellyfinMediaService(BaseMediaService):
                     'error': 'Authentication failed'
                 }
 
-            # Get all episodes for this show using Jellyfin API
-            # ParentId is the show's ID, IncludeItemTypes=Episode, Recursive=true
-            response = self.session.get(
-                f"{self.url.rstrip('/')}/Items",
-                params={
-                    'ParentId': show_id,
+            base_url = f"{self.url.rstrip('/')}/Items"
+            headers = {
+                'X-Emby-Token': self.api_key,
+                'Content-Type': 'application/json'
+            }
+
+            # Pull episodes in batches until exhausted
+            start_index = 0
+            limit = max(1, min(int(per_page) if per_page else 1000, 2000))
+            all_episodes_raw = []
+
+            while True:
+                params = {
+                    'SeriesId': show_id,               # filter by series
                     'IncludeItemTypes': 'Episode',
                     'Recursive': 'true',
                     'Fields': 'BasicSyncInfo,PrimaryImageAspectRatio,ProductionYear',
                     'SortBy': 'SortName',
-                    'SortOrder': 'Ascending'
-                },
-                timeout=get_api_timeout_with_fallback(30)
-            )
-            response.raise_for_status()
+                    'SortOrder': 'Ascending',
+                    'StartIndex': start_index,
+                    'Limit': limit,
+                }
+                try:
+                    resp = requests.get(base_url, params=params, headers=headers, timeout=get_api_timeout_with_fallback(30))
+                    resp.raise_for_status()
+                except requests.exceptions.Timeout:
+                    self.log_warning(f"Jellyfin episode fetch timeout for show {show_id} at index {start_index}")
+                    break
+                except requests.exceptions.RequestException as e:
+                    self.log_error(f"Jellyfin episode fetch error for show {show_id}: {e}")
+                    break
 
-            data = response.json()
-            episodes = data.get('Items', [])
-            total_count = len(episodes)
+                data = resp.json() or {}
+                batch = data.get('Items', []) or []
+                if not batch:
+                    break
+                all_episodes_raw.extend(batch)
+                self.log_info(f"Jellyfin: fetched {len(batch)} episodes (total so far {len(all_episodes_raw)}) for show {show_id}")
 
-            self.log_info(f"Retrieved {total_count} episodes for show {show_id}")
+                # Advance window; stop when last batch smaller than limit
+                if len(batch) < limit:
+                    break
+                start_index += limit
+
+            self.log_info(f"Retrieved {len(all_episodes_raw)} episodes for show {show_id}")
 
             # Process episodes to match expected format
             processed_episodes = []
-            for episode in episodes:
+            for episode in all_episodes_raw:
                 try:
-                    # Get episode thumbnail URL
                     thumb_url = None
                     if episode.get('Id'):
                         thumb_url = f"/admin/api/v2/media/jellyfin/images/proxy?item_id={episode['Id']}&image_type=Primary"
 
-                    # Extract year from PremiereDate
                     year = None
                     if episode.get('PremiereDate'):
                         try:
@@ -1048,11 +1075,8 @@ class JellyfinMediaService(BaseMediaService):
                     elif episode.get('ProductionYear'):
                         year = episode['ProductionYear']
 
-                    # Get parent show ID for linking
                     parent_id = episode.get('SeriesId', show_id)
 
-                    # Jellyfin provides IndexNumber (episode) and ParentIndexNumber (season)
-                    # Store them in raw_data for to_dict() to extract
                     raw_episode_data = episode.copy()
                     raw_episode_data['episodeNumber'] = episode.get('IndexNumber')
                     raw_episode_data['seasonNumber'] = episode.get('ParentIndexNumber')
@@ -1071,19 +1095,18 @@ class JellyfinMediaService(BaseMediaService):
                         'parent_id': parent_id,
                         'raw_data': raw_episode_data
                     }
-
                     processed_episodes.append(processed_episode)
-
                 except Exception as e:
                     self.log_warning(f"Error processing episode {episode.get('Id', 'unknown')}: {e}")
                     continue
 
+            total_count = len(processed_episodes)
             return {
                 'items': processed_episodes,
                 'total': total_count,
-                'page': page,
-                'per_page': per_page,
-                'pages': 1,  # All episodes returned in one call
+                'page': 1,
+                'per_page': total_count,
+                'pages': 1,
                 'has_prev': False,
                 'has_next': False
             }
@@ -1093,8 +1116,8 @@ class JellyfinMediaService(BaseMediaService):
             return {
                 'items': [],
                 'total': 0,
-                'page': page,
-                'per_page': per_page,
+                'page': 1,
+                'per_page': 0,
                 'pages': 0,
                 'has_prev': False,
                 'has_next': False,
@@ -1105,8 +1128,8 @@ class JellyfinMediaService(BaseMediaService):
             return {
                 'items': [],
                 'total': 0,
-                'page': page,
-                'per_page': per_page,
+                'page': 1,
+                'per_page': 0,
                 'pages': 0,
                 'has_prev': False,
                 'has_next': False,

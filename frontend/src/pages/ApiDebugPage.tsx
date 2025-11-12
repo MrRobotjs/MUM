@@ -154,7 +154,7 @@ const ApiDebugPage = () => {
     setActiveTab('formatted');
 
     try {
-      const result = await requestJson<ApiResponse>('/admin/settings/api_debug_execute', {
+      const result = await requestJson<ApiResponse>('/admin/api/v2/tools/api-debug/execute', {
         method: 'POST',
         body: JSON.stringify({
           method: httpMethod,

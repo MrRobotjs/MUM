@@ -5,6 +5,7 @@ from flask import jsonify
 from app.utils.jwt_decorators import jwt_required_with_user, jwt_permission_required
 from pydantic import BaseModel
 from flask_openapi3 import Tag
+from pydantic import BaseModel
 
 from app.routes.api_v2 import api_v2
 from app.utils.setup_helpers import get_completed_steps
@@ -89,13 +90,18 @@ class TestConnectionResponse(BaseModel):
     meta: dict
 
 
+class SetupPluginPath(BaseModel):
+    plugin_id: str
+
+
 @api_v2.post(
     "/setup/plugins/<plugin_id>/test-connection",
     tags=[setup_tag],
     summary="Test plugin connection",
     responses={200: TestConnectionResponse, 400: TestConnectionResponse, 500: TestConnectionResponse},
 )
-def setup_test_connection(plugin_id: str):
+def setup_test_connection(path: SetupPluginPath):
+    plugin_id = path.plugin_id
     request_id = str(uuid4())
     try:
         try:
@@ -118,7 +124,7 @@ def setup_test_connection(plugin_id: str):
             server_nickname=server_name or 'Test Server',
             url=server_url,
             api_key=api_key,
-            localUsername=username,
+            username=username,
             password=password,
             public_url=public_url,
             service_type=service_type,

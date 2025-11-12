@@ -1,7 +1,7 @@
 # File: app/services/media_service_manager.py
 from typing import Any, Dict, Iterable, List, Optional, Set, Union
 from flask import current_app
-from app.models_media_services import MediaServer, MediaLibrary, ServiceType
+from app.models_media_services import MediaServer, MediaLibrary, ServiceType, MediaItem
 from app.models import User, UserType, Setting
 from app.services.media_service_factory import MediaServiceFactory
 from app.extensions import db
@@ -137,6 +137,11 @@ class MediaServiceManager:
             for external_id, lib in existing_libs.items():
                 if external_id not in api_external_ids:
                     current_app.logger.info(f"Removing library '{lib.name}' (ID: {external_id}) - no longer exists on server")
+                    deleted_items = MediaItem.query.filter_by(library_id=lib.id).delete(synchronize_session=False)
+                    if deleted_items:
+                        current_app.logger.info(
+                            f"Deleted {deleted_items} media items cached for library '{lib.name}' ({external_id})"
+                        )
                     removed_libraries.append({
                         'name': lib.name,
                         'server_name': server.server_nickname,

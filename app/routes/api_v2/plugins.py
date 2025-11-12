@@ -10,6 +10,7 @@ from app.routes.api_v2 import api_v2
 from app.models_plugins import Plugin, PluginRepository
 from app.services.plugin_manager import plugin_manager
 from app.extensions import db
+from app.utils.helpers import log_event
 # JWT permission checking handled by jwt_permission_required, log_event
 from app.models import EventType
 
@@ -65,7 +66,7 @@ def _serialize_plugin(plugin: Plugin):
     }
 
 
-def _plugin_action(plugin_id: str, action: str):
+def _plugin_action(plugin_id: str, action: str, current_user):
     request_id = str(uuid4())
     plugin = Plugin.query.filter_by(plugin_id=plugin_id).first()
     if not plugin:
@@ -126,7 +127,7 @@ def list_plugins(current_user):
 @jwt_required_with_user()
 @jwt_permission_required('administrator')
 def enable_plugin(plugin_id, current_user):
-    return _plugin_action(plugin_id, 'enable')
+    return _plugin_action(plugin_id, 'enable', current_user)
 
 
 @api_v2.post(
@@ -137,7 +138,7 @@ def enable_plugin(plugin_id, current_user):
 @jwt_required_with_user()
 @jwt_permission_required('administrator')
 def disable_plugin(plugin_id, current_user):
-    return _plugin_action(plugin_id, 'disable')
+    return _plugin_action(plugin_id, 'disable', current_user)
 
 
 class RepoItem(BaseModel):

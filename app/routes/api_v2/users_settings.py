@@ -70,7 +70,7 @@ class ErrorResponse(BaseModel):
     responses={200: GetSettingsResponse, 404: ErrorResponse},
 )
 @jwt_required_with_user()
-@jwt_permission_required("edit_user")
+@jwt_permission_required('administrator')
 def get_user_settings(path: UserPath, current_user):
     request_id = uuid4().hex
     user = User.query.filter_by(uuid=path.user_uuid).first()
@@ -91,7 +91,7 @@ def get_user_settings(path: UserPath, current_user):
     responses={200: UpdateSettingsResponse, 400: ErrorResponse, 404: ErrorResponse},
 )
 @jwt_required_with_user()
-@jwt_permission_required("edit_user")
+@jwt_permission_required('administrator')
 def update_user_settings(path: UserPath, body: UpdateSettingsBody, current_user):
     request_id = uuid4().hex
     user = User.query.filter_by(uuid=path.user_uuid).first()

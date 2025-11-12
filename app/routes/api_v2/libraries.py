@@ -85,7 +85,7 @@ class LibrariesListResponse(BaseModel):
     responses={200: LibrariesListResponse},
 )
 @jwt_required_with_user()
-@jwt_permission_required("view_servers")
+@jwt_permission_required('administrator')
 def list_libraries(query: LibrariesQuery, current_user):
     request_id = uuid4().hex
     q = MediaLibrary.query
@@ -133,7 +133,7 @@ class LibraryResponse(BaseModel):
     responses={200: LibraryResponse, 404: ErrorResponse},
 )
 @jwt_required_with_user()
-@jwt_permission_required("view_servers")
+@jwt_permission_required('administrator')
 def get_library(path: LibraryPath, current_user):
     request_id = uuid4().hex
     lib = MediaLibrary.query.get(path.library_id)
@@ -190,7 +190,7 @@ class LibraryMediaResponse(BaseModel):
     responses={200: LibraryMediaResponse, 404: ErrorResponse},
 )
 @jwt_required_with_user()
-@jwt_permission_required("view_servers")
+@jwt_permission_required('administrator')
 def list_library_media(path: LibraryPath, query: LibraryMediaQuery, current_user):
     request_id = uuid4().hex
     lib = MediaLibrary.query.get(path.library_id)
@@ -627,7 +627,7 @@ class MediaItemResponse(BaseModel):
     responses={200: MediaItemResponse, 404: ErrorResponse},
 )
 @jwt_required_with_user()
-@jwt_permission_required("view_servers")
+@jwt_permission_required('administrator')
 def get_media_item(path: MediaPath, current_user):
     request_id = uuid4().hex
     from app.models_media_services import MediaItem
@@ -663,7 +663,7 @@ class LibraryStatsResponse(BaseModel):
     responses={200: LibraryStatsResponse, 404: ErrorResponse},
 )
 @jwt_required_with_user()
-@jwt_permission_required("view_servers")
+@jwt_permission_required('administrator')
 def get_library_stats(path: LibraryPath, current_user):
     request_id = uuid4().hex
     lib = MediaLibrary.query.get(path.library_id)
@@ -716,7 +716,7 @@ class ActivityListResponse(BaseModel):
     responses={200: ActivityListResponse, 404: ErrorResponse},
 )
 @jwt_required_with_user()
-@jwt_permission_required("view_servers")
+@jwt_permission_required('administrator')
 def get_library_activity(path: LibraryPath, current_user):
     request_id = uuid4().hex
     library = MediaLibrary.query.get(path.library_id)
@@ -833,7 +833,7 @@ class CollectionsResponse(BaseModel):
     responses={200: CollectionsResponse, 400: ErrorResponse, 404: ErrorResponse, 503: ErrorResponse},
 )
 @jwt_required_with_user()
-@jwt_permission_required("view_servers")
+@jwt_permission_required('administrator')
 def get_library_collections(path: LibraryPath, current_user):
     request_id = uuid4().hex
     library = MediaLibrary.query.get(path.library_id)
@@ -944,7 +944,7 @@ class EpisodesResponse(BaseModel):
     responses={200: EpisodesResponse, 400: ErrorResponse, 404: ErrorResponse},
 )
 @jwt_required_with_user()
-@jwt_permission_required("view_servers")
+@jwt_permission_required('administrator')
 def get_media_episodes(path: MediaPath, current_user):
     request_id = uuid4().hex
     from app.models_media_services import MediaItem
@@ -1090,7 +1090,7 @@ class SyncEpisodesResponse(BaseModel):
     responses={200: SyncEpisodesResponse, 400: ErrorResponse, 404: ErrorResponse, 500: ErrorResponse},
 )
 @jwt_required_with_user()
-@jwt_permission_required("view_servers")
+@jwt_permission_required('administrator')
 def sync_media_episodes(path: MediaPath, current_user):
     request_id = uuid4().hex
     from app.models_media_services import MediaItem

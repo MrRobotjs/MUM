@@ -60,12 +60,12 @@ const normalizeServerPayload = (values: ServerFormValues, pluginId: string) => {
 };
 
 export const ServerEditPage = () => {
-  const { pluginId = '', serverId = '' } = useParams<{ pluginId: string; serverId: string }>();
+  const { pluginId, serverId } = useParams({ from: '/admin/settings/plugins/$pluginId/servers/$serverId' });
   const navigate = useNavigate();
   const { success, error: showError } = useAlerts();
   const { plugins } = usePlugins();
   const { refresh: refreshServers } = useServers({ serviceType: pluginId || undefined });
-  const { server, loading: serverLoading, error: serverError } = useServerDetail(Number(serverId));
+  const { server, loading: serverLoading, error: serverError } = useServerDetail(serverId ? Number(serverId) : undefined);
 
   const plugin = useMemo(() => plugins.find((item) => item.pluginId === pluginId), [plugins, pluginId]);
 
@@ -129,38 +129,40 @@ export const ServerEditPage = () => {
         testData.overseerr_api_key = values.overseerr_api_key || '';
       }
 
-      const response = await requestJson(`/admin/api/v2/setup/plugins/${values.service_type}/test-connection`, {
-        method: 'POST',
-        body: JSON.stringify(testData),
-      });
+        const response = await requestJson(`/admin/api/v2/setup/plugins/${values.service_type}/test-connection`, {
+          method: 'POST',
+          body: JSON.stringify(testData),
+        });
 
-      if (response.success) {
-        let message = response.message;
+        const payload = response?.data || response;
 
-        if (response.overseerr) {
-          if (response.overseerr.success) {
-            message += ` | Overseerr: ${response.overseerr.message}`;
-            if (response.overseerr.linked_users && response.overseerr.linked_users.length > 0) {
-              const linkedCount = response.overseerr.linked_users.filter((u: any) => u.is_linked).length;
-              message += ` (${linkedCount} users linked)`;
+        if (payload?.success) {
+          let message = payload.message || 'Connection successful';
+
+          if (payload.overseerr) {
+            if (payload.overseerr.success) {
+              message += ` | Overseerr: ${payload.overseerr.message}`;
+              if (payload.overseerr.linked_users && payload.overseerr.linked_users.length > 0) {
+                const linkedCount = payload.overseerr.linked_users.filter((u: any) => u.is_linked).length;
+                message += ` (${linkedCount} users linked)`;
+              }
+            } else {
+              setConnectionTestStatus('error');
+              showError(`Overseerr connection failed: ${payload.overseerr.message || 'Unknown error'}`);
+              return;
             }
-          } else {
-            setConnectionTestStatus('error');
-            showError(`Overseerr connection failed: ${response.overseerr.message}`);
-            return;
           }
+
+          setConnectionTestStatus('success');
+          success(message);
+
+          setTimeout(() => {
+            setConnectionTestStatus('idle');
+          }, 3000);
+        } else {
+          setConnectionTestStatus('error');
+          showError(`Connection test failed: ${payload?.message || 'Unknown error'}`);
         }
-
-        setConnectionTestStatus('success');
-        success(`Connection successful: ${message}`);
-
-        setTimeout(() => {
-          setConnectionTestStatus('idle');
-        }, 3000);
-      } else {
-        setConnectionTestStatus('error');
-        showError(`Connection test failed: ${response.message}`);
-      }
     } catch (err) {
       setConnectionTestStatus('error');
       showError(`Error testing connection: ${(err as Error).message}`);
@@ -408,46 +410,50 @@ export const ServerEditPage = () => {
               </div>
             ) : null}
 
-            <div className="flex items-center gap-4 my-4">
-              <Separator className="flex-1" />
-              <span className="text-sm font-medium text-muted-foreground">Overseerr Integration (Optional)</span>
-              <Separator className="flex-1" />
-            </div>
-
-            <FormField id="overseerr_enabled" label="Overseerr Integration">
-              <div className="flex items-center gap-3">
-                <Switch
-                  id="overseerr_enabled"
-                  checked={values.overseerr_enabled ?? false}
-                  onCheckedChange={(checked) => setValues({ ...values, overseerr_enabled: checked })}
-                />
-                <Label htmlFor="overseerr_enabled" className="cursor-pointer">
-                  Enable Overseerr integration
-                </Label>
-              </div>
-            </FormField>
-
-            {values.overseerr_enabled && (
+            {values.service_type === 'plex' && (
               <>
-                <FormField id="overseerr_url" label="Overseerr URL">
-                  <Input
-                    id="overseerr_url"
-                    type="url"
-                    value={values.overseerr_url}
-                    onChange={(e) => setValues({ ...values, overseerr_url: e.target.value })}
-                    placeholder="https://overseerr.example.com"
-                  />
+                <div className="flex items-center gap-4 my-4">
+                  <Separator className="flex-1" />
+                  <span className="text-sm font-medium text-muted-foreground">Plex Overseerr Integration (Optional)</span>
+                  <Separator className="flex-1" />
+                </div>
+
+                <FormField id="overseerr_enabled" label="Overseerr Integration">
+                  <div className="flex items-center gap-3">
+                    <Switch
+                      id="overseerr_enabled"
+                      checked={values.overseerr_enabled ?? false}
+                      onCheckedChange={(checked) => setValues({ ...values, overseerr_enabled: checked })}
+                    />
+                    <Label htmlFor="overseerr_enabled" className="cursor-pointer">
+                      Enable Plex Overseerr integration
+                    </Label>
+                  </div>
                 </FormField>
 
-                <FormField id="overseerr_api_key" label="Overseerr API Key">
-                  <Input
-                    id="overseerr_api_key"
-                    type="password"
-                    value={values.overseerr_api_key}
-                    onChange={(e) => setValues({ ...values, overseerr_api_key: e.target.value })}
-                    placeholder={server.overseerr_api_key ? '••••••••' : 'Overseerr API key'}
-                  />
-                </FormField>
+                {values.overseerr_enabled && (
+                  <>
+                    <FormField id="overseerr_url" label="Overseerr URL">
+                      <Input
+                        id="overseerr_url"
+                        type="url"
+                        value={values.overseerr_url}
+                        onChange={(e) => setValues({ ...values, overseerr_url: e.target.value })}
+                        placeholder="https://overseerr.example.com"
+                      />
+                    </FormField>
+
+                    <FormField id="overseerr_api_key" label="Overseerr API Key">
+                      <Input
+                        id="overseerr_api_key"
+                        type="password"
+                        value={values.overseerr_api_key}
+                        onChange={(e) => setValues({ ...values, overseerr_api_key: e.target.value })}
+                        placeholder={server?.overseerr_api_key ? '••••••••' : 'Overseerr API key'}
+                      />
+                    </FormField>
+                  </>
+                )}
               </>
             )}
 
@@ -487,3 +493,4 @@ export const ServerEditPage = () => {
     </div>
   );
 };
+

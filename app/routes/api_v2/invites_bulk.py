@@ -50,7 +50,7 @@ class ErrorResponse(BaseModel):
     responses={200: BulkInviteResponse, 400: ErrorResponse},
 )
 @jwt_required_with_user()
-@jwt_permission_required("manage_invites")
+@jwt_permission_required('administrator')
 def bulk_invite_action(body: BulkInviteBody, current_user):
     request_id = uuid4().hex
     ids = body.ids
@@ -81,4 +81,3 @@ def bulk_invite_action(body: BulkInviteBody, current_user):
         ),
         200,
     )
-

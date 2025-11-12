@@ -65,7 +65,7 @@ export const useServerDetail = (serverId?: number) => {
   );
 
   return {
-    server: data?.data ?? null,
+    server: (data?.data ?? data) || null,
     loading: isLoading,
     error,
     refresh: mutate,

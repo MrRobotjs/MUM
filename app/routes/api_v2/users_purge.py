@@ -69,7 +69,7 @@ class ErrorResponse(BaseModel):
     responses={200: EligibleResponse, 500: ErrorResponse},
 )
 @jwt_required_with_user()
-@jwt_permission_required("purge_users")
+@jwt_permission_required('administrator')
 def get_eligible_for_purge(query: EligibleQuery, current_user):
     """Get users eligible for purge based on criteria."""
     request_id = uuid4().hex
@@ -170,7 +170,7 @@ class PurgeResponse(BaseModel):
     responses={200: PurgeResponse, 400: ErrorResponse, 500: ErrorResponse},
 )
 @jwt_required_with_user()
-@jwt_permission_required("purge_users")
+@jwt_permission_required('administrator')
 def purge_users(current_user):
     """Purge selected users."""
     request_id = uuid4().hex

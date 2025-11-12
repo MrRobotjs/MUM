@@ -80,7 +80,7 @@ def _status_entry(user: User, action: str, status: str, message: str | None = No
     responses={200: BulkResponse, 400: ErrorResponse, 404: ErrorResponse, 500: ErrorResponse},
 )
 @jwt_required_with_user()
-@jwt_permission_required("mass_edit_users")
+@jwt_permission_required('administrator')
 def bulk_user_operations(body: BulkBody, current_user):
     request_id = uuid4().hex
     user_uuids = body.user_uuids

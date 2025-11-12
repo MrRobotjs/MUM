@@ -91,7 +91,7 @@ def _get_local_user(uuid: str) -> User:
     responses={200: ListResponse},
 )
 @jwt_required_with_user()
-@jwt_permission_required("edit_user")
+@jwt_permission_required('administrator')
 def list_service_accounts(path: LocalUserPath, current_user):
     request_id = uuid4().hex
     user = _get_local_user(path.user_uuid)
@@ -107,7 +107,7 @@ def list_service_accounts(path: LocalUserPath, current_user):
     responses={200: ServiceAccountItem, 400: ErrorResponse, 404: ErrorResponse, 409: ErrorResponse},
 )
 @jwt_required_with_user()
-@jwt_permission_required("edit_user")
+@jwt_permission_required('administrator')
 def link_service_account(path: LocalUserPath, body: LinkBody, current_user):
     request_id = uuid4().hex
     user = _get_local_user(path.user_uuid)
@@ -143,7 +143,7 @@ def link_service_account(path: LocalUserPath, body: LinkBody, current_user):
     responses={200: SuccessResponse, 404: ErrorResponse},
 )
 @jwt_required_with_user()
-@jwt_permission_required("edit_user")
+@jwt_permission_required('administrator')
 def unlink_service_account(path: ServiceUserPath, current_user):
     request_id = uuid4().hex
     user = _get_local_user(path.user_uuid)
@@ -172,7 +172,7 @@ def unlink_service_account(path: ServiceUserPath, current_user):
     responses={200: ListResponse},
 )
 @jwt_required_with_user()
-@jwt_permission_required("edit_user")
+@jwt_permission_required('administrator')
 def list_available_service_accounts(path: LocalUserPath, current_user):
     request_id = uuid4().hex
     _ = _get_local_user(path.user_uuid)

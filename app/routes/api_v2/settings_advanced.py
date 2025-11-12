@@ -40,7 +40,7 @@ def _serialize_advanced_settings() -> dict:
     responses={200: AdvancedSettingsResponse},
 )
 @jwt_required_with_user()
-@jwt_permission_required("manage_advanced_settings")
+@jwt_permission_required('administrator')
 def get_advanced_settings(current_user):
     request_id = uuid4().hex
     return jsonify({"data": _serialize_advanced_settings(), "meta": {"request_id": request_id}})
@@ -68,7 +68,7 @@ class ErrorResponse(BaseModel):
     responses={200: AdvancedSettingsResponse, 400: ErrorResponse},
 )
 @jwt_required_with_user()
-@jwt_permission_required("manage_advanced_settings")
+@jwt_permission_required('administrator')
 def update_advanced_settings(body: UpdateAdvancedBody, current_user):
     request_id = uuid4().hex
     # Persist settings

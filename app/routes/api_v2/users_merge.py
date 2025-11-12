@@ -58,7 +58,7 @@ class ErrorResponse(BaseModel):
     responses={200: MergeResponse, 400: ErrorResponse, 404: ErrorResponse},
 )
 @jwt_required_with_user()
-@jwt_permission_required("mass_edit_users")
+@jwt_permission_required('administrator')
 def merge_users(body: MergeBody, current_user):
     request_id = uuid4().hex
 

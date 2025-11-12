@@ -54,3 +54,4 @@ from . import history  # noqa: E402,F401
 from . import auth  # noqa: E402,F401
 from . import auth_deprecated  # noqa: E402,F401
 from . import media_proxy  # noqa: E402,F401
+from . import tools_api_debug  # noqa: E402,F401

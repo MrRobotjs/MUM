@@ -179,7 +179,12 @@ export const PluginsPage = () => {
             <Button
               size="sm"
               variant="ghost"
-              onClick={() => navigate(`/admin/settings/plugins/${pluginKey}`)}
+              onClick={() =>
+                navigate({
+                  to: '/admin/settings/plugins/$pluginId',
+                  params: { pluginId: pluginKey }
+                })
+              }
               disabled={isLoading}
             >
               Configure

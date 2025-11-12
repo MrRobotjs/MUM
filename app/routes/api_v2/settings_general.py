@@ -49,7 +49,7 @@ def _serialize_general_settings() -> dict:
     responses={200: GeneralSettingsResponse},
 )
 @jwt_required_with_user()
-@jwt_permission_required("manage_general_settings")
+@jwt_permission_required('administrator')
 def get_general_settings(current_user):
     request_id = uuid4().hex
     return jsonify({"data": _serialize_general_settings(), "meta": {"request_id": request_id}})
@@ -100,7 +100,7 @@ class ErrorResponse(BaseModel):
     responses={200: GeneralSettingsResponse, 400: ErrorResponse},
 )
 @jwt_required_with_user()
-@jwt_permission_required("manage_general_settings")
+@jwt_permission_required('administrator')
 def update_general_settings(body: UpdateGeneralBody, current_user):
     request_id = uuid4().hex
 

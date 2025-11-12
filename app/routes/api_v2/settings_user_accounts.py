@@ -34,7 +34,7 @@ def _serialize_user_account_settings() -> dict:
     responses={200: SettingsResponse},
 )
 @jwt_required_with_user()
-@jwt_permission_required("manage_users_general")
+@jwt_permission_required('administrator')
 def get_user_account_settings(current_user):
     request_id = uuid4().hex
     return jsonify({"data": _serialize_user_account_settings(), "meta": {"request_id": request_id}})
@@ -51,7 +51,7 @@ class UpdateUserAccountBody(BaseModel):
     responses={200: SettingsResponse},
 )
 @jwt_required_with_user()
-@jwt_permission_required("manage_users_general")
+@jwt_permission_required('administrator')
 def update_user_account_settings(body: UpdateUserAccountBody, current_user):
     request_id = uuid4().hex
     allow_accounts = bool(body.allow_user_accounts)

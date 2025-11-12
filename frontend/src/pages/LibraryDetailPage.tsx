@@ -343,9 +343,9 @@ export const LibraryDetailPage = () => {
   const handleSyncLibrary = async (syncEpisodes: boolean | null = null) => {
     if (!libraryId) return;
 
-    // Check if this is a TV library
-    const isTvLibrary = library?.library_type?.toLowerCase().includes('show') ||
-                       library?.library_type?.toLowerCase().includes('tv');
+    // Check if this is a TV library (covers Plex 'show/tv' and Jellyfin 'series')
+    const libType = (library?.library_type || '').toLowerCase();
+    const isTvLibrary = libType.includes('show') || libType.includes('tv') || libType.includes('series');
 
     // If it's a TV library and syncEpisodes hasn't been specified, show dialog
     if (isTvLibrary && syncEpisodes === null) {
@@ -373,8 +373,9 @@ export const LibraryDetailPage = () => {
 
         // For TV show libraries, library sync only handles shows (not episodes)
         // Episodes are synced from individual show detail pages
-        const isTvLibrary = library?.library_type?.toLowerCase().includes('show') ||
-                           library?.library_type?.toLowerCase().includes('tv');
+        const isTvLibrary = (library?.library_type || '').toLowerCase().includes('show')
+          || (library?.library_type || '').toLowerCase().includes('tv')
+          || (library?.library_type || '').toLowerCase().includes('series');
 
         if (added > 0 || updated > 0 || removed > 0) {
           let message = `${added} added, ${updated} updated`;
@@ -408,7 +409,7 @@ export const LibraryDetailPage = () => {
 
   const handleSyncClick = () => {
     const type = (library?.library_type || '').toLowerCase();
-    const isTvLibrary = type.includes('show') || type.includes('tv');
+    const isTvLibrary = type.includes('show') || type.includes('tv') || type.includes('series');
     if (isTvLibrary) {
       setShowSyncDialog(true);
       return;

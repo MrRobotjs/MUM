@@ -51,7 +51,7 @@ class ErrorResponse(BaseModel):
     responses={200: ActionResponse, 400: ErrorResponse, 404: ErrorResponse},
 )
 @jwt_required_with_user()
-@jwt_permission_required("edit_user")
+@jwt_permission_required('administrator')
 def reset_user_password(path: UserPath, current_user):
     request_id = uuid4().hex
     user = User.query.filter_by(uuid=path.uuid).first()

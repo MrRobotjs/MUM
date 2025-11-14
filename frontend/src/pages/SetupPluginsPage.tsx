@@ -155,8 +155,8 @@ function SetupPluginsContent() {
           <Button variant="outline" onClick={() => navigate({ to: '/admin/settings/plugins' })}>
             Open Full Plugin Settings
           </Button>
-          <Button onClick={() => navigate({ to: '/setup/discord', replace: true })}>
-            Continue to Discord Setup
+          <Button onClick={() => navigate({ to: '/setup/app', replace: true })}>
+            Continue to App Config
           </Button>
         </CardContent>
       </Card>

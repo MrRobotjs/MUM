@@ -48,7 +48,7 @@ function SetupPluginConfigContent() {
     return (
       <div className="space-y-4">
         <Button variant="ghost" onClick={() => navigate({ to: '/setup/plugins' })}>
-          ← Back to Plugins
+          Back to Plugins
         </Button>
         <Alert variant="destructive">
           <IconAlertCircle />
@@ -70,10 +70,10 @@ function SetupPluginConfigContent() {
 
       <div className="flex justify-between">
         <Button variant="outline" onClick={() => navigate({ to: '/setup/plugins' })}>
-          ← Back to Plugins
+          Back to Plugins
         </Button>
-        <Button onClick={() => navigate({ to: '/setup/discord', replace: true })}>
-          Continue to Discord Setup
+        <Button onClick={() => navigate({ to: '/setup/app', replace: true })}>
+          Continue to App Config
         </Button>
       </div>
     </div>
@@ -98,3 +98,6 @@ export default function SetupPluginConfigPage() {
     </SetupLayout>
   )
 }
+
+
+

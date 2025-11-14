@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 
-from flask import jsonify
+from flask import jsonify, current_app
 from app.utils.jwt_decorators import jwt_required_with_user, jwt_permission_required
 from pydantic import BaseModel, Field, ConfigDict
 

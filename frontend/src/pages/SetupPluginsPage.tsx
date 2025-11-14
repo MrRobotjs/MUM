@@ -1,11 +1,12 @@
-import { useMemo } from 'react'
+import { useMemo, useEffect } from 'react'
 import { useNavigate } from '@tanstack/react-router'
-import { IconInfoCircle } from '@tabler/icons-react'
+import { IconInfoCircle, IconAlertCircle } from '@tabler/icons-react'
 
 import { usePlugins, type Plugin } from '../hooks/usePlugins'
 import { useServers } from '../hooks/useServers'
 import { PluginCard } from '../components/plugins'
 import { SetupLayout } from './SetupLayout'
+import { ApiError } from '../util/apiClient'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -15,8 +16,17 @@ const getPluginKey = (plugin: Plugin) => plugin.pluginId || plugin.id
 
 function SetupPluginsContent() {
   const navigate = useNavigate()
-  const { plugins, loading } = usePlugins()
+  const { plugins, loading, error } = usePlugins()
   const { servers } = useServers({ activeOnly: true })
+
+  // Handle authentication errors by redirecting to login
+  useEffect(() => {
+    if (error && error instanceof ApiError && error.status === 401) {
+      // User is not authenticated, redirect to login with return path
+      // Use window.location to ensure clean redirect without state issues
+      window.location.href = '/admin/login?next=/setup/plugins'
+    }
+  }, [error])
 
   const serverCountByPlugin = useMemo(() => {
     const counts = new Map<string, number>()
@@ -46,7 +56,7 @@ function SetupPluginsContent() {
             variant="default"
             onClick={() => {
               navigate({
-                to: '/admin/settings/plugins/$pluginId',
+                to: '/setup/plugins/$pluginId',
                 params: { pluginId: pluginKey } as any
               })
             }}
@@ -60,18 +70,31 @@ function SetupPluginsContent() {
 
   return (
     <div className="space-y-6">
-      <Alert variant="info">
-        <IconInfoCircle />
-        <AlertTitle>Plugin Setup</AlertTitle>
-        <AlertDescription>
-          Review the available plugins below. Click "Configure" on a plugin to enable it and add your servers.
-        </AlertDescription>
-      </Alert>
+      {error && !(error instanceof ApiError && error.status === 401) ? (
+        <Alert variant="destructive">
+          <IconAlertCircle />
+          <AlertTitle>Error Loading Plugins</AlertTitle>
+          <AlertDescription>
+            {error instanceof Error ? error.message : 'Failed to load plugins. Please try again.'}
+          </AlertDescription>
+        </Alert>
+      ) : (
+        <Alert variant="info">
+          <IconInfoCircle />
+          <AlertTitle>Plugin Setup</AlertTitle>
+          <AlertDescription>
+            Review the available plugins below. Click "Configure" on a plugin to enable it and add your servers.
+          </AlertDescription>
+        </Alert>
+      )}
 
       {loading ? (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <span className="loading loading-spinner loading-sm" /> Loading plugins…
         </div>
+      ) : error ? (
+        // Don't show plugins if there's an error
+        null
       ) : plugins.length === 0 ? (
         <Card>
           <CardContent className="p-6 text-center text-sm text-muted-foreground">

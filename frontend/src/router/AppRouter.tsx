@@ -29,6 +29,7 @@ import UserSettingsGeneralPage from '../pages/UserSettingsGeneralPage';
 import AdminsSettingsPage from '../pages/AdminsSettingsPage';
 import AdminSettingsPluginsPage from '../pages/AdminSettingsPluginsPage';
 import PluginDetailPage from '../pages/PluginDetailPage';
+import { ServerAddPage } from '../pages/ServerAddPage';
 import { ServerEditPage } from '../pages/ServerEditPage';
 import DiscordSettingsPage from '../pages/DiscordSettingsPage';
 import AdvancedSettingsPage from '../pages/AdvancedSettingsPage';
@@ -40,6 +41,8 @@ import UserDashboardPage from '../pages/UserDashboardPage';
 import SetupAccountPage from '../pages/SetupAccountPage';
 import SetupAppConfigPage from '../pages/SetupAppConfigPage';
 import SetupPluginsPage from '../pages/SetupPluginsPage';
+import SetupPluginConfigPage from '../pages/SetupPluginConfigPage';
+import SetupServerAddPage from '../pages/SetupServerAddPage';
 import SetupDiscordPage from '../pages/SetupDiscordPage';
 
 // Build TanStack Router route tree mirroring the previous React Router setup
@@ -172,6 +175,7 @@ const adminUserRoles = createRoute({ getParentRoute: () => adminRoute, path: 'se
 const adminUserRoleEdit = createRoute({ getParentRoute: () => adminRoute, path: 'settings/user-roles/$roleId/edit', component: UserRoleEditPage })
 const adminPlugins = createRoute({ getParentRoute: () => adminRoute, path: 'settings/plugins', component: AdminSettingsPluginsPage })
 const adminPluginDetail = createRoute({ getParentRoute: () => adminRoute, path: 'settings/plugins/$pluginId', component: PluginDetailPage })
+const adminServerAdd = createRoute({ getParentRoute: () => adminRoute, path: 'settings/plugins/$pluginId/servers/add', component: ServerAddPage })
 const adminServerEdit = createRoute({ getParentRoute: () => adminRoute, path: 'settings/plugins/$pluginId/servers/$serverId', component: ServerEditPage })
 const adminDiscord = createRoute({ getParentRoute: () => adminRoute, path: 'settings/discord', component: DiscordSettingsPage })
 const adminAdvanced = createRoute({ getParentRoute: () => adminRoute, path: 'settings/advanced', component: AdvancedSettingsPage })
@@ -226,6 +230,8 @@ const setupRoute = createRoute({ getParentRoute: () => rootRoute, path: 'setup' 
 const setupAccount = createRoute({ getParentRoute: () => setupRoute, path: 'account', component: SetupAccountPage })
 const setupApp = createRoute({ getParentRoute: () => setupRoute, path: 'app', component: SetupAppConfigPage })
 const setupPlugins = createRoute({ getParentRoute: () => setupRoute, path: 'plugins', component: SetupPluginsPage })
+const setupPluginConfig = createRoute({ getParentRoute: () => setupRoute, path: 'plugins/$pluginId', component: SetupPluginConfigPage })
+const setupServerAdd = createRoute({ getParentRoute: () => setupRoute, path: 'plugins/$pluginId/servers/add', component: SetupServerAddPage })
 const setupDiscord = createRoute({ getParentRoute: () => setupRoute, path: 'discord', component: SetupDiscordPage })
 const setupRootRedirect = createRoute({ getParentRoute: () => setupRoute, path: '/', component: () => <Navigate to="/setup/account" replace /> })
 const setupWildcardRedirect = createRoute({ getParentRoute: () => setupRoute, path: '*', component: () => <Navigate to="/setup/account" replace /> })
@@ -257,6 +263,7 @@ const routeTree = rootRoute.addChildren([
     adminUserRoleEdit,
     adminPlugins,
     adminPluginDetail,
+    adminServerAdd,
     adminServerEdit,
     adminDiscord,
     adminAdvanced,
@@ -269,7 +276,7 @@ const routeTree = rootRoute.addChildren([
   adminApiDocsStandalone,
   inviteRoute.addChildren([inviteLanding, inviteWizard]),
   userRoute.addChildren([userIndex, userDashboard]),
-  setupRoute.addChildren([setupAccount, setupApp, setupPlugins, setupDiscord, setupRootRedirect, setupWildcardRedirect]),
+  setupRoute.addChildren([setupAccount, setupApp, setupPlugins, setupPluginConfig, setupServerAdd, setupDiscord, setupRootRedirect, setupWildcardRedirect]),
   rootIndexRedirect,
   rootWildcardRedirect,
 ])

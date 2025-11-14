@@ -21,7 +21,7 @@ function SetupDiscordContent() {
         body: JSON.stringify({ disable_discord: true })
       })
       success('Setup completed successfully')
-      navigate({ to: '/admin/dashboard' })
+      navigate({ to: '/setup/finish', replace: true })
     } catch (err) {
       showError(`Failed to complete setup: ${(err as Error).message}`)
       setSubmitting(false)
@@ -55,7 +55,7 @@ function SetupDiscordContent() {
 
       <div className="flex justify-end">
         <Button onClick={handleSkip} disabled={submitting}>
-          {submitting ? 'Completing Setup...' : 'Skip & Continue to Dashboard'}
+          {submitting ? 'Completing Setup...' : 'Skip'}
         </Button>
       </div>
     </div>

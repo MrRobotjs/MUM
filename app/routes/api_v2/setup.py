@@ -12,6 +12,7 @@ from app.routes.api_v2 import api_v2
 from app.utils.setup_helpers import get_completed_steps, is_setup_finished, mark_setup_complete
 from app.models_media_services import ServiceType, MediaServer
 from app.models import User, EventType, Setting, SettingValueType
+from app.models_plugins import Plugin, PluginStatus
 from app.extensions import db
 from app.utils.helpers import log_event
 from app.utils.jwt_helpers import make_access_token, make_refresh_token, set_refresh_cookie
@@ -223,10 +224,20 @@ class PluginServersResponse(BaseModel):
 @jwt_required_with_user()
 def setup_plugin_servers(plugin_id: str, current_user):
     request_id = str(uuid4())
-    try:
-        service_type = ServiceType[plugin_id.upper()]
-    except KeyError:
-        return jsonify({'error': {'code': 'UNKNOWN_PLUGIN', 'message': 'Plugin not recognized.'}, 'meta': {'request_id': request_id}}), 404
+    service_type = None
+    if plugin_id.isdigit():
+        server = MediaServer.query.get(int(plugin_id))
+        if not server:
+            return jsonify({'error': {'code': 'UNKNOWN_PLUGIN', 'message': 'Plugin not recognized.'}, 'meta': {'request_id': request_id}}), 404
+        service_type = server.service_type
+    else:
+        try:
+            service_type = ServiceType[plugin_id.upper()]
+        except KeyError:
+            try:
+                service_type = ServiceType(plugin_id.lower())
+            except Exception:
+                return jsonify({'error': {'code': 'UNKNOWN_PLUGIN', 'message': 'Plugin not recognized.'}, 'meta': {'request_id': request_id}}), 404
 
     servers = MediaServer.query.filter_by(service_type=service_type).all()
     data = [

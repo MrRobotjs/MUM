@@ -5,6 +5,7 @@ from sqlalchemy import inspect
 
 from app.extensions import db
 from app.models import User, Setting
+from app.models_media_services import MediaServer
 
 
 def get_completed_steps() -> set[str]:
@@ -21,17 +22,12 @@ def get_completed_steps() -> set[str]:
     if Setting.get('APP_BASE_URL'):
         completed.add('app')
 
-    # Check if plugins have been configured (enabled AND have servers)
+    # Check if at least one media server exists (any type)
     try:
-        from app.models_plugins import Plugin, PluginStatus
-        enabled_plugins_with_servers = Plugin.query.filter(
-            Plugin.status == PluginStatus.ENABLED,
-            Plugin.servers_count > 0
-        ).all()
-        if enabled_plugins_with_servers:
+        has_server = db.session.query(MediaServer.id).limit(1).first()
+        if has_server:
             completed.add('plugins')
     except Exception:
-        # Plugin tables might not exist yet during early setup
         pass
 
     discord_enabled_setting_val = Setting.get('DISCORD_OAUTH_ENABLED')
@@ -71,4 +67,3 @@ def mark_setup_complete() -> None:
     """Mark the initial setup as complete."""
     Setting.set('SETUP_COMPLETE', 'true')
     db.session.commit()
-

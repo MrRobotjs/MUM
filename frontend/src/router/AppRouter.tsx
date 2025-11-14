@@ -27,7 +27,7 @@ import UserRoleEditPage from '../pages/UserRoleEditPage';
 import GeneralSettingsPage from '../pages/GeneralSettingsPage';
 import UserSettingsGeneralPage from '../pages/UserSettingsGeneralPage';
 import AdminsSettingsPage from '../pages/AdminsSettingsPage';
-import PluginsPage from '../pages/PluginsPage';
+import AdminSettingsPluginsPage from '../pages/AdminSettingsPluginsPage';
 import PluginDetailPage from '../pages/PluginDetailPage';
 import { ServerEditPage } from '../pages/ServerEditPage';
 import DiscordSettingsPage from '../pages/DiscordSettingsPage';
@@ -170,7 +170,7 @@ const adminAdminRoles = createRoute({ getParentRoute: () => adminRoute, path: 's
 const adminAdminRoleEdit = createRoute({ getParentRoute: () => adminRoute, path: 'settings/admin-roles/$roleId/edit', component: AdminRoleEditPage })
 const adminUserRoles = createRoute({ getParentRoute: () => adminRoute, path: 'settings/user-roles', component: UserRolesPage })
 const adminUserRoleEdit = createRoute({ getParentRoute: () => adminRoute, path: 'settings/user-roles/$roleId/edit', component: UserRoleEditPage })
-const adminPlugins = createRoute({ getParentRoute: () => adminRoute, path: 'settings/plugins', component: PluginsPage })
+const adminPlugins = createRoute({ getParentRoute: () => adminRoute, path: 'settings/plugins', component: AdminSettingsPluginsPage })
 const adminPluginDetail = createRoute({ getParentRoute: () => adminRoute, path: 'settings/plugins/$pluginId', component: PluginDetailPage })
 const adminServerEdit = createRoute({ getParentRoute: () => adminRoute, path: 'settings/plugins/$pluginId/servers/$serverId', component: ServerEditPage })
 const adminDiscord = createRoute({ getParentRoute: () => adminRoute, path: 'settings/discord', component: DiscordSettingsPage })

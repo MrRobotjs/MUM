@@ -1,5 +1,5 @@
 import { FormEvent, useState } from 'react'
-import { ensureCsrfToken, apiFetch } from '../util/apiClient'
+import { ensureCsrfToken, requestJson } from '../util/apiClient'
 import { useNavigate } from '@tanstack/react-router'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
@@ -12,7 +12,7 @@ import { SetupLayout, useSetupStatusContext } from './SetupLayout'
 
 function SetupAppContent() {
   const navigate = useNavigate()
-  const { status } = useSetupStatusContext()
+  const { status, refresh } = useSetupStatusContext()
   const appComplete = status?.completed_steps?.includes('app')
   const [appName, setAppName] = useState('Multimedia User Manager')
   const [appBaseUrl, setAppBaseUrl] = useState('')
@@ -37,16 +37,16 @@ function SetupAppContent() {
       form.set('app_base_url', appBaseUrl)
       if (appLocalUrl) form.set('app_local_url', appLocalUrl)
 
-      const resp = await apiFetch('/setup/app', {
+      await requestJson('/admin/api/v2/setup/app', {
         method: 'POST',
-        body: form,
+        body: form
       })
-
-      if (resp.ok) {
-        navigate('/setup/discord', { replace: true })
-      } else {
-        setError('Failed to save app configuration.')
+      try {
+        await refresh()
+      } catch {
+        // ignore refresh errors; navigation can still proceed
       }
+      navigate({ to: '/setup/discord', replace: true })
     } catch (err: any) {
       setError(err?.message || 'Request failed')
     } finally {

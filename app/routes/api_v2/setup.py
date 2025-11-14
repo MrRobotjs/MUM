@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from uuid import uuid4
 from datetime import datetime
-from flask import jsonify, request, current_app
+from flask import jsonify, request, current_app, g
 from flask_jwt_extended import set_access_cookies
 from app.utils.jwt_decorators import jwt_required_with_user, jwt_permission_required
 from pydantic import BaseModel, Field
@@ -11,7 +11,7 @@ from flask_openapi3 import Tag
 from app.routes.api_v2 import api_v2
 from app.utils.setup_helpers import get_completed_steps, is_setup_finished, mark_setup_complete
 from app.models_media_services import ServiceType, MediaServer
-from app.models import User, EventType, Setting
+from app.models import User, EventType, Setting, SettingValueType
 from app.extensions import db
 from app.utils.helpers import log_event
 from app.utils.jwt_helpers import make_access_token, make_refresh_token, set_refresh_cookie
@@ -42,6 +42,16 @@ class SetupAccountRequest(BaseModel):
 
 class SetupAccountResponse(BaseModel):
     data: dict | None = None
+    meta: dict
+
+
+class SetupAppResponse(BaseModel):
+    data: dict
+    meta: dict
+
+
+class SetupAppErrorResponse(BaseModel):
+    error: dict
     meta: dict
 
 
@@ -135,6 +145,68 @@ def setup_create_owner(body: SetupAccountRequest, current_user=None):
         pass
     set_refresh_cookie(resp, refresh_token)
     return resp, 200
+
+
+@api_v2.post(
+    "/setup/app",
+    tags=[setup_tag],
+    summary="Save initial application configuration",
+    responses={200: SetupAppResponse, 400: SetupAppErrorResponse, 422: SetupAppErrorResponse},
+)
+@jwt_required_with_user(optional=True)
+def setup_app_config(current_user=None):
+    request_id = uuid4().hex
+
+    payload = {}
+    if request.form:
+        payload = request.form
+    else:
+        payload = request.get_json(silent=True) or {}
+
+    app_name = (payload.get('app_name') or current_app.config.get("APP_NAME") or "Multimedia User Manager").strip()
+    app_base_url = (payload.get('app_base_url') or "").strip()
+    app_local_url = (payload.get('app_local_url') or "").strip()
+
+    if not app_base_url:
+        return jsonify({'error': {'code': 'BASE_URL_REQUIRED', 'message': 'Application public URL is required.'}, 'meta': {'request_id': request_id}}), 400
+
+    if not (app_base_url.lower().startswith("http://") or app_base_url.lower().startswith("https://")):
+        return jsonify({'error': {'code': 'INVALID_BASE_URL', 'message': 'Public URL must start with http:// or https://.'}, 'meta': {'request_id': request_id}}), 422
+
+    if app_local_url and not (app_local_url.lower().startswith("http://") or app_local_url.lower().startswith("https://")):
+        return jsonify({'error': {'code': 'INVALID_LOCAL_URL', 'message': 'Local URL must start with http:// or https://.'}, 'meta': {'request_id': request_id}}), 422
+
+    app_base_url = app_base_url.rstrip("/")
+    app_local_url = app_local_url.rstrip("/") if app_local_url else ""
+
+    Setting.set('APP_NAME', app_name, SettingValueType.STRING, "Application Name")
+    Setting.set('APP_BASE_URL', app_base_url, SettingValueType.STRING, "Application Public URL")
+    Setting.set('APP_LOCAL_URL', app_local_url, SettingValueType.STRING, "Application Local URL")
+
+    current_app.config['APP_NAME'] = app_name
+    current_app.config['APP_BASE_URL'] = app_base_url
+    current_app.config['APP_LOCAL_URL'] = app_local_url or None
+
+    if hasattr(g, 'app_name'):
+        g.app_name = app_name
+    if hasattr(g, 'app_base_url'):
+        g.app_base_url = app_base_url
+    if hasattr(g, 'app_local_url'):
+        g.app_local_url = app_local_url or None
+
+    if current_user is not None and hasattr(current_user, "id"):
+        try:
+            log_event(EventType.SETTING_CHANGE, f"Setup updated application settings (Public URL: {app_base_url}).", admin_id=current_user.id)
+        except Exception:
+            current_app.logger.warning("Failed to log setup app config event", exc_info=True)
+
+    response_data = {
+        'app_name': app_name,
+        'app_base_url': app_base_url,
+        'app_local_url': app_local_url or None,
+        'completed_steps': sorted(list(get_completed_steps()))
+    }
+    return jsonify({'data': response_data, 'meta': {'request_id': request_id}}), 200
 
 
 class PluginServersResponse(BaseModel):

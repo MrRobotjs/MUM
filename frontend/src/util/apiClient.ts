@@ -71,41 +71,40 @@ export const apiFetch = async (
   // No CSRF header needed with JWT Authorization scheme
   // Attach Authorization header if we have an access token
   let token = getAccessToken();
-  if (!token) {
-    // Bootstrap: attempt a refresh once to obtain an access token before first request
-    // Skip bootstrap refresh for login endpoint (would cause infinite loop)
-    const url = typeof input === 'string' ? input : input.url;
-    const isLoginEndpoint = url && (url.includes('/auth/jwt/login') || url.includes('/auth/jwt/refresh'));
-    
-    if (!isLoginEndpoint) {
-      try {
-        const refreshResp = await fetch('/admin/api/v2/auth/jwt/refresh', {
-          method: 'POST',
-          credentials: 'include',
-          headers: { Accept: 'application/json' },
-        });
-        if (refreshResp.ok) {
-          const json = await getJson(refreshResp);
-          const newToken = (json && typeof json === 'object' && 'data' in json)
-            ? (json.data as any)?.access_token as string | undefined
-            : undefined;
-          if (newToken) {
-            setAccessToken(newToken);
-            try { window.dispatchEvent(new CustomEvent('auth_token_updated', { detail: { accessToken: newToken } })); } catch {}
-            token = newToken;
-          }
-        } else if (refreshResp.status === 401) {
-          // Refresh failed with 401 - user is logged out, don't retry bootstrap refresh
-          // This prevents repeated retry attempts after logout
-        }
-      } catch {
-        // Silently fail bootstrap refresh - the request will proceed and handle 401 if needed
-        // This prevents errors after login when refresh cookie might not be immediately available
-      }
-    }
-  }
   if (token && !headers.has('Authorization')) {
     headers.set('Authorization', `Bearer ${token}`);
+  }
+
+  const url = typeof input === 'string' ? input : input.url;
+  const isAuthEndpoint = url && url.includes('/auth/jwt/');
+
+  const hasRefreshCookie =
+    typeof document !== 'undefined' && document.cookie.includes('refresh_token_cookie=');
+
+  if (!token && !isAuthEndpoint && hasRefreshCookie) {
+    try {
+      const refreshResp = await fetch('/admin/api/v2/auth/jwt/refresh', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { Accept: 'application/json' },
+      });
+      if (refreshResp.ok) {
+        const json = await getJson(refreshResp);
+        const newToken = (json && typeof json === 'object' && 'data' in json)
+          ? ((json.data as any)?.access_token as string | undefined)
+          : undefined;
+        if (newToken) {
+          setAccessToken(newToken);
+          try {
+            window.dispatchEvent(new CustomEvent('auth_token_updated', { detail: { accessToken: newToken } }));
+          } catch {}
+          token = newToken;
+          headers.set('Authorization', `Bearer ${newToken}`);
+        }
+      }
+    } catch {
+      // ignore bootstrap refresh errors
+    }
   }
 
   let response: Response;

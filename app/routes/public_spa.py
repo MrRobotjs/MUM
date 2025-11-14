@@ -72,18 +72,11 @@ def invite_catch_all_spa(subpath: str):
 
 @public_spa_bp.route('/setup', methods=['GET'])
 def setup_root_redirect():
-    # Friendly redirect to SPA entry
-    return redirect('/setup/ui/account')
+    return redirect('/setup/account')
 
 
 @public_spa_bp.route('/setup/<path:subpath>', methods=['GET'])
-def setup_any_spa(subpath: str):
-    return _serve_index()
-
-
-@public_spa_bp.route('/setup/ui', methods=['GET'])
-@public_spa_bp.route('/setup/ui/<path:path>', methods=['GET'])
-def setup_ui_spa(path: str | None = None):
+def setup_spa(subpath: str):
     return _serve_index()
 
 # ----- User portal SPA routes -----

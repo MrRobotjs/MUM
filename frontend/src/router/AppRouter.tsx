@@ -223,13 +223,12 @@ const userDashboard = createRoute({
 
 // Setup UI
 const setupRoute = createRoute({ getParentRoute: () => rootRoute, path: 'setup' })
-const setupUIRoute = createRoute({ getParentRoute: () => setupRoute, path: 'ui' })
-const setupAccount = createRoute({ getParentRoute: () => setupUIRoute, path: 'account', component: SetupAccountPage })
-const setupApp = createRoute({ getParentRoute: () => setupUIRoute, path: 'app', component: SetupAppConfigPage })
-const setupPlugins = createRoute({ getParentRoute: () => setupUIRoute, path: 'plugins', component: SetupPluginsPage })
-const setupDiscord = createRoute({ getParentRoute: () => setupUIRoute, path: 'discord', component: SetupDiscordPage })
-const setupRootRedirect = createRoute({ getParentRoute: () => setupRoute, path: '/', component: () => <Navigate to="/setup/ui/account" replace /> })
-const setupWildcardRedirect = createRoute({ getParentRoute: () => setupRoute, path: '*', component: () => <Navigate to="/setup/ui/account" replace /> })
+const setupAccount = createRoute({ getParentRoute: () => setupRoute, path: 'account', component: SetupAccountPage })
+const setupApp = createRoute({ getParentRoute: () => setupRoute, path: 'app', component: SetupAppConfigPage })
+const setupPlugins = createRoute({ getParentRoute: () => setupRoute, path: 'plugins', component: SetupPluginsPage })
+const setupDiscord = createRoute({ getParentRoute: () => setupRoute, path: 'discord', component: SetupDiscordPage })
+const setupRootRedirect = createRoute({ getParentRoute: () => setupRoute, path: '/', component: () => <Navigate to="/setup/account" replace /> })
+const setupWildcardRedirect = createRoute({ getParentRoute: () => setupRoute, path: '*', component: () => <Navigate to="/setup/account" replace /> })
 
 // Root redirects
 const rootIndexRedirect = createRoute({ getParentRoute: () => rootRoute, path: '/', component: () => <Navigate to="/admin/dashboard" replace /> })
@@ -270,11 +269,7 @@ const routeTree = rootRoute.addChildren([
   adminApiDocsStandalone,
   inviteRoute.addChildren([inviteLanding, inviteWizard]),
   userRoute.addChildren([userIndex, userDashboard]),
-  setupRoute.addChildren([
-    setupUIRoute.addChildren([setupAccount, setupApp, setupPlugins, setupDiscord]),
-    setupRootRedirect,
-    setupWildcardRedirect,
-  ]),
+  setupRoute.addChildren([setupAccount, setupApp, setupPlugins, setupDiscord, setupRootRedirect, setupWildcardRedirect]),
   rootIndexRedirect,
   rootWildcardRedirect,
 ])

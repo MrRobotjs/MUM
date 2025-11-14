@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from flask import current_app, g, request, redirect, url_for, flash
+from flask import current_app, g, request, redirect
 from app.extensions import db
 from sqlalchemy import inspect
 from app.models import User, UserType, Setting
@@ -83,6 +83,7 @@ def register_app_hooks(app):
             'auth.',
             'static',
             'api.',
+            'api_v2.',
             'plugin_management.',
             'media_servers.',
             'setup.plugins',
@@ -92,6 +93,7 @@ def register_app_hooks(app):
             'plugins.reload_plugins',
             'plugins.install_plugin',
             'plugins.uninstall_plugin',
+            'public_spa.',
         ]
 
         if (
@@ -111,9 +113,11 @@ def register_app_hooks(app):
                     owner_exists = False
 
                 if not owner_exists:
-                    if request.endpoint != 'setup.account_setup' and request.endpoint != 'setup.plex_sso_callback_setup_admin':
-                        current_app.logger.info("Redirecting to account_setup (no owner).")
-                        return redirect(url_for('setup.account_setup'))
+                    setup_ui_path = '/setup/account'
+                    current_path = request.path or ''
+                    if not current_path.startswith('/setup'):
+                        current_app.logger.info("Redirecting to setup UI (no owner).")
+                        return redirect(setup_ui_path)
             except Exception as e_setup_redirect:
                 current_app.logger.error(
                     f"before_request_tasks(): DB error during setup redirection logic: {e_setup_redirect}",

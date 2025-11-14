@@ -24,6 +24,8 @@ def jwt_required_with_user(optional: bool = False) -> Callable:
         def wrapper(*args: Any, **kwargs: Any):
             user = getattr(jwt_current_user, "_get_current_object", lambda: jwt_current_user)()
             if not user:
+                if optional:
+                    return fn(*args, current_user=None, **kwargs)
                 return jsonify({"error": {"code": "UNAUTHORIZED", "message": "Authentication required."}}), 401
             return fn(*args, current_user=user, **kwargs)
 

@@ -1,121 +1,242 @@
-import { FormEvent, useState } from 'react';
-import { ensureCsrfToken, apiFetch } from '../util/apiClient';
-import { useNavigate } from '@tanstack/react-router';
+import { FormEvent, useState } from 'react'
+import { requestJson } from '../util/apiClient'
+import { useNavigate } from '@tanstack/react-router'
+import { Button } from '../components/ui/button'
+import { Input } from '../components/ui/input'
+import { Label } from '../components/ui/label'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card'
+import { Badge } from '../components/ui/badge'
+import { Separator } from '../components/ui/separator'
+import { Alert, AlertDescription } from '../components/ui/alert'
+import { IconCrown, IconLoader2, IconCheck, IconMovie } from '@tabler/icons-react'
+import { SetupLayout, useSetupStatusContext } from './SetupLayout'
+import { setAccessToken } from '../util/tokenStore'
 
-export default function SetupAccountPage() {
-  const navigate = useNavigate();
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+function SetupAccountContent() {
+  const navigate = useNavigate()
+  const { status, refresh } = useSetupStatusContext()
+  const accountComplete = status?.completed_steps?.includes('account')
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [plexLoading, setPlexLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const onSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-    setError(null);
+    e.preventDefault()
+    setError(null)
 
     if (!username || !password || !confirmPassword) {
-      setError('Please fill in all fields.');
-      return;
+      setError('Please fill in all fields.')
+      return
     }
     if (password !== confirmPassword) {
-      setError('Passwords do not match.');
-      return;
+      setError('Passwords do not match.')
+      return
     }
 
-    setSubmitting(true);
+    setSubmitting(true)
     try {
-      await ensureCsrfToken('/admin/api/v2/auth/csrf-token');
-      const form = new FormData();
-      form.set('username', username);
-      form.set('password', password);
-      form.set('confirm_password', confirmPassword);
-      form.set('submit_type', 'username_password');
-
-      const resp = await apiFetch('/setup/account', {
+      const response = await requestJson<{
+        data?: { access_token?: string }
+      }>('/admin/api/v2/setup/account', {
         method: 'POST',
-        body: form
-      });
+        body: JSON.stringify({
+          username,
+          password,
+          confirm_password: confirmPassword,
+        }),
+      })
 
-      if (resp.ok) {
-        // Owner is logged in on success; send to plugins config in admin
-        navigate('/admin/settings/plugins', { replace: true });
-      } else {
-        setError('Account creation failed. Please try again.');
+      const token = response?.data?.access_token
+      if (token) {
+        setAccessToken(token)
+        try {
+          window.dispatchEvent(new CustomEvent('auth_token_updated', { detail: { accessToken: token } }))
+        } catch {
+          /* ignore */
+        }
       }
+      refresh()
+      navigate('/setup/plugins', { replace: true })
     } catch (err: any) {
-      setError(err?.message || 'Request failed');
+      setError(err?.message || 'Request failed')
     } finally {
-      setSubmitting(false);
+      setSubmitting(false)
     }
-  };
+  }
 
   const startPlexSSO = async () => {
-    // Submit a real POST to trigger server redirect to Plex auth
-    const form = document.createElement('form');
-    form.method = 'POST';
-    form.action = '/setup/account';
-    const input = document.createElement('input');
-    input.type = 'hidden';
-    input.name = 'submit_type';
-    input.value = 'plex_sso';
-    form.appendChild(input);
-    document.body.appendChild(form);
-    form.submit();
-  };
+    setPlexLoading(true)
+    setError(null)
+    try {
+      const response = await requestJson<{
+        data?: { redirect_url?: string }
+      }>('/admin/api/v2/auth/plex/start', {
+        method: 'POST',
+        body: JSON.stringify({ next: '/setup/account' }),
+      })
+      const redirect = response?.data?.redirect_url
+      if (redirect) {
+        window.location.href = redirect
+      } else {
+        setError('Failed to start Plex authentication.')
+      }
+    } catch (err: any) {
+      setError(err?.message || 'Failed to start Plex authentication.')
+    } finally {
+      setPlexLoading(false)
+    }
+  }
 
   return (
-    <div className="container mx-auto max-w-xl p-6">
-      <h1 className="text-2xl font-semibold mb-2">Owner Account Setup</h1>
-      <p className="text-sm text-gray-500 mb-6">Create the primary administrator account.</p>
-
+    <>
       {error && (
-        <div className="alert alert-error mb-4">
-          <span>{error}</span>
-        </div>
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       )}
 
-      <form onSubmit={onSubmit} className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium mb-1">Username</label>
-          <input
-            type="text"
-            className="input input-bordered w-full"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            required
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium mb-1">Password</label>
-          <input
-            type="password"
-            className="input input-bordered w-full"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium mb-1">Confirm Password</label>
-          <input
-            type="password"
-            className="input input-bordered w-full"
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            required
-          />
-        </div>
-        <button type="submit" className={`btn btn-primary w-full ${submitting ? 'loading' : ''}`} disabled={submitting}>
-          Create Administrator Account
-        </button>
-      </form>
+      {accountComplete ? (
+        <Card className="border border-primary/30 bg-primary/5">
+          <CardHeader className="text-center">
+            <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-primary/15">
+              <IconCheck className="h-8 w-8 text-primary" />
+            </div>
+            <CardTitle className="text-xl">Administrator Account Ready</CardTitle>
+            <CardDescription>You can proceed to enabling media services.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4 text-center">
+            <p className="text-sm text-muted-foreground">
+              Optionally link Plex for single sign-on, or continue to the Plugins step.
+            </p>
+            <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
+              <Button variant="secondary" onClick={startPlexSSO} disabled={plexLoading}>
+                {plexLoading ? (
+                  <IconLoader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <IconMovie className="mr-2 h-4 w-4" />
+                )}
+                {plexLoading ? 'Starting Plex...' : 'Link Plex Account'}
+              </Button>
+              <Button onClick={() => navigate({ to: '/setup/plugins', replace: true })}>Continue to Plugins</Button>
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-8">
+          <Card className="border border-border">
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
+                  <IconCrown className="h-5 w-5" />
+                </div>
+                <div>
+                  <CardTitle>Create Administrator Account</CardTitle>
+                  <CardDescription>Full access account required to finish setup.</CardDescription>
+                </div>
+                <Badge variant="outline" className="ml-auto">
+                  Required
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={onSubmit} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="setup-username">Username</Label>
+                  <Input
+                    id="setup-username"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    autoComplete="username"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="setup-password">Password</Label>
+                  <Input
+                    id="setup-password"
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    autoComplete="new-password"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="setup-confirm">Confirm Password</Label>
+                  <Input
+                    id="setup-confirm"
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    autoComplete="new-password"
+                    required
+                  />
+                </div>
+                <Button type="submit" className="w-full" disabled={submitting}>
+                  {submitting && <IconLoader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Create Administrator Account
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
 
-      <div className="divider">or</div>
+          <div className="flex items-center gap-3">
+            <Separator className="flex-1" />
+            <span className="text-xs uppercase tracking-wide text-muted-foreground">or continue with</span>
+            <Separator className="flex-1" />
+          </div>
 
-      <button onClick={startPlexSSO} className="btn btn-outline w-full">
-        Continue with Plex
-      </button>
-    </div>
-  );
+          <Card className="border border-primary/20 bg-muted/30">
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-500/10 text-amber-600">
+                  <IconMovie className="h-5 w-5" />
+                </div>
+                <div>
+                  <CardTitle>Link Plex Account</CardTitle>
+                  <CardDescription>Optional single sign-on for administrators.</CardDescription>
+                </div>
+                <Badge variant="outline" className="ml-auto border-amber-300 text-amber-700">
+                  Optional
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                You can link Plex now or later via account settings. We will redirect you to Plex to approve access.
+              </p>
+              <Button variant="outline" className="w-full" onClick={startPlexSSO} disabled={plexLoading}>
+                {plexLoading ? (
+                  <>
+                    <IconLoader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Starting Plex...
+                  </>
+                ) : (
+                  <>
+                    <IconMovie className="mr-2 h-4 w-4" />
+                    Continue with Plex
+                  </>
+                )}
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+    </>
+  )
+}
+
+export default function SetupAccountPage() {
+  return (
+    <SetupLayout
+      stepId="account"
+      title="Owner Account Setup"
+      subtitle="Set up the primary owner account to manage this application."
+    >
+      <SetupAccountContent />
+    </SetupLayout>
+  )
 }

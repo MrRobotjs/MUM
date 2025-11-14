@@ -3,7 +3,7 @@ import re
 from datetime import datetime, timezone, timedelta
 # CSRF removed (JWT-only)
 from app.utils.timezone_utils import to_app_timezone, format_datetime_human as tz_format_datetime_human
-from flask import current_app, flash, url_for, g as flask_g, redirect, request # Use flask_g to avoid conflict with local g
+from flask import current_app, flash, g as flask_g, redirect, request  # Use flask_g to avoid conflict with local g
 from functools import wraps
 # Prefer JWT current_user, fall back to None
 try:
@@ -23,6 +23,10 @@ def is_setup_complete():
     The g.setup_complete flag is set on each request by the before_request hook.
     """
     return getattr(flask_g, 'setup_complete', False)
+
+
+ADMIN_LOGIN_PATH = '/admin/login'
+SETUP_UI_PATH = '/setup/account'
 
 
 def setup_required(f):
@@ -61,9 +65,9 @@ def setup_required(f):
             return f(*args, **kwargs)
         
         # We also check that we are not already on a setup page to avoid redirect loops.
-        if request.endpoint and not request.endpoint.startswith('setup.'):
+        if request.endpoint and not request.endpoint.startswith(('setup.', 'public_spa.')):
             flash("Application setup is not complete. Please follow the steps below.", "warning")
-            return redirect(url_for('auth.app_login'))
+            return redirect(SETUP_UI_PATH)
         
         # If we are already on a setup page (like /setup/plex), allow it to run
         # so the user can complete the setup process.
@@ -198,7 +202,7 @@ def permission_required(permission_name):
         @wraps(f)
         def decorated_function(*args, **kwargs):
             if not current_user.is_authenticated:
-                return redirect(url_for('auth.app_login'))
+                return redirect(ADMIN_LOGIN_PATH)
             
             # Import user types locally to avoid circular imports
             from app.models import User, UserType
@@ -221,7 +225,7 @@ def permission_required(permission_name):
             
             # Other user types don't have admin permissions
             flash("You do not have permission to access this page.", "danger")
-            return redirect(url_for('user.index'))
+            return redirect('/user')
         return decorated_function
     return decorator
 
@@ -234,7 +238,7 @@ def any_permission_required(permissions):
         @wraps(f)
         def decorated_function(*args, **kwargs):
             if not current_user.is_authenticated:
-                return redirect(url_for('auth.app_login'))
+                return redirect(ADMIN_LOGIN_PATH)
             
             # Import user types locally to avoid circular imports
             from app.models import UserType

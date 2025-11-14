@@ -1,16 +1,20 @@
 from __future__ import annotations
 
 from uuid import uuid4
-from flask import jsonify
+from datetime import datetime
+from flask import jsonify, request, current_app
+from flask_jwt_extended import set_access_cookies
 from app.utils.jwt_decorators import jwt_required_with_user, jwt_permission_required
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from flask_openapi3 import Tag
-from pydantic import BaseModel
 
 from app.routes.api_v2 import api_v2
 from app.utils.setup_helpers import get_completed_steps
 from app.models_media_services import ServiceType, MediaServer
-from flask import request, current_app
+from app.models import User, EventType
+from app.extensions import db
+from app.utils.helpers import log_event
+from app.utils.jwt_helpers import make_access_token, make_refresh_token, set_refresh_cookie
 
 
 setup_tag = Tag(name="Setup", description="Application setup helpers")
@@ -26,6 +30,17 @@ class SetupStatusData(BaseModel):
 
 class SetupStatusResponse(BaseModel):
     data: SetupStatusData
+    meta: dict
+
+
+class SetupAccountRequest(BaseModel):
+    username: str = Field(..., min_length=3, max_length=120)
+    password: str = Field(..., min_length=8)
+    confirm_password: str = Field(..., min_length=8)
+
+
+class SetupAccountResponse(BaseModel):
+    data: dict | None = None
     meta: dict
 
 
@@ -46,10 +61,78 @@ def _serialize_setup_status() -> dict:
     summary="Get setup status",
     responses={200: SetupStatusResponse},
 )
-@jwt_required_with_user()
-def setup_status(current_user):
+@jwt_required_with_user(optional=True)
+def setup_status(current_user=None):
     request_id = str(uuid4())
     return jsonify({'data': _serialize_setup_status(), 'meta': {'request_id': request_id}})
+
+
+@api_v2.post(
+    "/setup/account",
+    tags=[setup_tag],
+    summary="Create the owner account",
+    responses={200: SetupAccountResponse, 400: SetupAccountResponse, 409: SetupAccountResponse, 422: SetupAccountResponse},
+)
+@jwt_required_with_user(optional=True)
+def setup_create_owner(body: SetupAccountRequest, current_user=None):
+    request_id = str(uuid4())
+
+    if User.get_owner():
+        return jsonify({'error': {'code': 'SETUP_ALREADY_COMPLETED', 'message': 'Owner account already exists.'}, 'meta': {'request_id': request_id}}), 409
+
+    username = (body.username or '').strip()
+    password = body.password or ''
+    confirm_password = body.confirm_password or ''
+
+    if not username:
+        return jsonify({'error': {'code': 'INVALID_USERNAME', 'message': 'Username is required.'}, 'meta': {'request_id': request_id}}), 400
+    if password != confirm_password:
+        return jsonify({'error': {'code': 'PASSWORD_MISMATCH', 'message': 'Passwords do not match.'}, 'meta': {'request_id': request_id}}), 422
+    if len(password) < 8:
+        return jsonify({'error': {'code': 'WEAK_PASSWORD', 'message': 'Password must be at least 8 characters long.'}, 'meta': {'request_id': request_id}}), 422
+
+    try:
+        owner = User.create_owner(username=username, password=password)
+        db.session.add(owner)
+        db.session.commit()
+    except ValueError as exc:
+        db.session.rollback()
+        return jsonify({'error': {'code': 'SETUP_ALREADY_COMPLETED', 'message': str(exc)}, 'meta': {'request_id': request_id}}), 409
+    except Exception as exc:
+        current_app.logger.error(f"Failed to create owner: {exc}", exc_info=True)
+        db.session.rollback()
+        return jsonify({'error': {'code': 'SETUP_ACCOUNT_FAILED', 'message': 'Failed to create owner account.'}, 'meta': {'request_id': request_id}}), 500
+
+    access_token = make_access_token(owner)
+    refresh_token = make_refresh_token(owner)
+
+    owner.last_login_at = datetime.utcnow()
+    try:
+        db.session.commit()
+    except Exception as exc:
+        current_app.logger.warning(f"Failed to update last_login for owner: {exc}")
+        db.session.rollback()
+
+    log_event(EventType.ADMIN_LOGIN_SUCCESS, f"Owner '{owner.localUsername}' created via setup and logged in.", admin_id=owner.id)
+
+    response_payload = {
+        'data': {
+            'access_token': access_token,
+            'user': {
+                'uuid': owner.uuid,
+                'username': owner.localUsername,
+                'user_type': owner.userType.value if hasattr(owner.userType, 'value') else str(owner.userType),
+            },
+        },
+        'meta': {'request_id': request_id},
+    }
+    resp = jsonify(response_payload)
+    try:
+        set_access_cookies(resp, access_token)
+    except Exception:
+        pass
+    set_refresh_cookie(resp, refresh_token)
+    return resp, 200
 
 
 class PluginServersResponse(BaseModel):

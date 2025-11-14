@@ -43,7 +43,6 @@ import SetupAppConfigPage from '../pages/SetupAppConfigPage';
 import SetupPluginsPage from '../pages/SetupPluginsPage';
 import SetupPluginConfigPage from '../pages/SetupPluginConfigPage';
 import SetupServerAddPage from '../pages/SetupServerAddPage';
-import SetupDiscordPage from '../pages/SetupDiscordPage';
 import SetupFinishPage from '../pages/SetupFinishPage';
 
 // Build TanStack Router route tree mirroring the previous React Router setup
@@ -233,7 +232,6 @@ const setupApp = createRoute({ getParentRoute: () => setupRoute, path: 'app', co
 const setupPlugins = createRoute({ getParentRoute: () => setupRoute, path: 'plugins', component: SetupPluginsPage })
 const setupPluginConfig = createRoute({ getParentRoute: () => setupRoute, path: 'plugins/$pluginId', component: SetupPluginConfigPage })
 const setupServerAdd = createRoute({ getParentRoute: () => setupRoute, path: 'plugins/$pluginId/servers/add', component: SetupServerAddPage })
-const setupDiscord = createRoute({ getParentRoute: () => setupRoute, path: 'discord', component: SetupDiscordPage })
 const setupFinish = createRoute({ getParentRoute: () => setupRoute, path: 'finish', component: SetupFinishPage })
 const setupRootRedirect = createRoute({ getParentRoute: () => setupRoute, path: '/', component: () => <Navigate to="/setup/account" replace /> })
 const setupWildcardRedirect = createRoute({ getParentRoute: () => setupRoute, path: '*', component: () => <Navigate to="/setup/account" replace /> })
@@ -278,7 +276,7 @@ const routeTree = rootRoute.addChildren([
   adminApiDocsStandalone,
   inviteRoute.addChildren([inviteLanding, inviteWizard]),
   userRoute.addChildren([userIndex, userDashboard]),
-  setupRoute.addChildren([setupAccount, setupApp, setupPlugins, setupPluginConfig, setupServerAdd, setupDiscord, setupFinish, setupRootRedirect, setupWildcardRedirect]),
+  setupRoute.addChildren([setupAccount, setupApp, setupPlugins, setupPluginConfig, setupServerAdd, setupFinish, setupRootRedirect, setupWildcardRedirect]),
   rootIndexRedirect,
   rootWildcardRedirect,
 ])

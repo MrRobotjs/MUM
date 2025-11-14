@@ -1,9 +1,12 @@
+import { useEffect } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { IconCircleCheck, IconSparkles, IconUsersGroup, IconSettings, IconServer, IconBrandDiscord } from '@tabler/icons-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card'
 import { Button } from '../components/ui/button'
 import { Badge } from '../components/ui/badge'
 import { SetupLayout, useSetupStatusContext } from './SetupLayout'
+import { requestJson } from '../util/apiClient'
+import { useAlerts } from '../contexts'
 
 const quickLinks = [
   {
@@ -38,7 +41,35 @@ const quickLinks = [
 
 function SetupFinishContent() {
   const navigate = useNavigate()
-  const { status } = useSetupStatusContext()
+  const { status, refresh } = useSetupStatusContext()
+  const { error: showError } = useAlerts()
+
+  useEffect(() => {
+    let active = true
+    const finalizeSetup = async () => {
+      if (status?.setup_complete) {
+        return
+      }
+      try {
+        await requestJson('/admin/api/v2/setup/complete', {
+          method: 'POST',
+          body: JSON.stringify({})
+        })
+        if (active) {
+          await refresh()
+        }
+      } catch (err) {
+        if (active) {
+          showError(`Failed to mark setup complete: ${(err as Error).message}`)
+        }
+      }
+    }
+
+    finalizeSetup()
+    return () => {
+      active = false
+    }
+  }, [status?.setup_complete, refresh, showError])
 
   return (
     <div className="space-y-6">

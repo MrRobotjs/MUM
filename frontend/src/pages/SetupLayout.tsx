@@ -1,13 +1,13 @@
 import { ReactNode, createContext, useContext } from 'react'
 import { Link } from '@tanstack/react-router'
-import { IconCheck, IconServer, IconSettings, IconBrandDiscord, IconShield } from '@tabler/icons-react'
+import { IconCheck, IconServer, IconSettings, IconShield } from '@tabler/icons-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card'
 import { Badge } from '../components/ui/badge'
 import { Alert, AlertDescription } from '../components/ui/alert'
 import { cn } from '../lib/utils'
 import { useSetupStatus, SetupStatus } from '../hooks/useSetupStatus'
 
-type SetupStepId = 'account' | 'plugins' | 'app' | 'discord' | 'finish'
+type SetupStepId = 'account' | 'plugins' | 'app' | 'finish'
 
 type StepDefinition = {
   id: SetupStepId
@@ -21,7 +21,6 @@ const steps: StepDefinition[] = [
   { id: 'account', label: 'Owner Account', description: 'Create administrator credentials', href: '/setup/account', icon: <IconShield className="h-4 w-4" /> },
   { id: 'plugins', label: 'Media Services', description: 'Enable Plex, Jellyfin, Emby…', href: '/setup/plugins', icon: <IconServer className="h-4 w-4" /> },
   { id: 'app', label: 'App Config', description: 'Branding & base URL', href: '/setup/app', icon: <IconSettings className="h-4 w-4" /> },
-  { id: 'discord', label: 'Discord', description: 'Optional OAuth link', href: '/setup/discord', icon: <IconBrandDiscord className="h-4 w-4" /> },
   { id: 'finish', label: 'Finish', description: 'You are all set', icon: <IconCheck className="h-4 w-4" /> },
 ]
 

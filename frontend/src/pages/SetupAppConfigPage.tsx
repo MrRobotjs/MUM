@@ -46,7 +46,7 @@ function SetupAppContent() {
       } catch {
         // ignore refresh errors; navigation can still proceed
       }
-      navigate({ to: '/setup/discord', replace: true })
+      navigate({ to: '/setup/finish', replace: true })
     } catch (err: any) {
       setError(err?.message || 'Request failed')
     } finally {
@@ -72,7 +72,7 @@ function SetupAppContent() {
             <CardDescription>Your branding and URLs are set.</CardDescription>
           </CardHeader>
           <CardContent className="text-center">
-            <Button onClick={() => navigate({ to: '/setup/discord', replace: true })}>Continue to Discord</Button>
+            <Button onClick={() => navigate({ to: '/setup/finish', replace: true })}>Continue to Finish</Button>
           </CardContent>
         </Card>
       ) : (

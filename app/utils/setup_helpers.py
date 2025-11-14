@@ -30,25 +30,6 @@ def get_completed_steps() -> set[str]:
     except Exception:
         pass
 
-    discord_enabled_setting_val = Setting.get('DISCORD_OAUTH_ENABLED')
-    if discord_enabled_setting_val is not None:
-        is_discord_truly_disabled = (
-            isinstance(discord_enabled_setting_val, bool) and not discord_enabled_setting_val
-        ) or (
-            isinstance(discord_enabled_setting_val, str) and discord_enabled_setting_val.lower() == 'false'
-        )
-        is_discord_configured_if_enabled = Setting.get('DISCORD_CLIENT_ID') and Setting.get('DISCORD_CLIENT_SECRET')
-        is_discord_truly_enabled = (
-            isinstance(discord_enabled_setting_val, bool) and discord_enabled_setting_val
-        ) or (
-            isinstance(discord_enabled_setting_val, str) and discord_enabled_setting_val.lower() == 'true'
-        )
-
-        if is_discord_truly_disabled:
-            completed.add('discord')
-        elif is_discord_truly_enabled and is_discord_configured_if_enabled:
-            completed.add('discord')
-
     return completed
 
 

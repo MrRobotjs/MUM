@@ -1,5 +1,5 @@
-import { ReactNode, createContext, useContext } from 'react'
-import { Link } from '@tanstack/react-router'
+import { ReactNode, createContext, useContext, useEffect } from 'react'
+import { Link, useNavigate } from '@tanstack/react-router'
 import { IconCheck, IconServer, IconSettings, IconShield } from '@tabler/icons-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card'
 import { Badge } from '../components/ui/badge'
@@ -51,6 +51,13 @@ export function SetupLayout({ stepId, title, subtitle, children }: SetupLayoutPr
   const { status, loading, error, refresh } = useSetupStatus()
   const completedSteps = status?.completed_steps ?? []
   const completedCount = completedSteps.filter((id) => steps.some((s) => s.id === id)).length
+  const navigate = useNavigate()
+
+  useEffect(() => {
+    if (!loading && status?.setup_complete) {
+      navigate({ to: '/admin/dashboard', replace: true })
+    }
+  }, [loading, status?.setup_complete, navigate])
 
   return (
     <SetupStatusContext.Provider value={{ status, loading, refresh }}>

@@ -59,7 +59,20 @@ def register_app_hooks(app):
                     owner_present = False
 
                 app_config_done = bool(g.app_base_url)
-                g.setup_complete = owner_present and app_config_done
+
+                # Check if setup has been explicitly marked as complete
+                setup_complete_flag = Setting.get('SETUP_COMPLETE')
+                setup_explicitly_complete = False
+                if setup_complete_flag is not None:
+                    if isinstance(setup_complete_flag, bool):
+                        setup_explicitly_complete = setup_complete_flag
+                    elif isinstance(setup_complete_flag, str):
+                        setup_explicitly_complete = setup_complete_flag.lower() == 'true'
+
+                # Setup is complete if either:
+                # 1. It's been explicitly marked as complete, OR
+                # 2. The basic requirements (owner + app config) are met
+                g.setup_complete = setup_explicitly_complete or (owner_present and app_config_done)
 
                 plugins_configured = False
                 try:
@@ -157,7 +170,9 @@ def register_app_hooks(app):
                     except Exception as e:
                         current_app.logger.warning(f"Error while checking plugins enabled: {e}")
 
-                    if g.setup_complete and not plugins_enabled:
+                    # Only redirect to admin settings if setup is EXPLICITLY complete
+                    # If setup isn't explicitly complete, let them continue through setup flow
+                    if setup_explicitly_complete and not plugins_enabled:
                         # React SPA handles plugin management at /admin/settings/plugins
                         # Avoid url_for to a removed blueprint endpoint.
                         allowed_paths = (
@@ -167,6 +182,16 @@ def register_app_hooks(app):
                         if current_path not in allowed_paths:
                             current_app.logger.info("No plugins enabled, redirecting to plugins settings.")
                             return redirect('/admin/settings/plugins')
+                    elif not setup_explicitly_complete and not plugins_enabled and owner_present and app_config_done:
+                        # If basic setup is done but setup isn't explicitly complete, redirect to setup plugins
+                        allowed_paths = (
+                            '/setup/plugins',
+                            '/setup/plugins/',
+                        )
+                        current_path = request.path or ''
+                        if not current_path.startswith('/setup') and current_path not in allowed_paths:
+                            current_app.logger.info("Setup not complete and no plugins enabled, redirecting to setup plugins.")
+                            return redirect('/setup/plugins')
             except Exception as e_plugin_check:
                 current_app.logger.error(
                     f"before_request_tasks(): DB error during plugin validation: {e_plugin_check}",

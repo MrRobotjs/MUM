@@ -9,9 +9,9 @@ from pydantic import BaseModel, Field
 from flask_openapi3 import Tag
 
 from app.routes.api_v2 import api_v2
-from app.utils.setup_helpers import get_completed_steps
+from app.utils.setup_helpers import get_completed_steps, is_setup_finished, mark_setup_complete
 from app.models_media_services import ServiceType, MediaServer
-from app.models import User, EventType
+from app.models import User, EventType, Setting
 from app.extensions import db
 from app.utils.helpers import log_event
 from app.utils.jwt_helpers import make_access_token, make_refresh_token, set_refresh_cookie
@@ -25,6 +25,7 @@ class SetupStatusData(BaseModel):
     app_complete: bool
     plugins_complete: bool
     discord_complete: bool
+    setup_complete: bool
     completed_steps: list[str]
 
 
@@ -51,6 +52,7 @@ def _serialize_setup_status() -> dict:
         'app_complete': 'app' in steps,
         'plugins_complete': 'plugins' in steps,
         'discord_complete': 'discord' in steps,
+        'setup_complete': is_setup_finished(),
         'completed_steps': sorted(list(steps))
     }
 
@@ -223,3 +225,57 @@ def setup_test_connection(path: SetupPluginPath):
     except Exception as exc:
         current_app.logger.exception("Setup test connection failed: %s", exc)
         return jsonify({'error': {'code': 'SETUP_TEST_FAILED', 'message': str(exc)}, 'meta': {'request_id': request_id}}), 500
+
+
+class SetupCompleteRequest(BaseModel):
+    disable_discord: bool = Field(default=False, description="Whether to explicitly disable Discord OAuth")
+
+
+class SetupCompleteResponse(BaseModel):
+    data: dict | None = None
+    meta: dict
+
+
+@api_v2.post(
+    "/setup/complete",
+    tags=[setup_tag],
+    summary="Mark setup as complete",
+    responses={200: SetupCompleteResponse, 500: SetupCompleteResponse},
+)
+@jwt_required_with_user()
+def setup_complete(body: SetupCompleteRequest, current_user):
+    """Mark the initial setup as complete and optionally disable Discord."""
+    request_id = str(uuid4())
+
+    try:
+        # If requested, explicitly disable Discord
+        if body.disable_discord:
+            Setting.set('DISCORD_OAUTH_ENABLED', 'false')
+            current_app.logger.info(f"Discord OAuth disabled during setup completion by user {current_user.id}")
+
+        # Mark setup as complete
+        mark_setup_complete()
+
+        log_event(
+            EventType.ADMIN_LOGIN_SUCCESS,
+            f"Initial setup completed by admin '{current_user.localUsername}'",
+            admin_id=current_user.id
+        )
+
+        return jsonify({
+            'data': {
+                'setup_complete': True,
+                'message': 'Setup completed successfully'
+            },
+            'meta': {'request_id': request_id}
+        }), 200
+    except Exception as exc:
+        current_app.logger.exception("Failed to mark setup complete: %s", exc)
+        db.session.rollback()
+        return jsonify({
+            'error': {
+                'code': 'SETUP_COMPLETE_FAILED',
+                'message': f'Failed to complete setup: {str(exc)}'
+            },
+            'meta': {'request_id': request_id}
+        }), 500

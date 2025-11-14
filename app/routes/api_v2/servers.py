@@ -143,6 +143,20 @@ def create_server(body: CreateServerBody, current_user):
     db.session.add(server)
     db.session.commit()
 
+    # Auto-enable the plugin when a server is added
+    try:
+        from app.models_plugins import Plugin, PluginStatus
+        service_type_str = body.service_type if isinstance(body.service_type, str) else body.service_type.value
+        plugin = Plugin.query.filter_by(plugin_id=service_type_str).first()
+        if plugin and plugin.status != PluginStatus.ENABLED:
+            plugin.status = PluginStatus.ENABLED
+            db.session.add(plugin)
+            db.session.commit()
+            current_app.logger.info(f"Auto-enabled plugin '{service_type_str}' after adding server '{server.server_nickname}'")
+    except Exception as e:
+        current_app.logger.warning(f"Failed to auto-enable plugin: {e}")
+        # Don't fail the server creation if plugin enable fails
+
     return jsonify(_to_item(server)), 201
 
 

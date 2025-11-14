@@ -1,12 +1,13 @@
-import { useMemo, useEffect } from 'react'
+import { useMemo, useEffect, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { IconInfoCircle, IconAlertCircle } from '@tabler/icons-react'
 
 import { usePlugins, type Plugin } from '../hooks/usePlugins'
 import { useServers } from '../hooks/useServers'
-import { PluginCard } from '../components/plugins'
+import { PluginCard, PluginCardActions } from '../components/plugins'
 import { SetupLayout } from './SetupLayout'
-import { ApiError } from '../util/apiClient'
+import { ApiError, requestJson } from '../util/apiClient'
+import { useAlerts } from '../contexts'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -16,8 +17,10 @@ const getPluginKey = (plugin: Plugin) => plugin.pluginId || plugin.id
 
 function SetupPluginsContent() {
   const navigate = useNavigate()
-  const { plugins, loading, error } = usePlugins()
+  const { plugins, loading, error, refresh } = usePlugins()
   const { servers } = useServers({ activeOnly: true })
+  const { success, error: showError } = useAlerts()
+  const [actionLoading, setActionLoading] = useState<string | null>(null)
 
   // Handle authentication errors by redirecting to login
   useEffect(() => {
@@ -38,12 +41,53 @@ function SetupPluginsContent() {
     return counts
   }, [servers])
 
+  const handleToggle = async (
+    plugin: Plugin,
+    action: 'enable' | 'disable'
+  ) => {
+    const pluginId = getPluginKey(plugin)
+    if (!pluginId) {
+      showError('Plugin identifier missing; cannot perform action.')
+      return
+    }
+
+    const endpoint = action === 'enable'
+      ? `/admin/api/v2/plugins/${pluginId}/enable`
+      : `/admin/api/v2/plugins/${pluginId}/disable`
+
+    setActionLoading(pluginId)
+    try {
+      await requestJson(endpoint, { method: 'POST' })
+      const pastTense = {
+        enable: 'enabled',
+        disable: 'disabled',
+      }[action]
+      success(`Plugin "${plugin.name}" ${pastTense}.`)
+      await refresh()
+    } catch (err) {
+      showError(
+        `Failed to ${action} plugin: ${(err as Error).message}`
+      )
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  const handleConfigure = (pluginKey: string) => {
+    navigate({
+      to: '/setup/plugins/$pluginId',
+      params: { pluginId: pluginKey } as any
+    })
+  }
+
   const renderPluginCard = (plugin: Plugin) => {
     const pluginKey = getPluginKey(plugin)
+    const isLoading = actionLoading === pluginKey
     const serversConfigured =
       plugin.serversCount && plugin.serversCount > 0
         ? plugin.serversCount
         : serverCountByPlugin.get(plugin.pluginId.toLowerCase()) ?? 0
+    const hasServers = serversConfigured > 0
 
     return (
       <PluginCard
@@ -51,18 +95,14 @@ function SetupPluginsContent() {
         plugin={plugin}
         serversConfigured={serversConfigured}
         actions={
-          <Button
-            size="sm"
-            variant="default"
-            onClick={() => {
-              navigate({
-                to: '/setup/plugins/$pluginId',
-                params: { pluginId: pluginKey } as any
-              })
-            }}
-          >
-            Configure
-          </Button>
+          <PluginCardActions
+            plugin={plugin}
+            pluginKey={pluginKey}
+            hasServers={hasServers}
+            isLoading={isLoading}
+            onToggle={handleToggle}
+            onConfigure={handleConfigure}
+          />
         }
       />
     )

@@ -6,6 +6,7 @@ export type SetupStatus = {
   app_complete: boolean
   plugins_complete: boolean
   discord_complete: boolean
+  setup_complete: boolean
   completed_steps: string[]
 }
 

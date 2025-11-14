@@ -1,15 +1,31 @@
+import { useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card'
 import { Badge } from '../components/ui/badge'
 import { IconBrandDiscord } from '@tabler/icons-react'
 import { SetupLayout } from './SetupLayout'
+import { requestJson } from '../util/apiClient'
+import { useAlerts } from '../contexts'
 
 function SetupDiscordContent() {
   const navigate = useNavigate()
+  const { success, error: showError } = useAlerts()
+  const [submitting, setSubmitting] = useState(false)
 
-  const handleSkip = () => {
-    navigate({ to: '/admin/dashboard' })
+  const handleSkip = async () => {
+    setSubmitting(true)
+    try {
+      await requestJson('/admin/api/v2/setup/complete', {
+        method: 'POST',
+        body: JSON.stringify({ disable_discord: true })
+      })
+      success('Setup completed successfully')
+      navigate({ to: '/admin/dashboard' })
+    } catch (err) {
+      showError(`Failed to complete setup: ${(err as Error).message}`)
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -38,8 +54,8 @@ function SetupDiscordContent() {
       </Card>
 
       <div className="flex justify-end">
-        <Button onClick={handleSkip}>
-          Skip & Continue to Dashboard
+        <Button onClick={handleSkip} disabled={submitting}>
+          {submitting ? 'Completing Setup...' : 'Skip & Continue to Dashboard'}
         </Button>
       </div>
     </div>

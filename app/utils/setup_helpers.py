@@ -55,3 +55,20 @@ def get_completed_steps() -> set[str]:
 
     return completed
 
+
+def is_setup_finished() -> bool:
+    """Check if the initial setup has been completed by the user."""
+    setup_complete = Setting.get('SETUP_COMPLETE')
+    if setup_complete is not None:
+        if isinstance(setup_complete, bool):
+            return setup_complete
+        if isinstance(setup_complete, str):
+            return setup_complete.lower() == 'true'
+    return False
+
+
+def mark_setup_complete() -> None:
+    """Mark the initial setup as complete."""
+    Setting.set('SETUP_COMPLETE', 'true')
+    db.session.commit()
+

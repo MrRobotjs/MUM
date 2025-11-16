@@ -7,10 +7,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { UserRoleDisplayTab } from '../components/roles/UserRoleDisplayTab'
 import { UserRoleMembersTab } from '../components/roles/UserRoleMembersTab'
 
-export const UserRoleEditPage = () => {
-  const { roleId } = useParams<{ roleId: string }>()
+export const AdminSettingsUserRolesEditPage = () => {
+  const { roleId } = useParams({ from: '/admin/settings/user-roles/$roleId/edit' })
   const navigate = useNavigate()
-  const search = useSearch()
+  const search = useSearch({ from: '/admin/settings/user-roles/$roleId/edit' })
   const { roles, loading, refresh } = useUserRoles(true)
 
   const activeTab = (search as any).tab || 'display'
@@ -112,4 +112,4 @@ export const UserRoleEditPage = () => {
   )
 }
 
-export default UserRoleEditPage
+export default AdminSettingsUserRolesEditPage

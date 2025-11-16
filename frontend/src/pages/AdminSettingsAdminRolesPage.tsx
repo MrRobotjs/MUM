@@ -51,7 +51,7 @@ type RoleFormValues = {
   permission_ids: number[]
 }
 
-export const AdminRolesPage = () => {
+export const AdminSettingsAdminRolesPage = () => {
   const navigate = useNavigate()
   const { roles, loading, error, refresh } = useAdminRoles(true, true)
   const { permissions } = useAdminPermissions()
@@ -126,7 +126,10 @@ export const AdminRolesPage = () => {
   }
 
   const handleEdit = (role: AdminRole) => {
-    navigate(`/admin/settings/admin-roles/${role.id}/edit`)
+    navigate({
+      to: '/admin/settings/admin-roles/$roleId/edit',
+      params: { roleId: String(role.id) },
+    })
   }
 
   const handleDelete = async (role: AdminRole) => {
@@ -622,4 +625,4 @@ const SortableRoleRow = ({ role, disabled, onEdit, onDelete }: SortableRoleRowPr
   )
 }
 
-export default AdminRolesPage
+export default AdminSettingsAdminRolesPage

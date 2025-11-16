@@ -91,6 +91,12 @@ def register_app_hooks(app):
 
         current_app.config['SETUP_COMPLETE'] = g.setup_complete
 
+        # If setup is complete, block access to the setup UI entirely
+        if g.setup_complete:
+            current_path = request.path or ''
+            if current_path.startswith('/setup'):
+                return redirect('/admin/dashboard')
+
         setup_allowed_endpoints = [
             'setup.',
             'auth.',

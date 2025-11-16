@@ -5,7 +5,7 @@ import { ServerAddForm } from '../components/servers';
 import { usePlugins } from '../hooks/usePlugins';
 import { useServers } from '../hooks/useServers';
 
-export const ServerAddPage = () => {
+export const AdminSettingsPluginsServerAddPage = () => {
   const { pluginId } = useParams({ from: '/admin/settings/plugins/$pluginId/servers/add' });
   const navigate = useNavigate();
   const { plugins } = usePlugins();
@@ -38,4 +38,4 @@ export const ServerAddPage = () => {
   );
 };
 
-export default ServerAddPage;
+export default AdminSettingsPluginsServerAddPage;

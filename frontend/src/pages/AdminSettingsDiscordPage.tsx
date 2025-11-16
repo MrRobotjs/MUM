@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
 
-export const DiscordSettingsPage = () => {
+export const AdminSettingsDiscordPage = () => {
   const { settings, loading, error, refresh } = useDiscordSettings()
   const { success, error: showError } = useAlerts()
   const [formValues, setFormValues] = useState<DiscordSettings>({
@@ -283,4 +283,4 @@ export const DiscordSettingsPage = () => {
   )
 }
 
-export default DiscordSettingsPage
+export default AdminSettingsDiscordPage

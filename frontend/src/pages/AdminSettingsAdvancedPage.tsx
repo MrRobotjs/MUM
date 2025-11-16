@@ -20,7 +20,7 @@ import {
   AlertTitle,
 } from '@/components/ui/alert';
 
-export const AdvancedSettingsPage = () => {
+export const AdminSettingsAdvancedPage = () => {
   const { settings, loading, error, refresh } = useAdvancedSettings();
   const { success, error: showError } = useAlerts();
   const [formValues, setFormValues] = useState<AdvancedSettings>({
@@ -189,4 +189,4 @@ export const AdvancedSettingsPage = () => {
   );
 };
 
-export default AdvancedSettingsPage;
+export default AdminSettingsAdvancedPage;

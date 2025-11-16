@@ -49,7 +49,7 @@ type AdminRoleOption = {
   icon?: string | null
 }
 
-const AdminsSettingsPage = () => {
+const AdminSettingsAdminManagementPage = () => {
   const [admins, setAdmins] = useState<Admin[]>([])
   const [filteredAdmins, setFilteredAdmins] = useState<Admin[]>([])
   const [roles, setRoles] = useState<AdminRoleOption[]>([])
@@ -711,4 +711,4 @@ const AdminsSettingsPage = () => {
   )
 }
 
-export default AdminsSettingsPage
+export default AdminSettingsAdminManagementPage

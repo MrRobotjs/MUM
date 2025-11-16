@@ -21,7 +21,7 @@ type UserAccountSettings = {
   allow_user_accounts: boolean
 }
 
-const UserSettingsGeneralPage = () => {
+const AdminSettingsUserGeneralPage = () => {
   const [settings, setSettings] = useState<UserAccountSettings | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -295,4 +295,4 @@ const UserSettingsGeneralPage = () => {
   )
 }
 
-export default UserSettingsGeneralPage
+export default AdminSettingsUserGeneralPage

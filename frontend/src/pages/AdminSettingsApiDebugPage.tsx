@@ -44,7 +44,7 @@ type ExampleEndpoint = {
   params?: QueryParameter[];
 };
 
-const ApiDebugPage = () => {
+const AdminSettingsApiDebugPage = () => {
   const [httpMethod, setHttpMethod] = useState<string>('GET');
   const [apiEndpoint, setApiEndpoint] = useState<string>('');
   const [responseFormat, setResponseFormat] = useState<'json' | 'xml'>('json');
@@ -744,4 +744,4 @@ const ApiDebugPage = () => {
   );
 };
 
-export default ApiDebugPage;
+export default AdminSettingsApiDebugPage;

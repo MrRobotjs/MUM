@@ -9,10 +9,10 @@ import { AdminRoleDisplayTab } from '../components/roles/AdminRoleDisplayTab'
 import { AdminRolePermissionsTab } from '../components/roles/AdminRolePermissionsTab'
 import { AdminRoleMembersTab } from '../components/roles/AdminRoleMembersTab'
 
-export const AdminRoleEditPage = () => {
-  const { roleId } = useParams<{ roleId: string }>()
+export const AdminSettingsAdminRolesEditPage = () => {
+  const { roleId } = useParams({ from: '/admin/settings/admin-roles/$roleId/edit' })
   const navigate = useNavigate()
-  const search = useSearch()
+  const search = useSearch({ from: '/admin/settings/admin-roles/$roleId/edit' })
   const { roles, loading, refresh } = useAdminRoles(true, true)
   const { permissions } = useAdminPermissions()
 
@@ -141,4 +141,4 @@ export const AdminRoleEditPage = () => {
   )
 }
 
-export default AdminRoleEditPage
+export default AdminSettingsAdminRolesEditPage

@@ -67,7 +67,7 @@ const getTextColorForBackground = (hex: string) => {
   return luminance > 0.6 ? '#111827' : '#ffffff';
 };
 
-export const UserRolesPage = () => {
+export const AdminSettingsUserRolesPage = () => {
   const navigate = useNavigate();
   const { roles, loading, error, refresh } = useUserRoles(false);
   const { success, error: showError } = useAlerts();
@@ -93,7 +93,10 @@ export const UserRolesPage = () => {
   };
 
   const handleEdit = (role: UserRole) => {
-    navigate(`/admin/settings/user-roles/${role.id}/edit`);
+    navigate({
+      to: '/admin/settings/user-roles/$roleId/edit',
+      params: { roleId: String(role.id) },
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -443,4 +446,4 @@ export const UserRolesPage = () => {
   );
 };
 
-export default UserRolesPage;
+export default AdminSettingsUserRolesPage;

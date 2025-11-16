@@ -7,7 +7,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { IconAlertCircle } from '@tabler/icons-react';
 
-export const PluginDetailPage = () => {
+export const AdminSettingsPluginsDetailPage = () => {
   const { pluginId } = useParams({ from: '/admin/settings/plugins/$pluginId' });
   const resolvedPluginId = pluginId ?? '';
   const navigate = useNavigate();
@@ -65,4 +65,4 @@ export const PluginDetailPage = () => {
   );
 };
 
-export default PluginDetailPage;
+export default AdminSettingsPluginsDetailPage;

@@ -59,7 +59,7 @@ const normalizeServerPayload = (values: ServerFormValues, pluginId: string) => {
   return payload;
 };
 
-export const ServerEditPage = () => {
+export const AdminSettingsPluginsServerEditPage = () => {
   const { pluginId, serverId } = useParams({ from: '/admin/settings/plugins/$pluginId/servers/$serverId' });
   const navigate = useNavigate();
   const { success, error: showError } = useAlerts();
@@ -493,4 +493,6 @@ export const ServerEditPage = () => {
     </div>
   );
 };
+
+export default AdminSettingsPluginsServerEditPage;
 

@@ -10,7 +10,7 @@ import { Badge } from '../components/ui/badge';
 import { requestJson } from '../util/apiClient';
 import { useAlerts } from '../contexts';
 
-export const LogsPage = () => {
+export const AdminSettingsLogsPage = () => {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [searchMessage, setSearchMessage] = useState('');
@@ -301,4 +301,4 @@ export const LogsPage = () => {
   );
 };
 
-export default LogsPage;
+export default AdminSettingsLogsPage;

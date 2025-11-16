@@ -11,7 +11,7 @@ import { Label } from '../components/ui/label';
 import { Switch } from '../components/ui/switch';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 
-export const GeneralSettingsPage = () => {
+export const AdminSettingsGeneralPage = () => {
   const { settings, loading, error, refresh } = useGeneralSettings();
   const { success, error: showError } = useAlerts();
   const [formValues, setFormValues] = useState<GeneralSettings>({
@@ -202,4 +202,4 @@ export const GeneralSettingsPage = () => {
   );
 };
 
-export default GeneralSettingsPage;
+export default AdminSettingsGeneralPage;

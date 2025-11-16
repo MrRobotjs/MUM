@@ -20,21 +20,21 @@ import UserLoginPage from '../pages/UserLoginPage';
 import LibrariesPage from '../pages/LibrariesPage';
 import LibraryDetailPage from '../pages/LibraryDetailPage';
 import MediaDetailPage from '../pages/MediaDetailPage';
-import AdminRolesPage from '../pages/AdminRolesPage';
-import AdminRoleEditPage from '../pages/AdminRoleEditPage';
-import UserRolesPage from '../pages/UserRolesPage';
-import UserRoleEditPage from '../pages/UserRoleEditPage';
-import GeneralSettingsPage from '../pages/GeneralSettingsPage';
-import UserSettingsGeneralPage from '../pages/UserSettingsGeneralPage';
-import AdminsSettingsPage from '../pages/AdminsSettingsPage';
+import AdminSettingsAdminRolesPage from '../pages/AdminSettingsAdminRolesPage';
+import AdminSettingsAdminRolesEditPage from '../pages/AdminSettingsAdminRolesEditPage';
+import AdminSettingsUserRolesPage from '../pages/AdminSettingsUserRolesPage';
+import AdminSettingsUserRolesEditPage from '../pages/AdminSettingsUserRolesEditPage';
+import AdminSettingsGeneralPage from '../pages/AdminSettingsGeneralPage';
+import AdminSettingsUserGeneralPage from '../pages/AdminSettingsUserGeneralPage';
+import AdminSettingsAdminManagementPage from '../pages/AdminSettingsAdminManagementPage';
 import AdminSettingsPluginsPage from '../pages/AdminSettingsPluginsPage';
-import PluginDetailPage from '../pages/PluginDetailPage';
-import { ServerAddPage } from '../pages/ServerAddPage';
-import { ServerEditPage } from '../pages/ServerEditPage';
-import DiscordSettingsPage from '../pages/DiscordSettingsPage';
-import AdvancedSettingsPage from '../pages/AdvancedSettingsPage';
-import LogsPage from '../pages/LogsPage';
-import ApiDebugPage from '../pages/ApiDebugPage';
+import AdminSettingsPluginsDetailPage from '../pages/AdminSettingsPluginsDetailPage';
+import { AdminSettingsPluginsServerAddPage } from '../pages/AdminSettingsPluginsServerAddPage';
+import { AdminSettingsPluginsServerEditPage } from '../pages/AdminSettingsPluginsServerEditPage';
+import AdminSettingsDiscordPage from '../pages/AdminSettingsDiscordPage';
+import AdminSettingsAdvancedPage from '../pages/AdminSettingsAdvancedPage';
+import AdminSettingsLogsPage from '../pages/AdminSettingsLogsPage';
+import AdminSettingsApiDebugPage from '../pages/AdminSettingsApiDebugPage';
 import ApiDocsPage from '../pages/ApiDocsPage';
 import AdminAccountPage from '../pages/AdminAccountPage';
 import UserDashboardPage from '../pages/UserDashboardPage';
@@ -168,21 +168,21 @@ const adminSettingsRedirect = createRoute({
   path: 'settings',
   component: () => <Navigate to="/admin/settings/general" replace />,
 })
-const adminSettingsGeneral = createRoute({ getParentRoute: () => adminRoute, path: 'settings/general', component: GeneralSettingsPage })
-const adminAdminRoles = createRoute({ getParentRoute: () => adminRoute, path: 'settings/admin-roles', component: AdminRolesPage })
-const adminAdminRoleEdit = createRoute({ getParentRoute: () => adminRoute, path: 'settings/admin-roles/$roleId/edit', component: AdminRoleEditPage })
-const adminUserRoles = createRoute({ getParentRoute: () => adminRoute, path: 'settings/user-roles', component: UserRolesPage })
-const adminUserRoleEdit = createRoute({ getParentRoute: () => adminRoute, path: 'settings/user-roles/$roleId/edit', component: UserRoleEditPage })
+const adminSettingsGeneral = createRoute({ getParentRoute: () => adminRoute, path: 'settings/general', component: AdminSettingsGeneralPage })
+const adminAdminRoles = createRoute({ getParentRoute: () => adminRoute, path: 'settings/admin-roles', component: AdminSettingsAdminRolesPage })
+const adminAdminRoleEdit = createRoute({ getParentRoute: () => adminRoute, path: 'settings/admin-roles/$roleId/edit', component: AdminSettingsAdminRolesEditPage })
+const adminUserRoles = createRoute({ getParentRoute: () => adminRoute, path: 'settings/user-roles', component: AdminSettingsUserRolesPage })
+const adminUserRoleEdit = createRoute({ getParentRoute: () => adminRoute, path: 'settings/user-roles/$roleId/edit', component: AdminSettingsUserRolesEditPage })
 const adminPlugins = createRoute({ getParentRoute: () => adminRoute, path: 'settings/plugins', component: AdminSettingsPluginsPage })
-const adminPluginDetail = createRoute({ getParentRoute: () => adminRoute, path: 'settings/plugins/$pluginId', component: PluginDetailPage })
-const adminServerAdd = createRoute({ getParentRoute: () => adminRoute, path: 'settings/plugins/$pluginId/servers/add', component: ServerAddPage })
-const adminServerEdit = createRoute({ getParentRoute: () => adminRoute, path: 'settings/plugins/$pluginId/servers/$serverId', component: ServerEditPage })
-const adminDiscord = createRoute({ getParentRoute: () => adminRoute, path: 'settings/discord', component: DiscordSettingsPage })
-const adminAdvanced = createRoute({ getParentRoute: () => adminRoute, path: 'settings/advanced', component: AdvancedSettingsPage })
-const adminLogs = createRoute({ getParentRoute: () => adminRoute, path: 'settings/logs', component: LogsPage })
-const adminApiDebug = createRoute({ getParentRoute: () => adminRoute, path: 'settings/api-debug', component: ApiDebugPage })
-const adminUsersGeneral = createRoute({ getParentRoute: () => adminRoute, path: 'settings/users/general', component: UserSettingsGeneralPage })
-const adminAdmins = createRoute({ getParentRoute: () => adminRoute, path: 'settings/admins', component: AdminsSettingsPage })
+const adminPluginDetail = createRoute({ getParentRoute: () => adminRoute, path: 'settings/plugins/$pluginId', component: AdminSettingsPluginsDetailPage })
+const adminServerAdd = createRoute({ getParentRoute: () => adminRoute, path: 'settings/plugins/$pluginId/servers/add', component: AdminSettingsPluginsServerAddPage })
+const adminServerEdit = createRoute({ getParentRoute: () => adminRoute, path: 'settings/plugins/$pluginId/servers/$serverId', component: AdminSettingsPluginsServerEditPage })
+const adminDiscord = createRoute({ getParentRoute: () => adminRoute, path: 'settings/discord', component: AdminSettingsDiscordPage })
+const adminAdvanced = createRoute({ getParentRoute: () => adminRoute, path: 'settings/advanced', component: AdminSettingsAdvancedPage })
+const adminLogs = createRoute({ getParentRoute: () => adminRoute, path: 'settings/logs', component: AdminSettingsLogsPage })
+const adminApiDebug = createRoute({ getParentRoute: () => adminRoute, path: 'settings/api-debug', component: AdminSettingsApiDebugPage })
+const adminUsersGeneral = createRoute({ getParentRoute: () => adminRoute, path: 'settings/users/general', component: AdminSettingsUserGeneralPage })
+const adminAdmins = createRoute({ getParentRoute: () => adminRoute, path: 'settings/admins', component: AdminSettingsAdminManagementPage })
 // API Docs should be a standalone page, not wrapped in the admin app layout
 const apiDocsStandalone = createRoute({
   getParentRoute: () => rootRoute,

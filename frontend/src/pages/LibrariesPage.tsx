@@ -399,7 +399,7 @@ export const LibrariesPage = () => {
               `bg-gradient-to-br ${group.gradient}`
             )}
           >
-            <CardContent className="space-y-4 p-6">
+            <CardContent className="space-y-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-full bg-background shadow-inner">

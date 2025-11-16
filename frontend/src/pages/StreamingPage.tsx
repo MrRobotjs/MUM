@@ -18,6 +18,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
 import { IconDots } from '@tabler/icons-react';
 
 type ActiveSession = {
@@ -907,40 +910,48 @@ export const StreamingPage = () => {
       {/* Active Streams Section - NEW */}
       <div className="space-y-4">
         {/* Active Sessions Display */}
-        <div className="bg-base-100 border border-base-300 rounded-lg p-6">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <i className="fa-solid fa-tower-broadcast text-primary" />
-            <h2 className="text-lg font-semibold text-base-content">Active Streams</h2>
-            {sessionsData && (
-              <Badge variant="secondary">{sessionsData.total_count}</Badge>
-            )}
-            {/* Show live indicator when websocket is active */}
-            {wsTruthActive && isConnected && lastUpdateAt && (Date.now() - lastUpdateAt.getTime() < 5000) && (
-              <Badge variant="outline" className="text-xs text-green-600 border-green-600">
-                <span className="inline-flex h-2 w-2 rounded-full bg-green-500 animate-pulse mr-1" />
-                Live
-              </Badge>
-            )}
-          </div>
-        </div>
-
-        {/* Only show loading if we truly don't have data yet and websocket hasn't provided any */}
-        {(bootstrapping && !wsTruthActive && !activeSessions) || (loading && !sessionsData) ? (
-          <div className="text-center py-12">
-            <span className="loading loading-lg loading-spinner text-primary" />
-            <p className="text-lg text-base-content/70 mt-4">Loading active streams...</p>
-          </div>
-        ) : sessionsData && sessionsData.total_count > 0 ? (
-            renderActiveSessions()
-          ) : (
-            <div className="text-center py-12 text-base-content/60">
-              <i className="fa-solid fa-circle-pause text-4xl mb-4 opacity-30" />
-              <p className="text-lg">No active streams</p>
-              <p className="text-sm mt-2">Streams will appear here when users start playing media</p>
+        <Card className="shadow-sm">
+          <CardHeader className="pb-0">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
+                  <i className="fa-solid fa-tower-broadcast" />
+                </div>
+                <div>
+                  <CardTitle className="flex items-center gap-2 text-xl text-base-content">
+                    Active Streams
+                    {sessionsData && <Badge variant="secondary">{sessionsData.total_count}</Badge>}
+                  </CardTitle>
+                  <CardDescription>Live playback across connected media servers.</CardDescription>
+                </div>
+              </div>
+              {wsTruthActive && isConnected && lastUpdateAt && Date.now() - lastUpdateAt.getTime() < 5000 ? (
+                <Badge variant="outline" className="border-green-600 text-xs text-green-600">
+                  <span className="mr-1 inline-flex h-2 w-2 animate-pulse rounded-full bg-green-500" />
+                  Live
+                </Badge>
+              ) : null}
             </div>
-          )}
-        </div>
+          </CardHeader>
+
+          <CardContent className="pt-4">
+            {/* Only show loading if we truly don't have data yet and websocket hasn't provided any */}
+            {(bootstrapping && !wsTruthActive && !activeSessions) || (loading && !sessionsData) ? (
+              <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                <span className="loading loading-lg loading-spinner text-primary" />
+                <p className="mt-4 text-lg">Loading active streams...</p>
+              </div>
+            ) : sessionsData && sessionsData.total_count > 0 ? (
+              renderActiveSessions()
+            ) : (
+              <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                <i className="fa-solid fa-circle-pause mb-4 text-4xl opacity-30" />
+                <p className="text-lg text-foreground">No active streams</p>
+                <p className="mt-2 text-sm">Streams will appear here when users start playing media</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
       {/* Historical Data Section - EXISTING */}
@@ -953,92 +964,145 @@ export const StreamingPage = () => {
 
       {summary ? (
         <div className="grid gap-4 md:grid-cols-2">
-          <section className="rounded-xl border border-base-300 bg-base-100 p-4">
-            <h2 className="text-sm font-semibold text-base-content/80">Daily activity</h2>
-            <ul className="mt-3 space-y-1 text-xs text-base-content/80">
-              {summary.daily.length === 0 ? (
-                <li className="text-base-content/60">No activity in the selected range.</li>
-              ) : null}
-              {summary.daily.slice(-14).map((point) => (
-                <li key={point.date} className="flex items-center justify-between">
-                  <span>{new Date(point.date).toLocaleDateString()}</span>
-                  <span className="font-medium text-base-content">{point.count}</span>
-                </li>
-              ))}
-            </ul>
-          </section>
+          <Card>
+            <CardHeader className="pb-4">
+              <CardTitle className="text-base font-semibold">Daily activity</CardTitle>
+              <CardDescription>Recent stream counts by day.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ul className="space-y-1 text-xs text-base-content/80">
+                {summary.daily.length === 0 ? (
+                  <li className="text-base-content/60">No activity in the selected range.</li>
+                ) : null}
+                {summary.daily.slice(-14).map((point) => (
+                  <li
+                    key={point.date}
+                    className="flex items-center justify-between rounded-lg border bg-muted/50 px-3 py-2"
+                  >
+                    <span>{new Date(point.date).toLocaleDateString()}</span>
+                    <span className="font-medium text-base-content">{point.count}</span>
+                  </li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
 
-          <section className="rounded-xl border border-base-300 bg-base-100 p-4">
-            <h2 className="text-sm font-semibold text-base-content/80">Streams by service</h2>
-            <ul className="mt-3 space-y-2 text-sm text-base-content/80">
-              {summary.by_service.length === 0 ? (
-                <li className="text-base-content/60">No recent streams.</li>
-              ) : null}
-              {summary.by_service.map((entry) => (
-                <li key={entry.service_type} className="flex items-center justify-between rounded-lg bg-base-200/40 px-3 py-2 uppercase">
-                  <span className="font-medium text-base-content">{entry.service_type}</span>
-                  <span className="text-base-content/70">{entry.count}</span>
-                </li>
-              ))}
-            </ul>
-          </section>
+          <Card>
+            <CardHeader className="pb-4">
+              <CardTitle className="text-base font-semibold">Streams by service</CardTitle>
+              <CardDescription>Breakdown of streams per media service.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ul className="space-y-2 text-sm text-base-content/80">
+                {summary.by_service.length === 0 ? (
+                  <li className="text-base-content/60">No recent streams.</li>
+                ) : null}
+                {summary.by_service.map((entry) => (
+                  <li
+                    key={entry.service_type}
+                    className="flex items-center justify-between rounded-lg border bg-muted/50 px-3 py-2 uppercase"
+                  >
+                    <span className="font-medium text-base-content">{entry.service_type}</span>
+                    <span className="text-base-content/70">{entry.count}</span>
+                  </li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
         </div>
       ) : null}
 
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Streaming Sessions History</h1>
-        <div className="flex items-center gap-3">
-          <select
-            className="select select-bordered select-sm"
-            value={serviceType}
-            onChange={(event) => {
-              setServiceType(event.target.value);
-              handleFilterChange();
-            }}
-          >
-            <option value="all">All Services</option>
-            <option value="plex">Plex</option>
-            <option value="jellyfin">Jellyfin</option>
-            <option value="emby">Emby</option>
-            <option value="kavita">Kavita</option>
-            <option value="audiobookshelf">Audiobookshelf</option>
-            <option value="komga">Komga</option>
-            <option value="romm">RomM</option>
-          </select>
-          <select
-            className="select select-bordered select-sm"
-            value={status}
-            onChange={(event) => {
-              setStatus(event.target.value);
-              handleFilterChange();
-            }}
-          >
-            <option value="all">All Status</option>
-            <option value="active">Active</option>
-            <option value="completed">Completed</option>
-          </select>
-          <div className="flex items-center gap-2">
-            <input
-              type="text"
-              className="input input-bordered input-sm"
-              placeholder="User UUID"
-              value={userUuid}
-              onChange={(event) => setUserUuid(event.target.value)}
-            />
-            <input
-              type="date"
-              className="input input-bordered input-sm"
-              value={startDate}
-              onChange={(event) => setStartDate(event.target.value)}
-            />
-            <input
-              type="date"
-              className="input input-bordered input-sm"
-              value={endDate}
-              onChange={(event) => setEndDate(event.target.value)}
-            />
+      <Card>
+        <CardHeader className="pb-4">
+          <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
+            <div>
+              <CardTitle className="text-xl">Streaming Sessions History</CardTitle>
+              <CardDescription>Filter and review recent streaming sessions.</CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+            <div className="space-y-1">
+              <span className="text-sm text-muted-foreground">Service</span>
+              <Select
+                value={serviceType}
+                onValueChange={(value) => {
+                  setServiceType(value);
+                  handleFilterChange();
+                }}
+              >
+                <SelectTrigger className="h-9 w-full">
+                  <SelectValue placeholder="All Services" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Services</SelectItem>
+                  <SelectItem value="plex">Plex</SelectItem>
+                  <SelectItem value="jellyfin">Jellyfin</SelectItem>
+                  <SelectItem value="emby">Emby</SelectItem>
+                  <SelectItem value="kavita">Kavita</SelectItem>
+                  <SelectItem value="audiobookshelf">Audiobookshelf</SelectItem>
+                  <SelectItem value="komga">Komga</SelectItem>
+                  <SelectItem value="romm">RomM</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1">
+              <span className="text-sm text-muted-foreground">Status</span>
+              <Select
+                value={status}
+                onValueChange={(value) => {
+                  setStatus(value);
+                  handleFilterChange();
+                }}
+              >
+                <SelectTrigger className="h-9 w-full">
+                  <SelectValue placeholder="All Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="completed">Completed</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1">
+              <span className="text-sm text-muted-foreground">User UUID</span>
+              <Input
+                type="text"
+                placeholder="User UUID"
+                value={userUuid}
+                onChange={(event) => setUserUuid(event.target.value)}
+                className="h-9"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <span className="text-sm text-muted-foreground">Start date</span>
+              <Input
+                type="date"
+                value={startDate}
+                onChange={(event) => setStartDate(event.target.value)}
+                className="h-9"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <span className="text-sm text-muted-foreground">End date</span>
+              <Input
+                type="date"
+                value={endDate}
+                onChange={(event) => setEndDate(event.target.value)}
+                className="h-9"
+              />
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
             <Button
-              variant="ghost"
+              variant="default"
               size="sm"
               onClick={() => {
                 handleFilterChange();
@@ -1061,18 +1125,18 @@ export const StreamingPage = () => {
               Clear
             </Button>
           </div>
-        </div>
-      </div>
 
-      <StreamingTable
-        page={page}
-        serviceType={serviceType === 'all' ? undefined : serviceType}
-        status={status === 'all' ? undefined : status}
-        userUuid={userUuid || undefined}
-        startDate={startDate || undefined}
-        endDate={endDate || undefined}
-        onLoadMore={() => setPage((prev) => prev + 1)}
-      />
+          <StreamingTable
+            page={page}
+            serviceType={serviceType === 'all' ? undefined : serviceType}
+            status={status === 'all' ? undefined : status}
+            userUuid={userUuid || undefined}
+            startDate={startDate || undefined}
+            endDate={endDate || undefined}
+            onLoadMore={() => setPage((prev) => prev + 1)}
+          />
+        </CardContent>
+      </Card>
 
       <StreamingSettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
 

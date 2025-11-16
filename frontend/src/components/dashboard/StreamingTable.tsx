@@ -6,6 +6,15 @@ import { requestJson } from '../../util/apiClient';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { ResponsiveDialog } from '@/components/ui/responsive-dialog';
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 
 export type StreamRow = {
   id: number;
@@ -100,7 +109,7 @@ export const StreamingTable = ({
 
   if (loading) {
     return (
-      <div className="flex items-center gap-2 text-sm text-base-content/60">
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <span className="loading loading-spinner loading-sm" /> Loading streams…
       </div>
     );
@@ -115,54 +124,57 @@ export const StreamingTable = ({
   const hasMore = pagination ? pagination.page < pagination.total_pages : false;
 
   return (
-    <div className="overflow-hidden rounded-xl border border-base-300 bg-base-100 shadow-sm">
-      <table className="table w-full">
-        <thead>
-          <tr className="text-xs uppercase text-base-content/60">
-            <th>Title</th>
-            <th>User</th>
-            <th>Server</th>
-            <th>Started</th>
-            <th>Platform</th>
-            <th>Duration</th>
-            <th />
-          </tr>
-        </thead>
-        <tbody>
+    <div className="overflow-hidden rounded-xl border bg-card text-foreground shadow-sm">
+      <Table>
+        <TableHeader>
+          <TableRow className="text-xs uppercase text-muted-foreground">
+            <TableHead>Title</TableHead>
+            <TableHead>User</TableHead>
+            <TableHead>Server</TableHead>
+            <TableHead>Started</TableHead>
+            <TableHead>Platform</TableHead>
+            <TableHead>Duration</TableHead>
+            <TableHead className="text-right" />
+          </TableRow>
+        </TableHeader>
+        <TableBody>
           {rows.map((stream) => (
-            <tr key={stream.id} className="text-sm">
-              <td>{stream.media_title ?? 'Unknown'}</td>
-              <td>{stream.user_uuid ?? 'Unknown user'}</td>
-              <td>{stream.server_name ?? 'Unknown server'}</td>
-              <td>{stream.started_at ? new Date(stream.started_at).toLocaleString() : '—'}</td>
-              <td>{stream.platform ?? '—'}</td>
-              <td>{stream.duration_seconds ? Math.round(stream.duration_seconds / 60) + ' min' : '—'}</td>
-              <td className="text-right">
+            <TableRow key={stream.id}>
+              <TableCell className="font-medium">{stream.media_title ?? 'Unknown'}</TableCell>
+              <TableCell>{stream.user_uuid ?? 'Unknown user'}</TableCell>
+              <TableCell>{stream.server_name ?? 'Unknown server'}</TableCell>
+              <TableCell>{stream.started_at ? new Date(stream.started_at).toLocaleString() : '—'}</TableCell>
+              <TableCell>{stream.platform ?? '—'}</TableCell>
+              <TableCell>
+                {stream.duration_seconds ? Math.round(stream.duration_seconds / 60) + ' min' : '—'}
+              </TableCell>
+              <TableCell className="text-right">
                 {!stream.stopped_at ? (
                   <Button variant="ghost" size="sm" onClick={() => requestTerminate(stream)}>
                     Terminate
                   </Button>
                 ) : null}
-              </td>
-            </tr>
+              </TableCell>
+            </TableRow>
           ))}
           {rows.length === 0 ? (
-            <tr>
-              <td colSpan={7} className="py-6 text-center text-sm text-base-content/60">
+            <TableRow>
+              <TableCell colSpan={7} className="py-6 text-center text-sm text-muted-foreground">
                 No stream history found.
-              </td>
-            </tr>
+              </TableCell>
+            </TableRow>
           ) : null}
-        </tbody>
-      </table>
+        </TableBody>
+        <TableCaption className="sr-only">Streaming session history</TableCaption>
+      </Table>
 
-      <div className="border-t border-base-200 bg-base-200/40 px-4 py-3 text-right">
+      <div className="border-t bg-muted/50 px-4 py-3 text-right">
         {onLoadMore && hasMore ? (
           <Button variant="ghost" size="sm" onClick={onLoadMore}>
             Load more
           </Button>
         ) : (
-          <span className="text-xs text-base-content/60">End of results</span>
+          <span className="text-xs text-muted-foreground">End of results</span>
         )}
       </div>
       <ResponsiveDialog

@@ -1,420 +1,349 @@
-import { useEffect, useState } from 'react';
-import { Button } from '../index';
+import { useEffect, useState } from 'react'
+import { Button } from '../index'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
+import { Textarea } from '@/components/ui/textarea'
+import { Input } from '@/components/ui/input'
+import {
+  IconNotes,
+  IconShieldCheck,
+  IconPlayerPlay,
+  IconCalendarTime,
+  IconFolders,
+} from '@tabler/icons-react'
 
 export type UserSettings = {
-  uuid: string;
-  notes?: string;
-  is_active: boolean;
-  is_discord_bot_whitelisted?: boolean;
-  is_purge_whitelisted?: boolean;
-  allow_downloads?: boolean;
-  allow_4k_transcode?: boolean;
-  access_expires_at?: string | null;
-  libraries?: Array<{ id: string; name: string; selected: boolean }>;
-};
+  uuid: string
+  notes?: string
+  is_active: boolean
+  is_discord_bot_whitelisted?: boolean
+  is_purge_whitelisted?: boolean
+  allow_downloads?: boolean
+  allow_4k_transcode?: boolean
+  access_expires_at?: string | null
+  libraries?: Array<{ id: string; name: string; selected: boolean }>
+}
 
 type UserSettingsCardProps = {
-  settings: UserSettings | null;
-  loading?: boolean;
-  error?: Error | null;
-  onSave: (settings: Partial<UserSettings>) => Promise<void> | void;
-};
+  settings: UserSettings | null
+  loading?: boolean
+  error?: Error | null
+  onSave: (settings: Partial<UserSettings>) => Promise<void> | void
+}
 
 export const UserSettingsCard = ({ settings, loading, error, onSave }: UserSettingsCardProps) => {
-  const [notes, setNotes] = useState(settings?.notes ?? '');
-  const [isDiscordBotWhitelisted, setIsDiscordBotWhitelisted] = useState(settings?.is_discord_bot_whitelisted ?? false);
-  const [isPurgeWhitelisted, setIsPurgeWhitelisted] = useState(settings?.is_purge_whitelisted ?? false);
-  const [allowDownloads, setAllowDownloads] = useState(settings?.allow_downloads ?? false);
-  const [allow4kTranscode, setAllow4kTranscode] = useState(settings?.allow_4k_transcode ?? false);
-  const [accessExpiration, setAccessExpiration] = useState(settings?.access_expires_at ?? '');
-  const [clearAccessExpiration, setClearAccessExpiration] = useState(false);
-  const [selectedLibraries, setSelectedLibraries] = useState<Set<string>>(new Set());
-  const [submitting, setSubmitting] = useState(false);
+  const [notes, setNotes] = useState(settings?.notes ?? '')
+  const [isDiscordBotWhitelisted, setIsDiscordBotWhitelisted] = useState(settings?.is_discord_bot_whitelisted ?? false)
+  const [isPurgeWhitelisted, setIsPurgeWhitelisted] = useState(settings?.is_purge_whitelisted ?? false)
+  const [allowDownloads, setAllowDownloads] = useState(settings?.allow_downloads ?? false)
+  const [allow4kTranscode, setAllow4kTranscode] = useState(settings?.allow_4k_transcode ?? false)
+  const [accessExpiration, setAccessExpiration] = useState(settings?.access_expires_at ?? '')
+  const [clearAccessExpiration, setClearAccessExpiration] = useState(false)
+  const [selectedLibraries, setSelectedLibraries] = useState<Set<string>>(new Set())
+  const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
     if (settings) {
-      setNotes(settings.notes ?? '');
-      setIsDiscordBotWhitelisted(settings.is_discord_bot_whitelisted ?? false);
-      setIsPurgeWhitelisted(settings.is_purge_whitelisted ?? false);
-      setAllowDownloads(settings.allow_downloads ?? false);
-      setAllow4kTranscode(settings.allow_4k_transcode ?? false);
-      setAccessExpiration(settings.access_expires_at ?? '');
+      setNotes(settings.notes ?? '')
+      setIsDiscordBotWhitelisted(settings.is_discord_bot_whitelisted ?? false)
+      setIsPurgeWhitelisted(settings.is_purge_whitelisted ?? false)
+      setAllowDownloads(settings.allow_downloads ?? false)
+      setAllow4kTranscode(settings.allow_4k_transcode ?? false)
+      setAccessExpiration(settings.access_expires_at ?? '')
 
       if (settings.libraries) {
-        const selected = new Set(settings.libraries.filter((lib) => lib.selected).map((lib) => lib.id));
-        setSelectedLibraries(selected);
+        const selected = new Set(settings.libraries.filter((lib) => lib.selected).map((lib) => lib.id))
+        setSelectedLibraries(selected)
       }
     }
-  }, [settings]);
+  }, [settings])
 
   useEffect(() => {
     if (clearAccessExpiration) {
-      setAccessExpiration('');
+      setAccessExpiration('')
     }
-  }, [clearAccessExpiration]);
+  }, [clearAccessExpiration])
 
   if (loading) {
     return (
-      <section className="rounded-lg border border-border bg-background shadow-sm">
-        <div className="p-6">
+      <Card className="border-border shadow-sm">
+        <CardContent className="p-6">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <span className="inline-flex size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
             Loading user settings…
           </div>
-        </div>
-      </section>
-    );
+        </CardContent>
+      </Card>
+    )
   }
 
   if (error) {
     return (
-      <section className="rounded-lg border border-border bg-background shadow-sm">
-        <div className="p-6 text-sm text-error">Failed to load settings: {error.message}</div>
-      </section>
-    );
+      <Card className="border-border shadow-sm">
+        <CardContent className="p-6 text-sm text-destructive">Failed to load settings: {error.message}</CardContent>
+      </Card>
+    )
   }
 
   const handleSelectAllLibraries = () => {
     if (settings?.libraries) {
-      const allIds = new Set(settings.libraries.map((lib) => lib.id));
-      setSelectedLibraries(allIds);
+      const allIds = new Set(settings.libraries.map((lib) => lib.id))
+      setSelectedLibraries(allIds)
     }
-  };
+  }
 
   const handleDeselectAllLibraries = () => {
-    setSelectedLibraries(new Set());
-  };
+    setSelectedLibraries(new Set())
+  }
 
   const handleToggleLibrary = (libraryId: string) => {
     setSelectedLibraries((prev) => {
-      const newSet = new Set(prev);
-      if (newSet.has(libraryId)) {
-        newSet.delete(libraryId);
-      } else {
-        newSet.add(libraryId);
-      }
-      return newSet;
-    });
-  };
+      const next = new Set(prev)
+      if (next.has(libraryId)) next.delete(libraryId)
+      else next.add(libraryId)
+      return next
+    })
+  }
 
   const handleSubmit = async () => {
-    setSubmitting(true);
+    setSubmitting(true)
     try {
       const payload: Partial<UserSettings> = {
         notes,
         is_discord_bot_whitelisted: isDiscordBotWhitelisted,
         is_purge_whitelisted: isPurgeWhitelisted,
         allow_downloads: allowDownloads,
-        allow_4k_transcode: allow4kTranscode
-      };
+        allow_4k_transcode: allow4kTranscode,
+      }
 
       if (clearAccessExpiration) {
-        payload.access_expires_at = null;
+        payload.access_expires_at = null
       } else if (accessExpiration) {
-        payload.access_expires_at = accessExpiration;
+        payload.access_expires_at = accessExpiration
       }
 
       if (settings?.libraries) {
         payload.libraries = settings.libraries.map((lib) => ({
           ...lib,
-          selected: selectedLibraries.has(lib.id)
-        }));
+          selected: selectedLibraries.has(lib.id),
+        }))
       }
 
-      await onSave(payload);
+      await onSave(payload)
     } finally {
-      setSubmitting(false);
+      setSubmitting(false)
     }
-  };
+  }
 
   return (
     <div className="space-y-6">
-      {/* Notes Section */}
-      <div className="bg-background border border-border rounded-lg shadow-sm overflow-hidden">
-        <div className="bg-gradient-to-r from-yellow-50 dark:from-yellow-900/20 to-yellow-100 dark:to-yellow-800/20 p-4 border-b border-border">
-          <h3 className="text-lg font-semibold flex items-center gap-2">
-            <i className="fa-solid fa-sticky-note text-yellow-600 dark:text-yellow-400" />
-            Notes & Comments
-          </h3>
-        </div>
-        <div className="p-4">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <IconNotes className="h-5 w-5 text-muted-foreground" />
+            <span>Notes & Comments</span>
+          </CardTitle>
+          <CardDescription>Internal notes about this user (not visible to them).</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
           <div className="space-y-2">
-            <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70" htmlFor="notes">
-              Notes
-            </label>
-            <span className="text-sm text-muted-foreground mb-2 block">
-              Add personal notes or important information about this user
-            </span>
-            <textarea
+            <Label htmlFor="notes">Notes</Label>
+            <Textarea
               id="notes"
-              className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-              placeholder="Add any notes about this user..."
+              className="min-h-[120px]"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
+              placeholder="e.g., Prefers 1080p remux, invited from Discord, local-only for now..."
             />
-            <p className="text-xs text-muted-foreground mt-2">Administrative notes are only visible to administrators</p>
+            <p className="text-xs text-muted-foreground">
+              Keep track of context for this user (preferences, escalations, notes from other admins).
+            </p>
           </div>
-        </div>
-      </div>
-
-      {/* User Permissions Section */}
-      <div className="bg-background border border-border rounded-lg shadow-sm overflow-hidden">
-        <div className="bg-gradient-to-r from-blue-50 dark:from-blue-900/20 to-blue-100 dark:to-blue-800/20 p-4 border-b border-border">
-          <h3 className="text-lg font-semibold flex items-center gap-2">
-            <i className="fa-solid fa-user-cog text-blue-600 dark:text-blue-400" />
-            User Permissions
-          </h3>
-        </div>
-        <div className="p-4 space-y-4">
-          {/* Discord Bot Whitelist */}
-          <div className="p-4 rounded-lg border border-purple-200 dark:border-purple-500/30 bg-purple-50 dark:bg-purple-900/20">
-            <div className="flex items-center justify-between">
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-2">
-                  <i className="fa-brands fa-discord text-purple-600 dark:text-purple-400" />
-                  <h5 className="font-medium text-purple-700 dark:text-purple-300">Discord Bot Whitelisted</h5>
+          <div className="grid gap-3 md:grid-cols-2">
+            <Card className="bg-muted/40">
+              <CardContent className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="font-medium">Discord Bot Allowlist</div>
+                  <p className="text-xs text-muted-foreground">
+                    Allow this user to interact with the Discord bot even if global Discord bot use is limited.
+                  </p>
                 </div>
-                <p className="text-sm text-purple-600 dark:text-purple-400">
-                  Allow this user to interact with Discord bot features
+                <Switch
+                  checked={isDiscordBotWhitelisted}
+                  onCheckedChange={setIsDiscordBotWhitelisted}
+                  aria-label="Discord bot allowlist"
+                />
+              </CardContent>
+            </Card>
+
+            <Card className="bg-muted/40">
+              <CardContent className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="font-medium">Purge Protection</div>
+                  <p className="text-xs text-muted-foreground">Exclude this user from automatic inactivity purges.</p>
+                </div>
+                <Switch
+                  checked={isPurgeWhitelisted}
+                  onCheckedChange={setIsPurgeWhitelisted}
+                  aria-label="Purge protection"
+                />
+              </CardContent>
+            </Card>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <IconPlayerPlay className="h-5 w-5 text-muted-foreground" />
+            <span>Stream Permissions</span>
+          </CardTitle>
+          <CardDescription>Control high-impact streaming capabilities.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Card className="opacity-60 pointer-events-none">
+            <CardContent className="flex items-center justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-2 mb-1 text-muted-foreground">
+                  <i className="fa-solid fa-download" />
+                  <span className="font-medium">Allow Downloads</span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Manage in Plex under “Allow Sync.” This toggle is read-only here.
                 </p>
               </div>
-              <input
-                type="checkbox"
-                className="h-5 w-5 shrink-0 cursor-pointer rounded border border-input bg-background accent-primary"
-                checked={isDiscordBotWhitelisted}
-                onChange={(e) => setIsDiscordBotWhitelisted(e.target.checked)}
-              />
-            </div>
-          </div>
+              <Switch checked={allowDownloads} disabled />
+            </CardContent>
+          </Card>
 
-          {/* Purge Whitelist */}
-          <div className="p-4 rounded-lg border border-yellow-200 dark:border-yellow-500/30 bg-yellow-50 dark:bg-yellow-900/20">
-            <div className="flex items-center justify-between">
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-2">
-                  <i className="fa-solid fa-shield text-yellow-600 dark:text-yellow-400" />
-                  <h5 className="font-medium text-yellow-700 dark:text-yellow-300">Purge Whitelisted</h5>
-                </div>
-                <p className="text-sm text-yellow-600 dark:text-yellow-400">
-                  Protect this user from automatic inactivity purges
-                </p>
-              </div>
-              <input
-                type="checkbox"
-                className="h-5 w-5 shrink-0 cursor-pointer rounded border border-input bg-background accent-primary"
-                checked={isPurgeWhitelisted}
-                onChange={(e) => setIsPurgeWhitelisted(e.target.checked)}
-              />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Stream Permissions Section */}
-      <div className="bg-background border border-border rounded-lg shadow-sm overflow-hidden">
-        <div className="bg-gradient-to-r from-green-50 dark:from-green-900/20 to-green-100 dark:to-green-800/20 p-4 border-b border-border">
-          <h3 className="text-lg font-semibold flex items-center gap-2">
-            <i className="fa-solid fa-play text-green-600 dark:text-green-400" />
-            Stream Permissions
-          </h3>
-        </div>
-        <div className="p-4 space-y-4">
-          {/* Downloads Permission (Disabled) */}
-          <div className="p-4 rounded-lg border border-gray-200 dark:border-gray-500/30 bg-gray-50 dark:bg-gray-900/20 opacity-60 relative">
-            <div className="absolute top-2 right-2">
-              <div
-                className="relative"
-                title="This setting can't be changed here due to a Plex API limitation. Please update 'Allow Sync' directly in Plex for now."
-              >
-                <i className="fa-solid fa-info-circle text-orange-500" />
-              </div>
-            </div>
-            <div className="flex items-center justify-between pointer-events-none">
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-2">
-                  <i className="fa-solid fa-download text-gray-500" />
-                  <h5 className="font-medium text-gray-600 dark:text-gray-400">Allow Downloads</h5>
-                </div>
-                <p className="text-sm text-gray-500 dark:text-gray-500">
-                  Allow user to download content for offline viewing
-                </p>
-              </div>
-              <input type="checkbox" className="h-5 w-5 shrink-0 cursor-pointer rounded border border-input bg-background accent-primary" checked={allowDownloads} disabled />
-            </div>
-          </div>
-
-          {/* 4K Transcode Permission */}
-          <div className="p-4 rounded-lg border border-green-200 dark:border-green-500/30 bg-green-50 dark:bg-green-900/20">
-            <div className="flex items-center justify-between">
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-2">
+          <Card>
+            <CardContent className="flex items-center justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-2 mb-1 text-foreground">
                   <i className="fa-solid fa-video text-green-600 dark:text-green-400" />
-                  <h5 className="font-medium text-green-700 dark:text-green-300">Allow 4K Transcode</h5>
+                  <span className="font-medium">Allow 4K Transcode</span>
                 </div>
-                <p className="text-sm text-green-600 dark:text-green-400">
-                  Allow transcoding of 4K content (high server load)
+                <p className="text-xs text-muted-foreground">
+                  Enable only if your server can handle 4K transcoding load.
                 </p>
               </div>
-              <input
-                type="checkbox"
-                className="h-5 w-5 shrink-0 cursor-pointer rounded border border-input bg-background accent-primary"
+              <Switch
                 checked={allow4kTranscode}
-                onChange={(e) => setAllow4kTranscode(e.target.checked)}
+                onCheckedChange={setAllow4kTranscode}
+                aria-label="Allow 4K transcode"
               />
-            </div>
-          </div>
-        </div>
-      </div>
+            </CardContent>
+          </Card>
+        </CardContent>
+      </Card>
 
-      {/* Access Duration Section */}
-      <div className="bg-background border border-border rounded-lg shadow-sm overflow-hidden">
-        <div className="bg-gradient-to-r from-red-50 dark:from-red-900/20 to-red-100 dark:to-red-800/20 p-4 border-b border-border">
-          <h3 className="text-lg font-semibold flex items-center gap-2">
-            <i className="fa-solid fa-calendar-times text-red-600 dark:text-red-400" />
-            Access Expiration
-          </h3>
-        </div>
-        <div className="p-4 space-y-4">
-          {/* Info Banner */}
-          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-500/30 rounded-lg p-3">
-            <div className="flex items-start gap-2">
-              <i className="fa-solid fa-info-circle text-blue-600 dark:text-blue-400 mt-0.5" />
-              <div className="text-sm text-blue-700 dark:text-blue-300">
-                <p className="font-medium mb-1">Automatic Access Control</p>
-                <p>Set an expiration date to automatically revoke user access. Leave blank for permanent access.</p>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <IconCalendarTime className="h-5 w-5 text-muted-foreground" />
+            <span>Access Expiration</span>
+          </CardTitle>
+          <CardDescription>Automatically revoke access on a specific date.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Card className="bg-muted/40">
+            <CardContent className="flex items-start gap-3">
+              <i className="fa-solid fa-info-circle text-blue-600 dark:text-blue-400 mt-1" />
+              <div className="text-sm text-muted-foreground">
+                Set an expiration date to automatically revoke user access. Leave blank for permanent access.
               </div>
-            </div>
-          </div>
+            </CardContent>
+          </Card>
 
-          {/* Access Expiration Input */}
           <div className="space-y-2">
-            <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70" htmlFor="access_expiration">
-              Access Expiration
-            </label>
-            <span className="text-sm text-muted-foreground mb-2 block">
-              Choose when this user's access should expire
-            </span>
-            <input
+            <Label htmlFor="access_expiration">Access Expiration</Label>
+            <Input
               type="date"
               id="access_expiration"
-              className="flex h-10 w-full max-w-sm rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
               value={accessExpiration}
               onChange={(e) => setAccessExpiration(e.target.value)}
               disabled={clearAccessExpiration}
+              className="max-w-sm"
             />
-            <p className="text-xs text-muted-foreground mt-2">
-              User access will be automatically revoked at midnight on this date
+            <p className="text-xs text-muted-foreground">
+              User access will be automatically revoked at midnight on this date.
             </p>
           </div>
 
-          {/* Clear Expiration Option */}
-          <div className="p-3 rounded-lg border border-orange-200 dark:border-orange-500/30 bg-orange-50 dark:bg-orange-900/20">
-            <div className="space-y-2">
-              <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer justify-start">
-                <input
-                  type="checkbox"
-                  className="h-4 w-4 shrink-0 rounded border border-input bg-background accent-primary mr-3"
-                  checked={clearAccessExpiration}
-                  onChange={(e) => setClearAccessExpiration(e.target.checked)}
-                />
-                <div className="flex flex-col">
-                  <span className="font-medium">Clear Access Expiration</span>
-                  <span className="text-xs text-orange-700 dark:text-orange-300">
-                    Remove any existing expiration date and grant permanent access
-                  </span>
+          <Card className="bg-muted/40">
+            <CardContent className="flex items-start gap-3">
+              <Switch
+                checked={clearAccessExpiration}
+                onCheckedChange={setClearAccessExpiration}
+                aria-label="Clear access expiration"
+              />
+              <div className="space-y-1">
+                <div className="font-medium">Clear Access Expiration</div>
+                <div className="text-xs text-muted-foreground">
+                  Remove any existing expiration date and grant permanent access.
                 </div>
-              </label>
-            </div>
-          </div>
-        </div>
-      </div>
+              </div>
+            </CardContent>
+          </Card>
+        </CardContent>
+      </Card>
 
-      {/* Library Access Section */}
       {settings?.libraries && settings.libraries.length > 0 ? (
-        <div className="bg-background border border-border rounded-lg shadow-sm overflow-hidden">
-          <div className="bg-gradient-to-r from-primary/5 to-primary/10 p-4 border-b border-border">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold flex items-center gap-2">
-                <i className="fa-solid fa-folder-open text-primary" />
-                Library Access
-              </h3>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={handleSelectAllLibraries}
-                  className="inline-flex items-center rounded-md bg-green-50 dark:bg-green-400/10 px-2 py-1 text-xs font-medium text-green-700 dark:text-green-400 ring-1 ring-inset ring-green-600/20 dark:ring-green-500/20 gap-1 hover:bg-green-100 dark:hover:bg-green-400/20 transition-colors"
-                >
-                  <i className="fa-solid fa-check-square w-3 h-3" />
-                  Select All
-                </button>
-                <button
-                  type="button"
-                  onClick={handleDeselectAllLibraries}
-                  className="inline-flex items-center rounded-md bg-gray-50 dark:bg-gray-400/10 px-2 py-1 text-xs font-medium text-gray-700 dark:text-gray-400 ring-1 ring-inset ring-gray-600/20 dark:ring-gray-500/20 gap-1 hover:bg-gray-100 dark:hover:bg-gray-400/20 transition-colors"
-                >
-                  <i className="fa-solid fa-square w-3 h-3" />
-                  Clear All
-                </button>
-              </div>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <IconFolders className="h-5 w-5 text-muted-foreground" />
+                <span>Library Access</span>
+              </CardTitle>
+              <CardDescription>Select which libraries this user can access.</CardDescription>
             </div>
-          </div>
-          <div className="p-4">
-            <div className="space-y-4">
-              {/* Header info */}
-              <div className="flex items-center justify-between p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-500/30 rounded-lg">
-                <div className="flex items-center gap-2">
-                  <i className="fa-solid fa-folder w-4 h-4 text-blue-600 dark:text-blue-400" />
-                  <span className="text-sm font-medium text-blue-700 dark:text-blue-300">
-                    {settings.libraries.length} libraries available
-                  </span>
-                </div>
-                <span className="text-xs text-blue-600 dark:text-blue-400">Select which libraries this user can access</span>
-              </div>
-
-              {/* Library list */}
-              <div className="max-h-80 overflow-y-auto border border-border rounded-lg bg-muted dark:bg-muted">
-                {settings.libraries.map((library) => (
-                  <div key={library.id} className="space-y-2 border-b border-border last:border-b-0">
-                    <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer justify-start py-3 px-4 hover:bg-background dark:hover:bg-muted/50 transition-colors">
-                      <input
-                        type="checkbox"
-                        className="h-4 w-4 shrink-0 rounded border border-input bg-background accent-primary mr-3"
-                        checked={selectedLibraries.has(library.id)}
-                        onChange={() => handleToggleLibrary(library.id)}
-                      />
-                      <div className="flex items-center gap-2">
-                        <i className="fa-solid fa-folder w-3 h-3 text-blue-500" />
-                        <span className="font-medium">{library.name}</span>
-                      </div>
-                    </label>
-                  </div>
-                ))}
-              </div>
-
-              {/* Help text */}
-              <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-500/30 rounded-lg p-3">
-                <div className="flex items-start gap-2">
-                  <i className="fa-solid fa-lightbulb text-orange-600 dark:text-orange-400 mt-0.5" />
-                  <div className="text-sm text-orange-700 dark:text-orange-300">
-                    <p className="font-medium mb-1">Library Access Control</p>
-                    <p>Changes will be applied to all connected media servers. Unselected libraries will be removed from user access.</p>
-                  </div>
-                </div>
-              </div>
+            <div className="flex gap-2">
+              <Button type="button" variant="secondary" size="sm" onClick={handleSelectAllLibraries}>
+                <i className="fa-solid fa-check-square mr-2" />
+                Select All
+              </Button>
+              <Button type="button" variant="outline" size="sm" onClick={handleDeselectAllLibraries}>
+                <i className="fa-solid fa-square mr-2" />
+                Clear All
+              </Button>
             </div>
-          </div>
-        </div>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {settings.libraries.map((library) => (
+                <label
+                  key={library.id}
+                  className="flex items-center gap-3 rounded-lg border border-border bg-muted/30 p-3 text-sm hover:border-primary transition-colors cursor-pointer"
+                >
+                  <Switch
+                    checked={selectedLibraries.has(library.id)}
+                    onCheckedChange={() => handleToggleLibrary(library.id)}
+                    aria-label={`Toggle ${library.name}`}
+                  />
+                  <div className="flex flex-col">
+                    <span className="font-medium">{library.name}</span>
+                    <span className="text-xs text-muted-foreground">Library ID: {library.id}</span>
+                  </div>
+                </label>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       ) : null}
 
-      {/* Action Buttons */}
-      <div className="flex items-center justify-end gap-3 pt-6 border-t border-border">
-        <Button variant="primary" onClick={handleSubmit} disabled={submitting}>
-          <i className="fa-solid fa-save w-4 h-4 mr-2" />
-          {submitting ? 'Saving…' : 'Save Changes'}
+      <div className="flex justify-end gap-3">
+        <Button variant="outline" onClick={handleDeselectAllLibraries}>
+          Reset Changes
+        </Button>
+        <Button variant="default" onClick={handleSubmit} disabled={submitting}>
+          {submitting ? 'Saving…' : 'Save User Settings'}
         </Button>
       </div>
     </div>
-  );
-};
+  )
+}
 
-export default UserSettingsCard;
+export default UserSettingsCard

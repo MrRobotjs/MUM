@@ -5,6 +5,7 @@ from app.extensions import socketio
 from app.models import User, UserType
 from functools import wraps
 from flask_jwt_extended import decode_token
+from app.routes.api_v2.sync_status import get_sync_status, SYNC_STATUS_ROOM
 
 bp = Blueprint('websockets', __name__)
 
@@ -210,3 +211,22 @@ def broadcast_streaming_update(active_count, summary_data=None, live_services=No
         current_app.logger.debug(f"Room 'streaming_updates' has {len(room_clients) if room_clients else 0} clients")
     except Exception:
         pass
+@socketio.on('subscribe_sync_status')
+@jwt_ws_required('administrator')
+def handle_subscribe_sync_status():
+    """Subscribe to sync status updates."""
+    try:
+        join_room(SYNC_STATUS_ROOM)
+        emit('subscribed', {'channel': SYNC_STATUS_ROOM})
+        emit('sync_status_update', get_sync_status(), room=request.sid)
+    except Exception as e:
+        current_app.logger.error(f"Failed to subscribe client {request.sid} to sync status: {e}", exc_info=True)
+        emit('subscription_error', {'message': str(e)})
+
+
+@socketio.on('unsubscribe_sync_status')
+@jwt_ws_required()
+def handle_unsubscribe_sync_status():
+    """Unsubscribe from sync status updates."""
+    leave_room(SYNC_STATUS_ROOM)
+    emit('unsubscribed', {'channel': SYNC_STATUS_ROOM})

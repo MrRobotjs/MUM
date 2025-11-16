@@ -7,7 +7,7 @@ from pydantic import BaseModel
 from flask_openapi3 import Tag
 
 from app.routes.api_v2 import api_v2
-from app.extensions import cache
+from app.extensions import cache, socketio
 
 
 sync_tag = Tag(name="Sync", description="Synchronization status endpoints")
@@ -27,6 +27,7 @@ class SyncStatusResponse(BaseModel):
 
 
 SYNC_STATUS_KEY = "user_sync_status"
+SYNC_STATUS_ROOM = "sync_status_updates"
 
 
 def get_sync_status():
@@ -43,8 +44,19 @@ def get_sync_status():
     }
 
 
+def broadcast_sync_status(status_data: dict | None = None):
+    """Emit the latest sync status to websocket subscribers."""
+    try:
+        payload = status_data or get_sync_status()
+        socketio.emit('sync_status_update', payload, room=SYNC_STATUS_ROOM, namespace='/')
+    except Exception:
+        # Avoid failing core logic if websocket broadcast fails
+        pass
+
+
 def set_sync_status(status_data: dict):
     cache.set(SYNC_STATUS_KEY, status_data, timeout=3600)
+    broadcast_sync_status(status_data)
 
 
 def start_sync(total_servers: int, actor=None):

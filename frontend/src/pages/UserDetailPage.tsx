@@ -147,14 +147,14 @@ const ProfileTab = ({ user }: { user: UserDetail }) => {
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
       <div className="space-y-6">
-        <section className="rounded-lg border border-border bg-background shadow-sm">
-          <div className="p-6 space-y-4">
-            <header>
-              <h3 className="text-lg font-semibold">Account Snapshot</h3>
-              <p className="text-sm text-muted-foreground">
-                Core identity and service information pulled from connected systems.
-              </p>
-            </header>
+        <Card>
+          <CardHeader>
+            <CardTitle>Account Snapshot</CardTitle>
+            <CardDescription>
+              Core identity and service information pulled from connected systems.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
 
             <div className="space-y-3 text-sm">
               <div className="flex items-start gap-3">
@@ -290,17 +290,17 @@ const ProfileTab = ({ user }: { user: UserDetail }) => {
                 )}
               </div>
             ) : null}
-          </div>
-        </section>
+          </CardContent>
+        </Card>
 
-        <section className="rounded-lg border border-border bg-background shadow-sm">
-          <div className="p-6 space-y-4">
-            <header>
-              <h3 className="text-lg font-semibold">Roles & Permissions</h3>
-              <p className="text-sm text-muted-foreground">
-                Visual roles and administrative access assigned to this account.
-              </p>
-            </header>
+        <Card>
+          <CardHeader>
+            <CardTitle>Roles & Permissions</CardTitle>
+            <CardDescription>
+              Visual roles and administrative access assigned to this account.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
 
             <div>
               <div className="text-xs uppercase text-muted-foreground/60">Admin Roles</div>
@@ -348,19 +348,19 @@ const ProfileTab = ({ user }: { user: UserDetail }) => {
                 </div>
               )}
             </div>
-          </div>
-        </section>
+          </CardContent>
+        </Card>
       </div>
 
       <div className="space-y-6 lg:col-span-2">
-        <section className="rounded-lg border border-border bg-background shadow-sm">
-          <div className="p-6 space-y-4">
-            <header>
-              <h3 className="text-lg font-semibold">Global Streaming Stats</h3>
-              <p className="text-sm text-muted-foreground">
-                Aggregated playback history compiled across all connected services.
-              </p>
-            </header>
+        <Card>
+          <CardHeader>
+            <CardTitle>Global Streaming Stats</CardTitle>
+            <CardDescription>
+              Aggregated playback history compiled across all connected services.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
             {Object.keys(globalStats).length === 0 ? (
               <div className="flex flex-col items-center gap-3 py-8 text-muted-foreground/60">
                 <i className="fa-solid fa-chart-simple text-3xl" />
@@ -420,23 +420,23 @@ const ProfileTab = ({ user }: { user: UserDetail }) => {
                 ))}
               </div>
             )}
-          </div>
-        </section>
+          </CardContent>
+        </Card>
 
-        <section className="rounded-lg border border-border bg-background shadow-sm">
-          <div className="p-6 space-y-4">
-            <header className="flex items-center justify-between">
-              <div>
-                <h3 className="text-lg font-semibold">Preferred Players</h3>
-                <p className="text-sm text-muted-foreground">Top devices or apps used to play content.</p>
-              </div>
-              {playerStats.length > 0 ? (
-                <span className="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium bg-muted text-muted-foreground">
-                  <i className="fa-solid fa-layer-group mr-1" />
-                  {playerStats.length} unique players
-                </span>
-              ) : null}
-            </header>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0">
+            <div>
+              <CardTitle>Preferred Players</CardTitle>
+              <CardDescription>Top devices or apps used to play content.</CardDescription>
+            </div>
+            {playerStats.length > 0 ? (
+              <span className="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium bg-muted text-muted-foreground">
+                <i className="fa-solid fa-layer-group mr-1" />
+                {playerStats.length} unique players
+              </span>
+            ) : null}
+          </CardHeader>
+          <CardContent>
             {playerStats.length === 0 ? (
               <div className="flex flex-col items-center gap-3 py-8 text-muted-foreground/60">
                 <i className="fa-solid fa-tv text-3xl" />
@@ -462,8 +462,8 @@ const ProfileTab = ({ user }: { user: UserDetail }) => {
                 ))}
               </div>
             )}
-          </div>
-        </section>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

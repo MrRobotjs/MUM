@@ -222,24 +222,7 @@ export const UsersListPage = () => {
           sideOffset={8}
           collisionPadding={8}
         >
-          <DropdownMenuItem
-            disabled={syncStatus.is_syncing}
-            onSelect={(event) => {
-              if (syncStatus.is_syncing) {
-                event.preventDefault();
-                return;
-              }
-              handleSync();
-            }}
-          >
-            <IconRefresh
-              className={cn(
-                'mr-2 h-4 w-4',
-                syncStatus.is_syncing && 'animate-spin text-primary'
-              )}
-            />
-            Sync All Users
-          </DropdownMenuItem>
+          {/* Sync action moved to filter bar dropdown */}
           <DropdownMenuItem onSelect={() => setShowDisplaySettingsModal(true)}>
             <i className="fa-solid fa-cog fa-fw mr-2" />
             Display Settings
@@ -345,7 +328,7 @@ export const UsersListPage = () => {
 
       {/* Search Bar */}
       <Card className="mb-6">
-        <CardContent className="flex gap-2 p-4">
+        <CardContent className="flex gap-2">
           <Input
             type="text"
             placeholder="Search by username or email..."
@@ -576,16 +559,47 @@ export const UsersListPage = () => {
               </div>
             </SheetContent>
           </Sheet>
-          {hasPermission('purge_users') && (
-            <Button
-              onClick={() => setShowPurgeModal(true)}
-              variant="default"
-              className="bg-warning hover:bg-warning/90 text-warning-foreground"
-            >
-              <i className="fa-solid fa-user-clock mr-0 sm:mr-2" />
-              <span className="hidden sm:inline">Purge</span>
-            </Button>
-          )}
+          {/* Actions */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="gap-2">
+                <IconDots className="size-4" />
+                Actions
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuLabel>Bulk Actions</DropdownMenuLabel>
+              {hasPermission('administrator') && (
+                <DropdownMenuItem
+                  disabled={syncStatus.is_syncing}
+                  onSelect={() => {
+                    if (syncStatus.is_syncing) return
+                    handleSync()
+                  }}
+                  className="cursor-pointer"
+                >
+                  <IconRefresh
+                    className={cn(
+                      'mr-2 size-4',
+                      syncStatus.is_syncing && 'animate-spin text-primary'
+                    )}
+                  />
+                  {syncStatus.is_syncing ? 'Syncing...' : 'Sync All Users'}
+                </DropdownMenuItem>
+              )}
+              {hasPermission('administrator') && (
+                <DropdownMenuItem
+                  onSelect={() => {
+                    setShowPurgeModal(true);
+                  }}
+                  className="cursor-pointer text-warning"
+                >
+                  <i className="fa-solid fa-user-clock mr-2 text-warning" />
+                  Purge
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </CardContent>
       </Card>
 

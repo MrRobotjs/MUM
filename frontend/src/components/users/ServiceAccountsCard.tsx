@@ -17,7 +17,7 @@ type ServiceAccountsCardProps = {
   onLink?: () => void;
 };
 
-export const ServiceAccountsCard = ({ accounts, loading, error, onUnlink }: ServiceAccountsCardProps) => {
+export const ServiceAccountsCard = ({ accounts, loading, error, onUnlink, onLink }: ServiceAccountsCardProps) => {
   if (loading) {
     return (
       <section className="rounded-lg border border-border bg-background shadow-sm">

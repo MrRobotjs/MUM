@@ -35,7 +35,7 @@ export default function UserDashboardPage() {
   // Show loading while checking auth
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-base-200">
+      <div className="flex min-h-screen items-center justify-center bg-muted">
         <span className="loading loading-spinner loading-lg" />
       </div>
     );

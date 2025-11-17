@@ -5,7 +5,8 @@ import { useServers } from '../hooks/useServers';
 import { useStreamingSettings } from '../hooks/useStreamingSettings';
 import { useStreamingSummary } from '../hooks/useStreamingSummary';
 import { useStreamingWebSocket } from '../hooks/useStreamingWebSocket';
-import { Button, PageHeader } from '../components';
+import { PageHeader } from '../components';
+import { Button } from '@/components/ui/button';
 import { requestJson } from '../util/apiClient';
 import { useAlerts } from '../contexts/AlertContext';
 import { Badge } from '@/components/ui/badge';
@@ -21,6 +22,8 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
+import { ResponsiveDialog } from '@/components/ui/responsive-dialog';
+import { Textarea } from '@/components/ui/textarea';
 import { IconDots } from '@tabler/icons-react';
 
 type ActiveSession = {
@@ -521,7 +524,7 @@ export const StreamingPage = () => {
           case 'audiobookshelf': return 'bg-gradient-to-br from-base-200 to-audiobookshelf/10';
           case 'komga': return 'bg-gradient-to-br from-base-200 to-komga/10';
           case 'romm': return 'bg-gradient-to-br from-base-200 to-romm/10';
-          default: return 'bg-base-200';
+          default: return 'bg-muted';
         }
       };
 
@@ -542,13 +545,15 @@ export const StreamingPage = () => {
         <div key={session.session_key} className={`card ${getCardBgClass()} shadow-lg w-full max-w-md relative group`} tabIndex={0}>
           {/* Action buttons (top right) */}
           <div className="absolute top-2 right-2 z-10 flex space-x-1 opacity-0 pointer-events-none transition-opacity duration-200 group-hover:opacity-100 group-hover:pointer-events-auto group-focus:opacity-100 group-focus:pointer-events-auto">
-            <button
-              className="btn btn-xs btn-circle btn-error"
+            <Button
+              variant="destructive"
+              size="icon"
+              className="h-7 w-7 rounded-full"
               onClick={() => openTerminateModal(session)}
               title="Terminate Session"
             >
-              <i className="fa-solid fa-times" />
-            </button>
+              <i className="fa-solid fa-times text-sm" />
+            </Button>
           </div>
 
           <div className="card-body p-3">
@@ -573,7 +578,7 @@ export const StreamingPage = () => {
                   ) : null}
                   {/* Fallback when image fails to load or no image */}
                   <div
-                    className="w-full h-full bg-base-300 flex flex-col items-center justify-center text-xs text-base-content/50"
+                    className="w-full h-full bg-muted flex flex-col items-center justify-center text-xs text-muted-foreground"
                     style={{ display: session.thumb_url ? 'none' : 'flex' }}
                   >
                     <i className="fa-solid fa-image fa-2x mb-1" />
@@ -586,7 +591,7 @@ export const StreamingPage = () => {
               <div className="flex-grow min-w-0">
                 <div className="text-xs space-y-0.5 mt-1">
                   {/* User */}
-                  <p className="text-base-content/80 flex items-center" title={session.user}>
+                  <p className="text-foreground/80 flex items-center" title={session.user}>
                     {session.user_avatar_url ? (
                       <div className="avatar avatar-xs mr-1.5">
                         <div className="w-4 h-4 rounded-full">
@@ -622,31 +627,31 @@ export const StreamingPage = () => {
                   </p>
 
                   {/* Player */}
-                  <p className="text-base-content/70 flex items-center" title={`${session.player_title} (${session.player_platform} via ${session.product})`}>
+                  <p className="text-muted-foreground flex items-center" title={`${session.player_title} (${session.player_platform} via ${session.product})`}>
                     <i className="fa-solid fa-play fa-fw mr-1.5 text-info w-4 text-center" />
                     <span className="font-medium mr-1 text-info">Player:</span>
                     {session.player_title}{' '}
-                    <span className="text-base-content/50 ml-1">
+                    <span className="text-muted-foreground ml-1">
                       ({session.product !== session.player_title ? session.product : session.player_platform})
                     </span>
                   </p>
 
                   {/* Media/Library */}
-                  <p className="text-base-content/70 flex items-center">
+                  <p className="text-muted-foreground flex items-center">
                     <i className="fa-solid fa-tv fa-fw mr-1.5 text-info w-4 text-center" />
                     <span className="font-medium mr-1 text-info">Media/Library:</span>
                     {session.media_type} on {session.library_name}
                   </p>
 
                   {/* Quality */}
-                  <p className="text-base-content/70 flex items-center" title={`Quality: ${session.quality_detail}`}>
+                  <p className="text-muted-foreground flex items-center" title={`Quality: ${session.quality_detail}`}>
                     <i className="fa-solid fa-sliders fa-fw w-4 mr-1.5 text-info text-center" />
                     <span className="font-medium mr-1 text-info">Quality:</span>
                     <span>{session.quality_detail}</span>
                   </p>
 
                   {/* Stream */}
-                  <p className="text-base-content/70 flex items-center" title={`Stream: ${session.stream_detail}`}>
+                  <p className="text-muted-foreground flex items-center" title={`Stream: ${session.stream_detail}`}>
                     <i className="fa-solid fa-wifi fa-fw w-4 mr-1.5 text-info text-center" />
                     <span className="font-medium mr-1 text-info">Stream:</span>
                     <span className={`font-medium ${session.stream_detail?.includes('Transcode') ? 'text-orange-400' : 'text-green-400'}`}>
@@ -659,7 +664,7 @@ export const StreamingPage = () => {
 
                   {/* Container */}
                   {session.container_detail && (
-                    <p className="text-base-content/70 flex items-center" title={`Container: ${session.container_detail}`}>
+                    <p className="text-muted-foreground flex items-center" title={`Container: ${session.container_detail}`}>
                       <i className="fa-solid fa-box-archive fa-fw w-4 mr-1.5 text-info text-center" />
                       <span className="font-medium mr-1 text-info">Container:</span>
                       <span>{session.container_detail}</span>
@@ -668,7 +673,7 @@ export const StreamingPage = () => {
 
                   {/* Video */}
                   {session.video_detail && (
-                    <p className="text-base-content/70 flex items-center" title={`Video: ${session.video_detail}`}>
+                    <p className="text-muted-foreground flex items-center" title={`Video: ${session.video_detail}`}>
                       <i className="fa-solid fa-film fa-fw w-4 mr-1.5 text-info text-center" />
                       <span className="font-medium mr-1 text-info">Video:</span>
                       <span>{session.video_detail}</span>
@@ -677,7 +682,7 @@ export const StreamingPage = () => {
 
                   {/* Audio */}
                   {session.audio_detail && (
-                    <p className="text-base-content/70 flex items-center" title={`Audio: ${session.audio_detail}`}>
+                    <p className="text-muted-foreground flex items-center" title={`Audio: ${session.audio_detail}`}>
                       <i className="fa-solid fa-volume-high fa-fw w-4 mr-1.5 text-info text-center" />
                       <span className="font-medium mr-1 text-info">Audio:</span>
                       <span>{session.audio_detail}</span>
@@ -686,7 +691,7 @@ export const StreamingPage = () => {
 
                   {/* Subtitle */}
                   {session.subtitle_detail && (
-                    <p className="text-base-content/70 flex items-center" title={`Subtitle: ${session.subtitle_detail}`}>
+                    <p className="text-muted-foreground flex items-center" title={`Subtitle: ${session.subtitle_detail}`}>
                       <i className="fa-solid fa-closed-captioning fa-fw w-4 mr-1.5 text-info text-center" />
                       <span className="font-medium mr-1 text-info">Subtitle:</span>
                       <span>{session.subtitle_detail}</span>
@@ -694,7 +699,7 @@ export const StreamingPage = () => {
                   )}
 
                   {/* Location */}
-                  <p className="text-base-content/70 flex items-center" title={`Location: ${session.location_detail}`}>
+                  <p className="text-muted-foreground flex items-center" title={`Location: ${session.location_detail}`}>
                     <i className="fa-solid fa-location-dot fa-fw w-4 mr-1.5 text-info text-center" />
                     <span className="font-medium mr-1 text-info">Location:</span>
                     <span>{session.location_detail}</span>
@@ -715,7 +720,7 @@ export const StreamingPage = () => {
                         ? 'text-warning'
                         : session.state?.toLowerCase() === 'buffering'
                         ? 'text-info'
-                        : 'text-base-content/70'
+                        : 'text-muted-foreground'
                     }`}
                   >
                     {session.state || 'Unknown'}
@@ -741,7 +746,7 @@ export const StreamingPage = () => {
                     {session.server_name}
                   </span>
                 </div>
-                <span className="text-xs text-base-content/70">
+                <span className="text-xs text-muted-foreground">
                   {session.current_time} / {session.duration} ({session.progress?.toFixed(1) || 0}%)
                 </span>
               </div>
@@ -760,7 +765,7 @@ export const StreamingPage = () => {
               />
               <h2 className="card-title text-sm font-semibold" title={session.media_title}>
                 {session.media_title || 'Unknown Title'}
-                {session.year && <span className="text-xs font-normal text-base-content/70">({session.year})</span>}
+                {session.year && <span className="text-xs font-normal text-muted-foreground">({session.year})</span>}
               </h2>
               {session.media_type === 'Episode' && session.grandparent_title && (
                 <p className="text-xs text-primary" title={`${session.grandparent_title}${session.parent_title ? ` - ${session.parent_title}` : ''}`}>
@@ -797,7 +802,7 @@ export const StreamingPage = () => {
         <div className="space-y-6">
           {Object.entries(sessionsData.by_server).map(([serverName, sessions]) => (
             <div key={serverName}>
-              <h3 className="text-lg font-semibold text-base-content mb-3 flex items-center gap-2">
+              <h3 className="text-lg font-semibold text-foreground mb-3 flex items-center gap-2">
                 <i className="fa-solid fa-server text-primary" />
                 {serverName}
                 <Badge variant="secondary" className="ml-2">{sessions.length}</Badge>
@@ -816,7 +821,7 @@ export const StreamingPage = () => {
         <div className="space-y-6">
           {Object.entries(sessionsData.by_service).map(([serviceType, sessions]) => (
             <div key={serviceType}>
-              <h3 className="text-lg font-semibold text-base-content mb-3 flex items-center gap-2">
+              <h3 className="text-lg font-semibold text-foreground mb-3 flex items-center gap-2">
                 <i className="fa-solid fa-cogs text-primary" />
                 {serviceType.toUpperCase()}
                 <Badge variant="secondary" className="ml-2">{sessions.length}</Badge>
@@ -918,7 +923,7 @@ export const StreamingPage = () => {
                   <i className="fa-solid fa-tower-broadcast" />
                 </div>
                 <div>
-                  <CardTitle className="flex items-center gap-2 text-xl text-base-content">
+                  <CardTitle className="flex items-center gap-2 text-xl text-foreground">
                     Active Streams
                     {sessionsData && <Badge variant="secondary">{sessionsData.total_count}</Badge>}
                   </CardTitle>
@@ -955,7 +960,7 @@ export const StreamingPage = () => {
       </div>
 
       {/* Historical Data Section - EXISTING */}
-      <div className="divider text-base-content/60">
+      <div className="divider text-muted-foreground">
         <i className="fa-solid fa-history mr-2" />
         Historical Streaming Data
       </div>
@@ -970,9 +975,9 @@ export const StreamingPage = () => {
               <CardDescription>Recent stream counts by day.</CardDescription>
             </CardHeader>
             <CardContent>
-              <ul className="space-y-1 text-xs text-base-content/80">
+              <ul className="space-y-1 text-xs text-foreground/80">
                 {summary.daily.length === 0 ? (
-                  <li className="text-base-content/60">No activity in the selected range.</li>
+                  <li className="text-muted-foreground">No activity in the selected range.</li>
                 ) : null}
                 {summary.daily.slice(-14).map((point) => (
                   <li
@@ -980,7 +985,7 @@ export const StreamingPage = () => {
                     className="flex items-center justify-between rounded-lg border bg-muted/50 px-3 py-2"
                   >
                     <span>{new Date(point.date).toLocaleDateString()}</span>
-                    <span className="font-medium text-base-content">{point.count}</span>
+                    <span className="font-medium text-foreground">{point.count}</span>
                   </li>
                 ))}
               </ul>
@@ -993,17 +998,17 @@ export const StreamingPage = () => {
               <CardDescription>Breakdown of streams per media service.</CardDescription>
             </CardHeader>
             <CardContent>
-              <ul className="space-y-2 text-sm text-base-content/80">
+              <ul className="space-y-2 text-sm text-foreground/80">
                 {summary.by_service.length === 0 ? (
-                  <li className="text-base-content/60">No recent streams.</li>
+                  <li className="text-muted-foreground">No recent streams.</li>
                 ) : null}
                 {summary.by_service.map((entry) => (
                   <li
                     key={entry.service_type}
                     className="flex items-center justify-between rounded-lg border bg-muted/50 px-3 py-2 uppercase"
                   >
-                    <span className="font-medium text-base-content">{entry.service_type}</span>
-                    <span className="text-base-content/70">{entry.count}</span>
+                    <span className="font-medium text-foreground">{entry.service_type}</span>
+                    <span className="text-muted-foreground">{entry.count}</span>
                   </li>
                 ))}
               </ul>
@@ -1140,94 +1145,60 @@ export const StreamingPage = () => {
 
       <StreamingSettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
 
-      {/* Terminate Session Modal */}
-      {showTerminateModal && selectedSession && (
-        <dialog className="modal modal-open">
-          <div className="modal-box max-w-lg bg-base-100 border border-base-300 shadow-2xl p-0">
-            {/* Header */}
-            <div className="flex items-center justify-between p-6 border-b border-base-300">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-error/20 flex items-center justify-center">
-                  <i className="fa-solid fa-ban text-error text-lg" />
+      <ResponsiveDialog
+        open={showTerminateModal && Boolean(selectedSession)}
+        onOpenChange={(value) => {
+          if (!value) setShowTerminateModal(false);
+        }}
+        title="Terminate Session"
+        description="End an active streaming session."
+        contentClassName="max-w-lg"
+        footer={[
+          <Button key="cancel" variant="outline" onClick={() => setShowTerminateModal(false)}>
+            Cancel
+          </Button>,
+          <Button key="terminate" variant="destructive" onClick={handleTerminateSession} className="gap-2">
+            <i className="fa-solid fa-ban" />
+            Terminate Session
+          </Button>,
+        ]}
+      >
+        {selectedSession ? (
+          <div className="space-y-6">
+            <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4">
+              <div className="flex items-start gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-destructive/20">
+                  <i className="fa-solid fa-exclamation-triangle text-destructive" />
                 </div>
-                <div>
-                  <h3 className="text-xl font-semibold text-base-content">Terminate Session</h3>
-                  <p className="text-sm text-base-content/60">End an active streaming session</p>
-                </div>
-              </div>
-              <button
-                className="btn btn-sm btn-circle btn-ghost hover:bg-base-200"
-                onClick={() => setShowTerminateModal(false)}
-              >
-                <i className="fa-solid fa-times" />
-              </button>
-            </div>
-
-            {/* Content */}
-            <div className="p-6">
-              {/* Warning Info Card */}
-              <div className="bg-base-200/50 rounded-lg p-4 mb-6 border border-base-300">
-                <div className="flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-full bg-error/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <i className="fa-solid fa-exclamation-triangle text-error text-sm" />
-                  </div>
-                  <div>
-                    <h4 className="font-medium text-base-content mb-1">Confirm Session Termination</h4>
-                    <p className="text-sm text-base-content/70 leading-relaxed">
-                      Are you sure you want to terminate the session for{' '}
-                      <strong>{selectedSession.user}</strong> playing{' '}
-                      <strong>{selectedSession.media_title}</strong>?
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Message Input */}
-              <div className="space-y-3">
-                <h4 className="font-medium text-base-content text-lg mb-3">Optional Message</h4>
-                <div className="bg-base-200/30 rounded-lg p-4 border border-base-300/30 hover:border-base-300/60 transition-colors">
-                  <div className="flex items-center gap-2 mb-2">
-                    <i className="fa-solid fa-message text-info text-sm" />
-                    <h5 className="font-medium text-base-content">Message for User</h5>
-                  </div>
-                  <textarea
-                    className="textarea textarea-bordered w-full resize-none"
-                    rows={3}
-                    placeholder="e.g., Server maintenance starting soon."
-                    value={terminateMessage}
-                    onChange={(e) => setTerminateMessage(e.target.value)}
-                  />
-                  <p className="text-sm text-base-content/60 mt-2">
-                    This message will be displayed to the user when their session is terminated
+                <div className="space-y-1">
+                  <h4 className="text-base font-semibold text-foreground">Confirm Session Termination</h4>
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    Are you sure you want to terminate the session for <strong>{selectedSession.user}</strong> playing{' '}
+                    <strong>{selectedSession.media_title}</strong>?
                   </p>
                 </div>
               </div>
+            </div>
 
-              {/* Action Buttons */}
-              <div className="flex items-center justify-end gap-3 mt-8 pt-6 border-t border-base-300">
-                <button
-                  type="button"
-                  className="btn btn-ghost"
-                  onClick={() => setShowTerminateModal(false)}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-error gap-2"
-                  onClick={handleTerminateSession}
-                >
-                  <i className="fa-solid fa-ban" />
-                  Terminate Session
-                </button>
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <i className="fa-solid fa-message text-info text-sm" />
+                <h5 className="text-base font-semibold text-foreground">Optional Message</h5>
               </div>
+              <Textarea
+                rows={3}
+                placeholder="e.g., Server maintenance starting soon."
+                value={terminateMessage}
+                onChange={(e) => setTerminateMessage(e.target.value)}
+                className="resize-none"
+              />
+              <p className="text-sm text-muted-foreground">
+                This message will be displayed to the user when their session is terminated.
+              </p>
             </div>
           </div>
-          <form method="dialog" className="modal-backdrop">
-            <button onClick={() => setShowTerminateModal(false)}>close</button>
-          </form>
-        </dialog>
-      )}
+        ) : null}
+      </ResponsiveDialog>
     </div>
   );
 };

@@ -1,6 +1,7 @@
 import { forwardRef } from 'react';
 import type { InputHTMLAttributes } from 'react';
 import clsx from 'clsx';
+import { Input } from '@/components/ui/input';
 
 type TextInputProps = InputHTMLAttributes<HTMLInputElement> & {
   hasError?: boolean;
@@ -8,11 +9,10 @@ type TextInputProps = InputHTMLAttributes<HTMLInputElement> & {
 
 export const TextInput = forwardRef<HTMLInputElement, TextInputProps>(
   ({ className, hasError, ...props }, ref) => (
-    <input
+    <Input
       ref={ref}
       className={clsx(
-        'input input-bordered w-full',
-        hasError ? 'input-error' : 'input-primary',
+        hasError && 'border-destructive focus-visible:ring-destructive/50',
         className
       )}
       {...props}

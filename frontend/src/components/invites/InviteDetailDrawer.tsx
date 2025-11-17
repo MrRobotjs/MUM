@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import clsx from 'clsx';
-import { Button } from '../common/Button';
+import { Button } from '../ui/button';
 import { useAlerts } from '../../contexts/AlertContext';
 import { requestJson } from '../../util/apiClient';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';

@@ -1,3 +1,5 @@
+import { Button } from '@/components/ui/button';
+
 interface PaginationProps {
   currentPage: number;
   totalPages: number;
@@ -51,24 +53,25 @@ export const Pagination = ({ currentPage, totalPages, onPageChange, loading = fa
   const pages = getPageNumbers();
 
   return (
-    <div className="flex justify-center items-center gap-2 py-4">
+    <div className="flex items-center justify-center gap-2 py-4">
       {/* Previous Button */}
-      <button
+      <Button
         onClick={() => onPageChange(currentPage - 1)}
         disabled={currentPage === 1 || loading}
-        className="btn btn-sm btn-ghost"
+        variant="ghost"
+        size="sm"
         type="button"
         aria-label="Previous page"
       >
         <i className="fa-solid fa-chevron-left" />
-      </button>
+      </Button>
 
       {/* Page Numbers */}
       <div className="flex gap-1">
         {pages.map((page, index) => {
           if (page === '...') {
             return (
-              <span key={`ellipsis-${index}`} className="flex items-center px-2 text-base-content/60">
+              <span key={`ellipsis-${index}`} className="flex items-center px-2 text-muted-foreground">
                 ...
               </span>
             );
@@ -78,31 +81,33 @@ export const Pagination = ({ currentPage, totalPages, onPageChange, loading = fa
           const isActive = pageNum === currentPage;
 
           return (
-            <button
+            <Button
               key={pageNum}
               onClick={() => onPageChange(pageNum)}
               disabled={loading}
-              className={`btn btn-sm ${isActive ? 'btn-primary' : 'btn-ghost'}`}
+              variant={isActive ? 'default' : 'ghost'}
+              size="sm"
               type="button"
               aria-label={`Page ${pageNum}`}
               aria-current={isActive ? 'page' : undefined}
             >
               {pageNum}
-            </button>
+            </Button>
           );
         })}
       </div>
 
       {/* Next Button */}
-      <button
+      <Button
         onClick={() => onPageChange(currentPage + 1)}
         disabled={currentPage === totalPages || loading}
-        className="btn btn-sm btn-ghost"
+        variant="ghost"
+        size="sm"
         type="button"
         aria-label="Next page"
       >
         <i className="fa-solid fa-chevron-right" />
-      </button>
+      </Button>
 
       {/* Loading Indicator */}
       {loading && (

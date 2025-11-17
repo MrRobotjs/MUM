@@ -428,7 +428,7 @@ export const InviteWizardPage = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-base-100">
+      <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex items-center gap-3">
           <span className="loading loading-spinner loading-md" />
           <span className="text-lg">Loading invite…</span>
@@ -439,17 +439,17 @@ export const InviteWizardPage = () => {
 
   if (error || !state) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-base-100 px-4">
-        <div className="bg-base-100 border border-error/30 rounded-xl shadow-lg overflow-hidden max-w-md w-full">
+      <div className="min-h-screen flex items-center justify-center bg-background px-4">
+        <div className="bg-card border border-destructive/30 rounded-xl shadow-lg overflow-hidden max-w-md w-full">
           <div className="bg-error/10 border-b border-error/20 p-6 text-center">
             <div className="w-16 h-16 rounded-full bg-error/20 flex items-center justify-center mx-auto mb-4">
               <i className="fa-solid fa-circle-xmark text-error text-2xl" />
             </div>
             <h1 className="text-2xl font-bold text-error mb-2">Invite Problem</h1>
-            <p className="text-base-content/70 text-sm">There was an issue with your invite</p>
+            <p className="text-muted-foreground text-sm">There was an issue with your invite</p>
           </div>
           <div className="p-6 text-center">
-            <p className="text-base-content mb-6">{error ?? 'Unable to load this invite link.'}</p>
+            <p className="text-foreground mb-6">{error ?? 'Unable to load this invite link.'}</p>
             <Button onClick={() => loadState()} variant="outline">
               <i className="fa-solid fa-rotate-right mr-2" />
               Try Again
@@ -462,7 +462,7 @@ export const InviteWizardPage = () => {
 
   if (completion) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-base-100 p-4">
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <div className="w-full max-w-2xl">
           <div className="bg-gradient-to-br from-success/10 to-primary/10 border border-success/20 rounded-xl p-8 shadow-lg">
             <div className="text-center mb-8">
@@ -470,7 +470,7 @@ export const InviteWizardPage = () => {
                 <i className="fa-solid fa-check-circle text-success text-3xl" />
               </div>
               <h2 className="text-3xl font-bold text-success mb-3">Welcome, {completion.username}!</h2>
-              <p className="text-base-content/70 text-lg">Your invitation has been completed successfully</p>
+              <p className="text-muted-foreground text-lg">Your invitation has been completed successfully</p>
             </div>
 
             {state.plex.authenticated || state.discord.authenticated ? (
@@ -483,7 +483,7 @@ export const InviteWizardPage = () => {
                       </div>
                       <div>
                         <h4 className="font-medium text-[#e5a00d] mb-1">Plex Account Connected</h4>
-                        <p className="text-sm text-base-content/80">
+                        <p className="text-sm text-foreground/80">
                           Authenticated as <strong>{state.plex.user.username}</strong>
                         </p>
                       </div>
@@ -498,7 +498,7 @@ export const InviteWizardPage = () => {
                       </div>
                       <div>
                         <h4 className="font-medium text-[#5865F2] mb-1">Discord Account Connected</h4>
-                        <p className="text-sm text-base-content/80">
+                        <p className="text-sm text-foreground/80">
                           Linked as <strong>{state.discord.user.username}</strong>
                         </p>
                       </div>
@@ -508,40 +508,37 @@ export const InviteWizardPage = () => {
               </div>
             ) : null}
 
-            <div className="bg-base-100/50 border border-base-300/50 rounded-lg p-6 mb-8">
+            <div className="bg-muted/50 border border rounded-lg p-6 mb-8">
               <div className="flex items-center justify-center gap-3 mb-4">
                 <div className="w-8 h-8 rounded-full bg-success/20 flex items-center justify-center">
                   <i className="fa-solid fa-server text-success text-sm" />
                 </div>
-                <h3 className="font-medium text-base-content text-lg">Media Server Access</h3>
+                <h3 className="font-medium text-foreground text-lg">Media Server Access</h3>
               </div>
               <div className="space-y-2">
                 {completion.servers.map((server) => (
-                  <div key={server.name} className="flex items-center justify-between gap-2 text-sm bg-base-100 rounded-lg p-3">
+                  <div key={server.name} className="flex items-center justify-between gap-2 text-sm bg-card rounded-lg p-3">
                     <div className="flex items-center gap-2">
                       <div className="w-4 h-4 rounded-full bg-success/20 flex items-center justify-center">
                         <i className="fa-solid fa-check text-success text-xs" />
                       </div>
                       <span className="font-medium">{server.name}</span>
-                      <span className="text-xs text-base-content/60">({server.service_type})</span>
+                      <span className="text-xs text-muted-foreground">({server.service_type})</span>
                     </div>
                     {server.access_url && (
-                      <a
-                        href={server.access_url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="btn btn-xs btn-ghost"
-                      >
-                        Open
-                        <i className="fa-solid fa-external-link-alt ml-1" />
-                      </a>
+                      <Button asChild variant="ghost" size="sm">
+                        <a href={server.access_url} target="_blank" rel="noreferrer" className="gap-1">
+                          Open
+                          <i className="fa-solid fa-external-link-alt text-xs" />
+                        </a>
+                      </Button>
                     )}
                   </div>
                 ))}
               </div>
             </div>
 
-            <div className="text-center text-sm text-base-content/60">
+            <div className="text-center text-sm text-muted-foreground">
               <p>You can now access all the servers listed above with your credentials</p>
             </div>
           </div>
@@ -551,16 +548,16 @@ export const InviteWizardPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-base-100 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-4xl">
-        <div className="bg-base-100 border border-base-300 rounded-xl shadow-lg overflow-hidden">
+        <div className="bg-card border border rounded-xl shadow-lg overflow-hidden">
           {/* Header */}
-          <div className="bg-gradient-to-r from-primary/10 to-secondary/10 p-6 text-center border-b border-base-300">
+          <div className="bg-gradient-to-r from-primary/10 to-secondary/10 p-6 text-center border-b border">
             <div className="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center mx-auto mb-4">
               <i className="fa-solid fa-envelope-open-text text-primary text-2xl" />
             </div>
-            <h1 className="text-2xl font-bold text-base-content mb-2">You're Invited!</h1>
-            <p className="text-base-content/70 text-sm">
+            <h1 className="text-2xl font-bold text-foreground mb-2">You're Invited!</h1>
+            <p className="text-muted-foreground text-sm">
               Join <strong className="text-primary">{state.meta.server_label}</strong> and start streaming
             </p>
           </div>
@@ -571,8 +568,8 @@ export const InviteWizardPage = () => {
             {state.steps.length > 0 && (
               <div className="mb-8">
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="font-medium text-base-content">Setup Progress</h2>
-                  <span className="text-sm text-base-content/60">
+                  <h2 className="font-medium text-foreground">Setup Progress</h2>
+                  <span className="text-sm text-muted-foreground">
                     {completedCount} of {state.steps.length} completed
                   </span>
                 </div>
@@ -588,7 +585,7 @@ export const InviteWizardPage = () => {
                               ? 'bg-primary/10 border border-primary/20'
                               : isActive
                               ? 'bg-warning/10 border border-warning/20'
-                              : 'bg-base-200/50 border border-base-300'
+                              : 'bg-muted/50 border border'
                           )}
                         >
                           <div
@@ -598,7 +595,7 @@ export const InviteWizardPage = () => {
                                 ? 'bg-primary text-primary-content'
                                 : isActive
                                 ? 'bg-warning text-warning-content'
-                                : 'bg-base-300 text-base-content/60'
+                                : 'bg-muted text-muted-foreground'
                             )}
                           >
                             {step.completed ? (
@@ -617,13 +614,13 @@ export const InviteWizardPage = () => {
                                   ? 'text-primary'
                                   : isActive
                                   ? 'text-warning'
-                                  : 'text-base-content/70'
+                                  : 'text-muted-foreground'
                               )}
                             >
                               {step.name}
                             </span>
                             {!step.required && (
-                              <span className="text-xs text-base-content/60">Optional</span>
+                              <span className="text-xs text-muted-foreground">Optional</span>
                             )}
                           </div>
                         </div>
@@ -631,7 +628,7 @@ export const InviteWizardPage = () => {
                           <div
                             className={clsx(
                               'w-3 h-0.5 mx-1',
-                              step.completed ? 'bg-primary' : 'bg-base-300'
+                              step.completed ? 'bg-primary' : 'bg-muted'
                             )}
                           />
                         )}
@@ -646,14 +643,14 @@ export const InviteWizardPage = () => {
             <div className="step-content space-y-6">
               {/* User Account Step */}
               {state.account.allowed && !state.account.completed && (
-                <div className="bg-base-200/30 border border-base-300 rounded-lg p-6">
+                <div className="bg-muted/50 border border rounded-lg p-6">
                   <div className="flex items-center gap-3 mb-6">
                     <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
                       <i className="fa-solid fa-user-plus text-primary text-lg" />
                     </div>
                     <div>
-                      <h2 className="text-xl font-semibold text-base-content mb-1">Set Up Your Account</h2>
-                      <p className="text-sm text-base-content/70">
+                      <h2 className="text-xl font-semibold text-foreground mb-1">Set Up Your Account</h2>
+                      <p className="text-sm text-muted-foreground">
                         Configure your account details - your account will be created when you complete all steps
                       </p>
                     </div>
@@ -728,7 +725,7 @@ export const InviteWizardPage = () => {
                         </div>
                         <div>
                           <h4 className="font-medium text-info mb-1">Cross-Server Convenience</h4>
-                          <p className="text-sm text-base-content/80">
+                          <p className="text-sm text-foreground/80">
                             Use the same credentials across all media servers for easier access
                           </p>
                         </div>
@@ -744,7 +741,7 @@ export const InviteWizardPage = () => {
                           />
                           <div>
                             <span className="text-sm font-medium">Use same username across servers</span>
-                            <p className="text-xs text-base-content/60">
+                            <p className="text-xs text-muted-foreground">
                               Your local account username will be used for all media servers (if available)
                             </p>
                           </div>
@@ -759,7 +756,7 @@ export const InviteWizardPage = () => {
                           />
                           <div>
                             <span className="text-sm font-medium">Use same email across servers</span>
-                            <p className="text-xs text-base-content/60">
+                            <p className="text-xs text-muted-foreground">
                               Your local account email will be used for all media servers
                             </p>
                           </div>
@@ -774,7 +771,7 @@ export const InviteWizardPage = () => {
                           />
                           <div>
                             <span className="text-sm font-medium">Use same password across servers</span>
-                            <p className="text-xs text-base-content/60">
+                            <p className="text-xs text-muted-foreground">
                               Your local account password will be used for all media servers
                             </p>
                           </div>
@@ -803,18 +800,18 @@ export const InviteWizardPage = () => {
 
               {/* Discord Step */}
               {state.discord.oauth_enabled && !state.discord.authenticated && state.account.completed && (
-                <div className="bg-base-200/30 border border-base-300 rounded-lg p-6">
+                <div className="bg-muted/50 border border rounded-lg p-6">
                   <div className="flex items-center gap-3 mb-6">
                     <div className="w-10 h-10 rounded-full bg-[#5865F2]/20 flex items-center justify-center flex-shrink-0">
                       <i className="fa-brands fa-discord text-[#5865F2] text-lg" />
                     </div>
                     <div>
-                      <h2 className="text-xl font-semibold text-base-content mb-1">Discord Authentication</h2>
-                      <p className="text-sm text-base-content/70">
+                      <h2 className="text-xl font-semibold text-foreground mb-1">Discord Authentication</h2>
+                      <p className="text-sm text-muted-foreground">
                         {state.discord.requires_auth ? 'Required to continue with your invite' : 'Optional - Connect your Discord account'}
                       </p>
                       {!state.discord.requires_auth && (
-                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-base-300/50 text-base-content/70 mt-1">
+                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-muted/50 text-muted-foreground mt-1">
                           Optional
                         </span>
                       )}
@@ -829,36 +826,37 @@ export const InviteWizardPage = () => {
                         </div>
                         <div>
                           <h4 className="font-medium text-[#5865F2] mb-1">Discord Server Required</h4>
-                          <p className="text-sm text-base-content/80 mb-3">
+                          <p className="text-sm text-foreground/80 mb-3">
                             You must be a member of our Discord server to accept this invite.
                           </p>
                           {state.discord.invite_url && (
-                            <a
-                              href={state.discord.invite_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="btn btn-sm bg-[#5865F2] hover:bg-[#4752C4] text-white border-[#5865F2]"
+                            <Button
+                              asChild
+                              size="sm"
+                              className="bg-[#5865F2] text-white hover:bg-[#4752C4]"
                             >
-                              <i className="fa-brands fa-discord mr-2" />
-                              Join Discord Server First
-                              <i className="fa-solid fa-external-link-alt ml-2" />
-                            </a>
+                              <a href={state.discord.invite_url} target="_blank" rel="noopener noreferrer" className="gap-2">
+                                <i className="fa-brands fa-discord" />
+                                Join Discord Server First
+                                <i className="fa-solid fa-external-link-alt text-xs" />
+                              </a>
+                            </Button>
                           )}
                         </div>
                       </div>
                     </div>
                   )}
 
-                  <Button
-                    onClick={handleStartDiscord}
-                    disabled={startingDiscord}
-                    className="w-full h-12 bg-[#5865F2] hover:bg-[#4752C4] text-white"
-                  >
-                    {startingDiscord ? (
-                      <>
-                        <span className="loading loading-spinner loading-xs mr-2" />
-                        Preparing...
-                      </>
+          <Button
+            onClick={handleStartDiscord}
+            disabled={startingDiscord}
+            className="w-full h-12 bg-[#5865F2] hover:bg-[#4752C4] text-white"
+          >
+            {startingDiscord ? (
+              <>
+                <span className="loading loading-spinner loading-xs mr-2" />
+                Preparing...
+              </>
                     ) : (
                       <>
                         <i className="fa-brands fa-discord mr-2" />
@@ -871,7 +869,7 @@ export const InviteWizardPage = () => {
 
               {/* Plex Step */}
               {state.plex.has_plex_servers && !state.plex.authenticated && (state.discord.authenticated || !state.discord.oauth_enabled) && state.account.completed && (
-                <div className="bg-base-200/30 border border-base-300 rounded-lg p-6">
+                <div className="bg-muted/50 border border rounded-lg p-6">
                   <div className="flex items-center gap-3 mb-6">
                     <div className="w-10 h-10 rounded-full bg-[#e5a00d]/20 flex items-center justify-center flex-shrink-0">
                       <svg className="w-5 h-5 text-[#e5a00d]" viewBox="0 0 192 192" xmlns="http://www.w3.org/2000/svg" fill="currentColor">
@@ -879,8 +877,8 @@ export const InviteWizardPage = () => {
                       </svg>
                     </div>
                     <div>
-                      <h2 className="text-xl font-semibold text-base-content mb-1">Plex Authentication</h2>
-                      <p className="text-sm text-base-content/70">
+                      <h2 className="text-xl font-semibold text-foreground mb-1">Plex Authentication</h2>
+                      <p className="text-sm text-muted-foreground">
                         Sign in with Plex to get access to shared libraries
                       </p>
                     </div>
@@ -948,16 +946,16 @@ export const InviteWizardPage = () => {
 
               {/* Server Credentials */}
               {state.servers.filter((s) => !s.completed && s.service_type !== 'PLEX').map((server) => (
-                <div key={server.id} className="bg-base-200/30 border border-base-300 rounded-lg p-6">
+                <div key={server.id} className="bg-muted/50 border border rounded-lg p-6">
                   <div className="flex items-center gap-3 mb-6">
                     <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
                       <i className="fa-solid fa-server text-primary text-lg" />
                     </div>
                     <div>
-                      <h2 className="text-xl font-semibold text-base-content mb-1">
+                      <h2 className="text-xl font-semibold text-foreground mb-1">
                         {server.name}
                       </h2>
-                      <p className="text-sm text-base-content/70">
+                      <p className="text-sm text-muted-foreground">
                         Setting up access to {server.service_type}
                       </p>
                     </div>
@@ -969,7 +967,7 @@ export const InviteWizardPage = () => {
                         <i className="fa-solid fa-exclamation-triangle text-warning text-sm mt-0.5" />
                         <div className="text-sm">
                           <p className="font-medium text-warning mb-1">Username Not Available</p>
-                          <p className="text-base-content/80">
+                          <p className="text-foreground/80">
                             The username is already taken on {server.name}. Please choose a different username.
                           </p>
                         </div>
@@ -1052,7 +1050,7 @@ export const InviteWizardPage = () => {
                       <i className="fa-solid fa-check-circle text-success text-3xl" />
                     </div>
                     <h2 className="text-2xl font-bold text-success mb-3">Ready to Complete Setup!</h2>
-                    <p className="text-base-content/70 text-lg">
+                    <p className="text-muted-foreground text-lg">
                       All steps completed - ready to create your accounts and grant access
                     </p>
                   </div>
@@ -1074,7 +1072,7 @@ export const InviteWizardPage = () => {
                       </>
                     )}
                   </Button>
-                  <p className="text-xs text-base-content/60 text-center mt-4">
+                  <p className="text-xs text-muted-foreground text-center mt-4">
                     This will create your local account and all media server accounts simultaneously
                   </p>
                 </div>

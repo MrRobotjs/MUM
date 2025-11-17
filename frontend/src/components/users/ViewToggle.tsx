@@ -1,3 +1,11 @@
+import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+
 interface ViewToggleProps {
   view: 'table' | 'cards';
   onChange: (view: 'table' | 'cards') => void;
@@ -5,37 +13,24 @@ interface ViewToggleProps {
 
 export const ViewToggle = ({ view, onChange }: ViewToggleProps) => {
   return (
-    <div className="dropdown dropdown-end">
-      <button tabIndex={0} className="btn btn-sm btn-ghost" type="button">
-        <i className={`fa-solid ${view === 'cards' ? 'fa-th-large' : 'fa-list'}`} />
-        View
-        <i className="fa-solid fa-chevron-down text-xs" />
-      </button>
-      <ul
-        tabIndex={0}
-        className="dropdown-content menu bg-base-100 rounded-box z-10 w-52 p-2 shadow-lg border border-base-300"
-      >
-        <li>
-          <button
-            onClick={() => onChange('table')}
-            className={view === 'table' ? 'active' : ''}
-            type="button"
-          >
-            <i className="fa-solid fa-list" />
-            Table View
-          </button>
-        </li>
-        <li>
-          <button
-            onClick={() => onChange('cards')}
-            className={view === 'cards' ? 'active' : ''}
-            type="button"
-          >
-            <i className="fa-solid fa-th-large" />
-            Card View
-          </button>
-        </li>
-      </ul>
-    </div>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="sm" type="button" className="gap-2">
+          <i className={`fa-solid ${view === 'cards' ? 'fa-th-large' : 'fa-list'}`} />
+          View
+          <i className="fa-solid fa-chevron-down text-xs" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-48">
+        <DropdownMenuItem onSelect={() => onChange('table')}>
+          <i className="fa-solid fa-list mr-2" />
+          Table View
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => onChange('cards')}>
+          <i className="fa-solid fa-th-large mr-2" />
+          Card View
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 };

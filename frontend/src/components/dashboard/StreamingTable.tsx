@@ -206,9 +206,9 @@ export const StreamingTable = ({
       >
         {terminateTarget ? (
           <div className="space-y-4">
-            <div className="text-sm text-base-content/70">
-              Terminate <span className="font-medium text-base-content">{terminateTarget.media_title ?? 'Unknown title'}</span>{' '}
-              for user <span className="font-medium text-base-content">{terminateTarget.user_uuid ?? 'Unknown user'}</span>?
+            <div className="text-sm text-muted-foreground">
+              Terminate <span className="font-medium text-foreground">{terminateTarget.media_title ?? 'Unknown title'}</span>{' '}
+              for user <span className="font-medium text-foreground">{terminateTarget.user_uuid ?? 'Unknown user'}</span>?
             </div>
             <FormField id="terminateMessage" label="Optional message">
               <Textarea

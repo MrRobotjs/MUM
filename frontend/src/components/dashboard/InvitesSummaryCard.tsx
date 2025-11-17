@@ -11,7 +11,7 @@ const metricClassNames: Record<string, string> = {
   usable: 'bg-info/10 text-info',
   expired: 'bg-warning/10 text-warning',
   maxed: 'bg-error/10 text-error',
-  inactive: 'bg-base-200 text-base-content/70'
+  inactive: 'bg-muted text-muted-foreground'
 };
 
 export const InvitesSummaryCard = () => {

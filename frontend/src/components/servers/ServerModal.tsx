@@ -7,6 +7,11 @@ import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '../ui/alert';
 import { requestJson } from '../../util/apiClient';
 import { useAlerts } from '../../contexts';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
+import { Badge } from '@/components/ui/badge';
+import { Label } from '@/components/ui/label';
 
 export type ServerFormValues = {
   server_nickname: string;
@@ -325,50 +330,48 @@ export const ServerModal = ({
         )}
 
         <FormField id="server_nickname" label="Server Nickname" required>
-          <input
+          <Input
             id="server_nickname"
             type="text"
-            className="input input-bordered w-full"
             value={values.server_nickname}
             onChange={(e) => setValues({ ...values, server_nickname: e.target.value })}
             required
             placeholder="My Plex Server"
           />
-          <p className="text-xs text-base-content/60 mt-1">
-            Friendly name for this server (used in UI)
-          </p>
+          <p className="mt-1 text-xs text-muted-foreground">Friendly name for this server (used in UI)</p>
         </FormField>
 
         <FormField id="service_type" label="Service Type" required>
           {serviceTypeLocked ? (
-            <div className="input input-bordered w-full flex items-center justify-between">
-              <span className="text-sm">
+            <div className="flex w-full items-center justify-between rounded-md border bg-muted/50 px-3 py-2">
+              <span className="text-sm font-medium text-foreground">
                 {serviceTypes.find((type) => type.value === values.service_type)?.label ?? values.service_type}
               </span>
-              <span className="badge badge-ghost">Locked</span>
+              <Badge variant="outline">Locked</Badge>
             </div>
           ) : (
-            <select
-              id="service_type"
-              className="select select-bordered w-full"
+            <Select
               value={values.service_type}
-              onChange={(e) => handleFieldChange('service_type', e.target.value)}
-              required
+              onValueChange={(value) => handleFieldChange('service_type', value)}
             >
-              {serviceTypes.map((type) => (
-                <option key={type.value} value={type.value}>
-                  {type.label}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select service" />
+              </SelectTrigger>
+              <SelectContent>
+                {serviceTypes.map((type) => (
+                  <SelectItem key={type.value} value={type.value}>
+                    {type.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           )}
         </FormField>
 
         <FormField id="url" label="Server URL" required>
-          <input
+          <Input
             id="url"
             type="url"
-            className="input input-bordered w-full"
             value={values.url}
             onChange={(e) => handleFieldChange('url', e.target.value)}
             required
@@ -377,24 +380,22 @@ export const ServerModal = ({
         </FormField>
 
         <FormField id="api_key" label="API Key">
-          <input
+          <Input
             id="api_key"
             type="password"
-            className="input input-bordered w-full"
             value={values.api_key}
             onChange={(e) => handleFieldChange('api_key', e.target.value)}
             placeholder={initialValues ? '••••••••' : 'API key or token'}
           />
-          <p className="text-xs text-base-content/60 mt-1">
+          <p className="mt-1 text-xs text-muted-foreground">
             {initialValues ? 'Leave blank to keep existing key' : 'Required for most services'}
           </p>
         </FormField>
 
         <FormField id="server_name" label="Server Name (Optional)">
-          <input
+          <Input
             id="server_name"
             type="text"
-            className="input input-bordered w-full"
             value={values.server_name}
             onChange={(e) => setValues({ ...values, server_name: e.target.value })}
             placeholder="Actual server name from service"
@@ -402,10 +403,9 @@ export const ServerModal = ({
         </FormField>
 
         <FormField id="public_url" label="Public URL (Optional)">
-          <input
+          <Input
             id="public_url"
             type="url"
-            className="input input-bordered w-full"
             value={values.public_url}
             onChange={(e) => setValues({ ...values, public_url: e.target.value })}
             placeholder="https://public.example.com"
@@ -413,19 +413,18 @@ export const ServerModal = ({
         </FormField>
 
         {values.service_type === 'plex' ? (
-          <div className="rounded-lg border border-base-300 bg-base-200/40 p-4 space-y-2">
+          <div className="rounded-lg border bg-muted/50 p-4 space-y-2">
             <FormField
               id="websocket_refresh_interval"
               label="WebSocket refresh interval (seconds)"
               description="How often to re-sync live playback progress while using Plex WebSocket updates."
             >
-              <input
+              <Input
                 id="websocket_refresh_interval"
                 type="number"
                 min={2}
                 max={300}
                 step={1}
-                className="input input-bordered w-full"
                 value={values.websocket_refresh_interval ?? 30}
                 onChange={(e) => handleFieldChange('websocket_refresh_interval', Number(e.target.value))}
               />
@@ -437,13 +436,15 @@ export const ServerModal = ({
           </div>
         ) : null}
 
-        <div className="divider">Overseerr Integration (Optional)</div>
+        <div className="flex items-center gap-2 py-2">
+          <span className="text-sm font-semibold text-muted-foreground">Overseerr Integration (Optional)</span>
+          <div className="h-px flex-1 bg-border" />
+        </div>
 
         <FormField id="overseerr_url" label="Overseerr URL">
-          <input
+          <Input
             id="overseerr_url"
             type="url"
-            className="input input-bordered w-full"
             value={values.overseerr_url}
             onChange={(e) => setValues({ ...values, overseerr_url: e.target.value })}
             placeholder="https://overseerr.example.com"
@@ -451,10 +452,9 @@ export const ServerModal = ({
         </FormField>
 
         <FormField id="overseerr_api_key" label="Overseerr API Key">
-          <input
+          <Input
             id="overseerr_api_key"
             type="password"
-            className="input input-bordered w-full"
             value={values.overseerr_api_key}
             onChange={(e) => setValues({ ...values, overseerr_api_key: e.target.value })}
             placeholder={initialValues && initialValues.overseerr_api_key ? '••••••••' : 'Overseerr API key'}
@@ -462,27 +462,29 @@ export const ServerModal = ({
         </FormField>
 
         <FormField id="overseerr_enabled" label="Overseerr Integration">
-          <label className="label cursor-pointer justify-start gap-3">
-            <input
-              type="checkbox"
-              className="toggle toggle-primary"
+          <div className="flex items-center gap-3 rounded-md border bg-muted/50 px-3 py-2">
+            <Switch
+              id="overseerr_enabled"
               checked={values.overseerr_enabled ?? false}
-              onChange={(e) => setValues({ ...values, overseerr_enabled: e.target.checked })}
+              onCheckedChange={(checked) => setValues({ ...values, overseerr_enabled: checked })}
             />
-            <span className="label-text">Enable Overseerr integration</span>
-          </label>
+            <Label htmlFor="overseerr_enabled" className="text-sm font-medium text-foreground/80">
+              Enable Overseerr integration
+            </Label>
+          </div>
         </FormField>
 
         <FormField id="is_active" label="Status">
-          <label className="label cursor-pointer justify-start gap-3">
-            <input
-              type="checkbox"
-              className="toggle toggle-success"
+          <div className="flex items-center gap-3 rounded-md border bg-muted/50 px-3 py-2">
+            <Switch
+              id="is_active"
               checked={values.is_active}
-              onChange={(e) => setValues({ ...values, is_active: e.target.checked })}
+              onCheckedChange={(checked) => setValues({ ...values, is_active: checked })}
             />
-            <span className="label-text">Active</span>
-          </label>
+            <Label htmlFor="is_active" className="text-sm font-medium text-foreground/80">
+              Active
+            </Label>
+          </div>
         </FormField>
 
       </form>

@@ -4,6 +4,7 @@ import { Switch } from '../ui/switch';
 import { Label } from '../ui/label';
 import { Button } from '../ui/button';
 import { ResponsiveDialog } from '../ui/responsive-dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 
 interface UserDisplaySettings {
   show_user_notes: boolean;
@@ -106,16 +107,16 @@ export const UserDisplaySettingsModal = ({ isOpen, onClose }: UserDisplaySetting
     checked: boolean;
     onChange: (checked: boolean) => void;
   }) => (
-    <div className="bg-base-200/30 rounded-lg p-4 border border-base-300 hover:border-base-300/60 transition-colors">
+    <div className="rounded-lg border bg-muted/50 p-4 transition-colors hover:bg-muted/70">
       <div className="flex items-center justify-between gap-4">
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-1">
             <i className={`fa-solid ${icon} ${iconColor} text-sm`} />
-            <Label htmlFor={label} className="font-medium text-base-content cursor-pointer">
+            <Label htmlFor={label} className="cursor-pointer font-medium text-foreground">
               {label}
             </Label>
           </div>
-          <p className="text-sm text-base-content/60">{description}</p>
+          <p className="text-sm text-muted-foreground">{description}</p>
         </div>
         <Switch
           id={label}
@@ -169,24 +170,24 @@ export const UserDisplaySettingsModal = ({ isOpen, onClose }: UserDisplaySetting
   ) : (
     <div className="space-y-6">
       {/* Description Card */}
-      <div className="bg-base-200/50 rounded-lg p-4 border border-base-300">
+      <div className="rounded-lg border bg-muted/50 p-4">
         <div className="flex items-start gap-3">
-          <div className="w-8 h-8 rounded-full bg-info/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-            <i className="fa-solid fa-info text-info text-sm" />
-          </div>
-          <div>
-            <h4 className="font-medium text-base-content mb-1">Personalization</h4>
-            <p className="text-sm text-base-content/70 leading-relaxed">
-              Configure how the user interface displays information and behaves to match your preferences.
-              These settings only affect your view.
-            </p>
-          </div>
+        <div className="w-8 h-8 rounded-full bg-info/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+          <i className="fa-solid fa-info text-info text-sm" />
         </div>
+        <div>
+          <h4 className="mb-1 font-medium text-foreground">Personalization</h4>
+          <p className="text-sm leading-relaxed text-muted-foreground">
+            Configure how the user interface displays information and behaves to match your preferences.
+            These settings only affect your view.
+          </p>
+        </div>
+      </div>
       </div>
 
       {/* Card Display Options */}
       <div className="space-y-3">
-        <h4 className="font-medium text-base-content text-lg mb-3">Card Display Options</h4>
+        <h4 className="mb-3 text-lg font-medium text-foreground">Card Display Options</h4>
 
         <ToggleOption
           icon="fa-sticky-note"
@@ -243,24 +244,25 @@ export const UserDisplaySettingsModal = ({ isOpen, onClose }: UserDisplaySetting
         />
 
         {/* Preferred View */}
-        <div className="bg-base-200/30 rounded-lg p-4 border border-base-300 hover:border-base-300/60 transition-colors">
+        <div className="rounded-lg border bg-muted/50 p-4 transition-colors hover:bg-muted/70">
           <div className="flex items-center justify-between">
             <div className="flex-1">
               <div className="flex justify-between mb-1 items-center">
                 <div className="flex items-center gap-2">
                   <i className="fa-solid fa-eye text-secondary text-sm" />
-                  <h5 className="font-medium text-base-content">Preferred Default View</h5>
+                  <h5 className="font-medium text-foreground">Preferred Default View</h5>
                 </div>
-                <select
-                  className="select select-bordered select-sm max-w-fit"
-                  value={preferredView}
-                  onChange={(e) => setPreferredView(e.target.value as 'cards' | 'table')}
-                >
-                  <option value="cards">Cards</option>
-                  <option value="table">Table</option>
-                </select>
+                <Select value={preferredView} onValueChange={(value) => setPreferredView(value as 'cards' | 'table')}>
+                  <SelectTrigger className="h-9 w-32">
+                    <SelectValue placeholder="Select view" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="cards">Cards</SelectItem>
+                    <SelectItem value="table">Table</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-              <p className="text-sm text-base-content/60">
+              <p className="text-sm text-muted-foreground">
                 Choose how users are displayed by default when loading the page
               </p>
             </div>
@@ -270,7 +272,7 @@ export const UserDisplaySettingsModal = ({ isOpen, onClose }: UserDisplaySetting
 
       {/* Behavior Settings */}
       <div className="space-y-3">
-        <h4 className="font-medium text-base-content text-lg mb-3">Behavior Settings</h4>
+        <h4 className="mb-3 text-lg font-medium text-foreground">Behavior Settings</h4>
 
         <ToggleOption
           icon="fa-sync"

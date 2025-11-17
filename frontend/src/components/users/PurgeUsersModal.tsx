@@ -235,7 +235,7 @@ export const PurgeUsersModal = ({ onClose, onPurgeComplete }: PurgeUsersModalPro
           </AlertDescription>
         </Alert>
 
-        <div className="flex items-center gap-2 border-b border-base-300 pb-3">
+        <div className="flex items-center gap-2 border-b pb-3">
           <Checkbox
             checked={selectedUserUuids.size === eligibleUsers.length && eligibleUsers.length > 0}
             onCheckedChange={handleToggleAll}
@@ -251,7 +251,7 @@ export const PurgeUsersModal = ({ onClose, onPurgeComplete }: PurgeUsersModalPro
             <Label
               key={user.uuid}
               htmlFor={`user-${user.uuid}`}
-              className="flex items-start gap-3 p-3 rounded-lg border border-base-300 hover:bg-base-200/50 cursor-pointer"
+              className="flex items-start gap-3 p-3 rounded-lg border border hover:bg-muted/50 cursor-pointer"
             >
               <Checkbox
                 id={`user-${user.uuid}`}
@@ -261,8 +261,8 @@ export const PurgeUsersModal = ({ onClose, onPurgeComplete }: PurgeUsersModalPro
               />
               <div className="flex-1 min-w-0">
                 <p className="font-medium truncate">{user.username || 'Unknown'}</p>
-                {user.email && <p className="text-sm text-base-content/60 truncate">{user.email}</p>}
-                <div className="flex gap-2 mt-1 text-xs text-base-content/60">
+                {user.email && <p className="text-sm text-muted-foreground truncate">{user.email}</p>}
+                <div className="flex gap-2 mt-1 text-xs text-muted-foreground">
                   {user.server_name && (
                     <span className="badge badge-ghost badge-xs">{user.server_name}</span>
                   )}
@@ -306,7 +306,7 @@ export const PurgeUsersModal = ({ onClose, onPurgeComplete }: PurgeUsersModalPro
           </AlertDescription>
         </Alert>
 
-        <div className="bg-base-200 rounded-lg p-4">
+        <div className="bg-muted rounded-lg p-4">
           <h3 className="font-semibold mb-2">Purge Criteria:</h3>
           <ul className="text-sm space-y-1">
             <li>• Inactive for: {inactiveDays} days</li>

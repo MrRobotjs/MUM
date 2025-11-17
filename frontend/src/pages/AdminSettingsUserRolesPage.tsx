@@ -145,7 +145,7 @@ export const AdminSettingsUserRolesPage = () => {
   const renderRoleForm = () => (
     <form id={formId} onSubmit={handleSubmit} className="space-y-4">
       <div className="space-y-2">
-        <label className="text-sm font-medium text-base-content" htmlFor="name">
+        <label className="text-sm font-medium text-foreground" htmlFor="name">
           Role Name
         </label>
         <Input
@@ -160,7 +160,7 @@ export const AdminSettingsUserRolesPage = () => {
       </div>
 
       <div className="space-y-2">
-        <label className="text-sm font-medium text-base-content" htmlFor="description">
+        <label className="text-sm font-medium text-foreground" htmlFor="description">
           Description
         </label>
         <Textarea
@@ -175,7 +175,7 @@ export const AdminSettingsUserRolesPage = () => {
       </div>
 
       <div className="space-y-3">
-        <label className="text-sm font-medium text-base-content" htmlFor="color">
+        <label className="text-sm font-medium text-foreground" htmlFor="color">
           Color
         </label>
         <div className="rounded-lg border border-border bg-muted/40 p-4">
@@ -188,7 +188,7 @@ export const AdminSettingsUserRolesPage = () => {
                 <IconDroplet className="h-6 w-6 text-white/80 drop-shadow" />
               </span>
               <div className="space-y-1">
-                <div className="flex items-center gap-2 text-sm font-medium text-base-content">
+                <div className="flex items-center gap-2 text-sm font-medium text-foreground">
                   <IconPalette className="h-4 w-4" />
                   Selected Color
                 </div>
@@ -240,7 +240,7 @@ export const AdminSettingsUserRolesPage = () => {
       </div>
 
       <div className="space-y-2">
-        <label className="text-sm font-medium text-base-content" htmlFor="icon">
+        <label className="text-sm font-medium text-foreground" htmlFor="icon">
           Icon (FontAwesome)
         </label>
         <Input

@@ -73,7 +73,7 @@ export const Table = <T,>({
   if (data.length === 0) {
     return (
       <div className="flex items-center justify-center py-12">
-        <p className="text-base-content/60">{emptyMessage}</p>
+        <p className="text-muted-foreground">{emptyMessage}</p>
       </div>
     );
   }

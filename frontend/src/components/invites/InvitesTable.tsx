@@ -1,4 +1,4 @@
-import { Button } from '../index';
+import { Button } from '@/components/ui/button';
 import { Checkbox } from '../ui/checkbox';
 import { Badge } from '../ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';

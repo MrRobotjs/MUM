@@ -414,7 +414,7 @@ export const InvitesPage = () => {
                     {/* Server Access Badges */}
                     {invite.servers && invite.servers.length > 0 && (
                       <div>
-                        <label className="text-xs font-medium text-base-content/70 block mb-1">
+                        <label className="text-xs font-medium text-muted-foreground block mb-1">
                           <i className="fa-solid fa-server fa-fw mr-1" /> Server Access:
                         </label>
                         <div className="flex flex-wrap gap-1">
@@ -434,7 +434,7 @@ export const InvitesPage = () => {
                     {/* Discord Requirements */}
                     {(invite.require_discord_auth || invite.require_discord_guild_membership) && (
                       <div>
-                        <label className="text-xs font-medium text-base-content/70 block mb-1">
+                        <label className="text-xs font-medium text-muted-foreground block mb-1">
                           <i className="fa-brands fa-discord fa-fw mr-1" /> Discord:
                         </label>
                         <div className="flex flex-wrap gap-1">
@@ -456,7 +456,7 @@ export const InvitesPage = () => {
 
                     {/* Library Access */}
                     <div>
-                      <label className="text-xs font-medium text-base-content/70 block mb-1">
+                      <label className="text-xs font-medium text-muted-foreground block mb-1">
                         <i className="fa-solid fa-photo-film fa-fw mr-1" /> Library Access:
                       </label>
                       <div className="flex flex-wrap gap-1">
@@ -488,7 +488,7 @@ export const InvitesPage = () => {
                     {/* Additional Features */}
                     {(invite.allow_downloads || invite.invite_to_plex_home || invite.allow_live_tv || invite.membership_duration_days) && (
                       <div>
-                        <label className="text-xs font-medium text-base-content/70 block mb-1">
+                        <label className="text-xs font-medium text-muted-foreground block mb-1">
                           <i className="fa-solid fa-star fa-fw mr-1" /> Features:
                         </label>
                         <div className="flex flex-wrap gap-1">

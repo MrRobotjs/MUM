@@ -1,5 +1,8 @@
 import { FormEvent, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
 
 const extractInviteToken = (raw: string): string => {
   const input = (raw || '').trim();
@@ -63,22 +66,19 @@ const InviteLandingPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-base-200 flex items-center justify-center p-4">
-      <div className="w-full max-w-xl rounded-xl border border-base-300 bg-base-100 p-8 shadow-sm">
+    <div className="min-h-screen bg-muted flex items-center justify-center p-4">
+      <div className="w-full max-w-xl rounded-xl border bg-card p-8 shadow-sm">
         <h1 className="text-2xl font-semibold">Join with an Invite</h1>
-        <p className="mt-2 text-sm text-base-content/70">
+        <p className="mt-2 text-sm text-muted-foreground">
           Paste your invite link or enter the invite code to continue.
         </p>
 
         <form className="mt-6 space-y-4" onSubmit={onSubmit}>
-          <div>
-            <label htmlFor="invite" className="label">
-              <span className="label-text">Invite link or code</span>
-            </label>
-            <input
+          <div className="space-y-2">
+            <Label htmlFor="invite">Invite link or code</Label>
+            <Input
               id="invite"
               type="text"
-              className="input input-bordered w-full"
               placeholder="https://your-mum.example.com/invite/xyz123 or xyz123"
               value={inviteInput}
               onChange={(e) => setInviteInput(e.target.value)}
@@ -87,14 +87,14 @@ const InviteLandingPage = () => {
             />
           </div>
 
-          {error ? <p className="text-sm text-error">{error}</p> : null}
+          {error ? <p className="text-sm text-destructive">{error}</p> : null}
 
-          <button type="submit" className={`btn btn-primary w-full ${submitting ? 'loading' : ''}`} disabled={submitting}>
+          <Button type="submit" className="w-full" disabled={submitting}>
             {submitting ? 'Checking…' : 'Continue'}
-          </button>
+          </Button>
         </form>
 
-        <div className="mt-6 text-xs text-base-content/60">
+        <div className="mt-6 text-xs text-muted-foreground">
           If you were given a custom invite path, include it after <code>/invite/</code>.
         </div>
       </div>

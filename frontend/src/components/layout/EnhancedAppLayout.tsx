@@ -57,13 +57,13 @@ export const EnhancedAppLayout = ({
     // Simple layout without sidebar (for login, public pages, etc.)
     return (
       <div className="flex min-h-screen flex-col">
-        <header className="border-b border-base-300 bg-base-100 shadow-sm">
+        <header className="border-b border bg-card shadow-sm">
           <nav className="flex h-16 items-center justify-between px-4">
             <div className="flex items-center gap-2">
               <span className="mask mask-squircle bg-primary/20 px-3 py-2 text-sm font-semibold uppercase tracking-wide text-primary">
                 MUM
               </span>
-              <span className="text-sm font-medium text-base-content/80">{appName}</span>
+              <span className="text-sm font-medium text-foreground/80">{appName}</span>
             </div>
             <ModeToggle />
           </nav>
@@ -73,7 +73,7 @@ export const EnhancedAppLayout = ({
           {children}
         </main>
 
-        <footer className="footer footer-center bg-base-300 p-4 text-base-content">
+        <footer className="footer footer-center bg-muted p-4 text-foreground">
           <div>
             <p>
               © {new Date().getFullYear()} {appName}

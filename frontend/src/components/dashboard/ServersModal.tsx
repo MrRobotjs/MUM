@@ -1,4 +1,6 @@
 import { useAdminApi } from '../../hooks/useAdminApi';
+import { ResponsiveDialog } from '../ui/responsive-dialog';
+import { Badge } from '@/components/ui/badge';
 
 type ServerItem = {
   id: number;
@@ -26,53 +28,66 @@ type ServersModalProps = {
 export const ServersModal = ({ open, onClose }: ServersModalProps) => {
   const { data, loading, error } = useAdminApi<ServersResponse>('/servers?include_status=true');
 
-  if (!open) return null;
-
   return (
-    <div className="modal modal-open">
-      <div className="modal-box max-w-3xl">
-        <h3 className="font-bold text-lg">All Servers Status</h3>
-        <div className="py-4">
-          {loading ? (
-            <div className="flex items-center gap-2 text-sm">
-              <span className="loading loading-spinner loading-sm" /> Checking server status…
-            </div>
-          ) : error ? (
-            <div className="text-sm text-error">Failed to load server status: {(error as Error).message}</div>
-          ) : (
-            <ul className="space-y-2">
-              {data?.data.map((server) => (
-                <li
-                  key={server.id}
-                  className={`rounded border px-3 py-2 text-sm ${server.status?.online ? 'border-success/40 bg-success/10' : 'border-error/40 bg-error/10'}`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="font-medium">{server.server_nickname}</div>
-                      <div className="text-xs text-base-content/60">{server.service_type}</div>
-                    </div>
-                    <span className={`badge badge-${server.status?.online ? 'success' : 'error'} badge-sm`}>
-                      {server.status?.online ? 'Online' : 'Offline'}
-                    </span>
-                  </div>
-                  <div className="mt-2 text-xs text-base-content/60">
-                    {server.status?.version ? `Version: ${server.status.version}` : null}
-                    {server.status?.error_message ? (
-                      <div className="text-error">Error: {server.status.error_message}</div>
-                    ) : null}
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
+    <ResponsiveDialog
+      open={open}
+      onOpenChange={(value) => {
+        if (!value) onClose();
+      }}
+      title="All Servers Status"
+      description="Current connectivity and version details for configured servers."
+      contentClassName="max-w-3xl"
+      footer={[
+        <button
+          key="close"
+          type="button"
+          className="inline-flex h-9 items-center justify-center rounded-md border bg-card px-4 text-sm font-medium hover:bg-muted"
+          onClick={onClose}
+        >
+          Close
+        </button>,
+      ]}
+    >
+      {loading ? (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <span className="loading loading-spinner loading-sm" /> Checking server status.
         </div>
-        <div className="modal-action">
-          <button type="button" className="btn" onClick={onClose}>
-            Close
-          </button>
+      ) : error ? (
+        <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          Failed to load server status: {(error as Error).message}
         </div>
-      </div>
-    </div>
+      ) : (
+        <ul className="space-y-2">
+          {data?.data.map((server) => {
+            const online = server.status?.online;
+            return (
+              <li
+                key={server.id}
+                className={`rounded-lg border px-3 py-2 text-sm ${
+                  online ? 'border-green-500/30 bg-green-500/5' : 'border-destructive/30 bg-destructive/5'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="font-medium text-foreground">{server.server_nickname}</div>
+                    <div className="text-xs uppercase text-muted-foreground">{server.service_type}</div>
+                  </div>
+                  <Badge variant={online ? 'secondary' : 'destructive'} className="text-xs">
+                    {online ? 'Online' : 'Offline'}
+                  </Badge>
+                </div>
+                <div className="mt-2 text-xs text-muted-foreground">
+                  {server.status?.version ? <div>Version: {server.status.version}</div> : null}
+                  {server.status?.error_message ? (
+                    <div className="text-destructive">Error: {server.status.error_message}</div>
+                  ) : null}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </ResponsiveDialog>
   );
 };
 

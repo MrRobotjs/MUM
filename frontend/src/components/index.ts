@@ -7,11 +7,8 @@ export * from './layout/NavMain';
 export * from './layout/NavSettings';
 export * from './layout/NavUser';
 export * from './common/PageHeader';
-export * from './common/Button';
 export * from './common/Table';
 export * from './common/Tabs';
-// DEPRECATED: AlertToasts - replaced by shadcn Sonner (ui/sonner)
-// export * from './common/AlertToasts';
 export * from './common/Pagination';
 export * from './forms/FormField';
 export * from './forms/TextInput';

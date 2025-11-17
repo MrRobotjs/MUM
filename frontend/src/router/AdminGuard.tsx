@@ -14,7 +14,7 @@ const AdminGuard = ({ children }: Props) => {
   // Show loading while session is being fetched
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-base-200 text-base-content/70">
+      <div className="flex min-h-screen items-center justify-center bg-muted text-muted-foreground">
         <span className="loading loading-spinner loading-lg" />
       </div>
     );
@@ -26,7 +26,7 @@ const AdminGuard = ({ children }: Props) => {
 
   if (error) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-base-200">
+      <div className="flex min-h-screen items-center justify-center bg-muted">
         <div className="max-w-md rounded-xl border border-error/30 bg-error/10 p-6 text-center">
           <h2 className="mb-2 text-lg font-semibold text-error">Unable to load admin session</h2>
           <p className="text-sm text-error/80">{error.message}</p>

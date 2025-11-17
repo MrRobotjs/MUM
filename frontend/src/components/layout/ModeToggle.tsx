@@ -1,5 +1,6 @@
 import { IconMoon, IconSun, IconDeviceDesktop } from '@tabler/icons-react';
 import { useTheme } from '@/contexts/ThemeContext';
+import { Button } from '@/components/ui/button';
 
 export function ModeToggle() {
   const { theme, setTheme } = useTheme();
@@ -31,14 +32,15 @@ export function ModeToggle() {
   };
 
   return (
-    <button
+    <Button
+      variant="ghost"
+      size="sm"
       type="button"
-      className="btn btn-ghost btn-sm"
       onClick={cycleTheme}
       aria-label={`Current theme: ${getLabel()}. Click to cycle theme`}
       title={getLabel()}
     >
       {getIcon()}
-    </button>
+    </Button>
   );
 }

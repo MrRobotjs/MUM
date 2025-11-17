@@ -7,6 +7,7 @@ import { ResponsiveDialog } from '../ui/responsive-dialog';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 
 // Services that support WebSocket for real-time streaming updates
 // Add new services here as WebSocket support is implemented
@@ -107,14 +108,14 @@ export const StreamingSettingsModal = ({ open, onClose }: StreamingSettingsModal
       bodyClassName="space-y-4"
     >
       {loading && !settings ? (
-        <div className="flex items-center gap-2 text-sm text-base-content/60">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <span className="loading loading-spinner loading-sm" /> Loading settings…
         </div>
       ) : null}
 
       {settings ? (
         <div className="space-y-4">
-          <div className="rounded-lg border border-base-300 bg-base-200/40 p-4">
+          <div className="rounded-lg border bg-muted/50 p-4">
             <FormField 
               id="streamBadge" 
               label="Enable nav bar stream badge"
@@ -128,7 +129,7 @@ export const StreamingSettingsModal = ({ open, onClose }: StreamingSettingsModal
                 />
                 <Label
                   htmlFor="streamBadge"
-                  className="text-sm text-base-content/80 font-normal cursor-pointer"
+                  className="text-sm text-foreground/80 font-normal cursor-pointer"
                 >
                   Show active stream count in the navigation bar.
                 </Label>
@@ -136,20 +137,19 @@ export const StreamingSettingsModal = ({ open, onClose }: StreamingSettingsModal
             </FormField>
           </div>
 
-          <div className="rounded-lg border border-base-300 bg-base-200/40 p-4">
+          <div className="rounded-lg border bg-muted/50 p-4">
             <FormField
               id="monitorInterval"
               label="Session monitoring interval (seconds)"
               description="How often to poll for new sessions from services that don't support WebSocket (e.g., Jellyfin, Emby). This interval also controls how often the backend checks for stopped sessions to finalize stream history records."
               error={validationError || undefined}
             >
-              <input
+              <Input
                 id="monitorInterval"
                 type="number"
                 min={5}
                 max={300}
                 step={1}
-                className="input input-bordered w-full"
                 value={interval}
                 onChange={(event) => setInterval(Number(event.target.value))}
                 disabled={saving}

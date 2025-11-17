@@ -29,7 +29,7 @@ export const FormField = ({
     </label>
     {children}
     {description ? (
-      <span className="text-sm text-base-content/70">{description}</span>
+      <span className="text-sm text-muted-foreground">{description}</span>
     ) : null}
     {error ? <span className="text-sm text-error">{error}</span> : null}
   </div>

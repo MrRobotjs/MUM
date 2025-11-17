@@ -8,14 +8,14 @@ type PageHeaderProps = {
 
 export const PageHeader = ({ title, description, actions }: PageHeaderProps) => {
   return (
-    <div className="flex flex-col gap-4 border-b border-base-300 pb-6">
+    <div className="flex flex-col gap-4 border-b pb-6">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
-          <h1 className="text-3xl font-semibold text-base-content md:text-4xl">
+          <h1 className="text-3xl font-semibold text-foreground md:text-4xl">
             {title}
           </h1>
           {description ? (
-            <p className="mt-2 max-w-2xl text-base text-base-content/70">
+            <p className="mt-2 max-w-2xl text-base text-muted-foreground">
               {description}
             </p>
           ) : null}

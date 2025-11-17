@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Button } from '../index'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'

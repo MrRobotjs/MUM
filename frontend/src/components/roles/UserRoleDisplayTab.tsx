@@ -137,7 +137,7 @@ export const UserRoleDisplayTab = ({ role, onUpdate }: UserRoleDisplayTabProps) 
                       <IconDroplet className="h-6 w-6 text-white/80 drop-shadow" />
                     </span>
                     <div className="space-y-1">
-                      <div className="flex items-center gap-2 text-sm font-medium text-base-content">
+                      <div className="flex items-center gap-2 text-sm font-medium text-foreground">
                         <IconPalette className="h-4 w-4" />
                         Selected Color
                       </div>

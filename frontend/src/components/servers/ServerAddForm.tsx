@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 type ConnectionTestStatus = 'idle' | 'testing' | 'success' | 'error';
 
@@ -81,6 +81,7 @@ export const ServerAddForm = ({ pluginId, onSuccess, onCancel }: ServerAddFormPr
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [connectionTestStatus, setConnectionTestStatus] = useState<ConnectionTestStatus>('idle');
+  const [activeTab, setActiveTab] = useState<'details' | 'overseerr'>('details');
 
   const handleTestConnection = async () => {
     setConnectionTestStatus('testing');
@@ -239,167 +240,181 @@ export const ServerAddForm = ({ pluginId, onSuccess, onCancel }: ServerAddFormPr
 
   return (
     <form id="server-add-form" onSubmit={handleSubmit} className="space-y-6">
-      <Card>
-        <CardContent className="pt-6">
-          <div className="space-y-4">
-            {error && (
-              <Alert variant="destructive">
-                <IconAlertCircle />
-                <AlertTitle>Error</AlertTitle>
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
+      {error && (
+        <Alert variant="destructive">
+          <IconAlertCircle />
+          <AlertTitle>Error</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
 
-            <FormField id="server_nickname" label="Server Nickname" required>
-              <Input
-                id="server_nickname"
-                type="text"
-                value={values.server_nickname}
-                onChange={(e) => setValues({ ...values, server_nickname: e.target.value })}
-                required
-                placeholder="My Plex Server"
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                Friendly name for this server (used in UI)
-              </p>
-            </FormField>
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'details' | 'overseerr')}>
+        <TabsList className="w-full justify-start">
+          <TabsTrigger value="details">Details</TabsTrigger>
+          {values.service_type === 'plex' && (
+            <TabsTrigger value="overseerr">Overseerr</TabsTrigger>
+          )}
+        </TabsList>
 
-            <FormField id="service_type" label="Service Type" required>
-              <div className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-xs md:text-sm">
-                <span className="text-sm">
-                  {serviceTypes.find((type) => type.value === values.service_type)?.label ?? values.service_type}
-                </span>
-                <Badge variant="secondary">Locked</Badge>
-              </div>
-            </FormField>
-
-            <FormField id="url" label="Server URL" required>
-              <Input
-                id="url"
-                type="url"
-                value={values.url}
-                onChange={(e) => handleFieldChange('url', e.target.value)}
-                required
-                placeholder="https://plex.example.com:32400"
-              />
-            </FormField>
-
-            <FormField id="api_key" label="API Key">
-              <Input
-                id="api_key"
-                type="password"
-                value={values.api_key}
-                onChange={(e) => handleFieldChange('api_key', e.target.value)}
-                placeholder="Enter API key"
-              />
-            </FormField>
-
-            <FormField id="server_name" label="Server Name (Optional)">
-              <Input
-                id="server_name"
-                type="text"
-                value={values.server_name}
-                onChange={(e) => setValues({ ...values, server_name: e.target.value })}
-                placeholder="Actual server name from service"
-              />
-            </FormField>
-
-            <FormField id="public_url" label="Public URL (Optional)">
-              <Input
-                id="public_url"
-                type="url"
-                value={values.public_url}
-                onChange={(e) => setValues({ ...values, public_url: e.target.value })}
-                placeholder="https://public.example.com"
-              />
-            </FormField>
-
-            {values.service_type === 'plex' ? (
-              <div className="rounded-lg border border-border bg-muted/40 p-4 space-y-2">
-                <FormField
-                  id="websocket_refresh_interval"
-                  label="WebSocket refresh interval (seconds)"
-                  description="How often to re-sync live playback progress while using Plex WebSocket updates."
-                >
+        <TabsContent value="details" className="mt-6">
+          <Card>
+            <CardContent>
+              <div className="space-y-4">
+                <FormField id="server_nickname" label="Server Nickname" required>
                   <Input
-                    id="websocket_refresh_interval"
-                    type="number"
-                    min={2}
-                    max={300}
-                    step={1}
-                    value={values.websocket_refresh_interval ?? 30}
-                    onChange={(e) => handleFieldChange('websocket_refresh_interval', Number(e.target.value))}
+                    id="server_nickname"
+                    type="text"
+                    value={values.server_nickname}
+                    onChange={(e) => setValues({ ...values, server_nickname: e.target.value })}
+                    required
+                    placeholder="My Plex Server"
                   />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Friendly name for this server (used in UI)
+                  </p>
                 </FormField>
-                <p className="text-xs text-muted-foreground">
-                  Lower intervals can make progress jump backward or forward because Plex periodically reports inconsistent
-                  timestamps when polled too frequently.
-                </p>
-              </div>
-            ) : null}
 
-            {values.service_type === 'plex' && (
-              <>
-                <div className="flex items-center gap-4 my-4">
-                  <Separator className="flex-1" />
-                  <span className="text-sm font-medium text-muted-foreground">Plex Overseerr Integration (Optional)</span>
-                  <Separator className="flex-1" />
-                </div>
-
-                <FormField id="overseerr_enabled" label="Overseerr Integration">
-                  <div className="flex items-center gap-3">
-                    <Switch
-                      id="overseerr_enabled"
-                      checked={values.overseerr_enabled ?? false}
-                      onCheckedChange={(checked) => setValues({ ...values, overseerr_enabled: checked })}
-                    />
-                    <Label htmlFor="overseerr_enabled" className="cursor-pointer">
-                      Enable Plex Overseerr integration
-                    </Label>
+                <FormField id="service_type" label="Service Type" required>
+                  <div className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-xs md:text-sm">
+                    <span className="text-sm">
+                      {serviceTypes.find((type) => type.value === values.service_type)?.label ?? values.service_type}
+                    </span>
+                    <Badge variant="secondary">Locked</Badge>
                   </div>
                 </FormField>
 
-                {values.overseerr_enabled && (
-                  <>
-                    <FormField id="overseerr_url" label="Overseerr URL">
+                <FormField id="url" label="Server URL" required>
+                  <Input
+                    id="url"
+                    type="url"
+                    value={values.url}
+                    onChange={(e) => handleFieldChange('url', e.target.value)}
+                    required
+                    placeholder="https://plex.example.com:32400"
+                  />
+                </FormField>
+
+                <FormField id="api_key" label="API Key">
+                  <Input
+                    id="api_key"
+                    type="password"
+                    value={values.api_key}
+                    onChange={(e) => handleFieldChange('api_key', e.target.value)}
+                    placeholder="Enter API key"
+                  />
+                </FormField>
+
+                <FormField id="server_name" label="Server Name (Optional)">
+                  <Input
+                    id="server_name"
+                    type="text"
+                    value={values.server_name}
+                    onChange={(e) => setValues({ ...values, server_name: e.target.value })}
+                    placeholder="Actual server name from service"
+                  />
+                </FormField>
+
+                <FormField id="public_url" label="Public URL (Optional)">
+                  <Input
+                    id="public_url"
+                    type="url"
+                    value={values.public_url}
+                    onChange={(e) => setValues({ ...values, public_url: e.target.value })}
+                    placeholder="https://public.example.com"
+                  />
+                </FormField>
+
+                {values.service_type === 'plex' ? (
+                  <div className="rounded-lg border border-border bg-muted/40 p-4 space-y-2">
+                    <FormField
+                      id="websocket_refresh_interval"
+                      label="WebSocket refresh interval (seconds)"
+                      description="How often to re-sync live playback progress while using Plex WebSocket updates."
+                    >
                       <Input
-                        id="overseerr_url"
-                        type="url"
-                        value={values.overseerr_url}
-                        onChange={(e) => setValues({ ...values, overseerr_url: e.target.value })}
-                        placeholder="https://overseerr.example.com"
+                        id="websocket_refresh_interval"
+                        type="number"
+                        min={2}
+                        max={300}
+                        step={1}
+                        value={values.websocket_refresh_interval ?? 30}
+                        onChange={(e) => handleFieldChange('websocket_refresh_interval', Number(e.target.value))}
                       />
                     </FormField>
+                    <p className="text-xs text-muted-foreground">
+                      Lower intervals can make progress jump backward or forward because Plex periodically reports inconsistent
+                      timestamps when polled too frequently.
+                    </p>
+                  </div>
+                ) : null}
 
-                    <FormField id="overseerr_api_key" label="Overseerr API Key">
-                      <Input
-                        id="overseerr_api_key"
-                        type="password"
-                        value={values.overseerr_api_key}
-                        onChange={(e) => setValues({ ...values, overseerr_api_key: e.target.value })}
-                        placeholder="Overseerr API key"
-                      />
-                    </FormField>
-                  </>
-                )}
-              </>
-            )}
-
-            <FormField id="is_active" label="Status">
-              <div className="flex items-center gap-3">
-                <Switch
-                  id="is_active"
-                  checked={values.is_active}
-                  onCheckedChange={(checked) => setValues({ ...values, is_active: checked })}
-                />
-                <Label htmlFor="is_active" className="cursor-pointer">
-                  Active
-                </Label>
+                <FormField id="is_active" label="Status">
+                  <div className="flex items-center gap-3">
+                    <Switch
+                      id="is_active"
+                      checked={values.is_active}
+                      onCheckedChange={(checked) => setValues({ ...values, is_active: checked })}
+                    />
+                    <Label htmlFor="is_active" className="cursor-pointer">
+                      Active
+                    </Label>
+                  </div>
+                </FormField>
               </div>
-            </FormField>
-          </div>
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {values.service_type === 'plex' && (
+          <TabsContent value="overseerr" className="mt-6">
+            <Card>
+              <CardContent>
+                <div className="space-y-4">
+                  <FormField id="overseerr_enabled" label="Overseerr Integration">
+                    <div className="flex items-center gap-3">
+                      <Switch
+                        id="overseerr_enabled"
+                        checked={values.overseerr_enabled ?? false}
+                        onCheckedChange={(checked) => setValues({ ...values, overseerr_enabled: checked })}
+                      />
+                      <Label htmlFor="overseerr_enabled" className="cursor-pointer">
+                        Enable Plex Overseerr integration
+                      </Label>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Link this Plex server to Overseerr for request management
+                    </p>
+                  </FormField>
+
+                  {values.overseerr_enabled && (
+                    <>
+                      <FormField id="overseerr_url" label="Overseerr URL" required>
+                        <Input
+                          id="overseerr_url"
+                          type="url"
+                          value={values.overseerr_url}
+                          onChange={(e) => setValues({ ...values, overseerr_url: e.target.value })}
+                          placeholder="https://overseerr.example.com"
+                        />
+                      </FormField>
+
+                      <FormField id="overseerr_api_key" label="Overseerr API Key" required>
+                        <Input
+                          id="overseerr_api_key"
+                          type="password"
+                          value={values.overseerr_api_key}
+                          onChange={(e) => setValues({ ...values, overseerr_api_key: e.target.value })}
+                          placeholder="Overseerr API key"
+                        />
+                      </FormField>
+                    </>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
+      </Tabs>
 
       <div className="flex items-center justify-end gap-3">
         <Button variant="ghost" onClick={onCancel} type="button">

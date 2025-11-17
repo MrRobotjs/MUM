@@ -327,7 +327,7 @@ export const AdminSettingsPluginsServerEditPage = () => {
 
           <TabsContent value="details" className="mt-6">
             <Card>
-              <CardContent className="pt-6">
+              <CardContent>
                 <div className="space-y-4">
                   <FormField id="server_nickname" label="Server Nickname" required>
                     <Input

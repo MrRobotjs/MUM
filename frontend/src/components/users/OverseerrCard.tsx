@@ -24,7 +24,7 @@ export const OverseerrCard = ({ links, loading, error }: OverseerrCardProps) => 
           Loading Overseerr data…
         </div>
       ) : error ? (
-        <div className="text-sm text-error">Failed to load Overseerr data: {error.message}</div>
+        <div className="text-sm text-red-600 dark:text-red-400">Failed to load Overseerr data: {error.message}</div>
       ) : links.length === 0 ? (
         <p className="text-sm text-muted-foreground">No Overseerr records found for this user.</p>
       ) : (

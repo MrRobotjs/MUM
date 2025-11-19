@@ -190,8 +190,8 @@ export const AdminRolePermissionsTab = ({ role, permissions, onUpdate }: AdminRo
       {/* Permissions Overview Section */}
       <div className="rounded-lg border border-border bg-card/30 p-6">
         <div className="mb-6 flex items-center gap-3">
-          <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-success/20">
-            <IconShieldHalf className="size-5 text-success" />
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-green-100/20">
+            <IconShieldHalf className="size-5 text-green-600 dark:text-green-400" />
           </div>
           <div>
             <h2 className="mb-1 text-xl font-semibold">Role Permissions</h2>

@@ -27,9 +27,9 @@ const AdminGuard = ({ children }: Props) => {
   if (error) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-muted">
-        <div className="max-w-md rounded-xl border border-error/30 bg-error/10 p-6 text-center">
-          <h2 className="mb-2 text-lg font-semibold text-error">Unable to load admin session</h2>
-          <p className="text-sm text-error/80">{error.message}</p>
+        <div className="max-w-md rounded-xl border border-red-500/30 bg-red-50 dark:bg-red-400/10 p-6 text-center">
+          <h2 className="mb-2 text-lg font-semibold text-red-600 dark:text-red-400">Unable to load admin session</h2>
+          <p className="text-sm text-red-600 dark:text-red-400/80">{error.message}</p>
         </div>
       </div>
     );

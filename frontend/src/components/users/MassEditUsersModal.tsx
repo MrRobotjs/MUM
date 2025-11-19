@@ -88,7 +88,7 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
 
   const getLibraryCheckboxIcon = (libraryId: number): string => {
     const state = librarySelections[libraryId] || 'unchanged';
-    if (state === 'add') return 'fa-plus-circle text-success';
+    if (state === 'add') return 'fa-plus-circle text-green-600 dark:text-green-400';
     if (state === 'remove') return 'fa-minus-circle text-destructive';
     return 'fa-circle text-muted-foreground';
   };
@@ -236,13 +236,13 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
       case 'modify_libraries':
         return (
           <div className="space-y-4">
-            <div className="bg-info/10 rounded-lg p-4 border border-info/30">
+            <div className="bg-blue-50 dark:bg-blue-400/10 rounded-lg p-4 border border-blue-500/30">
               <div className="flex items-start gap-3">
-                <i className="fa-solid fa-info-circle text-info text-lg mt-0.5" />
+                <i className="fa-solid fa-info-circle text-blue-600 dark:text-blue-400 text-lg mt-0.5" />
                 <div>
                   <h5 className="font-medium mb-1">Library Access Control</h5>
                   <p className="text-sm text-muted-foreground">
-                    Click libraries to cycle through: <span className="text-success">Add (+)</span> → <span className="text-destructive">Remove (−)</span> → Unchanged
+                    Click libraries to cycle through: <span className="text-green-600 dark:text-green-400">Add (+)</span> → <span className="text-destructive">Remove (−)</span> → Unchanged
                   </p>
                 </div>
               </div>
@@ -327,9 +327,9 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
       case 'extend_access':
         return (
           <div className="space-y-4">
-            <div className="bg-info/10 rounded-lg p-4 border border-info/30">
+            <div className="bg-blue-50 dark:bg-blue-400/10 rounded-lg p-4 border border-blue-500/30">
               <div className="flex items-start gap-3">
-                <i className="fa-solid fa-info-circle text-info text-lg mt-0.5" />
+                <i className="fa-solid fa-info-circle text-blue-600 dark:text-blue-400 text-lg mt-0.5" />
                 <div>
                   <h5 className="font-medium mb-1">Extend Access Duration</h5>
                   <p className="text-sm text-muted-foreground">
@@ -362,9 +362,9 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
       case 'set_expiration':
         return (
           <div className="space-y-4">
-            <div className="bg-info/10 rounded-lg p-4 border border-info/30">
+            <div className="bg-blue-50 dark:bg-blue-400/10 rounded-lg p-4 border border-blue-500/30">
               <div className="flex items-start gap-3">
-                <i className="fa-solid fa-info-circle text-info text-lg mt-0.5" />
+                <i className="fa-solid fa-info-circle text-blue-600 dark:text-blue-400 text-lg mt-0.5" />
                 <div>
                   <h5 className="font-medium mb-1">Set Expiration Date</h5>
                   <p className="text-sm text-muted-foreground">
@@ -408,9 +408,9 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
       case 'clear_expiration':
         return (
           <div className="space-y-4">
-            <div className="bg-warning/10 rounded-lg p-4 border border-warning/30">
+            <div className="bg-amber-50 dark:bg-amber-400/10 rounded-lg p-4 border border-amber-500/30">
               <div className="flex items-start gap-3">
-                <i className="fa-solid fa-exclamation-triangle text-warning text-lg mt-0.5" />
+                <i className="fa-solid fa-exclamation-triangle text-amber-600 dark:text-amber-400 text-lg mt-0.5" />
                 <div>
                   <h5 className="font-medium mb-1">Clear Expiration Date</h5>
                   <p className="text-sm text-muted-foreground">
@@ -437,9 +437,9 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
       case 'merge_local':
         return (
           <div className="space-y-4">
-            <div className="bg-info/10 rounded-lg p-4 border border-info/30">
+            <div className="bg-blue-50 dark:bg-blue-400/10 rounded-lg p-4 border border-blue-500/30">
               <div className="flex items-start gap-3">
-                <i className="fa-solid fa-info-circle text-info text-lg mt-0.5" />
+                <i className="fa-solid fa-info-circle text-blue-600 dark:text-blue-400 text-lg mt-0.5" />
                 <div>
                   <h5 className="font-medium mb-1">Merge into Local Account</h5>
                   <p className="text-sm text-muted-foreground">

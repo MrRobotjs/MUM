@@ -27,7 +27,7 @@ type LibraryGroup = {
 };
 
 const plexIcon = (
-  <svg className="w-5 h-5 stroke-transparent text-warning" viewBox="0 0 192 192" xmlns="http://www.w3.org/2000/svg" fill="currentColor">
+  <svg className="w-5 h-5 stroke-transparent text-amber-600 dark:text-amber-400" viewBox="0 0 192 192" xmlns="http://www.w3.org/2000/svg" fill="currentColor">
     <path d="M22 25.5h48L116 94l-46 68.5H22L68.5 94Zm109.8 56L108 46l14-20.5h48zm-.3 23.5c10.979 17.625 25.52 38.875 38.5 49.5-11.149 13.635-34.323 32.278-62.5-14z" />
   </svg>
 );

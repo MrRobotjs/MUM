@@ -441,11 +441,11 @@ export const InviteWizardPage = () => {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background px-4">
         <div className="bg-card border border-destructive/30 rounded-xl shadow-lg overflow-hidden max-w-md w-full">
-          <div className="bg-error/10 border-b border-error/20 p-6 text-center">
-            <div className="w-16 h-16 rounded-full bg-error/20 flex items-center justify-center mx-auto mb-4">
-              <i className="fa-solid fa-circle-xmark text-error text-2xl" />
+          <div className="bg-red-50 dark:bg-red-400/10 border-b border-red-200 dark:border-red-500/20 p-6 text-center">
+            <div className="w-16 h-16 rounded-full bg-red-100/20 flex items-center justify-center mx-auto mb-4">
+              <i className="fa-solid fa-circle-xmark text-red-600 dark:text-red-400 text-2xl" />
             </div>
-            <h1 className="text-2xl font-bold text-error mb-2">Invite Problem</h1>
+            <h1 className="text-2xl font-bold text-red-600 dark:text-red-400 mb-2">Invite Problem</h1>
             <p className="text-muted-foreground text-sm">There was an issue with your invite</p>
           </div>
           <div className="p-6 text-center">
@@ -464,12 +464,12 @@ export const InviteWizardPage = () => {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <div className="w-full max-w-2xl">
-          <div className="bg-gradient-to-br from-success/10 to-primary/10 border border-success/20 rounded-xl p-8 shadow-lg">
+          <div className="bg-gradient-to-br from-success/10 to-primary/10 border border-green-200 dark:border-green-500/20 rounded-xl p-8 shadow-lg">
             <div className="text-center mb-8">
-              <div className="w-20 h-20 rounded-full bg-success/20 flex items-center justify-center mx-auto mb-6">
-                <i className="fa-solid fa-check-circle text-success text-3xl" />
+              <div className="w-20 h-20 rounded-full bg-green-100/20 flex items-center justify-center mx-auto mb-6">
+                <i className="fa-solid fa-check-circle text-green-600 dark:text-green-400 text-3xl" />
               </div>
-              <h2 className="text-3xl font-bold text-success mb-3">Welcome, {completion.username}!</h2>
+              <h2 className="text-3xl font-bold text-green-600 dark:text-green-400 mb-3">Welcome, {completion.username}!</h2>
               <p className="text-muted-foreground text-lg">Your invitation has been completed successfully</p>
             </div>
 
@@ -510,8 +510,8 @@ export const InviteWizardPage = () => {
 
             <div className="bg-muted/50 border border rounded-lg p-6 mb-8">
               <div className="flex items-center justify-center gap-3 mb-4">
-                <div className="w-8 h-8 rounded-full bg-success/20 flex items-center justify-center">
-                  <i className="fa-solid fa-server text-success text-sm" />
+                <div className="w-8 h-8 rounded-full bg-green-100/20 flex items-center justify-center">
+                  <i className="fa-solid fa-server text-green-600 dark:text-green-400 text-sm" />
                 </div>
                 <h3 className="font-medium text-foreground text-lg">Media Server Access</h3>
               </div>
@@ -519,8 +519,8 @@ export const InviteWizardPage = () => {
                 {completion.servers.map((server) => (
                   <div key={server.name} className="flex items-center justify-between gap-2 text-sm bg-card rounded-lg p-3">
                     <div className="flex items-center gap-2">
-                      <div className="w-4 h-4 rounded-full bg-success/20 flex items-center justify-center">
-                        <i className="fa-solid fa-check text-success text-xs" />
+                      <div className="w-4 h-4 rounded-full bg-green-100/20 flex items-center justify-center">
+                        <i className="fa-solid fa-check text-green-600 dark:text-green-400 text-xs" />
                       </div>
                       <span className="font-medium">{server.name}</span>
                       <span className="text-xs text-muted-foreground">({server.service_type})</span>
@@ -584,7 +584,7 @@ export const InviteWizardPage = () => {
                             step.completed
                               ? 'bg-primary/10 border border-primary/20'
                               : isActive
-                              ? 'bg-warning/10 border border-warning/20'
+                              ? 'bg-amber-50 dark:bg-amber-400/10 border border-amber-200 dark:border-amber-500/20'
                               : 'bg-muted/50 border border'
                           )}
                         >
@@ -594,7 +594,7 @@ export const InviteWizardPage = () => {
                               step.completed
                                 ? 'bg-primary text-primary-content'
                                 : isActive
-                                ? 'bg-warning text-warning-content'
+                                ? 'bg-amber-100 text-amber-600 dark:text-amber-400-content'
                                 : 'bg-muted text-muted-foreground'
                             )}
                           >
@@ -613,7 +613,7 @@ export const InviteWizardPage = () => {
                                 step.completed
                                   ? 'text-primary'
                                   : isActive
-                                  ? 'text-warning'
+                                  ? 'text-amber-600 dark:text-amber-400'
                                   : 'text-muted-foreground'
                               )}
                             >
@@ -665,10 +665,10 @@ export const InviteWizardPage = () => {
                           value={accountForm.username}
                           onChange={(e) => setAccountForm((prev) => ({ ...prev, username: e.target.value }))}
                           required
-                          className={accountErrors.username ? 'border-error' : ''}
+                          className={accountErrors.username ? 'border-red-500' : ''}
                         />
                         {accountErrors.username && (
-                          <p className="text-xs text-error">{accountErrors.username.join(', ')}</p>
+                          <p className="text-xs text-red-600 dark:text-red-400">{accountErrors.username.join(', ')}</p>
                         )}
                       </div>
 
@@ -680,10 +680,10 @@ export const InviteWizardPage = () => {
                           value={accountForm.email}
                           onChange={(e) => setAccountForm((prev) => ({ ...prev, email: e.target.value }))}
                           required
-                          className={accountErrors.email ? 'border-error' : ''}
+                          className={accountErrors.email ? 'border-red-500' : ''}
                         />
                         {accountErrors.email && (
-                          <p className="text-xs text-error">{accountErrors.email.join(', ')}</p>
+                          <p className="text-xs text-red-600 dark:text-red-400">{accountErrors.email.join(', ')}</p>
                         )}
                       </div>
 
@@ -695,10 +695,10 @@ export const InviteWizardPage = () => {
                           value={accountForm.password}
                           onChange={(e) => setAccountForm((prev) => ({ ...prev, password: e.target.value }))}
                           required
-                          className={accountErrors.password ? 'border-error' : ''}
+                          className={accountErrors.password ? 'border-red-500' : ''}
                         />
                         {accountErrors.password && (
-                          <p className="text-xs text-error">{accountErrors.password.join(', ')}</p>
+                          <p className="text-xs text-red-600 dark:text-red-400">{accountErrors.password.join(', ')}</p>
                         )}
                       </div>
 
@@ -710,21 +710,21 @@ export const InviteWizardPage = () => {
                           value={accountForm.confirm_password}
                           onChange={(e) => setAccountForm((prev) => ({ ...prev, confirm_password: e.target.value }))}
                           required
-                          className={accountErrors.confirm_password ? 'border-error' : ''}
+                          className={accountErrors.confirm_password ? 'border-red-500' : ''}
                         />
                         {accountErrors.confirm_password && (
-                          <p className="text-xs text-error">{accountErrors.confirm_password.join(', ')}</p>
+                          <p className="text-xs text-red-600 dark:text-red-400">{accountErrors.confirm_password.join(', ')}</p>
                         )}
                       </div>
                     </div>
 
-                    <div className="bg-info/10 border border-info/20 rounded-lg p-4 mt-6">
+                    <div className="bg-blue-50 dark:bg-blue-400/10 border border-blue-200 dark:border-blue-500/20 rounded-lg p-4 mt-6">
                       <div className="flex items-start gap-3 mb-4">
-                        <div className="w-6 h-6 rounded-full bg-info/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                          <i className="fa-solid fa-link text-info text-xs" />
+                        <div className="w-6 h-6 rounded-full bg-blue-100/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                          <i className="fa-solid fa-link text-blue-600 dark:text-blue-400 text-xs" />
                         </div>
                         <div>
-                          <h4 className="font-medium text-info mb-1">Cross-Server Convenience</h4>
+                          <h4 className="font-medium text-blue-600 dark:text-blue-400 mb-1">Cross-Server Convenience</h4>
                           <p className="text-sm text-foreground/80">
                             Use the same credentials across all media servers for easier access
                           </p>
@@ -885,11 +885,11 @@ export const InviteWizardPage = () => {
                   </div>
 
                   {state.plex.conflict && (
-                    <div className="bg-warning/10 border border-warning/20 rounded-lg p-4 mb-6">
+                    <div className="bg-amber-50 dark:bg-amber-400/10 border border-amber-200 dark:border-amber-500/20 rounded-lg p-4 mb-6">
                       {state.plex.conflict.type === 'can_link' ? (
                         <div className="space-y-3">
                           <div className="flex items-start gap-3">
-                            <i className="fa-solid fa-exclamation-triangle text-warning mt-0.5" />
+                            <i className="fa-solid fa-exclamation-triangle text-amber-600 dark:text-amber-400 mt-0.5" />
                             <div>
                               <p className="text-sm">
                                 We found an existing local account for <strong>{state.plex.conflict.plex_username}</strong>.
@@ -962,11 +962,11 @@ export const InviteWizardPage = () => {
                   </div>
 
                   {server.username_conflict && (
-                    <div className="bg-warning/10 border border-warning/20 rounded-lg p-3 mb-4">
+                    <div className="bg-amber-50 dark:bg-amber-400/10 border border-amber-200 dark:border-amber-500/20 rounded-lg p-3 mb-4">
                       <div className="flex items-start gap-2">
-                        <i className="fa-solid fa-exclamation-triangle text-warning text-sm mt-0.5" />
+                        <i className="fa-solid fa-exclamation-triangle text-amber-600 dark:text-amber-400 text-sm mt-0.5" />
                         <div className="text-sm">
-                          <p className="font-medium text-warning mb-1">Username Not Available</p>
+                          <p className="font-medium text-amber-600 dark:text-amber-400 mb-1">Username Not Available</p>
                           <p className="text-foreground/80">
                             The username is already taken on {server.name}. Please choose a different username.
                           </p>
@@ -1044,12 +1044,12 @@ export const InviteWizardPage = () => {
 
               {/* Complete Button */}
               {allStepsComplete && (
-                <div className="bg-gradient-to-br from-success/10 to-primary/10 border border-success/20 rounded-lg p-8">
+                <div className="bg-gradient-to-br from-success/10 to-primary/10 border border-green-200 dark:border-green-500/20 rounded-lg p-8">
                   <div className="text-center mb-8">
-                    <div className="w-20 h-20 rounded-full bg-success/20 flex items-center justify-center mx-auto mb-6">
-                      <i className="fa-solid fa-check-circle text-success text-3xl" />
+                    <div className="w-20 h-20 rounded-full bg-green-100/20 flex items-center justify-center mx-auto mb-6">
+                      <i className="fa-solid fa-check-circle text-green-600 dark:text-green-400 text-3xl" />
                     </div>
-                    <h2 className="text-2xl font-bold text-success mb-3">Ready to Complete Setup!</h2>
+                    <h2 className="text-2xl font-bold text-green-600 dark:text-green-400 mb-3">Ready to Complete Setup!</h2>
                     <p className="text-muted-foreground text-lg">
                       All steps completed - ready to create your accounts and grant access
                     </p>

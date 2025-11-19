@@ -621,15 +621,15 @@ export const StreamingPage = () => {
                         </div>
                       </div>
                     )}
-                    <span className="link link-hover text-info" title="User">
+                    <span className="link link-hover text-blue-600 dark:text-blue-400" title="User">
                       {session.user}
                     </span>
                   </p>
 
                   {/* Player */}
                   <p className="text-muted-foreground flex items-center" title={`${session.player_title} (${session.player_platform} via ${session.product})`}>
-                    <i className="fa-solid fa-play fa-fw mr-1.5 text-info w-4 text-center" />
-                    <span className="font-medium mr-1 text-info">Player:</span>
+                    <i className="fa-solid fa-play fa-fw mr-1.5 text-blue-600 dark:text-blue-400 w-4 text-center" />
+                    <span className="font-medium mr-1 text-blue-600 dark:text-blue-400">Player:</span>
                     {session.player_title}{' '}
                     <span className="text-muted-foreground ml-1">
                       ({session.product !== session.player_title ? session.product : session.player_platform})
@@ -638,22 +638,22 @@ export const StreamingPage = () => {
 
                   {/* Media/Library */}
                   <p className="text-muted-foreground flex items-center">
-                    <i className="fa-solid fa-tv fa-fw mr-1.5 text-info w-4 text-center" />
-                    <span className="font-medium mr-1 text-info">Media/Library:</span>
+                    <i className="fa-solid fa-tv fa-fw mr-1.5 text-blue-600 dark:text-blue-400 w-4 text-center" />
+                    <span className="font-medium mr-1 text-blue-600 dark:text-blue-400">Media/Library:</span>
                     {session.media_type} on {session.library_name}
                   </p>
 
                   {/* Quality */}
                   <p className="text-muted-foreground flex items-center" title={`Quality: ${session.quality_detail}`}>
-                    <i className="fa-solid fa-sliders fa-fw w-4 mr-1.5 text-info text-center" />
-                    <span className="font-medium mr-1 text-info">Quality:</span>
+                    <i className="fa-solid fa-sliders fa-fw w-4 mr-1.5 text-blue-600 dark:text-blue-400 text-center" />
+                    <span className="font-medium mr-1 text-blue-600 dark:text-blue-400">Quality:</span>
                     <span>{session.quality_detail}</span>
                   </p>
 
                   {/* Stream */}
                   <p className="text-muted-foreground flex items-center" title={`Stream: ${session.stream_detail}`}>
-                    <i className="fa-solid fa-wifi fa-fw w-4 mr-1.5 text-info text-center" />
-                    <span className="font-medium mr-1 text-info">Stream:</span>
+                    <i className="fa-solid fa-wifi fa-fw w-4 mr-1.5 text-blue-600 dark:text-blue-400 text-center" />
+                    <span className="font-medium mr-1 text-blue-600 dark:text-blue-400">Stream:</span>
                     <span className={`font-medium ${session.stream_detail?.includes('Transcode') ? 'text-orange-400' : 'text-green-400'}`}>
                       {session.stream_detail}
                     </span>
@@ -665,8 +665,8 @@ export const StreamingPage = () => {
                   {/* Container */}
                   {session.container_detail && (
                     <p className="text-muted-foreground flex items-center" title={`Container: ${session.container_detail}`}>
-                      <i className="fa-solid fa-box-archive fa-fw w-4 mr-1.5 text-info text-center" />
-                      <span className="font-medium mr-1 text-info">Container:</span>
+                      <i className="fa-solid fa-box-archive fa-fw w-4 mr-1.5 text-blue-600 dark:text-blue-400 text-center" />
+                      <span className="font-medium mr-1 text-blue-600 dark:text-blue-400">Container:</span>
                       <span>{session.container_detail}</span>
                     </p>
                   )}
@@ -674,8 +674,8 @@ export const StreamingPage = () => {
                   {/* Video */}
                   {session.video_detail && (
                     <p className="text-muted-foreground flex items-center" title={`Video: ${session.video_detail}`}>
-                      <i className="fa-solid fa-film fa-fw w-4 mr-1.5 text-info text-center" />
-                      <span className="font-medium mr-1 text-info">Video:</span>
+                      <i className="fa-solid fa-film fa-fw w-4 mr-1.5 text-blue-600 dark:text-blue-400 text-center" />
+                      <span className="font-medium mr-1 text-blue-600 dark:text-blue-400">Video:</span>
                       <span>{session.video_detail}</span>
                     </p>
                   )}
@@ -683,8 +683,8 @@ export const StreamingPage = () => {
                   {/* Audio */}
                   {session.audio_detail && (
                     <p className="text-muted-foreground flex items-center" title={`Audio: ${session.audio_detail}`}>
-                      <i className="fa-solid fa-volume-high fa-fw w-4 mr-1.5 text-info text-center" />
-                      <span className="font-medium mr-1 text-info">Audio:</span>
+                      <i className="fa-solid fa-volume-high fa-fw w-4 mr-1.5 text-blue-600 dark:text-blue-400 text-center" />
+                      <span className="font-medium mr-1 text-blue-600 dark:text-blue-400">Audio:</span>
                       <span>{session.audio_detail}</span>
                     </p>
                   )}
@@ -692,16 +692,16 @@ export const StreamingPage = () => {
                   {/* Subtitle */}
                   {session.subtitle_detail && (
                     <p className="text-muted-foreground flex items-center" title={`Subtitle: ${session.subtitle_detail}`}>
-                      <i className="fa-solid fa-closed-captioning fa-fw w-4 mr-1.5 text-info text-center" />
-                      <span className="font-medium mr-1 text-info">Subtitle:</span>
+                      <i className="fa-solid fa-closed-captioning fa-fw w-4 mr-1.5 text-blue-600 dark:text-blue-400 text-center" />
+                      <span className="font-medium mr-1 text-blue-600 dark:text-blue-400">Subtitle:</span>
                       <span>{session.subtitle_detail}</span>
                     </p>
                   )}
 
                   {/* Location */}
                   <p className="text-muted-foreground flex items-center" title={`Location: ${session.location_detail}`}>
-                    <i className="fa-solid fa-location-dot fa-fw w-4 mr-1.5 text-info text-center" />
-                    <span className="font-medium mr-1 text-info">Location:</span>
+                    <i className="fa-solid fa-location-dot fa-fw w-4 mr-1.5 text-blue-600 dark:text-blue-400 text-center" />
+                    <span className="font-medium mr-1 text-blue-600 dark:text-blue-400">Location:</span>
                     <span>{session.location_detail}</span>
                   </p>
                 </div>
@@ -715,11 +715,11 @@ export const StreamingPage = () => {
                   <span
                     className={`text-xs font-medium uppercase ${
                       session.state?.toLowerCase() === 'playing' || session.state?.toLowerCase() === 'listening'
-                        ? 'text-success'
+                        ? 'text-green-600 dark:text-green-400'
                         : session.state?.toLowerCase() === 'paused'
-                        ? 'text-warning'
+                        ? 'text-amber-600 dark:text-amber-400'
                         : session.state?.toLowerCase() === 'buffering'
-                        ? 'text-info'
+                        ? 'text-blue-600 dark:text-blue-400'
                         : 'text-muted-foreground'
                     }`}
                   >
@@ -1182,7 +1182,7 @@ export const StreamingPage = () => {
 
             <div className="space-y-3">
               <div className="flex items-center gap-2">
-                <i className="fa-solid fa-message text-info text-sm" />
+                <i className="fa-solid fa-message text-blue-600 dark:text-blue-400 text-sm" />
                 <h5 className="text-base font-semibold text-foreground">Optional Message</h5>
               </div>
               <Textarea

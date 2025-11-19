@@ -399,15 +399,15 @@ export const InvitesPage = () => {
 
                   <div className="text-xs space-y-2 mb-3">
                     <p>
-                      <i className="fa-solid fa-calendar-plus fa-fw mr-1 text-info" /> Created:{' '}
+                      <i className="fa-solid fa-calendar-plus fa-fw mr-1 text-blue-600 dark:text-blue-400" /> Created:{' '}
                       {invite.created_at ? new Date(invite.created_at).toLocaleDateString() : 'N/A'}
                     </p>
                     <p>
-                      <i className={`fa-solid fa-clock fa-fw mr-1 ${invite.status === 'expired' ? 'text-error' : 'text-success'}`} />{' '}
+                      <i className={`fa-solid fa-clock fa-fw mr-1 ${invite.status === 'expired' ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`} />{' '}
                       Expires: {invite.expires_at ? new Date(invite.expires_at).toLocaleDateString() : 'Never'}
                     </p>
                     <p>
-                      <i className="fa-solid fa-users-line fa-fw mr-1 text-info" /> Uses: {invite.uses_count || invite.current_uses} /{' '}
+                      <i className="fa-solid fa-users-line fa-fw mr-1 text-blue-600 dark:text-blue-400" /> Uses: {invite.uses_count || invite.current_uses} /{' '}
                       {invite.max_uses || '∞'}
                     </p>
 

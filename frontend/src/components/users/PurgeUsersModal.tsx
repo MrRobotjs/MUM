@@ -285,7 +285,7 @@ export const PurgeUsersModal = ({ onClose, onPurgeComplete }: PurgeUsersModalPro
         onClick={() => setStep('confirm')}
         disabled={selectedUserUuids.size === 0}
         type="button"
-        className="bg-warning hover:bg-warning/90 text-warning-foreground"
+        className="bg-amber-100 hover:bg-amber-100/90 text-amber-600 dark:text-amber-400-foreground"
       >
         Continue to Confirmation
       </Button>,

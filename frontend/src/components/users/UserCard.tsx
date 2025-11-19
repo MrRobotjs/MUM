@@ -320,7 +320,7 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection }: UserCa
                 {user.server_nickname || 'Service Account'}
               </span>
             ) : user.user_type.toLowerCase() === 'owner' ? (
-              <span className="inline-flex items-center rounded-md px-2 py-1 bg-warning/10 text-warning ring-1 ring-inset ring-warning/20 text-xs font-medium gap-1">
+              <span className="inline-flex items-center rounded-md px-2 py-1 bg-amber-50 dark:bg-amber-400/10 text-amber-600 dark:text-amber-400 ring-1 ring-inset ring-warning/20 text-xs font-medium gap-1">
                 <i className="fa-solid fa-crown w-3 h-3" />
                 Owner
               </span>
@@ -491,7 +491,7 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection }: UserCa
               setDebugModalOpen(true);
             }}
             title="Show Raw User Data"
-            className="text-warning hover:bg-warning/10"
+            className="text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:bg-amber-400/10"
           >
             <i className="fa-solid fa-info" />
           </Button>

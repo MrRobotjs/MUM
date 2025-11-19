@@ -116,7 +116,7 @@ export const StreamingTable = ({
   }
 
   if (error) {
-    return <div className="text-sm text-error">Failed to load streams: {error}</div>;
+    return <div className="text-sm text-red-600 dark:text-red-400">Failed to load streams: {error}</div>;
   }
 
   const rows = data?.data ?? [];

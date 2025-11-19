@@ -146,7 +146,7 @@ export const AdminRoleDisplayTab = ({ role, onUpdate }: AdminRoleDisplayTabProps
         <div className="rounded-lg border border-border bg-card/30 p-4 transition-colors hover:border-border/60">
           <div className="mb-3 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <IconPalette className="size-4 text-warning" />
+              <IconPalette className="size-4 text-amber-600 dark:text-amber-400" />
               <Label className="font-medium">Role Color</Label>
             </div>
           </div>
@@ -229,14 +229,14 @@ export const AdminRoleDisplayTab = ({ role, onUpdate }: AdminRoleDisplayTabProps
       {/* Live Preview Section */}
       <div className="space-y-4">
         <h4 className="flex items-center gap-2 text-lg font-medium">
-          <IconEye className="size-4 text-success" />
+          <IconEye className="size-4 text-green-600 dark:text-green-400" />
           Live Preview
         </h4>
 
         <div className="rounded-lg border border-border bg-card/30 p-6">
           <div className="mb-4 flex items-center gap-3">
-            <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-success/20">
-              <IconSparkles className="size-4 text-success" />
+            <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-green-100/20">
+              <IconSparkles className="size-4 text-green-600 dark:text-green-400" />
             </div>
             <div>
               <h5 className="font-medium">Badge Preview</h5>

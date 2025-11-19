@@ -24,14 +24,14 @@ export const FormField = ({
     <label className="label" htmlFor={id}>
       <span className="label-text font-medium">
         {label}
-        {required ? <span className="ml-1 text-error">*</span> : null}
+        {required ? <span className="ml-1 text-red-600 dark:text-red-400">*</span> : null}
       </span>
     </label>
     {children}
     {description ? (
       <span className="text-sm text-muted-foreground">{description}</span>
     ) : null}
-    {error ? <span className="text-sm text-error">{error}</span> : null}
+    {error ? <span className="text-sm text-red-600 dark:text-red-400">{error}</span> : null}
   </div>
 );
 

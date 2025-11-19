@@ -592,9 +592,9 @@ export const UsersListPage = () => {
                   onSelect={() => {
                     setShowPurgeModal(true);
                   }}
-                  className="cursor-pointer text-warning"
+                  className="cursor-pointer text-amber-600 dark:text-amber-400"
                 >
-                  <i className="fa-solid fa-user-clock mr-2 text-warning" />
+                  <i className="fa-solid fa-user-clock mr-2 text-amber-600 dark:text-amber-400" />
                   Purge
                 </DropdownMenuItem>
               )}
@@ -605,8 +605,8 @@ export const UsersListPage = () => {
 
       {/* Mass Edit Bar - Shows below search, not fixed at bottom */}
       {selectedUserIds.size > 0 && (
-        <Card className="mb-4">
-          <CardContent className="flex items-center gap-2 p-4">
+        <Card className="mb-4 sticky top-0 z-1">
+          <CardContent className="flex items-center gap-2">
             <Button variant="default" onClick={() => setShowMassEditModal(true)}>
               <i className="fa-solid fa-pen-to-square mr-0 sm:mr-2" />
               <span className="hidden sm:inline">Mass Edit ({selectedUserIds.size} selected)</span>

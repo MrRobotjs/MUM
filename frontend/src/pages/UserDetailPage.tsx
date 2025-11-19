@@ -126,19 +126,19 @@ const ProfileTab = ({ user }: { user: UserDetail }) => {
   const isServiceUser = user.user_type.toLowerCase() === 'service';
 
   const statusBadges = [
-    user.is_active && { label: 'Active', icon: <i className="fa-solid fa-circle-check" />, className: 'badge-success' },
-    !user.is_active && { label: 'Inactive', icon: <i className="fa-solid fa-circle-xmark" />, className: 'badge-warning' },
-    user.is_home_user && { label: 'Home User', icon: <i className="fa-solid fa-house" />, className: 'badge-info' },
-    user.shares_back && { label: 'Shares Back', icon: <i className="fa-solid fa-share-nodes" />, className: 'badge-accent' },
+    user.is_active && { label: 'Active', icon: <i className="fa-solid fa-circle-check" />, className: 'bg-green-100 text-green-700 ring-green-600/20 dark:bg-green-400/10 dark:text-green-300' },
+    !user.is_active && { label: 'Inactive', icon: <i className="fa-solid fa-circle-xmark" />, className: 'bg-amber-100 text-amber-700 ring-amber-600/20 dark:bg-amber-400/10 dark:text-amber-300' },
+    user.is_home_user && { label: 'Home User', icon: <i className="fa-solid fa-house" />, className: 'bg-blue-100 text-blue-700 ring-blue-600/20 dark:bg-blue-400/10 dark:text-blue-300' },
+    user.shares_back && { label: 'Shares Back', icon: <i className="fa-solid fa-share-nodes" />, className: 'bg-purple-100 text-purple-700 ring-purple-600/20 dark:bg-purple-400/10 dark:text-purple-300' },
     user.is_purge_whitelisted && {
       label: 'Purge Protected',
       icon: <i className="fa-solid fa-shield-halved" />,
-      className: 'badge-warning'
+      className: 'bg-amber-100 text-amber-700 ring-amber-600/20 dark:bg-amber-400/10 dark:text-amber-300'
     },
     user.is_discord_bot_whitelisted && {
       label: 'Discord Bot Allowed',
       icon: <i className="fa-brands fa-discord" />,
-      className: 'badge-info'
+      className: 'bg-blue-100 text-blue-700 ring-blue-600/20 dark:bg-blue-400/10 dark:text-blue-300'
     }
   ].filter(Boolean) as Array<{ label: string; icon: ReactNode; className: string }>;
 
@@ -158,7 +158,7 @@ const ProfileTab = ({ user }: { user: UserDetail }) => {
 
             <div className="space-y-3 text-sm">
               <div className="flex items-start gap-3">
-                <i className="fa-solid fa-at mt-1 text-info" />
+                <i className="fa-solid fa-at mt-1 text-blue-600 dark:text-blue-400" />
                 <div>
                   <div className="text-muted-foreground">Email</div>
                   <div className="font-medium">{user.email ?? user.external_email ?? 'Not provided'}</div>
@@ -166,7 +166,7 @@ const ProfileTab = ({ user }: { user: UserDetail }) => {
               </div>
 
               <div className="flex items-start gap-3">
-                <i className="fa-solid fa-id-card mt-1 text-success" />
+                <i className="fa-solid fa-id-card mt-1 text-green-600 dark:text-green-400" />
                 <div>
                   <div className="text-muted-foreground">Username</div>
                   <div className="font-medium">
@@ -177,7 +177,7 @@ const ProfileTab = ({ user }: { user: UserDetail }) => {
 
               {user.external_user_id ? (
                 <div className="flex items-start gap-3">
-                  <i className="fa-solid fa-fingerprint mt-1 text-warning" />
+                  <i className="fa-solid fa-fingerprint mt-1 text-amber-600 dark:text-amber-400" />
                   <div>
                     <div className="text-muted-foreground">External User ID</div>
                     <div className="font-mono text-sm">{user.external_user_id}</div>
@@ -486,7 +486,7 @@ const HistoryTab = ({ entries, loading, error, onLoadMore, hasMore }: HistoryTab
       </div>
     ) : null}
     {error ? (
-      <div className="rounded border border-error/40 bg-error/10 px-4 py-3 text-sm text-error">
+      <div className="rounded border border-red-500/40 bg-red-50 dark:bg-red-400/10 px-4 py-3 text-sm text-red-600 dark:text-red-400">
         Failed to load history: {error.message}
       </div>
     ) : null}
@@ -760,7 +760,7 @@ export const UserDetailPage = () => {
 
     if (slugError) {
       return (
-        <div className="rounded border border-error/40 bg-error/10 p-4 text-sm text-error">
+        <div className="rounded border border-red-500/40 bg-red-50 dark:bg-red-400/10 p-4 text-sm text-red-600 dark:text-red-400">
           Failed to resolve user path: {String(slugError)}
         </div>
       );
@@ -789,7 +789,7 @@ export const UserDetailPage = () => {
 
   if (error) {
     return (
-      <div className="rounded border border-error/40 bg-error/10 p-4 text-sm text-error">
+      <div className="rounded border border-red-500/40 bg-red-50 dark:bg-red-400/10 p-4 text-sm text-red-600 dark:text-red-400">
         Failed to load user profile: {(error as Error).message}
       </div>
     );

@@ -363,13 +363,13 @@ const AdminSettingsAdminManagementPage = () => {
                           <div className="flex items-center gap-2">
                             <div
                               className={`flex size-6 items-center justify-center rounded-full ${
-                                isOwner(admin) ? 'bg-warning/20' : 'bg-info/20'
+                                isOwner(admin) ? 'bg-amber-100/20' : 'bg-blue-100/20'
                               }`}
                             >
                               {isOwner(admin) ? (
-                                <i className="fa-solid fa-crown text-xs text-warning" />
+                                <i className="fa-solid fa-crown text-xs text-amber-600 dark:text-amber-400" />
                               ) : (
-                                <i className="fa-solid fa-user-tie text-xs text-info" />
+                                <i className="fa-solid fa-user-tie text-xs text-blue-600 dark:text-blue-400" />
                               )}
                             </div>
                             <span className="font-mono text-sm">{admin.id}</span>
@@ -379,7 +379,7 @@ const AdminSettingsAdminManagementPage = () => {
                         {/* Administrator */}
                         <TableCell>
                           <div className="flex items-center gap-3">
-                            <Avatar className={isOwner(admin) ? 'bg-warning/20 text-warning' : 'bg-primary/20 text-primary'}>
+                            <Avatar className={isOwner(admin) ? 'bg-amber-100/20 text-amber-600 dark:text-amber-400' : 'bg-primary/20 text-primary'}>
                               <AvatarFallback>
                                 {isOwner(admin) ? (
                                   <i className="fa-solid fa-crown" />
@@ -468,7 +468,7 @@ const AdminSettingsAdminManagementPage = () => {
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  className="text-warning hover:bg-warning/10"
+                                  className="text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:bg-amber-400/10"
                                   onClick={() => openResetPasswordModal(admin)}
                                   title="Reset Password"
                                 >
@@ -518,8 +518,8 @@ const AdminSettingsAdminManagementPage = () => {
       >
         <Alert variant="info" className="mb-6">
           <div className="flex items-start gap-3">
-            <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-info/20">
-              <IconAlertCircle className="size-4 text-info" />
+            <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-blue-100/20">
+              <IconAlertCircle className="size-4 text-blue-600 dark:text-blue-400" />
             </div>
             <div>
               <AlertTitle>Administrator Account</AlertTitle>
@@ -534,7 +534,7 @@ const AdminSettingsAdminManagementPage = () => {
           {/* Account Details */}
           <div className="space-y-4">
             <h4 className="flex items-center gap-2 text-lg font-medium">
-              <i className="fa-solid fa-user text-sm text-success" />
+              <i className="fa-solid fa-user text-sm text-green-600 dark:text-green-400" />
               Account Details
             </h4>
 
@@ -554,7 +554,7 @@ const AdminSettingsAdminManagementPage = () => {
           {/* Security Settings */}
           <div className="space-y-4">
             <h4 className="flex items-center gap-2 text-lg font-medium">
-              <i className="fa-solid fa-shield-halved text-sm text-warning" />
+              <i className="fa-solid fa-shield-halved text-sm text-amber-600 dark:text-amber-400" />
               Security Settings
             </h4>
 
@@ -583,9 +583,9 @@ const AdminSettingsAdminManagementPage = () => {
               <p className="text-xs text-muted-foreground">Re-enter the password to confirm</p>
             </div>
 
-            <Alert className="border-warning/30 bg-warning/10">
+            <Alert className="border-amber-500/30 bg-amber-50 dark:bg-amber-400/10">
               <div className="flex items-start gap-2">
-                <i className="fa-solid fa-exclamation-triangle mt-0.5 text-sm text-warning" />
+                <i className="fa-solid fa-exclamation-triangle mt-0.5 text-sm text-amber-600 dark:text-amber-400" />
                 <div>
                   <AlertTitle>Security Notice</AlertTitle>
                   <AlertDescription>
@@ -639,7 +639,7 @@ const AdminSettingsAdminManagementPage = () => {
       >
         <form id="edit-admin-form" onSubmit={handleEditAdmin} className="space-y-4">
           <h4 className="flex items-center gap-2 text-lg font-medium">
-            <i className="fa-solid fa-key text-sm text-success" />
+            <i className="fa-solid fa-key text-sm text-green-600 dark:text-green-400" />
             Permissions & Roles
           </h4>
 
@@ -675,7 +675,7 @@ const AdminSettingsAdminManagementPage = () => {
           <Button key="cancel" variant="outline" onClick={() => setShowResetPasswordModal(false)}>
             Cancel
           </Button>,
-          <Button key="submit" type="submit" form="reset-password-form" variant="default" disabled={submitting} className="bg-warning hover:bg-warning/90">
+          <Button key="submit" type="submit" form="reset-password-form" variant="default" disabled={submitting} className="bg-amber-100 hover:bg-amber-100/90">
             {submitting && <span className="mr-2 inline-flex size-4 animate-spin rounded-full border-2 border-background border-t-transparent" />}
             <IconKey className="mr-2 size-4" />
             Reset Password

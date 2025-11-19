@@ -7,10 +7,10 @@ import { Link } from '@tanstack/react-router';
 
 const metricClassNames: Record<string, string> = {
   total: 'bg-primary/10 text-primary',
-  active: 'bg-success/10 text-success',
-  usable: 'bg-info/10 text-info',
-  expired: 'bg-warning/10 text-warning',
-  maxed: 'bg-error/10 text-error',
+  active: 'bg-green-50 dark:bg-green-400/10 text-green-600 dark:text-green-400',
+  usable: 'bg-blue-50 dark:bg-blue-400/10 text-blue-600 dark:text-blue-400',
+  expired: 'bg-amber-50 dark:bg-amber-400/10 text-amber-600 dark:text-amber-400',
+  maxed: 'bg-red-50 dark:bg-red-400/10 text-red-600 dark:text-red-400',
   inactive: 'bg-muted text-muted-foreground'
 };
 

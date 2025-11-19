@@ -4,12 +4,6 @@
 @source "./**/*.{ts,tsx}";
 @source "../../app/templates";
 
-@plugin "daisyui" {
-    themes: light --default, dark --prefersdark;
-    root: ":root";
-    logs: true;
-}
-
 @theme static {
   --color-plex: oklch(74.22% 0.18 80.28);
   --color-jellyfin: oklch(0.63 0.27 304.24);

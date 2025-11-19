@@ -172,8 +172,8 @@ export const UserDisplaySettingsModal = ({ isOpen, onClose }: UserDisplaySetting
       {/* Description Card */}
       <div className="rounded-lg border bg-muted/50 p-4">
         <div className="flex items-start gap-3">
-        <div className="w-8 h-8 rounded-full bg-info/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-          <i className="fa-solid fa-info text-info text-sm" />
+        <div className="w-8 h-8 rounded-full bg-blue-100/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+          <i className="fa-solid fa-info text-blue-600 dark:text-blue-400 text-sm" />
         </div>
         <div>
           <h4 className="mb-1 font-medium text-foreground">Personalization</h4>
@@ -191,7 +191,7 @@ export const UserDisplaySettingsModal = ({ isOpen, onClose }: UserDisplaySetting
 
         <ToggleOption
           icon="fa-sticky-note"
-          iconColor="text-warning"
+          iconColor="text-amber-600 dark:text-amber-400"
           label="Show User Notes on Cards"
           description="Display user notes directly on user cards for quick reference"
           checked={showUserNotes}
@@ -276,7 +276,7 @@ export const UserDisplaySettingsModal = ({ isOpen, onClose }: UserDisplaySetting
 
         <ToggleOption
           icon="fa-sync"
-          iconColor="text-success"
+          iconColor="text-green-600 dark:text-green-400"
           label="Auto-sync Users on Page Load"
           description="Automatically sync users from all services when visiting this page"
           checked={autoSyncUsers}

@@ -120,7 +120,7 @@ export const AdminSettingsDiscordPage = () => {
             href="https://discord.com/developers/applications"
             target="_blank"
             rel="noopener noreferrer"
-            className="font-medium underline underline-offset-4 hover:text-info"
+            className="font-medium underline underline-offset-4 hover:text-blue-600 dark:text-blue-400"
           >
             Discord Developer Portal
           </a>{' '}

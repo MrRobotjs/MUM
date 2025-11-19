@@ -47,7 +47,7 @@ export const PluginCard = ({
             <span className="font-mono text-xs text-foreground">
               {plugin.version ?? '—'}
               {plugin.availableVersion && plugin.availableVersion !== plugin.version ? (
-                <span className="ml-2 text-xs text-warning">
+                <span className="ml-2 text-xs text-amber-600 dark:text-amber-400">
                   Update: {plugin.availableVersion}
                 </span>
               ) : null}

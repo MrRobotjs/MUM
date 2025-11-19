@@ -1,5 +1,5 @@
 import { ReactNode, useState } from 'react';
-import clsx from 'clsx';
+import { cn } from '@/lib/utils';
 
 export type Tab = {
   id: string;
@@ -44,7 +44,7 @@ export const Tabs = ({
 
   const activeTabData = tabs.find((tab) => tab.id === activeTab);
 
-  const tabsClasses = clsx(
+  const tabsClasses = cn(
     'tabs',
     {
       'tabs-bordered': variant === 'bordered',
@@ -66,7 +66,7 @@ export const Tabs = ({
             key={tab.id}
             role="tab"
             type="button"
-            className={clsx('tab', {
+            className={cn('tab', {
               'tab-active': activeTab === tab.id,
               'tab-disabled': tab.disabled,
             })}

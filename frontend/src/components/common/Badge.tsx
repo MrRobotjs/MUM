@@ -1,5 +1,5 @@
 import { type CSSProperties, ReactNode, useEffect, useRef, useState } from 'react';
-import clsx from 'clsx';
+import { cn } from '@/lib/utils';
 
 export interface BadgeProps {
   children: ReactNode;
@@ -92,8 +92,7 @@ export const Badge = ({
 
   return (
     <span
-      className={clsx(
-        className,
+      className={cn(
         'inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold leading-tight',
         'transition-[border-color] duration-150 ease-out',
         'bg-transparent',
@@ -108,7 +107,8 @@ export const Badge = ({
         'dark:[--badge-text:var(--badge-text-dark)]',
         'dark:[--badge-bg-hover:var(--badge-bg-hover-dark)]',
         'dark:[--badge-border-hover:var(--badge-border-hover-dark)]',
-        'dark:[--badge-text-hover:var(--badge-text-hover-dark)]'
+        'dark:[--badge-text-hover:var(--badge-text-hover-dark)]',
+        className
       )}
       ref={ref}
       onMouseEnter={isHoverable ? () => setIsHovering(true) : undefined}

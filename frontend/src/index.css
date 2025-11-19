@@ -212,6 +212,7 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.488 0.243 264.376);
+  color-scheme: dark;
 }
 
 /* Shadcn base layer removed to avoid conflicts with DaisyUI */

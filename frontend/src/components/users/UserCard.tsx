@@ -9,6 +9,7 @@ import { Button } from '../ui/button';
 import { Card, CardContent } from '../ui/card';
 import { Skeleton } from '../ui/skeleton';
 import { UserDebugModal } from './UserDebugModal';
+import { Badge } from '../common/Badge';
 
 interface UserCardProps {
   user: UserRow;
@@ -223,26 +224,6 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection }: UserCa
     }
   };
 
-  const badgeClasses = clsx(
-    'inline-flex items-center rounded-md px-2 py-1 text-xs font-medium gap-1 ring-1 ring-inset',
-    palette.bg,
-    palette.text,
-    palette.ring,
-    palette.bgDark,
-    palette.textDark,
-    palette.ringDark
-  );
-
-  const chipClasses = clsx(
-    'inline-flex items-center rounded-md px-2 py-1 text-xs font-medium gap-1 ring-1 ring-inset',
-    palette.accent,
-    palette.text,
-    palette.ring,
-    palette.accentDark,
-    palette.textDark,
-    palette.ringDark
-  );
-
   const avatarClasses = clsx(
     'text-white w-10 h-10 rounded-full flex items-center justify-center text-2xl font-normal',
     isService ? palette.avatar : 'bg-primary'
@@ -315,20 +296,20 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection }: UserCa
               {user.display_name || user.username || 'Unnamed User'}
             </h2>
             {isService ? (
-              <span className={badgeClasses}>
-                <i className="fa-solid fa-server w-3 h-3" />
+              <Badge color={palette.avatar} className="text-xs font-semibold gap-1" hover={false}>
+                <i className="fa-solid fa-server w-3 h-3 mt-0.5" />
                 {user.server_nickname || 'Service Account'}
-              </span>
+              </Badge>
             ) : user.user_type.toLowerCase() === 'owner' ? (
-              <span className="inline-flex items-center rounded-md px-2 py-1 bg-amber-50 dark:bg-amber-400/10 text-amber-600 dark:text-amber-400 ring-1 ring-inset ring-warning/20 text-xs font-medium gap-1">
-                <i className="fa-solid fa-crown w-3 h-3" />
+              <Badge color="bg-amber-500" className="text-xs font-semibold gap-1" hover={false}>
+                <i className="fa-solid fa-crown w-3 h-3 mt-0.5" />
                 Owner
-              </span>
+              </Badge>
             ) : (
-              <span className="inline-flex items-center rounded-md px-2 py-1 bg-primary/10 text-primary ring-1 ring-inset ring-primary/20 text-xs font-medium gap-1">
-                <i className="fa-solid fa-user w-3 h-3" />
+              <Badge color="bg-primary" className="text-xs font-semibold gap-1" hover={false}>
+                <i className="fa-solid fa-user w-3 h-3 mt-0.5" />
                 Local Account
-              </span>
+              </Badge>
             )}
           </div>
         </div>
@@ -411,24 +392,29 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection }: UserCa
               </span>):
             </p>
             {user.has_all_libraries ? (
-              <span className="inline-flex items-center rounded-md bg-blue-50 dark:bg-blue-400/10 px-2 py-1 text-xs font-medium text-blue-700 dark:text-blue-400 ring-1 ring-inset ring-blue-600/20 dark:ring-blue-500/20 gap-1">
-                <i className="fa-solid fa-layer-group w-2.5 h-2.5 mr-1 bottom-px relative" />
+              <Badge color="bg-blue-500" className="text-xs font-medium gap-1" hover={false}>
+                <i className="fa-solid fa-layer-group w-3 h-3" />
                 All libraries on {user.server_nickname || 'server'}
-              </span>
+              </Badge>
             ) : user.libraries && user.libraries.length > 0 ? (
               <div className="flex flex-wrap gap-1">
                 {user.libraries.map((library) => (
-                  <span key={library} className="inline-flex items-center rounded-md bg-blue-50 dark:bg-blue-400/10 px-2 py-1 text-xs font-medium text-blue-700 dark:text-blue-400 ring-1 ring-inset ring-blue-600/20 dark:ring-blue-500/20 gap-1" title={library}>
-                    <i className="fa-solid fa-folder w-2.5 h-2.5 mr-1 bottom-px relative" />
+                  <Badge
+                    key={library}
+                    color="bg-blue-500"
+                    className="text-xs font-medium gap-1"
+                    hover={false}
+                  >
+                    <i className="fa-solid fa-folder w-3 h-3 mt-0.5" />
                     {library}
-                  </span>
+                  </Badge>
                 ))}
               </div>
             ) : (
-              <span className="inline-flex items-center rounded-md bg-gray-50 dark:bg-gray-400/10 px-2 py-1 text-xs font-medium text-gray-700 dark:text-gray-400 ring-1 ring-inset ring-gray-600/20 dark:ring-gray-500/20 gap-1">
-                <i className="fa-solid fa-folder-open w-2.5 h-2.5 mr-1 bottom-px relative" />
+              <Badge color="bg-muted" className="text-xs font-medium gap-1" hover={false}>
+                <i className="fa-solid fa-folder-open w-3 h-3" />
                 No libraries specifically shared
-              </span>
+              </Badge>
             )}
           </div>
         )}

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from '@tanstack/react-router';
-import clsx from 'clsx';
+import { cn } from '@/lib/utils';
 import { useLibraries, type Library } from '../hooks/useLibraries';
 import { useServers, type Server } from '../hooks/useServers';
 import { FormField, PageHeader } from '../components';
@@ -394,7 +394,7 @@ export const LibrariesPage = () => {
         groups.map((group) => (
           <Card
             key={group.serviceType}
-            className={clsx(
+            className={cn(
               'border shadow-sm',
               `bg-gradient-to-br ${group.gradient}`
             )}
@@ -407,7 +407,7 @@ export const LibrariesPage = () => {
                   </div>
                   <div>
                     <h2 className="text-xl font-semibold">{group.label}</h2>
-                    <span className={clsx('inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset', group.badgeClass)}>
+                    <span className={cn('inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset', group.badgeClass)}>
                       {group.servers.reduce((acc, item) => acc + item.libraries.length, 0)} libraries
                     </span>
                   </div>

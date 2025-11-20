@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useParams } from '@tanstack/react-router';
-import clsx from 'clsx';
+import { cn } from '@/lib/utils';
 
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -579,7 +579,7 @@ export const InviteWizardPage = () => {
                     return (
                       <div key={step.id} className="flex items-center flex-1">
                         <div
-                          className={clsx(
+                          className={cn(
                             'flex items-center gap-2 p-3 rounded-lg transition-colors flex-1',
                             step.completed
                               ? 'bg-primary/10 border border-primary/20'
@@ -589,7 +589,7 @@ export const InviteWizardPage = () => {
                           )}
                         >
                           <div
-                            className={clsx(
+                            className={cn(
                               'w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0',
                               step.completed
                                 ? 'bg-primary text-primary-content'
@@ -608,7 +608,7 @@ export const InviteWizardPage = () => {
                           </div>
                           <div className="flex-1 min-w-0">
                             <span
-                              className={clsx(
+                              className={cn(
                                 'text-xs font-medium block truncate',
                                 step.completed
                                   ? 'text-primary'
@@ -626,7 +626,7 @@ export const InviteWizardPage = () => {
                         </div>
                         {index < state.steps.length - 1 && (
                           <div
-                            className={clsx(
+                            className={cn(
                               'w-3 h-0.5 mx-1',
                               step.completed ? 'bg-primary' : 'bg-muted'
                             )}

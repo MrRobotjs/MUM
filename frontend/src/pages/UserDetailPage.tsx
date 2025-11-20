@@ -1,5 +1,5 @@
 import { ReactNode, useMemo, useState } from 'react';
-import clsx from 'clsx';
+import { cn } from '@/lib/utils';
 import { useLocation, useNavigate, useParams, useSearch } from '@tanstack/react-router';
 import { useAlerts } from '../contexts/AlertContext';
 import { useUserDetail, UserDetail, UserHistoryEntry } from '../hooks/useUserDetail';
@@ -206,7 +206,7 @@ const ProfileTab = ({ user }: { user: UserDetail }) => {
                       {user.server_names.map((server) => (
                         <span
                           key={server}
-                          className={clsx(
+                          className={cn(
                             'inline-flex items-center gap-2 rounded-md px-2 py-1 text-xs font-semibold ring-1 ring-inset',
                             theme.chipClass
                           )}
@@ -256,7 +256,7 @@ const ProfileTab = ({ user }: { user: UserDetail }) => {
                 <div className="text-sm font-semibold text-foreground">Status Flags</div>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {statusBadges.map((badge) => (
-                    <span key={badge.label} className={clsx('badge gap-2 text-xs', badge.className)}>
+                    <span key={badge.label} className={cn('badge gap-2 text-xs', badge.className)}>
                       {badge.icon}
                       {badge.label}
                     </span>
@@ -277,7 +277,7 @@ const ProfileTab = ({ user }: { user: UserDetail }) => {
                     {user.libraries.map((library) => (
                       <span
                         key={library}
-                        className={clsx(
+                        className={cn(
                           'inline-flex items-center gap-2 rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset',
                           theme.chipClass
                         )}
@@ -330,7 +330,7 @@ const ProfileTab = ({ user }: { user: UserDetail }) => {
                   {roleBadges.map((role) => (
                     <span
                       key={role.name}
-                      className={clsx(
+                      className={cn(
                         'inline-flex items-center gap-2 rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset',
                         role.color ? undefined : 'bg-secondary/10 text-secondary ring-secondary/20'
                       )}
@@ -400,7 +400,7 @@ const ProfileTab = ({ user }: { user: UserDetail }) => {
                 ].map((stat) => (
                   <div
                     key={stat.title}
-                    className={clsx(
+                    className={cn(
                       'rounded-xl border border-border p-4 shadow-sm transition-shadow hover:shadow-md',
                       `bg-gradient-to-br ${stat.gradient}`
                     )}
@@ -879,7 +879,7 @@ export const UserDetailPage = () => {
   return (
     <div className="space-y-6">
       <section className="overflow-hidden rounded-xl border border-border bg-background shadow-lg">
-        <div className={clsx('bg-gradient-to-r p-8 text-center border-b border-border', heroTheme.gradient)}>
+        <div className={cn('bg-gradient-to-r p-8 text-center border-b border-border', heroTheme.gradient)}>
           <div className="flex flex-col items-center space-y-4">
             {/* Avatar */}
             <div className="avatar">
@@ -924,7 +924,7 @@ export const UserDetailPage = () => {
                       return (
                         <span
                           key={serviceAccount.uuid}
-                          className={clsx(
+                          className={cn(
                             'inline-flex items-center rounded-md px-3 py-1 text-sm font-medium ring-1 ring-inset gap-2',
                             serviceTheme.badgeClass
                           )}
@@ -939,7 +939,7 @@ export const UserDetailPage = () => {
                   <>
                     {user.server_nickname ? (
                       <span
-                        className={clsx(
+                        className={cn(
                           'inline-flex items-center rounded-md px-3 py-1 text-sm font-medium ring-1 ring-inset gap-2',
                           heroTheme.badgeClass
                         )}
@@ -949,7 +949,7 @@ export const UserDetailPage = () => {
                       </span>
                     ) : (
                       <span
-                        className={clsx(
+                        className={cn(
                           'inline-flex items-center rounded-md px-3 py-1 text-sm font-medium ring-1 ring-inset gap-2',
                           heroTheme.badgeClass
                         )}

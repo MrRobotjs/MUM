@@ -1,6 +1,5 @@
 
 import { useState, useEffect } from 'react';
-import clsx from 'clsx';
 import { useNavigate } from '@tanstack/react-router';
 import { buildUserProfilePath } from '../../util/routes';
 import type { UserRow } from './UsersTable';
@@ -9,6 +8,7 @@ import { Button } from '../ui/button';
 import { Card, CardContent } from '../ui/card';
 import { Skeleton } from '../ui/skeleton';
 import { UserDebugModal } from './UserDebugModal';
+import { cn } from '@/lib/utils';
 import { Badge } from '../common/Badge';
 
 interface UserCardProps {
@@ -224,14 +224,14 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection }: UserCa
     }
   };
 
-  const avatarClasses = clsx(
+  const avatarClasses = cn(
     'text-white w-10 h-10 rounded-full flex items-center justify-center text-2xl font-normal',
     isService ? palette.avatar : 'bg-primary'
   );
 
   return (
     <Card
-      className={clsx(
+      className={cn(
         'shadow-lg hover:shadow-xl transition-all p-0 duration-200 ease-in-out relative group cursor-pointer flex flex-col',
         cardGradient(),
         isSelected && 'ring-2 ring-primary ring-offset-2 ring-offset-background'
@@ -249,7 +249,7 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection }: UserCa
       {/* Selection Checkbox */}
       {onToggleSelection && (
         <div
-          className={clsx(
+          className={cn(
             'absolute top-2 right-2 z-10 transition-opacity duration-200',
             isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
           )}
@@ -273,7 +273,7 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection }: UserCa
                 <img
                   src={effectiveAvatar}
                   alt={user.display_name || user.username || 'User avatar'}
-                  className={clsx(
+                  className={cn(
                     "w-10 h-10 rounded-full object-cover ring-2 ring-primary/20",
                     avatarLoading && "opacity-0"
                   )}
@@ -426,7 +426,7 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection }: UserCa
               {user.user_roles.map((role) => (
                 <span
                   key={role.name}
-                  className={clsx(
+                  className={cn(
                     'inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset gap-1',
                     role.color
                       ? undefined

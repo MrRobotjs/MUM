@@ -1,4 +1,4 @@
-import clsx from 'clsx';
+import { cn } from '@/lib/utils';
 import { useInviteSummary } from '../../hooks/useInviteSummary';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -60,7 +60,7 @@ export const InvitesSummaryCard = () => {
               {metrics.map((metric) => (
                 <div
                   key={metric.key}
-                  className={clsx(
+                  className={cn(
                     'rounded-xl px-4 py-3',
                     metricClassNames[metric.key] ?? 'bg-muted text-foreground'
                   )}

@@ -1,5 +1,5 @@
 import { ReactNode } from 'react';
-import clsx from 'clsx';
+import { cn } from '@/lib/utils';
 
 export type Column<T> = {
   key: string;
@@ -42,7 +42,7 @@ export const Table = <T,>({
   sortDirection,
   onSort,
 }: TableProps<T>) => {
-  const tableClasses = clsx(
+  const tableClasses = cn(
     'table',
     {
       'table-xs': size === 'xs',
@@ -86,7 +86,7 @@ export const Table = <T,>({
             {columns.map((column) => (
               <th
                 key={column.key}
-                className={clsx(column.className, {
+                className={cn(column.className, {
                   'cursor-pointer select-none': column.sortable,
                 })}
                 onClick={() => handleHeaderClick(column)}
@@ -107,8 +107,8 @@ export const Table = <T,>({
           {data.map((row, index) => (
             <tr
               key={keyExtractor(row, index)}
-              className={clsx({
-                'hover': hoverable,
+              className={cn({
+                hover: hoverable,
                 'cursor-pointer': !!onRowClick,
               })}
               onClick={() => onRowClick?.(row, index)}

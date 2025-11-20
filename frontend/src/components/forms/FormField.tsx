@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import clsx from 'clsx';
+import { cn } from '@/lib/utils';
 
 type FormFieldProps = {
   id: string;
@@ -20,7 +20,7 @@ export const FormField = ({
   required,
   className
 }: FormFieldProps) => (
-  <div className={clsx('form-control w-full gap-2', className)}>
+  <div className={cn('form-control w-full gap-2', className)}>
     <label className="label" htmlFor={id}>
       <span className="label-text font-medium">
         {label}

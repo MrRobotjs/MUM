@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import clsx from 'clsx';
+import { cn } from '@/lib/utils';
 import { Button } from '../ui/button';
 import { useAlerts } from '../../contexts/AlertContext';
 import { requestJson } from '../../util/apiClient';
@@ -140,7 +140,7 @@ export const InviteDetailDrawer = ({ inviteId, onClose }: InviteDetailDrawerProp
 
   return (
     <div
-      className={clsx(
+      className={cn(
         'fixed inset-0 z-40 flex justify-end bg-background/60 backdrop-blur transition-opacity',
         inviteId ? 'opacity-100 visible' : 'opacity-0 invisible'
       )}
@@ -181,7 +181,7 @@ export const InviteDetailDrawer = ({ inviteId, onClose }: InviteDetailDrawerProp
             <>
               <section className="rounded-xl border p-4 shadow-sm space-y-4">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className={clsx('inline-flex items-center rounded-md px-2 py-1 text-xs font-medium uppercase', detail.is_usable ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20')}>
+                  <span className={cn('inline-flex items-center rounded-md px-2 py-1 text-xs font-medium uppercase', detail.is_usable ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20')}>
                     {statusLabel}
                   </span>
                   <span className="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium bg-blue-500/10 text-blue-400 border border-blue-500/20">{detail.is_active ? 'Active' : 'Disabled'}</span>
@@ -250,7 +250,7 @@ export const InviteDetailDrawer = ({ inviteId, onClose }: InviteDetailDrawerProp
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          <span className={clsx('inline-flex items-center rounded-md border px-2 py-1 text-xs font-medium', server.is_active ? 'bg-green-500/10 text-green-400 border-green-500/20' : 'bg-gray-500/10 text-gray-400 border-gray-500/20')}>
+                          <span className={cn('inline-flex items-center rounded-md border px-2 py-1 text-xs font-medium', server.is_active ? 'bg-green-500/10 text-green-400 border-green-500/20' : 'bg-gray-500/10 text-gray-400 border-gray-500/20')}>
                             {server.is_active ? 'Active' : 'Inactive'}
                           </span>
                           {server.public_url ? (
@@ -332,7 +332,7 @@ export const InviteDetailDrawer = ({ inviteId, onClose }: InviteDetailDrawerProp
                             </TableCell>
                             <TableCell>
                               <span
-                                className={clsx(
+                                className={cn(
                                   'inline-flex items-center rounded-md px-2 py-1 text-xs font-medium',
                                   usage.accepted_invite ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 'bg-gray-500/10 text-gray-400 border border-gray-500/20'
                                 )}

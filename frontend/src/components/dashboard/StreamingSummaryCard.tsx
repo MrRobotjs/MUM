@@ -1,4 +1,4 @@
-import clsx from 'clsx';
+import { cn } from '@/lib/utils';
 import { useStreamingSummary } from '../../hooks/useStreamingSummary';
 import { useStreamingWebSocket } from '../../hooks/useStreamingWebSocket';
 import { Button } from '@/components/ui/button';
@@ -76,7 +76,7 @@ export const StreamingSummaryCard = () => {
                 ].map((metric, index) => (
                   <div
                     key={metric.label}
-                    className={clsx('rounded-xl px-4 py-3', countCardClasses[index] ?? 'bg-muted text-foreground')}
+                    className={cn('rounded-xl px-4 py-3', countCardClasses[index] ?? 'bg-muted text-foreground')}
                   >
                     <p className="text-xs uppercase">{metric.label}</p>
                     <p className="text-2xl font-semibold">{metric.value}</p>

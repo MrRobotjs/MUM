@@ -5,7 +5,7 @@ import { buildUserProfilePath } from '../../util/routes';
 import { Checkbox } from '../ui/checkbox';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { Skeleton } from '../ui/skeleton';
-import clsx from 'clsx';
+import { cn } from '@/lib/utils';
 
 export type UserRow = {
   uuid: string;
@@ -66,7 +66,7 @@ const UserAvatar = ({ user }: { user: UserRow }) => {
   const serviceType = user.service_type?.toLowerCase();
   const isService = user.user_type.toLowerCase() === 'service';
 
-  const avatarClasses = clsx(
+  const avatarClasses = cn(
     'w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium text-white',
     isService
       ? serviceType === 'plex' ? 'bg-plex'

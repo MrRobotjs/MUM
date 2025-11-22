@@ -1,8 +1,8 @@
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useAdminApi } from '../../hooks/useAdminApi';
-import { DashboardCard } from './DashboardLayout';
-import { IconRefresh, IconEye } from '@tabler/icons-react';
+import { IconRefresh, IconEye, IconServer, IconActivity } from '@tabler/icons-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 type ServerStatusResponse = {
   data: {
@@ -36,71 +36,94 @@ export const ServerStatusCard = ({ onViewAll }: ServerStatusCardProps = {}) => {
   const servers = data?.data.servers ?? [];
 
   return (
-    <DashboardCard title="Server Health">
-      {loading ? (
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-          Loading server status…
-        </div>
-      ) : error ? (
-        <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
-          Failed to load server status: {error}
-        </div>
-      ) : summary ? (
-        <div className="space-y-4">
-          <div className="grid grid-cols-3 gap-4">
-            <div className="space-y-1">
-              <p className="text-sm text-muted-foreground">Total</p>
-              <p className="text-3xl font-bold text-primary">{summary.total_servers}</p>
-            </div>
-            <div className="space-y-1">
-              <p className="text-sm text-muted-foreground">Online</p>
-              <p className="text-3xl font-bold text-green-600 dark:text-green-500">{summary.online}</p>
-            </div>
-            <div className="space-y-1">
-              <p className="text-sm text-muted-foreground">Offline</p>
-              <p className="text-3xl font-bold text-destructive">{summary.offline}</p>
-            </div>
+    <Card>
+      <CardHeader>
+        <CardTitle>Server Health</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {loading ? (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            Loading server status…
           </div>
-
-          <div className="space-y-2">
-            {servers.slice(0, 5).map((server) => (
-              <div
-                key={server.id}
-                className="flex items-center justify-between rounded-lg border bg-muted/50 px-3 py-2"
-              >
-                <span className="font-medium">
-                  {server.name}{' '}
-                  <span className="text-xs uppercase text-muted-foreground">({server.service_type})</span>
-                </span>
-                <Badge variant={server.online ? 'success' : 'error'}>
-                  {server.online ? 'Online' : 'Offline'}
-                </Badge>
+        ) : error ? (
+          <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
+            Failed to load server status: {error}
+          </div>
+        ) : summary ? (
+          <div className="space-y-6">
+            <div className="grid grid-cols-3 gap-4">
+              <div className="rounded-lg border bg-card p-4 text-card-foreground shadow-sm space-y-1">
+                <p className="text-sm text-muted-foreground">Total</p>
+                <p className="text-3xl font-bold text-primary">{summary.total_servers}</p>
               </div>
-            ))}
-            {servers.length > 5 ? (
-              <p className="text-xs text-muted-foreground">
-                Showing first 5 of {servers.length} servers. View the servers page for more details.
-              </p>
-            ) : null}
-          </div>
-        </div>
-      ) : (
-        <p className="text-sm text-muted-foreground">No server data available.</p>
-      )}
+              <div className="rounded-lg border bg-card p-4 text-card-foreground shadow-sm space-y-1">
+                <p className="text-sm text-muted-foreground">Online</p>
+                <p className="text-3xl font-bold text-green-600 dark:text-green-500">{summary.online}</p>
+              </div>
+              <div className="rounded-lg border bg-card p-4 text-card-foreground shadow-sm space-y-1">
+                <p className="text-sm text-muted-foreground">Offline</p>
+                <p className="text-3xl font-bold text-destructive">{summary.offline}</p>
+              </div>
+            </div>
 
-      <div className="flex items-center justify-between pt-4">
-        <Button variant="ghost" size="sm" onClick={() => mutate()}>
-          <IconRefresh className="mr-2 h-4 w-4" />
-          Refresh
-        </Button>
-        {onViewAll ? (
-          <Button variant="ghost" size="sm" onClick={onViewAll}>
-            <IconEye className="mr-2 h-4 w-4" />
-            View All
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {servers.map((server) => (
+                <div
+                  key={server.id}
+                  className="flex flex-col justify-between rounded-lg border bg-card p-4 text-card-foreground shadow-sm"
+                >
+                  <div className="space-y-3">
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="rounded-md bg-primary/10 p-2 text-primary">
+                          <IconServer className="h-4 w-4" />
+                        </div>
+                        <span className="font-semibold">{server.name}</span>
+                      </div>
+                      <Badge variant={server.online ? 'default' : 'destructive'}>
+                        {server.online ? 'Online' : 'Offline'}
+                      </Badge>
+                    </div>
+
+                    <div className="space-y-1 text-sm text-muted-foreground">
+                      <div className="flex items-center justify-between">
+                        <span>Type:</span>
+                        <span className="font-medium text-foreground">{server.service_type}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span>Version:</span>
+                        <span className="font-medium text-foreground">{server.version ?? 'N/A'}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {server.error_message && (
+                    <div className="mt-3 rounded bg-destructive/10 p-2 text-xs text-destructive">
+                      {server.error_message}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">No server data available.</p>
+        )}
+
+        <div className="flex items-center justify-between pt-4">
+          <Button variant="ghost" size="sm" onClick={() => mutate()}>
+            <IconRefresh className="mr-2 h-4 w-4" />
+            Refresh
           </Button>
-        ) : null}
-      </div>
-    </DashboardCard>
+          {onViewAll ? (
+            <Button variant="ghost" size="sm" onClick={onViewAll}>
+              <IconEye className="mr-2 h-4 w-4" />
+              View All
+            </Button>
+          ) : null}
+        </div>
+      </CardContent>
+    </Card>
   );
 };

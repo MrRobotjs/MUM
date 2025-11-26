@@ -144,7 +144,6 @@ export const EnhancedAppLayout = ({
             </Breadcrumb>
             <div className="ml-auto flex items-center gap-2">
               <ModeToggle />
-              <span className="badge badge-outline badge-sm hidden sm:flex">React Migration</span>
             </div>
           </div>
         </header>

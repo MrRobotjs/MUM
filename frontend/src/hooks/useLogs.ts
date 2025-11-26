@@ -4,10 +4,22 @@ import { requestJson } from '../util/apiClient';
 export type LogEntry = {
   id: number;
   timestamp: string;
-  level: string;
+  event_type: string | null;
   message: string;
-  source?: string;
   details?: Record<string, unknown>;
+  owner?: {
+    id: number;
+    uuid: string;
+    username: string;
+    display_name: string;
+  } | null;
+  local_user?: {
+    id: number;
+    uuid: string;
+    username: string;
+    display_name: string;
+  } | null;
+  invite_id?: number | null;
 };
 
 type LogsResponse = {
@@ -23,8 +35,23 @@ type LogsResponse = {
   };
 };
 
-export const useLogs = (page = 1, pageSize = 50) => {
-  const url = `/admin/api/v2/settings/logs?page=${page}&page_size=${pageSize}`;
+type LogFilters = {
+  searchMessage?: string;
+  eventType?: string;
+  relatedUser?: string;
+};
+
+export const useLogs = (page = 1, pageSize = 50, filters?: LogFilters) => {
+  const params = new URLSearchParams({
+    page: page.toString(),
+    page_size: pageSize.toString(),
+  });
+
+  if (filters?.searchMessage) params.append('search_message', filters.searchMessage);
+  if (filters?.eventType) params.append('event_type', filters.eventType);
+  if (filters?.relatedUser) params.append('related_user', filters.relatedUser);
+
+  const url = `/admin/api/v2/settings/logs?${params.toString()}`;
 
   const { data, error, isLoading, mutate } = useSWR<LogsResponse>(
     url,

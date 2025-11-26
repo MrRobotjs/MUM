@@ -24,8 +24,7 @@ export const AdminSettingsAdvancedPage = () => {
   const { settings, loading, error, refresh } = useAdvancedSettings();
   const { success, error: showError } = useAlerts();
   const [formValues, setFormValues] = useState<AdvancedSettings>({
-    session_lifetime: 86400,
-    max_login_attempts: 5,
+    api_timeout_seconds: 3,
   });
   const [submitting, setSubmitting] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
@@ -83,12 +82,11 @@ export const AdminSettingsAdvancedPage = () => {
         </Alert>
       )}
 
-      <Alert variant="warning">
+      <Alert variant="default">
         <IconShieldLock />
-        <AlertTitle>Security-sensitive configuration</AlertTitle>
+        <AlertTitle>Performance & Monitoring</AlertTitle>
         <AlertDescription>
-          Changing these settings may affect application security. Only modify them if you understand the
-          implications.
+          Configure timeouts and monitoring intervals for optimal performance. Changes take effect immediately.
         </AlertDescription>
       </Alert>
 
@@ -107,64 +105,26 @@ export const AdminSettingsAdvancedPage = () => {
                     <IconShieldCheck className="size-5 text-primary" />
                   </div>
                   <div>
-                    <CardTitle className="mb-1 text-xl font-semibold">Security</CardTitle>
-                    <CardDescription>Adjust token and login protection thresholds</CardDescription>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {/* CSRF settings removed (JWT + SameSite=Strict used instead) */}
-
-                <div className="space-y-2">
-                  <Label htmlFor="max_login_attempts">
-                    Max Login Attempts <span className="text-destructive">*</span>
-                  </Label>
-                  <Input
-                    id="max_login_attempts"
-                    type="number"
-                    value={formValues.max_login_attempts}
-                    onChange={(e) => handleChange('max_login_attempts', Number(e.target.value))}
-                    required
-                    min="3"
-                    max="20"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Number of failed login attempts before account lockout (3-20, default: 5)
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <div className="flex items-center gap-3">
-                  <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/20">
-                    <IconClockHour4 className="size-5 text-primary" />
-                  </div>
-                  <div>
-                    <CardTitle className="mb-1 text-xl font-semibold">Sessions</CardTitle>
-                    <CardDescription>Control how long signed-in sessions remain active</CardDescription>
+                    <CardTitle className="mb-1 text-xl font-semibold">API Requests</CardTitle>
+                    <CardDescription>Configure timeout for external service connections</CardDescription>
                   </div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-2">
-                <Label htmlFor="session_lifetime">
-                  Session Lifetime (seconds) <span className="text-destructive">*</span>
+                <Label htmlFor="api_timeout_seconds">
+                  API Timeout (seconds) <span className="text-destructive">*</span>
                 </Label>
                 <Input
-                  id="session_lifetime"
+                  id="api_timeout_seconds"
                   type="number"
-                  value={formValues.session_lifetime}
-                  onChange={(e) => handleChange('session_lifetime', Number(e.target.value))}
+                  value={formValues.api_timeout_seconds}
+                  onChange={(e) => handleChange('api_timeout_seconds', Number(e.target.value))}
                   required
-                  min="3600"
-                  max="2592000"
-                  step="3600"
+                  min="3"
+                  max="30"
                 />
                 <p className="text-xs text-muted-foreground">
-                  How long user sessions remain active (3600-2592000 seconds, default: 86400)
-                  <br />
-                  3600 = 1 hour, 86400 = 1 day, 604800 = 1 week, 2592000 = 30 days
+                  Timeout for API requests to external services like Plex, Jellyfin, etc. (3-30 seconds, default: 3)
                 </p>
               </CardContent>
             </Card>

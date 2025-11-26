@@ -15,8 +15,7 @@ settings_tag = Tag(name="Settings", description="Application settings")
 
 
 class AdvancedSettingsData(BaseModel):
-    session_lifetime: int
-    max_login_attempts: int
+    api_timeout_seconds: int
 
 
 class AdvancedSettingsResponse(BaseModel):
@@ -25,11 +24,9 @@ class AdvancedSettingsResponse(BaseModel):
 
 
 def _serialize_advanced_settings() -> dict:
-    session_lifetime = int(Setting.get('SESSION_LIFETIME_SECONDS', 86400) or 86400)
-    max_login_attempts = int(Setting.get('MAX_LOGIN_ATTEMPTS', 5) or 5)
+    api_timeout_seconds = int(Setting.get('API_TIMEOUT_SECONDS', 3) or 3)
     return {
-        "session_lifetime": session_lifetime,
-        "max_login_attempts": max_login_attempts,
+        "api_timeout_seconds": api_timeout_seconds,
     }
 
 
@@ -47,8 +44,7 @@ def get_advanced_settings(current_user):
 
 
 class UpdateAdvancedBody(BaseModel):
-    session_lifetime: int = Field(..., ge=3600, le=2592000, description="3600-2592000 seconds")
-    max_login_attempts: int = Field(..., ge=3, le=20)
+    api_timeout_seconds: int = Field(..., ge=3, le=30, description="API request timeout in seconds (3-30)")
 
 
 class ErrorDetail(BaseModel):
@@ -72,11 +68,9 @@ class ErrorResponse(BaseModel):
 def update_advanced_settings(body: UpdateAdvancedBody, current_user):
     request_id = uuid4().hex
     # Persist settings
-    Setting.set('SESSION_LIFETIME_SECONDS', int(body.session_lifetime), SettingValueType.INTEGER, "Session Lifetime (seconds)")
-    Setting.set('MAX_LOGIN_ATTEMPTS', int(body.max_login_attempts), SettingValueType.INTEGER, "Max Login Attempts")
+    Setting.set('API_TIMEOUT_SECONDS', int(body.api_timeout_seconds), SettingValueType.INTEGER, "API Request Timeout (seconds)")
     # Apply to app config if relevant
-    current_app.config['SESSION_LIFETIME_SECONDS'] = int(body.session_lifetime)
-    current_app.config['MAX_LOGIN_ATTEMPTS'] = int(body.max_login_attempts)
+    current_app.config['API_TIMEOUT_SECONDS'] = int(body.api_timeout_seconds)
 
     log_event(EventType.SETTING_CHANGE, "Advanced settings updated via API.", admin_id=current_user.id)
     return jsonify({"data": _serialize_advanced_settings(), "meta": {"request_id": request_id}}), 200

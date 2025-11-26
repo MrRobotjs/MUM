@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useLogs, type LogEntry } from '../hooks/useLogs';
-import { Table, type Column, PageHeader } from '../components';
+import { PageHeader } from '../components';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -24,15 +24,33 @@ export const AdminSettingsLogsPage = () => {
   });
   const { success, error: showError } = useAlerts();
 
-  const getLevelVariant = (level: string): 'default' | 'secondary' | 'destructive' | 'outline' => {
-    const levelMap: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
-      DEBUG: 'outline',
-      INFO: 'default',
-      WARNING: 'secondary',
+  const getEventTypeVariant = (eventType: string | null): 'default' | 'secondary' | 'destructive' | 'outline' => {
+    if (!eventType) return 'outline';
+
+    const typeMap: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
+      // Errors and failures
+      ADMIN_LOGIN_FAIL: 'destructive',
+      USER_LOGIN_FAIL: 'destructive',
+      PLEX_AUTH_FAIL: 'destructive',
       ERROR: 'destructive',
-      CRITICAL: 'destructive',
+
+      // Warnings
+      WARNING: 'secondary',
+      USER_REVOKED: 'secondary',
+      INVITE_REVOKED: 'secondary',
+
+      // Success/Info
+      ADMIN_LOGIN: 'default',
+      USER_LOGIN: 'default',
+      SETTING_CHANGE: 'default',
+      INFO: 'default',
     };
-    return levelMap[level?.toUpperCase()] || 'outline';
+    return typeMap[eventType] || 'outline';
+  };
+
+  const formatEventType = (eventType: string | null): string => {
+    if (!eventType) return 'UNKNOWN';
+    return eventType.replace(/_/g, ' ');
   };
 
   const handleClearFilters = () => {
@@ -52,56 +70,6 @@ export const AdminSettingsLogsPage = () => {
       showError(`Failed to clear logs: ${(err as Error).message}`);
     }
   };
-
-  const columns: Column<LogEntry>[] = [
-    {
-      key: 'timestamp',
-      header: 'Timestamp',
-      sortable: true,
-      render: (log) => (
-        <span className="text-xs text-muted-foreground">
-          {new Date(log.timestamp).toLocaleString()}
-        </span>
-      ),
-    },
-    {
-      key: 'level',
-      header: 'Level',
-      render: (log) => (
-        <Badge variant={getLevelVariant(log.level)}>
-          {log.level || 'UNKNOWN'}
-        </Badge>
-      ),
-    },
-    {
-      key: 'source',
-      header: 'Source',
-      render: (log) => (
-        <span className="text-sm text-muted-foreground">
-          {log.source || 'system'}
-        </span>
-      ),
-    },
-    {
-      key: 'message',
-      header: 'Message',
-      render: (log) => (
-        <div className="max-w-xl">
-          <div className="text-sm">{log.message}</div>
-          {log.details && Object.keys(log.details).length > 0 && (
-            <details className="mt-1">
-              <summary className="cursor-pointer text-xs text-muted-foreground">
-                View details
-              </summary>
-              <pre className="mt-1 rounded bg-muted p-2 text-xs">
-                {JSON.stringify(log.details, null, 2)}
-              </pre>
-            </details>
-          )}
-        </div>
-      ),
-    },
-  ];
 
   const totalPages = pagination?.total_pages || 1;
   const hasFilters = searchMessage || eventType || relatedUser;
@@ -156,11 +124,13 @@ export const AdminSettingsLogsPage = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Types</SelectItem>
-                  <SelectItem value="DEBUG">Debug</SelectItem>
-                  <SelectItem value="INFO">Info</SelectItem>
-                  <SelectItem value="WARNING">Warning</SelectItem>
-                  <SelectItem value="ERROR">Error</SelectItem>
-                  <SelectItem value="CRITICAL">Critical</SelectItem>
+                  <SelectItem value="ADMIN_LOGIN">Admin Login</SelectItem>
+                  <SelectItem value="ADMIN_LOGIN_FAIL">Admin Login Failed</SelectItem>
+                  <SelectItem value="USER_LOGIN">User Login</SelectItem>
+                  <SelectItem value="USER_LOGIN_FAIL">User Login Failed</SelectItem>
+                  <SelectItem value="SETTING_CHANGE">Setting Change</SelectItem>
+                  <SelectItem value="USER_REVOKED">User Revoked</SelectItem>
+                  <SelectItem value="INVITE_REVOKED">Invite Revoked</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -227,24 +197,73 @@ export const AdminSettingsLogsPage = () => {
         </div>
       )}
 
-      {/* Logs Table */}
-      <Card>
-        <CardContent className="p-4">
-          <Table
-            data={logs}
-            columns={columns}
-            keyExtractor={(log) => log.id}
-            loading={loading}
-            emptyMessage="No log entries found."
-            hoverable={false}
-            size="sm"
-          />
-        </CardContent>
-      </Card>
+      {/* Logs List - Mobile Friendly */}
+      <div className="space-y-3">
+        {logs.length === 0 && !loading && (
+          <Card>
+            <CardContent className="p-8 text-center text-muted-foreground">
+              No log entries found.
+            </CardContent>
+          </Card>
+        )}
+
+        {logs.map((log) => (
+          <Card key={log.id} className="overflow-hidden">
+            <CardContent className="p-4">
+              <div className="space-y-3">
+                {/* Header row with event type and timestamp */}
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                  <Badge variant={getEventTypeVariant(log.event_type)} className="w-fit">
+                    {formatEventType(log.event_type)}
+                  </Badge>
+                  <span className="text-xs text-muted-foreground">
+                    {new Date(log.timestamp).toLocaleString()}
+                  </span>
+                </div>
+
+                {/* Message */}
+                <div className="text-sm break-words">
+                  {log.message}
+                </div>
+
+                {/* Details */}
+                {log.details && Object.keys(log.details).length > 0 && (
+                  <details className="mt-2">
+                    <summary className="cursor-pointer text-xs text-muted-foreground hover:text-foreground">
+                      View details
+                    </summary>
+                    <pre className="mt-2 rounded bg-muted p-3 text-xs overflow-x-auto">
+                      {JSON.stringify(log.details, null, 2)}
+                    </pre>
+                  </details>
+                )}
+
+                {/* User info */}
+                {(log.owner || log.local_user) && (
+                  <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                    {log.owner && (
+                      <span>
+                        <i className="fa-solid fa-user-shield mr-1" />
+                        Admin: {log.owner.display_name || log.owner.username}
+                      </span>
+                    )}
+                    {log.local_user && (
+                      <span>
+                        <i className="fa-solid fa-user mr-1" />
+                        User: {log.local_user.display_name || log.local_user.username}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
 
       {/* Pagination */}
       {pagination && (
-        <div className="flex items-center justify-between rounded-lg border px-4 py-3 text-sm">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 rounded-lg border px-4 py-3 text-sm">
           <div className="text-muted-foreground">
             Page {pagination.page} of {totalPages} • {pagination.total_items} entr
             {pagination.total_items === 1 ? 'y' : 'ies'}
@@ -275,7 +294,7 @@ export const AdminSettingsLogsPage = () => {
 
       {/* Clear Logs Confirmation Modal */}
       {showClearModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <Card className="w-full max-w-md">
             <CardHeader>
               <CardTitle>Clear All Logs?</CardTitle>

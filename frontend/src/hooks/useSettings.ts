@@ -18,8 +18,7 @@ export type DiscordSettings = {
 };
 
 export type AdvancedSettings = {
-  session_lifetime: number;
-  max_login_attempts: number;
+  api_timeout_seconds: number;
 };
 
 type SettingsResponse<T> = {

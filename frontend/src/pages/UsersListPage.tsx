@@ -72,6 +72,7 @@ export const UsersListPage = () => {
   const [searchUsername, setSearchUsername] = useState('');
   const [searchNotes, setSearchNotes] = useState('');
   const [sort, setSort] = useState('username_asc');
+  const [pageSize, setPageSize] = useState(50);
 
   const filters = useMemo(
     () => ({
@@ -84,9 +85,10 @@ export const UsersListPage = () => {
       searchEmail: searchEmail || undefined,
       searchUsername: searchUsername || undefined,
       searchNotes: searchNotes || undefined,
-      sort
+      sort,
+      pageSize
     }),
-    [page, search, userType, role, serverId, filterType, searchEmail, searchUsername, searchNotes, sort]
+    [page, search, userType, role, serverId, filterType, searchEmail, searchUsername, searchNotes, sort, pageSize]
   );
 
   const { users, loading, error: fetchError, pagination, mutate } = useUsersPaginated(filters);
@@ -531,6 +533,25 @@ export const UsersListPage = () => {
                   </Select>
                 </div>
 
+                {/* Per Page */}
+                <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
+                  <Label htmlFor="perPage">
+                    <i className="fa-solid fa-list-ol mr-2" />
+                    Per Page
+                  </Label>
+                  <Select value={String(pageSize)} onValueChange={(val) => setPageSize(Number(val))}>
+                    <SelectTrigger id="perPage">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="10">10 users</SelectItem>
+                      <SelectItem value="20">20 users</SelectItem>
+                      <SelectItem value="50">50 users</SelectItem>
+                      <SelectItem value="100">100 users</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
                 {/* Action Buttons */}
                 <div className="flex gap-2 pt-4">
                   <Button
@@ -546,6 +567,7 @@ export const UsersListPage = () => {
                       setServerId('all');
                       setFilterType('none');
                       setSort('username_asc');
+                      setPageSize(50);
                     }}
                   >
                     Clear All

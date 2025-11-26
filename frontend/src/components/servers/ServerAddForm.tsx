@@ -16,7 +16,6 @@ type ConnectionTestStatus = 'idle' | 'testing' | 'success' | 'error';
 
 export type ServerFormValues = {
   server_nickname: string;
-  server_name?: string;
   service_type: string;
   url: string;
   api_key?: string;
@@ -31,7 +30,6 @@ export type ServerFormValues = {
 const normalizeServerPayload = (values: ServerFormValues, pluginId: string) => {
   const payload: Record<string, unknown> = {
     server_nickname: values.server_nickname,
-    server_name: values.server_name || null,
     service_type: pluginId,
     url: values.url,
     public_url: values.public_url || null,
@@ -66,7 +64,6 @@ export const ServerAddForm = ({ pluginId, onSuccess, onCancel }: ServerAddFormPr
 
   const [values, setValues] = useState<ServerFormValues>({
     server_nickname: '',
-    server_name: '',
     service_type: pluginId || 'plex',
     url: '',
     api_key: '',
@@ -304,16 +301,6 @@ export const ServerAddForm = ({ pluginId, onSuccess, onCancel }: ServerAddFormPr
                   />
                 </FormField>
 
-                <FormField id="server_name" label="Server Name (Optional)">
-                  <Input
-                    id="server_name"
-                    type="text"
-                    value={values.server_name}
-                    onChange={(e) => setValues({ ...values, server_name: e.target.value })}
-                    placeholder="Actual server name from service"
-                  />
-                </FormField>
-
                 <FormField id="public_url" label="Public URL (Optional)">
                   <Input
                     id="public_url"
@@ -428,7 +415,7 @@ export const ServerAddForm = ({ pluginId, onSuccess, onCancel }: ServerAddFormPr
         >
           {getTestButtonContent()}
         </Button>
-        <Button type="submit" disabled={submitting}>
+        <Button type="submit" disabled={submitting || connectionTestStatus !== 'success'}>
           {submitting ? 'Adding…' : 'Add Server'}
         </Button>
       </div>

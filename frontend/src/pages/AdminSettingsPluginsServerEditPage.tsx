@@ -20,7 +20,6 @@ type ConnectionTestStatus = 'idle' | 'testing' | 'success' | 'error';
 
 type ServerFormValues = {
   server_nickname: string;
-  server_name?: string;
   service_type: string;
   url: string;
   api_key?: string;
@@ -35,7 +34,6 @@ type ServerFormValues = {
 const normalizeServerPayload = (values: ServerFormValues, pluginId: string) => {
   const payload: Record<string, unknown> = {
     server_nickname: values.server_nickname,
-    server_name: values.server_name || null,
     service_type: pluginId,
     url: values.url,
     public_url: values.public_url || null,
@@ -71,7 +69,6 @@ export const AdminSettingsPluginsServerEditPage = () => {
 
   const [values, setValues] = useState<ServerFormValues>({
     server_nickname: '',
-    server_name: '',
     service_type: pluginId || 'plex',
     url: '',
     api_key: '',
@@ -92,7 +89,6 @@ export const AdminSettingsPluginsServerEditPage = () => {
     if (server) {
       setValues({
         server_nickname: server.server_nickname,
-        server_name: server.server_name || '',
         service_type: server.service_type,
         url: server.url,
         api_key: '',
@@ -374,16 +370,6 @@ export const AdminSettingsPluginsServerEditPage = () => {
                     <p className="text-xs text-muted-foreground mt-1">
                       Leave blank to keep existing key
                     </p>
-                  </FormField>
-
-                  <FormField id="server_name" label="Server Name (Optional)">
-                    <Input
-                      id="server_name"
-                      type="text"
-                      value={values.server_name}
-                      onChange={(e) => setValues({ ...values, server_name: e.target.value })}
-                      placeholder="Actual server name from service"
-                    />
                   </FormField>
 
                   <FormField id="public_url" label="Public URL (Optional)">

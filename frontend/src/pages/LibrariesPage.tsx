@@ -365,7 +365,7 @@ export const LibrariesPage = () => {
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <Card className="border border-border/60 bg-gradient-to-br from-background via-background/40 to-muted/40 shadow-sm">
-          <CardContent className="space-y-2 p-5">
+          <CardContent className="space-y-2">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Libraries</p>
             <div className="text-3xl font-semibold">{summaryStats.totalLibraries.toLocaleString()}</div>
             <p className="text-sm text-muted-foreground">
@@ -374,14 +374,14 @@ export const LibrariesPage = () => {
           </CardContent>
         </Card>
         <Card className="border border-border/60 bg-gradient-to-br from-background via-background/40 to-primary/5 shadow-sm">
-          <CardContent className="space-y-2 p-5">
+          <CardContent className="space-y-2">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Items Indexed</p>
             <div className="text-3xl font-semibold">{summaryStats.totalItems.toLocaleString()}</div>
             <p className="text-sm text-muted-foreground">Across all libraries</p>
           </CardContent>
         </Card>
         <Card className="border border-border/60 bg-gradient-to-br from-background via-background/40 to-emerald-500/5 shadow-sm">
-          <CardContent className="space-y-2 p-5">
+          <CardContent className="space-y-2">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Servers</p>
             <div className="text-3xl font-semibold">{summaryStats.activeServers.toLocaleString()}</div>
             <Badge
@@ -404,7 +404,7 @@ export const LibrariesPage = () => {
           </CardContent>
         </Card>
         <Card className="border border-border/60 bg-gradient-to-br from-background via-background/40 to-secondary/20 shadow-sm">
-          <CardContent className="space-y-2 p-5">
+          <CardContent className="space-y-2">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Most Recent Sync</p>
             <div className="text-xl font-semibold leading-tight">{lastSyncDisplay}</div>
             <p className="text-sm text-muted-foreground">
@@ -415,7 +415,7 @@ export const LibrariesPage = () => {
       </div>
 
       <Card className="border shadow-sm">
-        <CardContent className="space-y-5 p-5">
+        <CardContent className="space-y-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-sm font-semibold">Filters</p>
@@ -505,7 +505,7 @@ export const LibrariesPage = () => {
           return (
             <Card
               key={group.serviceType}
-              className="overflow-hidden border bg-card/80 shadow-lg backdrop-blur"
+              className="overflow-hidden border bg-card/80 shadow-lg backdrop-blur p-0 gap-0"
             >
               <div className={cn('flex flex-wrap items-center justify-between gap-4 border-b px-6 py-4 bg-gradient-to-r', group.gradient)}>
                 <div className="flex items-center gap-3">

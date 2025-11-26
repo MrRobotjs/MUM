@@ -564,7 +564,6 @@ export const UsersListPage = () => {
             <DropdownMenuTrigger asChild>
               <Button variant="outline" className="gap-2">
                 <IconDots className="size-4" />
-                Actions
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">

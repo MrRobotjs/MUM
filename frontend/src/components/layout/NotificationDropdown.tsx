@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { Bell, MoreVertical } from 'lucide-react';
 import { useNavigate } from '@tanstack/react-router';
 import { Button } from '@/components/ui/button';
@@ -11,74 +10,43 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
-
-type Notification = {
-  id: string;
-  title: string;
-  message: string;
-  timestamp: string;
-  read: boolean;
-  type?: 'info' | 'warning' | 'error' | 'success';
-};
+import { useNotifications } from '../../hooks/useNotifications';
 
 export const NotificationDropdown = () => {
   const navigate = useNavigate();
-
-  // Mock notifications - replace with actual data from API/hook
-  const [notifications, setNotifications] = useState<Notification[]>([
-    {
-      id: '1',
-      title: 'User Limit Warning',
-      message: 'Plex server "Main Server" is approaching the 100 user limit (95/100 users)',
-      timestamp: '5 min ago',
-      read: false,
-      type: 'warning',
-    },
-    {
-      id: '2',
-      title: 'Server Not Synced',
-      message: 'Jellyfin server "Media Server" has not been synced yet. Sync libraries and users to get started.',
-      timestamp: '30 min ago',
-      read: false,
-      type: 'info',
-    },
-    {
-      id: '3',
-      title: 'User Accepted Invite',
-      message: 'john.doe accepted their invite and now has access to Plex server "Main Server"',
-      timestamp: '2 hours ago',
-      read: true,
-      type: 'success',
-    },
-  ]);
-
-  const unreadCount = notifications.filter(n => !n.read).length;
-
-  const handleMarkAsRead = (id: string) => {
-    setNotifications(prev =>
-      prev.map(n => (n.id === id ? { ...n, read: true } : n))
-    );
-  };
-
-  const handleMarkAllAsRead = () => {
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
-  };
+  const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications({ limit: 5 });
 
   const handleOpenNotifications = () => {
     navigate({ to: '/admin/notifications' });
   };
 
-  const getNotificationIcon = (type?: string) => {
-    switch (type) {
-      case 'error':
+  const getNotificationIcon = (notificationType: string) => {
+    switch (notificationType) {
+      case 'SERVER_CONNECTION_FAILED':
         return 'fa-solid fa-circle-exclamation text-destructive';
-      case 'warning':
+      case 'USER_LIMIT_WARNING':
         return 'fa-solid fa-triangle-exclamation text-yellow-500';
-      case 'success':
+      case 'USER_ACCEPTED_INVITE':
         return 'fa-solid fa-circle-check text-green-500';
+      case 'SERVER_NOT_SYNCED':
       default:
         return 'fa-solid fa-circle-info text-blue-500';
     }
+  };
+
+  const formatTimestamp = (timestamp: string) => {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins} min${diffMins !== 1 ? 's' : ''} ago`;
+    if (diffHours < 24) return `${diffHours} hour${diffHours !== 1 ? 's' : ''} ago`;
+    if (diffDays < 7) return `${diffDays} day${diffDays !== 1 ? 's' : ''} ago`;
+    return date.toLocaleDateString();
   };
 
   return (
@@ -111,7 +79,7 @@ export const NotificationDropdown = () => {
                 Open Notifications
               </DropdownMenuItem>
               {unreadCount > 0 && (
-                <DropdownMenuItem onClick={handleMarkAllAsRead}>
+                <DropdownMenuItem onClick={markAllAsRead}>
                   <i className="fa-solid fa-check-double mr-2" />
                   Mark all as read
                 </DropdownMenuItem>
@@ -130,10 +98,10 @@ export const NotificationDropdown = () => {
               <DropdownMenuItem
                 key={notification.id}
                 className="flex cursor-pointer flex-col items-start gap-1 p-3"
-                onClick={() => handleMarkAsRead(notification.id)}
+                onClick={() => !notification.read && markAsRead(notification.id)}
               >
                 <div className="flex w-full items-start gap-2">
-                  <i className={`${getNotificationIcon(notification.type)} mt-0.5`} />
+                  <i className={`${getNotificationIcon(notification.notification_type)} mt-0.5`} />
                   <div className="flex-1 space-y-1">
                     <div className="flex items-center justify-between gap-2">
                       <p className="text-sm font-medium leading-none">
@@ -147,7 +115,7 @@ export const NotificationDropdown = () => {
                       {notification.message}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {notification.timestamp}
+                      {formatTimestamp(notification.timestamp)}
                     </p>
                   </div>
                 </div>

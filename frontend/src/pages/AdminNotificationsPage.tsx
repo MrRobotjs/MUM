@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { PageHeader } from '../components';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -6,142 +6,47 @@ import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
-
-type Notification = {
-  id: string;
-  title: string;
-  message: string;
-  timestamp: string;
-  read: boolean;
-  type: 'info' | 'warning' | 'error' | 'success';
-  details?: Record<string, unknown>;
-};
+import { useNotifications } from '../hooks/useNotifications';
 
 export const AdminNotificationsPage = () => {
-  // Mock notifications - replace with actual data from API/hook
-  const [notifications, setNotifications] = useState<Notification[]>([
-    {
-      id: '1',
-      title: 'User Limit Warning',
-      message: 'Plex server "Main Server" is approaching the 100 user limit (95/100 users)',
-      timestamp: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
-      read: false,
-      type: 'warning',
-      details: {
-        server_id: 123,
-        server_nickname: 'Main Server',
-        service_type: 'plex',
-        current_users: 95,
-        max_users: 100,
-      },
-    },
-    {
-      id: '2',
-      title: 'Server Not Synced',
-      message: 'Jellyfin server "Media Server" has not been synced yet. Sync libraries and users to get started.',
-      timestamp: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
-      read: false,
-      type: 'info',
-      details: {
-        server_id: 456,
-        server_nickname: 'Media Server',
-        service_type: 'jellyfin',
-        needs_sync: true,
-      },
-    },
-    {
-      id: '3',
-      title: 'User Accepted Invite',
-      message: 'john.doe accepted their invite and now has access to Plex server "Main Server"',
-      timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-      read: true,
-      type: 'success',
-      details: {
-        username: 'john.doe',
-        server_nickname: 'Main Server',
-        invite_token: 'abc123',
-      },
-    },
-    {
-      id: '4',
-      title: 'Server Connection Failed',
-      message: 'Failed to connect to Jellyfin server "Backup Server". Please check your API key and server URL.',
-      timestamp: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
-      read: true,
-      type: 'error',
-      details: {
-        server_id: 789,
-        server_nickname: 'Backup Server',
-        service_type: 'jellyfin',
-        error: 'Invalid API key or unreachable server',
-      },
-    },
-    {
-      id: '5',
-      title: 'Server Not Synced',
-      message: 'Plex server "Secondary Plex" has not been synced. Click to sync libraries and users.',
-      timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-      read: true,
-      type: 'info',
-      details: {
-        server_id: 999,
-        server_nickname: 'Secondary Plex',
-        service_type: 'plex',
-        needs_sync: true,
-      },
-    },
-  ]);
-
+  const { notifications, unreadCount, markAsRead, markAllAsRead, deleteNotification } = useNotifications({ limit: 100 });
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
-  const filteredNotifications = notifications.filter((notification) => {
-    if (filter === 'unread' && notification.read) return false;
-    if (typeFilter !== 'all' && notification.type !== typeFilter) return false;
-    if (searchQuery && !notification.title.toLowerCase().includes(searchQuery.toLowerCase()) &&
-        !notification.message.toLowerCase().includes(searchQuery.toLowerCase())) return false;
-    return true;
-  });
+  const filteredNotifications = useMemo(() => {
+    return notifications.filter((notification) => {
+      if (filter === 'unread' && notification.read) return false;
+      if (typeFilter !== 'all' && notification.notification_type !== typeFilter) return false;
+      if (searchQuery && !notification.title.toLowerCase().includes(searchQuery.toLowerCase()) &&
+          !notification.message.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+      return true;
+    });
+  }, [notifications, filter, typeFilter, searchQuery]);
 
-  const unreadCount = notifications.filter((n) => !n.read).length;
-
-  const handleMarkAsRead = (id: string) => {
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, read: true } : n))
-    );
-  };
-
-  const handleMarkAllAsRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-  };
-
-  const handleDeleteNotification = (id: string) => {
-    setNotifications((prev) => prev.filter((n) => n.id !== id));
-  };
-
-  const getNotificationIcon = (type: string) => {
-    switch (type) {
-      case 'error':
+  const getNotificationIcon = (notificationType: string) => {
+    switch (notificationType) {
+      case 'SERVER_CONNECTION_FAILED':
         return 'fa-solid fa-circle-exclamation text-destructive';
-      case 'warning':
+      case 'USER_LIMIT_WARNING':
         return 'fa-solid fa-triangle-exclamation text-yellow-500';
-      case 'success':
+      case 'USER_ACCEPTED_INVITE':
         return 'fa-solid fa-circle-check text-green-500';
+      case 'SERVER_NOT_SYNCED':
       default:
         return 'fa-solid fa-circle-info text-blue-500';
     }
   };
 
-  const getNotificationBadgeVariant = (type: string): 'default' | 'secondary' | 'destructive' | 'outline' => {
-    switch (type) {
-      case 'error':
+  const getNotificationBadgeVariant = (notificationType: string): 'default' | 'secondary' | 'destructive' | 'outline' => {
+    switch (notificationType) {
+      case 'SERVER_CONNECTION_FAILED':
         return 'destructive';
-      case 'warning':
+      case 'USER_LIMIT_WARNING':
         return 'secondary';
-      case 'success':
+      case 'USER_ACCEPTED_INVITE':
         return 'default';
+      case 'SERVER_NOT_SYNCED':
       default:
         return 'outline';
     }
@@ -165,7 +70,7 @@ export const AdminNotificationsPage = () => {
   const headerActions = (
     <div className="flex gap-2">
       {unreadCount > 0 && (
-        <Button variant="outline" size="sm" onClick={handleMarkAllAsRead}>
+        <Button variant="outline" size="sm" onClick={markAllAsRead}>
           <i className="fa-solid fa-check-double mr-2" />
           Mark all as read
         </Button>
@@ -231,10 +136,10 @@ export const AdminNotificationsPage = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Types</SelectItem>
-                  <SelectItem value="info">Info</SelectItem>
-                  <SelectItem value="success">Success</SelectItem>
-                  <SelectItem value="warning">Warning</SelectItem>
-                  <SelectItem value="error">Error</SelectItem>
+                  <SelectItem value="USER_LIMIT_WARNING">User Limit Warning</SelectItem>
+                  <SelectItem value="SERVER_NOT_SYNCED">Server Not Synced</SelectItem>
+                  <SelectItem value="SERVER_CONNECTION_FAILED">Server Connection Failed</SelectItem>
+                  <SelectItem value="USER_ACCEPTED_INVITE">User Accepted Invite</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -255,17 +160,17 @@ export const AdminNotificationsPage = () => {
         ) : (
           filteredNotifications.map((notification) => (
             <Card key={notification.id} className={`overflow-hidden ${!notification.read ? 'border-primary/50' : ''}`}>
-              <CardContent className="p-4">
+              <CardContent>
                 <div className="space-y-3">
                   {/* Header row */}
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex items-start gap-3 flex-1">
-                      <i className={`${getNotificationIcon(notification.type)} mt-1 text-lg`} />
+                      <i className={`${getNotificationIcon(notification.notification_type)} mt-1 text-lg`} />
                       <div className="flex-1 space-y-2">
                         <div className="flex items-center gap-2 flex-wrap">
                           <h3 className="font-semibold text-base">{notification.title}</h3>
-                          <Badge variant={getNotificationBadgeVariant(notification.type)} className="text-xs">
-                            {notification.type}
+                          <Badge variant={getNotificationBadgeVariant(notification.notification_type)} className="text-xs">
+                            {notification.notification_type}
                           </Badge>
                           {!notification.read && (
                             <Badge variant="default" className="text-xs">
@@ -286,7 +191,7 @@ export const AdminNotificationsPage = () => {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => handleMarkAsRead(notification.id)}
+                          onClick={() => markAsRead(notification.id)}
                           title="Mark as read"
                         >
                           <i className="fa-solid fa-check" />
@@ -295,7 +200,7 @@ export const AdminNotificationsPage = () => {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => handleDeleteNotification(notification.id)}
+                        onClick={() => deleteNotification(notification.id)}
                         title="Delete notification"
                       >
                         <i className="fa-solid fa-trash text-destructive" />

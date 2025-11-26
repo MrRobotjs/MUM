@@ -893,6 +893,35 @@ class HistoryLog(db.Model): # ... (as before)
 
 # StreamHistory model removed - replaced by MediaStreamHistory in models_media_services.py
 
+class NotificationType(enum.Enum):
+    USER_LIMIT_WARNING = "USER_LIMIT_WARNING"
+    SERVER_NOT_SYNCED = "SERVER_NOT_SYNCED"
+    SERVER_CONNECTION_FAILED = "SERVER_CONNECTION_FAILED"
+    USER_ACCEPTED_INVITE = "USER_ACCEPTED_INVITE"
+
+class Notification(db.Model):
+    __tablename__ = 'notifications'
+    id = db.Column(db.Integer, primary_key=True)
+    timestamp = db.Column(db.DateTime, default=utcnow, index=True, nullable=False)
+    notification_type = db.Column(db.Enum(NotificationType), nullable=False, index=True)
+    title = db.Column(db.String(255), nullable=False)
+    message = db.Column(db.Text, nullable=False)
+    read = db.Column(db.Boolean, default=False, nullable=False, index=True)
+    details = db.Column(MutableDict.as_mutable(JSONEncodedDict), nullable=True)
+
+    # Foreign keys
+    owner_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    server_id = db.Column(db.Integer, db.ForeignKey('media_servers.id'), nullable=True)
+    invite_id = db.Column(db.Integer, db.ForeignKey('invites.id'), nullable=True)
+
+    # Relationships
+    owner = db.relationship('User', foreign_keys='Notification.owner_id')
+    server = db.relationship('MediaServer', foreign_keys='Notification.server_id')
+    invite = db.relationship('Invite', foreign_keys='Notification.invite_id')
+
+    def __repr__(self):
+        return f'<Notification {self.id} [{self.notification_type.name}]: {self.title}>'
+
 class UserPreferences(db.Model):
     __tablename__ = 'user_preferences'
     id = db.Column(db.Integer, primary_key=True)

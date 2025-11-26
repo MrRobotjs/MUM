@@ -13,6 +13,8 @@ from flask_openapi3 import Tag
 
 from app.models_media_services import MediaServer, ServiceType
 from app.services.media_service_manager import MediaServiceManager
+from app.models import Notification, NotificationType
+from app.utils.timezone_utils import utcnow
 
 
 servers_tag = Tag(name="Servers", description="Media server management")
@@ -157,6 +159,27 @@ def create_server(body: CreateServerBody, current_user):
         current_app.logger.warning(f"Failed to auto-enable plugin: {e}")
         # Don't fail the server creation if plugin enable fails
 
+    # Create notification for new unsynced server
+    try:
+        notification = Notification(
+            timestamp=utcnow(),
+            notification_type=NotificationType.SERVER_NOT_SYNCED,
+            title="New Server Not Synced",
+            message=f"Server '{server.server_nickname}' has been added but has not been synced yet. Sync users and libraries to get started.",
+            read=False,
+            server_id=server.id,
+            details={
+                "server_nickname": server.server_nickname,
+                "service_type": service_type_str
+            }
+        )
+        db.session.add(notification)
+        db.session.commit()
+        current_app.logger.info(f"Created SERVER_NOT_SYNCED notification for server '{server.server_nickname}'")
+    except Exception as e:
+        current_app.logger.warning(f"Failed to create notification for new server: {e}")
+        # Don't fail the server creation if notification creation fails
+
     return jsonify(_to_item(server)), 201
 
 
@@ -255,6 +278,18 @@ def sync_server_libraries(path: ServerPathOp, current_user):
     if not server:
         return jsonify({"error": {"code": "NOT_FOUND", "message": "Server not found"}}), 404
     result = MediaServiceManager.sync_server_libraries(path.server_id)
+
+    # Mark SERVER_NOT_SYNCED notifications as read for this server
+    try:
+        Notification.query.filter_by(
+            server_id=path.server_id,
+            notification_type=NotificationType.SERVER_NOT_SYNCED,
+            read=False
+        ).update({"read": True})
+        db.session.commit()
+    except Exception as e:
+        current_app.logger.warning(f"Failed to mark notifications as read: {e}")
+
     return jsonify(result), 200
 
 
@@ -270,4 +305,16 @@ def sync_server_users(path: ServerPathOp, current_user):
     if not server:
         return jsonify({"error": {"code": "NOT_FOUND", "message": "Server not found"}}), 404
     result = MediaServiceManager.sync_server_users(path.server_id)
+
+    # Mark SERVER_NOT_SYNCED notifications as read for this server
+    try:
+        Notification.query.filter_by(
+            server_id=path.server_id,
+            notification_type=NotificationType.SERVER_NOT_SYNCED,
+            read=False
+        ).update({"read": True})
+        db.session.commit()
+    except Exception as e:
+        current_app.logger.warning(f"Failed to mark notifications as read: {e}")
+
     return jsonify(result), 200

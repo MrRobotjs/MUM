@@ -35,6 +35,7 @@ import AdminSettingsDiscordPage from '../pages/AdminSettingsDiscordPage';
 import AdminSettingsAdvancedPage from '../pages/AdminSettingsAdvancedPage';
 import AdminSettingsLogsPage from '../pages/AdminSettingsLogsPage';
 import AdminSettingsApiDebugPage from '../pages/AdminSettingsApiDebugPage';
+import AdminNotificationsPage from '../pages/AdminNotificationsPage';
 import ApiDocsPage from '../pages/ApiDocsPage';
 import AdminAccountPage from '../pages/AdminAccountPage';
 import UserDashboardPage from '../pages/UserDashboardPage';
@@ -97,6 +98,7 @@ const adminIndexRedirect = createRoute({
   component: () => <Navigate to="/admin/dashboard" replace />,
 })
 const adminDashboard = createRoute({ getParentRoute: () => adminRoute, path: 'dashboard', component: DashboardPage })
+const adminNotifications = createRoute({ getParentRoute: () => adminRoute, path: 'notifications', component: AdminNotificationsPage })
 const adminAccountTabs = ['overview', 'credentials', 'preferences'] as const
 type AdminAccountTab = typeof adminAccountTabs[number]
 const adminAccount = createRoute({
@@ -246,6 +248,7 @@ const routeTree = rootRoute.addChildren([
   adminRoute.addChildren([
     adminIndexRedirect,
     adminDashboard,
+    adminNotifications,
     adminAccount,
     adminStreaming,
     adminUsers,

@@ -2,6 +2,7 @@ import { ReactNode } from 'react';
 import { useLocation, Link } from '@tanstack/react-router';
 import { AppSidebar } from './AppSidebar';
 import { ModeToggle } from './ModeToggle';
+import { NotificationDropdown } from './NotificationDropdown';
 import { useAuth } from '../../contexts/AuthContext';
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { Separator } from '@/components/ui/separator';
@@ -143,6 +144,7 @@ export const EnhancedAppLayout = ({
               </BreadcrumbList>
             </Breadcrumb>
             <div className="ml-auto flex items-center gap-2">
+              <NotificationDropdown />
               <ModeToggle />
             </div>
           </div>

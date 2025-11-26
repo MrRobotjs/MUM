@@ -28,7 +28,10 @@ const LoginPage = () => {
   const search = useSearch({ from: '/admin/login', strict: false }) as { next?: string; error?: string };
   const nextParam = search.next;
   const errorParam = search.error;
-  const fromPath = nextParam || (location.state as LocationState | undefined)?.from || '/admin/dashboard';
+  const locationStateFrom = (location.state as LocationState | undefined)?.from;
+  // Ignore location.state.from if it's the login page itself (avoid redirect loop)
+  const validLocationFrom = locationStateFrom && locationStateFrom !== '/admin/login' ? locationStateFrom : null;
+  const fromPath = nextParam || validLocationFrom || '/admin/dashboard';
 
   // Check if user accounts are enabled
   useEffect(() => {

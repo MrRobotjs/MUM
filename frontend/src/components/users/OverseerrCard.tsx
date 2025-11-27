@@ -71,12 +71,16 @@ export const OverseerrCard = ({ links, loading, error }: OverseerrCardProps) => 
                         details.name ||
                         details.original_title ||
                         details.original_name ||
+                        details.originalTitle ||
+                        details.originalName ||
                         'Request';
                       const year =
                         (media.releaseDate ||
                           media.firstAirDate ||
                           details.release_date ||
                           details.first_air_date ||
+                          details.releaseDate ||
+                          details.firstAirDate ||
                           '')!
                           .toString()
                           .slice(0, 4);
@@ -87,8 +91,18 @@ export const OverseerrCard = ({ links, loading, error }: OverseerrCardProps) => 
                       const posterPath =
                         media.posterPath ||
                         media.poster_path ||
+                        media.backdropPath ||
+                        media.backdrop_path ||
+                        (media.mediaInfo &&
+                          (media.mediaInfo.posterPath ||
+                            media.mediaInfo.backdropPath ||
+                            media.mediaInfo.poster_path ||
+                            media.mediaInfo.backdrop_path)) ||
+                        details.posterPath ||
                         details.poster_path ||
+                        details.backdropPath ||
                         details.backdrop_path ||
+                        details.stillPath ||
                         details.still_path;
                       const posterUrl = posterPath ? `https://image.tmdb.org/t/p/w154${posterPath}` : null;
                       const overview = media.overview || details.overview;

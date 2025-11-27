@@ -7,6 +7,7 @@ import { useUserHistory } from '../hooks/useUserHistory';
 import { useServiceAccounts } from '../hooks/useServiceAccounts';
 import { useAvailableServiceAccounts } from '../hooks/useAvailableServiceAccounts';
 import { useOverseerr } from '../hooks/useOverseerr';
+import { useServers } from '../hooks/useServers';
 import { useUserSettings } from '../hooks/useUserSettings';
 import { useUserUuidBySlug } from '../hooks/useUserUuidBySlug';
 import { requestJson } from '../util/apiClient';
@@ -736,6 +737,7 @@ export const UserDetailPage = () => {
     loading: overseerrLoading,
     error: overseerrError
   } = useOverseerr(effectiveUuid);
+  const { servers: plexServers } = useServers({ serviceType: 'plex' });
   const {
     settings,
     loading: settingsLoading,
@@ -800,7 +802,19 @@ export const UserDetailPage = () => {
   }
 
   const isServiceUser = user.user_type.toLowerCase() === 'service';
-  const showOverseerrTab = overseerrLoading || overseerrLinks.length > 0 || overseerrError;
+  const plexServerNicknames = new Set(
+    (user.server_names ?? [])
+      .map((name) => name?.toLowerCase())
+      .filter((name): name is string => Boolean(name))
+  );
+  const isPlexUser = (user.service_types ?? []).some((type) => type?.toLowerCase() === 'plex');
+  const plexServerWithOverseerr = plexServers.find(
+    (server) =>
+      server.overseerr_enabled &&
+      (plexServerNicknames.has(server.server_nickname?.toLowerCase() ?? '') ||
+        plexServerNicknames.has(server.server_name?.toLowerCase() ?? ''))
+  );
+  const showOverseerrTab = isPlexUser && Boolean(plexServerWithOverseerr);
   const showSecurityTab = !isServiceUser && user.has_password && user.used_invite;
 
   const heroTheme = getServiceTheme(user.service_type ?? user.service_types?.[0]);

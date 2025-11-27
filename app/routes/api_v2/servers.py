@@ -28,6 +28,8 @@ class ServerItem(BaseModel):
     url: Optional[str] = None
     public_url: Optional[str] = None
     is_active: Optional[bool] = None
+    overseerr_enabled: Optional[bool] = None
+    overseerr_url: Optional[str] = None
     last_status: Optional[bool] = None
     last_sync_at: Optional[str] = None
 
@@ -64,9 +66,9 @@ class CreateServerBody(BaseModel):
     password: Optional[str] = None
     public_url: Optional[str] = None
     is_active: Optional[bool] = True
-    websocket_refresh_interval: Optional[int] = Field(
-        default=None, description="Plex only: WebSocket refresh interval in seconds"
-    )
+    overseerr_enabled: Optional[bool] = False
+    overseerr_url: Optional[str] = None
+    overseerr_api_key: Optional[str] = None
 
 
 class UpdateServerBody(BaseModel):
@@ -78,6 +80,9 @@ class UpdateServerBody(BaseModel):
     password: Optional[str] = None
     public_url: Optional[str] = None
     is_active: Optional[bool] = None
+    overseerr_enabled: Optional[bool] = None
+    overseerr_url: Optional[str] = None
+    overseerr_api_key: Optional[str] = None
 
 
 def _to_item(server: MediaServer) -> dict:
@@ -89,6 +94,8 @@ def _to_item(server: MediaServer) -> dict:
         "url": getattr(server, "url", None),
         "public_url": getattr(server, "public_url", None),
         "is_active": bool(getattr(server, "is_active", True)),
+        "overseerr_enabled": bool(getattr(server, "overseerr_enabled", False)),
+        "overseerr_url": getattr(server, "overseerr_url", None),
         "last_status": getattr(server, "last_status", None),
         "last_sync_at": getattr(server, "last_status_check", None).isoformat() + "Z"
         if getattr(server, "last_status_check", None)
@@ -139,6 +146,9 @@ def create_server(body: CreateServerBody, current_user):
         username=body.username,
         password=body.password,
         public_url=body.public_url,
+        overseerr_enabled=bool(body.overseerr_enabled),
+        overseerr_url=body.overseerr_url,
+        overseerr_api_key=body.overseerr_api_key,
         is_active=True if body.is_active is None else body.is_active,
     )
 
@@ -214,6 +224,7 @@ def update_server(path: ServerPath, body: UpdateServerBody, current_user):
         return jsonify({"error": {"code": "NOT_FOUND", "message": "Server not found"}}), 404
 
     data = body.model_dump(exclude_none=True)
+
     # Map and set fields if present
     for k, v in data.items():
         setattr(server, k, v)

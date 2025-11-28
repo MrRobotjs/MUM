@@ -24,6 +24,7 @@ import {
   ChartOptions,
 } from 'chart.js';
 import { Bar } from 'react-chartjs-2';
+import { getServicePalette, getServiceMeta } from '@/config/pluginMetadata';
 // Images are authenticated via HttpOnly access cookie; no token param needed
 
 // Register Chart.js components
@@ -502,69 +503,22 @@ export const LibraryDetailPage = () => {
   const getServiceBadge = (serviceType?: ServiceType) => {
     if (!serviceType) return null;
 
-    const badges = {
-      plex: {
-        bg: 'bg-plex-50 dark:bg-plex-400/10',
-        text: 'text-plex-700 dark:text-plex-400',
-        ring: 'ring-plex-600/20 dark:ring-plex-500/20',
-        icon: (
-          <svg className="w-3 h-3" viewBox="0 0 192 192" xmlns="http://www.w3.org/2000/svg" fill="currentColor" stroke="transparent" strokeLinejoin="round" strokeWidth="12">
-            <path d="M22 25.5h48L116 94l-46 68.5H22L68.5 94Zm109.8 56L108 46l14-20.5h48zm-.3 23.5c10.979 17.625 25.52 38.875 38.5 49.5-11.149 13.635-34.323 32.278-62.5-14z"/>
-          </svg>
-        ),
-        name: 'Plex'
-      },
-      jellyfin: {
-        bg: 'bg-jellyfin-50 dark:bg-jellyfin-400/10',
-        text: 'text-jellyfin-700 dark:text-jellyfin-400',
-        ring: 'ring-jellyfin-600/20 dark:ring-jellyfin-500/20',
-        icon: <i className="fa-solid fa-cube w-3 h-3"></i>,
-        name: 'Jellyfin'
-      },
-      emby: {
-        bg: 'bg-emby-50 dark:bg-emby-400/10',
-        text: 'text-emby-700 dark:text-emby-400',
-        ring: 'ring-emby-600/20 dark:ring-emby-500/20',
-        icon: <i className="fa-solid fa-play-circle w-3 h-3"></i>,
-        name: 'Emby'
-      },
-      kavita: {
-        bg: 'bg-kavita-50 dark:bg-kavita-400/10',
-        text: 'text-kavita-700 dark:text-kavita-400',
-        ring: 'ring-kavita-600/20 dark:ring-kavita-500/20',
-        icon: <i className="fa-solid fa-book w-3 h-3"></i>,
-        name: 'Kavita'
-      },
-      audiobookshelf: {
-        bg: 'bg-audiobookshelf-50 dark:bg-audiobookshelf-400/10',
-        text: 'text-audiobookshelf-700 dark:text-audiobookshelf-400',
-        ring: 'ring-audiobookshelf-600/20 dark:ring-audiobookshelf-500/20',
-        icon: <i className="fa-solid fa-headphones w-3 h-3"></i>,
-        name: 'AudiobookShelf'
-      },
-      komga: {
-        bg: 'bg-komga-50 dark:bg-komga-400/10',
-        text: 'text-komga-700 dark:text-komga-400',
-        ring: 'ring-komga-600/20 dark:ring-komga-500/20',
-        icon: <i className="fa-solid fa-book-open w-3 h-3"></i>,
-        name: 'Komga'
-      },
-      romm: {
-        bg: 'bg-romm-50 dark:bg-romm-400/10',
-        text: 'text-romm-700 dark:text-romm-400',
-        ring: 'ring-romm-600/20 dark:ring-romm-500/20',
-        icon: <i className="fa-solid fa-gamepad w-3 h-3"></i>,
-        name: 'RomM'
-      }
-    };
+    const palette = getServicePalette(serviceType);
+    const meta = getServiceMeta(serviceType);
 
-    const badge = badges[serviceType];
-    if (!badge) return null;
+    // Create small icon (w-3 h-3) based on the service's icon
+    const smallIcon = serviceType === 'plex' ? (
+      <svg className="w-3 h-3" viewBox="0 0 192 192" xmlns="http://www.w3.org/2000/svg" fill="currentColor" stroke="transparent" strokeLinejoin="round" strokeWidth="12">
+        <path d="M22 25.5h48L116 94l-46 68.5H22L68.5 94Zm109.8 56L108 46l14-20.5h48zm-.3 23.5c10.979 17.625 25.52 38.875 38.5 49.5-11.149 13.635-34.323 32.278-62.5-14z"/>
+      </svg>
+    ) : (
+      <span className="w-3 h-3 flex items-center justify-center text-xs">{meta.icon}</span>
+    );
 
     return (
-      <span className={`inline-flex items-center rounded-md ${badge.bg} px-2 py-1 text-xs font-medium ${badge.text} ring-1 ring-inset ${badge.ring} gap-1`}>
-        {badge.icon}
-        {badge.name}
+      <span className={`inline-flex items-center rounded-md ${palette.bg} ${palette.bgDark} px-2 py-1 text-xs font-medium ${palette.text} ${palette.textDark} ring-1 ring-inset ${palette.ring} ${palette.ringDark} gap-1`}>
+        {smallIcon}
+        {meta.label}
       </span>
     );
   };

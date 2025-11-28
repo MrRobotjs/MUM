@@ -10,6 +10,7 @@ import { Skeleton } from '../ui/skeleton';
 import { UserDebugModal } from './UserDebugModal';
 import { cn } from '@/lib/utils';
 import { Badge } from '../common/Badge';
+import { getServicePalette, type ThemePalette } from '@/config/pluginMetadata';
 
 interface UserCardProps {
   user: UserRow;
@@ -28,109 +29,6 @@ interface UserDisplaySettings {
   auto_sync_users: boolean;
 }
 
-type ThemePalette = {
-  bg: string;
-  bgDark: string;
-  text: string;
-  textDark: string;
-  accent: string;
-  accentDark: string;
-  ring: string;
-  ringDark: string;
-  avatar: string;
-};
-
-type ServicePalettes = {
-  light: ThemePalette;
-  dark: ThemePalette;
-};
-
-const servicePalettes: Record<string, ThemePalette> = {
-  plex: {
-    bg: 'bg-plex-50',
-    bgDark: 'dark:bg-plex-400/10',
-    text: 'text-plex-700',
-    textDark: 'dark:text-plex-400',
-    accent: 'bg-plex-100',
-    accentDark: 'dark:bg-plex-400/20',
-    ring: 'ring-plex-600/20',
-    ringDark: 'dark:ring-plex-500/20',
-    avatar: 'bg-plex'
-  },
-  jellyfin: {
-    bg: 'bg-jellyfin-50',
-    bgDark: 'dark:bg-jellyfin-400/10',
-    text: 'text-jellyfin-700',
-    textDark: 'dark:text-jellyfin-400',
-    accent: 'bg-jellyfin-100',
-    accentDark: 'dark:bg-jellyfin-400/20',
-    ring: 'ring-jellyfin-600/20',
-    ringDark: 'dark:ring-jellyfin-500/20',
-    avatar: 'bg-jellyfin'
-  },
-  emby: {
-    bg: 'bg-emby-50',
-    bgDark: 'dark:bg-emby-400/10',
-    text: 'text-emby-700',
-    textDark: 'dark:text-emby-400',
-    accent: 'bg-emby-100',
-    accentDark: 'dark:bg-emby-400/20',
-    ring: 'ring-emby-600/20',
-    ringDark: 'dark:ring-emby-500/20',
-    avatar: 'bg-emby'
-  },
-  kavita: {
-    bg: 'bg-kavita-50',
-    bgDark: 'dark:bg-kavita-400/10',
-    text: 'text-kavita-700',
-    textDark: 'dark:text-kavita-400',
-    accent: 'bg-kavita-100',
-    accentDark: 'dark:bg-kavita-400/20',
-    ring: 'ring-kavita-600/20',
-    ringDark: 'dark:ring-kavita-500/20',
-    avatar: 'bg-kavita'
-  },
-  audiobookshelf: {
-    bg: 'bg-audiobookshelf-50',
-    bgDark: 'dark:bg-audiobookshelf-400/10',
-    text: 'text-audiobookshelf-700',
-    textDark: 'dark:text-audiobookshelf-400',
-    accent: 'bg-audiobookshelf-100',
-    accentDark: 'dark:bg-audiobookshelf-400/20',
-    ring: 'ring-audiobookshelf-600/20',
-    ringDark: 'dark:ring-audiobookshelf-500/20',
-    avatar: 'bg-audiobookshelf'
-  },
-  komga: {
-    bg: 'bg-komga-50',
-    bgDark: 'dark:bg-komga-400/10',
-    text: 'text-komga-700',
-    textDark: 'dark:text-komga-400',
-    accent: 'bg-komga-100',
-    accentDark: 'dark:bg-komga-400/20',
-    ring: 'ring-komga-600/20',
-    ringDark: 'dark:ring-komga-500/20',
-    avatar: 'bg-komga'
-  },
-  romm: {
-    bg: 'bg-romm-50',
-    bgDark: 'dark:bg-romm-400/10',
-    text: 'text-romm-700',
-    textDark: 'dark:text-romm-400',
-    accent: 'bg-romm-100',
-    accentDark: 'dark:bg-romm-400/20',
-    ring: 'ring-romm-600/20',
-    ringDark: 'dark:ring-romm-500/20',
-    avatar: 'bg-romm'
-  }
-};
-
-const getServicePalette = (serviceType?: string) => {
-  if (!serviceType) {
-    return servicePalettes['plex'];
-  }
-  return servicePalettes[serviceType] ?? servicePalettes['plex'];
-};
 
 export const UserCard = ({ user, isSelected = false, onToggleSelection }: UserCardProps) => {
   const navigate = useNavigate();

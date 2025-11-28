@@ -13,6 +13,7 @@ from app.extensions import db
 from app.utils.helpers import log_event
 # JWT permission checking handled by jwt_permission_required, log_event
 from app.models import EventType
+from app.config.plugin_metadata import get_all_plugin_metadata
 
 
 plugins_tag = Tag(name="Plugins", description="Plugin management")
@@ -41,6 +42,11 @@ class PluginItem(BaseModel):
 
 class PluginsListResponse(BaseModel):
     data: list[PluginItem]
+    meta: dict
+
+
+class PluginMetadataResponse(BaseModel):
+    data: dict
     meta: dict
 
 
@@ -115,6 +121,37 @@ def list_plugins(current_user):
         entry = _serialize_plugin(plugin)
         entry['available'] = available_lookup.get(plugin.plugin_id)
         data.append(entry)
+
+    return jsonify({'data': data, 'meta': {'request_id': request_id}})
+
+
+@api_v2.get(
+    "/plugins/metadata",
+    tags=[plugins_tag],
+    summary="Get plugin metadata",
+    responses={200: PluginMetadataResponse},
+)
+@jwt_required_with_user()
+def get_plugin_metadata_endpoint(current_user):
+    """Get metadata for all plugins including icons, features, and config schema."""
+    request_id = str(uuid4())
+    metadata = get_all_plugin_metadata()
+
+    data = {}
+    for plugin_id, meta in metadata.items():
+        data[plugin_id] = {
+            'plugin_id': meta.plugin_id,
+            'name': meta.name,
+            'description': meta.description,
+            'author': meta.author,
+            'icon_type': meta.icon_type,
+            'icon_identifier': meta.icon_identifier,
+            'color_theme': meta.color_theme,
+            'features': meta.features,
+            'requires_api_key': meta.requires_api_key,
+            'supports_websocket': meta.supports_websocket,
+            'config_schema': meta.config_schema,
+        }
 
     return jsonify({'data': data, 'meta': {'request_id': request_id}})
 

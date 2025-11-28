@@ -3,6 +3,7 @@ import { type Plugin } from '../../hooks/usePlugins'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
+import { getServiceIcon } from '@/config/pluginMetadata'
 
 export interface PluginCardProps {
   plugin: Plugin
@@ -29,14 +30,19 @@ export const PluginCard = ({
     <Card className={`h-full border border-border/50 shadow-sm bg-card ${className}`}>
       <CardContent className="flex h-full flex-col gap-4">
         <div className="flex items-start justify-between gap-4">
-          <div className="space-y-1">
-            <h3 className="text-lg font-semibold text-foreground">{plugin.name}</h3>
-            {plugin.author ? (
-              <p className="text-sm text-muted-foreground">by {plugin.author}</p>
-            ) : null}
-            {plugin.description ? (
-              <p className="text-sm text-muted-foreground">{plugin.description}</p>
-            ) : null}
+          <div className="flex items-start gap-3 flex-1">
+            <div className="flex-shrink-0 mt-1">
+              {getServiceIcon(plugin.pluginId)}
+            </div>
+            <div className="space-y-1 flex-1">
+              <h3 className="text-lg font-semibold text-foreground">{plugin.name}</h3>
+              {plugin.author ? (
+                <p className="text-sm text-muted-foreground">by {plugin.author}</p>
+              ) : null}
+              {plugin.description ? (
+                <p className="text-sm text-muted-foreground">{plugin.description}</p>
+              ) : null}
+            </div>
           </div>
           <Badge variant={statusBadge.variant}>{statusBadge.label}</Badge>
         </div>

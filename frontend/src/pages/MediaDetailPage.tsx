@@ -567,7 +567,7 @@ export const MediaDetailPage = () => {
 
               {/* Search and Sort */}
               <Card>
-                <CardContent className="p-4">
+                <CardContent>
                   <div className="flex flex-col sm:flex-row gap-4">
                     {/* Search Box */}
                     <div className="flex-1">

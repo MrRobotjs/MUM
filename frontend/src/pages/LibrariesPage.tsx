@@ -15,6 +15,7 @@ import { Button } from '../components/ui/button';
 import { ResponsiveDialog } from '../components/ui/responsive-dialog';
 import { Badge } from '../components/ui/badge';
 import { Separator } from '../components/ui/separator';
+import { getServiceMeta } from '@/config/pluginMetadata';
 
 type LibraryGroup = {
   serviceType: string;
@@ -26,75 +27,6 @@ type LibraryGroup = {
     server: Server;
     libraries: Library[];
   }>;
-};
-
-const plexIcon = (
-  <svg className="w-5 h-5 stroke-transparent text-amber-600 dark:text-amber-400" viewBox="0 0 192 192" xmlns="http://www.w3.org/2000/svg" fill="currentColor">
-    <path d="M22 25.5h48L116 94l-46 68.5H22L68.5 94Zm109.8 56L108 46l14-20.5h48zm-.3 23.5c10.979 17.625 25.52 38.875 38.5 49.5-11.149 13.635-34.323 32.278-62.5-14z" />
-  </svg>
-);
-
-const SERVICE_META: Record<string, { label: string; gradient: string; badgeClass: string; icon: JSX.Element }> = {
-  plex: {
-    label: 'Plex',
-    gradient: 'from-card to-plex/10',
-    badgeClass: 'bg-plex-50 text-plex-700 ring-plex-500/30',
-    icon: plexIcon
-  },
-  jellyfin: {
-    label: 'Jellyfin',
-    gradient: 'from-card to-jellyfin/10',
-    badgeClass: 'bg-jellyfin-50 text-jellyfin-700 ring-jellyfin-500/30',
-    icon: <i className="fa-solid fa-cube text-jellyfin" />
-  },
-  emby: {
-    label: 'Emby',
-    gradient: 'from-card to-emby/10',
-    badgeClass: 'bg-emby-50 text-emby-700 ring-emby-500/30',
-    icon: <i className="fa-solid fa-play-circle text-emby" />
-  },
-  kavita: {
-    label: 'Kavita',
-    gradient: 'from-card to-kavita/10',
-    badgeClass: 'bg-kavita-50 text-kavita-700 ring-kavita-500/30',
-    icon: <i className="fa-solid fa-book text-kavita" />
-  },
-  audiobookshelf: {
-    label: 'AudioBookshelf',
-    gradient: 'from-card to-audiobookshelf/10',
-    badgeClass: 'bg-audiobookshelf-50 text-audiobookshelf-700 ring-audiobookshelf-500/30',
-    icon: <i className="fa-solid fa-headphones text-audiobookshelf" />
-  },
-  komga: {
-    label: 'Komga',
-    gradient: 'from-card to-komga/10',
-    badgeClass: 'bg-komga-50 text-komga-700 ring-komga-500/30',
-    icon: <i className="fa-solid fa-book-open text-komga" />
-  },
-  romm: {
-    label: 'RomM',
-    gradient: 'from-card to-romm/10',
-    badgeClass: 'bg-romm-50 text-romm-700 ring-romm-500/30',
-    icon: <i className="fa-solid fa-gamepad text-romm" />
-  }
-};
-
-const getServiceMeta = (serviceType?: string) => {
-  if (!serviceType) {
-    return {
-      label: 'Unknown',
-      gradient: 'from-card to-muted',
-      badgeClass: 'bg-muted text-foreground ring-border',
-      icon: <i className="fa-solid fa-server" />
-    };
-  }
-
-  return SERVICE_META[serviceType.toLowerCase()] || {
-    label: serviceType,
-    gradient: 'from-card to-muted',
-    badgeClass: 'bg-muted text-foreground ring-border',
-    icon: <i className="fa-solid fa-server" />
-  };
 };
 
 const formatDateTime = (value?: string | null) => {
@@ -195,9 +127,9 @@ export const LibrariesPage = () => {
         grouped.set(serviceType, {
           serviceType,
           label: meta.label,
-          gradient: meta.gradient,
-          badgeClass: meta.badgeClass,
-          icon: meta.icon,
+          gradient: meta.libraryGradient || meta.gradient,
+          badgeClass: meta.libraryBadgeClass || meta.badgeClass,
+          icon: meta.libraryIcon || meta.icon,
           servers: []
         });
       }
@@ -216,9 +148,9 @@ export const LibrariesPage = () => {
           grouped.set(serviceType, {
             serviceType,
             label: meta.label,
-            gradient: meta.gradient,
-            badgeClass: meta.badgeClass,
-            icon: meta.icon,
+            gradient: meta.libraryGradient || meta.gradient,
+            badgeClass: meta.libraryBadgeClass || meta.badgeClass,
+            icon: meta.libraryIcon || meta.icon,
             servers: []
           });
         }

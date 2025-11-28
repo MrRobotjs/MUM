@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
+import { SERVICE_TYPES } from '@/config/pluginMetadata';
 
 export type ServerFormValues = {
   server_nickname: string;
@@ -232,16 +233,6 @@ export const ServerModal = ({
     }
   };
 
-  const serviceTypes = [
-    { value: 'plex', label: 'Plex' },
-    { value: 'jellyfin', label: 'Jellyfin' },
-    { value: 'emby', label: 'Emby' },
-    { value: 'kavita', label: 'Kavita' },
-    { value: 'audiobookshelf', label: 'AudioBookshelf' },
-    { value: 'komga', label: 'Komga' },
-    { value: 'romm', label: 'RomM' },
-  ];
-
   const formId = 'server-form';
 
   const getTestButtonContent = () => {
@@ -345,7 +336,7 @@ export const ServerModal = ({
           {serviceTypeLocked ? (
             <div className="flex w-full items-center justify-between rounded-md border bg-muted/50 px-3 py-2">
               <span className="text-sm font-medium text-foreground">
-                {serviceTypes.find((type) => type.value === values.service_type)?.label ?? values.service_type}
+                {SERVICE_TYPES.find((type) => type.value === values.service_type)?.label ?? values.service_type}
               </span>
               <Badge variant="outline">Locked</Badge>
             </div>
@@ -358,7 +349,7 @@ export const ServerModal = ({
                 <SelectValue placeholder="Select service" />
               </SelectTrigger>
               <SelectContent>
-                {serviceTypes.map((type) => (
+                {SERVICE_TYPES.map((type) => (
                   <SelectItem key={type.value} value={type.value}>
                     {type.label}
                   </SelectItem>

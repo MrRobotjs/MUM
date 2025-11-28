@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { SERVICE_TYPES } from '@/config/pluginMetadata';
 
 type ConnectionTestStatus = 'idle' | 'testing' | 'success' | 'error';
 
@@ -192,16 +193,6 @@ export const ServerAddForm = ({ pluginId, onSuccess, onCancel }: ServerAddFormPr
     });
   };
 
-  const serviceTypes = [
-    { value: 'plex', label: 'Plex' },
-    { value: 'jellyfin', label: 'Jellyfin' },
-    { value: 'emby', label: 'Emby' },
-    { value: 'kavita', label: 'Kavita' },
-    { value: 'audiobookshelf', label: 'AudioBookshelf' },
-    { value: 'komga', label: 'Komga' },
-    { value: 'romm', label: 'RomM' },
-  ];
-
   const getTestButtonContent = () => {
     if (connectionTestStatus === 'testing') {
       return (
@@ -274,7 +265,7 @@ export const ServerAddForm = ({ pluginId, onSuccess, onCancel }: ServerAddFormPr
                 <FormField id="service_type" label="Service Type" required>
                   <div className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-xs md:text-sm">
                     <span className="text-sm">
-                      {serviceTypes.find((type) => type.value === values.service_type)?.label ?? values.service_type}
+                      {SERVICE_TYPES.find((type) => type.value === values.service_type)?.label ?? values.service_type}
                     </span>
                     <Badge variant="secondary">Locked</Badge>
                   </div>

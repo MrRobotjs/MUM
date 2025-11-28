@@ -24,92 +24,9 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
+import { getServiceMeta } from '@/config/pluginMetadata';
 
 type TabKey = 'profile' | 'history' | 'settings' | 'overseerr' | 'security';
-
-type ServiceTheme = {
-  label: string;
-  gradient: string;
-  badgeClass: string;
-  chipClass: string;
-  icon: ReactNode;
-};
-
-const plexIcon = (
-  <svg className="h-4 w-4" viewBox="0 0 192 192" xmlns="http://www.w3.org/2000/svg" fill="currentColor">
-    <path d="M22 25.5h48L116 94l-46 68.5H22L68.5 94Zm109.8 56L108 46l14-20.5h48zm-.3 23.5c10.979 17.625 25.52 38.875 38.5 49.5-11.149 13.635-34.323 32.278-62.5-14z" />
-  </svg>
-);
-
-const defaultTheme: ServiceTheme = {
-  label: 'Media Server',
-  gradient: 'from-primary/10 via-primary/5 to-secondary/10',
-  badgeClass: 'bg-primary/10 text-primary ring-primary/20',
-  chipClass: 'bg-primary/10 text-primary ring-primary/20',
-  icon: <i className="fa-solid fa-server" />
-};
-
-const serviceThemes: Record<string, ServiceTheme> = {
-  plex: {
-    label: 'Plex',
-    gradient: 'from-plex/10 via-plex/10 to-plex/20',
-    badgeClass: 'bg-plex-50 text-plex-700 ring-plex-500/30 dark:bg-plex-400/10 dark:text-plex-300',
-    chipClass: 'bg-plex-100 text-plex-700 ring-plex-600/30 dark:bg-plex-400/20 dark:text-plex-200',
-    icon: plexIcon
-  },
-  jellyfin: {
-    label: 'Jellyfin',
-    gradient: 'from-jellyfin/10 via-jellyfin/10 to-jellyfin/20',
-    badgeClass: 'bg-jellyfin-50 text-jellyfin-700 ring-jellyfin-500/30 dark:bg-jellyfin-400/10 dark:text-jellyfin-300',
-    chipClass: 'bg-jellyfin-100 text-jellyfin-700 ring-jellyfin-600/30 dark:bg-jellyfin-400/20 dark:text-jellyfin-200',
-    icon: <i className="fa-solid fa-cube" />
-  },
-  emby: {
-    label: 'Emby',
-    gradient: 'from-emby/10 via-emby/10 to-emby/20',
-    badgeClass: 'bg-emby-50 text-emby-700 ring-emby-500/30 dark:bg-emby-400/10 dark:text-emby-300',
-    chipClass: 'bg-emby-100 text-emby-700 ring-emby-600/30 dark:bg-emby-400/20 dark:text-emby-200',
-    icon: <i className="fa-solid fa-play-circle" />
-  },
-  kavita: {
-    label: 'Kavita',
-    gradient: 'from-kavita/10 via-kavita/10 to-kavita/20',
-    badgeClass: 'bg-kavita-50 text-kavita-700 ring-kavita-500/30 dark:bg-kavita-400/10 dark:text-kavita-300',
-    chipClass: 'bg-kavita-100 text-kavita-700 ring-kavita-600/30 dark:bg-kavita-400/20 dark:text-kavita-200',
-    icon: <i className="fa-solid fa-book" />
-  },
-  audiobookshelf: {
-    label: 'AudiobookShelf',
-    gradient: 'from-audiobookshelf/10 via-audiobookshelf/10 to-audiobookshelf/20',
-    badgeClass:
-      'bg-audiobookshelf-50 text-audiobookshelf-700 ring-audiobookshelf-500/30 dark:bg-audiobookshelf-400/10 dark:text-audiobookshelf-300',
-    chipClass:
-      'bg-audiobookshelf-100 text-audiobookshelf-700 ring-audiobookshelf-600/30 dark:bg-audiobookshelf-400/20 dark:text-audiobookshelf-200',
-    icon: <i className="fa-solid fa-headphones" />
-  },
-  komga: {
-    label: 'Komga',
-    gradient: 'from-komga/10 via-komga/10 to-komga/20',
-    badgeClass: 'bg-komga-50 text-komga-700 ring-komga-500/30 dark:bg-komga-400/10 dark:text-komga-300',
-    chipClass: 'bg-komga-100 text-komga-700 ring-komga-600/30 dark:bg-komga-400/20 dark:text-komga-200',
-    icon: <i className="fa-solid fa-book-open" />
-  },
-  romm: {
-    label: 'RomM',
-    gradient: 'from-romm/10 via-romm/10 to-romm/20',
-    badgeClass: 'bg-romm-50 text-romm-700 ring-romm-500/30 dark:bg-romm-400/10 dark:text-romm-300',
-    chipClass: 'bg-romm-100 text-romm-700 ring-romm-600/30 dark:bg-romm-400/20 dark:text-romm-200',
-    icon: <i className="fa-solid fa-gamepad" />
-  }
-};
-
-const getServiceTheme = (serviceType?: string | null): ServiceTheme => {
-  if (!serviceType) {
-    return defaultTheme;
-  }
-  const key = serviceType.toLowerCase();
-  return serviceThemes[key] ?? defaultTheme;
-};
 
 const formatDateTime = (value?: string | null, withTime = true) => {
   if (!value) return '—';
@@ -121,7 +38,7 @@ const formatDuration = (value?: string | null) => value || '0m';
 const formatNumber = (value?: number | null) => (typeof value === 'number' ? value.toLocaleString() : '0');
 
 const ProfileTab = ({ user }: { user: UserDetail }) => {
-  const theme = getServiceTheme(user.service_type ?? user.service_types?.[0]);
+  const theme = getServiceMeta(user.service_type ?? user.service_types?.[0]);
   const globalStats = user.stream_stats?.global ?? {};
   const playerStats = user.stream_stats?.players ?? [];
   const isServiceUser = user.user_type.toLowerCase() === 'service';
@@ -817,7 +734,7 @@ export const UserDetailPage = () => {
   const showOverseerrTab = isPlexUser && Boolean(plexServerWithOverseerr);
   const showSecurityTab = !isServiceUser && user.has_password && user.used_invite;
 
-  const heroTheme = getServiceTheme(user.service_type ?? user.service_types?.[0]);
+  const heroTheme = getServiceMeta(user.service_type ?? user.service_types?.[0]);
   const effectiveAvatar = user.avatar_url ?? user.discord_avatar_url;
   const initials = (user.display_name ?? user.username ?? 'U').slice(0, 2).toUpperCase();
 
@@ -934,7 +851,7 @@ export const UserDetailPage = () => {
 
                     {/* Show badges for linked service accounts */}
                     {serviceAccounts.map((serviceAccount) => {
-                      const serviceTheme = getServiceTheme(serviceAccount.service_type);
+                      const serviceTheme = getServiceMeta(serviceAccount.service_type);
                       return (
                         <span
                           key={serviceAccount.uuid}

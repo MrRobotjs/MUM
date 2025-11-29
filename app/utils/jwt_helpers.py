@@ -72,6 +72,7 @@ def clear_jwt_cookies(resp):
 
 def register_jwt_callbacks(jwt):
     from flask_jwt_extended import JWTManager
+    from flask import current_app
 
     if not isinstance(jwt, JWTManager):
         return
@@ -79,7 +80,10 @@ def register_jwt_callbacks(jwt):
     @jwt.token_in_blocklist_loader
     def _check_if_token_revoked(jwt_header, jwt_payload):
         jti = jwt_payload.get("jti")
-        return is_token_revoked(jti) if jti else True
+        is_revoked = is_token_revoked(jti) if jti else True
+        if is_revoked:
+            current_app.logger.warning(f"[JWT_BLOCKLIST] Token {jti} is in blocklist - returning revoked=True")
+        return is_revoked
 
     @jwt.user_lookup_loader
     def _user_lookup_callback(_jwt_header, jwt_data):

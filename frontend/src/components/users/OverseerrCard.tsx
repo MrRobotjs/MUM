@@ -56,7 +56,7 @@ export const OverseerrCard = ({ links, loading, error }: OverseerrCardProps) => 
   };
 
   return (
-    <section className="rounded-lg border border-border bg-background shadow-sm">
+    <>
         <h3 className="text-lg font-semibold">Overseerr Status</h3>
         {loading ? (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -255,7 +255,7 @@ export const OverseerrCard = ({ links, loading, error }: OverseerrCardProps) => 
             ))}
           </ul>
         )}
-    </section>
+    </>
   );
 };
 

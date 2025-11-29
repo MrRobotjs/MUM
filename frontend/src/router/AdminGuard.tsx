@@ -1,6 +1,6 @@
 import React from 'react';
 import { Navigate, Outlet, useLocation } from '@tanstack/react-router';
-import { useSession } from '../hooks/useSession';
+import { useAuth } from '../contexts/AuthContext';
 import { ApiError } from '../util/apiClient';
 
 type Props = {
@@ -9,7 +9,7 @@ type Props = {
 
 const AdminGuard = ({ children }: Props) => {
   const location = useLocation();
-  const { session, loading, error } = useSession();
+  const { session, loading, error, hasAdminAccess } = useAuth();
 
   // Show loading while session is being fetched
   if (loading) {
@@ -35,7 +35,7 @@ const AdminGuard = ({ children }: Props) => {
     );
   }
 
-  if (!session?.user?.has_admin_access) {
+  if (!hasAdminAccess) {
     return <Navigate to="/admin/login" replace state={{ from: location.pathname }} />;
   }
 

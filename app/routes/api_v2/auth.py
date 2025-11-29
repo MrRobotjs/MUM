@@ -265,26 +265,50 @@ class JwtRefreshResponse(BaseModel):
 @jwt_required(refresh=True)
 def jwt_refresh():
     request_id = str(uuid4())
+
+    # Debug logging - check what we receive
+    current_app.logger.info(f"[JWT_REFRESH] Request ID: {request_id}")
+    current_app.logger.info(f"[JWT_REFRESH] Cookies received: {list(request.cookies.keys())}")
+    current_app.logger.info(f"[JWT_REFRESH] JWT_COOKIE_SECURE config: {current_app.config.get('JWT_COOKIE_SECURE')}")
+    current_app.logger.info(f"[JWT_REFRESH] Request is_secure: {request.is_secure}")
+    current_app.logger.info(f"[JWT_REFRESH] Request scheme: {request.scheme}")
+
     identity = get_jwt_identity()
+    current_app.logger.info(f"[JWT_REFRESH] Identity extracted: {identity}")
+
     if not identity:
+        current_app.logger.warning(f"[JWT_REFRESH] No identity found in token")
         return jsonify({'error': {'code': 'UNAUTHORIZED', 'message': 'Invalid refresh token.'}, 'meta': {'request_id': request_id}}), 401
+
     user = User.query.filter_by(uuid=identity).first()
     if not user or not user.is_active:
+        current_app.logger.warning(f"[JWT_REFRESH] User not found or inactive: {identity}")
         return jsonify({'error': {'code': 'FORBIDDEN', 'message': 'Account is disabled.'}, 'meta': {'request_id': request_id}}), 403
 
     # Optional: rotate refresh token (revoke old; set new)
     old_jti = get_jwt().get('jti')
-    if old_jti:
-        revoke_token(old_jti, 'refresh', user_uuid=user.uuid)
+    current_app.logger.info(f"[JWT_REFRESH] Old JTI: {old_jti}")
+
+    # Create new tokens FIRST before revoking old one
     new_refresh = make_refresh_token(user)
     new_access = make_access_token(user)
+    current_app.logger.info(f"[JWT_REFRESH] New tokens created")
 
+    # Now revoke the old token
+    if old_jti:
+        current_app.logger.info(f"[JWT_REFRESH] Revoking old JTI: {old_jti}")
+        revoke_token(old_jti, 'refresh', user_uuid=user.uuid)
+        current_app.logger.info(f"[JWT_REFRESH] Old token revoked")
+
+    current_app.logger.info(f"[JWT_REFRESH] Successfully refreshed tokens for user: {identity}")
     resp = jsonify({'data': {'access_token': new_access}, 'meta': {'request_id': request_id}})
     try:
         set_access_cookies(resp, new_access)
     except Exception:
         pass
     set_refresh_cookie(resp, new_refresh)
+
+    current_app.logger.info(f"[JWT_REFRESH] Returning 200 OK response")
     return resp, 200
 
 

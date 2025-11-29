@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import useSWR from 'swr';
 import { ApiError, requestJson } from '../util/apiClient';
 import { getAccessToken, setAccessToken } from '../util/tokenStore';
@@ -7,8 +7,9 @@ export const useSession = () => {
   // Use state to track token so React re-renders when it changes
   const [hasToken, setHasToken] = useState(() => !!getAccessToken());
   const [isBootstrapRefreshing, setIsBootstrapRefreshing] = useState(() => !getAccessToken());
+  const refreshAttempted = useRef(false); // Guard against duplicate refresh attempts
   const sessionKey = hasToken ? '/admin/api/v2/auth/session' : null;
-  
+
   const { data, error, isLoading, mutate } = useSWR(
     sessionKey,
     sessionKey ? (url: string) => requestJson(url) : null,
@@ -22,7 +23,15 @@ export const useSession = () => {
   // Access token is stored in memory only; on page refresh, we use the HttpOnly refresh cookie
   // to get a new access token (sent automatically with credentials: 'include')
   useEffect(() => {
-    if (isBootstrapRefreshing && !getAccessToken()) {
+    console.log('[useSession] useEffect triggered:', {
+      isBootstrapRefreshing,
+      hasToken: !!getAccessToken(),
+      refreshAttempted: refreshAttempted.current
+    });
+
+    if (isBootstrapRefreshing && !getAccessToken() && !refreshAttempted.current) {
+      console.log('[useSession] Starting JWT refresh attempt');
+      refreshAttempted.current = true; // Mark that we've started a refresh attempt
       // Attempt to refresh the token using the HttpOnly refresh cookie
       // The cookie is automatically sent with credentials: 'include'
       fetch('/admin/api/v2/auth/jwt/refresh', {
@@ -31,6 +40,7 @@ export const useSession = () => {
         headers: { Accept: 'application/json' },
       })
         .then(async (resp) => {
+          console.log('[useSession] JWT refresh response:', { status: resp.status, ok: resp.ok });
           if (resp.ok) {
             const json = await resp.json().catch(() => null);
             const newToken = (json && typeof json === 'object' && 'data' in json)

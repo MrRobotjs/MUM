@@ -20,7 +20,7 @@ import {
 import type { ServiceAccount } from '../components/users/ServiceAccountsCard';
 import type { UserSettings } from '../components/users/UserSettingsCard';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { Badge } from '@/components/common/Badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
@@ -42,24 +42,6 @@ const ProfileTab = ({ user }: { user: UserDetail }) => {
   const globalStats = user.stream_stats?.global ?? {};
   const playerStats = user.stream_stats?.players ?? [];
   const isServiceUser = user.user_type.toLowerCase() === 'service';
-
-  const statusBadges = [
-    user.is_active && { label: 'Active', icon: <i className="fa-solid fa-circle-check" />, className: 'bg-green-100 text-green-700 ring-green-600/20 dark:bg-green-400/10 dark:text-green-300' },
-    !user.is_active && { label: 'Inactive', icon: <i className="fa-solid fa-circle-xmark" />, className: 'bg-amber-100 text-amber-700 ring-amber-600/20 dark:bg-amber-400/10 dark:text-amber-300' },
-    user.is_home_user && { label: 'Home User', icon: <i className="fa-solid fa-house" />, className: 'bg-blue-100 text-blue-700 ring-blue-600/20 dark:bg-blue-400/10 dark:text-blue-300' },
-    user.shares_back && { label: 'Shares Back', icon: <i className="fa-solid fa-share-nodes" />, className: 'bg-purple-100 text-purple-700 ring-purple-600/20 dark:bg-purple-400/10 dark:text-purple-300' },
-    user.is_purge_whitelisted && {
-      label: 'Purge Protected',
-      icon: <i className="fa-solid fa-shield-halved" />,
-      className: 'bg-amber-100 text-amber-700 ring-amber-600/20 dark:bg-amber-400/10 dark:text-amber-300'
-    },
-    user.is_discord_bot_whitelisted && {
-      label: 'Discord Bot Allowed',
-      icon: <i className="fa-brands fa-discord" />,
-      className: 'bg-blue-100 text-blue-700 ring-blue-600/20 dark:bg-blue-400/10 dark:text-blue-300'
-    }
-  ].filter(Boolean) as Array<{ label: string; icon: ReactNode; className: string }>;
-
   const roleBadges = user.user_roles_detail;
 
   return (
@@ -122,16 +104,15 @@ const ProfileTab = ({ user }: { user: UserDetail }) => {
                     </div>
                     <div className="flex flex-wrap gap-2">
                       {user.server_names.map((server) => (
-                        <span
+                        <Badge
                           key={server}
-                          className={cn(
-                            'inline-flex items-center gap-2 rounded-md px-2 py-1 text-xs font-semibold ring-1 ring-inset',
-                            theme.chipClass
-                          )}
+                          color={theme.palette?.avatar ?? 'bg-primary'}
+                          className="text-xs font-semibold gap-2"
+                          hover={false}
                         >
-                          <i className="fa-solid fa-database" />
+                          <i className="fa-solid fa-database w-3 h-3" />
                           {server}
-                        </span>
+                        </Badge>
                       ))}
                     </div>
                   </div>
@@ -169,19 +150,49 @@ const ProfileTab = ({ user }: { user: UserDetail }) => {
               ) : null}
             </div>
 
-            {statusBadges.length > 0 ? (
+            {(user.is_active || !user.is_active || user.is_home_user || user.shares_back || user.is_purge_whitelisted || user.is_discord_bot_whitelisted) && (
               <div className="border-t border-border pt-4">
                 <div className="text-sm font-semibold text-foreground">Status Flags</div>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  {statusBadges.map((badge) => (
-                    <span key={badge.label} className={cn('badge gap-2 text-xs', badge.className)}>
-                      {badge.icon}
-                      {badge.label}
-                    </span>
-                  ))}
+                  {user.is_active && (
+                    <Badge color="bg-green-600" className="text-xs font-semibold gap-1" hover={false}>
+                      <i className="fa-solid fa-circle-check w-3 h-3 mt-0.5" />
+                      Active
+                    </Badge>
+                  )}
+                  {!user.is_active && (
+                    <Badge color="bg-amber-600" className="text-xs font-semibold gap-1" hover={false}>
+                      <i className="fa-solid fa-circle-xmark w-3 h-3 mt-0.5" />
+                      Inactive
+                    </Badge>
+                  )}
+                  {user.is_home_user && (
+                    <Badge color="bg-blue-600" className="text-xs font-semibold gap-1" hover={false}>
+                      <i className="fa-solid fa-house w-3 h-3 mt-0.5" />
+                      Home User
+                    </Badge>
+                  )}
+                  {user.shares_back && (
+                    <Badge color="bg-purple-600" className="text-xs font-semibold gap-1" hover={false}>
+                      <i className="fa-solid fa-share-nodes w-3 h-3 mt-0.5" />
+                      Shares Back
+                    </Badge>
+                  )}
+                  {user.is_purge_whitelisted && (
+                    <Badge color="bg-amber-600" className="text-xs font-semibold gap-1" hover={false}>
+                      <i className="fa-solid fa-shield-halved w-3 h-3 mt-0.5" />
+                      Purge Protected
+                    </Badge>
+                  )}
+                  {user.is_discord_bot_whitelisted && (
+                    <Badge color="bg-blue-600" className="text-xs font-semibold gap-1" hover={false}>
+                      <i className="fa-brands fa-discord w-3 h-3 mt-0.5" />
+                      Discord Bot Allowed
+                    </Badge>
+                  )}
                 </div>
               </div>
-            ) : null}
+            )}
 
             {user.libraries.length > 0 || isServiceUser ? (
               <div className="border-t border-border pt-4">
@@ -193,16 +204,15 @@ const ProfileTab = ({ user }: { user: UserDetail }) => {
                 ) : (
                   <div className="mt-3 flex flex-wrap gap-2">
                     {user.libraries.map((library) => (
-                      <span
+                      <Badge
                         key={library}
-                        className={cn(
-                          'inline-flex items-center gap-2 rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset',
-                          theme.chipClass
-                        )}
+                        color={theme.palette?.avatar ?? 'bg-primary'}
+                        className="text-xs font-medium gap-2"
+                        hover={false}
                       >
-                        <i className="fa-solid fa-folder" />
+                        <i className="fa-solid fa-folder w-3 h-3" />
                         {library}
-                      </span>
+                      </Badge>
                     ))}
                   </div>
                 )}
@@ -844,59 +854,41 @@ export const UserDetailPage = () => {
               <div className="flex items-center justify-center gap-2 flex-wrap">
                 {!isServiceUser ? (
                   <>
-                    <span className="inline-flex items-center rounded-md bg-primary/10 px-3 py-1 text-sm font-medium text-primary ring-1 ring-inset ring-primary/20 gap-2">
+                    <Badge color="bg-primary" className="text-sm font-medium px-3 py-1 gap-2" hover={false}>
                       <i className="fa-solid fa-user w-4 h-4" />
                       Local Account
-                    </span>
+                    </Badge>
 
                     {/* Show badges for linked service accounts */}
                     {serviceAccounts.map((serviceAccount) => {
                       const serviceTheme = getServiceMeta(serviceAccount.service_type);
                       return (
-                        <span
+                        <Badge
                           key={serviceAccount.uuid}
-                          className={cn(
-                            'inline-flex items-center rounded-md px-3 py-1 text-sm font-medium ring-1 ring-inset gap-2',
-                            serviceTheme.badgeClass
-                          )}
+                          color={serviceTheme.palette?.avatar ?? 'bg-primary'}
+                          className="text-sm font-medium gap-2"
+                          hover={false}
                         >
                           {serviceTheme.icon}
                           {serviceAccount.display_name ?? serviceAccount.username}
-                        </span>
+                        </Badge>
                       );
                     })}
                   </>
                 ) : (
                   <>
-                    {user.server_nickname ? (
-                      <span
-                        className={cn(
-                          'inline-flex items-center rounded-md px-3 py-1 text-sm font-medium ring-1 ring-inset gap-2',
-                          heroTheme.badgeClass
-                        )}
-                      >
-                        {heroTheme.icon}
-                        {user.server_nickname}
-                      </span>
-                    ) : (
-                      <span
-                        className={cn(
-                          'inline-flex items-center rounded-md px-3 py-1 text-sm font-medium ring-1 ring-inset gap-2',
-                          heroTheme.badgeClass
-                        )}
-                      >
-                        {heroTheme.icon}
-                        {heroTheme.label} User
-                      </span>
-                    )}
+                    <Badge color={heroTheme.palette?.avatar ?? 'bg-primary'} className="text-sm font-medium gap-2" hover={false}>
+                      <i className="fa-solid fa-server w-3 h-3 mb-0.5" />
+                      {user.server_nickname || `${heroTheme.label} User`}
+                    </Badge>
 
                     {/* Show linked local user badge if this service user is linked to a local account */}
-                    {user.linked_local_user ? (
-                      <span className="inline-flex items-center rounded-md bg-primary/10 px-3 py-1 text-sm font-medium text-primary ring-1 ring-inset ring-primary/20 gap-2">
+                    {user.linked_local_user && (
+                      <Badge color="bg-primary" className="text-sm font-medium px-3 py-1 gap-2" hover={false}>
                         <i className="fa-solid fa-link w-4 h-4" />
                         {user.linked_local_user.display_name ?? user.linked_local_user.username ?? 'Local account'}
-                      </span>
-                    ) : null}
+                      </Badge>
+                    )}
                   </>
                 )}
               </div>

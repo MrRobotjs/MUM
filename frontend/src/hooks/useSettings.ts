@@ -3,9 +3,16 @@ import { requestJson } from '../util/apiClient';
 
 export type GeneralSettings = {
   app_name: string;
-  app_url: string;
-  require_email: boolean;
-  auto_approve_invites: boolean;
+  app_base_url: string;
+  app_local_url?: string;
+  enable_navbar_stream_badge: boolean;
+  session_monitoring_interval: number;
+  api_timeout_seconds: number;
+  jwt_cookie_secure: boolean;
+  // Legacy fields (deprecated but still sent by backend for compatibility)
+  app_url?: string;
+  require_email?: boolean;
+  auto_approve_invites?: boolean;
 };
 
 export type DiscordSettings = {

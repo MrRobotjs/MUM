@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { IconSettings, IconUserPlus } from '@tabler/icons-react';
+import { IconSettings, IconShieldLock } from '@tabler/icons-react';
 
 import { useGeneralSettings, type GeneralSettings } from '../hooks/useSettings';
 import { PageHeader } from '../components';
@@ -10,15 +10,19 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Switch } from '../components/ui/switch';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
+import { Alert, AlertDescription } from '../components/ui/alert';
 
 export const AdminSettingsGeneralPage = () => {
   const { settings, loading, error, refresh } = useGeneralSettings();
   const { success, error: showError } = useAlerts();
   const [formValues, setFormValues] = useState<GeneralSettings>({
     app_name: '',
-    app_url: '',
-    require_email: false,
-    auto_approve_invites: false,
+    app_base_url: '',
+    app_local_url: '',
+    enable_navbar_stream_badge: false, // Not editable here - managed in streaming settings
+    session_monitoring_interval: 30, // Not editable here - managed in streaming settings
+    api_timeout_seconds: 3, // Not editable here - managed in advanced settings
+    jwt_cookie_secure: false,
   });
   const [submitting, setSubmitting] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
@@ -30,7 +34,7 @@ export const AdminSettingsGeneralPage = () => {
     }
   }, [settings]);
 
-  const handleChange = (field: keyof GeneralSettings, value: string | boolean) => {
+  const handleChange = (field: keyof GeneralSettings, value: string | boolean | number) => {
     setFormValues((prev) => ({ ...prev, [field]: value }));
     setHasChanges(true);
   };
@@ -78,6 +82,8 @@ export const AdminSettingsGeneralPage = () => {
     );
   }
 
+  const isHttps = window.location.protocol === 'https:';
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -117,21 +123,38 @@ export const AdminSettingsGeneralPage = () => {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="app_url">
-                Application URL <span className="text-destructive">*</span>
+              <Label htmlFor="app_base_url">
+                Application Base URL <span className="text-destructive">*</span>
               </Label>
               <Input
-                id="app_url"
+                id="app_base_url"
                 type="url"
-                value={formValues.app_url}
-                onChange={(e) => handleChange('app_url', e.target.value)}
+                value={formValues.app_base_url}
+                onChange={(e) => handleChange('app_base_url', e.target.value)}
                 required
                 placeholder="https://mum.example.com"
               />
               <p className="text-xs text-muted-foreground">
-                Base URL for generating invite links and OAuth redirects
+                Public URL for generating invite links and OAuth redirects
               </p>
             </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="app_local_url">
+                Application Local URL (Optional)
+              </Label>
+              <Input
+                id="app_local_url"
+                type="url"
+                value={formValues.app_local_url || ''}
+                onChange={(e) => handleChange('app_local_url', e.target.value)}
+                placeholder="http://192.168.1.100:5696"
+              />
+              <p className="text-xs text-muted-foreground">
+                Internal network URL for local access (optional)
+              </p>
+            </div>
+
           </CardContent>
         </Card>
 
@@ -139,46 +162,46 @@ export const AdminSettingsGeneralPage = () => {
           <CardHeader>
             <div className="flex items-center gap-3">
               <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/20">
-                <IconUserPlus className="size-5 text-primary" />
+                <IconShieldLock className="size-5 text-primary" />
               </div>
               <div>
-                <CardTitle className="mb-1 text-xl font-semibold">User Registration</CardTitle>
-                <CardDescription>Manage invite flows and required details</CardDescription>
+                <CardTitle className="mb-1 text-xl font-semibold">Security</CardTitle>
+                <CardDescription>Authentication and session security settings</CardDescription>
               </div>
             </div>
           </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="space-y-2">
-              <Label htmlFor="require_email">Email Requirements</Label>
-              <div className="flex items-center gap-3">
-                <Switch
-                  id="require_email"
-                  checked={formValues.require_email}
-                  onCheckedChange={(checked) => handleChange('require_email', checked)}
-                />
-                <Label htmlFor="require_email" className="font-normal cursor-pointer">
-                  Require email address during registration
-                </Label>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                When enabled, users must provide an email address when using invites
-              </p>
-            </div>
+          <CardContent className="space-y-4">
+            {isHttps && !formValues.jwt_cookie_secure && (
+              <Alert variant="destructive">
+                <AlertDescription>
+                  <strong>Warning:</strong> You are accessing this application over HTTPS but the Secure Cookie flag is disabled.
+                  This will cause authentication issues on page refresh. Enable the setting below to fix this.
+                </AlertDescription>
+              </Alert>
+            )}
 
             <div className="space-y-2">
-              <Label htmlFor="auto_approve_invites">Invite Approval</Label>
+              <Label htmlFor="jwt_cookie_secure">JWT Refresh Cookie Security</Label>
               <div className="flex items-center gap-3">
                 <Switch
-                  id="auto_approve_invites"
-                  checked={formValues.auto_approve_invites}
-                  onCheckedChange={(checked) => handleChange('auto_approve_invites', checked)}
+                  id="jwt_cookie_secure"
+                  checked={formValues.jwt_cookie_secure}
+                  onCheckedChange={(checked) => handleChange('jwt_cookie_secure', checked)}
                 />
-                <Label htmlFor="auto_approve_invites" className="font-normal cursor-pointer">
-                  Auto-approve new invite requests
+                <Label htmlFor="jwt_cookie_secure" className="font-normal cursor-pointer">
+                  Enable Secure flag for refresh tokens (required for HTTPS)
                 </Label>
               </div>
               <p className="text-xs text-muted-foreground">
-                When enabled, new accounts created via invites are automatically approved
+                {isHttps ? (
+                  <span className="text-warning">
+                    <strong>Recommended:</strong> Your site uses HTTPS. Enable this to prevent authentication errors on page refresh.
+                  </span>
+                ) : (
+                  <span>
+                    Enable this only if accessing the application over HTTPS. Leave disabled for local HTTP development.
+                  </span>
+                )}
               </p>
             </div>
           </CardContent>

@@ -13,7 +13,7 @@ from app.extensions import db
 from app.utils.helpers import log_event
 # JWT permission checking handled by jwt_permission_required, log_event
 from app.models import EventType
-from app.config.plugin_metadata import get_all_plugin_metadata
+from app.configuration.plugin_metadata import get_all_plugin_metadata
 
 
 plugins_tag = Tag(name="Plugins", description="Plugin management")

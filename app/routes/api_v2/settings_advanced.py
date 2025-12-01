@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from uuid import uuid4
 from datetime import datetime, timezone
+import platform
+import sys
+import os
 from flask import jsonify, request, current_app
 from app.utils.jwt_decorators import jwt_required_with_user, jwt_permission_required
 from pydantic import BaseModel, Field
@@ -11,7 +14,7 @@ from app.routes.api_v2 import api_v2
 from app.models import Setting, SettingValueType, EventType, User
 from app.models_media_services import MediaServer, ServiceType
 from app.utils.helpers import log_event
-from app.extensions import scheduler
+from app.extensions import scheduler, db
 
 
 settings_tag = Tag(name="Settings", description="Application settings")
@@ -167,20 +170,12 @@ def get_scheduled_tasks(current_user):
     # Add client-side WebSocket connections (Frontend -> Backend)
     try:
         from app.routes.websockets import _ws_clients
+        from flask_socketio import rooms
 
-        # Group clients by user for cleaner display
-        user_connections = {}
+        # List each connection separately with room details
         for sid, client_info in _ws_clients.items():
             user_uuid = client_info.get('uuid')
-            if user_uuid not in user_connections:
-                user_connections[user_uuid] = {
-                    'count': 0,
-                    'user_type': client_info.get('user_type'),
-                }
-            user_connections[user_uuid]['count'] += 1
 
-        # Add a task for each user with active WebSocket connections
-        for user_uuid, info in user_connections.items():
             # Try to get user display name
             user = User.query.filter_by(uuid=user_uuid).first()
             display_name = "Unknown User"
@@ -193,10 +188,33 @@ def get_scheduled_tasks(current_user):
                     user_uuid[:8]
                 )
 
-            connection_text = f"{info['count']} connection{'s' if info['count'] > 1 else ''}"
+            # Get the rooms this socket is subscribed to
+            try:
+                client_rooms = rooms(sid, namespace='/')
+                # Filter out the default sid room and session room
+                subscribed_rooms = [room for room in client_rooms if room != sid]
+            except Exception:
+                subscribed_rooms = []
+
+            # Build a human-readable description of subscriptions
+            if subscribed_rooms:
+                room_names = []
+                for room in subscribed_rooms:
+                    if room == 'streaming_updates':
+                        room_names.append('Streaming')
+                    elif room == 'sync_status':
+                        room_names.append('Sync Status')
+                    else:
+                        room_names.append(room.replace('_', ' ').title())
+
+                subscription_text = ', '.join(room_names)
+                name_suffix = f" ({subscription_text})"
+            else:
+                name_suffix = " (No subscriptions)"
+
             tasks.append({
-                "id": f"client_websocket_{user_uuid}",
-                "name": f"Client WebSocket - {display_name} ({connection_text})",
+                "id": f"client_websocket_{sid}",
+                "name": f"Client WebSocket - {display_name}{name_suffix}",
                 "type": "WebSocket",
                 "state": "Connected",
                 "side": "Client",
@@ -208,6 +226,71 @@ def get_scheduled_tasks(current_user):
 
     return jsonify({
         "data": tasks,
+        "meta": {
+            "request_id": request_id,
+            "generated_at": datetime.utcnow().isoformat() + "Z",
+        }
+    }), 200
+
+
+class SystemConfigResponse(BaseModel):
+    data: dict
+    meta: dict
+
+
+@api_v2.get(
+    "/settings/system-config",
+    tags=[settings_tag],
+    summary="Get system configuration",
+    responses={200: SystemConfigResponse},
+)
+@jwt_required_with_user()
+@jwt_permission_required('administrator')
+def get_system_config(current_user):
+    request_id = uuid4().hex
+
+    # Get database file location
+    db_uri = current_app.config.get('SQLALCHEMY_DATABASE_URI', '')
+    if db_uri.startswith('sqlite:///'):
+        db_file = db_uri.replace('sqlite:///', '')
+    else:
+        db_file = db_uri
+
+    # Get instance path for various directories
+    instance_path = current_app.instance_path
+
+    # Get SQLite version
+    try:
+        result = db.session.execute(db.text("SELECT sqlite_version()")).scalar()
+        sqlite_version = result if result else "Unknown"
+    except Exception:
+        sqlite_version = "Unknown"
+
+    # Detect if running in Docker
+    is_docker = os.path.exists('/.dockerenv') or os.path.exists('/run/.containerenv')
+    platform_info = f"[Docker] {platform.system()} {platform.release()}" if is_docker else f"{platform.system()} {platform.release()}"
+
+    # Get timezone
+    try:
+        import time
+        timezone_name = time.tzname[0]
+    except Exception:
+        timezone_name = "UTC"
+
+    config = {
+        "git_branch": os.getenv('GIT_BRANCH', 'Unknown'),
+        "git_commit": os.getenv('GIT_COMMIT', 'Unknown'),
+        "database_file": db_file,
+        "log_directory": os.path.join(instance_path, 'logs'),
+        "instance_directory": instance_path,
+        "platform": platform_info,
+        "system_timezone": timezone_name,
+        "python_version": f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
+        "sqlite_version": sqlite_version,
+    }
+
+    return jsonify({
+        "data": config,
         "meta": {
             "request_id": request_id,
             "generated_at": datetime.utcnow().isoformat() + "Z",

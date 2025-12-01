@@ -4,10 +4,12 @@ import {
   IconShieldLock,
   IconShieldCheck,
   IconClockHour4,
+  IconInfoCircle,
 } from '@tabler/icons-react';
 
 import { useAdvancedSettings, type AdvancedSettings } from '../hooks/useSettings';
 import { useScheduledTasks } from '../hooks/useScheduledTasks';
+import { useSystemConfig } from '../hooks/useSystemConfig';
 import { PageHeader } from '../components';
 import { requestJson } from '../util/apiClient';
 import { useAlerts } from '../contexts';
@@ -28,6 +30,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { ResponsiveDialog } from '@/components/ui/responsive-dialog';
 
 // Helper function to calculate countdown from next_run_time
 const useCountdown = (nextRunTime: string | null) => {
@@ -75,7 +78,105 @@ const useCountdown = (nextRunTime: string | null) => {
   return countdown;
 };
 
-const ScheduledTaskRow = ({ task }: { task: any }) => {
+// Function to get detailed task information
+const getTaskDetails = (task: any) => {
+  const details: { label: string; value: string; description?: string }[] = [];
+
+  // Basic info
+  details.push({ label: 'Task ID', value: task.id });
+  details.push({ label: 'Task Name', value: task.name });
+  details.push({ label: 'Type', value: task.type });
+  details.push({ label: 'State', value: task.state });
+  details.push({ label: 'Side', value: task.side });
+
+  // Execution details
+  if (task.next_run_time) {
+    const nextRun = new Date(task.next_run_time);
+    details.push({
+      label: 'Next Execution',
+      value: nextRun.toLocaleString(),
+      description: 'The scheduled time for the next task execution'
+    });
+  }
+
+  if (task.interval_seconds) {
+    const hours = Math.floor(task.interval_seconds / 3600);
+    const minutes = Math.floor((task.interval_seconds % 3600) / 60);
+    const seconds = task.interval_seconds % 60;
+    let intervalStr = '';
+    if (hours > 0) intervalStr += `${hours}h `;
+    if (minutes > 0) intervalStr += `${minutes}m `;
+    if (seconds > 0) intervalStr += `${seconds}s`;
+    details.push({
+      label: 'Interval',
+      value: intervalStr.trim(),
+      description: 'How often this task runs'
+    });
+  }
+
+  return details;
+};
+
+// Function to get task description based on task type and name
+const getTaskDescription = (task: any): string => {
+  // WebSocket tasks
+  if (task.type === 'WebSocket') {
+    if (task.side === 'Server' && task.name.includes('Plex WebSocket')) {
+      return 'Maintains a persistent WebSocket connection to the Plex server for real-time event monitoring. This connection receives instant notifications when users start, pause, resume, or stop streaming content.';
+    } else if (task.side === 'Client') {
+      const subscriptions = task.name.match(/\((.*?)\)/)?.[1] || 'No subscriptions';
+
+      // Build detailed description based on subscriptions
+      let description = 'WebSocket connection from the frontend client to the MUM backend server. ';
+
+      if (subscriptions.includes('Streaming')) {
+        description += 'This connection is subscribed to real-time streaming updates, which allows the user interface to instantly display when users start, pause, resume, or stop watching content without requiring page refreshes. The streaming data includes active session counts, viewer information, and media details that are pushed live to the dashboard and activity pages. ';
+      }
+
+      if (subscriptions.includes('Sync Status')) {
+        description += 'This connection is subscribed to synchronization status updates, which provides real-time progress information when MUM is syncing data with external services (Plex, Jellyfin, Emby, Overseerr, etc.). Users can see live sync progress including the number of items processed, current operation status, and completion percentage without polling the server. ';
+      }
+
+      if (subscriptions === 'No subscriptions') {
+        description += 'This connection is currently not subscribed to any real-time update channels. The WebSocket is established but idle, waiting for the user to navigate to pages that require live updates (such as the dashboard or admin settings).';
+      }
+
+      return description.trim();
+    }
+  }
+
+  // Session Monitoring tasks
+  if (task.type === 'Session Monitoring') {
+    return 'Periodically polls media servers (Plex, Jellyfin, Emby) to retrieve active streaming sessions. Updates user activity, tracks watch history, and broadcasts streaming updates to connected WebSocket clients.';
+  }
+
+  // User Management tasks
+  if (task.type === 'User Management') {
+    if (task.name.toLowerCase().includes('expir')) {
+      return 'Monitors user accounts for expiration dates and automatically deactivates users whose access has expired. This ensures that temporary access grants are properly enforced.';
+    }
+  }
+
+  // Synchronization tasks
+  if (task.type === 'Synchronization') {
+    return 'Synchronizes data between MUM and external services. This includes syncing user libraries, media metadata, and server configurations.';
+  }
+
+  // Monitoring tasks (generic)
+  if (task.type === 'Monitoring') {
+    return 'Background monitoring task that checks system health, service connectivity, or performs periodic maintenance operations.';
+  }
+
+  // Default description
+  return 'Scheduled background task that runs automatically at specified intervals to maintain system functionality and data integrity.';
+};
+
+interface ScheduledTaskRowProps {
+  task: any;
+  onClick: (task: any) => void;
+}
+
+const ScheduledTaskRow = ({ task, onClick }: ScheduledTaskRowProps) => {
   const countdown = useCountdown(task.next_run_time);
 
   // Determine badge color based on state
@@ -100,7 +201,10 @@ const ScheduledTaskRow = ({ task }: { task: any }) => {
   };
 
   return (
-    <TableRow>
+    <TableRow
+      className="cursor-pointer hover:bg-muted/50 transition-colors"
+      onClick={() => onClick(task)}
+    >
       <TableCell className="font-medium">{task.name}</TableCell>
       <TableCell>{getStateBadge()}</TableCell>
       <TableCell>{getSideBadge()}</TableCell>
@@ -115,12 +219,25 @@ const ScheduledTaskRow = ({ task }: { task: any }) => {
 export const AdminSettingsAdvancedPage = () => {
   const { settings, loading, error, refresh } = useAdvancedSettings();
   const { tasks, loading: tasksLoading } = useScheduledTasks();
+  const { config, loading: configLoading } = useSystemConfig();
   const { success, error: showError } = useAlerts();
   const [formValues, setFormValues] = useState<AdvancedSettings>({
     api_timeout_seconds: 3,
   });
   const [submitting, setSubmitting] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
+  const [selectedTask, setSelectedTask] = useState<any | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const handleTaskClick = (task: any) => {
+    setSelectedTask(task);
+    setIsModalOpen(true);
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setTimeout(() => setSelectedTask(null), 200); // Clear after animation
+  };
 
   useEffect(() => {
     if (settings) {
@@ -239,6 +356,70 @@ export const AdminSettingsAdvancedPage = () => {
         )
       )}
 
+      {/* MUM Configuration Section */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-3">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/20">
+              <IconShieldCheck className="size-5 text-primary" />
+            </div>
+            <div>
+              <CardTitle className="mb-1 text-xl font-semibold">MUM Configuration</CardTitle>
+              <CardDescription>System information and configuration details</CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {configLoading ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <span className="inline-flex size-4 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
+              Loading configuration...
+            </div>
+          ) : !config ? (
+            <div className="text-sm text-muted-foreground">Configuration not available</div>
+          ) : (
+            <div className="grid grid-cols-1 gap-3 text-sm md:grid-cols-2">
+              <div className="flex flex-col gap-1">
+                <span className="font-medium text-muted-foreground">Git Branch</span>
+                <span className="font-mono">{config.git_branch}</span>
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="font-medium text-muted-foreground">Git Commit Hash</span>
+                <span className="font-mono">{config.git_commit}</span>
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="font-medium text-muted-foreground">Database File</span>
+                <span className="font-mono break-all">{config.database_file}</span>
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="font-medium text-muted-foreground">Log Directory</span>
+                <span className="font-mono break-all">{config.log_directory}</span>
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="font-medium text-muted-foreground">Instance Directory</span>
+                <span className="font-mono break-all">{config.instance_directory}</span>
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="font-medium text-muted-foreground">Platform</span>
+                <span className="font-mono">{config.platform}</span>
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="font-medium text-muted-foreground">System Timezone</span>
+                <span className="font-mono">{config.system_timezone}</span>
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="font-medium text-muted-foreground">Python Version</span>
+                <span className="font-mono">{config.python_version}</span>
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="font-medium text-muted-foreground">SQLite Version</span>
+                <span className="font-mono">{config.sqlite_version}</span>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Scheduled Tasks Section */}
       <Card>
         <CardHeader>
@@ -274,7 +455,7 @@ export const AdminSettingsAdvancedPage = () => {
                 </TableHeader>
                 <TableBody>
                   {tasks.map((task) => (
-                    <ScheduledTaskRow key={task.id} task={task} />
+                    <ScheduledTaskRow key={task.id} task={task} onClick={handleTaskClick} />
                   ))}
                 </TableBody>
               </Table>
@@ -282,6 +463,105 @@ export const AdminSettingsAdvancedPage = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Task Details Modal */}
+      <ResponsiveDialog
+        open={isModalOpen}
+        onOpenChange={setIsModalOpen}
+        title={
+          <div className="flex items-center gap-2">
+            <IconInfoCircle className="size-5 text-primary" />
+            Task Details
+          </div>
+        }
+        description="Detailed information about this scheduled task"
+        contentClassName="max-w-2xl"
+        footer={
+          <Button variant="outline" onClick={handleCloseModal}>
+            Close
+          </Button>
+        }
+      >
+        {selectedTask && (
+          <div className="space-y-6">
+            {/* Task Description */}
+            <div className="rounded-lg border bg-muted/30 p-4">
+              <h3 className="mb-2 font-semibold text-sm uppercase tracking-wide text-muted-foreground">
+                Description
+              </h3>
+              <p className="text-sm leading-relaxed">
+                {getTaskDescription(selectedTask)}
+              </p>
+            </div>
+
+            {/* Task Details Grid */}
+            <div className="space-y-3">
+              <h3 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground">
+                Task Information
+              </h3>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {getTaskDetails(selectedTask).map((detail, index) => (
+                  <div
+                    key={index}
+                    className="rounded-lg border bg-card p-3 space-y-1"
+                  >
+                    <div className="text-xs font-medium text-muted-foreground">
+                      {detail.label}
+                    </div>
+                    <div className="font-mono text-sm break-all">
+                      {detail.value}
+                    </div>
+                    {detail.description && (
+                      <div className="text-xs text-muted-foreground italic">
+                        {detail.description}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Status Indicator */}
+            <div className="rounded-lg border bg-muted/30 p-4">
+              <h3 className="mb-3 font-semibold text-sm uppercase tracking-wide text-muted-foreground">
+                Current Status
+              </h3>
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">State:</span>
+                  {selectedTask.type === 'WebSocket' ? (
+                    selectedTask.state === 'Connected' ? (
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+                        <i className="fa-solid fa-circle text-[6px]" /> Connected
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-red-100 px-2.5 py-1 text-xs font-medium text-red-700 dark:bg-red-900/30 dark:text-red-400">
+                        <i className="fa-solid fa-circle text-[6px]" /> Disconnected
+                      </span>
+                    )
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-100 px-2.5 py-1 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+                      <i className="fa-solid fa-circle text-[6px]" /> Active
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">Side:</span>
+                  {selectedTask.side === 'Server' ? (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-purple-100 px-2.5 py-1 text-xs font-medium text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">
+                      <i className="fa-solid fa-server text-[10px]" /> Server
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-sky-100 px-2.5 py-1 text-xs font-medium text-sky-700 dark:bg-sky-900/30 dark:text-sky-400">
+                      <i className="fa-solid fa-desktop text-[10px]" /> Client
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </ResponsiveDialog>
     </div>
   );
 };

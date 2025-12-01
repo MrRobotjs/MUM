@@ -7,10 +7,10 @@ from uuid import uuid4
 from flask import jsonify, current_app
 from flask_openapi3 import Tag
 from pydantic import BaseModel, Field
-from sqlalchemy import or_
+from sqlalchemy import or_, desc
 
-from app.models import User, UserType
-from app.models_media_services import MediaLibrary
+from app.models import User, UserType, HistoryLog
+from app.models_media_services import MediaLibrary, MediaStreamHistory
 from app.routes.api_v2 import api_v2
 from app.services import user_service
 from app.utils.jwt_decorators import jwt_required_with_user
@@ -63,12 +63,46 @@ def _serialize_service_accounts(user: User) -> list[dict]:
 
 
 def _serialize_history_entry(entry):
+    """Serialize a HistoryLog entry"""
     return {
         "id": entry.id,
         "timestamp": entry.timestamp.isoformat() if entry.timestamp else None,
         "event_type": entry.event_type.value if entry.event_type else None,
         "message": entry.message,
         "details": entry.details or {},
+    }
+
+
+def _serialize_stream_history_entry(entry):
+    """Serialize a MediaStreamHistory entry"""
+    # Build poster URL for Plex or Jellyfin
+    poster_url = None
+    if entry.thumb_url and entry.server:
+        service_type = entry.server.service_type.value
+        if service_type == 'plex':
+            # Plex thumb paths need to go through the image proxy
+            poster_url = f"/admin/api/v2/media/plex/images/proxy?path={entry.thumb_url.lstrip('/')}"
+        elif service_type == 'jellyfin':
+            # Jellyfin paths like /Items/{Id}/Images/Primary need to go through jellyfin proxy
+            poster_url = f"/admin/api/v2/media/jellyfin/images/proxy?path={entry.thumb_url.lstrip('/')}"
+
+    return {
+        "id": entry.id,
+        "timestamp": entry.started_at.isoformat() if entry.started_at else None,
+        "event_type": "MEDIA_STREAM",
+        "message": f"Watched {entry.media_title or 'Unknown'}",
+        "details": {
+            "media_title": entry.media_title,
+            "media_type": entry.media_type,
+            "platform": entry.platform,
+            "player": entry.player,
+            "library_name": entry.library_name,
+            "grandparent_title": entry.grandparent_title,
+            "parent_title": entry.parent_title,
+            "duration_seconds": entry.duration_seconds,
+            "view_offset_at_end_seconds": entry.view_offset_at_end_seconds,
+            "poster_url": poster_url,
+        },
     }
 
 
@@ -193,14 +227,23 @@ def get_user(path: UserPath, current_user):
     total_duration_seconds = global_stats.get("all_time_duration_seconds", 0)
 
     history_entries = []
-    if hasattr(user, "history_logs"):
-        try:
-            history_entries = [
-                _serialize_history_entry(entry)
-                for entry in user.history_logs.order_by(User.history_logs.property.mapper.class_.timestamp.desc()).limit(10)
-            ]
-        except Exception:
-            history_entries = []
+    try:
+        # Query streaming history for this user
+        current_app.logger.info(f"Loading stream history for user {user.uuid}, type={user.userType.value}")
+
+        # Query MediaStreamHistory by user UUID
+        stream_query = MediaStreamHistory.query.filter(MediaStreamHistory.user_uuid == user.uuid)
+        stream_results = stream_query.order_by(desc(MediaStreamHistory.started_at)).limit(10).all()
+
+        current_app.logger.info(f"Found {len(stream_results)} stream history entries for user {user.uuid}")
+
+        # Serialize streaming history
+        history_entries = [_serialize_stream_history_entry(entry) for entry in stream_results]
+        current_app.logger.debug(f"Serialized {len(history_entries)} stream history entries")
+
+    except Exception as exc:
+        current_app.logger.warning(f"Failed to load stream history for user {user.uuid}: {exc}", exc_info=True)
+        history_entries = []
 
     data = {
         "uuid": user.uuid,

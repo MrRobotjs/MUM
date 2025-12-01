@@ -418,15 +418,18 @@ def _run_media_session_monitor(
                         
                         # Extract library name from Plex session
                         library_name = getattr(session, 'librarySectionTitle', None)
+
+                        # Extract thumb for poster
+                        thumb_url = getattr(session, 'thumb', None)
                     else:
                         # Jellyfin session format (dict)
                         now_playing = session.get('NowPlayingItem', {})
                         play_state = session.get('PlayState', {})
-                        
+
                         # Duration in ticks (100ns units) for Jellyfin
                         runtime_ticks = now_playing.get('RunTimeTicks', 0)
                         media_duration_s = int(runtime_ticks / 10000000) if runtime_ticks else 0  # Convert ticks to seconds
-                        
+
                         platform = session.get('Client', 'N/A')
                         product = session.get('ApplicationVersion', 'N/A')
                         player_title = session.get('DeviceName', 'N/A')
@@ -437,20 +440,28 @@ def _run_media_session_monitor(
                         grandparent_title = now_playing.get('SeriesName', None)
                         parent_title = now_playing.get('SeasonName', None)
                         rating_key = str(now_playing.get('Id', None))
-                        
+
                         # For Jellyfin, the Id is already the correct external_media_item_id
                         external_media_item_id = rating_key
-                        
+
                         # Position in ticks for Jellyfin
                         position_ticks = play_state.get('PositionTicks', 0)
                         view_offset_s = int(position_ticks / 10000000) if position_ticks else 0  # Convert ticks to seconds
-                        
+
                         # Extract library name from Jellyfin session
                         # For Jellyfin, we might need to look up the library name by ParentId or LibraryId
                         library_name = now_playing.get('ParentName', None)  # This might contain library info
                         if not library_name:
                             # Try alternative fields that might contain library information
                             library_name = now_playing.get('ChannelName', None) or now_playing.get('CollectionType', None)
+
+                        # Extract thumb for poster from Jellyfin
+                        # Jellyfin uses ImageTags with the Primary tag for posters
+                        image_tags = now_playing.get('ImageTags', {})
+                        thumb_url = None
+                        if image_tags.get('Primary'):
+                            # Build Jellyfin image URL: /Items/{Id}/Images/Primary
+                            thumb_url = f"/Items/{rating_key}/Images/Primary"
 
                     # Safety check to ensure we have either a linked user or standalone user
                     if not mum_user and not user_media_access:
@@ -489,6 +500,7 @@ def _run_media_session_monitor(
                         grandparent_title=grandparent_title,
                         parent_title=parent_title,
                         library_name=library_name,
+                        thumb_url=thumb_url,
                         media_duration_seconds=media_duration_s,
                         view_offset_at_end_seconds=view_offset_s
                     )

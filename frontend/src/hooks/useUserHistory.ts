@@ -19,6 +19,15 @@ export const useUserHistory = (uuid?: string, pageSize = 10) => {
   const entries = data ? data.flatMap((page: any) => page.data) : [];
   const pagination = data?.[data.length - 1]?.meta.pagination;
 
+  console.log('[useUserHistory]', {
+    uuid,
+    dataPages: data?.length ?? 0,
+    entries: entries.length,
+    pagination,
+    error,
+    isLoading
+  });
+
   return {
     entries,
     error,

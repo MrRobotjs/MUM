@@ -115,8 +115,19 @@ export const useUserDetail = (uuid?: string) => {
     { revalidateOnFocus: false }
   );
 
+  const user = data?.data ? normalizeUserDetail(data.data) : null;
+
+  console.log('[useUserDetail]', {
+    uuid,
+    hasData: !!data,
+    historyLength: user?.history?.length ?? 0,
+    history: user?.history,
+    error,
+    isLoading
+  });
+
   return {
-    user: data?.data ? normalizeUserDetail(data.data) : null,
+    user,
     loading: isLoading,
     error,
     refresh: mutate

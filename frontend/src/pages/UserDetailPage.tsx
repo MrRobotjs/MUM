@@ -1,4 +1,4 @@
-import { ReactNode, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { useLocation, useNavigate, useParams, useSearch } from '@tanstack/react-router';
 import { useAlerts } from '../contexts/AlertContext';
@@ -23,7 +23,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/common/Badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Separator } from '@/components/ui/separator';
 import { getServiceMeta } from '@/config/pluginMetadata';
 
 type TabKey = 'profile' | 'history' | 'settings' | 'overseerr' | 'security';
@@ -405,63 +404,181 @@ type HistoryTabProps = {
   hasMore: boolean;
 };
 
-const HistoryTab = ({ entries, loading, error, onLoadMore, hasMore }: HistoryTabProps) => (
-  <section className="space-y-4">
-    {loading && entries.length === 0 ? (
-      <div className="flex items-center gap-3 rounded border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
-        <span className="inline-flex size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-        Fetching recent history…
-      </div>
-    ) : null}
-    {error ? (
-      <div className="rounded border border-red-500/40 bg-red-50 dark:bg-red-400/10 px-4 py-3 text-sm text-red-600 dark:text-red-400">
-        Failed to load history: {error.message}
-      </div>
-    ) : null}
+const HistoryTab = ({ entries, loading, error, onLoadMore, hasMore }: HistoryTabProps) => {
+  const formatDuration = (seconds?: number | null) => {
+    if (!seconds) return '0m';
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    if (mins > 0) {
+      return secs > 0 ? `${mins}m ${secs}s` : `${mins}m`;
+    }
+    return `${secs}s`;
+  };
 
-    {entries.length === 0 && !loading ? (
-      <div className="flex flex-col items-center gap-3 py-10 text-muted-foreground/60">
-        <i className="fa-solid fa-clock-rotate-left text-3xl" />
-        <p className="text-sm">No history entries to display yet.</p>
-      </div>
-    ) : (
-      <ul className="space-y-3">
-        {entries.map((entry) => (
-          <li key={entry.id} className="relative rounded border border-border bg-muted/40 p-4 dark:border-border/60 dark:bg-muted/10">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <div className="text-xs uppercase tracking-wide text-primary">
-                  {entry.event_type ?? 'EVENT'}
-                </div>
-                <div className="mt-1 text-sm font-medium text-foreground">{entry.message ?? '—'}</div>
-              </div>
-              <div className="text-xs text-muted-foreground/60">
-                {entry.timestamp ? formatDateTime(entry.timestamp) : 'No timestamp'}
-              </div>
-            </div>
-            {entry.details && Object.keys(entry.details).length > 0 ? (
-              <pre className="mt-3 overflow-x-auto rounded bg-muted/40 p-3 text-xs text-muted-foreground">
-                {JSON.stringify(entry.details, null, 2)}
-              </pre>
-            ) : null}
-          </li>
-        ))}
-      </ul>
-    )}
+  const formatProgress = (viewOffset?: number | null, totalDuration?: number | null) => {
+    if (!viewOffset || !totalDuration || totalDuration === 0) return 0;
+    return Math.min(Math.round((viewOffset / totalDuration) * 100), 100);
+  };
 
-    <div className="flex justify-center">
-      {loading && entries.length > 0 ? (
-        <span className="inline-flex size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-      ) : hasMore ? (
-        <button type="button" className="text-sm font-medium text-primary hover:underline" onClick={onLoadMore}>
-          Load more history
-        </button>
-      ) : entries.length > 0 ? (
-        <span className="text-xs text-muted-foreground/60">End of history</span>
+  return (
+    <section className="space-y-4">
+      {loading && entries.length === 0 ? (
+        <div className="flex items-center gap-3 rounded border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
+          <span className="inline-flex size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+          Fetching recent history…
+        </div>
       ) : null}
-    </div>
-  </section>
-);
+      {error ? (
+        <div className="rounded border border-red-500/40 bg-red-50 dark:bg-red-400/10 px-4 py-3 text-sm text-red-600 dark:text-red-400">
+          Failed to load history: {error.message}
+        </div>
+      ) : null}
+
+      {entries.length === 0 && !loading ? (
+        <div className="flex flex-col items-center gap-3 py-10 text-muted-foreground/60">
+          <i className="fa-solid fa-clock-rotate-left text-3xl" />
+          <p className="text-sm">No streaming history to display yet.</p>
+        </div>
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle>Recent Activity</CardTitle>
+            <CardDescription>Streaming history and playback sessions</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-border">
+                    <th className="w-20 py-3 px-4 text-sm font-medium text-muted-foreground">Poster</th>
+                    <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Media Title</th>
+                    <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Player / Platform</th>
+                    <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Started</th>
+                    <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Duration</th>
+                    <th className="text-center py-3 px-4 text-sm font-medium text-muted-foreground">Progress</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {entries.map((entry) => {
+                    const details = entry.details || {};
+                    const progress = formatProgress(
+                      details.view_offset_at_end_seconds as number,
+                      details.duration_seconds as number
+                    );
+
+                    return (
+                      <tr key={entry.id} className="border-b border-border/50 hover:bg-muted/50 transition-colors">
+                        <td className="py-3 px-4">
+                          <div className="w-12 h-18 rounded bg-muted/30 flex items-center justify-center overflow-hidden">
+                            {details.poster_url ? (
+                              <img
+                                src={details.poster_url as string}
+                                alt={details.media_title as string || 'Media poster'}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  (e.target as HTMLImageElement).style.display = 'none';
+                                  (e.target as HTMLImageElement).parentElement!.innerHTML = '<i class="fa-solid fa-play text-muted-foreground/40 text-sm"></i>';
+                                }}
+                              />
+                            ) : (
+                              <i className="fa-solid fa-play text-muted-foreground/40 text-sm" />
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="font-medium">{details.media_title as string || 'Unknown Title'}</div>
+                          {details.grandparent_title && (
+                            <div className="text-xs text-muted-foreground">{details.grandparent_title as string}</div>
+                          )}
+                          {details.library_name && (
+                            <div className="text-xs text-muted-foreground/60">
+                              <i className="fa-solid fa-folder w-3 h-3 mr-1" />
+                              {details.library_name as string}
+                            </div>
+                          )}
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="font-medium text-sm">{details.player as string || 'Unknown Player'}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {details.platform as string || details.product as string || 'Unknown Platform'}
+                          </div>
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="text-sm">{entry.timestamp ? formatDateTime(entry.timestamp, false) : 'N/A'}</div>
+                          {entry.timestamp && (
+                            <div className="text-xs text-muted-foreground">
+                              {new Date(entry.timestamp).toLocaleTimeString(undefined, {
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </div>
+                          )}
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="text-sm font-medium">
+                            {formatDuration(details.view_offset_at_end_seconds as number)}
+                          </div>
+                          {details.duration_seconds && (
+                            <div className="text-xs text-muted-foreground">
+                              of {formatDuration(details.duration_seconds as number)}
+                            </div>
+                          )}
+                        </td>
+                        <td className="py-3 px-4 text-center">
+                          <div className="inline-flex items-center justify-center">
+                            <div className="relative size-12">
+                              <svg className="size-12 transform -rotate-90">
+                                <circle
+                                  cx="24"
+                                  cy="24"
+                                  r="20"
+                                  stroke="currentColor"
+                                  strokeWidth="4"
+                                  fill="none"
+                                  className="text-muted/30"
+                                />
+                                <circle
+                                  cx="24"
+                                  cy="24"
+                                  r="20"
+                                  stroke="currentColor"
+                                  strokeWidth="4"
+                                  fill="none"
+                                  strokeDasharray={`${2 * Math.PI * 20}`}
+                                  strokeDashoffset={`${2 * Math.PI * 20 * (1 - progress / 100)}`}
+                                  className="text-primary transition-all"
+                                />
+                              </svg>
+                              <div className="absolute inset-0 flex items-center justify-center">
+                                <span className="text-xs font-mono font-semibold">{progress}%</span>
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {(hasMore || loading) && (
+              <div className="flex justify-center pt-4 border-t border-border mt-4">
+                {loading && entries.length > 0 ? (
+                  <span className="inline-flex size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                ) : hasMore ? (
+                  <Button variant="outline" size="sm" onClick={onLoadMore}>
+                    Load more history
+                  </Button>
+                ) : null}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+    </section>
+  );
+};
 
 type SettingsTabProps = {
   settings: UserSettings | null;
@@ -617,8 +734,7 @@ export const UserDetailPage = () => {
     serverNickname?: string;
     username?: string;
   });
-  const currentFrom = (uuidParam ? '/admin/users/$uuid' : '/admin/users/$serverNickname/$username') as const;
-  
+
   const locationState = location.state as { userUuid?: string } | undefined;
   const stateUuid = locationState?.userUuid;
 
@@ -630,7 +746,7 @@ export const UserDetailPage = () => {
   } = useUserUuidBySlug(needsSlugLookup ? serverNickname : undefined, needsSlugLookup ? username : undefined);
   const effectiveUuid = uuidParam ?? stateUuid ?? slugUuid ?? undefined;
 
-  const search = useSearch({ from: currentFrom, strict: false }) as { tab?: TabKey };
+  const search = useSearch({ strict: false }) as { tab?: TabKey };
   const activeTab: TabKey = search.tab ?? 'profile';
   const [linkModalOpen, setLinkModalOpen] = useState(false);
   const [resyncing, setResyncing] = useState(false);
@@ -672,10 +788,15 @@ export const UserDetailPage = () => {
     refresh: refreshSettings
   } = useUserSettings(effectiveUuid);
 
-  const combinedHistory = useMemo<UserHistoryEntry[]>(
-    () => (historyEntries.length > 0 ? historyEntries : user?.history ?? []),
-    [historyEntries, user?.history]
-  );
+  const combinedHistory = useMemo<UserHistoryEntry[]>(() => {
+    console.log('[UserDetailPage] History data:', {
+      historyEntries,
+      userHistory: user?.history,
+      historyEntriesLength: historyEntries.length,
+      userHistoryLength: user?.history?.length ?? 0
+    });
+    return historyEntries.length > 0 ? historyEntries : user?.history ?? [];
+  }, [historyEntries, user?.history]);
 
   if (!effectiveUuid) {
     if (slugLoading) {
@@ -900,12 +1021,10 @@ export const UserDetailPage = () => {
       <section className="rounded-lg bg-background">
         <Tabs
           value={activeTab}
-          onValueChange={(value) =>
-            navigate({
-              from: currentFrom,
-              search: (prev) => ({ ...prev, tab: value as TabKey }),
-            })
-          }
+          onValueChange={(value) => {
+            // @ts-expect-error - TanStack Router types are complex, using any for search
+            navigate({ search: (prev: any) => ({ ...prev, tab: value as TabKey }) });
+          }}
         >
           <TabsList className="w-full justify-start overflow-x-auto">
             {tabs

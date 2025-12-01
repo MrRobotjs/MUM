@@ -290,7 +290,8 @@ class MediaStreamHistory(db.Model):
     parent_title = db.Column(db.String(255), nullable=True)
     library_name = db.Column(db.String(255), nullable=True)
     external_media_item_id = db.Column(db.String(255), nullable=True)  # Media ID from service (media array for Plex, rating_key for shows)
-    
+    thumb_url = db.Column(db.String(500), nullable=True)  # Poster/thumbnail URL or path
+
     media_duration_seconds = db.Column(db.Integer, nullable=True)
     view_offset_at_end_seconds = db.Column(db.Integer, nullable=True)
     

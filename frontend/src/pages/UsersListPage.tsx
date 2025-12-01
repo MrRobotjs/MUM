@@ -529,6 +529,8 @@ export const UsersListPage = () => {
                       <SelectItem value="username_desc">Username (Z-A)</SelectItem>
                       <SelectItem value="created_desc">Date Added (Newest)</SelectItem>
                       <SelectItem value="created_asc">Date Added (Oldest)</SelectItem>
+                      <SelectItem value="last_streamed_desc">Last Streamed (Recent)</SelectItem>
+                      <SelectItem value="last_streamed_asc">Last Streamed (Oldest)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

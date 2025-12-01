@@ -264,6 +264,12 @@ def list_users(query: UsersQuery, current_user):
         q = q.order_by(func.lower(func.coalesce(User.localUsername, User.external_username)).desc())
     elif sort == "created_asc":
         q = q.order_by(User.created_at.asc())
+    elif sort == "last_streamed_desc":
+        # Sort by last_activity_at descending, nulls last
+        q = q.order_by(User.last_activity_at.desc().nullslast())
+    elif sort == "last_streamed_asc":
+        # Sort by last_activity_at ascending, nulls last
+        q = q.order_by(User.last_activity_at.asc().nullslast())
     else:  # created_desc
         q = q.order_by(User.created_at.desc())
 

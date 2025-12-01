@@ -375,7 +375,6 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection }: UserCa
               setDebugModalOpen(true);
             }}
             title="Show Raw User Data"
-            className="text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:bg-amber-400/10"
           >
             <i className="fa-solid fa-info" />
           </Button>

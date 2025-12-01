@@ -35,6 +35,7 @@ import AdminSettingsDiscordPage from '../pages/AdminSettingsDiscordPage';
 import AdminSettingsAdvancedPage from '../pages/AdminSettingsAdvancedPage';
 import AdminSettingsLogsPage from '../pages/AdminSettingsLogsPage';
 import AdminSettingsApiDebugPage from '../pages/AdminSettingsApiDebugPage';
+import AdminSettingsPage from '../pages/AdminSettingsPage';
 import AdminNotificationsPage from '../pages/AdminNotificationsPage';
 import ApiDocsPage from '../pages/ApiDocsPage';
 import AdminAccountPage from '../pages/AdminAccountPage';
@@ -165,10 +166,10 @@ const adminMediaDetail = createRoute({
     return { tab: tabVal }
   },
 })
-const adminSettingsRedirect = createRoute({
+const adminSettings = createRoute({
   getParentRoute: () => adminRoute,
   path: 'settings',
-  component: () => <Navigate to="/admin/settings/general" replace />,
+  component: AdminSettingsPage,
 })
 const adminSettingsGeneral = createRoute({ getParentRoute: () => adminRoute, path: 'settings/general', component: AdminSettingsGeneralPage })
 const adminAdminRoles = createRoute({ getParentRoute: () => adminRoute, path: 'settings/admin-roles', component: AdminSettingsAdminRolesPage })
@@ -258,7 +259,7 @@ const routeTree = rootRoute.addChildren([
     adminLibraries,
     adminLibraryDetail,
     adminMediaDetail,
-    adminSettingsRedirect,
+    adminSettings,
     adminSettingsGeneral,
     adminAdminRoles,
     adminAdminRoleEdit,

@@ -17,7 +17,7 @@ import {
   IconChevronRight,
   IconBook,
 } from "@tabler/icons-react"
-import { Link } from "@tanstack/react-router"
+import { Link, useLocation } from "@tanstack/react-router"
 
 import {
   Collapsible,
@@ -54,11 +54,23 @@ type NavSection = {
 export function NavSettings() {
   const { hasPermission, hasAnyPermission, isOwner } = useAuth()
   const { isMobile, setOpenMobile } = useSidebar()
+  const location = useLocation()
 
   const handleNavLinkClick = () => {
     if (isMobile) {
       setOpenMobile(false)
     }
+  }
+
+  // Helper function to check if a nav item is active
+  const isNavItemActive = (url: string) => {
+    // Exact match
+    if (location.pathname === url) return true
+
+    // For settings pages with sub-routes (e.g., /admin/settings/plugins/[pluginId])
+    if (location.pathname.startsWith(url + '/')) return true
+
+    return false
   }
 
   type SettingsItem = NavItem | NavSection
@@ -187,8 +199,11 @@ export function NavSettings() {
             const visibleItems = item.items.filter(filterByPermission)
             if (visibleItems.length === 0) return null
 
+            // Check if any sub-item is active to keep the section open
+            const isAnySubItemActive = visibleItems.some((subItem) => isNavItemActive(subItem.url))
+
             return (
-              <Collapsible key={item.title} asChild defaultOpen={false}>
+              <Collapsible key={item.title} asChild defaultOpen={isAnySubItemActive}>
                 <SidebarMenuItem>
                   <CollapsibleTrigger asChild>
                     <SidebarMenuButton tooltip={item.title}>
@@ -201,7 +216,7 @@ export function NavSettings() {
                     <SidebarMenuSub>
                       {visibleItems.map((subItem) => (
                         <SidebarMenuSubItem key={subItem.title}>
-                          <SidebarMenuSubButton asChild>
+                          <SidebarMenuSubButton asChild isActive={isNavItemActive(subItem.url)}>
                             <Link to={subItem.url} onClick={handleNavLinkClick}>
                               <subItem.icon />
                               <span>{subItem.title}</span>
@@ -234,7 +249,7 @@ export function NavSettings() {
 
             return (
               <SidebarMenuItem key={item.title}>
-                <SidebarMenuButton asChild tooltip={item.title}>
+                <SidebarMenuButton asChild tooltip={item.title} isActive={isNavItemActive(item.url)}>
                   <Link to={item.url} onClick={handleNavLinkClick}>
                     <item.icon />
                     <span>{item.title}</span>

@@ -11,6 +11,7 @@ import {
   IconRefresh,
   IconCheck,
 } from "@tabler/icons-react"
+import { useLocation } from "@tanstack/react-router"
 
 import { NavMain } from "@/components/layout/NavMain"
 import { NavSettings } from "@/components/layout/NavSettings"
@@ -43,6 +44,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const [isStartingSync, setIsStartingSync] = React.useState(false)
   const [showSyncComplete, setShowSyncComplete] = React.useState(false)
   const previousSyncingRef = React.useRef(syncStatus.is_syncing)
+  const location = useLocation()
 
   const handleLogoClick = () => {
     if (isMobile) {
@@ -130,17 +132,33 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       )
     : null
 
+  // Helper function to check if a nav item is active
+  const isNavItemActive = (url: string) => {
+    // Exact match for most pages
+    if (location.pathname === url) return true
+
+    // For Users page, also match user detail pages
+    if (url === '/admin/users' && location.pathname.startsWith('/admin/users/')) return true
+
+    // For Libraries page, also match library and media detail pages
+    if (url === '/admin/libraries' && location.pathname.startsWith('/admin/libraries/')) return true
+
+    return false
+  }
+
   // All nav items are visible to administrators (owner or users with admin roles)
   const navMainItems = isAdministrator ? [
     {
       title: 'Dashboard',
       url: '/admin/dashboard',
-      icon: IconChartLine
+      icon: IconChartLine,
+      isActive: isNavItemActive('/admin/dashboard'),
     },
     {
       title: 'Users',
       url: '/admin/users',
       icon: IconUsers,
+      isActive: isNavItemActive('/admin/users'),
       actions: [
         {
           label: 'Sync Users',
@@ -156,16 +174,19 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       title: 'Invites',
       url: '/admin/invites',
       icon: IconTicket,
+      isActive: isNavItemActive('/admin/invites'),
     },
     {
       title: 'Libraries',
       url: '/admin/libraries',
       icon: IconStack2,
+      isActive: isNavItemActive('/admin/libraries'),
     },
     {
       title: 'Streaming',
       url: '/admin/streaming',
       icon: IconRadio,
+      isActive: isNavItemActive('/admin/streaming'),
       statusIndicator: streamBadgeIndicator,
     },
   ] : []

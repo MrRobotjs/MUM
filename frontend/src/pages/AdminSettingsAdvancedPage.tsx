@@ -539,6 +539,25 @@ export const AdminSettingsAdvancedPage = () => {
                 <p className="mt-2 text-xs text-muted-foreground">
                   Channels follow the <code className="bg-muted px-1 py-0.5 rounded">service.server_id.topic</code> pattern.
                 </p>
+                <div className="mt-3 space-y-2">
+                  <div className="text-xs font-semibold text-muted-foreground uppercase">Common channels</div>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      'plex.<server_id>.sessions',
+                      'emby.<server_id>.sessions',
+                      'jellyfin.<server_id>.sessions',
+                      'kavita.<server_id>.reading_progress',
+                      'system.sync_status',
+                    ].map((channel) => (
+                      <span
+                        key={channel}
+                        className="inline-flex items-center rounded-full bg-muted px-2 py-1 text-[11px] font-medium text-muted-foreground"
+                      >
+                        {channel}
+                      </span>
+                    ))}
+                  </div>
+                </div>
               </div>
             )}
 

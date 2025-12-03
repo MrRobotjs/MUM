@@ -9,6 +9,7 @@ export interface ScheduledTask {
   side: string;
   next_run_time: string | null;
   interval_seconds: number | null;
+  channels?: string[];
 }
 
 interface ScheduledTasksResponse {

@@ -1,0 +1,161 @@
+import { io, Socket } from 'socket.io-client';
+import { getAccessToken } from '../util/tokenStore';
+
+export type ChannelEnvelope = {
+  channel: string;
+  event: string;
+  data: any;
+};
+
+type ChannelListener = (envelope: ChannelEnvelope) => void;
+type ConnectionListener = (connected: boolean) => void;
+
+let socket: Socket | null = null;
+let isConnected = false;
+let listenersBound = false;
+const channelListeners = new Map<string, Set<ChannelListener>>();
+const connectionListeners = new Set<ConnectionListener>();
+let subscribedChannels = new Set<string>();
+
+const notifyConnection = (connected: boolean) => {
+  isConnected = connected;
+  connectionListeners.forEach((listener) => {
+    try {
+      listener(connected);
+    } catch (err) {
+      console.error('[Realtime] connection listener error', err);
+    }
+  });
+};
+
+const resubscribeAll = () => {
+  if (socket && socket.connected && subscribedChannels.size > 0) {
+    socket.emit('subscribe', { channels: Array.from(subscribedChannels) });
+  }
+};
+
+const bindGlobalAuthListeners = () => {
+  if (listenersBound) return;
+  listenersBound = true;
+
+  window.addEventListener('auth_token_updated', ((event: Event) => {
+    const token = (event as CustomEvent)?.detail?.accessToken as string | undefined;
+    if (token && socket?.connected) {
+      socket.emit('auth_update', { access_token: token });
+    }
+  }) as EventListener);
+
+  window.addEventListener('auth_logged_out', (() => {
+    disconnectRealtimeSocket();
+  }) as EventListener);
+};
+
+function ensureSocket(): Socket {
+  if (socket) {
+    return socket;
+  }
+
+  bindGlobalAuthListeners();
+
+  const created = io({
+    path: '/socket.io/',
+    transports: ['websocket', 'polling'],
+    reconnection: true,
+    reconnectionDelay: 1000,
+    reconnectionDelayMax: 5000,
+    auth: { access_token: getAccessToken() || undefined },
+  });
+
+  created.on('connect', () => {
+    notifyConnection(true);
+    resubscribeAll();
+  });
+
+  created.io.on('reconnect_attempt', () => {
+    created.auth = { access_token: getAccessToken() || undefined };
+  });
+
+  created.on('disconnect', () => {
+    notifyConnection(false);
+  });
+
+  created.on('ws_event', (envelope: ChannelEnvelope) => {
+    const listeners = channelListeners.get(envelope.channel);
+    if (!listeners) return;
+    listeners.forEach((listener) => {
+      try {
+        listener(envelope);
+      } catch (err) {
+        console.error('[Realtime] listener error', err);
+      }
+    });
+  });
+
+  created.on('subscription_error', (payload) => {
+    console.warn('[Realtime] subscription error', payload);
+  });
+
+  created.on('error', (payload) => {
+    console.warn('[Realtime] socket error', payload);
+  });
+
+  socket = created;
+  return created;
+}
+
+export const connectRealtimeSocket = () => {
+  ensureSocket();
+};
+
+export const disconnectRealtimeSocket = () => {
+  try {
+    socket?.disconnect();
+  } catch (err) {
+    console.warn('[Realtime] disconnect error', err);
+  }
+  socket = null;
+  subscribedChannels = new Set();
+  channelListeners.clear();
+  notifyConnection(false);
+};
+
+export const subscribeToChannel = (channel: string, listener: ChannelListener) => {
+  const sock = ensureSocket();
+  const listeners = channelListeners.get(channel) ?? new Set<ChannelListener>();
+  listeners.add(listener);
+  channelListeners.set(channel, listeners);
+
+  if (!subscribedChannels.has(channel)) {
+    subscribedChannels.add(channel);
+    if (sock.connected) {
+      sock.emit('subscribe', { channels: [channel] });
+    }
+  }
+
+  return () => {
+    const current = channelListeners.get(channel);
+    if (current) {
+      current.delete(listener);
+      if (current.size === 0) {
+        channelListeners.delete(channel);
+      }
+    }
+
+    if (!channelListeners.has(channel) && subscribedChannels.has(channel)) {
+      subscribedChannels.delete(channel);
+      if (socket?.connected) {
+        socket.emit('unsubscribe', { channels: [channel] });
+      }
+    }
+  };
+};
+
+export const onConnectionChange = (listener: ConnectionListener) => {
+  connectionListeners.add(listener);
+  return () => connectionListeners.delete(listener);
+};
+
+export const getRealtimeState = () => ({
+  connected: isConnected,
+  channels: Array.from(subscribedChannels),
+});

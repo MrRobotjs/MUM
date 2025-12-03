@@ -581,7 +581,12 @@ def _run_media_session_monitor(
                         if service:
                             try:
                                 formatted = service.get_formatted_sessions()
-                                formatted_sessions.extend(formatted)
+                                if formatted:
+                                    for session in formatted:
+                                        session.setdefault('server_id', server.id)
+                                        session.setdefault('service_type', server.service_type.value)
+                                        session.setdefault('server_name', server.server_nickname)
+                                    formatted_sessions.extend(formatted)
                             except Exception as format_err:
                                 current_app.logger.warning(
                                     f"[{source_label}] Failed to format sessions for {server.server_nickname}: {format_err}"
@@ -594,9 +599,9 @@ def _run_media_session_monitor(
                 # Broadcast with full session data (always broadcast, even if 0 sessions)
                 # This ensures frontend always receives updates (like Tautulli)
                 broadcast_streaming_update(
-                    active_count,
+                    sessions=formatted_sessions,  # ✅ Full session data (empty array if no sessions)
                     live_services=live_services_payload,
-                    sessions=formatted_sessions  # ✅ Full session data (empty array if no sessions)
+                    servers=target_servers,
                 )
                 current_app.logger.debug(
                     f"Broadcasted WebSocket update: {active_count} active sessions, {len(formatted_sessions)} formatted sessions"

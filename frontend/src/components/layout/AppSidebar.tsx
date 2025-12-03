@@ -32,6 +32,7 @@ import { requestJson } from "@/util/apiClient"
 import { useSyncStatus } from "@/hooks/useSyncStatus"
 import { useStreamingSettings } from "@/hooks/useStreamingSettings"
 import { useStreamingWebSocket } from "@/hooks/useStreamingWebSocket"
+import { useServers } from "@/hooks/useServers"
 import { Badge } from "@/components/ui/badge"
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
@@ -40,7 +41,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { success, error } = useAlerts()
   const { syncStatus } = useSyncStatus()
   const { settings: streamingSettings } = useStreamingSettings()
-  const { activeCount } = useStreamingWebSocket({ autoConnect: true })
+  const { servers: mediaServers } = useServers({ activeOnly: true })
+  const { activeCount } = useStreamingWebSocket({ autoConnect: true, servers: mediaServers })
   const [isStartingSync, setIsStartingSync] = React.useState(false)
   const [showSyncComplete, setShowSyncComplete] = React.useState(false)
   const previousSyncingRef = React.useRef(syncStatus.is_syncing)

@@ -255,6 +255,7 @@ export const StreamingPage = () => {
   // Use WebSocket for real-time updates (like Tautulli - no polling, only websocket push)
   const { isConnected, liveServices, lastSessionData } = useStreamingWebSocket({
     autoConnect: true,
+    servers: mediaServers,
     onUpdate: (data: any) => {
       // Update live services list
       if (Array.isArray(data.live_services)) {

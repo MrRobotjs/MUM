@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   IconAlertTriangle,
   IconShieldLock,
@@ -114,6 +114,14 @@ const getTaskDetails = (task: any) => {
     });
   }
 
+  if (Array.isArray(task.channels) && task.channels.length > 0) {
+    details.push({
+      label: 'Channels',
+      value: task.channels.join(', '),
+      description: 'Active real-time subscriptions (<service>.<server_id>.<topic>)'
+    });
+  }
+
   return details;
 };
 
@@ -124,24 +132,17 @@ const getTaskDescription = (task: any): string => {
     if (task.side === 'Server' && task.name.includes('Plex WebSocket')) {
       return 'Maintains a persistent WebSocket connection to the Plex server for real-time event monitoring. This connection receives instant notifications when users start, pause, resume, or stop streaming content.';
     } else if (task.side === 'Client') {
-      const subscriptions = task.name.match(/\((.*?)\)/)?.[1] || 'No subscriptions';
+      const channels: string[] = task.channels || [];
+      const hasChannels = channels.length > 0;
+      const channelList = hasChannels ? channels.join(', ') : 'No channels';
 
-      // Build detailed description based on subscriptions
-      let description = 'WebSocket connection from the frontend client to the MUM backend server. ';
-
-      if (subscriptions.includes('Streaming')) {
-        description += 'This connection is subscribed to real-time streaming updates, which allows the user interface to instantly display when users start, pause, resume, or stop watching content without requiring page refreshes. The streaming data includes active session counts, viewer information, and media details that are pushed live to the dashboard and activity pages. ';
-      }
-
-      if (subscriptions.includes('Sync Status')) {
-        description += 'This connection is subscribed to synchronization status updates, which provides real-time progress information when MUM is syncing data with external services (Plex, Jellyfin, Emby, Overseerr, etc.). Users can see live sync progress including the number of items processed, current operation status, and completion percentage without polling the server. ';
-      }
-
-      if (subscriptions === 'No subscriptions') {
-        description += 'This connection is currently not subscribed to any real-time update channels. The WebSocket is established but idle, waiting for the user to navigate to pages that require live updates (such as the dashboard or admin settings).';
-      }
-
-      return description.trim();
+      return [
+        'Unified frontend -> backend WebSocket that multiplexes all real-time streams through a single connection using channel envelopes {channel, event, data}.',
+        'Channels follow <service>.<server_id>.<topic> (e.g., plex.5.sessions).',
+        hasChannels
+          ? `Currently subscribed to ${channels.length} channel${channels.length === 1 ? '' : 's'}: ${channelList}.`
+          : 'Currently connected but waiting for subscriptions.'
+      ].join(' ');
     }
   }
 
@@ -178,6 +179,11 @@ interface ScheduledTaskRowProps {
 
 const ScheduledTaskRow = ({ task, onClick }: ScheduledTaskRowProps) => {
   const countdown = useCountdown(task.next_run_time);
+  const displayName = useMemo(() => {
+    // Strip any suffix like " (...)" that we used to append for channels
+    const name: string = task.name || '';
+    return name.replace(/\s*\(.*\)$/, '');
+  }, [task.name]);
 
   // Determine badge color based on state
   const getStateBadge = () => {
@@ -205,10 +211,26 @@ const ScheduledTaskRow = ({ task, onClick }: ScheduledTaskRowProps) => {
       className="cursor-pointer hover:bg-muted/50 transition-colors"
       onClick={() => onClick(task)}
     >
-      <TableCell className="font-medium">{task.name}</TableCell>
+      <TableCell className="font-medium">{displayName}</TableCell>
       <TableCell>{getStateBadge()}</TableCell>
       <TableCell>{getSideBadge()}</TableCell>
       <TableCell>{task.type}</TableCell>
+      <TableCell>
+        {Array.isArray(task.channels) && task.channels.length > 0 ? (
+          <div className="flex flex-wrap gap-1">
+            {task.channels.map((channel: string) => (
+              <span
+                key={channel}
+                className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary"
+              >
+                {channel}
+              </span>
+            ))}
+          </div>
+        ) : (
+          '—'
+        )}
+      </TableCell>
       <TableCell className="font-mono text-sm">
         {task.type === 'WebSocket' ? 'N/A' : countdown}
       </TableCell>
@@ -447,12 +469,13 @@ export const AdminSettingsAdvancedPage = () => {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Task Name</TableHead>
-                    <TableHead>State</TableHead>
-                    <TableHead>Side</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Next Execution</TableHead>
-                  </TableRow>
-                </TableHeader>
+                  <TableHead>State</TableHead>
+                  <TableHead>Side</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Channels</TableHead>
+                  <TableHead>Next Execution</TableHead>
+                </TableRow>
+              </TableHeader>
                 <TableBody>
                   {tasks.map((task) => (
                     <ScheduledTaskRow key={task.id} task={task} onClick={handleTaskClick} />
@@ -493,6 +516,31 @@ export const AdminSettingsAdvancedPage = () => {
                 {getTaskDescription(selectedTask)}
               </p>
             </div>
+
+            {selectedTask.type === 'WebSocket' && (
+              <div className="rounded-lg border bg-muted/30 p-4">
+                <h3 className="mb-2 font-semibold text-sm uppercase tracking-wide text-muted-foreground">
+                  Channels
+                </h3>
+                {Array.isArray(selectedTask.channels) && selectedTask.channels.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {selectedTask.channels.map((channel: string) => (
+                      <span
+                        key={channel}
+                        className="inline-flex items-center rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary"
+                      >
+                        {channel}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground">No channels subscribed.</p>
+                )}
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Channels follow the <code className="bg-muted px-1 py-0.5 rounded">service.server_id.topic</code> pattern.
+                </p>
+              </div>
+            )}
 
             {/* Task Details Grid */}
             <div className="space-y-3">

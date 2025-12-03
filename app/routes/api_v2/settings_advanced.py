@@ -90,6 +90,7 @@ class ScheduledTaskItem(BaseModel):
     side: str  # "Server" or "Client"
     next_run_time: str | None
     interval_seconds: int | None
+    channels: list[str] | None = None
 
 
 class ScheduledTasksResponse(BaseModel):
@@ -169,8 +170,7 @@ def get_scheduled_tasks(current_user):
 
     # Add client-side WebSocket connections (Frontend -> Backend)
     try:
-        from app.routes.websockets import _ws_clients
-        from flask_socketio import rooms
+        from app.routes.websockets import _ws_clients, _ws_subscriptions
 
         # List each connection separately with room details
         for sid, client_info in _ws_clients.items():
@@ -188,27 +188,9 @@ def get_scheduled_tasks(current_user):
                     user_uuid[:8]
                 )
 
-            # Get the rooms this socket is subscribed to
-            try:
-                client_rooms = rooms(sid, namespace='/')
-                # Filter out the default sid room and session room
-                subscribed_rooms = [room for room in client_rooms if room != sid]
-            except Exception:
-                subscribed_rooms = []
-
-            # Build a human-readable description of subscriptions
-            if subscribed_rooms:
-                room_names = []
-                for room in subscribed_rooms:
-                    if room == 'streaming_updates':
-                        room_names.append('Streaming')
-                    elif room == 'sync_status':
-                        room_names.append('Sync Status')
-                    else:
-                        room_names.append(room.replace('_', ' ').title())
-
-                subscription_text = ', '.join(room_names)
-                name_suffix = f" ({subscription_text})"
+            subscribed_channels = sorted(_ws_subscriptions.get(sid, set()))
+            if subscribed_channels:
+                name_suffix = f" ({', '.join(subscribed_channels)})"
             else:
                 name_suffix = " (No subscriptions)"
 
@@ -220,6 +202,7 @@ def get_scheduled_tasks(current_user):
                 "side": "Client",
                 "next_run_time": None,
                 "interval_seconds": None,
+                "channels": subscribed_channels,
             })
     except Exception as e:
         current_app.logger.warning(f"Failed to get client WebSocket status: {e}")

@@ -1,16 +1,29 @@
 """WebSocket endpoints for real-time updates (JWT-secured)"""
+from __future__ import annotations
+
+import re
+from collections import defaultdict
+from typing import Dict, Iterable, Set
+
 from flask import Blueprint, current_app, request
 from flask_socketio import emit, join_room, leave_room
-from app.extensions import socketio
-from app.models import User, UserType
 from functools import wraps
 from flask_jwt_extended import decode_token
-from app.routes.api_v2.sync_status import get_sync_status, SYNC_STATUS_ROOM
+
+from app.extensions import socketio
+from app.models import User, UserType
+from app.models_media_services import MediaServer
 
 bp = Blueprint('websockets', __name__)
 
 # Track authenticated socket clients by sid
 _ws_clients: dict[str, dict] = {}
+# Track channel subscriptions per socket and per channel
+_ws_subscriptions: Dict[str, Set[str]] = defaultdict(set)
+_channel_subscribers: Dict[str, Set[str]] = defaultdict(set)
+
+CHANNEL_PATTERN = re.compile(r"^(?P<service>[a-z0-9]+)\.(?P<server_id>[0-9]+)\.(?P<topic>[a-z0-9_.-]+)$")
+SYSTEM_CHANNEL_PATTERN = re.compile(r"^system\.(?P<topic>[a-z0-9_.-]+)$")
 
 
 def _set_client_auth(sid: str, user: User):
@@ -36,6 +49,14 @@ def _set_client_auth(sid: str, user: User):
 
 
 def _clear_client_auth(sid: str):
+    """Clear auth and subscriptions for a socket."""
+    channels = _ws_subscriptions.pop(sid, set())
+    for channel in channels:
+        _channel_subscribers[channel].discard(sid)
+        try:
+            leave_room(channel)
+        except Exception:
+            pass
     _ws_clients.pop(sid, None)
 
 
@@ -56,6 +77,13 @@ def _has_permission(sid: str, perm: str) -> bool:
     # Check if user has the specific permission through role names
     perms = set(info.get('permissions') or [])
     return perm in perms
+
+
+def _get_user_for_sid(sid: str) -> User | None:
+    info = _ws_clients.get(sid)
+    if not info:
+        return None
+    return User.query.filter_by(uuid=info.get('uuid')).first()
 
 
 @socketio.on('connect')
@@ -115,25 +143,140 @@ def jwt_ws_required(perm: str | None = None):
     return decorator
 
 
-@socketio.on('subscribe_streaming')
-@jwt_ws_required('view_streaming')
-def handle_subscribe_streaming():
-    """Subscribe to streaming updates (requires view_streaming permission)"""
-    try:
-        join_room('streaming_updates')
-        current_app.logger.info(f"WebSocket client {request.sid} subscribed to streaming_updates room")
-        emit('subscribed', {'channel': 'streaming_updates'})
-    except Exception as e:
-        current_app.logger.error(f"Failed to subscribe client {request.sid} to streaming_updates: {e}", exc_info=True)
-        emit('subscription_error', {'message': str(e)})
+def _parse_channel(channel: str):
+    """Parse channel string into structured info."""
+    system_match = SYSTEM_CHANNEL_PATTERN.match(channel)
+    if system_match:
+        return {"kind": "system", "topic": system_match.group("topic")}
+    match = CHANNEL_PATTERN.match(channel)
+    if not match:
+        return None
+    return {
+        "kind": "service",
+        "service": match.group("service"),
+        "server_id": int(match.group("server_id")),
+        "topic": match.group("topic"),
+    }
 
 
-@socketio.on('unsubscribe_streaming')
+def _validate_channel_access(sid: str, channel: str):
+    parsed = _parse_channel(channel)
+    if not parsed:
+        return False, "invalid_channel", "Channel name is not valid"
+
+    user = _get_user_for_sid(sid)
+    if not user or not getattr(user, "is_active", True):
+        return False, "unauthenticated", "User not authenticated"
+
+    if parsed["kind"] == "system":
+        topic = parsed["topic"]
+        if topic == "sync_status":
+            if not _has_permission(sid, "administrator"):
+                return False, "forbidden", "Administrator permission required for sync status"
+            return True, None, None
+        return False, "invalid_channel", f"Unknown system channel: {topic}"
+
+    server = MediaServer.query.get(parsed["server_id"])
+    if not server:
+        return False, "invalid_channel", f"Server {parsed['server_id']} not found"
+    if server.service_type.value != parsed["service"]:
+        return False, "invalid_channel", "Service type mismatch for channel"
+
+    # Owners and administrators can subscribe to any server; others require explicit access
+    if user.userType == UserType.OWNER or _has_permission(sid, "administrator"):
+        return True, None, None
+    if user.has_access_to_server(server.id):
+        return True, None, None
+
+    return False, "forbidden", "User does not have access to this server"
+
+
+def _subscribe_channels(sid: str, channels: Iterable[str]):
+    granted: list[str] = []
+    rejected: list[dict] = []
+
+    for channel in channels:
+        ok, code, msg = _validate_channel_access(sid, channel)
+        if not ok:
+            rejected.append({"channel": channel, "error": code, "message": msg})
+            continue
+
+        if channel not in _ws_subscriptions[sid]:
+            _ws_subscriptions[sid].add(channel)
+            _channel_subscribers[channel].add(sid)
+            join_room(channel)
+        granted.append(channel)
+
+        # System channels can send a snapshot immediately
+        if channel == "system.sync_status":
+            try:
+                from app.routes.api_v2.sync_status import get_sync_status
+
+                emit(
+                    "ws_event",
+                    {"channel": channel, "event": "sync_status_update", "data": get_sync_status()},
+                    room=sid,
+                )
+            except Exception:
+                current_app.logger.warning("Failed to send initial sync status snapshot", exc_info=True)
+
+    return granted, rejected
+
+
+def _unsubscribe_channels(sid: str, channels: Iterable[str]):
+    removed: list[str] = []
+    for channel in channels:
+        if channel in _ws_subscriptions.get(sid, set()):
+            _ws_subscriptions[sid].discard(channel)
+            _channel_subscribers[channel].discard(sid)
+            removed.append(channel)
+            try:
+                leave_room(channel)
+            except Exception:
+                pass
+    return removed
+
+
+@socketio.on('subscribe')
 @jwt_ws_required()
-def handle_unsubscribe_streaming():
-    """Unsubscribe from streaming updates"""
-    leave_room('streaming_updates')
-    emit('unsubscribed', {'channel': 'streaming_updates'})
+def handle_subscribe(data):
+    """Subscribe to one or more channels."""
+    channels = []
+    if isinstance(data, dict):
+        channels = data.get('channels') or []
+    elif isinstance(data, list):
+        channels = data
+
+    if not channels:
+        emit('subscription_error', {'error': 'invalid_payload', 'message': 'channels array required'})
+        return False
+
+    granted, rejected = _subscribe_channels(request.sid, channels)
+    if granted:
+        emit('subscribed', {'channels': granted})
+    if rejected:
+        emit('subscription_error', {'rejected': rejected})
+    return True
+
+
+@socketio.on('unsubscribe')
+@jwt_ws_required()
+def handle_unsubscribe(data):
+    """Unsubscribe from one or more channels."""
+    channels = []
+    if isinstance(data, dict):
+        channels = data.get('channels') or []
+    elif isinstance(data, list):
+        channels = data
+
+    if not channels:
+        emit('subscription_error', {'error': 'invalid_payload', 'message': 'channels array required'})
+        return False
+
+    removed = _unsubscribe_channels(request.sid, channels)
+    if removed:
+        emit('unsubscribed', {'channels': removed})
+    return True
 
 
 @socketio.on('auth_update')
@@ -169,64 +312,64 @@ def handle_auth_update(data):
         return False
 
 
-def broadcast_streaming_update(active_count, summary_data=None, live_services=None, sessions=None):
+def publish_channel_event(channel: str, event: str, data: dict):
+    """Publish a message envelope to a specific channel."""
+    envelope = {"channel": channel, "event": event, "data": data}
+    socketio.emit('ws_event', envelope, room=channel, namespace='/')
+
+
+def broadcast_streaming_update(sessions, live_services=None, servers=None, summary_data=None):
     """
-    Broadcast streaming updates to all subscribed clients.
-    This is called from the task_service when session monitoring completes.
+    Broadcast streaming updates to channelized subscribers.
 
     Args:
-        active_count: Number of active streaming sessions
-        summary_data: Optional summary data (for dashboard card)
-        live_services: Optional iterable of service types delivering live updates (e.g., websocket-backed)
-        sessions: Optional list of formatted session dictionaries (full session data for instant frontend updates)
+        sessions: List of formatted session dictionaries
+        live_services: Optional iterable of service types delivering live updates
+        servers: Optional iterable of MediaServer objects that were monitored
+        summary_data: Optional summary payload
     """
     from datetime import datetime, timezone
+    from collections import defaultdict
 
-    payload = {
-        'active_count': active_count,
-        'timestamp': datetime.now(timezone.utc).isoformat(),
-    }
+    sessions = sessions or []
+    server_index = {}
+    if servers:
+        for srv in servers:
+            server_index[(srv.service_type.value, int(srv.id))] = srv
 
-    if summary_data:
-        payload['summary'] = summary_data
+    grouped = defaultdict(list)
+    for session in sessions:
+        service = str(session.get('service_type') or '').lower()
+        server_id = session.get('server_id')
+        if service and server_id is not None:
+            grouped[(service, int(server_id))].append(session)
 
+    # Ensure we also send empty updates for monitored servers with no active sessions
+    for key in server_index.keys():
+        grouped.setdefault(key, grouped.get(key, []))
+
+    live_services_payload = []
     if live_services is not None:
         try:
-            payload['live_services'] = sorted({str(service).lower() for service in live_services})
+            live_services_payload = sorted({str(service).lower() for service in live_services})
         except TypeError:
-            payload['live_services'] = []
+            live_services_payload = []
 
-    # ✅ ADD: Full session data for instant frontend updates
-    if sessions is not None:
-        payload['sessions'] = sessions
+    now = datetime.now(timezone.utc).isoformat()
 
-    socketio.emit('streaming_update', payload, room='streaming_updates', namespace='/')
-    current_app.logger.debug(
-        f"Broadcasted streaming update: {active_count} active sessions, {len(sessions) if sessions else 0} session objects"
-    )
-    # Log room membership for debugging
-    try:
-        from flask_socketio import rooms
-        room_clients = rooms(namespace='/', room='streaming_updates')
-        current_app.logger.debug(f"Room 'streaming_updates' has {len(room_clients) if room_clients else 0} clients")
-    except Exception:
-        pass
-@socketio.on('subscribe_sync_status')
-@jwt_ws_required('administrator')
-def handle_subscribe_sync_status():
-    """Subscribe to sync status updates."""
-    try:
-        join_room(SYNC_STATUS_ROOM)
-        emit('subscribed', {'channel': SYNC_STATUS_ROOM})
-        emit('sync_status_update', get_sync_status(), room=request.sid)
-    except Exception as e:
-        current_app.logger.error(f"Failed to subscribe client {request.sid} to sync status: {e}", exc_info=True)
-        emit('subscription_error', {'message': str(e)})
+    for (service, server_id), server_sessions in grouped.items():
+        channel = f"{service}.{server_id}.sessions"
+        payload = {
+            'active_count': len(server_sessions),
+            'timestamp': now,
+            'sessions': server_sessions,
+        }
+        if live_services_payload:
+            payload['live_services'] = live_services_payload
+        if summary_data:
+            payload['summary'] = summary_data
 
-
-@socketio.on('unsubscribe_sync_status')
-@jwt_ws_required()
-def handle_unsubscribe_sync_status():
-    """Unsubscribe from sync status updates."""
-    leave_room(SYNC_STATUS_ROOM)
-    emit('unsubscribed', {'channel': SYNC_STATUS_ROOM})
+        publish_channel_event(channel, 'session_update', payload)
+        current_app.logger.debug(
+            f"Broadcasted session_update to {channel}: {len(server_sessions)} sessions"
+        )

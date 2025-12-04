@@ -80,6 +80,14 @@ function ensureSocket(): Socket {
   });
 
   created.on('ws_event', (envelope: ChannelEnvelope) => {
+    try {
+      const sessLen = Array.isArray(envelope.data?.sessions) ? envelope.data.sessions.length : null;
+      const activeCount = envelope.data?.active_count;
+      console.debug('[Realtime] ws_event', envelope.channel, envelope.event, { activeCount, sessLen });
+    } catch {
+      console.debug('[Realtime] ws_event', envelope.channel, envelope.event);
+    }
+
     const listeners = channelListeners.get(envelope.channel);
     if (!listeners) return;
     listeners.forEach((listener) => {

@@ -257,6 +257,12 @@ export const StreamingPage = () => {
     autoConnect: true,
     servers: mediaServers,
     onUpdate: (data: any) => {
+      console.debug('[StreamingPage] WS update', {
+        active_count: data.active_count,
+        sessions_len: Array.isArray(data.sessions) ? data.sessions.length : null,
+        live_services: data.live_services,
+        timestamp: data.timestamp,
+      });
       // Update live services list
       if (Array.isArray(data.live_services)) {
         liveServicesRef.current = data.live_services.map((service) =>
@@ -267,6 +273,10 @@ export const StreamingPage = () => {
       // ✅ ACCEPT WEBSOCKET UPDATES IMMEDIATELY (like Tautulli)
       // Handle sessions array (even if empty - this clears stopped streams from UI)
       if (Array.isArray(data.sessions)) {
+        // Guard against transient empty payloads with no count (avoid clearing paused sessions)
+        if (data.sessions.length === 0 && data.active_count === undefined) {
+          return;
+        }
         const now = new Date()
         
         // Update session offsets immediately from websocket data
@@ -287,9 +297,10 @@ export const StreamingPage = () => {
         // Use sessions.length as source of truth when sessions array is provided (it's the actual current state)
         setActiveSessions({
           sessions: data.sessions,
-          total_count: data.sessions.length,
+          total_count: data.active_count ?? data.sessions.length,
           by_server: {},
           by_service: {},
+          meta: { request_id: '', timestamp: data.timestamp },
         })
       } else if (data.active_count !== undefined) {
         // Even without session data, update count immediately
@@ -314,14 +325,14 @@ export const StreamingPage = () => {
 
   // Initialize from websocket data if available (when navigating to page)
   useEffect(() => {
-    if (lastSessionData && !activeSessions) {
-      // Websocket already has data - use it immediately instead of showing loading
-      if (Array.isArray(lastSessionData.sessions) && lastSessionData.sessions.length > 0) {
-        const now = new Date()
-        
-        // Update session offsets
-        const offsets: Record<string, number> = {}
-        for (const s of lastSessionData.sessions as Array<{ session_key: string; current_time?: string }>) {
+      if (lastSessionData && !activeSessions) {
+        // Websocket already has data - use it immediately instead of showing loading
+        if (Array.isArray(lastSessionData.sessions)) {
+          const now = new Date()
+          
+          // Update session offsets
+          const offsets: Record<string, number> = {}
+          for (const s of lastSessionData.sessions as Array<{ session_key: string; current_time?: string }>) {
           if (!s.session_key) continue
           offsets[s.session_key] = parseDurationToSeconds(s.current_time ?? '0:00')
         }
@@ -336,9 +347,10 @@ export const StreamingPage = () => {
         // Use sessions.length as source of truth when sessions array is provided
         setActiveSessions({
           sessions: lastSessionData.sessions,
-          total_count: lastSessionData.sessions.length,
+          total_count: lastSessionData.active_count ?? lastSessionData.sessions.length,
           by_server: {},
           by_service: {},
+          meta: { request_id: '', timestamp: lastSessionData.timestamp },
         })
       }
     }

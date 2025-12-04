@@ -156,6 +156,12 @@ def _run_media_session_monitor(
             source_label,
             len(active_sessions),
         )
+        current_app.logger.debug(
+            "[%s] Tracked sessions currently in memory: %d -> %s",
+            source_label,
+            len(_active_stream_sessions),
+            list(_active_stream_sessions.keys()),
+        )
 
         # Handle both Plex and Jellyfin session formats
         current_sessions_dict: Dict[str, Any] = {}
@@ -257,7 +263,8 @@ def _run_media_session_monitor(
         # Step 2: Check for new and ongoing streams
         if not current_sessions_dict:
             current_app.logger.info("[%s] No new or ongoing sessions to process.", source_label)
-        else:
+
+        if current_sessions_dict:
             current_app.logger.info(
                 "[%s] Processing %d new or ongoing sessions...",
                 source_label,
@@ -566,50 +573,65 @@ def _run_media_session_monitor(
             db.session.commit()
             current_app.logger.debug("Database commit successful!")
 
-            # Broadcast WebSocket update with current active session count AND full session data
-            try:
-                from app.routes.websockets import broadcast_streaming_update
-                from app.services.media_service_manager import MediaServiceFactory
-                active_count = _get_total_tracked_session_count()
-                
-                # ✅ FETCH AND FORMAT SESSION DATA FOR IMMEDIATE BROADCAST
-                formatted_sessions = []
-                try:
-                    # Get formatted sessions from all monitored servers
-                    for server in target_servers:
-                        service = MediaServiceFactory.create_service_from_db(server)
-                        if service:
-                            try:
-                                formatted = service.get_formatted_sessions()
-                                if formatted:
-                                    for session in formatted:
-                                        session.setdefault('server_id', server.id)
-                                        session.setdefault('service_type', server.service_type.value)
-                                        session.setdefault('server_name', server.server_nickname)
-                                    formatted_sessions.extend(formatted)
-                            except Exception as format_err:
-                                current_app.logger.warning(
-                                    f"[{source_label}] Failed to format sessions for {server.server_nickname}: {format_err}"
-                                )
-                except Exception as fetch_err:
-                    current_app.logger.warning(
-                        f"[{source_label}] Failed to fetch formatted sessions for broadcast: {fetch_err}"
-                    )
-                
-                # Broadcast with full session data (always broadcast, even if 0 sessions)
-                # This ensures frontend always receives updates (like Tautulli)
-                broadcast_streaming_update(
-                    sessions=formatted_sessions,  # ✅ Full session data (empty array if no sessions)
-                    live_services=live_services_payload,
-                    servers=target_servers,
-                )
-                current_app.logger.debug(
-                    f"Broadcasted WebSocket update: {active_count} active sessions, {len(formatted_sessions)} formatted sessions"
-                )
-            except Exception as ws_error:
-                current_app.logger.warning(f"Failed to broadcast WebSocket update: {ws_error}")
+        # Broadcast WebSocket update with current active session count AND full session data
+        # This runs regardless of whether there are sessions or not (to clear UI when all sessions stop)
+        try:
+            from app.routes.websockets import broadcast_streaming_update
+            from app.services.media_service_manager import MediaServiceFactory
+            active_count = _get_total_tracked_session_count()
 
-            current_app.logger.info("=== MEDIA SESSION MONITOR (%s) FINISHED ===", source_label)
+            # ✅ FETCH AND FORMAT SESSION DATA FOR IMMEDIATE BROADCAST
+            formatted_sessions = []
+            try:
+                # Get formatted sessions from all monitored servers
+                for server in target_servers:
+                    service = MediaServiceFactory.create_service_from_db(server)
+                    if service:
+                        try:
+                            formatted = service.get_formatted_sessions()
+                            if formatted:
+                                for session in formatted:
+                                    session.setdefault('server_id', server.id)
+                                    session.setdefault('service_type', server.service_type.value)
+                                    session.setdefault('server_name', server.server_nickname)
+                                formatted_sessions.extend(formatted)
+                        except Exception as format_err:
+                            current_app.logger.warning(
+                                f"[{source_label}] Failed to format sessions for {server.server_nickname}: {format_err}"
+                            )
+            except Exception as fetch_err:
+                current_app.logger.warning(
+                    f"[{source_label}] Failed to fetch formatted sessions for broadcast: {fetch_err}"
+                )
+
+            current_app.logger.info(
+                "[%s] Broadcast debug: active_sessions=%d, tracked=%d, formatted=%d",
+                source_label,
+                len(active_sessions),
+                len(_active_stream_sessions),
+                len(formatted_sessions),
+            )
+            if formatted_sessions:
+                try:
+                    sample_states = [s.get('state') for s in formatted_sessions]
+                    current_app.logger.debug("[%s] Formatted session states: %s", source_label, sample_states)
+                except Exception:
+                    pass
+
+            # Broadcast with full session data (always broadcast, even if 0 sessions)
+            # This ensures frontend always receives updates (like Tautulli)
+            broadcast_streaming_update(
+                sessions=formatted_sessions,  # ✅ Full session data (empty array if no sessions)
+                live_services=live_services_payload,
+                servers=target_servers,
+            )
+            current_app.logger.debug(
+                f"Broadcasted WebSocket update: {active_count} active sessions, {len(formatted_sessions)} formatted sessions"
+            )
+        except Exception as ws_error:
+            current_app.logger.warning(f"Failed to broadcast WebSocket update: {ws_error}")
+
+        current_app.logger.info("=== MEDIA SESSION MONITOR (%s) FINISHED ===", source_label)
 
     except Exception as e:
         db.session.rollback()

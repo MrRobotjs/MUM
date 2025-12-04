@@ -38,7 +38,67 @@ class PlexWebsocketMonitor:
         self.threads: Dict[int, threading.Thread] = {}
         self.last_refresh_at: Dict[int, float] = {}
         self.logger = app.logger
+        self.log_date = None
         self._ensure_file_logger()
+
+    def _create_file_handler_for_date(self, target_date: datetime) -> RotatingFileHandler | None:
+        """Create a RotatingFileHandler for the given date, if possible."""
+        date_str = target_date.strftime("%Y-%m-%d")
+        log_path = None
+
+        # Allow override via env
+        override_path = os.getenv("PLEX_WS_LOG_PATH")
+        if override_path:
+            try:
+                os.makedirs(os.path.dirname(override_path), exist_ok=True)
+                log_path = override_path
+            except Exception as e:
+                self.logger.error(
+                    "PlexWebsocketMonitor: Failed to create log directory for override path %s: %s",
+                    override_path,
+                    e,
+                    exc_info=True,
+                )
+                log_path = None
+        else:
+            try:
+                inst_dir = self.app.instance_path
+                logs_dir = os.path.join(inst_dir, "logs", "plex_websocket")
+                os.makedirs(logs_dir, exist_ok=True)
+                log_path = os.path.join(logs_dir, f"{date_str}.log")
+            except Exception as e:
+                self.logger.error(
+                    "PlexWebsocketMonitor: Failed to create instance log directory %s: %s. File logging disabled.",
+                    inst_dir,
+                    e,
+                    exc_info=True,
+                )
+                return None
+
+        try:
+            test_file = open(log_path, 'a')
+            test_file.close()
+        except Exception as e:
+            self.logger.error(
+                "PlexWebsocketMonitor: Cannot write to log file %s: %s. Falling back to app logger.",
+                log_path,
+                e,
+                exc_info=True,
+            )
+            return None
+
+        try:
+            handler = RotatingFileHandler(log_path, maxBytes=5 * 1024 * 1024, backupCount=3)
+            handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+            return handler
+        except Exception as e:
+            self.logger.error(
+                "PlexWebsocketMonitor: Failed to create file handler for %s: %s. Falling back to app logger.",
+                log_path,
+                e,
+                exc_info=True,
+            )
+            return None
 
     def _ensure_file_logger(self) -> None:
         """Initialize a rotating file logger, preferring multimediausermanager/..., with fallback."""
@@ -46,113 +106,27 @@ class PlexWebsocketMonitor:
         self.file_logger = logging.getLogger(logger_name)
         
         try:
-            # Allow override via env
-            override_path = os.getenv("PLEX_WS_LOG_PATH")
-            log_path = None
-            if override_path:
-                # Use directory from override
-                try:
-                    os.makedirs(os.path.dirname(override_path), exist_ok=True)
-                    log_path = override_path
-                except Exception as e:
-                    self.logger.error(
-                        "PlexWebsocketMonitor: Failed to create log directory for override path %s: %s",
-                        override_path,
-                        e,
-                        exc_info=True,
-                    )
-                    log_path = None
-            else:
-                # Preferred: Use instance_path (usually /app/instance) which is mounted and persists to host
-                # This matches the docker-compose.yml volume mount: ./multimediausermanager:/app/instance
-                try:
-                    inst_dir = self.app.instance_path
-                    # Create logs/plex_websocket directory structure
-                    logs_dir = os.path.join(inst_dir, "logs", "plex_websocket")
-                    os.makedirs(logs_dir, exist_ok=True)
-                    # Include date in filename: YYYY-MM-DD.log
-                    date_str = datetime.now().strftime("%Y-%m-%d")
-                    log_filename = f"{date_str}.log"
-                    log_path = os.path.join(logs_dir, log_filename)
-                except Exception as e:
-                    self.logger.error(
-                        "PlexWebsocketMonitor: Failed to create instance log directory %s: %s. File logging disabled.",
-                        inst_dir,
-                        e,
-                        exc_info=True,
-                    )
-                    # Fall back to app logger
-                    self.file_logger = self.logger
-                    return
+            target_date = datetime.now().date()
+            handler = self._create_file_handler_for_date(datetime.combine(target_date, datetime.min.time()))
 
-            # Test write permissions before creating handler
-            try:
-                test_file = open(log_path, 'a')
-                test_file.close()
-            except Exception as e:
-                self.logger.error(
-                    "PlexWebsocketMonitor: Cannot write to log file %s: %s. Falling back to app logger.",
-                    log_path,
-                    e,
-                    exc_info=True,
-                )
-                self.file_logger = self.logger
-                return
+            if handler:
+                # Remove existing RotatingFileHandlers to avoid duplicate writes
+                for h in list(self.file_logger.handlers):
+                    if isinstance(h, RotatingFileHandler):
+                        try:
+                            self.file_logger.removeHandler(h)
+                            h.close()
+                        except Exception:
+                            pass
 
-            # Check for existing handlers by normalizing the path comparison
-            # Use os.path.normpath to handle path separators correctly
-            log_path_normalized = os.path.normpath(log_path)
-            existing_handlers = [
-                h for h in self.file_logger.handlers
-                if isinstance(h, RotatingFileHandler)
-            ]
-            has_existing_handler = any(
-                os.path.normpath(getattr(h, "baseFilename", "")) == log_path_normalized
-                for h in existing_handlers
-            )
-            
-            if not has_existing_handler:
-                try:
-                    handler = RotatingFileHandler(log_path, maxBytes=5 * 1024 * 1024, backupCount=3)
-                    handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
-                    self.file_logger.addHandler(handler)
-                    self.file_logger.setLevel(logging.DEBUG)
-                    self.file_logger.propagate = False
-                    # Emit an initialization line to ensure file creation
-                    self.file_logger.info("PlexWebsocketMonitor file logger initialized at %s", log_path)
-                    # Force flush to ensure file is created and written
-                    for h in self.file_logger.handlers:
-                        if isinstance(h, RotatingFileHandler):
-                            try:
-                                h.flush()
-                                # Also try to access the stream directly to force creation
-                                if hasattr(h, 'stream') and h.stream:
-                                    h.stream.flush()
-                            except Exception as flush_err:
-                                self.logger.warning("Failed to flush file handler during init: %s", flush_err)
-                except Exception as e:
-                    self.logger.error(
-                        "PlexWebsocketMonitor: Failed to create file handler for %s: %s. Falling back to app logger.",
-                        log_path,
-                        e,
-                        exc_info=True,
-                    )
-                    # Fall back to app logger
-                    self.file_logger = self.logger
-            else:
-                # Handler already exists, just ensure level is set
+                self.file_logger.addHandler(handler)
                 self.file_logger.setLevel(logging.DEBUG)
                 self.file_logger.propagate = False
-                # Verify the existing handler can write
-                try:
-                    for h in self.file_logger.handlers:
-                        if isinstance(h, RotatingFileHandler):
-                            h.flush()
-                except Exception as e:
-                    self.logger.warning(
-                        "PlexWebsocketMonitor: Existing handler may not be writable: %s",
-                        e,
-                    )
+                self.file_logger.info("PlexWebsocketMonitor file logger initialized for %s", target_date)
+                self.log_date = target_date
+            else:
+                # Fall back to app logger
+                self.file_logger = self.logger
         except Exception as e:
             # Fall back to app logger
             self.logger.error(
@@ -161,6 +135,16 @@ class PlexWebsocketMonitor:
                 exc_info=True,
             )
             self.file_logger = self.logger
+
+    def _ensure_daily_log_file(self) -> None:
+        """Ensure the file logger points to today's date-based file."""
+        try:
+            today = datetime.now().date()
+            if self.log_date == today:
+                return
+            self._ensure_file_logger()
+        except Exception as e:
+            self.logger.warning("PlexWebsocketMonitor: Failed to rotate daily log file: %s", e, exc_info=True)
 
     def start(self) -> None:
         """Spin up listeners for all active Plex servers."""
@@ -372,6 +356,7 @@ class PlexWebsocketMonitor:
             
             # Log to file logger with error handling
             try:
+                self._ensure_daily_log_file()
                 # Ensure file_logger exists and has handlers
                 if hasattr(self, 'file_logger') and self.file_logger is not None:
                     if len(self.file_logger.handlers) > 0:

@@ -18,7 +18,7 @@ type StreamingSettingsModalProps = {
 export const StreamingSettingsModal = ({ open, onClose }: StreamingSettingsModalProps) => {
   const { success, error: showError } = useAlerts();
   const { settings, loading, error, refresh } = useStreamingSettings();
-  const { getPreference, setPreference } = useUserPreferences();
+  const { getPreference, setPreference, syncEnabled } = useUserPreferences();
   const [interval, setInterval] = useState(30);
   const [streamCounterEnabled, setStreamCounterEnabled] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -109,7 +109,15 @@ export const StreamingSettingsModal = ({ open, onClose }: StreamingSettingsModal
           <div className="rounded-lg border bg-muted/50 p-4">
             <FormField
               id="streamBadge"
-              label="Sidebar stream counter"
+              label={
+                <span className="inline-flex items-center gap-2">
+                  Sidebar stream counter
+                  <i
+                    className={`fa-solid fa-arrow-right-arrow-left text-sm ${syncEnabled ? 'text-emerald-500' : 'text-muted-foreground'}`}
+                    aria-hidden="true"
+                  />
+                </span>
+              }
               description="Display real-time active stream count in the sidebar. Updates instantly via WebSocket for supported services. This is a per-user preference stored locally on your device."
             >
               <div className="flex items-center justify-between">

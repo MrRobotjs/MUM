@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils';
 
 type FormFieldProps = {
   id: string;
-  label: string;
+  label: ReactNode;
   children: ReactNode;
   description?: string;
   error?: string;

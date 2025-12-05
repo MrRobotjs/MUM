@@ -123,6 +123,14 @@ const AdminAccountPage = () => {
   // User preferences hook
   const { syncEnabled, toggleSync, loading: prefsLoading } = useUserPreferences();
   const [syncSubmitting, setSyncSubmitting] = useState(false);
+  const [pendingSyncEnabled, setPendingSyncEnabled] = useState<boolean | null>(null);
+  const syncDirty = pendingSyncEnabled !== null && pendingSyncEnabled !== syncEnabled;
+
+  const [emailForm, setEmailForm] = useState({
+    email: '',
+  });
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [emailSubmitting, setEmailSubmitting] = useState(false);
 
   const refreshAccount = async () => {
     setLoading(true);
@@ -147,6 +155,9 @@ const AdminAccountPage = () => {
         newPassword: '',
         confirmPassword: '',
       });
+      setEmailForm({
+        email: response.data.user.email ?? '',
+      });
     } catch (error) {
       const message = getApiErrorMessage(error);
       setFetchError(message);
@@ -168,6 +179,12 @@ const AdminAccountPage = () => {
     if (!account) return false;
     return account.capabilities.can_set_initial_credentials;
   }, [account]);
+
+  useEffect(() => {
+    if (syncEnabled !== undefined) {
+      setPendingSyncEnabled(syncEnabled);
+    }
+  }, [syncEnabled]);
 
   const setTab = (tab: TabType) => {
     navigate({
@@ -302,15 +319,39 @@ const AdminAccountPage = () => {
     }
   };
 
-  const handleSyncToggle = async (checked: boolean) => {
+  const handleSyncToggle = (checked: boolean) => {
+    setPendingSyncEnabled(checked);
+  };
+
+  const handleSyncSave = async () => {
+    if (pendingSyncEnabled === null || pendingSyncEnabled === syncEnabled) return;
     setSyncSubmitting(true);
     try {
-      await toggleSync(checked);
-      success(checked ? 'Preference sync enabled' : 'Preference sync disabled');
+      await toggleSync(pendingSyncEnabled);
+      success(pendingSyncEnabled ? 'Preference sync enabled' : 'Preference sync disabled');
     } catch (err) {
-      showError('Failed to toggle sync: ' + getApiErrorMessage(err));
+      showError('Failed to save sync setting: ' + getApiErrorMessage(err));
+      setPendingSyncEnabled(syncEnabled);
     } finally {
       setSyncSubmitting(false);
+    }
+  };
+
+  const handleEmailChange = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setEmailError(null);
+    setEmailSubmitting(true);
+    try {
+      await requestJson('/admin/api/v2/account/email', {
+        method: 'PATCH',
+        body: JSON.stringify({ email: emailForm.email }),
+      });
+      await refreshAccount();
+      success('Email updated.');
+    } catch (err) {
+      setEmailError(getApiErrorMessage(err));
+    } finally {
+      setEmailSubmitting(false);
     }
   };
 
@@ -564,6 +605,41 @@ const AdminAccountPage = () => {
             </Card>
           </div>
 
+          <Card>
+            <CardHeader>
+              <CardTitle>Account Email</CardTitle>
+              <CardDescription>View or update the email associated with this account.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form className="space-y-4" onSubmit={handleEmailChange}>
+                <div className="space-y-2">
+                  <Label htmlFor="account-email">Email</Label>
+                  <Input
+                    id="account-email"
+                    type="email"
+                    value={emailForm.email}
+                    onChange={(event) =>
+                      setEmailForm((prev) => ({
+                        ...prev,
+                        email: event.target.value,
+                      }))
+                    }
+                    placeholder="you@example.com"
+                    required
+                  />
+                </div>
+                {emailError ? (
+                  <Alert variant="destructive">
+                    <AlertDescription>{emailError}</AlertDescription>
+                  </Alert>
+                ) : null}
+                <Button type="submit" disabled={emailSubmitting} className="w-full sm:w-auto">
+                  {emailSubmitting ? 'Saving.' : 'Save Email'}
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+
           {/* Plex SSO Link Section */}
           <Card>
             <CardHeader>
@@ -708,30 +784,47 @@ const AdminAccountPage = () => {
             <CardHeader>
               <CardTitle>User Preferences</CardTitle>
               <CardDescription>
-                Manage your personal preferences and cross-device synchronization.
+                Manage your personal preferences and cross-device synchronization. Settings marked with
+                <i className="fa-solid fa-arrow-right-arrow-left mx-1" aria-hidden="true" /> can be synced across devices.
+                When a syncable setting is enabled, that icon turns green to indicate it will follow you everywhere.
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="rounded-lg border bg-muted/50 p-4 space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
-                    <Label htmlFor="sync-preferences" className="text-base font-medium cursor-pointer">
-                      Sync settings across devices
+                    <Label htmlFor="sync-preferences" className="text-base font-medium cursor-pointer flex items-center gap-2">
+                      <span>Sync settings across devices</span>
+                      <i
+                        className={`fa-solid fa-arrow-right-arrow-left text-sm ${pendingSyncEnabled ? 'text-emerald-500' : 'text-muted-foreground'}`}
+                        aria-hidden="true"
+                      />
                     </Label>
                     <p className="text-sm text-muted-foreground">
-                      {syncEnabled
+                      {pendingSyncEnabled
                         ? 'Your preferences are synced to the database and will be available on all devices.'
                         : 'Your preferences are stored locally on this device only.'}
                     </p>
                   </div>
                   <Switch
                     id="sync-preferences"
-                    checked={syncEnabled}
+                    checked={pendingSyncEnabled ?? false}
                     onCheckedChange={handleSyncToggle}
                     disabled={prefsLoading || syncSubmitting}
                   />
                 </div>
-                {syncEnabled && (
+                <div className="flex items-center gap-3">
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={handleSyncSave}
+                    disabled={!syncDirty || prefsLoading || syncSubmitting}
+                  >
+                    {syncSubmitting ? 'Saving.' : 'Save Sync Setting'}
+                  </Button>
+                  {syncDirty ? <span className="text-sm text-muted-foreground">Unsaved change</span> : null}
+                </div>
+                {pendingSyncEnabled && (
                   <Alert>
                     <IconInfoCircle className="h-4 w-4" />
                     <AlertDescription>

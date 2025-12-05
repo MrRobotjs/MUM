@@ -3,13 +3,13 @@ import { useAlerts } from '../contexts/AlertContext';
 import { useInvites } from '../hooks/useInvites';
 import { useAdminApi } from '../hooks/useAdminApi';
 import { useInviteSummary } from '../hooks/useInviteSummary';
-import { InvitesTable, InviteRow, InviteServer, InviteModal, InviteFormValues, InviteDetailDrawer } from '../components/invites';
+import { InvitesTable, InviteRow, InviteModal, InviteFormValues, InviteDetailDrawer } from '../components/invites';
 import { requestJson } from '../util/apiClient';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Input } from '../components/ui/input';
 import { Checkbox } from '../components/ui/checkbox';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../components/ui/dropdown-menu';
-import { Card } from '../components/ui/card';
+import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 
 // Helper function to get service-specific styling
@@ -362,7 +362,7 @@ export const InvitesPage = () => {
                   />
                 </div>
 
-                <div className="p-4">
+                <CardContent>
                   <div className="mb-3 flex items-center justify-between flex-wrap gap-2">
                     <div className="flex items-center gap-2">
                       <button
@@ -545,7 +545,7 @@ export const InvitesPage = () => {
                       <i className="fa-solid fa-chart-line" />
                     </Button>
                   </div>
-                </div>
+                </CardContent>
               </Card>
             ))
           )}

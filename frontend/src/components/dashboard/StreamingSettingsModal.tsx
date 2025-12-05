@@ -5,7 +5,7 @@ import { useAlerts } from '../../contexts/AlertContext';
 import { requestJson } from '../../util/apiClient';
 import { ResponsiveDialog } from '../ui/responsive-dialog';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
+import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 
@@ -116,23 +116,23 @@ export const StreamingSettingsModal = ({ open, onClose }: StreamingSettingsModal
       {settings ? (
         <div className="space-y-4">
           <div className="rounded-lg border bg-muted/50 p-4">
-            <FormField 
-              id="streamBadge" 
-              label="Enable nav bar stream badge"
-              description={`Show active stream count in the navigation bar for WebSocket-enabled services (${websocketServicesList}). Other services use polling.`}
+            <FormField
+              id="streamBadge"
+              label="Real-time sidebar stream counter"
+              description={`Displays the current number of active streams in the sidebar. Updates instantly via WebSocket for ${websocketServicesList}. When enabled, stays connected across all pages for live updates.`}
             >
-              <div className="flex items-center space-x-3">
-                <Checkbox
-                  id="streamBadge"
-                  checked={enableBadge}
-                  onCheckedChange={(checked) => setEnableBadge(checked === true)}
-                />
+              <div className="flex items-center justify-between">
                 <Label
                   htmlFor="streamBadge"
-                  className="text-sm text-foreground/80 font-normal cursor-pointer"
+                  className="text-sm font-medium cursor-pointer"
                 >
-                  Show active stream count in the navigation bar.
+                  Show active stream count in sidebar
                 </Label>
+                <Switch
+                  id="streamBadge"
+                  checked={enableBadge}
+                  onCheckedChange={(checked) => setEnableBadge(checked)}
+                />
               </div>
             </FormField>
           </div>

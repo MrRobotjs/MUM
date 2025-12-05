@@ -42,7 +42,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { syncStatus } = useSyncStatus()
   const { settings: streamingSettings } = useStreamingSettings()
   const { servers: mediaServers } = useServers({ activeOnly: true })
-  const { activeCount } = useStreamingWebSocket({ autoConnect: true, servers: mediaServers })
+  // Only connect to WebSocket if the navbar stream badge is enabled
+  // This keeps the connection alive even when not on the streaming page
+  const streamBadgeEnabled = streamingSettings?.enable_navbar_stream_badge ?? false
+  const { activeCount } = useStreamingWebSocket({
+    autoConnect: streamBadgeEnabled,
+    servers: mediaServers
+  })
   const [isStartingSync, setIsStartingSync] = React.useState(false)
   const [showSyncComplete, setShowSyncComplete] = React.useState(false)
   const previousSyncingRef = React.useRef(syncStatus.is_syncing)
@@ -125,7 +131,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     : null
 
   // Stream badge indicator - show when enabled and there are active streams
-  const streamBadgeEnabled = streamingSettings?.enable_navbar_stream_badge ?? false
   const streamBadgeIndicator = streamBadgeEnabled && activeCount > 0
     ? (
         <Badge variant="default" className="h-5 min-w-5 px-1.5 text-[10px] font-semibold">

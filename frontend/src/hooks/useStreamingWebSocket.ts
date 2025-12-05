@@ -100,7 +100,9 @@ const recomputeAggregate = () => {
   });
 };
 
-const handleEnvelope = (envelope: ChannelEnvelope) => {
+// Module-level handler that ALL instances share
+// This ensures channel snapshots are updated globally
+const handleEnvelopeGlobal = (envelope: ChannelEnvelope) => {
   if (envelope.event !== 'session_update') return;
   channelSnapshots.set(envelope.channel, envelope.data as StreamingUpdate);
   recomputeAggregate();
@@ -123,15 +125,24 @@ export const useStreamingWebSocket = (options: UseStreamingWebSocketOptions = {}
   const onUpdateRef = useRef(onUpdate);
   const subscriptionsRef = useRef<Map<string, () => void>>(new Map());
 
+  // Create a unique handler for this instance that wraps the global handler
+  // This ensures each instance has its own listener reference for subscription tracking
+  const handleEnvelope = useRef<ChannelListener>((envelope) => {
+    handleEnvelopeGlobal(envelope);
+  }).current;
+
   useEffect(() => {
     onUpdateRef.current = onUpdate;
   }, [onUpdate]);
 
   // Maintain connection state
   useEffect(() => {
+    console.debug('[StreamingWebSocket] Connection effect - autoConnect:', autoConnect);
     if (!autoConnect) return;
+    console.debug('[StreamingWebSocket] Connecting realtime socket');
     connectRealtimeSocket();
     const unsubscribe = onConnectionChange((connected) => {
+      console.debug('[StreamingWebSocket] Connection state changed:', connected);
       setIsConnected(connected);
       if (!connected) {
         channelSnapshots.clear();
@@ -169,41 +180,60 @@ export const useStreamingWebSocket = (options: UseStreamingWebSocketOptions = {}
 
   // Subscribe to channels for the provided servers
   const channelKey = useMemo(() => {
+    // Only generate channel keys if autoConnect is true
+    if (!autoConnect) return '';
     return (servers ?? [])
       .filter((srv) => srv && srv.id !== undefined && srv.is_active !== false)
       .map((srv) => `${srv.service_type}.${srv.id}.sessions`)
       .sort()
       .join('|');
-  }, [servers]);
+  }, [servers, autoConnect]);
 
   useEffect(() => {
+    console.debug('[StreamingWebSocket] Subscription effect - autoConnect:', autoConnect, 'channelKey:', channelKey);
+    // Don't subscribe to channels if autoConnect is false
+    if (!autoConnect) {
+      // Clean up any existing subscriptions
+      subscriptionsRef.current.forEach((cleanup) => cleanup());
+      subscriptionsRef.current.clear();
+      console.debug('[StreamingWebSocket] Cleaned up subscriptions (autoConnect=false)');
+      return;
+    }
+
     const desired = new Set(
       (servers ?? [])
         .filter((srv) => srv && srv.id !== undefined && srv.is_active !== false)
         .map((srv) => `${srv.service_type}.${srv.id}.sessions`)
     );
 
+    console.debug('[StreamingWebSocket] Desired channels:', Array.from(desired));
+
     const activeSubs = subscriptionsRef.current;
 
     // Unsubscribe removed channels
     for (const [channel, cleanup] of Array.from(activeSubs.entries())) {
       if (!desired.has(channel)) {
+        console.debug('[StreamingWebSocket] Unsubscribing from removed channel:', channel);
         cleanup();
         activeSubs.delete(channel);
-        channelSnapshots.delete(channel);
+        // Don't delete channelSnapshots here - the realtimeSocket will handle it
+        // when the last listener unsubscribes. This allows multiple components
+        // to share the same channel subscriptions.
       }
     }
 
     // Subscribe to new channels
     desired.forEach((channel) => {
       if (!activeSubs.has(channel)) {
+        console.debug('[StreamingWebSocket] Subscribing to new channel:', channel);
         const cleanup = subscribeToChannel(channel, handleEnvelope);
         activeSubs.set(channel, cleanup);
       }
     });
 
+    console.debug('[StreamingWebSocket] Active subscriptions:', Array.from(activeSubs.keys()));
     recomputeAggregate();
-  }, [channelKey]);
+  }, [channelKey, autoConnect]);
 
   // Cleanup on unmount
   useEffect(() => {

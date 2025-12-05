@@ -5,7 +5,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 
 export type InviteServer = {
   id: number;
-  name: string;
+  server_nickname?: string | null;
+  name?: string | null;
   service_type: string;
 };
 

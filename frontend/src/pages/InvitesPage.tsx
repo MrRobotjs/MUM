@@ -424,7 +424,7 @@ export const InvitesPage = () => {
                               className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md border ${getServiceBadgeClass(server.service_type)}`}
                             >
                               <i className={`${getServiceIcon(server.service_type)} w-3 h-3`} />
-                              {server.name}
+                              {server.server_nickname || server.name || 'Unnamed server'}
                             </span>
                           ))}
                         </div>

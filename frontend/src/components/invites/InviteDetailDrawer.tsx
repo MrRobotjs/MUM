@@ -31,7 +31,8 @@ type InviteServerLibrary = {
 
 type InviteServer = {
   id: number;
-  name: string;
+  server_nickname?: string | null;
+  name?: string | null;
   service_type: string;
   url?: string | null;
   public_url?: string | null;
@@ -244,7 +245,7 @@ export const InviteDetailDrawer = ({ inviteId, onClose }: InviteDetailDrawerProp
                     <div key={server.id} className="rounded-lg border p-4">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div>
-                          <div className="font-semibold">{server.name}</div>
+                          <div className="font-semibold">{server.server_nickname || server.name || 'Server'}</div>
                           <div className="text-xs text-muted-foreground uppercase">
                             {server.service_type}
                           </div>

@@ -19,7 +19,6 @@ streaming_tag = Tag(name="Streaming", description="Streaming settings and status
 
 
 def _load_streaming_settings() -> dict:
-    enable_badge = str(Setting.get('ENABLE_NAVBAR_STREAM_BADGE', 'false')).lower() == 'true'
     interval = Setting.get('SESSION_MONITORING_INTERVAL_SECONDS', '30')
     websocket_interval = Setting.get('STREAMING_WEBSOCKET_REFRESH_INTERVAL_SECONDS', '30')
     try:
@@ -31,14 +30,12 @@ def _load_streaming_settings() -> dict:
     except (TypeError, ValueError):
         websocket_interval_value = 30
     return {
-        'enable_navbar_stream_badge': enable_badge,
         'session_monitoring_interval': interval_value,
         'websocket_refresh_interval': websocket_interval_value
     }
 
 
 class StreamingSettingsData(BaseModel):
-    enable_navbar_stream_badge: bool
     session_monitoring_interval: int
     websocket_refresh_interval: int
 
@@ -63,7 +60,6 @@ def get_streaming_settings(current_user):
 
 
 class UpdateStreamingBody(BaseModel):
-    enable_navbar_stream_badge: bool = False
     session_monitoring_interval: int = Field(..., ge=5, le=300)
     websocket_refresh_interval: int = Field(..., ge=2, le=300)
 
@@ -88,18 +84,16 @@ class ErrorResponse(BaseModel):
 @jwt_permission_required('administrator')
 def update_streaming_settings(body: UpdateStreamingBody, current_user):
     request_id = uuid4().hex
-    enable_badge = bool(body.enable_navbar_stream_badge)
     interval_value = body.session_monitoring_interval
     websocket_interval_value = body.websocket_refresh_interval
 
     try:
-        Setting.set('ENABLE_NAVBAR_STREAM_BADGE', 'true' if enable_badge else 'false')
         Setting.set('SESSION_MONITORING_INTERVAL_SECONDS', str(interval_value))
         Setting.set('STREAMING_WEBSOCKET_REFRESH_INTERVAL_SECONDS', str(websocket_interval_value))
 
         log_event(
             EventType.SETTING_CHANGE,
-            f"Streaming settings updated: badge={'on' if enable_badge else 'off'}, interval={interval_value}, websocket_refresh={websocket_interval_value}",
+            f"Streaming settings updated: interval={interval_value}, websocket_refresh={websocket_interval_value}",
             admin_id=getattr(current_user, 'id', None)
         )
 

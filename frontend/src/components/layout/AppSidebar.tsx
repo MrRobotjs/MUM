@@ -30,7 +30,7 @@ import { useAuth } from "@/contexts/AuthContext"
 import { useAlerts } from "@/contexts/AlertContext"
 import { requestJson } from "@/util/apiClient"
 import { useSyncStatus } from "@/hooks/useSyncStatus"
-import { useStreamingSettings } from "@/hooks/useStreamingSettings"
+import { useUserPreferences } from "@/hooks/useUserPreferences"
 import { useStreamingWebSocket } from "@/hooks/useStreamingWebSocket"
 import { useServers } from "@/hooks/useServers"
 import { Badge } from "@/components/ui/badge"
@@ -40,11 +40,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { isMobile, setOpenMobile } = useSidebar()
   const { success, error } = useAlerts()
   const { syncStatus } = useSyncStatus()
-  const { settings: streamingSettings } = useStreamingSettings()
+  const { getPreference } = useUserPreferences()
   const { servers: mediaServers } = useServers({ activeOnly: true })
-  // Only connect to WebSocket if the navbar stream badge is enabled
+  // Only connect to WebSocket if the navbar stream badge is enabled (from user preferences)
   // This keeps the connection alive even when not on the streaming page
-  const streamBadgeEnabled = streamingSettings?.enable_navbar_stream_badge ?? false
+  const streamBadgeEnabled = getPreference<boolean>('stream_counter', false)
   const { activeCount } = useStreamingWebSocket({
     autoConnect: streamBadgeEnabled,
     servers: mediaServers

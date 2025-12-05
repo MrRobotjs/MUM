@@ -79,6 +79,19 @@ class InitialCredentialsBody(BaseModel):
     password: str = Field(..., min_length=8)
 
 
+class UserPreferencesResponse(BaseModel):
+    preferences: dict | None
+    sync_enabled: bool
+
+
+class UpdateUserPreferencesBody(BaseModel):
+    preferences: dict = Field(..., description="User preferences object")
+
+
+class UpdateSyncPreferencesBody(BaseModel):
+    sync_enabled: bool = Field(..., description="Enable or disable preference sync")
+
+
 class ErrorDetail(BaseModel):
     code: str
     message: str
@@ -268,3 +281,96 @@ def set_initial_credentials(body: InitialCredentialsBody, current_user):
         "meta": {"request_id": request_id},
     }
     return jsonify(response), 200
+
+
+@api_v2.get(
+    "/account/preferences",
+    tags=[account_tag],
+    summary="Get user preferences",
+    responses={200: UserPreferencesResponse},
+)
+@jwt_required_with_user()
+def get_user_preferences(current_user):
+    """Get the current user's preferences and sync status"""
+    return jsonify({
+        "preferences": current_user.user_preferences or {},
+        "sync_enabled": current_user.sync_preferences
+    }), 200
+
+
+@api_v2.patch(
+    "/account/preferences",
+    tags=[account_tag],
+    summary="Update user preferences",
+    responses={200: UserPreferencesResponse, 500: ErrorResponse},
+)
+@jwt_required_with_user()
+def update_user_preferences(body: UpdateUserPreferencesBody, current_user):
+    """Update the current user's preferences"""
+    request_id = str(uuid4())
+
+    try:
+        # Update user preferences
+        current_user.user_preferences = body.preferences
+        db.session.commit()
+
+        return jsonify({
+            "preferences": current_user.user_preferences,
+            "sync_enabled": current_user.sync_preferences
+        }), 200
+
+    except Exception as exc:
+        current_app.logger.exception("Failed to update user preferences: %s", exc)
+        db.session.rollback()
+        return (
+            jsonify(
+                {
+                    "error": {
+                        "code": "PREFERENCES_UPDATE_FAILED",
+                        "message": "Unable to update user preferences.",
+                    },
+                    "meta": {"request_id": request_id},
+                }
+            ),
+            500,
+        )
+
+
+@api_v2.patch(
+    "/account/preferences/sync",
+    tags=[account_tag],
+    summary="Toggle preference sync",
+    responses={200: UserPreferencesResponse, 500: ErrorResponse},
+)
+@jwt_required_with_user()
+def update_sync_preferences(body: UpdateSyncPreferencesBody, current_user):
+    """Enable or disable syncing preferences to the database"""
+    request_id = str(uuid4())
+
+    try:
+        current_user.sync_preferences = body.sync_enabled
+
+        # When enabling sync, preserve current preferences from DB
+        # When disabling sync, keep preferences in DB (user can still access from localStorage)
+        db.session.commit()
+
+        return jsonify({
+            "preferences": current_user.user_preferences or {},
+            "sync_enabled": current_user.sync_preferences
+        }), 200
+
+    except Exception as exc:
+        current_app.logger.exception("Failed to update sync preferences: %s", exc)
+        db.session.rollback()
+        return (
+            jsonify(
+                {
+                    "error": {
+                        "code": "SYNC_UPDATE_FAILED",
+                        "message": "Unable to update preference sync setting.",
+                    },
+                    "meta": {"request_id": request_id},
+                }
+            ),
+            500,
+        )

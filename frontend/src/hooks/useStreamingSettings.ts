@@ -2,7 +2,6 @@ import useSWR from 'swr';
 import { requestJson } from '../util/apiClient';
 
 export type StreamingSettings = {
-  enable_navbar_stream_badge: boolean;
   session_monitoring_interval: number;
   websocket_refresh_interval: number;
 };

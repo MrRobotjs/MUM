@@ -1,18 +1,14 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import { FormField } from '../index';
 import { useStreamingSettings } from '../../hooks/useStreamingSettings';
 import { useAlerts } from '../../contexts/AlertContext';
 import { requestJson } from '../../util/apiClient';
 import { ResponsiveDialog } from '../ui/responsive-dialog';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
-
-// Services that support WebSocket for real-time streaming updates
-// Add new services here as WebSocket support is implemented
-const WEBSOCKET_ENABLED_SERVICES: readonly string[] = ['plex'] as const;
-// Future: Add 'jellyfin' and 'emby' when WebSocket support is implemented
+import { useUserPreferences } from '@/hooks/useUserPreferences';
 
 type StreamingSettingsModalProps = {
   open: boolean;
@@ -22,35 +18,31 @@ type StreamingSettingsModalProps = {
 export const StreamingSettingsModal = ({ open, onClose }: StreamingSettingsModalProps) => {
   const { success, error: showError } = useAlerts();
   const { settings, loading, error, refresh } = useStreamingSettings();
-  const [enableBadge, setEnableBadge] = useState(false);
+  const { getPreference, setPreference } = useUserPreferences();
   const [interval, setInterval] = useState(30);
+  const [streamCounterEnabled, setStreamCounterEnabled] = useState(false);
   const [saving, setSaving] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
 
-  // Format WebSocket-enabled services for display
-  const websocketServicesList = useMemo(() => {
-    const services = WEBSOCKET_ENABLED_SERVICES.map((s) => s.charAt(0).toUpperCase() + s.slice(1));
-    if (services.length === 1) {
-      return services[0];
-    } else if (services.length === 2) {
-      return services.join(' and ');
-    } else {
-      return services.slice(0, -1).join(', ') + ', and ' + services[services.length - 1];
-    }
-  }, []);
-
   useEffect(() => {
     if (settings) {
-      setEnableBadge(settings.enable_navbar_stream_badge);
       setInterval(settings.session_monitoring_interval);
     }
-  }, [settings, open]);
+    // Load stream counter preference
+    const enabled = getPreference<boolean>('stream_counter', false);
+    setStreamCounterEnabled(enabled);
+  }, [settings, open, getPreference]);
 
   useEffect(() => {
     if (error) {
       showError('Failed to load settings: ' + String(error));
     }
   }, [error, showError]);
+
+  const handleStreamCounterToggle = async (checked: boolean) => {
+    setStreamCounterEnabled(checked);
+    await setPreference('stream_counter', checked);
+  };
 
   const handleSubmit = async () => {
     setValidationError(null);
@@ -65,7 +57,6 @@ export const StreamingSettingsModal = ({ open, onClose }: StreamingSettingsModal
       await requestJson('/admin/api/v2/settings/streaming', {
         method: 'PATCH',
         body: JSON.stringify({
-          enable_navbar_stream_badge: enableBadge,
           session_monitoring_interval: interval,
           // Preserve current websocket refresh interval (required by v2)
           websocket_refresh_interval: settings?.websocket_refresh_interval ?? 30
@@ -118,8 +109,8 @@ export const StreamingSettingsModal = ({ open, onClose }: StreamingSettingsModal
           <div className="rounded-lg border bg-muted/50 p-4">
             <FormField
               id="streamBadge"
-              label="Real-time sidebar stream counter"
-              description={`Displays the current number of active streams in the sidebar. Updates instantly via WebSocket for ${websocketServicesList}. When enabled, stays connected across all pages for live updates.`}
+              label="Sidebar stream counter"
+              description="Display real-time active stream count in the sidebar. Updates instantly via WebSocket for supported services. This is a per-user preference stored locally on your device."
             >
               <div className="flex items-center justify-between">
                 <Label
@@ -130,8 +121,8 @@ export const StreamingSettingsModal = ({ open, onClose }: StreamingSettingsModal
                 </Label>
                 <Switch
                   id="streamBadge"
-                  checked={enableBadge}
-                  onCheckedChange={(checked) => setEnableBadge(checked)}
+                  checked={streamCounterEnabled}
+                  onCheckedChange={handleStreamCounterToggle}
                 />
               </div>
             </FormField>
@@ -156,7 +147,6 @@ export const StreamingSettingsModal = ({ open, onClose }: StreamingSettingsModal
               />
             </FormField>
           </div>
-
         </div>
       ) : null}
     </ResponsiveDialog>

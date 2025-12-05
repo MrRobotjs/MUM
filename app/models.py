@@ -254,6 +254,10 @@ class User(db.Model):
     # Owner-Specific Fields (only for OWNER users)
     preferred_user_list_view = db.Column(db.String(10), default='cards', nullable=False)
     force_password_change = db.Column(db.Boolean, default=False, nullable=False)
+
+    # User Preferences (for LOCAL and OWNER users)
+    sync_preferences = db.Column(db.Boolean, default=False, nullable=False)
+    user_preferences = db.Column(MutableDict.as_mutable(JSONEncodedDict), nullable=True)
     
     # Plex Integration (for OWNER users)
     plex_uuid = db.Column(db.String(255), nullable=True)

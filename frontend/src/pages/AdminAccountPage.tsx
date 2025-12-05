@@ -6,12 +6,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ApiError, requestJson } from '@/util/apiClient';
 import { useAlerts } from '../contexts/AlertContext';
+import { useUserPreferences } from '@/hooks/useUserPreferences';
 import { IconUserShield, IconInfoCircle, IconKey, IconClock } from '@tabler/icons-react';
 
 type AccountUser = {
@@ -117,6 +119,10 @@ const AdminAccountPage = () => {
 
   const [plexLoading, setPlexLoading] = useState(false);
   const [plexError, setPlexError] = useState<string | null>(null);
+
+  // User preferences hook
+  const { syncEnabled, toggleSync, loading: prefsLoading } = useUserPreferences();
+  const [syncSubmitting, setSyncSubmitting] = useState(false);
 
   const refreshAccount = async () => {
     setLoading(true);
@@ -293,6 +299,18 @@ const AdminAccountPage = () => {
     } catch (err) {
       setPlexError(getApiErrorMessage(err));
       setPlexLoading(false);
+    }
+  };
+
+  const handleSyncToggle = async (checked: boolean) => {
+    setSyncSubmitting(true);
+    try {
+      await toggleSync(checked);
+      success(checked ? 'Preference sync enabled' : 'Preference sync disabled');
+    } catch (err) {
+      showError('Failed to toggle sync: ' + getApiErrorMessage(err));
+    } finally {
+      setSyncSubmitting(false);
     }
   };
 
@@ -683,6 +701,46 @@ const AdminAccountPage = () => {
                   {timezoneSubmitting ? 'Saving…' : 'Save Preferences'}
                 </Button>
               </form>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>User Preferences</CardTitle>
+              <CardDescription>
+                Manage your personal preferences and cross-device synchronization.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="rounded-lg border bg-muted/50 p-4 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="sync-preferences" className="text-base font-medium cursor-pointer">
+                      Sync settings across devices
+                    </Label>
+                    <p className="text-sm text-muted-foreground">
+                      {syncEnabled
+                        ? 'Your preferences are synced to the database and will be available on all devices.'
+                        : 'Your preferences are stored locally on this device only.'}
+                    </p>
+                  </div>
+                  <Switch
+                    id="sync-preferences"
+                    checked={syncEnabled}
+                    onCheckedChange={handleSyncToggle}
+                    disabled={prefsLoading || syncSubmitting}
+                  />
+                </div>
+                {syncEnabled && (
+                  <Alert>
+                    <IconInfoCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      When sync is enabled, your preferences are saved to the database and will apply across all devices where you sign in.
+                      When disabled, preferences are stored locally in your browser only.
+                    </AlertDescription>
+                  </Alert>
+                )}
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

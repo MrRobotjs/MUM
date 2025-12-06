@@ -11,7 +11,7 @@ from flask_openapi3 import Tag
 from app.routes.api_v2 import api_v2
 from app.extensions import db
 from app.models import Invite, InviteUsage
-from app.models_media_services import MediaServer
+from app.models_media_services import MediaServer, MediaLibrary
 from sqlalchemy import or_ as sa_or
 
 
@@ -87,6 +87,12 @@ class CreateInviteBody(BaseModel):
     allow_downloads: Optional[bool] = False
     is_active: Optional[bool] = True
     server_ids: Optional[list[int]] = Field(None, description="Servers to associate with this invite")
+    invite_to_plex_home: Optional[bool] = False
+    allow_live_tv: Optional[bool] = False
+    allow_4k_transcode: Optional[bool] = True
+    membership_duration_days: Optional[int] = Field(None, description="Duration in days for granted access")
+    grant_purge_whitelist: Optional[bool] = False
+    grant_bot_whitelist: Optional[bool] = False  # Ignored (WIP)
 
     @field_validator("custom_path")
     @classmethod
@@ -106,6 +112,40 @@ def _server_ref(s: MediaServer) -> dict:
 
 
 def _invite_item(i: Invite) -> dict:
+    # Map granted libraries to names/servers for display
+    library_ids = set(i.grant_library_ids or [])
+    libs_payload = []
+    grants_all_libraries = False
+
+    if i.servers:
+        server_ids = [s.id for s in i.servers]
+        if library_ids:
+            libs = (
+                MediaLibrary.query.filter(
+                    db.or_(
+                        MediaLibrary.external_id.in_(library_ids),
+                        MediaLibrary.internal_id.in_(library_ids),
+                    )
+                )
+                .filter(MediaLibrary.server_id.in_(server_ids))
+                .all()
+            )
+            for lib in libs:
+                libs_payload.append(
+                    {
+                        "id": lib.external_id,
+                        "name": lib.name,
+                        "server_name": lib.server.server_nickname if lib.server else None,
+                        "service_type": lib.server.service_type.value if lib.server else None,
+                    }
+                )
+        # Consider "all libraries" when every library on the invite's servers is granted
+        total_libs = MediaLibrary.query.filter(MediaLibrary.server_id.in_(server_ids)).count()
+        if total_libs and library_ids and len(library_ids) >= total_libs:
+            grants_all_libraries = True
+        if not library_ids and total_libs > 0:
+            grants_all_libraries = True
+
     return {
         "id": i.id,
         "token": i.token,
@@ -121,7 +161,15 @@ def _invite_item(i: Invite) -> dict:
         "updated_at": i.updated_at.isoformat() + "Z" if i.updated_at else None,
         "servers": [_server_ref(s) for s in (i.servers or [])],
         "grant_library_ids": i.grant_library_ids or [],
+        "libraries": libs_payload,
+        "grants_all_libraries": grants_all_libraries,
         "allow_downloads": bool(getattr(i, "allow_downloads", False)),
+        "invite_to_plex_home": bool(getattr(i, "invite_to_plex_home", False)),
+        "allow_live_tv": bool(getattr(i, "allow_live_tv", False)),
+        "allow_4k_transcode": bool(getattr(i, "allow_4k_transcode", True)),
+        "membership_duration_days": getattr(i, "membership_duration_days", None),
+        "grant_purge_whitelist": bool(getattr(i, "grant_purge_whitelist", False)),
+        "grant_bot_whitelist": bool(getattr(i, "grant_bot_whitelist", False)),
     }
 
 
@@ -221,6 +269,12 @@ def create_invite(body: CreateInviteBody, current_user):
         grant_library_ids=body.grant_library_ids or [],
         allow_downloads=bool(body.allow_downloads),
         is_active=True if body.is_active is None else body.is_active,
+        invite_to_plex_home=bool(body.invite_to_plex_home),
+        allow_live_tv=bool(body.allow_live_tv),
+        allow_4k_transcode=bool(body.allow_4k_transcode) if body.allow_4k_transcode is not None else True,
+        membership_duration_days=body.membership_duration_days,
+        grant_purge_whitelist=bool(body.grant_purge_whitelist),
+        grant_bot_whitelist=bool(body.grant_bot_whitelist),
         created_by_owner_id=getattr(current_user, "id", None),
     )
 
@@ -260,6 +314,12 @@ class UpdateInviteBody(BaseModel):
     grant_library_ids: Optional[list[str]] = None
     allow_downloads: Optional[bool] = None
     is_active: Optional[bool] = None
+    invite_to_plex_home: Optional[bool] = None
+    allow_live_tv: Optional[bool] = None
+    allow_4k_transcode: Optional[bool] = None
+    membership_duration_days: Optional[int] = None
+    grant_purge_whitelist: Optional[bool] = None
+    grant_bot_whitelist: Optional[bool] = None
 
 
 @api_v2.patch(
@@ -290,6 +350,18 @@ def update_invite(path: InvitePath, body: UpdateInviteBody, current_user):
         inv.allow_downloads = bool(data["allow_downloads"])
     if "is_active" in data:
         inv.is_active = bool(data["is_active"])
+    if "invite_to_plex_home" in data:
+        inv.invite_to_plex_home = bool(data["invite_to_plex_home"])
+    if "allow_live_tv" in data:
+        inv.allow_live_tv = bool(data["allow_live_tv"])
+    if "allow_4k_transcode" in data:
+        inv.allow_4k_transcode = bool(data["allow_4k_transcode"])
+    if "membership_duration_days" in data:
+        inv.membership_duration_days = data["membership_duration_days"]
+    if "grant_purge_whitelist" in data:
+        inv.grant_purge_whitelist = bool(data["grant_purge_whitelist"])
+    if "grant_bot_whitelist" in data:
+        inv.grant_bot_whitelist = bool(data["grant_bot_whitelist"])
 
     db.session.commit()
     return jsonify(_invite_item(inv)), 200

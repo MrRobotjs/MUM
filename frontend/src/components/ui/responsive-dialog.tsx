@@ -29,6 +29,11 @@ type ResponsiveDialogProps = {
   bodyClassName?: string
   footerClassName?: string
   sheetSide?: "top" | "right" | "bottom" | "left"
+  /**
+   * When true, pins the footer to the bottom of the dialog/sheet with a subtle background.
+   */
+  stickyFooter?: boolean
+  headerClassName?: string
 }
 
 export function ResponsiveDialog({
@@ -42,6 +47,8 @@ export function ResponsiveDialog({
   bodyClassName,
   footerClassName,
   sheetSide = "bottom",
+  stickyFooter = false,
+  headerClassName,
 }: ResponsiveDialogProps) {
   const isMobile = useIsMobile()
 
@@ -60,7 +67,7 @@ export function ResponsiveDialog({
           )}
         >
           {(title || description) && (
-            <SheetHeader className="px-0">
+            <SheetHeader className={cn("px-0", headerClassName)}>
               {title ? <SheetTitle>{title}</SheetTitle> : null}
               {description ? (
                 <SheetDescription>{description}</SheetDescription>
@@ -76,6 +83,7 @@ export function ResponsiveDialog({
             <div
               className={cn(
                 "mt-4 flex flex-col-reverse gap-2 border-t border-border bg-background/95 p-4 sm:flex-row sm:justify-end",
+                stickyFooter ? "sticky bottom-0 z-10" : "",
                 footerClassName
               )}
             >
@@ -91,7 +99,7 @@ export function ResponsiveDialog({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className={contentClassName}>
         {(title || description) && (
-          <DialogHeader>
+          <DialogHeader className={headerClassName}>
             {title ? <DialogTitle>{title}</DialogTitle> : null}
             {description ? (
               <DialogDescription>{description}</DialogDescription>
@@ -102,7 +110,14 @@ export function ResponsiveDialog({
           {children}
         </div>
         {footer ? (
-          <DialogFooter className={footerClassName}>{footer}</DialogFooter>
+          <DialogFooter
+            className={cn(
+              stickyFooter ? "sticky bottom-0 z-10 border-t border-border bg-background/95" : "",
+              footerClassName
+            )}
+          >
+            {footer}
+          </DialogFooter>
         ) : null}
       </DialogContent>
     </Dialog>

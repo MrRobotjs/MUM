@@ -325,6 +325,7 @@ def accept_invite_and_grant_access(invite: Invite, plex_user_uuid: str, plex_use
                 userType=UserType.LOCAL,
                 localUsername=base_username,
                 email=base_email,
+                allow_4k_transcode=bool(invite.allow_4k_transcode),
                 used_invite_id=invite.id,
                 access_expires_at=user_access_expires_at,
                 notes=f"Created via invite {invite.id} (service-only)"
@@ -423,6 +424,7 @@ def accept_invite_and_grant_access(invite: Invite, plex_user_uuid: str, plex_use
                 external_email=service_email,
                 allowed_library_ids=server_library_ids,  # Use server-specific library IDs
                 allow_downloads=bool(invite.allow_downloads),
+                allow_4k_transcode=bool(invite.allow_4k_transcode),
                 used_invite_id=invite.id,
                 service_join_date=datetime.now(timezone.utc),
                 is_discord_bot_whitelisted=bool(invite.grant_bot_whitelist),

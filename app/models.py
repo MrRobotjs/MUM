@@ -848,6 +848,7 @@ class Invite(db.Model):
     grant_bot_whitelist = db.Column(db.Boolean, nullable=True, default=False)
     invite_to_plex_home = db.Column(db.Boolean, nullable=True, default=False)
     allow_live_tv = db.Column(db.Boolean, nullable=True, default=False)
+    allow_4k_transcode = db.Column(db.Boolean, nullable=False, default=True)
     servers = db.relationship('MediaServer', secondary=invite_servers, lazy='subquery',
                               backref=db.backref('invites', lazy=True))
     def __repr__(self): return f'<Invite {self.custom_path or self.token}>'

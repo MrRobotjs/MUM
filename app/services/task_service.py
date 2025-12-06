@@ -73,6 +73,47 @@ def _run_media_session_monitor(
     target_exclude = _normalize_service_type_set(exclude_service_types)
     live_service_filter = _normalize_service_type_set(live_service_types)
 
+    def _is_plex_session_4k_source(plex_session: Any) -> bool:
+        """Best-effort detection of a 4K source stream for Plex sessions."""
+        try:
+            media_items = getattr(plex_session, "media", None) or []
+            original_media = None
+
+            for media in media_items:
+                if getattr(getattr(media, "_data", {}), "get", lambda *_: None)("selected") != "1":
+                    original_media = media
+                    break
+            if original_media is None and media_items:
+                original_media = media_items[0]
+
+            if not original_media:
+                return False
+
+            if getattr(original_media, "videoResolution", None):
+                if str(original_media.videoResolution).lower() == "4k":
+                    return True
+
+            height = getattr(original_media, "height", None)
+            if height and int(height) >= 2160:
+                return True
+
+            parts = getattr(original_media, "parts", None) or []
+            for part in parts:
+                streams = getattr(part, "streams", None) or []
+                for stream in streams:
+                    if getattr(stream, "streamType", 0) != 1:
+                        continue
+                    display_title = getattr(stream, "displayTitle", "") or ""
+                    if "4K" in display_title.upper():
+                        return True
+                    stream_height = getattr(stream, "height", None)
+                    if stream_height and int(stream_height) >= 2160:
+                        return True
+            return False
+        except Exception as err:
+            current_app.logger.debug(f"[{source_label}] 4K detection failed for Plex session: {err}", exc_info=False)
+            return False
+
     # Check for any active media servers from the database
     all_servers = MediaServiceManager.get_all_servers(active_only=True)
     target_servers = []
@@ -389,6 +430,54 @@ def _run_media_session_monitor(
                     continue
                 
                 # Process session for user
+
+                allow_4k_transcode_allowed = True
+                if mum_user is not None and mum_user.allow_4k_transcode is not None:
+                    allow_4k_transcode_allowed = bool(mum_user.allow_4k_transcode)
+                elif user_media_access is not None and user_media_access.allow_4k_transcode is not None:
+                    allow_4k_transcode_allowed = bool(user_media_access.allow_4k_transcode)
+
+                if (
+                    service_type_enum == ServiceType.PLEX
+                    and not allow_4k_transcode_allowed
+                    and hasattr(session, "transcodeSession")
+                    and getattr(session.transcodeSession, "videoDecision", "").lower() == "transcode"
+                ):
+                    if _is_plex_session_4k_source(session):
+                        reason = "4K transcoding is disabled for this user."
+                        current_app.logger.warning(
+                            "[%s] Terminating Plex session %s for user %s due to 4K transcode policy.",
+                            source_label,
+                            session_key,
+                            user_media_access.external_username if user_media_access else getattr(mum_user, "localUsername", "unknown"),
+                        )
+                        terminated = False
+                        try:
+                            if current_server:
+                                terminated = MediaServiceManager.terminate_session(current_server.id, str(session_key), reason=reason)
+                        except Exception as term_err:
+                            current_app.logger.error(
+                                "[%s] Failed to terminate Plex session %s: %s",
+                                source_label,
+                                session_key,
+                                term_err,
+                                exc_info=True,
+                            )
+                        if terminated:
+                            log_event(
+                                EventType.STREAMING_SESSION_TERMINATED,
+                                f"Terminated 4K transcode session for user {user_media_access.external_username if user_media_access else mum_user.get_display_name() if mum_user else 'unknown'}.",
+                                user_id=(mum_user.id if mum_user else user_media_access.id if user_media_access else None),
+                                details={"reason": reason, "session_key": str(session_key)},
+                            )
+                            _active_stream_sessions.pop(session_key, None)
+                            continue
+                        else:
+                            current_app.logger.warning(
+                                "[%s] Could not terminate Plex session %s for 4K policy; continuing to track.",
+                                source_label,
+                                session_key,
+                            )
 
                 # If the session is new, create the history record
                 if session_key not in _active_stream_sessions:

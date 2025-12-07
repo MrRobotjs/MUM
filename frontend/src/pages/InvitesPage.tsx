@@ -8,9 +8,19 @@ import { requestJson } from '../util/apiClient';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Input } from '../components/ui/input';
 import { Checkbox } from '../components/ui/checkbox';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../components/ui/dropdown-menu';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuPortal,
+  DropdownMenuSeparator,
+  DropdownMenuLabel
+} from '../components/ui/dropdown-menu';
 import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
+import { PageHeader } from '../components';
+import { IconDots } from '@tabler/icons-react';
 
 // Helper function to get service-specific styling
 const getServiceBadgeClass = (serviceType: string): string => {
@@ -54,6 +64,39 @@ const getServiceIcon = (serviceType: string): string => {
       return 'fa-solid fa-gamepad';
     default:
       return 'fa-solid fa-server';
+  }
+};
+
+const statusStyles: Record<
+  string,
+  {
+    label: string;
+    className: string;
+  }
+> = {
+  usable: {
+    label: 'Usable',
+    className: 'bg-green-500/10 text-green-600 border-green-500/20'
+  },
+  active: {
+    label: 'Active',
+    className: 'bg-green-500/10 text-green-600 border-green-500/20'
+  },
+  inactive: {
+    label: 'Inactive',
+    className: 'bg-muted text-muted-foreground border-border'
+  },
+  expired: {
+    label: 'Expired',
+    className: 'bg-destructive/10 text-destructive border-destructive/20'
+  },
+  maxed: {
+    label: 'Maxed',
+    className: 'bg-amber-500/10 text-amber-600 border-amber-500/20'
+  },
+  default: {
+    label: 'Unknown',
+    className: 'bg-muted text-muted-foreground border-border'
   }
 };
 
@@ -180,40 +223,55 @@ export const InvitesPage = () => {
     setPage(clamped);
   };
 
+  const headerActions = (
+    <div className="flex flex-col items-end gap-2 sm:flex-row sm:items-center">
+      <Button onClick={openCreateModal} className="w-full sm:w-auto">
+        <i className="fa-solid fa-plus mr-2" /> Create Invite
+      </Button>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="sm" type="button" title="More options">
+            <IconDots className="h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuPortal>
+          <DropdownMenuContent className="w-56 rounded-lg" align="end" side="bottom" sideOffset={8}>
+            <DropdownMenuLabel>View Mode</DropdownMenuLabel>
+            <DropdownMenuItem
+              onSelect={() => setViewMode('table')}
+              className={viewMode === 'table' ? 'bg-primary/10' : ''}
+            >
+              <i className="fa-solid fa-list fa-fw mr-2" />
+              <span className="flex-1">Table View</span>
+              {viewMode === 'table' && <i className="fa-solid fa-check fa-fw ml-2 text-primary" />}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={() => setViewMode('cards')}
+              className={viewMode === 'cards' ? 'bg-primary/10' : ''}
+            >
+              <i className="fa-solid fa-th-large fa-fw mr-2" />
+              <span className="flex-1">Card View</span>
+              {viewMode === 'cards' && <i className="fa-solid fa-check fa-fw ml-2 text-primary" />}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem disabled>
+              <i className="fa-solid fa-gear fa-fw mr-2" />
+              <span className="flex-1 text-muted-foreground">More options coming soon</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenuPortal>
+      </DropdownMenu>
+    </div>
+  );
+
   return (
     <div className="container mx-auto px-4 py-2 space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">
-          Manage Invites ({pagination?.total_items ?? 0})
-        </h1>
-        <div className="flex gap-2 mt-4 sm:mt-0">
-          <Button onClick={openCreateModal}>
-            <i className="fa-solid fa-plus mr-2" /> Create Invite
-          </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" title="Change view">
-                <i className="fa-solid fa-display mr-1" /> View <i className="fa-solid fa-chevron-down fa-xs ml-1" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem
-                className={viewMode === 'cards' ? 'font-bold' : ''}
-                onClick={() => setViewMode('cards')}
-              >
-                <i className="fa-solid fa-grip-vertical fa-fw mr-2" /> Card View
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                className={viewMode === 'table' ? 'font-bold' : ''}
-                onClick={() => setViewMode('table')}
-              >
-                <i className="fa-solid fa-table-list fa-fw mr-2" /> Table View
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </div>
+      <PageHeader
+        title={`Manage Invites (${pagination?.total_items ?? 0})`}
+        description="Create and manage shareable access to your media servers."
+        actions={headerActions}
+      />
 
       {/* Filter Section */}
       <form method="GET" className="mb-6 p-4 rounded-lg border shadow-sm" onSubmit={handleSearchSubmit}>
@@ -348,11 +406,12 @@ export const InvitesPage = () => {
             invites.map((invite) => (
               <Card
                 key={invite.id}
-                className={`shadow-lg hover:shadow-xl transition-shadow duration-200 ease-in-out relative group cursor-pointer ${
-                  selectedIds.has(invite.id) ? 'ring-2 ring-primary' : ''
+                className={`relative overflow-hidden border transition-all duration-200 ease-in-out group cursor-pointer ${
+                  selectedIds.has(invite.id) ? 'ring-2 ring-primary shadow-xl translate-y-[-2px]' : 'hover:shadow-lg'
                 }`}
                 onClick={() => toggleSelect(invite.id)}
               >
+                <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-background via-background to-primary/5 opacity-80" />
                 {/* Selection Checkbox */}
                 <div className={`absolute top-2 right-2 z-10 transition-opacity duration-200 ${selectedIds.has(invite.id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
                   <Checkbox
@@ -362,114 +421,109 @@ export const InvitesPage = () => {
                   />
                 </div>
 
-                <CardContent>
-                  <div className="mb-3 flex items-center justify-between flex-wrap gap-2">
-                    <div className="flex items-center gap-2">
-                      <button
-                        className="font-semibold text-primary text-left hover:underline underline-offset-4 p-0"
-                        title="Click to copy invite link"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          const invitePath = invite.custom_path || invite.token;
-                          const fullUrl = `${window.location.origin}/invite/${invitePath}`;
-                          navigator.clipboard.writeText(fullUrl);
-                          success('Invite link copied!');
-                        }}
-                      >
-                        {invite.custom_path || invite.token.substring(0, 12)}
-                      </button>
-                      <a
-                        href={`/invite/${invite.custom_path || invite.token}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-muted-foreground hover:text-foreground p-1"
-                        title="Open link in new tab"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <i className="fa-solid fa-external-link-alt fa-xs" />
-                      </a>
+                <CardContent className="relative z-10 space-y-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <button
+                          className="font-semibold text-primary text-left hover:underline underline-offset-4 p-0"
+                          title="Click to copy invite link"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const invitePath = invite.custom_path || invite.token;
+                            const fullUrl = `${window.location.origin}/invite/${invitePath}`;
+                            navigator.clipboard.writeText(fullUrl);
+                            success('Invite link copied!');
+                          }}
+                        >
+                          {invite.custom_path || invite.token.substring(0, 12)}
+                        </button>
+                        <a
+                          href={`/invite/${invite.custom_path || invite.token}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-muted-foreground hover:text-foreground p-1"
+                          title="Open link in new tab"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <i className="fa-solid fa-external-link-alt fa-xs" />
+                        </a>
+                        {invite.custom_path && (
+                          <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                            <i className="fa-solid fa-link w-3 h-3" />
+                            Custom Path
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+                        <span>
+                          <i className="fa-solid fa-calendar-plus fa-fw mr-1" />
+                          {invite.created_at ? new Date(invite.created_at).toLocaleDateString() : 'Created: N/A'}
+                        </span>
+                        <span className={invite.status === 'expired' ? 'text-destructive' : ''}>
+                          <i className="fa-solid fa-clock fa-fw mr-1" />
+                          {invite.expires_at ? new Date(invite.expires_at).toLocaleDateString() : 'Never expires'}
+                        </span>
+                      </div>
                     </div>
-                    {invite.custom_path && (
-                      <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                        <i className="fa-solid fa-link w-3 h-3" />
-                        Custom Path
+                    <div className="flex flex-col items-end gap-2 text-right">
+                      {(() => {
+                        const meta = statusStyles[(invite.status ?? '').toLowerCase()] ?? statusStyles.default;
+                        return (
+                          <span
+                            className={`inline-flex items-center gap-2 rounded-full border px-2 py-1 text-xs font-medium ${meta.className}`}
+                          >
+                        <i className="fa-solid fa-circle-dot fa-xs" />
+                            {meta.label}
+                          </span>
+                        );
+                      })()}
+                      <span className="text-xs font-semibold">
+                        <i className="fa-solid fa-users-line fa-fw mr-1 text-muted-foreground" />
+                        {invite.uses_count || invite.current_uses} / {invite.max_uses || '∞'} uses
                       </span>
-                    )}
+                    </div>
                   </div>
 
-                  <div className="text-xs space-y-2 mb-3">
-                    <p>
-                      <i className="fa-solid fa-calendar-plus fa-fw mr-1 text-blue-600 dark:text-blue-400" /> Created:{' '}
-                      {invite.created_at ? new Date(invite.created_at).toLocaleDateString() : 'N/A'}
-                    </p>
-                    <p>
-                      <i className={`fa-solid fa-clock fa-fw mr-1 ${invite.status === 'expired' ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`} />{' '}
-                      Expires: {invite.expires_at ? new Date(invite.expires_at).toLocaleDateString() : 'Never'}
-                    </p>
-                    <p>
-                      <i className="fa-solid fa-users-line fa-fw mr-1 text-blue-600 dark:text-blue-400" /> Uses: {invite.uses_count || invite.current_uses} /{' '}
-                      {invite.max_uses || '∞'}
-                    </p>
-
-                    {/* Server Access Badges */}
-                    {invite.servers && invite.servers.length > 0 && (
-                      <div>
-                        <label className="text-xs font-medium text-muted-foreground block mb-1">
-                          <i className="fa-solid fa-server fa-fw mr-1" /> Server Access:
-                        </label>
-                        <div className="flex flex-wrap gap-1">
-                          {invite.servers.map((server) => (
+                  <div className="space-y-3 text-sm">
+                    {/* Server Access */}
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                        <i className="fa-solid fa-server fa-fw" /> Server Access
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {invite.servers?.length ? (
+                          invite.servers.map((server) => (
                             <span
                               key={server.id}
-                              className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md border ${getServiceBadgeClass(server.service_type)}`}
+                              className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold ${getServiceBadgeClass(server.service_type)}`}
                             >
                               <i className={`${getServiceIcon(server.service_type)} w-3 h-3`} />
                               {server.server_nickname || server.name || 'Unnamed server'}
                             </span>
-                          ))}
-                        </div>
+                          ))
+                        ) : (
+                          <span className="text-xs text-muted-foreground">No servers</span>
+                        )}
                       </div>
-                    )}
-
-                    {/* Discord Requirements */}
-                    {(invite.require_discord_auth || invite.require_discord_guild_membership) && (
-                      <div>
-                        <label className="text-xs font-medium text-muted-foreground block mb-1">
-                          <i className="fa-brands fa-discord fa-fw mr-1" /> Discord:
-                        </label>
-                        <div className="flex flex-wrap gap-1">
-                          {invite.require_discord_auth && (
-                            <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md bg-[#5865F2]/10 text-[#5865F2] border border-[#5865F2]/20">
-                              <i className="fa-solid fa-link w-3 h-3" />
-                              Auth Required
-                            </span>
-                          )}
-                          {invite.require_discord_guild_membership && (
-                            <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md bg-[#5865F2]/10 text-[#5865F2] border border-[#5865F2]/20">
-                              <i className="fa-solid fa-users w-3 h-3" />
-                              Guild Required
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    )}
+                    </div>
 
                     {/* Library Access */}
-                    <div>
-                      <label className="text-xs font-medium text-muted-foreground block mb-1">
-                        <i className="fa-solid fa-photo-film fa-fw mr-1" /> Library Access:
-                      </label>
-                      <div className="flex flex-wrap gap-1">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                        <i className="fa-solid fa-photo-film fa-fw" /> Library Access
+                      </div>
+                      <div className="flex flex-wrap gap-2">
                         {invite.grants_all_libraries ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md bg-green-500/10 text-green-400 border border-green-500/20">
+                          <span className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold bg-green-500/10 text-green-500 border-green-500/20">
                             <i className="fa-solid fa-infinity w-3 h-3" />
                             All Libraries
                           </span>
-                        ) : invite.libraries && invite.libraries.length > 0 ? (
+                        ) : invite.libraries?.length ? (
                           invite.libraries.map((library) => (
                             <span
                               key={library.id}
-                              className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md border ${getServiceBadgeClass(library.service_type)}`}
+                              className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold ${getServiceBadgeClass(library.service_type)}`}
                               title={`${library.name} (${library.server_name})`}
                             >
                               <i className={`${getServiceIcon(library.service_type)} w-3 h-3`} />
@@ -477,7 +531,7 @@ export const InvitesPage = () => {
                             </span>
                           ))
                         ) : (
-                          <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md bg-gray-500/10 text-gray-400 border border-gray-500/20">
+                          <span className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold bg-muted text-muted-foreground border-border">
                             <i className="fa-solid fa-question w-3 h-3" />
                             No Libraries
                           </span>
@@ -485,54 +539,68 @@ export const InvitesPage = () => {
                       </div>
                     </div>
 
-                    {/* Additional Features */}
-                    {(invite.allow_downloads || invite.invite_to_plex_home || invite.allow_live_tv || invite.membership_duration_days) && (
-                      <div>
-                        <label className="text-xs font-medium text-muted-foreground block mb-1">
-                          <i className="fa-solid fa-star fa-fw mr-1" /> Features:
-                        </label>
-                        <div className="flex flex-wrap gap-1">
-                          {invite.allow_downloads && (
-                            <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                              <i className="fa-solid fa-download w-3 h-3" />
-                              Downloads
-                            </span>
-                          )}
-                          {invite.invite_to_plex_home && (
-                            <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md bg-[#e5a00d]/10 text-[#e5a00d] border border-[#e5a00d]/20">
-                              <i className="fa-solid fa-home w-3 h-3" />
-                              Plex Home
-                            </span>
-                          )}
-                          {invite.allow_live_tv && (
-                            <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md bg-purple-500/10 text-purple-400 border border-purple-500/20">
-                              <i className="fa-solid fa-tv w-3 h-3" />
-                              Live TV
-                            </span>
-                          )}
-                          {invite.membership_duration_days && (
-                            <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md bg-orange-500/10 text-orange-400 border border-orange-500/20">
-                              <i className="fa-solid fa-clock w-3 h-3" />
-                              {invite.membership_duration_days} days
-                            </span>
-                          )}
-                        </div>
+                    {/* Features */}
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                        <i className="fa-solid fa-star fa-fw" /> Features
                       </div>
-                    )}
+                      <div className="flex flex-wrap gap-2">
+                        {invite.allow_downloads && (
+                          <span className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold bg-blue-500/10 text-blue-500 border-blue-500/20">
+                            <i className="fa-solid fa-download w-3 h-3" />
+                            Downloads
+                          </span>
+                        )}
+                        {invite.invite_to_plex_home && (
+                          <span className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold bg-[#e5a00d]/10 text-[#e5a00d] border-[#e5a00d]/20">
+                            <i className="fa-solid fa-home w-3 h-3" />
+                            Plex Home
+                          </span>
+                        )}
+                        {invite.allow_live_tv && (
+                          <span className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold bg-purple-500/10 text-purple-500 border-purple-500/20">
+                            <i className="fa-solid fa-tv w-3 h-3" />
+                            Live TV
+                          </span>
+                        )}
+                        {invite.membership_duration_days && (
+                          <span className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold bg-orange-500/10 text-orange-500 border-orange-500/20">
+                            <i className="fa-solid fa-clock w-3 h-3" />
+                            {invite.membership_duration_days} days
+                          </span>
+                        )}
+                        {!invite.allow_downloads && !invite.invite_to_plex_home && !invite.allow_live_tv && !invite.membership_duration_days && (
+                          <span className="text-xs text-muted-foreground">No extra features</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Discord Requirements */}
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                        <i className="fa-brands fa-discord fa-fw" /> Discord
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {invite.require_discord_auth && (
+                          <span className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold bg-[#5865F2]/10 text-[#5865F2] border-[#5865F2]/20">
+                            <i className="fa-solid fa-link w-3 h-3" />
+                            Auth Required
+                          </span>
+                        )}
+                        {invite.require_discord_guild_membership && (
+                          <span className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold bg-[#5865F2]/10 text-[#5865F2] border-[#5865F2]/20">
+                            <i className="fa-solid fa-users w-3 h-3" />
+                            Guild Required
+                          </span>
+                        )}
+                        {!invite.require_discord_auth && !invite.require_discord_guild_membership && (
+                          <span className="text-xs text-muted-foreground">No Discord requirements</span>
+                        )}
+                      </div>
+                    </div>
                   </div>
 
-                  <div className="flex justify-end gap-2 mt-auto pt-3 border-t" onClick={(e) => e.stopPropagation()}>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      title="Edit Invite"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        openEditModal(invite);
-                      }}
-                    >
-                      <i className="fa-solid fa-pen-to-square" />
-                    </Button>
+                  <div className="flex justify-end gap-2 pt-3 border-t" onClick={(e) => e.stopPropagation()}>
                     <Button
                       variant="ghost"
                       size="sm"
@@ -543,6 +611,17 @@ export const InvitesPage = () => {
                       }}
                     >
                       <i className="fa-solid fa-chart-line" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      title="Edit Invite"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openEditModal(invite);
+                      }}
+                    >
+                      <i className="fa-solid fa-pen-to-square" />
                     </Button>
                   </div>
                 </CardContent>
@@ -555,7 +634,7 @@ export const InvitesPage = () => {
       {pagination ? (
         <div className="flex items-center justify-between rounded-lg border px-4 py-3 text-sm">
           <div className="text-muted-foreground">
-            Page {currentPage} of {totalPages} • {pagination.total_items} invite
+            Page {currentPage} of {totalPages} - {pagination.total_items} invite
             {pagination.total_items === 1 ? '' : 's'}
           </div>
           <div className="flex items-center gap-2">

@@ -49,17 +49,6 @@ export const PluginCard = ({
 
         <div className="grid gap-3 text-sm text-muted-foreground">
           <div className="flex items-center justify-between">
-            <span className="font-medium text-foreground">Version</span>
-            <span className="font-mono text-xs text-foreground">
-              {plugin.version ?? '—'}
-              {plugin.availableVersion && plugin.availableVersion !== plugin.version ? (
-                <span className="ml-2 text-xs text-amber-600 dark:text-amber-400">
-                  Update: {plugin.availableVersion}
-                </span>
-              ) : null}
-            </span>
-          </div>
-          <div className="flex items-center justify-between">
             <span className="font-medium text-foreground">Servers</span>
             <span>
               {hasServers ? (

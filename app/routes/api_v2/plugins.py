@@ -23,7 +23,6 @@ class PluginItem(BaseModel):
     plugin_id: str
     name: str | None = None
     description: str | None = None
-    version: str | None = None
     type: str | None = None
     status: str | None = None
     author: str | None = None
@@ -55,7 +54,6 @@ def _serialize_plugin(plugin: Plugin):
         'plugin_id': plugin.plugin_id,
         'name': plugin.name,
         'description': plugin.description,
-        'version': plugin.version,
         'type': plugin.plugin_type.value if plugin.plugin_type else None,
         'status': plugin.status.value if plugin.status else None,
         'author': plugin.author,

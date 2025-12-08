@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { IconAlertCircle, IconInfoCircle } from '@tabler/icons-react'
 
@@ -10,8 +11,31 @@ import { requestJson } from '../util/apiClient'
 import { PluginCard, PluginCardActions } from '../components/plugins'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Skeleton } from '@/components/ui/skeleton'
 
 const getPluginKey = (plugin: Plugin) => plugin.pluginId || plugin.id
+
+const PluginCardSkeleton = () => (
+  <div className="h-full rounded-lg border border-border/50 bg-card p-4 shadow-sm space-y-4">
+    <div className="flex items-start justify-between gap-4">
+      <Skeleton className="h-10 w-10 rounded-md" />
+      <Skeleton className="h-6 w-20 rounded-full" />
+    </div>
+    <div className="space-y-2">
+      <Skeleton className="h-5 w-40" />
+      <Skeleton className="h-4 w-56" />
+    </div>
+    <div className="space-y-2">
+      <Skeleton className="h-4 w-24" />
+      <Skeleton className="h-4 w-28" />
+      <Skeleton className="h-4 w-32" />
+    </div>
+    <div className="flex gap-2">
+      <Skeleton className="h-9 w-24" />
+      <Skeleton className="h-9 w-20" />
+    </div>
+  </div>
+)
 
 export const AdminSettingsPluginsPage = () => {
   const navigate = useNavigate()
@@ -130,8 +154,10 @@ export const AdminSettingsPluginsPage = () => {
         </div>
         <div className="space-y-8">
           {loading ? (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <span className="loading loading-spinner loading-sm" /> Loading plugins…
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {Array.from({ length: 3 }).map((_, idx) => (
+                <PluginCardSkeleton key={idx} />
+              ))}
             </div>
           ) : plugins.length === 0 ? (
             <div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">

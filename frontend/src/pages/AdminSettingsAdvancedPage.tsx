@@ -114,11 +114,36 @@ const getTaskDetails = (task: any) => {
     });
   }
 
+  if (typeof task.misfire_grace_time === 'number') {
+    details.push({
+      label: 'Misfire Grace',
+      value: `${task.misfire_grace_time}s`,
+      description: 'How late a run can start before it is skipped'
+    });
+  }
+
+  if (typeof task.coalesce === 'boolean') {
+    details.push({
+      label: 'Coalesce',
+      value: task.coalesce ? 'Enabled' : 'Disabled',
+      description: 'When enabled, missed runs merge into a single execution'
+    });
+  }
+
   if (Array.isArray(task.channels) && task.channels.length > 0) {
     details.push({
       label: 'Channels',
       value: task.channels.join(', '),
       description: 'Active real-time subscriptions (<service>.<server_id>.<topic>)'
+    });
+  }
+
+  if (task.id && task.id.toLowerCase().includes('check_user_expirations')) {
+    details.push({
+      label: 'Notes',
+      value: 'Expiration guardrails',
+      description:
+        'This task uses a 15s misfire grace window and coalescing to avoid skipping runs when the scheduler is slightly delayed.'
     });
   }
 

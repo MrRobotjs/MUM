@@ -10,6 +10,8 @@ export interface ScheduledTask {
   next_run_time: string | null;
   interval_seconds: number | null;
   channels?: string[];
+  misfire_grace_time?: number | null;
+  coalesce?: boolean | null;
 }
 
 interface ScheduledTasksResponse {

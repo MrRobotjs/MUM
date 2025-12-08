@@ -828,21 +828,31 @@ def manually_trigger_expiration_check():
     check_user_access_expirations_task()
     current_app.logger.info("MANUAL TRIGGER: Expiration check completed.")
 
-def _schedule_job_if_not_exists_or_reschedule(job_id, func, trigger_type, **trigger_args):
-    """Helper to add or reschedule a job."""
+def _schedule_job_if_not_exists_or_reschedule(
+    job_id,
+    func,
+    trigger_type,
+    misfire_grace_time: int = 10,
+    coalesce: bool = True,
+    **trigger_args,
+):
+    """Helper to add or reschedule a job, with sane misfire handling."""
     if not scheduler.running:
         current_app.logger.warning(f"Task_Service: APScheduler not running. Cannot schedule job '{job_id}'.")
         return False
     
     try:
-        existing_job = scheduler.get_job(job_id)
-        if existing_job:
-            # Simple reschedule, more complex trigger comparison might be needed if triggers vary widely
-            scheduler.reschedule_job(job_id, trigger=trigger_type, **trigger_args)
-            current_app.logger.info(f"Rescheduled task: {job_id}")
-        else:
-            scheduler.add_job(id=job_id, func=func, trigger=trigger_type, **trigger_args)
-            current_app.logger.info(f"Scheduled task: {job_id}")
+        # Use replace_existing to ensure updated misfire/coalesce settings are applied
+        scheduler.add_job(
+            id=job_id,
+            func=func,
+            trigger=trigger_type,
+            replace_existing=True,
+            misfire_grace_time=misfire_grace_time,
+            coalesce=coalesce,
+            **trigger_args,
+        )
+        current_app.logger.info(f"Scheduled task: {job_id} (misfire_grace_time={misfire_grace_time}s, coalesce={coalesce})")
         return True
     except Exception as e:
         current_app.logger.error(f"Task_Service: Error adding/rescheduling job '{job_id}': {e}", exc_info=True)
@@ -871,7 +881,9 @@ def schedule_all_tasks():
         func=monitor_media_sessions_task,
         trigger_type='interval',
         seconds=session_interval_seconds,
-        next_run_time=datetime.now(timezone.utc) + timedelta(seconds=10) # Start shortly after app start
+        next_run_time=datetime.now(timezone.utc) + timedelta(seconds=10), # Start shortly after app start
+        misfire_grace_time=15,
+        coalesce=True,
     ):
         log_event(EventType.APP_STARTUP, f"Media session monitoring scheduled ({session_interval_seconds}s interval)")
 
@@ -881,6 +893,8 @@ def schedule_all_tasks():
         func=check_user_access_expirations_task,
         trigger_type='interval',
         seconds=session_interval_seconds,
-        next_run_time=datetime.now(timezone.utc) + timedelta(seconds=30)
+        next_run_time=datetime.now(timezone.utc) + timedelta(seconds=30),
+        misfire_grace_time=15,
+        coalesce=True,
     ):
         log_event(EventType.APP_STARTUP, f"User expiration check scheduled ({session_interval_seconds}s interval)")

@@ -5,7 +5,6 @@ type PluginApi = {
   plugin_id: string;
   name?: string | null;
   description?: string | null;
-  version?: string | null;
   status?: string | null;
   author?: string | null;
   repository?: string | null;
@@ -20,7 +19,6 @@ type PluginApi = {
     plugin_id?: string;
     name?: string;
     description?: string;
-    version?: string;
     author?: string;
     repository?: string;
     homepage?: string;
@@ -41,8 +39,6 @@ export type Plugin = {
   pluginId: string;
   name: string;
   description: string | null;
-  version: string | null;
-  availableVersion: string | null;
   status: string | null;
   enabled: boolean;
   installed: boolean;
@@ -62,9 +58,6 @@ const normalizePlugin = (item: PluginApi): Plugin => {
   const pluginId = item.plugin_id || available?.plugin_id || '';
   const name = item.name ?? available?.name ?? pluginId;
   const description = item.description ?? available?.description ?? null;
-  const explicitVersion = item.version ?? null;
-  const availableVersion = available?.version ?? null;
-  const version = explicitVersion ?? availableVersion;
   const status = item.status ?? null;
   const installed = Boolean(item.installed_at) || Boolean(status);
   const enabled = status === 'enabled';
@@ -85,8 +78,6 @@ const normalizePlugin = (item: PluginApi): Plugin => {
     pluginId,
     name,
     description,
-    version,
-    availableVersion,
     status,
     enabled,
     installed,

@@ -91,6 +91,8 @@ class ScheduledTaskItem(BaseModel):
     next_run_time: str | None
     interval_seconds: int | None
     channels: list[str] | None = None
+    misfire_grace_time: int | None = None
+    coalesce: bool | None = None
 
 
 class ScheduledTasksResponse(BaseModel):
@@ -138,6 +140,8 @@ def get_scheduled_tasks(current_user):
             "side": "Server",
             "next_run_time": job.next_run_time.isoformat() if job.next_run_time else None,
             "interval_seconds": interval_seconds,
+            "misfire_grace_time": getattr(job, "misfire_grace_time", None),
+            "coalesce": getattr(job, "coalesce", None),
         })
 
     # Add server-side WebSocket connections (Plex WebSocket monitor)

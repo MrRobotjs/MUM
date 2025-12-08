@@ -7,6 +7,7 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Checkbox } from '../components/ui/checkbox';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '../components/ui/collapsible';
+import { Skeleton } from '../components/ui/skeleton';
 import { useAlerts } from '../contexts/AlertContext';
 
 type WizardStep = {
@@ -689,10 +690,52 @@ export const InviteWizardPage = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="flex items-center gap-3">
-          <span className="loading loading-spinner loading-md" />
-          <span className="text-lg">Loading invite…</span>
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="w-full max-w-4xl">
+          <div className="bg-card border rounded-xl shadow-lg overflow-hidden">
+            <div className="bg-gradient-to-r from-primary/10 to-secondary/10 p-6 text-center border-b border">
+              <div className="flex flex-col items-center gap-3">
+                <Skeleton className="h-16 w-16 rounded-full" />
+                <Skeleton className="h-6 w-48" />
+                <Skeleton className="h-4 w-64" />
+              </div>
+            </div>
+
+            <div className="p-6 sm:p-8 space-y-8">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <Skeleton className="h-4 w-32" />
+                  <Skeleton className="h-4 w-28" />
+                </div>
+                <div className="flex items-center gap-2">
+                  {Array.from({ length: 4 }).map((_, idx) => (
+                    <div key={idx} className="flex items-center flex-1">
+                      <div className="flex items-center gap-2 p-3 rounded-lg border bg-muted/50 flex-1">
+                        <Skeleton className="w-6 h-6 rounded-full" />
+                        <div className="flex-1 space-y-2">
+                          <Skeleton className="h-3 w-24" />
+                          <Skeleton className="h-2 w-16" />
+                        </div>
+                      </div>
+                      {idx < 3 ? <div className="w-3 h-0.5 mx-1 bg-muted" /> : null}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Skeleton className="h-36 w-full rounded-lg" />
+                <Skeleton className="h-36 w-full rounded-lg" />
+                <Skeleton className="h-16 w-full rounded-lg" />
+                <Skeleton className="h-16 w-full rounded-lg" />
+              </div>
+
+              <div className="space-y-3">
+                <Skeleton className="h-12 w-full rounded-lg" />
+                <Skeleton className="h-12 w-full rounded-lg" />
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     );

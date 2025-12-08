@@ -46,36 +46,82 @@ type FeatureMeta = {
   hideIfUniformTrue?: boolean;
 };
 
-const FEATURE_META: FeatureMeta[] = [
+type PluginMetaResponse = {
+  data: Record<
+    string,
+    {
+      invite_features?: string[];
+    }
+  >;
+};
+
+type FeatureMetaConfig = {
+  key: FeatureKey;
+  label: string;
+  icon: string;
+  defaultClassName: string;
+  tintServiceType?: string;
+  hideIfUniformTrue?: boolean;
+};
+
+const FEATURE_META_CONFIG: FeatureMetaConfig[] = [
   {
     key: 'allow_downloads',
     label: 'Downloads',
     icon: 'fa-solid fa-download',
-    className: 'bg-blue-500/10 text-blue-500 border-blue-500/20'
+    defaultClassName: 'bg-blue-500/10 text-blue-500 border-blue-500/20'
   },
   {
     key: 'invite_to_plex_home',
     label: 'Plex Home',
     icon: 'fa-solid fa-home',
-    className: 'bg-[#e5a00d]/10 text-[#e5a00d] border-[#e5a00d]/20',
-    onlyServices: ['plex']
+    tintServiceType: 'plex',
+    defaultClassName: 'bg-[#e5a00d]/10 text-[#e5a00d] border-[#e5a00d]/20'
   },
   {
     key: 'allow_live_tv',
     label: 'Live TV',
     icon: 'fa-solid fa-tv',
-    className: 'bg-purple-500/10 text-purple-500 border-purple-500/20',
-    onlyServices: ['plex']
+    tintServiceType: 'plex',
+    defaultClassName: 'bg-purple-500/10 text-purple-500 border-purple-500/20'
   },
   {
     key: 'allow_4k_transcode',
     label: '4K Transcode',
-    icon: 'fa-solid fa-film',
-    className: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20',
-    onlyServices: ['plex'],
-    hideIfUniformTrue: true
+    icon: 'fa-solid fa-gauge-high',
+    defaultClassName: 'bg-sky-500/10 text-sky-600 border-sky-500/20'
   }
 ];
+
+const buildFeatureMeta = (inviteFeatureSupport: Record<string, string[]>): FeatureMeta[] => {
+  const servicesSupportingFeature = (key: FeatureKey) => {
+    return Object.entries(inviteFeatureSupport)
+      .filter(([, features]) => Array.isArray(features) && features.includes(key))
+      .map(([serviceId]) => serviceId.toLowerCase());
+  };
+
+  const serviceTintClass = (serviceType?: string) => {
+    if (!serviceType) return undefined;
+    return `border ${getServiceBadgeClass(serviceType)}`;
+  };
+
+  const serviceIcon = (serviceType?: string, fallbackIcon?: string) => {
+    if (!serviceType) return fallbackIcon || 'fa-solid fa-server';
+    return getServiceIcon(serviceType) || fallbackIcon || 'fa-solid fa-server';
+  };
+
+  return FEATURE_META_CONFIG.map((cfg) => {
+    const onlyServices = servicesSupportingFeature(cfg.key);
+    return {
+      key: cfg.key,
+      label: cfg.label,
+      icon: serviceIcon(cfg.tintServiceType, cfg.icon),
+      className: serviceTintClass(cfg.tintServiceType) ?? cfg.defaultClassName,
+      onlyServices,
+      hideIfUniformTrue: cfg.hideIfUniformTrue
+    };
+  });
+};
 
 const resolveServerFeatures = (invite: InviteRow): InviteServerFeature[] => {
   const fromApi = invite.server_features ?? [];
@@ -97,10 +143,10 @@ const resolveServerFeatures = (invite: InviteRow): InviteServerFeature[] => {
   });
 };
 
-const buildFeatureSummaries = (invite: InviteRow) => {
+const buildFeatureSummaries = (invite: InviteRow, featureMeta: FeatureMeta[]) => {
   const perServer = resolveServerFeatures(invite);
 
-  return FEATURE_META.map((meta) => {
+  return featureMeta.map((meta) => {
     const relevant = meta.onlyServices
       ? perServer.filter((sf) => meta.onlyServices?.includes((sf.service_type || '').toLowerCase()))
       : perServer;
@@ -184,6 +230,7 @@ export const InvitesPage = () => {
   const [saving, setSaving] = useState(false);
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
   const { data: serversData } = useAdminApi<{ data: { id: number; server_nickname: string }[] }>('/servers', true);
+  const { data: pluginMetaData } = useAdminApi<PluginMetaResponse>('/plugins/metadata', true);
   const { summary } = useInviteSummary();
   const { invites, pagination, loading, error, refresh } = useInvites({
     status: statusFilter === 'all' ? undefined : statusFilter,
@@ -196,6 +243,16 @@ export const InvitesPage = () => {
     setPage(1);
     setSelectedIds(new Set());
   }, [statusFilter, searchTerm, serverFilter]);
+
+  const inviteFeatureSupport = useMemo(() => {
+    const meta = pluginMetaData?.data ?? {};
+    return Object.entries(meta).reduce<Record<string, string[]>>((acc, [pluginId, value]) => {
+      acc[pluginId.toLowerCase()] = value.invite_features ?? [];
+      return acc;
+    }, {});
+  }, [pluginMetaData]);
+
+  const featureMeta = useMemo(() => buildFeatureMeta(inviteFeatureSupport), [inviteFeatureSupport]);
 
   const toggleSelect = (inviteId: number) => {
     setSelectedIds((prev) => {
@@ -476,7 +533,7 @@ export const InvitesPage = () => {
             </div>
           ) : (
             invites.map((invite) => {
-              const featureSummaries = buildFeatureSummaries(invite);
+              const featureSummaries = buildFeatureSummaries(invite, featureMeta);
               const hasMembershipDuration = Boolean(invite.membership_duration_days);
 
               return (

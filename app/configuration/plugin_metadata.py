@@ -22,6 +22,7 @@ class PluginMetadata:
     supports_websocket: bool = False
     icon_class: Optional[str] = None  # FontAwesome class for small badges/icons
     config_schema: Dict[str, Any] = field(default_factory=dict)
+    invite_features: List[str] = field(default_factory=list)  # Feature flags exposed in invite flows
 
 
 # Plugin metadata registry
@@ -46,7 +47,8 @@ PLUGIN_METADATA: Dict[str, PluginMetadata] = {
                 'max': 300,
                 'description': 'WebSocket refresh interval in seconds'
             }
-        }
+        },
+        invite_features=['allow_downloads', 'invite_to_plex_home', 'allow_live_tv', 'allow_4k_transcode']
     ),
     'jellyfin': PluginMetadata(
         plugin_id='jellyfin',
@@ -60,6 +62,7 @@ PLUGIN_METADATA: Dict[str, PluginMetadata] = {
         features=['streaming', 'libraries', 'users', 'webhooks'],
         requires_api_key=True,
         supports_websocket=False,
+        invite_features=['allow_downloads'],
     ),
     'emby': PluginMetadata(
         plugin_id='emby',
@@ -73,6 +76,7 @@ PLUGIN_METADATA: Dict[str, PluginMetadata] = {
         features=['streaming', 'libraries', 'users', 'webhooks'],
         requires_api_key=True,
         supports_websocket=False,
+        invite_features=['allow_downloads'],
     ),
     'kavita': PluginMetadata(
         plugin_id='kavita',
@@ -86,6 +90,7 @@ PLUGIN_METADATA: Dict[str, PluginMetadata] = {
         features=['libraries', 'users'],
         requires_api_key=True,
         supports_websocket=False,
+        invite_features=['allow_downloads'],
     ),
     'audiobookshelf': PluginMetadata(
         plugin_id='audiobookshelf',
@@ -99,6 +104,7 @@ PLUGIN_METADATA: Dict[str, PluginMetadata] = {
         features=['libraries', 'users'],
         requires_api_key=True,
         supports_websocket=False,
+        invite_features=['allow_downloads'],
     ),
     'komga': PluginMetadata(
         plugin_id='komga',
@@ -112,6 +118,7 @@ PLUGIN_METADATA: Dict[str, PluginMetadata] = {
         features=['libraries', 'users'],
         requires_api_key=True,
         supports_websocket=False,
+        invite_features=['allow_downloads'],
     ),
     'romm': PluginMetadata(
         plugin_id='romm',
@@ -125,6 +132,7 @@ PLUGIN_METADATA: Dict[str, PluginMetadata] = {
         features=['libraries', 'users'],
         requires_api_key=True,
         supports_websocket=False,
+        invite_features=['allow_downloads'],
     ),
 }
 

@@ -22,6 +22,30 @@ invite_servers = db.Table('invite_servers',
     db.Column('server_id', db.Integer, db.ForeignKey('media_servers.id'), primary_key=True)
 )
 
+
+class InviteServerFeature(db.Model):
+    """
+    Per-server feature overrides for an invite (e.g., downloads, Plex Home, Live TV, 4K transcode).
+    Values are stored per server so invites with multiple services can express mixed capabilities.
+    """
+    __tablename__ = 'invite_server_features'
+    id = db.Column(db.Integer, primary_key=True)
+    invite_id = db.Column(db.Integer, db.ForeignKey('invites.id'), nullable=False)
+    server_id = db.Column(db.Integer, db.ForeignKey('media_servers.id'), nullable=False)
+    allow_downloads = db.Column(db.Boolean, nullable=True)
+    invite_to_plex_home = db.Column(db.Boolean, nullable=True)
+    allow_live_tv = db.Column(db.Boolean, nullable=True)
+    allow_4k_transcode = db.Column(db.Boolean, nullable=True)
+    created_at = db.Column(db.DateTime, default=utcnow)
+    updated_at = db.Column(db.DateTime, default=utcnow, onupdate=utcnow)
+
+    invite = db.relationship('Invite', back_populates='server_features')
+    server = db.relationship('MediaServer', back_populates='invite_features')
+
+    __table_args__ = (
+        db.UniqueConstraint('invite_id', 'server_id', name='uq_invite_server_feature'),
+    )
+
 class SettingValueType(enum.Enum): # ... (as before)
     STRING = "string"; INTEGER = "integer"; BOOLEAN = "boolean"; JSON = "json"; SECRET = "secret"
 
@@ -851,6 +875,7 @@ class Invite(db.Model):
     allow_4k_transcode = db.Column(db.Boolean, nullable=False, default=True)
     servers = db.relationship('MediaServer', secondary=invite_servers, lazy='subquery',
                               backref=db.backref('invites', lazy=True))
+    server_features = db.relationship('InviteServerFeature', back_populates='invite', cascade="all, delete-orphan")
     def __repr__(self): return f'<Invite {self.custom_path or self.token}>'
     @property
     def is_expired(self): 

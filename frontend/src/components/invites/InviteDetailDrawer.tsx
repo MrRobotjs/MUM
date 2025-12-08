@@ -79,8 +79,8 @@ type InviteDetailDrawerProps = {
 };
 
 type ApiResponse = {
-  data: InviteDetail;
-};
+  data?: InviteDetail;
+} | InviteDetail;
 
 export const InviteDetailDrawer = ({ inviteId, onClose }: InviteDetailDrawerProps) => {
   const { success, error: showError } = useAlerts();
@@ -98,7 +98,21 @@ export const InviteDetailDrawer = ({ inviteId, onClose }: InviteDetailDrawerProp
       setError(null);
       try {
         const json = await requestJson<ApiResponse>(`/admin/api/v2/invites/${inviteId}`);
-        setDetail(json.data);
+        const payload = (json as any)?.data ?? (json as any);
+        const normalized: InviteDetail = {
+          ...(payload as InviteDetail),
+          servers: (payload as any)?.servers ?? [],
+          usage: (payload as any)?.usage ?? [],
+          usage_summary: (payload as any)?.usage_summary ?? {
+            total: 0,
+            accepted: 0,
+            pending: 0,
+            plex_auth_successful: 0,
+            discord_auth_successful: 0,
+            last_used_at: null
+          }
+        };
+        setDetail(normalized);
       } catch (err) {
         const message = (err as Error).message || 'Failed to load invite details';
         setError(message);
@@ -178,6 +192,12 @@ export const InviteDetailDrawer = ({ inviteId, onClose }: InviteDetailDrawerProp
             </div>
           ) : null}
 
+          {!loading && !error && !detail ? (
+            <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+              Select an invite to view its details.
+            </div>
+          ) : null}
+
           {detail ? (
             <>
               <section className="rounded-xl border p-4 shadow-sm space-y-4">
@@ -241,7 +261,12 @@ export const InviteDetailDrawer = ({ inviteId, onClose }: InviteDetailDrawerProp
                   </span>
                 </header>
                 <div className="space-y-3">
-                  {detail.servers.map((server) => (
+                  {(detail.servers?.length ?? 0) === 0 ? (
+                    <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+                      No servers are linked to this invite yet.
+                    </div>
+                  ) : null}
+                  {detail.servers?.map((server) => (
                     <div key={server.id} className="rounded-lg border p-4">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div>
@@ -262,7 +287,7 @@ export const InviteDetailDrawer = ({ inviteId, onClose }: InviteDetailDrawerProp
                         </div>
                       </div>
                       <ul className="mt-3 grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
-                        {server.libraries.map((lib) => (
+                        {(server.libraries || []).map((lib) => (
                           <li key={lib.id} className="rounded-md border px-3 py-2">
                             <div className="font-medium">{lib.name}</div>
                             <div className="text-xs text-muted-foreground">
@@ -270,7 +295,7 @@ export const InviteDetailDrawer = ({ inviteId, onClose }: InviteDetailDrawerProp
                             </div>
                           </li>
                         ))}
-                        {server.libraries.length === 0 ? (
+                        {(server.libraries || []).length === 0 ? (
                           <li className="text-xs text-muted-foreground">No libraries synced.</li>
                         ) : null}
                       </ul>
@@ -282,11 +307,15 @@ export const InviteDetailDrawer = ({ inviteId, onClose }: InviteDetailDrawerProp
               <section className="space-y-3">
                 <header className="flex items-center justify-between">
                   <h3 className="text-lg font-semibold">Usage</h3>
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <span>{detail.usage_summary.total} total</span>
-                    <span>{detail.usage_summary.accepted} accepted</span>
-                    <span>{detail.usage_summary.pending} pending</span>
-                  </div>
+                  {(detail.usage_summary?.total ?? 0) > 0 ? (
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <span>{detail.usage_summary?.total ?? 0} total</span>
+                      <span>{detail.usage_summary?.accepted ?? 0} accepted</span>
+                      <span>{detail.usage_summary?.pending ?? 0} pending</span>
+                    </div>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">No usage yet</span>
+                  )}
                 </header>
                 <div className="rounded-xl border">
                   <div className="overflow-hidden">
@@ -302,16 +331,16 @@ export const InviteDetailDrawer = ({ inviteId, onClose }: InviteDetailDrawerProp
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {detail.usage.map((usage) => (
+                        {detail.usage?.map((usage) => (
                           <TableRow key={usage.id}>
                             <TableCell className="whitespace-nowrap">
-                              {usage.used_at ? new Date(usage.used_at).toLocaleString() : '—'}
+                              {usage.used_at ? new Date(usage.used_at).toLocaleString() : '-'}
                             </TableCell>
                             <TableCell>
                               {usage.plex_username ? (
                                 <div className="flex flex-col">
                                   <span>{usage.plex_username}</span>
-                                  <span className="text-xs text-muted-foreground">{usage.plex_email ?? '—'}</span>
+                                  <span className="text-xs text-muted-foreground">{usage.plex_email ?? '-'}</span>
                                 </div>
                               ) : (
                                 <span className="text-xs text-muted-foreground">
@@ -323,7 +352,7 @@ export const InviteDetailDrawer = ({ inviteId, onClose }: InviteDetailDrawerProp
                               {usage.discord_username ? (
                                 <div className="flex flex-col">
                                   <span>{usage.discord_username}</span>
-                                  <span className="text-xs text-muted-foreground">{usage.discord_user_id ?? '—'}</span>
+                                  <span className="text-xs text-muted-foreground">{usage.discord_user_id ?? '-'}</span>
                                 </div>
                               ) : (
                                 <span className="text-xs text-muted-foreground">
@@ -345,12 +374,12 @@ export const InviteDetailDrawer = ({ inviteId, onClose }: InviteDetailDrawerProp
                               ) : null}
                             </TableCell>
                             <TableCell className="text-xs text-muted-foreground break-all">
-                              {usage.user_uuid ?? '—'}
+                              {usage.user_uuid ?? '-'}
                             </TableCell>
-                            <TableCell className="text-xs text-muted-foreground">{usage.ip_address ?? '—'}</TableCell>
+                            <TableCell className="text-xs text-muted-foreground">{usage.ip_address ?? '-'}</TableCell>
                           </TableRow>
                         ))}
-                        {detail.usage.length === 0 ? (
+                        {(detail.usage?.length ?? 0) === 0 ? (
                           <TableRow>
                             <TableCell colSpan={6} className="py-6 text-center text-xs text-muted-foreground">
                               No usage records yet.

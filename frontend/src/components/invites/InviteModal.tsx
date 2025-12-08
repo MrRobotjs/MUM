@@ -23,6 +23,13 @@ export type InviteFormValues = {
   require_discord_guild_membership?: boolean;
   grant_purge_whitelist?: boolean;
   grant_bot_whitelist?: boolean;
+   server_features?: {
+    server_id: number;
+    allow_downloads?: boolean | null;
+    invite_to_plex_home?: boolean | null;
+    allow_live_tv?: boolean | null;
+    allow_4k_transcode?: boolean | null;
+  }[];
 };
 
 type Library = {
@@ -39,6 +46,13 @@ type Server = {
   is_active: boolean;
   libraries?: Library[];
   loadingLibraries?: boolean;
+};
+
+type ServerFeatureState = {
+  allow_downloads?: boolean;
+  invite_to_plex_home?: boolean;
+  allow_live_tv?: boolean;
+  allow_4k_transcode?: boolean;
 };
 
 type InviteModalProps = {
@@ -64,7 +78,8 @@ const defaultValues: InviteFormValues = {
   require_discord_auth: false,
   require_discord_guild_membership: false,
   grant_purge_whitelist: false,
-  grant_bot_whitelist: false
+  grant_bot_whitelist: false,
+  server_features: []
 };
 
 export const InviteModal = ({ open, onClose, onSubmit, initialValues, loading }: InviteModalProps) => {
@@ -72,6 +87,7 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, loading }:
   const [servers, setServers] = useState<Server[]>([]);
   const [selectedServerIds, setSelectedServerIds] = useState<Set<number>>(new Set());
   const [selectedLibraries, setSelectedLibraries] = useState<Set<string>>(new Set());
+  const [serverFeatures, setServerFeatures] = useState<Record<number, ServerFeatureState>>({});
   const [loadingServers, setLoadingServers] = useState(true);
   const [serverError, setServerError] = useState<string | null>(null);
   const [advancedOpen, setAdvancedOpen] = useState(false);
@@ -93,11 +109,23 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, loading }:
       setForm({ ...defaultValues, ...initialValues });
       setSelectedServerIds(new Set(initialValues?.server_ids || []));
       setSelectedLibraries(new Set(initialValues?.grant_library_ids || []));
+      const featureMap: Record<number, ServerFeatureState> = {};
+      (initialValues?.server_features || []).forEach((sf) => {
+        featureMap[sf.server_id] = {
+          allow_downloads: sf.allow_downloads ?? initialValues?.allow_downloads ?? false,
+          invite_to_plex_home: sf.invite_to_plex_home ?? initialValues?.invite_to_plex_home ?? false,
+          allow_live_tv: sf.allow_live_tv ?? initialValues?.allow_live_tv ?? false,
+          allow_4k_transcode: sf.allow_4k_transcode ?? initialValues?.allow_4k_transcode ?? true,
+        };
+      });
+      setServerFeatures(featureMap);
     } else {
       setForm(defaultValues);
       setSelectedServerIds(new Set());
       setSelectedLibraries(new Set());
       setAdvancedOpen(false);
+      setServerFeatures({});
+      setLibrarySearch({});
     }
   }, [initialValues, open]);
 
@@ -167,6 +195,11 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, loading }:
           return updated;
         });
       }
+      setServerFeatures((prev) => {
+        const updated = { ...prev };
+        delete updated[serverId];
+        return updated;
+      });
     } else {
       next.add(serverId);
       const server = servers.find((s) => s.id === serverId);
@@ -180,6 +213,18 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, loading }:
           return updated;
         });
       }
+      setServerFeatures((prev) => {
+        if (prev[serverId]) return prev;
+        return {
+          ...prev,
+          [serverId]: {
+            allow_downloads: form.allow_downloads ?? false,
+            invite_to_plex_home: form.invite_to_plex_home ?? false,
+            allow_live_tv: form.allow_live_tv ?? false,
+            allow_4k_transcode: form.allow_4k_transcode ?? true
+          }
+        };
+      });
     }
 
     setSelectedServerIds(next);
@@ -230,6 +275,21 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, loading }:
     setLibrarySearch((prev) => ({ ...prev, [serverId]: value }));
   };
 
+  const getServerFeature = (serverId: number): ServerFeatureState => ({
+    allow_downloads: form.allow_downloads ?? false,
+    invite_to_plex_home: form.invite_to_plex_home ?? false,
+    allow_live_tv: form.allow_live_tv ?? false,
+    allow_4k_transcode: form.allow_4k_transcode ?? true,
+    ...(serverFeatures[serverId] || {})
+  });
+
+  const updateServerFeature = (serverId: number, next: Partial<ServerFeatureState>) => {
+    setServerFeatures((prev) => ({
+      ...prev,
+      [serverId]: { ...getServerFeature(serverId), ...next }
+    }));
+  };
+
   const handleSubmit = async () => {
     if (selectedServerIds.size === 0) {
       setServerError('Please select at least one server to grant access to.');
@@ -238,15 +298,31 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, loading }:
 
     const expires_at = form.expires_at && form.expires_at.trim() !== '' ? form.expires_at : null;
 
+    const serverFeaturePayload = Array.from(selectedServerIds).map((serverId) => {
+      const features = getServerFeature(serverId);
+      return {
+        server_id: serverId,
+        allow_downloads: features.allow_downloads ?? false,
+        invite_to_plex_home: features.invite_to_plex_home ?? false,
+        allow_live_tv: features.allow_live_tv ?? false,
+        allow_4k_transcode: features.allow_4k_transcode ?? true
+      };
+    });
+
+    const allowDownloadsAny = serverFeaturePayload.some((f) => f.allow_downloads);
+    const invitePlexAny = serverFeaturePayload.some((f) => f.invite_to_plex_home);
+    const allowLiveTvAny = serverFeaturePayload.some((f) => f.allow_live_tv);
+    const allow4kAny = serverFeaturePayload.some((f) => f.allow_4k_transcode ?? true);
+
     const submitData = {
       custom_path: form.custom_path?.trim() || undefined,
       expires_at,
       max_uses: form.max_uses ?? null,
-      allow_downloads: form.allow_downloads ?? false,
+      allow_downloads: allowDownloadsAny,
       is_active: form.is_active ?? true,
-      invite_to_plex_home: form.invite_to_plex_home ?? false,
-      allow_live_tv: form.allow_live_tv ?? false,
-      allow_4k_transcode: form.allow_4k_transcode ?? true,
+      invite_to_plex_home: invitePlexAny,
+      allow_live_tv: allowLiveTvAny,
+      allow_4k_transcode: allow4kAny,
       membership_duration_days:
         form.membership_expires_at && form.membership_expires_at.trim() !== ''
           ? Math.max(
@@ -260,7 +336,8 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, loading }:
       grant_purge_whitelist: form.grant_purge_whitelist ?? false,
       grant_bot_whitelist: false, // WIP / disabled
       server_ids: Array.from(selectedServerIds),
-      grant_library_ids: Array.from(selectedLibraries)
+      grant_library_ids: Array.from(selectedLibraries),
+      server_features: serverFeaturePayload
     };
 
     await onSubmit(submitData);
@@ -460,6 +537,7 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, loading }:
                           const id = lib.id || lib.external_id || lib.internal_id;
                           return id && selectedLibraries.has(id) ? acc + 1 : acc;
                         }, 0);
+                        const featureState = getServerFeature(server.id);
 
                         return (
                           <div key={server.id} className={isSelected ? 'bg-primary/5' : ''}>
@@ -559,60 +637,72 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, loading }:
                                 </div>
 
                                 <div className="space-y-3">
-                                  <div className="rounded-md border bg-background px-3 py-2">
-                                    <div className="flex items-center justify-between">
-                                      <div className="flex items-center gap-2 text-sm font-medium">
-                                        <i className="fa-solid fa-download text-blue-400" />
-                                        Allow Downloads
+                                    <div className="rounded-md border bg-background px-3 py-2">
+                                      <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2 text-sm font-medium">
+                                          <i className="fa-solid fa-download text-blue-400" />
+                                          Allow Downloads
+                                        </div>
+                                        <Switch
+                                          checked={featureState.allow_downloads ?? false}
+                                          onCheckedChange={(checked) => {
+                                            updateServerFeature(server.id, { allow_downloads: checked });
+                                            setForm((prev) => ({ ...prev, allow_downloads: checked }));
+                                          }}
+                                        />
                                       </div>
-                                      <Switch
-                                        checked={form.allow_downloads ?? false}
-                                        onCheckedChange={(checked) => setForm((prev) => ({ ...prev, allow_downloads: checked }))}
-                                      />
+                                      <p className="text-[11px] text-muted-foreground mt-1">Users can download media.</p>
                                     </div>
-                                    <p className="text-[11px] text-muted-foreground mt-1">Users can download media.</p>
-                                  </div>
 
-                                  {server.service_type?.toLowerCase() === 'plex' ? (
-                                    <>
-                                      <div className="rounded-md border bg-background px-3 py-2">
-                                        <div className="flex items-center justify-between">
-                                          <div className="flex items-center gap-2 text-sm font-medium">
-                                            <i className="fa-solid fa-home text-primary" />
-                                            Plex Home
+                                    {server.service_type?.toLowerCase() === 'plex' ? (
+                                      <>
+                                        <div className="rounded-md border bg-background px-3 py-2">
+                                          <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-2 text-sm font-medium">
+                                              <i className="fa-solid fa-home text-primary" />
+                                              Plex Home
+                                            </div>
+                                            <Switch
+                                              checked={featureState.invite_to_plex_home ?? false}
+                                              onCheckedChange={(checked) => {
+                                                updateServerFeature(server.id, { invite_to_plex_home: checked });
+                                                setForm((prev) => ({ ...prev, invite_to_plex_home: checked }));
+                                              }}
+                                            />
                                           </div>
-                                          <Switch
-                                            checked={form.invite_to_plex_home ?? false}
-                                            onCheckedChange={(checked) => setForm((prev) => ({ ...prev, invite_to_plex_home: checked }))}
-                                          />
                                         </div>
-                                      </div>
-                                      <div className="rounded-md border bg-background px-3 py-2">
-                                        <div className="flex items-center justify-between">
-                                          <div className="flex items-center gap-2 text-sm font-medium">
-                                            <i className="fa-solid fa-tv text-purple-400" />
-                                            Live TV
+                                        <div className="rounded-md border bg-background px-3 py-2">
+                                          <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-2 text-sm font-medium">
+                                              <i className="fa-solid fa-tv text-purple-400" />
+                                              Live TV
+                                            </div>
+                                            <Switch
+                                              checked={featureState.allow_live_tv ?? false}
+                                              onCheckedChange={(checked) => {
+                                                updateServerFeature(server.id, { allow_live_tv: checked });
+                                                setForm((prev) => ({ ...prev, allow_live_tv: checked }));
+                                              }}
+                                            />
                                           </div>
-                                          <Switch
-                                            checked={form.allow_live_tv ?? false}
-                                            onCheckedChange={(checked) => setForm((prev) => ({ ...prev, allow_live_tv: checked }))}
-                                          />
                                         </div>
-                                      </div>
-                                      <div className="rounded-md border bg-background px-3 py-2">
-                                        <div className="flex items-center justify-between">
-                                          <div className="flex items-center gap-2 text-sm font-medium">
-                                            <i className="fa-solid fa-film text-primary" />
-                                            Allow 4K Transcode
+                                        <div className="rounded-md border bg-background px-3 py-2">
+                                          <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-2 text-sm font-medium">
+                                              <i className="fa-solid fa-film text-primary" />
+                                              Allow 4K Transcode
+                                            </div>
+                                            <Switch
+                                              checked={featureState.allow_4k_transcode ?? true}
+                                              onCheckedChange={(checked) => {
+                                                updateServerFeature(server.id, { allow_4k_transcode: checked });
+                                                setForm((prev) => ({ ...prev, allow_4k_transcode: checked }));
+                                              }}
+                                            />
                                           </div>
-                                          <Switch
-                                            checked={form.allow_4k_transcode ?? true}
-                                            onCheckedChange={(checked) => setForm((prev) => ({ ...prev, allow_4k_transcode: checked }))}
-                                          />
                                         </div>
-                                      </div>
-                                    </>
-                                  ) : null}
+                                      </>
+                                    ) : null}
                                 </div>
                               </div>
                             ) : null}

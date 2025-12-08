@@ -10,6 +10,17 @@ export type InviteServer = {
   service_type: string;
 };
 
+export type InviteServerFeature = {
+  server_id: number;
+  allow_downloads?: boolean | null;
+  invite_to_plex_home?: boolean | null;
+  allow_live_tv?: boolean | null;
+  allow_4k_transcode?: boolean | null;
+  server_nickname?: string | null;
+  service_type?: string | null;
+  is_override?: boolean | null;
+};
+
 export type InviteLibrary = {
   id: string;
   name: string;
@@ -39,6 +50,8 @@ export type InviteRow = {
   invite_to_plex_home?: boolean;
   allow_live_tv?: boolean;
   membership_duration_days?: number;
+  allow_4k_transcode?: boolean;
+  server_features?: InviteServerFeature[];
 };
 
 type InvitesTableProps = {

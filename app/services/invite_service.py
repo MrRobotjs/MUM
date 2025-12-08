@@ -11,6 +11,17 @@ from . import user_service # Use . to import from current package
 from .media_service_factory import MediaServiceFactory
 from .media_service_manager import MediaServiceManager
 
+
+def _get_server_feature_state(invite: Invite, server_id: int) -> dict:
+    """Resolve per-server feature flags, falling back to invite-level defaults."""
+    feature = next((f for f in getattr(invite, "server_features", []) or [] if f.server_id == server_id), None)
+    return {
+        "allow_downloads": feature.allow_downloads if feature and feature.allow_downloads is not None else bool(invite.allow_downloads),
+        "invite_to_plex_home": feature.invite_to_plex_home if feature and feature.invite_to_plex_home is not None else bool(invite.invite_to_plex_home),
+        "allow_live_tv": feature.allow_live_tv if feature and feature.allow_live_tv is not None else bool(invite.allow_live_tv),
+        "allow_4k_transcode": feature.allow_4k_transcode if feature and feature.allow_4k_transcode is not None else bool(invite.allow_4k_transcode),
+    }
+
 def validate_invite_usability(invite_path_or_token):
     """
     Validates an invite based on its path or token.
@@ -157,6 +168,7 @@ def accept_invite_and_grant_access(invite: Invite, plex_user_uuid: str, plex_use
             current_app.logger.debug(f"Invite service - Service created successfully: {service}")
             current_app.logger.debug(f"Invite service - Service has invite_user_to_plex_server: {hasattr(service, 'invite_user_to_plex_server')}")
             current_app.logger.debug(f"Invite service - Service has add_user: {hasattr(service, 'add_user')}")
+            feature_state = _get_server_feature_state(invite, server.id)
             
             # Extract library IDs for this specific server from the invite's grant_library_ids
             server_library_ids = []
@@ -188,20 +200,53 @@ def accept_invite_and_grant_access(invite: Invite, plex_user_uuid: str, plex_use
 
             # Handle different service types appropriately
             if server.service_type.name.upper() == 'PLEX':
-                # For Plex, we need to grant access to an existing user
-                if hasattr(service, 'update_user_access'):
-                    current_app.logger.debug(f"Invite service - Calling update_user_access for Plex user {plex_username}")
-                    success = service.update_user_access(
-                        user_id=plex_username,  # Plex uses username as user_id
-                        library_ids=server_library_ids  # Use filtered library IDs for this server
-                    )
-                    if not success:
-                        raise Exception("Failed to update user access")
-                    current_app.logger.debug(f"Invite service - Successfully called update_user_access for Plex")
-                else:
-                    current_app.logger.error(f"Invite service - Plex service missing update_user_access method")
-                    failed_servers.append(f"{server.server_nickname} (missing update_user_access method)")
+                # For Plex, we need to either invite a new user or update existing friend
+                if not plex_username:
+                    current_app.logger.error(f"Invite service - Cannot grant Plex access: no Plex username provided for server {server.server_nickname}")
+                    failed_servers.append(f"{server.server_nickname} (no Plex username - user must authenticate with Plex first)")
                     continue
+
+                # First, check if user is already a friend on the Plex server
+                is_existing_friend = False
+                try:
+                    if hasattr(service, '_get_admin_account'):
+                        admin_account = service._get_admin_account()
+                        if admin_account:
+                            existing_user = admin_account.user(plex_username)
+                            is_existing_friend = existing_user is not None
+                            current_app.logger.debug(f"Invite service - Plex user {plex_username} is_existing_friend: {is_existing_friend}")
+                except Exception as e:
+                    current_app.logger.debug(f"Invite service - Could not check if Plex user exists: {e}")
+                    is_existing_friend = False
+
+                if is_existing_friend:
+                    # User is already a friend - update their library access
+                    if hasattr(service, 'update_user_access'):
+                        current_app.logger.debug(f"Invite service - Updating existing Plex friend {plex_username}")
+                        success = service.update_user_access(
+                            user_id=plex_username,
+                            library_ids=server_library_ids
+                        )
+                        if not success:
+                            raise Exception("Failed to update user access for existing friend")
+                        current_app.logger.debug(f"Invite service - Successfully updated Plex friend {plex_username}")
+                    else:
+                        raise Exception("Plex service missing update_user_access method")
+                else:
+                    # User is not a friend - invite them to the server
+                    if hasattr(service, 'create_user'):
+                        current_app.logger.debug(f"Invite service - Inviting new Plex user {plex_username} (email: {plex_email})")
+                        result = service.create_user(
+                            username=plex_username,
+                            email=plex_email or plex_username,
+                            library_ids=server_library_ids,
+                            allow_downloads=feature_state.get('allow_downloads', False)
+                        )
+                        if isinstance(result, dict) and result.get('error'):
+                            raise Exception(result['error'])
+                        current_app.logger.debug(f"Invite service - Successfully invited Plex user {plex_username}")
+                    else:
+                        raise Exception("Plex service missing create_user method")
             else:
                 # For other services (Jellyfin, Emby, etc.), create a new user
                 if hasattr(service, 'create_user'):
@@ -279,7 +324,19 @@ def accept_invite_and_grant_access(invite: Invite, plex_user_uuid: str, plex_use
                     continue
                 
             successful_servers.append(server.server_nickname)
-            log_event(EventType.PLEX_USER_ADDED, f"User '{plex_username}' granted access to {server.server_nickname}. Downloads: {'enabled' if invite.allow_downloads else 'disabled'}.", invite_id=invite.id, details={'plex_user': plex_username, 'server': server.server_nickname, 'allow_downloads': invite.allow_downloads})
+            log_event(
+                EventType.PLEX_USER_ADDED,
+                f"User '{plex_username}' granted access to {server.server_nickname}. Downloads: {'enabled' if feature_state['allow_downloads'] else 'disabled'}.",
+                invite_id=invite.id,
+                details={
+                    'plex_user': plex_username,
+                    'server': server.server_nickname,
+                    'allow_downloads': feature_state["allow_downloads"],
+                    'allow_4k_transcode': feature_state["allow_4k_transcode"],
+                    'allow_live_tv': feature_state["allow_live_tv"],
+                    'invite_to_plex_home': feature_state["invite_to_plex_home"],
+                },
+            )
             
         except Exception as e:
             failed_servers.append(f"{server.server_nickname} ({str(e)})")
@@ -351,6 +408,7 @@ def accept_invite_and_grant_access(invite: Invite, plex_user_uuid: str, plex_use
         # Create service user records for each server
         for server in servers_to_grant_access:
             current_app.logger.info(f"--- Processing server: {server.server_nickname} (Type: {server.service_type.name}) ---")
+            feature_state = _get_server_feature_state(invite, server.id)
             
             # Extract library IDs for this specific server from the invite's grant_library_ids
             server_library_ids = []
@@ -423,8 +481,8 @@ def accept_invite_and_grant_access(invite: Invite, plex_user_uuid: str, plex_use
                 external_username=service_username,
                 external_email=service_email,
                 allowed_library_ids=server_library_ids,  # Use server-specific library IDs
-                allow_downloads=bool(invite.allow_downloads),
-                allow_4k_transcode=bool(invite.allow_4k_transcode),
+                allow_downloads=bool(feature_state["allow_downloads"]),
+                allow_4k_transcode=bool(feature_state["allow_4k_transcode"]),
                 used_invite_id=invite.id,
                 service_join_date=datetime.now(timezone.utc),
                 is_discord_bot_whitelisted=bool(invite.grant_bot_whitelist),

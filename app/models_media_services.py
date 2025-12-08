@@ -74,6 +74,7 @@ class MediaServer(db.Model):
     libraries = db.relationship('MediaLibrary', back_populates='server', cascade="all, delete-orphan")
     # users relationship now points to unified User model
     users = db.relationship('User', foreign_keys='User.server_id', back_populates='server')
+    invite_features = db.relationship('InviteServerFeature', back_populates='server', cascade="all, delete-orphan")
     
     def __repr__(self):
         return f'<MediaServer {self.server_nickname} ({self.service_type.value})>'

@@ -6,6 +6,7 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Checkbox } from '../components/ui/checkbox';
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '../components/ui/collapsible';
 import { useAlerts } from '../contexts/AlertContext';
 
 type WizardStep = {
@@ -40,6 +41,13 @@ type WizardServerCredentials = {
   password?: string;
 };
 
+type ServerFeatures = {
+  allow_downloads: boolean;
+  invite_to_plex_home: boolean;
+  allow_live_tv: boolean;
+  allow_4k_transcode: boolean;
+};
+
 type WizardServer = {
   id: number;
   name: string;
@@ -49,6 +57,7 @@ type WizardServer = {
   libraries: { id: string; name: string }[];
   username_conflict?: boolean;
   access_url?: string | null;
+  features?: ServerFeatures;
 };
 
 type WizardAccount = {
@@ -76,6 +85,10 @@ type WizardState = {
     current_uses: number;
     is_active: boolean;
     allow_downloads: boolean;
+    invite_to_plex_home: boolean;
+    allow_live_tv: boolean;
+    allow_4k_transcode: boolean;
+    membership_duration_days: number | null;
     grant_library_ids: string[] | null;
     require_discord_auth: boolean;
     require_discord_guild_membership: boolean;
@@ -185,8 +198,236 @@ const defaultAccountFormState: AccountFormState = {
   use_same_password: true
 };
 
+type ServerAccessDetailsProps = {
+  server: WizardServer;
+  invite: WizardState['invite'];
+  grantLibraryIds: string[] | null;
+};
+
+const ServerAccessDetails = ({ server, invite, grantLibraryIds }: ServerAccessDetailsProps) => {
+  const [isOpen, setIsOpen] = useState(false);
+
+  // Get libraries that match grant_library_ids for this server
+  const matchingLibraries = useMemo(() => {
+    if (!grantLibraryIds || grantLibraryIds.length === 0) {
+      return null; // All libraries
+    }
+    return server.libraries.filter(lib => grantLibraryIds.includes(lib.id));
+  }, [server.libraries, grantLibraryIds]);
+
+  const features = server.features ?? {
+    allow_downloads: invite.allow_downloads,
+    invite_to_plex_home: invite.invite_to_plex_home,
+    allow_live_tv: invite.allow_live_tv,
+    allow_4k_transcode: invite.allow_4k_transcode,
+  };
+
+  const formatExpiry = (expiresAt: string | null) => {
+    if (!expiresAt) return 'Never';
+    try {
+      return new Date(expiresAt).toLocaleDateString(undefined, {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch {
+      return expiresAt;
+    }
+  };
+
+  return (
+    <Collapsible open={isOpen} onOpenChange={setIsOpen} className="mt-6">
+      <div className="bg-muted/30 border border-border rounded-lg overflow-hidden">
+        <CollapsibleTrigger className="flex items-center justify-between w-full p-4 cursor-pointer hover:bg-muted/50 transition-colors">
+          <div className="flex items-center gap-3">
+            <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center flex-shrink-0">
+              <i className="fa-solid fa-info text-blue-500 text-xs" />
+            </div>
+            <span className="font-medium text-foreground">{server.name} Access Details</span>
+          </div>
+          <i className={cn("fa-solid fa-chevron-down text-muted-foreground transition-transform", isOpen && "rotate-180")} />
+        </CollapsibleTrigger>
+
+        <CollapsibleContent>
+          <div className="border-t border-border p-4 space-y-4">
+            {/* Server Information */}
+            <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <i className="fa-solid fa-server text-blue-500 text-xs" />
+                </div>
+                <div>
+                  <h4 className="font-medium text-blue-600 dark:text-blue-400 mb-2">Server Information</h4>
+                  <div className="space-y-1 text-sm text-muted-foreground">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">Name:</span>
+                      <span>{server.name}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">Type:</span>
+                      <span>{server.service_type}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Library Access */}
+            <div className="bg-primary/10 border border-primary/20 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <i className="fa-solid fa-folder text-primary text-xs" />
+                </div>
+                <div className="flex-1">
+                  <h4 className="font-medium text-primary mb-2">Library Access</h4>
+                  {matchingLibraries === null ? (
+                    <p className="text-sm text-muted-foreground">
+                      All available libraries on this server
+                    </p>
+                  ) : matchingLibraries.length > 0 ? (
+                    <>
+                      <p className="text-sm text-muted-foreground mb-2">
+                        You will have access to <strong>{matchingLibraries.length}</strong> selected {matchingLibraries.length === 1 ? 'library' : 'libraries'}:
+                      </p>
+                      <div className="space-y-1">
+                        {matchingLibraries.map(lib => (
+                          <div key={lib.id} className="flex items-center gap-2 text-sm">
+                            <div className="w-3 h-3 rounded-full bg-primary/20 flex items-center justify-center">
+                              <i className="fa-solid fa-check text-primary text-xs" />
+                            </div>
+                            <span className="text-muted-foreground">{lib.name}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      Selected libraries (specific access will be configured)
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Features & Permissions */}
+            <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <div className="w-6 h-6 rounded-full bg-green-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <i className="fa-solid fa-star text-green-500 text-xs" />
+                </div>
+                <div>
+                  <h4 className="font-medium text-green-600 dark:text-green-400 mb-2">Features & Permissions</h4>
+                  <div className="space-y-1 text-sm text-muted-foreground">
+                    {server.service_type === 'PLEX' ? (
+                      <>
+                        <div className="flex items-center gap-2">
+                          <i className="fa-solid fa-download w-4 text-green-500" />
+                          <span>Downloads/Sync: <strong>{features.allow_downloads ? 'Enabled' : 'Disabled'}</strong></span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <i className="fa-solid fa-house-user w-4 text-green-500" />
+                          <span>Plex Home Invite: <strong>{features.invite_to_plex_home ? 'Yes' : 'No'}</strong></span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <i className="fa-solid fa-tv w-4 text-green-500" />
+                          <span>Live TV Access: <strong>{features.allow_live_tv ? 'Enabled' : 'Disabled'}</strong></span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <i className="fa-solid fa-film w-4 text-green-500" />
+                          <span>4K Transcoding: <strong>{features.allow_4k_transcode ? 'Enabled' : 'Disabled'}</strong></span>
+                        </div>
+                      </>
+                    ) : server.service_type === 'JELLYFIN' ? (
+                      <>
+                        <div className="flex items-center gap-2">
+                          <i className="fa-solid fa-user w-4 text-green-500" />
+                          <span>Account Type: <strong>New user account will be created</strong></span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <i className="fa-solid fa-key w-4 text-green-500" />
+                          <span>Authentication: <strong>Username and password (required)</strong></span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <i className="fa-solid fa-download w-4 text-green-500" />
+                          <span>Downloads: <strong>Available through Jellyfin apps</strong></span>
+                        </div>
+                      </>
+                    ) : server.service_type === 'EMBY' ? (
+                      <>
+                        <div className="flex items-center gap-2">
+                          <i className="fa-solid fa-user w-4 text-green-500" />
+                          <span>Account Type: <strong>New user account will be created</strong></span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <i className="fa-solid fa-key w-4 text-green-500" />
+                          <span>Authentication: <strong>Username and password</strong></span>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <i className="fa-solid fa-user w-4 text-green-500" />
+                        <span>Account Type: <strong>New user account will be created</strong></span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Invite Information */}
+            <div className="bg-purple-500/10 border border-purple-500/20 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <div className="w-6 h-6 rounded-full bg-purple-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <i className="fa-solid fa-calendar text-purple-500 text-xs" />
+                </div>
+                <div>
+                  <h4 className="font-medium text-purple-600 dark:text-purple-400 mb-2">Invite Details</h4>
+                  <div className="space-y-1 text-sm text-muted-foreground">
+                    <div className="flex items-center gap-2">
+                      <i className="fa-regular fa-clock w-4 text-muted-foreground" />
+                      <span>Expires: <strong>{formatExpiry(invite.expires_at)}</strong></span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <i className="fa-solid fa-users w-4 text-muted-foreground" />
+                      <span>Uses Left: <strong>{invite.max_uses !== null ? (invite.max_uses - invite.current_uses) : 'Unlimited'}</strong></span>
+                    </div>
+                    {invite.membership_duration_days ? (
+                      <div className="flex items-center gap-2">
+                        <i className="fa-solid fa-user-clock w-4 text-muted-foreground" />
+                        <span>Membership Duration: <strong>{invite.membership_duration_days} day{invite.membership_duration_days !== 1 ? 's' : ''} after acceptance</strong></span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <i className="fa-solid fa-user-check w-4 text-muted-foreground" />
+                        <span>Membership: <strong>Permanent</strong></span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Info Footer */}
+            <div className="bg-muted/50 border border-border/50 rounded-lg p-3">
+              <div className="flex items-start gap-2">
+                <i className="fa-solid fa-info-circle text-muted-foreground text-xs mt-0.5" />
+                <p className="text-xs text-muted-foreground">
+                  This information shows what access you'll receive after completing the setup.
+                </p>
+              </div>
+            </div>
+          </div>
+        </CollapsibleContent>
+      </div>
+    </Collapsible>
+  );
+};
+
 export const InviteWizardPage = () => {
-  const { token = '' } = useParams<{ token: string }>();
+  // TanStack Router requires an options object; passing the route ID ensures the hook has context.
+  const { token = '' } = useParams({ from: '/invite/$token' as const });
   const { success, error: showError } = useAlerts();
 
   const [state, setState] = useState<WizardState | null>(null);
@@ -410,11 +651,31 @@ export const InviteWizardPage = () => {
     }
   };
 
+  const activeStepId = useMemo(() => {
+    if (!state?.steps?.length) return null;
+    const firstRequiredIncomplete = state.steps.find((step) => step.required && !step.completed);
+    if (firstRequiredIncomplete) return firstRequiredIncomplete.id;
+    if (state.next_step_id) return state.next_step_id;
+    const firstIncomplete = state.steps.find((step) => !step.completed);
+    return firstIncomplete?.id ?? null;
+  }, [state]);
+
   const activeStepIndex = useMemo(() => {
     if (!state?.steps) return -1;
+    if (activeStepId) {
+      const idx = state.steps.findIndex((step) => step.id === activeStepId);
+      if (idx >= 0) return idx;
+    }
     const firstIncomplete = state.steps.findIndex((step) => !step.completed);
     return firstIncomplete >= 0 ? firstIncomplete : state.steps.length;
-  }, [state]);
+  }, [state, activeStepId]);
+
+  const activeServerId = useMemo(() => {
+    if (!activeStepId?.startsWith('server_access_')) return null;
+    const idPart = activeStepId.replace('server_access_', '');
+    const parsedId = Number.parseInt(idPart, 10);
+    return Number.isNaN(parsedId) ? null : parsedId;
+  }, [activeStepId]);
 
   const completedCount = useMemo(() => {
     if (!state?.steps) return 0;
@@ -799,7 +1060,7 @@ export const InviteWizardPage = () => {
               )}
 
               {/* Discord Step */}
-              {state.discord.oauth_enabled && !state.discord.authenticated && state.account.completed && (
+              {state.discord.oauth_enabled && !state.discord.authenticated && (!state.account.allowed || state.account.completed) && (
                 <div className="bg-muted/50 border border rounded-lg p-6">
                   <div className="flex items-center gap-3 mb-6">
                     <div className="w-10 h-10 rounded-full bg-[#5865F2]/20 flex items-center justify-center flex-shrink-0">
@@ -868,7 +1129,7 @@ export const InviteWizardPage = () => {
               )}
 
               {/* Plex Step */}
-              {state.plex.has_plex_servers && !state.plex.authenticated && (state.discord.authenticated || !state.discord.oauth_enabled) && state.account.completed && (
+              {state.plex.has_plex_servers && !state.plex.authenticated && (state.discord.authenticated || !state.discord.oauth_enabled) && (!state.account.allowed || state.account.completed) && (
                 <div className="bg-muted/50 border border rounded-lg p-6">
                   <div className="flex items-center gap-3 mb-6">
                     <div className="w-10 h-10 rounded-full bg-[#e5a00d]/20 flex items-center justify-center flex-shrink-0">
@@ -941,34 +1202,55 @@ export const InviteWizardPage = () => {
                       </>
                     )}
                   </Button>
+
+                  {/* Plex Server Access Details */}
+                  {(() => {
+                    const plexServer = state.servers.find(s => s.service_type === 'PLEX');
+                    if (!plexServer) return null;
+                    return (
+                      <ServerAccessDetails
+                        server={plexServer}
+                        invite={state.invite}
+                        grantLibraryIds={state.invite.grant_library_ids}
+                      />
+                    );
+                  })()}
                 </div>
               )}
 
               {/* Server Credentials */}
-              {state.servers.filter((s) => !s.completed && s.service_type !== 'PLEX').map((server) => (
-                <div key={server.id} className="bg-muted/50 border border rounded-lg p-6">
+              {(() => {
+                // Find the active server that needs credentials
+                const activeServer = state.servers.find(
+                  (s) => s.id === activeServerId && !s.completed && s.service_type !== 'PLEX'
+                );
+
+                if (!activeServer) return null;
+
+                return (
+                <div key={activeServer.id} className="bg-muted/50 border border rounded-lg p-6">
                   <div className="flex items-center gap-3 mb-6">
                     <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
                       <i className="fa-solid fa-server text-primary text-lg" />
                     </div>
                     <div>
                       <h2 className="text-xl font-semibold text-foreground mb-1">
-                        {server.name}
+                        {activeServer.name}
                       </h2>
                       <p className="text-sm text-muted-foreground">
-                        Setting up access to {server.service_type}
+                        Setting up access to {activeServer.name || activeServer.service_type}
                       </p>
                     </div>
                   </div>
 
-                  {server.username_conflict && (
+                  {activeServer.username_conflict && (
                     <div className="bg-amber-50 dark:bg-amber-400/10 border border-amber-200 dark:border-amber-500/20 rounded-lg p-3 mb-4">
                       <div className="flex items-start gap-2">
                         <i className="fa-solid fa-exclamation-triangle text-amber-600 dark:text-amber-400 text-sm mt-0.5" />
                         <div className="text-sm">
                           <p className="font-medium text-amber-600 dark:text-amber-400 mb-1">Username Not Available</p>
                           <p className="text-foreground/80">
-                            The username is already taken on {server.name}. Please choose a different username.
+                            The username is already taken on {activeServer.name}. Please choose a different username.
                           </p>
                         </div>
                       </div>
@@ -977,56 +1259,56 @@ export const InviteWizardPage = () => {
 
                   <div className="space-y-4">
                     <div className="space-y-2">
-                      <Label htmlFor={`server-${server.id}-username`}>Username</Label>
+                      <Label htmlFor={`server-${activeServer.id}-username`}>Username</Label>
                       <Input
-                        id={`server-${server.id}-username`}
-                        value={serverForms[server.id]?.username ?? ''}
-                        onChange={(e) => updateServerForm(server.id, 'username', e.target.value)}
+                        id={`server-${activeServer.id}-username`}
+                        value={serverForms[activeServer.id]?.username ?? ''}
+                        onChange={(e) => updateServerForm(activeServer.id, 'username', e.target.value)}
                         required
                       />
                     </div>
 
-                    {server.service_type === 'KAVITA' && (
+                    {activeServer.service_type === 'KAVITA' && (
                       <div className="space-y-2">
-                        <Label htmlFor={`server-${server.id}-email`}>Email</Label>
+                        <Label htmlFor={`server-${activeServer.id}-email`}>Email</Label>
                         <Input
-                          id={`server-${server.id}-email`}
+                          id={`server-${activeServer.id}-email`}
                           type="email"
-                          value={serverForms[server.id]?.email ?? ''}
-                          onChange={(e) => updateServerForm(server.id, 'email', e.target.value)}
+                          value={serverForms[activeServer.id]?.email ?? ''}
+                          onChange={(e) => updateServerForm(activeServer.id, 'email', e.target.value)}
                           required
                         />
                       </div>
                     )}
 
                     <div className="space-y-2">
-                      <Label htmlFor={`server-${server.id}-password`}>Password</Label>
+                      <Label htmlFor={`server-${activeServer.id}-password`}>Password</Label>
                       <Input
-                        id={`server-${server.id}-password`}
+                        id={`server-${activeServer.id}-password`}
                         type="password"
-                        value={serverForms[server.id]?.password ?? ''}
-                        onChange={(e) => updateServerForm(server.id, 'password', e.target.value)}
+                        value={serverForms[activeServer.id]?.password ?? ''}
+                        onChange={(e) => updateServerForm(activeServer.id, 'password', e.target.value)}
                         required
                       />
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor={`server-${server.id}-password-confirm`}>Confirm Password</Label>
+                      <Label htmlFor={`server-${activeServer.id}-password-confirm`}>Confirm Password</Label>
                       <Input
-                        id={`server-${server.id}-password-confirm`}
+                        id={`server-${activeServer.id}-password-confirm`}
                         type="password"
-                        value={serverForms[server.id]?.password_confirm ?? ''}
-                        onChange={(e) => updateServerForm(server.id, 'password_confirm', e.target.value)}
+                        value={serverForms[activeServer.id]?.password_confirm ?? ''}
+                        onChange={(e) => updateServerForm(activeServer.id, 'password_confirm', e.target.value)}
                         required
                       />
                     </div>
 
                     <Button
-                      onClick={() => handleSaveServer(server.id)}
-                      disabled={savingServerId === server.id}
+                      onClick={() => handleSaveServer(activeServer.id)}
+                      disabled={savingServerId === activeServer.id}
                       className="w-full h-12"
                     >
-                      {savingServerId === server.id ? (
+                      {savingServerId === activeServer.id ? (
                         <>
                           <span className="loading loading-spinner loading-xs mr-2" />
                           Saving...
@@ -1034,13 +1316,21 @@ export const InviteWizardPage = () => {
                       ) : (
                         <>
                           <i className="fa-solid fa-user-plus mr-2" />
-                          Create Account on {server.name}
+                          Create Account on {activeServer.name}
                         </>
                       )}
                     </Button>
                   </div>
+
+                  {/* Server Access Details */}
+                  <ServerAccessDetails
+                    server={activeServer}
+                    invite={state.invite}
+                    grantLibraryIds={state.invite.grant_library_ids}
+                  />
                 </div>
-              ))}
+                );
+              })()}
 
               {/* Complete Button */}
               {allStepsComplete && (

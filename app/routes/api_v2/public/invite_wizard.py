@@ -199,6 +199,36 @@ def _build_invite_state(invite: Invite) -> Dict[str, Any]:
 
     server_name = getattr(g, 'app_name', None) or Setting.get('APP_NAME', 'the server')
 
+    # Build per-server features lookup from InviteServerFeature
+    server_features_map: Dict[int, Dict[str, Any]] = {}
+    for sf in invite.server_features or []:
+        server_features_map[sf.server_id] = {
+            'allow_downloads': sf.allow_downloads,
+            'invite_to_plex_home': sf.invite_to_plex_home,
+            'allow_live_tv': sf.allow_live_tv,
+            'allow_4k_transcode': sf.allow_4k_transcode,
+        }
+
+    # Add features to server_details
+    for server_detail in server_details:
+        srv_id = server_detail['id']
+        # Use per-server override if available, else fall back to invite-level defaults
+        if srv_id in server_features_map:
+            sf = server_features_map[srv_id]
+            server_detail['features'] = {
+                'allow_downloads': sf['allow_downloads'] if sf['allow_downloads'] is not None else invite.allow_downloads,
+                'invite_to_plex_home': sf['invite_to_plex_home'] if sf['invite_to_plex_home'] is not None else invite.invite_to_plex_home,
+                'allow_live_tv': sf['allow_live_tv'] if sf['allow_live_tv'] is not None else invite.allow_live_tv,
+                'allow_4k_transcode': sf['allow_4k_transcode'] if sf['allow_4k_transcode'] is not None else invite.allow_4k_transcode,
+            }
+        else:
+            server_detail['features'] = {
+                'allow_downloads': invite.allow_downloads,
+                'invite_to_plex_home': invite.invite_to_plex_home,
+                'allow_live_tv': invite.allow_live_tv,
+                'allow_4k_transcode': invite.allow_4k_transcode,
+            }
+
     return {
         'invite': {
             'id': invite.id,
@@ -209,6 +239,10 @@ def _build_invite_state(invite: Invite) -> Dict[str, Any]:
             'current_uses': invite.current_uses,
             'is_active': invite.is_active,
             'allow_downloads': invite.allow_downloads,
+            'invite_to_plex_home': invite.invite_to_plex_home,
+            'allow_live_tv': invite.allow_live_tv,
+            'allow_4k_transcode': invite.allow_4k_transcode,
+            'membership_duration_days': invite.membership_duration_days,
             'grant_library_ids': invite.grant_library_ids,
             'require_discord_auth': require_discord_auth,
             'require_discord_guild_membership': require_discord_guild,
@@ -408,19 +442,41 @@ def plex_oauth_callback_v2(path: InvitePath):
         headers = {"accept": "application/json"}
         data = {"code": pin_code, "X-Plex-Client-Identifier": client_id}
         check_url = f"https://plex.tv/api/v2/pins/{pin_id}"
+        auth_token = None
+
+        # Step 1: Check PIN status to get the auth token
         for _ in range(3):
             resp = requests.get(check_url, headers=headers, data=data, timeout=10)
             if resp.status_code == 200:
                 j = resp.json()
                 if j.get('authToken'):
-                    session[f'invite_{invite_id}_plex_user'] = {
-                        'uuid': j.get('uuid'),
-                        'username': j.get('username'),
-                        'email': j.get('email'),
-                        'thumb': j.get('thumb'),
-                    }
+                    auth_token = j.get('authToken')
+                    current_app.logger.debug(f"Plex callback: Got auth token for invite {invite_id}")
                     break
             time.sleep(1)
+
+        # Step 2: If we got an auth token, fetch the user's account details
+        if auth_token:
+            user_headers = {
+                "accept": "application/json",
+                "X-Plex-Token": auth_token,
+                "X-Plex-Client-Identifier": client_id,
+            }
+            user_resp = requests.get("https://plex.tv/api/v2/user", headers=user_headers, timeout=10)
+            if user_resp.status_code == 200:
+                user_data = user_resp.json()
+                session[f'invite_{invite_id}_plex_user'] = {
+                    'uuid': user_data.get('uuid'),
+                    'username': user_data.get('username'),
+                    'email': user_data.get('email'),
+                    'thumb': user_data.get('thumb'),
+                }
+                current_app.logger.info(f"Plex callback: Successfully retrieved user info for invite {invite_id}: username={user_data.get('username')}")
+            else:
+                current_app.logger.error(f"Plex callback: Failed to fetch user details. Status: {user_resp.status_code}, Response: {user_resp.text[:200]}")
+        else:
+            current_app.logger.warning(f"Plex callback: No auth token received for invite {invite_id}")
+
     except Exception as exc:
         current_app.logger.error("Plex callback failed for invite %s: %s", invite_id, exc)
     session.pop('plex_pin_code_invite_flow', None)
@@ -630,7 +686,12 @@ def complete_invite_v2(path: InvitePath):
     oauth_enabled = Setting.get_bool('DISCORD_OAUTH_ENABLED', False)
     requires_discord = bool(invite.require_discord_auth)
 
-    if has_plex_servers and not plex_user:
+    # Log session state for debugging
+    current_app.logger.debug(f"Complete invite {invite.id}: plex_user={plex_user}, discord_user={discord_user}, has_plex_servers={has_plex_servers}")
+
+    # Validate Plex authentication - check both dict existence AND actual username value
+    if has_plex_servers and (not plex_user or not plex_user.get('username')):
+        current_app.logger.warning(f"Invite {invite.id} completion blocked: Plex servers exist but no valid Plex user. plex_user={plex_user}")
         return _error_response(request_id, 400, 'PLEX_REQUIRED', 'Please sign in with Plex before completing the invite.')
 
     if requires_discord and oauth_enabled and not discord_user:

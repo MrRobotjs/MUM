@@ -10,7 +10,7 @@ from flask_openapi3 import Tag
 
 from app.routes.api_v2 import api_v2
 from app.extensions import db
-from app.models import Invite, InviteUsage
+from app.models import Invite, InviteUsage, InviteServerFeature
 from app.models_media_services import MediaServer, MediaLibrary
 from sqlalchemy import or_ as sa_or
 
@@ -32,6 +32,17 @@ class ServerRef(BaseModel):
     service_type: Optional[str] = None
 
 
+class ServerFeature(BaseModel):
+    server_id: int
+    allow_downloads: Optional[bool] = None
+    invite_to_plex_home: Optional[bool] = None
+    allow_live_tv: Optional[bool] = None
+    allow_4k_transcode: Optional[bool] = None
+    server_nickname: Optional[str] = None
+    service_type: Optional[str] = None
+    is_override: Optional[bool] = None
+
+
 class InviteItem(BaseModel):
     id: int
     token: str
@@ -49,6 +60,7 @@ class InviteItem(BaseModel):
     # extras to align with v1 list
     grant_library_ids: list[str] | None = None
     allow_downloads: bool | None = None
+    server_features: list[ServerFeature] = []
 
 
 class PaginationMeta(BaseModel):
@@ -79,6 +91,14 @@ class ErrorResponse(BaseModel):
     meta: MetaModel | None = None
 
 
+class ServerFeatureInput(BaseModel):
+    server_id: int
+    allow_downloads: Optional[bool] = None
+    invite_to_plex_home: Optional[bool] = None
+    allow_live_tv: Optional[bool] = None
+    allow_4k_transcode: Optional[bool] = None
+
+
 class CreateInviteBody(BaseModel):
     custom_path: Optional[str] = None
     expires_at: Optional[str] = Field(None, description="ISO8601 datetime")
@@ -93,6 +113,7 @@ class CreateInviteBody(BaseModel):
     membership_duration_days: Optional[int] = Field(None, description="Duration in days for granted access")
     grant_purge_whitelist: Optional[bool] = False
     grant_bot_whitelist: Optional[bool] = False  # Ignored (WIP)
+    server_features: list[ServerFeatureInput] = Field(default_factory=list)
 
     @field_validator("custom_path")
     @classmethod
@@ -109,6 +130,104 @@ def _server_ref(s: MediaServer) -> dict:
         "server_nickname": getattr(s, "server_nickname", None) or getattr(s, "name", None),
         "service_type": s.service_type.value if hasattr(s.service_type, "value") else str(s.service_type),
     }
+
+
+def _resolve_server_features(invite: Invite) -> list[dict]:
+    """Return resolved server feature flags per server, falling back to invite-level defaults."""
+    features_map = {sf.server_id: sf for sf in getattr(invite, "server_features", []) or []}
+    resolved = []
+    for server in invite.servers or []:
+        override = features_map.get(server.id)
+        allow_downloads = override.allow_downloads if override and override.allow_downloads is not None else bool(getattr(invite, "allow_downloads", False))
+        invite_to_plex_home = override.invite_to_plex_home if override and override.invite_to_plex_home is not None else bool(getattr(invite, "invite_to_plex_home", False))
+        allow_live_tv = override.allow_live_tv if override and override.allow_live_tv is not None else bool(getattr(invite, "allow_live_tv", False))
+        allow_4k_transcode = override.allow_4k_transcode if override and override.allow_4k_transcode is not None else bool(getattr(invite, "allow_4k_transcode", True))
+        resolved.append(
+            {
+                "server_id": server.id,
+                "server_nickname": getattr(server, "server_nickname", None) or getattr(server, "name", None),
+                "service_type": server.service_type.value if hasattr(server.service_type, "value") else str(server.service_type),
+                "allow_downloads": allow_downloads,
+                "invite_to_plex_home": invite_to_plex_home,
+                "allow_live_tv": allow_live_tv,
+                "allow_4k_transcode": allow_4k_transcode,
+                "is_override": bool(
+                    override
+                    and (
+                        (override.allow_downloads is not None and override.allow_downloads != bool(getattr(invite, "allow_downloads", False)))
+                        or (override.invite_to_plex_home is not None and override.invite_to_plex_home != bool(getattr(invite, "invite_to_plex_home", False)))
+                        or (override.allow_live_tv is not None and override.allow_live_tv != bool(getattr(invite, "allow_live_tv", False)))
+                        or (override.allow_4k_transcode is not None and override.allow_4k_transcode != bool(getattr(invite, "allow_4k_transcode", True)))
+                    )
+                ),
+            }
+        )
+    return resolved
+
+
+def _sync_server_features(invite: Invite, features_payload: list[ServerFeatureInput] | list[dict] | None):
+    """
+    Ensure invite.server_features aligns with selected servers.
+    - If features_payload is None: keep existing per-server values, add defaults for new servers, prune removed ones.
+    - If provided: update values for matching servers (fallback to defaults when not set), prune removed ones.
+    """
+    payload_provided = features_payload is not None
+    payload_map = {}
+    if payload_provided:
+        for item in features_payload or []:
+            raw = item.model_dump(exclude_none=False) if hasattr(item, "model_dump") else dict(item)
+            server_id = raw.get("server_id")
+            if server_id is None:
+                continue
+            payload_map[server_id] = raw
+
+    desired_ids = {s.id for s in invite.servers or []}
+    existing_map = {sf.server_id: sf for sf in getattr(invite, "server_features", []) or []}
+
+    # Remove rows for servers that are no longer attached
+    for server_id, sf in list(existing_map.items()):
+        if server_id not in desired_ids:
+            invite.server_features.remove(sf)
+            db.session.delete(sf)
+
+    defaults = {
+        "allow_downloads": bool(getattr(invite, "allow_downloads", False)),
+        "invite_to_plex_home": bool(getattr(invite, "invite_to_plex_home", False)),
+        "allow_live_tv": bool(getattr(invite, "allow_live_tv", False)),
+        "allow_4k_transcode": bool(getattr(invite, "allow_4k_transcode", True)),
+    }
+
+    for server in invite.servers or []:
+        existing = existing_map.get(server.id)
+        payload = payload_map.get(server.id) if payload_provided else None
+
+        if not payload_provided and existing:
+            # Keep current values when no payload was sent
+            continue
+
+        def _value(field: str):
+            if payload_provided and payload is not None and payload.get(field) is not None:
+                return payload[field]
+            if existing and getattr(existing, field) is not None:
+                return getattr(existing, field)
+            return defaults[field]
+
+        values = {
+            "allow_downloads": _value("allow_downloads"),
+            "invite_to_plex_home": _value("invite_to_plex_home"),
+            "allow_live_tv": _value("allow_live_tv"),
+            "allow_4k_transcode": _value("allow_4k_transcode"),
+        }
+
+        if existing:
+            existing.allow_downloads = values["allow_downloads"]
+            existing.invite_to_plex_home = values["invite_to_plex_home"]
+            existing.allow_live_tv = values["allow_live_tv"]
+            existing.allow_4k_transcode = values["allow_4k_transcode"]
+        else:
+            invite.server_features.append(
+                InviteServerFeature(server_id=server.id, **values)
+            )
 
 
 def _invite_item(i: Invite) -> dict:
@@ -170,6 +289,7 @@ def _invite_item(i: Invite) -> dict:
         "membership_duration_days": getattr(i, "membership_duration_days", None),
         "grant_purge_whitelist": bool(getattr(i, "grant_purge_whitelist", False)),
         "grant_bot_whitelist": bool(getattr(i, "grant_bot_whitelist", False)),
+        "server_features": _resolve_server_features(i),
     }
 
 
@@ -283,6 +403,9 @@ def create_invite(body: CreateInviteBody, current_user):
         servers = MediaServer.query.filter(MediaServer.id.in_(body.server_ids)).all()
         invite.servers = servers
 
+    # Apply per-server feature overrides (defaults to invite-level when not provided)
+    _sync_server_features(invite, body.server_features)
+
     db.session.add(invite)
     db.session.commit()
 
@@ -320,6 +443,8 @@ class UpdateInviteBody(BaseModel):
     membership_duration_days: Optional[int] = None
     grant_purge_whitelist: Optional[bool] = None
     grant_bot_whitelist: Optional[bool] = None
+    server_ids: Optional[list[int]] = None
+    server_features: Optional[list[ServerFeatureInput]] = None
 
 
 @api_v2.patch(
@@ -362,6 +487,11 @@ def update_invite(path: InvitePath, body: UpdateInviteBody, current_user):
         inv.grant_purge_whitelist = bool(data["grant_purge_whitelist"])
     if "grant_bot_whitelist" in data:
         inv.grant_bot_whitelist = bool(data["grant_bot_whitelist"])
+    if "server_ids" in data:
+        servers = MediaServer.query.filter(MediaServer.id.in_(data["server_ids"])).all()
+        inv.servers = servers
+
+    _sync_server_features(inv, body.server_features if "server_features" in data or body.server_features is not None else None)
 
     db.session.commit()
     return jsonify(_invite_item(inv)), 200

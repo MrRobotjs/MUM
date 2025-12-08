@@ -21,51 +21,110 @@ import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { PageHeader } from '../components';
 import { IconDots } from '@tabler/icons-react';
-import type { InviteLibrary, InviteServer } from '../components/invites/InvitesTable';
+import type { InviteLibrary, InviteServer, InviteServerFeature } from '../components/invites/InvitesTable';
+import { getServiceBadgeClass as getServiceBadgeMeta, getServiceIconClass } from '../config/pluginMetadata';
 
 // Helper function to get service-specific styling
 const getServiceBadgeClass = (serviceType: string): string => {
-  const type = serviceType.toLowerCase();
-  switch (type) {
-    case 'plex':
-      return 'bg-[#e5a00d]/10 text-[#e5a00d] border-[#e5a00d]/20';
-    case 'jellyfin':
-      return 'bg-[#00a4dc]/10 text-[#00a4dc] border-[#00a4dc]/20';
-    case 'emby':
-      return 'bg-[#52b54b]/10 text-[#52b54b] border-[#52b54b]/20';
-    case 'audiobookshelf':
-      return 'bg-[#f59e0b]/10 text-[#f59e0b] border-[#f59e0b]/20';
-    case 'kavita':
-      return 'bg-[#7c3aed]/10 text-[#7c3aed] border-[#7c3aed]/20';
-    case 'komga':
-      return 'bg-[#4169e1]/10 text-[#4169e1] border-[#4169e1]/20';
-    case 'romm':
-      return 'bg-[#ef4444]/10 text-[#ef4444] border-[#ef4444]/20';
-    default:
-      return 'bg-gray-500/10 text-gray-400 border-gray-500/20';
-  }
+  const fallback = 'bg-gray-500/10 text-gray-400 border-gray-500/20';
+  if (!serviceType) return fallback;
+  return getServiceBadgeMeta(serviceType) || fallback;
 };
 
 const getServiceIcon = (serviceType: string): string => {
-  const type = serviceType.toLowerCase();
-  switch (type) {
-    case 'plex':
-      return 'fa-solid fa-play';
-    case 'jellyfin':
-      return 'fa-solid fa-cube';
-    case 'emby':
-      return 'fa-solid fa-play-circle';
-    case 'audiobookshelf':
-      return 'fa-solid fa-headphones';
-    case 'kavita':
-      return 'fa-solid fa-book';
-    case 'komga':
-      return 'fa-solid fa-book-open';
-    case 'romm':
-      return 'fa-solid fa-gamepad';
-    default:
-      return 'fa-solid fa-server';
+  return getServiceIconClass(serviceType) || 'fa-solid fa-server';
+};
+
+type FeatureKey = 'allow_downloads' | 'invite_to_plex_home' | 'allow_live_tv' | 'allow_4k_transcode';
+
+type FeatureMeta = {
+  key: FeatureKey;
+  label: string;
+  icon: string;
+  className: string;
+  onlyServices?: string[];
+  hideIfUniformTrue?: boolean;
+};
+
+const FEATURE_META: FeatureMeta[] = [
+  {
+    key: 'allow_downloads',
+    label: 'Downloads',
+    icon: 'fa-solid fa-download',
+    className: 'bg-blue-500/10 text-blue-500 border-blue-500/20'
+  },
+  {
+    key: 'invite_to_plex_home',
+    label: 'Plex Home',
+    icon: 'fa-solid fa-home',
+    className: 'bg-[#e5a00d]/10 text-[#e5a00d] border-[#e5a00d]/20',
+    onlyServices: ['plex']
+  },
+  {
+    key: 'allow_live_tv',
+    label: 'Live TV',
+    icon: 'fa-solid fa-tv',
+    className: 'bg-purple-500/10 text-purple-500 border-purple-500/20',
+    onlyServices: ['plex']
+  },
+  {
+    key: 'allow_4k_transcode',
+    label: '4K Transcode',
+    icon: 'fa-solid fa-film',
+    className: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20',
+    onlyServices: ['plex'],
+    hideIfUniformTrue: true
   }
+];
+
+const resolveServerFeatures = (invite: InviteRow): InviteServerFeature[] => {
+  const fromApi = invite.server_features ?? [];
+  const map = new Map<number, typeof fromApi[number]>();
+  fromApi.forEach((sf) => map.set(sf.server_id, sf));
+
+  return (invite.servers ?? []).map((server) => {
+    const existing = map.get(server.id);
+    return {
+      server_id: server.id,
+      allow_downloads: existing?.allow_downloads ?? invite.allow_downloads ?? false,
+      invite_to_plex_home: existing?.invite_to_plex_home ?? invite.invite_to_plex_home ?? false,
+      allow_live_tv: existing?.allow_live_tv ?? invite.allow_live_tv ?? false,
+      allow_4k_transcode: existing?.allow_4k_transcode ?? invite.allow_4k_transcode ?? true,
+      server_nickname: existing?.server_nickname ?? server.server_nickname ?? server.name ?? null,
+      service_type: existing?.service_type ?? server.service_type,
+      is_override: existing?.is_override ?? false
+    };
+  });
+};
+
+const buildFeatureSummaries = (invite: InviteRow) => {
+  const perServer = resolveServerFeatures(invite);
+
+  return FEATURE_META.map((meta) => {
+    const relevant = meta.onlyServices
+      ? perServer.filter((sf) => meta.onlyServices?.includes((sf.service_type || '').toLowerCase()))
+      : perServer;
+    if (relevant.length === 0) return null;
+
+    const enabled = relevant.filter((sf) => Boolean((sf as any)[meta.key]));
+    const disabled = relevant.filter((sf) => !Boolean((sf as any)[meta.key]));
+
+    if (enabled.length === 0) return null;
+    const allEnabled = enabled.length === relevant.length;
+    if (meta.hideIfUniformTrue && allEnabled) return null;
+
+    return {
+      meta,
+      enabled,
+      disabled,
+      state: allEnabled ? 'all' : 'partial' as const
+    };
+  }).filter(Boolean) as Array<{
+    meta: FeatureMeta;
+    enabled: InviteServerFeature[];
+    disabled: InviteServerFeature[];
+    state: 'all' | 'partial';
+  }>;
 };
 
 const getInviteStatusMeta = (invite: InviteRow) => {
@@ -105,7 +164,8 @@ const mapInviteToForm = (invite: InviteRow): InviteFormValues => {
     require_discord_guild_membership: invite.require_discord_guild_membership ?? false,
     grant_purge_whitelist: invite.grant_purge_whitelist ?? false,
     grant_bot_whitelist: invite.grant_bot_whitelist ?? false,
-    membership_expires_at: null
+    membership_expires_at: null,
+    server_features: invite.server_features ?? []
   };
 };
 
@@ -415,222 +475,240 @@ export const InvitesPage = () => {
               <p className="text-xl text-muted-foreground">No invites found matching your criteria.</p>
             </div>
           ) : (
-            invites.map((invite) => (
-              <Card
-                key={invite.id}
-                className={`relative overflow-hidden border transition-all duration-200 ease-in-out group cursor-pointer ${
-                  selectedIds.has(invite.id) ? 'ring-2 ring-primary shadow-xl translate-y-[-2px]' : 'hover:shadow-lg'
-                }`}
-                onClick={() => toggleSelect(invite.id)}
-              >
-                <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-background via-background to-primary/5 opacity-80" />
-                {/* Selection Checkbox */}
-                <div className={`absolute top-2 right-2 z-10 transition-opacity duration-200 ${selectedIds.has(invite.id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
-                  <Checkbox
-                    checked={selectedIds.has(invite.id)}
-                    onCheckedChange={() => toggleSelect(invite.id)}
-                    onClick={(e) => e.stopPropagation()}
-                  />
-                </div>
+            invites.map((invite) => {
+              const featureSummaries = buildFeatureSummaries(invite);
+              const hasMembershipDuration = Boolean(invite.membership_duration_days);
 
-                <CardContent className="relative z-10 flex h-full flex-col space-y-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <button
-                          className="font-semibold text-primary text-left hover:underline underline-offset-4 p-0"
-                          title="Click to copy invite link"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            const invitePath = invite.custom_path || invite.token;
-                            const fullUrl = `${window.location.origin}/invite/${invitePath}`;
-                            navigator.clipboard.writeText(fullUrl);
-                            success('Invite link copied!');
-                          }}
-                        >
-                          {invite.custom_path || invite.token.substring(0, 12)}
-                        </button>
-                        <a
-                          href={`/invite/${invite.custom_path || invite.token}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-muted-foreground hover:text-foreground p-1"
-                          title="Open link in new tab"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <i className="fa-solid fa-external-link-alt fa-xs" />
-                        </a>
-                      </div>
-                      <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-                        <span>
-                          <i className="fa-solid fa-calendar-plus fa-fw mr-1" />
-                          {invite.created_at ? new Date(invite.created_at).toLocaleDateString() : 'Created: N/A'}
-                        </span>
-                        <span className={invite.status === 'expired' ? 'text-destructive' : ''}>
-                          <i className="fa-solid fa-clock fa-fw mr-1" />
-                          {invite.expires_at ? new Date(invite.expires_at).toLocaleDateString() : 'Never expires'}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="flex flex-col items-end gap-2 text-right">
-                      {(() => {
-                        const meta = getInviteStatusMeta(invite);
-                        return (
-                          <span
-                            className={`inline-flex items-center gap-2 rounded-full border px-2 py-1 text-xs font-medium ${meta.className}`}
+              return (
+                <Card
+                  key={invite.id}
+                  className={`relative overflow-hidden border transition-all duration-200 ease-in-out group cursor-pointer ${
+                    selectedIds.has(invite.id) ? 'ring-2 ring-primary shadow-xl translate-y-[-2px]' : 'hover:shadow-lg'
+                  }`}
+                  onClick={() => toggleSelect(invite.id)}
+                >
+                  <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-background via-background to-primary/5 opacity-80" />
+                  {/* Selection Checkbox */}
+                  <div className={`absolute top-2 right-2 z-10 transition-opacity duration-200 ${selectedIds.has(invite.id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                    <Checkbox
+                      checked={selectedIds.has(invite.id)}
+                      onCheckedChange={() => toggleSelect(invite.id)}
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  </div>
+
+                  <CardContent className="relative z-10 flex h-full flex-col space-y-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <button
+                            className="font-semibold text-primary text-left hover:underline underline-offset-4 p-0"
+                            title="Click to copy invite link"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const invitePath = invite.custom_path || invite.token;
+                              const fullUrl = `${window.location.origin}/invite/${invitePath}`;
+                              navigator.clipboard.writeText(fullUrl);
+                              success('Invite link copied!');
+                            }}
                           >
-                            <i className="fa-solid fa-circle-dot fa-xs" />
-                            {meta.label}
+                            {invite.custom_path || invite.token.substring(0, 12)}
+                          </button>
+                          <a
+                            href={`/invite/${invite.custom_path || invite.token}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-muted-foreground hover:text-foreground p-1"
+                            title="Open link in new tab"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <i className="fa-solid fa-external-link-alt fa-xs" />
+                          </a>
+                        </div>
+                        <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+                          <span>
+                            <i className="fa-solid fa-calendar-plus fa-fw mr-1" />
+                            {invite.created_at ? new Date(invite.created_at).toLocaleDateString() : 'Created: N/A'}
                           </span>
-                        );
-                      })()}
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground font-semibold bg-muted/40 border border-border px-2 py-1 rounded-full">
-                        <i className="fa-solid fa-users-line fa-fw" />
-                        <span>{invite.uses_count ?? invite.current_uses ?? 0} / {invite.max_uses ?? '\u221e'} uses</span>
+                          <span className={invite.status === 'expired' ? 'text-destructive' : ''}>
+                            <i className="fa-solid fa-clock fa-fw mr-1" />
+                            {invite.expires_at ? new Date(invite.expires_at).toLocaleDateString() : 'Never expires'}
+                          </span>
+                        </div>
                       </div>
-                    </div>
-                  </div>
-
-                  <div className="space-y-3 text-sm flex-1">
-                    {/* Server Access */}
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                        <i className="fa-solid fa-server fa-fw" /> Server Access
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        {invite.servers?.length ? (
-                          invite.servers.map((server) => (
+                      <div className="flex flex-col items-end gap-2 text-right">
+                        {(() => {
+                          const meta = getInviteStatusMeta(invite);
+                          return (
                             <span
-                              key={server.id}
-                              className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold ${getServiceBadgeClass(server.service_type)}`}
+                              className={`inline-flex items-center gap-2 rounded-full border px-2 py-1 text-xs font-medium ${meta.className}`}
                             >
-                              <i className={`${getServiceIcon(server.service_type)} w-3 h-3`} />
-                              {server.server_nickname || server.name || 'Unnamed server'}
+                              <i className="fa-solid fa-circle-dot fa-xs" />
+                              {meta.label}
                             </span>
-                          ))
-                        ) : (
-                          <span className="text-xs text-muted-foreground">No servers</span>
-                        )}
+                          );
+                        })()}
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground font-semibold bg-muted/40 border border-border px-2 py-1 rounded-full">
+                          <i className="fa-solid fa-users-line fa-fw" />
+                          <span>{invite.uses_count ?? invite.current_uses ?? 0} / {invite.max_uses ?? '\u221e'} uses</span>
+                        </div>
                       </div>
                     </div>
 
-                    {/* Library Access */}
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                        <i className="fa-solid fa-photo-film fa-fw" /> Library Access
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        {invite.grants_all_libraries ? (
-                          <span className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold bg-green-500/10 text-green-500 border-green-500/20">
-                            <i className="fa-solid fa-infinity w-3 h-3" />
-                            All Libraries
-                          </span>
-                        ) : invite.libraries?.length ? (
-                          invite.libraries.map((library) => (
-                            <span
-                              key={library.id}
-                              className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold ${getServiceBadgeClass(library.service_type)}`}
-                              title={`${library.name} (${library.server_name})`}
-                            >
-                              <i className={`${getServiceIcon(library.service_type)} w-3 h-3`} />
-                              {library.name}
-                            </span>
-                          ))
-                        ) : (
-                          <span className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold bg-muted text-muted-foreground border-border">
-                            <i className="fa-solid fa-question w-3 h-3" />
-                            No Libraries
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                                        {/* Features */}
-                    {(invite.allow_downloads || invite.invite_to_plex_home || invite.allow_live_tv || invite.membership_duration_days) && (
+                    <div className="space-y-3 text-sm flex-1">
+                      {/* Server Access */}
                       <div className="space-y-1">
                         <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                          <i className="fa-solid fa-star fa-fw" /> Features
+                          <i className="fa-solid fa-server fa-fw" /> Server Access
                         </div>
                         <div className="flex flex-wrap gap-2">
-                          {invite.allow_downloads && (
-                            <span className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold bg-blue-500/10 text-blue-500 border-blue-500/20">
-                              <i className="fa-solid fa-download w-3 h-3" />
-                              Downloads
-                            </span>
-                          )}
-                          {invite.invite_to_plex_home && (
-                            <span className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold bg-[#e5a00d]/10 text-[#e5a00d] border-[#e5a00d]/20">
-                              <i className="fa-solid fa-home w-3 h-3" />
-                              Plex Home
-                            </span>
-                          )}
-                          {invite.allow_live_tv && (
-                            <span className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold bg-purple-500/10 text-purple-500 border-purple-500/20">
-                              <i className="fa-solid fa-tv w-3 h-3" />
-                              Live TV
-                            </span>
-                          )}
-                          {invite.membership_duration_days && (
-                            <span className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold bg-orange-500/10 text-orange-500 border-orange-500/20">
-                              <i className="fa-solid fa-clock w-3 h-3" />
-                              {invite.membership_duration_days} days
-                            </span>
+                          {invite.servers?.length ? (
+                            invite.servers.map((server) => (
+                              <span
+                                key={server.id}
+                                className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold ${getServiceBadgeClass(server.service_type)}`}
+                              >
+                                <i className={`${getServiceIcon(server.service_type)} w-3 h-3`} />
+                                {server.server_nickname || server.name || 'Unnamed server'}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="text-xs text-muted-foreground">No servers</span>
                           )}
                         </div>
                       </div>
-                    )}
 
-                    {/* Discord Requirements */}
-                    {(invite.require_discord_auth || invite.require_discord_guild_membership) && (
+                      {/* Library Access */}
                       <div className="space-y-1">
                         <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                          <i className="fa-brands fa-discord fa-fw" /> Discord
+                          <i className="fa-solid fa-photo-film fa-fw" /> Library Access
                         </div>
                         <div className="flex flex-wrap gap-2">
-                          {invite.require_discord_auth && (
-                            <span className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold bg-[#5865F2]/10 text-[#5865F2] border-[#5865F2]/20">
-                              <i className="fa-solid fa-link w-3 h-3" />
-                              Auth Required
+                          {invite.grants_all_libraries ? (
+                            <span className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold bg-green-500/10 text-green-500 border-green-500/20">
+                              <i className="fa-solid fa-infinity w-3 h-3" />
+                              All Libraries
                             </span>
-                          )}
-                          {invite.require_discord_guild_membership && (
-                            <span className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold bg-[#5865F2]/10 text-[#5865F2] border-[#5865F2]/20">
-                              <i className="fa-solid fa-users w-3 h-3" />
-                              Guild Required
+                          ) : invite.libraries?.length ? (
+                            invite.libraries.map((library) => (
+                              <span
+                                key={library.id}
+                                className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold ${getServiceBadgeClass(library.service_type)}`}
+                                title={`${library.name} (${library.server_name})`}
+                              >
+                                <i className={`${getServiceIcon(library.service_type)} w-3 h-3`} />
+                                {library.name}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold bg-muted text-muted-foreground border-border">
+                              <i className="fa-solid fa-question w-3 h-3" />
+                              No Libraries
                             </span>
                           )}
                         </div>
                       </div>
-                    )}
-                  </div>
 
-                  <div className="flex justify-end gap-2 pt-3 border-t" onClick={(e) => e.stopPropagation()}>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      title="View Usages"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        openDetailDrawer(invite);
-                      }}
-                    >
-                      <i className="fa-solid fa-chart-line" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      title="Edit Invite"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        openEditModal(invite);
-                      }}
-                    >
-                      <i className="fa-solid fa-pen-to-square" />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))
+                      {/* Features */}
+                      {(featureSummaries.length > 0 || hasMembershipDuration) && (
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                            <i className="fa-solid fa-star fa-fw" /> Features
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            {featureSummaries.map(({ meta, state }) => (
+                              <span
+                                key={meta.key}
+                                className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold ${meta.className}`}
+                              >
+                                <i className={`${meta.icon} w-3 h-3`} />
+                                {meta.label}
+                                {state === 'partial' && (
+                                  <span className="text-[10px] uppercase tracking-wide font-bold text-muted-foreground/80">
+                                    (Partial)
+                                  </span>
+                                )}
+                              </span>
+                            ))}
+                            {hasMembershipDuration && (
+                              <span className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold bg-orange-500/10 text-orange-500 border-orange-500/20">
+                                <i className="fa-solid fa-clock w-3 h-3" />
+                                {invite.membership_duration_days} days
+                              </span>
+                            )}
+                          </div>
+                          {featureSummaries.some((f) => f.state === 'partial') && (
+                            <div className="text-xs text-muted-foreground space-y-1">
+                              {featureSummaries
+                                .filter((f) => f.state === 'partial')
+                                .map((f) => {
+                                  const enabledNames = f.enabled.map((s) => s?.server_nickname || 'Server').join(', ');
+                                  const disabledNames = f.disabled.map((s) => s?.server_nickname || 'Server').join(', ');
+                                  return (
+                                    <div key={f.meta.key} className="flex flex-wrap gap-2">
+                                      <span className="font-semibold">{f.meta.label}:</span>
+                                      <span>On: {enabledNames || 'None'}</span>
+                                      {disabledNames ? <span className="text-muted-foreground/80">Off: {disabledNames}</span> : null}
+                                    </div>
+                                  );
+                                })}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Discord Requirements */}
+                      {(invite.require_discord_auth || invite.require_discord_guild_membership) && (
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                            <i className="fa-brands fa-discord fa-fw" /> Discord
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            {invite.require_discord_auth && (
+                              <span className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold bg-[#5865F2]/10 text-[#5865F2] border-[#5865F2]/20">
+                                <i className="fa-solid fa-link w-3 h-3" />
+                                Auth Required
+                              </span>
+                            )}
+                            {invite.require_discord_guild_membership && (
+                              <span className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold bg-[#5865F2]/10 text-[#5865F2] border-[#5865F2]/20">
+                                <i className="fa-solid fa-users w-3 h-3" />
+                                Guild Required
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex justify-end gap-2 pt-3 border-t" onClick={(e) => e.stopPropagation()}>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        title="View Usages"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openDetailDrawer(invite);
+                        }}
+                      >
+                        <i className="fa-solid fa-chart-line" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        title="Edit Invite"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openEditModal(invite);
+                        }}
+                      >
+                        <i className="fa-solid fa-pen-to-square" />
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })
           )}
         </div>
       )}

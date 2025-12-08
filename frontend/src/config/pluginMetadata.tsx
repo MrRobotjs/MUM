@@ -34,6 +34,7 @@ interface ThemePalette {
 interface ServiceMeta {
   icon: ReactElement
   libraryIcon?: ReactElement  // Optional smaller icon for library page
+  iconClass?: string          // Optional className for small inline badges
   label: string
   gradient: string
   badgeClass: string
@@ -49,6 +50,7 @@ export const SERVICE_META: Record<string, ServiceMeta> = {
   plex: {
     icon: plexIcon,
     libraryIcon: plexIconSmall,
+    iconClass: 'fa-solid fa-play',
     label: 'Plex',
     gradient: 'from-plex/10 via-plex/10 to-plex/20',
     badgeClass: 'bg-plex-50 text-plex-700 ring-plex-500/30 dark:bg-plex-400/10 dark:text-plex-300',
@@ -70,6 +72,7 @@ export const SERVICE_META: Record<string, ServiceMeta> = {
   },
   jellyfin: {
     icon: <i className="fa-solid fa-cube text-jellyfin text-3xl" />,
+    iconClass: 'fa-solid fa-cube',
     label: 'Jellyfin',
     gradient: 'from-jellyfin/10 via-jellyfin/10 to-jellyfin/20',
     badgeClass: 'bg-jellyfin-50 text-jellyfin-700 ring-jellyfin-500/30 dark:bg-jellyfin-400/10 dark:text-jellyfin-300',
@@ -91,6 +94,7 @@ export const SERVICE_META: Record<string, ServiceMeta> = {
   },
   emby: {
     icon: <i className="fa-solid fa-play-circle text-emby text-3xl" />,
+    iconClass: 'fa-solid fa-play-circle',
     label: 'Emby',
     gradient: 'from-emby/10 via-emby/10 to-emby/20',
     badgeClass: 'bg-emby-50 text-emby-700 ring-emby-500/30 dark:bg-emby-400/10 dark:text-emby-300',
@@ -112,6 +116,7 @@ export const SERVICE_META: Record<string, ServiceMeta> = {
   },
   kavita: {
     icon: <i className="fa-solid fa-book text-kavita text-3xl" />,
+    iconClass: 'fa-solid fa-book',
     label: 'Kavita',
     gradient: 'from-kavita/10 via-kavita/10 to-kavita/20',
     badgeClass: 'bg-kavita-50 text-kavita-700 ring-kavita-500/30 dark:bg-kavita-400/10 dark:text-kavita-300',
@@ -133,6 +138,7 @@ export const SERVICE_META: Record<string, ServiceMeta> = {
   },
   audiobookshelf: {
     icon: <i className="fa-solid fa-headphones text-audiobookshelf text-3xl" />,
+    iconClass: 'fa-solid fa-headphones',
     label: 'AudioBookshelf',
     gradient: 'from-audiobookshelf/10 via-audiobookshelf/10 to-audiobookshelf/20',
     badgeClass: 'bg-audiobookshelf-50 text-audiobookshelf-700 ring-audiobookshelf-500/30 dark:bg-audiobookshelf-400/10 dark:text-audiobookshelf-300',
@@ -154,6 +160,7 @@ export const SERVICE_META: Record<string, ServiceMeta> = {
   },
   komga: {
     icon: <i className="fa-solid fa-book-open text-komga text-3xl" />,
+    iconClass: 'fa-solid fa-book-open',
     label: 'Komga',
     gradient: 'from-komga/10 via-komga/10 to-komga/20',
     badgeClass: 'bg-komga-50 text-komga-700 ring-komga-500/30 dark:bg-komga-400/10 dark:text-komga-300',
@@ -175,6 +182,7 @@ export const SERVICE_META: Record<string, ServiceMeta> = {
   },
   romm: {
     icon: <i className="fa-solid fa-gamepad text-romm text-3xl" />,
+    iconClass: 'fa-solid fa-gamepad',
     label: 'RomM',
     gradient: 'from-romm/10 via-romm/10 to-romm/20',
     badgeClass: 'bg-romm-50 text-romm-700 ring-romm-500/30 dark:bg-romm-400/10 dark:text-romm-300',
@@ -210,6 +218,7 @@ export const getServiceMeta = (serviceType?: string): ServiceMeta => {
     detailGradient: 'from-gray/10 via-gray/10 to-gray/20',
     icon: <i className="fa-solid fa-server" />,
     libraryIcon: <i className="fa-solid fa-server" />,
+    iconClass: 'fa-solid fa-server',
     palette: {
       bg: 'bg-gray-50',
       bgDark: 'dark:bg-gray-400/10',
@@ -240,6 +249,10 @@ export const getServiceMeta = (serviceType?: string): ServiceMeta => {
  */
 export const getServiceIcon = (pluginId?: string): ReactElement => {
   return getServiceMeta(pluginId).icon
+}
+
+export const getServiceIconClass = (pluginId?: string): string => {
+  return getServiceMeta(pluginId).iconClass || 'fa-solid fa-server'
 }
 
 /**

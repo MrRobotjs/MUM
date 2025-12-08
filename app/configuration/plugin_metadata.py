@@ -20,6 +20,7 @@ class PluginMetadata:
     features: List[str]
     requires_api_key: bool
     supports_websocket: bool = False
+    icon_class: Optional[str] = None  # FontAwesome class for small badges/icons
     config_schema: Dict[str, Any] = field(default_factory=dict)
 
 
@@ -32,6 +33,7 @@ PLUGIN_METADATA: Dict[str, PluginMetadata] = {
         author='MUM Team',
         icon_type='svg',
         icon_identifier='plex',
+        icon_class='fa-solid fa-play',
         color_theme='plex',
         features=['streaming', 'libraries', 'users', 'webhooks', 'overseerr', 'tautulli'],
         requires_api_key=True,
@@ -53,6 +55,7 @@ PLUGIN_METADATA: Dict[str, PluginMetadata] = {
         author='MUM Team',
         icon_type='fontawesome',
         icon_identifier='fa-solid fa-cube',
+        icon_class='fa-solid fa-cube',
         color_theme='jellyfin',
         features=['streaming', 'libraries', 'users', 'webhooks'],
         requires_api_key=True,
@@ -65,6 +68,7 @@ PLUGIN_METADATA: Dict[str, PluginMetadata] = {
         author='MUM Team',
         icon_type='fontawesome',
         icon_identifier='fa-solid fa-play-circle',
+        icon_class='fa-solid fa-play-circle',
         color_theme='emby',
         features=['streaming', 'libraries', 'users', 'webhooks'],
         requires_api_key=True,
@@ -77,6 +81,7 @@ PLUGIN_METADATA: Dict[str, PluginMetadata] = {
         author='MUM Team',
         icon_type='fontawesome',
         icon_identifier='fa-solid fa-book',
+        icon_class='fa-solid fa-book',
         color_theme='kavita',
         features=['libraries', 'users'],
         requires_api_key=True,
@@ -89,6 +94,7 @@ PLUGIN_METADATA: Dict[str, PluginMetadata] = {
         author='MUM Team',
         icon_type='fontawesome',
         icon_identifier='fa-solid fa-headphones',
+        icon_class='fa-solid fa-headphones',
         color_theme='audiobookshelf',
         features=['libraries', 'users'],
         requires_api_key=True,
@@ -101,6 +107,7 @@ PLUGIN_METADATA: Dict[str, PluginMetadata] = {
         author='MUM Team',
         icon_type='fontawesome',
         icon_identifier='fa-solid fa-book-open',
+        icon_class='fa-solid fa-book-open',
         color_theme='komga',
         features=['libraries', 'users'],
         requires_api_key=True,
@@ -113,6 +120,7 @@ PLUGIN_METADATA: Dict[str, PluginMetadata] = {
         author='MUM Team',
         icon_type='fontawesome',
         icon_identifier='fa-solid fa-gamepad',
+        icon_class='fa-solid fa-gamepad',
         color_theme='romm',
         features=['libraries', 'users'],
         requires_api_key=True,

@@ -21,6 +21,7 @@ import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { PageHeader } from '../components';
 import { IconDots } from '@tabler/icons-react';
+import type { InviteLibrary, InviteServer } from '../components/invites/InvitesTable';
 
 // Helper function to get service-specific styling
 const getServiceBadgeClass = (serviceType: string): string => {
@@ -67,37 +68,45 @@ const getServiceIcon = (serviceType: string): string => {
   }
 };
 
-const statusStyles: Record<
-  string,
-  {
-    label: string;
-    className: string;
+const getInviteStatusMeta = (invite: InviteRow) => {
+  const isExpired = invite.expires_at ? new Date(invite.expires_at).getTime() < Date.now() : false;
+  const uses = invite.uses_count ?? invite.current_uses ?? 0;
+  const maxUses = invite.max_uses ?? null;
+  const isMaxed = typeof maxUses === 'number' && maxUses > 0 ? uses >= maxUses : false;
+
+  if (isExpired) {
+    return { label: 'Expired', className: 'bg-destructive/10 text-destructive border-destructive/20' };
   }
-> = {
-  usable: {
-    label: 'Usable',
-    className: 'bg-green-500/10 text-green-600 border-green-500/20'
-  },
-  active: {
-    label: 'Active',
-    className: 'bg-green-500/10 text-green-600 border-green-500/20'
-  },
-  inactive: {
-    label: 'Inactive',
-    className: 'bg-muted text-muted-foreground border-border'
-  },
-  expired: {
-    label: 'Expired',
-    className: 'bg-destructive/10 text-destructive border-destructive/20'
-  },
-  maxed: {
-    label: 'Maxed',
-    className: 'bg-amber-500/10 text-amber-600 border-amber-500/20'
-  },
-  default: {
-    label: 'Unknown',
-    className: 'bg-muted text-muted-foreground border-border'
+  if (isMaxed) {
+    return { label: 'Maxed', className: 'bg-amber-500/10 text-amber-600 border-amber-500/20' };
   }
+  if (invite.is_active === false) {
+    return { label: 'Inactive', className: 'bg-muted text-muted-foreground border-border' };
+  }
+  return { label: 'Active', className: 'bg-green-500/10 text-green-600 border-green-500/20' };
+};
+
+const mapInviteToForm = (invite: InviteRow): InviteFormValues => {
+  const serverIds = (invite.servers ?? []).map((s: InviteServer) => s.id);
+  const libraryIds = (invite.libraries ?? []).map((l: InviteLibrary) => l.id);
+
+  return {
+    custom_path: invite.custom_path ?? '',
+    expires_at: invite.expires_at ?? null,
+    max_uses: invite.max_uses ?? null,
+    allow_downloads: invite.allow_downloads ?? false,
+    is_active: invite.is_active ?? true,
+    server_ids: serverIds,
+    grant_library_ids: libraryIds,
+    invite_to_plex_home: invite.invite_to_plex_home ?? false,
+    allow_live_tv: invite.allow_live_tv ?? false,
+    allow_4k_transcode: invite.allow_4k_transcode ?? true,
+    require_discord_auth: invite.require_discord_auth ?? false,
+    require_discord_guild_membership: invite.require_discord_guild_membership ?? false,
+    grant_purge_whitelist: invite.grant_purge_whitelist ?? false,
+    grant_bot_whitelist: invite.grant_bot_whitelist ?? false,
+    membership_expires_at: null
+  };
 };
 
 export const InvitesPage = () => {
@@ -107,6 +116,7 @@ export const InvitesPage = () => {
   const [page, setPage] = useState(1);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [editingInvite, setEditingInvite] = useState<InviteRow | null>(null);
+  const [editingInitialValues, setEditingInitialValues] = useState<InviteFormValues | undefined>(undefined);
   const [modalOpen, setModalOpen] = useState(false);
   const [detailInviteId, setDetailInviteId] = useState<number | null>(null);
   const [searchInput, setSearchInput] = useState('');
@@ -160,11 +170,13 @@ export const InvitesPage = () => {
 
   const openCreateModal = () => {
     setEditingInvite(null);
+    setEditingInitialValues(undefined);
     setModalOpen(true);
   };
 
   const openEditModal = (invite: InviteRow) => {
     setEditingInvite(invite);
+    setEditingInitialValues(mapInviteToForm(invite));
     setModalOpen(true);
   };
 
@@ -421,7 +433,7 @@ export const InvitesPage = () => {
                   />
                 </div>
 
-                <CardContent className="relative z-10 space-y-4">
+                <CardContent className="relative z-10 flex h-full flex-col space-y-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="space-y-2">
                       <div className="flex items-center gap-2 flex-wrap">
@@ -448,12 +460,6 @@ export const InvitesPage = () => {
                         >
                           <i className="fa-solid fa-external-link-alt fa-xs" />
                         </a>
-                        {invite.custom_path && (
-                          <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                            <i className="fa-solid fa-link w-3 h-3" />
-                            Custom Path
-                          </span>
-                        )}
                       </div>
                       <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
                         <span>
@@ -468,24 +474,24 @@ export const InvitesPage = () => {
                     </div>
                     <div className="flex flex-col items-end gap-2 text-right">
                       {(() => {
-                        const meta = statusStyles[(invite.status ?? '').toLowerCase()] ?? statusStyles.default;
+                        const meta = getInviteStatusMeta(invite);
                         return (
                           <span
                             className={`inline-flex items-center gap-2 rounded-full border px-2 py-1 text-xs font-medium ${meta.className}`}
                           >
-                        <i className="fa-solid fa-circle-dot fa-xs" />
+                            <i className="fa-solid fa-circle-dot fa-xs" />
                             {meta.label}
                           </span>
                         );
                       })()}
-                      <span className="text-xs font-semibold">
-                        <i className="fa-solid fa-users-line fa-fw mr-1 text-muted-foreground" />
-                        {invite.uses_count || invite.current_uses} / {invite.max_uses || '∞'} uses
-                      </span>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground font-semibold bg-muted/40 border border-border px-2 py-1 rounded-full">
+                        <i className="fa-solid fa-users-line fa-fw" />
+                        <span>{invite.uses_count ?? invite.current_uses ?? 0} / {invite.max_uses ?? '\u221e'} uses</span>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="space-y-3 text-sm">
+                  <div className="space-y-3 text-sm flex-1">
                     {/* Server Access */}
                     <div className="space-y-1">
                       <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
@@ -539,65 +545,63 @@ export const InvitesPage = () => {
                       </div>
                     </div>
 
-                    {/* Features */}
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                        <i className="fa-solid fa-star fa-fw" /> Features
+                                        {/* Features */}
+                    {(invite.allow_downloads || invite.invite_to_plex_home || invite.allow_live_tv || invite.membership_duration_days) && (
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                          <i className="fa-solid fa-star fa-fw" /> Features
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {invite.allow_downloads && (
+                            <span className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold bg-blue-500/10 text-blue-500 border-blue-500/20">
+                              <i className="fa-solid fa-download w-3 h-3" />
+                              Downloads
+                            </span>
+                          )}
+                          {invite.invite_to_plex_home && (
+                            <span className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold bg-[#e5a00d]/10 text-[#e5a00d] border-[#e5a00d]/20">
+                              <i className="fa-solid fa-home w-3 h-3" />
+                              Plex Home
+                            </span>
+                          )}
+                          {invite.allow_live_tv && (
+                            <span className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold bg-purple-500/10 text-purple-500 border-purple-500/20">
+                              <i className="fa-solid fa-tv w-3 h-3" />
+                              Live TV
+                            </span>
+                          )}
+                          {invite.membership_duration_days && (
+                            <span className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold bg-orange-500/10 text-orange-500 border-orange-500/20">
+                              <i className="fa-solid fa-clock w-3 h-3" />
+                              {invite.membership_duration_days} days
+                            </span>
+                          )}
+                        </div>
                       </div>
-                      <div className="flex flex-wrap gap-2">
-                        {invite.allow_downloads && (
-                          <span className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold bg-blue-500/10 text-blue-500 border-blue-500/20">
-                            <i className="fa-solid fa-download w-3 h-3" />
-                            Downloads
-                          </span>
-                        )}
-                        {invite.invite_to_plex_home && (
-                          <span className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold bg-[#e5a00d]/10 text-[#e5a00d] border-[#e5a00d]/20">
-                            <i className="fa-solid fa-home w-3 h-3" />
-                            Plex Home
-                          </span>
-                        )}
-                        {invite.allow_live_tv && (
-                          <span className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold bg-purple-500/10 text-purple-500 border-purple-500/20">
-                            <i className="fa-solid fa-tv w-3 h-3" />
-                            Live TV
-                          </span>
-                        )}
-                        {invite.membership_duration_days && (
-                          <span className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold bg-orange-500/10 text-orange-500 border-orange-500/20">
-                            <i className="fa-solid fa-clock w-3 h-3" />
-                            {invite.membership_duration_days} days
-                          </span>
-                        )}
-                        {!invite.allow_downloads && !invite.invite_to_plex_home && !invite.allow_live_tv && !invite.membership_duration_days && (
-                          <span className="text-xs text-muted-foreground">No extra features</span>
-                        )}
-                      </div>
-                    </div>
+                    )}
 
                     {/* Discord Requirements */}
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                        <i className="fa-brands fa-discord fa-fw" /> Discord
+                    {(invite.require_discord_auth || invite.require_discord_guild_membership) && (
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                          <i className="fa-brands fa-discord fa-fw" /> Discord
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {invite.require_discord_auth && (
+                            <span className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold bg-[#5865F2]/10 text-[#5865F2] border-[#5865F2]/20">
+                              <i className="fa-solid fa-link w-3 h-3" />
+                              Auth Required
+                            </span>
+                          )}
+                          {invite.require_discord_guild_membership && (
+                            <span className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold bg-[#5865F2]/10 text-[#5865F2] border-[#5865F2]/20">
+                              <i className="fa-solid fa-users w-3 h-3" />
+                              Guild Required
+                            </span>
+                          )}
+                        </div>
                       </div>
-                      <div className="flex flex-wrap gap-2">
-                        {invite.require_discord_auth && (
-                          <span className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold bg-[#5865F2]/10 text-[#5865F2] border-[#5865F2]/20">
-                            <i className="fa-solid fa-link w-3 h-3" />
-                            Auth Required
-                          </span>
-                        )}
-                        {invite.require_discord_guild_membership && (
-                          <span className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold bg-[#5865F2]/10 text-[#5865F2] border-[#5865F2]/20">
-                            <i className="fa-solid fa-users w-3 h-3" />
-                            Guild Required
-                          </span>
-                        )}
-                        {!invite.require_discord_auth && !invite.require_discord_guild_membership && (
-                          <span className="text-xs text-muted-foreground">No Discord requirements</span>
-                        )}
-                      </div>
-                    </div>
+                    )}
                   </div>
 
                   <div className="flex justify-end gap-2 pt-3 border-t" onClick={(e) => e.stopPropagation()}>
@@ -663,8 +667,9 @@ export const InvitesPage = () => {
         onClose={() => {
           setModalOpen(false);
           setEditingInvite(null);
+          setEditingInitialValues(undefined);
         }}
-        initialValues={editingInvite ?? undefined}
+        initialValues={editingInitialValues}
         onSubmit={handleSaveInvite}
         loading={saving}
       />

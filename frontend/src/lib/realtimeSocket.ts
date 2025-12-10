@@ -1,13 +1,8 @@
 import { io, Socket } from 'socket.io-client';
 import { getAccessToken } from '../util/tokenStore';
+import type { UnifiedEvent } from '../types/realtime';
 
-export type ChannelEnvelope = {
-  channel: string;
-  event: string;
-  data: any;
-};
-
-type ChannelListener = (envelope: ChannelEnvelope) => void;
+type ChannelListener = (envelope: UnifiedEvent) => void;
 type ConnectionListener = (connected: boolean) => void;
 
 let socket: Socket | null = null;
@@ -79,13 +74,15 @@ function ensureSocket(): Socket {
     notifyConnection(false);
   });
 
-  created.on('ws_event', (envelope: ChannelEnvelope) => {
+  created.on('ws_event', (envelope: UnifiedEvent) => {
     try {
-      const sessLen = Array.isArray(envelope.data?.sessions) ? envelope.data.sessions.length : null;
-      const activeCount = envelope.data?.active_count;
-      console.debug('[Realtime] ws_event', envelope.channel, envelope.event, { activeCount, sessLen });
+      const sessLen = Array.isArray((envelope as any)?.payload?.sessions)
+        ? (envelope as any).payload.sessions.length
+        : null;
+      const activeCount = (envelope as any)?.payload?.active_count;
+      console.debug('[Realtime] ws_event', envelope.channel, envelope.type, { activeCount, sessLen });
     } catch {
-      console.debug('[Realtime] ws_event', envelope.channel, envelope.event);
+      console.debug('[Realtime] ws_event', envelope.channel, envelope.type);
     }
 
     const listeners = channelListeners.get(envelope.channel);

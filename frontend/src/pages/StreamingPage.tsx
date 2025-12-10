@@ -25,6 +25,7 @@ import { Input } from '@/components/ui/input';
 import { ResponsiveDialog } from '@/components/ui/responsive-dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { IconDots } from '@tabler/icons-react';
+import type { UnifiedSession } from '../types/realtime';
 
 type ActiveSession = {
   // Basic identifiers
@@ -119,6 +120,89 @@ const calculateProgress = (currentSeconds: number, duration?: string) => {
   const totalSeconds = parseDurationToSeconds(duration);
   if (totalSeconds <= 0) return 0;
   return Math.min(100, Math.max(0, (currentSeconds / totalSeconds) * 100));
+};
+
+const mapUnifiedSessionToActiveSession = (session: UnifiedSession): ActiveSession => {
+  const playback = session.playback ?? {};
+  const item = session.item ?? { title: 'Unknown Title', type: 'unknown' };
+  const quality = session.quality ?? {};
+  const network = session.network ?? {};
+  const server = session.server ?? { service: 'unknown', name: '' };
+  const client = session.client ?? {};
+  const user = session.user ?? { name: 'Unknown User' };
+
+  const durationSeconds =
+    playback.duration_seconds ?? parseDurationToSeconds(playback.duration_text ?? undefined);
+  const positionSeconds =
+    playback.position_seconds ?? parseDurationToSeconds(playback.position_text ?? undefined);
+
+  const derivedProgress =
+    durationSeconds && durationSeconds > 0
+      ? Math.min(100, Math.max(0, ((positionSeconds ?? 0) / durationSeconds) * 100))
+      : 0;
+  const progress =
+    typeof playback.progress === 'number' && Number.isFinite(playback.progress)
+      ? playback.progress
+      : derivedProgress;
+
+  const currentTimeText =
+    playback.position_text ??
+    (typeof positionSeconds === 'number' ? formatSecondsToTimestamp(positionSeconds) : undefined);
+  const durationText =
+    playback.duration_text ??
+    (typeof durationSeconds === 'number' ? formatSecondsToTimestamp(durationSeconds) : undefined);
+
+  const locationDetail = network.location
+    ? `${network.location}${network.ip ? `: ${network.ip}` : ''}`
+    : network.ip ?? '';
+
+  return {
+    session_key: session.session_id,
+    user: user.name || 'Unknown User',
+    user_avatar_url: user.avatar || undefined,
+    mum_user_id: undefined,
+    media_title: item.title || 'Unknown Title',
+    grandparent_title: item.grandparent_title ?? undefined,
+    parent_title: item.parent_title ?? undefined,
+    media_type: item.type || 'unknown',
+    library_name: item.library || 'Unknown Library',
+    year: item.year ? String(item.year) : undefined,
+    thumb_url: item.thumb || undefined,
+    service_type: server.service || 'unknown',
+    server_name: server.name || '',
+    player_title: client.name || undefined,
+    player_platform: client.platform || undefined,
+    product: client.product || undefined,
+    state: session.state || 'unknown',
+    progress,
+    current_time: currentTimeText ?? '0:00',
+    duration: durationText ?? '0:00',
+    quality_detail: quality.detail || '',
+    stream_detail: quality.stream || '',
+    container_detail: quality.container || '',
+    video_detail: quality.video || '',
+    audio_detail: quality.audio || '',
+    subtitle_detail: quality.subtitle || '',
+    transcode_reason: quality.transcode_reason || '',
+    location_detail: locationDetail,
+    location_ip: network.ip ?? undefined,
+    is_public_ip: network.is_public_ip ?? undefined,
+    bandwidth_detail: network.bandwidth ?? undefined,
+    raw_data_json: typeof session.raw === 'string' ? session.raw : undefined,
+    bitrate_calc: typeof quality.bitrate === 'number' ? quality.bitrate : undefined,
+    location_type_calc: network.location ?? undefined,
+    is_transcode_calc:
+      typeof quality.is_transcode === 'boolean' ? quality.is_transcode : undefined,
+  };
+};
+
+const buildOffsetsFromSessions = (sessions: ActiveSession[]) => {
+  const offsets: Record<string, number> = {};
+  for (const s of sessions) {
+    if (!s.session_key) continue;
+    offsets[s.session_key] = parseDurationToSeconds(s.current_time ?? '0:00');
+  }
+  return offsets;
 };
 
 type ActiveSessionsResponse = {
@@ -256,7 +340,7 @@ export const StreamingPage = () => {
   const { isConnected, liveServices, lastSessionData } = useStreamingWebSocket({
     autoConnect: true,
     servers: mediaServers,
-    onUpdate: (data: any) => {
+    onUpdate: (data) => {
       console.debug('[StreamingPage] WS update', {
         active_count: data.active_count,
         sessions_len: Array.isArray(data.sessions) ? data.sessions.length : null,
@@ -277,31 +361,28 @@ export const StreamingPage = () => {
         if (data.sessions.length === 0 && data.active_count === undefined) {
           return;
         }
-        const now = new Date()
+        const mappedSessions = data.sessions.map(mapUnifiedSessionToActiveSession);
+        const now = data.timestamp ? new Date(data.timestamp) : new Date();
         
         // Update session offsets immediately from websocket data
-        const offsets: Record<string, number> = {}
-        for (const s of data.sessions as Array<{ session_key: string; current_time?: string }>) {
-          if (!s.session_key) continue
-          offsets[s.session_key] = parseDurationToSeconds(s.current_time ?? '0:00')
-        }
-        
+        const offsets = buildOffsetsFromSessions(mappedSessions);
+
         // ✅ IMMEDIATE UPDATE - no throttling (like Tautulli)
-        setSessionOffsets(offsets)
-        setLastUpdateAt(now)
-        lastUpdateRef.current = now
-        setWsTruthActive(true)
+        setSessionOffsets(offsets);
+        setLastUpdateAt(now);
+        lastUpdateRef.current = now;
+        setWsTruthActive(true);
         
         // Update active sessions state immediately (like Tautulli - instant websocket updates)
         // This handles both adding new sessions AND removing stopped sessions (empty array clears UI)
         // Use sessions.length as source of truth when sessions array is provided (it's the actual current state)
         setActiveSessions({
-          sessions: data.sessions,
-          total_count: data.active_count ?? data.sessions.length,
+          sessions: mappedSessions,
+          total_count: data.active_count ?? mappedSessions.length,
           by_server: {},
           by_service: {},
           meta: { request_id: '', timestamp: data.timestamp },
-        })
+        });
       } else if (data.active_count !== undefined) {
         // Even without session data, update count immediately
         // If active_count is 0 and we have no sessions array, clear sessions
@@ -325,33 +406,30 @@ export const StreamingPage = () => {
 
   // Initialize from websocket data if available (when navigating to page)
   useEffect(() => {
-      if (lastSessionData && !activeSessions) {
-        // Websocket already has data - use it immediately instead of showing loading
-        if (Array.isArray(lastSessionData.sessions)) {
-          const now = new Date()
-          
-          // Update session offsets
-          const offsets: Record<string, number> = {}
-          for (const s of lastSessionData.sessions as Array<{ session_key: string; current_time?: string }>) {
-          if (!s.session_key) continue
-          offsets[s.session_key] = parseDurationToSeconds(s.current_time ?? '0:00')
-        }
+    if (lastSessionData && !activeSessions) {
+      // Websocket already has data - use it immediately instead of showing loading
+      if (Array.isArray(lastSessionData.sessions)) {
+        const mappedSessions = lastSessionData.sessions.map(mapUnifiedSessionToActiveSession);
+        const now = lastSessionData.timestamp ? new Date(lastSessionData.timestamp) : new Date();
         
-        setSessionOffsets(offsets)
-        setLastUpdateAt(now)
-        lastUpdateRef.current = now
-        setWsTruthActive(true)
-        setBootstrapping(false)
+        // Update session offsets
+        const offsets = buildOffsetsFromSessions(mappedSessions);
+      
+        setSessionOffsets(offsets);
+        setLastUpdateAt(now);
+        lastUpdateRef.current = now;
+        setWsTruthActive(true);
+        setBootstrapping(false);
         
         // Update active sessions state from websocket data
         // Use sessions.length as source of truth when sessions array is provided
         setActiveSessions({
-          sessions: lastSessionData.sessions,
-          total_count: lastSessionData.active_count ?? lastSessionData.sessions.length,
+          sessions: mappedSessions,
+          total_count: lastSessionData.active_count ?? mappedSessions.length,
           by_server: {},
           by_service: {},
           meta: { request_id: '', timestamp: lastSessionData.timestamp },
-        })
+        });
       }
     }
   }, [lastSessionData, activeSessions]);

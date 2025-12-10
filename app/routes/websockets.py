@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import re
 from collections import defaultdict
+from datetime import datetime, timezone
 from typing import Dict, Iterable, Set
 
 from flask import Blueprint, current_app, request
@@ -13,6 +14,7 @@ from flask_jwt_extended import decode_token
 from app.extensions import socketio
 from app.models import User, UserType
 from app.models_media_services import MediaServer
+from app.services.event_normalizer import MessageType, build_session_update_event
 
 bp = Blueprint('websockets', __name__)
 
@@ -212,11 +214,14 @@ def _subscribe_channels(sid: str, channels: Iterable[str]):
             try:
                 from app.routes.api_v2.sync_status import get_sync_status
 
-                emit(
-                    "ws_event",
-                    {"channel": channel, "event": "sync_status_update", "data": get_sync_status()},
-                    room=sid,
-                )
+                snapshot = {
+                    "channel": channel,
+                    "type": MessageType.TASK_PROGRESS.value,
+                    "source": "system",
+                    "payload": get_sync_status(),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                }
+                emit("ws_event", snapshot, room=sid)
             except Exception:
                 current_app.logger.warning("Failed to send initial sync status snapshot", exc_info=True)
 
@@ -312,10 +317,82 @@ def handle_auth_update(data):
         return False
 
 
-def publish_channel_event(channel: str, event: str, data: dict):
-    """Publish a message envelope to a specific channel."""
-    envelope = {"channel": channel, "event": event, "data": data}
-    socketio.emit('ws_event', envelope, room=channel, namespace='/')
+def _session_user_uuid(session: dict) -> str | None:
+    """Extract the user UUID stored on a normalized session."""
+    if not isinstance(session, dict):
+        return None
+    user_block = session.get("user") or {}
+    if isinstance(user_block, dict) and user_block.get("uuid"):
+        return str(user_block["uuid"])
+    for key in ("user_uuid", "linked_user_uuid", "mum_user_uuid"):
+        if session.get(key):
+            return str(session[key])
+    return None
+
+
+def _filter_session_envelope_for_sid(envelope: dict, sid: str) -> dict | None:
+    """Apply per-user filtering to session payloads."""
+    info = _ws_clients.get(sid)
+    if not info:
+        return None
+
+    # Owners and administrators receive the full payload
+    if info.get('user_type') == UserType.OWNER or info.get('has_administrator'):
+        return envelope
+
+    payload = envelope.get("payload") or {}
+    sessions = payload.get("sessions") or []
+    user_uuid = info.get("uuid")
+    if not user_uuid:
+        return None
+
+    filtered_sessions = [s for s in sessions if _session_user_uuid(s) == user_uuid]
+    filtered_payload = dict(payload)
+    filtered_payload["sessions"] = filtered_sessions
+    filtered_payload["active_count"] = len(filtered_sessions)
+
+    filtered_envelope = dict(envelope)
+    filtered_envelope["payload"] = filtered_payload
+    return filtered_envelope
+
+
+def _emit_channel_envelope(channel: str, envelope: dict):
+    """Emit an envelope to subscribers, applying per-sid filtering when needed."""
+    message = dict(envelope)
+    message["channel"] = channel
+    message.setdefault("timestamp", datetime.now(timezone.utc).isoformat())
+
+    if message.get("type") == MessageType.SESSION_UPDATE.value:
+        subscribers = list(_channel_subscribers.get(channel, set()))
+        for sid in subscribers:
+            filtered = _filter_session_envelope_for_sid(message, sid)
+            if not filtered:
+                continue
+            socketio.emit('ws_event', filtered, room=sid, namespace='/')
+        return
+
+    socketio.emit('ws_event', message, room=channel, namespace='/')
+
+
+def publish_channel_event(
+    channel: str,
+    message_type: MessageType | str,
+    payload: dict,
+    *,
+    source: str | None = None,
+    server_id: int | None = None,
+    timestamp: str | None = None,
+):
+    """Publish a unified message to a specific channel."""
+    envelope = {
+        "channel": channel,
+        "type": message_type.value if isinstance(message_type, MessageType) else message_type,
+        "source": source,
+        "server_id": server_id,
+        "payload": payload or {},
+        "timestamp": timestamp or datetime.now(timezone.utc).isoformat(),
+    }
+    _emit_channel_envelope(channel, envelope)
 
 
 def broadcast_streaming_update(sessions, live_services=None, servers=None, summary_data=None):
@@ -359,17 +436,17 @@ def broadcast_streaming_update(sessions, live_services=None, servers=None, summa
 
     for (service, server_id), server_sessions in grouped.items():
         channel = f"{service}.{server_id}.sessions"
-        payload = {
-            'active_count': len(server_sessions),
-            'timestamp': now,
-            'sessions': server_sessions,
-        }
-        if live_services_payload:
-            payload['live_services'] = live_services_payload
-        if summary_data:
-            payload['summary'] = summary_data
+        server_obj = server_index.get((service, server_id))
+        event_envelope = build_session_update_event(
+            source=service,
+            server=server_obj,
+            sessions=server_sessions,
+            live_services=live_services_payload,
+            summary=summary_data,
+            timestamp=now,
+        )
 
-        publish_channel_event(channel, 'session_update', payload)
+        _emit_channel_envelope(channel, event_envelope)
         current_app.logger.debug(
-            f"Broadcasted session_update to {channel}: {len(server_sessions)} sessions"
+            f"Broadcasted SessionUpdate to {channel}: {len(server_sessions)} sessions"
         )

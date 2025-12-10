@@ -9,6 +9,7 @@ from flask_openapi3 import Tag
 from app.routes.api_v2 import api_v2
 from app.extensions import cache
 from app.routes.websockets import publish_channel_event
+from app.services.event_normalizer import MessageType
 
 
 sync_tag = Tag(name="Sync", description="Synchronization status endpoints")
@@ -46,7 +47,12 @@ def broadcast_sync_status(status_data: dict | None = None):
     """Emit the latest sync status to websocket subscribers."""
     try:
         payload = status_data or get_sync_status()
-        publish_channel_event("system.sync_status", "sync_status_update", payload)
+        publish_channel_event(
+            "system.sync_status",
+            MessageType.TASK_PROGRESS,
+            payload,
+            source="system",
+        )
     except Exception:
         # Avoid failing core logic if websocket broadcast fails
         pass

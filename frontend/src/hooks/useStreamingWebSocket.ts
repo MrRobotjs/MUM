@@ -6,33 +6,15 @@ import {
   getRealtimeState,
   onConnectionChange,
   subscribeToChannel,
-  type ChannelEnvelope,
 } from '../lib/realtimeSocket';
+import type { SessionUpdatePayload, UnifiedEvent } from '../types/realtime';
 
-interface StreamingUpdate {
-  active_count?: number;
+type StreamingUpdate = SessionUpdatePayload & {
   timestamp?: string;
-  live_services?: string[];
-  // Optional per-session snapshots for real-time corrections (e.g., Plex backend)
-  sessions?: Array<{
-    session_key: string;
-    current_time?: string;
-    state?: string;
-    service_type?: string;
-    duration?: string;
-  }>;
-  summary?: {
-    counts?: {
-      total: number;
-      active: number;
-      completed: number;
-    };
-    duration?: {
-      total_seconds: number;
-      average_seconds: number;
-    };
-  };
-}
+  source?: string | null;
+  server_id?: number | null;
+  channel?: string;
+};
 
 interface UseStreamingWebSocketOptions {
   autoConnect?: boolean;
@@ -41,6 +23,7 @@ interface UseStreamingWebSocketOptions {
 }
 
 type StreamingListener = (data: StreamingUpdate) => void;
+type ChannelListener = (event: UnifiedEvent) => void;
 
 const channelSnapshots = new Map<string, StreamingUpdate>();
 const streamingListeners = new Set<StreamingListener>();
@@ -53,23 +36,21 @@ const streamingState = {
 const recomputeAggregate = () => {
   const liveServices = new Set<string>();
   let activeCount = 0;
-  const sessions: StreamingUpdate['sessions'] = [];
+  const sessions: SessionUpdatePayload['sessions'] = [];
   let timestamp: string | undefined;
 
   channelSnapshots.forEach((payload) => {
-    const count = Array.isArray(payload.sessions)
-      ? payload.sessions.length
-      : payload.active_count ?? 0;
+    const sessionList = payload.sessions ?? [];
+    const count = payload.active_count ?? sessionList.length;
     activeCount += count;
 
-    if (Array.isArray(payload.sessions)) {
-      sessions.push(...payload.sessions);
-      payload.sessions.forEach((session) => {
-        if (session.service_type) {
-          liveServices.add(String(session.service_type).toLowerCase());
-        }
-      });
-    }
+    sessions.push(...sessionList);
+    sessionList.forEach((session: any) => {
+      const service = session?.server?.service || session?.service_type;
+      if (service) {
+        liveServices.add(String(service).toLowerCase());
+      }
+    });
 
     if (Array.isArray(payload.live_services)) {
       payload.live_services.forEach((svc) => liveServices.add(String(svc).toLowerCase()));
@@ -102,9 +83,16 @@ const recomputeAggregate = () => {
 
 // Module-level handler that ALL instances share
 // This ensures channel snapshots are updated globally
-const handleEnvelopeGlobal = (envelope: ChannelEnvelope) => {
-  if (envelope.event !== 'session_update') return;
-  channelSnapshots.set(envelope.channel, envelope.data as StreamingUpdate);
+const handleEnvelopeGlobal = (event: UnifiedEvent) => {
+  if (event.type !== 'SessionUpdate') return;
+  const payload = (event.payload || {}) as SessionUpdatePayload;
+  channelSnapshots.set(event.channel, {
+    ...payload,
+    timestamp: event.timestamp,
+    source: event.source ?? null,
+    server_id: event.server_id ?? null,
+    channel: event.channel,
+  });
   recomputeAggregate();
 };
 

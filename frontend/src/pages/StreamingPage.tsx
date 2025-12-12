@@ -81,6 +81,8 @@ type ActiveSession = {
   bitrate_calc?: number;
   location_type_calc?: string;
   is_transcode_calc?: boolean;
+  transcode_speed?: number;
+  transcode_throttled?: boolean;
 };
 
 const parseDurationToSeconds = (value?: string) => {
@@ -146,6 +148,25 @@ const mapUnifiedSessionToActiveSession = (session: UnifiedSession): ActiveSessio
       ? playback.progress
       : derivedProgress;
 
+  // Parse transcode details from stream_detail string if available
+  // Expected format: "Transcode (Throttled, Speed: 3.5)" or "Transcode (Speed: 2.1)"
+  let transcodeSpeed: number | undefined;
+  let transcodeThrottled: boolean | undefined;
+
+  const streamDetailStr = quality.stream || '';
+  if (streamDetailStr.includes('Transcode')) {
+    const speedMatch = streamDetailStr.match(/Speed:\s*([\d.]+)/i);
+    if (speedMatch && speedMatch[1]) {
+      transcodeSpeed = parseFloat(speedMatch[1]);
+    }
+
+    if (streamDetailStr.toLowerCase().includes('throttled')) {
+      transcodeThrottled = true;
+    } else {
+      transcodeThrottled = false;
+    }
+  }
+
   const currentTimeText =
     playback.position_text ??
     (typeof positionSeconds === 'number' ? formatSecondsToTimestamp(positionSeconds) : undefined);
@@ -194,6 +215,8 @@ const mapUnifiedSessionToActiveSession = (session: UnifiedSession): ActiveSessio
     location_type_calc: network.location ?? undefined,
     is_transcode_calc:
       typeof quality.is_transcode === 'boolean' ? quality.is_transcode : undefined,
+    transcode_speed: transcodeSpeed,
+    transcode_throttled: transcodeThrottled,
   };
 };
 
@@ -270,10 +293,10 @@ export const StreamingPage = () => {
           return;
         }
       }
-      
+
       const silent = options?.silent ?? false;
       const force = options?.force ?? false;
-      
+
       // Only fetch if forced (manual refresh) or initial bootstrap
       if (!force && silent && lastUpdateRef.current) {
         setBootstrapping(false);
@@ -354,7 +377,7 @@ export const StreamingPage = () => {
           String(service).toLowerCase()
         );
       }
-      
+
       // ✅ ACCEPT WEBSOCKET UPDATES IMMEDIATELY (like Tautulli)
       // Handle sessions array (even if empty - this clears stopped streams from UI)
       if (Array.isArray(data.sessions)) {
@@ -364,7 +387,7 @@ export const StreamingPage = () => {
         }
         const mappedSessions = data.sessions.map(mapUnifiedSessionToActiveSession);
         const now = data.timestamp ? new Date(data.timestamp) : new Date();
-        
+
         // Update session offsets immediately from websocket data
         const offsets = buildOffsetsFromSessions(mappedSessions);
 
@@ -373,7 +396,7 @@ export const StreamingPage = () => {
         setLastUpdateAt(now);
         lastUpdateRef.current = now;
         setWsTruthActive(true);
-        
+
         // Update active sessions state immediately (like Tautulli - instant websocket updates)
         // This handles both adding new sessions AND removing stopped sessions (empty array clears UI)
         // Use sessions.length as source of truth when sessions array is provided (it's the actual current state)
@@ -412,16 +435,16 @@ export const StreamingPage = () => {
       if (Array.isArray(lastSessionData.sessions)) {
         const mappedSessions = lastSessionData.sessions.map(mapUnifiedSessionToActiveSession);
         const now = lastSessionData.timestamp ? new Date(lastSessionData.timestamp) : new Date();
-        
+
         // Update session offsets
         const offsets = buildOffsetsFromSessions(mappedSessions);
-      
+
         setSessionOffsets(offsets);
         setLastUpdateAt(now);
         lastUpdateRef.current = now;
         setWsTruthActive(true);
         setBootstrapping(false);
-        
+
         // Update active sessions state from websocket data
         // Use sessions.length as source of truth when sessions array is provided
         setActiveSessions({
@@ -520,24 +543,24 @@ export const StreamingPage = () => {
 
     const updatedByServer = activeSessions.by_server
       ? Object.fromEntries(
-          Object.entries(activeSessions.by_server).map(([server, sessions]) => [
-            server,
-            sessions.map(
-              (session) => updatedSessionMap.get(session.session_key) ?? session
-            ),
-          ])
-        )
+        Object.entries(activeSessions.by_server).map(([server, sessions]) => [
+          server,
+          sessions.map(
+            (session) => updatedSessionMap.get(session.session_key) ?? session
+          ),
+        ])
+      )
       : undefined;
 
     const updatedByService = activeSessions.by_service
       ? Object.fromEntries(
-          Object.entries(activeSessions.by_service).map(([service, sessions]) => [
-            service,
-            sessions.map(
-              (session) => updatedSessionMap.get(session.session_key) ?? session
-            ),
-          ])
-        )
+        Object.entries(activeSessions.by_service).map(([service, sessions]) => [
+          service,
+          sessions.map(
+            (session) => updatedSessionMap.get(session.session_key) ?? session
+          ),
+        ])
+      )
       : undefined;
 
     return {

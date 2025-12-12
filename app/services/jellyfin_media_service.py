@@ -404,7 +404,14 @@ class JellyfinMediaService(BaseMediaService):
                         "container_detail": container_detail,
                         "video_detail": video_detail,
                         "audio_detail": audio_detail,
-                        "subtitle_detail": None,
+                        "subtitle_detail": next(
+                            (
+                                f"{s.get('DisplayTitle', 'Unknown')} ({s.get('Codec', 'Unknown').upper()})"
+                                for s in media_streams
+                                if s.get("Type") == "Subtitle" and s.get("Index") == play_state.get("SubtitleStreamIndex")
+                            ),
+                            None
+                        ),
                         "transcode_reason": None,
                         "location_detail": f"{'LAN' if is_local else 'WAN'}: {location_ip}",
                         "location_ip": location_ip,

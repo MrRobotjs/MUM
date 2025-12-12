@@ -134,7 +134,13 @@ export const StreamingSessionCard = ({ session, onTerminate }: StreamingSessionC
   const [showStreamInfo, setShowStreamInfo] = useState(false);
   const normalizedState = session.state?.toLowerCase();
   const stateColor = getStateColor(session.state);
-  const isTranscoding = session.stream_detail?.toLowerCase().includes('transcode') || session.is_transcode_calc;
+  const streamDetailLower = (session.stream_detail ?? '').toLowerCase();
+  const isTranscoding = streamDetailLower.includes('transcode') || session.is_transcode_calc;
+  const directMethodLabel = streamDetailLower.includes('direct play')
+    ? 'Direct Play'
+    : streamDetailLower.includes('direct stream')
+      ? 'Direct Stream'
+      : 'Direct Play';
 
   // Format remaining time if possible, otherwise use duration
   // Simple heuristic: if we have current_time and duration as strings like "0:05", it's hard to calc remaining without parsing.
@@ -296,7 +302,7 @@ export const StreamingSessionCard = ({ session, onTerminate }: StreamingSessionC
                   </span>
                 ) : (
                   <span className="text-green-400 flex items-center gap-1">
-                    Direct Stream
+                    {directMethodLabel}
                     <button
                       type="button"
                       onClick={(e) => {

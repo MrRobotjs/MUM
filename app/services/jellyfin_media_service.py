@@ -285,7 +285,10 @@ class JellyfinMediaService(BaseMediaService):
                         if primary_image_tag:
                             thumb_url += f"&image_tag={primary_image_tag}"
 
-                is_transcoding = play_state.get("PlayMethod") == "Transcode"
+                play_method_raw = play_state.get("PlayMethod") or ""
+                play_method = str(play_method_raw).strip().lower()
+                is_transcoding = play_method == "transcode"
+                is_direct_stream = play_method == "directstream"
                 transcoding_info = raw_session.get("TranscodingInfo", {})
                 media_streams = now_playing.get("MediaStreams", [])
                 original_video_stream = next((s for s in media_streams if s.get("Type") == "Video"), None)
@@ -333,19 +336,19 @@ class JellyfinMediaService(BaseMediaService):
                     transcoded_bitrate = transcoding_info.get("Bitrate", 0)
                     quality_detail = f"{transcoded_res} ({transcoded_bitrate/1_000_000:.1f} Mbps)" if transcoded_bitrate else f"{transcoded_res} (Transcoding)"
                 else:
-                    stream_details = "Direct Play"
+                    stream_details = "Direct Stream" if is_direct_stream else "Direct Play"
                     container_detail = now_playing.get("Container", "Unknown").upper()
                     if original_video_stream:
                         original_height = original_video_stream.get("Height", 0)
                         original_res = get_standard_resolution(original_height)
                         original_codec = original_video_stream.get("Codec", "Unknown").upper()
-                        video_detail = f"Direct Play ({original_codec} {original_res})"
+                        video_detail = f"{stream_details} ({original_codec} {original_res})"
                     else:
-                        video_detail = "Direct Play (Unknown Video)"
+                        video_detail = f"{stream_details} (Unknown Video)"
                     if original_audio_stream:
-                        audio_detail = f"Direct Play ({original_audio_stream.get('DisplayTitle','Unknown Audio')})"
+                        audio_detail = f"{stream_details} ({original_audio_stream.get('DisplayTitle','Unknown Audio')})"
                     else:
-                        audio_detail = "Direct Play (Unknown Audio)"
+                        audio_detail = f"{stream_details} (Unknown Audio)"
                     quality_detail = get_standard_resolution(original_video_stream.get("Height") if original_video_stream else None)
 
                 bandwidth_detail = f"Streaming via {'LAN' if raw_session.get('IsLocal', True) else 'WAN'}"

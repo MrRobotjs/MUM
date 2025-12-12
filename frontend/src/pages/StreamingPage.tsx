@@ -306,9 +306,9 @@ export const StreamingPage = () => {
               isLiveService &&
               sessionState === 'playing' &&
               previousBase !== undefined &&
-              previousUpdateAt
+              lastUpdateRef.current
             ) {
-              const elapsed = (fetchCompletedAt.getTime() - previousUpdateAt.getTime()) / 1000;
+              const elapsed = (fetchCompletedAt.getTime() - lastUpdateRef.current.getTime()) / 1000;
               if (elapsed > 0) {
                 const predicted = previousBase + elapsed;
                 if (predicted > value && predicted - value <= 3) {

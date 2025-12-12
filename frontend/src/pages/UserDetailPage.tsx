@@ -1,9 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { useLocation, useNavigate, useParams, useSearch } from '@tanstack/react-router';
 import { useAlerts } from '../contexts/AlertContext';
 import { useUserDetail, UserDetail, UserHistoryEntry } from '../hooks/useUserDetail';
-import { useUserHistory } from '../hooks/useUserHistory';
+import { useUserHistoryPaginated } from '../hooks/useUserHistoryPaginated';
 import { useServiceAccounts } from '../hooks/useServiceAccounts';
 import { useAvailableServiceAccounts } from '../hooks/useAvailableServiceAccounts';
 import { useOverseerr } from '../hooks/useOverseerr';
@@ -21,8 +21,8 @@ import type { ServiceAccount } from '../components/users/ServiceAccountsCard';
 import type { UserSettings } from '../components/users/UserSettingsCard';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/common/Badge';
-import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Pagination } from '@/components/common/Pagination';
 import { getServiceMeta } from '@/config/pluginMetadata';
 
 type TabKey = 'profile' | 'history' | 'settings' | 'overseerr' | 'security';
@@ -400,11 +400,12 @@ type HistoryTabProps = {
   entries: UserHistoryEntry[];
   loading: boolean;
   error?: Error | null;
-  onLoadMore: () => void;
-  hasMore: boolean;
+  currentPage: number;
+  totalPages: number;
+  onPageChange: (page: number) => void;
 };
 
-const HistoryTab = ({ entries, loading, error, onLoadMore, hasMore }: HistoryTabProps) => {
+const HistoryTab = ({ entries, loading, error, currentPage, totalPages, onPageChange }: HistoryTabProps) => {
   const formatDuration = (seconds?: number | null) => {
     if (!seconds) return '0m';
     const mins = Math.floor(seconds / 60);
@@ -562,17 +563,12 @@ const HistoryTab = ({ entries, loading, error, onLoadMore, hasMore }: HistoryTab
               </table>
             </div>
 
-            {(hasMore || loading) && (
-              <div className="flex justify-center pt-4 border-t border-border mt-4">
-                {loading && entries.length > 0 ? (
-                  <span className="inline-flex size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                ) : hasMore ? (
-                  <Button variant="outline" size="sm" onClick={onLoadMore}>
-                    Load more history
-                  </Button>
-                ) : null}
-              </div>
-            )}
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={onPageChange}
+              loading={loading}
+            />
           </CardContent>
         </Card>
       )}
@@ -746,8 +742,9 @@ export const UserDetailPage = () => {
   } = useUserUuidBySlug(needsSlugLookup ? serverNickname : undefined, needsSlugLookup ? username : undefined);
   const effectiveUuid = uuidParam ?? stateUuid ?? slugUuid ?? undefined;
 
-  const search = useSearch({ strict: false }) as { tab?: TabKey };
+  const search = useSearch({ strict: false }) as { tab?: TabKey; page?: number };
   const activeTab: TabKey = search.tab ?? 'profile';
+  const historyPage = search.page ?? 1;
   const [linkModalOpen, setLinkModalOpen] = useState(false);
   const [resyncing, setResyncing] = useState(false);
   const [resettingPassword, setResettingPassword] = useState(false);
@@ -760,9 +757,9 @@ export const UserDetailPage = () => {
     entries: historyEntries,
     loading: historyLoading,
     error: historyError,
-    loadMore,
-    hasMore
-  } = useUserHistory(effectiveUuid);
+    currentPage,
+    totalPages
+  } = useUserHistoryPaginated(effectiveUuid, historyPage, 10);
   const {
     accounts: serviceAccounts,
     loading: accountsLoading,
@@ -788,15 +785,12 @@ export const UserDetailPage = () => {
     refresh: refreshSettings
   } = useUserSettings(effectiveUuid);
 
-  const combinedHistory = useMemo<UserHistoryEntry[]>(() => {
-    console.log('[UserDetailPage] History data:', {
-      historyEntries,
-      userHistory: user?.history,
-      historyEntriesLength: historyEntries.length,
-      userHistoryLength: user?.history?.length ?? 0
+  const handlePageChange = (page: number) => {
+    navigate({
+      // @ts-expect-error - TanStack Router types are complex
+      search: (prev: any) => ({ ...prev, page })
     });
-    return historyEntries.length > 0 ? historyEntries : user?.history ?? [];
-  }, [historyEntries, user?.history]);
+  };
 
   if (!effectiveUuid) {
     if (slugLoading) {
@@ -1042,11 +1036,12 @@ export const UserDetailPage = () => {
 
           <TabsContent value="history" className="pt-5">
             <HistoryTab
-              entries={combinedHistory}
+              entries={historyEntries}
               loading={historyLoading}
               error={(historyError as Error) ?? undefined}
-              onLoadMore={loadMore}
-              hasMore={hasMore}
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={handlePageChange}
             />
           </TabsContent>
 

@@ -1,6 +1,12 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 // Images use cookie-based auth; no token param needed
-import { StreamingTable, StreamingSummaryCard, StreamingSettingsModal } from '../components/dashboard';
+import { StreamingSummaryCard, StreamingSettingsModal } from '../components/dashboard';
+import {
+  ActiveStreamsCard,
+  StreamingHistoricalData,
+  StreamingHistoryFilters,
+  TerminateSessionModal
+} from '../components/streaming';
 import { useServers } from '../hooks/useServers';
 import { useStreamingSettings } from '../hooks/useStreamingSettings';
 import { useStreamingSummary } from '../hooks/useStreamingSummary';
@@ -19,11 +25,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Input } from '@/components/ui/input';
-import { ResponsiveDialog } from '@/components/ui/responsive-dialog';
-import { Textarea } from '@/components/ui/textarea';
 import { IconDots } from '@tabler/icons-react';
 import type { UnifiedSession } from '../types/realtime';
 
@@ -601,332 +602,13 @@ export const StreamingPage = () => {
     setShowTerminateModal(true);
   };
 
-  const renderActiveSessions = () => {
-    if (!sessionsData) return null;
-
-    const renderSessionCard = (session: ActiveSession) => {
-      // Determine service-specific gradient background
-      const getCardBgClass = () => {
-        switch (session.service_type) {
-          case 'plex': return 'bg-gradient-to-br from-base-200 to-plex/10';
-          case 'jellyfin': return 'bg-gradient-to-br from-base-200 to-jellyfin/10';
-          case 'emby': return 'bg-gradient-to-br from-base-200 to-emby/10';
-          case 'kavita': return 'bg-gradient-to-br from-base-200 to-kavita/10';
-          case 'audiobookshelf': return 'bg-gradient-to-br from-base-200 to-audiobookshelf/10';
-          case 'komga': return 'bg-gradient-to-br from-base-200 to-komga/10';
-          case 'romm': return 'bg-gradient-to-br from-base-200 to-romm/10';
-          default: return 'bg-muted';
-        }
-      };
-
-      const getServiceBgClass = () => {
-        switch (session.service_type) {
-          case 'plex': return 'bg-plex';
-          case 'jellyfin': return 'bg-jellyfin';
-          case 'emby': return 'bg-emby';
-          case 'kavita': return 'bg-kavita';
-          case 'audiobookshelf': return 'bg-audiobookshelf';
-          case 'komga': return 'bg-komga';
-          case 'romm': return 'bg-romm';
-          default: return 'bg-primary';
-        }
-      };
-
-      return (
-        <div key={session.session_key} className={`card ${getCardBgClass()} shadow-lg w-full max-w-md relative group`} tabIndex={0}>
-          {/* Action buttons (top right) */}
-          <div className="absolute top-2 right-2 z-10 flex space-x-1 opacity-0 pointer-events-none transition-opacity duration-200 group-hover:opacity-100 group-hover:pointer-events-auto group-focus:opacity-100 group-focus:pointer-events-auto">
-            <Button
-              variant="destructive"
-              size="icon"
-              className="h-7 w-7 rounded-full"
-              onClick={() => openTerminateModal(session)}
-              title="Terminate Session"
-            >
-              <i className="fa-solid fa-times text-sm" />
-            </Button>
-          </div>
-
-          <div className="card-body p-3">
-            {/* Main Flex Container: Poster | Details */}
-            <div className="flex items-start space-x-3">
-              {/* Poster Column */}
-              <div className="avatar flex-shrink-0">
-                <div className="w-30 h-45 rounded">
-                  {session.thumb_url ? (
-                    <img
-                      src={session.thumb_url || ''}
-                      alt={`${session.media_title} Poster`}
-                      className="w-full h-full object-cover"
-                      loading="lazy"
-                      onError={(e) => {
-                        e.currentTarget.style.display = 'none';
-                        if (e.currentTarget.nextElementSibling) {
-                          (e.currentTarget.nextElementSibling as HTMLElement).style.display = 'flex';
-                        }
-                      }}
-                    />
-                  ) : null}
-                  {/* Fallback when image fails to load or no image */}
-                  <div
-                    className="w-full h-full bg-muted flex flex-col items-center justify-center text-xs text-muted-foreground"
-                    style={{ display: session.thumb_url ? 'none' : 'flex' }}
-                  >
-                    <i className="fa-solid fa-image fa-2x mb-1" />
-                    <div>No Poster</div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Details Column */}
-              <div className="flex-grow min-w-0">
-                <div className="text-xs space-y-0.5 mt-1">
-                  {/* User */}
-                  <p className="text-foreground/80 flex items-center" title={session.user}>
-                    {session.user_avatar_url ? (
-                      <div className="avatar avatar-xs mr-1.5">
-                        <div className="w-4 h-4 rounded-full">
-                          <img
-                            src={session.user_avatar_url || ''}
-                            alt={`${session.user} avatar`}
-                            onError={(e) => {
-                              e.currentTarget.style.display = 'none';
-                              if (e.currentTarget.nextElementSibling) {
-                                (e.currentTarget.nextElementSibling as HTMLElement).style.display = 'flex';
-                              }
-                            }}
-                          />
-                          {/* Fallback avatar */}
-                          <div
-                            className={`${getServiceBgClass()} text-white w-4 h-4 rounded-full flex items-center justify-center text-[0.5rem] font-bold`}
-                            style={{ display: 'none' }}
-                          >
-                            {session.user?.[0]?.toUpperCase() || 'U'}
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="avatar avatar-xs mr-1.5">
-                        <div className={`${getServiceBgClass()} text-white w-4 h-4 rounded-full flex items-center justify-center text-[0.5rem] font-bold`}>
-                          {session.user?.[0]?.toUpperCase() || 'U'}
-                        </div>
-                      </div>
-                    )}
-                    <span className="link link-hover text-blue-600 dark:text-blue-400" title="User">
-                      {session.user}
-                    </span>
-                  </p>
-
-                  {/* Player */}
-                  <p className="text-muted-foreground flex items-center" title={`${session.player_title} (${session.player_platform} via ${session.product})`}>
-                    <i className="fa-solid fa-play fa-fw mr-1.5 text-blue-600 dark:text-blue-400 w-4 text-center" />
-                    <span className="font-medium mr-1 text-blue-600 dark:text-blue-400">Player:</span>
-                    {session.player_title}{' '}
-                    <span className="text-muted-foreground ml-1">
-                      ({session.product !== session.player_title ? session.product : session.player_platform})
-                    </span>
-                  </p>
-
-                  {/* Media/Library */}
-                  <p className="text-muted-foreground flex items-center">
-                    <i className="fa-solid fa-tv fa-fw mr-1.5 text-blue-600 dark:text-blue-400 w-4 text-center" />
-                    <span className="font-medium mr-1 text-blue-600 dark:text-blue-400">Media/Library:</span>
-                    {session.media_type} on {session.library_name}
-                  </p>
-
-                  {/* Quality */}
-                  <p className="text-muted-foreground flex items-center" title={`Quality: ${session.quality_detail}`}>
-                    <i className="fa-solid fa-sliders fa-fw w-4 mr-1.5 text-blue-600 dark:text-blue-400 text-center" />
-                    <span className="font-medium mr-1 text-blue-600 dark:text-blue-400">Quality:</span>
-                    <span>{session.quality_detail}</span>
-                  </p>
-
-                  {/* Stream */}
-                  <p className="text-muted-foreground flex items-center" title={`Stream: ${session.stream_detail}`}>
-                    <i className="fa-solid fa-wifi fa-fw w-4 mr-1.5 text-blue-600 dark:text-blue-400 text-center" />
-                    <span className="font-medium mr-1 text-blue-600 dark:text-blue-400">Stream:</span>
-                    <span className={`font-medium ${session.stream_detail?.includes('Transcode') ? 'text-orange-400' : 'text-green-400'}`}>
-                      {session.stream_detail}
-                    </span>
-                    {session.stream_detail?.includes('Transcode') && session.transcode_reason && (
-                      <i className="fa-solid fa-info-circle ml-1 text-orange-400/80" title={`Reason: ${session.transcode_reason}`} />
-                    )}
-                  </p>
-
-                  {/* Container */}
-                  {session.container_detail && (
-                    <p className="text-muted-foreground flex items-center" title={`Container: ${session.container_detail}`}>
-                      <i className="fa-solid fa-box-archive fa-fw w-4 mr-1.5 text-blue-600 dark:text-blue-400 text-center" />
-                      <span className="font-medium mr-1 text-blue-600 dark:text-blue-400">Container:</span>
-                      <span>{session.container_detail}</span>
-                    </p>
-                  )}
-
-                  {/* Video */}
-                  {session.video_detail && (
-                    <p className="text-muted-foreground flex items-center" title={`Video: ${session.video_detail}`}>
-                      <i className="fa-solid fa-film fa-fw w-4 mr-1.5 text-blue-600 dark:text-blue-400 text-center" />
-                      <span className="font-medium mr-1 text-blue-600 dark:text-blue-400">Video:</span>
-                      <span>{session.video_detail}</span>
-                    </p>
-                  )}
-
-                  {/* Audio */}
-                  {session.audio_detail && (
-                    <p className="text-muted-foreground flex items-center" title={`Audio: ${session.audio_detail}`}>
-                      <i className="fa-solid fa-volume-high fa-fw w-4 mr-1.5 text-blue-600 dark:text-blue-400 text-center" />
-                      <span className="font-medium mr-1 text-blue-600 dark:text-blue-400">Audio:</span>
-                      <span>{session.audio_detail}</span>
-                    </p>
-                  )}
-
-                  {/* Subtitle */}
-                  {session.subtitle_detail && (
-                    <p className="text-muted-foreground flex items-center" title={`Subtitle: ${session.subtitle_detail}`}>
-                      <i className="fa-solid fa-closed-captioning fa-fw w-4 mr-1.5 text-blue-600 dark:text-blue-400 text-center" />
-                      <span className="font-medium mr-1 text-blue-600 dark:text-blue-400">Subtitle:</span>
-                      <span>{session.subtitle_detail}</span>
-                    </p>
-                  )}
-
-                  {/* Location */}
-                  <p className="text-muted-foreground flex items-center" title={`Location: ${session.location_detail}`}>
-                    <i className="fa-solid fa-location-dot fa-fw w-4 mr-1.5 text-blue-600 dark:text-blue-400 text-center" />
-                    <span className="font-medium mr-1 text-blue-600 dark:text-blue-400">Location:</span>
-                    <span>{session.location_detail}</span>
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Progress Bar and State */}
-            <div className="mt-2">
-              <div className="flex justify-between items-center mb-0.5">
-                <div className="flex items-center gap-2">
-                  <span
-                    className={`text-xs font-medium uppercase ${
-                      session.state?.toLowerCase() === 'playing' || session.state?.toLowerCase() === 'listening'
-                        ? 'text-green-600 dark:text-green-400'
-                        : session.state?.toLowerCase() === 'paused'
-                        ? 'text-amber-600 dark:text-amber-400'
-                        : session.state?.toLowerCase() === 'buffering'
-                        ? 'text-blue-600 dark:text-blue-400'
-                        : 'text-muted-foreground'
-                    }`}
-                  >
-                    {session.state || 'Unknown'}
-                  </span>
-
-                  {/* Server Badge */}
-                  <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset gap-1 ${
-                    session.service_type === 'plex' ? 'bg-plex-50 dark:bg-plex-400/10 text-plex-700 dark:text-plex-400 ring-plex-600/20 dark:ring-plex-500/20' :
-                    session.service_type === 'jellyfin' ? 'bg-jellyfin-50 dark:bg-jellyfin-400/10 text-jellyfin-700 dark:text-jellyfin-400 ring-jellyfin-600/20 dark:ring-jellyfin-500/20' :
-                    session.service_type === 'emby' ? 'bg-emby-50 dark:bg-emby-400/10 text-emby-700 dark:text-emby-400 ring-emby-600/20 dark:ring-emby-500/20' :
-                    session.service_type === 'kavita' ? 'bg-kavita-50 dark:bg-kavita-400/10 text-kavita-700 dark:text-kavita-400 ring-kavita-600/20 dark:ring-kavita-500/20' :
-                    session.service_type === 'audiobookshelf' ? 'bg-audiobookshelf-50 dark:bg-audiobookshelf-400/10 text-audiobookshelf-700 dark:text-audiobookshelf-400 ring-audiobookshelf-600/20 dark:ring-audiobookshelf-500/20' :
-                    session.service_type === 'komga' ? 'bg-komga-50 dark:bg-komga-400/10 text-komga-700 dark:text-komga-400 ring-komga-600/20 dark:ring-komga-500/20' :
-                    session.service_type === 'romm' ? 'bg-romm-50 dark:bg-romm-400/10 text-romm-700 dark:text-romm-400 ring-romm-600/20 dark:ring-romm-500/20' :
-                    'bg-gray-50 dark:bg-gray-400/10 text-gray-700 dark:text-gray-400 ring-gray-600/20 dark:ring-gray-500/20'
-                  }`}>
-                    {session.service_type === 'plex' && (
-                      <svg className="w-3 h-3" viewBox="0 0 192 192" xmlns="http://www.w3.org/2000/svg" fill="currentColor" stroke="transparent" strokeLinejoin="round" strokeWidth="12">
-                        <path d="M22 25.5h48L116 94l-46 68.5H22L68.5 94Zm109.8 56L108 46l14-20.5h48zm-.3 23.5c10.979 17.625 25.52 38.875 38.5 49.5-11.149 13.635-34.323 32.278-62.5-14z"/>
-                      </svg>
-                    )}
-                    {session.service_type !== 'plex' && <i className="fa-solid fa-server w-3 h-3" />}
-                    {session.server_name}
-                  </span>
-                </div>
-                <span className="text-xs text-muted-foreground">
-                  {session.current_time} / {session.duration} ({session.progress?.toFixed(1) || 0}%)
-                </span>
-              </div>
-              <progress
-                className={`progress progress-xs w-full ${
-                  session.state?.toLowerCase() === 'playing' || session.state?.toLowerCase() === 'listening'
-                    ? 'progress-success'
-                    : session.state?.toLowerCase() === 'paused'
-                    ? 'progress-warning'
-                    : session.state?.toLowerCase() === 'buffering'
-                    ? 'progress-info'
-                    : 'progress-primary'
-                }`}
-                value={session.progress || 0}
-                max="100"
-              />
-              <h2 className="card-title text-sm font-semibold" title={session.media_title}>
-                {session.media_title || 'Unknown Title'}
-                {session.year && <span className="text-xs font-normal text-muted-foreground">({session.year})</span>}
-              </h2>
-              {session.media_type === 'Episode' && session.grandparent_title && (
-                <p className="text-xs text-primary" title={`${session.grandparent_title}${session.parent_title ? ` - ${session.parent_title}` : ''}`}>
-                  {session.grandparent_title}{session.parent_title ? ` - ${session.parent_title}` : ''}
-                </p>
-              )}
-              {session.media_type === 'Track' && (session.parent_title || session.grandparent_title) && (
-                <p className="text-xs text-primary" title={`${session.grandparent_title || ''}${session.grandparent_title && session.parent_title ? ' - ' : ''}${session.parent_title || ''}`}>
-                  {session.grandparent_title || ''}{session.grandparent_title && session.parent_title ? ' - ' : ''}{session.parent_title || ''}
-                </p>
-              )}
-              {session.service_type === 'audiobookshelf' && session.parent_title && (
-                <p className="text-xs text-primary" title={session.parent_title}>
-                  <i className="fa-solid fa-user-pen mr-1" />
-                  {session.parent_title}
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
-      );
-    };
-
-    if (viewMode === 'merged') {
-      return (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {sessionsData.sessions.map(renderSessionCard)}
-        </div>
-      );
-    }
-
-    if (viewMode === 'categorized' && sessionsData.by_server) {
-      return (
-        <div className="space-y-6">
-          {Object.entries(sessionsData.by_server).map(([serverName, sessions]) => (
-            <div key={serverName}>
-              <h3 className="text-lg font-semibold text-foreground mb-3 flex items-center gap-2">
-                <i className="fa-solid fa-server text-primary" />
-                {serverName}
-                <Badge variant="secondary" className="ml-2">{sessions.length}</Badge>
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {sessions.map(renderSessionCard)}
-              </div>
-            </div>
-          ))}
-        </div>
-      );
-    }
-
-    if (viewMode === 'service' && sessionsData.by_service) {
-      return (
-        <div className="space-y-6">
-          {Object.entries(sessionsData.by_service).map(([serviceType, sessions]) => (
-            <div key={serviceType}>
-              <h3 className="text-lg font-semibold text-foreground mb-3 flex items-center gap-2">
-                <i className="fa-solid fa-cogs text-primary" />
-                {serviceType.toUpperCase()}
-                <Badge variant="secondary" className="ml-2">{sessions.length}</Badge>
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {sessions.map(renderSessionCard)}
-              </div>
-            </div>
-          ))}
-        </div>
-      );
-    }
-
-    return null;
+  const handleClearFilters = () => {
+    setServiceType('all');
+    setStatus('all');
+    setUserUuid('');
+    setStartDate('');
+    setEndDate('');
+    handleFilterChange();
   };
 
   const handleFilterChange = () => {
@@ -1005,49 +687,16 @@ export const StreamingPage = () => {
 
       {/* Active Streams Section - NEW */}
       <div className="space-y-4">
-        {/* Active Sessions Display */}
-        <Card className="shadow-sm gap-0">
-          <CardHeader className="pb-0">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
-                  <i className="fa-solid fa-tower-broadcast" />
-                </div>
-                <div>
-                  <CardTitle className="flex items-center gap-2 text-xl text-foreground">
-                    Active Streams
-                    {sessionsData && <Badge variant="secondary">{sessionsData.total_count}</Badge>}
-                  </CardTitle>
-                  <CardDescription>Live playback across connected media servers.</CardDescription>
-                </div>
-              </div>
-              {wsTruthActive && isConnected && lastUpdateAt && Date.now() - lastUpdateAt.getTime() < 5000 ? (
-                <Badge variant="outline" className="border-green-600 text-xs text-green-600">
-                  <span className="mr-1 inline-flex h-2 w-2 animate-pulse rounded-full bg-green-500" />
-                  Live
-                </Badge>
-              ) : null}
-            </div>
-          </CardHeader>
-
-          <CardContent className="pt-4">
-            {/* Only show loading if we truly don't have data yet and websocket hasn't provided any */}
-            {(bootstrapping && !wsTruthActive && !activeSessions) || (loading && !sessionsData) ? (
-              <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-                <span className="loading loading-lg loading-spinner text-primary" />
-                <p className="mt-4 text-lg">Loading active streams...</p>
-              </div>
-            ) : sessionsData && sessionsData.total_count > 0 ? (
-              renderActiveSessions()
-            ) : (
-              <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-                <i className="fa-solid fa-circle-pause mb-4 text-4xl opacity-30" />
-                <p className="text-lg text-foreground">No active streams</p>
-                <p className="mt-2 text-sm">Streams will appear here when users start playing media</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        <ActiveStreamsCard
+          sessionsData={sessionsData}
+          viewMode={viewMode}
+          loading={loading}
+          bootstrapping={bootstrapping}
+          wsTruthActive={wsTruthActive}
+          isConnected={isConnected}
+          lastUpdateAt={lastUpdateAt}
+          onTerminateSession={openTerminateModal}
+        />
       </div>
 
       {/* Historical Data Section - EXISTING */}
@@ -1058,238 +707,35 @@ export const StreamingPage = () => {
 
       <StreamingSummaryCard />
 
-      {summary ? (
-        <div className="grid gap-4 md:grid-cols-2">
-          <Card>
-            <CardHeader className="pb-4">
-              <CardTitle className="text-base font-semibold">Daily activity</CardTitle>
-              <CardDescription>Recent stream counts by day.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ul className="space-y-1 text-xs text-foreground/80">
-                {summary.daily.length === 0 ? (
-                  <li className="text-muted-foreground">No activity in the selected range.</li>
-                ) : null}
-                {summary.daily.slice(-14).map((point) => (
-                  <li
-                    key={point.date}
-                    className="flex items-center justify-between rounded-lg border bg-muted/50 px-3 py-2"
-                  >
-                    <span>{new Date(point.date).toLocaleDateString()}</span>
-                    <span className="font-medium text-foreground">{point.count}</span>
-                  </li>
-                ))}
-              </ul>
-            </CardContent>
-          </Card>
+      <StreamingHistoricalData summary={summary} />
 
-          <Card>
-            <CardHeader className="pb-4">
-              <CardTitle className="text-base font-semibold">Streams by service</CardTitle>
-              <CardDescription>Breakdown of streams per media service.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ul className="space-y-2 text-sm text-foreground/80">
-                {summary.by_service.length === 0 ? (
-                  <li className="text-muted-foreground">No recent streams.</li>
-                ) : null}
-                {summary.by_service.map((entry) => (
-                  <li
-                    key={entry.service_type}
-                    className="flex items-center justify-between rounded-lg border bg-muted/50 px-3 py-2 uppercase"
-                  >
-                    <span className="font-medium text-foreground">{entry.service_type}</span>
-                    <span className="text-muted-foreground">{entry.count}</span>
-                  </li>
-                ))}
-              </ul>
-            </CardContent>
-          </Card>
-        </div>
-      ) : null}
-
-      <Card>
-        <CardHeader className="pb-4">
-          <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
-            <div>
-              <CardTitle className="text-xl">Streaming Sessions History</CardTitle>
-              <CardDescription>Filter and review recent streaming sessions.</CardDescription>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-            <div className="space-y-1">
-              <span className="text-sm text-muted-foreground">Service</span>
-              <Select
-                value={serviceType}
-                onValueChange={(value) => {
-                  setServiceType(value);
-                  handleFilterChange();
-                }}
-              >
-                <SelectTrigger className="h-9 w-full">
-                  <SelectValue placeholder="All Services" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Services</SelectItem>
-                  <SelectItem value="plex">Plex</SelectItem>
-                  <SelectItem value="jellyfin">Jellyfin</SelectItem>
-                  <SelectItem value="emby">Emby</SelectItem>
-                  <SelectItem value="kavita">Kavita</SelectItem>
-                  <SelectItem value="audiobookshelf">Audiobookshelf</SelectItem>
-                  <SelectItem value="komga">Komga</SelectItem>
-                  <SelectItem value="romm">RomM</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-1">
-              <span className="text-sm text-muted-foreground">Status</span>
-              <Select
-                value={status}
-                onValueChange={(value) => {
-                  setStatus(value);
-                  handleFilterChange();
-                }}
-              >
-                <SelectTrigger className="h-9 w-full">
-                  <SelectValue placeholder="All Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="completed">Completed</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-1">
-              <span className="text-sm text-muted-foreground">User UUID</span>
-              <Input
-                type="text"
-                placeholder="User UUID"
-                value={userUuid}
-                onChange={(event) => setUserUuid(event.target.value)}
-                className="h-9"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <span className="text-sm text-muted-foreground">Start date</span>
-              <Input
-                type="date"
-                value={startDate}
-                onChange={(event) => setStartDate(event.target.value)}
-                className="h-9"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <span className="text-sm text-muted-foreground">End date</span>
-              <Input
-                type="date"
-                value={endDate}
-                onChange={(event) => setEndDate(event.target.value)}
-                className="h-9"
-              />
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              variant="default"
-              size="sm"
-              onClick={() => {
-                handleFilterChange();
-              }}
-            >
-              Apply
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                setServiceType('all');
-                setStatus('all');
-                setUserUuid('');
-                setStartDate('');
-                setEndDate('');
-                handleFilterChange();
-              }}
-            >
-              Clear
-            </Button>
-          </div>
-
-          <StreamingTable
-            page={page}
-            serviceType={serviceType === 'all' ? undefined : serviceType}
-            status={status === 'all' ? undefined : status}
-            userUuid={userUuid || undefined}
-            startDate={startDate || undefined}
-            endDate={endDate || undefined}
-            onLoadMore={() => setPage((prev) => prev + 1)}
-          />
-        </CardContent>
-      </Card>
+      <StreamingHistoryFilters
+        serviceType={serviceType}
+        setServiceType={setServiceType}
+        status={status}
+        setStatus={setStatus}
+        userUuid={userUuid}
+        setUserUuid={setUserUuid}
+        startDate={startDate}
+        setStartDate={setStartDate}
+        endDate={endDate}
+        setEndDate={setEndDate}
+        page={page}
+        onFilterChange={handleFilterChange}
+        onClearFilters={handleClearFilters}
+        onLoadMore={() => setPage((prev) => prev + 1)}
+      />
 
       <StreamingSettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
 
-      <ResponsiveDialog
-        open={showTerminateModal && Boolean(selectedSession)}
-        onOpenChange={(value) => {
-          if (!value) setShowTerminateModal(false);
-        }}
-        title="Terminate Session"
-        description="End an active streaming session."
-        contentClassName="max-w-lg"
-        footer={[
-          <Button key="cancel" variant="outline" onClick={() => setShowTerminateModal(false)}>
-            Cancel
-          </Button>,
-          <Button key="terminate" variant="destructive" onClick={handleTerminateSession} className="gap-2">
-            <i className="fa-solid fa-ban" />
-            Terminate Session
-          </Button>,
-        ]}
-      >
-        {selectedSession ? (
-          <div className="space-y-6">
-            <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4">
-              <div className="flex items-start gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-destructive/20">
-                  <i className="fa-solid fa-exclamation-triangle text-destructive" />
-                </div>
-                <div className="space-y-1">
-                  <h4 className="text-base font-semibold text-foreground">Confirm Session Termination</h4>
-                  <p className="text-sm text-muted-foreground leading-relaxed">
-                    Are you sure you want to terminate the session for <strong>{selectedSession.user}</strong> playing{' '}
-                    <strong>{selectedSession.media_title}</strong>?
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <i className="fa-solid fa-message text-blue-600 dark:text-blue-400 text-sm" />
-                <h5 className="text-base font-semibold text-foreground">Optional Message</h5>
-              </div>
-              <Textarea
-                rows={3}
-                placeholder="e.g., Server maintenance starting soon."
-                value={terminateMessage}
-                onChange={(e) => setTerminateMessage(e.target.value)}
-                className="resize-none"
-              />
-              <p className="text-sm text-muted-foreground">
-                This message will be displayed to the user when their session is terminated.
-              </p>
-            </div>
-          </div>
-        ) : null}
-      </ResponsiveDialog>
+      <TerminateSessionModal
+        open={showTerminateModal}
+        session={selectedSession}
+        message={terminateMessage}
+        onMessageChange={setTerminateMessage}
+        onClose={() => setShowTerminateModal(false)}
+        onConfirm={handleTerminateSession}
+      />
     </div>
   );
 };

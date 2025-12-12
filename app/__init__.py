@@ -251,6 +251,24 @@ def create_app(config_name=None):
                                         plex_ws_error,
                                         exc_info=True,
                                     )
+                                try:
+                                    from .services.jellyfin_websocket_monitor import start_jellyfin_websocket_monitor
+                                    start_jellyfin_websocket_monitor(app)
+                                except Exception as jf_ws_error:
+                                    app.logger.error(
+                                        "Failed to start Jellyfin WebSocket monitor: %s",
+                                        jf_ws_error,
+                                        exc_info=True,
+                                    )
+                                try:
+                                    from .services.emby_websocket_monitor import start_emby_websocket_monitor
+                                    start_emby_websocket_monitor(app)
+                                except Exception as emby_ws_error:
+                                    app.logger.error(
+                                        "Failed to start Emby WebSocket monitor: %s",
+                                        emby_ws_error,
+                                        exc_info=True,
+                                    )
                             else:
                                 app.logger.warning("Init.py - Settings table not found when trying to schedule tasks; task scheduling that depends on DB settings is skipped.")
                         except Exception as e_task_sched:

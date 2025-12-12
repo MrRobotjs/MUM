@@ -1,261 +1,378 @@
 # File: app/services/emby_media_service.py
 from typing import List, Dict, Any, Optional, Tuple
 import requests
+
 from app.services.base_media_service import BaseMediaService
 from app.models_media_services import ServiceType
 from app.utils.timeout_helper import get_api_timeout
+from app.services import realtime_session_cache
+
 
 class EmbyMediaService(BaseMediaService):
-    """Emby implementation of BaseMediaService"""
-    
+    """Emby implementation of BaseMediaService (sessions via websocket cache only)."""
+
     @property
     def service_type(self) -> ServiceType:
         return ServiceType.EMBY
-    
-    def _get_headers(self):
-        """Get headers for Emby API requests"""
+
+    def _get_headers(self) -> Dict[str, str]:
         return {
-            'X-Emby-Token': self.api_key,
-            'Content-Type': 'application/json'
+            "X-Emby-Token": self.api_key,
+            "Content-Type": "application/json",
         }
-    
-    def _make_request(self, endpoint: str, method: str = 'GET', data: Dict = None):
-        """Make API request to Emby server"""
+
+    def _make_request(self, endpoint: str, method: str = "GET", data: Dict | None = None) -> Any:
         url = f"{self.url.rstrip('/')}/emby/{endpoint.lstrip('/')}"
         headers = self._get_headers()
-        
+        timeout = get_api_timeout()
+
         try:
-            timeout = get_api_timeout()
-            if method == 'GET':
+            if method == "GET":
                 response = requests.get(url, headers=headers, timeout=timeout)
-            elif method == 'POST':
+            elif method == "POST":
                 response = requests.post(url, headers=headers, json=data, timeout=timeout)
-            elif method == 'DELETE':
+            elif method == "DELETE":
                 response = requests.delete(url, headers=headers, timeout=timeout)
             else:
                 raise ValueError(f"Unsupported method: {method}")
-            
+
             response.raise_for_status()
             return response.json() if response.content else {}
         except requests.exceptions.RequestException as e:
             self.log_error(f"API request failed: {e}")
             raise
-    
+
     def test_connection(self) -> Tuple[bool, str]:
-        """Test connection to Emby server"""
         try:
-            info = self._make_request('System/Info')
-            server_name = info.get('ServerName', 'Emby Server')
-            version = info.get('Version', 'Unknown')
+            info = self._make_request("System/Info")
+            server_name = info.get("ServerName", "Emby Server")
+            version = info.get("Version", "Unknown")
             return True, f"Connected to {server_name} (v{version})"
         except Exception as e:
             return False, f"Connection failed: {str(e)}"
-    
+
     def get_libraries_raw(self) -> List[Dict[str, Any]]:
-        """Get raw, unmodified library data from Emby API"""
         try:
-            # Return the raw API response without any modifications
-            libraries = self._make_request('Library/VirtualFolders')
+            libraries = self._make_request("Library/VirtualFolders")
             self.log_info(f"Retrieved {len(libraries)} raw libraries from Emby")
             return libraries
         except Exception as e:
             self.log_error(f"Error fetching raw libraries: {e}")
             return []
-    
+
     def get_libraries(self) -> List[Dict[str, Any]]:
-        """Get all Emby libraries (processed for internal use)"""
         try:
-            # Get raw data first
             libraries = self.get_libraries_raw()
             result = []
-            
-            # Process the raw data for internal use
             for lib in libraries:
-                result.append({
-                    'id': lib.get('ItemId', lib.get('Name', '')),
-                    'name': lib.get('Name', 'Unknown'),
-                    'type': lib.get('CollectionType', 'mixed').lower(),
-                    'item_count': 0,  # Emby doesn't provide this in VirtualFolders
-                    'external_id': lib.get('ItemId', lib.get('Name', ''))
-                })
-            
-            self.log_info(f"Processed {len(result)} libraries from Emby")
+                result.append(
+                    {
+                        "id": lib.get("ItemId", lib.get("Name", "")),
+                        "name": lib.get("Name", "Unknown"),
+                        "type": lib.get("CollectionType", "mixed").lower(),
+                        "item_count": 0,
+                        "external_id": lib.get("ItemId", lib.get("Name", "")),
+                    }
+                )
             return result
         except Exception as e:
             self.log_error(f"Error fetching libraries: {e}")
             return []
-    
+
     def get_users(self) -> List[Dict[str, Any]]:
-        """Get all Emby users"""
         try:
-            users = self._make_request('Users')
+            users = self._make_request("Users")
             result = []
-            
             for user in users:
-                user_id = user.get('Id')
+                user_id = user.get("Id")
                 if not user_id:
                     continue
-                
-                # Get user's library access
                 try:
-                    policy = self._make_request(f'Users/{user_id}/Policy')
-                    library_ids = policy.get('EnabledFolders', [])
-                except:
+                    policy = self._make_request(f"Users/{user_id}/Policy")
+                    library_ids = policy.get("EnabledFolders", [])
+                except Exception:
                     library_ids = []
-                
-                result.append({
-                    'id': user_id,
-                    'uuid': user_id,  # Emby uses GUID as ID
-                    'username': user.get('Name', 'Unknown'),
-                    'email': user.get('Email'),
-                    'thumb': None,  # Emby doesn't provide avatar URLs in user list
-                    'is_home_user': False,  # Emby doesn't have this concept
-                    'library_ids': library_ids,
-                    'is_admin': user.get('Policy', {}).get('IsAdministrator', False)
-                })
-            
+                result.append(
+                    {
+                        "id": user_id,
+                        "uuid": user_id,
+                        "username": user.get("Name", "Unknown"),
+                        "email": user.get("Email"),
+                        "thumb": None,
+                        "is_home_user": False,
+                        "library_ids": library_ids,
+                        "is_admin": user.get("Policy", {}).get("IsAdministrator", False),
+                    }
+                )
             return result
         except Exception as e:
             self.log_error(f"Error fetching users: {e}")
             return []
-    
+
     def create_user(self, username: str, email: str, password: str = None, **kwargs) -> Dict[str, Any]:
-        """Create new Emby user"""
         try:
-            user_data = {
-                'Name': username,
-                'Email': email or '',
-                'Password': password or ''
-            }
-            
-            result = self._make_request('Users/New', method='POST', data=user_data)
-            user_id = result.get('Id')
-            
-            # Set library access if specified
-            library_ids = kwargs.get('library_ids', [])
+            user_data = {"Name": username, "Email": email or "", "Password": password or ""}
+            result = self._make_request("Users/New", method="POST", data=user_data)
+            user_id = result.get("Id")
+            library_ids = kwargs.get("library_ids", [])
             if library_ids and user_id:
-                policy_data = {
-                    'EnabledFolders': library_ids,
-                    'EnableAllFolders': False
-                }
-                self._make_request(f'Users/{user_id}/Policy', method='POST', data=policy_data)
-            
-            return {
-                'success': True,
-                'user_id': user_id,
-                'username': username,
-                'email': email
-            }
+                policy_data = {"EnabledFolders": library_ids, "EnableAllFolders": False}
+                self._make_request(f"Users/{user_id}/Policy", method="POST", data=policy_data)
+            return {"id": user_id, "username": username, "email": email}
         except Exception as e:
             self.log_error(f"Error creating user: {e}")
-            raise
-    
+            return {}
+
     def update_user_access(self, user_id: str, library_ids: List[str] = None, **kwargs) -> bool:
-        """Update Emby user's library access"""
         try:
-            if library_ids is not None:
-                policy_data = {
-                    'EnabledFolders': library_ids,
-                    'EnableAllFolders': len(library_ids) == 0
-                }
-                self._make_request(f'Users/{user_id}/Policy', method='POST', data=policy_data)
-            
+            payload = {
+                "EnabledFolders": library_ids or [],
+                "EnableAllFolders": False,
+            }
+            self._make_request(f"Users/{user_id}/Policy", method="POST", data=payload)
             return True
         except Exception as e:
             self.log_error(f"Error updating user access: {e}")
             return False
-    
+
     def delete_user(self, user_id: str) -> bool:
-        """Delete Emby user"""
         try:
-            self._make_request(f'Users/{user_id}', method='DELETE')
+            self._make_request(f"Users/{user_id}", method="DELETE")
             return True
         except Exception as e:
             self.log_error(f"Error deleting user: {e}")
             return False
-    
-    def get_active_sessions(self) -> List[Dict[str, Any]]:
-        """Get active Emby sessions"""
-        try:
-            sessions = self._make_request('Sessions')
-            result = []
-            
-            for session in sessions:
-                if not session.get('NowPlayingItem'):
-                    continue  # Skip inactive sessions
-                
-                now_playing = session.get('NowPlayingItem', {})
-                user_info = session.get('UserName', 'Unknown')
-                
-                result.append({
-                    'session_id': session.get('Id', ''),
-                    'user_id': session.get('UserId', ''),
-                    'username': user_info,
-                    'media_title': now_playing.get('Name', 'Unknown'),
-                    'media_type': now_playing.get('Type', 'unknown'),
-                    'player': session.get('Client', 'Unknown'),
-                    'platform': session.get('ApplicationVersion', ''),
-                    'state': 'playing' if session.get('PlayState', {}).get('IsPaused') == False else 'paused',
-                    'progress_percent': self._calculate_progress(session.get('PlayState', {}), now_playing),
-                    'ip_address': session.get('RemoteEndPoint', ''),
-                    'is_lan': session.get('IsLocal', False)
-                })
-            
-            return result
-        except Exception as e:
-            self.log_error(f"Error fetching active sessions: {e}")
-            return []
-    
-    def _calculate_progress(self, play_state: Dict, item: Dict) -> float:
-        """Calculate playback progress percentage"""
-        position = play_state.get('PositionTicks', 0)
-        duration = item.get('RunTimeTicks', 0)
-        
-        if duration > 0:
-            return round((position / duration) * 100, 1)
-        return 0.0
-    
+
     def terminate_session(self, session_id: str, reason: str = None) -> bool:
-        """Terminate an Emby session"""
         try:
-            data = {'Reason': reason or 'Terminated by administrator'}
-            self._make_request(f'Sessions/{session_id}/Playing/Stop', method='POST', data=data)
+            data = {"Reason": reason or "Terminated by administrator"}
+            self._make_request(f"Sessions/{session_id}/Playing/Stop", method="POST", data=data)
             return True
         except Exception as e:
             self.log_error(f"Error terminating session: {e}")
             return False
-    
+
     def get_server_info(self) -> Dict[str, Any]:
-        """Get Emby server information"""
         try:
-            info = self._make_request('System/Info')
+            info = self._make_request("System/Info")
             return {
-                'name': info.get('ServerName', self.name),
-                'url': self.url,
-                'service_type': self.service_type.value,
-                'online': True,
-                'version': info.get('Version', 'Unknown'),
-                'server_id': info.get('Id', '')
+                "name": info.get("ServerName", self.name),
+                "url": self.url,
+                "service_type": self.service_type.value,
+                "online": True,
+                "version": info.get("Version", "Unknown"),
+                "server_id": info.get("Id", ""),
             }
-        except:
+        except Exception:
             return {
-                'name': self.name,
-                'url': self.url,
-                'service_type': self.service_type.value,
-                'online': False,
-                'version': 'Unknown'
+                "name": self.name,
+                "url": self.url,
+                "service_type": self.service_type.value,
+                "online": False,
+                "version": "Unknown",
             }
+
+    def get_active_sessions(self) -> List[Dict[str, Any]]:
+        """Sessions are sourced solely from the websocket monitor cache.
+
+        This returns the raw sessions cached by the websocket monitor.
+        For HTTP session polling (which we don't use for Emby), this would make an API call.
+        """
+        return realtime_session_cache.get_sessions(ServiceType.EMBY.value, self.server_id)
 
     def get_formatted_sessions(self) -> List[Dict[str, Any]]:
-        """Get active Emby sessions formatted for display"""
-        # TODO: Implement Emby session formatting
-        return []
+        """Format active sessions from the websocket cache."""
+        import json
+        from sqlalchemy import or_
+        from app.models import User, UserType
+
+        raw_sessions = realtime_session_cache.get_sessions(ServiceType.EMBY.value, self.server_id)
+        if not raw_sessions:
+            return []
+
+        # Build lookup maps for both username and user ID
+        emby_usernames = {s.get("UserName") for s in raw_sessions if s.get("UserName")}
+        emby_user_ids = {s.get("UserId") for s in raw_sessions if s.get("UserId")}
+
+        mum_users_map_by_username = {}
+        mum_users_map_by_userid = {}
+
+        if emby_usernames or emby_user_ids:
+            # Query for users matching either by username or external user ID
+            conditions = []
+            if emby_usernames:
+                conditions.append(User.external_username.in_(list(emby_usernames)))
+            if emby_user_ids:
+                conditions.append(User.external_user_id.in_(list(emby_user_ids)))
+                conditions.append(User.external_user_alt_id.in_(list(emby_user_ids)))
+
+            accesses = User.query.filter_by(
+                userType=UserType.SERVICE,
+                server_id=self.server_id
+            ).filter(or_(*conditions)).all()
+
+            for access in accesses:
+                # Store the SERVICE user (primary), with linked LOCAL user as backup
+                service_user = access
+                linked_local_user = None
+                if access.linkedUserId:
+                    linked_local_user = User.query.filter_by(userType=UserType.LOCAL, uuid=access.linkedUserId).first()
+
+                # Prioritize SERVICE user, fall back to linked LOCAL user
+                user_to_store = service_user if service_user else linked_local_user
+
+                if user_to_store:
+                    if access.external_username:
+                        mum_users_map_by_username[access.external_username] = user_to_store
+                    if access.external_user_id:
+                        mum_users_map_by_userid[access.external_user_id] = user_to_store
+                    if access.external_user_alt_id:
+                        mum_users_map_by_userid[access.external_user_alt_id] = user_to_store
+
+        def format_time_ms(milliseconds: int) -> str:
+            if not milliseconds:
+                return "0:00"
+            seconds = int(milliseconds / 1000)
+            hours = seconds // 3600
+            minutes = (seconds % 3600) // 60
+            secs = seconds % 60
+            if hours > 0:
+                return f"{hours}:{minutes:02d}:{secs:02d}"
+            return f"{minutes}:{secs:02d}"
+
+        def get_standard_resolution(height: int | None) -> str:
+            if not height:
+                return "SD"
+            try:
+                h = int(height)
+                if h <= 240: return "240p"
+                if h <= 360: return "360p"
+                if h <= 480: return "480p"
+                if h <= 576: return "576p"
+                if h <= 720: return "720p"
+                if h <= 1080: return "1080p"
+                if h <= 1440: return "1440p"
+                if h <= 2160: return "4K"
+                return f"{h}p"
+            except Exception:
+                return "SD"
+
+        formatted: List[Dict[str, Any]] = []
+        for session in raw_sessions:
+            try:
+                user_name = session.get("UserName", "Unknown User")
+                now_playing = session.get("NowPlayingItem") or {}
+                play_state = session.get("PlayState") or {}
+                device_name = session.get("DeviceName") or "Unknown Device"
+                client = session.get("Client") or session.get("ApplicationVersion") or ""
+
+                position_ticks = play_state.get("PositionTicks", 0)
+                runtime_ticks = now_playing.get("RunTimeTicks", 0)
+                progress = (position_ticks / runtime_ticks) * 100 if runtime_ticks else 0
+
+                media_title = now_playing.get("Name", "Unknown Title")
+                media_type = (now_playing.get("Type") or "unknown").capitalize()
+                year = now_playing.get("ProductionYear")
+
+                is_transcoding = play_state.get("PlayMethod") == "Transcode"
+                transcoding_info = session.get("TranscodingInfo") or {}
+                media_streams = now_playing.get("MediaStreams", [])
+
+                original_video_stream = next((s for s in media_streams if s.get("Type") == "Video"), None)
+                original_audio_stream = next((s for s in media_streams if s.get("Type") == "Audio" and s.get("IsDefault")), None)
+
+                stream_detail = "Direct Play"
+                video_detail = ""
+                audio_detail = ""
+                container_detail = (now_playing.get("Container") or "Unknown").upper()
+                quality_detail = ""
+
+                if is_transcoding and transcoding_info:
+                    stream_detail = "Transcode"
+                    target_height = transcoding_info.get("Height", 0)
+                    quality_detail = get_standard_resolution(target_height)
+                    transcoded_codec = transcoding_info.get("VideoCodec", "Unknown").upper()
+                    video_detail = f"Transcode ({transcoded_codec} {quality_detail})"
+                    audio_codec = transcoding_info.get("AudioCodec", "Unknown").upper()
+                    audio_channels = transcoding_info.get("AudioChannels", 0)
+                    audio_detail = f"Transcode ({audio_codec} {audio_channels}ch)"
+                else:
+                    if original_video_stream:
+                        video_detail = f"Direct Play ({original_video_stream.get('Codec','Unknown').upper()} {get_standard_resolution(original_video_stream.get('Height'))})"
+                    else:
+                        video_detail = "Direct Play (Unknown Video)"
+                    if original_audio_stream:
+                        audio_detail = f"Direct Play ({original_audio_stream.get('DisplayTitle','Unknown Audio')})"
+                    else:
+                        audio_detail = "Direct Play (Unknown Audio)"
+                    quality_detail = get_standard_resolution(original_video_stream.get("Height") if original_video_stream else None)
+
+                location_ip = session.get("RemoteEndPoint", "N/A")
+                is_remote = session.get("IsRemote", False)
+                location_lan_wan = "WAN" if is_remote else "LAN"
+                session_key = session.get("Id", "")
+
+                current_time = format_time_ms(int(position_ticks / 10000)) if position_ticks else "0:00"
+                duration_time = format_time_ms(int(runtime_ticks / 10000)) if runtime_ticks else "0:00"
+
+                # Match by UserId first (more reliable), then fall back to username
+                emby_user_id = session.get("UserId")
+                mum_user = None
+                if emby_user_id:
+                    mum_user = mum_users_map_by_userid.get(emby_user_id)
+                if not mum_user:
+                    mum_user = mum_users_map_by_username.get(user_name)
+
+                mum_user_id = mum_user.id if mum_user else None
+                mum_user_uuid = mum_user.uuid if mum_user else None
+
+                formatted.append(
+                    {
+                        "user": user_name,
+                        "mum_user_id": mum_user_id,
+                        "mum_user_uuid": mum_user_uuid,
+                        "player_title": device_name,
+                        "player_platform": client,
+                        "product": client,
+                        "media_title": media_title,
+                        "grandparent_title": now_playing.get("SeriesName"),
+                        "parent_title": now_playing.get("Album", now_playing.get("SeriesName")),
+                        "media_type": media_type,
+                        "library_name": now_playing.get("LibraryName") or "Library",
+                        "year": year,
+                        "state": play_state.get("PlayState", "Unknown"),
+                        "progress": round(progress, 1),
+                        "thumb_url": None,
+                        "session_key": session_key,
+                        "quality_detail": quality_detail,
+                        "stream_detail": stream_detail,
+                        "container_detail": container_detail,
+                        "video_detail": video_detail,
+                        "audio_detail": audio_detail,
+                        "subtitle_detail": None,
+                        "transcode_reason": None,
+                        "location_detail": f"{location_lan_wan}: {location_ip}",
+                        "location_ip": location_ip,
+                        "is_public_ip": is_remote,
+                        "bandwidth_detail": f"Streaming via {location_lan_wan}",
+                        "bitrate_calc": None,
+                        "location_type_calc": location_lan_wan,
+                        "is_transcode_calc": is_transcoding,
+                        "raw_data_json": json.dumps(session, indent=2),
+                        "service_type": "emby",
+                        "server_name": self.name,
+                        "current_time": current_time,
+                        "duration": duration_time,
+                    }
+                )
+            except Exception as e:
+                self.log_error(f"Error formatting Emby session: {e}")
+
+        return formatted
 
     def get_geoip_info(self, ip_address: str) -> Dict[str, Any]:
-        """Get GeoIP information for a given IP address."""
-        if not ip_address or ip_address in ['127.0.0.1', 'localhost']:
+        if not ip_address or ip_address in ["127.0.0.1", "localhost"]:
             return {"status": "local", "message": "This is a local address."}
-        
         try:
             response = requests.get(f"http://ip-api.com/json/{ip_address}")
             response.raise_for_status()
@@ -263,15 +380,14 @@ class EmbyMediaService(BaseMediaService):
         except requests.exceptions.RequestException as e:
             self.log_error(f"Failed to get GeoIP info for {ip_address}: {e}")
             return {"status": "error", "message": str(e)}
-    
+
     def check_username_exists(self, username: str) -> bool:
-        """Check if a username already exists in Emby"""
         try:
             users = self.get_users()
             for user in users:
-                if user.get('Name', '').lower() == username.lower():
+                if user.get("Name", "").lower() == username.lower():
                     return True
             return False
         except Exception as e:
             self.log_error(f"Error checking username '{username}': {e}")
-            return False  # Assume username doesn't exist if we can't check
+            return False

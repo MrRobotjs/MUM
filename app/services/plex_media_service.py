@@ -777,23 +777,22 @@ class PlexMediaService(BaseMediaService):
                 User.server_id == self.server_id,
                 User.external_user_id.in_(user_id_strings)
             ).all()
-            # Create mapping for both linked and standalone users
+            # Prioritize SERVICE user, fall back to linked LOCAL user
             mum_users_map_by_plex_id = {}
             for access in plex_accesses:
                 if access.external_user_id:
                     plex_id = int(access.external_user_id)
+                    # Store the SERVICE user (primary), with linked LOCAL user as backup
+                    service_user = access
+                    linked_local_user = None
                     if access.linkedUserId:
-                        # Linked user - get the local user record
-                        linked_user = User.query.filter_by(userType=UserType.LOCAL, uuid=access.linkedUserId).first()
-                        if linked_user:
-                            mum_users_map_by_plex_id[plex_id] = linked_user
-                    else:
-                        # Standalone user - use the service user directly (unified model)
-                        access.localUsername = access.external_username or 'Unknown'
-                        # access._access_record removed - no longer needed
-                        access._is_standalone = True
-                        
-                        mum_users_map_by_plex_id[plex_id] = access
+                        linked_local_user = User.query.filter_by(userType=UserType.LOCAL, uuid=access.linkedUserId).first()
+
+                    # Prioritize SERVICE user, fall back to linked LOCAL user
+                    user_to_store = service_user if service_user else linked_local_user
+
+                    if user_to_store:
+                        mum_users_map_by_plex_id[plex_id] = user_to_store
         else:
             mum_users_map_by_plex_id = {}
         
@@ -873,6 +872,7 @@ class PlexMediaService(BaseMediaService):
                 location_lan_wan = "LAN" if is_lan else "WAN"
                 mum_user = mum_users_map_by_plex_id.get(int(raw_session.user.id))
                 mum_user_id = mum_user.id if mum_user else None
+                mum_user_uuid = mum_user.uuid if mum_user else None
                 session_key = raw_session.sessionKey
                 
                 # User avatar
@@ -1023,6 +1023,7 @@ class PlexMediaService(BaseMediaService):
                 session_details = {
                     'user': user_name,
                     'mum_user_id': mum_user_id,
+                    'mum_user_uuid': mum_user_uuid,
                     'player_title': player_title,
                     'player_platform': player_platform,
                     'product': product,

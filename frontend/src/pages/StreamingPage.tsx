@@ -1006,7 +1006,7 @@ export const StreamingPage = () => {
       {/* Active Streams Section - NEW */}
       <div className="space-y-4">
         {/* Active Sessions Display */}
-        <Card className="shadow-sm">
+        <Card className="shadow-sm gap-0">
           <CardHeader className="pb-0">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-3">

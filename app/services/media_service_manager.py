@@ -6,6 +6,7 @@ from app.models import User, UserType, Setting
 from app.services.media_service_factory import MediaServiceFactory
 from app.extensions import db
 from datetime import datetime
+from app.services import realtime_session_cache
 
 class MediaServiceManager:
     """Centralized manager for all media services"""
@@ -679,9 +680,19 @@ class MediaServiceManager:
             service = MediaServiceFactory.create_service_from_db(server)
             if service:
                 try:
-                    current_app.logger.debug(f"MediaServiceManager: Calling get_active_sessions() for {server.server_nickname}")
-                    sessions = service.get_active_sessions()
-                    current_app.logger.debug(f"MediaServiceManager: Got {len(sessions)} sessions from {server.server_nickname}")
+                    # For Jellyfin/Emby we source sessions exclusively from the websocket cache
+                    if server.service_type in {ServiceType.JELLYFIN, ServiceType.EMBY}:
+                        sessions = realtime_session_cache.get_sessions(server.service_type.value, server.id)
+                        current_app.logger.debug(
+                            "MediaServiceManager: Using websocket cache for %s (%s) -> %d sessions",
+                            server.server_nickname,
+                            server.service_type.value,
+                            len(sessions),
+                        )
+                    else:
+                        current_app.logger.debug(f"MediaServiceManager: Calling get_active_sessions() for {server.server_nickname}")
+                        sessions = service.get_active_sessions()
+                        current_app.logger.debug(f"MediaServiceManager: Got {len(sessions)} sessions from {server.server_nickname}")
                     for session in sessions:
                         if isinstance(session, dict):
                             session['server_name'] = server.server_nickname

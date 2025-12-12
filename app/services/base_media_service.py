@@ -69,6 +69,16 @@ class BaseMediaService(ABC):
         """Terminate an active session"""
         pass
 
+    def send_session_message(
+        self,
+        session_id: str,
+        text: str,
+        header: str | None = None,
+        timeout_ms: int | None = None,
+    ) -> bool:
+        """Send a message to an active session (if supported)."""
+        return False
+
     @abstractmethod
     def get_formatted_sessions(self) -> List[Dict[str, Any]]:
         """Get active sessions formatted for display with standardized structure"""

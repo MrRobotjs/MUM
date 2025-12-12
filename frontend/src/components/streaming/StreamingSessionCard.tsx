@@ -9,6 +9,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ResponsiveDialog } from '@/components/ui/responsive-dialog';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { requestJson } from '@/util/apiClient';
+import { useAlerts } from '@/contexts/AlertContext';
 import { useState } from 'react';
 
 const StreamInfoDialog = ({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) => {
@@ -132,6 +136,11 @@ const getStateColor = (state?: string) => {
 
 export const StreamingSessionCard = ({ session, onTerminate }: StreamingSessionCardProps) => {
   const [showStreamInfo, setShowStreamInfo] = useState(false);
+  const [showSendMessage, setShowSendMessage] = useState(false);
+  const [sendMessageText, setSendMessageText] = useState('');
+  const [sendMessageHeader, setSendMessageHeader] = useState('MUM');
+  const [sendMessageTimeoutSeconds, setSendMessageTimeoutSeconds] = useState<string>('');
+  const [sendingMessage, setSendingMessage] = useState(false);
   const normalizedState = session.state?.toLowerCase();
   const stateColor = getStateColor(session.state);
   const streamDetailLower = (session.stream_detail ?? '').toLowerCase();
@@ -141,6 +150,49 @@ export const StreamingSessionCard = ({ session, onTerminate }: StreamingSessionC
     : streamDetailLower.includes('direct stream')
       ? 'Direct Stream'
       : 'Direct Play';
+  const supportsSessionMessage = ['jellyfin', 'emby'].includes((session.service_type ?? '').toLowerCase());
+  const { success, error: showError } = useAlerts();
+
+  const handleSendMessage = async () => {
+    const text = sendMessageText.trim();
+    if (!text) {
+      showError('Message cannot be empty');
+      return;
+    }
+
+    const header = sendMessageHeader.trim();
+    const timeoutParsed = sendMessageTimeoutSeconds.trim()
+      ? Number(sendMessageTimeoutSeconds.trim())
+      : null;
+    const timeoutSeconds =
+      timeoutParsed && Number.isFinite(timeoutParsed) && timeoutParsed > 0
+        ? timeoutParsed
+        : null;
+
+    try {
+      setSendingMessage(true);
+      await requestJson('/admin/api/v2/streaming/message', {
+        method: 'POST',
+        body: JSON.stringify({
+          session_key: session.session_key,
+          service_type: session.service_type,
+          server_name: session.server_name,
+          text,
+          header: header || undefined,
+          timeout_seconds: timeoutSeconds ?? undefined,
+        }),
+      });
+      success(`Message sent to ${session.user}`);
+      setShowSendMessage(false);
+      setSendMessageText('');
+      setSendMessageHeader('MUM');
+      setSendMessageTimeoutSeconds('');
+    } catch (error) {
+      showError('Failed to send message: ' + String(error));
+    } finally {
+      setSendingMessage(false);
+    }
+  };
 
   // Format remaining time if possible, otherwise use duration
   // Simple heuristic: if we have current_time and duration as strings like "0:05", it's hard to calc remaining without parsing.
@@ -222,6 +274,19 @@ export const StreamingSessionCard = ({ session, onTerminate }: StreamingSessionC
               <DropdownMenuContent align="end">
                 <DropdownMenuLabel>Session Controls</DropdownMenuLabel>
                 <DropdownMenuSeparator />
+                {supportsSessionMessage && (
+                  <DropdownMenuItem
+                    onClick={() => {
+                      setSendMessageText('');
+                      setSendMessageHeader('MUM');
+                      setSendMessageTimeoutSeconds('');
+                      setShowSendMessage(true);
+                    }}
+                  >
+                    <i className="fa-solid fa-message mr-2" />
+                    Send Message
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem
                   onClick={() => onTerminate(session)}
                   className="text-red-600 focus:text-red-600 focus:bg-red-100 dark:focus:bg-red-900/20"
@@ -233,6 +298,78 @@ export const StreamingSessionCard = ({ session, onTerminate }: StreamingSessionC
             </DropdownMenu>
           </div>
         </div>
+
+        <ResponsiveDialog
+          open={showSendMessage}
+          onOpenChange={(value) => {
+            if (!value) setShowSendMessage(false);
+          }}
+          title="Send Message"
+          description={`Send a message to ${session.user}'s player.`}
+          contentClassName="max-w-lg"
+          footer={[
+            <Button
+              key="cancel"
+              variant="outline"
+              onClick={() => setShowSendMessage(false)}
+              disabled={sendingMessage}
+            >
+              Cancel
+            </Button>,
+            <Button
+              key="send"
+              onClick={handleSendMessage}
+              disabled={sendingMessage || !sendMessageText.trim()}
+              className="gap-2"
+            >
+              <i className="fa-solid fa-paper-plane" />
+              Send
+            </Button>,
+          ]}
+        >
+          <div className="space-y-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="space-y-1">
+                <label className="text-sm font-medium text-foreground">Header</label>
+                <Input
+                  value={sendMessageHeader}
+                  onChange={(e) => setSendMessageHeader(e.target.value)}
+                  placeholder="MUM"
+                  disabled={sendingMessage}
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-sm font-medium text-foreground">Timeout (seconds)</label>
+                <Input
+                  type="number"
+                  min={1}
+                  step={0.1}
+                  value={sendMessageTimeoutSeconds}
+                  onChange={(e) => setSendMessageTimeoutSeconds(e.target.value)}
+                  placeholder="e.g. 5"
+                  disabled={sendingMessage}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-sm font-medium text-foreground">
+                Message <span className="text-destructive">*</span>
+              </label>
+              <Textarea
+                rows={4}
+                placeholder="Type your message…"
+                value={sendMessageText}
+                onChange={(e) => setSendMessageText(e.target.value)}
+                className="resize-none"
+                required
+              />
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Supported for Jellyfin/Emby sessions.
+            </p>
+          </div>
+        </ResponsiveDialog>
 
         {/* --- Progress Bar --- */}
         {/* Progress Header with State, Time, and Percentage */}

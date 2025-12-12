@@ -201,3 +201,77 @@ def terminate_session(body: TerminateBody, current_user):
     except Exception as exc:
         current_app.logger.error(f"Failed to terminate session: {exc}", exc_info=True)
         return jsonify({'error': {'code': 'TERMINATION_ERROR', 'message': str(exc)}, 'meta': {'request_id': request_id}}), 500
+
+
+class SendMessageBody(BaseModel):
+    session_key: str
+    service_type: str
+    server_name: str
+    text: str
+    header: str | None = None
+    timeout_seconds: float | None = None
+    timeout_ms: int | None = None
+
+
+@api_v2.post(
+    "/streaming/message",
+    tags=[streaming_tag],
+    summary="Send a message to an active streaming session",
+    responses={200: TerminateResponse, 400: TerminateResponse, 404: TerminateResponse, 500: TerminateResponse},
+)
+@jwt_required_with_user()
+@jwt_permission_required('administrator')
+def send_session_message(body: SendMessageBody, current_user):
+    request_id = uuid4().hex
+    session_key = body.session_key
+    service_type = body.service_type
+    server_name = body.server_name
+    text = (body.text or "").strip()
+    header = body.header
+    timeout_seconds = body.timeout_seconds
+    timeout_ms = body.timeout_ms
+
+    if not session_key or not service_type or not server_name or not text:
+        return jsonify({'error': {'code': 'INVALID_PAYLOAD', 'message': 'session_key, service_type, server_name, and text are required.'}, 'meta': {'request_id': request_id}}), 400
+
+    try:
+        from app.models_media_services import MediaServer
+        server = MediaServer.query.filter_by(server_nickname=server_name, is_active=True).first()
+        if not server:
+            return jsonify({'error': {'code': 'SERVER_NOT_FOUND', 'message': f'Server {server_name} not found or inactive.'}, 'meta': {'request_id': request_id}}), 404
+
+        service = MediaServiceFactory.create_service_from_db(server)
+        if not service:
+            return jsonify({'error': {'code': 'SERVICE_NOT_AVAILABLE', 'message': f'Service not available for server {server_name}.'}, 'meta': {'request_id': request_id}}), 404
+
+        resolved_timeout_ms: int | None = None
+        if timeout_seconds is not None:
+            try:
+                timeout_seconds_value = float(timeout_seconds)
+            except (TypeError, ValueError):
+                timeout_seconds_value = 0
+            if timeout_seconds_value > 0:
+                resolved_timeout_ms = int(timeout_seconds_value * 1000)
+        elif timeout_ms is not None and timeout_ms > 0:
+            resolved_timeout_ms = int(timeout_ms)
+
+        success = bool(
+            service.send_session_message(
+                session_key,
+                text,
+                header=header,
+                timeout_ms=resolved_timeout_ms,
+            )
+        )
+        if success:
+            log_event(
+                EventType.SETTING_CHANGE,
+                f"Message sent to session {session_key} on {server_name}",
+                admin_id=getattr(current_user, 'id', None),
+            )
+            return jsonify({'data': {'success': True, 'message': 'Message sent successfully'}, 'meta': {'request_id': request_id}})
+        else:
+            return jsonify({'error': {'code': 'MESSAGE_FAILED', 'message': 'Failed to send message.'}, 'meta': {'request_id': request_id}}), 500
+    except Exception as exc:
+        current_app.logger.error(f"Failed to send session message: {exc}", exc_info=True)
+        return jsonify({'error': {'code': 'MESSAGE_ERROR', 'message': str(exc)}, 'meta': {'request_id': request_id}}), 500

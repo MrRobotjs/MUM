@@ -177,6 +177,32 @@ class JellyfinMediaService(BaseMediaService):
             self.log_error(f"Error terminating session {session_id}: {e}")
             return False
 
+    def send_session_message(
+        self,
+        session_id: str,
+        text: str,
+        header: str | None = None,
+        timeout_ms: int | None = None,
+    ) -> bool:
+        try:
+            if not self._authenticated and not self._authenticate():
+                return False
+            if not text:
+                return False
+            payload = {"Text": text, "Header": header or "MUM"}
+            if timeout_ms is not None:
+                payload["TimeoutMs"] = int(timeout_ms)
+            resp = self.session.post(
+                f"{self.url.rstrip('/')}/Sessions/{session_id}/Message",
+                json=payload,
+                timeout=get_api_timeout_with_fallback(10),
+            )
+            resp.raise_for_status()
+            return True
+        except Exception as e:
+            self.log_error(f"Error sending session message {session_id}: {e}")
+            return False
+
     def get_active_sessions(self) -> List[Dict[str, Any]]:
         """Sessions are sourced solely from the websocket monitor cache.
 

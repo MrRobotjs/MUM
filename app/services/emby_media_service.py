@@ -152,6 +152,25 @@ class EmbyMediaService(BaseMediaService):
             self.log_error(f"Error terminating session: {e}")
             return False
 
+    def send_session_message(
+        self,
+        session_id: str,
+        text: str,
+        header: str | None = None,
+        timeout_ms: int | None = None,
+    ) -> bool:
+        try:
+            if not text:
+                return False
+            payload = {"Text": text, "Header": header or "MUM"}
+            if timeout_ms is not None:
+                payload["TimeoutMs"] = int(timeout_ms)
+            self._make_request(f"Sessions/{session_id}/Message", method="POST", data=payload)
+            return True
+        except Exception as e:
+            self.log_error(f"Error sending session message: {e}")
+            return False
+
     def get_server_info(self) -> Dict[str, Any]:
         try:
             info = self._make_request("System/Info")

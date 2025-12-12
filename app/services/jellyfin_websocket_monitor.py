@@ -6,7 +6,11 @@ When session events are received, triggers the unified task monitor to process a
 from __future__ import annotations
 
 import json
+import logging
+from logging.handlers import RotatingFileHandler
+import os
 import threading
+from datetime import datetime
 from typing import Dict, List, Optional
 from urllib.parse import urlparse
 
@@ -70,6 +74,169 @@ class JellyfinWebsocketMonitor:
         self.lock = threading.Lock()
         self.threads: Dict[int, threading.Thread] = {}
         self.logger = app.logger
+        self.log_date = None
+        self._ensure_file_logger()
+
+    def _create_file_handler_for_date(self, target_date: datetime) -> RotatingFileHandler | None:
+        date_str = target_date.strftime("%Y-%m-%d")
+        log_path = None
+
+        override_path = os.getenv("JELLYFIN_WS_LOG_PATH")
+        if override_path:
+            try:
+                os.makedirs(os.path.dirname(override_path), exist_ok=True)
+                log_path = override_path
+            except Exception as exc:
+                self.logger.error(
+                    "JellyfinWebsocketMonitor: Failed to create log directory for override path %s: %s",
+                    override_path,
+                    exc,
+                    exc_info=True,
+                )
+                log_path = None
+        else:
+            try:
+                inst_dir = self.app.instance_path
+                logs_dir = os.path.join(inst_dir, "logs", "jellyfin_websocket")
+                os.makedirs(logs_dir, exist_ok=True)
+                log_path = os.path.join(logs_dir, f"{date_str}.log")
+            except Exception as exc:
+                self.logger.error(
+                    "JellyfinWebsocketMonitor: Failed to create instance log directory %s: %s. File logging disabled.",
+                    inst_dir,
+                    exc,
+                    exc_info=True,
+                )
+                return None
+
+        try:
+            test_file = open(log_path, "a")
+            test_file.close()
+        except Exception as exc:
+            self.logger.error(
+                "JellyfinWebsocketMonitor: Cannot write to log file %s: %s. Falling back to app logger.",
+                log_path,
+                exc,
+                exc_info=True,
+            )
+            return None
+
+        try:
+            handler = RotatingFileHandler(log_path, maxBytes=5 * 1024 * 1024, backupCount=3)
+            handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+            return handler
+        except Exception as exc:
+            self.logger.error(
+                "JellyfinWebsocketMonitor: Failed to create file handler for %s: %s. Falling back to app logger.",
+                log_path,
+                exc,
+                exc_info=True,
+            )
+            return None
+
+    def _ensure_file_logger(self) -> None:
+        """Initialize a rotating file logger, preferring instance/logs/jellyfin_websocket."""
+        logger_name = "jellyfin_ws_monitor"
+        self.file_logger = logging.getLogger(logger_name)
+
+        try:
+            target_date = datetime.now().date()
+            handler = self._create_file_handler_for_date(datetime.combine(target_date, datetime.min.time()))
+
+            if handler:
+                for existing in list(self.file_logger.handlers):
+                    if isinstance(existing, RotatingFileHandler):
+                        try:
+                            self.file_logger.removeHandler(existing)
+                            existing.close()
+                        except Exception:
+                            pass
+
+                self.file_logger.addHandler(handler)
+                self.file_logger.setLevel(logging.DEBUG)
+                self.file_logger.propagate = False
+                self.file_logger.info("JellyfinWebsocketMonitor file logger initialized for %s", target_date)
+                self.log_date = target_date
+            else:
+                self.file_logger = self.logger
+        except Exception as exc:
+            self.logger.error(
+                "JellyfinWebsocketMonitor: Unexpected error initializing file logger: %s. Falling back to app logger.",
+                exc,
+                exc_info=True,
+            )
+            self.file_logger = self.logger
+
+    def _ensure_daily_log_file(self) -> None:
+        try:
+            today = datetime.now().date()
+            if self.log_date == today:
+                return
+            self._ensure_file_logger()
+        except Exception as exc:
+            self.logger.warning("JellyfinWebsocketMonitor: Failed to rotate daily log file: %s", exc, exc_info=True)
+
+    def _log_message(self, server_id: int, text: str) -> None:
+        # Default is 0 (no truncation). Set JELLYFIN_WS_LOG_BYTES to truncate.
+        limit = current_app.config.get("JELLYFIN_WS_LOG_BYTES")
+        if limit is None:
+            try:
+                env_limit = os.getenv("JELLYFIN_WS_LOG_BYTES")
+                limit = int(env_limit) if env_limit is not None else 0
+            except Exception:
+                limit = 0
+
+        try:
+            limit_int = int(limit)
+        except Exception:
+            limit_int = 0
+
+        server = MediaServer.query.get(server_id)
+        server_nickname = server.server_nickname if server else None
+        nickname_suffix = f" [{server_nickname}]" if server_nickname else ""
+
+        msg_type = ""
+        try:
+            parsed = json.loads(text)
+            if isinstance(parsed, dict):
+                msg_type = str(parsed.get("MessageType") or "")
+        except Exception:
+            msg_type = ""
+        type_prefix = f" {msg_type}" if msg_type else ""
+
+        if limit_int and limit_int > 0:
+            snippet = text[:limit_int]
+            suffix = " (truncated)" if len(text) > limit_int else ""
+            msg = f"JellyfinWebsocketMonitor: Message from server {server_id}{nickname_suffix}{type_prefix}{suffix}: {snippet}"
+        else:
+            msg = f"JellyfinWebsocketMonitor: Message from server {server_id}{nickname_suffix}{type_prefix}: {text}"
+
+        # current_app.logger.debug(msg) # Uncomment to see messages in docker
+
+        try:
+            self._ensure_daily_log_file()
+            if hasattr(self, "file_logger") and self.file_logger is not None and len(self.file_logger.handlers) > 0:
+                self.file_logger.debug(msg)
+                for handler in self.file_logger.handlers:
+                    if isinstance(handler, RotatingFileHandler):
+                        try:
+                            handler.flush()
+                        except Exception:
+                            pass
+            else:
+                if not hasattr(self, "_file_logger_warning_logged"):
+                    current_app.logger.warning(
+                        "JellyfinWebsocketMonitor: file_logger not initialized/has no handlers. Messages will only be logged to app logger."
+                    )
+                    self._file_logger_warning_logged = True
+        except Exception as log_exc:
+            if not hasattr(self, "_file_logger_error_logged"):
+                current_app.logger.error(
+                    "JellyfinWebsocketMonitor: Error writing to file logger: %s",
+                    log_exc,
+                    exc_info=True,
+                )
+                self._file_logger_error_logged = True
 
     def start(self) -> None:
         """Spin up listeners for all active Jellyfin servers."""
@@ -190,6 +357,7 @@ class JellyfinWebsocketMonitor:
 
                     with self.app.app_context():
                         try:
+                            self._log_message(server_id, text)
                             # Step 1: Extract and cache sessions from websocket payload
                             sessions = _extract_sessions_from_message(message)
 

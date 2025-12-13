@@ -118,11 +118,12 @@ interface StreamingSessionCardProps {
 }
 
 const getGradientClass = (serviceType: string) => {
+  const base = "bg-gradient-to-br via-card to-card";
   switch (serviceType) {
-    case 'plex': return `bg-gradient-to-br from-[#e5a00d]/40 via-[#1f1f1f] to-[#1a1a1a]`;
-    case 'jellyfin': return `bg-gradient-to-br from-[#8c7ae6]/40 via-[#1f1f1f] to-[#1a1a1a]`;
-    case 'emby': return `bg-gradient-to-br from-[#52b54b]/40 via-[#1f1f1f] to-[#1a1a1a]`;
-    default: return `bg-gradient-to-br from-gray-700/40 via-[#1f1f1f] to-[#1a1a1a]`;
+    case 'plex': return `${base} from-plex/30`;
+    case 'jellyfin': return `${base} from-jellyfin/30`;
+    case 'emby': return `${base} from-emby/30`;
+    default: return `${base} from-muted/50`;
   }
 };
 
@@ -203,18 +204,18 @@ export const StreamingSessionCard = ({ session, onTerminate }: StreamingSessionC
 
   return (
     <div
-      className={`group relative flex h-full flex-col overflow-hidden rounded-xl bg-[#1a1a1a] shadow-lg transition-all duration-300 hover:shadow-xl sm:rounded-2xl`}
+      className={`group relative flex h-full flex-col overflow-hidden rounded-xl bg-card shadow-lg transition-all duration-300 hover:shadow-xl sm:rounded-2xl border border-border/50`}
     >
       {/* Background Gradient & Border Helper */}
       <div className={`absolute inset-0 ${getGradientClass(session.service_type)} pointer-events-none`} />
 
       {/* Main Content Container */}
-      <div className="relative z-10 flex h-full flex-col text-gray-100">
+      <div className="relative z-10 flex h-full flex-col text-card-foreground">
 
         {/* --- Header Section: Poster + Title --- */}
         <div className="flex gap-4 p-4 pb-3">
           {/* Poster */}
-          <div className="relative h-24 w-16 shrink-0 overflow-hidden rounded-md bg-black/50 shadow-md sm:h-32 sm:w-24">
+          <div className="relative h-24 w-16 shrink-0 overflow-hidden rounded-md bg-muted shadow-md sm:h-32 sm:w-24">
             {session.thumb_url ? (
               <img
                 src={session.thumb_url}
@@ -223,7 +224,7 @@ export const StreamingSessionCard = ({ session, onTerminate }: StreamingSessionC
                 onError={(e) => { e.currentTarget.style.display = 'none'; }}
               />
             ) : (
-              <div className="flex h-full w-full items-center justify-center text-gray-600">
+              <div className="flex h-full w-full items-center justify-center text-muted-foreground">
                 <i className="fa-solid fa-image fa-lg" />
               </div>
             )}
@@ -238,19 +239,19 @@ export const StreamingSessionCard = ({ session, onTerminate }: StreamingSessionC
 
           {/* Title Info */}
           <div className="flex min-w-0 flex-1 flex-col justify-center gap-0.5">
-            <h3 className="line-clamp-2 text-lg font-bold leading-tight text-white sm:text-xl">
+            <h3 className="line-clamp-2 text-lg font-bold leading-tight text-card-foreground sm:text-xl">
               {session.media_title}
             </h3>
 
-            <div className="flex flex-col text-sm text-gray-300 sm:text-base">
+            <div className="flex flex-col text-sm text-muted-foreground sm:text-base">
               {session.grandparent_title && (
                 <span className="truncate opacity-90">{session.grandparent_title} {session.parent_title ? `— ${session.parent_title}` : ''}</span>
               )}
-              <div className="flex items-center gap-2 text-xs text-gray-400 sm:text-sm">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground/80 sm:text-sm">
                 {session.year && <span>{session.year}</span>}
                 {session.media_type && (
                   <>
-                    <span className="text-gray-600">•</span>
+                    <span className="text-muted-foreground/60">•</span>
                     <span className="capitalize">{session.media_type}</span>
                   </>
                 )}
@@ -266,7 +267,7 @@ export const StreamingSessionCard = ({ session, onTerminate }: StreamingSessionC
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8 rounded-full text-white/50 hover:bg-white/10 hover:text-white"
+                  className="h-8 w-8 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
                 >
                   <i className="fa-solid fa-ellipsis-vertical" />
                 </Button>
@@ -373,7 +374,7 @@ export const StreamingSessionCard = ({ session, onTerminate }: StreamingSessionC
 
         {/* --- Progress Bar --- */}
         {/* Progress Header with State, Time, and Percentage */}
-        <div className="flex items-center justify-between bg-black/20 px-4 py-1.5 backdrop-blur-sm text-[10px] uppercase font-bold tracking-wider text-gray-400">
+        <div className="flex items-center justify-between bg-muted/40 px-4 py-1.5 backdrop-blur-sm text-[10px] uppercase font-bold tracking-wider text-muted-foreground">
           <div className="flex items-center gap-2">
             <span className={`${stateColor.split(' ')[0]}`}>
               {normalizedState === 'playing' ? <i className="fa-solid fa-play mr-1" /> : null}
@@ -381,13 +382,13 @@ export const StreamingSessionCard = ({ session, onTerminate }: StreamingSessionC
               {normalizedState === 'buffering' ? <i className="fa-solid fa-circle-notch fa-spin mr-1" /> : null}
               {session.state}
             </span>
-            <span className="text-gray-600">|</span>
+            <span className="text-muted-foreground/50">|</span>
             <span>{session.current_time} / {session.duration}</span>
           </div>
           <span>{session.progress?.toFixed(0)}%</span>
         </div>
 
-        <div className="relative h-1 w-full bg-gray-700/50">
+        <div className="relative h-1 w-full bg-muted">
           <div
             className={`absolute left-0 top-0 h-full transition-all duration-500 ease-out ${stateColor.split(' ')[1]}`}
             style={{ width: `${session.progress || 0}%` }}
@@ -395,24 +396,24 @@ export const StreamingSessionCard = ({ session, onTerminate }: StreamingSessionC
         </div>
 
         {/* --- Technical Details Section --- */}
-        <div className="flex flex-1 flex-col gap-2 p-4 bg-black/20 backdrop-blur-sm">
+        <div className="flex flex-1 flex-col gap-2 p-4 bg-muted/20 backdrop-blur-sm">
           {/* Container Line */}
           <div className="flex items-start gap-3 text-xs sm:text-sm">
-            <span className="min-w-[40px] font-medium text-gray-400">Container</span>
-            <span className="text-gray-200 font-medium">
+            <span className="min-w-[40px] font-medium text-muted-foreground">Container</span>
+            <span className="text-foreground/90 font-medium">
               {session.container_detail || 'Unknown'}
             </span>
           </div>
 
           {/* Video Line */}
           <div className="flex items-start gap-3 text-xs sm:text-sm">
-            <span className="min-w-[40px] font-medium text-gray-400">Video</span>
+            <span className="min-w-[40px] font-medium text-muted-foreground">Video</span>
             <div className="flex flex-col">
-              <span className="text-gray-200 font-medium">
+              <span className="text-foreground/90 font-medium">
                 {session.video_detail || 'Unknown Video'}
                 {session.bitrate_calc ? ` (${Math.round(session.bitrate_calc / 1000)} Mbps)` : ''}
               </span>
-              <span className="flex items-center gap-1 text-[11px] sm:text-xs text-gray-400">
+              <span className="flex items-center gap-1 text-[11px] sm:text-xs text-muted-foreground">
                 <i className={`fa-solid fa-arrow-turn-up text-[10px] transform rotate-90`} />
                 {isTranscoding ? (
                   <span className="text-amber-400 flex items-center gap-1">
@@ -462,9 +463,9 @@ export const StreamingSessionCard = ({ session, onTerminate }: StreamingSessionC
 
           {/* Audio Line */}
           <div className="flex items-start gap-3 text-xs sm:text-sm">
-            <span className="min-w-[40px] font-medium text-gray-400">Audio</span>
+            <span className="min-w-[40px] font-medium text-muted-foreground">Audio</span>
             <div className="flex flex-col">
-              <span className="text-gray-200 font-medium">{session.audio_detail || 'Unknown Audio'}</span>
+              <span className="text-foreground/90 font-medium">{session.audio_detail || 'Unknown Audio'}</span>
               {isTranscoding && session.stream_detail?.toLowerCase().includes('audio') && (
                 <span className="flex items-center gap-1 text-[11px] sm:text-xs text-gray-400">
                   <i className={`fa-solid fa-arrow-turn-up text-[10px] transform rotate-90`} />
@@ -497,21 +498,21 @@ export const StreamingSessionCard = ({ session, onTerminate }: StreamingSessionC
           {/* Subtitle Line */}
           {session.subtitle_detail && (
             <div className="flex items-start gap-3 text-xs sm:text-sm">
-              <span className="min-w-[40px] font-medium text-gray-400">Sub</span>
-              <span className="text-gray-200 font-medium">{session.subtitle_detail}</span>
+              <span className="min-w-[40px] font-medium text-muted-foreground">Sub</span>
+              <span className="text-foreground/90 font-medium">{session.subtitle_detail}</span>
             </div>
           )}
         </div>
 
         {/* --- Footer (User & Player) --- */}
-        <div className="flex items-center justify-between bg-black/40 p-3 sm:p-4">
+        <div className="flex items-center justify-between bg-muted/30 p-3 sm:p-4">
           <div className="flex items-center gap-3 overflow-hidden">
             {/* Avatar */}
-            <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-full ring-2 ring-white/10 sm:h-12 sm:w-12">
+            <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-full ring-2 ring-muted sm:h-12 sm:w-12">
               {session.user_avatar_url ? (
                 <img src={session.user_avatar_url} alt={session.user} className="h-full w-full object-cover" />
               ) : (
-                <div className={`flex h-full w-full items-center justify-center bg-gray-700 font-bold text-white`}>
+                <div className={`flex h-full w-full items-center justify-center bg-muted-foreground/20 font-bold text-muted-foreground`}>
                   {session.user?.[0]?.toUpperCase()}
                 </div>
               )}
@@ -522,12 +523,12 @@ export const StreamingSessionCard = ({ session, onTerminate }: StreamingSessionC
             </div>
 
             <div className="flex flex-col min-w-0">
-              <span className="truncate text-sm font-bold text-white sm:text-base">{session.user}</span>
-              <div className="flex flex-col text-xs text-gray-400 sm:text-sm">
+              <span className="truncate text-sm font-bold text-foreground sm:text-base">{session.user}</span>
+              <div className="flex flex-col text-xs text-muted-foreground sm:text-sm">
                 <div className="flex items-center gap-1 truncate">
-                  <span className="text-primary-foreground/80">{session.player_title}</span>
+                  <span className="text-primary/90">{session.player_title}</span>
                   <i className="fa-solid fa-arrow-right text-[10px] opacity-50" />
-                  <span className="text-gray-300">{session.player_platform}</span>
+                  <span className="text-muted-foreground/80">{session.player_platform}</span>
                 </div>
                 <div className="truncate text-[11px] opacity-70">
                   {session.location_detail}

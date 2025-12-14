@@ -136,6 +136,74 @@ type PluginMetaResponse = {
   >;
 };
 
+type JellyfinRawSession = {
+  PlayState?: { AudioStreamIndex?: number };
+  NowPlayingItem?: {
+    MediaStreams?: Array<{
+      Type?: string;
+      Index?: number;
+      Codec?: string;
+      Channels?: number;
+      ChannelLayout?: string;
+    }>;
+  };
+  TranscodingInfo?: {
+    AudioCodec?: string;
+    AudioChannels?: number;
+    IsAudioDirect?: boolean;
+  };
+};
+
+const normalizeChannels = (channelLayout?: string, channels?: number) => {
+  if (channelLayout && channelLayout.trim()) return channelLayout.trim();
+  if (!channels || !Number.isFinite(channels)) return undefined;
+  if (channels === 6) return '5.1';
+  if (channels === 8) return '7.1';
+  if (channels === 2) return '2.0';
+  if (channels === 1) return '1.0';
+  return `${channels}ch`;
+};
+
+const formatCodecAndChannels = (codec?: string, channelLayout?: string, channels?: number) => {
+  const normalizedCodec = codec?.trim();
+  if (!normalizedCodec) return undefined;
+  const codecLabel = normalizedCodec.toUpperCase();
+  const channelsLabel = normalizeChannels(channelLayout, channels);
+  return channelsLabel ? `${codecLabel} ${channelsLabel}` : codecLabel;
+};
+
+const tryBuildJellyfinAudioTranscodeLabel = (rawDataJson?: string) => {
+  if (!rawDataJson) return undefined;
+  try {
+    const parsed = JSON.parse(rawDataJson) as unknown;
+    const sessionObject: JellyfinRawSession | undefined =
+      typeof parsed === 'object' && parsed !== null && 'Data' in (parsed as Record<string, unknown>)
+        ? (((parsed as { Data?: unknown[] }).Data?.[0] as JellyfinRawSession | undefined) ?? undefined)
+        : (parsed as JellyfinRawSession);
+
+    if (!sessionObject) return undefined;
+
+    const audioStreamIndex = sessionObject.PlayState?.AudioStreamIndex;
+    const mediaStreams = sessionObject.NowPlayingItem?.MediaStreams ?? [];
+    const audioStreams = mediaStreams.filter((s) => (s.Type ?? '').toLowerCase() === 'audio');
+    const sourceStream =
+      (audioStreamIndex !== undefined ? audioStreams.find((s) => s.Index === audioStreamIndex) : undefined) ??
+      audioStreams[0];
+
+    const source = formatCodecAndChannels(sourceStream?.Codec, sourceStream?.ChannelLayout, sourceStream?.Channels);
+    const target = formatCodecAndChannels(
+      sessionObject.TranscodingInfo?.AudioCodec,
+      undefined,
+      sessionObject.TranscodingInfo?.AudioChannels
+    );
+
+    if (source && target) return `${source} -> ${target}`;
+    return source ?? target;
+  } catch {
+    return undefined;
+  }
+};
+
 export const StreamingSessionCard = ({ session, onTerminate }: StreamingSessionCardProps) => {
   const [showStreamInfo, setShowStreamInfo] = useState(false);
   const [showSendMessage, setShowSendMessage] = useState(false);
@@ -159,6 +227,13 @@ export const StreamingSessionCard = ({ session, onTerminate }: StreamingSessionC
     normalizedServiceType &&
     pluginMetaData?.data?.[normalizedServiceType]?.features?.includes('session_message')
   );
+
+  const jellyfinAudioTranscodeLabel =
+    normalizedServiceType === 'jellyfin' ? tryBuildJellyfinAudioTranscodeLabel(session.raw_data_json) : undefined;
+  const resolvedAudioDetail =
+    session.audio_detail && !session.audio_detail.toLowerCase().includes('unknown audio')
+      ? session.audio_detail
+      : jellyfinAudioTranscodeLabel ?? session.audio_detail;
   const { success, error: showError } = useAlerts();
 
   const handleSendMessage = async () => {
@@ -472,7 +547,7 @@ export const StreamingSessionCard = ({ session, onTerminate }: StreamingSessionC
           <div className="flex items-start gap-3 text-xs sm:text-sm">
             <span className="min-w-[40px] font-medium text-muted-foreground">Audio</span>
             <div className="flex flex-col">
-              <span className="text-foreground/90 font-medium">{session.audio_detail || 'Unknown Audio'}</span>
+              <span className="text-foreground/90 font-medium">{resolvedAudioDetail || 'Unknown Audio'}</span>
               {isTranscoding && session.stream_detail?.toLowerCase().includes('audio') && (
                 <span className="flex items-center gap-1 text-[11px] sm:text-xs text-gray-400">
                   <i className={`fa-solid fa-arrow-turn-up text-[10px] transform rotate-90`} />

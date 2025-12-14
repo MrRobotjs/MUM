@@ -13,6 +13,8 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { requestJson } from '@/util/apiClient';
 import { useAlerts } from '@/contexts/AlertContext';
+import { getServiceIconClass, getServiceMeta } from '@/config/pluginMetadata';
+import { useAdminApi } from '@/hooks/useAdminApi';
 import { useState } from 'react';
 
 const StreamInfoDialog = ({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) => {
@@ -117,22 +119,21 @@ interface StreamingSessionCardProps {
   onTerminate: (session: ActiveSession) => void;
 }
 
-const getGradientClass = (serviceType: string) => {
-  const base = "bg-gradient-to-br via-card to-card";
-  switch (serviceType) {
-    case 'plex': return `${base} from-plex/30`;
-    case 'jellyfin': return `${base} from-jellyfin/30`;
-    case 'emby': return `${base} from-emby/30`;
-    default: return `${base} from-muted/50`;
-  }
-};
-
 const getStateColor = (state?: string) => {
   const normalized = state?.toLowerCase();
   if (normalized === 'playing' || normalized === 'listening') return 'text-green-500 bg-green-500';
   if (normalized === 'paused') return 'text-amber-500 bg-amber-500';
   if (normalized === 'buffering') return 'text-blue-500 bg-blue-500';
   return 'text-gray-500 bg-gray-500';
+};
+
+type PluginMetaResponse = {
+  data: Record<
+    string,
+    {
+      features?: string[];
+    }
+  >;
 };
 
 export const StreamingSessionCard = ({ session, onTerminate }: StreamingSessionCardProps) => {
@@ -142,6 +143,7 @@ export const StreamingSessionCard = ({ session, onTerminate }: StreamingSessionC
   const [sendMessageHeader, setSendMessageHeader] = useState('MUM');
   const [sendMessageTimeoutSeconds, setSendMessageTimeoutSeconds] = useState<string>('');
   const [sendingMessage, setSendingMessage] = useState(false);
+  const { data: pluginMetaData } = useAdminApi<PluginMetaResponse>('/plugins/metadata', true);
   const normalizedState = session.state?.toLowerCase();
   const stateColor = getStateColor(session.state);
   const streamDetailLower = (session.stream_detail ?? '').toLowerCase();
@@ -151,7 +153,12 @@ export const StreamingSessionCard = ({ session, onTerminate }: StreamingSessionC
     : streamDetailLower.includes('direct stream')
       ? 'Direct Stream'
       : 'Direct Play';
-  const supportsSessionMessage = ['jellyfin', 'emby'].includes((session.service_type ?? '').toLowerCase());
+  const normalizedServiceType = (session.service_type ?? '').toLowerCase();
+  const serviceMeta = getServiceMeta(session.service_type);
+  const supportsSessionMessage = Boolean(
+    normalizedServiceType &&
+    pluginMetaData?.data?.[normalizedServiceType]?.features?.includes('session_message')
+  );
   const { success, error: showError } = useAlerts();
 
   const handleSendMessage = async () => {
@@ -207,7 +214,7 @@ export const StreamingSessionCard = ({ session, onTerminate }: StreamingSessionC
       className={`group relative flex h-full flex-col overflow-hidden rounded-xl bg-card shadow-lg transition-all duration-300 hover:shadow-xl sm:rounded-2xl border border-border/50`}
     >
       {/* Background Gradient & Border Helper */}
-      <div className={`absolute inset-0 ${getGradientClass(session.service_type)} pointer-events-none`} />
+      <div className={`absolute inset-0 ${serviceMeta.streamingGradient ?? 'bg-gradient-to-br via-card to-card from-muted/50'} pointer-events-none`} />
 
       {/* Main Content Container */}
       <div className="relative z-10 flex h-full flex-col text-card-foreground">
@@ -374,7 +381,7 @@ export const StreamingSessionCard = ({ session, onTerminate }: StreamingSessionC
 
         {/* --- Progress Bar --- */}
         {/* Progress Header with State, Time, and Percentage */}
-        <div className="flex items-center justify-between bg-muted/40 px-4 py-1.5 backdrop-blur-sm text-[10px] uppercase font-bold tracking-wider text-muted-foreground">
+        <div className="flex items-center justify-between bg-transparent px-4 py-1.5 backdrop-blur-sm text-[10px] uppercase font-bold tracking-wider text-muted-foreground">
           <div className="flex items-center gap-2">
             <span className={`${stateColor.split(' ')[0]}`}>
               {normalizedState === 'playing' ? <i className="fa-solid fa-play mr-1" /> : null}
@@ -516,17 +523,13 @@ export const StreamingSessionCard = ({ session, onTerminate }: StreamingSessionC
                   {session.user?.[0]?.toUpperCase()}
                 </div>
               )}
-              {/* Small Service Icon Badge */}
-              <div className="absolute bottom-0 right-0 rounded-full bg-black/80 p-0.5">
-                {/* We could put a tiny icon here if we had one for the service */}
-              </div>
             </div>
 
             <div className="flex flex-col min-w-0">
               <span className="truncate text-sm font-bold text-foreground sm:text-base">{session.user}</span>
               <div className="flex flex-col text-xs text-muted-foreground sm:text-sm">
                 <div className="flex items-center gap-1 truncate">
-                  <span className="text-primary/90">{session.player_title}</span>
+                  <span className="text-muted-foreground/80">{session.player_title}</span>
                   <i className="fa-solid fa-arrow-right text-[10px] opacity-50" />
                   <span className="text-muted-foreground/80">{session.player_platform}</span>
                 </div>
@@ -539,7 +542,7 @@ export const StreamingSessionCard = ({ session, onTerminate }: StreamingSessionC
 
           {/* Platform Icon / Service Watermark (Right side of footer) */}
           <div className="flex flex-col items-end gap-1 opacity-50">
-            <span className="text-[10px] uppercase tracking-widest">{session.service_type}</span>
+            <span className="text-[10px] uppercase tracking-widest">{serviceMeta.label}</span>
             {/* Could add a logo here if available */}
           </div>
         </div>

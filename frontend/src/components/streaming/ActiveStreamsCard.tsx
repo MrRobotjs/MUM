@@ -135,8 +135,8 @@ export const ActiveStreamsCard = ({
   const isLive = wsTruthActive && isConnected && lastUpdateAt && Date.now() - lastUpdateAt.getTime() < 5000;
 
   return (
-    <Card className="gap-0 overflow-hidden border border-border/60 bg-gradient-to-br from-background via-background to-muted/40 shadow-md">
-      <CardHeader className="border-b border-border/60 bg-gradient-to-r from-primary/5 via-transparent to-transparent pb-4">
+    <Card className="pt-0 gap-0 overflow-hidden border border-border/60 bg-gradient-to-br from-background via-background to-muted/40 shadow-md">
+      <CardHeader className="pt-6 border-b border-border/60 bg-gradient-to-r from-primary/5 via-transparent to-transparent pb-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary shadow-inner">

@@ -37,6 +37,7 @@ interface ServiceMeta {
   iconClass?: string          // Optional className for small inline badges
   label: string
   gradient: string
+  streamingGradient?: string // Optional gradient for streaming session cards
   badgeClass: string
   libraryGradient?: string
   libraryBadgeClass?: string
@@ -53,6 +54,7 @@ export const SERVICE_META: Record<string, ServiceMeta> = {
     iconClass: 'fa-solid fa-play',
     label: 'Plex',
     gradient: 'from-plex/10 via-plex/10 to-plex/20',
+    streamingGradient: 'bg-gradient-to-br via-card to-card from-plex/30',
     badgeClass: 'bg-plex-50 text-plex-700 ring-plex-500/30 dark:bg-plex-400/10 dark:text-plex-300',
     libraryGradient: 'from-card to-plex/10',
     libraryBadgeClass: 'bg-plex-50 text-plex-700 ring-plex-500/30',
@@ -75,6 +77,7 @@ export const SERVICE_META: Record<string, ServiceMeta> = {
     iconClass: 'fa-solid fa-cube',
     label: 'Jellyfin',
     gradient: 'from-jellyfin/10 via-jellyfin/10 to-jellyfin/20',
+    streamingGradient: 'bg-gradient-to-br via-card to-card from-jellyfin/30',
     badgeClass: 'bg-jellyfin-50 text-jellyfin-700 ring-jellyfin-500/30 dark:bg-jellyfin-400/10 dark:text-jellyfin-300',
     libraryGradient: 'from-card to-jellyfin/10',
     libraryBadgeClass: 'bg-jellyfin-50 text-jellyfin-700 ring-jellyfin-500/30',
@@ -97,6 +100,7 @@ export const SERVICE_META: Record<string, ServiceMeta> = {
     iconClass: 'fa-solid fa-play-circle',
     label: 'Emby',
     gradient: 'from-emby/10 via-emby/10 to-emby/20',
+    streamingGradient: 'bg-gradient-to-br via-card to-card from-emby/30',
     badgeClass: 'bg-emby-50 text-emby-700 ring-emby-500/30 dark:bg-emby-400/10 dark:text-emby-300',
     libraryGradient: 'from-card to-emby/10',
     libraryBadgeClass: 'bg-emby-50 text-emby-700 ring-emby-500/30',
@@ -211,6 +215,7 @@ export const getServiceMeta = (serviceType?: string): ServiceMeta => {
   const defaultMeta: ServiceMeta = {
     label: 'Unknown',
     gradient: 'from-primary/10 via-primary/5 to-secondary/10',
+    streamingGradient: 'bg-gradient-to-br via-card to-card from-muted/50',
     badgeClass: 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-100',
     libraryGradient: 'from-card to-muted',
     libraryBadgeClass: 'bg-muted text-foreground ring-border',

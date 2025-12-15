@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import type { ReactNode, MouseEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -16,6 +16,8 @@ import { useAlerts } from '@/contexts/AlertContext';
 import { getServiceIconClass, getServiceMeta } from '@/config/pluginMetadata';
 import { useAdminApi } from '@/hooks/useAdminApi';
 import { useState } from 'react';
+import { useNavigate } from '@tanstack/react-router';
+import { buildUserProfilePath } from '@/util/routes';
 
 const StreamInfoDialog = ({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) => {
   return (
@@ -79,6 +81,7 @@ type ActiveSession = {
   user: string;
   user_avatar_url?: string;
   mum_user_id?: number;
+  mum_user_uuid?: string;
   media_title: string;
   grandparent_title?: string;
   parent_title?: string;
@@ -137,6 +140,7 @@ type PluginMetaResponse = {
 };
 
 type JellyfinRawSession = {
+  UserId?: string;
   PlayState?: { AudioStreamIndex?: number };
   NowPlayingItem?: {
     MediaStreams?: Array<{
@@ -204,6 +208,21 @@ const tryBuildJellyfinAudioTranscodeLabel = (rawDataJson?: string) => {
   }
 };
 
+const tryExtractJellyfinUserId = (rawDataJson?: string) => {
+  if (!rawDataJson) return undefined;
+  try {
+    const parsed = JSON.parse(rawDataJson) as unknown;
+    const sessionObject: JellyfinRawSession | undefined =
+      typeof parsed === 'object' && parsed !== null && 'Data' in (parsed as Record<string, unknown>)
+        ? (((parsed as { Data?: unknown[] }).Data?.[0] as JellyfinRawSession | undefined) ?? undefined)
+        : (parsed as JellyfinRawSession);
+    const userId = sessionObject?.UserId;
+    return typeof userId === 'string' && userId.trim() ? userId.trim() : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
 export const StreamingSessionCard = ({ session, onTerminate }: StreamingSessionCardProps) => {
   const [showStreamInfo, setShowStreamInfo] = useState(false);
   const [showSendMessage, setShowSendMessage] = useState(false);
@@ -212,6 +231,7 @@ export const StreamingSessionCard = ({ session, onTerminate }: StreamingSessionC
   const [sendMessageTimeoutSeconds, setSendMessageTimeoutSeconds] = useState<string>('');
   const [sendingMessage, setSendingMessage] = useState(false);
   const { data: pluginMetaData } = useAdminApi<PluginMetaResponse>('/plugins/metadata', true);
+  const navigate = useNavigate();
   const normalizedState = session.state?.toLowerCase();
   const stateColor = getStateColor(session.state);
   const streamDetailLower = (session.stream_detail ?? '').toLowerCase();
@@ -235,6 +255,43 @@ export const StreamingSessionCard = ({ session, onTerminate }: StreamingSessionC
       ? session.audio_detail
       : jellyfinAudioTranscodeLabel ?? session.audio_detail;
   const { success, error: showError } = useAlerts();
+  const canNavigateToUserProfile = Boolean(session.mum_user_uuid?.trim());
+  const avatarBgClass = serviceMeta.palette?.avatar ?? 'bg-muted-foreground/20';
+  const avatarTextClass = serviceMeta.palette?.avatar ? 'text-white' : 'text-muted-foreground';
+
+  const handleUserProfileClick = async (e: MouseEvent<HTMLAnchorElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const uuid = session.mum_user_uuid?.trim();
+    if (!uuid) {
+      showError('User profile not available for this session.');
+      return;
+    }
+
+    const expectedExternalId =
+      normalizedServiceType === 'jellyfin' ? tryExtractJellyfinUserId(session.raw_data_json) : undefined;
+
+    if (expectedExternalId) {
+      try {
+        const response = await requestJson<{ data?: { external_user_id?: string | null; external_user_alt_id?: string | null } }>(
+          `/admin/api/v2/users/${uuid}`
+        );
+        const externalUserId = response?.data?.external_user_id ? String(response.data.external_user_id) : null;
+        const externalUserAltId = response?.data?.external_user_alt_id ? String(response.data.external_user_alt_id) : null;
+        const matches = expectedExternalId === externalUserId || expectedExternalId === externalUserAltId;
+        if (!matches) {
+          showError('Session user ID did not match the linked service user for this profile.');
+          return;
+        }
+      } catch (error) {
+        showError('Failed to verify user profile: ' + String(error));
+        return;
+      }
+    }
+
+    navigate({ to: buildUserProfilePath({ uuid, username: session.user, server_nickname: session.server_name }) });
+  };
 
   const handleSendMessage = async () => {
     const text = sendMessageText.trim();
@@ -478,7 +535,7 @@ export const StreamingSessionCard = ({ session, onTerminate }: StreamingSessionC
         </div>
 
         {/* --- Technical Details Section --- */}
-        <div className="flex flex-1 flex-col gap-2 p-4 bg-muted/20 backdrop-blur-sm">
+        <div className="flex flex-1 flex-col gap-2 p-4 backdrop-blur-sm">
           {/* Container Line */}
           <div className="flex items-start gap-3 text-xs sm:text-sm">
             <span className="min-w-[40px] font-medium text-muted-foreground">Container</span>
@@ -587,21 +644,38 @@ export const StreamingSessionCard = ({ session, onTerminate }: StreamingSessionC
         </div>
 
         {/* --- Footer (User & Player) --- */}
-        <div className="flex items-center justify-between bg-muted/30 p-3 sm:p-4">
+        <div className="flex items-center justify-between p-3 sm:p-4 border-t-[1.5px] border-muted">
           <div className="flex items-center gap-3 overflow-hidden">
             {/* Avatar */}
-            <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-full ring-2 ring-muted sm:h-12 sm:w-12">
+            <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-full sm:h-12 sm:w-12">
               {session.user_avatar_url ? (
                 <img src={session.user_avatar_url} alt={session.user} className="h-full w-full object-cover" />
               ) : (
-                <div className={`flex h-full w-full items-center justify-center bg-muted-foreground/20 font-bold text-muted-foreground`}>
+                <div className={`flex h-full w-full items-center justify-center ${avatarBgClass} font-bold ${avatarTextClass}`}>
                   {session.user?.[0]?.toUpperCase()}
                 </div>
               )}
             </div>
 
             <div className="flex flex-col min-w-0">
-              <span className="truncate text-sm font-bold text-foreground sm:text-base">{session.user}</span>
+              {canNavigateToUserProfile ? (
+                <a
+                  href={buildUserProfilePath({
+                    uuid: session.mum_user_uuid,
+                    username: session.user,
+                    server_nickname: session.server_name,
+                  })}
+                  onClick={(e) => void handleUserProfileClick(e)}
+                  className="truncate text-left text-sm font-bold text-primary hover:underline sm:text-base"
+                  title="Open user profile"
+                >
+                  {session.user}
+                </a>
+              ) : (
+                <span className="truncate text-left text-sm font-bold text-foreground sm:text-base">
+                  {session.user}
+                </span>
+              )}
               <div className="flex flex-col text-xs text-muted-foreground sm:text-sm">
                 <div className="flex items-center gap-1 truncate">
                   <span className="text-muted-foreground/80">{session.player_title}</span>

@@ -7,6 +7,7 @@ type ActiveSession = {
   user: string;
   user_avatar_url?: string;
   mum_user_id?: number;
+  mum_user_uuid?: string;
   media_title: string;
   grandparent_title?: string;
   parent_title?: string;

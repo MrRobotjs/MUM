@@ -34,6 +34,7 @@ type ActiveSession = {
   user: string;
   user_avatar_url?: string;
   mum_user_id?: number;
+  mum_user_uuid?: string;
 
   // Media info
   media_title: string;
@@ -183,6 +184,7 @@ const mapUnifiedSessionToActiveSession = (session: UnifiedSession): ActiveSessio
     user: user.name || 'Unknown User',
     user_avatar_url: user.avatar || undefined,
     mum_user_id: undefined,
+    mum_user_uuid: user.uuid ? String(user.uuid) : undefined,
     media_title: item.title || 'Unknown Title',
     grandparent_title: item.grandparent_title ?? undefined,
     parent_title: item.parent_title ?? undefined,

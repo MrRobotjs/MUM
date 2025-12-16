@@ -94,11 +94,6 @@ const LoginPage = () => {
         : undefined;
       if (token) {
         setAccessToken(token);
-        
-        // Fire event to notify useSession hooks to refresh
-        try {
-          window.dispatchEvent(new CustomEvent('auth_token_updated', { detail: { accessToken: token } }));
-        } catch {}
       }
 
       navigate({ to: fromPath, replace: true });

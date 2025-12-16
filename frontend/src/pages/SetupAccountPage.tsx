@@ -52,11 +52,6 @@ function SetupAccountContent() {
       const token = response?.data?.access_token
       if (token) {
         setAccessToken(token)
-        try {
-          window.dispatchEvent(new CustomEvent('auth_token_updated', { detail: { accessToken: token } }))
-        } catch {
-          /* ignore */
-        }
       }
       refresh()
       navigate('/setup/plugins', { replace: true })

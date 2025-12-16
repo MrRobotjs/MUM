@@ -95,9 +95,6 @@ export const apiFetch = async (
           : undefined;
         if (newToken) {
           setAccessToken(newToken);
-          try {
-            window.dispatchEvent(new CustomEvent('auth_token_updated', { detail: { accessToken: newToken } }));
-          } catch {}
           token = newToken;
           headers.set('Authorization', `Bearer ${newToken}`);
         }
@@ -130,7 +127,6 @@ export const apiFetch = async (
           : undefined;
         if (newToken) {
           setAccessToken(newToken);
-          try { window.dispatchEvent(new CustomEvent('auth_token_updated', { detail: { accessToken: newToken } })); } catch {}
           headers.set('Authorization', `Bearer ${newToken}`);
           response = await fetch(input, { ...init, method, credentials: 'include', headers });
         } else {
@@ -161,10 +157,6 @@ export const apiFetch = async (
         if (newToken) {
           // Persist new token for subsequent requests
           setAccessToken(newToken);
-          try {
-            // Notify interested listeners (e.g., WebSocket hook) that token changed
-            window.dispatchEvent(new CustomEvent('auth_token_updated', { detail: { accessToken: newToken } }));
-          } catch {}
           // Update Authorization header and retry original request
           headers.set('Authorization', `Bearer ${newToken}`);
           response = await fetch(input, {

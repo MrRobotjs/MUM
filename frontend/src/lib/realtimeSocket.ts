@@ -1,5 +1,6 @@
 import { io, Socket } from 'socket.io-client';
 import { getAccessToken } from '../util/tokenStore';
+import { getAuthSnapshot, subscribeToAuthStore } from '../store/authStore';
 import type { UnifiedEvent } from '../types/realtime';
 
 type ChannelListener = (envelope: UnifiedEvent) => void;
@@ -32,17 +33,25 @@ const resubscribeAll = () => {
 const bindGlobalAuthListeners = () => {
   if (listenersBound) return;
   listenersBound = true;
+  let lastToken = getAccessToken();
 
-  window.addEventListener('auth_token_updated', ((event: Event) => {
-    const token = (event as CustomEvent)?.detail?.accessToken as string | undefined;
-    if (token && socket?.connected) {
-      socket.emit('auth_update', { access_token: token });
+  subscribeToAuthStore(() => {
+    const next = getAuthSnapshot();
+
+    if (next.status === 'anonymous') {
+      disconnectRealtimeSocket();
+      lastToken = null;
+      return;
     }
-  }) as EventListener);
 
-  window.addEventListener('auth_logged_out', (() => {
-    disconnectRealtimeSocket();
-  }) as EventListener);
+    if (next.status !== 'authenticated') return;
+
+    if (next.accessToken && next.accessToken !== lastToken && socket?.connected) {
+      socket.emit('auth_update', { access_token: next.accessToken });
+    }
+
+    lastToken = next.accessToken;
+  });
 };
 
 function ensureSocket(): Socket {

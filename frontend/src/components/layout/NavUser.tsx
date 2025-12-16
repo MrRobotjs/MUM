@@ -50,7 +50,6 @@ export function NavUser({
     } catch (_error) {
       // Ignore logout errors; proceed with client-side cleanup
     } finally {
-      try { window.dispatchEvent(new CustomEvent('auth_logged_out')); } catch {}
       clearAccessToken()
       navigate({ to: '/admin/login', replace: true })
     }

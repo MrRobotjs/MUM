@@ -377,6 +377,36 @@ class JellyfinMediaService(BaseMediaService):
                         audio_detail = f"{stream_details} (Unknown Audio)"
                     quality_detail = get_standard_resolution(original_video_stream.get("Height") if original_video_stream else None)
 
+                def safe_int(value, default=0):
+                    try:
+                        if value is None:
+                            return default
+                        if isinstance(value, bool):
+                            return default
+                        if isinstance(value, (int, float)):
+                            return int(value)
+                        if isinstance(value, str) and value.strip():
+                            return int(float(value.strip()))
+                    except Exception:
+                        return default
+                    return default
+
+                # Estimate bandwidth from bitrate:
+                # - Match Plex/legacy behavior where `bitrate_calc` is in kbps.
+                # - Jellyfin reports stream/transcode bitrates in bps.
+                bitrate_bps = 0
+                if isinstance(transcoding_info, dict):
+                    bitrate_bps = safe_int(transcoding_info.get("Bitrate"), 0)
+                if not bitrate_bps:
+                    bitrate_bps += safe_int((original_video_stream or {}).get("BitRate"), 0)
+                    if original_audio_stream:
+                        bitrate_bps += safe_int(original_audio_stream.get("BitRate"), 0)
+                    else:
+                        first_audio_stream = next((s for s in media_streams if s.get("Type") == "Audio"), None)
+                        bitrate_bps += safe_int((first_audio_stream or {}).get("BitRate"), 0)
+
+                bitrate_calc_kbps = int(round(bitrate_bps / 1000.0)) if bitrate_bps else 0
+
                 bandwidth_detail = f"Streaming via {'LAN' if raw_session.get('IsLocal', True) else 'WAN'}"
                 location_ip = raw_session.get("RemoteEndPoint", "N/A")
                 is_local = raw_session.get("IsLocal", True)
@@ -446,7 +476,7 @@ class JellyfinMediaService(BaseMediaService):
                         "location_ip": location_ip,
                         "is_public_ip": not is_local,
                         "bandwidth_detail": bandwidth_detail,
-                        "bitrate_calc": None,
+                        "bitrate_calc": bitrate_calc_kbps,
                         "location_type_calc": "LAN" if is_local else "WAN",
                         "is_transcode_calc": is_transcoding,
                         "raw_data_json": json.dumps(raw_session, indent=2),

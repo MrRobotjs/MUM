@@ -14,11 +14,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { requestJson } from '@/util/apiClient';
 import { useAlerts } from '@/contexts/AlertContext';
 import { getServiceIconClass, getServiceMeta } from '@/config/pluginMetadata';
-import { useAdminApi } from '@/hooks/useAdminApi';
 import { useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { buildUserProfilePath } from '@/util/routes';
-import type { ActiveSession } from '@/types/streaming';
+import type { ActiveSession, PluginMetaResponse } from '@/types/streaming';
 
 const StreamInfoDialog = ({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) => {
   return (
@@ -80,6 +79,7 @@ const StreamInfoDialog = ({ open, onOpenChange }: { open: boolean; onOpenChange:
 interface StreamingSessionCardProps {
   session: ActiveSession;
   onTerminate: (session: ActiveSession) => void;
+  pluginFeaturesByService?: PluginMetaResponse['data'] | null;
 }
 
 const getStateColor = (state?: string) => {
@@ -88,15 +88,6 @@ const getStateColor = (state?: string) => {
   if (normalized === 'paused') return 'text-amber-500 bg-amber-500';
   if (normalized === 'buffering') return 'text-blue-500 bg-blue-500';
   return 'text-gray-500 bg-gray-500';
-};
-
-type PluginMetaResponse = {
-  data: Record<
-    string,
-    {
-      features?: string[];
-    }
-  >;
 };
 
 type JellyfinRawSession = {
@@ -183,14 +174,13 @@ const tryExtractJellyfinUserId = (rawDataJson?: string) => {
   }
 };
 
-export const StreamingSessionCard = ({ session, onTerminate }: StreamingSessionCardProps) => {
+export const StreamingSessionCard = ({ session, onTerminate, pluginFeaturesByService }: StreamingSessionCardProps) => {
   const [showStreamInfo, setShowStreamInfo] = useState(false);
   const [showSendMessage, setShowSendMessage] = useState(false);
   const [sendMessageText, setSendMessageText] = useState('');
   const [sendMessageHeader, setSendMessageHeader] = useState('MUM');
   const [sendMessageTimeoutSeconds, setSendMessageTimeoutSeconds] = useState<string>('');
   const [sendingMessage, setSendingMessage] = useState(false);
-  const { data: pluginMetaData } = useAdminApi<PluginMetaResponse>('/plugins/metadata', true);
   const navigate = useNavigate();
   const normalizedState = session.state?.toLowerCase();
   const stateColor = getStateColor(session.state);
@@ -205,7 +195,7 @@ export const StreamingSessionCard = ({ session, onTerminate }: StreamingSessionC
   const serviceMeta = getServiceMeta(session.service_type);
   const supportsSessionMessage = Boolean(
     normalizedServiceType &&
-    pluginMetaData?.data?.[normalizedServiceType]?.features?.includes('session_message')
+    pluginFeaturesByService?.[normalizedServiceType]?.features?.includes('session_message')
   );
 
   const jellyfinAudioTranscodeLabel =

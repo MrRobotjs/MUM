@@ -1,7 +1,8 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { StreamingSessionCard } from './StreamingSessionCard';
-import type { ActiveSession, ActiveSessionsResponse, ViewMode } from '@/types/streaming';
+import { useAdminApi } from '@/hooks/useAdminApi';
+import type { ActiveSession, ActiveSessionsResponse, PluginMetaResponse, ViewMode } from '@/types/streaming';
 
 interface ActiveStreamsCardProps {
   sessionsData: ActiveSessionsResponse | null;
@@ -24,11 +25,15 @@ export const ActiveStreamsCard = ({
   lastUpdateAt,
   onTerminateSession
 }: ActiveStreamsCardProps) => {
+  const { data: pluginMetaData } = useAdminApi<PluginMetaResponse>('/plugins/metadata', true);
+  const pluginFeaturesByService = pluginMetaData?.data ?? null;
+
   const renderSessionCard = (session: ActiveSession) => (
     <StreamingSessionCard
       key={session.session_key}
       session={session}
       onTerminate={onTerminateSession}
+      pluginFeaturesByService={pluginFeaturesByService}
     />
   );
 

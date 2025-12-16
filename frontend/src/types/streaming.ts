@@ -71,3 +71,11 @@ export type ActiveSessionsResponse = {
 
 export type ViewMode = 'merged' | 'categorized' | 'service';
 
+export type PluginMetaResponse = {
+  data: Record<
+    string,
+    {
+      features?: string[];
+    }
+  >;
+};

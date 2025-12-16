@@ -1,19 +1,16 @@
 import { Button } from '@/components/ui/button';
 import { ResponsiveDialog } from '@/components/ui/responsive-dialog';
 import { Textarea } from '@/components/ui/textarea';
+import type { ActiveSession } from '@/types/streaming';
 
-type ActiveSession = {
-  session_key: string;
-  user: string;
-  media_title: string;
-  service_type: string;
-  server_name: string;
-  [key: string]: any;
-};
+type TerminateSession = Pick<
+  ActiveSession,
+  'session_key' | 'user' | 'media_title' | 'service_type' | 'server_name'
+>;
 
 interface TerminateSessionModalProps {
   open: boolean;
-  session: ActiveSession | null;
+  session: TerminateSession | null;
   message: string;
   onMessageChange: (message: string) => void;
   onClose: () => void;

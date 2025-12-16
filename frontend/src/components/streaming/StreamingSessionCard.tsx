@@ -18,6 +18,7 @@ import { useAdminApi } from '@/hooks/useAdminApi';
 import { useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { buildUserProfilePath } from '@/util/routes';
+import type { ActiveSession } from '@/types/streaming';
 
 const StreamInfoDialog = ({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) => {
   return (
@@ -74,47 +75,6 @@ const StreamInfoDialog = ({ open, onOpenChange }: { open: boolean; onOpenChange:
       </div>
     </ResponsiveDialog>
   );
-};
-
-type ActiveSession = {
-  session_key: string;
-  user: string;
-  user_avatar_url?: string;
-  mum_user_id?: number;
-  mum_user_uuid?: string;
-  media_title: string;
-  grandparent_title?: string;
-  parent_title?: string;
-  media_type: string;
-  library_name: string;
-  year?: string;
-  thumb_url?: string;
-  service_type: string;
-  server_name: string;
-  player_title?: string;
-  player_platform?: string;
-  product?: string;
-  state: string;
-  progress: number;
-  current_time: string;
-  duration: string;
-  quality_detail: string;
-  stream_detail: string;
-  container_detail?: string;
-  video_detail?: string;
-  audio_detail?: string;
-  subtitle_detail?: string;
-  transcode_reason?: string;
-  location_detail: string;
-  location_ip?: string;
-  is_public_ip?: boolean;
-  bandwidth_detail?: string;
-  raw_data_json?: string;
-  bitrate_calc?: number;
-  location_type_calc?: string;
-  is_transcode_calc?: boolean;
-  transcode_speed?: number;
-  transcode_throttled?: boolean;
 };
 
 interface StreamingSessionCardProps {

@@ -1,56 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { StreamingSessionCard } from './StreamingSessionCard';
-
-type ActiveSession = {
-  session_key: string;
-  user: string;
-  user_avatar_url?: string;
-  mum_user_id?: number;
-  mum_user_uuid?: string;
-  media_title: string;
-  grandparent_title?: string;
-  parent_title?: string;
-  media_type: string;
-  library_name: string;
-  year?: string;
-  thumb_url?: string;
-  service_type: string;
-  server_name: string;
-  player_title?: string;
-  player_platform?: string;
-  product?: string;
-  state: string;
-  progress: number;
-  current_time: string;
-  duration: string;
-  quality_detail: string;
-  stream_detail: string;
-  container_detail?: string;
-  video_detail?: string;
-  audio_detail?: string;
-  subtitle_detail?: string;
-  transcode_reason?: string;
-  location_detail: string;
-  location_ip?: string;
-  is_public_ip?: boolean;
-  bandwidth_detail?: string;
-  raw_data_json?: string;
-  bitrate_calc?: number;
-  location_type_calc?: string;
-  is_transcode_calc?: boolean;
-  transcode_speed?: number;
-  transcode_throttled?: boolean;
-};
-
-type ActiveSessionsResponse = {
-  sessions: ActiveSession[];
-  total_count: number;
-  by_server?: Record<string, ActiveSession[]>;
-  by_service?: Record<string, ActiveSession[]>;
-};
-
-type ViewMode = 'merged' | 'categorized' | 'service';
+import type { ActiveSession, ActiveSessionsResponse, ViewMode } from '@/types/streaming';
 
 interface ActiveStreamsCardProps {
   sessionsData: ActiveSessionsResponse | null;

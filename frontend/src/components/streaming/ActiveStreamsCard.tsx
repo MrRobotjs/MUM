@@ -111,22 +111,45 @@ export const ActiveStreamsCard = ({
                   const transcodeCount = sessions.filter(s => s.is_transcode_calc || s.transcode_reason || s.stream_detail.toLowerCase().includes('transcode')).length;
                   const directPlayCount = sessionsData.total_count - transcodeCount;
 
-                  // Simple bandwidth summation (heuristic parsing)
-                  const totalBandwidth = sessions.reduce((acc, s) => {
-                    const match = s.bandwidth_detail?.match(/(\d+(\.\d+)?)\s*Mbps/i);
-                    return acc + (match ? parseFloat(match[1]) : 0);
-                  }, 0).toFixed(1);
+                  // Bandwidth summation:
+                  // - Legacy Flask UI used `bitrate_calc` (kbps) -> Mbps, and `location_type_calc` (LAN/WAN).
+                  // - `bandwidth_detail` is often a descriptive string (e.g. "Streaming via LAN") and may not contain Mbps.
+                  const getSessionBandwidthMbps = (session: ActiveSession) => {
+                    const bitrateKbps = session.bitrate_calc;
+                    if (typeof bitrateKbps === 'number' && Number.isFinite(bitrateKbps) && bitrateKbps > 0) {
+                      return bitrateKbps / 1000;
+                    }
+                    const match = session.bandwidth_detail?.match(/(\d+(\.\d+)?)\s*Mbps/i);
+                    return match ? parseFloat(match[1]) : 0;
+                  };
 
-                  // Assuming all bandwidth is LAN for now as we don't have explicit LAN/WAN separation in just 'bandwidth_detail' usually,
-                  // unless 'location_type_calc' gives us a clue.
-                  const lanBandwidth = sessions.reduce((acc, s) => {
-                    const isWan = s.location_type_calc === 'wan' || s.location_detail.toLowerCase().includes('remote');
-                    if (isWan) return acc;
-                    const match = s.bandwidth_detail?.match(/(\d+(\.\d+)?)\s*Mbps/i);
-                    return acc + (match ? parseFloat(match[1]) : 0);
-                  }, 0).toFixed(1);
+                  const isLanSession = (session: ActiveSession) => {
+                    const locationType = String(session.location_type_calc ?? '').trim().toLowerCase();
+                    if (locationType === 'lan') return true;
+                    if (locationType === 'wan') return false;
+                    if (locationType.includes('lan')) return true;
+                    if (locationType.includes('wan')) return false;
+                    if (typeof session.is_public_ip === 'boolean') return !session.is_public_ip;
+                    const detail = String(session.location_detail ?? '').toLowerCase();
+                    if (detail.includes('remote')) return false;
+                    if (detail.includes('wan')) return false;
+                    if (detail.includes('lan')) return true;
+                    return true;
+                  };
 
-                  const wanBandwidth = (parseFloat(totalBandwidth) - parseFloat(lanBandwidth)).toFixed(1);
+                  const totalBandwidthValue = sessions.reduce((acc, s) => acc + getSessionBandwidthMbps(s), 0);
+                  const lanBandwidthValue = sessions.reduce(
+                    (acc, s) => (isLanSession(s) ? acc + getSessionBandwidthMbps(s) : acc),
+                    0
+                  );
+                  const wanBandwidthValue = sessions.reduce(
+                    (acc, s) => (!isLanSession(s) ? acc + getSessionBandwidthMbps(s) : acc),
+                    0
+                  );
+
+                  const totalBandwidth = totalBandwidthValue.toFixed(1);
+                  const lanBandwidth = lanBandwidthValue.toFixed(1);
+                  const wanBandwidth = wanBandwidthValue.toFixed(1);
 
                   return (
                     <p className="font-mono text-xs text-primary/80">

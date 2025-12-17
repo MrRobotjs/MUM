@@ -6,6 +6,7 @@ import { Switch } from '../ui/switch';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
 import { Button } from '@/components/ui/button';
 import { ResponsiveDialog } from '@/components/ui/responsive-dialog';
+import { ServiceIcon } from '@/components';
 
 export type InviteFormValues = {
   custom_path?: string;
@@ -343,33 +344,6 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, loading }:
     await onSubmit(submitData);
   };
 
-  const getServiceIcon = (serviceType: string) => {
-    const type = serviceType?.toLowerCase();
-    switch (type) {
-      case 'plex':
-        return 'fa-solid fa-play';
-      case 'jellyfin':
-        return 'fa-solid fa-cube';
-      case 'emby':
-        return 'fa-solid fa-play-circle';
-      case 'kavita':
-        return 'fa-solid fa-book';
-      case 'audiobookshelf':
-        return 'fa-solid fa-headphones';
-      case 'komga':
-        return 'fa-solid fa-book-open';
-      case 'romm':
-        return 'fa-solid fa-gamepad';
-      default:
-        return 'fa-solid fa-server';
-    }
-  };
-
-  const getServiceColorClass = (serviceType: string) => {
-    const type = serviceType?.toLowerCase();
-    return `text-${type}`;
-  };
-
   const groupedServers = servers.reduce((acc, server) => {
     const type = server.service_type || 'Unknown';
     if (!acc[type]) acc[type] = [];
@@ -518,7 +492,10 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, loading }:
                   <div key={serviceType} className="rounded-md border bg-background/60">
                     <div className="flex items-center justify-between px-4 py-3">
                       <div className="flex items-center gap-2">
-                        <i className={`${getServiceIcon(serviceType)} ${getServiceColorClass(serviceType)} fa-lg`} />
+                        <ServiceIcon
+                          serviceType={serviceType}
+                          className={serviceType.toLowerCase() === 'plex' ? 'fa-lg w-5 h-5' : 'fa-lg'}
+                        />
                         <span className="text-sm font-semibold uppercase tracking-wide">{serviceType}</span>
                       </div>
                       <span className="text-xs text-muted-foreground">
@@ -548,7 +525,10 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, loading }:
                             >
                               <div className="flex items-center gap-3">
                                 <span className={`inline-flex h-8 w-8 items-center justify-center rounded-full border ${isSelected ? 'border-primary text-primary' : 'border-border text-muted-foreground'}`}>
-                                  <i className={`${getServiceIcon(server.service_type)} text-sm`} />
+                                  <ServiceIcon
+                                    serviceType={server.service_type}
+                                    className={server.service_type.toLowerCase() === 'plex' ? 'text-sm w-4 h-4' : 'text-sm'}
+                                  />
                                 </span>
                                 <div>
                                   <p className="font-semibold leading-tight">{server.server_nickname}</p>

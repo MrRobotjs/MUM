@@ -3,7 +3,7 @@ import { Link } from '@tanstack/react-router';
 import { cn } from '@/lib/utils';
 import { useLibraries, type Library } from '../hooks/useLibraries';
 import { useServers, type Server } from '../hooks/useServers';
-import { PageHeader } from '../components';
+import { PageHeader, ServiceIcon } from '../components';
 import { useAlerts } from '../contexts';
 import { requestJson } from '../util/apiClient';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
@@ -22,7 +22,6 @@ type LibraryGroup = {
   label: string;
   gradient: string;
   badgeClass: string;
-  icon: JSX.Element;
   servers: Array<{
     server: Server;
     libraries: Library[];
@@ -129,7 +128,6 @@ export const LibrariesPage = () => {
           label: meta.label,
           gradient: meta.libraryGradient || meta.gradient,
           badgeClass: meta.libraryBadgeClass || meta.badgeClass,
-          icon: meta.libraryIcon || meta.icon,
           servers: []
         });
       }
@@ -150,7 +148,6 @@ export const LibrariesPage = () => {
             label: meta.label,
             gradient: meta.libraryGradient || meta.gradient,
             badgeClass: meta.libraryBadgeClass || meta.badgeClass,
-            icon: meta.libraryIcon || meta.icon,
             servers: []
           });
         }
@@ -441,8 +438,10 @@ export const LibrariesPage = () => {
             >
               <div className={cn('flex flex-wrap items-center justify-between gap-4 border-b px-6 py-4 bg-gradient-to-r', group.gradient)}>
                 <div className="flex items-center gap-3">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-background/90 shadow-inner ring-1 ring-black/5 dark:bg-background/60">
-                    {group.icon}
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-background/90 text-3xl shadow-inner ring-1 ring-black/5 dark:bg-background/60">
+                    <ServiceIcon
+                      serviceType={group.serviceType}
+                    />
                   </div>
                   <div className="space-y-1">
                     <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground/80">Service</p>

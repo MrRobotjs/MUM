@@ -3,7 +3,7 @@ import { type Plugin } from '../../hooks/usePlugins'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
-import { getServiceIcon } from '@/config/pluginMetadata'
+import { ServiceIcon } from '@/components'
 
 export interface PluginCardProps {
   plugin: Plugin
@@ -31,8 +31,8 @@ export const PluginCard = ({
       <CardContent className="flex h-full flex-col gap-4">
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-start gap-3 flex-1">
-            <div className="flex-shrink-0 mt-1">
-              {getServiceIcon(plugin.pluginId)}
+            <div className="flex-shrink-0 mt-1 text-3xl">
+              <ServiceIcon serviceType={plugin.pluginId} />
             </div>
             <div className="space-y-1 flex-1">
               <h3 className="text-lg font-semibold text-foreground">{plugin.name}</h3>

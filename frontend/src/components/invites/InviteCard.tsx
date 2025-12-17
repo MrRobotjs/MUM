@@ -1,3 +1,4 @@
+import { type ReactNode } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -23,7 +24,7 @@ type InviteCardProps = {
   onCopyLink: (invite: InviteRow) => void;
   featureMeta: FeatureMeta[];
   getServiceBadgeClass: (serviceType: string) => string;
-  getServiceIcon: (serviceType: string) => string;
+  getServiceIcon: (serviceType: string, className?: string) => ReactNode;
 };
 
 const getInviteStatusMeta = (invite: InviteRow) => {
@@ -197,7 +198,7 @@ export const InviteCard = ({
                         className="rounded-lg border border-border/60 bg-muted/40 p-3 space-y-2"
                       >
                         <div className="flex items-center gap-2 pb-1 border-b border-border/40">
-                          <i className={`${getServiceIcon(server.service_type)} w-4 h-4 text-muted-foreground`} />
+                          {getServiceIcon(server.service_type, 'w-4 h-4 text-muted-foreground')}
                           <span className="text-sm font-semibold text-foreground">
                             {server.server_nickname || server.name || 'Unnamed server'}
                           </span>
@@ -218,7 +219,7 @@ export const InviteCard = ({
                                 className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] font-semibold ${getServiceBadgeClass(library.service_type)}`}
                                 title={`${library.name} (${library.server_name})`}
                               >
-                                <i className={`${getServiceIcon(library.service_type)} w-3 h-3`} />
+                                {getServiceIcon(library.service_type, 'w-3 h-3')}
                                 {library.name}
                               </span>
                             ))

@@ -13,7 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { requestJson } from '@/util/apiClient';
 import { useAlerts } from '@/contexts/AlertContext';
-import { getServiceIconClass, getServiceMeta } from '@/config/pluginMetadata';
+import { getServiceMeta } from '@/config/pluginMetadata';
 import { useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { buildUserProfilePath } from '@/util/routes';

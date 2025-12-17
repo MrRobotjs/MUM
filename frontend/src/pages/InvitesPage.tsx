@@ -20,7 +20,7 @@ import { Button } from '../components/ui/button';
 import { PageHeader } from '../components';
 import { IconDots } from '@tabler/icons-react';
 import type { InviteLibrary, InviteServer } from '../components/invites/InvitesTable';
-import { getServiceBadgeClass as getServiceBadgeMeta, getServiceIconClass } from '../config/pluginMetadata';
+import { getServiceBadgeClass as getServiceBadgeMeta, getServiceIcon } from '../config/pluginMetadata';
 
 // Helper function to get service-specific styling
 const getServiceBadgeClass = (serviceType: string): string => {
@@ -29,8 +29,8 @@ const getServiceBadgeClass = (serviceType: string): string => {
   return getServiceBadgeMeta(serviceType) || fallback;
 };
 
-const getServiceIcon = (serviceType: string): string => {
-  return getServiceIconClass(serviceType) || 'fa-solid fa-server';
+const renderServiceIcon = (serviceType: string, className?: string): JSX.Element => {
+  return getServiceIcon(serviceType, className);
 };
 
 type FeatureKey = 'allow_downloads' | 'invite_to_plex_home' | 'allow_live_tv' | 'allow_4k_transcode';
@@ -94,9 +94,8 @@ const buildFeatureMeta = (inviteFeatureSupport: Record<string, string[]>): Featu
     return `border ${getServiceBadgeClass(serviceType)}`;
   };
 
-  const serviceIcon = (serviceType?: string, fallbackIcon?: string) => {
-    if (!serviceType) return fallbackIcon || 'fa-solid fa-server';
-    return getServiceIcon(serviceType) || fallbackIcon || 'fa-solid fa-server';
+  const serviceIcon = (_serviceType?: string, fallbackIcon?: string) => {
+    return fallbackIcon || 'fa-solid fa-server';
   };
 
   return FEATURE_META_CONFIG.map((cfg) => {
@@ -471,7 +470,7 @@ export const InvitesPage = () => {
                 onCopyLink={handleCopyLink}
                 featureMeta={featureMeta}
                 getServiceBadgeClass={getServiceBadgeClass}
-                getServiceIcon={getServiceIcon}
+                getServiceIcon={renderServiceIcon}
               />
             ))
           )}

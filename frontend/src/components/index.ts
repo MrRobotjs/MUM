@@ -18,3 +18,4 @@ export * from './users';
 export * from './invites/InvitesTable';
 export * from './invites/InviteModal';
 export * from './invites/InviteDetailDrawer';
+export * from './services';

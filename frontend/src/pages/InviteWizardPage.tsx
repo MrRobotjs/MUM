@@ -883,8 +883,8 @@ export const InviteWizardPage = () => {
           {/* Content */}
           <div className="p-6 sm:p-8">
             {/* Progress Steps */}
-            {state.steps.length > 0 && (
-              <div className="mb-8">
+              {state.steps.length > 0 && (
+                <div className="mb-8">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="font-medium text-foreground">Setup Progress</h2>
                   <span className="text-sm text-muted-foreground">
@@ -1117,6 +1117,28 @@ export const InviteWizardPage = () => {
                       </Button>
                     </div>
                   </form>
+                </div>
+              )}
+
+              {state.discord.authenticated && state.discord.user && (
+                <div className="mb-8 rounded-lg border border-[#5865F2]/20 bg-[#5865F2]/10 p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 rounded-full bg-[#5865F2]/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <i className="fa-brands fa-discord text-[#5865F2] text-sm" />
+                    </div>
+                    <div>
+                      <h3 className="font-medium text-[#5865F2] mb-1">Discord Account Linked</h3>
+                      <p className="text-sm text-foreground/80">
+                        Linked as <strong>{state.discord.user.username}</strong>
+                      </p>
+                      {state.discord.user.email && (
+                        <p className="text-xs text-muted-foreground">Email: {state.discord.user.email}</p>
+                      )}
+                      {state.discord.user.id && (
+                        <p className="text-xs text-muted-foreground">Discord ID: {state.discord.user.id}</p>
+                      )}
+                    </div>
+                  </div>
                 </div>
               )}
 

@@ -812,7 +812,7 @@ export const InviteWizardPage = () => {
               </div>
             ) : null}
 
-            <div className="bg-muted/50 border border rounded-lg p-6 mb-8">
+            <div className="bg-muted/50 border rounded-lg p-6 mb-8">
               <div className="flex items-center justify-center gap-3 mb-4">
                 <div className="w-8 h-8 rounded-full bg-green-100/20 flex items-center justify-center">
                   <i className="fa-solid fa-server text-green-600 dark:text-green-400 text-sm" />
@@ -854,7 +854,7 @@ export const InviteWizardPage = () => {
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-4xl">
-        <div className="bg-card border border rounded-xl shadow-lg overflow-hidden">
+        <div className="bg-card border rounded-xl shadow-lg overflow-hidden">
           {/* Header */}
           <div className="bg-gradient-to-r from-primary/10 to-secondary/10 p-6 text-center border-b border">
             <div className="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center mx-auto mb-4">
@@ -889,7 +889,7 @@ export const InviteWizardPage = () => {
                               ? 'bg-primary/10 border border-primary/20'
                               : isActive
                               ? 'bg-amber-50 dark:bg-amber-400/10 border border-amber-200 dark:border-amber-500/20'
-                              : 'bg-muted/50 border border'
+                              : 'bg-muted/50 border'
                           )}
                         >
                           <div
@@ -947,7 +947,7 @@ export const InviteWizardPage = () => {
             <div className="step-content space-y-6">
               {/* User Account Step */}
               {state.account.allowed && !state.account.completed && (
-                <div className="bg-muted/50 border border rounded-lg p-6">
+                <div className="bg-muted/50 border rounded-lg p-6">
                   <div className="flex items-center gap-3 mb-6">
                     <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
                       <i className="fa-solid fa-user-plus text-primary text-lg" />
@@ -1104,7 +1104,7 @@ export const InviteWizardPage = () => {
 
               {/* Discord Step */}
               {state.discord.oauth_enabled && !state.discord.authenticated && (!state.account.allowed || state.account.completed) && (
-                <div className="bg-muted/50 border border rounded-lg p-6">
+                <div className="bg-muted/50 border rounded-lg p-6">
                   <div className="flex items-center gap-3 mb-6">
                     <div className="w-10 h-10 rounded-full bg-[#5865F2]/20 flex items-center justify-center flex-shrink-0">
                       <i className="fa-brands fa-discord text-[#5865F2] text-lg" />
@@ -1173,7 +1173,7 @@ export const InviteWizardPage = () => {
 
               {/* Plex Step */}
               {state.plex.has_plex_servers && !state.plex.authenticated && (state.discord.authenticated || !state.discord.oauth_enabled) && (!state.account.allowed || state.account.completed) && (
-                <div className="bg-muted/50 border border rounded-lg p-6">
+                <div className="bg-muted/50 border rounded-lg p-6">
                   <div className="flex items-center gap-3 mb-6">
                     <div className="w-10 h-10 rounded-full bg-[#e5a00d]/20 flex items-center justify-center flex-shrink-0">
                       <svg className="w-5 h-5 text-[#e5a00d]" viewBox="0 0 192 192" xmlns="http://www.w3.org/2000/svg" fill="currentColor">
@@ -1271,7 +1271,7 @@ export const InviteWizardPage = () => {
                 if (!activeServer) return null;
 
                 return (
-                <div key={activeServer.id} className="bg-muted/50 border border rounded-lg p-6">
+                <div key={activeServer.id} className="bg-muted/50 border rounded-lg p-6">
                   <div className="flex items-center gap-3 mb-6">
                     <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
                       <i className="fa-solid fa-server text-primary text-lg" />

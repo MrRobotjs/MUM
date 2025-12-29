@@ -381,25 +381,6 @@ export const AdminSettingsDiscordPage = () => {
               </p>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="guild_id">
-                Guild (Server) ID {requireGuildId && <span className="text-destructive">*</span>}
-              </Label>
-              <Input
-                id="guild_id"
-                type="text"
-                className="font-mono"
-                value={formValues.guild_id}
-                onChange={(e) => handleChange('guild_id', e.target.value)}
-                required={requireGuildId}
-                disabled={oauthDisabled}
-                placeholder="1234567890123456789"
-              />
-              <p className="text-xs text-muted-foreground">
-                Enable Developer Mode in Discord, right-click your server, and select "Copy ID"
-              </p>
-            </div>
-
             <div className="flex items-center justify-between rounded-lg border border-border/70 bg-muted/40 p-3">
               <div>
                 <p className="text-sm font-medium">Require Discord membership</p>
@@ -415,6 +396,25 @@ export const AdminSettingsDiscordPage = () => {
             </div>
 
             <div className="space-y-2">
+              <Label htmlFor="guild_id">
+                Guild (Server) ID {requireGuildId && <span className="text-destructive">*</span>}
+              </Label>
+              <Input
+                id="guild_id"
+                type="text"
+                className="font-mono"
+                value={formValues.guild_id}
+                onChange={(e) => handleChange('guild_id', e.target.value)}
+                required={requireGuildId}
+                disabled={oauthDisabled || !formValues.enable_membership_requirement}
+                placeholder="1234567890123456789"
+              />
+              <p className="text-xs text-muted-foreground">
+                Enable Developer Mode in Discord, right-click your server, and select "Copy ID"
+              </p>
+            </div>
+
+            <div className="space-y-2">
               <Label htmlFor="server_invite_url">
                 Server Invite URL {formValues.enable_membership_requirement && <span className="text-destructive">*</span>}
               </Label>
@@ -425,7 +425,7 @@ export const AdminSettingsDiscordPage = () => {
                 value={formValues.server_invite_url}
                 onChange={(e) => handleChange('server_invite_url', e.target.value)}
                 required={formValues.enable_membership_requirement}
-                disabled={oauthDisabled}
+                disabled={oauthDisabled || !formValues.enable_membership_requirement}
                 placeholder="https://discord.gg/your-invite"
               />
             </div>

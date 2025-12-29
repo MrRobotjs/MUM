@@ -654,9 +654,9 @@ export const InviteWizardPage = () => {
 
   const activeStepId = useMemo(() => {
     if (!state?.steps?.length) return null;
+    if (state.next_step_id) return state.next_step_id;
     const firstRequiredIncomplete = state.steps.find((step) => step.required && !step.completed);
     if (firstRequiredIncomplete) return firstRequiredIncomplete.id;
-    if (state.next_step_id) return state.next_step_id;
     const firstIncomplete = state.steps.find((step) => !step.completed);
     return firstIncomplete?.id ?? null;
   }, [state]);
@@ -910,23 +910,27 @@ export const InviteWizardPage = () => {
                               <i className={`${step.icon} text-xs`} />
                             )}
                           </div>
-                          <div className="flex-1 min-w-0">
-                            <span
-                              className={cn(
-                                'text-xs font-medium block truncate',
-                                step.completed
-                                  ? 'text-primary'
-                                  : isActive
-                                  ? 'text-amber-600 dark:text-amber-400'
-                                  : 'text-muted-foreground'
-                              )}
-                            >
-                              {step.name}
-                            </span>
-                            {!step.required && (
-                              <span className="text-xs text-muted-foreground">Optional</span>
-                            )}
-                          </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span
+                                  className={cn(
+                                    'text-xs font-medium truncate',
+                                    step.completed
+                                      ? 'text-primary'
+                                      : isActive
+                                      ? 'text-amber-600 dark:text-amber-400'
+                                      : 'text-muted-foreground'
+                                  )}
+                                >
+                                  {step.name}
+                                </span>
+                                {!step.required && (
+                                  <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                                    Optional
+                                  </span>
+                                )}
+                              </div>
+                            </div>
                         </div>
                         {index < state.steps.length - 1 && (
                           <div

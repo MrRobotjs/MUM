@@ -124,7 +124,11 @@ export const AdminSettingsDiscordPage = () => {
     try {
       await requestJson('/admin/api/v2/settings/discord', {
         method: 'PATCH',
-        body: JSON.stringify(formValues),
+        body: JSON.stringify({
+          ...formValues,
+          redirect_uri_invite: formMeta.redirect_uri_invite,
+          redirect_uri_admin: formMeta.redirect_uri_admin,
+        }),
       })
       success('Discord settings saved successfully')
       setHasChanges(false)

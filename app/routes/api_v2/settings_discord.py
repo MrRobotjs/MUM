@@ -18,8 +18,8 @@ settings_tag = Tag(name="Settings", description="Application settings")
 def _compute_redirects():
     app_base = Setting.get('APP_BASE_URL') or current_app.config.get('APP_BASE_URL') or ''
     app_base = (app_base or '').rstrip('/')
-    invite_path = '/invites/discord_callback'
-    admin_path = '/auth/discord_callback_admin'
+    invite_path = '/api/v2/public/discord/callback'
+    admin_path = '/api/v2/auth/discord/callback'
     if not app_base:
         return None, None
     return f"{app_base}{invite_path}", f"{app_base}{admin_path}"
@@ -99,6 +99,8 @@ class UpdateDiscordBody(BaseModel):
     client_id: str | None = None
     client_secret: str | None = None
     oauth_auth_url: str | None = None
+    redirect_uri_invite: str | None = None
+    redirect_uri_admin: str | None = None
     guild_id: str | None = None
     server_invite_url: str | None = None
     bot_token: str | None = None
@@ -139,8 +141,12 @@ def update_discord_settings(body: UpdateDiscordBody, current_user):
     client_id = body.client_id
     client_secret = body.client_secret
     oauth_auth_url = body.oauth_auth_url
+    redirect_uri_invite = body.redirect_uri_invite
+    redirect_uri_admin = body.redirect_uri_admin
     fields_set = getattr(body, '__fields_set__', None) or getattr(body, 'model_fields_set', set())
     oauth_auth_url_provided = 'oauth_auth_url' in fields_set
+    redirect_invite_provided = 'redirect_uri_invite' in fields_set
+    redirect_admin_provided = 'redirect_uri_admin' in fields_set
     guild_id = body.guild_id
     server_invite_url = body.server_invite_url
     bot_token = body.bot_token
@@ -184,8 +190,13 @@ def update_discord_settings(body: UpdateDiscordBody, current_user):
         if oauth_auth_url_provided:
             Setting.set('DISCORD_OAUTH_AUTH_URL', oauth_auth_url or '', SettingValueType.STRING)
         invite_redirect, admin_redirect = _compute_redirects()
-        if invite_redirect:
+        if redirect_invite_provided:
+            Setting.set('DISCORD_REDIRECT_URI_INVITE', redirect_uri_invite or '', SettingValueType.STRING)
+        elif invite_redirect:
             Setting.set('DISCORD_REDIRECT_URI_INVITE', invite_redirect, SettingValueType.STRING)
+        if redirect_admin_provided:
+            Setting.set('DISCORD_REDIRECT_URI_ADMIN_LINK', redirect_uri_admin or '', SettingValueType.STRING)
+        elif admin_redirect:
             Setting.set('DISCORD_REDIRECT_URI_ADMIN_LINK', admin_redirect, SettingValueType.STRING)
         Setting.set('ENABLE_DISCORD_MEMBERSHIP_REQUIREMENT', require_membership, SettingValueType.BOOLEAN)
         Setting.set('DISCORD_REQUIRE_GUILD_MEMBERSHIP', require_membership, SettingValueType.BOOLEAN)

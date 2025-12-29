@@ -654,9 +654,23 @@ export const InviteWizardPage = () => {
 
   const activeStepId = useMemo(() => {
     if (!state?.steps?.length) return null;
+
+    const accountStepVisible = state.account.allowed && !state.account.completed;
+    if (accountStepVisible) return 'user_account';
+
+    const discordStepVisible = state.discord.oauth_enabled
+      && !state.discord.authenticated
+      && (!state.account.allowed || state.account.completed);
+    if (discordStepVisible) return 'discord';
+
+    const plexStepVisible = state.plex.has_plex_servers
+      && !state.plex.authenticated
+      && (state.discord.authenticated || !state.discord.oauth_enabled)
+      && (!state.account.allowed || state.account.completed);
+    if (plexStepVisible) return 'plex';
+
     if (state.next_step_id) return state.next_step_id;
-    const firstRequiredIncomplete = state.steps.find((step) => step.required && !step.completed);
-    if (firstRequiredIncomplete) return firstRequiredIncomplete.id;
+
     const firstIncomplete = state.steps.find((step) => !step.completed);
     return firstIncomplete?.id ?? null;
   }, [state]);

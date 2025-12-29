@@ -283,6 +283,60 @@ def _build_invite_state(invite: Invite) -> Dict[str, Any]:
     }
 
 
+def _get_discord_invite_redirect_uri() -> str:
+    return (
+        Setting.get('DISCORD_REDIRECT_URI_INVITE')
+        or url_for('api_v2_public.discord_oauth_callback_public_v2', _external=True)
+    )
+
+
+def _handle_discord_oauth_callback(invite: Invite, fallback_path: str):
+    returned_state = request.args.get('state')
+    if not returned_state or returned_state != session.pop('discord_oauth_state_invite', None):
+        session.pop('discord_oauth_invite_id', None)
+        return redirect(fallback_path)
+    code = request.args.get('code')
+    if not code:
+        session.pop('discord_oauth_invite_id', None)
+        return redirect(fallback_path)
+    client_id = Setting.get('DISCORD_CLIENT_ID')
+    client_secret = Setting.get('DISCORD_CLIENT_SECRET')
+    redirect_uri = _get_discord_invite_redirect_uri()
+    if not client_id or not client_secret or not redirect_uri:
+        session.pop('discord_oauth_invite_id', None)
+        return redirect(fallback_path)
+    token_url = f"https://discord.com/api/v10/oauth2/token"
+    payload = {
+        'client_id': client_id,
+        'client_secret': client_secret,
+        'grant_type': 'authorization_code',
+        'code': code,
+        'redirect_uri': redirect_uri,
+    }
+    headers = {'Content-Type': 'application/x-www-form-urlencoded'}
+    try:
+        token_response = requests.post(token_url, data=payload, headers=headers, timeout=10)
+        token_response.raise_for_status()
+        token_data = token_response.json()
+        access_token = token_data['access_token']
+        user_info_url = f"https://discord.com/api/v10/users/@me"
+        auth_headers = {'Authorization': f'Bearer {access_token}'}
+        user_response = requests.get(user_info_url, headers=auth_headers, timeout=10)
+        user_response.raise_for_status()
+        discord_user = user_response.json()
+        prefix = f'invite_{invite.id}_'
+        session[f'{prefix}discord_user'] = {
+            'id': discord_user.get('id'),
+            'username': discord_user.get('username'),
+            'email': discord_user.get('email'),
+        }
+    except Exception as exc:
+        current_app.logger.error("Discord callback failed for invite %s: %s", invite.id, exc)
+    return_path = session.get(f'invite_{invite.id}_return_path')
+    session.pop('discord_oauth_invite_id', None)
+    return redirect(return_path or fallback_path)
+
+
 class WizardStateResponse(BaseModel):
     data: dict
     meta: dict
@@ -560,12 +614,13 @@ def start_discord_auth_v2(path: InvitePath):
             .replace('%7bSTATE%7d', state_token)
         )
     else:
+        redirect_uri = _get_discord_invite_redirect_uri()
         params = {
             'response_type': 'code',
             'client_id': client_id,
             'scope': 'identify email guilds',
             'state': state_token,
-            'redirect_uri': url_for('api_v2_public.discord_oauth_callback_v2', token=token, _external=True),
+            'redirect_uri': redirect_uri,
             'prompt': 'consent',
         }
         oauth_url = f"https://discord.com/api/v10/oauth2/authorize?{urlencode(params)}"
@@ -623,46 +678,24 @@ def discord_oauth_callback_v2(path: InvitePath):
     invite = _get_invite(token)
     if not invite:
         return _error_response(request_id, 404, 'INVITE_NOT_FOUND', 'Invite not found.')
-    returned_state = request.args.get('state')
-    if not returned_state or returned_state != session.pop('discord_oauth_state_invite', None):
-        return redirect(f"/invite/{token}")
-    code = request.args.get('code')
-    if not code:
-        return redirect(f"/invite/{token}")
-    client_id = Setting.get('DISCORD_CLIENT_ID')
-    client_secret = Setting.get('DISCORD_CLIENT_SECRET')
-    redirect_uri = url_for('api_v2_public.discord_oauth_callback_v2', token=token, _external=True)
-    if not client_id or not client_secret:
-        return redirect(f"/invite/{token}")
-    token_url = f"https://discord.com/api/v10/oauth2/token"
-    payload = {
-        'client_id': client_id,
-        'client_secret': client_secret,
-        'grant_type': 'authorization_code',
-        'code': code,
-        'redirect_uri': redirect_uri,
-    }
-    headers = {'Content-Type': 'application/x-www-form-urlencoded'}
-    try:
-        token_response = requests.post(token_url, data=payload, headers=headers, timeout=10)
-        token_response.raise_for_status()
-        token_data = token_response.json()
-        access_token = token_data['access_token']
-        user_info_url = f"https://discord.com/api/v10/users/@me"
-        auth_headers = {'Authorization': f'Bearer {access_token}'}
-        user_response = requests.get(user_info_url, headers=auth_headers, timeout=10)
-        user_response.raise_for_status()
-        discord_user = user_response.json()
-        prefix = f'invite_{invite.id}_'
-        session[f'{prefix}discord_user'] = {
-            'id': discord_user.get('id'),
-            'username': discord_user.get('username'),
-            'email': discord_user.get('email'),
-        }
-    except Exception as exc:
-        current_app.logger.error("Discord callback failed for invite %s: %s", invite.id, exc)
-    return_path = session.get(f'invite_{invite.id}_return_path')
-    return redirect(return_path or f"/invite/{token}")
+    return _handle_discord_oauth_callback(invite, f"/invite/{token}")
+
+
+@api_v2_public.get(
+    "/public/discord/callback",
+    tags=[public_wizard_tag],
+    summary="Discord OAuth callback (public invite)",
+)
+def discord_oauth_callback_public_v2():
+    invite_id = session.get('discord_oauth_invite_id')
+    if not invite_id:
+        return redirect("/invite")
+    invite = Invite.query.get(invite_id)
+    if not invite:
+        session.pop('discord_oauth_invite_id', None)
+        return redirect("/invite")
+    fallback_token = invite.custom_path or invite.token
+    return _handle_discord_oauth_callback(invite, f"/invite/{fallback_token}")
 
 
 @api_v2_public.post(

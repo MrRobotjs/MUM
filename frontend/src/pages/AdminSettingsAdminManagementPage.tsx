@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { IconUserPlus, IconPencil, IconKey, IconTrash, IconSearch, IconShield, IconLock, IconUsersGroup, IconAlertCircle, IconCheck, IconInfoCircle } from '@tabler/icons-react'
+import { IconUserPlus, IconPencil, IconKey, IconTrash, IconSearch, IconShield, IconLock, IconUsersGroup, IconAlertCircle, IconCheck, IconInfoCircle, IconList } from '@tabler/icons-react'
 import { requestJson } from '../util/apiClient'
 import { useAlerts } from '../contexts'
 import { useAuth } from '../contexts/AuthContext'
@@ -8,7 +8,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Card, CardContent } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { ResponsiveDialog } from '@/components/ui/responsive-dialog'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
@@ -281,19 +281,20 @@ const AdminSettingsAdminManagementPage = () => {
 
       {/* Admins Overview */}
       <Card>
-        <CardContent className="p-6">
-          <div className="mb-6 flex items-center gap-3">
+        <CardHeader>
+          <div className="flex items-center gap-3">
             <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/20">
               <IconUsersGroup className="size-5 text-primary" />
             </div>
             <div>
-              <h2 className="mb-1 text-xl font-semibold">System Administrators</h2>
-              <p className="text-sm text-muted-foreground">
+              <CardTitle className="mb-1 text-xl font-semibold">System Administrators</CardTitle>
+              <CardDescription>
                 {admins.length} administrator{admins.length !== 1 ? 's' : ''} configured
-              </p>
+              </CardDescription>
             </div>
           </div>
-
+        </CardHeader>
+        <CardContent>
           <Alert variant="info">
             <IconInfoCircle />
             <AlertTitle>Admin Guidelines</AlertTitle>
@@ -306,13 +307,16 @@ const AdminSettingsAdminManagementPage = () => {
 
       {/* Admins List */}
       <Card>
-        <CardContent className="p-6">
-          <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <CardHeader>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
-              <div className="flex size-8 items-center justify-center rounded-full bg-secondary/20">
-                <i className="fa-solid fa-list text-sm text-secondary" />
+              <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/20">
+                <IconList className="size-5 text-primary" />
               </div>
-              <h3 className="text-lg font-semibold">Administrators List</h3>
+              <div>
+                <CardTitle className="mb-1 text-xl font-semibold">Administrators List</CardTitle>
+                <CardDescription>Search and manage administrator accounts</CardDescription>
+              </div>
             </div>
 
             <div className="relative w-full sm:w-auto">
@@ -326,7 +330,8 @@ const AdminSettingsAdminManagementPage = () => {
               />
             </div>
           </div>
-
+        </CardHeader>
+        <CardContent>
           {loading ? (
             <div className="flex items-center justify-center py-12">
               <span className="inline-flex size-4 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />

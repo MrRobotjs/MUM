@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from collections import defaultdict
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Any
 
 from flask import jsonify
 from app.utils.jwt_decorators import jwt_required_with_user, jwt_permission_required
@@ -11,8 +12,9 @@ from flask_openapi3 import Tag
 from app.routes.api_v2 import api_v2
 from app.extensions import db
 from app.models import User, UserType
-from app.models_media_services import MediaLibrary
+from app.models_media_services import MediaLibrary, MediaStreamHistory
 from sqlalchemy import func, or_ as sa_or
+from sqlalchemy.orm import joinedload
 
 
 users_tag = Tag(name="Users", description="User management endpoints")
@@ -50,6 +52,7 @@ class UserItem(BaseModel):
     is_active: bool
     admin_roles: list[str] = []
     linked_service_count: int = 0
+    notes: Optional[str] = None
     # v1-compatible extras
     user_roles: list[dict] = []
     linked_local_user: Optional[dict] = None
@@ -57,6 +60,10 @@ class UserItem(BaseModel):
     service_type: Optional[str] = None
     service_join_date: Optional[str] = None
     last_streamed_at: Optional[str] = None
+    last_known_ip: Optional[str] = None
+    total_plays: int = 0
+    total_duration: int = 0
+    last_played: Optional[dict[str, Any]] = None
     libraries: list[str] = []
     has_all_libraries: Optional[bool] = None
 
@@ -129,6 +136,21 @@ def _avatar_url(u: User) -> Optional[str]:
     return None
 
 
+def _isoformat(dt: Optional[datetime]) -> Optional[str]:
+    if not dt:
+        return None
+    if dt.tzinfo is None:
+        return dt.isoformat() + "Z"
+    return dt.isoformat()
+
+
+def _format_last_played_title(media_title: Optional[str], media_type: Optional[str], grandparent_title: Optional[str]) -> str:
+    title = media_title or "Unknown Title"
+    if media_type in {"episode", "track"} and grandparent_title:
+        return f"{grandparent_title} - {title}"
+    return title
+
+
 def _linked_service_count(u: User) -> int:
     if u.userType == UserType.LOCAL:
         try:
@@ -152,6 +174,7 @@ def _to_item(u: User) -> dict:
         "is_active": bool(getattr(u, "is_active", True)),
         "admin_roles": [r.name for r in getattr(u, "admin_roles", [])] if getattr(u, "admin_roles", None) else [],
         "linked_service_count": _linked_service_count(u),
+        "notes": getattr(u, "notes", None),
     }
 
 
@@ -163,7 +186,7 @@ def _to_item(u: User) -> dict:
 )
 @jwt_required_with_user()
 def list_users(query: UsersQuery, current_user):
-    q = User.query
+    q = User.query.options(joinedload(User.server))
 
     # Filter by user type
     if query.user_type:
@@ -280,11 +303,152 @@ def list_users(query: UsersQuery, current_user):
     total_pages = (total_items + size - 1) // size if size else 1
     items = q.offset((page - 1) * size).limit(size).all()
 
+    user_uuids = [u.uuid for u in items]
+    stream_stats: dict[str, dict[str, int]] = {}
+    last_ips: dict[str, str] = {}
+    last_played_map: dict[str, dict[str, Any]] = {}
+    last_streamed_map: dict[str, str] = {}
+
+    if user_uuids:
+        stats_rows = db.session.query(
+            MediaStreamHistory.user_uuid,
+            func.count(MediaStreamHistory.id).label("total_plays"),
+            func.coalesce(func.sum(MediaStreamHistory.duration_seconds), 0).label("total_duration"),
+        ).filter(MediaStreamHistory.user_uuid.in_(user_uuids)).group_by(MediaStreamHistory.user_uuid).all()
+
+        for user_uuid, total_plays, total_duration in stats_rows:
+            stream_stats[user_uuid] = {
+                "total_plays": int(total_plays or 0),
+                "total_duration": int(total_duration or 0),
+            }
+
+        last_ip_subq = db.session.query(
+            MediaStreamHistory.user_uuid.label("user_uuid"),
+            MediaStreamHistory.ip_address.label("ip_address"),
+            func.row_number().over(
+                partition_by=MediaStreamHistory.user_uuid,
+                order_by=MediaStreamHistory.started_at.desc(),
+            ).label("rn"),
+        ).filter(
+            MediaStreamHistory.user_uuid.in_(user_uuids),
+            MediaStreamHistory.ip_address.isnot(None),
+        ).subquery()
+
+        ip_rows = db.session.query(last_ip_subq.c.user_uuid, last_ip_subq.c.ip_address).filter(last_ip_subq.c.rn == 1).all()
+        for user_uuid, ip_address in ip_rows:
+            if ip_address:
+                last_ips[user_uuid] = ip_address
+
+        last_played_subq = db.session.query(
+            MediaStreamHistory.user_uuid.label("user_uuid"),
+            MediaStreamHistory.media_title.label("media_title"),
+            MediaStreamHistory.media_type.label("media_type"),
+            MediaStreamHistory.grandparent_title.label("grandparent_title"),
+            MediaStreamHistory.parent_title.label("parent_title"),
+            MediaStreamHistory.rating_key.label("rating_key"),
+            MediaStreamHistory.started_at.label("started_at"),
+            MediaStreamHistory.server_id.label("server_id"),
+            MediaStreamHistory.thumb_url.label("thumb_url"),
+            func.row_number().over(
+                partition_by=MediaStreamHistory.user_uuid,
+                order_by=MediaStreamHistory.started_at.desc(),
+            ).label("rn"),
+        ).filter(MediaStreamHistory.user_uuid.in_(user_uuids)).subquery()
+
+        last_played_rows = db.session.query(last_played_subq).filter(last_played_subq.c.rn == 1).all()
+        for row in last_played_rows:
+            display_title = _format_last_played_title(row.media_title, row.media_type, row.grandparent_title)
+            last_played_map[row.user_uuid] = {
+                "media_title": display_title,
+                "original_media_title": row.media_title,
+                "media_type": row.media_type,
+                "grandparent_title": row.grandparent_title,
+                "parent_title": row.parent_title,
+                "rating_key": row.rating_key,
+                "server_id": row.server_id,
+                "thumb_url": row.thumb_url,
+                "started_at": _isoformat(row.started_at),
+            }
+            if row.started_at:
+                last_streamed_map[row.user_uuid] = _isoformat(row.started_at)
+
+    local_uuids = [u.uuid for u in items if u.userType in {UserType.LOCAL, UserType.OWNER}]
+    linked_service_users: list[User] = []
+    if local_uuids:
+        linked_service_users = User.query.options(joinedload(User.server)).filter(
+            User.userType == UserType.SERVICE,
+            User.linkedUserId.in_(local_uuids),
+        ).all()
+
+    service_users_for_libraries: dict[str, User] = {
+        u.uuid: u for u in items if u.userType == UserType.SERVICE
+    }
+    for svc in linked_service_users:
+        service_users_for_libraries.setdefault(svc.uuid, svc)
+
+    allowed_ids_by_server: dict[int, set[str]] = defaultdict(set)
+    for svc in service_users_for_libraries.values():
+        if not getattr(svc, "server_id", None):
+            continue
+        allowed_ids = [str(v) for v in (getattr(svc, "allowed_library_ids", []) or [])]
+        if not allowed_ids or allowed_ids == ["*"]:
+            continue
+        allowed_ids_by_server[svc.server_id].update(allowed_ids)
+
+    libraries_by_server: dict[int, dict[str, str]] = {}
+    for server_id, allowed_ids in allowed_ids_by_server.items():
+        libs = MediaLibrary.query.filter(
+            MediaLibrary.server_id == server_id,
+            sa_or(
+                MediaLibrary.external_id.in_(allowed_ids),
+                MediaLibrary.internal_id.in_(allowed_ids),
+            ),
+        ).all()
+        lib_map: dict[str, str] = {}
+        for lib in libs:
+            if lib.external_id:
+                lib_map[str(lib.external_id)] = lib.name
+            if lib.internal_id:
+                lib_map[str(lib.internal_id)] = lib.name
+        libraries_by_server[server_id] = lib_map
+
+    def _resolve_libraries_for_service_user(service_user: User) -> tuple[list[str], bool]:
+        allowed_ids = [str(v) for v in (getattr(service_user, "allowed_library_ids", []) or [])]
+        if not allowed_ids:
+            return [], True
+        if allowed_ids == ["*"]:
+            return ["All Libraries"], True
+        lib_map = libraries_by_server.get(getattr(service_user, "server_id", 0), {})
+        names = [lib_map.get(lib_id, f"Unknown Lib {lib_id}") for lib_id in allowed_ids]
+        return names, False
+
+    local_libraries_map: dict[str, set[str]] = defaultdict(set)
+    local_has_all_libraries: dict[str, bool] = defaultdict(bool)
+    local_service_join_map: dict[str, datetime] = {}
+    for svc in linked_service_users:
+        if not svc.linkedUserId:
+            continue
+        if getattr(svc, "service_join_date", None):
+            existing = local_service_join_map.get(svc.linkedUserId)
+            if existing is None or svc.service_join_date < existing:
+                local_service_join_map[svc.linkedUserId] = svc.service_join_date
+        libs, has_all = _resolve_libraries_for_service_user(svc)
+        if has_all:
+            local_has_all_libraries[svc.linkedUserId] = True
+        else:
+            local_libraries_map[svc.linkedUserId].update(libs)
+
     # Build response items aligned with v1
     data = []
     for u in items:
         item = _to_item(u)
         item["external_email"] = getattr(u, "external_email", None)
+        item["total_plays"] = stream_stats.get(u.uuid, {}).get("total_plays", 0)
+        item["total_duration"] = stream_stats.get(u.uuid, {}).get("total_duration", 0)
+        item["last_known_ip"] = last_ips.get(u.uuid)
+        item["last_played"] = last_played_map.get(u.uuid)
+        if last_streamed_map.get(u.uuid):
+            item["last_streamed_at"] = last_streamed_map.get(u.uuid)
 
         # user_roles enriched
         uroles = []
@@ -316,25 +480,27 @@ def list_users(query: UsersQuery, current_user):
             item["server_nickname"] = u.server.server_nickname
             st = u.server.service_type
             item["service_type"] = st.value if hasattr(st, "value") else str(st)
-            item["service_join_date"] = u.service_join_date.isoformat() if getattr(u, "service_join_date", None) else None
-            item["last_streamed_at"] = u.last_activity_at.isoformat() if getattr(u, "last_activity_at", None) else None
+            item["service_join_date"] = _isoformat(getattr(u, "service_join_date", None))
+            if not item.get("last_streamed_at"):
+                item["last_streamed_at"] = _isoformat(getattr(u, "last_activity_at", None))
 
-            libraries = []
-            has_all_libraries = False
-            allowed_ids = [str(v) for v in (getattr(u, "allowed_library_ids", []) or [])]
-            if allowed_ids:
-                libs = MediaLibrary.query.filter(
-                    MediaLibrary.server_id == u.server_id,
-                    sa_or(
-                        MediaLibrary.external_id.in_(allowed_ids),
-                        MediaLibrary.internal_id.in_(allowed_ids),
-                    ),
-                ).all()
-                libraries = [lib.name for lib in libs]
-            else:
-                has_all_libraries = True
+            libraries, has_all_libraries = _resolve_libraries_for_service_user(u)
             item["libraries"] = libraries
             item["has_all_libraries"] = has_all_libraries
+        elif u.userType in {UserType.LOCAL, UserType.OWNER}:
+            earliest_join = local_service_join_map.get(u.uuid)
+            if earliest_join:
+                item["service_join_date"] = _isoformat(earliest_join)
+            else:
+                item["service_join_date"] = _isoformat(getattr(u, "created_at", None))
+
+            if local_has_all_libraries.get(u.uuid):
+                item["has_all_libraries"] = True
+                item["libraries"] = ["All Libraries"]
+            else:
+                libs = sorted(local_libraries_map.get(u.uuid, set()), key=str.lower)
+                item["libraries"] = libs
+                item["has_all_libraries"] = False
 
         # avatar url aligned with v1 helper
         item["avatar_url"] = _avatar_url(u)

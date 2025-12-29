@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Pagination } from '../common/Pagination';
 import { useNavigate } from '@tanstack/react-router';
 import { buildUserProfilePath } from '../../util/routes';
@@ -6,6 +6,8 @@ import { Checkbox } from '../ui/checkbox';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { Skeleton } from '../ui/skeleton';
 import { cn } from '@/lib/utils';
+import { Button } from '../ui/button';
+import { UserDebugModal } from './UserDebugModal';
 
 export type UserRow = {
   uuid: string;
@@ -37,15 +39,33 @@ export type UserRow = {
     display_name?: string | null;
   } | null;
   notes?: string | null;
+  last_known_ip?: string | null;
+  total_plays?: number;
+  total_duration?: number;
+  last_played?: {
+    media_title?: string | null;
+    started_at?: string | null;
+    rating_key?: string | null;
+    server_id?: number | null;
+  } | null;
 };
 
 export type UserColumns = {
   name: boolean;
   email: boolean;
+  serviceJoinDate: boolean;
+  lastKnownIp: boolean;
+  totalPlays: boolean;
+  totalDuration: boolean;
   type: boolean;
   roles: boolean;
+  libraries: boolean;
+  lastStreamed: boolean;
+  mumAddedDate: boolean;
+  lastPlayed: boolean;
   linked: boolean;
   lastLogin: boolean;
+  actions: boolean;
 };
 
 type UsersTableProps = {
@@ -111,6 +131,7 @@ export const UsersTable = ({
   selectAllState = 'none'
 }: UsersTableProps) => {
   const navigate = useNavigate();
+  const [debugUserUuid, setDebugUserUuid] = useState<string | null>(null);
 
   const handleRowClick = (e: React.MouseEvent, user: UserRow) => {
     // Don't navigate if clicking checkbox
@@ -123,13 +144,47 @@ export const UsersTable = ({
     if (onToggleSelection) {
       onToggleSelection(user.uuid);
     } else {
-      navigate(buildUserProfilePath(user), { state: { userUuid: user.uuid } });
+      navigate({ to: buildUserProfilePath(user), state: { userUuid: user.uuid } });
     }
   };
 
+  const formatDuration = (seconds?: number | null) => {
+    if (seconds == null) {
+      return '-';
+    }
+    const minutes = Math.round(seconds / 60);
+    if (minutes < 60) return `${minutes}m`;
+    const hours = Math.floor(minutes / 60);
+    const remainingMinutes = minutes % 60;
+    return remainingMinutes ? `${hours}h ${remainingMinutes}m` : `${hours}h`;
+  };
+
+  const formatDate = (value?: string | null) =>
+    value ? new Date(value).toLocaleDateString() : '-';
+
+  const formatDateTime = (value?: string | null) =>
+    value ? new Date(value).toLocaleString() : '-';
+
+  const renderLibraries = (user: UserRow) => {
+    if (user.has_all_libraries) {
+      return <span className="text-xs font-medium">All Libraries</span>;
+    }
+
+    if (!user.libraries || user.libraries.length === 0) {
+      return <span className="text-xs text-muted-foreground">-</span>;
+    }
+
+    const label = user.libraries.join(', ');
+    return (
+      <span className="max-w-[220px] truncate text-xs" title={label}>
+        {label}
+      </span>
+    );
+  };
+
   return (
-    <div className="overflow-hidden rounded-xl border shadow-sm">
-      <Table>
+    <div className="overflow-x-auto rounded-xl border shadow-sm">
+      <Table className="min-w-max bg-card">
         <TableHeader>
           <TableRow>
             {onToggleSelection && (
@@ -147,12 +202,21 @@ export const UsersTable = ({
               </TableHead>
             )}
             {columns.name ? <TableHead className="w-12"></TableHead> : null}
-            {columns.name ? <TableHead>Name</TableHead> : null}
+            {columns.name ? <TableHead>User</TableHead> : null}
             {columns.email ? <TableHead>Email</TableHead> : null}
+            {columns.serviceJoinDate ? <TableHead>Service Join</TableHead> : null}
+            {columns.lastKnownIp ? <TableHead>Last Known IP</TableHead> : null}
+            {columns.totalPlays ? <TableHead>Total Plays</TableHead> : null}
+            {columns.totalDuration ? <TableHead>Total Duration</TableHead> : null}
             {columns.type ? <TableHead>Type</TableHead> : null}
             {columns.roles ? <TableHead>Roles</TableHead> : null}
+            {columns.libraries ? <TableHead>Libraries</TableHead> : null}
+            {columns.lastStreamed ? <TableHead>Last Streamed</TableHead> : null}
+            {columns.mumAddedDate ? <TableHead>MUM Added</TableHead> : null}
+            {columns.lastPlayed ? <TableHead>Last Played</TableHead> : null}
             {columns.linked ? <TableHead>Linked Services</TableHead> : null}
             {columns.lastLogin ? <TableHead>Last Login</TableHead> : null}
+            {columns.actions ? <TableHead className="text-right">Actions</TableHead> : null}
           </TableRow>
         </TableHeader>
         <TableBody className="cursor-pointer">
@@ -179,6 +243,26 @@ export const UsersTable = ({
                     <Skeleton className="h-4 w-40" />
                   </TableCell>
                 ) : null}
+                {columns.serviceJoinDate ? (
+                  <TableCell>
+                    <Skeleton className="h-4 w-24" />
+                  </TableCell>
+                ) : null}
+                {columns.lastKnownIp ? (
+                  <TableCell>
+                    <Skeleton className="h-4 w-24" />
+                  </TableCell>
+                ) : null}
+                {columns.totalPlays ? (
+                  <TableCell>
+                    <Skeleton className="h-4 w-12" />
+                  </TableCell>
+                ) : null}
+                {columns.totalDuration ? (
+                  <TableCell>
+                    <Skeleton className="h-4 w-16" />
+                  </TableCell>
+                ) : null}
                 {columns.type ? (
                   <TableCell>
                     <Skeleton className="h-4 w-20" />
@@ -192,6 +276,26 @@ export const UsersTable = ({
                     </div>
                   </TableCell>
                 ) : null}
+                {columns.libraries ? (
+                  <TableCell>
+                    <Skeleton className="h-4 w-32" />
+                  </TableCell>
+                ) : null}
+                {columns.lastStreamed ? (
+                  <TableCell>
+                    <Skeleton className="h-4 w-28" />
+                  </TableCell>
+                ) : null}
+                {columns.mumAddedDate ? (
+                  <TableCell>
+                    <Skeleton className="h-4 w-20" />
+                  </TableCell>
+                ) : null}
+                {columns.lastPlayed ? (
+                  <TableCell>
+                    <Skeleton className="h-4 w-32" />
+                  </TableCell>
+                ) : null}
                 {columns.linked ? (
                   <TableCell>
                     <Skeleton className="h-4 w-8" />
@@ -200,6 +304,14 @@ export const UsersTable = ({
                 {columns.lastLogin ? (
                   <TableCell>
                     <Skeleton className="h-4 w-32" />
+                  </TableCell>
+                ) : null}
+                {columns.actions ? (
+                  <TableCell>
+                    <div className="flex justify-end gap-1">
+                      <Skeleton className="h-8 w-8" />
+                      <Skeleton className="h-8 w-8" />
+                    </div>
                   </TableCell>
                 ) : null}
               </TableRow>
@@ -233,7 +345,31 @@ export const UsersTable = ({
                         {user.display_name || user.username || 'Unnamed User'}
                       </TableCell>
                     ) : null}
-                    {columns.email ? <TableCell className="text-muted-foreground">{user.external_email ?? '—'}</TableCell> : null}
+                    {columns.email ? (
+                      <TableCell className="text-muted-foreground">
+                        {user.external_email ?? user.email ?? '-'}
+                      </TableCell>
+                    ) : null}
+                    {columns.serviceJoinDate ? (
+                      <TableCell className="text-xs text-muted-foreground">
+                        {formatDate(user.service_join_date)}
+                      </TableCell>
+                    ) : null}
+                    {columns.lastKnownIp ? (
+                      <TableCell className="text-xs text-muted-foreground">
+                        {user.last_known_ip ?? '-'}
+                      </TableCell>
+                    ) : null}
+                    {columns.totalPlays ? (
+                      <TableCell className="text-xs text-muted-foreground">
+                        {user.total_plays ?? 0}
+                      </TableCell>
+                    ) : null}
+                    {columns.totalDuration ? (
+                      <TableCell className="text-xs text-muted-foreground">
+                        {formatDuration(user.total_duration)}
+                      </TableCell>
+                    ) : null}
                     {columns.type ? <TableCell className="capitalize text-muted-foreground">{user.user_type}</TableCell> : null}
                     {columns.roles ? (
                       <TableCell>
@@ -264,10 +400,61 @@ export const UsersTable = ({
                         </div>
                       </TableCell>
                     ) : null}
+                    {columns.libraries ? (
+                      <TableCell className="text-muted-foreground">
+                        {renderLibraries(user)}
+                      </TableCell>
+                    ) : null}
+                    {columns.lastStreamed ? (
+                      <TableCell className="text-xs text-muted-foreground">
+                        {formatDateTime(user.last_streamed_at)}
+                      </TableCell>
+                    ) : null}
+                    {columns.mumAddedDate ? (
+                      <TableCell className="text-xs text-muted-foreground">
+                        {formatDate(user.created_at)}
+                      </TableCell>
+                    ) : null}
+                    {columns.lastPlayed ? (
+                      <TableCell
+                        className="text-xs text-muted-foreground"
+                        title={user.last_played?.started_at ? new Date(user.last_played.started_at).toLocaleString() : undefined}
+                      >
+                        {user.last_played?.media_title ?? 'Never'}
+                      </TableCell>
+                    ) : null}
                     {columns.linked ? <TableCell className="text-muted-foreground">{user.linked_service_count}</TableCell> : null}
                     {columns.lastLogin ? (
                       <TableCell className="text-xs text-muted-foreground">
-                        {user.last_login_at ? new Date(user.last_login_at).toLocaleString() : '—'}
+                        {user.last_login_at ? new Date(user.last_login_at).toLocaleString() : '-'}
+                      </TableCell>
+                    ) : null}
+                    {columns.actions ? (
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            title="Show Raw User Data"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDebugUserUuid(user.uuid);
+                            }}
+                          >
+                            <i className="fa-solid fa-info" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            title="View User Profile"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate({ to: buildUserProfilePath(user), state: { userUuid: user.uuid } });
+                            }}
+                          >
+                            <i className="fa-solid fa-user" />
+                          </Button>
+                        </div>
                       </TableCell>
                     ) : null}
                   </TableRow>
@@ -296,6 +483,11 @@ export const UsersTable = ({
           />
         </div>
       )}
+      <UserDebugModal
+        open={Boolean(debugUserUuid)}
+        onClose={() => setDebugUserUuid(null)}
+        userUuid={debugUserUuid}
+      />
     </div>
   );
 };

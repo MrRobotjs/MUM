@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react'
-import { IconDeviceFloppy, IconRefresh, IconTestPipe, IconAlertCircle, IconInfoCircle } from '@tabler/icons-react'
-import { useDiscordSettings, type DiscordSettings } from '../hooks/useSettings'
+import { useEffect, useState } from 'react'
+import { IconAlertCircle, IconAlertTriangle, IconBrandDiscord, IconDeviceFloppy, IconInfoCircle, IconRefresh, IconRobot, IconTestPipe } from '@tabler/icons-react'
+import { useDiscordSettings } from '../hooks/useSettings'
 import { PageHeader } from '../components'
 import { requestJson } from '../util/apiClient'
 import { useAlerts } from '../contexts'
@@ -8,33 +8,112 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
+
+type DiscordFormValues = {
+  enable_oauth: boolean
+  enable_bot: boolean
+  enable_membership_requirement: boolean
+  client_id: string
+  client_secret: string
+  oauth_auth_url: string
+  guild_id: string
+  server_invite_url: string
+  bot_token: string
+  monitored_role_id: string
+  thread_channel_id: string
+  bot_log_channel_id: string
+  whitelist_sharers: boolean
+}
+
+type DiscordFormMeta = {
+  client_secret_set: boolean
+  bot_token_set: boolean
+  redirect_uri_invite: string
+  redirect_uri_admin: string
+}
+
+const emptyFormValues: DiscordFormValues = {
+  enable_oauth: false,
+  enable_bot: false,
+  enable_membership_requirement: false,
+  client_id: '',
+  client_secret: '',
+  oauth_auth_url: '',
+  guild_id: '',
+  server_invite_url: '',
+  bot_token: '',
+  monitored_role_id: '',
+  thread_channel_id: '',
+  bot_log_channel_id: '',
+  whitelist_sharers: false,
+}
+
+const emptyFormMeta: DiscordFormMeta = {
+  client_secret_set: false,
+  bot_token_set: false,
+  redirect_uri_invite: '',
+  redirect_uri_admin: '',
+}
 
 export const AdminSettingsDiscordPage = () => {
   const { settings, loading, error, refresh } = useDiscordSettings()
   const { success, error: showError } = useAlerts()
-  const [formValues, setFormValues] = useState<DiscordSettings>({
-    enabled: false,
-    client_id: '',
-    client_secret: '',
-    bot_token: '',
-    guild_id: '',
-    redirect_uri: '',
-  })
+  const [formValues, setFormValues] = useState<DiscordFormValues>(emptyFormValues)
+  const [formMeta, setFormMeta] = useState<DiscordFormMeta>(emptyFormMeta)
   const [submitting, setSubmitting] = useState(false)
   const [testing, setTesting] = useState(false)
   const [hasChanges, setHasChanges] = useState(false)
+  const [useOauthOverride, setUseOauthOverride] = useState(false)
 
   useEffect(() => {
-    if (settings) {
-      setFormValues(settings)
-      setHasChanges(false)
-    }
+    if (!settings) return
+    setFormValues({
+      enable_oauth: settings.enable_oauth,
+      enable_bot: settings.enable_bot,
+      enable_membership_requirement: settings.enable_membership_requirement,
+      client_id: settings.client_id ?? '',
+      client_secret: '',
+      oauth_auth_url: settings.oauth_auth_url ?? '',
+      guild_id: settings.guild_id ?? '',
+      server_invite_url: settings.server_invite_url ?? '',
+      bot_token: '',
+      monitored_role_id: settings.monitored_role_id ?? '',
+      thread_channel_id: settings.thread_channel_id ?? '',
+      bot_log_channel_id: settings.bot_log_channel_id ?? '',
+      whitelist_sharers: settings.whitelist_sharers,
+    })
+    setFormMeta({
+      client_secret_set: settings.client_secret_set,
+      bot_token_set: settings.bot_token_set,
+      redirect_uri_invite: settings.redirect_uri_invite ?? '',
+      redirect_uri_admin: settings.redirect_uri_admin ?? '',
+    })
+    setUseOauthOverride(Boolean(settings.oauth_auth_url))
+    setHasChanges(false)
   }, [settings])
 
-  const handleChange = (field: keyof DiscordSettings, value: string | boolean) => {
+  const handleChange = (field: keyof DiscordFormValues, value: string) => {
     setFormValues((prev) => ({ ...prev, [field]: value }))
+    setHasChanges(true)
+  }
+
+  const handleToggle = (
+    field: 'enable_oauth' | 'enable_bot' | 'enable_membership_requirement' | 'whitelist_sharers',
+    value: boolean
+  ) => {
+    setFormValues((prev) => {
+      const next = { ...prev, [field]: value }
+      if ((field === 'enable_bot' || field === 'enable_membership_requirement') && value) {
+        next.enable_oauth = true
+      }
+      if (field === 'enable_oauth' && !value) {
+        next.enable_bot = false
+        next.enable_membership_requirement = false
+      }
+      return next
+    })
     setHasChanges(true)
   }
 
@@ -57,12 +136,12 @@ export const AdminSettingsDiscordPage = () => {
     }
   }
 
-  const handleTest = async () => {
+  const handleTest = async (type: 'oauth' | 'bot' = 'oauth') => {
     setTesting(true)
     try {
       const response = await requestJson<{ data: { success: boolean; message?: string } }>(
         '/admin/api/v2/settings/discord/test',
-        { method: 'POST' }
+        { method: 'POST', body: JSON.stringify({ type }) }
       )
       if (response.data?.success) {
         success('Discord connection test successful')
@@ -77,10 +156,54 @@ export const AdminSettingsDiscordPage = () => {
   }
 
   const handleReset = () => {
-    if (settings) {
-      setFormValues(settings)
-      setHasChanges(false)
+    if (!settings) return
+    setFormValues({
+      enable_oauth: settings.enable_oauth,
+      enable_bot: settings.enable_bot,
+      enable_membership_requirement: settings.enable_membership_requirement,
+      client_id: settings.client_id ?? '',
+      client_secret: '',
+      oauth_auth_url: settings.oauth_auth_url ?? '',
+      guild_id: settings.guild_id ?? '',
+      server_invite_url: settings.server_invite_url ?? '',
+      bot_token: '',
+      monitored_role_id: settings.monitored_role_id ?? '',
+      thread_channel_id: settings.thread_channel_id ?? '',
+      bot_log_channel_id: settings.bot_log_channel_id ?? '',
+      whitelist_sharers: settings.whitelist_sharers,
+    })
+    setUseOauthOverride(Boolean(settings.oauth_auth_url))
+    setHasChanges(false)
+  }
+
+  const requireGuildId = formValues.enable_bot || formValues.enable_membership_requirement
+  const clientSecretConfigured = formMeta.client_secret_set || formValues.client_secret.length > 0
+  const requireClientSecret = formValues.enable_oauth && !formMeta.client_secret_set
+  const oauthDisabled = !formValues.enable_oauth
+  const generatedOauthUrl = (() => {
+    if (!formValues.client_id || !formMeta.redirect_uri_invite) {
+      return ''
     }
+    const params = new URLSearchParams({
+      response_type: 'code',
+      client_id: formValues.client_id,
+      scope: 'identify email guilds',
+      state: '{STATE}',
+      redirect_uri: formMeta.redirect_uri_invite,
+      prompt: 'consent',
+    })
+    const query = params.toString().replace(/state=%7BSTATE%7D/i, 'state={STATE}')
+    return `https://discord.com/api/v10/oauth2/authorize?${query}`
+  })()
+  const oauthAuthInputValue = useOauthOverride ? formValues.oauth_auth_url : generatedOauthUrl
+
+  const handleOauthOverrideToggle = (value: boolean) => {
+    setUseOauthOverride(value)
+    setFormValues((prev) => ({
+      ...prev,
+      oauth_auth_url: value ? (prev.oauth_auth_url || generatedOauthUrl) : ''
+    }))
+    setHasChanges(true)
   }
 
   if (loading) {
@@ -115,7 +238,7 @@ export const AdminSettingsDiscordPage = () => {
         <IconInfoCircle />
         <AlertTitle>Discord Integration Setup</AlertTitle>
         <AlertDescription>
-          Create a Discord application at{' '}
+          <p>Create a Discord application at{' '}
           <a
             href="https://discord.com/developers/applications"
             target="_blank"
@@ -124,31 +247,45 @@ export const AdminSettingsDiscordPage = () => {
           >
             Discord Developer Portal
           </a>{' '}
-          to get your Client ID and Secret.
+          to get your Client ID and Secret.</p>
         </AlertDescription>
       </Alert>
 
       <form onSubmit={handleSubmit} className="space-y-6">
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>Discord Integration</CardTitle>
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/20">
+                  <IconBrandDiscord className="size-5 text-primary" />
+                </div>
+                <div>
+                  <CardTitle className="mb-1 text-xl font-semibold">Discord OAuth</CardTitle>
+                  <CardDescription>Connect MUM to Discord for OAuth-based linking.</CardDescription>
+                </div>
+              </div>
               <div className="flex items-center gap-3">
                 <Label htmlFor="discord-enabled" className="cursor-pointer">
-                  Enable Discord
+                  Enable OAuth
                 </Label>
                 <Switch
                   id="discord-enabled"
-                  checked={formValues.enabled}
-                  onCheckedChange={(checked) => handleChange('enabled', checked)}
+                  checked={formValues.enable_oauth}
+                  onCheckedChange={(checked) => handleToggle('enable_oauth', checked)}
                 />
               </div>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
+            <p className="text-xs text-muted-foreground">
+              Enables Discord linking on public invites and for admin accounts.{' '}
+              <span className="text-warning">
+                This is automatically enabled if Bot Configuration is enabled or if Require Discord membership is turned on below.
+              </span>
+            </p>
             <div className="space-y-2">
               <Label htmlFor="client_id">
-                Client ID {formValues.enabled && <span className="text-destructive">*</span>}
+                Client ID {formValues.enable_oauth && <span className="text-destructive">*</span>}
               </Label>
               <Input
                 id="client_id"
@@ -156,29 +293,97 @@ export const AdminSettingsDiscordPage = () => {
                 className="font-mono"
                 value={formValues.client_id}
                 onChange={(e) => handleChange('client_id', e.target.value)}
-                required={formValues.enabled}
+                required={formValues.enable_oauth}
+                disabled={oauthDisabled}
                 placeholder="1234567890123456789"
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="client_secret">Client Secret</Label>
+              <Label htmlFor="client_secret">
+                Client Secret {requireClientSecret && <span className="text-destructive">*</span>}
+              </Label>
               <Input
                 id="client_secret"
                 type="password"
                 className="font-mono"
                 value={formValues.client_secret}
                 onChange={(e) => handleChange('client_secret', e.target.value)}
-                placeholder="••••••••••••••••••••••••••••••"
+                required={requireClientSecret}
+                disabled={oauthDisabled}
+                placeholder="********"
               />
               <p className="text-xs text-muted-foreground">
-                Leave blank to keep existing secret
+                {clientSecretConfigured ? 'Secret is already configured. Leave blank to keep it.' : 'Enter your client secret.'}
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-4">
+                <Label htmlFor="oauth_auth_url">Authorization URL</Label>
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="oauth-auth-override" className="text-xs text-muted-foreground">
+                    Override
+                  </Label>
+                  <Switch
+                    id="oauth-auth-override"
+                    checked={useOauthOverride}
+                    onCheckedChange={handleOauthOverrideToggle}
+                    disabled={oauthDisabled}
+                  />
+                </div>
+              </div>
+              <Input
+                id="oauth_auth_url"
+                type="url"
+                className="font-mono"
+                value={oauthAuthInputValue}
+                onChange={(e) => handleChange('oauth_auth_url', e.target.value)}
+                disabled={oauthDisabled || !useOauthOverride}
+                placeholder="https://discord.com/api/v10/oauth2/authorize"
+              />
+              <p className="text-xs text-muted-foreground">
+                {useOauthOverride ? (
+                  'This overrides the generated URL used for invite links. Use {STATE} to preserve the runtime state value.'
+                ) : (
+                  'Generated from the Client ID and Invite Redirect URI. The state value is filled in at runtime.'
+                )}
+              </p>
+            </div>
+
+            <p className="text-xs text-muted-foreground">
+              Add these redirect URIs to your Discord App's OAuth2 settings.
+            </p>
+            <div className="space-y-2">
+              <Label htmlFor="redirect_uri_invite">Invite Redirect URI</Label>
+              <Input
+                id="redirect_uri_invite"
+                type="url"
+                className="font-mono"
+                value={formMeta.redirect_uri_invite}
+                readOnly
+                disabled={oauthDisabled}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="redirect_uri_admin">Admin Redirect URI</Label>
+              <Input
+                id="redirect_uri_admin"
+                type="url"
+                className="font-mono"
+                value={formMeta.redirect_uri_admin}
+                readOnly
+                disabled={oauthDisabled}
+              />
+              <p className="text-xs text-muted-foreground">
+                These redirect URIs are derived from the configured app base URL.
               </p>
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="guild_id">
-                Guild (Server) ID {formValues.enabled && <span className="text-destructive">*</span>}
+                Guild (Server) ID {requireGuildId && <span className="text-destructive">*</span>}
               </Label>
               <Input
                 id="guild_id"
@@ -186,7 +391,8 @@ export const AdminSettingsDiscordPage = () => {
                 className="font-mono"
                 value={formValues.guild_id}
                 onChange={(e) => handleChange('guild_id', e.target.value)}
-                required={formValues.enabled}
+                required={requireGuildId}
+                disabled={oauthDisabled}
                 placeholder="1234567890123456789"
               />
               <p className="text-xs text-muted-foreground">
@@ -194,31 +400,71 @@ export const AdminSettingsDiscordPage = () => {
               </p>
             </div>
 
+            <div className="flex items-center justify-between rounded-lg border border-border/70 bg-muted/40 p-3">
+              <div>
+                <p className="text-sm font-medium">Require Discord membership</p>
+                <p className="text-xs text-muted-foreground">
+                  Enforce that users are members of your Discord guild before linking.
+                </p>
+              </div>
+              <Switch
+                checked={formValues.enable_membership_requirement}
+                onCheckedChange={(checked) => handleToggle('enable_membership_requirement', checked)}
+                disabled={oauthDisabled}
+              />
+            </div>
+
             <div className="space-y-2">
-              <Label htmlFor="redirect_uri">
-                Redirect URI {formValues.enabled && <span className="text-destructive">*</span>}
+              <Label htmlFor="server_invite_url">
+                Server Invite URL {formValues.enable_membership_requirement && <span className="text-destructive">*</span>}
               </Label>
               <Input
-                id="redirect_uri"
+                id="server_invite_url"
                 type="url"
                 className="font-mono"
-                value={formValues.redirect_uri}
-                onChange={(e) => handleChange('redirect_uri', e.target.value)}
-                required={formValues.enabled}
-                placeholder="https://mum.example.com/auth/discord/callback"
+                value={formValues.server_invite_url}
+                onChange={(e) => handleChange('server_invite_url', e.target.value)}
+                required={formValues.enable_membership_requirement}
+                disabled={oauthDisabled}
+                placeholder="https://discord.gg/your-invite"
               />
-              <p className="text-xs text-muted-foreground">
-                Add this URL to your Discord application's OAuth2 redirect URIs
-              </p>
             </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>Bot Configuration (Optional)</CardTitle>
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/20">
+                  <IconRobot className="size-5 text-primary" />
+                </div>
+                <div>
+                  <CardTitle className="mb-1 text-xl font-semibold">Bot Configuration</CardTitle>
+                  <CardDescription>Optional bot automation and moderation tools.</CardDescription>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <Label htmlFor="bot-enabled" className="cursor-pointer">
+                  Enable Bot
+                </Label>
+                <Switch
+                  id="bot-enabled"
+                  checked={formValues.enable_bot}
+                  onCheckedChange={(checked) => handleToggle('enable_bot', checked)}
+                  disabled={oauthDisabled}
+                />
+              </div>
+            </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
+            <Alert variant="warning">
+              <IconAlertTriangle />
+              <AlertTitle>Under Development</AlertTitle>
+              <AlertDescription>
+                Bot configuration is not functional yet and is still a WIP.
+              </AlertDescription>
+            </Alert>
             <div className="space-y-2">
               <Label htmlFor="bot_token">Bot Token</Label>
               <Input
@@ -227,11 +473,65 @@ export const AdminSettingsDiscordPage = () => {
                 className="font-mono"
                 value={formValues.bot_token}
                 onChange={(e) => handleChange('bot_token', e.target.value)}
-                placeholder="••••••••••••••••••••••••••••••"
+                disabled={oauthDisabled}
+                placeholder="********"
               />
               <p className="text-xs text-muted-foreground">
-                Bot token for advanced Discord features (role assignment, announcements)
+                {formMeta.bot_token_set ? 'Bot token is already configured. Leave blank to keep it.' : 'Enter the bot token to enable bot features.'}
               </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="monitored_role_id">Monitored Role ID</Label>
+              <Input
+                id="monitored_role_id"
+                type="text"
+                className="font-mono"
+                value={formValues.monitored_role_id}
+                onChange={(e) => handleChange('monitored_role_id', e.target.value)}
+                disabled={oauthDisabled}
+                placeholder="1234567890123456789"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="thread_channel_id">Thread Channel ID</Label>
+              <Input
+                id="thread_channel_id"
+                type="text"
+                className="font-mono"
+                value={formValues.thread_channel_id}
+                onChange={(e) => handleChange('thread_channel_id', e.target.value)}
+                disabled={oauthDisabled}
+                placeholder="1234567890123456789"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="bot_log_channel_id">Bot Log Channel ID</Label>
+              <Input
+                id="bot_log_channel_id"
+                type="text"
+                className="font-mono"
+                value={formValues.bot_log_channel_id}
+                onChange={(e) => handleChange('bot_log_channel_id', e.target.value)}
+                disabled={oauthDisabled}
+                placeholder="1234567890123456789"
+              />
+            </div>
+
+            <div className="flex items-center justify-between rounded-lg border border-border/70 bg-muted/40 p-3">
+              <div>
+                <p className="text-sm font-medium">Whitelist Sharers</p>
+                <p className="text-xs text-muted-foreground">
+                  Automatically whitelist users who share back.
+                </p>
+              </div>
+              <Switch
+                checked={formValues.whitelist_sharers}
+                onCheckedChange={(checked) => handleToggle('whitelist_sharers', checked)}
+                disabled={oauthDisabled}
+              />
             </div>
           </CardContent>
         </Card>
@@ -240,8 +540,8 @@ export const AdminSettingsDiscordPage = () => {
           <Button
             type="button"
             variant="ghost"
-            onClick={handleTest}
-            disabled={testing || !formValues.enabled}
+            onClick={() => handleTest('oauth')}
+            disabled={testing || !formValues.enable_oauth}
           >
             {testing ? (
               <>

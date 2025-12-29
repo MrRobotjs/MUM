@@ -3,6 +3,7 @@ import { useNavigate } from '@tanstack/react-router';
 import {
   IconInfoCircle,
   IconAlertTriangle,
+  IconList,
   IconPalette,
   IconDroplet,
   IconSparkles,
@@ -307,17 +308,18 @@ export const AdminSettingsUserRolesPage = () => {
       </Alert>
 
       <Card>
-        <CardContent className="p-6">
-          <div className="mb-6 flex items-center gap-3">
-            <div className="flex size-8 items-center justify-center rounded-full bg-secondary/20">
-              <i className="fa-solid fa-list text-sm text-secondary" />
+        <CardHeader>
+          <div className="flex items-center gap-3">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/20">
+              <IconList className="size-5 text-primary" />
             </div>
             <div>
-              <h3 className="text-lg font-semibold">Existing Roles</h3>
-              <p className="text-sm text-muted-foreground">Badges and colors available to assign to users</p>
+              <CardTitle className="mb-1 text-xl font-semibold">Existing Roles</CardTitle>
+              <CardDescription>Badges and colors available to assign to users</CardDescription>
             </div>
           </div>
-
+        </CardHeader>
+        <CardContent>
           {loading ? (
             <div className="flex items-center justify-center py-12">
               <span className="inline-flex size-4 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />

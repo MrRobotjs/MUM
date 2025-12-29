@@ -553,7 +553,12 @@ def start_discord_auth_v2(path: InvitePath):
 
     provided_oauth_url = Setting.get('DISCORD_OAUTH_AUTH_URL')
     if provided_oauth_url:
-        oauth_url = provided_oauth_url
+        oauth_url = (
+            provided_oauth_url
+            .replace('{STATE}', state_token)
+            .replace('%7BSTATE%7D', state_token)
+            .replace('%7bSTATE%7d', state_token)
+        )
     else:
         params = {
             'response_type': 'code',

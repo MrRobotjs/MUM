@@ -95,10 +95,6 @@ export const LibrariesPage = () => {
   }, [servers, serverId]);
 
   const summaryStats = useMemo(() => {
-    const totalLibraries = libraries.length;
-    const totalItems = libraries.reduce((acc, lib) => acc + (lib.item_count ?? 0), 0);
-    const activeServers = servers.length;
-    const onlineServers = servers.filter((server) => server.last_status === true).length;
     const lastSyncedAt = servers.reduce<string | null>((latest, server) => {
       if (!server.last_sync_at) return latest;
       if (!latest) return server.last_sync_at;
@@ -106,10 +102,6 @@ export const LibrariesPage = () => {
     }, null);
 
     return {
-      totalLibraries,
-      totalItems,
-      activeServers,
-      onlineServers,
       lastSyncedAt
     };
   }, [libraries, servers]);
@@ -292,46 +284,7 @@ export const LibrariesPage = () => {
       )}
 
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <Card className="border border-border/60 bg-gradient-to-br from-background via-background/40 to-muted/40 shadow-sm">
-          <CardContent className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Libraries</p>
-            <div className="text-3xl font-semibold">{summaryStats.totalLibraries.toLocaleString()}</div>
-            <p className="text-sm text-muted-foreground">
-              {uniqueTypes.length} library type{uniqueTypes.length === 1 ? '' : 's'}
-            </p>
-          </CardContent>
-        </Card>
-        <Card className="border border-border/60 bg-gradient-to-br from-background via-background/40 to-primary/5 shadow-sm">
-          <CardContent className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Items Indexed</p>
-            <div className="text-3xl font-semibold">{summaryStats.totalItems.toLocaleString()}</div>
-            <p className="text-sm text-muted-foreground">Across all libraries</p>
-          </CardContent>
-        </Card>
-        <Card className="border border-border/60 bg-gradient-to-br from-background via-background/40 to-emerald-500/5 shadow-sm">
-          <CardContent className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Servers</p>
-            <div className="text-3xl font-semibold">{summaryStats.activeServers.toLocaleString()}</div>
-            <Badge
-              variant="outline"
-              className={cn(
-                'w-fit border-emerald-400/60 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
-                summaryStats.onlineServers === 0 && 'border-amber-400/60 bg-amber-500/10 text-amber-600'
-              )}
-            >
-              <span className="flex items-center gap-1">
-                <span
-                  className={cn(
-                    'h-1.5 w-1.5 rounded-full bg-emerald-500',
-                    summaryStats.onlineServers === 0 && 'bg-amber-500'
-                  )}
-                />
-                {summaryStats.onlineServers} online
-              </span>
-            </Badge>
-          </CardContent>
-        </Card>
+      <div className="grid gap-4">
         <Card className="border border-border/60 bg-gradient-to-br from-background via-background/40 to-secondary/20 shadow-sm">
           <CardContent className="space-y-2">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Most Recent Sync</p>

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
-import { IconGripVertical, IconAlertCircle, IconInfoCircle } from '@tabler/icons-react'
+import { IconGripVertical, IconAlertCircle, IconInfoCircle, IconShield } from '@tabler/icons-react'
 import {
   DndContext,
   MouseSensor,
@@ -26,7 +26,7 @@ import { requestJson } from '../util/apiClient'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -311,17 +311,18 @@ export const AdminSettingsAdminRolesPage = () => {
       </Alert>
 
       <Card>
-        <CardContent className="p-6">
-          <div className="mb-6 flex items-center gap-3">
-            <div className="flex size-8 items-center justify-center rounded-full bg-secondary/20">
-              <i className="fa-solid fa-shield-halved text-sm text-secondary" />
+        <CardHeader>
+          <div className="flex items-center gap-3">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/20">
+              <IconShield className="size-5 text-primary" />
             </div>
             <div>
-              <h3 className="text-lg font-semibold">Existing Roles</h3>
-              <p className="text-sm text-muted-foreground">Admin roles with their permissions and hierarchy</p>
+              <CardTitle className="mb-1 text-xl font-semibold">Existing Roles</CardTitle>
+              <CardDescription>Admin roles with their permissions and hierarchy</CardDescription>
             </div>
           </div>
-
+        </CardHeader>
+        <CardContent>
           {loading ? (
             <div className="flex items-center justify-center py-12">
               <span className="inline-flex size-4 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />

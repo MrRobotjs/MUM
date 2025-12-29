@@ -20,12 +20,28 @@ type UsersResponse = {
     uuid: string;
     username?: string;
     email?: string;
+    external_email?: string;
     user_type: string;
     display_name?: string;
+    avatar_url?: string | null;
     created_at?: string;
     last_streamed_at?: string | null;
     service_join_date?: string | null;
     last_login_at?: string;
+    last_known_ip?: string | null;
+    total_plays?: number;
+    total_duration?: number;
+    last_played?: {
+      media_title?: string | null;
+      original_media_title?: string | null;
+      media_type?: string | null;
+      grandparent_title?: string | null;
+      parent_title?: string | null;
+      rating_key?: string | null;
+      server_id?: number | null;
+      thumb_url?: string | null;
+      started_at?: string | null;
+    } | null;
     is_active: boolean;
     admin_roles: string[];
     user_roles: Array<{
@@ -44,6 +60,7 @@ type UsersResponse = {
       username?: string | null;
       display_name?: string | null;
     } | null;
+    notes?: string | null;
   }>;
   meta: {
     pagination: {

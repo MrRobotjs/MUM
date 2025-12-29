@@ -98,10 +98,19 @@ export const UsersListPage = () => {
   const [columns, setColumns] = useState<UserColumns>({
     name: true,
     email: true,
+    serviceJoinDate: true,
+    lastKnownIp: true,
+    totalPlays: true,
+    totalDuration: true,
     type: true,
     roles: true,
+    libraries: true,
+    lastStreamed: true,
+    mumAddedDate: true,
+    lastPlayed: true,
     linked: true,
-    lastLogin: true
+    lastLogin: true,
+    actions: true
   });
 
   const toggleColumn = (key: keyof UserColumns) => {
@@ -260,10 +269,19 @@ export const UsersListPage = () => {
                 [
                   { key: 'name', label: 'Name' },
                   { key: 'email', label: 'Email' },
+                  { key: 'serviceJoinDate', label: 'Service Join Date' },
+                  { key: 'lastKnownIp', label: 'Last Known IP' },
+                  { key: 'totalPlays', label: 'Total Plays' },
+                  { key: 'totalDuration', label: 'Total Duration' },
                   { key: 'type', label: 'Type' },
                   { key: 'roles', label: 'Roles' },
+                  { key: 'libraries', label: 'Libraries' },
+                  { key: 'lastStreamed', label: 'Last Streamed' },
+                  { key: 'mumAddedDate', label: 'MUM Added Date' },
+                  { key: 'lastPlayed', label: 'Last Played' },
                   { key: 'linked', label: 'Linked services' },
-                  { key: 'lastLogin', label: 'Last login' }
+                  { key: 'lastLogin', label: 'Last login' },
+                  { key: 'actions', label: 'Actions' }
                 ] as Array<{ key: keyof UserColumns; label: string }>
               ).map(({ key, label }) => (
                 <DropdownMenuCheckboxItem

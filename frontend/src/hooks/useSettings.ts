@@ -16,12 +16,27 @@ export type GeneralSettings = {
 };
 
 export type DiscordSettings = {
-  enabled: boolean;
-  client_id: string;
-  client_secret?: string;
-  bot_token?: string;
-  guild_id: string;
-  redirect_uri: string;
+  enable_oauth: boolean;
+  client_id: string | null;
+  client_secret_set: boolean;
+  oauth_auth_url: string | null;
+  redirect_uri_invite: string | null;
+  redirect_uri_admin: string | null;
+  enable_membership_requirement: boolean;
+  guild_id: string | null;
+  server_invite_url: string | null;
+  enable_bot: boolean;
+  bot_token_set: boolean;
+  monitored_role_id: string | null;
+  thread_channel_id: string | null;
+  bot_log_channel_id: string | null;
+  whitelist_sharers: boolean;
+  admin_linked: boolean;
+  admin_user: {
+    username: string | null;
+    id: string | null;
+    avatar: string | null;
+  } | null;
 };
 
 export type AdvancedSettings = {

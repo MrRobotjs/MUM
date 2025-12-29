@@ -8,6 +8,7 @@ from flask_openapi3 import Tag
 
 from app.routes.api_v2 import api_v2
 from app.models import Setting, SettingValueType, EventType
+from app.utils.helpers import log_event
 # JWT permission checking handled by jwt_permission_required, log_event
 
 
@@ -138,6 +139,8 @@ def update_discord_settings(body: UpdateDiscordBody, current_user):
     client_id = body.client_id
     client_secret = body.client_secret
     oauth_auth_url = body.oauth_auth_url
+    fields_set = getattr(body, '__fields_set__', None) or getattr(body, 'model_fields_set', set())
+    oauth_auth_url_provided = 'oauth_auth_url' in fields_set
     guild_id = body.guild_id
     server_invite_url = body.server_invite_url
     bot_token = body.bot_token
@@ -153,8 +156,6 @@ def update_discord_settings(body: UpdateDiscordBody, current_user):
         existing_secret = Setting.get('DISCORD_CLIENT_SECRET')
         if not (client_secret or existing_secret):
             return jsonify({'error': {'code': 'CLIENT_SECRET_REQUIRED', 'message': 'Discord client secret is required when OAuth is enabled.'}, 'meta': {'request_id': request_id}}), 400
-        if not oauth_auth_url:
-            oauth_auth_url = Setting.get('DISCORD_OAUTH_AUTH_URL')
     else:
         enable_bot = False
         require_membership = False
@@ -171,6 +172,7 @@ def update_discord_settings(body: UpdateDiscordBody, current_user):
             server_invite_url = final_invite
 
     current_app.config['DISCORD_OAUTH_ENABLED'] = enable_oauth
+    Setting.set('DISCORD_OAUTH_ENABLED', enable_oauth, SettingValueType.BOOLEAN)
     if hasattr(g, 'discord_oauth_enabled_for_invite'):
         g.discord_oauth_enabled_for_invite = enable_oauth
 
@@ -179,36 +181,22 @@ def update_discord_settings(body: UpdateDiscordBody, current_user):
             Setting.set('DISCORD_CLIENT_ID', client_id, SettingValueType.STRING)
         if client_secret:
             Setting.set('DISCORD_CLIENT_SECRET', client_secret, SettingValueType.SECRET)
-        if oauth_auth_url:
-            Setting.set('DISCORD_OAUTH_AUTH_URL', oauth_auth_url, SettingValueType.STRING)
+        if oauth_auth_url_provided:
+            Setting.set('DISCORD_OAUTH_AUTH_URL', oauth_auth_url or '', SettingValueType.STRING)
         invite_redirect, admin_redirect = _compute_redirects()
         if invite_redirect:
             Setting.set('DISCORD_REDIRECT_URI_INVITE', invite_redirect, SettingValueType.STRING)
             Setting.set('DISCORD_REDIRECT_URI_ADMIN_LINK', admin_redirect, SettingValueType.STRING)
         Setting.set('ENABLE_DISCORD_MEMBERSHIP_REQUIREMENT', require_membership, SettingValueType.BOOLEAN)
         Setting.set('DISCORD_REQUIRE_GUILD_MEMBERSHIP', require_membership, SettingValueType.BOOLEAN)
-        if enable_bot or require_membership:
-            Setting.set('DISCORD_GUILD_ID', guild_id or '', SettingValueType.STRING)
-            if require_membership:
-                Setting.set('DISCORD_SERVER_INVITE_URL', server_invite_url or '', SettingValueType.STRING)
-            elif not enable_bot:
-                Setting.set('DISCORD_SERVER_INVITE_URL', '', SettingValueType.STRING)
-        else:
-            Setting.set('DISCORD_GUILD_ID', '', SettingValueType.STRING)
-            Setting.set('DISCORD_SERVER_INVITE_URL', '', SettingValueType.STRING)
     else:
-        for key, value_type in [
-            ('DISCORD_CLIENT_ID', SettingValueType.STRING),
-            ('DISCORD_CLIENT_SECRET', SettingValueType.SECRET),
-            ('DISCORD_OAUTH_AUTH_URL', SettingValueType.STRING),
-            ('DISCORD_REDIRECT_URI_INVITE', SettingValueType.STRING),
-            ('DISCORD_REDIRECT_URI_ADMIN_LINK', SettingValueType.STRING),
-            ('DISCORD_GUILD_ID', SettingValueType.STRING),
-            ('DISCORD_SERVER_INVITE_URL', SettingValueType.STRING)
-        ]:
-            Setting.set(key, '', value_type)
         Setting.set('ENABLE_DISCORD_MEMBERSHIP_REQUIREMENT', False, SettingValueType.BOOLEAN)
         Setting.set('DISCORD_REQUIRE_GUILD_MEMBERSHIP', False, SettingValueType.BOOLEAN)
+
+    if guild_id is not None:
+        Setting.set('DISCORD_GUILD_ID', guild_id, SettingValueType.STRING)
+    if server_invite_url is not None:
+        Setting.set('DISCORD_SERVER_INVITE_URL', server_invite_url, SettingValueType.STRING)
 
     Setting.set('DISCORD_BOT_ENABLED', enable_bot, SettingValueType.BOOLEAN)
     if enable_bot:

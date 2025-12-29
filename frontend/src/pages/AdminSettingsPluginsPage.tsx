@@ -145,12 +145,6 @@ export const AdminSettingsPluginsPage = () => {
       )}
 
       <div>
-        <div>
-          <div>Available Plugins</div>
-          <p className="text-sm text-muted-foreground">
-            {plugins.length} plugin{plugins.length === 1 ? '' : 's'} available
-          </p>
-        </div>
         <div className="space-y-8">
           {loading ? (
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">

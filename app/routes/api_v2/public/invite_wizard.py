@@ -329,6 +329,9 @@ def _handle_discord_oauth_callback(invite: Invite, fallback_path: str):
             'id': discord_user.get('id'),
             'username': discord_user.get('username'),
             'email': discord_user.get('email'),
+            'avatar': discord_user.get('avatar'),
+            'discriminator': discord_user.get('discriminator'),
+            'verified': discord_user.get('verified'),
         }
     except Exception as exc:
         current_app.logger.error("Discord callback failed for invite %s: %s", invite.id, exc)

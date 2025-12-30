@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useParams } from '@tanstack/react-router';
 import { cn } from '@/lib/utils';
+import { buildDiscordAvatarUrl } from '@/lib/discord';
 
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Checkbox } from '../components/ui/checkbox';
+import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '../components/ui/collapsible';
 import { Skeleton } from '../components/ui/skeleton';
 import { useAlerts } from '../contexts/AlertContext';
@@ -113,6 +115,7 @@ type WizardState = {
       email?: string;
       id?: string;
       discriminator?: string;
+      avatar?: string | null;
     } | null;
     guild_id?: string | null;
     invite_url?: string | null;
@@ -443,6 +446,13 @@ export const InviteWizardPage = () => {
   const [startingDiscord, setStartingDiscord] = useState(false);
   const [completing, setCompleting] = useState(false);
   const [completion, setCompletion] = useState<CompletionResponse['data'] | null>(null);
+  const [selectedStepId, setSelectedStepId] = useState<string | null>(null);
+  const discordAvatarUrl = state?.discord.user
+    ? buildDiscordAvatarUrl({
+        userId: state.discord.user.id,
+        avatarHash: state.discord.user.avatar,
+      })
+    : null;
 
   const loadState = useCallback(async () => {
     if (!token) return;
@@ -675,22 +685,57 @@ export const InviteWizardPage = () => {
     return firstIncomplete?.id ?? null;
   }, [state]);
 
+  const currentStepId = selectedStepId ?? activeStepId;
+
   const activeStepIndex = useMemo(() => {
     if (!state?.steps) return -1;
-    if (activeStepId) {
-      const idx = state.steps.findIndex((step) => step.id === activeStepId);
+    if (currentStepId) {
+      const idx = state.steps.findIndex((step) => step.id === currentStepId);
       if (idx >= 0) return idx;
     }
-    const firstIncomplete = state.steps.findIndex((step) => !step.completed);
-    return firstIncomplete >= 0 ? firstIncomplete : state.steps.length;
-  }, [state, activeStepId]);
+    return -1;
+  }, [state, currentStepId]);
 
   const activeServerId = useMemo(() => {
-    if (!activeStepId?.startsWith('server_access_')) return null;
-    const idPart = activeStepId.replace('server_access_', '');
+    if (!currentStepId?.startsWith('server_access_')) return null;
+    const idPart = currentStepId.replace('server_access_', '');
     const parsedId = Number.parseInt(idPart, 10);
     return Number.isNaN(parsedId) ? null : parsedId;
+  }, [currentStepId]);
+
+  const navigableStepIds = useMemo(() => {
+    if (!state?.steps) return [];
+    return state.steps
+      .filter((step) => step.completed || step.id === activeStepId)
+      .map((step) => step.id);
+  }, [state, activeStepId]);
+
+  const navigableIndex = useMemo(() => {
+    if (!currentStepId) return -1;
+    return navigableStepIds.indexOf(currentStepId);
+  }, [currentStepId, navigableStepIds]);
+
+  const previousStepId = navigableIndex > 0 ? navigableStepIds[navigableIndex - 1] : null;
+  const nextStepId = navigableIndex >= 0 && navigableIndex < navigableStepIds.length - 1
+    ? navigableStepIds[navigableIndex + 1]
+    : null;
+
+  const selectStep = useCallback((stepId: string | null) => {
+    if (!stepId) return;
+    if (stepId === activeStepId) {
+      setSelectedStepId(null);
+      return;
+    }
+    setSelectedStepId(stepId);
   }, [activeStepId]);
+
+  useEffect(() => {
+    if (!selectedStepId || !state?.steps) return;
+    const selectedStep = state.steps.find((step) => step.id === selectedStepId);
+    if (!selectedStep?.completed) {
+      setSelectedStepId(null);
+    }
+  }, [selectedStepId, state]);
 
   const completedCount = useMemo(() => {
     if (!state?.steps) return 0;
@@ -811,9 +856,18 @@ export const InviteWizardPage = () => {
                 {state.discord.authenticated && state.discord.user && (
                   <div className="bg-[#5865F2]/10 border border-[#5865F2]/20 rounded-lg p-4">
                     <div className="flex items-start gap-3">
-                      <div className="w-6 h-6 rounded-full bg-[#5865F2]/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                        <i className="fa-brands fa-discord text-[#5865F2] text-xs" />
-                      </div>
+                      <Avatar className="size-6 mt-0.5">
+                        {discordAvatarUrl ? (
+                          <AvatarImage
+                            src={discordAvatarUrl}
+                            alt={`${state.discord.user.username ?? 'Discord'} avatar`}
+                          />
+                        ) : (
+                          <AvatarFallback className="bg-[#5865F2]/20">
+                            <i className="fa-brands fa-discord text-[#5865F2] text-xs" />
+                          </AvatarFallback>
+                        )}
+                      </Avatar>
                       <div>
                         <h4 className="font-medium text-[#5865F2] mb-1">Discord Account Connected</h4>
                         <p className="text-sm text-foreground/80">
@@ -894,11 +948,20 @@ export const InviteWizardPage = () => {
                 <div className="flex items-center gap-2">
                   {state.steps.map((step, index) => {
                     const isActive = index === activeStepIndex;
+                    const canSelectStep = step.completed || step.id === activeStepId;
                     return (
                       <div key={step.id} className="flex items-center flex-1">
-                        <div
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (canSelectStep) {
+                              selectStep(step.id);
+                            }
+                          }}
+                          disabled={!canSelectStep}
                           className={cn(
                             'flex items-center gap-2 p-3 rounded-lg transition-colors flex-1',
+                            'disabled:cursor-not-allowed disabled:opacity-60',
                             step.completed
                               ? 'bg-primary/10 border border-primary/20'
                               : isActive
@@ -918,8 +981,6 @@ export const InviteWizardPage = () => {
                           >
                             {step.completed ? (
                               <i className="fa-solid fa-check text-xs" />
-                            ) : isActive ? (
-                              <i className="fa-solid fa-circle text-xs" />
                             ) : (
                               <i className={`${step.icon} text-xs`} />
                             )}
@@ -945,7 +1006,7 @@ export const InviteWizardPage = () => {
                                 )}
                               </div>
                             </div>
-                        </div>
+                        </button>
                         {index < state.steps.length - 1 && (
                           <div
                             className={cn(
@@ -964,7 +1025,7 @@ export const InviteWizardPage = () => {
             {/* Step Content */}
             <div className="step-content space-y-6">
               {/* User Account Step */}
-              {state.account.allowed && !state.account.completed && (
+              {state.account.allowed && currentStepId === 'user_account' && (
                 <div className="bg-muted/50 border rounded-lg p-6">
                   <div className="flex items-center gap-3 mb-6">
                     <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
@@ -1123,9 +1184,18 @@ export const InviteWizardPage = () => {
               {state.discord.authenticated && state.discord.user && (
                 <div className="mb-8 rounded-lg border border-[#5865F2]/20 bg-[#5865F2]/10 p-4">
                   <div className="flex items-start gap-3">
-                    <div className="w-8 h-8 rounded-full bg-[#5865F2]/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                      <i className="fa-brands fa-discord text-[#5865F2] text-sm" />
-                    </div>
+                    <Avatar className="mt-0.5">
+                      {discordAvatarUrl ? (
+                        <AvatarImage
+                          src={discordAvatarUrl}
+                          alt={`${state.discord.user.username ?? 'Discord'} avatar`}
+                        />
+                      ) : (
+                        <AvatarFallback className="bg-[#5865F2]/20">
+                          <i className="fa-brands fa-discord text-[#5865F2] text-sm" />
+                        </AvatarFallback>
+                      )}
+                    </Avatar>
                     <div>
                       <h3 className="font-medium text-[#5865F2] mb-1">Discord Account Linked</h3>
                       <p className="text-sm text-foreground/80">
@@ -1143,7 +1213,7 @@ export const InviteWizardPage = () => {
               )}
 
               {/* Discord Step */}
-              {state.discord.oauth_enabled && !state.discord.authenticated && (!state.account.allowed || state.account.completed) && (
+              {state.discord.oauth_enabled && currentStepId === 'discord' && !state.discord.authenticated && (
                 <div className="bg-muted/50 border rounded-lg p-6">
                   <div className="flex items-center gap-3 mb-6">
                     <div className="w-10 h-10 rounded-full bg-[#5865F2]/20 flex items-center justify-center flex-shrink-0">
@@ -1151,14 +1221,16 @@ export const InviteWizardPage = () => {
                     </div>
                     <div>
                       <h2 className="text-xl font-semibold text-foreground mb-1">Discord Authentication</h2>
-                      <p className="text-sm text-muted-foreground">
-                        {state.discord.requires_auth ? 'Required to continue with your invite' : 'Optional - Connect your Discord account'}
-                      </p>
-                      {!state.discord.requires_auth && (
-                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-muted/50 text-muted-foreground mt-1">
-                          Optional
-                        </span>
-                      )}
+                      <div className='flex items-center gap-2 min-w-0'>
+                        <p className="text-sm text-muted-foreground">
+                          {state.discord.requires_auth ? 'Required to continue with your invite' : 'Connect your Discord account'}
+                        </p>
+                        {!state.discord.requires_auth && (
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-muted/50 text-muted-foreground mt-1">
+                            Optional
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
 
@@ -1212,79 +1284,103 @@ export const InviteWizardPage = () => {
               )}
 
               {/* Plex Step */}
-              {state.plex.has_plex_servers && !state.plex.authenticated && (state.discord.authenticated || !state.discord.oauth_enabled) && (!state.account.allowed || state.account.completed) && (
+              {state.plex.has_plex_servers && currentStepId === 'plex' && (
                 <div className="bg-muted/50 border rounded-lg p-6">
-                  <div className="flex items-center gap-3 mb-6">
-                    <div className="w-10 h-10 rounded-full bg-[#e5a00d]/20 flex items-center justify-center flex-shrink-0">
-                      <svg className="w-5 h-5 text-[#e5a00d]" viewBox="0 0 192 192" xmlns="http://www.w3.org/2000/svg" fill="currentColor">
-                        <path d="M22 25.5h48L116 94l-46 68.5H22L68.5 94Zm109.8 56L108 46l14-20.5h48zm-.3 23.5c10.979 17.625 25.52 38.875 38.5 49.5-11.149 13.635-34.323 32.278-62.5-14z" />
-                      </svg>
-                    </div>
-                    <div>
-                      <h2 className="text-xl font-semibold text-foreground mb-1">Plex Authentication</h2>
-                      <p className="text-sm text-muted-foreground">
-                        Sign in with Plex to get access to shared libraries
-                      </p>
-                    </div>
-                  </div>
-
-                  {state.plex.conflict && (
-                    <div className="bg-amber-50 dark:bg-amber-400/10 border border-amber-200 dark:border-amber-500/20 rounded-lg p-4 mb-6">
-                      {state.plex.conflict.type === 'can_link' ? (
-                        <div className="space-y-3">
-                          <div className="flex items-start gap-3">
-                            <i className="fa-solid fa-exclamation-triangle text-amber-600 dark:text-amber-400 mt-0.5" />
-                            <div>
-                              <p className="text-sm">
-                                We found an existing local account for <strong>{state.plex.conflict.plex_username}</strong>.
-                                You can link it or use a different Plex account.
-                              </p>
-                            </div>
-                          </div>
-                          <div className="flex gap-2">
-                            <Button
-                              variant="default"
-                              size="sm"
-                              onClick={() => handleResolvePlex('link_existing')}
-                            >
-                              Link Existing
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleResolvePlex('use_different')}
-                            >
-                              Use Different Account
-                            </Button>
-                          </div>
-                        </div>
-                      ) : (
-                        <p className="text-sm">
-                          {state.plex.conflict.message ?? 'Plex account conflict detected. Please try a different account.'}
-                        </p>
-                      )}
-                    </div>
-                  )}
-
-                  <Button
-                    onClick={handleStartPlex}
-                    disabled={startingPlex}
-                    className="w-full h-12 bg-[#e5a00d] hover:bg-[#cc8f0a] text-white"
-                  >
-                    {startingPlex ? (
-                      <>
-                        <span className="loading loading-spinner loading-xs mr-2" />
-                        Preparing...
-                      </>
-                    ) : (
-                      <>
-                        <svg className="w-4 h-4 mr-2" viewBox="0 0 192 192" xmlns="http://www.w3.org/2000/svg" fill="currentColor">
+                  {state.plex.authenticated ? (
+                    <div className="flex items-center gap-3 mb-6">
+                      <div className="w-10 h-10 rounded-full bg-[#e5a00d]/20 flex items-center justify-center flex-shrink-0">
+                        <svg className="w-5 h-5 text-[#e5a00d]" viewBox="0 0 192 192" xmlns="http://www.w3.org/2000/svg" fill="currentColor">
                           <path d="M22 25.5h48L116 94l-46 68.5H22L68.5 94Zm109.8 56L108 46l14-20.5h48zm-.3 23.5c10.979 17.625 25.52 38.875 38.5 49.5-11.149 13.635-34.323 32.278-62.5-14z" />
                         </svg>
-                        Continue with Plex
-                      </>
-                    )}
-                  </Button>
+                      </div>
+                      <div>
+                        <h2 className="text-xl font-semibold text-foreground mb-1">Plex Connected</h2>
+                        <p className="text-sm text-muted-foreground">
+                          {state.plex.user?.username ? (
+                            <>
+                              Authenticated as <strong>{state.plex.user.username}</strong>
+                            </>
+                          ) : (
+                            'Your Plex account is linked.'
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-3 mb-6">
+                        <div className="w-10 h-10 rounded-full bg-[#e5a00d]/20 flex items-center justify-center flex-shrink-0">
+                          <svg className="w-5 h-5 text-[#e5a00d]" viewBox="0 0 192 192" xmlns="http://www.w3.org/2000/svg" fill="currentColor">
+                            <path d="M22 25.5h48L116 94l-46 68.5H22L68.5 94Zm109.8 56L108 46l14-20.5h48zm-.3 23.5c10.979 17.625 25.52 38.875 38.5 49.5-11.149 13.635-34.323 32.278-62.5-14z" />
+                          </svg>
+                        </div>
+                        <div>
+                          <h2 className="text-xl font-semibold text-foreground mb-1">Plex Authentication</h2>
+                          <p className="text-sm text-muted-foreground">
+                            Sign in with Plex to get access to shared libraries
+                          </p>
+                        </div>
+                      </div>
+
+                      {state.plex.conflict && (
+                        <div className="bg-amber-50 dark:bg-amber-400/10 border border-amber-200 dark:border-amber-500/20 rounded-lg p-4 mb-6">
+                          {state.plex.conflict.type === 'can_link' ? (
+                            <div className="space-y-3">
+                              <div className="flex items-start gap-3">
+                                <i className="fa-solid fa-exclamation-triangle text-amber-600 dark:text-amber-400 mt-0.5" />
+                                <div>
+                                  <p className="text-sm">
+                                    We found an existing local account for <strong>{state.plex.conflict.plex_username}</strong>.
+                                    You can link it or use a different Plex account.
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="flex gap-2">
+                                <Button
+                                  variant="default"
+                                  size="sm"
+                                  onClick={() => handleResolvePlex('link_existing')}
+                                >
+                                  Link Existing
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleResolvePlex('use_different')}
+                                >
+                                  Use Different Account
+                                </Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <p className="text-sm">
+                              {state.plex.conflict.message ?? 'Plex account conflict detected. Please try a different account.'}
+                            </p>
+                          )}
+                        </div>
+                      )}
+
+                      <Button
+                        onClick={handleStartPlex}
+                        disabled={startingPlex}
+                        className="w-full h-12 bg-[#e5a00d] hover:bg-[#cc8f0a] text-white"
+                      >
+                        {startingPlex ? (
+                          <>
+                            <span className="loading loading-spinner loading-xs mr-2" />
+                            Preparing...
+                          </>
+                        ) : (
+                          <>
+                            <svg className="w-4 h-4 mr-2" viewBox="0 0 192 192" xmlns="http://www.w3.org/2000/svg" fill="currentColor">
+                              <path d="M22 25.5h48L116 94l-46 68.5H22L68.5 94Zm109.8 56L108 46l14-20.5h48zm-.3 23.5c10.979 17.625 25.52 38.875 38.5 49.5-11.149 13.635-34.323 32.278-62.5-14z" />
+                            </svg>
+                            Continue with Plex
+                          </>
+                        )}
+                      </Button>
+                    </>
+                  )}
 
                   {/* Plex Server Access Details */}
                   {(() => {
@@ -1303,9 +1399,9 @@ export const InviteWizardPage = () => {
 
               {/* Server Credentials */}
               {(() => {
-                // Find the active server that needs credentials
+                // Find the selected server credentials step (non-Plex)
                 const activeServer = state.servers.find(
-                  (s) => s.id === activeServerId && !s.completed && s.service_type !== 'PLEX'
+                  (s) => s.id === activeServerId && s.service_type !== 'PLEX'
                 );
 
                 if (!activeServer) return null;
@@ -1399,7 +1495,7 @@ export const InviteWizardPage = () => {
                       ) : (
                         <>
                           <i className="fa-solid fa-user-plus mr-2" />
-                          Create Account on {activeServer.name}
+                          {activeServer.completed ? 'Update Account Details' : `Create Account on ${activeServer.name}`}
                         </>
                       )}
                     </Button>
@@ -1414,6 +1510,32 @@ export const InviteWizardPage = () => {
                 </div>
                 );
               })()}
+
+              {state.steps.length > 0 && (
+                <div className="flex items-center justify-between gap-3 pt-2">
+                  {previousStepId ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => selectStep(previousStepId)}
+                    >
+                      <i className="fa-solid fa-arrow-left mr-2" />
+                      Previous
+                    </Button>
+                  ) : (
+                    <span />
+                  )}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => selectStep(nextStepId)}
+                    disabled={!nextStepId}
+                  >
+                    Next
+                    <i className="fa-solid fa-arrow-right ml-2" />
+                  </Button>
+                </div>
+              )}
 
               {/* Complete Button */}
               {allStepsComplete && (

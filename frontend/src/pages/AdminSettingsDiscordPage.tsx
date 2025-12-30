@@ -15,6 +15,8 @@ type DiscordFormValues = {
   enable_oauth: boolean
   enable_bot: boolean
   enable_membership_requirement: boolean
+  default_require_discord_auth: boolean
+  default_require_discord_guild_membership: boolean
   client_id: string
   client_secret: string
   oauth_auth_url: string
@@ -38,6 +40,8 @@ const emptyFormValues: DiscordFormValues = {
   enable_oauth: false,
   enable_bot: false,
   enable_membership_requirement: false,
+  default_require_discord_auth: false,
+  default_require_discord_guild_membership: false,
   client_id: '',
   client_secret: '',
   oauth_auth_url: '',
@@ -69,10 +73,14 @@ export const AdminSettingsDiscordPage = () => {
 
   useEffect(() => {
     if (!settings) return
+    const defaultRequireGuild = settings.default_require_discord_guild_membership
+    const defaultRequireAuth = settings.default_require_discord_auth || defaultRequireGuild
     setFormValues({
       enable_oauth: settings.enable_oauth,
       enable_bot: settings.enable_bot,
       enable_membership_requirement: settings.enable_membership_requirement,
+      default_require_discord_auth: defaultRequireAuth,
+      default_require_discord_guild_membership: defaultRequireGuild,
       client_id: settings.client_id ?? '',
       client_secret: '',
       oauth_auth_url: settings.oauth_auth_url ?? '',
@@ -100,17 +108,30 @@ export const AdminSettingsDiscordPage = () => {
   }
 
   const handleToggle = (
-    field: 'enable_oauth' | 'enable_bot' | 'enable_membership_requirement' | 'whitelist_sharers',
+    field: 'enable_oauth' | 'enable_bot' | 'enable_membership_requirement' | 'whitelist_sharers' | 'default_require_discord_auth' | 'default_require_discord_guild_membership',
     value: boolean
   ) => {
     setFormValues((prev) => {
       const next = { ...prev, [field]: value }
-      if ((field === 'enable_bot' || field === 'enable_membership_requirement') && value) {
-        next.enable_oauth = true
-      }
       if (field === 'enable_oauth' && !value) {
         next.enable_bot = false
         next.enable_membership_requirement = false
+        next.default_require_discord_auth = false
+        next.default_require_discord_guild_membership = false
+        return next
+      }
+      if (field === 'default_require_discord_guild_membership' && value) {
+        next.default_require_discord_auth = true
+      }
+      if (field === 'default_require_discord_auth' && !value) {
+        next.default_require_discord_guild_membership = false
+        next.enable_membership_requirement = false
+      }
+      if (
+        (next.enable_bot || next.enable_membership_requirement || next.default_require_discord_auth || next.default_require_discord_guild_membership)
+        && !next.enable_oauth
+      ) {
+        next.enable_oauth = true
       }
       return next
     })
@@ -161,10 +182,14 @@ export const AdminSettingsDiscordPage = () => {
 
   const handleReset = () => {
     if (!settings) return
+    const defaultRequireGuild = settings.default_require_discord_guild_membership
+    const defaultRequireAuth = settings.default_require_discord_auth || defaultRequireGuild
     setFormValues({
       enable_oauth: settings.enable_oauth,
       enable_bot: settings.enable_bot,
       enable_membership_requirement: settings.enable_membership_requirement,
+      default_require_discord_auth: defaultRequireAuth,
+      default_require_discord_guild_membership: defaultRequireGuild,
       client_id: settings.client_id ?? '',
       client_secret: '',
       oauth_auth_url: settings.oauth_auth_url ?? '',
@@ -180,10 +205,11 @@ export const AdminSettingsDiscordPage = () => {
     setHasChanges(false)
   }
 
-  const requireGuildId = formValues.enable_bot || formValues.enable_membership_requirement
+  const requireGuildId = formValues.enable_bot || formValues.enable_membership_requirement || formValues.default_require_discord_guild_membership
   const clientSecretConfigured = formMeta.client_secret_set || formValues.client_secret.length > 0
   const requireClientSecret = formValues.enable_oauth && !formMeta.client_secret_set
   const oauthDisabled = !formValues.enable_oauth
+  const requireMembershipInviteUrl = formValues.enable_membership_requirement || formValues.default_require_discord_guild_membership
   const generatedOauthUrl = (() => {
     if (!formValues.client_id || !formMeta.redirect_uri_invite) {
       return ''
@@ -284,7 +310,7 @@ export const AdminSettingsDiscordPage = () => {
             <p className="text-xs text-muted-foreground">
               Enables Discord linking on public invites and for admin accounts.{' '}
               <span className="text-warning">
-                This is automatically enabled if Bot Configuration is enabled or if Require Discord membership is turned on below.
+                This is automatically enabled if Bot Configuration or Discord membership requirement is enabled below.
               </span>
             </p>
             <div className="space-y-2">
@@ -385,53 +411,57 @@ export const AdminSettingsDiscordPage = () => {
               </p>
             </div>
 
-            <div className="flex items-center justify-between rounded-lg border border-border/70 bg-muted/40 p-3">
-              <div>
-                <p className="text-sm font-medium">Require Discord membership</p>
-                <p className="text-xs text-muted-foreground">
-                  Enforce that users are members of your Discord guild before linking.
-                </p>
+            <div className="rounded-lg border border-border/70 bg-muted/40 p-4 space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium">Enable Discord Membership Requirement</p>
+                  <p className="text-xs text-muted-foreground">
+                    Require invitees to be members of your Discord server before linking.
+                  </p>
+                </div>
+                <Switch
+                  checked={formValues.enable_membership_requirement}
+                  onCheckedChange={(checked) => handleToggle('enable_membership_requirement', checked)}
+                  disabled={oauthDisabled}
+                />
               </div>
-              <Switch
-                checked={formValues.enable_membership_requirement}
-                onCheckedChange={(checked) => handleToggle('enable_membership_requirement', checked)}
-                disabled={oauthDisabled}
-              />
-            </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="guild_id">
-                Guild (Server) ID {requireGuildId && <span className="text-destructive">*</span>}
-              </Label>
-              <Input
-                id="guild_id"
-                type="text"
-                className="font-mono"
-                value={formValues.guild_id}
-                onChange={(e) => handleChange('guild_id', e.target.value)}
-                required={requireGuildId}
-                disabled={oauthDisabled || !formValues.enable_membership_requirement}
-                placeholder="1234567890123456789"
-              />
-              <p className="text-xs text-muted-foreground">
-                Enable Developer Mode in Discord, right-click your server, and select "Copy ID"
-              </p>
-            </div>
+              <div className="rounded-lg border border-border/70 bg-background p-3 space-y-3">
+                <div className="space-y-2">
+                  <Label htmlFor="guild_id">
+                    Guild (Server) ID {requireGuildId && <span className="text-destructive">*</span>}
+                  </Label>
+                  <Input
+                    id="guild_id"
+                    type="text"
+                    className="font-mono"
+                    value={formValues.guild_id}
+                    onChange={(e) => handleChange('guild_id', e.target.value)}
+                    required={requireGuildId}
+                    disabled={oauthDisabled || (!formValues.enable_membership_requirement && !formValues.enable_bot && !formValues.default_require_discord_guild_membership)}
+                    placeholder="1234567890123456789"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Enable Developer Mode in Discord, right-click your server, and select "Copy ID"
+                  </p>
+                </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="server_invite_url">
-                Server Invite URL {formValues.enable_membership_requirement && <span className="text-destructive">*</span>}
-              </Label>
-              <Input
-                id="server_invite_url"
-                type="url"
-                className="font-mono"
-                value={formValues.server_invite_url}
-                onChange={(e) => handleChange('server_invite_url', e.target.value)}
-                required={formValues.enable_membership_requirement}
-                disabled={oauthDisabled || !formValues.enable_membership_requirement}
-                placeholder="https://discord.gg/your-invite"
-              />
+                <div className="space-y-2">
+                  <Label htmlFor="server_invite_url">
+                    Server Invite URL {requireMembershipInviteUrl && <span className="text-destructive">*</span>}
+                  </Label>
+                  <Input
+                    id="server_invite_url"
+                    type="url"
+                    className="font-mono"
+                    value={formValues.server_invite_url}
+                    onChange={(e) => handleChange('server_invite_url', e.target.value)}
+                    required={requireMembershipInviteUrl}
+                    disabled={oauthDisabled || !requireMembershipInviteUrl}
+                    placeholder="https://discord.gg/your-invite"
+                  />
+                </div>
+              </div>
             </div>
           </CardContent>
         </Card>

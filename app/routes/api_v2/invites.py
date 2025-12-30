@@ -10,7 +10,7 @@ from flask_openapi3 import Tag
 
 from app.routes.api_v2 import api_v2
 from app.extensions import db
-from app.models import Invite, InviteUsage, InviteServerFeature
+from app.models import Invite, InviteUsage, InviteServerFeature, Setting
 from app.models_media_services import MediaServer, MediaLibrary
 from sqlalchemy import or_ as sa_or
 
@@ -60,6 +60,8 @@ class InviteItem(BaseModel):
     # extras to align with v1 list
     grant_library_ids: list[str] | None = None
     allow_downloads: bool | None = None
+    require_discord_auth: bool | None = None
+    require_discord_guild_membership: bool | None = None
     server_features: list[ServerFeature] = []
 
 
@@ -113,6 +115,8 @@ class CreateInviteBody(BaseModel):
     membership_duration_days: Optional[int] = Field(None, description="Duration in days for granted access")
     grant_purge_whitelist: Optional[bool] = False
     grant_bot_whitelist: Optional[bool] = False  # Ignored (WIP)
+    require_discord_auth: Optional[bool] = None
+    require_discord_guild_membership: Optional[bool] = None
     server_features: list[ServerFeatureInput] = Field(default_factory=list)
 
     @field_validator("custom_path")
@@ -283,6 +287,8 @@ def _invite_item(i: Invite) -> dict:
         "libraries": libs_payload,
         "grants_all_libraries": grants_all_libraries,
         "allow_downloads": bool(getattr(i, "allow_downloads", False)),
+        "require_discord_auth": bool(getattr(i, "require_discord_auth", False)),
+        "require_discord_guild_membership": bool(getattr(i, "require_discord_guild_membership", False)),
         "invite_to_plex_home": bool(getattr(i, "invite_to_plex_home", False)),
         "allow_live_tv": bool(getattr(i, "allow_live_tv", False)),
         "allow_4k_transcode": bool(getattr(i, "allow_4k_transcode", True)),
@@ -382,6 +388,15 @@ def create_invite(body: CreateInviteBody, current_user):
                 409,
             )
 
+    require_discord_auth = body.require_discord_auth
+    require_discord_guild = body.require_discord_guild_membership
+    if require_discord_auth is None:
+        require_discord_auth = Setting.get_bool('DISCORD_INVITE_REQUIRE_AUTH_DEFAULT', False)
+    if require_discord_guild is None:
+        require_discord_guild = Setting.get_bool('DISCORD_INVITE_REQUIRE_GUILD_DEFAULT', False)
+    if require_discord_guild and not require_discord_auth:
+        require_discord_auth = True
+
     invite = Invite(
         custom_path=body.custom_path,
         expires_at=datetime.fromisoformat(body.expires_at.replace("Z", "+00:00")) if body.expires_at else None,
@@ -395,6 +410,8 @@ def create_invite(body: CreateInviteBody, current_user):
         membership_duration_days=body.membership_duration_days,
         grant_purge_whitelist=bool(body.grant_purge_whitelist),
         grant_bot_whitelist=bool(body.grant_bot_whitelist),
+        require_discord_auth=require_discord_auth,
+        require_discord_guild_membership=require_discord_guild,
         created_by_owner_id=getattr(current_user, "id", None),
     )
 
@@ -440,6 +457,8 @@ class UpdateInviteBody(BaseModel):
     invite_to_plex_home: Optional[bool] = None
     allow_live_tv: Optional[bool] = None
     allow_4k_transcode: Optional[bool] = None
+    require_discord_auth: Optional[bool] = None
+    require_discord_guild_membership: Optional[bool] = None
     membership_duration_days: Optional[int] = None
     grant_purge_whitelist: Optional[bool] = None
     grant_bot_whitelist: Optional[bool] = None
@@ -481,6 +500,12 @@ def update_invite(path: InvitePath, body: UpdateInviteBody, current_user):
         inv.allow_live_tv = bool(data["allow_live_tv"])
     if "allow_4k_transcode" in data:
         inv.allow_4k_transcode = bool(data["allow_4k_transcode"])
+    if "require_discord_auth" in data:
+        inv.require_discord_auth = bool(data["require_discord_auth"])
+    if "require_discord_guild_membership" in data:
+        inv.require_discord_guild_membership = bool(data["require_discord_guild_membership"])
+    if getattr(inv, "require_discord_guild_membership", False) and not getattr(inv, "require_discord_auth", False):
+        inv.require_discord_auth = True
     if "membership_duration_days" in data:
         inv.membership_duration_days = data["membership_duration_days"]
     if "grant_purge_whitelist" in data:

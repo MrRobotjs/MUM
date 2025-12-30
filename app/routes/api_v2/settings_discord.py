@@ -32,6 +32,8 @@ class DiscordSettingsData(BaseModel):
     oauth_auth_url: str | None = None
     redirect_uri_invite: str | None = None
     redirect_uri_admin: str | None = None
+    default_require_discord_auth: bool
+    default_require_discord_guild_membership: bool
     enable_membership_requirement: bool
     guild_id: str | None = None
     server_invite_url: str | None = None
@@ -61,6 +63,8 @@ def _serialize_discord_settings(current_user) -> dict:
         'oauth_auth_url': Setting.get('DISCORD_OAUTH_AUTH_URL'),
         'redirect_uri_invite': invite_redirect,
         'redirect_uri_admin': admin_redirect,
+        'default_require_discord_auth': Setting.get_bool('DISCORD_INVITE_REQUIRE_AUTH_DEFAULT', False),
+        'default_require_discord_guild_membership': Setting.get_bool('DISCORD_INVITE_REQUIRE_GUILD_DEFAULT', False),
         'enable_membership_requirement': Setting.get_bool('ENABLE_DISCORD_MEMBERSHIP_REQUIREMENT', False),
         'guild_id': Setting.get('DISCORD_GUILD_ID'),
         'server_invite_url': Setting.get('DISCORD_SERVER_INVITE_URL'),
@@ -96,6 +100,8 @@ class UpdateDiscordBody(BaseModel):
     enable_oauth: bool = False
     enable_bot: bool = False
     enable_membership_requirement: bool = False
+    default_require_discord_auth: bool = False
+    default_require_discord_guild_membership: bool = False
     client_id: str | None = None
     client_secret: str | None = None
     oauth_auth_url: str | None = None
@@ -134,8 +140,13 @@ def update_discord_settings(body: UpdateDiscordBody, current_user):
     enable_oauth = bool(body.enable_oauth)
     enable_bot = bool(body.enable_bot)
     require_membership = bool(body.enable_membership_requirement)
+    default_require_auth = bool(body.default_require_discord_auth)
+    default_require_guild = bool(body.default_require_discord_guild_membership)
 
-    if (enable_bot or require_membership) and not enable_oauth:
+    if default_require_guild and not default_require_auth:
+        default_require_auth = True
+
+    if (enable_bot or require_membership or default_require_auth or default_require_guild) and not enable_oauth:
         enable_oauth = True
 
     client_id = body.client_id
@@ -165,13 +176,17 @@ def update_discord_settings(body: UpdateDiscordBody, current_user):
     else:
         enable_bot = False
         require_membership = False
+        default_require_auth = False
+        default_require_guild = False
 
-    if enable_bot or require_membership:
+    require_guild_fields = enable_bot or require_membership or default_require_guild
+
+    if require_guild_fields:
         final_guild_id = guild_id or Setting.get('DISCORD_GUILD_ID')
         if not final_guild_id:
             return jsonify({'error': {'code': 'GUILD_ID_REQUIRED', 'message': 'Discord guild ID is required when bot features or membership requirement are enabled.'}, 'meta': {'request_id': request_id}}), 400
         guild_id = final_guild_id
-        if require_membership:
+        if require_membership or default_require_guild:
             final_invite = server_invite_url or Setting.get('DISCORD_SERVER_INVITE_URL')
             if not final_invite:
                 return jsonify({'error': {'code': 'SERVER_INVITE_REQUIRED', 'message': 'Discord server invite URL is required when membership requirement is enabled.'}, 'meta': {'request_id': request_id}}), 400
@@ -209,6 +224,9 @@ def update_discord_settings(body: UpdateDiscordBody, current_user):
     if server_invite_url is not None:
         Setting.set('DISCORD_SERVER_INVITE_URL', server_invite_url, SettingValueType.STRING)
 
+    Setting.set('DISCORD_INVITE_REQUIRE_AUTH_DEFAULT', default_require_auth, SettingValueType.BOOLEAN)
+    Setting.set('DISCORD_INVITE_REQUIRE_GUILD_DEFAULT', default_require_guild, SettingValueType.BOOLEAN)
+
     Setting.set('DISCORD_BOT_ENABLED', enable_bot, SettingValueType.BOOLEAN)
     if enable_bot:
         if bot_token:
@@ -216,7 +234,7 @@ def update_discord_settings(body: UpdateDiscordBody, current_user):
         Setting.set('DISCORD_MONITORED_ROLE_ID', monitored_role_id or '', SettingValueType.STRING)
         Setting.set('DISCORD_THREAD_CHANNEL_ID', thread_channel_id or '', SettingValueType.STRING)
         Setting.set('DISCORD_BOT_LOG_CHANNEL_ID', bot_log_channel_id or '', SettingValueType.STRING)
-        if not require_membership and server_invite_url:
+        if not require_membership and not default_require_guild and server_invite_url:
             Setting.set('DISCORD_SERVER_INVITE_URL', server_invite_url, SettingValueType.STRING)
         Setting.set('DISCORD_BOT_WHITELIST_SHARERS', whitelist_sharers, SettingValueType.BOOLEAN)
     else:

@@ -3,10 +3,12 @@ import { useAlerts } from '../contexts/AlertContext';
 import { useInvites } from '../hooks/useInvites';
 import { useAdminApi } from '../hooks/useAdminApi';
 import { useInviteSummary } from '../hooks/useInviteSummary';
+import { useDiscordSettings } from '../hooks/useSettings';
 import { InvitesTable, InviteRow, InviteModal, InviteFormValues, InviteDetailDrawer, InviteCard, FeatureMeta } from '../components/invites';
 import { requestJson } from '../util/apiClient';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Input } from '../components/ui/input';
+import { Switch } from '../components/ui/switch';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,6 +19,7 @@ import {
   DropdownMenuLabel
 } from '../components/ui/dropdown-menu';
 import { Button } from '../components/ui/button';
+import { ResponsiveDialog } from '../components/ui/responsive-dialog';
 import { PageHeader } from '../components';
 import { IconDots } from '@tabler/icons-react';
 import type { InviteLibrary, InviteServer } from '../components/invites/InvitesTable';
@@ -149,9 +152,17 @@ export const InvitesPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [saving, setSaving] = useState(false);
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [inviteSettings, setInviteSettings] = useState({
+    default_require_discord_auth: false,
+    default_require_discord_guild_membership: false,
+  });
+  const [inviteSettingsDirty, setInviteSettingsDirty] = useState(false);
+  const [inviteSettingsSaving, setInviteSettingsSaving] = useState(false);
   const { data: serversData } = useAdminApi<{ data: { id: number; server_nickname: string }[] }>('/servers', true);
   const { data: pluginMetaData } = useAdminApi<PluginMetaResponse>('/plugins/metadata', true);
   const { summary } = useInviteSummary();
+  const { settings: discordSettings, refresh: refreshDiscordSettings } = useDiscordSettings();
   const { invites, pagination, loading, error, refresh } = useInvites({
     status: statusFilter === 'all' ? undefined : statusFilter,
     page,
@@ -163,6 +174,17 @@ export const InvitesPage = () => {
     setPage(1);
     setSelectedIds(new Set());
   }, [statusFilter, searchTerm, serverFilter]);
+
+  useEffect(() => {
+    if (!settingsOpen || !discordSettings) return;
+    const defaultRequireGuild = discordSettings.default_require_discord_guild_membership ?? false;
+    const defaultRequireAuth = (discordSettings.default_require_discord_auth ?? false) || defaultRequireGuild;
+    setInviteSettings({
+      default_require_discord_auth: defaultRequireAuth,
+      default_require_discord_guild_membership: defaultRequireGuild,
+    });
+    setInviteSettingsDirty(false);
+  }, [settingsOpen, discordSettings]);
 
   const inviteFeatureSupport = useMemo(() => {
     const meta = pluginMetaData?.data ?? {};
@@ -206,8 +228,14 @@ export const InvitesPage = () => {
   };
 
   const openCreateModal = () => {
+    const defaultRequireGuild = discordSettings?.default_require_discord_guild_membership ?? false;
+    const defaultRequireAuth = discordSettings?.default_require_discord_auth ?? false;
+    const requireAuth = defaultRequireAuth || defaultRequireGuild;
     setEditingInvite(null);
-    setEditingInitialValues(undefined);
+    setEditingInitialValues({
+      require_discord_auth: requireAuth,
+      require_discord_guild_membership: defaultRequireGuild,
+    });
     setModalOpen(true);
   };
 
@@ -249,6 +277,63 @@ export const InvitesPage = () => {
       throw err;
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleInviteSettingsToggle = (
+    field: 'default_require_discord_auth' | 'default_require_discord_guild_membership',
+    value: boolean
+  ) => {
+    setInviteSettings((prev) => {
+      const next = { ...prev, [field]: value };
+      if (field === 'default_require_discord_guild_membership' && value) {
+        next.default_require_discord_auth = true;
+      }
+      if (field === 'default_require_discord_auth' && !value) {
+        next.default_require_discord_guild_membership = false;
+      }
+      return next;
+    });
+    setInviteSettingsDirty(true);
+  };
+
+  const handleSaveInviteSettings = async () => {
+    if (!discordSettings) {
+      showError('Discord settings are not loaded yet.');
+      return;
+    }
+    setInviteSettingsSaving(true);
+    try {
+      await requestJson('/admin/api/v2/settings/discord', {
+        method: 'PATCH',
+        body: JSON.stringify({
+          enable_oauth: discordSettings.enable_oauth,
+          enable_bot: discordSettings.enable_bot,
+          enable_membership_requirement: discordSettings.enable_membership_requirement,
+          default_require_discord_auth: inviteSettings.default_require_discord_auth,
+          default_require_discord_guild_membership: inviteSettings.default_require_discord_guild_membership,
+          client_id: discordSettings.client_id ?? '',
+          client_secret: '',
+          oauth_auth_url: discordSettings.oauth_auth_url ?? '',
+          redirect_uri_invite: discordSettings.redirect_uri_invite ?? '',
+          redirect_uri_admin: discordSettings.redirect_uri_admin ?? '',
+          guild_id: discordSettings.guild_id ?? '',
+          server_invite_url: discordSettings.server_invite_url ?? '',
+          bot_token: '',
+          monitored_role_id: discordSettings.monitored_role_id ?? '',
+          thread_channel_id: discordSettings.thread_channel_id ?? '',
+          bot_log_channel_id: discordSettings.bot_log_channel_id ?? '',
+          whitelist_sharers: discordSettings.whitelist_sharers,
+        })
+      });
+      success('Invite settings saved');
+      setInviteSettingsDirty(false);
+      setSettingsOpen(false);
+      await refreshDiscordSettings();
+    } catch (err) {
+      showError('Failed to save invite settings: ' + String(err));
+    } finally {
+      setInviteSettingsSaving(false);
     }
   };
 
@@ -310,9 +395,10 @@ export const InvitesPage = () => {
               {viewMode === 'cards' && <i className="fa-solid fa-check fa-fw ml-2 text-primary" />}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem disabled>
-              <i className="fa-solid fa-gear fa-fw mr-2" />
-              <span className="flex-1 text-muted-foreground">More options coming soon</span>
+            <DropdownMenuLabel>Settings</DropdownMenuLabel>
+            <DropdownMenuItem onSelect={() => setSettingsOpen(true)}>
+              <i className="fa-solid fa-sliders fa-fw mr-2" />
+              <span className="flex-1">Invite Settings</span>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenuPortal>
@@ -512,11 +598,92 @@ export const InvitesPage = () => {
           setEditingInitialValues(undefined);
         }}
         initialValues={editingInitialValues}
+        isEditing={Boolean(editingInvite)}
         onSubmit={handleSaveInvite}
         loading={saving}
       />
 
       <InviteDetailDrawer inviteId={detailInviteId} onClose={() => setDetailInviteId(null)} />
+
+      <ResponsiveDialog
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+        title="Invite Settings"
+        description="Configure defaults for new invites."
+        footer={[
+          <Button key="cancel" variant="outline" onClick={() => setSettingsOpen(false)} disabled={inviteSettingsSaving}>
+            Cancel
+          </Button>,
+          <Button
+            key="save"
+            onClick={handleSaveInviteSettings}
+            disabled={!inviteSettingsDirty || inviteSettingsSaving || !discordSettings}
+          >
+            {inviteSettingsSaving ? (
+              <>
+                <span className="loading loading-spinner loading-xs mr-2" />
+                Saving...
+              </>
+            ) : (
+              <>
+                <i className="fa-solid fa-save mr-2" />
+                Save Defaults
+              </>
+            )}
+          </Button>,
+        ]}
+        contentClassName="max-w-lg"
+      >
+        {!discordSettings ? (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <span className="inline-flex size-4 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
+            Loading Discord settings...
+          </div>
+        ) : (
+          <div className="space-y-4 text-sm">
+            <div className="rounded-lg border border-border/70 bg-muted/40 p-4 space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="font-medium text-foreground">Default Discord Link Requirement</p>
+                  <p className="text-xs text-muted-foreground">
+                    New invites will require Discord login unless you disable it per invite.
+                  </p>
+                </div>
+                <Switch
+                  checked={inviteSettings.default_require_discord_auth}
+                  onCheckedChange={(checked) => handleInviteSettingsToggle('default_require_discord_auth', checked)}
+                  disabled={inviteSettings.default_require_discord_guild_membership}
+                />
+              </div>
+
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="font-medium text-foreground">Default Discord Membership Requirement</p>
+                  <p className="text-xs text-muted-foreground">
+                    New invites will require users to be members of your Discord server.
+                  </p>
+                </div>
+                <Switch
+                  checked={inviteSettings.default_require_discord_guild_membership}
+                  onCheckedChange={(checked) =>
+                    handleInviteSettingsToggle('default_require_discord_guild_membership', checked)
+                  }
+                />
+              </div>
+
+              {inviteSettings.default_require_discord_guild_membership && (
+                <p className="text-xs text-muted-foreground">
+                  Discord login is required when membership is required by default.
+                </p>
+              )}
+            </div>
+
+            <p className="text-xs text-muted-foreground">
+              These defaults apply to newly created invites. Existing invites keep their current settings.
+            </p>
+          </div>
+        )}
+      </ResponsiveDialog>
     </div>
   );
 };

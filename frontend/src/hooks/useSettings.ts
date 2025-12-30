@@ -22,6 +22,8 @@ export type DiscordSettings = {
   oauth_auth_url: string | null;
   redirect_uri_invite: string | null;
   redirect_uri_admin: string | null;
+  default_require_discord_auth: boolean;
+  default_require_discord_guild_membership: boolean;
   enable_membership_requirement: boolean;
   guild_id: string | null;
   server_invite_url: string | null;

@@ -61,6 +61,7 @@ type InviteModalProps = {
   onClose: () => void;
   onSubmit: (values: InviteFormValues) => Promise<void> | void;
   initialValues?: InviteFormValues;
+  isEditing?: boolean;
   loading?: boolean;
 };
 
@@ -83,7 +84,7 @@ const defaultValues: InviteFormValues = {
   server_features: []
 };
 
-export const InviteModal = ({ open, onClose, onSubmit, initialValues, loading }: InviteModalProps) => {
+export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing, loading }: InviteModalProps) => {
   const [form, setForm] = useState<InviteFormValues>(defaultValues);
   const [servers, setServers] = useState<Server[]>([]);
   const [selectedServerIds, setSelectedServerIds] = useState<Set<number>>(new Set());
@@ -107,7 +108,11 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, loading }:
 
   useEffect(() => {
     if (open) {
-      setForm({ ...defaultValues, ...initialValues });
+      const nextForm = { ...defaultValues, ...initialValues };
+      if (nextForm.require_discord_guild_membership) {
+        nextForm.require_discord_auth = true;
+      }
+      setForm(nextForm);
       setSelectedServerIds(new Set(initialValues?.server_ids || []));
       setSelectedLibraries(new Set(initialValues?.grant_library_ids || []));
       const featureMap: Record<number, ServerFeatureState> = {};
@@ -272,6 +277,22 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, loading }:
     setForm((prev) => ({ ...prev, [field]: value }));
   };
 
+  const handleDiscordRequirementToggle = (
+    field: 'require_discord_auth' | 'require_discord_guild_membership',
+    value: boolean
+  ) => {
+    setForm((prev) => {
+      const next = { ...prev, [field]: value };
+      if (field === 'require_discord_guild_membership' && value) {
+        next.require_discord_auth = true;
+      }
+      if (field === 'require_discord_auth' && !value) {
+        next.require_discord_guild_membership = false;
+      }
+      return next;
+    });
+  };
+
   const handleLibrarySearchChange = (serverId: number, value: string) => {
     setLibrarySearch((prev) => ({ ...prev, [serverId]: value }));
   };
@@ -314,6 +335,8 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, loading }:
     const invitePlexAny = serverFeaturePayload.some((f) => f.invite_to_plex_home);
     const allowLiveTvAny = serverFeaturePayload.some((f) => f.allow_live_tv);
     const allow4kAny = serverFeaturePayload.some((f) => f.allow_4k_transcode ?? true);
+    const requireDiscordGuild = form.require_discord_guild_membership ?? false;
+    const requireDiscordAuth = (form.require_discord_auth ?? false) || requireDiscordGuild;
 
     const submitData = {
       custom_path: form.custom_path?.trim() || undefined,
@@ -324,6 +347,8 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, loading }:
       invite_to_plex_home: invitePlexAny,
       allow_live_tv: allowLiveTvAny,
       allow_4k_transcode: allow4kAny,
+      require_discord_auth: requireDiscordAuth,
+      require_discord_guild_membership: requireDiscordGuild,
       membership_duration_days:
         form.membership_expires_at && form.membership_expires_at.trim() !== ''
           ? Math.max(
@@ -357,6 +382,7 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, loading }:
     }
   };
 
+  const editingMode = isEditing ?? Boolean(initialValues);
   const footerButtons = [
     <Button key="cancel" variant="outline" onClick={onClose} disabled={loading}>
       Cancel
@@ -370,7 +396,7 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, loading }:
       ) : (
         <>
           <i className="fa-solid fa-ticket-simple mr-2" />
-          {initialValues ? 'Update Invite' : 'Create Invite'}
+          {editingMode ? 'Update Invite' : 'Create Invite'}
         </>
       )}
     </Button>,
@@ -380,7 +406,7 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, loading }:
     <ResponsiveDialog
       open={open}
       onOpenChange={handleOpenChange}
-      title={initialValues ? 'Edit Invite' : 'Create Invite'}
+      title={editingMode ? 'Edit Invite' : 'Create Invite'}
       description="Configure invite settings, select servers, and set permissions."
       footer={footerButtons}
       contentClassName="max-w-4xl"
@@ -756,29 +782,35 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, loading }:
                   <span className="text-xs text-muted-foreground">Identity & membership</span>
                 </div>
                         <div className="space-y-3">
-                          <div className="rounded-lg p-4 border bg-background opacity-60">
+                          <div className="rounded-lg p-4 border bg-background">
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-2">
                                 <i className="fa-brands fa-discord text-blue-400 text-sm" />
                                 <div>
-                                  <p className="font-medium text-sm">Require Discord Authentication (WIP)</p>
-                                  <p className="text-xs text-muted-foreground">Coming soon. Not yet applied.</p>
+                                  <p className="font-medium text-sm">Require Discord Authentication</p>
+                                  <p className="text-xs text-muted-foreground">Invitees must link a Discord account.</p>
                                 </div>
                               </div>
-                              <Switch checked={false} disabled />
+                              <Switch
+                                checked={form.require_discord_auth ?? false}
+                                onCheckedChange={(checked) => handleDiscordRequirementToggle('require_discord_auth', checked)}
+                              />
                             </div>
                           </div>
 
-                          <div className="rounded-lg p-4 border bg-background opacity-60">
+                          <div className="rounded-lg p-4 border bg-background">
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-2">
                                 <i className="fa-solid fa-users text-yellow-400 text-sm" />
                                 <div>
-                                  <p className="font-medium text-sm">Require Discord Server Membership (WIP)</p>
-                                  <p className="text-xs text-muted-foreground">Coming soon. Not yet applied.</p>
+                                  <p className="font-medium text-sm">Require Discord Server Membership</p>
+                                  <p className="text-xs text-muted-foreground">Invitees must be in your Discord server.</p>
                                 </div>
                               </div>
-                              <Switch checked={false} disabled />
+                              <Switch
+                                checked={form.require_discord_guild_membership ?? false}
+                                onCheckedChange={(checked) => handleDiscordRequirementToggle('require_discord_guild_membership', checked)}
+                              />
                             </div>
                           </div>
                         </div>

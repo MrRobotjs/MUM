@@ -69,15 +69,6 @@ const AdminSettingsUserGeneralPage = () => {
         description="Configure general user management settings and preferences"
       />
 
-      {/* Under Development Notice */}
-      <Alert variant="warning">
-        <IconAlertTriangle />
-        <AlertTitle>Under Development</AlertTitle>
-        <AlertDescription>
-          This page is currently under development. Some settings shown are placeholders and not yet functional, except for the User Accounts section which is fully operational.
-        </AlertDescription>
-      </Alert>
-
       <div className="space-y-6">
         <Card>
           <CardHeader>

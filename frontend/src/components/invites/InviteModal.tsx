@@ -135,6 +135,16 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
     }
   }, [initialValues, open]);
 
+  useEffect(() => {
+    if (!open || loadingServers || selectedServerIds.size === 0) return;
+    selectedServerIds.forEach((serverId) => {
+      const server = servers.find((s) => s.id === serverId);
+      if (server && !server.libraries && !server.loadingLibraries) {
+        void loadLibrariesForServer(serverId, false, false);
+      }
+    });
+  }, [open, loadingServers, selectedServerIds, servers]);
+
   const loadServers = async () => {
     setLoadingServers(true);
     try {
@@ -147,7 +157,11 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
     }
   };
 
-  const loadLibrariesForServer = async (serverId: number, forceRefresh = false) => {
+  const loadLibrariesForServer = async (
+    serverId: number,
+    forceRefresh = false,
+    autoSelectLibraries = true
+  ) => {
     setServers((prev) =>
       prev.map((s) => (s.id === serverId ? { ...s, loadingLibraries: true } : s))
     );
@@ -169,14 +183,16 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
           )
         );
 
-        const libraryIds = response.libraries.map(
-          (lib: Library) => lib.id || lib.external_id || lib.internal_id
-        );
-        setSelectedLibraries((prev) => {
-          const next = new Set(prev);
-          libraryIds.forEach((id: string) => next.add(id));
-          return next;
-        });
+        if (autoSelectLibraries) {
+          const libraryIds = response.libraries.map(
+            (lib: Library) => lib.id || lib.external_id || lib.internal_id
+          );
+          setSelectedLibraries((prev) => {
+            const next = new Set(prev);
+            libraryIds.forEach((id: string) => next.add(id));
+            return next;
+          });
+        }
       }
     } catch (error) {
       console.error('Failed to load libraries:', error);

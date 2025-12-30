@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { IconDeviceFloppy, IconUsers, IconAlertTriangle, IconInfoCircle } from '@tabler/icons-react'
 import { requestJson } from '../util/apiClient'
 import { useAlerts } from '../contexts'
@@ -8,34 +8,17 @@ import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
+import { useUserAccountSettings } from '../hooks/useSettings'
 
-type UserAccountSettings = {
-  allow_user_accounts: boolean
+type UserAccountSettingsFormProps = {
+  initialValue: boolean
+  refresh: () => Promise<unknown>
 }
 
-const AdminSettingsUserGeneralPage = () => {
-  const [settings, setSettings] = useState<UserAccountSettings | null>(null)
-  const [loading, setLoading] = useState(true)
+const UserAccountSettingsForm = ({ initialValue, refresh }: UserAccountSettingsFormProps) => {
   const [saving, setSaving] = useState(false)
-  const [allowUserAccounts, setAllowUserAccounts] = useState(false)
+  const [allowUserAccounts, setAllowUserAccounts] = useState(initialValue)
   const { success, error: showError } = useAlerts()
-
-  useEffect(() => {
-    fetchSettings()
-  }, [])
-
-  const fetchSettings = async () => {
-    try {
-      setLoading(true)
-      const response = await requestJson<{ data: UserAccountSettings }>('/admin/api/v2/settings/user-accounts')
-      setSettings(response.data)
-      setAllowUserAccounts(response.data.allow_user_accounts)
-    } catch (error) {
-      showError(`Failed to load settings: ${error}`)
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const handleSave = async () => {
     try {
@@ -45,7 +28,7 @@ const AdminSettingsUserGeneralPage = () => {
         body: JSON.stringify({ allow_user_accounts: allowUserAccounts })
       })
       success('User account settings have been updated successfully')
-      await fetchSettings()
+      await refresh()
     } catch (error) {
       showError(`Failed to save settings: ${error}`)
     } finally {
@@ -53,14 +36,6 @@ const AdminSettingsUserGeneralPage = () => {
     }
   }
 
-  if (loading) {
-    return (
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <span className="inline-flex size-4 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
-        Loading settings…
-      </div>
-    )
-  }
 
   return (
     <div className="space-y-6">
@@ -127,6 +102,39 @@ const AdminSettingsUserGeneralPage = () => {
         </div>
       </div>
     </div>
+  )
+}
+
+const AdminSettingsUserGeneralPage = () => {
+  const { settings, loading, error, refresh } = useUserAccountSettings()
+
+  if (loading) {
+    return (
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <span className="inline-flex size-4 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
+        Loading settings.
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <Alert variant="destructive">
+        <IconAlertTriangle />
+        <AlertTitle>Failed to load settings</AlertTitle>
+        <AlertDescription>{(error as Error).message}</AlertDescription>
+      </Alert>
+    )
+  }
+
+  const settingsKey = settings ? String(settings.allow_user_accounts) : 'empty'
+
+  return (
+    <UserAccountSettingsForm
+      key={settingsKey}
+      initialValue={settings?.allow_user_accounts ?? false}
+      refresh={refresh}
+    />
   )
 }
 

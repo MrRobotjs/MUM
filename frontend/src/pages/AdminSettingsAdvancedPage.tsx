@@ -263,35 +263,21 @@ const ScheduledTaskRow = ({ task, onClick }: ScheduledTaskRowProps) => {
   );
 };
 
-export const AdminSettingsAdvancedPage = () => {
-  const { settings, loading, error, refresh } = useAdvancedSettings();
-  const { tasks, loading: tasksLoading } = useScheduledTasks();
-  const { config, loading: configLoading } = useSystemConfig();
+const buildAdvancedFormValues = (values: AdvancedSettings | null): AdvancedSettings => ({
+  api_timeout_seconds: 3,
+  ...(values ?? {}),
+});
+
+type AdvancedSettingsFormProps = {
+  initialValues: AdvancedSettings;
+  refresh: () => Promise<unknown>;
+};
+
+const AdvancedSettingsForm = ({ initialValues, refresh }: AdvancedSettingsFormProps) => {
   const { success, error: showError } = useAlerts();
-  const [formValues, setFormValues] = useState<AdvancedSettings>({
-    api_timeout_seconds: 3,
-  });
+  const [formValues, setFormValues] = useState<AdvancedSettings>(initialValues);
   const [submitting, setSubmitting] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
-  const [selectedTask, setSelectedTask] = useState<any | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-
-  const handleTaskClick = (task: any) => {
-    setSelectedTask(task);
-    setIsModalOpen(true);
-  };
-
-  const handleCloseModal = () => {
-    setIsModalOpen(false);
-    setTimeout(() => setSelectedTask(null), 200); // Clear after animation
-  };
-
-  useEffect(() => {
-    if (settings) {
-      setFormValues(settings);
-      setHasChanges(false);
-    }
-  }, [settings]);
 
   const handleChange = (field: keyof AdvancedSettings, value: number) => {
     setFormValues((prev) => ({ ...prev, [field]: value }));
@@ -318,10 +304,75 @@ export const AdminSettingsAdvancedPage = () => {
   };
 
   const handleReset = () => {
-    if (settings) {
-      setFormValues(settings);
-      setHasChanges(false);
-    }
+    setFormValues(initialValues);
+    setHasChanges(false);
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-6">
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-3">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/20">
+              <IconShieldCheck className="size-5 text-primary" />
+            </div>
+            <div>
+              <CardTitle className="mb-1 text-xl font-semibold">API Requests</CardTitle>
+              <CardDescription>Configure timeout for external service connections</CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <Label htmlFor="api_timeout_seconds">
+            API Timeout (seconds) <span className="text-destructive">*</span>
+          </Label>
+          <Input
+            id="api_timeout_seconds"
+            type="number"
+            value={formValues.api_timeout_seconds}
+            onChange={(e) => handleChange('api_timeout_seconds', Number(e.target.value))}
+            required
+            min="3"
+            max="30"
+          />
+          <p className="text-xs text-muted-foreground">
+            Timeout for API requests to external services like Plex, Jellyfin, etc. (3-30 seconds, default: 3)
+          </p>
+        </CardContent>
+      </Card>
+
+      <div className="flex items-center justify-end gap-3">
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={handleReset}
+          disabled={!hasChanges || submitting}
+        >
+          Reset
+        </Button>
+        <Button type="submit" variant="default" disabled={!hasChanges || submitting}>
+          {submitting ? 'Saving...' : 'Save Changes'}
+        </Button>
+      </div>
+    </form>
+  );
+};
+
+export const AdminSettingsAdvancedPage = () => {
+  const { settings, loading, error, refresh } = useAdvancedSettings();
+  const { tasks, loading: tasksLoading } = useScheduledTasks();
+  const { config, loading: configLoading } = useSystemConfig();
+  const [selectedTask, setSelectedTask] = useState<any | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const handleTaskClick = (task: any) => {
+    setSelectedTask(task);
+    setIsModalOpen(true);
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setTimeout(() => setSelectedTask(null), 200); // Clear after animation
   };
 
   return (
@@ -354,52 +405,11 @@ export const AdminSettingsAdvancedPage = () => {
         </div>
       ) : (
         !error && (
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <Card>
-              <CardHeader>
-                <div className="flex items-center gap-3">
-                  <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/20">
-                    <IconShieldCheck className="size-5 text-primary" />
-                  </div>
-                  <div>
-                    <CardTitle className="mb-1 text-xl font-semibold">API Requests</CardTitle>
-                    <CardDescription>Configure timeout for external service connections</CardDescription>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <Label htmlFor="api_timeout_seconds">
-                  API Timeout (seconds) <span className="text-destructive">*</span>
-                </Label>
-                <Input
-                  id="api_timeout_seconds"
-                  type="number"
-                  value={formValues.api_timeout_seconds}
-                  onChange={(e) => handleChange('api_timeout_seconds', Number(e.target.value))}
-                  required
-                  min="3"
-                  max="30"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Timeout for API requests to external services like Plex, Jellyfin, etc. (3-30 seconds, default: 3)
-                </p>
-              </CardContent>
-            </Card>
-
-            <div className="flex items-center justify-end gap-3">
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={handleReset}
-                disabled={!hasChanges || submitting}
-              >
-                Reset
-              </Button>
-              <Button type="submit" variant="default" disabled={!hasChanges || submitting}>
-                {submitting ? 'Saving...' : 'Save Changes'}
-              </Button>
-            </div>
-          </form>
+          <AdvancedSettingsForm
+            key={settings ? JSON.stringify(settings) : 'empty'}
+            initialValues={buildAdvancedFormValues(settings)}
+            refresh={refresh}
+          />
         )
       )}
 

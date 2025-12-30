@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearch } from '@tanstack/react-router';
 
 import { Button } from '@/components/ui/button';
@@ -81,6 +81,562 @@ const getApiErrorMessage = (error: unknown) => {
 
 type TabType = 'overview' | 'credentials' | 'preferences';
 
+type SyncPreferencesCardProps = {
+  syncEnabled: boolean | undefined;
+  toggleSync: (value: boolean) => Promise<void>;
+  prefsLoading: boolean;
+  success: (message: string) => void;
+  showError: (message: string) => void;
+};
+
+const SyncPreferencesCard = ({
+  syncEnabled,
+  toggleSync,
+  prefsLoading,
+  success,
+  showError,
+}: SyncPreferencesCardProps) => {
+  const [pendingSyncEnabled, setPendingSyncEnabled] = useState<boolean>(() => syncEnabled ?? false);
+  const [syncSubmitting, setSyncSubmitting] = useState(false);
+  const syncDirty = syncEnabled !== undefined && pendingSyncEnabled !== syncEnabled;
+
+  const handleSyncToggle = (checked: boolean) => {
+    setPendingSyncEnabled(checked);
+  };
+
+  const handleSyncSave = async () => {
+    if (syncEnabled === undefined || pendingSyncEnabled === syncEnabled) return;
+    setSyncSubmitting(true);
+    try {
+      await toggleSync(pendingSyncEnabled);
+      success(pendingSyncEnabled ? 'Preference sync enabled' : 'Preference sync disabled');
+    } catch (err) {
+      showError('Failed to save sync setting: ' + getApiErrorMessage(err));
+      setPendingSyncEnabled(syncEnabled ?? false);
+    } finally {
+      setSyncSubmitting(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>User Preferences</CardTitle>
+        <CardDescription>
+          Manage your personal preferences and cross-device synchronization. Settings marked with
+          <i className="fa-solid fa-arrow-right-arrow-left mx-1" aria-hidden="true" /> can be synced across devices.
+          When a syncable setting is enabled, that icon turns green to indicate it will follow you everywhere.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="rounded-lg border bg-muted/50 p-4 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label htmlFor="sync-preferences" className="text-base font-medium cursor-pointer flex items-center gap-2">
+                <span>Sync settings across devices</span>
+                <i
+                  className={`fa-solid fa-arrow-right-arrow-left text-sm ${pendingSyncEnabled ? 'text-emerald-500' : 'text-muted-foreground'}`}
+                  aria-hidden="true"
+                />
+              </Label>
+              <p className="text-sm text-muted-foreground">
+                {pendingSyncEnabled
+                  ? 'Your preferences are synced to the database and will be available on all devices.'
+                  : 'Your preferences are stored locally on this device only.'}
+              </p>
+            </div>
+            <Switch
+              id="sync-preferences"
+              checked={pendingSyncEnabled}
+              onCheckedChange={handleSyncToggle}
+              disabled={prefsLoading || syncSubmitting}
+            />
+          </div>
+          <div className="flex items-center gap-3">
+            <Button
+              type="button"
+              size="sm"
+              onClick={handleSyncSave}
+              disabled={!syncDirty || prefsLoading || syncSubmitting}
+            >
+              {syncSubmitting ? 'Saving.' : 'Save Sync Setting'}
+            </Button>
+            {syncDirty ? <span className="text-sm text-muted-foreground">Unsaved change</span> : null}
+          </div>
+          {pendingSyncEnabled && (
+            <Alert>
+              <IconInfoCircle className="h-4 w-4" />
+              <AlertDescription>
+                When sync is enabled, your preferences are saved to the database and will apply across all devices where you sign in.
+                When disabled, preferences are stored locally in your browser only.
+              </AlertDescription>
+            </Alert>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
+// --- Extracted Form Components ---
+
+type InitialCredentialsFormProps = {
+  initialUsername: string;
+  onSuccess: (response: AccountResponse) => void;
+};
+
+const InitialCredentialsForm = ({ initialUsername, onSuccess }: InitialCredentialsFormProps) => {
+  const { success } = useAlerts();
+  const [form, setForm] = useState({
+    username: initialUsername,
+    password: '',
+    confirmPassword: '',
+  });
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setError(null);
+
+    if (form.password !== form.confirmPassword) {
+      setError('Passwords do not match.');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const response = await requestJson<AccountResponse>('/admin/api/v2/account/initial-credentials', {
+        method: 'POST',
+        body: JSON.stringify({
+          username: form.username,
+          password: form.password,
+        }),
+      });
+      onSuccess(response);
+      success('Local credentials are now configured for your account.');
+    } catch (err) {
+      setError(getApiErrorMessage(err));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Set Local Credentials</CardTitle>
+        <CardDescription>
+          Configure a local username and password to sign in without Plex SSO.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form className="space-y-4" onSubmit={handleSubmit}>
+          <div className="space-y-2">
+            <Label htmlFor="initial-username">Username</Label>
+            <Input
+              id="initial-username"
+              value={form.username}
+              onChange={(event) => setForm((prev) => ({ ...prev, username: event.target.value }))}
+              required
+              minLength={3}
+              maxLength={80}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="initial-password">Password</Label>
+            <Input
+              id="initial-password"
+              type="password"
+              value={form.password}
+              onChange={(event) => setForm((prev) => ({ ...prev, password: event.target.value }))}
+              required
+              minLength={8}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="initial-confirm-password">Confirm Password</Label>
+            <Input
+              id="initial-confirm-password"
+              type="password"
+              value={form.confirmPassword}
+              onChange={(event) => setForm((prev) => ({ ...prev, confirmPassword: event.target.value }))}
+              required
+              minLength={8}
+            />
+          </div>
+          {error ? (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          ) : null}
+          <Button type="submit" disabled={submitting} className="w-full sm:w-auto">
+            {submitting ? 'Saving…' : 'Save Credentials'}
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
+  );
+};
+
+type PasswordFormProps = {
+  onSuccess: () => void;
+};
+
+const PasswordForm = ({ onSuccess }: PasswordFormProps) => {
+  const { success } = useAlerts();
+  const [form, setForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: '',
+  });
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setError(null);
+
+    if (form.newPassword !== form.confirmPassword) {
+      setError('New passwords do not match.');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      await requestJson('/admin/api/v2/auth/change-password', {
+        method: 'POST',
+        body: JSON.stringify({
+          current_password: form.currentPassword,
+          new_password: form.newPassword,
+        }),
+      });
+      success('Your password was changed successfully.');
+      setForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      onSuccess();
+    } catch (err) {
+      setError(getApiErrorMessage(err));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Change Password</CardTitle>
+        <CardDescription>Update your password for this admin account.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form className="space-y-4" onSubmit={handleSubmit}>
+          <div className="space-y-2">
+            <Label htmlFor="current-password">Current Password</Label>
+            <Input
+              id="current-password"
+              type="password"
+              value={form.currentPassword}
+              onChange={(event) => setForm((prev) => ({ ...prev, currentPassword: event.target.value }))}
+              required
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="new-password">New Password</Label>
+            <Input
+              id="new-password"
+              type="password"
+              value={form.newPassword}
+              onChange={(event) => setForm((prev) => ({ ...prev, newPassword: event.target.value }))}
+              minLength={8}
+              required
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="confirm-new-password">Confirm New Password</Label>
+            <Input
+              id="confirm-new-password"
+              type="password"
+              value={form.confirmPassword}
+              onChange={(event) => setForm((prev) => ({ ...prev, confirmPassword: event.target.value }))}
+              minLength={8}
+              required
+            />
+          </div>
+          {error ? (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          ) : null}
+          <Button type="submit" disabled={submitting} className="w-full sm:w-auto">
+            {submitting ? 'Updating…' : 'Update Password'}
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
+  );
+};
+
+type EmailFormProps = {
+  initialEmail: string;
+  onSuccess: () => void;
+};
+
+const EmailForm = ({ initialEmail, onSuccess }: EmailFormProps) => {
+  const { success } = useAlerts();
+  const [email, setEmail] = useState(initialEmail);
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setError(null);
+    setSubmitting(true);
+    try {
+      await requestJson('/admin/api/v2/account/email', {
+        method: 'PATCH',
+        body: JSON.stringify({ email }),
+      });
+      success('Email updated.');
+      onSuccess();
+    } catch (err) {
+      setError(getApiErrorMessage(err));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Account Email</CardTitle>
+        <CardDescription>View or update the email associated with this account.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form className="space-y-4" onSubmit={handleSubmit}>
+          <div className="space-y-2">
+            <Label htmlFor="account-email">Email</Label>
+            <Input
+              id="account-email"
+              type="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              placeholder="you@example.com"
+              required
+            />
+          </div>
+          {error ? (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          ) : null}
+          <Button type="submit" disabled={submitting} className="w-full sm:w-auto">
+            {submitting ? 'Saving.' : 'Save Email'}
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
+  );
+};
+
+type TimezoneFormProps = {
+  initialValues: TimezoneSettings;
+  onSuccess: (response: AccountResponse) => void;
+};
+
+const TimezoneForm = ({ initialValues, onSuccess }: TimezoneFormProps) => {
+  const { success } = useAlerts();
+  const [form, setForm] = useState<TimezoneSettings>(initialValues);
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setError(null);
+    setSubmitting(true);
+    try {
+      const response = await requestJson<AccountResponse>('/admin/api/v2/account/timezone', {
+        method: 'PUT',
+        body: JSON.stringify({
+          preference: form.preference,
+          time_format: form.time_format,
+          local_timezone: form.preference === 'local' ? form.local_timezone : null,
+        }),
+      });
+      onSuccess(response);
+      success('Display preferences saved.');
+    } catch (err) {
+      setError(getApiErrorMessage(err));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Timezone Settings</CardTitle>
+        <CardDescription>
+          Choose how timestamps are displayed throughout the application.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form className="space-y-4" onSubmit={handleSubmit}>
+          <div className="space-y-2">
+            <Label>Display Time In</Label>
+            <Select
+              value={form.preference}
+              onValueChange={(value: 'local' | 'utc') =>
+                setForm((prev) => ({
+                  ...prev,
+                  preference: value,
+                  local_timezone: value === 'local' ? (prev.local_timezone ?? detectedTimezone) : null,
+                }))
+              }
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="local">
+                  My Timezone {form.local_timezone ? `(${form.local_timezone})` : ''}
+                </SelectItem>
+                <SelectItem value="utc">UTC</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {form.preference === 'local' ? (
+            <div className="space-y-2">
+              <Label htmlFor="local-timezone">Local Timezone</Label>
+              <Input
+                id="local-timezone"
+                placeholder="e.g. America/New_York"
+                value={form.local_timezone ?? ''}
+                onChange={(event) =>
+                  setForm((prev) => ({ ...prev, local_timezone: event.target.value }))
+                }
+                required
+              />
+              {detectedTimezone ? (
+                <button
+                  type="button"
+                  className="text-sm text-primary underline-offset-4 hover:underline"
+                  onClick={() => setForm((prev) => ({ ...prev, local_timezone: detectedTimezone }))}
+                >
+                  Use detected timezone ({detectedTimezone})
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+          <div className="space-y-2">
+            <Label>Time Format</Label>
+            <Select
+              value={form.time_format}
+              onValueChange={(value: '12' | '24') =>
+                setForm((prev) => ({ ...prev, time_format: value }))
+              }
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="12">12-hour (AM/PM)</SelectItem>
+                <SelectItem value="24">24-hour</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {error ? (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          ) : null}
+          <Button type="submit" disabled={submitting} className="w-full sm:w-auto">
+            {submitting ? 'Saving…' : 'Save Preferences'}
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
+  );
+};
+
+type PlexSSOCardProps = {
+  initialError: string | null;
+};
+
+const PlexSSOCard = ({ initialError }: PlexSSOCardProps) => {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(initialError);
+
+  const handlePlexSSO = async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await requestJson<{
+        data?: { redirect_url?: string };
+      }>('/admin/api/v2/auth/plex/start', {
+        method: 'POST',
+        body: JSON.stringify({ next: '/admin/account?tab=credentials' }),
+      });
+
+      const redirectUrl = response?.data?.redirect_url;
+      if (redirectUrl) {
+        window.location.href = redirectUrl;
+      } else {
+        setError('Failed to initiate Plex login');
+        setLoading(false);
+      }
+    } catch (err) {
+      setError(getApiErrorMessage(err));
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Plex SSO Link</CardTitle>
+        <CardDescription>
+          Link your Plex account to enable single sign-on authentication.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-4">
+          {error && (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handlePlexSSO}
+            className="w-full text-lg h-12 hover:-translate-y-0.5 hover:shadow-lg transition-all duration-200 ease-in-out border-orange-600 text-orange-700 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-950 hover:border-orange-600"
+            disabled={loading}
+          >
+            {loading ? (
+              <>
+                <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2" />
+                Connecting...
+              </>
+            ) : (
+              <>
+                <svg className="w-5 h-5 mr-3" viewBox="0 0 192 192" xmlns="http://www.w3.org/2000/svg" fill="currentColor" stroke="transparent" strokeLinejoin="round" strokeWidth="12">
+                  <path d="M22 25.5h48L116 94l-46 68.5H22L68.5 94Zm109.8 56L108 46l14-20.5h48zm-.3 23.5c10.979 17.625 25.52 38.875 38.5 49.5-11.149 13.635-34.323 32.278-62.5-14z"/>
+                </svg>
+                Link Plex Account
+              </>
+            )}
+          </Button>
+          <p className="text-sm text-muted-foreground">
+            After linking, you'll be able to sign in using your Plex credentials. You'll be redirected back to this page after authentication.
+          </p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
+// --- Main Page Component ---
+
 const AdminAccountPage = () => {
   const { success, error: showError } = useAlerts();
   const navigate = useNavigate();
@@ -92,99 +648,42 @@ const AdminAccountPage = () => {
   const [loading, setLoading] = useState(true);
   const [account, setAccount] = useState<AccountResponse['data'] | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
-
-  const [credentialsForm, setCredentialsForm] = useState({
-    username: '',
-    password: '',
-    confirmPassword: '',
-  });
-  const [credentialsError, setCredentialsError] = useState<string | null>(null);
-  const [credentialsSubmitting, setCredentialsSubmitting] = useState(false);
-
-  const [passwordForm, setPasswordForm] = useState({
-    currentPassword: '',
-    newPassword: '',
-    confirmPassword: '',
-  });
-  const [passwordError, setPasswordError] = useState<string | null>(null);
-  const [passwordSubmitting, setPasswordSubmitting] = useState(false);
-
-  const [timezoneForm, setTimezoneForm] = useState<TimezoneSettings>({
-    preference: 'local',
-    local_timezone: detectedTimezone,
-    time_format: '12',
-  });
-  const [timezoneError, setTimezoneError] = useState<string | null>(null);
-  const [timezoneSubmitting, setTimezoneSubmitting] = useState(false);
-
-  const [plexLoading, setPlexLoading] = useState(false);
-  const [plexError, setPlexError] = useState<string | null>(null);
+  const [plexSSOError, setPlexSSOError] = useState<string | null>(null);
 
   // User preferences hook
   const { syncEnabled, toggleSync, loading: prefsLoading } = useUserPreferences();
-  const [syncSubmitting, setSyncSubmitting] = useState(false);
-  const [pendingSyncEnabled, setPendingSyncEnabled] = useState<boolean | null>(null);
-  const syncDirty = pendingSyncEnabled !== null && pendingSyncEnabled !== syncEnabled;
 
-  const [emailForm, setEmailForm] = useState({
-    email: '',
-  });
-  const [emailError, setEmailError] = useState<string | null>(null);
-  const [emailSubmitting, setEmailSubmitting] = useState(false);
-
-  const refreshAccount = async () => {
+  const refreshAccount = useCallback(async () => {
     setLoading(true);
     setFetchError(null);
     try {
       const response = await requestJson<AccountResponse>('/admin/api/v2/account');
       setAccount(response.data);
-      const tz = response.data.timezone;
-      setTimezoneForm({
-        preference: tz.preference ?? 'local',
-        time_format: tz.time_format ?? '12',
-        local_timezone: tz.local_timezone ?? detectedTimezone,
-      });
-      setCredentialsForm((prev) => ({
-        ...prev,
-        username: response.data.user.username ?? '',
-        password: '',
-        confirmPassword: '',
-      }));
-      setPasswordForm({
-        currentPassword: '',
-        newPassword: '',
-        confirmPassword: '',
-      });
-      setEmailForm({
-        email: response.data.user.email ?? '',
-      });
     } catch (error) {
       const message = getApiErrorMessage(error);
       setFetchError(message);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
+  // Fetch account data on mount only
   useEffect(() => {
     void refreshAccount();
-    // Handle error from Plex SSO callback and clear from URL
+  }, [refreshAccount]);
+
+  // Handle Plex SSO error from URL (separate effect)
+  useEffect(() => {
     if (search.error && activeTab === 'credentials') {
-      setPlexError(search.error);
+      setPlexSSOError(search.error);
       navigate({ from: '/admin/account', search: (prev) => ({ ...prev, error: undefined, tab: 'credentials' }), replace: true });
     }
-  }, [search.error, activeTab]);
+  }, [search.error, activeTab, navigate]);
 
   const showInitialCredentialsCard = useMemo(() => {
     if (!account) return false;
     return account.capabilities.can_set_initial_credentials;
   }, [account]);
-
-  useEffect(() => {
-    if (syncEnabled !== undefined) {
-      setPendingSyncEnabled(syncEnabled);
-    }
-  }, [syncEnabled]);
 
   const setTab = (tab: TabType) => {
     navigate({
@@ -196,163 +695,12 @@ const AdminAccountPage = () => {
     });
   };
 
-  const handleSetInitialCredentials = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setCredentialsError(null);
-
-    if (credentialsForm.password !== credentialsForm.confirmPassword) {
-      setCredentialsError('Passwords do not match.');
-      return;
-    }
-
-    setCredentialsSubmitting(true);
-    try {
-      const response = await requestJson<AccountResponse>('/admin/api/v2/account/initial-credentials', {
-        method: 'POST',
-        body: JSON.stringify({
-          username: credentialsForm.username,
-          password: credentialsForm.password,
-        }),
-      });
-      setAccount(response.data);
-      success('Local credentials are now configured for your account.');
-      setCredentialsForm({
-        username: response.data.user.username ?? '',
-        password: '',
-        confirmPassword: '',
-      });
-    } catch (error) {
-      setCredentialsError(getApiErrorMessage(error));
-    } finally {
-      setCredentialsSubmitting(false);
-    }
+  const handleCredentialsSuccess = (response: AccountResponse) => {
+    setAccount(response.data);
   };
 
-  const handleChangePassword = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setPasswordError(null);
-
-    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-      setPasswordError('New passwords do not match.');
-      return;
-    }
-
-    setPasswordSubmitting(true);
-    try {
-      await requestJson('/admin/api/v2/auth/change-password', {
-        method: 'POST',
-        body: JSON.stringify({
-          current_password: passwordForm.currentPassword,
-          new_password: passwordForm.newPassword,
-        }),
-      });
-      success('Your password was changed successfully.');
-      setPasswordForm({
-        currentPassword: '',
-        newPassword: '',
-        confirmPassword: '',
-      });
-    } catch (error) {
-      setPasswordError(getApiErrorMessage(error));
-    } finally {
-      setPasswordSubmitting(false);
-    }
-  };
-
-  const handleTimezoneSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setTimezoneError(null);
-
-    setTimezoneSubmitting(true);
-    try {
-      const response = await requestJson<AccountResponse>('/admin/api/v2/account/timezone', {
-        method: 'PUT',
-        body: JSON.stringify({
-          preference: timezoneForm.preference,
-          time_format: timezoneForm.time_format,
-          local_timezone: timezoneForm.preference === 'local' ? timezoneForm.local_timezone : null,
-        }),
-      });
-      setAccount(response.data);
-      setTimezoneForm({
-        preference: response.data.timezone.preference,
-        time_format: response.data.timezone.time_format,
-        local_timezone: response.data.timezone.local_timezone,
-      });
-      success('Display preferences saved.');
-    } catch (error) {
-      setTimezoneError(getApiErrorMessage(error));
-    } finally {
-      setTimezoneSubmitting(false);
-    }
-  };
-
-  const handlePlexSSO = async () => {
-    setPlexLoading(true);
-    setPlexError(null);
-
-    try {
-      const response = await requestJson<{
-        data?: {
-          redirect_url?: string;
-        };
-      }>(
-        '/admin/api/v2/auth/plex/start',
-        {
-          method: 'POST',
-          body: JSON.stringify({
-            next: '/admin/account?tab=credentials'
-          })
-        }
-      );
-
-      const redirectUrl = response?.data?.redirect_url;
-      if (redirectUrl) {
-        window.location.href = redirectUrl;
-      } else {
-        setPlexError('Failed to initiate Plex login');
-        setPlexLoading(false);
-      }
-    } catch (err) {
-      setPlexError(getApiErrorMessage(err));
-      setPlexLoading(false);
-    }
-  };
-
-  const handleSyncToggle = (checked: boolean) => {
-    setPendingSyncEnabled(checked);
-  };
-
-  const handleSyncSave = async () => {
-    if (pendingSyncEnabled === null || pendingSyncEnabled === syncEnabled) return;
-    setSyncSubmitting(true);
-    try {
-      await toggleSync(pendingSyncEnabled);
-      success(pendingSyncEnabled ? 'Preference sync enabled' : 'Preference sync disabled');
-    } catch (err) {
-      showError('Failed to save sync setting: ' + getApiErrorMessage(err));
-      setPendingSyncEnabled(syncEnabled);
-    } finally {
-      setSyncSubmitting(false);
-    }
-  };
-
-  const handleEmailChange = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setEmailError(null);
-    setEmailSubmitting(true);
-    try {
-      await requestJson('/admin/api/v2/account/email', {
-        method: 'PATCH',
-        body: JSON.stringify({ email: emailForm.email }),
-      });
-      await refreshAccount();
-      success('Email updated.');
-    } catch (err) {
-      setEmailError(getApiErrorMessage(err));
-    } finally {
-      setEmailSubmitting(false);
-    }
+  const handleTimezoneSuccess = (response: AccountResponse) => {
+    setAccount(response.data);
   };
 
   if (loading && !account) {
@@ -393,6 +741,12 @@ const AdminAccountPage = () => {
   if (!account) {
     return null;
   }
+
+  // Generate keys for form components to reset when account data changes
+  const accountKey = `${account.user.uuid}-${account.user.username}-${account.user.email}`;
+  const timezoneKey = `${account.timezone.preference}-${account.timezone.time_format}-${account.timezone.local_timezone}`;
+  const syncKey = syncEnabled === undefined ? 'unset' : String(syncEnabled);
+  const plexSSOKey = plexSSOError ?? 'no-error';
 
   const displayName = account.user.display_name || account.user.username || 'Administrator';
 
@@ -473,369 +827,50 @@ const AdminAccountPage = () => {
 
         <TabsContent value="credentials" className="space-y-6">
           <div className="grid gap-6 lg:grid-cols-2">
-            {showInitialCredentialsCard ? (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Set Local Credentials</CardTitle>
-                  <CardDescription>
-                    Configure a local username and password to sign in without Plex SSO.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <form className="space-y-4" onSubmit={handleSetInitialCredentials}>
-                    <div className="space-y-2">
-                      <Label htmlFor="initial-username">Username</Label>
-                      <Input
-                        id="initial-username"
-                        value={credentialsForm.username}
-                        onChange={(event) =>
-                          setCredentialsForm((prev) => ({ ...prev, username: event.target.value }))
-                        }
-                        required
-                        minLength={3}
-                        maxLength={80}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="initial-password">Password</Label>
-                      <Input
-                        id="initial-password"
-                        type="password"
-                        value={credentialsForm.password}
-                        onChange={(event) =>
-                          setCredentialsForm((prev) => ({ ...prev, password: event.target.value }))
-                        }
-                        required
-                        minLength={8}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="initial-confirm-password">Confirm Password</Label>
-                      <Input
-                        id="initial-confirm-password"
-                        type="password"
-                        value={credentialsForm.confirmPassword}
-                        onChange={(event) =>
-                          setCredentialsForm((prev) => ({
-                            ...prev,
-                            confirmPassword: event.target.value,
-                          }))
-                        }
-                        required
-                        minLength={8}
-                      />
-                    </div>
-                    {credentialsError ? (
-                      <Alert variant="destructive">
-                        <AlertDescription>{credentialsError}</AlertDescription>
-                      </Alert>
-                    ) : null}
-                    <Button type="submit" disabled={credentialsSubmitting} className="w-full sm:w-auto">
-                      {credentialsSubmitting ? 'Saving…' : 'Save Credentials'}
-                    </Button>
-                  </form>
-                </CardContent>
-              </Card>
-            ) : null}
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Change Password</CardTitle>
-                <CardDescription>Update your password for this admin account.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <form className="space-y-4" onSubmit={handleChangePassword}>
-                  <div className="space-y-2">
-                    <Label htmlFor="current-password">Current Password</Label>
-                    <Input
-                      id="current-password"
-                      type="password"
-                      value={passwordForm.currentPassword}
-                      onChange={(event) =>
-                        setPasswordForm((prev) => ({
-                          ...prev,
-                          currentPassword: event.target.value,
-                        }))
-                      }
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="new-password">New Password</Label>
-                    <Input
-                      id="new-password"
-                      type="password"
-                      value={passwordForm.newPassword}
-                      onChange={(event) =>
-                        setPasswordForm((prev) => ({
-                          ...prev,
-                          newPassword: event.target.value,
-                        }))
-                      }
-                      minLength={8}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="confirm-new-password">Confirm New Password</Label>
-                    <Input
-                      id="confirm-new-password"
-                      type="password"
-                      value={passwordForm.confirmPassword}
-                      onChange={(event) =>
-                        setPasswordForm((prev) => ({
-                          ...prev,
-                          confirmPassword: event.target.value,
-                        }))
-                      }
-                      minLength={8}
-                      required
-                    />
-                  </div>
-                  {passwordError ? (
-                    <Alert variant="destructive">
-                      <AlertDescription>{passwordError}</AlertDescription>
-                    </Alert>
-                  ) : null}
-                  <Button type="submit" disabled={passwordSubmitting} className="w-full sm:w-auto">
-                    {passwordSubmitting ? 'Updating…' : 'Update Password'}
-                  </Button>
-                </form>
-              </CardContent>
-            </Card>
+            {showInitialCredentialsCard && (
+              <InitialCredentialsForm
+                key={`credentials-${accountKey}`}
+                initialUsername={account.user.username ?? ''}
+                onSuccess={handleCredentialsSuccess}
+              />
+            )}
+            <PasswordForm
+              key={`password-${accountKey}`}
+              onSuccess={() => void refreshAccount()}
+            />
           </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Account Email</CardTitle>
-              <CardDescription>View or update the email associated with this account.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form className="space-y-4" onSubmit={handleEmailChange}>
-                <div className="space-y-2">
-                  <Label htmlFor="account-email">Email</Label>
-                  <Input
-                    id="account-email"
-                    type="email"
-                    value={emailForm.email}
-                    onChange={(event) =>
-                      setEmailForm((prev) => ({
-                        ...prev,
-                        email: event.target.value,
-                      }))
-                    }
-                    placeholder="you@example.com"
-                    required
-                  />
-                </div>
-                {emailError ? (
-                  <Alert variant="destructive">
-                    <AlertDescription>{emailError}</AlertDescription>
-                  </Alert>
-                ) : null}
-                <Button type="submit" disabled={emailSubmitting} className="w-full sm:w-auto">
-                  {emailSubmitting ? 'Saving.' : 'Save Email'}
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
+          <EmailForm
+            key={`email-${accountKey}`}
+            initialEmail={account.user.email ?? ''}
+            onSuccess={() => void refreshAccount()}
+          />
 
-          {/* Plex SSO Link Section */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Plex SSO Link</CardTitle>
-              <CardDescription>
-                Link your Plex account to enable single sign-on authentication.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {plexError && (
-                  <Alert variant="destructive">
-                    <AlertDescription>{plexError}</AlertDescription>
-                  </Alert>
-                )}
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handlePlexSSO}
-                  className="w-full text-lg h-12 hover:-translate-y-0.5 hover:shadow-lg transition-all duration-200 ease-in-out border-orange-600 text-orange-700 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-950 hover:border-orange-600"
-                  disabled={plexLoading}
-                >
-                  {plexLoading ? (
-                    <>
-                      <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2" />
-                      Connecting...
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-5 h-5 mr-3" viewBox="0 0 192 192" xmlns="http://www.w3.org/2000/svg" fill="currentColor" stroke="transparent" strokeLinejoin="round" strokeWidth="12">
-                        <path d="M22 25.5h48L116 94l-46 68.5H22L68.5 94Zm109.8 56L108 46l14-20.5h48zm-.3 23.5c10.979 17.625 25.52 38.875 38.5 49.5-11.149 13.635-34.323 32.278-62.5-14z"/>
-                      </svg>
-                      Link Plex Account
-                    </>
-                  )}
-                </Button>
-                <p className="text-sm text-muted-foreground">
-                  After linking, you'll be able to sign in using your Plex credentials. You'll be redirected back to this page after authentication.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
+          <PlexSSOCard
+            key={`plex-${plexSSOKey}`}
+            initialError={plexSSOError}
+          />
         </TabsContent>
 
         <TabsContent value="preferences" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Timezone Settings</CardTitle>
-              <CardDescription>
-                Choose how timestamps are displayed throughout the application.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form className="space-y-4" onSubmit={handleTimezoneSubmit}>
-                <div className="space-y-2">
-                  <Label>Display Time In</Label>
-                  <Select
-                    value={timezoneForm.preference}
-                    onValueChange={(value: 'local' | 'utc') =>
-                      setTimezoneForm((prev) => ({
-                        ...prev,
-                        preference: value,
-                        local_timezone: value === 'local' ? (prev.local_timezone ?? detectedTimezone) : null,
-                      }))
-                    }
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="local">
-                        My Timezone {timezoneForm.local_timezone ? `(${timezoneForm.local_timezone})` : ''}
-                      </SelectItem>
-                      <SelectItem value="utc">UTC</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                {timezoneForm.preference === 'local' ? (
-                  <div className="space-y-2">
-                    <Label htmlFor="local-timezone">Local Timezone</Label>
-                    <Input
-                      id="local-timezone"
-                      placeholder="e.g. America/New_York"
-                      value={timezoneForm.local_timezone ?? ''}
-                      onChange={(event) =>
-                        setTimezoneForm((prev) => ({
-                          ...prev,
-                          local_timezone: event.target.value,
-                        }))
-                      }
-                      required
-                    />
-                    {detectedTimezone ? (
-                      <button
-                        type="button"
-                        className="text-sm text-primary underline-offset-4 hover:underline"
-                        onClick={() =>
-                          setTimezoneForm((prev) => ({
-                            ...prev,
-                            local_timezone: detectedTimezone,
-                          }))
-                        }
-                      >
-                        Use detected timezone ({detectedTimezone})
-                      </button>
-                    ) : null}
-                  </div>
-                ) : null}
-                <div className="space-y-2">
-                  <Label>Time Format</Label>
-                  <Select
-                    value={timezoneForm.time_format}
-                    onValueChange={(value: '12' | '24') =>
-                      setTimezoneForm((prev) => ({
-                        ...prev,
-                        time_format: value,
-                      }))
-                    }
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="12">12-hour (AM/PM)</SelectItem>
-                      <SelectItem value="24">24-hour</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                {timezoneError ? (
-                  <Alert variant="destructive">
-                    <AlertDescription>{timezoneError}</AlertDescription>
-                  </Alert>
-                ) : null}
-                <Button type="submit" disabled={timezoneSubmitting} className="w-full sm:w-auto">
-                  {timezoneSubmitting ? 'Saving…' : 'Save Preferences'}
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
+          <TimezoneForm
+            key={`timezone-${timezoneKey}`}
+            initialValues={{
+              preference: account.timezone.preference ?? 'local',
+              time_format: account.timezone.time_format ?? '12',
+              local_timezone: account.timezone.local_timezone ?? detectedTimezone,
+            }}
+            onSuccess={handleTimezoneSuccess}
+          />
 
-          <Card>
-            <CardHeader>
-              <CardTitle>User Preferences</CardTitle>
-              <CardDescription>
-                Manage your personal preferences and cross-device synchronization. Settings marked with
-                <i className="fa-solid fa-arrow-right-arrow-left mx-1" aria-hidden="true" /> can be synced across devices.
-                When a syncable setting is enabled, that icon turns green to indicate it will follow you everywhere.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="rounded-lg border bg-muted/50 p-4 space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label htmlFor="sync-preferences" className="text-base font-medium cursor-pointer flex items-center gap-2">
-                      <span>Sync settings across devices</span>
-                      <i
-                        className={`fa-solid fa-arrow-right-arrow-left text-sm ${pendingSyncEnabled ? 'text-emerald-500' : 'text-muted-foreground'}`}
-                        aria-hidden="true"
-                      />
-                    </Label>
-                    <p className="text-sm text-muted-foreground">
-                      {pendingSyncEnabled
-                        ? 'Your preferences are synced to the database and will be available on all devices.'
-                        : 'Your preferences are stored locally on this device only.'}
-                    </p>
-                  </div>
-                  <Switch
-                    id="sync-preferences"
-                    checked={pendingSyncEnabled ?? false}
-                    onCheckedChange={handleSyncToggle}
-                    disabled={prefsLoading || syncSubmitting}
-                  />
-                </div>
-                <div className="flex items-center gap-3">
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={handleSyncSave}
-                    disabled={!syncDirty || prefsLoading || syncSubmitting}
-                  >
-                    {syncSubmitting ? 'Saving.' : 'Save Sync Setting'}
-                  </Button>
-                  {syncDirty ? <span className="text-sm text-muted-foreground">Unsaved change</span> : null}
-                </div>
-                {pendingSyncEnabled && (
-                  <Alert>
-                    <IconInfoCircle className="h-4 w-4" />
-                    <AlertDescription>
-                      When sync is enabled, your preferences are saved to the database and will apply across all devices where you sign in.
-                      When disabled, preferences are stored locally in your browser only.
-                    </AlertDescription>
-                  </Alert>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+          <SyncPreferencesCard
+            key={syncKey}
+            syncEnabled={syncEnabled}
+            toggleSync={toggleSync}
+            prefsLoading={prefsLoading}
+            success={success}
+            showError={showError}
+          />
         </TabsContent>
       </Tabs>
     </div>

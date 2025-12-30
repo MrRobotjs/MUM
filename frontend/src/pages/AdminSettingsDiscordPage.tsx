@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { IconAlertCircle, IconAlertTriangle, IconBrandDiscord, IconDeviceFloppy, IconInfoCircle, IconRefresh, IconRobot, IconTestPipe } from '@tabler/icons-react'
-import { useDiscordSettings } from '../hooks/useSettings'
+import { useDiscordSettings, type DiscordSettings } from '../hooks/useSettings'
 import { PageHeader } from '../components'
 import { requestJson } from '../util/apiClient'
 import { useAlerts } from '../contexts'
@@ -61,21 +61,26 @@ const emptyFormMeta: DiscordFormMeta = {
   redirect_uri_admin: '',
 }
 
-export const AdminSettingsDiscordPage = () => {
-  const { settings, loading, error, refresh } = useDiscordSettings()
-  const { success, error: showError } = useAlerts()
-  const [formValues, setFormValues] = useState<DiscordFormValues>(emptyFormValues)
-  const [formMeta, setFormMeta] = useState<DiscordFormMeta>(emptyFormMeta)
-  const [submitting, setSubmitting] = useState(false)
-  const [testing, setTesting] = useState(false)
-  const [hasChanges, setHasChanges] = useState(false)
-  const [useOauthOverride, setUseOauthOverride] = useState(false)
+type DiscordFormState = {
+  values: DiscordFormValues
+  meta: DiscordFormMeta
+  useOauthOverride: boolean
+}
 
-  useEffect(() => {
-    if (!settings) return
-    const defaultRequireGuild = settings.default_require_discord_guild_membership
-    const defaultRequireAuth = settings.default_require_discord_auth || defaultRequireGuild
-    setFormValues({
+const buildDiscordFormState = (settings: DiscordSettings | null): DiscordFormState => {
+  if (!settings) {
+    return {
+      values: emptyFormValues,
+      meta: emptyFormMeta,
+      useOauthOverride: false,
+    }
+  }
+
+  const defaultRequireGuild = settings.default_require_discord_guild_membership
+  const defaultRequireAuth = settings.default_require_discord_auth || defaultRequireGuild
+
+  return {
+    values: {
       enable_oauth: settings.enable_oauth,
       enable_bot: settings.enable_bot,
       enable_membership_requirement: settings.enable_membership_requirement,
@@ -91,16 +96,30 @@ export const AdminSettingsDiscordPage = () => {
       thread_channel_id: settings.thread_channel_id ?? '',
       bot_log_channel_id: settings.bot_log_channel_id ?? '',
       whitelist_sharers: settings.whitelist_sharers,
-    })
-    setFormMeta({
+    },
+    meta: {
       client_secret_set: settings.client_secret_set,
       bot_token_set: settings.bot_token_set,
       redirect_uri_invite: settings.redirect_uri_invite ?? '',
       redirect_uri_admin: settings.redirect_uri_admin ?? '',
-    })
-    setUseOauthOverride(Boolean(settings.oauth_auth_url))
-    setHasChanges(false)
-  }, [settings])
+    },
+    useOauthOverride: Boolean(settings.oauth_auth_url),
+  }
+}
+
+type DiscordSettingsFormProps = {
+  initialState: DiscordFormState
+  refresh: () => Promise<unknown>
+}
+
+const DiscordSettingsForm = ({ initialState, refresh }: DiscordSettingsFormProps) => {
+  const { success, error: showError } = useAlerts()
+  const [formValues, setFormValues] = useState<DiscordFormValues>(() => initialState.values)
+  const formMeta = initialState.meta
+  const [submitting, setSubmitting] = useState(false)
+  const [testing, setTesting] = useState(false)
+  const [hasChanges, setHasChanges] = useState(false)
+  const [useOauthOverride, setUseOauthOverride] = useState(() => initialState.useOauthOverride)
 
   const handleChange = (field: keyof DiscordFormValues, value: string) => {
     setFormValues((prev) => ({ ...prev, [field]: value }))
@@ -181,27 +200,8 @@ export const AdminSettingsDiscordPage = () => {
   }
 
   const handleReset = () => {
-    if (!settings) return
-    const defaultRequireGuild = settings.default_require_discord_guild_membership
-    const defaultRequireAuth = settings.default_require_discord_auth || defaultRequireGuild
-    setFormValues({
-      enable_oauth: settings.enable_oauth,
-      enable_bot: settings.enable_bot,
-      enable_membership_requirement: settings.enable_membership_requirement,
-      default_require_discord_auth: defaultRequireAuth,
-      default_require_discord_guild_membership: defaultRequireGuild,
-      client_id: settings.client_id ?? '',
-      client_secret: '',
-      oauth_auth_url: settings.oauth_auth_url ?? '',
-      guild_id: settings.guild_id ?? '',
-      server_invite_url: settings.server_invite_url ?? '',
-      bot_token: '',
-      monitored_role_id: settings.monitored_role_id ?? '',
-      thread_channel_id: settings.thread_channel_id ?? '',
-      bot_log_channel_id: settings.bot_log_channel_id ?? '',
-      whitelist_sharers: settings.whitelist_sharers,
-    })
-    setUseOauthOverride(Boolean(settings.oauth_auth_url))
+    setFormValues(initialState.values)
+    setUseOauthOverride(initialState.useOauthOverride)
     setHasChanges(false)
   }
 
@@ -234,27 +234,6 @@ export const AdminSettingsDiscordPage = () => {
       oauth_auth_url: value ? (prev.oauth_auth_url || generatedOauthUrl) : ''
     }))
     setHasChanges(true)
-  }
-
-  if (loading) {
-    return (
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <span className="inline-flex size-4 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
-        Loading Discord settings...
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <Alert variant="destructive">
-        <IconAlertCircle />
-        <AlertTitle>Error</AlertTitle>
-        <AlertDescription>
-          Failed to load Discord settings: {(error as Error).message}
-        </AlertDescription>
-      </Alert>
-    )
   }
 
   return (
@@ -615,6 +594,36 @@ export const AdminSettingsDiscordPage = () => {
       </form>
     </div>
   )
+}
+
+export const AdminSettingsDiscordPage = () => {
+  const { settings, loading, error, refresh } = useDiscordSettings()
+
+  if (loading) {
+    return (
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <span className="inline-flex size-4 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
+        Loading Discord settings...
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <Alert variant="destructive">
+        <IconAlertCircle />
+        <AlertTitle>Error</AlertTitle>
+        <AlertDescription>
+          Failed to load Discord settings: {(error as Error).message}
+        </AlertDescription>
+      </Alert>
+    )
+  }
+
+  const settingsKey = settings ? JSON.stringify(settings) : 'empty'
+  const initialState = buildDiscordFormState(settings)
+
+  return <DiscordSettingsForm key={settingsKey} initialState={initialState} refresh={refresh} />
 }
 
 export default AdminSettingsDiscordPage

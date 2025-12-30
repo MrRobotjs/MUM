@@ -45,6 +45,10 @@ export type AdvancedSettings = {
   api_timeout_seconds: number;
 };
 
+export type UserAccountSettings = {
+  allow_user_accounts: boolean;
+};
+
 type SettingsResponse<T> = {
   data: T;
   meta: {
@@ -55,7 +59,7 @@ type SettingsResponse<T> = {
 export const useGeneralSettings = () => {
   const { data, error, isLoading, mutate } = useSWR<SettingsResponse<GeneralSettings>>(
     '/admin/api/v2/settings/general',
-    (url: string) => requestJson(url)
+    (url: string) => requestJson<SettingsResponse<GeneralSettings>>(url)
   );
 
   return {
@@ -69,7 +73,7 @@ export const useGeneralSettings = () => {
 export const useDiscordSettings = () => {
   const { data, error, isLoading, mutate } = useSWR<SettingsResponse<DiscordSettings>>(
     '/admin/api/v2/settings/discord',
-    (url: string) => requestJson(url)
+    (url: string) => requestJson<SettingsResponse<DiscordSettings>>(url)
   );
 
   return {
@@ -83,7 +87,21 @@ export const useDiscordSettings = () => {
 export const useAdvancedSettings = () => {
   const { data, error, isLoading, mutate } = useSWR<SettingsResponse<AdvancedSettings>>(
     '/admin/api/v2/settings/advanced',
-    (url: string) => requestJson(url)
+    (url: string) => requestJson<SettingsResponse<AdvancedSettings>>(url)
+  );
+
+  return {
+    settings: data?.data ?? null,
+    loading: isLoading,
+    error,
+    refresh: mutate,
+  };
+};
+
+export const useUserAccountSettings = () => {
+  const { data, error, isLoading, mutate } = useSWR<SettingsResponse<UserAccountSettings>>(
+    '/admin/api/v2/settings/user-accounts',
+    (url: string) => requestJson<SettingsResponse<UserAccountSettings>>(url)
   );
 
   return {

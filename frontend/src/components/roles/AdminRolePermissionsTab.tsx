@@ -188,7 +188,7 @@ export const AdminRolePermissionsTab = ({ role, permissions, onUpdate }: AdminRo
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       {/* Permissions Overview Section */}
-      <div className="rounded-lg border border-border bg-card/30 p-6">
+      <div className="rounded-lg border border-border bg-card p-6">
         <div className="mb-6 flex items-center gap-3">
           <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-green-100/20">
             <IconShieldHalf className="size-5 text-green-600 dark:text-green-400" />
@@ -213,7 +213,7 @@ export const AdminRolePermissionsTab = ({ role, permissions, onUpdate }: AdminRo
       </div>
 
       {/* Administrator Permission */}
-      <div className="rounded-lg border border-border bg-card/30 p-6">
+      <div className="rounded-lg border border-border bg-card p-6">
         <div className="mb-2 flex items-center gap-3">
           <div className="flex size-8 items-center justify-center rounded-full bg-primary/20">
             <IconLock className="text-primary" />
@@ -239,7 +239,7 @@ export const AdminRolePermissionsTab = ({ role, permissions, onUpdate }: AdminRo
           const categoryChecked = isCategoryChecked(category)
 
           return (
-            <div key={category} className="rounded-lg border border-border bg-card/30 p-6">
+            <div key={category} className="rounded-lg border border-border bg-card p-6">
               {/* Category Header */}
               <div className="mb-4 flex items-center gap-3">
                 <Label className="flex cursor-pointer items-center gap-3">

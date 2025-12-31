@@ -11,6 +11,7 @@ import { UserDebugModal } from './UserDebugModal';
 import { cn } from '@/lib/utils';
 import { Badge } from '../common/Badge';
 import { getServicePalette, type ThemePalette } from '@/config/pluginMetadata';
+import { RoleBadge } from '../roles/RoleBadge';
 
 interface UserCardProps {
   user: UserRow;
@@ -322,26 +323,12 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection }: UserCa
             <div className="text-xs font-medium mb-1">Roles:</div>
             <div className="flex flex-wrap gap-1">
               {user.user_roles.map((role) => (
-                <span
+                <RoleBadge
                   key={role.name}
-                  className={cn(
-                    'inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset gap-1',
-                    role.color
-                      ? undefined
-                      : 'bg-purple-500/10 text-purple-400 ring-purple-500/20'
-                  )}
-                  style={
-                    role.color
-                      ? {
-                          backgroundColor: `${role.color}20`,
-                          color: role.color,
-                          borderColor: `${role.color}40`
-                        }
-                      : undefined
-                  }
-                >
-                  {role.name}
-                </span>
+                  label={role.name}
+                  color={role.color}
+                  icon={role.icon}
+                />
               ))}
             </div>
           </div>
@@ -352,12 +339,7 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection }: UserCa
             <div className="text-xs font-medium mb-1">Admin:</div>
             <div className="flex flex-wrap gap-1">
               {user.admin_roles.map((role) => (
-                <span
-                  key={role}
-                  className="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset gap-1 bg-blue-500/10 text-blue-400 ring-blue-500/20"
-                >
-                  {role}
-                </span>
+                <RoleBadge key={role} label={role} kind="admin" />
               ))}
             </div>
           </div>

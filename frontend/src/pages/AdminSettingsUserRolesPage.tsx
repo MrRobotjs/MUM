@@ -6,11 +6,11 @@ import {
   IconList,
   IconPalette,
   IconDroplet,
-  IconSparkles,
 } from '@tabler/icons-react';
 
 import { useUserRoles, type UserRole } from '../hooks/useUserRoles';
 import { PageHeader } from '../components';
+import { RoleBadge } from '../components/roles/RoleBadge';
 import {
   Alert,
   AlertDescription,
@@ -60,16 +60,6 @@ const presetColors: Array<{ hex: string; label: string }> = [
 ];
 
 const isAutoManagedRole = (role: UserRole) => Boolean(role.is_auto_managed);
-
-const getTextColorForBackground = (hex: string) => {
-  const sanitized = hex.replace('#', '');
-  if (sanitized.length !== 6) return '#ffffff';
-  const r = parseInt(sanitized.slice(0, 2), 16);
-  const g = parseInt(sanitized.slice(2, 4), 16);
-  const b = parseInt(sanitized.slice(4, 6), 16);
-  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-  return luminance > 0.6 ? '#111827' : '#ffffff';
-};
 
 export const AdminSettingsUserRolesPage = () => {
   const navigate = useNavigate();
@@ -267,16 +257,12 @@ export const AdminSettingsUserRolesPage = () => {
       <div className="rounded-lg border border-dashed border-border bg-muted/40 p-4">
         <p className="text-xs font-medium uppercase text-muted-foreground">Live preview</p>
         <div className="mt-3 flex flex-wrap items-center gap-3">
-          <span
-            className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm font-medium shadow-sm"
-            style={{
-              backgroundColor: formValues.color,
-              color: getTextColorForBackground(formValues.color),
-            }}
-          >
-            {formValues.icon ? <i className={`fa-solid ${formValues.icon}`} /> : <IconSparkles className="h-4 w-4" />}
-            {formValues.name || 'Role Name'}
-          </span>
+          <RoleBadge
+            label={formValues.name || 'Role Name'}
+            color={formValues.color}
+            icon={formValues.icon || null}
+            className="rounded-full px-3 py-1 text-sm shadow-sm"
+          />
           <span className="text-xs text-muted-foreground">
             {formValues.description || 'Description preview text'}
           </span>

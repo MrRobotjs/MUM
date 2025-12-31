@@ -8,6 +8,7 @@ import { Skeleton } from '../ui/skeleton';
 import { cn } from '@/lib/utils';
 import { Button } from '../ui/button';
 import { UserDebugModal } from './UserDebugModal';
+import { RoleBadge } from '../roles/RoleBadge';
 
 export type UserRow = {
   uuid: string;
@@ -375,27 +376,15 @@ export const UsersTable = ({
                       <TableCell>
                         <div className="flex flex-wrap gap-1">
                           {user.admin_roles.map((role) => (
-                            <span key={role} className="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium bg-muted ring-1 ring-inset ring-border">
-                              {role}
-                            </span>
+                            <RoleBadge key={role} label={role} kind="admin" />
                           ))}
                           {user.user_roles.map((role) => (
-                            <span
+                            <RoleBadge
                               key={`user-role-${role.name}`}
-                              className="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset"
-                              style={
-                                role.color
-                                  ? {
-                                      backgroundColor: `${role.color}20`,
-                                      color: role.color,
-                                      borderColor: `${role.color}40`
-                                    }
-                                  : undefined
-                              }
-                            >
-                              {role.icon ? <i className={`${role.icon} mr-1`} /> : null}
-                              {role.name}
-                            </span>
+                              label={role.name}
+                              color={role.color}
+                              icon={role.icon}
+                            />
                           ))}
                         </div>
                       </TableCell>

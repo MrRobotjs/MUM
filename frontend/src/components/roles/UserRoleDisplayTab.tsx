@@ -1,14 +1,16 @@
 import { useState } from 'react'
-import { IconPalette, IconDroplet, IconSparkles, IconDeviceFloppy, IconInfoCircle } from '@tabler/icons-react'
+import { IconPalette, IconDroplet, IconDeviceFloppy, IconInfoCircle } from '@tabler/icons-react'
 import { UserRole } from '../../hooks/useUserRoles'
 import { useAlerts } from '../../contexts'
 import { requestJson } from '../../util/apiClient'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
+import { RoleBadge } from './RoleBadge'
 
 interface UserRoleDisplayTabProps {
   role: UserRole
@@ -25,16 +27,6 @@ const presetColors: Array<{ hex: string; label: string }> = [
   { hex: '#9c84ef', label: 'Purple' },
   { hex: '#808080', label: 'Gray' },
 ]
-
-const getTextColorForBackground = (hex: string) => {
-  const sanitized = hex.replace('#', '')
-  if (sanitized.length !== 6) return '#ffffff'
-  const r = parseInt(sanitized.slice(0, 2), 16)
-  const g = parseInt(sanitized.slice(2, 4), 16)
-  const b = parseInt(sanitized.slice(4, 6), 16)
-  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
-  return luminance > 0.6 ? '#111827' : '#ffffff'
-}
 
 export const UserRoleDisplayTab = ({ role, onUpdate }: UserRoleDisplayTabProps) => {
   const { success, error: showError } = useAlerts()
@@ -67,7 +59,7 @@ export const UserRoleDisplayTab = ({ role, onUpdate }: UserRoleDisplayTabProps) 
   return (
     <div className="space-y-6">
       {/* Display Settings Overview */}
-      <div className="rounded-lg border border-border bg-card/30 p-6">
+      <div className="rounded-lg border border-border bg-card p-6">
         <div className="mb-6 flex items-center gap-3">
           <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/20">
             <IconPalette className="size-5 text-primary" />
@@ -91,15 +83,19 @@ export const UserRoleDisplayTab = ({ role, onUpdate }: UserRoleDisplayTabProps) 
 
       {/* Settings Form */}
       <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="rounded-lg border border-border bg-card/30 p-6">
-          <div className="mb-6 flex items-center gap-3">
-            <div className="flex size-8 items-center justify-center rounded-full bg-secondary/20">
-              <i className="fa-solid fa-cog text-sm text-secondary" />
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-3">
+              <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/20">
+                <i className="fa-solid fa-cog text-sm text-primary" />
+              </div>
+              <div>
+                <CardTitle className="mb-1 text-xl font-semibold">Role Settings</CardTitle>
+                <CardDescription>Update the role name, colors, and icon style.</CardDescription>
+              </div>
             </div>
-            <h3 className="text-lg font-semibold">Role Settings</h3>
-          </div>
-
-          <div className="space-y-4">
+          </CardHeader>
+          <CardContent className="space-y-4">
             {/* Role Name */}
             <div className="space-y-2">
               <Label htmlFor="name">Role Name</Label>
@@ -204,23 +200,19 @@ export const UserRoleDisplayTab = ({ role, onUpdate }: UserRoleDisplayTabProps) 
             <div className="rounded-lg border border-dashed border-border bg-muted/40 p-4">
               <p className="text-xs font-medium uppercase text-muted-foreground">Live preview</p>
               <div className="mt-3 flex flex-wrap items-center gap-3">
-                <span
-                  className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm font-medium shadow-sm"
-                  style={{
-                    backgroundColor: formValues.color,
-                    color: getTextColorForBackground(formValues.color),
-                  }}
-                >
-                  {formValues.icon ? <i className={`fa-solid ${formValues.icon}`} /> : <IconSparkles className="h-4 w-4" />}
-                  {formValues.name || 'Role Name'}
-                </span>
+                <RoleBadge
+                  label={formValues.name || 'Role Name'}
+                  color={formValues.color}
+                  icon={formValues.icon || null}
+                  className="rounded-full px-3 py-1 text-sm shadow-sm"
+                />
                 <span className="text-xs text-muted-foreground">
                   {formValues.description || 'Description preview text'}
                 </span>
               </div>
             </div>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
         {/* Save Button */}
         <div className="flex items-center justify-end gap-3">

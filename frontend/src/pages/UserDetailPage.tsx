@@ -21,6 +21,7 @@ import type { ServiceAccount } from '../components/users/ServiceAccountsCard';
 import type { UserSettings } from '../components/users/UserSettingsCard';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/common/Badge';
+import { RoleBadge } from '@/components/roles/RoleBadge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Pagination } from '@/components/common/Pagination';
 import { getServiceMeta } from '@/config/pluginMetadata';
@@ -236,13 +237,7 @@ const ProfileTab = ({ user }: { user: UserDetail }) => {
               ) : (
                 <div className="mt-2 flex flex-wrap gap-2">
                   {user.roles.admin_roles.map((role) => (
-                    <span
-                      key={role}
-                      className="inline-flex items-center gap-2 rounded-md bg-rose-100 px-2 py-1 text-xs font-semibold text-rose-700 ring-1 ring-inset ring-rose-200 dark:bg-rose-400/10 dark:text-rose-200 dark:ring-rose-400/30"
-                    >
-                      <i className="fa-solid fa-user-shield" />
-                      {role}
-                    </span>
+                    <RoleBadge key={role} label={role} kind="admin" />
                   ))}
                 </div>
               )}
@@ -255,22 +250,13 @@ const ProfileTab = ({ user }: { user: UserDetail }) => {
               ) : (
                 <div className="mt-2 flex flex-wrap gap-2">
                   {roleBadges.map((role) => (
-                    <span
+                    <RoleBadge
                       key={role.name}
-                      className={cn(
-                        'inline-flex items-center gap-2 rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset',
-                        role.color ? undefined : 'bg-secondary/10 text-secondary ring-secondary/20'
-                      )}
-                      style={
-                        role.color
-                          ? { backgroundColor: `${role.color}20`, color: role.color, borderColor: `${role.color}40` }
-                          : undefined
-                      }
+                      label={role.name}
+                      color={role.color}
+                      icon={role.icon}
                       title={role.description ?? undefined}
-                    >
-                      {role.icon ? <i className={role.icon} /> : null}
-                      {role.name}
-                    </span>
+                    />
                   ))}
                 </div>
               )}

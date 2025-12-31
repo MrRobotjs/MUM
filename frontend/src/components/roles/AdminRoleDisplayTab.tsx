@@ -88,7 +88,7 @@ export const AdminRoleDisplayTab = ({ role, onUpdate }: AdminRoleDisplayTabProps
         </h4>
 
         {/* Role Name */}
-        <div className="rounded-lg border border-border bg-card/30 p-4 transition-colors hover:border-border/60">
+        <div className="rounded-lg border border-border bg-card p-4 transition-colors hover:border-border/60">
           <div className="mb-2 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <IconTag className="size-4 text-primary" />
@@ -111,7 +111,7 @@ export const AdminRoleDisplayTab = ({ role, onUpdate }: AdminRoleDisplayTabProps
         </div>
 
         {/* Description */}
-        <div className="rounded-lg border border-border bg-card/30 p-4 transition-colors hover:border-border/60">
+        <div className="rounded-lg border border-border bg-card p-4 transition-colors hover:border-border/60">
           <div className="mb-2 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <IconAlignLeft className="size-4 text-secondary" />
@@ -143,7 +143,7 @@ export const AdminRoleDisplayTab = ({ role, onUpdate }: AdminRoleDisplayTabProps
         </h4>
 
         {/* Color */}
-        <div className="rounded-lg border border-border bg-card/30 p-4 transition-colors hover:border-border/60">
+        <div className="rounded-lg border border-border bg-card p-4 transition-colors hover:border-border/60">
           <div className="mb-3 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <IconPalette className="size-4 text-amber-600 dark:text-amber-400" />
@@ -193,7 +193,7 @@ export const AdminRoleDisplayTab = ({ role, onUpdate }: AdminRoleDisplayTabProps
         </div>
 
         {/* Icon */}
-        <div className="rounded-lg border border-border bg-card/30 p-4 transition-colors hover:border-border/60">
+        <div className="rounded-lg border border-border bg-card p-4 transition-colors hover:border-border/60">
           <div className="mb-2 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <IconIcons className="size-4 text-accent" />
@@ -233,7 +233,7 @@ export const AdminRoleDisplayTab = ({ role, onUpdate }: AdminRoleDisplayTabProps
           Live Preview
         </h4>
 
-        <div className="rounded-lg border border-border bg-card/30 p-6">
+        <div className="rounded-lg border border-border bg-card p-6">
           <div className="mb-4 flex items-center gap-3">
             <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-green-100/20">
               <IconSparkles className="size-4 text-green-600 dark:text-green-400" />

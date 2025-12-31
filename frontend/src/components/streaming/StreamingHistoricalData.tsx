@@ -1,8 +1,9 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Progress } from '@/components/ui/progress';
 
 type StreamingSummary = {
-  daily: Array<{ date: string; count: number }>;
   by_service: Array<{ service_type: string; count: number }>;
+  by_server: Array<{ server_name: string; service_type: string; count: number }>;
 };
 
 interface StreamingHistoricalDataProps {
@@ -12,25 +13,37 @@ interface StreamingHistoricalDataProps {
 export const StreamingHistoricalData = ({ summary }: StreamingHistoricalDataProps) => {
   if (!summary) return null;
 
+  const byServer = summary.by_server ?? [];
+  const byService = summary.by_service ?? [];
+  const serverMax = byServer.reduce((max, entry) => Math.max(max, entry.count), 0);
+  const serviceMax = byService.reduce((max, entry) => Math.max(max, entry.count), 0);
+  const toPercent = (count: number, max: number) => (max > 0 ? Math.round((count / max) * 100) : 0);
+
   return (
     <div className="grid gap-4 md:grid-cols-2">
       <Card>
         <CardHeader className="pb-4">
-          <CardTitle className="text-base font-semibold">Daily activity</CardTitle>
-          <CardDescription>Recent stream counts by day.</CardDescription>
+          <CardTitle className="text-base font-semibold">Streams by server</CardTitle>
+          <CardDescription>Activity split by individual media servers.</CardDescription>
         </CardHeader>
         <CardContent>
-          <ul className="space-y-1 text-xs text-foreground/80">
-            {summary.daily.length === 0 ? (
-              <li className="text-muted-foreground">No activity in the selected range.</li>
+          <ul className="space-y-2 text-sm text-foreground/80">
+            {byServer.length === 0 ? (
+              <li className="text-muted-foreground">No recent streams.</li>
             ) : null}
-            {summary.daily.slice(-14).map((point) => (
+            {byServer.map((entry) => (
               <li
-                key={point.date}
-                className="flex items-center justify-between rounded-lg border bg-muted/50 px-3 py-2"
+                key={`${entry.server_name}-${entry.service_type}`}
+                className="space-y-2 rounded-lg border bg-muted/50 px-3 py-2"
               >
-                <span>{new Date(point.date).toLocaleDateString()}</span>
-                <span className="font-medium text-foreground">{point.count}</span>
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="font-medium text-foreground">{entry.server_name || 'Unknown Server'}</div>
+                    <div className="text-xs uppercase text-muted-foreground">{entry.service_type}</div>
+                  </div>
+                  <span className="font-medium text-foreground">{entry.count}</span>
+                </div>
+                <Progress value={toPercent(entry.count, serverMax)} />
               </li>
             ))}
           </ul>
@@ -39,21 +52,24 @@ export const StreamingHistoricalData = ({ summary }: StreamingHistoricalDataProp
 
       <Card>
         <CardHeader className="pb-4">
-          <CardTitle className="text-base font-semibold">Streams by service</CardTitle>
-          <CardDescription>Breakdown of streams per media service.</CardDescription>
+          <CardTitle className="text-base font-semibold">Streams by service type</CardTitle>
+          <CardDescription>Overall activity across each service type.</CardDescription>
         </CardHeader>
         <CardContent>
           <ul className="space-y-2 text-sm text-foreground/80">
-            {summary.by_service.length === 0 ? (
+            {byService.length === 0 ? (
               <li className="text-muted-foreground">No recent streams.</li>
             ) : null}
-            {summary.by_service.map((entry) => (
+            {byService.map((entry) => (
               <li
                 key={entry.service_type}
-                className="flex items-center justify-between rounded-lg border bg-muted/50 px-3 py-2 uppercase"
+                className="space-y-2 rounded-lg border bg-muted/50 px-3 py-2"
               >
-                <span className="font-medium text-foreground">{entry.service_type}</span>
-                <span className="text-muted-foreground">{entry.count}</span>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="font-medium uppercase text-foreground">{entry.service_type}</span>
+                  <span className="text-muted-foreground">{entry.count}</span>
+                </div>
+                <Progress value={toPercent(entry.count, serviceMax)} />
               </li>
             ))}
           </ul>

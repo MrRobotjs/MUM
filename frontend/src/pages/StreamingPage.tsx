@@ -564,7 +564,7 @@ export const StreamingPage = () => {
   const handleClearFilters = () => {
     setServiceType('all');
     setStatus('all');
-    setUserUuid('');
+    setUserName('');
     setStartDate('');
     setEndDate('');
     handleFilterChange();

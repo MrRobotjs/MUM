@@ -131,15 +131,17 @@ def _apply_filters(query, user_uuid=None, user_name=None, service_type=None, sta
     if user_uuid:
         query = query.filter(MediaStreamHistory.user_uuid == user_uuid)
     if user_name:
-        lookup = f"%{user_name.strip()}%"
-        query = query.join(User, MediaStreamHistory.user_uuid == User.uuid).filter(
-            or_(
-                User.localUsername.ilike(lookup),
-                User.plex_username.ilike(lookup),
-                User.external_username.ilike(lookup),
-                User.discord_username.ilike(lookup),
+        normalized = user_name.strip()
+        if normalized:
+            lookup = f"%{normalized}%"
+            query = query.join(User, MediaStreamHistory.user_uuid == User.uuid).filter(
+                or_(
+                    User.localUsername.ilike(lookup),
+                    User.plex_username.ilike(lookup),
+                    User.external_username.ilike(lookup),
+                    User.discord_username.ilike(lookup),
+                )
             )
-        )
     if service_type:
         try:
             service_enum = ServiceType(service_type)
@@ -298,11 +300,15 @@ def streams_summary(query: StreamsSummaryQuery, current_user):
             pass
 
     # Build filtered base query similar to v1 semantics
-    base_q = _apply_filters(MediaStreamHistory.query, user_uuid, service_type, None, start_dt, end_dt)
+    base_q = _apply_filters(MediaStreamHistory.query, user_uuid, None, service_type, None, start_dt, end_dt)
 
     total_streams = base_q.count()
-    active_streams = _apply_filters(MediaStreamHistory.query, user_uuid, service_type, "active", start_dt, end_dt).count()
-    completed_streams = _apply_filters(MediaStreamHistory.query, user_uuid, service_type, "completed", start_dt, end_dt).count()
+    active_streams = _apply_filters(
+        MediaStreamHistory.query, user_uuid, None, service_type, "active", start_dt, end_dt
+    ).count()
+    completed_streams = _apply_filters(
+        MediaStreamHistory.query, user_uuid, None, service_type, "completed", start_dt, end_dt
+    ).count()
 
     total_duration = base_q.with_entities(func.coalesce(func.sum(MediaStreamHistory.duration_seconds), 0)).scalar()
     average_duration = base_q.with_entities(func.coalesce(func.avg(MediaStreamHistory.duration_seconds), 0)).scalar()
@@ -322,17 +328,24 @@ def streams_summary(query: StreamsSummaryQuery, current_user):
 
     from sqlalchemy import cast, Date
     daily_counts = (
-        _apply_filters(MediaStreamHistory.query, user_uuid, service_type, None, start_dt, end_dt)
+        _apply_filters(MediaStreamHistory.query, user_uuid, None, service_type, None, start_dt, end_dt)
         .with_entities(func.date(MediaStreamHistory.started_at).label("day"), func.count(MediaStreamHistory.id))
         .group_by("day")
         .order_by("day")
         .all()
     )
     per_service = (
-        _apply_filters(MediaStreamHistory.query.join(MediaServer), user_uuid, service_type, None, start_dt, end_dt)
+        _apply_filters(MediaStreamHistory.query.join(MediaServer), user_uuid, None, service_type, None, start_dt, end_dt)
         .with_entities(MediaServer.service_type, func.count(MediaStreamHistory.id))
         .group_by(MediaServer.service_type)
         .order_by(MediaServer.service_type)
+        .all()
+    )
+    per_server = (
+        _apply_filters(MediaStreamHistory.query.join(MediaServer), user_uuid, None, service_type, None, start_dt, end_dt)
+        .with_entities(MediaServer.server_nickname, MediaServer.service_type, func.count(MediaStreamHistory.id))
+        .group_by(MediaServer.server_nickname, MediaServer.service_type)
+        .order_by(MediaServer.server_nickname)
         .all()
     )
 
@@ -348,6 +361,14 @@ def streams_summary(query: StreamsSummaryQuery, current_user):
                 "by_service": [
                     {"service_type": (getattr(svc, "value", None) or str(svc)), "count": _to_int_safe(count)}
                     for svc, count in per_service
+                ],
+                "by_server": [
+                    {
+                        "server_name": server_name,
+                        "service_type": (getattr(svc, "value", None) or str(svc)),
+                        "count": _to_int_safe(count),
+                    }
+                    for server_name, svc, count in per_server
                 ],
             },
             "meta": {

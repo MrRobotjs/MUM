@@ -38,8 +38,8 @@ export const StreamingHistoryFilters = ({
   onPageChange
 }: StreamingHistoryFiltersProps) => {
   return (
-    <Card>
-      <CardHeader className="pb-4">
+    <Card className='gap-3.5'>
+      <CardHeader>
         <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
           <div>
             <CardTitle className="text-xl">Streaming Sessions History</CardTitle>

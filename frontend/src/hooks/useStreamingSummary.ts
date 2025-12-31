@@ -22,12 +22,19 @@ type StreamingServiceBreakdown = {
   count: number;
 };
 
+type StreamingServerBreakdown = {
+  server_name: string;
+  service_type: string;
+  count: number;
+};
+
 type StreamingSummaryResponse = {
   data: {
     counts: StreamingCounts;
     duration: StreamingDuration;
     daily: StreamingDailyPoint[];
     by_service: StreamingServiceBreakdown[];
+    by_server: StreamingServerBreakdown[];
   };
 };
 
@@ -52,5 +59,6 @@ export type {
   StreamingCounts,
   StreamingDuration,
   StreamingDailyPoint,
-  StreamingServiceBreakdown
+  StreamingServiceBreakdown,
+  StreamingServerBreakdown
 };

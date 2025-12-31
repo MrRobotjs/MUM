@@ -178,7 +178,7 @@ export const StreamingPage = () => {
   const [page, setPage] = useState(1);
   const [serviceType, setServiceType] = useState('all');
   const [status, setStatus] = useState('all');
-  const [userUuid, setUserUuid] = useState('');
+  const [userName, setUserName] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const { summary } = useStreamingSummary();
@@ -673,8 +673,8 @@ export const StreamingPage = () => {
         setServiceType={setServiceType}
         status={status}
         setStatus={setStatus}
-        userUuid={userUuid}
-        setUserUuid={setUserUuid}
+        userName={userName}
+        setUserName={setUserName}
         startDate={startDate}
         setStartDate={setStartDate}
         endDate={endDate}
@@ -682,7 +682,7 @@ export const StreamingPage = () => {
         page={page}
         onFilterChange={handleFilterChange}
         onClearFilters={handleClearFilters}
-        onLoadMore={() => setPage((prev) => prev + 1)}
+        onPageChange={setPage}
       />
 
       <StreamingSettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />

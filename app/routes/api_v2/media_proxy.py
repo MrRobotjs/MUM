@@ -27,6 +27,36 @@ class ErrorResponse(BaseModel):
     error: ErrorDetail
 
 
+def _get_conditional_headers() -> dict:
+    headers: dict[str, str] = {}
+    if_none_match = request.headers.get('If-None-Match')
+    if if_none_match:
+        headers['If-None-Match'] = if_none_match
+    if_modified_since = request.headers.get('If-Modified-Since')
+    if if_modified_since:
+        headers['If-Modified-Since'] = if_modified_since
+    return headers
+
+
+def _build_image_response(img_response: requests.Response) -> Response:
+    if img_response.status_code == 304:
+        return Response(status=304)
+    img_response.raise_for_status()
+    content_type = img_response.headers.get('Content-Type', 'image/jpeg')
+    resp = Response(img_response.iter_content(chunk_size=1024 * 8), content_type=content_type)
+    etag = img_response.headers.get('ETag')
+    last_mod = img_response.headers.get('Last-Modified')
+    if etag:
+        resp.headers['ETag'] = etag
+    if last_mod:
+        resp.headers['Last-Modified'] = last_mod
+    content_len = img_response.headers.get('Content-Length')
+    if content_len:
+        resp.headers['Content-Length'] = content_len
+    resp.headers['Cache-Control'] = 'private, max-age=3600'
+    return resp
+
+
 @api_v2.get(
     "/media/plex/images/proxy",
     tags=[media_tag],
@@ -57,41 +87,14 @@ def plex_image_proxy_v2(current_user):
         plex = plex_service._get_server_instance()
         full_authed_plex_image_url = plex.url(path_for_plexapi, includeToken=True)
 
-        # Forward conditional headers for better caching
-        forward_headers = {}
-        if_none_match = request.headers.get('If-None-Match')
-        if if_none_match:
-            forward_headers['If-None-Match'] = if_none_match
-        if_modified_since = request.headers.get('If-Modified-Since')
-        if if_modified_since:
-            forward_headers['If-Modified-Since'] = if_modified_since
-
         plex_timeout = current_app.config.get('PLEX_TIMEOUT', 10)
         img_response = plex._session.get(
             full_authed_plex_image_url,
             stream=True,
             timeout=plex_timeout,
-            headers=forward_headers or None,
+            headers=_get_conditional_headers() or None,
         )
-        if img_response.status_code == 304:
-            # Not modified; let the browser use its cache
-            return Response(status=304)
-        img_response.raise_for_status()
-        content_type = img_response.headers.get('Content-Type', 'image/jpeg')
-        resp = Response(img_response.iter_content(chunk_size=1024*8), content_type=content_type)
-        # Propagate cache validators and encourage private caching
-        etag = img_response.headers.get('ETag')
-        last_mod = img_response.headers.get('Last-Modified')
-        if etag:
-            resp.headers['ETag'] = etag
-        if last_mod:
-            resp.headers['Last-Modified'] = last_mod
-        content_len = img_response.headers.get('Content-Length')
-        if content_len:
-            resp.headers['Content-Length'] = content_len
-        # Cache privately for a short period; artwork rarely changes
-        resp.headers['Cache-Control'] = 'private, max-age=3600'
-        return resp
+        return _build_image_response(img_response)
     except requests.exceptions.HTTPError as e_http:
         current_app.logger.error(
             f"API v2 plex_image_proxy: HTTPError ({e_http.response.status_code}) fetching from Plex: {e_http} for path {image_path_on_plex}"
@@ -136,33 +139,14 @@ def jellyfin_image_proxy_v2(current_user):
         if image_tag:
             jellyfin_image_url = f"{jellyfin_image_url}?tag={image_tag}"
 
-        headers = {'X-Emby-Token': jellyfin_server.api_key}
-        # Forward conditional headers for better caching
-        if_none_match = request.headers.get('If-None-Match')
-        if if_none_match:
-            headers['If-None-Match'] = if_none_match
-        if_modified_since = request.headers.get('If-Modified-Since')
-        if if_modified_since:
-            headers['If-Modified-Since'] = if_modified_since
+        headers = {
+            'X-Emby-Token': jellyfin_server.api_key,
+            **_get_conditional_headers()
+        }
         # Match v1 behavior for request timeouts
         timeout = get_api_timeout()
         img_response = requests.get(jellyfin_image_url, headers=headers, stream=True, timeout=timeout)
-        if img_response.status_code == 304:
-            return Response(status=304)
-        img_response.raise_for_status()
-        content_type = img_response.headers.get('Content-Type', 'image/jpeg')
-        resp = Response(img_response.content, content_type=content_type)
-        etag = img_response.headers.get('ETag')
-        last_mod = img_response.headers.get('Last-Modified')
-        if etag:
-            resp.headers['ETag'] = etag
-        if last_mod:
-            resp.headers['Last-Modified'] = last_mod
-        content_len = img_response.headers.get('Content-Length')
-        if content_len:
-            resp.headers['Content-Length'] = content_len
-        resp.headers['Cache-Control'] = 'private, max-age=3600'
-        return resp
+        return _build_image_response(img_response)
     except requests.exceptions.HTTPError as e_http:
         current_app.logger.error(
             f"API v2 jellyfin_image_proxy: HTTPError ({e_http.response.status_code}) fetching from Jellyfin: {e_http} for item {item_id}"
@@ -173,6 +157,57 @@ def jellyfin_image_proxy_v2(current_user):
         return "Network error fetching image", 500
     except Exception as e:
         current_app.logger.error(f"API v2 jellyfin_image_proxy: Unexpected error for item {item_id}: {e}", exc_info=True)
+        return "Error fetching image", 500
+
+
+@api_v2.get(
+    "/media/emby/images/proxy",
+    tags=[media_tag],
+    summary="Proxy Emby images",
+)
+@jwt_required_with_user()
+def emby_image_proxy_v2(current_user):
+    item_id = request.args.get('item_id')
+    image_type = request.args.get('image_type', 'Primary')
+    image_tag = request.args.get('image_tag')
+
+    if not item_id:
+        current_app.logger.warning("API v2 emby_image_proxy: 'item_id' parameter is missing.")
+        return "Missing item_id parameter", 400
+
+    try:
+        emby_servers = MediaServiceManager.get_servers_by_type(ServiceType.EMBY, active_only=True)
+        if not emby_servers:
+            current_app.logger.error("API v2 emby_image_proxy: No Emby servers found.")
+            return "No Emby servers available", 404
+
+        emby_server = emby_servers[0]
+        emby_service = MediaServiceFactory.create_service_from_db(emby_server)
+        if not emby_service:
+            current_app.logger.error("API v2 emby_image_proxy: Could not get Emby instance to proxy image.")
+            return "Could not connect to Emby", 500
+
+        emby_image_url = f"{emby_server.url.rstrip('/')}/Items/{item_id}/Images/{image_type}"
+        if image_tag:
+            emby_image_url = f"{emby_image_url}?tag={image_tag}"
+
+        headers = {
+            'X-Emby-Token': emby_server.api_key,
+            **_get_conditional_headers()
+        }
+        timeout = get_api_timeout()
+        img_response = requests.get(emby_image_url, headers=headers, stream=True, timeout=timeout)
+        return _build_image_response(img_response)
+    except requests.exceptions.HTTPError as e_http:
+        current_app.logger.error(
+            f"API v2 emby_image_proxy: HTTPError ({e_http.response.status_code}) fetching from Emby: {e_http} for item {item_id}"
+        )
+        return f"HTTP error fetching image: {e_http.response.status_code}", e_http.response.status_code
+    except requests.exceptions.RequestException as e_req:
+        current_app.logger.error(f"API v2 emby_image_proxy: RequestException fetching from Emby: {e_req} for item {item_id}")
+        return "Network error fetching image", 500
+    except Exception as e:
+        current_app.logger.error(f"API v2 emby_image_proxy: Unexpected error for item {item_id}: {e}", exc_info=True)
         return "Error fetching image", 500
 
 

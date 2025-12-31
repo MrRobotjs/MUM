@@ -9,8 +9,8 @@ interface StreamingHistoryFiltersProps {
   setServiceType: (value: string) => void;
   status: string;
   setStatus: (value: string) => void;
-  userUuid: string;
-  setUserUuid: (value: string) => void;
+  userName: string;
+  setUserName: (value: string) => void;
   startDate: string;
   setStartDate: (value: string) => void;
   endDate: string;
@@ -18,7 +18,7 @@ interface StreamingHistoryFiltersProps {
   page: number;
   onFilterChange: () => void;
   onClearFilters: () => void;
-  onLoadMore: () => void;
+  onPageChange: (page: number) => void;
 }
 
 export const StreamingHistoryFilters = ({
@@ -26,8 +26,8 @@ export const StreamingHistoryFilters = ({
   setServiceType,
   status,
   setStatus,
-  userUuid,
-  setUserUuid,
+  userName,
+  setUserName,
   startDate,
   setStartDate,
   endDate,
@@ -35,7 +35,7 @@ export const StreamingHistoryFilters = ({
   page,
   onFilterChange,
   onClearFilters,
-  onLoadMore
+  onPageChange
 }: StreamingHistoryFiltersProps) => {
   return (
     <Card>
@@ -95,12 +95,12 @@ export const StreamingHistoryFilters = ({
           </div>
 
           <div className="space-y-1">
-            <span className="text-sm text-muted-foreground">User UUID</span>
+            <span className="text-sm text-muted-foreground">Username</span>
             <Input
               type="text"
-              placeholder="User UUID"
-              value={userUuid}
-              onChange={(event) => setUserUuid(event.target.value)}
+              placeholder="Search by username"
+              value={userName}
+              onChange={(event) => setUserName(event.target.value)}
               className="h-9"
             />
           </div>
@@ -149,10 +149,10 @@ export const StreamingHistoryFilters = ({
           page={page}
           serviceType={serviceType === 'all' ? undefined : serviceType}
           status={status === 'all' ? undefined : status}
-          userUuid={userUuid || undefined}
+          userName={userName || undefined}
           startDate={startDate || undefined}
           endDate={endDate || undefined}
-          onLoadMore={onLoadMore}
+          onPageChange={onPageChange}
         />
       </CardContent>
     </Card>

@@ -1,11 +1,7 @@
-import { useState } from 'react';
 import useSWR from 'swr';
-import { useAlerts } from '../../contexts/AlertContext';
-import { FormField } from '../index';
 import { requestJson } from '../../util/apiClient';
-import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
-import { ResponsiveDialog } from '@/components/ui/responsive-dialog';
+import { Pagination } from '../common/Pagination';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   Table,
   TableBody,
@@ -19,6 +15,8 @@ import {
 export type StreamRow = {
   id: number;
   user_uuid?: string;
+  user_display_name?: string;
+  user_avatar_url?: string;
   media_title?: string;
   media_type?: string;
   server_id?: number;
@@ -27,6 +25,8 @@ export type StreamRow = {
   stopped_at?: string;
   duration_seconds?: number;
   platform?: string;
+  thumb_url?: string;
+  poster_url?: string;
 };
 
 type StreamsResponse = {
@@ -45,67 +45,33 @@ type StreamingTableProps = {
   page?: number;
   serviceType?: string;
   status?: string;
-  userUuid?: string;
+  userName?: string;
   startDate?: string;
   endDate?: string;
-  onLoadMore?: () => void;
+  onPageChange?: (page: number) => void;
 };
 
 export const StreamingTable = ({
   page = 1,
   serviceType,
   status,
-  userUuid,
+  userName,
   startDate,
   endDate,
-  onLoadMore
+  onPageChange
 }: StreamingTableProps) => {
-  const { success, error: showError } = useAlerts();
-  const [terminateTarget, setTerminateTarget] = useState<StreamRow | null>(null);
-  const [terminateMessage, setTerminateMessage] = useState('');
-  const [terminating, setTerminating] = useState(false);
   const params = new URLSearchParams();
   params.set('page', String(page));
   if (serviceType) params.set('service_type', serviceType);
   if (status) params.set('status', status);
-  if (userUuid) params.set('user_uuid', userUuid);
+  if (userName) params.set('user_name', userName);
   if (startDate) params.set('start', startDate);
   if (endDate) params.set('end', endDate);
-  const { data, isLoading: loading, error, mutate } = useSWR<StreamsResponse>(
+  const { data, isLoading: loading, error } = useSWR<StreamsResponse>(
     `/admin/api/v2/streams?${params.toString()}`,
     (url: string) => requestJson<StreamsResponse>(url),
     { revalidateOnFocus: false }
   );
-
-  const requestTerminate = (stream: StreamRow) => {
-    if (stream.stopped_at) return;
-    setTerminateTarget(stream);
-    setTerminateMessage('');
-  };
-
-  const confirmTerminate = async () => {
-    if (!terminateTarget) return;
-    setTerminating(true);
-    try {
-      await requestJson(`/admin/api/v2/streams/${terminateTarget.id}/terminate`, {
-        method: 'POST',
-        body: JSON.stringify({ message: terminateMessage || undefined })
-      });
-      success('Termination command sent');
-      await mutate();
-      setTerminateTarget(null);
-    } catch (err) {
-      showError('Failed to terminate stream: ' + String(err));
-    } finally {
-      setTerminating(false);
-    }
-  };
-
-  const closeTerminateModal = () => {
-    if (terminating) return;
-    setTerminateTarget(null);
-    setTerminateMessage('');
-  };
 
   if (loading) {
     return (
@@ -121,7 +87,8 @@ export const StreamingTable = ({
 
   const rows = data?.data ?? [];
   const pagination = data?.meta.pagination;
-  const hasMore = pagination ? pagination.page < pagination.total_pages : false;
+  const totalPages = pagination?.total_pages ?? 1;
+  const currentPage = pagination?.page ?? page;
 
   return (
     <div className="overflow-hidden rounded-xl border bg-card text-foreground shadow-sm">
@@ -134,32 +101,51 @@ export const StreamingTable = ({
             <TableHead>Started</TableHead>
             <TableHead>Platform</TableHead>
             <TableHead>Duration</TableHead>
-            <TableHead className="text-right" />
           </TableRow>
         </TableHeader>
         <TableBody>
           {rows.map((stream) => (
             <TableRow key={stream.id}>
-              <TableCell className="font-medium">{stream.media_title ?? 'Unknown'}</TableCell>
-              <TableCell>{stream.user_uuid ?? 'Unknown user'}</TableCell>
-              <TableCell>{stream.server_name ?? 'Unknown server'}</TableCell>
-              <TableCell>{stream.started_at ? new Date(stream.started_at).toLocaleString() : '—'}</TableCell>
-              <TableCell>{stream.platform ?? '—'}</TableCell>
-              <TableCell>
-                {stream.duration_seconds ? Math.round(stream.duration_seconds / 60) + ' min' : '—'}
+              <TableCell className="font-medium">
+                <div className="flex items-center gap-3">
+                  {stream.poster_url || stream.thumb_url ? (
+                    <img
+                      src={stream.poster_url || stream.thumb_url}
+                      alt={stream.media_title ?? 'Media poster'}
+                      className="h-12 w-8 rounded-md object-cover"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <div className="h-12 w-8 rounded-md bg-muted/60" />
+                  )}
+                  <span className="leading-tight">{stream.media_title ?? 'Unknown'}</span>
+                </div>
               </TableCell>
-              <TableCell className="text-right">
-                {!stream.stopped_at ? (
-                  <Button variant="ghost" size="sm" onClick={() => requestTerminate(stream)}>
-                    Terminate
-                  </Button>
-                ) : null}
+              <TableCell>
+                <div className="flex items-center gap-2">
+                  <Avatar className="h-7 w-7">
+                    <AvatarImage
+                      src={stream.user_avatar_url || ''}
+                      alt={stream.user_display_name ?? stream.user_uuid ?? 'User avatar'}
+                    />
+                    <AvatarFallback>
+                      {(stream.user_display_name ?? stream.user_uuid ?? 'U')[0]?.toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <span>{stream.user_display_name ?? stream.user_uuid ?? 'Unknown user'}</span>
+                </div>
+              </TableCell>
+              <TableCell>{stream.server_name ?? 'Unknown server'}</TableCell>
+              <TableCell>{stream.started_at ? new Date(stream.started_at).toLocaleString() : '-'}</TableCell>
+              <TableCell>{stream.platform ?? '-'}</TableCell>
+              <TableCell>
+                {stream.duration_seconds ? Math.round(stream.duration_seconds / 60) + ' min' : '-'}
               </TableCell>
             </TableRow>
           ))}
           {rows.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={7} className="py-6 text-center text-sm text-muted-foreground">
+              <TableCell colSpan={6} className="py-6 text-center text-sm text-muted-foreground">
                 No stream history found.
               </TableCell>
             </TableRow>
@@ -168,61 +154,16 @@ export const StreamingTable = ({
         <TableCaption className="sr-only">Streaming session history</TableCaption>
       </Table>
 
-      <div className="border-t bg-muted/50 px-4 py-3 text-right">
-        {onLoadMore && hasMore ? (
-          <Button variant="ghost" size="sm" onClick={onLoadMore}>
-            Load more
-          </Button>
-        ) : (
-          <span className="text-xs text-muted-foreground">End of results</span>
-        )}
-      </div>
-      <ResponsiveDialog
-        open={Boolean(terminateTarget)}
-        onOpenChange={(value) => {
-          if (!value) closeTerminateModal();
-        }}
-        title="Terminate Stream"
-        description="Send a termination command to the media server."
-        footer={[
-          <Button
-            key="cancel"
-            variant="outline"
-            onClick={closeTerminateModal}
-            disabled={terminating}
-          >
-            Cancel
-          </Button>,
-          <Button
-            key="submit"
-            onClick={confirmTerminate}
-            disabled={terminating}
-            variant="destructive"
-          >
-            {terminating ? 'Sending…' : 'Terminate Session'}
-          </Button>,
-        ]}
-        contentClassName="max-w-lg"
-      >
-        {terminateTarget ? (
-          <div className="space-y-4">
-            <div className="text-sm text-muted-foreground">
-              Terminate <span className="font-medium text-foreground">{terminateTarget.media_title ?? 'Unknown title'}</span>{' '}
-              for user <span className="font-medium text-foreground">{terminateTarget.user_uuid ?? 'Unknown user'}</span>?
-            </div>
-            <FormField id="terminateMessage" label="Optional message">
-              <Textarea
-                id="terminateMessage"
-                placeholder="e.g., Server maintenance starting soon."
-                rows={3}
-                value={terminateMessage}
-                onChange={(event) => setTerminateMessage(event.target.value)}
-                disabled={terminating}
-              />
-            </FormField>
-          </div>
-        ) : null}
-      </ResponsiveDialog>
+      {onPageChange && totalPages > 1 ? (
+        <div className="border-t bg-muted/50 px-4 py-3">
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={onPageChange}
+            loading={loading}
+          />
+        </div>
+      ) : null}
     </div>
   );
 };

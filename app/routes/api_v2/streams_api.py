@@ -12,10 +12,10 @@ from flask_openapi3 import Tag
 
 from app.routes.api_v2 import api_v2
 from app.models_media_services import MediaStreamHistory, MediaServer, ServiceType
-from app.models import User, EventType
+from app.models import User, UserType, EventType
 # JWT permission checking handled by jwt_permission_required, log_event
 from app.services.media_service_factory import MediaServiceFactory
-from sqlalchemy import desc, func
+from sqlalchemy import desc, func, or_
 
 
 streams_tag = Tag(name="Streaming", description="Active and historical streaming data")
@@ -25,6 +25,7 @@ class StreamsQuery(BaseModel):
     page: int = Field(1, ge=1)
     page_size: int = Field(25, ge=1, le=100)
     user_uuid: Optional[str] = None
+    user_name: Optional[str] = None
     service_type: Optional[str] = None
     status: Optional[str] = Field(None, description="active|completed")
     start: Optional[str] = None
@@ -34,6 +35,8 @@ class StreamsQuery(BaseModel):
 class StreamItem(BaseModel):
     id: int
     user_uuid: Optional[str] = None
+    user_display_name: Optional[str] = None
+    user_avatar_url: Optional[str] = None
     media_title: Optional[str] = None
     media_type: Optional[str] = None
     server_id: Optional[int] = None
@@ -45,6 +48,54 @@ class StreamItem(BaseModel):
     grandparent_title: Optional[str] = None
     parent_title: Optional[str] = None
     library_name: Optional[str] = None
+    poster_url: Optional[str] = None
+
+
+def _construct_poster_url(thumb_path: Optional[str], service_type: Optional[str]) -> Optional[str]:
+    if not thumb_path:
+        return None
+    if thumb_path.startswith('/admin/api/'):
+        return thumb_path
+    if thumb_path.startswith('/api/'):
+        return f"/admin{thumb_path}"
+    if thumb_path.startswith('http'):
+        return thumb_path
+    if not service_type:
+        return None
+    if service_type in {"jellyfin", "emby"}:
+        normalized = thumb_path.lstrip('/')
+        if normalized.lower().startswith('items/'):
+            parts = normalized.split('/')
+            if len(parts) >= 3:
+                item_id = parts[1]
+                image_type = parts[3] if len(parts) >= 4 and parts[2].lower() == 'images' else 'Primary'
+                return f"/admin/api/v2/media/{service_type}/images/proxy?item_id={item_id}&image_type={image_type}"
+    return f"/admin/api/v2/media/{service_type}/images/proxy?path={thumb_path.lstrip('/')}"
+
+
+def _get_user_avatar_url(user: Optional[User]) -> Optional[str]:
+    if not user:
+        return None
+    if user.userType == UserType.OWNER and user.plex_thumb:
+        return user.plex_thumb
+    if user.userType in {UserType.LOCAL, UserType.OWNER}:
+        if user.discord_avatar_hash and user.discord_user_id:
+            extension = 'gif' if user.discord_avatar_hash.startswith('a_') else 'png'
+            return f"https://cdn.discordapp.com/avatars/{user.discord_user_id}/{user.discord_avatar_hash}.{extension}?size=128"
+        if user.external_avatar_url:
+            return user.external_avatar_url
+    if user.userType == UserType.SERVICE:
+        if user.external_avatar_url:
+            return user.external_avatar_url
+        service_thumb = None
+        if user.service_settings:
+            service_thumb = user.service_settings.get("thumb")
+        if service_thumb and user.server:
+            base_url = user.server.public_url or user.server.url
+            if service_thumb.startswith("/"):
+                return f"{base_url.rstrip('/')}{service_thumb}"
+            return service_thumb
+    return None
 
 
 class StreamsListResponse(BaseModel):
@@ -56,6 +107,8 @@ def _serialize_stream(stream: MediaStreamHistory) -> dict:
     return {
         "id": stream.id,
         "user_uuid": stream.user_uuid,
+        "user_display_name": stream.user.get_display_name() if stream.user else None,
+        "user_avatar_url": _get_user_avatar_url(stream.user),
         "media_title": stream.media_title,
         "media_type": stream.media_type,
         "server_id": stream.server_id,
@@ -67,12 +120,26 @@ def _serialize_stream(stream: MediaStreamHistory) -> dict:
         "grandparent_title": stream.grandparent_title,
         "parent_title": stream.parent_title,
         "library_name": stream.library_name,
+        "poster_url": _construct_poster_url(
+            stream.thumb_url,
+            stream.server.service_type.value if stream.server and stream.server.service_type else None,
+        ),
     }
 
 
-def _apply_filters(query, user_uuid=None, service_type=None, status=None, start_date=None, end_date=None):
+def _apply_filters(query, user_uuid=None, user_name=None, service_type=None, status=None, start_date=None, end_date=None):
     if user_uuid:
         query = query.filter(MediaStreamHistory.user_uuid == user_uuid)
+    if user_name:
+        lookup = f"%{user_name.strip()}%"
+        query = query.join(User, MediaStreamHistory.user_uuid == User.uuid).filter(
+            or_(
+                User.localUsername.ilike(lookup),
+                User.plex_username.ilike(lookup),
+                User.external_username.ilike(lookup),
+                User.discord_username.ilike(lookup),
+            )
+        )
     if service_type:
         try:
             service_enum = ServiceType(service_type)
@@ -117,7 +184,15 @@ def list_streams(query: StreamsQuery, current_user):
             pass
 
     q = MediaStreamHistory.query.order_by(desc(MediaStreamHistory.started_at))
-    q = _apply_filters(q, query.user_uuid, query.service_type, query.status, start_dt, end_dt)
+    q = _apply_filters(
+        q,
+        query.user_uuid,
+        query.user_name,
+        query.service_type,
+        query.status,
+        start_dt,
+        end_dt,
+    )
 
     pagination = q.paginate(page=query.page, per_page=query.page_size, error_out=False)
 
@@ -134,6 +209,7 @@ def list_streams(query: StreamsQuery, current_user):
                 },
                 "filters": {
                     "user_uuid": query.user_uuid,
+                    "user_name": query.user_name,
                     "service_type": query.service_type,
                     "status": query.status,
                     "start": query.start,

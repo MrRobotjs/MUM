@@ -2,6 +2,8 @@ import useSWR from 'swr';
 import { requestJson } from '../../util/apiClient';
 import { Pagination } from '../common/Pagination';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Link } from '@tanstack/react-router';
+import { buildUserProfilePath } from '@/util/routes';
 import {
   Table,
   TableBody,
@@ -95,50 +97,72 @@ export const StreamingTable = ({
       <Table>
         <TableHeader>
           <TableRow className="text-xs uppercase text-muted-foreground">
-            <TableHead>Title</TableHead>
-            <TableHead>User</TableHead>
-            <TableHead>Server</TableHead>
-            <TableHead>Started</TableHead>
-            <TableHead>Platform</TableHead>
-            <TableHead>Duration</TableHead>
+            <TableHead className="w-[1%]">Title</TableHead>
+            <TableHead className="w-[1%]">User</TableHead>
+            <TableHead className="w-[1%]">Server</TableHead>
+            <TableHead className="w-[1%]">Started</TableHead>
+            <TableHead className="w-[1%]">Platform</TableHead>
+            <TableHead className="w-[1%]">Duration</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {rows.map((stream) => (
             <TableRow key={stream.id}>
-              <TableCell className="font-medium">
-                <div className="flex items-center gap-3">
+              <TableCell className="font-medium w-[1%]">
+                <div className="flex items-center gap-3 min-w-0">
                   {stream.poster_url || stream.thumb_url ? (
                     <img
                       src={stream.poster_url || stream.thumb_url}
                       alt={stream.media_title ?? 'Media poster'}
-                      className="h-12 w-8 rounded-md object-cover"
+                      className="h-12 w-8 shrink-0 rounded-md object-cover"
                       loading="lazy"
                     />
                   ) : (
-                    <div className="h-12 w-8 rounded-md bg-muted/60" />
+                    <div className="h-12 w-8 shrink-0 rounded-md bg-muted/60" />
                   )}
-                  <span className="leading-tight">{stream.media_title ?? 'Unknown'}</span>
+                  <span className="max-w-[280px] truncate leading-tight">
+                    {stream.media_title ?? 'Unknown'}
+                  </span>
                 </div>
               </TableCell>
-              <TableCell>
-                <div className="flex items-center gap-2">
-                  <Avatar className="h-7 w-7">
-                    <AvatarImage
-                      src={stream.user_avatar_url || ''}
-                      alt={stream.user_display_name ?? stream.user_uuid ?? 'User avatar'}
-                    />
-                    <AvatarFallback>
-                      {(stream.user_display_name ?? stream.user_uuid ?? 'U')[0]?.toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                  <span>{stream.user_display_name ?? stream.user_uuid ?? 'Unknown user'}</span>
-                </div>
+              <TableCell className="w-[1%]">
+                {stream.user_uuid ? (
+                  <Link
+                    to={buildUserProfilePath({
+                      uuid: stream.user_uuid,
+                      username: stream.user_display_name,
+                      server_nickname: stream.server_name,
+                    })}
+                    className="flex items-center gap-2 text-foreground hover:text-primary"
+                  >
+                    <Avatar className="h-7 w-7">
+                      <AvatarImage
+                        src={stream.user_avatar_url || ''}
+                        alt={stream.user_display_name ?? stream.user_uuid ?? 'User avatar'}
+                      />
+                      <AvatarFallback>
+                        {(stream.user_display_name ?? stream.user_uuid ?? 'U')[0]?.toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span>{stream.user_display_name ?? stream.user_uuid ?? 'Unknown user'}</span>
+                  </Link>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <Avatar className="h-7 w-7">
+                      <AvatarFallback>
+                        {(stream.user_display_name ?? 'U')[0]?.toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span>{stream.user_display_name ?? 'Unknown user'}</span>
+                  </div>
+                )}
               </TableCell>
-              <TableCell>{stream.server_name ?? 'Unknown server'}</TableCell>
-              <TableCell>{stream.started_at ? new Date(stream.started_at).toLocaleString() : '-'}</TableCell>
-              <TableCell>{stream.platform ?? '-'}</TableCell>
-              <TableCell>
+              <TableCell className="w-[1%]">{stream.server_name ?? 'Unknown server'}</TableCell>
+              <TableCell className="w-[1%]">
+                {stream.started_at ? new Date(stream.started_at).toLocaleString() : '-'}
+              </TableCell>
+              <TableCell className="w-[1%]">{stream.platform ?? '-'}</TableCell>
+              <TableCell className="w-[1%]">
                 {stream.duration_seconds ? Math.round(stream.duration_seconds / 60) + ' min' : '-'}
               </TableCell>
             </TableRow>

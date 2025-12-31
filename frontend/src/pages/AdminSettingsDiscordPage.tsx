@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { IconAlertCircle, IconAlertTriangle, IconBrandDiscord, IconDeviceFloppy, IconInfoCircle, IconRefresh, IconRobot, IconTestPipe } from '@tabler/icons-react'
+import { IconAlertCircle, IconAlertTriangle, IconBrandDiscord, IconCopy, IconDeviceFloppy, IconInfoCircle, IconKey, IconRefresh, IconRobot, IconTestPipe, IconUsers } from '@tabler/icons-react'
 import { useDiscordSettings, type DiscordSettings } from '../hooks/useSettings'
 import { PageHeader } from '../components'
 import { requestJson } from '../util/apiClient'
@@ -236,6 +236,19 @@ const DiscordSettingsForm = ({ initialState, refresh }: DiscordSettingsFormProps
     setHasChanges(true)
   }
 
+  const handleCopy = async (label: string, value: string) => {
+    if (!value) {
+      showError(`Nothing to copy for ${label}.`)
+      return
+    }
+    try {
+      await navigator.clipboard.writeText(value)
+      success(`${label} copied to clipboard.`)
+    } catch (err) {
+      showError(`Failed to copy ${label}: ${(err as Error).message}`)
+    }
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -261,7 +274,7 @@ const DiscordSettingsForm = ({ initialState, refresh }: DiscordSettingsFormProps
       </Alert>
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        <Card>
+        <Card className='gap-4'>
           <CardHeader>
             <div className="flex items-center justify-between gap-4">
               <div className="flex items-center gap-3">
@@ -273,130 +286,168 @@ const DiscordSettingsForm = ({ initialState, refresh }: DiscordSettingsFormProps
                   <CardDescription>Connect MUM to Discord for OAuth-based linking.</CardDescription>
                 </div>
               </div>
-              <div className="flex items-center gap-3">
-                <Label htmlFor="discord-enabled" className="cursor-pointer">
-                  Enable OAuth
-                </Label>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="rounded-lg border border-border/70 bg-muted/40 p-4 space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-start gap-3">
+                  <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/20">
+                    <IconKey className="size-4 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">Enable Auth Feature</p>
+                    <p className="text-xs text-muted-foreground">
+                      Enables Discord linking on public invites and for admin accounts.{' '}
+                      <span className="text-warning">
+                        This is automatically enabled if Bot Configuration or Discord membership requirement is enabled below.
+                      </span>
+                    </p>
+                  </div>
+                </div>
                 <Switch
                   id="discord-enabled"
                   checked={formValues.enable_oauth}
                   onCheckedChange={(checked) => handleToggle('enable_oauth', checked)}
                 />
               </div>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-xs text-muted-foreground">
-              Enables Discord linking on public invites and for admin accounts.{' '}
-              <span className="text-warning">
-                This is automatically enabled if Bot Configuration or Discord membership requirement is enabled below.
-              </span>
-            </p>
-            <div className="space-y-2">
-              <Label htmlFor="client_id">
-                Client ID {formValues.enable_oauth && <span className="text-destructive">*</span>}
-              </Label>
-              <Input
-                id="client_id"
-                type="text"
-                className="font-mono"
-                value={formValues.client_id}
-                onChange={(e) => handleChange('client_id', e.target.value)}
-                required={formValues.enable_oauth}
-                disabled={oauthDisabled}
-                placeholder="1234567890123456789"
-              />
-            </div>
+              <div className="rounded-lg border border-border/70 bg-background p-3 space-y-4">
 
-            <div className="space-y-2">
-              <Label htmlFor="client_secret">
-                Client Secret {requireClientSecret && <span className="text-destructive">*</span>}
-              </Label>
-              <Input
-                id="client_secret"
-                type="password"
-                className="font-mono"
-                value={formValues.client_secret}
-                onChange={(e) => handleChange('client_secret', e.target.value)}
-                required={requireClientSecret}
-                disabled={oauthDisabled}
-                placeholder="********"
-              />
-              <p className="text-xs text-muted-foreground">
-                {clientSecretConfigured ? 'Secret is already configured. Leave blank to keep it.' : 'Enter your client secret.'}
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex items-center justify-between gap-4">
-                <Label htmlFor="oauth_auth_url">Authorization URL</Label>
-                <div className="flex items-center gap-2">
-                  <Label htmlFor="oauth-auth-override" className="text-xs text-muted-foreground">
-                    Override
+                <div className="space-y-2">
+                  <Label htmlFor="client_id">
+                    Client ID {formValues.enable_oauth && <span className="text-destructive">*</span>}
                   </Label>
-                  <Switch
-                    id="oauth-auth-override"
-                    checked={useOauthOverride}
-                    onCheckedChange={handleOauthOverrideToggle}
+                  <Input
+                    id="client_id"
+                    type="text"
+                    className="font-mono"
+                    value={formValues.client_id}
+                    onChange={(e) => handleChange('client_id', e.target.value)}
+                    required={formValues.enable_oauth}
                     disabled={oauthDisabled}
+                    placeholder="1234567890123456789"
                   />
                 </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="client_secret">
+                    Client Secret {requireClientSecret && <span className="text-destructive">*</span>}
+                  </Label>
+                  <Input
+                    id="client_secret"
+                    type="password"
+                    className="font-mono"
+                    value={formValues.client_secret}
+                    onChange={(e) => handleChange('client_secret', e.target.value)}
+                    required={requireClientSecret}
+                    disabled={oauthDisabled}
+                    placeholder="********"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {clientSecretConfigured ? 'Secret is already configured. Leave blank to keep it.' : 'Enter your client secret.'}
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between gap-4">
+                    <Label htmlFor="oauth_auth_url">Authorization URL</Label>
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="oauth-auth-override" className="text-xs text-muted-foreground">
+                        Override
+                      </Label>
+                      <Switch
+                        id="oauth-auth-override"
+                        checked={useOauthOverride}
+                        onCheckedChange={handleOauthOverrideToggle}
+                        disabled={oauthDisabled}
+                      />
+                    </div>
+                  </div>
+                  <Input
+                    id="oauth_auth_url"
+                    type="url"
+                    className="font-mono"
+                    value={oauthAuthInputValue}
+                    onChange={(e) => handleChange('oauth_auth_url', e.target.value)}
+                    disabled={oauthDisabled || !useOauthOverride}
+                    placeholder="https://discord.com/api/v10/oauth2/authorize"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {useOauthOverride ? (
+                      'This overrides the generated URL used for invite links. Use {STATE} to preserve the runtime state value.'
+                    ) : (
+                      'Generated from the Client ID and Invite Redirect URI. The state value is filled in at runtime.'
+                    )}
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="redirect_uri_invite">Invite Redirect URI</Label>
+                  <div className="relative">
+                    <Input
+                      id="redirect_uri_invite"
+                      type="url"
+                      className="pr-10 font-mono"
+                      value={formMeta.redirect_uri_invite}
+                      readOnly
+                      disabled
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-2 top-1/2 h-7 w-7 -translate-y-1/2"
+                      onClick={() => handleCopy('Invite Redirect URI', formMeta.redirect_uri_invite)}
+                      disabled={!formMeta.redirect_uri_invite}
+                      aria-label="Copy invite redirect URI"
+                    >
+                      <IconCopy className="size-4" />
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="redirect_uri_admin">Admin Redirect URI</Label>
+                  <div className="relative">
+                    <Input
+                      id="redirect_uri_admin"
+                      type="url"
+                      className="pr-10 font-mono"
+                      value={formMeta.redirect_uri_admin}
+                      readOnly
+                      disabled
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-2 top-1/2 h-7 w-7 -translate-y-1/2"
+                      onClick={() => handleCopy('Admin Redirect URI', formMeta.redirect_uri_admin)}
+                      disabled={!formMeta.redirect_uri_admin}
+                      aria-label="Copy admin redirect URI"
+                    >
+                      <IconCopy className="size-4" />
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Add BOTH of these redirect URIs to your Discord Developer Portal OAuth2 Redirects section, it is required for this feature to work. These redirect URIs are derived from the configured app base URL.
+                  </p>
+                </div>
               </div>
-              <Input
-                id="oauth_auth_url"
-                type="url"
-                className="font-mono"
-                value={oauthAuthInputValue}
-                onChange={(e) => handleChange('oauth_auth_url', e.target.value)}
-                disabled={oauthDisabled || !useOauthOverride}
-                placeholder="https://discord.com/api/v10/oauth2/authorize"
-              />
-              <p className="text-xs text-muted-foreground">
-                {useOauthOverride ? (
-                  'This overrides the generated URL used for invite links. Use {STATE} to preserve the runtime state value.'
-                ) : (
-                  'Generated from the Client ID and Invite Redirect URI. The state value is filled in at runtime.'
-                )}
-              </p>
-            </div>
-
-            <p className="text-xs text-muted-foreground">
-              Add these redirect URIs to your Discord App's OAuth2 settings.
-            </p>
-            <div className="space-y-2">
-              <Label htmlFor="redirect_uri_invite">Invite Redirect URI</Label>
-              <Input
-                id="redirect_uri_invite"
-                type="url"
-                className="font-mono"
-                value={formMeta.redirect_uri_invite}
-                readOnly
-                disabled={oauthDisabled}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="redirect_uri_admin">Admin Redirect URI</Label>
-              <Input
-                id="redirect_uri_admin"
-                type="url"
-                className="font-mono"
-                value={formMeta.redirect_uri_admin}
-                readOnly
-                disabled={oauthDisabled}
-              />
-              <p className="text-xs text-muted-foreground">
-                These redirect URIs are derived from the configured app base URL.
-              </p>
             </div>
 
             <div className="rounded-lg border border-border/70 bg-muted/40 p-4 space-y-3">
               <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm font-medium">Enable Discord Membership Requirement</p>
-                  <p className="text-xs text-muted-foreground">
-                    Require invitees to be members of your Discord server before linking.
-                  </p>
+                <div className="flex items-start gap-3">
+                  <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/20">
+                    <IconUsers className="size-4 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">Enable Discord Membership Requirement Feature</p>
+                    <p className="text-xs text-muted-foreground">
+                      Require invitees to be members of your Discord server before linking.
+                    </p>
+                  </div>
                 </div>
                 <Switch
                   checked={formValues.enable_membership_requirement}

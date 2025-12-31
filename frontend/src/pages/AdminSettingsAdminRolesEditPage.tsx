@@ -102,17 +102,15 @@ export const AdminSettingsAdminRolesEditPage = () => {
             Display Settings
           </TabsTrigger>
           {!isAutoManaged && (
-            <>
-              <TabsTrigger value="permissions">
-                <IconKey className="mr-2 size-4" />
-                Permissions
-              </TabsTrigger>
-              <TabsTrigger value="members">
-                <IconUsers className="mr-2 size-4" />
-                Members ({role.users?.length || 0})
-              </TabsTrigger>
-            </>
+            <TabsTrigger value="permissions">
+              <IconKey className="mr-2 size-4" />
+              Permissions
+            </TabsTrigger>
           )}
+          <TabsTrigger value="members">
+            <IconUsers className="mr-2 size-4" />
+            Members ({role.users?.length || 0})
+          </TabsTrigger>
         </TabsList>
 
         <div className="mt-6 min-h-[400px]">
@@ -121,20 +119,18 @@ export const AdminSettingsAdminRolesEditPage = () => {
           </TabsContent>
 
           {!isAutoManaged && (
-            <>
-              <TabsContent value="permissions" className="mt-0">
-                <AdminRolePermissionsTab
-                  role={role}
-                  permissions={permissions}
-                  onUpdate={refresh}
-                />
-              </TabsContent>
-
-              <TabsContent value="members" className="mt-0">
-                <AdminRoleMembersTab role={role} onUpdate={refresh} />
-              </TabsContent>
-            </>
+            <TabsContent value="permissions" className="mt-0">
+              <AdminRolePermissionsTab
+                role={role}
+                permissions={permissions}
+                onUpdate={refresh}
+              />
+            </TabsContent>
           )}
+
+          <TabsContent value="members" className="mt-0">
+            <AdminRoleMembersTab role={role} onUpdate={refresh} />
+          </TabsContent>
         </div>
       </Tabs>
     </div>

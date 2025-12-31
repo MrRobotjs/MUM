@@ -17,6 +17,7 @@ import {
   AlertTitle,
 } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import {
   Card,
   CardContent,
@@ -371,7 +372,12 @@ export const AdminSettingsUserRolesPage = () => {
                               )}
                             </div>
                             <div>
-                              <div className="font-medium">{role.name}</div>
+                              <div className="flex items-center gap-2">
+                                <div className="font-medium">{role.name}</div>
+                                {isAutoManagedRole(role) && (
+                                  <Badge variant="secondary">Auto-managed</Badge>
+                                )}
+                              </div>
                               {role.description && (
                                 <p className="text-sm text-muted-foreground">{role.description}</p>
                               )}

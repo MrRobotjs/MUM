@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
-import { IconUsers, IconUserPlus, IconUserMinus, IconSearch, IconSave, IconInfoCircle } from '@tabler/icons-react'
+import { IconUsers, IconUserPlus, IconUserMinus, IconSearch, IconInfoCircle } from '@tabler/icons-react'
 import useSWR from 'swr'
 import { AdminRole } from '../../hooks/useAdminRoles'
 import { useAlerts } from '../../contexts'
 import { requestJson } from '../../util/apiClient'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
@@ -75,6 +76,7 @@ export const AdminRoleMembersTab = ({ role, onUpdate }: AdminRoleMembersTabProps
   const members = membersData?.data || []
   const allAdmins = adminsData?.data || []
   const localUsers = localUsersData?.data || []
+  const hasLocalUsers = localUsers.length > 0
 
   // Filter members by search query
   const filteredMembers = members.filter((member) =>
@@ -192,11 +194,19 @@ export const AdminRoleMembersTab = ({ role, onUpdate }: AdminRoleMembersTabProps
 
   const isOwner = (userType: string) => userType === 'OWNER'
 
+  const handleOpenAddModal = () => {
+    if (isAutoManaged) {
+      showError('Members for this role are managed automatically.')
+      return
+    }
+    setAddModalOpen(true)
+  }
+
   return (
     <div className="space-y-6">
       {/* Members Overview Section */}
-      <div className="rounded-lg border border-border bg-card/30 p-6">
-        <div className="mb-6 flex items-center justify-between">
+      <div className="space-y-4 rounded-lg border border-border bg-card p-6">
+        <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/20">
               <IconUsers className="size-5 text-primary" />
@@ -208,10 +218,12 @@ export const AdminRoleMembersTab = ({ role, onUpdate }: AdminRoleMembersTabProps
               </p>
             </div>
           </div>
-          <Button onClick={() => setAddModalOpen(true)} disabled={isAutoManaged}>
-            <IconUserPlus className="mr-2 size-4" />
-            Add Admin
-          </Button>
+          {!isAutoManaged && (
+            <Button onClick={handleOpenAddModal}>
+              <IconUserPlus className="mr-2 size-4" />
+              Add Admin
+            </Button>
+          )}
         </div>
 
         {/* Stats Card */}
@@ -224,7 +236,7 @@ export const AdminRoleMembersTab = ({ role, onUpdate }: AdminRoleMembersTabProps
         </Alert>
 
         {isAutoManaged && (
-          <Alert variant="info" className="mt-4">
+          <Alert variant="info">
             <IconInfoCircle />
             <AlertTitle>Auto-managed membership</AlertTitle>
             <AlertDescription>
@@ -236,99 +248,100 @@ export const AdminRoleMembersTab = ({ role, onUpdate }: AdminRoleMembersTabProps
       </div>
 
       {/* Members List Section */}
-      <div className="rounded-lg border border-border bg-card/30 p-6">
-        <div className="mb-6 flex items-center gap-3">
-          <div className="flex size-8 items-center justify-center rounded-full bg-secondary/20">
-            <i className="fa-solid fa-list text-sm text-secondary" />
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-3">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/20">
+              <IconUsers className="size-5 text-primary" />
+            </div>
+            <div>
+              <CardTitle className="mb-1 text-xl font-semibold">Member List</CardTitle>
+              <CardDescription>Search and review assigned admins.</CardDescription>
+            </div>
           </div>
-          <div>
-            <h3 className="text-lg font-semibold">Member List</h3>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Search Members</Label>
+            <div className="relative">
+              <IconSearch className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                type="text"
+                placeholder="Search current members..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="h-11 pl-10"
+              />
+            </div>
           </div>
-        </div>
 
-        {/* Search Bar */}
-        <div className="mb-6">
-          <Label className="mb-2 text-sm font-medium">Search Members</Label>
-          <div className="relative">
-            <IconSearch className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              type="text"
-              placeholder="Search current members..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="h-11 pl-10"
-            />
-          </div>
-        </div>
+          {membersLoading ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <span className="inline-flex size-4 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
+              Loading members...
+            </div>
+          ) : filteredMembers.length === 0 ? (
+            <div className="py-12 text-center">
+              <i className="fa-solid fa-users-slash mb-4 text-4xl text-muted-foreground/30" />
+              <h4 className="mb-2 text-lg font-semibold">No Members</h4>
+              <p className="mb-4 text-sm text-muted-foreground">
+                {searchQuery
+                  ? 'No members match your search.'
+                  : "This role doesn't have any members assigned yet."}
+              </p>
+              {!searchQuery && !isAutoManaged && (
+                <Button size="sm" onClick={handleOpenAddModal}>
+                  <IconUserPlus className="mr-2 size-4" />
+                  Add First Member
+                </Button>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {filteredMembers.map((member) => {
+                const memberIsOwner = isOwner(member.user_type)
 
-        {/* Members List */}
-        {membersLoading ? (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <span className="inline-flex size-4 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
-            Loading members...
-          </div>
-        ) : filteredMembers.length === 0 ? (
-          <div className="py-12 text-center">
-            <i className="fa-solid fa-users-slash mb-4 text-4xl text-muted-foreground/30" />
-            <h4 className="mb-2 text-lg font-semibold">No Members</h4>
-            <p className="mb-4 text-sm text-muted-foreground">
-              {searchQuery
-                ? 'No members match your search.'
-                : "This role doesn't have any members assigned yet."}
-            </p>
-            {!searchQuery && !isAutoManaged && (
-              <Button size="sm" onClick={() => setAddModalOpen(true)}>
-                <IconUserPlus className="mr-2 size-4" />
-                Add First Member
-              </Button>
-            )}
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {filteredMembers.map((member) => {
-              const memberIsOwner = isOwner(member.user_type)
-
-              return (
-                <div
-                  key={member.uuid}
-                  className="flex items-center justify-between rounded-lg border border-border bg-background p-4 transition-colors hover:bg-accent/50"
-                >
-                  <div className="flex items-center gap-4">
-                    <Avatar className="size-12">
-                      <AvatarImage src="" alt={member.username} />
-                      <AvatarFallback>
-                        {member.username.charAt(0).toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <div className="font-semibold">{member.username}</div>
-                      {memberIsOwner && <Badge className="mt-1">Owner</Badge>}
-                      {!memberIsOwner && <Badge variant="secondary" className="mt-1">Admin</Badge>}
+                return (
+                  <div
+                    key={member.uuid}
+                    className="flex items-center justify-between rounded-lg border border-border bg-background p-4 transition-colors hover:bg-accent/50"
+                  >
+                    <div className="flex items-center gap-4">
+                      <Avatar className="size-12">
+                        <AvatarImage src="" alt={member.username} />
+                        <AvatarFallback>
+                          {member.username.charAt(0).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <div className="font-semibold">{member.username}</div>
+                        {memberIsOwner && <Badge className="mt-1">Owner</Badge>}
+                        {!memberIsOwner && <Badge variant="secondary" className="mt-1">Admin</Badge>}
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {!memberIsOwner && !isAutoManaged ? (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="text-destructive hover:bg-destructive/10"
-                        onClick={() => handleRemoveMember(member.uuid, member.username)}
-                      >
-                        <IconUserMinus className="mr-1 size-4" />
-                        Remove
-                      </Button>
-                    ) : !memberIsOwner && isAutoManaged ? (
-                      <span className="text-xs text-muted-foreground">Auto-managed</span>
-                    ) : (
+                    {!memberIsOwner && !isAutoManaged && (
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-destructive hover:bg-destructive/10"
+                          onClick={() => handleRemoveMember(member.uuid, member.username)}
+                        >
+                          <IconUserMinus className="mr-1 size-4" />
+                          Remove
+                        </Button>
+                      </div>
+                    )}
+                    {memberIsOwner && (
                       <span className="text-xs text-muted-foreground">Cannot remove owner</span>
                     )}
                   </div>
-                </div>
-              )
-            })}
-          </div>
-        )}
-      </div>
+                )
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Add Member Modal */}
       <ResponsiveDialog
@@ -354,7 +367,9 @@ export const AdminRoleMembersTab = ({ role, onUpdate }: AdminRoleMembersTabProps
             <Alert variant="info">
               <IconInfoCircle />
               <AlertDescription>
-                All local users are already members of this role.
+                {hasLocalUsers
+                  ? 'All local users are already members of this role.'
+                  : 'No local users found. Create a local user before assigning admin roles.'}
               </AlertDescription>
             </Alert>
           ) : (

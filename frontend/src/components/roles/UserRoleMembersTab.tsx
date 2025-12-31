@@ -25,7 +25,7 @@ interface RoleMember {
   email: string
 }
 
-interface LocalUser {
+interface AppUser {
   id: number
   uuid: string
   username: string
@@ -50,14 +50,26 @@ export const UserRoleMembersTab = ({ role, onUpdate }: UserRoleMembersTabProps) 
     isLoading: membersLoading,
   } = useSWR<{ data: RoleMember[] }>(`/admin/api/v2/user-roles/${role.id}/users`, requestJson)
 
-  // Fetch all local users (for adding new members)
-  const { data: localUsersData } = useSWR<{ data: LocalUser[] }>(
-    '/admin/api/v2/users?user_type=local&page_size=1000',
+  // Fetch all eligible users (local + service) for adding new members
+  const { data: localUsersData } = useSWR<{ data: AppUser[] }>(
+    '/admin/api/v2/users?user_type=local&page_size=100',
+    requestJson
+  )
+  const { data: serviceUsersData } = useSWR<{ data: AppUser[] }>(
+    '/admin/api/v2/users?user_type=service&page_size=100',
     requestJson
   )
 
   const members = membersData?.data || []
   const localUsers = localUsersData?.data || []
+  const serviceUsers = serviceUsersData?.data || []
+  const allUsers = [...localUsers, ...serviceUsers].reduce<AppUser[]>((acc, user) => {
+    if (!acc.some((existing) => existing.uuid === user.uuid)) {
+      acc.push(user)
+    }
+    return acc
+  }, [])
+  const hasEligibleUsers = allUsers.length > 0
 
   // Filter members by search query
   const filteredMembers = members.filter((member) =>
@@ -66,7 +78,7 @@ export const UserRoleMembersTab = ({ role, onUpdate }: UserRoleMembersTabProps) 
 
   // Get local users not already in this role
   const memberUuids = new Set(members.map((m) => m.uuid))
-  const availableUsers = localUsers.filter((user) => !memberUuids.has(user.uuid))
+  const availableUsers = allUsers.filter((user) => !memberUuids.has(user.uuid))
 
   const handleAddMembers = async () => {
     if (isAutoManagedRole) {
@@ -140,7 +152,7 @@ export const UserRoleMembersTab = ({ role, onUpdate }: UserRoleMembersTabProps) 
   return (
     <div className="space-y-6">
       {/* Members Overview Section */}
-      <div className="space-y-4 rounded-lg border border-border bg-card/30 p-6">
+      <div className="space-y-4 rounded-lg border border-border bg-card p-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/20">
@@ -294,13 +306,15 @@ export const UserRoleMembersTab = ({ role, onUpdate }: UserRoleMembersTabProps) 
             <Alert variant="info">
               <IconInfoCircle />
               <AlertDescription>
-                All local users are already members of this role.
+                {hasEligibleUsers
+                  ? 'All eligible users are already members of this role.'
+                  : 'No eligible users found. Sync or create users before assigning roles.'}
               </AlertDescription>
             </Alert>
           ) : (
             <>
               <p className="text-sm text-muted-foreground">
-                Select local users to add to this role. This is a cosmetic badge and does not grant permissions.
+                Select users to add to this role. This is a cosmetic badge and does not grant permissions.
               </p>
 
               <div className="max-h-96 space-y-2 overflow-y-auto">

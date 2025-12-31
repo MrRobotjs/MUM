@@ -77,8 +77,12 @@ def create_admin():
     try:
         new_user = User.create_admin_user(username=username, password=password)
         if role_ids:
-            roles = AdminRole.query.filter(AdminRole.id.in_(role_ids)).all()
-            new_user.set_admin_roles(roles)
+            roles = AdminRole.query.filter(
+                AdminRole.id.in_(role_ids),
+                AdminRole.is_auto_managed.is_(False)
+            ).all()
+            if roles:
+                new_user.set_admin_roles(roles)
         new_user.force_password_change = True
         db.session.add(new_user)
         db.session.commit()
@@ -108,7 +112,10 @@ def update_admin(admin_id):
     payload = request.get_json(silent=True) or {}
     role_ids = payload.get('role_ids') or []
 
-    roles = AdminRole.query.filter(AdminRole.id.in_(role_ids)).all()
+    roles = AdminRole.query.filter(
+        AdminRole.id.in_(role_ids),
+        AdminRole.is_auto_managed.is_(False)
+    ).all()
     try:
         user.set_admin_roles(roles)
         db.session.commit()

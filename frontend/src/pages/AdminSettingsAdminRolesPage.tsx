@@ -520,7 +520,6 @@ const SortableRoleRow = ({ role, disabled, onEdit, onDelete }: SortableRoleRowPr
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: disabled ? 0.6 : undefined,
     userSelect: disabled ? undefined : 'none',
     WebkitUserSelect: disabled ? undefined : 'none',
     position: 'relative',

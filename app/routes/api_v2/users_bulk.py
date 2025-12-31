@@ -228,6 +228,7 @@ def bulk_user_operations(body: BulkBody, current_user):
                         results.append(_status_entry(user, action, "skipped", "No change required."))
                         continue
                     user.allow_downloads = value
+                    user.sync_downloads_role(value)
                     stats["updated"] += 1
                     results.append(_status_entry(user, action, "updated"))
 

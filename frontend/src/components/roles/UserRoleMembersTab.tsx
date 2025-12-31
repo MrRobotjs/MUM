@@ -6,6 +6,7 @@ import { useAlerts } from '../../contexts'
 import { requestJson } from '../../util/apiClient'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { ResponsiveDialog } from '@/components/ui/responsive-dialog'
@@ -40,6 +41,7 @@ export const UserRoleMembersTab = ({ role, onUpdate }: UserRoleMembersTabProps) 
   const [addModalOpen, setAddModalOpen] = useState(false)
   const [selectedUsers, setSelectedUsers] = useState<string[]>([])
   const [submitting, setSubmitting] = useState(false)
+  const isAutoManagedRole = ['home user', 'shares back', 'downloads'].includes(role.name.toLowerCase())
 
   // Fetch role members
   const {
@@ -67,6 +69,10 @@ export const UserRoleMembersTab = ({ role, onUpdate }: UserRoleMembersTabProps) 
   const availableUsers = localUsers.filter((user) => !memberUuids.has(user.uuid))
 
   const handleAddMembers = async () => {
+    if (isAutoManagedRole) {
+      showError(`Members for the ${role.name} role are managed automatically.`)
+      return
+    }
     if (selectedUsers.length === 0) {
       showError('Please select at least one user to add')
       return
@@ -96,6 +102,10 @@ export const UserRoleMembersTab = ({ role, onUpdate }: UserRoleMembersTabProps) 
   }
 
   const handleRemoveMember = async (memberUuid: string, username: string) => {
+    if (isAutoManagedRole) {
+      showError(`Members for the ${role.name} role are managed automatically.`)
+      return
+    }
     if (!window.confirm(`Remove ${username} from this role?`)) {
       return
     }
@@ -119,11 +129,19 @@ export const UserRoleMembersTab = ({ role, onUpdate }: UserRoleMembersTabProps) 
     )
   }
 
+  const handleOpenAddModal = () => {
+    if (isAutoManagedRole) {
+      showError(`Members for the ${role.name} role are managed automatically.`)
+      return
+    }
+    setAddModalOpen(true)
+  }
+
   return (
     <div className="space-y-6">
       {/* Members Overview Section */}
-      <div className="rounded-lg border border-border bg-card/30 p-6">
-        <div className="mb-6 flex items-center justify-between">
+      <div className="space-y-4 rounded-lg border border-border bg-card/30 p-6">
+        <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/20">
               <IconUsers className="size-5 text-primary" />
@@ -135,10 +153,12 @@ export const UserRoleMembersTab = ({ role, onUpdate }: UserRoleMembersTabProps) 
               </p>
             </div>
           </div>
-          <Button onClick={() => setAddModalOpen(true)}>
-            <IconUserPlus className="mr-2 size-4" />
-            Add User
-          </Button>
+          {!isAutoManagedRole && (
+            <Button onClick={handleOpenAddModal}>
+              <IconUserPlus className="mr-2 size-4" />
+              Add User
+            </Button>
+          )}
         </div>
 
         {/* Stats Card */}
@@ -149,93 +169,106 @@ export const UserRoleMembersTab = ({ role, onUpdate }: UserRoleMembersTabProps) 
             {members.length} user{members.length !== 1 ? 's' : ''} assigned to this role
           </AlertDescription>
         </Alert>
+        {isAutoManagedRole && (
+          <Alert variant="info">
+            <IconInfoCircle />
+            <AlertTitle>Auto-managed role</AlertTitle>
+            <AlertDescription>
+              Membership is synced from service permissions and cannot be edited manually.
+            </AlertDescription>
+          </Alert>
+        )}
       </div>
 
       {/* Members List Section */}
-      <div className="rounded-lg border border-border bg-card/30 p-6">
-        <div className="mb-6 flex items-center gap-3">
-          <div className="flex size-8 items-center justify-center rounded-full bg-secondary/20">
-            <i className="fa-solid fa-list text-sm text-secondary" />
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-3">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/20">
+              <IconUsers className="size-5 text-primary" />
+            </div>
+            <div>
+              <CardTitle className="mb-1 text-xl font-semibold">Member List</CardTitle>
+              <CardDescription>Search and review assigned members.</CardDescription>
+            </div>
           </div>
-          <div>
-            <h3 className="text-lg font-semibold">Member List</h3>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Search Members</Label>
+            <div className="relative">
+              <IconSearch className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                type="text"
+                placeholder="Search current members..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="h-11 pl-10"
+              />
+            </div>
           </div>
-        </div>
 
-        {/* Search Bar */}
-        <div className="mb-6">
-          <Label className="mb-2 text-sm font-medium">Search Members</Label>
-          <div className="relative">
-            <IconSearch className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              type="text"
-              placeholder="Search current members..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="h-11 pl-10"
-            />
-          </div>
-        </div>
-
-        {/* Members List */}
-        {membersLoading ? (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <span className="inline-flex size-4 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
-            Loading members...
-          </div>
-        ) : filteredMembers.length === 0 ? (
-          <div className="py-12 text-center">
-            <i className="fa-solid fa-users-slash mb-4 text-4xl text-muted-foreground/30" />
-            <h4 className="mb-2 text-lg font-semibold">No Members</h4>
-            <p className="mb-4 text-sm text-muted-foreground">
-              {searchQuery
-                ? 'No members match your search.'
-                : "This role doesn't have any members assigned yet."}
-            </p>
-            {!searchQuery && (
-              <Button size="sm" onClick={() => setAddModalOpen(true)}>
-                <IconUserPlus className="mr-2 size-4" />
-                Add First Member
-              </Button>
-            )}
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {filteredMembers.map((member) => (
-              <div
-                key={member.uuid}
-                className="flex items-center justify-between rounded-lg border border-border bg-background p-4 transition-colors hover:bg-accent/50"
-              >
-                <div className="flex items-center gap-4">
-                  <Avatar className="size-12">
-                    <AvatarImage src="" alt={member.username} />
-                    <AvatarFallback>
-                      {member.username.charAt(0).toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <div className="font-semibold">{member.username}</div>
-                    {member.email && (
-                      <div className="text-sm text-muted-foreground">{member.email}</div>
-                    )}
+          {membersLoading ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <span className="inline-flex size-4 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
+              Loading members...
+            </div>
+          ) : filteredMembers.length === 0 ? (
+            <div className="py-12 text-center">
+              <i className="fa-solid fa-users-slash mb-4 text-4xl text-muted-foreground/30" />
+              <h4 className="mb-2 text-lg font-semibold">No Members</h4>
+              <p className="mb-4 text-sm text-muted-foreground">
+                {searchQuery
+                  ? 'No members match your search.'
+                  : "This role doesn't have any members assigned yet."}
+              </p>
+              {!searchQuery && !isAutoManagedRole && (
+                <Button size="sm" onClick={handleOpenAddModal}>
+                  <IconUserPlus className="mr-2 size-4" />
+                  Add First Member
+                </Button>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {filteredMembers.map((member) => (
+                <div
+                  key={member.uuid}
+                  className="flex items-center justify-between rounded-lg border border-border bg-background p-4 transition-colors hover:bg-accent/50"
+                >
+                  <div className="flex items-center gap-4">
+                    <Avatar className="size-12">
+                      <AvatarImage src="" alt={member.username} />
+                      <AvatarFallback>
+                        {member.username.charAt(0).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <div className="font-semibold">{member.username}</div>
+                      {member.email && (
+                        <div className="text-sm text-muted-foreground">{member.email}</div>
+                      )}
+                    </div>
                   </div>
+                  {!isAutoManagedRole && (
+                    <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="text-destructive hover:bg-destructive/10"
+                        onClick={() => handleRemoveMember(member.uuid, member.username)}
+                      >
+                        <IconUserMinus className="mr-1 size-4" />
+                        Remove
+                      </Button>
+                    </div>
+                  )}
                 </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="text-destructive hover:bg-destructive/10"
-                    onClick={() => handleRemoveMember(member.uuid, member.username)}
-                  >
-                    <IconUserMinus className="mr-1 size-4" />
-                    Remove
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Add Member Modal */}
       <ResponsiveDialog

@@ -98,14 +98,28 @@ class JellyfinMediaService(BaseMediaService):
             users = resp.json()
             result = []
             for user in users:
+                user_id = user.get("Id")
+                policy = user.get("Policy") or {}
+                if not policy and user_id:
+                    try:
+                        policy_resp = self.session.get(
+                            f"{self.url.rstrip('/')}/Users/{user_id}/Policy",
+                            timeout=get_api_timeout_with_fallback(10),
+                        )
+                        policy_resp.raise_for_status()
+                        policy = policy_resp.json()
+                    except Exception:
+                        policy = {}
+                allow_downloads = bool(policy.get("EnableContentDownloading", False))
                 result.append(
                     {
-                        "id": user.get("Id"),
-                        "uuid": user.get("Id"),
+                        "id": user_id,
+                        "uuid": user_id,
                         "username": user.get("Name"),
                         "email": user.get("PrimaryImageTag"),  # Jellyfin doesn't expose email by default
                         "thumb": None,
                         "is_home_user": False,
+                        "allow_downloads": allow_downloads,
                     }
                 )
             return result

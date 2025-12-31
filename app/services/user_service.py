@@ -80,6 +80,7 @@ def sync_users_from_plex():
         is_home_user_from_sync = plex_user_data.get('is_home_user', False)
         shares_back_from_sync = plex_user_data.get('shares_back', False)
         is_friend_from_sync = plex_user_data.get('is_friend', False)
+        allow_downloads_from_sync = plex_user_data.get('allow_downloads', False)
 
         if mum_user: # Existing user
             changes_for_this_user = []
@@ -112,6 +113,10 @@ def sync_users_from_plex():
             if mum_user.shares_back != shares_back_from_sync:
                 changes_for_this_user.append(f"Shares Back status changed to {shares_back_from_sync}")
                 mum_user.shares_back = shares_back_from_sync
+            if mum_user.allow_downloads != allow_downloads_from_sync:
+                changes_for_this_user.append(f"Downloads permission changed to {allow_downloads_from_sync}")
+                mum_user.allow_downloads = allow_downloads_from_sync
+                mum_user.sync_downloads_role(allow_downloads_from_sync)
             if hasattr(mum_user, 'is_plex_friend') and mum_user.is_plex_friend != is_friend_from_sync:
                 changes_for_this_user.append(f"Plex Friend status changed to {is_friend_from_sync}")
                 mum_user.is_plex_friend = is_friend_from_sync
@@ -133,8 +138,10 @@ def sync_users_from_plex():
                     allowed_library_ids=new_library_ids_from_plex_list, 
                     is_home_user=is_home_user_from_sync,
                     shares_back=shares_back_from_sync,
+                    allow_downloads=allow_downloads_from_sync,
                     last_activity_at=datetime.utcnow()
                 )
+                new_user_obj.sync_downloads_role(allow_downloads_from_sync)
                 db.session.add(new_user_obj)
                 added_users_details.append({'username': plex_username_from_sync, 'plex_id': plex_id})
             except IntegrityError as ie: 

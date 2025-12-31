@@ -493,6 +493,8 @@ def accept_invite_and_grant_access(invite: Invite, plex_user_uuid: str, plex_use
             if server.service_type.name.upper() == 'PLEX':
                 user_media_access.external_user_alt_id = plex_user_uuid
                 user_media_access.external_avatar_url = plex_thumb
+            if server.service_type in {ServiceType.PLEX, ServiceType.JELLYFIN, ServiceType.EMBY}:
+                user_media_access.sync_downloads_role(user_media_access.allow_downloads)
             
             # Add service user to session
             db.session.add(user_media_access)

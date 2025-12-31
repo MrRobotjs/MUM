@@ -90,8 +90,10 @@ class EmbyMediaService(BaseMediaService):
                 try:
                     policy = self._make_request(f"Users/{user_id}/Policy")
                     library_ids = policy.get("EnabledFolders", [])
+                    allow_downloads = bool(policy.get("EnableContentDownloading", False))
                 except Exception:
                     library_ids = []
+                    allow_downloads = False
                 result.append(
                     {
                         "id": user_id,
@@ -101,6 +103,7 @@ class EmbyMediaService(BaseMediaService):
                         "thumb": None,
                         "is_home_user": False,
                         "library_ids": library_ids,
+                        "allow_downloads": allow_downloads,
                         "is_admin": user.get("Policy", {}).get("IsAdministrator", False),
                     }
                 )

@@ -58,6 +58,10 @@ const presetColors: Array<{ hex: string; label: string }> = [
   { hex: '#808080', label: 'Gray' },
 ];
 
+const autoManagedRoleNames = new Set(['home user', 'shares back', 'downloads']);
+
+const isAutoManagedRole = (role: UserRole) => autoManagedRoleNames.has(role.name.toLowerCase());
+
 const getTextColorForBackground = (hex: string) => {
   const sanitized = hex.replace('#', '');
   if (sanitized.length !== 6) return '#ffffff';
@@ -126,6 +130,10 @@ export const AdminSettingsUserRolesPage = () => {
   };
 
   const handleDelete = async (role: UserRole) => {
+    if (isAutoManagedRole(role)) {
+      showError(`Cannot delete the ${role.name} role`)
+      return
+    }
     if (!confirm(`Are you sure you want to delete "${role.name}"?`)) {
       return;
     }
@@ -401,15 +409,17 @@ export const AdminSettingsUserRolesPage = () => {
                               <i className="fa-solid fa-pen-to-square mr-1 size-3" />
                               <span className="hidden md:inline">Edit</span>
                             </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="text-destructive hover:bg-destructive/10"
-                              onClick={() => handleDelete(role)}
-                            >
-                              <i className="fa-solid fa-trash-can mr-1 size-3" />
-                              <span className="hidden md:inline">Delete</span>
-                            </Button>
+                            {!isAutoManagedRole(role) && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-destructive hover:bg-destructive/10"
+                                onClick={() => handleDelete(role)}
+                              >
+                                <i className="fa-solid fa-trash-can mr-1 size-3" />
+                                <span className="hidden md:inline">Delete</span>
+                              </Button>
+                            )}
                           </div>
                         </TableCell>
                       </TableRow>

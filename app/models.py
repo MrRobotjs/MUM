@@ -425,6 +425,17 @@ class User(db.Model):
             elif not value and shares_back_role in self.user_roles:
                 self.user_roles.remove(shares_back_role)
 
+    def sync_downloads_role(self, allow_downloads: bool | None = None):
+        """Sync the 'Downloads' role based on the allow_downloads flag."""
+        downloads_role = UserRole.query.filter_by(name='Downloads').first()
+        if not downloads_role:
+            return
+        downloads_enabled = bool(self.allow_downloads) if allow_downloads is None else bool(allow_downloads)
+        if downloads_enabled and downloads_role not in self.user_roles:
+            self.user_roles.append(downloads_role)
+        elif not downloads_enabled and downloads_role in self.user_roles:
+            self.user_roles.remove(downloads_role)
+
     # Staff Role Management (Special Admin Role)
     def _ensure_staff_role(self):
         """Automatically assign 'Staff' admin role when user gets admin roles"""

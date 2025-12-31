@@ -467,6 +467,8 @@ class PlexMediaService(BaseMediaService):
                     
                     all_libs = (shared_server_elem.get('allLibraries', "0") == "1")
                     accepted_at_timestamp = shared_server_elem.get('acceptedAt')
+                    allow_sync_raw = shared_server_elem.get('allowSync')
+                    allow_downloads = str(allow_sync_raw).lower() in ('1', 'true', 'yes')
                     
                     shared_section_keys_for_user = []
                     if not all_libs: 
@@ -489,7 +491,9 @@ class PlexMediaService(BaseMediaService):
                     detailed_shares_by_userid[user_id_int_key] = {
                         'allLibraries': all_libs,
                         'sharedSectionKeys': shared_section_keys_for_user,
-                        'acceptedAt': accepted_at_timestamp
+                        'acceptedAt': accepted_at_timestamp,
+                        'allowSync': allow_sync_raw,
+                        'allow_downloads': allow_downloads,
                     }
         except Exception as e_shared_servers:
             self.log_error(f"Error fetching or parsing detailed /shared_servers data: {type(e_shared_servers).__name__} - {e_shared_servers}", exc_info=True)
@@ -571,6 +575,10 @@ class PlexMediaService(BaseMediaService):
                     'timestamp': datetime.utcnow().isoformat()
                 }
 
+                allow_downloads = bool(getattr(plex_user_obj, 'allowSync', False))
+                if user_share_details and user_share_details.get('allow_downloads') is not None:
+                    allow_downloads = bool(user_share_details.get('allow_downloads'))
+
                 user_data_basic = {
                     'id': str(plex_user_id_int),
                     'uuid': plex_user_uuid_str,
@@ -579,6 +587,7 @@ class PlexMediaService(BaseMediaService):
                     'thumb': plex_thumb_url,
                     'is_home_user': getattr(plex_user_obj, 'home', False),
                     'shares_back': plex_user_id_int in users_sharing_back_ids,
+                    'allow_downloads': allow_downloads,
                     'library_ids': [],
                     'accepted_at': accepted_at_val,
                     'raw_data': raw_user_data

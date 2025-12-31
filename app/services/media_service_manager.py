@@ -219,8 +219,11 @@ class MediaServiceManager:
                     server_libraries[lib.internal_id] = lib.name
             external_user_ids_from_service = {str(u.get('id')) for u in users_data if u.get('id')}
 
+            manage_downloads_role = server.service_type in {ServiceType.PLEX, ServiceType.JELLYFIN, ServiceType.EMBY}
+
             for user_data in users_data:
                 user = MediaServiceManager._find_or_create_user(user_data, server)
+                allow_downloads_from_sync = user_data.get('allow_downloads')
                 
                 # Check if service user already exists for this server user
                 access = None
@@ -269,6 +272,9 @@ class MediaServiceManager:
                             # Update the status via UserRole properties
                             access.is_home_user = user_data.get('is_home_user', False)
                             access.shares_back = user_data.get('shares_back', False)
+                            if manage_downloads_role and allow_downloads_from_sync is not None:
+                                access.allow_downloads = bool(allow_downloads_from_sync)
+                                access.sync_downloads_role(allow_downloads_from_sync)
                             
                             # Set service-specific fields
                             if server.service_type == ServiceType.PLEX:
@@ -327,8 +333,11 @@ class MediaServiceManager:
                         is_active=True,
                         # Add the missing status fields
                         is_home_user=user_data.get('is_home_user', False),
-                        shares_back=user_data.get('shares_back', False)
+                        shares_back=user_data.get('shares_back', False),
+                        allow_downloads=bool(allow_downloads_from_sync) if manage_downloads_role and allow_downloads_from_sync is not None else False
                     )
+                    if manage_downloads_role and allow_downloads_from_sync is not None:
+                        access.sync_downloads_role(allow_downloads_from_sync)
                     
                     # Set service-specific fields for new users
                     if server.service_type == ServiceType.PLEX:
@@ -464,6 +473,12 @@ class MediaServiceManager:
                         new_value = user_data.get('shares_back', False)
                         changes.append(f"Shares Back status changed from {old_value} to {new_value}")
                         access.shares_back = new_value
+                    if manage_downloads_role and allow_downloads_from_sync is not None and access.allow_downloads != bool(allow_downloads_from_sync):
+                        old_value = access.allow_downloads
+                        new_value = bool(allow_downloads_from_sync)
+                        changes.append(f"Downloads permission changed from {old_value} to {new_value}")
+                        access.allow_downloads = new_value
+                        access.sync_downloads_role(new_value)
                     
                     if changes:
                         updated_count += 1

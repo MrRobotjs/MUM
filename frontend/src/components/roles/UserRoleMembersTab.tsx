@@ -41,7 +41,7 @@ export const UserRoleMembersTab = ({ role, onUpdate }: UserRoleMembersTabProps) 
   const [addModalOpen, setAddModalOpen] = useState(false)
   const [selectedUsers, setSelectedUsers] = useState<string[]>([])
   const [submitting, setSubmitting] = useState(false)
-  const isAutoManagedRole = ['home user', 'shares back', 'downloads'].includes(role.name.toLowerCase())
+  const isAutoManagedRole = Boolean(role.is_auto_managed)
 
   // Fetch role members
   const {

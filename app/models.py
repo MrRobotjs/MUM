@@ -117,6 +117,7 @@ class AdminRole(db.Model):
     position = db.Column(db.Integer, nullable=False, default=0)  # Hierarchy position (higher = more powerful)
     color = db.Column(db.String(7), nullable=True, default='#808080')
     icon = db.Column(db.String(100), nullable=True)
+    is_auto_managed = db.Column(db.Boolean, default=False, nullable=False)
     
     # Many-to-many relationship with permissions
     permissions = db.relationship('AdminPermission', secondary=admin_role_permissions, 
@@ -141,14 +142,21 @@ class AdminRole(db.Model):
     @classmethod
     def get_or_create_staff_role(cls):
         """Get the Staff admin role, creating it if it doesn't exist"""
-        staff_role = cls.query.filter_by(name='Staff').first()
+        staff_role = cls.query.filter_by(is_auto_managed=True).first()
+        if not staff_role:
+            staff_role = cls.query.filter_by(name='Staff').first()
+            if staff_role and not staff_role.is_auto_managed:
+                staff_role.is_auto_managed = True
+                from app.extensions import db
+                db.session.commit()
         if not staff_role:
             staff_role = cls(
                 name='Staff',
                 description='Visual indicator for administrators - automatically assigned to users with admin roles',
                 color='#5865f2',  # Discord blurple
                 icon='fa-solid fa-user-tie',
-                position=-1  # Lowest position so it can't manage other roles
+                position=-1,  # Lowest position so it can't manage other roles
+                is_auto_managed=True
             )
             from app.extensions import db
             db.session.add(staff_role)
@@ -157,7 +165,7 @@ class AdminRole(db.Model):
 
     def is_staff_role(self):
         """Check if this is the special Staff admin role"""
-        return self.name == 'Staff'
+        return self.is_auto_managed
 
 # Legacy alias for backward compatibility
 Role = AdminRole
@@ -170,6 +178,7 @@ class UserRole(db.Model):
     description = db.Column(db.Text, nullable=True)
     color = db.Column(db.String(7), nullable=True, default='#808080')
     icon = db.Column(db.String(100), nullable=True)
+    is_auto_managed = db.Column(db.Boolean, default=False, nullable=False)
     created_at = db.Column(db.DateTime, default=utcnow, nullable=False)
     updated_at = db.Column(db.DateTime, default=utcnow, onupdate=utcnow, nullable=False)
 
@@ -445,12 +454,12 @@ class User(db.Model):
     
     def _remove_staff_role_if_no_admin_roles(self):
         """Remove 'Staff' admin role if user has no other admin roles"""
-        # Get all admin roles except Staff
-        non_staff_roles = [r for r in self.admin_roles if r.name != 'Staff']
+        # Get all admin roles except auto-managed roles
+        non_staff_roles = [r for r in self.admin_roles if not r.is_auto_managed]
         if not non_staff_roles:
-            staff_role = AdminRole.query.filter_by(name='Staff').first()
-            if staff_role and staff_role in self.admin_roles:
-                self.admin_roles.remove(staff_role)
+            auto_managed_roles = [r for r in self.admin_roles if r.is_auto_managed]
+            for role in auto_managed_roles:
+                self.admin_roles.remove(role)
     
     def has_admin_access(self):
         """Check if user has admin dashboard access (has any admin roles)"""
@@ -458,7 +467,7 @@ class User(db.Model):
     
     def is_staff_member(self):
         """Check if user is a staff member (has Staff admin role)"""
-        return any(role.name == 'Staff' for role in self.admin_roles)
+        return any(role.is_auto_managed for role in self.admin_roles)
     
     @classmethod
     def create_admin_user(cls, username, password, email=None):

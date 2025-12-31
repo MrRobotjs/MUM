@@ -58,9 +58,7 @@ const presetColors: Array<{ hex: string; label: string }> = [
   { hex: '#808080', label: 'Gray' },
 ];
 
-const autoManagedRoleNames = new Set(['home user', 'shares back', 'downloads']);
-
-const isAutoManagedRole = (role: UserRole) => autoManagedRoleNames.has(role.name.toLowerCase());
+const isAutoManagedRole = (role: UserRole) => Boolean(role.is_auto_managed);
 
 const getTextColorForBackground = (hex: string) => {
   const sanitized = hex.replace('#', '');

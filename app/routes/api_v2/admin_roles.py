@@ -30,6 +30,7 @@ class RoleRef(BaseModel):
     color: str | None = None
     icon: str | None = None
     is_staff_role: bool
+    is_auto_managed: bool
     permissions: list[PermissionRef] | None = None
     users: list[dict] | None = None
     user_count: int | None = None
@@ -48,7 +49,8 @@ def _serialize_admin_role(role, include_permissions=False, include_users=False):
         'position': role.position,
         'color': role.color,
         'icon': role.icon,
-        'is_staff_role': role.is_staff_role()
+        'is_staff_role': role.is_staff_role(),
+        'is_auto_managed': role.is_auto_managed
     }
     if include_permissions:
         data['permissions'] = [{
@@ -218,8 +220,8 @@ def delete_admin_role(path: RolePath, current_user):
     role = AdminRole.query.get(path.role_id)
     if not role:
         return jsonify({'error': {'code': 'ROLE_NOT_FOUND', 'message': f'Admin role with ID {path.role_id} not found', 'details': {'role_id': path.role_id}}, 'meta': {'request_id': request_id}}), 404
-    if role.is_staff_role():
-        return jsonify({'error': {'code': 'CANNOT_DELETE_STAFF_ROLE', 'message': 'Cannot delete the Staff role - it is a system role', 'hint': 'The Staff role is automatically managed'}, 'meta': {'request_id': request_id}}), 403
+    if role.is_auto_managed:
+        return jsonify({'error': {'code': 'CANNOT_DELETE_STAFF_ROLE', 'message': 'Cannot delete an auto-managed role - it is a system role', 'hint': 'Auto-managed roles are managed by the system'}, 'meta': {'request_id': request_id}}), 403
     if not current_user.can_manage_role(role):
         return jsonify({'error': {'code': 'INSUFFICIENT_ROLE_HIERARCHY', 'message': 'Cannot delete a role with equal or higher position than your own', 'details': {'your_position': current_user.get_highest_role_position(), 'target_position': role.position}}, 'meta': {'request_id': request_id}}), 403
     users_with_role = AdminRole.get_users_with_role(role.id)

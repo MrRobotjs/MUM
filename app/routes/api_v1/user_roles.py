@@ -10,6 +10,9 @@ from app.models import UserRole, User
 from app.extensions import db
 from datetime import datetime
 
+def _is_auto_managed_role(role: UserRole) -> bool:
+    return bool(getattr(role, "is_auto_managed", False))
+
 
 def _serialize_user_role(role, include_users=False):
     """Serialize a UserRole object to JSON"""
@@ -19,6 +22,7 @@ def _serialize_user_role(role, include_users=False):
         'description': role.description,
         'color': role.color,
         'icon': role.icon,
+        'is_auto_managed': role.is_auto_managed,
         'created_at': role.created_at.isoformat() if role.created_at else None,
         'updated_at': role.updated_at.isoformat() if role.updated_at else None
     }
@@ -253,6 +257,14 @@ def delete_user_role(role_id):
             },
             'meta': {'request_id': request_id}
         }), 404
+    if _is_auto_managed_role(role):
+        return jsonify({
+            'error': {
+                'code': 'ROLE_AUTO_MANAGED',
+                'message': f'Role "{role.name}" is auto-managed and cannot be deleted.'
+            },
+            'meta': {'request_id': request_id}
+        }), 403
 
     # Check if role has users assigned
     users_with_role = UserRole.get_users_with_role(role.id)

@@ -54,6 +54,7 @@ export const AdminRoleMembersTab = ({ role, onUpdate }: AdminRoleMembersTabProps
   const [addModalOpen, setAddModalOpen] = useState(false)
   const [selectedUsers, setSelectedUsers] = useState<string[]>([])
   const [submitting, setSubmitting] = useState(false)
+  const isAutoManaged = role.is_auto_managed
 
   // Fetch role members
   const {
@@ -85,6 +86,10 @@ export const AdminRoleMembersTab = ({ role, onUpdate }: AdminRoleMembersTabProps
   const availableUsers = localUsers.filter((user) => !memberUuids.has(user.uuid))
 
   const handleAddMembers = async () => {
+    if (isAutoManaged) {
+      showError('Members for this role are managed automatically.')
+      return
+    }
     if (selectedUsers.length === 0) {
       showError('Please select at least one user to add')
       return
@@ -144,6 +149,10 @@ export const AdminRoleMembersTab = ({ role, onUpdate }: AdminRoleMembersTabProps
   }
 
   const handleRemoveMember = async (memberUuid: string, username: string) => {
+    if (isAutoManaged) {
+      showError('Members for this role are managed automatically.')
+      return
+    }
     if (
       !window.confirm(`Remove ${username} from this role? They will lose all permissions from this role.`)
     ) {
@@ -199,7 +208,7 @@ export const AdminRoleMembersTab = ({ role, onUpdate }: AdminRoleMembersTabProps
               </p>
             </div>
           </div>
-          <Button onClick={() => setAddModalOpen(true)}>
+          <Button onClick={() => setAddModalOpen(true)} disabled={isAutoManaged}>
             <IconUserPlus className="mr-2 size-4" />
             Add Admin
           </Button>
@@ -213,6 +222,17 @@ export const AdminRoleMembersTab = ({ role, onUpdate }: AdminRoleMembersTabProps
             {members.length} administrator{members.length !== 1 ? 's' : ''} assigned to this role
           </AlertDescription>
         </Alert>
+
+        {isAutoManaged && (
+          <Alert variant="info" className="mt-4">
+            <IconInfoCircle />
+            <AlertTitle>Auto-managed membership</AlertTitle>
+            <AlertDescription>
+              Members for this role are managed by the system. Add or remove admin roles to
+              adjust membership.
+            </AlertDescription>
+          </Alert>
+        )}
       </div>
 
       {/* Members List Section */}
@@ -256,7 +276,7 @@ export const AdminRoleMembersTab = ({ role, onUpdate }: AdminRoleMembersTabProps
                 ? 'No members match your search.'
                 : "This role doesn't have any members assigned yet."}
             </p>
-            {!searchQuery && (
+            {!searchQuery && !isAutoManaged && (
               <Button size="sm" onClick={() => setAddModalOpen(true)}>
                 <IconUserPlus className="mr-2 size-4" />
                 Add First Member
@@ -287,7 +307,7 @@ export const AdminRoleMembersTab = ({ role, onUpdate }: AdminRoleMembersTabProps
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    {!memberIsOwner ? (
+                    {!memberIsOwner && !isAutoManaged ? (
                       <Button
                         size="sm"
                         variant="ghost"
@@ -297,6 +317,8 @@ export const AdminRoleMembersTab = ({ role, onUpdate }: AdminRoleMembersTabProps
                         <IconUserMinus className="mr-1 size-4" />
                         Remove
                       </Button>
+                    ) : !memberIsOwner && isAutoManaged ? (
+                      <span className="text-xs text-muted-foreground">Auto-managed</span>
                     ) : (
                       <span className="text-xs text-muted-foreground">Cannot remove owner</span>
                     )}

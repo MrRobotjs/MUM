@@ -54,7 +54,7 @@ export const AdminSettingsAdminRolesEditPage = () => {
     )
   }
 
-  const isStaffRole = role.is_staff_role || role.name === 'Staff'
+  const isAutoManaged = role.is_auto_managed
 
   return (
     <div className="space-y-6">
@@ -81,13 +81,13 @@ export const AdminSettingsAdminRolesEditPage = () => {
         </div>
 
         {/* Staff Role Notice */}
-        {isStaffRole && (
+        {isAutoManaged && (
           <Alert variant="info">
             <IconInfoCircle />
             <AlertTitle>Automatically Managed Role</AlertTitle>
             <AlertDescription>
-              The Staff role is automatically assigned to all administrators who have admin roles.
-              It has no permissions and serves as a visual indicator. You can customize its
+              This role is automatically managed by the system. It is assigned based on admin
+              role membership and does not grant additional permissions. You can customize its
               appearance only.
             </AlertDescription>
           </Alert>
@@ -101,7 +101,7 @@ export const AdminSettingsAdminRolesEditPage = () => {
             <IconPalette className="mr-2 size-4" />
             Display Settings
           </TabsTrigger>
-          {!isStaffRole && (
+          {!isAutoManaged && (
             <>
               <TabsTrigger value="permissions">
                 <IconKey className="mr-2 size-4" />
@@ -120,7 +120,7 @@ export const AdminSettingsAdminRolesEditPage = () => {
             <AdminRoleDisplayTab role={role} onUpdate={refresh} />
           </TabsContent>
 
-          {!isStaffRole && (
+          {!isAutoManaged && (
             <>
               <TabsContent value="permissions" className="mt-0">
                 <AdminRolePermissionsTab

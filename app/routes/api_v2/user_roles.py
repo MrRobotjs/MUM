@@ -14,6 +14,21 @@ from app.extensions import db
 
 
 roles_tag = Tag(name="User Roles", description="Visual user roles")
+def _is_auto_managed_role(role: UserRole) -> bool:
+    return bool(getattr(role, "is_auto_managed", False))
+
+
+def _auto_managed_error(role: UserRole, request_id: str):
+    return (
+        jsonify({
+            "error": {
+                "code": "ROLE_AUTO_MANAGED",
+                "message": f'Role "{role.name}" is auto-managed and cannot be modified.',
+            },
+            "meta": {"request_id": request_id},
+        }),
+        403,
+    )
 
 
 class UserRoleRef(BaseModel):
@@ -22,6 +37,7 @@ class UserRoleRef(BaseModel):
     description: str | None = None
     color: str | None = None
     icon: str | None = None
+    is_auto_managed: bool | None = None
     created_at: str | None = None
     updated_at: str | None = None
     users: list[dict] | None = None
@@ -40,6 +56,7 @@ def _serialize_user_role(role, include_users=False):
         'description': role.description,
         'color': role.color,
         'icon': role.icon,
+        'is_auto_managed': role.is_auto_managed,
         'created_at': role.created_at.isoformat() if role.created_at else None,
         'updated_at': role.updated_at.isoformat() if role.updated_at else None
     }
@@ -187,3 +204,96 @@ def get_user_role_users(path: RolePath, current_user):
         return jsonify({'error': {'code': 'ROLE_NOT_FOUND', 'message': f'User role with ID {path.role_id} not found', 'details': {'role_id': path.role_id}}, 'meta': {'request_id': request_id}}), 404
     users = UserRole.get_users_with_role(role.id)
     return jsonify({'data': [{'uuid': u.uuid, 'username': u.get_display_name(), 'user_type': u.userType.value, 'email': u.get_email(), 'is_active': u.is_active} for u in users], 'meta': {'request_id': request_id, 'deprecated': False, 'role': {'id': role.id, 'name': role.name}, 'total_count': len(users), 'generated_at': datetime.utcnow().isoformat() + 'Z'}})
+
+
+class RoleUserBody(BaseModel):
+    user_uuid: str = Field(..., description="UUID of the user to assign to this role")
+
+
+class RoleUserPath(RolePath):
+    user_uuid: str
+
+
+@api_v2.post(
+    "/user-roles/<role_id>/users",
+    tags=[roles_tag],
+    summary="Add a user to a user role",
+)
+@jwt_required_with_user()
+@jwt_permission_required('administrator')
+def add_user_role_user(path: RolePath, current_user):
+    request_id = str(uuid4())
+    role = UserRole.query.get(path.role_id)
+    if not role:
+        return jsonify({'error': {'code': 'ROLE_NOT_FOUND', 'message': f'User role with ID {path.role_id} not found', 'details': {'role_id': path.role_id}}, 'meta': {'request_id': request_id}}), 404
+    if _is_auto_managed_role(role):
+        return _auto_managed_error(role, request_id)
+    data = request.get_json(silent=True) or {}
+    user_uuid = data.get('user_uuid')
+    if not user_uuid:
+        return jsonify({'error': {'code': 'VALIDATION_ERROR', 'message': 'Missing required field: user_uuid', 'details': {'missing_fields': ['user_uuid']}}, 'meta': {'request_id': request_id}}), 422
+    user = User.query.filter_by(uuid=user_uuid).first()
+    if not user:
+        return jsonify({'error': {'code': 'USER_NOT_FOUND', 'message': f'User with UUID {user_uuid} not found', 'details': {'user_uuid': user_uuid}}, 'meta': {'request_id': request_id}}), 404
+
+    if role not in user.user_roles:
+        user.user_roles.append(role)
+        user.updated_at = datetime.utcnow()
+        db.session.commit()
+
+    return jsonify({'data': {'success': True, 'role_id': role.id, 'user_uuid': user.uuid}, 'meta': {'request_id': request_id, 'deprecated': False}}), 200
+
+
+@api_v2.delete(
+    "/user-roles/<role_id>/users/<user_uuid>",
+    tags=[roles_tag],
+    summary="Remove a user from a user role",
+)
+@jwt_required_with_user()
+@jwt_permission_required('administrator')
+def remove_user_role_user(path: RoleUserPath, current_user):
+    request_id = str(uuid4())
+    role = UserRole.query.get(path.role_id)
+    if not role:
+        return jsonify({'error': {'code': 'ROLE_NOT_FOUND', 'message': f'User role with ID {path.role_id} not found', 'details': {'role_id': path.role_id}}, 'meta': {'request_id': request_id}}), 404
+    if _is_auto_managed_role(role):
+        return _auto_managed_error(role, request_id)
+
+    user = User.query.filter_by(uuid=path.user_uuid).first()
+    if not user:
+        return jsonify({'error': {'code': 'USER_NOT_FOUND', 'message': f'User with UUID {path.user_uuid} not found', 'details': {'user_uuid': path.user_uuid}}, 'meta': {'request_id': request_id}}), 404
+
+    if role in user.user_roles:
+        user.user_roles.remove(role)
+        user.updated_at = datetime.utcnow()
+        db.session.commit()
+
+    return jsonify({'data': {'success': True, 'role_id': role.id, 'user_uuid': user.uuid}, 'meta': {'request_id': request_id, 'deprecated': False}}), 200
+
+
+@api_v2.delete(
+    "/user-roles/<role_id>",
+    tags=[roles_tag],
+    summary="Delete user role",
+)
+@jwt_required_with_user()
+@jwt_permission_required('administrator')
+def delete_user_role(path: RolePath, current_user):
+    request_id = str(uuid4())
+    role = UserRole.query.get(path.role_id)
+    if not role:
+        return jsonify({'error': {'code': 'ROLE_NOT_FOUND', 'message': f'User role with ID {path.role_id} not found', 'details': {'role_id': path.role_id}}, 'meta': {'request_id': request_id}}), 404
+    if _is_auto_managed_role(role):
+        return _auto_managed_error(role, request_id)
+    users_with_role = UserRole.get_users_with_role(role.id)
+    if users_with_role:
+        return jsonify({'error': {'code': 'ROLE_HAS_USERS', 'message': f'Cannot delete role that is assigned to {len(users_with_role)} user(s)', 'details': {'user_count': len(users_with_role)}, 'hint': 'Remove this role from all users before deleting'}, 'meta': {'request_id': request_id}}), 409
+
+    role_data = _serialize_user_role(role)
+    try:
+        db.session.delete(role)
+        db.session.commit()
+        return jsonify({'data': {'success': True, 'deleted_role': role_data}, 'meta': {'request_id': request_id, 'deprecated': False, 'generated_at': datetime.utcnow().isoformat() + 'Z'}})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': {'code': 'ROLE_DELETION_FAILED', 'message': 'Failed to delete user role', 'details': {'error': str(e)}}, 'meta': {'request_id': request_id}}), 500

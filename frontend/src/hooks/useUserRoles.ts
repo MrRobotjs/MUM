@@ -7,6 +7,7 @@ export type UserRole = {
   description: string | null;
   color: string | null;
   icon: string | null;
+  is_auto_managed?: boolean;
   created_at: string;
   updated_at: string;
   user_count?: number;

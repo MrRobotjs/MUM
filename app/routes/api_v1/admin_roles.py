@@ -20,7 +20,8 @@ def _serialize_admin_role(role, include_permissions=False, include_users=False):
         'position': role.position,
         'color': role.color,
         'icon': role.icon,
-        'is_staff_role': role.is_staff_role()
+        'is_staff_role': role.is_staff_role(),
+        'is_auto_managed': role.is_auto_managed
     }
 
     if include_permissions:
@@ -141,8 +142,8 @@ def create_admin_role():
             'meta': {'request_id': request_id}
         }), 409
 
-    # Prevent creating Staff role (it's special)
-    if data['name'].lower() == 'staff':
+    # Prevent creating a reserved Staff role when an auto-managed role exists
+    if data['name'].lower() == 'staff' and AdminRole.query.filter_by(is_auto_managed=True).first():
         return jsonify({
             'error': {
                 'code': 'INVALID_ROLE_NAME',
@@ -208,17 +209,6 @@ def update_admin_role(role_id):
             'meta': {'request_id': request_id}
         }), 404
 
-    # Prevent modifying Staff role
-    if role.is_staff_role():
-        return jsonify({
-            'error': {
-                'code': 'CANNOT_MODIFY_STAFF_ROLE',
-                'message': 'Cannot modify the Staff role - it is a system role',
-                'hint': 'The Staff role is automatically managed'
-            },
-            'meta': {'request_id': request_id}
-        }), 403
-
     # Check if current user can manage this role (hierarchy check)
     if not current_user.can_manage_role(role):
         return jsonify({
@@ -246,7 +236,17 @@ def update_admin_role(role_id):
 
     # Check for name conflicts if changing name
     if 'name' in data and data['name'] != role.name:
-        if data['name'].lower() == 'staff':
+        new_name = (data['name'] or '').strip()
+        if not new_name:
+            return jsonify({
+                'error': {
+                    'code': 'VALIDATION_ERROR',
+                    'message': 'Role name cannot be empty or whitespace'
+                },
+                'meta': {'request_id': request_id}
+            }), 422
+
+        if new_name.lower() == 'staff' and not role.is_auto_managed:
             return jsonify({
                 'error': {
                     'code': 'INVALID_ROLE_NAME',
@@ -256,13 +256,15 @@ def update_admin_role(role_id):
                 'meta': {'request_id': request_id}
             }), 422
 
-        existing = AdminRole.query.filter_by(name=data['name']).first()
+        data['name'] = new_name
+
+        existing = AdminRole.query.filter_by(name=new_name).first()
         if existing:
             return jsonify({
                 'error': {
                     'code': 'DUPLICATE_ROLE_NAME',
-                    'message': f'Admin role with name "{data["name"]}" already exists',
-                    'details': {'name': data['name']}
+                    'message': f'Admin role with name "{new_name}" already exists',
+                    'details': {'name': new_name}
                 },
                 'meta': {'request_id': request_id}
             }), 409
@@ -319,13 +321,13 @@ def delete_admin_role(role_id):
             'meta': {'request_id': request_id}
         }), 404
 
-    # Prevent deleting Staff role
-    if role.is_staff_role():
+    # Prevent deleting auto-managed roles
+    if role.is_auto_managed:
         return jsonify({
             'error': {
                 'code': 'CANNOT_DELETE_STAFF_ROLE',
-                'message': 'Cannot delete the Staff role - it is a system role',
-                'hint': 'The Staff role is automatically managed'
+                'message': 'Cannot delete an auto-managed role - it is a system role',
+                'hint': 'Auto-managed roles are managed by the system'
             },
             'meta': {'request_id': request_id}
         }), 403

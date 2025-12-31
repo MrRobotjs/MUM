@@ -133,8 +133,8 @@ export const AdminSettingsAdminRolesPage = () => {
   }
 
   const handleDelete = async (role: AdminRole) => {
-    if (role.is_staff_role) {
-      showError('Cannot delete the Staff role')
+    if (role.is_auto_managed) {
+      showError('Cannot delete an auto-managed role')
       return
     }
 
@@ -245,7 +245,7 @@ export const AdminSettingsAdminRolesPage = () => {
 
     const sourceRole = sortedRoles[oldIndex]
     const targetRole = sortedRoles[newIndex]
-    if (sourceRole.is_staff_role || targetRole.is_staff_role) {
+    if (sourceRole.is_auto_managed || targetRole.is_auto_managed) {
       return
     }
 
@@ -366,7 +366,7 @@ export const AdminSettingsAdminRolesPage = () => {
                           <SortableRoleRow
                             key={role.id}
                             role={role}
-                            disabled={role.is_staff_role || reordering}
+                            disabled={role.is_auto_managed || reordering}
                             onEdit={handleEdit}
                             onDelete={handleDelete}
                           />
@@ -567,7 +567,7 @@ const SortableRoleRow = ({ role, disabled, onEdit, onDelete }: SortableRoleRowPr
           <div className="min-w-0 max-w-[200px] md:max-w-none">
             <div className="flex items-center gap-2">
               <div className="truncate font-medium">{role.name}</div>
-              {role.is_staff_role && <Badge variant="secondary">Staff</Badge>}
+              {role.is_auto_managed && <Badge variant="secondary">Auto-managed</Badge>}
             </div>
             {role.description && (
               <p className="truncate text-sm text-muted-foreground">{role.description}</p>
@@ -609,7 +609,7 @@ const SortableRoleRow = ({ role, disabled, onEdit, onDelete }: SortableRoleRowPr
             <i className="fa-solid fa-pen-to-square mr-1 size-3" />
             <span className="hidden md:inline">Edit</span>
           </Button>
-          {!role.is_staff_role && (
+          {!role.is_auto_managed && (
             <Button
               variant="ghost"
               size="sm"

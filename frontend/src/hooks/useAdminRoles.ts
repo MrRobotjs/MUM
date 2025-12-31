@@ -15,6 +15,7 @@ export type AdminRole = {
   color: string | null;
   icon: string | null;
   is_staff_role: boolean;
+  is_auto_managed: boolean;
   permissions?: AdminPermission[];
   user_count?: number;
   users?: Array<{

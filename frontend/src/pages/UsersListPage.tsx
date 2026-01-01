@@ -249,7 +249,6 @@ export const UsersListPage = () => {
           >
             <i className="fa-solid fa-list fa-fw mr-2" />
             <span className="flex-1">Table View</span>
-            {view === 'table' && <i className="fa-solid fa-check fa-fw ml-2 text-primary" />}
           </DropdownMenuItem>
           <DropdownMenuItem
             onSelect={() => setView('cards')}
@@ -259,7 +258,6 @@ export const UsersListPage = () => {
             <span className="flex-1">Card View</span>
             <div className="flex items-center gap-2">
               <Badge variant="secondary" className="text-xs">Default</Badge>
-              {view === 'cards' && <i className="fa-solid fa-check fa-fw text-primary" />}
             </div>
           </DropdownMenuItem>
 

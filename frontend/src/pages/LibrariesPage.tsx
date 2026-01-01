@@ -285,7 +285,7 @@ export const LibrariesPage = () => {
 
 
       <div className="grid gap-4">
-        <Card className="border border-border/60 bg-gradient-to-br from-background via-background/40 to-secondary/20 shadow-sm">
+        <Card>
           <CardContent className="space-y-2">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Most Recent Sync</p>
             <div className="text-xl font-semibold leading-tight">{lastSyncDisplay}</div>

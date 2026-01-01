@@ -9,6 +9,7 @@ import { requestJson } from '../util/apiClient';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Input } from '../components/ui/input';
 import { Switch } from '../components/ui/switch';
+import { Label } from '../components/ui/label';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -416,12 +417,12 @@ export const InvitesPage = () => {
       />
 
       {/* Filter Section */}
-      <form method="GET" className="mb-6 p-4 rounded-lg border shadow-sm" onSubmit={handleSearchSubmit}>
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 items-end">
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Filter by Status</label>
+      <form method="GET" className="mb-6 p-4 rounded-lg border shadow-sm bg-card" onSubmit={handleSearchSubmit}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="flex flex-col gap-2">
+            <Label>Filter by Status</Label>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger>
+              <SelectTrigger className="w-full">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -433,8 +434,8 @@ export const InvitesPage = () => {
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Search by Path</label>
+          <div className="flex flex-col gap-2">
+            <Label>Search by Path</Label>
             <Input
               type="text"
               name="search_path"
@@ -443,10 +444,10 @@ export const InvitesPage = () => {
               onChange={(event) => setSearchInput(event.target.value)}
             />
           </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Server</label>
+          <div className="flex flex-col gap-2">
+            <Label>Server</Label>
             <Select value={serverFilter} onValueChange={setServerFilter}>
-              <SelectTrigger>
+              <SelectTrigger className="w-full">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -459,8 +460,10 @@ export const InvitesPage = () => {
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium invisible">Apply</label>
+          <div className="flex flex-col gap-2">
+            <Label className="opacity-0" aria-hidden="true">
+              Apply
+            </Label>
             <Button type="submit" className="w-full">
               <i className="fa-solid fa-filter mr-2" /> Apply
             </Button>

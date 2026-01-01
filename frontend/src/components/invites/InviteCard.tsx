@@ -87,7 +87,6 @@ export const InviteCard = ({
       }`}
       onClick={() => onToggleSelect(invite.id)}
     >
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-background via-background to-primary/5 opacity-80" />
 
       {/* Selection Checkbox */}
       <div className={`absolute top-2 right-2 z-10 transition-opacity duration-200 ${selected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>

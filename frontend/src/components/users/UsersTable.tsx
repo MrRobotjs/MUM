@@ -389,7 +389,7 @@ export const UsersTable = ({
                 return (
                   <TableRow
                     key={user.uuid}
-                    className={isSelected ? 'bg-primary/10' : ''}
+                    className={cn('group', isSelected && 'bg-primary/10')}
                     onClick={(e) => handleRowClick(e, user)}
                   >
                     {onToggleSelection && (
@@ -408,7 +408,13 @@ export const UsersTable = ({
                     ) : null}
                     {columns.name ? (
                       <TableCell className="font-medium">
-                        {user.display_name || user.username || 'Unnamed User'}
+                        <a
+                          href={buildUserProfilePath(user)}
+                          className="text-foreground hover:underline group-hover:text-primary"
+                          onClick={(event) => event.stopPropagation()}
+                        >
+                          {user.display_name || user.username || 'Unnamed User'}
+                        </a>
                       </TableCell>
                     ) : null}
                     {columns.email ? (

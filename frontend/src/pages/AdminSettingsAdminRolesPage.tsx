@@ -53,7 +53,7 @@ type RoleFormValues = {
 
 export const AdminSettingsAdminRolesPage = () => {
   const navigate = useNavigate()
-  const { roles, loading, error, refresh } = useAdminRoles(true, true)
+  const { roles, loading, error, refresh } = useAdminRoles(true, false, true)
   const { permissions } = useAdminPermissions()
   const { success, error: showError } = useAlerts()
 

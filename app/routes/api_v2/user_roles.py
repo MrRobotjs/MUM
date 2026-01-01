@@ -9,8 +9,9 @@ from flask_openapi3 import Tag
 
 from app.routes.api_v2 import api_v2
 # JWT permission checking handled by jwt_permission_required
-from app.models import UserRole, User
+from app.models import UserRole, User, users_roles_assignments
 from app.extensions import db
+from sqlalchemy import func
 
 
 roles_tag = Tag(name="User Roles", description="Visual user roles")
@@ -49,7 +50,17 @@ class RolesListResponse(BaseModel):
     meta: dict
 
 
-def _serialize_user_role(role, include_users=False):
+def _role_user_count(role_id: str) -> int:
+    return (
+        db.session.query(func.count())
+        .select_from(users_roles_assignments)
+        .filter(users_roles_assignments.c.visual_role_id == role_id)
+        .scalar()
+        or 0
+    )
+
+
+def _serialize_user_role(role, include_users=False, include_counts=False):
     data = {
         'id': role.id,
         'name': role.name,
@@ -64,6 +75,8 @@ def _serialize_user_role(role, include_users=False):
         users = UserRole.get_users_with_role(role.id)
         data['users'] = [{'uuid': u.uuid, 'username': u.get_display_name(), 'user_type': u.userType.value} for u in users]
         data['user_count'] = len(users)
+    elif include_counts:
+        data['user_count'] = _role_user_count(role.id)
     return data
 
 
@@ -78,8 +91,9 @@ def _serialize_user_role(role, include_users=False):
 def list_user_roles(current_user):
     request_id = str(uuid4())
     include_users = request.args.get('include_users', 'false').lower() == 'true'
+    include_counts = request.args.get('include_counts', 'false').lower() == 'true'
     roles = UserRole.query.order_by(UserRole.name).all()
-    return jsonify({'data': [_serialize_user_role(r, include_users) for r in roles], 'meta': {'request_id': request_id, 'deprecated': False, 'total_count': len(roles), 'generated_at': datetime.utcnow().isoformat() + 'Z'}})
+    return jsonify({'data': [_serialize_user_role(r, include_users, include_counts) for r in roles], 'meta': {'request_id': request_id, 'deprecated': False, 'total_count': len(roles), 'generated_at': datetime.utcnow().isoformat() + 'Z'}})
 
 
 class RolePath(BaseModel):
@@ -105,7 +119,8 @@ def get_user_role(path: RolePath, current_user):
     if not role:
         return jsonify({'error': {'code': 'ROLE_NOT_FOUND', 'message': f'User role with ID {path.role_id} not found', 'details': {'role_id': path.role_id}}, 'meta': {'request_id': request_id}}), 404
     include_users = request.args.get('include_users', 'true').lower() == 'true'
-    data = _serialize_user_role(role, include_users)
+    include_counts = request.args.get('include_counts', 'false').lower() == 'true'
+    data = _serialize_user_role(role, include_users, include_counts)
     return jsonify({'data': data, 'meta': {'request_id': request_id, 'deprecated': False, 'generated_at': datetime.utcnow().isoformat() + 'Z'}})
 
 

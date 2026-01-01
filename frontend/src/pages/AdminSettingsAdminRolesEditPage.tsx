@@ -13,7 +13,7 @@ export const AdminSettingsAdminRolesEditPage = () => {
   const { roleId } = useParams({ from: '/admin/settings/admin-roles/$roleId/edit' })
   const navigate = useNavigate()
   const search = useSearch({ from: '/admin/settings/admin-roles/$roleId/edit' })
-  const { roles, loading, refresh } = useAdminRoles(true, true)
+  const { roles, loading, refresh } = useAdminRoles(true, false, true)
   const { permissions } = useAdminPermissions()
 
   const activeTab = (search as any).tab || 'display'
@@ -109,7 +109,7 @@ export const AdminSettingsAdminRolesEditPage = () => {
           )}
           <TabsTrigger value="members">
             <IconUsers className="mr-2 size-4" />
-            Members ({role.users?.length || 0})
+            Members ({role.user_count ?? 0})
           </TabsTrigger>
         </TabsList>
 

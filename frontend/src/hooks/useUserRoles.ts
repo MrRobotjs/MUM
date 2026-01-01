@@ -20,9 +20,10 @@ type UserRolesResponse = {
   };
 };
 
-export const useUserRoles = (includeUsers = false) => {
+export const useUserRoles = (includeUsers = false, includeCounts = false) => {
   const params = new URLSearchParams();
   if (includeUsers) params.append('include_users', 'true');
+  if (includeCounts) params.append('include_counts', 'true');
 
   const url = `/admin/api/v2/user-roles${params.toString() ? `?${params.toString()}` : ''}`;
 

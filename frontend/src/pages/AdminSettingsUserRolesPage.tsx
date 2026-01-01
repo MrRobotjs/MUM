@@ -63,7 +63,7 @@ const isAutoManagedRole = (role: UserRole) => Boolean(role.is_auto_managed);
 
 export const AdminSettingsUserRolesPage = () => {
   const navigate = useNavigate();
-  const { roles, loading, error, refresh } = useUserRoles(false);
+  const { roles, loading, error, refresh } = useUserRoles(false, true);
   const { success, error: showError } = useAlerts();
   const [modalOpen, setModalOpen] = useState(false);
   const [editingRole, setEditingRole] = useState<UserRole | null>(null);

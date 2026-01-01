@@ -39,10 +39,11 @@ type AdminPermissionsResponse = {
   };
 };
 
-export const useAdminRoles = (includePermissions = false, includeUsers = false) => {
+export const useAdminRoles = (includePermissions = false, includeUsers = false, includeCounts = false) => {
   const params = new URLSearchParams();
   if (includePermissions) params.append('include_permissions', 'true');
   if (includeUsers) params.append('include_users', 'true');
+  if (includeCounts) params.append('include_counts', 'true');
 
   const url = `/admin/api/v2/admin-roles${params.toString() ? `?${params.toString()}` : ''}`;
 

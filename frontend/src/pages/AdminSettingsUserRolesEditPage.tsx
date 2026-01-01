@@ -11,7 +11,7 @@ export const AdminSettingsUserRolesEditPage = () => {
   const { roleId } = useParams({ from: '/admin/settings/user-roles/$roleId/edit' })
   const navigate = useNavigate()
   const search = useSearch({ from: '/admin/settings/user-roles/$roleId/edit' })
-  const { roles, loading, refresh } = useUserRoles(true)
+  const { roles, loading, refresh } = useUserRoles(false, true)
 
   const activeTab = (search as any).tab || 'display'
   const role = roles.find((r) => r.id === roleId)

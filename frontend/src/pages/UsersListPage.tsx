@@ -51,7 +51,26 @@ import { IconDots, IconRefresh } from '@tabler/icons-react';
 import { Separator } from '../components/ui/separator';
 
 export const UsersListPage = () => {
-  const [view, setView] = useState<'table' | 'cards'>('cards');
+  const getPreferredView = () => {
+    if (typeof window === 'undefined') {
+      return 'cards' as const;
+    }
+    try {
+      const savedSettings = localStorage.getItem('userDisplaySettings');
+      if (savedSettings) {
+        const parsed = JSON.parse(savedSettings) as { preferred_view?: 'cards' | 'table' };
+        if (parsed?.preferred_view === 'table') {
+          return 'table' as const;
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load preferred user view:', err);
+    }
+    return 'cards' as const;
+  };
+
+  const [preferredView, setPreferredView] = useState<'table' | 'cards'>(getPreferredView);
+  const [view, setView] = useState<'table' | 'cards'>(preferredView);
   const [showPurgeModal, setShowPurgeModal] = useState(false);
   const [showDisplaySettingsModal, setShowDisplaySettingsModal] = useState(false);
   const [showMassEditModal, setShowMassEditModal] = useState(false);
@@ -73,6 +92,11 @@ export const UsersListPage = () => {
   const [searchNotes, setSearchNotes] = useState('');
   const [sort, setSort] = useState('username_asc');
   const [pageSize, setPageSize] = useState(50);
+
+  useEffect(() => {
+    if (showDisplaySettingsModal) return;
+    setPreferredView(getPreferredView());
+  }, [showDisplaySettingsModal]);
 
   const filters = useMemo(
     () => ({
@@ -245,20 +269,23 @@ export const UsersListPage = () => {
           <DropdownMenuLabel>View Mode</DropdownMenuLabel>
           <DropdownMenuItem
             onSelect={() => setView('table')}
-            className={view === 'table' ? 'bg-primary/10' : ''}
+            className={cn('mb-0.5', view === 'table' && 'bg-accent text-accent-foreground')}
           >
             <i className="fa-solid fa-list fa-fw mr-2" />
             <span className="flex-1">Table View</span>
+            {preferredView === 'table' && (
+              <Badge variant="secondary" className="text-xs bg-primary">Default</Badge>
+            )}
           </DropdownMenuItem>
           <DropdownMenuItem
             onSelect={() => setView('cards')}
-            className={view === 'cards' ? 'bg-primary/10' : ''}
+            className={view === 'cards' ? 'bg-accent text-accent-foreground' : ''}
           >
             <i className="fa-solid fa-th-large fa-fw mr-2" />
             <span className="flex-1">Card View</span>
-            <div className="flex items-center gap-2">
-              <Badge variant="secondary" className="text-xs">Default</Badge>
-            </div>
+            {preferredView === 'cards' && (
+              <Badge variant="secondary" className="text-xs bg-primary">Default</Badge>
+            )}
           </DropdownMenuItem>
 
           {view === 'table' && (

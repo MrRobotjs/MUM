@@ -605,30 +605,27 @@ export const StreamingPage = () => {
             <DropdownMenuLabel>View mode</DropdownMenuLabel>
             <DropdownMenuItem
               onSelect={() => setViewMode('merged')}
-              className={viewMode === 'merged' ? 'bg-primary/10' : ''}
+              className={viewMode === 'merged' ? 'bg-accent text-accent-foreground' : ''}
             >
               <i className="fa-solid fa-layer-group fa-fw mr-2" />
               <span className="flex-1">Merged</span>
               <div className="flex items-center gap-2">
-                <Badge variant="secondary" className="text-xs">Default</Badge>
-                {viewMode === 'merged' && <i className="fa-solid fa-check fa-fw text-primary" />}
+                <Badge variant="secondary" className="text-xs bg-primary">Default</Badge>
               </div>
             </DropdownMenuItem>
             <DropdownMenuItem
               onSelect={() => setViewMode('categorized')}
-              className={viewMode === 'categorized' ? 'bg-primary/10' : ''}
+              className={viewMode === 'categorized' ? 'bg-accent text-accent-foreground' : ''}
             >
               <i className="fa-solid fa-server fa-fw mr-2" />
               <span className="flex-1">Categorized by Server</span>
-              {viewMode === 'categorized' && <i className="fa-solid fa-check fa-fw ml-2 text-primary" />}
             </DropdownMenuItem>
             <DropdownMenuItem
               onSelect={() => setViewMode('service')}
-              className={viewMode === 'service' ? 'bg-primary/10' : ''}
+              className={viewMode === 'service' ? 'bg-accent text-accent-foreground' : ''}
             >
               <i className="fa-solid fa-cogs fa-fw mr-2" />
               <span className="flex-1">Categorized by Service</span>
-              {viewMode === 'service' && <i className="fa-solid fa-check fa-fw ml-2 text-primary" />}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenuPortal>

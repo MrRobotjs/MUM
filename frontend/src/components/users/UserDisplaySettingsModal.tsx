@@ -169,21 +169,6 @@ export const UserDisplaySettingsModal = ({ isOpen, onClose }: UserDisplaySetting
     </div>
   ) : (
     <div className="space-y-6">
-      {/* Description Card */}
-      <div className="rounded-lg border bg-muted/50 p-4">
-        <div className="flex items-start gap-3">
-        <div className="w-8 h-8 rounded-full bg-blue-100/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-          <i className="fa-solid fa-info text-blue-600 dark:text-blue-400 text-sm" />
-        </div>
-        <div>
-          <h4 className="mb-1 font-medium text-foreground">Personalization</h4>
-          <p className="text-sm leading-relaxed text-muted-foreground">
-            Configure how the user interface displays information and behaves to match your preferences.
-            These settings only affect your view.
-          </p>
-        </div>
-      </div>
-      </div>
 
       {/* Card Display Options */}
       <div className="space-y-3">

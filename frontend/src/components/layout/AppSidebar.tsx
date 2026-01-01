@@ -32,7 +32,6 @@ import { requestJson } from "@/util/apiClient"
 import { useSyncStatus } from "@/hooks/useSyncStatus"
 import { useUserPreferences } from "@/hooks/useUserPreferences"
 import { useStreamingWebSocket } from "@/hooks/useStreamingWebSocket"
-import { useServers } from "@/hooks/useServers"
 import { Badge } from "@/components/ui/badge"
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
@@ -41,14 +40,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { success, error } = useAlerts()
   const { syncStatus } = useSyncStatus()
   const { getPreference } = useUserPreferences()
-  const { servers: mediaServers } = useServers({ activeOnly: true })
-  // Only connect to WebSocket if the navbar stream badge is enabled (from user preferences)
-  // This keeps the connection alive even when not on the streaming page
   const streamBadgeEnabled = getPreference<boolean>('stream_counter', false)
-  const { activeCount } = useStreamingWebSocket({
-    autoConnect: streamBadgeEnabled,
-    servers: mediaServers
-  })
+  // Streaming socket connection is managed globally; this hook only reads the shared state.
+  const { activeCount } = useStreamingWebSocket({ autoConnect: false })
   const [isStartingSync, setIsStartingSync] = React.useState(false)
   const [showSyncComplete, setShowSyncComplete] = React.useState(false)
   const previousSyncingRef = React.useRef(syncStatus.is_syncing)

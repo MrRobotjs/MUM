@@ -4,6 +4,8 @@ import { AppSidebar } from './AppSidebar';
 import { ModeToggle } from './ModeToggle';
 import { NotificationDropdown } from './NotificationDropdown';
 import { useAuth } from '../../contexts/AuthContext';
+import { useServers } from '../../hooks/useServers';
+import { useStreamingWebSocket } from '../../hooks/useStreamingWebSocket';
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { Separator } from '@/components/ui/separator';
 import {
@@ -42,6 +44,18 @@ const generateBreadcrumbs = (pathname: string) => {
   });
 
   return breadcrumbs;
+};
+
+const StreamingWebSocketBootstrap = () => {
+  const { hasAdminAccess } = useAuth();
+  const { servers: mediaServers } = useServers({ activeOnly: true });
+
+  useStreamingWebSocket({
+    autoConnect: hasAdminAccess,
+    servers: mediaServers,
+  });
+
+  return null;
 };
 
 export const EnhancedAppLayout = ({
@@ -95,6 +109,7 @@ export const EnhancedAppLayout = ({
         } as React.CSSProperties
       }
     >
+      <StreamingWebSocketBootstrap />
       <AppSidebar variant="inset" collapsible="offcanvas" />
       <SidebarInset>
         {/* Header/Navbar */}

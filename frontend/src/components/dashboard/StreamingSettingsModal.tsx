@@ -118,14 +118,14 @@ export const StreamingSettingsModal = ({ open, onClose }: StreamingSettingsModal
                   />
                 </span>
               }
-              description="Display real-time active stream count in the sidebar. Updates instantly via WebSocket for supported services. This is a per-user preference stored locally on your device."
+              description="Show or hide the active stream counter badge in the sidebar. Live stream data is kept warm in the background; this preference only controls the badge visibility and is stored per user."
             >
               <div className="flex items-center justify-between">
                 <Label
                   htmlFor="streamBadge"
                   className="text-sm font-medium cursor-pointer"
                 >
-                  Show active stream count in sidebar
+                  Show active stream badge in sidebar
                 </Label>
                 <Switch
                   id="streamBadge"

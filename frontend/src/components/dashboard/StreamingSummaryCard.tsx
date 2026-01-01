@@ -1,6 +1,5 @@
 import { cn } from '@/lib/utils';
 import { useStreamingSummary } from '../../hooks/useStreamingSummary';
-import { useServers } from '../../hooks/useServers';
 import { useStreamingWebSocket } from '../../hooks/useStreamingWebSocket';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
@@ -19,12 +18,9 @@ const formatDuration = (seconds: number) => {
 
 export const StreamingSummaryCard = () => {
   const { summary, loading, error } = useStreamingSummary();
-  const { servers: mediaServers } = useServers({ activeOnly: true });
-
   // Use WebSocket for real-time active session count updates
   const { activeCount, isConnected, liveServices } = useStreamingWebSocket({
-    autoConnect: true,
-    servers: mediaServers,
+    autoConnect: false,
   });
 
   const counts = summary?.counts;

@@ -298,8 +298,7 @@ export const StreamingPage = () => {
 
   // Use WebSocket for real-time updates (like Tautulli - no polling, only websocket push)
   const { isConnected, liveServices, lastSessionData } = useStreamingWebSocket({
-    autoConnect: true,
-    servers: mediaServers,
+    autoConnect: false,
     onUpdate: (data) => {
       console.debug('[StreamingPage] WS update', {
         active_count: data.active_count,

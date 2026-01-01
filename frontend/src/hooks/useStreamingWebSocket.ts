@@ -123,12 +123,9 @@ export const useStreamingWebSocket = (options: UseStreamingWebSocketOptions = {}
     onUpdateRef.current = onUpdate;
   }, [onUpdate]);
 
-  // Maintain connection state
+  // Maintain connection state regardless of autoConnect so shared consumers stay updated.
   useEffect(() => {
     console.debug('[StreamingWebSocket] Connection effect - autoConnect:', autoConnect);
-    if (!autoConnect) return;
-    console.debug('[StreamingWebSocket] Connecting realtime socket');
-    connectRealtimeSocket();
     const unsubscribe = onConnectionChange((connected) => {
       console.debug('[StreamingWebSocket] Connection state changed:', connected);
       setIsConnected(connected);
@@ -137,6 +134,10 @@ export const useStreamingWebSocket = (options: UseStreamingWebSocketOptions = {}
         recomputeAggregate();
       }
     });
+    if (autoConnect) {
+      console.debug('[StreamingWebSocket] Connecting realtime socket');
+      connectRealtimeSocket();
+    }
     return () => unsubscribe();
   }, [autoConnect]);
 

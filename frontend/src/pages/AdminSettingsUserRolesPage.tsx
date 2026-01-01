@@ -10,14 +10,14 @@ import {
 
 import { useUserRoles, type UserRole } from '../hooks/useUserRoles';
 import { PageHeader } from '../components';
-import { RoleBadge } from '../components/roles/RoleBadge';
+import { Badge } from '@/components/common/Badge';
 import {
   Alert,
   AlertDescription,
   AlertTitle,
 } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { Badge as UiBadge } from '@/components/ui/badge';
 import {
   Card,
   CardContent,
@@ -257,12 +257,14 @@ export const AdminSettingsUserRolesPage = () => {
       <div className="rounded-lg border border-dashed border-border bg-muted/40 p-4">
         <p className="text-xs font-medium uppercase text-muted-foreground">Live preview</p>
         <div className="mt-3 flex flex-wrap items-center gap-3">
-          <RoleBadge
-            label={formValues.name || 'Role Name'}
-            color={formValues.color}
-            icon={formValues.icon || null}
+          <Badge
+            hexColor={formValues.color}
+            iconClass={formValues.icon || null}
+            roleKind="user"
             className="rounded-full px-3 py-1 text-sm shadow-sm"
-          />
+          >
+            {formValues.name || 'Role Name'}
+          </Badge>
           <span className="text-xs text-muted-foreground">
             {formValues.description || 'Description preview text'}
           </span>
@@ -361,7 +363,7 @@ export const AdminSettingsUserRolesPage = () => {
                               <div className="flex items-center gap-2">
                                 <div className="font-medium">{role.name}</div>
                                 {isAutoManagedRole(role) && (
-                                  <Badge variant="secondary">Auto-managed</Badge>
+                                  <UiBadge variant="secondary">Auto-managed</UiBadge>
                                 )}
                               </div>
                               {role.description && (

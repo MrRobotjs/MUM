@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
-import { RoleBadge } from './RoleBadge'
+import { Badge } from '@/components/common/Badge'
 
 interface UserRoleDisplayTabProps {
   role: UserRole
@@ -200,12 +200,14 @@ export const UserRoleDisplayTab = ({ role, onUpdate }: UserRoleDisplayTabProps) 
             <div className="rounded-lg border border-dashed border-border bg-muted/40 p-4">
               <p className="text-xs font-medium uppercase text-muted-foreground">Live preview</p>
               <div className="mt-3 flex flex-wrap items-center gap-3">
-                <RoleBadge
-                  label={formValues.name || 'Role Name'}
-                  color={formValues.color}
-                  icon={formValues.icon || null}
+                <Badge
+                  hexColor={formValues.color}
+                  iconClass={formValues.icon || null}
+                  roleKind="user"
                   className="rounded-full px-3 py-1 text-sm shadow-sm"
-                />
+                >
+                  {formValues.name || 'Role Name'}
+                </Badge>
                 <span className="text-xs text-muted-foreground">
                   {formValues.description || 'Description preview text'}
                 </span>

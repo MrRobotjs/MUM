@@ -21,7 +21,6 @@ import type { ServiceAccount } from '../components/users/ServiceAccountsCard';
 import type { UserSettings } from '../components/users/UserSettingsCard';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/common/Badge';
-import { RoleBadge } from '@/components/roles/RoleBadge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Pagination } from '@/components/common/Pagination';
 import { getServiceMeta } from '@/config/pluginMetadata';
@@ -237,7 +236,9 @@ const ProfileTab = ({ user }: { user: UserDetail }) => {
               ) : (
                 <div className="mt-2 flex flex-wrap gap-2">
                   {user.roles.admin_roles.map((role) => (
-                    <RoleBadge key={role} label={role} kind="admin" />
+                    <Badge key={role} roleKind="admin" className="text-xs font-semibold" hover={false}>
+                      {role}
+                    </Badge>
                   ))}
                 </div>
               )}
@@ -250,13 +251,17 @@ const ProfileTab = ({ user }: { user: UserDetail }) => {
               ) : (
                 <div className="mt-2 flex flex-wrap gap-2">
                   {roleBadges.map((role) => (
-                    <RoleBadge
+                    <Badge
                       key={role.name}
-                      label={role.name}
-                      color={role.color}
-                      icon={role.icon}
+                      hexColor={role.color}
+                      iconClass={role.icon}
+                      roleKind="user"
+                      className="text-xs font-medium"
                       title={role.description ?? undefined}
-                    />
+                      hover={false}
+                    >
+                      {role.name}
+                    </Badge>
                   ))}
                 </div>
               )}

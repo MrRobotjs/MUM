@@ -11,8 +11,8 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { ResponsiveDialog } from '@/components/ui/responsive-dialog'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Badge } from '@/components/ui/badge'
-import { RoleBadge } from '@/components/roles/RoleBadge'
+import { Badge as UiBadge } from '@/components/ui/badge'
+import { Badge } from '@/components/common/Badge'
 import {
   Table,
   TableBody,
@@ -403,7 +403,7 @@ const AdminSettingsAdminManagementPage = () => {
 
                         {/* Account Type */}
                         <TableCell>
-                          <Badge
+                          <UiBadge
                             variant="outline"
                             style={{
                               backgroundColor: isOwner(admin) ? '#faa61a20' : '#5865f220',
@@ -413,13 +413,13 @@ const AdminSettingsAdminManagementPage = () => {
                           >
                             <i className={`mr-1 size-3 ${isOwner(admin) ? 'fa-solid fa-crown' : 'fa-solid fa-user-tie'}`} />
                             {isOwner(admin) ? 'Owner' : 'Staff'}
-                          </Badge>
+                          </UiBadge>
                         </TableCell>
 
                         {/* Assigned Roles */}
                         <TableCell>
                           {isOwner(admin) ? (
-                            <Badge
+                            <UiBadge
                               variant="outline"
                               style={{
                                 backgroundColor: '#faa61a20',
@@ -429,16 +429,20 @@ const AdminSettingsAdminManagementPage = () => {
                             >
                               <i className="fa-solid fa-key mr-1 size-3" />
                               All Permissions
-                            </Badge>
+                            </UiBadge>
                           ) : admin.admin_roles.length > 0 ? (
                             <div className="flex flex-wrap gap-1">
                               {admin.admin_roles.map((role) => (
-                                <RoleBadge
+                                <Badge
                                   key={role.id}
-                                  label={role.name}
-                                  color={role.color}
-                                  icon={role.icon}
-                                />
+                                  hexColor={role.color}
+                                  iconClass={role.icon}
+                                  roleKind="admin"
+                                  className="text-xs font-medium"
+                                  hover={false}
+                                >
+                                  {role.name}
+                                </Badge>
                               ))}
                             </div>
                           ) : (

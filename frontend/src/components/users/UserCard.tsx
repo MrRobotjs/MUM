@@ -11,7 +11,6 @@ import { UserDebugModal } from './UserDebugModal';
 import { cn } from '@/lib/utils';
 import { Badge } from '../common/Badge';
 import { getServicePalette, type ThemePalette } from '@/config/pluginMetadata';
-import { RoleBadge } from '../roles/RoleBadge';
 
 interface UserCardProps {
   user: UserRow;
@@ -323,12 +322,16 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection }: UserCa
             <div className="text-xs font-medium mb-1">Roles:</div>
             <div className="flex flex-wrap gap-1">
               {user.user_roles.map((role) => (
-                <RoleBadge
+                <Badge
                   key={role.name}
-                  label={role.name}
-                  color={role.color}
-                  icon={role.icon}
-                />
+                  hexColor={role.color}
+                  iconClass={role.icon}
+                  roleKind="user"
+                  className="text-xs font-medium"
+                  hover={false}
+                >
+                  {role.name}
+                </Badge>
               ))}
             </div>
           </div>
@@ -339,7 +342,9 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection }: UserCa
             <div className="text-xs font-medium mb-1">Admin:</div>
             <div className="flex flex-wrap gap-1">
               {user.admin_roles.map((role) => (
-                <RoleBadge key={role} label={role} kind="admin" />
+                <Badge key={role} roleKind="admin" className="text-xs font-medium" hover={false}>
+                  {role}
+                </Badge>
               ))}
             </div>
           </div>

@@ -8,7 +8,7 @@ import { Skeleton } from '../ui/skeleton';
 import { cn } from '@/lib/utils';
 import { Button } from '../ui/button';
 import { UserDebugModal } from './UserDebugModal';
-import { RoleBadge } from '../roles/RoleBadge';
+import { Badge } from '../common/Badge';
 
 export type UserRow = {
   uuid: string;
@@ -376,15 +376,20 @@ export const UsersTable = ({
                       <TableCell>
                         <div className="flex flex-wrap gap-1">
                           {user.admin_roles.map((role) => (
-                            <RoleBadge key={role} label={role} kind="admin" />
+                            <Badge key={role} roleKind="admin" className="text-xs font-medium">
+                              {role}
+                            </Badge>
                           ))}
                           {user.user_roles.map((role) => (
-                            <RoleBadge
+                            <Badge
                               key={`user-role-${role.name}`}
-                              label={role.name}
-                              color={role.color}
-                              icon={role.icon}
-                            />
+                              hexColor={role.color}
+                              iconClass={role.icon}
+                              roleKind="user"
+                              className="text-xs font-medium"
+                            >
+                              {role.name}
+                            </Badge>
                           ))}
                         </div>
                       </TableCell>

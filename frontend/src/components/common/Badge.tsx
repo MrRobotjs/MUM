@@ -8,8 +8,15 @@ export interface BadgeProps {
    * Used to derive a softly glowing outline + text color like the provided screenshot.
    */
   color?: string;
+  /** Hex color override for inline role badges. */
+  hexColor?: string | null;
+  /** Role styling shortcut for user/admin role badges. */
+  roleKind?: 'user' | 'admin';
   icon?: ReactNode;
+  iconClass?: string | null;
   className?: string;
+  style?: CSSProperties;
+  title?: string;
   /** Enables hover styling. If undefined, it auto-enables when wrapped in a link. */
   hover?: boolean;
   /** Whether to auto-enable hover when the badge is inside a link/route element. */
@@ -40,15 +47,42 @@ const resolveColorVariable = (bgClass: string): string => {
   return '--primary';
 };
 
+const normalizeIconClass = (iconClass?: string | null) => {
+  if (!iconClass) return null;
+  const trimmed = iconClass.trim();
+  if (!trimmed) return null;
+  const hasStyle =
+    trimmed.includes('fa-solid') ||
+    trimmed.includes('fa-regular') ||
+    trimmed.includes('fa-brands') ||
+    trimmed.includes('fa-light') ||
+    trimmed.includes('fa-thin') ||
+    trimmed.includes('fa-duotone');
+  if (hasStyle) {
+    return trimmed;
+  }
+  if (trimmed.includes('fa-')) {
+    return `fa-solid ${trimmed}`;
+  }
+  return trimmed;
+};
+
 export const Badge = ({
   children,
   color = 'bg-muted',
+  hexColor,
+  roleKind,
   icon,
+  iconClass,
   className,
+  style,
+  title,
   hover,
   autoHoverOnLink = true,
 }: BadgeProps) => {
-  const cssVar = resolveColorVariable(color);
+  const roleFallbackColor = roleKind === 'admin' ? 'bg-blue-500' : 'bg-secondary';
+  const resolvedColor = roleKind && color === 'bg-muted' ? roleFallbackColor : color;
+  const cssVar = resolveColorVariable(resolvedColor);
   const ref = useRef<HTMLSpanElement | null>(null);
   const [isLinkWrapper, setIsLinkWrapper] = useState(false);
 
@@ -59,7 +93,9 @@ export const Badge = ({
     setIsLinkWrapper(Boolean(parentLink));
   }, [autoHoverOnLink]);
 
-  const isHoverable = hover ?? (autoHoverOnLink && isLinkWrapper);
+  const isHoverable = roleKind && hover === undefined
+    ? false
+    : (hover ?? (autoHoverOnLink && isLinkWrapper));
 
   const colorVar = `var(${cssVar}, var(--primary))`;
 
@@ -82,9 +118,17 @@ export const Badge = ({
     textShadow: '0 1px 1px rgba(0,0,0,0.2)',
   };
 
+  const normalizedIconClass = normalizeIconClass(iconClass);
+  const resolvedIcon = icon
+    ?? (normalizedIconClass
+      ? <i className={`${normalizedIconClass} text-[0.65rem]`} />
+      : undefined);
+  const colorOverride = hexColor ? { '--badge-color': hexColor } : null;
   const [isHovering, setIsHovering] = useState(false);
   const inlineStyle: BadgeStyle = {
     ...styleVars,
+    ...(colorOverride ?? {}),
+    ...(style ?? {}),
     backgroundColor: isHoverable && isHovering ? 'var(--badge-bg-hover)' : 'var(--badge-bg)',
     border: `1.5px solid ${isHoverable && isHovering ? 'var(--badge-border-hover)' : 'var(--badge-border)'}`,
     color: isHoverable && isHovering ? 'var(--badge-text-hover)' : 'var(--badge-text)',
@@ -114,8 +158,9 @@ export const Badge = ({
       onMouseEnter={isHoverable ? () => setIsHovering(true) : undefined}
       onMouseLeave={isHoverable ? () => setIsHovering(false) : undefined}
       style={inlineStyle}
+      title={title}
     >
-      {icon}
+      {resolvedIcon}
       {children}
     </span>
   );

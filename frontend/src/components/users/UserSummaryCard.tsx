@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { RoleBadge } from '@/components/roles/RoleBadge';
+import { Badge } from '@/components/common/Badge';
 
 export type UserSummary = {
   display_name?: string;
@@ -59,7 +59,9 @@ export const UserSummaryCard = ({ user }: UserSummaryCardProps) => {
             <div className="text-xs uppercase text-muted-foreground">Admin Roles</div>
             <div className="mt-1 flex flex-wrap gap-1">
               {user.roles.admin_roles.map((role) => (
-                <RoleBadge key={role} label={role} kind="admin" />
+                <Badge key={role} roleKind="admin" className="text-xs font-medium" hover={false}>
+                  {role}
+                </Badge>
               ))}
             </div>
           </div>

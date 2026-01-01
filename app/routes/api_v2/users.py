@@ -49,6 +49,8 @@ class UserItem(BaseModel):
     avatar_url: Optional[str] = None
     created_at: Optional[str] = None
     last_login_at: Optional[str] = None
+    last_platform: Optional[str] = None
+    last_player: Optional[str] = None
     is_active: bool
     admin_roles: list[str] = []
     linked_service_count: int = 0
@@ -349,6 +351,8 @@ def list_users(query: UsersQuery, current_user):
             MediaStreamHistory.started_at.label("started_at"),
             MediaStreamHistory.server_id.label("server_id"),
             MediaStreamHistory.thumb_url.label("thumb_url"),
+            MediaStreamHistory.platform.label("platform"),
+            MediaStreamHistory.player.label("player"),
             func.row_number().over(
                 partition_by=MediaStreamHistory.user_uuid,
                 order_by=MediaStreamHistory.started_at.desc(),
@@ -367,6 +371,8 @@ def list_users(query: UsersQuery, current_user):
                 "rating_key": row.rating_key,
                 "server_id": row.server_id,
                 "thumb_url": row.thumb_url,
+                "platform": row.platform,
+                "player": row.player,
                 "started_at": _isoformat(row.started_at),
             }
             if row.started_at:
@@ -446,7 +452,10 @@ def list_users(query: UsersQuery, current_user):
         item["total_plays"] = stream_stats.get(u.uuid, {}).get("total_plays", 0)
         item["total_duration"] = stream_stats.get(u.uuid, {}).get("total_duration", 0)
         item["last_known_ip"] = last_ips.get(u.uuid)
-        item["last_played"] = last_played_map.get(u.uuid)
+        last_played = last_played_map.get(u.uuid)
+        item["last_played"] = last_played
+        item["last_platform"] = last_played.get("platform") if last_played else None
+        item["last_player"] = last_played.get("player") if last_played else None
         if last_streamed_map.get(u.uuid):
             item["last_streamed_at"] = last_streamed_map.get(u.uuid)
 

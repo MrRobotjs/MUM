@@ -41,6 +41,8 @@ export type UserRow = {
   } | null;
   notes?: string | null;
   last_known_ip?: string | null;
+  last_platform?: string | null;
+  last_player?: string | null;
   total_plays?: number;
   total_duration?: number;
   last_played?: {
@@ -64,6 +66,8 @@ export type UserColumns = {
   lastStreamed: boolean;
   mumAddedDate: boolean;
   lastPlayed: boolean;
+  lastPlatform: boolean;
+  lastPlayer: boolean;
   linked: boolean;
   lastLogin: boolean;
   actions: boolean;
@@ -133,6 +137,19 @@ export const UsersTable = ({
 }: UsersTableProps) => {
   const navigate = useNavigate();
   const [debugUserUuid, setDebugUserUuid] = useState<string | null>(null);
+  const [expandedLibraryUsers, setExpandedLibraryUsers] = useState<Set<string>>(new Set());
+
+  const toggleLibraryExpansion = (userId: string) => {
+    setExpandedLibraryUsers((prev) => {
+      const next = new Set(prev);
+      if (next.has(userId)) {
+        next.delete(userId);
+      } else {
+        next.add(userId);
+      }
+      return next;
+    });
+  };
 
   const handleRowClick = (e: React.MouseEvent, user: UserRow) => {
     // Don't navigate if clicking checkbox
@@ -166,6 +183,9 @@ export const UsersTable = ({
   const formatDateTime = (value?: string | null) =>
     value ? new Date(value).toLocaleString() : '-';
 
+  const formatTextValue = (value?: string | null) =>
+    value && value.trim() ? value : '-';
+
   const renderLibraries = (user: UserRow) => {
     if (user.has_all_libraries) {
       return (
@@ -185,14 +205,33 @@ export const UsersTable = ({
       );
     }
 
+    const maxVisible = 3;
+    const isExpanded = expandedLibraryUsers.has(user.uuid);
+    const visibleLibraries = isExpanded ? user.libraries : user.libraries.slice(0, maxVisible);
+    const hiddenCount = Math.max(user.libraries.length - maxVisible, 0);
+
     return (
-      <div className="flex flex-wrap gap-1">
-        {user.libraries.map((library) => (
+      <div className="flex flex-wrap items-center gap-1">
+        {visibleLibraries.map((library) => (
           <Badge key={library} color="bg-blue-500" className="text-xs font-medium gap-1" hover={false}>
             <i className="fa-solid fa-folder w-3 h-3 mt-0.5" />
             {library}
           </Badge>
         ))}
+        {hiddenCount > 0 && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-6 px-2 text-xs"
+            onClick={(event) => {
+              event.stopPropagation();
+              toggleLibraryExpansion(user.uuid);
+            }}
+          >
+            {isExpanded ? `-${hiddenCount}` : `+${hiddenCount}`}
+          </Button>
+        )}
       </div>
     );
   };
@@ -229,6 +268,8 @@ export const UsersTable = ({
             {columns.lastStreamed ? <TableHead>Last Streamed</TableHead> : null}
             {columns.mumAddedDate ? <TableHead>MUM Added</TableHead> : null}
             {columns.lastPlayed ? <TableHead>Last Played</TableHead> : null}
+            {columns.lastPlatform ? <TableHead>Last Platform</TableHead> : null}
+            {columns.lastPlayer ? <TableHead>Last Player</TableHead> : null}
             {columns.linked ? <TableHead>Linked Services</TableHead> : null}
             {columns.lastLogin ? <TableHead>Last Login</TableHead> : null}
             {columns.actions ? <TableHead className="text-right">Actions</TableHead> : null}
@@ -309,6 +350,16 @@ export const UsersTable = ({
                 {columns.lastPlayed ? (
                   <TableCell>
                     <Skeleton className="h-4 w-32" />
+                  </TableCell>
+                ) : null}
+                {columns.lastPlatform ? (
+                  <TableCell>
+                    <Skeleton className="h-4 w-24" />
+                  </TableCell>
+                ) : null}
+                {columns.lastPlayer ? (
+                  <TableCell>
+                    <Skeleton className="h-4 w-24" />
                   </TableCell>
                 ) : null}
                 {columns.linked ? (
@@ -429,6 +480,16 @@ export const UsersTable = ({
                         title={user.last_played?.started_at ? new Date(user.last_played.started_at).toLocaleString() : undefined}
                       >
                         {user.last_played?.media_title ?? 'Never'}
+                      </TableCell>
+                    ) : null}
+                    {columns.lastPlatform ? (
+                      <TableCell className="text-xs text-muted-foreground">
+                        {formatTextValue(user.last_platform)}
+                      </TableCell>
+                    ) : null}
+                    {columns.lastPlayer ? (
+                      <TableCell className="text-xs text-muted-foreground">
+                        {formatTextValue(user.last_player)}
                       </TableCell>
                     ) : null}
                     {columns.linked ? <TableCell className="text-muted-foreground">{user.linked_service_count}</TableCell> : null}

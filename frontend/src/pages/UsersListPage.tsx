@@ -108,6 +108,8 @@ export const UsersListPage = () => {
     lastStreamed: true,
     mumAddedDate: true,
     lastPlayed: true,
+    lastPlatform: true,
+    lastPlayer: true,
     linked: true,
     lastLogin: true,
     actions: true
@@ -279,6 +281,8 @@ export const UsersListPage = () => {
                   { key: 'lastStreamed', label: 'Last Streamed' },
                   { key: 'mumAddedDate', label: 'MUM Added Date' },
                   { key: 'lastPlayed', label: 'Last Played' },
+                  { key: 'lastPlatform', label: 'Last Platform' },
+                  { key: 'lastPlayer', label: 'Last Player' },
                   { key: 'linked', label: 'Linked services' },
                   { key: 'lastLogin', label: 'Last login' },
                   { key: 'actions', label: 'Actions' }

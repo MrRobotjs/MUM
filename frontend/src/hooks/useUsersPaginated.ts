@@ -28,6 +28,8 @@ type UsersResponse = {
     last_streamed_at?: string | null;
     service_join_date?: string | null;
     last_login_at?: string;
+    last_platform?: string | null;
+    last_player?: string | null;
     last_known_ip?: string | null;
     total_plays?: number;
     total_duration?: number;

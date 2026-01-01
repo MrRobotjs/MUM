@@ -168,18 +168,32 @@ export const UsersTable = ({
 
   const renderLibraries = (user: UserRow) => {
     if (user.has_all_libraries) {
-      return <span className="text-xs font-medium">All Libraries</span>;
+      return (
+        <Badge color="bg-blue-500" className="text-xs font-medium gap-1" hover={false}>
+          <i className="fa-solid fa-layer-group w-3 h-3" />
+          {user.server_nickname ? `All libraries on ${user.server_nickname}` : 'All libraries'}
+        </Badge>
+      );
     }
 
     if (!user.libraries || user.libraries.length === 0) {
-      return <span className="text-xs text-muted-foreground">-</span>;
+      return (
+        <Badge color="bg-muted" className="text-xs font-medium gap-1" hover={false}>
+          <i className="fa-solid fa-folder-open w-3 h-3" />
+          No libraries
+        </Badge>
+      );
     }
 
-    const label = user.libraries.join(', ');
     return (
-      <span className="max-w-[220px] truncate text-xs" title={label}>
-        {label}
-      </span>
+      <div className="flex flex-wrap gap-1">
+        {user.libraries.map((library) => (
+          <Badge key={library} color="bg-blue-500" className="text-xs font-medium gap-1" hover={false}>
+            <i className="fa-solid fa-folder w-3 h-3 mt-0.5" />
+            {library}
+          </Badge>
+        ))}
+      </div>
     );
   };
 

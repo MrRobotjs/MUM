@@ -9,25 +9,20 @@ MUM (Multimedia User Management) is a comprehensive, self-hosted web application
 
 | Dashboard | Invites |
 | :---: | :---: |
-| ![image](https://github.com/user-attachments/assets/18db06e2-66c2-4e15-a010-59dc5499761d) | ![image](https://github.com/user-attachments/assets/dcb72d92-94f1-4246-aa81-e6163e3ff763) |
+| WIP | WIP |
 | Users | Streaming |
-| ![image](https://github.com/user-attachments/assets/77c35536-62fd-44e3-9356-5cd6156fcf26) | ![image](https://github.com/user-attachments/assets/755f6dec-c839-4145-9d08-67c2de91303d) |
+| WIP | WIP |
 
 ## Key Features
 
-*   **Multi-Service Plugin Architecture:**
-    *   Modular plugin system supporting diverse media platforms
-    *   Hot-swappable plugins with individual configuration and management
-    *   Extensible framework for custom service integrations
 *   **Comprehensive Service Support:**
-    *   **Plex:** Advanced user management, library sharing, Plex Home integration, and real-time session monitoring
-    *   **Jellyfin & Emby:** Complete user lifecycle management with library access control
-    *   **Kavita & Komga:** Specialized manga and comic book server administration
-    *   **AudioBookshelf:** Audiobook library management with user role detection (Owner badges)
-    *   **RomM:** Retro gaming ROM collection user management
+    *   **Plex:** User Management, Library Sharing Management, real-time session monitoring, Plex Home integration
+    *   **Jellyfin & Emby:** User Management, Library Sharing Management, real-time session monitoring
+    *   **Kavita & Komga:** User Management, Library Sharing Management
+    *   **AudioBookshelf:** User Management, Library Sharing Management, real-time session monitoring
+    *   **RomM:** User Management
 *   **Intelligent User Management:**
     *   Unified dashboard displaying users across all connected services
-    *   Real-time user synchronization with raw data debugging capabilities
     *   Granular library access control with service-specific permissions
     *   Bulk operations for efficient mass user management
     *   Service-specific role detection and badge display
@@ -37,7 +32,7 @@ MUM (Multimedia User Management) is a comprehensive, self-hosted web application
     *   Service-specific permission templates and access controls
     *   Temporary membership with automated lifecycle management
     *   Custom invite paths and branding options
-*   **Advanced Discord Integration:**
+*   **Advanced Discord Integration:** (WIP)
     *   OAuth-based account linking with server membership validation
     *   Conditional invite acceptance based on Discord status
     *   Guild membership requirements with administrative controls
@@ -51,11 +46,6 @@ MUM (Multimedia User Management) is a comprehensive, self-hosted web application
     *   Whitelist protection for critical users
     *   Automated membership expiration handling
     *   Service-specific cleanup and maintenance routines
-*   **Enterprise-Grade Interface:**
-    *   Modern responsive design with service-themed styling
-    *   Advanced HTMX-powered interactions for seamless UX
-    *   Comprehensive admin controls with role-based permissions
-    *   Multi-step guided setup with intelligent service detection
 
 ## Docker Deployment
 
@@ -71,13 +61,17 @@ The easiest way to deploy MUM is with Docker.
         container_name: mum
         restart: unless-stopped
         ports:
-          - "5699:5000" # <host_port>:<container_port>
+          - "${HOST_FRONTEND_PORT:-5699}:${FRONTEND_PORT:-5000}" # Host port → React/Flask entrypoint (defaults to 5699→5000)
         volumes:
           - ./multimediausermanager:/app/instance
         environment:
           - TZ=America/New_York # REQUIRED: Set your local timezone
           - PUID=1000 # Optional: User ID for file permissions
           - PGID=1000 # Optional: Group ID for file permissions
+          - FLASK_LOG_LEVEL=INFO # Change to DEBUG for developer debugging
+          - SOCKETIO_ASYNC_MODE=eventlet # SocketIO async mode: eventlet for Gunicorn production, threading for Flask dev server
+          - FLASK_PORT=${FLASK_PORT:-5000} # Internal Flask API port (mirrors gunicorn bind)
+          - FRONTEND_PORT=${FRONTEND_PORT:-5000} # Port exposed for the React frontend (defaults to Flask port)
     ```
 
 2.  **Prepare Host Directory:**
@@ -112,7 +106,7 @@ MUM provides comprehensive configuration management through an intuitive web int
     *   Per-service connection testing and validation
     *   Service-specific settings and authentication methods
     *   Library synchronization and access control policies
-*   **Discord Integration:**
+*   **Discord Integration:** (WIP)
     *   OAuth application setup with client credentials
     *   Bot token configuration for advanced features
     *   Guild membership requirements and validation
@@ -131,11 +125,7 @@ MUM provides comprehensive configuration management through an intuitive web int
     *   Raw configuration editor for advanced users
     *   System diagnostics and health monitoring
 
-## Plugin Development
-
-MUM's modular nature makes it easy to extend. If you're interested in adding support for a new media service, you can create your own plugin. For more information, see the [Plugin Development Guide](PLUGIN_DEVELOPMENT_GUIDE.md).
-
-## Frontend Development (React Migration)
+## Frontend Development
 
 The admin experience is being migrated to a React SPA that lives in `frontend/`.
 

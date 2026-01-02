@@ -10,6 +10,24 @@
  */
 
 const PREFERENCE_PREFIX = 'mum_pref_';
+export const PREFERENCE_EVENT = 'mum:preference-change';
+
+export type PreferenceChangeDetail = {
+  key: string;
+  value: unknown;
+};
+
+export const emitPreferenceChange = (key: string, value: unknown) => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.dispatchEvent(
+    new CustomEvent<PreferenceChangeDetail>(PREFERENCE_EVENT, {
+      detail: { key, value },
+    })
+  );
+};
 
 /**
  * Get a preference from localStorage

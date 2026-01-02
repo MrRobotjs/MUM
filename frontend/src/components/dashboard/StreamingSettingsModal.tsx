@@ -21,6 +21,7 @@ export const StreamingSettingsModal = ({ open, onClose }: StreamingSettingsModal
   const { getPreference, setPreference, syncEnabled } = useUserPreferences();
   const [interval, setInterval] = useState(30);
   const [streamCounterEnabled, setStreamCounterEnabled] = useState(false);
+  const [initialStreamCounterEnabled, setInitialStreamCounterEnabled] = useState(false);
   const [saving, setSaving] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
 
@@ -31,6 +32,7 @@ export const StreamingSettingsModal = ({ open, onClose }: StreamingSettingsModal
     // Load stream counter preference
     const enabled = getPreference<boolean>('stream_counter', false);
     setStreamCounterEnabled(enabled);
+    setInitialStreamCounterEnabled(enabled);
   }, [settings, open, getPreference]);
 
   useEffect(() => {
@@ -39,9 +41,8 @@ export const StreamingSettingsModal = ({ open, onClose }: StreamingSettingsModal
     }
   }, [error, showError]);
 
-  const handleStreamCounterToggle = async (checked: boolean) => {
+  const handleStreamCounterToggle = (checked: boolean) => {
     setStreamCounterEnabled(checked);
-    await setPreference('stream_counter', checked);
   };
 
   const handleSubmit = async () => {
@@ -54,6 +55,11 @@ export const StreamingSettingsModal = ({ open, onClose }: StreamingSettingsModal
 
     setSaving(true);
     try {
+      if (streamCounterEnabled !== initialStreamCounterEnabled) {
+        await setPreference('stream_counter', streamCounterEnabled);
+        setInitialStreamCounterEnabled(streamCounterEnabled);
+      }
+
       await requestJson('/admin/api/v2/settings/streaming', {
         method: 'PATCH',
         body: JSON.stringify({

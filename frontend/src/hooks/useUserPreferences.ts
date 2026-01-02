@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { requestJson } from '../util/apiClient';
-import { getPreference, setPreference } from '../util/preferences';
+import { emitPreferenceChange, getPreference, setPreference } from '../util/preferences';
 
 interface UserPreferencesData {
   preferences: Record<string, any>;
@@ -79,6 +79,7 @@ export function useUserPreferences(options: UseUserPreferencesOptions = {}) {
   const setUserPreference = useCallback(async <T = any>(key: string, value: T): Promise<void> => {
     // Always save to localStorage first
     setPreference(key, value);
+    let synced = false;
 
     // If sync is enabled, also save to DB
     if (syncEnabled) {
@@ -94,10 +95,15 @@ export function useUserPreferences(options: UseUserPreferencesOptions = {}) {
         });
 
         setDbPreferences(updatedPreferences);
+        synced = true;
       } catch (err) {
         console.error('Failed to sync preference to DB:', err);
         // Don't throw - localStorage save succeeded
       }
+    }
+
+    if (!syncEnabled || synced) {
+      emitPreferenceChange(key, value);
     }
   }, [syncEnabled, dbPreferences]);
 

@@ -29,6 +29,7 @@ import {
 import { useAuth } from "@/contexts/AuthContext"
 import { useAlerts } from "@/contexts/AlertContext"
 import { requestJson } from "@/util/apiClient"
+import { PREFERENCE_EVENT, type PreferenceChangeDetail } from "@/util/preferences"
 import { useSyncStatus } from "@/hooks/useSyncStatus"
 import { useUserPreferences } from "@/hooks/useUserPreferences"
 import { useStreamingWebSocket } from "@/hooks/useStreamingWebSocket"
@@ -39,8 +40,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { isMobile, setOpenMobile } = useSidebar()
   const { success, error } = useAlerts()
   const { syncStatus } = useSyncStatus()
-  const { getPreference } = useUserPreferences()
-  const streamBadgeEnabled = getPreference<boolean>('stream_counter', false)
+  const { getPreference, dbPreferences, syncEnabled } = useUserPreferences()
+  const [streamBadgeEnabled, setStreamBadgeEnabled] = React.useState(() =>
+    getPreference<boolean>('stream_counter', false)
+  )
   // Streaming socket connection is managed globally; this hook only reads the shared state.
   const { activeCount } = useStreamingWebSocket({ autoConnect: false })
   const [isStartingSync, setIsStartingSync] = React.useState(false)
@@ -79,6 +82,23 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       setIsStartingSync(false)
     }
   }, [syncStatus.is_syncing])
+
+  React.useEffect(() => {
+    setStreamBadgeEnabled(getPreference<boolean>('stream_counter', false))
+  }, [getPreference, dbPreferences, syncEnabled])
+
+  React.useEffect(() => {
+    const handlePreferenceChange = (event: Event) => {
+      const customEvent = event as CustomEvent<PreferenceChangeDetail>
+      if (customEvent.detail?.key !== 'stream_counter') return
+      setStreamBadgeEnabled(Boolean(customEvent.detail.value))
+    }
+
+    window.addEventListener(PREFERENCE_EVENT, handlePreferenceChange)
+    return () => {
+      window.removeEventListener(PREFERENCE_EVENT, handlePreferenceChange)
+    }
+  }, [])
 
   React.useEffect(() => {
     const wasSyncing = previousSyncingRef.current

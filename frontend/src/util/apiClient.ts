@@ -1,6 +1,17 @@
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS', 'TRACE']);
 import { getAccessToken, setAccessToken, clearAccessToken } from './tokenStore';
 
+const LOGOUT_REASON_KEY = 'auth_logout_reason';
+
+const setLogoutReason = (reason: string) => {
+  if (typeof window === 'undefined') return;
+  try {
+    window.sessionStorage.setItem(LOGOUT_REASON_KEY, reason);
+  } catch {
+    // Ignore storage errors
+  }
+};
+
 export type ApiFetchOptions = {
   csrfUrl?: string;
 };
@@ -141,6 +152,8 @@ export const apiFetch = async (
     }
   }
 
+  const hadAuthContext = Boolean(token) || hasRefreshCookie;
+
   // On 401, attempt refresh flow once, then retry original request
   if (response.status === 401) {
     try {
@@ -168,6 +181,9 @@ export const apiFetch = async (
         }
       } else {
         // Refresh failed; clear any stale token
+        if (hadAuthContext && !isAuthEndpoint) {
+          setLogoutReason('inactivity');
+        }
         clearAccessToken();
       }
     } catch (e) {

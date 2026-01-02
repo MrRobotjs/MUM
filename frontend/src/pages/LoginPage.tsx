@@ -21,6 +21,7 @@ const LoginPage = () => {
   const [rememberMe, setRememberMe] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [plexLoading, setPlexLoading] = useState(false);
+  const [logoutNotice, setLogoutNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [allowUserAccounts, setAllowUserAccounts] = useState(false);
 
@@ -55,6 +56,20 @@ const LoginPage = () => {
       navigate({ from: '/admin/login', search: (prev) => ({ ...prev, error: undefined }), replace: true });
     }
   }, [errorParam, navigate]);
+
+  useEffect(() => {
+    try {
+      const reason = window.sessionStorage.getItem('auth_logout_reason');
+      if (reason === 'inactivity') {
+        setLogoutNotice('You were logged out due to inactivity. Please sign in again.');
+      }
+      if (reason) {
+        window.sessionStorage.removeItem('auth_logout_reason');
+      }
+    } catch {
+      // Ignore storage errors
+    }
+  }, []);
 
   // Auto-focus first input on desktop
   useEffect(() => {
@@ -209,12 +224,17 @@ const LoginPage = () => {
           {/* Right Side - Login Form */}
           <div className="order-2 lg:order-2">
             <Card className="rounded-2xl shadow-2xl p-8 max-w-md mx-auto">
-              <CardHeader className="text-center pb-6">
+              <CardHeader className="text-center">
                 <CardTitle className="text-2xl mb-2">Admin Login</CardTitle>
                 <CardDescription>Administrator access required</CardDescription>
               </CardHeader>
 
               <CardContent className="space-y-6">
+                {logoutNotice && (
+                  <Alert variant="warning">
+                    <AlertDescription>{logoutNotice}</AlertDescription>
+                  </Alert>
+                )}
                 {error && (
                   <Alert variant="destructive">
                     <AlertDescription>{error}</AlertDescription>

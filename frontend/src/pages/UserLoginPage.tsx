@@ -22,6 +22,7 @@ const UserLoginPage = () => {
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [logoutNotice, setLogoutNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // Prefer ?next= query, then location.state.from, else user dashboard
@@ -35,6 +36,20 @@ const UserLoginPage = () => {
       if (firstInput) {
         setTimeout(() => firstInput.focus(), 300);
       }
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      const reason = window.sessionStorage.getItem('auth_logout_reason');
+      if (reason === 'inactivity') {
+        setLogoutNotice('You were logged out due to inactivity. Please sign in again.');
+      }
+      if (reason) {
+        window.sessionStorage.removeItem('auth_logout_reason');
+      }
+    } catch {
+      // Ignore storage errors
     }
   }, []);
 
@@ -154,11 +169,16 @@ const UserLoginPage = () => {
               </CardHeader>
 
               <CardContent className="space-y-6">
-                {error && (
-                  <Alert variant="destructive">
-                    <AlertDescription>{error}</AlertDescription>
-                  </Alert>
-                )}
+              {logoutNotice && (
+                <Alert variant="warning">
+                  <AlertDescription>{logoutNotice}</AlertDescription>
+                </Alert>
+              )}
+              {error && (
+                <Alert variant="destructive">
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
 
                 <form onSubmit={handleSubmit} className="space-y-6">
                   {/* Username Field */}

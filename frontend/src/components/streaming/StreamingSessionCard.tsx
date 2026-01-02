@@ -77,6 +77,59 @@ const StreamInfoDialog = ({ open, onOpenChange }: { open: boolean; onOpenChange:
   );
 };
 
+const formatRawPayload = (payload?: string) => {
+  if (!payload) return '';
+  try {
+    const parsed = JSON.parse(payload);
+    return JSON.stringify(parsed, null, 2);
+  } catch {
+    return payload;
+  }
+};
+
+const PayloadDialog = ({
+  open,
+  onOpenChange,
+  payload,
+  onCopy,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  payload?: string;
+  onCopy: () => void;
+}) => {
+  const formattedPayload = formatRawPayload(payload);
+  return (
+    <ResponsiveDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Raw Stream Payload"
+      description="Raw payload captured for this stream session"
+      contentClassName="max-w-3xl"
+    >
+      {formattedPayload ? (
+        <div className="space-y-3">
+          <div className="flex items-center justify-end">
+            <Button variant="outline" size="sm" onClick={onCopy}>
+              <i className="fa-solid fa-copy mr-2" />
+              Copy to Clipboard
+            </Button>
+          </div>
+          <div className="rounded-lg border border-border/60 bg-muted/40 p-3">
+            <pre className="max-h-[60vh] overflow-auto whitespace-pre-wrap break-words text-xs text-foreground">
+              {formattedPayload}
+            </pre>
+          </div>
+        </div>
+      ) : (
+        <div className="rounded-lg border border-border/60 bg-muted/40 p-3 text-sm text-muted-foreground">
+          No raw payload available for this session.
+        </div>
+      )}
+    </ResponsiveDialog>
+  );
+};
+
 interface StreamingSessionCardProps {
   session: ActiveSession;
   onTerminate: (session: ActiveSession) => void;
@@ -179,6 +232,7 @@ export const StreamingSessionCard = ({ session, onTerminate, pluginFeaturesBySer
   const [showStreamInfo, setShowStreamInfo] = useState(false);
   const [showSendMessage, setShowSendMessage] = useState(false);
   const [showSourceInfo, setShowSourceInfo] = useState(false);
+  const [showPayload, setShowPayload] = useState(false);
   const [sendMessageText, setSendMessageText] = useState('');
   const [sendMessageHeader, setSendMessageHeader] = useState('MUM');
   const [sendMessageTimeoutSeconds, setSendMessageTimeoutSeconds] = useState<string>('');
@@ -250,6 +304,21 @@ export const StreamingSessionCard = ({ session, onTerminate, pluginFeaturesBySer
     }
 
     navigate({ to: buildUserProfilePath({ uuid, username: session.user, server_nickname: session.server_name }) });
+  };
+
+  const handleCopyRawPayload = async () => {
+    const formattedPayload = formatRawPayload(session.raw_data_json);
+    if (!formattedPayload) {
+      showError('No raw payload available for this session.');
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(formattedPayload);
+      success('Raw payload copied to clipboard.');
+    } catch (error) {
+      showError('Failed to copy raw payload: ' + String(error));
+    }
   };
 
   const handleSendMessage = async () => {
@@ -371,11 +440,11 @@ export const StreamingSessionCard = ({ session, onTerminate, pluginFeaturesBySer
                   <i className="fa-solid fa-ellipsis-vertical" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuLabel>Session Controls</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                {supportsSessionMessage && (
-                  <DropdownMenuItem
+                <DropdownMenuContent align="end">
+                  <DropdownMenuLabel>Session Controls</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {supportsSessionMessage && (
+                    <DropdownMenuItem
                     onClick={() => {
                       setSendMessageText('');
                       setSendMessageHeader('MUM');
@@ -385,12 +454,18 @@ export const StreamingSessionCard = ({ session, onTerminate, pluginFeaturesBySer
                   >
                     <i className="fa-solid fa-message mr-2" />
                     Send Message
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuItem
+                    onClick={() => setShowPayload(true)}
+                  >
+                    <i className="fa-solid fa-code mr-2" />
+                    Payload
                   </DropdownMenuItem>
-                )}
-                <DropdownMenuItem
-                  onClick={() => onTerminate(session)}
-                  className="text-red-600 focus:text-red-600 focus:bg-red-100 dark:focus:bg-red-900/20"
-                >
+                  <DropdownMenuItem
+                    onClick={() => onTerminate(session)}
+                    className="text-red-600 focus:text-red-600 focus:bg-red-100 dark:focus:bg-red-900/20"
+                  >
                   <i className="fa-solid fa-ban mr-2" />
                   Terminate Stream
                 </DropdownMenuItem>
@@ -557,6 +632,12 @@ export const StreamingSessionCard = ({ session, onTerminate, pluginFeaturesBySer
             </div>
           </div>
           <StreamInfoDialog open={showStreamInfo} onOpenChange={setShowStreamInfo} />
+          <PayloadDialog
+            open={showPayload}
+            onOpenChange={setShowPayload}
+            payload={session.raw_data_json}
+            onCopy={handleCopyRawPayload}
+          />
 
 
 

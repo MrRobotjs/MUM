@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { StreamingSessionCard } from './StreamingSessionCard';
+import { StreamingSourceInfoDialog } from './StreamingSourceInfoDialog';
 import { useAdminApi } from '@/hooks/useAdminApi';
 import type { ActiveSession, ActiveSessionsResponse, PluginMetaResponse, ViewMode } from '@/types/streaming';
 
@@ -12,6 +14,8 @@ interface ActiveStreamsCardProps {
   wsTruthActive: boolean;
   isConnected: boolean;
   lastUpdateAt: Date | null;
+  lastWsUpdateAt: Date | null;
+  lastHttpUpdateAt: Date | null;
   onTerminateSession: (session: ActiveSession) => void;
 }
 
@@ -23,8 +27,11 @@ export const ActiveStreamsCard = ({
   wsTruthActive,
   isConnected,
   lastUpdateAt,
+  lastWsUpdateAt,
+  lastHttpUpdateAt,
   onTerminateSession
 }: ActiveStreamsCardProps) => {
+  const [showSourceInfo, setShowSourceInfo] = useState(false);
   const { data: pluginMetaData } = useAdminApi<PluginMetaResponse>('/plugins/metadata', true);
   const pluginFeaturesByService = pluginMetaData?.data ?? null;
 
@@ -91,8 +98,22 @@ export const ActiveStreamsCard = ({
 
   const isLive = wsTruthActive && isConnected && lastUpdateAt && Date.now() - lastUpdateAt.getTime() < 5000;
 
+  const formatAge = (value: Date | null) => {
+    if (!value) return null;
+    const seconds = Math.max(0, Math.floor((Date.now() - value.getTime()) / 1000));
+    if (seconds < 60) return `${seconds}s`;
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m`;
+    const hours = Math.floor(minutes / 60);
+    return `${hours}h`;
+  };
+
+  const wsAge = formatAge(lastWsUpdateAt);
+  const httpAge = formatAge(lastHttpUpdateAt);
+
   return (
     <Card className="pt-0 gap-0 overflow-hidden border border-border/60 shadow-md">
+      <StreamingSourceInfoDialog open={showSourceInfo} onOpenChange={setShowSourceInfo} />
       <CardHeader className="pt-6 border-b border-border/60 bg-gradient-to-r from-primary/5 via-transparent to-transparent pb-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-3">
@@ -171,6 +192,36 @@ export const ActiveStreamsCard = ({
               <Badge variant="outline" className="text-xs text-muted-foreground">
                 <i className="fa-solid fa-circle text-[10px] text-muted-foreground" />
                 Standby
+              </Badge>
+            )}
+            {wsAge && (
+              <Badge
+                asChild
+                variant="outline"
+                className="text-xs border-emerald-500/40 text-emerald-600 cursor-pointer hover:bg-emerald-500/10"
+              >
+                <button
+                  type="button"
+                  onClick={() => setShowSourceInfo(true)}
+                  aria-label="Explain WS and HTTP stream badges"
+                >
+                  WS {wsAge}
+                </button>
+              </Badge>
+            )}
+            {httpAge && (
+              <Badge
+                asChild
+                variant="outline"
+                className="text-xs border-sky-500/40 text-sky-600 cursor-pointer hover:bg-sky-500/10"
+              >
+                <button
+                  type="button"
+                  onClick={() => setShowSourceInfo(true)}
+                  aria-label="Explain WS and HTTP stream badges"
+                >
+                  HTTP {httpAge}
+                </button>
               </Badge>
             )}
             {lastUpdateAt && (

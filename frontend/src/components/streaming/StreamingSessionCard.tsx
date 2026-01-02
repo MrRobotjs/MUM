@@ -1,4 +1,4 @@
-import type { ReactNode, MouseEvent } from 'react';
+import { useState, type ReactNode, type MouseEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -9,12 +9,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ResponsiveDialog } from '@/components/ui/responsive-dialog';
+import { StreamingSourceInfoDialog } from './StreamingSourceInfoDialog';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { requestJson } from '@/util/apiClient';
 import { useAlerts } from '@/contexts/AlertContext';
 import { getServiceMeta } from '@/config/pluginMetadata';
-import { useState } from 'react';
+import { Badge } from '@/components/ui/badge';
 import { useNavigate } from '@tanstack/react-router';
 import { buildUserProfilePath } from '@/util/routes';
 import type { ActiveSession, PluginMetaResponse } from '@/types/streaming';
@@ -177,6 +178,7 @@ const tryExtractJellyfinUserId = (rawDataJson?: string) => {
 export const StreamingSessionCard = ({ session, onTerminate, pluginFeaturesByService }: StreamingSessionCardProps) => {
   const [showStreamInfo, setShowStreamInfo] = useState(false);
   const [showSendMessage, setShowSendMessage] = useState(false);
+  const [showSourceInfo, setShowSourceInfo] = useState(false);
   const [sendMessageText, setSendMessageText] = useState('');
   const [sendMessageHeader, setSendMessageHeader] = useState('MUM');
   const [sendMessageTimeoutSeconds, setSendMessageTimeoutSeconds] = useState<string>('');
@@ -208,6 +210,13 @@ export const StreamingSessionCard = ({ session, onTerminate, pluginFeaturesBySer
   const canNavigateToUserProfile = Boolean(session.mum_user_uuid?.trim());
   const avatarBgClass = serviceMeta.palette?.avatar ?? 'bg-muted-foreground/20';
   const avatarTextClass = serviceMeta.palette?.avatar ? 'text-white' : 'text-muted-foreground';
+  const sessionSource = session.source === 'ws' ? 'ws' : 'http';
+  const sourceBadgeClass =
+    sessionSource === 'ws'
+      ? 'border-emerald-500/40 text-emerald-600'
+      : 'border-sky-500/40 text-sky-600';
+  const sourceBadgeHoverClass =
+    sessionSource === 'ws' ? 'hover:bg-emerald-500/10' : 'hover:bg-sky-500/10';
 
   const handleUserProfileClick = async (e: MouseEvent<HTMLAnchorElement>) => {
     e.preventDefault();
@@ -295,6 +304,7 @@ export const StreamingSessionCard = ({ session, onTerminate, pluginFeaturesBySer
     <div
       className={`group relative flex h-full flex-col overflow-hidden rounded-xl bg-card shadow-lg transition-all duration-300 hover:shadow-xl sm:rounded-2xl border border-border/50`}
     >
+      <StreamingSourceInfoDialog open={showSourceInfo} onOpenChange={setShowSourceInfo} />
       {/* Background Gradient & Border Helper */}
       <div className={`absolute inset-0 ${serviceMeta.streamingGradient ?? 'bg-gradient-to-br via-card to-card from-muted/50'} pointer-events-none`} />
 
@@ -639,11 +649,24 @@ export const StreamingSessionCard = ({ session, onTerminate, pluginFeaturesBySer
             </div>
           </div>
 
-          {/* Platform Icon / Service Watermark (Right side of footer) */}
-          <div className="flex flex-col items-end gap-1 opacity-50">
-            <span className="text-[10px] uppercase tracking-widest">{serviceMeta.label}</span>
-            {/* Could add a logo here if available */}
-          </div>
+            {/* Platform Icon / Service Watermark (Right side of footer) */}
+            <div className="flex flex-col items-end gap-1">
+              <span className="text-[10px] uppercase tracking-widest text-muted-foreground/80">{serviceMeta.label}</span>
+              <Badge
+                asChild
+                variant="outline"
+                className={`text-[10px] px-1.5 py-0 cursor-pointer ${sourceBadgeClass} ${sourceBadgeHoverClass}`}
+              >
+                <button
+                  type="button"
+                  onClick={() => setShowSourceInfo(true)}
+                  aria-label="Explain WS and HTTP stream badges"
+                >
+                  {sessionSource === 'ws' ? 'WS' : 'HTTP'}
+                </button>
+              </Badge>
+              {/* Could add a logo here if available */}
+            </div>
         </div>
       </div>
     </div>

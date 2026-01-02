@@ -26,6 +26,7 @@ class PlexMediaService(BaseMediaService):
         super().__init__(server_config)
         self._server_instance = None
         self._admin_account = None
+        self._last_raw_sessions_payload = None
     
     def _get_server_instance(self, force_reconnect=False):
         """Get PlexServer instance with caching"""
@@ -736,22 +737,26 @@ class PlexMediaService(BaseMediaService):
         server = self._get_server_instance()
         if not server:
             return []
-        
+
         sessions = []
         try:
             # --- Start of added debug logging ---
             try:
+                self._last_raw_sessions_payload = None
                 # Access the raw XML data from the server by calling the endpoint directly
                 raw_data = server.query("/status/sessions")
                 if raw_data is not None:
+                    raw_xml = ET.tostring(raw_data, encoding="unicode")
+                    self._last_raw_sessions_payload = raw_xml
                     import xmltodict
                     import json
 
                     # Convert XML to a dictionary
-                    sessions_dict = xmltodict.parse(ET.tostring(raw_data))
+                    sessions_dict = xmltodict.parse(raw_xml)
                     # DON'T DELETE, USE FOR DEBUGGING self.log_info(f"RAW_PLEX_SESSIONS_DATA: {json.dumps(sessions_dict, indent=2)}")
 
             except Exception as log_e:
+                self._last_raw_sessions_payload = None
                 self.log_warning(f"Could not log raw session data: {log_e}")
             # --- End of added debug logging ---
 
@@ -764,8 +769,11 @@ class PlexMediaService(BaseMediaService):
                 
         except Exception as e:
             self.log_error(f"Error fetching active sessions: {e}")
-        
+
         return sessions
+
+    def get_last_raw_sessions_payload(self) -> Optional[str]:
+        return self._last_raw_sessions_payload
 
     def get_formatted_sessions(self) -> List[Dict[str, Any]]:
         """Get active Plex sessions formatted for display"""

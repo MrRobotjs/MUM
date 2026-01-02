@@ -54,6 +54,7 @@ export type ActiveSession = {
   is_transcode_calc?: boolean;
   transcode_speed?: number;
   transcode_throttled?: boolean;
+  source?: 'ws' | 'http';
 };
 
 export type ActiveSessionsMeta = {

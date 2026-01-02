@@ -205,6 +205,8 @@ export const StreamingPage = () => {
   const [activeSessions, setActiveSessions] = useState<ActiveSessionsResponse | null>(null);
   const [sessionOffsets, setSessionOffsets] = useState<Record<string, number>>({});
   const [lastUpdateAt, setLastUpdateAt] = useState<Date | null>(null);
+  const [lastWsUpdateAt, setLastWsUpdateAt] = useState<Date | null>(null);
+  const [lastHttpUpdateAt, setLastHttpUpdateAt] = useState<Date | null>(null);
   const [tick, forceTick] = useState(0);
   const [viewMode, setViewMode] = useState<ViewMode>('merged');
   const [loading, setLoading] = useState(false);
@@ -219,6 +221,39 @@ export const StreamingPage = () => {
   const [bootstrapping, setBootstrapping] = useState(true);
 
   // HTTP fetch only for initial bootstrap and manual refresh (like Tautulli - no polling)
+  const applySessionSource = useCallback((sessions: ActiveSession[], source: 'ws' | 'http') => (
+    sessions.map((session) => ({ ...session, source }))
+  ), []);
+
+  const applyGroupedSource = useCallback(
+    (groups: Record<string, ActiveSession[]> | undefined, source: 'ws' | 'http') => {
+      if (!groups) return groups;
+      return Object.fromEntries(
+        Object.entries(groups).map(([key, sessions]) => [key, applySessionSource(sessions, source)])
+      );
+    },
+    [applySessionSource]
+  );
+
+  const applySourceFromLiveServices = useCallback(
+    (sessions: ActiveSession[], liveServices: string[]) => {
+      const liveSet = new Set(liveServices.map((service) => service.toLowerCase()));
+      let hasWs = false;
+      let hasHttp = false;
+      const withSources = sessions.map((session) => {
+        const isWs = liveSet.has(session.service_type?.toLowerCase() ?? '');
+        if (isWs) {
+          hasWs = true;
+        } else {
+          hasHttp = true;
+        }
+        return { ...session, source: isWs ? 'ws' : 'http' };
+      });
+      return { sessions: withSources, hasWs, hasHttp };
+    },
+    []
+  );
+
   const fetchActiveSessions = useCallback(
     async (options?: { silent?: boolean; force?: boolean; reason?: 'manual' | 'initial' }) => {
       // Skip HTTP fetch if websocket is active and providing recent updates (< 5s)
@@ -247,7 +282,13 @@ export const StreamingPage = () => {
           setLoading(true);
         }
         const response = await requestJson<ActiveSessionsResponse>('/admin/api/v2/streaming/active');
-        setActiveSessions(response);
+        const httpSessions = applySessionSource(response.sessions ?? [], 'http');
+        setActiveSessions({
+          ...response,
+          sessions: httpSessions,
+          by_server: applyGroupedSource(response.by_server, 'http'),
+          by_service: applyGroupedSource(response.by_service, 'http'),
+        });
         const fetchCompletedAt = new Date();
         // no-op debug removed
         const liveServicesCurrent = new Set(['plex', ...liveServicesRef.current]);
@@ -283,6 +324,7 @@ export const StreamingPage = () => {
           return offsets;
         });
         setLastUpdateAt(fetchCompletedAt);
+        setLastHttpUpdateAt(fetchCompletedAt);
         lastUpdateRef.current = fetchCompletedAt;
       } catch (error) {
         console.error('Failed to fetch active sessions:', error);
@@ -293,18 +335,24 @@ export const StreamingPage = () => {
         setBootstrapping(false);
       }
     },
-    [wsTruthActive]
+    [wsTruthActive, applyGroupedSource, applySessionSource]
   );
 
   // Use WebSocket for real-time updates (like Tautulli - no polling, only websocket push)
   const { isConnected, liveServices, lastSessionData } = useStreamingWebSocket({
     autoConnect: false,
     onUpdate: (data) => {
+      const updateSource = data.update_source;
+      const updateLiveServices = data.update_live_services ?? [];
+      const hasLiveServices = updateLiveServices.length > 0;
+      const isWsUpdate = hasLiveServices || (typeof updateSource === 'string' && updateSource.includes('websocket'));
       console.debug('[StreamingPage] WS update', {
         active_count: data.active_count,
         sessions_len: Array.isArray(data.sessions) ? data.sessions.length : null,
         live_services: data.live_services,
         timestamp: data.timestamp,
+        update_source: updateSource,
+        update_live_services: updateLiveServices,
       });
       // Update live services list
       if (Array.isArray(data.live_services)) {
@@ -315,67 +363,96 @@ export const StreamingPage = () => {
 
       // ✅ ACCEPT WEBSOCKET UPDATES IMMEDIATELY (like Tautulli)
       // Handle sessions array (even if empty - this clears stopped streams from UI)
-      if (Array.isArray(data.sessions)) {
-        // Guard against transient empty payloads with no count (avoid clearing paused sessions)
-        if (data.sessions.length === 0 && data.active_count === undefined) {
-          return;
-        }
-        const mappedSessions = data.sessions.map(mapUnifiedSessionToActiveSession);
-        const now = data.timestamp ? new Date(data.timestamp) : new Date();
+        if (Array.isArray(data.sessions)) {
+          // Guard against transient empty payloads with no count (avoid clearing paused sessions)
+          if (data.sessions.length === 0 && data.active_count === undefined) {
+            return;
+          }
+          const mappedSessions = data.sessions.map(mapUnifiedSessionToActiveSession);
+          const sourceResult = applySourceFromLiveServices(mappedSessions, data.live_services ?? []);
+          const now = data.timestamp ? new Date(data.timestamp) : new Date();
 
         // Update session offsets immediately from websocket data
-        const offsets = buildOffsetsFromSessions(mappedSessions);
+        const offsets = buildOffsetsFromSessions(sourceResult.sessions);
 
         // ✅ IMMEDIATE UPDATE - no throttling (like Tautulli)
-        setSessionOffsets(offsets);
-        setLastUpdateAt(now);
-        lastUpdateRef.current = now;
-        setWsTruthActive(true);
+          setSessionOffsets(offsets);
+          setLastUpdateAt(now);
+          if (isWsUpdate) {
+            setLastWsUpdateAt(now);
+          } else if (updateSource || updateLiveServices.length > 0) {
+            setLastHttpUpdateAt(now);
+          }
+          lastUpdateRef.current = now;
+          setWsTruthActive(true);
 
         // Update active sessions state immediately (like Tautulli - instant websocket updates)
         // This handles both adding new sessions AND removing stopped sessions (empty array clears UI)
         // Use sessions.length as source of truth when sessions array is provided (it's the actual current state)
         setActiveSessions({
-          sessions: mappedSessions,
-          total_count: data.active_count ?? mappedSessions.length,
+          sessions: sourceResult.sessions,
+          total_count: data.active_count ?? sourceResult.sessions.length,
           by_server: {},
           by_service: {},
           meta: { request_id: '', timestamp: data.timestamp },
         });
-      } else if (data.active_count !== undefined) {
-        // Even without session data, update count immediately
-        // If active_count is 0 and we have no sessions array, clear sessions
-        if (data.active_count === 0) {
-          setActiveSessions({
-            sessions: [],
+        } else if (data.active_count !== undefined) {
+          const now = data.timestamp ? new Date(data.timestamp) : new Date();
+          // Even without session data, update count immediately
+          // If active_count is 0 and we have no sessions array, clear sessions
+          if (data.active_count === 0) {
+            setActiveSessions({
+              sessions: [],
             total_count: 0,
             by_server: {},
             by_service: {},
-          })
-          setSessionOffsets({})
-        } else {
-          setActiveSessions((prev) => ({
-            ...prev,
-            total_count: data.active_count,
-          }))
+            })
+            setSessionOffsets({})
+            setLastUpdateAt(now);
+            if (isWsUpdate) {
+              setLastWsUpdateAt(now);
+            } else if (updateSource || updateLiveServices.length > 0) {
+              setLastHttpUpdateAt(now);
+            }
+          } else {
+            setActiveSessions((prev) => ({
+              ...prev,
+              total_count: data.active_count,
+            }))
+            setLastUpdateAt(now);
+            if (isWsUpdate) {
+              setLastWsUpdateAt(now);
+            } else if (updateSource || updateLiveServices.length > 0) {
+              setLastHttpUpdateAt(now);
+            }
+          }
         }
       }
-    }
-  });
+    });
 
   // Initialize from websocket data if available (when navigating to page)
   useEffect(() => {
-    if (lastSessionData && !activeSessions) {
-      // Websocket already has data - use it immediately instead of showing loading
-      if (Array.isArray(lastSessionData.sessions)) {
-        const mappedSessions = lastSessionData.sessions.map(mapUnifiedSessionToActiveSession);
-        const now = lastSessionData.timestamp ? new Date(lastSessionData.timestamp) : new Date();
+        if (lastSessionData && !activeSessions) {
+          // Websocket already has data - use it immediately instead of showing loading
+          if (Array.isArray(lastSessionData.sessions)) {
+            const mappedSessions = lastSessionData.sessions.map(mapUnifiedSessionToActiveSession);
+            const sourceResult = applySourceFromLiveServices(mappedSessions, lastSessionData.live_services ?? []);
+            const now = lastSessionData.timestamp ? new Date(lastSessionData.timestamp) : new Date();
+          const updateSource = lastSessionData.update_source;
+          const updateLiveServices = lastSessionData.update_live_services ?? [];
+          const hasLiveServices = updateLiveServices.length > 0;
+          const isWsUpdate = hasLiveServices || (typeof updateSource === 'string' && updateSource.includes('websocket'));
 
         // Update session offsets
-        const offsets = buildOffsetsFromSessions(mappedSessions);
+        const offsets = buildOffsetsFromSessions(sourceResult.sessions);
 
-        setSessionOffsets(offsets);
-        setLastUpdateAt(now);
+          setSessionOffsets(offsets);
+          setLastUpdateAt(now);
+          if (isWsUpdate) {
+            setLastWsUpdateAt(now);
+          } else if (updateSource || updateLiveServices.length > 0) {
+            setLastHttpUpdateAt(now);
+          }
         lastUpdateRef.current = now;
         setWsTruthActive(true);
         setBootstrapping(false);
@@ -383,15 +460,15 @@ export const StreamingPage = () => {
         // Update active sessions state from websocket data
         // Use sessions.length as source of truth when sessions array is provided
         setActiveSessions({
-          sessions: mappedSessions,
-          total_count: lastSessionData.active_count ?? mappedSessions.length,
+          sessions: sourceResult.sessions,
+          total_count: lastSessionData.active_count ?? sourceResult.sessions.length,
           by_server: {},
           by_service: {},
           meta: { request_id: '', timestamp: lastSessionData.timestamp },
         });
       }
     }
-  }, [lastSessionData, activeSessions]);
+  }, [lastSessionData, activeSessions, applySourceFromLiveServices]);
 
   // Fetch initial data when websocket connects (if we don't have data yet)
   useEffect(() => {
@@ -575,12 +652,6 @@ export const StreamingPage = () => {
 
   const headerActions = (
     <div className="flex items-center gap-2">
-      {isConnected && hasLiveWebsocketSessions && (
-        <div className="flex items-center gap-2 rounded-full border border-green-500/20 bg-green-500/10 px-3 py-1">
-          <span className="inline-flex h-2 w-2 animate-pulse rounded-full bg-green-500" />
-          <span className="text-xs font-medium text-green-700 dark:text-green-400">Live</span>
-        </div>
-      )}
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
@@ -650,6 +721,8 @@ export const StreamingPage = () => {
           wsTruthActive={wsTruthActive}
           isConnected={isConnected}
           lastUpdateAt={lastUpdateAt}
+          lastWsUpdateAt={lastWsUpdateAt}
+          lastHttpUpdateAt={lastHttpUpdateAt}
           onTerminateSession={openTerminateModal}
         />
       </div>

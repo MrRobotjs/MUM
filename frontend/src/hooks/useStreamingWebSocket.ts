@@ -14,6 +14,10 @@ type StreamingUpdate = SessionUpdatePayload & {
   source?: string | null;
   server_id?: number | null;
   channel?: string;
+  update_source?: string | null;
+  update_channel?: string;
+  update_server_id?: number | null;
+  update_live_services?: string[];
 };
 
 interface UseStreamingWebSocketOptions {
@@ -38,6 +42,8 @@ const recomputeAggregate = () => {
   let activeCount = 0;
   const sessions: SessionUpdatePayload['sessions'] = [];
   let timestamp: string | undefined;
+  let latestSnapshot: StreamingUpdate | null = null;
+  let latestTimestamp = 0;
 
   channelSnapshots.forEach((payload) => {
     const sessionList = payload.sessions ?? [];
@@ -45,12 +51,6 @@ const recomputeAggregate = () => {
     activeCount += count;
 
     sessions.push(...sessionList);
-    sessionList.forEach((session: any) => {
-      const service = session?.server?.service || session?.service_type;
-      if (service) {
-        liveServices.add(String(service).toLowerCase());
-      }
-    });
 
     if (Array.isArray(payload.live_services)) {
       payload.live_services.forEach((svc) => liveServices.add(String(svc).toLowerCase()));
@@ -58,6 +58,13 @@ const recomputeAggregate = () => {
 
     if (payload.timestamp) {
       timestamp = payload.timestamp;
+      const parsed = Date.parse(payload.timestamp);
+      if (!Number.isNaN(parsed) && parsed >= latestTimestamp) {
+        latestTimestamp = parsed;
+        latestSnapshot = payload;
+      } else if (!latestSnapshot) {
+        latestSnapshot = payload;
+      }
     }
   });
 
@@ -65,7 +72,13 @@ const recomputeAggregate = () => {
     active_count: activeCount,
     sessions,
     live_services: Array.from(liveServices),
-    timestamp,
+    timestamp: latestSnapshot?.timestamp ?? timestamp,
+    update_source: latestSnapshot?.source ?? null,
+    update_channel: latestSnapshot?.channel,
+    update_server_id: latestSnapshot?.server_id ?? null,
+    update_live_services: Array.isArray(latestSnapshot?.live_services)
+      ? latestSnapshot?.live_services
+      : undefined,
   };
 
   streamingState.activeCount = activeCount;

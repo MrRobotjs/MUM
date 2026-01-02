@@ -52,70 +52,76 @@ export function NavMain({
     <SidebarGroup>
       <SidebarGroupContent>
         <SidebarMenu>
-          {items.map((item) => (
-            <SidebarMenuItem key={item.title}>
-              <SidebarMenuButton asChild tooltip={item.title} isActive={item.isActive}>
-                <Link to={item.url} onClick={handleNavLinkClick}>
-                  {item.icon && <item.icon />}
-                  <span>{item.title}</span>
-                </Link>
-              </SidebarMenuButton>
-              {item.statusIndicator && (
-                <span
-                  aria-hidden="true"
-                  className="pointer-events-none absolute right-8 top-2.5 flex items-center text-muted-foreground group-data-[collapsible=icon]:hidden"
-                >
-                  {item.statusIndicator}
-                </span>
-              )}
-              {item.actions && item.actions.length > 0 && (() => {
-                const actions = item.actions ?? []
-                const allActionsDisabled = actions.every((action) => action.disabled)
-                return (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <SidebarMenuAction
-                        showOnHover
-                        disabled={allActionsDisabled}
-                        className={cn(
-                          allActionsDisabled && 'opacity-40'
-                        )}
-                      >
-                        <IconDots />
-                        <span className="sr-only">More</span>
-                      </SidebarMenuAction>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent
-                      className="w-48 rounded-lg"
-                      side="bottom"
-                      align="end"
-                    >
-                      {actions.map((action, idx) => (
-                        <DropdownMenuItem
-                          key={idx}
-                          disabled={action.disabled}
-                          onSelect={(event) => {
-                            if (action.disabled) {
-                              event.preventDefault()
-                              return
-                            }
-                            action.onClick()
-                          }}
-                        >
-                          {action.icon && (
-                            <action.icon
-                              className={cn("mr-2 h-4 w-4", action.iconClassName)}
-                            />
+          {items.map((item) => {
+            const hasActions = Boolean(item.actions && item.actions.length > 0)
+            return (
+              <SidebarMenuItem key={item.title}>
+                <SidebarMenuButton asChild tooltip={item.title} isActive={item.isActive}>
+                  <Link to={item.url} onClick={handleNavLinkClick}>
+                    {item.icon && <item.icon />}
+                    <span>{item.title}</span>
+                  </Link>
+                </SidebarMenuButton>
+                {item.statusIndicator && (
+                  <span
+                    aria-hidden="true"
+                    className={cn(
+                      "pointer-events-none absolute top-1/2 flex -translate-y-1/2 items-center text-muted-foreground group-data-[collapsible=icon]:hidden",
+                      hasActions ? "right-8" : "right-2"
+                    )}
+                  >
+                    {item.statusIndicator}
+                  </span>
+                )}
+                {hasActions && (() => {
+                  const actions = item.actions ?? []
+                  const allActionsDisabled = actions.every((action) => action.disabled)
+                  return (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <SidebarMenuAction
+                          showOnHover
+                          disabled={allActionsDisabled}
+                          className={cn(
+                            allActionsDisabled && 'opacity-40'
                           )}
-                          <span>{action.label}</span>
-                        </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                )
-              })()}
-            </SidebarMenuItem>
-          ))}
+                        >
+                          <IconDots />
+                          <span className="sr-only">More</span>
+                        </SidebarMenuAction>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent
+                        className="w-48 rounded-lg"
+                        side="bottom"
+                        align="end"
+                      >
+                        {actions.map((action, idx) => (
+                          <DropdownMenuItem
+                            key={idx}
+                            disabled={action.disabled}
+                            onSelect={(event) => {
+                              if (action.disabled) {
+                                event.preventDefault()
+                                return
+                              }
+                              action.onClick()
+                            }}
+                          >
+                            {action.icon && (
+                              <action.icon
+                                className={cn("mr-2 h-4 w-4", action.iconClassName)}
+                              />
+                            )}
+                            <span>{action.label}</span>
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )
+                })()}
+              </SidebarMenuItem>
+            )
+          })}
         </SidebarMenu>
       </SidebarGroupContent>
     </SidebarGroup>

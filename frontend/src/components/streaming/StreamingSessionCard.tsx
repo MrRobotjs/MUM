@@ -228,6 +228,34 @@ const tryExtractJellyfinUserId = (rawDataJson?: string) => {
   }
 };
 
+const tryExtractAudiobookshelfAuthor = (rawDataJson?: string) => {
+  if (!rawDataJson) return undefined;
+  try {
+    const parsed = JSON.parse(rawDataJson) as {
+      displayAuthor?: string | null;
+      mediaMetadata?: {
+        authors?: Array<{ name?: string | null } | string> | null;
+      } | null;
+    };
+    if (parsed.displayAuthor && parsed.displayAuthor.trim()) {
+      return parsed.displayAuthor.trim();
+    }
+    const authors = parsed.mediaMetadata?.authors ?? [];
+    if (Array.isArray(authors) && authors.length > 0) {
+      const firstAuthor = authors[0];
+      if (typeof firstAuthor === 'string' && firstAuthor.trim()) {
+        return firstAuthor.trim();
+      }
+      if (typeof firstAuthor === 'object' && firstAuthor?.name) {
+        return String(firstAuthor.name).trim();
+      }
+    }
+    return undefined;
+  } catch {
+    return undefined;
+  }
+};
+
 export const StreamingSessionCard = ({ session, onTerminate, pluginFeaturesByService }: StreamingSessionCardProps) => {
   const [showStreamInfo, setShowStreamInfo] = useState(false);
   const [showSendMessage, setShowSendMessage] = useState(false);
@@ -271,6 +299,10 @@ export const StreamingSessionCard = ({ session, onTerminate, pluginFeaturesBySer
       : 'border-sky-500/40 text-sky-600';
   const sourceBadgeHoverClass =
     sessionSource === 'ws' ? 'hover:bg-emerald-500/10' : 'hover:bg-sky-500/10';
+  const audiobookshelfAuthor =
+    normalizedServiceType === 'audiobookshelf'
+      ? session.parent_title ?? tryExtractAudiobookshelfAuthor(session.raw_data_json)
+      : undefined;
 
   const handleUserProfileClick = async (e: MouseEvent<HTMLAnchorElement>) => {
     e.preventDefault();
@@ -398,22 +430,18 @@ export const StreamingSessionCard = ({ session, onTerminate, pluginFeaturesBySer
             )}
 
             {/* Play/Pause Overlay Icon on Poster */}
-            <div className="absolute inset-0 flex items-center justify-center bg-black/20 backdrop-blur-[1px]">
-              {normalizedState === 'paused' && <i className="fa-solid fa-pause text-2xl text-white/90 drop-shadow-md" />}
-              {normalizedState === 'playing' && <i className="fa-solid fa-play text-2xl text-white/90 drop-shadow-md" />}
-              {normalizedState === 'buffering' && <i className="fa-solid fa-circle-notch fa-spin text-2xl text-white/90 drop-shadow-md" />}
-            </div>
+            <div className="absolute inset-0" />
           </div>
 
           {/* Title Info */}
           <div className="flex min-w-0 flex-1 flex-col justify-center gap-0.5">
-            <h3 className="line-clamp-2 text-lg font-bold leading-tight text-card-foreground sm:text-xl">
+            <h3 className="line-clamp-2 text-lg font-bold leading-tight text-card-foreground sm:text-xl" title={session.media_title || ''}>
               {session.media_title}
             </h3>
 
             <div className="flex flex-col text-sm text-muted-foreground sm:text-base">
               {session.grandparent_title && (
-                <span className="truncate opacity-90">{session.grandparent_title} {session.parent_title ? `— ${session.parent_title}` : ''}</span>
+                <span className="truncate opacity-90" title={`${session.grandparent_title}${session.parent_title ? ` — ${session.parent_title}` : ''}`}>{session.grandparent_title} {session.parent_title ? `— ${session.parent_title}` : ''}</span>
               )}
               <div className="flex items-center gap-2 text-xs text-muted-foreground/80 sm:text-sm">
                 {session.year && <span>{session.year}</span>}
@@ -425,6 +453,11 @@ export const StreamingSessionCard = ({ session, onTerminate, pluginFeaturesBySer
                 )}
                 {/* Terminate Button - Desktop Position (Absolute top right of card normally, but here let's keep it accessible) */}
               </div>
+              {audiobookshelfAuthor && (
+                <div className="text-xs text-muted-foreground/80 sm:text-sm">
+                  by <span className="text-foreground/90">{audiobookshelfAuthor}</span>
+                </div>
+              )}
             </div>
           </div>
 

@@ -765,10 +765,27 @@ class AudiobookShelfMediaService(BaseMediaService):
 
     def get_formatted_sessions(self) -> List[Dict[str, Any]]:
         """Get active AudioBookshelf sessions formatted for display"""
+        from app.models import User, UserType
+
         raw_sessions = self.get_active_sessions()
         if not raw_sessions:
             return []
-        
+
+        user_ids_in_session = {
+            str(raw_session.get('userId') or (raw_session.get('user') or {}).get('id'))
+            for raw_session in raw_sessions
+            if raw_session.get('userId') or (raw_session.get('user') or {}).get('id')
+        }
+        mum_users_map_by_abs_id = {}
+        if user_ids_in_session and self.server_id is not None:
+            abs_accesses = User.query.filter_by(userType=UserType.SERVICE).filter(
+                User.server_id == self.server_id,
+                User.external_user_id.in_(list(user_ids_in_session))
+            ).all()
+            for access in abs_accesses:
+                if access.external_user_id:
+                    mum_users_map_by_abs_id[str(access.external_user_id)] = access
+
         formatted_sessions = []
         
         for raw_session in raw_sessions:
@@ -777,6 +794,11 @@ class AudiobookShelfMediaService(BaseMediaService):
                 session_id = raw_session.get('id', '')
                 user_info = raw_session.get('user', {})
                 user_name = user_info.get('username', 'Unknown User')
+                abs_user_id = raw_session.get('userId') or user_info.get('id')
+                abs_user_id_str = str(abs_user_id) if abs_user_id is not None else None
+                mum_user = mum_users_map_by_abs_id.get(abs_user_id_str) if abs_user_id_str else None
+                mum_user_id = mum_user.id if mum_user else None
+                mum_user_uuid = mum_user.uuid if mum_user else None
                 
                 # Media metadata
                 media_metadata = raw_session.get('mediaMetadata', {})
@@ -893,7 +915,8 @@ class AudiobookShelfMediaService(BaseMediaService):
                 # Session details for display
                 session_details = {
                     'user': user_name,
-                    'mum_user_id': None,  # AudioBookshelf users aren't linked to local users yet
+                    'mum_user_id': mum_user_id,
+                    'mum_user_uuid': mum_user_uuid,
                     'player_title': player_title,
                     'player_platform': player_platform,
                     'product': 'AudioBookshelf',

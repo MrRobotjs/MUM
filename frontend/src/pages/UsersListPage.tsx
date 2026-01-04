@@ -412,49 +412,6 @@ export const UsersListPage = () => {
               </SheetHeader>
 
               <div className="space-y-5 overflow-y-auto pr-1">
-                {/* Basic */}
-                <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Basic</h4>
-                <Separator className="my-2" />
-                {/* Server Filter */}
-                <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
-                  <Label htmlFor="serverId">
-                    <i className="fa-solid fa-server mr-2" />
-                    Server
-                  </Label>
-                  <Select value={serverId} onValueChange={setServerId}>
-                    <SelectTrigger id="serverId">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Servers</SelectItem>
-                      {servers.map((server) => (
-                        <SelectItem key={server.id} value={String(server.id)}>
-                          {server.server_nickname}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* User Type Filter */}
-                <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
-                  <Label htmlFor="userType">
-                    <i className="fa-solid fa-users mr-2" />
-                    User Type
-                  </Label>
-                  <Select value={userType} onValueChange={setUserType}>
-                    <SelectTrigger id="userType">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Users</SelectItem>
-                      <SelectItem value="owner">Owner</SelectItem>
-                      <SelectItem value="local">Local</SelectItem>
-                      <SelectItem value="service">Service</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
                 {/* Search */}
                 <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Search</h4>
                 <Separator className="my-2" />
@@ -503,9 +460,92 @@ export const UsersListPage = () => {
                   />
                 </div>
 
-                {/* Advanced */}
-                <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Advanced</h4>
+                {/* Basic */}
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Basic</h4>
                 <Separator className="my-2" />
+                {/* Sort Options */}
+                <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
+                  <Label htmlFor="sort">
+                    <i className="fa-solid fa-sort mr-2" />
+                    Sort by
+                  </Label>
+                  <Select value={sort} onValueChange={setSort}>
+                    <SelectTrigger id="sort">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="username_asc">Username (A-Z)</SelectItem>
+                      <SelectItem value="username_desc">Username (Z-A)</SelectItem>
+                      <SelectItem value="created_desc">Date Added (Newest)</SelectItem>
+                      <SelectItem value="created_asc">Date Added (Oldest)</SelectItem>
+                      <SelectItem value="last_streamed_desc">Last Streamed (Recent)</SelectItem>
+                      <SelectItem value="last_streamed_asc">Last Streamed (Oldest)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Per Page */}
+                <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
+                  <Label htmlFor="perPage">
+                    <i className="fa-solid fa-list-ol mr-2" />
+                    Per Page
+                  </Label>
+                  <Select value={String(pageSize)} onValueChange={(val) => setPageSize(Number(val))}>
+                    <SelectTrigger id="perPage">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="10">10 users</SelectItem>
+                      <SelectItem value="20">20 users</SelectItem>
+                      <SelectItem value="50">50 users</SelectItem>
+                      <SelectItem value="100">100 users</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Filter */}
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Filter</h4>
+                <Separator className="my-2" />
+                {/* Server Filter */}
+                <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
+                  <Label htmlFor="serverId">
+                    <i className="fa-solid fa-server mr-2" />
+                    Server
+                  </Label>
+                  <Select value={serverId} onValueChange={setServerId}>
+                    <SelectTrigger id="serverId">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Servers</SelectItem>
+                      {servers.map((server) => (
+                        <SelectItem key={server.id} value={String(server.id)}>
+                          {server.server_nickname}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* User Type Filter */}
+                <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
+                  <Label htmlFor="userType">
+                    <i className="fa-solid fa-users mr-2" />
+                    User Type
+                  </Label>
+                  <Select value={userType} onValueChange={setUserType}>
+                    <SelectTrigger id="userType">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Users</SelectItem>
+                      <SelectItem value="owner">Owner</SelectItem>
+                      <SelectItem value="local">Local</SelectItem>
+                      <SelectItem value="service">Service</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
                 {/* Filter Type */}
                 <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
                   <Label htmlFor="filterType">
@@ -557,46 +597,6 @@ export const UsersListPage = () => {
                           </SelectItem>
                         ))}
                       </SelectGroup>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Sort Options */}
-                <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
-                  <Label htmlFor="sort">
-                    <i className="fa-solid fa-sort mr-2" />
-                    Sort by
-                  </Label>
-                  <Select value={sort} onValueChange={setSort}>
-                    <SelectTrigger id="sort">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="username_asc">Username (A-Z)</SelectItem>
-                      <SelectItem value="username_desc">Username (Z-A)</SelectItem>
-                      <SelectItem value="created_desc">Date Added (Newest)</SelectItem>
-                      <SelectItem value="created_asc">Date Added (Oldest)</SelectItem>
-                      <SelectItem value="last_streamed_desc">Last Streamed (Recent)</SelectItem>
-                      <SelectItem value="last_streamed_asc">Last Streamed (Oldest)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Per Page */}
-                <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
-                  <Label htmlFor="perPage">
-                    <i className="fa-solid fa-list-ol mr-2" />
-                    Per Page
-                  </Label>
-                  <Select value={String(pageSize)} onValueChange={(val) => setPageSize(Number(val))}>
-                    <SelectTrigger id="perPage">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="10">10 users</SelectItem>
-                      <SelectItem value="20">20 users</SelectItem>
-                      <SelectItem value="50">50 users</SelectItem>
-                      <SelectItem value="100">100 users</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

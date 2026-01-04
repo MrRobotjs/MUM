@@ -12,10 +12,19 @@ import { cn } from '@/lib/utils';
 import { Badge } from '../common/Badge';
 import { getServicePalette, type ThemePalette } from '@/config/pluginMetadata';
 
+export type UserNowPlaying = {
+  state: string;
+  mediaTitle: string;
+  serviceType?: string | null;
+  serverName?: string | null;
+  sessionCount?: number;
+};
+
 interface UserCardProps {
   user: UserRow;
   isSelected?: boolean;
   onToggleSelection?: (userId: string) => void;
+  nowPlaying?: UserNowPlaying | null;
 }
 
 interface UserDisplaySettings {
@@ -30,7 +39,7 @@ interface UserDisplaySettings {
 }
 
 
-export const UserCard = ({ user, isSelected = false, onToggleSelection }: UserCardProps) => {
+export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlaying }: UserCardProps) => {
   const navigate = useNavigate();
   const serviceType = user.service_type?.toLowerCase();
   const isService = user.user_type.toLowerCase() === 'service';
@@ -127,6 +136,33 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection }: UserCa
     'text-white w-10 h-10 rounded-full flex items-center justify-center text-2xl font-normal',
     isService ? palette.avatar : 'bg-primary'
   );
+
+  const resolvePlaybackStatus = (state?: string) => {
+    const normalized = state?.toLowerCase();
+    if (normalized === 'playing' || normalized === 'listening') {
+      return {
+        color: 'bg-green-500',
+        label: normalized === 'listening' ? 'Listening' : 'Playing',
+        icon: normalized === 'playing' ? 'fa-solid fa-play' : null,
+      };
+    }
+    if (normalized === 'paused') {
+      return { color: 'bg-amber-500', label: 'Paused', icon: 'fa-solid fa-pause' };
+    }
+    if (normalized === 'buffering') {
+      return { color: 'bg-blue-500', label: 'Buffering', icon: 'fa-solid fa-circle-notch fa-spin' };
+    }
+    return { color: 'bg-muted', label: 'Active', icon: null };
+  };
+  const playbackStatus = nowPlaying ? resolvePlaybackStatus(nowPlaying.state) : null;
+  const nowPlayingLabel = playbackStatus
+    ? (playbackStatus.label === 'Playing' || playbackStatus.label === 'Listening'
+      ? `Now ${playbackStatus.label}`
+      : playbackStatus.label)
+    : null;
+  const nowPlayingTitle = nowPlaying?.serverName
+    ? `${nowPlaying.mediaTitle} · ${nowPlaying.serverName}`
+    : nowPlaying?.mediaTitle;
 
   return (
     <Card
@@ -282,6 +318,23 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection }: UserCa
             </span>
           </div>
         )}
+
+        {settings.show_streamed_section && nowPlaying && playbackStatus ? (
+          <div className="mb-3 flex items-center gap-2">
+            <Badge color={playbackStatus.color} className="text-[0.65rem] font-semibold gap-1" hover={false}>
+              {playbackStatus.icon ? <i className={`${playbackStatus.icon} text-[0.6rem]`} /> : null}
+              {playbackStatus.label}
+            </Badge>
+            <span className="text-xs text-muted-foreground truncate" title={nowPlayingTitle}>
+              {nowPlayingLabel}: {nowPlaying.mediaTitle || 'Unknown Title'}
+            </span>
+            {nowPlaying.sessionCount && nowPlaying.sessionCount > 1 ? (
+              <span className="text-[0.65rem] text-muted-foreground/70">
+                +{nowPlaying.sessionCount - 1}
+              </span>
+            ) : null}
+          </div>
+        ) : null}
 
         {isService && settings.show_libraries_section && (
           <div className="mb-3">

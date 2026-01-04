@@ -785,33 +785,48 @@ class PlexMediaService(BaseMediaService):
             return []
         
         # Get user mapping for Plex users via service users
-        user_ids_in_session = {int(session.user.id) for session in raw_sessions if hasattr(session, 'user') and session.user and hasattr(session.user, 'id')}
-        
-        # Get users from service users for this Plex server
+        user_ids_in_session = set()
+        user_alt_ids_in_session = set()
+        for session in raw_sessions:
+            if hasattr(session, 'user') and session.user:
+                if hasattr(session.user, 'id') and session.user.id is not None:
+                    user_ids_in_session.add(str(session.user.id))
+                if hasattr(session.user, 'uuid') and session.user.uuid:
+                    user_alt_ids_in_session.add(str(session.user.uuid))
+
+        plex_accesses = []
         if user_ids_in_session:
-            user_id_strings = [str(uid) for uid in user_ids_in_session]
-            plex_accesses = User.query.filter_by(userType=UserType.SERVICE).filter(
+            plex_accesses.extend(User.query.filter_by(userType=UserType.SERVICE).filter(
                 User.server_id == self.server_id,
-                User.external_user_id.in_(user_id_strings)
-            ).all()
-            # Prioritize SERVICE user, fall back to linked LOCAL user
-            mum_users_map_by_plex_id = {}
-            for access in plex_accesses:
+                User.external_user_id.in_(list(user_ids_in_session))
+            ).all())
+        if user_alt_ids_in_session:
+            plex_accesses.extend(User.query.filter_by(userType=UserType.SERVICE).filter(
+                User.server_id == self.server_id,
+                User.external_user_alt_id.in_(list(user_alt_ids_in_session))
+            ).all())
+
+        # Prioritize SERVICE user, fall back to linked LOCAL user
+        mum_users_map_by_plex_id = {}
+        if plex_accesses:
+            unique_accesses = {access.id: access for access in plex_accesses}
+            for access in unique_accesses.values():
+                service_user = access
+                linked_local_user = None
+                if access.linkedUserId:
+                    linked_local_user = User.query.filter_by(
+                        userType=UserType.LOCAL,
+                        uuid=access.linkedUserId
+                    ).first()
+
+                user_to_store = service_user if service_user else linked_local_user
+                if not user_to_store:
+                    continue
+
                 if access.external_user_id:
-                    plex_id = int(access.external_user_id)
-                    # Store the SERVICE user (primary), with linked LOCAL user as backup
-                    service_user = access
-                    linked_local_user = None
-                    if access.linkedUserId:
-                        linked_local_user = User.query.filter_by(userType=UserType.LOCAL, uuid=access.linkedUserId).first()
-
-                    # Prioritize SERVICE user, fall back to linked LOCAL user
-                    user_to_store = service_user if service_user else linked_local_user
-
-                    if user_to_store:
-                        mum_users_map_by_plex_id[plex_id] = user_to_store
-        else:
-            mum_users_map_by_plex_id = {}
+                    mum_users_map_by_plex_id[str(access.external_user_id)] = user_to_store
+                if access.external_user_alt_id:
+                    mum_users_map_by_plex_id[str(access.external_user_alt_id)] = user_to_store
         
         formatted_sessions = []
         
@@ -887,7 +902,13 @@ class PlexMediaService(BaseMediaService):
                 location_ip = getattr(player, 'address', 'N/A')
                 is_lan = getattr(player, 'local', False)
                 location_lan_wan = "LAN" if is_lan else "WAN"
-                mum_user = mum_users_map_by_plex_id.get(int(raw_session.user.id))
+                plex_user_id = getattr(raw_session.user, 'id', None)
+                plex_user_uuid = getattr(raw_session.user, 'uuid', None)
+                mum_user = None
+                if plex_user_id is not None:
+                    mum_user = mum_users_map_by_plex_id.get(str(plex_user_id))
+                if not mum_user and plex_user_uuid:
+                    mum_user = mum_users_map_by_plex_id.get(str(plex_user_uuid))
                 mum_user_id = mum_user.id if mum_user else None
                 mum_user_uuid = mum_user.uuid if mum_user else None
                 session_key = raw_session.sessionKey

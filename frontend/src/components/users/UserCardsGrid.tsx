@@ -1,8 +1,11 @@
-import { UserCard } from './UserCard';
+import { useMemo } from 'react';
+import { UserCard, type UserNowPlaying } from './UserCard';
 import { Pagination } from '../common/Pagination';
 import type { UserRow } from './UsersTable';
 import { Skeleton } from '../ui/skeleton';
 import { Card, CardContent } from '../ui/card';
+import { useStreamingWebSocket } from '../../hooks/useStreamingWebSocket';
+import type { UnifiedSession } from '../../types/realtime';
 
 interface UserCardsGridProps {
   users: UserRow[];
@@ -37,6 +40,15 @@ const UserCardSkeleton = () => (
   </Card>
 );
 
+const getSessionPriority = (state?: string) => {
+  const normalized = state?.toLowerCase();
+  if (normalized === 'playing' || normalized === 'listening') return 4;
+  if (normalized === 'buffering') return 3;
+  if (normalized === 'paused') return 2;
+  if (normalized) return 1;
+  return 0;
+};
+
 export const UserCardsGrid = ({
   users,
   loading,
@@ -46,6 +58,49 @@ export const UserCardsGrid = ({
   totalPages = 1,
   onPageChange
 }: UserCardsGridProps) => {
+  const { lastSessionData } = useStreamingWebSocket({ autoConnect: false });
+  const nowPlayingByUser = useMemo(() => {
+    const sessions = lastSessionData?.sessions ?? [];
+    const nowPlaying = new Map<string, UserNowPlaying>();
+    if (!sessions.length) {
+      return nowPlaying;
+    }
+
+    const grouped = new Map<string, UnifiedSession[]>();
+    sessions.forEach((session) => {
+      const userUuid = session.user?.uuid;
+      if (!userUuid) {
+        return;
+      }
+      const key = String(userUuid);
+      const bucket = grouped.get(key);
+      if (bucket) {
+        bucket.push(session);
+      } else {
+        grouped.set(key, [session]);
+      }
+    });
+
+    grouped.forEach((userSessions, userUuid) => {
+      const sorted = [...userSessions].sort(
+        (left, right) => getSessionPriority(right.state) - getSessionPriority(left.state)
+      );
+      const primary = sorted[0];
+      if (!primary) {
+        return;
+      }
+      nowPlaying.set(userUuid, {
+        state: primary.state ?? 'unknown',
+        mediaTitle: primary.item?.title ?? 'Unknown Title',
+        serviceType: primary.server?.service ?? null,
+        serverName: primary.server?.name ?? null,
+        sessionCount: userSessions.length,
+      });
+    });
+
+    return nowPlaying;
+  }, [lastSessionData?.sessions]);
+
   return (
     <div className="space-y-4">
       {users.length === 0 && !loading ? (
@@ -66,6 +121,7 @@ export const UserCardsGrid = ({
                 <UserCard
                   key={user.uuid}
                   user={user}
+                  nowPlaying={nowPlayingByUser.get(user.uuid)}
                   isSelected={selectedUserIds.has(user.uuid)}
                   onToggleSelection={onToggleSelection}
                 />

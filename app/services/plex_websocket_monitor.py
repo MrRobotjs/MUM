@@ -258,8 +258,6 @@ class PlexWebsocketMonitor:
                         "NOTICE: Raw Plex HTTP session payloads fetched after WS triggers.",
                         target_date,
                     )
-                else:
-                    self.http_file_logger.info("PlexWebsocketMonitor HTTP logger initialized for %s", target_date)
                 self.http_log_date = target_date
             else:
                 self.http_file_logger = self.logger

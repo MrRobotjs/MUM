@@ -1,18 +1,163 @@
 # File: app/services/audiobookshelf_media_service.py
 from typing import List, Dict, Any, Optional, Tuple
-import requests
 import json
+import logging
+from logging.handlers import RotatingFileHandler
+import os
 from datetime import datetime
+import requests
+from flask import current_app
 from app.services.base_media_service import BaseMediaService
 from app.models_media_services import ServiceType
 from app.utils.timeout_helper import get_api_timeout
 
 class AudiobookShelfMediaService(BaseMediaService):
     """AudiobookShelf implementation of BaseMediaService"""
-    
+
+    def __init__(self, server_config: Dict[str, Any]):
+        super().__init__(server_config)
+        self._http_log_date = None
+        self._http_file_logger = None
+
     @property
     def service_type(self) -> ServiceType:
         return ServiceType.AUDIOBOOKSHELF
+
+    def _create_http_file_handler_for_date(
+        self, target_date: datetime
+    ) -> tuple[RotatingFileHandler, bool] | None:
+        date_str = target_date.strftime("%Y-%m-%d")
+        log_path = None
+        is_new_log = True
+
+        override_path = os.getenv("AUDIOBOOKSHELF_HTTP_LOG_PATH")
+        if override_path:
+            try:
+                os.makedirs(os.path.dirname(override_path), exist_ok=True)
+                log_path = override_path
+            except Exception as exc:
+                self.log_error(f"Failed to create log directory for override path {override_path}: {exc}")
+                log_path = None
+        else:
+            try:
+                inst_dir = current_app.instance_path
+                logs_dir = os.path.join(inst_dir, "logs", "audiobookshelf_http")
+                os.makedirs(logs_dir, exist_ok=True)
+                log_path = os.path.join(logs_dir, f"{date_str}.log")
+            except Exception as exc:
+                self.log_error(f"Failed to create instance log directory {inst_dir}: {exc}")
+                return None
+
+        try:
+            test_file = open(log_path, "a")
+            test_file.close()
+        except Exception as exc:
+            self.log_error(f"Cannot write to log file {log_path}: {exc}")
+            return None
+
+        try:
+            if os.path.exists(log_path):
+                try:
+                    is_new_log = os.path.getsize(log_path) == 0
+                except OSError:
+                    is_new_log = False
+            handler = RotatingFileHandler(log_path, maxBytes=5 * 1024 * 1024, backupCount=3)
+            handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+            return handler, is_new_log
+        except Exception as exc:
+            self.log_error(f"Failed to create file handler for {log_path}: {exc}")
+            return None
+
+    def _ensure_http_file_logger(self) -> None:
+        logger_name = "audiobookshelf_http_monitor"
+        self._http_file_logger = logging.getLogger(logger_name)
+
+        try:
+            target_date = datetime.now().date()
+            handler_info = self._create_http_file_handler_for_date(datetime.combine(target_date, datetime.min.time()))
+
+            if handler_info:
+                handler, is_new_log = handler_info
+                for existing in list(self._http_file_logger.handlers):
+                    if isinstance(existing, RotatingFileHandler):
+                        try:
+                            self._http_file_logger.removeHandler(existing)
+                            existing.close()
+                        except Exception:
+                            pass
+
+                self._http_file_logger.addHandler(handler)
+                self._http_file_logger.setLevel(logging.DEBUG)
+                self._http_file_logger.propagate = False
+                if is_new_log:
+                    self._http_file_logger.info(
+                        "AudiobookShelfMediaService HTTP logger initialized for %s - "
+                        "NOTICE: Raw AudiobookShelf HTTP session payloads.",
+                        target_date,
+                    )
+                self._http_log_date = target_date
+            else:
+                self._http_file_logger = current_app.logger
+        except Exception as exc:
+            self.log_error(f"Unexpected error initializing HTTP file logger: {exc}")
+            self._http_file_logger = current_app.logger
+
+    def _ensure_http_daily_log_file(self) -> None:
+        try:
+            today = datetime.now().date()
+            if self._http_log_date == today:
+                return
+            self._ensure_http_file_logger()
+        except Exception as exc:
+            self.log_warning(f"Failed to rotate HTTP daily log file: {exc}")
+
+    def _log_http_payload(self, payload: object) -> None:
+        limit = current_app.config.get("AUDIOBOOKSHELF_HTTP_LOG_BYTES")
+        if limit is None:
+            try:
+                env_limit = os.getenv("AUDIOBOOKSHELF_HTTP_LOG_BYTES")
+                limit = int(env_limit) if env_limit is not None else 0
+            except Exception:
+                limit = 0
+
+        try:
+            limit_int = int(limit)
+        except Exception:
+            limit_int = 200
+
+        server_id = self.server_id if self.server_id is not None else "unknown"
+        nickname_suffix = f" [{self.name}]" if self.name else ""
+
+        try:
+            if isinstance(payload, (bytes, bytearray)):
+                payload_text = payload.decode("utf-8", errors="ignore")
+            elif isinstance(payload, str):
+                payload_text = payload
+            else:
+                payload_text = json.dumps(payload, default=str)
+        except Exception:
+            payload_text = str(payload)
+
+        if limit_int and limit_int > 0:
+            snippet = payload_text[:limit_int]
+            suffix = " (truncated)" if len(payload_text) > limit_int else ""
+            msg = f"AudiobookShelfMediaService HTTP payload for server {server_id}{nickname_suffix}{suffix}: {snippet}"
+        else:
+            msg = f"AudiobookShelfMediaService HTTP payload for server {server_id}{nickname_suffix}: {payload_text}"
+
+        try:
+            self._ensure_http_daily_log_file()
+            logger = self._http_file_logger if self._http_file_logger else current_app.logger
+            if len(logger.handlers) > 0:
+                logger.debug(msg)
+                for handler in logger.handlers:
+                    if isinstance(handler, RotatingFileHandler):
+                        try:
+                            handler.flush()
+                        except Exception:
+                            pass
+        except Exception as exc:
+            self.log_warning(f"Failed to write HTTP payload log: {exc}")
     
     def _get_headers(self):
         """Get headers for AudiobookShelf API requests"""
@@ -552,6 +697,7 @@ class AudiobookShelfMediaService(BaseMediaService):
             endpoint = "sessions"
             self.log_info(f"AudioBookshelf: Fetching active sessions from {endpoint}")
             response = self._make_request(endpoint)
+            self._log_http_payload(response)
             
             # Extract sessions from the response
             sessions = response.get('sessions', [])

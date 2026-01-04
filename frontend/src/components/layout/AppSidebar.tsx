@@ -214,7 +214,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   const user = {
     name: currentUser?.display_name || currentUser?.username || 'User',
-    email: currentUser?.email || currentUser?.username || 'user@example.com',
+    email: currentUser?.email || 'No email',
     avatar: '', // Avatar not available in User type - will use fallback
   }
 

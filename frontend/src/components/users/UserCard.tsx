@@ -264,7 +264,7 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
 
         <div className="text-xs space-y-1 mb-3">
           {settings.show_email_section && (
-            <p className="text-xs text-muted-foreground truncate" title={user.external_email ?? 'No email'}>
+            <p className="truncate" title={user.external_email ?? 'No email'}>
               <i className="fa-solid fa-at fa-fw mr-1 text-blue-400" /> Email: {user.external_email ?? 'No email'}
             </p>
           )}

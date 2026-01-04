@@ -11,6 +11,7 @@ import { UserDebugModal } from './UserDebugModal';
 import { cn } from '@/lib/utils';
 import { Badge } from '../common/Badge';
 import { getServicePalette, type ThemePalette } from '@/config/pluginMetadata';
+import { Play, Pause, Activity, Music, Loader2 } from 'lucide-react';
 
 export type UserNowPlaying = {
   state: string;
@@ -137,32 +138,18 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
     isService ? palette.avatar : 'bg-primary'
   );
 
-  const resolvePlaybackStatus = (state?: string) => {
-    const normalized = state?.toLowerCase();
-    if (normalized === 'playing' || normalized === 'listening') {
-      return {
-        color: 'bg-green-500',
-        label: normalized === 'listening' ? 'Listening' : 'Playing',
-        icon: normalized === 'playing' ? 'fa-solid fa-play' : null,
-      };
-    }
-    if (normalized === 'paused') {
-      return { color: 'bg-amber-500', label: 'Paused', icon: 'fa-solid fa-pause' };
-    }
-    if (normalized === 'buffering') {
-      return { color: 'bg-blue-500', label: 'Buffering', icon: 'fa-solid fa-circle-notch fa-spin' };
-    }
-    return { color: 'bg-muted', label: 'Active', icon: null };
+  // Helper to determine icon and color based on playback state
+  const getPlaybackInfo = (state?: string) => {
+    const s = state?.toLowerCase() || '';
+    if (s === 'playing') return { icon: Play, color: 'text-green-500', bg: 'bg-green-500/10', border: 'border-green-500/20', animate: true };
+    if (s === 'listening') return { icon: Music, color: 'text-green-500', bg: 'bg-green-500/10', border: 'border-green-500/20', animate: true };
+    if (s === 'paused') return { icon: Pause, color: 'text-amber-500', bg: 'bg-amber-500/10', border: 'border-amber-500/20', animate: false };
+    if (s === 'buffering') return { icon: Loader2, color: 'text-blue-500', bg: 'bg-blue-500/10', border: 'border-blue-500/20', animate: true, spin: true };
+    return { icon: Activity, color: 'text-muted-foreground', bg: 'bg-secondary/50', border: 'border-border/50', animate: false };
   };
-  const playbackStatus = nowPlaying ? resolvePlaybackStatus(nowPlaying.state) : null;
-  const nowPlayingLabel = playbackStatus
-    ? (playbackStatus.label === 'Playing' || playbackStatus.label === 'Listening'
-      ? `Now ${playbackStatus.label}`
-      : playbackStatus.label)
-    : null;
-  const nowPlayingTitle = nowPlaying?.serverName
-    ? `${nowPlaying.mediaTitle} · ${nowPlaying.serverName}`
-    : nowPlaying?.mediaTitle;
+
+  const playbackInfo = nowPlaying ? getPlaybackInfo(nowPlaying.state) : null;
+  const PlaybackIcon = playbackInfo?.icon;
 
   return (
     <Card
@@ -175,9 +162,9 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
       style={
         isSelected
           ? {
-              backgroundColor: `${palette.avatar}20`,
-              outlineColor: palette.avatar
-            }
+            backgroundColor: `${palette.avatar}20`,
+            outlineColor: palette.avatar
+          }
           : undefined
       }
     >
@@ -319,20 +306,53 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
           </div>
         )}
 
-        {settings.show_streamed_section && nowPlaying && playbackStatus ? (
-          <div className="mb-3 flex items-center gap-2">
-            <Badge color={playbackStatus.color} className="text-[0.65rem] font-semibold gap-1" hover={false}>
-              {playbackStatus.icon ? <i className={`${playbackStatus.icon} text-[0.6rem]`} /> : null}
-              {playbackStatus.label}
-            </Badge>
-            <span className="text-xs text-muted-foreground truncate" title={nowPlayingTitle}>
-              {nowPlayingLabel}: {nowPlaying.mediaTitle || 'Unknown Title'}
-            </span>
-            {nowPlaying.sessionCount && nowPlaying.sessionCount > 1 ? (
-              <span className="text-[0.65rem] text-muted-foreground/70">
-                +{nowPlaying.sessionCount - 1}
-              </span>
-            ) : null}
+        {/* Now Playing Section Redesign */}
+        {settings.show_streamed_section && nowPlaying && playbackInfo && PlaybackIcon ? (
+          <div className={cn(
+            "mb-3 relative overflow-hidden rounded-md border p-2.5",
+            playbackInfo.bg,
+            playbackInfo.border
+          )}>
+            <div className="flex items-start gap-3">
+              <div className={cn(
+                "relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-background/50 shadow-sm",
+                playbackInfo.color
+              )}>
+                <PlaybackIcon className={cn("h-4 w-4", playbackInfo.spin && "animate-spin")} />
+              </div>
+
+              <div className="flex-1 min-w-0 flex flex-col justify-center">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-semibold leading-none truncate w-full" title={nowPlaying.mediaTitle}>
+                    {nowPlaying.mediaTitle || 'Unknown Title'}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5 mt-1">
+                  <span className={cn(
+                    "text-[10px] font-bold uppercase tracking-wider",
+                    playbackInfo.color
+                  )}>
+                    {nowPlaying.state}
+                  </span>
+                  {nowPlaying.serverName && (
+                    <>
+                      <span className="text-[10px] text-muted-foreground/60">•</span>
+                      <span className="text-[10px] text-muted-foreground font-medium truncate max-w-[80px]" title={nowPlaying.serverName}>
+                        {nowPlaying.serverName}
+                      </span>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {nowPlaying.sessionCount && nowPlaying.sessionCount > 1 && (
+                <div className="flex shrink-0 items-center justify-center h-5 px-1.5 rounded-full bg-background/50 border border-border/50 shadow-sm">
+                  <span className="text-[10px] font-medium text-muted-foreground">
+                    +{nowPlaying.sessionCount - 1}
+                  </span>
+                </div>
+              )}
+            </div>
           </div>
         ) : null}
 

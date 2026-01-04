@@ -180,10 +180,13 @@ def _run_media_session_monitor(
             current_app.logger.debug("[%s] Active sessions details:", source_label)
             for index, session in enumerate(active_sessions, start=1):
                 if isinstance(session, dict):
+                    session_id = session.get('Id') or session.get('id') or session.get('session_id') or 'unknown'
+                    session_service = session.get('service_type', 'dict')
                     current_app.logger.debug(
-                        "  Session %d: Jellyfin session ID %s",
+                        "  Session %d: %s session ID %s",
                         index,
-                        session.get('Id', 'unknown'),
+                        session_service,
+                        session_id,
                     )
                 else:
                     current_app.logger.debug(
@@ -213,7 +216,7 @@ def _run_media_session_monitor(
 
         for session in active_sessions:
             if isinstance(session, dict):
-                session_key = session.get('Id')
+                session_key = session.get('Id') or session.get('id') or session.get('session_id')
                 service_type_value = session.get('service_type') or ServiceType.JELLYFIN.value
                 server_id = session.get('server_id')
             else:
@@ -238,7 +241,7 @@ def _run_media_session_monitor(
                 else:
                     session_server_map[session_key_str] = None
             else:
-                session_type = "Jellyfin" if isinstance(session, dict) else "Plex"
+                session_type = session.get('service_type', 'dict') if isinstance(session, dict) else "Plex"
                 current_app.logger.warning(
                     "[%s] Session missing key: %s - %s",
                     source_label,
@@ -369,6 +372,65 @@ def _run_media_session_monitor(
                             continue
                     else:
                         current_app.logger.warning(f"Jellyfin session {session_key} is missing UserName. Skipping.")
+                        continue
+                elif service_type_enum == ServiceType.AUDIOBOOKSHELF and isinstance(session, dict):
+                    abs_user_id = session.get('userId')
+                    abs_user_info = session.get('user') or {}
+                    if not abs_user_id:
+                        abs_user_id = abs_user_info.get('id')
+                    abs_username = abs_user_info.get('username') or session.get('username')
+
+                    if abs_user_id:
+                        user_media_access = User.query.filter_by(userType=UserType.SERVICE).filter_by(
+                            server_id=current_server.id,
+                            external_user_id=str(abs_user_id)
+                        ).first()
+                    if not user_media_access and abs_username:
+                        user_media_access = User.query.filter_by(userType=UserType.SERVICE).filter_by(
+                            server_id=current_server.id,
+                            external_username=abs_username
+                        ).first()
+
+                    if user_media_access:
+                        current_app.logger.debug(
+                            "LINKED: Found service user for AudiobookShelf user ID %s (ID: %s)",
+                            abs_user_id,
+                            user_media_access.id,
+                        )
+                        current_app.logger.debug(f"LINKED: linkedUserId = {user_media_access.linkedUserId}")
+                        current_app.logger.debug(f"LINKED: external_username = {user_media_access.external_username}")
+                        current_app.logger.debug(f"LINKED: server = {user_media_access.server.server_nickname}")
+
+                        mum_user = None
+                        if user_media_access.linkedUserId:
+                            mum_user = User.query.filter_by(
+                                userType=UserType.LOCAL,
+                                uuid=user_media_access.linkedUserId
+                            ).first()
+                        current_app.logger.debug(f"LINKED: linked user = {mum_user}")
+
+                        if not mum_user:
+                            current_app.logger.info(
+                                "Found standalone service user for AudiobookShelf user '%s' (ID: %s). Processing as standalone user.",
+                                abs_username or abs_user_id,
+                                user_media_access.id,
+                            )
+                        else:
+                            current_app.logger.info(
+                                "Found linked service user for AudiobookShelf user '%s' (ID: %s) linked to local user (ID: %s, username: %s). Processing as linked user.",
+                                abs_username or abs_user_id,
+                                user_media_access.id,
+                                mum_user.id,
+                                mum_user.localUsername,
+                            )
+                    else:
+                        current_app.logger.warning(
+                            "No service user found for AudiobookShelf session %s (user_id=%s, username=%s) on server '%s'. Skipping session.",
+                            session_key,
+                            abs_user_id,
+                            abs_username,
+                            current_server.server_nickname,
+                        )
                         continue
                 elif service_type_enum == ServiceType.PLEX:
                     # Plex session - look up by user ID via service user
@@ -517,6 +579,76 @@ def _run_media_session_monitor(
 
                         # Extract thumb for poster
                         thumb_url = getattr(session, 'thumb', None)
+                    elif service_type_enum == ServiceType.AUDIOBOOKSHELF and isinstance(session, dict):
+                        raw_duration = session.get('duration', 0)
+                        try:
+                            media_duration_s = int(float(raw_duration)) if raw_duration else 0
+                        except (TypeError, ValueError):
+                            media_duration_s = 0
+
+                        device_info = session.get('deviceInfo') or {}
+                        platform = device_info.get('osName', 'N/A')
+                        product = device_info.get('clientName', 'N/A')
+                        browser_name = device_info.get('browserName')
+                        player_title = device_info.get('deviceName')
+                        if not player_title:
+                            if browser_name and platform:
+                                player_title = f"{browser_name} on {platform}"
+                            elif browser_name:
+                                player_title = browser_name
+                            else:
+                                player_title = 'N/A'
+
+                        ip_address = device_info.get('ipAddress', 'N/A')
+                        if ip_address and ip_address.startswith('::ffff:'):
+                            ip_address = ip_address[7:]
+
+                        is_lan = False
+                        if ip_address and ip_address not in ('N/A', 'localhost', '127.0.0.1', '::1'):
+                            try:
+                                import ipaddress
+
+                                ip_value = ipaddress.ip_address(ip_address)
+                                is_lan = ip_value.is_private or ip_value.is_loopback
+                            except (ValueError, ipaddress.AddressValueError):
+                                is_lan = False
+                        else:
+                            is_lan = True
+
+                        media_metadata = session.get('mediaMetadata') or {}
+                        media_title = session.get('displayTitle') or media_metadata.get('title', "Unknown")
+                        media_type = session.get('mediaType', "Unknown")
+
+                        display_author = session.get('displayAuthor')
+                        if not display_author:
+                            authors = media_metadata.get('authors', [])
+                            if isinstance(authors, list) and authors:
+                                first_author = authors[0]
+                                if isinstance(first_author, dict):
+                                    display_author = first_author.get('name')
+                                else:
+                                    display_author = str(first_author)
+                        grandparent_title = None
+                        parent_title = display_author
+
+                        library_item_id = session.get('libraryItemId') or session.get('bookId')
+                        rating_key = str(library_item_id or session_key)
+                        external_media_item_id = str(library_item_id) if library_item_id else None
+
+                        current_time = session.get('currentTime', 0)
+                        try:
+                            view_offset_s = int(float(current_time)) if current_time else 0
+                        except (TypeError, ValueError):
+                            view_offset_s = 0
+
+                        library_name = session.get('libraryName')
+
+                        cover_path = session.get('coverPath')
+                        thumb_url = None
+                        if library_item_id:
+                            thumb_url = f"/admin/api/v2/media/audiobookshelf/images/proxy?path=items/{library_item_id}/cover"
+                        elif cover_path:
+                            thumb_url = f"/admin/api/v2/media/audiobookshelf/images/proxy?path={cover_path.lstrip('/')}"
                     else:
                         # Jellyfin session format (dict)
                         now_playing = session.get('NowPlayingItem', {})
@@ -632,6 +764,12 @@ def _run_media_session_monitor(
                                 # Plex session format
                                 view_offset_ms = getattr(session, 'viewOffset', 0)
                                 current_offset_s = int(view_offset_ms / 1000) if view_offset_ms else 0
+                            elif service_type_enum == ServiceType.AUDIOBOOKSHELF and isinstance(session, dict):
+                                current_time = session.get('currentTime', 0)
+                                try:
+                                    current_offset_s = int(float(current_time)) if current_time else 0
+                                except (TypeError, ValueError):
+                                    current_offset_s = 0
                             else:
                                 # Jellyfin session format (dict)
                                 play_state = session.get('PlayState', {})

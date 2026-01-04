@@ -40,6 +40,7 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection }: UserCa
   const [avatarLoading, setAvatarLoading] = useState(true);
   const [avatarError, setAvatarError] = useState(false);
   const effectiveAvatar = user.avatar_url;
+  const [showAllLibraries, setShowAllLibraries] = useState(false);
 
   // Debug modal state
   const [debugModalOpen, setDebugModalOpen] = useState(false);
@@ -290,10 +291,48 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection }: UserCa
               </span>):
             </p>
             {user.has_all_libraries ? (
-              <Badge color="bg-blue-500" className="text-xs font-medium gap-1" hover={false}>
-                <i className="fa-solid fa-layer-group w-3 h-3" />
-                All libraries on {user.server_nickname || 'server'}
-              </Badge>
+              <>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge color="bg-blue-500" className="text-xs font-medium gap-1" hover={false}>
+                    <i className="fa-solid fa-layer-group w-3 h-3" />
+                    All Libraries
+                  </Badge>
+                  {user.libraries && user.libraries.length > 0 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 px-2 text-[0.65rem]"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setShowAllLibraries((prev) => !prev);
+                      }}
+                    >
+                      {showAllLibraries ? 'Hide list' : 'Show list'}
+                      <i
+                        className={cn(
+                          'fa-solid ml-1',
+                          showAllLibraries ? 'fa-chevron-up' : 'fa-chevron-down'
+                        )}
+                      />
+                    </Button>
+                  )}
+                </div>
+                {showAllLibraries && user.libraries && user.libraries.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {user.libraries.map((library) => (
+                      <Badge
+                        key={library}
+                        color="bg-blue-500"
+                        className="text-xs font-medium gap-1"
+                        hover={false}
+                      >
+                        <i className="fa-solid fa-folder w-3 h-3 mt-0.5" />
+                        {library}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+              </>
             ) : user.libraries && user.libraries.length > 0 ? (
               <div className="flex flex-wrap gap-1">
                 {user.libraries.map((library) => (

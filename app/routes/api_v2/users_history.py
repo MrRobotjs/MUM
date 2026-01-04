@@ -90,6 +90,11 @@ def _serialize_stream_history(entry: MediaStreamHistory) -> dict:
         elif service_type == 'jellyfin':
             # Jellyfin paths like /Items/{Id}/Images/Primary need to go through jellyfin proxy
             poster_url = f"/admin/api/v2/media/jellyfin/images/proxy?path={entry.thumb_url.lstrip('/')}"
+        elif service_type == 'audiobookshelf':
+            if entry.thumb_url.startswith("/admin/api/v2/media/audiobookshelf/images/proxy"):
+                poster_url = entry.thumb_url
+            else:
+                poster_url = f"/admin/api/v2/media/audiobookshelf/images/proxy?path={entry.thumb_url.lstrip('/')}"
 
     return {
         "id": entry.id,

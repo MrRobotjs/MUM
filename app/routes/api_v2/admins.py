@@ -144,6 +144,10 @@ class UpdateAdminBody(BaseModel):
     role_ids: list[str] = []
 
 
+class AdminPath(BaseModel):
+    admin_id: int = Field(..., description="Admin user ID")
+
+
 @api_v2.patch(
     "/admins/<int:admin_id>",
     tags=[admins_tag],
@@ -152,7 +156,8 @@ class UpdateAdminBody(BaseModel):
 )
 @jwt_required_with_user()
 @jwt_permission_required('administrator')
-def update_admin(admin_id, current_user):
+def update_admin(path: AdminPath, current_user):
+    admin_id = path.admin_id
     request_id = str(uuid4())
     if current_user.id == admin_id:
         return jsonify({'error': {'code': 'SELF_EDIT_FORBIDDEN', 'message': 'Use the account page to manage your own roles.'}, 'meta': {'request_id': request_id}}), 400
@@ -191,7 +196,8 @@ class ResetAdminPasswordBody(BaseModel):
 )
 @jwt_required_with_user()
 @jwt_permission_required('administrator')
-def reset_admin_password(admin_id, current_user):
+def reset_admin_password(path: AdminPath, current_user):
+    admin_id = path.admin_id
     request_id = str(uuid4())
     if current_user.id == admin_id:
         return jsonify({'error': {'code': 'SELF_RESET_FORBIDDEN', 'message': 'Cannot reset your own password via this endpoint.'}, 'meta': {'request_id': request_id}}), 400
@@ -225,7 +231,8 @@ def reset_admin_password(admin_id, current_user):
 )
 @jwt_required_with_user()
 @jwt_permission_required('administrator')
-def delete_admin(admin_id, current_user):
+def delete_admin(path: AdminPath, current_user):
+    admin_id = path.admin_id
     request_id = str(uuid4())
     if current_user.id == admin_id:
         return jsonify({'error': {'code': 'SELF_DELETE_FORBIDDEN', 'message': 'You cannot delete your own account.'}, 'meta': {'request_id': request_id}}), 400

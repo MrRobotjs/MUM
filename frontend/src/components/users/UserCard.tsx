@@ -11,7 +11,7 @@ import { UserDebugModal } from './UserDebugModal';
 import { cn } from '@/lib/utils';
 import { Badge } from '../common/Badge';
 import { getServicePalette, type ThemePalette } from '@/config/pluginMetadata';
-import { Play, Pause, Activity, Music, Loader2 } from 'lucide-react';
+import { Folder, Play, Pause, Activity, Music, Loader2, Mail, Calendar, Clock, Server, StickyNote, Link, Library, Shield, User, Crown, Layers } from 'lucide-react';
 
 export type UserNowPlaying = {
   state: string;
@@ -150,6 +150,7 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
 
   const playbackInfo = nowPlaying ? getPlaybackInfo(nowPlaying.state) : null;
   const PlaybackIcon = playbackInfo?.icon;
+  const showLinkedSection = !isService || Boolean(user.linked_local_user);
 
   return (
     <Card
@@ -184,19 +185,20 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
           />
         </div>
       )}
-      <CardContent className="p-4 flex flex-col flex-1">
-        <div className="flex flex-row items-center mb-3">
-          <div className="mr-3 relative">
+      <CardContent className="p-4 flex flex-col flex-1 gap-4">
+        {/* Redesigned Header */}
+        <div className="flex flex-row items-center gap-4">
+          <div className="relative shrink-0">
             {effectiveAvatar && !avatarError ? (
               <>
                 {avatarLoading && (
-                  <Skeleton className="w-10 h-10 rounded-full absolute inset-0" />
+                  <Skeleton className="w-12 h-12 rounded-full absolute inset-0" />
                 )}
                 <img
                   src={effectiveAvatar}
                   alt={user.display_name || user.username || 'User avatar'}
                   className={cn(
-                    "w-10 h-10 rounded-full object-cover ring-2 ring-primary/20",
+                    "w-12 h-12 rounded-full object-cover ring-2 ring-background/50 shadow-sm",
                     avatarLoading && "opacity-0"
                   )}
                   onLoad={() => setAvatarLoading(false)}
@@ -207,109 +209,122 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
                 />
               </>
             ) : (
-              <div className={avatarClasses}>
+              <div className={cn(
+                "w-12 h-12 rounded-full flex items-center justify-center text-xl font-medium ring-2 ring-background/50 shadow-sm",
+                isService ? palette.avatar : 'bg-primary text-primary-foreground'
+              )}>
                 {(user.display_name || user.username || 'U')[0].toUpperCase()}
               </div>
             )}
           </div>
 
-          <div className="flex-1 min-w-0 space-y-1">
-            <h2 className="text-lg font-semibold truncate" title={user.display_name || user.username}>
+          <div className="flex-1 min-w-0 flex flex-col justify-center">
+            <h2 className="text-lg font-bold leading-tight truncate tracking-tight mb-1" title={user.display_name || user.username}>
               {user.display_name || user.username || 'Unnamed User'}
             </h2>
-            {isService ? (
-              <Badge color={palette.avatar} className="text-xs font-semibold gap-1" hover={false}>
-                <i className="fa-solid fa-server w-3 h-3 mt-0.5" />
-                {user.server_nickname || 'Service Account'}
-              </Badge>
-            ) : user.user_type.toLowerCase() === 'owner' ? (
-              <Badge color="bg-amber-500" className="text-xs font-semibold gap-1" hover={false}>
-                <i className="fa-solid fa-crown w-3 h-3 mt-0.5" />
-                Owner
-              </Badge>
-            ) : (
-              <Badge color="bg-primary" className="text-xs font-semibold gap-1" hover={false}>
-                <i className="fa-solid fa-user w-3 h-3 mt-0.5" />
-                Local Account
-              </Badge>
+
+            <div className="flex items-center gap-2">
+              {isService ? (
+                <Badge color={palette.avatar} className="text-xs font-semibold tracking-wider gap-1.5 border-border/30" hover={false}>
+                  <Server strokeWidth={3} className="w-3 h-3" />
+                  <span className="truncate max-w-[120px]">{user.server_nickname || 'Service Account'}</span>
+                </Badge>
+              ) : user.user_type.toLowerCase() === 'owner' ? (
+                <Badge color="bg-amber-500" className="text-xs font-semibold tracking-wider gap-1.5" hover={false}>
+                  <Crown strokeWidth={3} className="w-3 h-3" />
+                  <span>Owner</span>
+                </Badge>
+              ) : (
+                <Badge color="bg-primary" className="text-xs font-semibold tracking-wider gap-1.5" hover={false}>
+                  <User strokeWidth={3} className="w-3 h-3" />
+                  <span>Local User</span>
+                </Badge>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* User Details */}
+        <div className="flex flex-col gap-1.5 text-xs">
+
+          <div className="flex flex-col gap-1.5">
+            {settings.show_email_section && (
+              <div className="flex items-center gap-1.5 overflow-hidden" title={user.external_email ?? 'No email'}>
+                <Mail strokeWidth={3} className="h-3 w-3 shrink-0 text-blue-400" />
+                <span className="text-[10px] font-semibold uppercase tracking-wider shrink-0">Email:</span>
+                <span className="truncate">{user.external_email ?? 'No email'}</span>
+              </div>
+            )}
+            {settings.show_added_section && (
+              <div className="flex items-center gap-1.5 overflow-hidden" title={`Added: ${user.created_at ? new Date(user.created_at).toLocaleString() : 'Unknown'}`}>
+                <Calendar strokeWidth={3} className="h-3 w-3 shrink-0 text-blue-400" />
+                <span className="text-[10px] font-semibold uppercase tracking-wider shrink-0">Added:</span>
+                <span className="truncate">{user.created_at ? new Date(user.created_at).toLocaleDateString() : '—'}</span>
+              </div>
+            )}
+            {user.service_join_date && (
+              <div className="flex items-center gap-1.5 overflow-hidden" title={`Service Join: ${new Date(user.service_join_date).toLocaleString()}`}>
+                <Server strokeWidth={3} className="h-3 w-3 shrink-0 text-blue-400" />
+                <span className="text-[10px] font-semibold uppercase tracking-wider shrink-0">Joined:</span>
+                <span className="truncate">{new Date(user.service_join_date).toLocaleDateString()}</span>
+              </div>
+            )}
+            {settings.show_streamed_section && (
+              <div className="flex items-center gap-1.5 overflow-hidden" title={`Last Streamed: ${user.last_streamed_at ? new Date(user.last_streamed_at).toLocaleString() : 'Never'}`}>
+                <Clock strokeWidth={3} className={cn("h-3 w-3 shrink-0", user.last_streamed_at && "text-green-500")} />
+                <span className="text-[10px] font-semibold uppercase tracking-wider shrink-0">Seen:</span>
+                <span className="truncate">{user.last_streamed_at ? new Date(user.last_streamed_at).toLocaleDateString() : 'Never'}</span>
+              </div>
             )}
           </div>
         </div>
 
-        {/* Notes Section */}
+        {/* Notes Section - Redesigned */}
         {settings.show_user_notes && user.notes && (
-          <div className="mb-3 p-2 bg-yellow-500/10 rounded-md border border-yellow-500/20">
+          <div className="relative rounded-md bg-yellow-500/5 border border-yellow-500/10 p-2">
             <div className="flex items-start gap-2">
-              <i className="fa-solid fa-sticky-note text-yellow-400 mt-0.5" />
-              <div className="flex-1">
-                <p className="text-xs font-semibold text-yellow-400 mb-1">Notes:</p>
-                <p className="text-xs text-muted-foreground whitespace-pre-wrap">{user.notes}</p>
-              </div>
+              <StickyNote strokeWidth={3} className="h-3 w-3 text-yellow-500 shrink-0" />
+              <p className="text-[10px] text-muted-foreground leading-tight line-clamp-3">{user.notes}</p>
             </div>
           </div>
         )}
 
-        <div className="text-xs space-y-1 mb-3">
-          {settings.show_email_section && (
-            <p className="truncate" title={user.external_email ?? 'No email'}>
-              <i className="fa-solid fa-at fa-fw mr-1 text-blue-400" /> Email: {user.external_email ?? 'No email'}
-            </p>
-          )}
-          {settings.show_added_section && (
-            <p title={user.created_at ? new Date(user.created_at).toLocaleString() : undefined}>
-              <i className="fa-solid fa-calendar-plus fa-fw mr-1 text-blue-400" /> Added:{' '}
-              {user.created_at ? new Date(user.created_at).toLocaleDateString() : '—'}
-            </p>
-          )}
-          {settings.show_streamed_section && (
-            <p title={user.last_streamed_at ? new Date(user.last_streamed_at).toLocaleString() : undefined}>
-              <i className={`fa-solid fa-clock fa-fw mr-1 ${user.last_streamed_at ? 'text-green-400' : 'text-yellow-400'}`} /> Last
-              Streamed: {user.last_streamed_at ? new Date(user.last_streamed_at).toLocaleDateString() : 'Never'}
-            </p>
-          )}
-          {user.service_join_date && (
-            <p title={new Date(user.service_join_date).toLocaleString()}>
-              <i className="fa-solid fa-server fa-fw mr-1 text-blue-400" /> Service Join:{' '}
-              {new Date(user.service_join_date).toLocaleDateString()}
-            </p>
-          )}
-        </div>
-
-        {!isService && (
-          <div className="mb-3">
-            <p className="text-xs font-semibold mb-2">
-              Service Accounts (<span className="font-normal">{user.linked_service_count}</span>):
-            </p>
-            {user.linked_service_count > 0 ? (
-              <div className="flex flex-wrap gap-1">
-                <span className="inline-flex items-center rounded-md bg-muted px-2 py-1 text-xs font-medium ring-1 ring-inset ring-border gap-1">
-                  <i className="fa-solid fa-link w-3 h-3" />
-                  {user.linked_service_count} linked
+        {/* Linked Accounts - Redesigned */}
+        {showLinkedSection ? (
+          <div className="space-y-1">
+            {!isService && (
+              <div className="flex items-center justify-between rounded-md bg-secondary/30 px-2 py-1.5 border border-border/40">
+                <span className="text-[10px] font-medium text-muted-foreground flex items-center gap-1.5">
+                  <Link className="h-3 w-3" />
+                  Linked Services
+                </span>
+                <span className={cn(
+                  "text-[10px] font-semibold px-1.5 py-0.5 rounded-sm",
+                  user.linked_service_count > 0 ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
+                )}>
+                  {user.linked_service_count}
                 </span>
               </div>
-            ) : (
-              <span className="inline-flex items-center rounded-md bg-muted px-2 py-1 text-xs font-medium text-muted-foreground ring-1 ring-inset ring-border gap-1">
-                <i className="fa-solid fa-unlink w-2.5 h-2.5" />
-                No linked service accounts
-              </span>
+            )}
+
+            {isService && user.linked_local_user && (
+              <div className="flex items-center gap-2 rounded-md bg-primary/5 px-2 py-1.5 border border-primary/10">
+                <Link className="h-3 w-3 text-primary shrink-0" />
+                <div className="flex flex-col min-w-0">
+                  <span className="text-[10px] font-medium leading-none text-muted-foreground mb-0.5">Linked to</span>
+                  <span className="text-xs font-semibold leading-none truncate text-primary" title={user.linked_local_user.display_name || user.linked_local_user.username}>
+                    {user.linked_local_user.display_name || user.linked_local_user.username}
+                  </span>
+                </div>
+              </div>
             )}
           </div>
-        )}
-
-        {isService && user.linked_local_user && (
-          <div className="mb-3">
-            <p className="text-xs font-semibold mb-2">Linked Local Account:</p>
-            <span className="inline-flex items-center rounded-md bg-primary/10 px-2 py-1 text-xs font-medium text-primary ring-1 ring-inset ring-primary/20 gap-1">
-              <i className="fa-solid fa-link w-3 h-3" />
-              {user.linked_local_user.display_name || user.linked_local_user.username || 'Local Account'}
-            </span>
-          </div>
-        )}
+        ) : null}
 
         {/* Now Playing Section Redesign */}
         {settings.show_streamed_section && nowPlaying && playbackInfo && PlaybackIcon ? (
           <div className={cn(
-            "mb-3 relative overflow-hidden rounded-md border p-2.5",
+            "relative overflow-hidden rounded-md border p-2.5",
             playbackInfo.bg,
             playbackInfo.border
           )}>
@@ -357,33 +372,33 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
         ) : null}
 
         {isService && settings.show_libraries_section && (
-          <div className="mb-3">
-            <p className="text-xs font-semibold mb-2">
-              Libraries (<span className="font-normal">
-                {user.has_all_libraries ? 'All' : (user.libraries?.length ?? 0)}
-              </span>):
-            </p>
+          <div>
+            <div className="text-[10px] uppercase tracking-wider font-semibold mb-2 flex items-center gap-1.5">
+              <Library strokeWidth={3} className="h-3 w-3 text-blue-400" />
+              Libraries <span className="text-muted-foreground/60 font-normal">({user.has_all_libraries ? 'All' : (user.libraries?.length ?? 0)})</span>
+            </div>
+
             {user.has_all_libraries ? (
               <>
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge color="bg-blue-500" className="text-xs font-medium gap-1" hover={false}>
-                    <i className="fa-solid fa-layer-group w-3 h-3" />
+                    <Layers strokeWidth={3} className="w-3 h-3" />
                     All Libraries
                   </Badge>
                   {user.libraries && user.libraries.length > 0 && (
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-6 px-2 text-[0.65rem]"
+                      className="h-5 px-2 text-[10px] rounded-full hover:bg-white/10"
                       onClick={(event) => {
                         event.stopPropagation();
                         setShowAllLibraries((prev) => !prev);
                       }}
                     >
-                      {showAllLibraries ? 'Hide list' : 'Show list'}
+                      {showAllLibraries ? 'Hide' : 'Show'}
                       <i
                         className={cn(
-                          'fa-solid ml-1',
+                          'fa-solid ml-1 text-[8px]',
                           showAllLibraries ? 'fa-chevron-up' : 'fa-chevron-down'
                         )}
                       />
@@ -391,7 +406,7 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
                   )}
                 </div>
                 {showAllLibraries && user.libraries && user.libraries.length > 0 && (
-                  <div className="mt-2 flex flex-wrap gap-1">
+                  <div className="mt-2 flex flex-wrap gap-1.5 pl-1">
                     {user.libraries.map((library) => (
                       <Badge
                         key={library}
@@ -399,7 +414,6 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
                         className="text-xs font-medium gap-1"
                         hover={false}
                       >
-                        <i className="fa-solid fa-folder w-3 h-3 mt-0.5" />
                         {library}
                       </Badge>
                     ))}
@@ -407,7 +421,7 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
                 )}
               </>
             ) : user.libraries && user.libraries.length > 0 ? (
-              <div className="flex flex-wrap gap-1">
+              <div className="flex flex-wrap gap-1.5">
                 {user.libraries.map((library) => (
                   <Badge
                     key={library}
@@ -415,31 +429,33 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
                     className="text-xs font-medium gap-1"
                     hover={false}
                   >
-                    <i className="fa-solid fa-folder w-3 h-3 mt-0.5" />
+                    <Folder strokeWidth={3} className="w-3 h-3" />
                     {library}
                   </Badge>
                 ))}
               </div>
             ) : (
-              <Badge color="bg-muted" className="text-xs font-medium gap-1" hover={false}>
-                <i className="fa-solid fa-folder-open w-3 h-3" />
-                No libraries specifically shared
-              </Badge>
+              <span className="text-[10px] text-muted-foreground italic pl-1">
+                No libraries shared
+              </span>
             )}
           </div>
         )}
 
         {settings.show_roles_section && user.user_roles.length > 0 && (
-          <div className="mb-3">
-            <div className="text-xs font-medium mb-1">Roles:</div>
-            <div className="flex flex-wrap gap-1">
+          <div>
+            <div className="text-[10px] uppercase tracking-wider font-semibold mb-2 flex items-center gap-1.5">
+              <Shield className="h-3 w-3 text-blue-400" strokeWidth={3}/>
+              Roles
+            </div>
+            <div className="flex flex-wrap gap-1.5">
               {user.user_roles.map((role) => (
                 <Badge
                   key={role.name}
                   hexColor={role.color}
                   iconClass={role.icon}
                   roleKind="user"
-                  className="text-xs font-medium"
+                  className="text-xs font-medium gap-1"
                   hover={false}
                 >
                   {role.name}
@@ -450,11 +466,14 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
         )}
 
         {settings.show_roles_section && user.admin_roles.length > 0 && (
-          <div className="mb-3">
-            <div className="text-xs font-medium mb-1">Admin:</div>
-            <div className="flex flex-wrap gap-1">
+          <div>
+            <div className="text-[10px] uppercase tracking-wider font-semibold mb-2 flex items-center gap-1.5">
+              <Crown strokeWidth={3} className="h-3 w-3 text-amber-500" />
+              Admin Roles
+            </div>
+            <div className="flex flex-wrap gap-1.5">
               {user.admin_roles.map((role) => (
-                <Badge key={role} roleKind="admin" className="text-xs font-medium" hover={false}>
+                <Badge key={role} roleKind="admin" className="rounded-full px-2.5 py-0.5 text-[10px] font-medium shadow-sm bg-amber-500 text-white border-amber-600" hover={false}>
                   {role}
                 </Badge>
               ))}

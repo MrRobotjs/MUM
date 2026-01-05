@@ -333,6 +333,7 @@ class AudiobookShelfMediaService(BaseMediaService):
                     'email': user.get('email'),
                     'thumb': None,  # AudiobookShelf doesn't provide avatars in user list
                     'is_home_user': False,
+                    'created_at': user.get('createdAt'),
                     'library_ids': library_ids,
                     'is_admin': user.get('type') == 'admin',
                     'raw_data': user  # Store individual user's raw data (not the full response)

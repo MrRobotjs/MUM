@@ -297,6 +297,17 @@ class MediaServiceManager:
                                     else:
                                         access.external_avatar_url = f"/admin/api/v2/media/plex/images/proxy?path={thumb_url.lstrip('/')}"
                                     current_app.logger.info(f"Set Plex avatar URL for user {user_data.get('username')}: {access.external_avatar_url}")
+                            elif server.service_type == ServiceType.AUDIOBOOKSHELF:
+                                created_at = user_data.get('created_at')
+                                if created_at and str(created_at).isdigit():
+                                    try:
+                                        from datetime import timezone
+                                        join_date_dt = datetime.fromtimestamp(int(created_at) / 1000, tz=timezone.utc)
+                                        access.service_join_date = join_date_dt.replace(tzinfo=None)
+                                    except (ValueError, TypeError) as e:
+                                        current_app.logger.warning(
+                                            f"Failed to parse createdAt '{created_at}' for user {user_data.get('username')}: {e}"
+                                        )
                             
                             elif server.service_type == ServiceType.KAVITA:
                                 # Parse and set service_join_date from join_date field
@@ -359,6 +370,17 @@ class MediaServiceManager:
                             else:
                                 access.external_avatar_url = f"/admin/api/v2/media/plex/images/proxy?path={thumb_url.lstrip('/')}"
                             current_app.logger.info(f"Set Plex avatar URL for new user {user_data.get('username')}: {access.external_avatar_url}")
+                    elif server.service_type == ServiceType.AUDIOBOOKSHELF:
+                        created_at = user_data.get('created_at')
+                        if created_at and str(created_at).isdigit():
+                            try:
+                                from datetime import timezone
+                                join_date_dt = datetime.fromtimestamp(int(created_at) / 1000, tz=timezone.utc)
+                                access.service_join_date = join_date_dt.replace(tzinfo=None)
+                            except (ValueError, TypeError) as e:
+                                current_app.logger.warning(
+                                    f"Failed to parse createdAt '{created_at}' for new user {user_data.get('username')}: {e}"
+                                )
                     
                     elif server.service_type == ServiceType.KAVITA:
                         # Parse and set service_join_date from join_date field
@@ -424,6 +446,17 @@ class MediaServiceManager:
                             changes.append(f"Avatar URL removed")
                             access.external_avatar_url = None
                             current_app.logger.info(f"Removed Plex avatar URL for user {user_data.get('username')}")
+                    elif server.service_type == ServiceType.AUDIOBOOKSHELF:
+                        created_at = user_data.get('created_at')
+                        if created_at and str(created_at).isdigit():
+                            try:
+                                from datetime import timezone
+                                join_date_dt = datetime.fromtimestamp(int(created_at) / 1000, tz=timezone.utc)
+                                access.service_join_date = join_date_dt.replace(tzinfo=None)
+                            except (ValueError, TypeError) as e:
+                                current_app.logger.warning(
+                                    f"Failed to parse createdAt '{created_at}' for user {user_data.get('username')}: {e}"
+                                )
                     
                     old_library_ids = set(access.allowed_library_ids or [])
                     new_library_ids = set(user_data.get('library_ids', []))

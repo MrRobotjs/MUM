@@ -120,6 +120,10 @@ class JellyfinMediaService(BaseMediaService):
                         "thumb": None,
                         "is_home_user": False,
                         "allow_downloads": allow_downloads,
+                        "raw_data": {
+                            "user": user,
+                            "policy": policy,
+                        },
                     }
                 )
             return result

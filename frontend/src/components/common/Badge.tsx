@@ -12,6 +12,7 @@ export interface BadgeProps {
   hexColor?: string | null;
   /** Role styling shortcut for user/admin role badges. */
   roleKind?: 'user' | 'admin';
+  badgeStyle?: 'default' | 'fill' | 'outline';
   icon?: ReactNode;
   iconClass?: string | null;
   className?: string;
@@ -26,6 +27,35 @@ export interface BadgeProps {
 type BadgeStyle = CSSProperties & {
   '--badge-color'?: string;
   [key: string]: string | number | undefined;
+};
+
+const resolveBadgeStyle = (value?: string | null): 'default' | 'fill' | 'outline' => {
+  if (value === 'fill' || value === 'outline') {
+    return value;
+  }
+  return 'default';
+};
+
+const parseHexColor = (hex?: string | null) => {
+  if (!hex) return null;
+  const cleaned = hex.trim();
+  if (!/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(cleaned)) return null;
+  const normalized = cleaned.length === 4
+    ? `#${cleaned[1]}${cleaned[1]}${cleaned[2]}${cleaned[2]}${cleaned[3]}${cleaned[3]}`
+    : cleaned;
+  const value = normalized.slice(1);
+  return {
+    r: parseInt(value.slice(0, 2), 16),
+    g: parseInt(value.slice(2, 4), 16),
+    b: parseInt(value.slice(4, 6), 16),
+  };
+};
+
+const getReadableTextColor = (hex?: string | null) => {
+  const rgb = parseHexColor(hex);
+  if (!rgb) return '#ffffff';
+  const luminance = (0.2126 * rgb.r + 0.7152 * rgb.g + 0.0722 * rgb.b) / 255;
+  return luminance > 0.6 ? '#111827' : '#ffffff';
 };
 
 const resolveColorVariable = (bgClass: string): string => {
@@ -72,6 +102,7 @@ export const Badge = ({
   color = 'bg-muted',
   hexColor,
   roleKind,
+  badgeStyle,
   icon,
   iconClass,
   className,
@@ -125,13 +156,28 @@ export const Badge = ({
       : undefined);
   const colorOverride = hexColor ? { '--badge-color': hexColor } : null;
   const [isHovering, setIsHovering] = useState(false);
+  const resolvedStyle = resolveBadgeStyle(badgeStyle);
+  const baseBackground = isHoverable && isHovering ? 'var(--badge-bg-hover)' : 'var(--badge-bg)';
+  const baseBorder = `1.5px solid ${isHoverable && isHovering ? 'var(--badge-border-hover)' : 'var(--badge-border)'}`;
+  const baseText = isHoverable && isHovering ? 'var(--badge-text-hover)' : 'var(--badge-text)';
+  const fillBackground = hexColor ?? 'var(--badge-color)';
+  const fillBorder = `1.5px solid ${hexColor ?? 'var(--badge-color)'}`;
+  const fillText = hexColor ? getReadableTextColor(hexColor) : 'var(--badge-text)';
   const inlineStyle: BadgeStyle = {
     ...styleVars,
     ...(colorOverride ?? {}),
     ...(style ?? {}),
-    backgroundColor: isHoverable && isHovering ? 'var(--badge-bg-hover)' : 'var(--badge-bg)',
-    border: `1.5px solid ${isHoverable && isHovering ? 'var(--badge-border-hover)' : 'var(--badge-border)'}`,
-    color: isHoverable && isHovering ? 'var(--badge-text-hover)' : 'var(--badge-text)',
+    backgroundColor: resolvedStyle === 'fill'
+      ? fillBackground
+      : resolvedStyle === 'outline'
+        ? 'transparent'
+        : baseBackground,
+    border: resolvedStyle === 'fill'
+      ? fillBorder
+      : baseBorder,
+    color: resolvedStyle === 'fill'
+      ? fillText
+      : baseText,
   };
 
   return (

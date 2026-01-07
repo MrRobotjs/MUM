@@ -166,6 +166,7 @@ def get_user_detail(user_uuid):
                 'name': role.name,
                 'color': getattr(role, 'color', None),
                 'icon': getattr(role, 'icon', None),
+                'badge_style': getattr(role, 'badge_style', None),
                 'description': getattr(role, 'description', None)
             }
             for role in getattr(user, 'user_roles', [])

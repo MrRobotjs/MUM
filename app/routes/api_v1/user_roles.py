@@ -10,6 +10,21 @@ from app.models import UserRole, User
 from app.extensions import db
 from datetime import datetime
 
+DEFAULT_BADGE_STYLE = "default"
+VALID_BADGE_STYLES = {"default", "fill", "outline"}
+
+
+def _normalize_badge_style(value: str | None) -> str | None:
+    if value is None:
+        return DEFAULT_BADGE_STYLE
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if not normalized:
+            return DEFAULT_BADGE_STYLE
+        if normalized in VALID_BADGE_STYLES:
+            return normalized
+    return None
+
 def _is_auto_managed_role(role: UserRole) -> bool:
     return bool(getattr(role, "is_auto_managed", False))
 
@@ -22,6 +37,7 @@ def _serialize_user_role(role, include_users=False):
         'description': role.description,
         'color': role.color,
         'icon': role.icon,
+        'badge_style': getattr(role, 'badge_style', DEFAULT_BADGE_STYLE),
         'is_auto_managed': role.is_auto_managed,
         'created_at': role.created_at.isoformat() if role.created_at else None,
         'updated_at': role.updated_at.isoformat() if role.updated_at else None
@@ -135,12 +151,24 @@ def create_user_role():
             'meta': {'request_id': request_id}
         }), 409
 
+    badge_style = _normalize_badge_style(data.get('badge_style'))
+    if badge_style is None:
+        return jsonify({
+            'error': {
+                'code': 'VALIDATION_ERROR',
+                'message': 'Invalid badge_style. Expected one of: default, fill, outline.',
+                'details': {'badge_style': data.get('badge_style')}
+            },
+            'meta': {'request_id': request_id}
+        }), 422
+
     # Create role
     role = UserRole(
         name=data['name'],
         description=data.get('description'),
         color=data.get('color', '#808080'),
-        icon=data.get('icon')
+        icon=data.get('icon'),
+        badge_style=badge_style
     )
 
     try:
@@ -214,6 +242,19 @@ def update_user_role(role_id):
     for field in updatable_fields:
         if field in data:
             setattr(role, field, data[field])
+
+    if 'badge_style' in data:
+        badge_style = _normalize_badge_style(data.get('badge_style'))
+        if badge_style is None:
+            return jsonify({
+                'error': {
+                    'code': 'VALIDATION_ERROR',
+                    'message': 'Invalid badge_style. Expected one of: default, fill, outline.',
+                    'details': {'badge_style': data.get('badge_style')}
+                },
+                'meta': {'request_id': request_id}
+            }), 422
+        role.badge_style = badge_style
 
     role.updated_at = datetime.utcnow()
 

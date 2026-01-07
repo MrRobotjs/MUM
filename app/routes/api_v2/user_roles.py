@@ -15,6 +15,20 @@ from sqlalchemy import func
 
 
 roles_tag = Tag(name="User Roles", description="Visual user roles")
+DEFAULT_BADGE_STYLE = "default"
+VALID_BADGE_STYLES = {"default", "fill", "outline"}
+
+
+def _normalize_badge_style(value: str | None) -> str | None:
+    if value is None:
+        return DEFAULT_BADGE_STYLE
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if not normalized:
+            return DEFAULT_BADGE_STYLE
+        if normalized in VALID_BADGE_STYLES:
+            return normalized
+    return None
 def _is_auto_managed_role(role: UserRole) -> bool:
     return bool(getattr(role, "is_auto_managed", False))
 
@@ -38,6 +52,7 @@ class UserRoleRef(BaseModel):
     description: str | None = None
     color: str | None = None
     icon: str | None = None
+    badge_style: str | None = None
     is_auto_managed: bool | None = None
     created_at: str | None = None
     updated_at: str | None = None
@@ -67,6 +82,7 @@ def _serialize_user_role(role, include_users=False, include_counts=False):
         'description': role.description,
         'color': role.color,
         'icon': role.icon,
+        'badge_style': getattr(role, 'badge_style', DEFAULT_BADGE_STYLE),
         'is_auto_managed': role.is_auto_managed,
         'created_at': role.created_at.isoformat() if role.created_at else None,
         'updated_at': role.updated_at.isoformat() if role.updated_at else None
@@ -129,6 +145,7 @@ class CreateRoleBody(BaseModel):
     description: str | None = None
     color: str | None = None
     icon: str | None = None
+    badge_style: str | None = None
 
 
 @api_v2.post(
@@ -154,7 +171,17 @@ def create_user_role(current_user):
     description = data.get('description')
     color = data.get('color')
     icon = data.get('icon')
-    role = UserRole(name=name, description=description, color=color, icon=icon)
+    badge_style = _normalize_badge_style(data.get('badge_style'))
+    if badge_style is None:
+        return jsonify({
+            'error': {
+                'code': 'VALIDATION_ERROR',
+                'message': 'Invalid badge_style. Expected one of: default, fill, outline.',
+                'details': {'badge_style': data.get('badge_style')},
+            },
+            'meta': {'request_id': request_id},
+        }), 422
+    role = UserRole(name=name, description=description, color=color, icon=icon, badge_style=badge_style)
     db.session.add(role)
     db.session.commit()
     return jsonify({'data': _serialize_user_role(role), 'meta': {'request_id': request_id}}), 201
@@ -165,6 +192,7 @@ class UpdateRoleBody(BaseModel):
     description: str | None = None
     color: str | None = None
     icon: str | None = None
+    badge_style: str | None = None
 
 
 @api_v2.patch(
@@ -190,6 +218,18 @@ def update_user_role(path: RolePath, current_user):
     for field in ['description', 'color', 'icon']:
         if field in data:
             setattr(role, field, data[field])
+    if 'badge_style' in data:
+        badge_style = _normalize_badge_style(data.get('badge_style'))
+        if badge_style is None:
+            return jsonify({
+                'error': {
+                    'code': 'VALIDATION_ERROR',
+                    'message': 'Invalid badge_style. Expected one of: default, fill, outline.',
+                    'details': {'badge_style': data.get('badge_style')},
+                },
+                'meta': {'request_id': request_id},
+            }), 422
+        role.badge_style = badge_style
     role.updated_at = datetime.utcnow()
     try:
         db.session.commit()

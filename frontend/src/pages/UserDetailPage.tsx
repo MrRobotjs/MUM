@@ -267,6 +267,7 @@ const ProfileTab = ({ user }: { user: UserDetail }) => {
                       hexColor={role.color}
                       iconClass={role.icon}
                       roleKind="user"
+                      badgeStyle={role.badge_style ?? undefined}
                       className="text-xs font-medium"
                       title={role.description ?? undefined}
                       hover={false}

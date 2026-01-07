@@ -34,6 +34,7 @@ export type UserRow = {
     name: string;
     color?: string | null;
     icon?: string | null;
+    badge_style?: string | null;
   }>;
   linked_service_count: number;
   server_nickname?: string;
@@ -476,6 +477,7 @@ export const UsersTable = ({
                               hexColor={role.color}
                               iconClass={role.icon}
                               roleKind="user"
+                              badgeStyle={role.badge_style ?? undefined}
                               className="text-xs font-medium"
                             >
                               {role.name}

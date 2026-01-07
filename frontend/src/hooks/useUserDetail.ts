@@ -13,6 +13,7 @@ export type UserRoleDetail = {
   name: string;
   color?: string | null;
   icon?: string | null;
+  badge_style?: string | null;
   description?: string | null;
 };
 

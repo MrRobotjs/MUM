@@ -63,6 +63,7 @@ export const UserRoleDisplayTab = ({ role, onUpdate }: UserRoleDisplayTabProps) 
     description: role.description || '',
     color: role.color || '#3b82f6',
     icon: role.icon || '',
+    badge_style: role.badge_style || 'default',
   })
   const [submitting, setSubmitting] = useState(false)
 
@@ -209,6 +210,23 @@ export const UserRoleDisplayTab = ({ role, onUpdate }: UserRoleDisplayTabProps) 
   }
 
   const currentIconDef = resolveCurrentIcon();
+  const badgeStyleOptions: Array<{ value: 'default' | 'fill' | 'outline'; label: string; description: string }> = [
+    {
+      value: 'default',
+      label: 'Default',
+      description: 'Soft background with a subtle border.',
+    },
+    {
+      value: 'fill',
+      label: 'Fill',
+      description: 'Solid color badge with strong contrast.',
+    },
+    {
+      value: 'outline',
+      label: 'Outline',
+      description: 'Border-only style with no background.',
+    },
+  ];
 
   return (
     <div className="space-y-6">
@@ -574,6 +592,49 @@ export const UserRoleDisplayTab = ({ role, onUpdate }: UserRoleDisplayTabProps) 
               </p>
             </div>
 
+            {/* Badge Style */}
+            <div className="space-y-3">
+              <Label>Badge Style</Label>
+              <div className="grid gap-3 sm:grid-cols-3">
+                {badgeStyleOptions.map((option) => {
+                  const isSelected = formValues.badge_style === option.value;
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => setFormValues({ ...formValues, badge_style: option.value })}
+                      aria-pressed={isSelected}
+                      className={cn(
+                        'flex flex-col items-start gap-2 rounded-lg border p-3 text-left transition',
+                        isSelected
+                          ? 'border-primary bg-primary/5 shadow-sm'
+                          : 'border-border bg-muted/30 hover:border-border/60'
+                      )}
+                    >
+                      <Badge
+                        hexColor={formValues.color}
+                        icon={
+                          currentIconDef
+                            ? <FontAwesomeIcon icon={currentIconDef} className="text-[0.65rem]" />
+                            : undefined
+                        }
+                        iconClass={!currentIconDef ? formValues.icon || null : null}
+                        roleKind="user"
+                        badgeStyle={option.value}
+                        className="rounded-full px-3 py-1 text-xs"
+                      >
+                        {formValues.name || 'Role Name'}
+                      </Badge>
+                      <div>
+                        <div className="text-xs font-semibold text-foreground">{option.label}</div>
+                        <div className="text-[10px] text-muted-foreground">{option.description}</div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
             {/* Live Preview */}
             <div className="rounded-lg border border-dashed border-border bg-muted/40 p-4">
               <p className="text-xs font-medium uppercase text-muted-foreground">Live preview</p>
@@ -587,6 +648,7 @@ export const UserRoleDisplayTab = ({ role, onUpdate }: UserRoleDisplayTabProps) 
                   }
                   iconClass={!currentIconDef ? formValues.icon || null : null}
                   roleKind="user"
+                  badgeStyle={formValues.badge_style}
                   className="rounded-full px-3 py-1 text-sm shadow-sm"
                 >
                   {formValues.name || 'Role Name'}

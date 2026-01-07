@@ -476,6 +476,7 @@ def list_users(query: UsersQuery, current_user):
                 "name": getattr(r, "name", None),
                 "color": getattr(r, "color", None),
                 "icon": getattr(r, "icon", None),
+                "badge_style": getattr(r, "badge_style", None),
                 "description": getattr(r, "description", None),
             })
         item["user_roles"] = uroles

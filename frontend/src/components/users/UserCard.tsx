@@ -458,6 +458,7 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
                   hexColor={role.color}
                   iconClass={role.icon}
                   roleKind="user"
+                  badgeStyle={role.badge_style ?? undefined}
                   className="text-xs font-medium gap-1 rounded-full"
                   hover={false}
                 >

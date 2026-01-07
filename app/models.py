@@ -178,6 +178,7 @@ class UserRole(db.Model):
     description = db.Column(db.Text, nullable=True)
     color = db.Column(db.String(7), nullable=True, default='#808080')
     icon = db.Column(db.String(100), nullable=True)
+    badge_style = db.Column(db.String(20), nullable=False, default='default')
     is_auto_managed = db.Column(db.Boolean, default=False, nullable=False)
     created_at = db.Column(db.DateTime, default=utcnow, nullable=False)
     updated_at = db.Column(db.DateTime, default=utcnow, onupdate=utcnow, nullable=False)

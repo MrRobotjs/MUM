@@ -14,7 +14,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { ResponsiveDialog } from '@/components/ui/responsive-dialog'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
@@ -93,7 +92,7 @@ export const UserRoleDisplayTab = ({ role, onUpdate }: UserRoleDisplayTabProps) 
     return found?.definition || null;
   }
 
-  // Load icons lazily when the popover opens
+  // Load icons lazily when the browser opens
   useEffect(() => {
     if (iconBrowseOpen && !iconsLoaded && !loadingIcons) {
       const loadIcons = async () => {
@@ -467,121 +466,107 @@ export const UserRoleDisplayTab = ({ role, onUpdate }: UserRoleDisplayTabProps) 
                     </ResponsiveDialog>
                   </>
                 ) : (
-                  <Popover open={iconBrowseOpen} onOpenChange={handleBrowseOpenChange}>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" className="gap-2" type="button">
-                        <IconGridDots className="size-4" />
-                        Browse Icons
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-[600px] p-0" align="end" side="top">
+                  <>
+                    <Button variant="outline" className="gap-2" type="button" onClick={() => handleBrowseOpenChange(true)}>
+                      <IconGridDots className="size-4" />
+                      Browse Icons
+                    </Button>
+                    <ResponsiveDialog
+                      open={iconBrowseOpen}
+                      onOpenChange={handleBrowseOpenChange}
+                      title="Browse icons"
+                      description="Choose a Font Awesome style and icon."
+                      bodyClassName="px-0"
+                      contentClassName="max-w-4xl"
+                    >
                       {loadingIcons ? (
-                        <div className="flex h-64 items-center justify-center flex-col gap-3">
+                        <div className="flex h-64 items-center justify-center flex-col gap-3 px-4">
                           <div className="inline-flex size-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
                           <p className="text-sm text-muted-foreground">Loading full icon library...</p>
                         </div>
-                      ) : (
-                        <div className="flex h-[500px]">
-                          {/* Sidebar */}
-                          <div className="w-48 border-r border-border bg-muted/20">
-                            <div className="p-3 border-b border-border">
-                              <h4 className="text-xs font-semibold uppercase text-muted-foreground">Styles</h4>
-                            </div>
-                            <div className="h-[calc(100%-45px)] overflow-y-auto custom-scrollbar">
-                              <div className="p-2 space-y-1">
-                                {styleOptions.map(style => {
-                                  const count = loadedIcons[style.id]?.length || 0;
-
-                                  const isActive = activeStyleFilters.includes(style.id)
-                                  return (
-                                    <button
-                                      key={style.id}
-                                      type="button"
-                                      onClick={() => {
-                                        setActiveStyleFilters((prev) => (
-                                          prev.includes(style.id)
-                                            ? prev.filter((value) => value !== style.id)
-                                            : [...prev, style.id]
-                                        ))
-                                      }}
-                                      className={cn(
-                                        "w-full text-left px-2 py-2 rounded-md text-xs transition-colors flex justify-between items-center group/cat",
-                                        isActive
-                                          ? "bg-primary/10 text-primary font-medium"
-                                          : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                                      )}
-                                    >
-                                      <span className="flex items-center gap-2">
-                                        <FontAwesomeIcon icon={styleIcons[style.id]} className="text-xs" />
-                                        {style.label}
-                                      </span>
-                                      <span className={cn(
-                                        "text-[10px] opacity-70",
-                                        isActive
-                                          ? "text-primary/70"
-                                          : "text-muted-foreground group-hover/cat:text-foreground"
-                                      )}>
-                                        {count}
-                                      </span>
-                                    </button>
-                                  )
-                                })}
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Main Content */}
-                          <div className="flex-1 flex flex-col min-w-0">
-                            <div className="p-3 border-b border-border flex gap-2">
-                              <div className="relative flex-1">
-                                <IconSearch className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-                                <Input
-                                  placeholder={`Search ${availableIconsCount} icons...`}
-                                  value={iconBrowseQuery}
-                                  onChange={(e) => setIconBrowseQuery(e.target.value)}
-                                  className="h-9 pl-9 text-xs"
-                                />
-                              </div>
-                            </div>
-
-                            <div className="flex-1 p-3 overflow-y-auto custom-scrollbar">
-                              {filteredDisplayIcons.length === 0 ? (
-                                <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
-                                  <IconSearch className="size-8 mb-2 opacity-50" />
-                                  <p className="text-sm font-medium">No icons found</p>
-                                  <p className="text-xs opacity-70">
-                                    No icons match your filters and search.
-                                  </p>
-                                </div>
-                              ) : (
-                                <div className="grid grid-cols-6 gap-2" key={activeStyleFilters.join('-') || 'all'}>
-                                  {filteredDisplayIcons.map((icon) => (
-                                    <button
-                                      key={`${icon.prefix}-${icon.iconName}`}
-                                      type="button"
-                                      onClick={() => handleIconSelect(icon)}
-                                      className="group flex flex-col items-center justify-center gap-2 rounded-md border border-transparent p-2 text-muted-foreground hover:border-border hover:bg-muted/50 hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 aspect-square"
-                                      title={icon.label}
-                                    >
-                                      <FontAwesomeIcon icon={icon.definition} className="text-xl" />
-                                      <span className="text-[9px] text-center w-full truncate leading-tight opacity-70 group-hover:opacity-100">
-                                        {icon.label}
-                                      </span>
-                                    </button>
-                                  ))}
-                                </div>
-                              )}
-                              {!iconBrowseQuery && filteredDisplayIcons.length < availableIconsCount && (
-                                <div className="p-4 text-center text-xs text-muted-foreground italic">
-                                  Showing top 300 icons. Search to find more...
-                                </div>
-                              )}
-                            </div>
-                          </div>
+                  ) : (
+                    <div className="flex h-[520px] flex-col">
+                      <div className="p-3 border-b border-border space-y-3">
+                        <div className="relative">
+                          <IconSearch className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                          <Input
+                            placeholder={`Search ${availableIconsCount} icons...`}
+                            value={iconBrowseQuery}
+                            onChange={(e) => setIconBrowseQuery(e.target.value)}
+                            className="h-9 pl-9 text-xs"
+                          />
                         </div>
-                      )}
-                    </PopoverContent>
-                  </Popover>
+                        <div className="flex flex-wrap gap-2">
+                          {styleOptions.map((style) => {
+                            const isActive = activeStyleFilters.includes(style.id)
+                            return (
+                              <button
+                                key={style.id}
+                                type="button"
+                                onClick={() => {
+                                  setActiveStyleFilters((prev) => (
+                                    prev.includes(style.id)
+                                      ? prev.filter((value) => value !== style.id)
+                                      : [...prev, style.id]
+                                  ))
+                                }}
+                                className="rounded-full focus:outline-none focus:ring-2 focus:ring-primary/30"
+                                aria-pressed={isActive}
+                              >
+                                <Badge
+                                  color={isActive ? 'bg-primary' : 'bg-muted/60'}
+                                  className={cn(
+                                    "rounded-full px-3 py-1 text-xs font-medium gap-1",
+                                    isActive ? "text-primary-foreground" : "text-muted-foreground"
+                                  )}
+                                  hover={false}
+                                >
+                                  <FontAwesomeIcon icon={styleIcons[style.id]} className="text-[0.65rem]" />
+                                  {style.label}
+                                </Badge>
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
+
+                      <div className="flex-1 p-3 overflow-y-auto custom-scrollbar">
+                        {filteredDisplayIcons.length === 0 ? (
+                          <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
+                            <IconSearch className="size-8 mb-2 opacity-50" />
+                            <p className="text-sm font-medium">No icons found</p>
+                            <p className="text-xs opacity-70">
+                              No icons match your filters and search.
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-6 gap-2" key={activeStyleFilters.join('-') || 'all'}>
+                            {filteredDisplayIcons.map((icon) => (
+                              <button
+                                key={`${icon.prefix}-${icon.iconName}`}
+                                type="button"
+                                onClick={() => handleIconSelect(icon)}
+                                className="group flex flex-col items-center justify-center gap-2 rounded-md border border-transparent p-2 text-muted-foreground hover:border-border hover:bg-muted/50 hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 aspect-square"
+                                title={icon.label}
+                              >
+                                <FontAwesomeIcon icon={icon.definition} className="text-xl" />
+                                <span className="text-[9px] text-center w-full truncate leading-tight opacity-70 group-hover:opacity-100">
+                                  {icon.label}
+                                </span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        {!iconBrowseQuery && filteredDisplayIcons.length < availableIconsCount && (
+                          <div className="p-4 text-center text-xs text-muted-foreground italic">
+                            Showing top 300 icons. Search to find more...
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                    </ResponsiveDialog>
+                  </>
                 )}
               </div>
               <p className="text-xs text-muted-foreground">

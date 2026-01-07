@@ -75,6 +75,22 @@ export const AdminSettingsUserRolesPage = () => {
   });
   const [submitting, setSubmitting] = useState(false);
 
+  const resolveRoleIconClass = (icon?: string | null) => {
+    if (!icon) return null;
+    const trimmed = icon.trim();
+    if (!trimmed) return null;
+    const hasStyle =
+      trimmed.includes('fa-solid') ||
+      trimmed.includes('fa-regular') ||
+      trimmed.includes('fa-brands') ||
+      trimmed.includes('fa-light') ||
+      trimmed.includes('fa-thin') ||
+      trimmed.includes('fa-duotone');
+    if (hasStyle) return trimmed;
+    if (trimmed.includes('fa-')) return `fa-solid ${trimmed}`;
+    return trimmed;
+  };
+
   const handleCreate = () => {
     setEditingRole(null);
     setFormValues({
@@ -354,7 +370,7 @@ export const AdminSettingsUserRolesPage = () => {
                               }}
                             >
                               {role.icon ? (
-                                <i className={`fa-solid ${role.icon}`} style={{ color: role.color || '#808080' }} />
+                                <i className={resolveRoleIconClass(role.icon) ?? ''} style={{ color: role.color || '#808080' }} />
                               ) : (
                                 <i className="fa-solid fa-tag" style={{ color: role.color || '#808080' }} />
                               )}

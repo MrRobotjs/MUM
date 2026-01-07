@@ -1,9 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import type { IconDefinition } from '@fortawesome/fontawesome-svg-core'
-import { faStar as faStarSolid } from '@fortawesome/free-solid-svg-icons'
-import { faStar as faStarRegular } from '@fortawesome/free-regular-svg-icons'
-import { faDiscord } from '@fortawesome/free-brands-svg-icons'
 import { IconPalette, IconDeviceFloppy, IconInfoCircle, IconSearch, IconX, IconCategory, IconGridDots } from '@tabler/icons-react'
 import { UserRole } from '../../hooks/useUserRoles'
 import { useAlerts } from '../../contexts'
@@ -18,6 +15,7 @@ import { ResponsiveDialog } from '@/components/ui/responsive-dialog'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/common/Badge'
+import { AtSign, Square, SquareDashed } from 'lucide-react'
 
 interface UserRoleDisplayTabProps {
   role: UserRole
@@ -141,10 +139,10 @@ export const UserRoleDisplayTab = ({ role, onUpdate }: UserRoleDisplayTabProps) 
     { id: 'regular', label: 'Regular' },
     { id: 'brands', label: 'Brands' }
   ];
-  const styleIcons: Record<IconSetType, IconDefinition> = {
-    solid: faStarSolid,
-    regular: faStarRegular,
-    brands: faDiscord,
+  const styleIcons: Record<IconSetType, React.ComponentType<{ className?: string }>> = {
+    solid: Square,
+    regular: SquareDashed,
+    brands: AtSign,
   };
 
   const filteredDisplayIcons = useMemo(() => {
@@ -454,6 +452,7 @@ export const UserRoleDisplayTab = ({ role, onUpdate }: UserRoleDisplayTabProps) 
                             <div className="grid grid-cols-3 gap-3">
                               {styleOptions.map(style => {
                                 const isActive = activeStyleFilters.includes(style.id)
+                                const StyleIcon = styleIcons[style.id]
                                 return (
                                   <button
                                     key={style.id}
@@ -473,7 +472,7 @@ export const UserRoleDisplayTab = ({ role, onUpdate }: UserRoleDisplayTabProps) 
                                         : "hover:bg-muted hover:text-foreground"
                                     )}
                                   >
-                                    <FontAwesomeIcon icon={styleIcons[style.id]} className="text-sm" />
+                                    <StyleIcon className="text-sm" />
                                   </button>
                                 )
                               })}
@@ -517,6 +516,7 @@ export const UserRoleDisplayTab = ({ role, onUpdate }: UserRoleDisplayTabProps) 
                         <div className="flex flex-wrap gap-2">
                           {styleOptions.map((style) => {
                             const isActive = activeStyleFilters.includes(style.id)
+                            const StyleIcon = styleIcons[style.id]
                             return (
                               <button
                                 key={style.id}
@@ -539,7 +539,7 @@ export const UserRoleDisplayTab = ({ role, onUpdate }: UserRoleDisplayTabProps) 
                                   )}
                                   hover={false}
                                 >
-                                  <FontAwesomeIcon icon={styleIcons[style.id]} className="text-[0.65rem]" />
+                                  <StyleIcon className="text-[0.65rem]" />
                                   {style.label}
                                 </Badge>
                               </button>

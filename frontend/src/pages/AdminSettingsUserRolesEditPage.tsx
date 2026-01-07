@@ -75,14 +75,6 @@ export const AdminSettingsUserRolesEditPage = () => {
           </div>
         </div>
 
-        {/* Info Notice */}
-        <Alert variant="info">
-          <IconInfoCircle />
-          <AlertTitle>Visual Role Only</AlertTitle>
-          <AlertDescription>
-            User roles are cosmetic badges and do not grant any permissions or access. Use Admin Roles to manage access levels.
-          </AlertDescription>
-        </Alert>
       </div>
 
       {/* Tabs */}

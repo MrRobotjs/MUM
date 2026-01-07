@@ -261,6 +261,15 @@ def get_user(path: UserPath, current_user):
         "is_active": user.is_active,
         "notes": user.notes,
         "roles": _serialize_roles(user),
+        "admin_roles_detail": [
+            {
+                "name": role.name,
+                "color": getattr(role, "color", None),
+                "icon": getattr(role, "icon", None),
+                "description": getattr(role, "description", None),
+            }
+            for role in getattr(user, "admin_roles", [])
+        ],
         "user_roles_detail": [
             {
                 "name": role.name,

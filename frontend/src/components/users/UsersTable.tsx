@@ -24,6 +24,12 @@ export type UserRow = {
   service_join_date?: string | null;
   is_active: boolean;
   admin_roles: string[];
+  admin_roles_detail?: Array<{
+    name: string;
+    color?: string | null;
+    icon?: string | null;
+    description?: string | null;
+  }>;
   user_roles: Array<{
     name: string;
     color?: string | null;
@@ -138,6 +144,12 @@ export const UsersTable = ({
   const navigate = useNavigate();
   const [debugUserUuid, setDebugUserUuid] = useState<string | null>(null);
   const [expandedLibraryUsers, setExpandedLibraryUsers] = useState<Set<string>>(new Set());
+  const getAdminRoleBadges = (user: UserRow) => {
+    if (user.admin_roles_detail && user.admin_roles_detail.length > 0) {
+      return user.admin_roles_detail;
+    }
+    return user.admin_roles.map((role) => ({ name: role }));
+  };
 
   const toggleLibraryExpansion = (userId: string) => {
     setExpandedLibraryUsers((prev) => {
@@ -446,9 +458,16 @@ export const UsersTable = ({
                     {columns.roles ? (
                       <TableCell>
                         <div className="flex flex-wrap gap-1">
-                          {user.admin_roles.map((role) => (
-                            <Badge key={role} roleKind="admin" className="text-xs font-medium">
-                              {role}
+                          {getAdminRoleBadges(user).map((role) => (
+                            <Badge
+                              key={role.name}
+                              hexColor={role.color ?? undefined}
+                              iconClass={role.icon ?? undefined}
+                              roleKind="admin"
+                              className="text-xs font-medium"
+                              title={role.description ?? undefined}
+                            >
+                              {role.name}
                             </Badge>
                           ))}
                           {user.user_roles.map((role) => (

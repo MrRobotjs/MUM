@@ -80,6 +80,7 @@ export type UserDetail = {
     admin_roles: string[];
     user_roles: string[];
   };
+  admin_roles_detail?: UserRoleDetail[];
   user_roles_detail: UserRoleDetail[];
   service_accounts: Array<{
     uuid: string;
@@ -104,6 +105,7 @@ const normalizeUserDetail = (detail: UserDetail): UserDetail => ({
   stream_stats: detail.stream_stats ?? { global: {}, players: [] },
   service_accounts: detail.service_accounts ?? [],
   history: detail.history ?? [],
+  admin_roles_detail: detail.admin_roles_detail ?? [],
   user_roles_detail: detail.user_roles_detail ?? []
 });
 

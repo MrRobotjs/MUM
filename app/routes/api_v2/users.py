@@ -53,6 +53,7 @@ class UserItem(BaseModel):
     last_player: Optional[str] = None
     is_active: bool
     admin_roles: list[str] = []
+    admin_roles_detail: list[dict] = []
     linked_service_count: int = 0
     notes: Optional[str] = None
     # v1-compatible extras
@@ -175,6 +176,15 @@ def _to_item(u: User) -> dict:
         "last_login_at": u.last_login_at.isoformat() + "Z" if getattr(u, "last_login_at", None) else None,
         "is_active": bool(getattr(u, "is_active", True)),
         "admin_roles": [r.name for r in getattr(u, "admin_roles", [])] if getattr(u, "admin_roles", None) else [],
+        "admin_roles_detail": [
+            {
+                "name": getattr(r, "name", None),
+                "color": getattr(r, "color", None),
+                "icon": getattr(r, "icon", None),
+                "description": getattr(r, "description", None),
+            }
+            for r in getattr(u, "admin_roles", []) or []
+        ],
         "linked_service_count": _linked_service_count(u),
         "notes": getattr(u, "notes", None),
     }

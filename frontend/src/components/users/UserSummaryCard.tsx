@@ -14,6 +14,12 @@ export type UserSummary = {
     admin_roles: string[];
     user_roles: string[];
   };
+  admin_roles_detail?: Array<{
+    name: string;
+    color?: string | null;
+    icon?: string | null;
+    description?: string | null;
+  }>;
 };
 
 type UserSummaryCardProps = {
@@ -22,6 +28,9 @@ type UserSummaryCardProps = {
 
 export const UserSummaryCard = ({ user }: UserSummaryCardProps) => {
   const statusVariant = user.is_active ? 'secondary' : 'outline';
+  const adminRoleBadges = user.admin_roles_detail && user.admin_roles_detail.length > 0
+    ? user.admin_roles_detail
+    : user.roles.admin_roles.map((role) => ({ name: role }));
 
   return (
     <Card className="shadow-sm">
@@ -58,9 +67,17 @@ export const UserSummaryCard = ({ user }: UserSummaryCardProps) => {
           <div>
             <div className="text-xs uppercase text-muted-foreground">Admin Roles</div>
             <div className="mt-1 flex flex-wrap gap-1">
-              {user.roles.admin_roles.map((role) => (
-                <Badge key={role} roleKind="admin" className="text-xs font-medium" hover={false}>
-                  {role}
+              {adminRoleBadges.map((role) => (
+                <Badge
+                  key={role.name}
+                  hexColor={role.color}
+                  iconClass={role.icon}
+                  roleKind="admin"
+                  className="text-xs font-medium"
+                  title={role.description ?? undefined}
+                  hover={false}
+                >
+                  {role.name}
                 </Badge>
               ))}
             </div>

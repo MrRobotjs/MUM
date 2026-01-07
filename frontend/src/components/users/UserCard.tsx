@@ -5,7 +5,7 @@ import { buildUserProfilePath } from '../../util/routes';
 import type { UserRow } from './UsersTable';
 import { Checkbox } from '../ui/checkbox';
 import { Button } from '../ui/button';
-import { Card, CardContent } from '../ui/card';
+import { Card, CardContent, CardFooter } from '../ui/card';
 import { Skeleton } from '../ui/skeleton';
 import { UserDebugModal } from './UserDebugModal';
 import { cn } from '@/lib/utils';
@@ -151,11 +151,14 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
   const playbackInfo = nowPlaying ? getPlaybackInfo(nowPlaying.state) : null;
   const PlaybackIcon = playbackInfo?.icon;
   const showLinkedSection = !isService || Boolean(user.linked_local_user);
+  const adminRoleBadges = user.admin_roles_detail && user.admin_roles_detail.length > 0
+    ? user.admin_roles_detail
+    : user.admin_roles.map((role) => ({ name: role }));
 
   return (
     <Card
       className={cn(
-        'shadow-lg hover:shadow-xl transition-all p-0 duration-200 ease-in-out relative group cursor-pointer flex flex-col',
+        'shadow-lg hover:shadow-xl transition-all p-0 duration-200 ease-in-out relative group cursor-pointer flex flex-col gap-0',
         cardGradient(),
         isSelected && 'ring-2 ring-primary ring-offset-2 ring-offset-background'
       )}
@@ -455,7 +458,7 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
                   hexColor={role.color}
                   iconClass={role.icon}
                   roleKind="user"
-                  className="text-xs font-medium gap-1"
+                  className="text-xs font-medium gap-1 rounded-full"
                   hover={false}
                 >
                   {role.name}
@@ -465,50 +468,55 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
           </div>
         )}
 
-        {settings.show_roles_section && user.admin_roles.length > 0 && (
+        {settings.show_roles_section && adminRoleBadges.length > 0 && (
           <div>
             <div className="text-[10px] uppercase tracking-wider font-semibold mb-2 flex items-center gap-1.5">
               <Crown strokeWidth={3} className="h-3 w-3 text-amber-500" />
               Admin Roles
             </div>
             <div className="flex flex-wrap gap-1.5">
-              {user.admin_roles.map((role) => (
-                <Badge key={role} roleKind="admin" className="rounded-full px-2.5 py-0.5 text-[10px] font-medium shadow-sm bg-amber-500 text-white border-amber-600" hover={false}>
-                  {role}
+              {adminRoleBadges.map((role) => (
+                <Badge
+                  key={role.name}
+                  hexColor={role.color ?? undefined}
+                  iconClass={role.icon ?? undefined}
+                  roleKind="admin"
+                  className="rounded-full gap-1 text-xs font-medium"
+                  title={role.description ?? undefined}
+                  hover={false}
+                >
+                  {role.name}
                 </Badge>
               ))}
             </div>
           </div>
         )}
 
-        {/* Spacer to push footer to bottom */}
-        <div className="flex-1" />
-
-        <div className="flex justify-end pt-3 border-t border-border/90">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={(e) => {
-              e.stopPropagation();
-              setDebugModalOpen(true);
-            }}
-            title="Show Raw User Data"
-          >
-            <i className="fa-solid fa-info" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={(e) => {
-              e.stopPropagation();
-              navigate({ to: buildUserProfilePath(user), state: { userUuid: user.uuid } });
-            }}
-            title="View User Profile"
-          >
-            <i className="fa-solid fa-user" />
-          </Button>
-        </div>
       </CardContent>
+      <CardFooter className="mt-auto justify-end border-t border-border/90 px-4 py-3 !pt-3">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={(e) => {
+            e.stopPropagation();
+            setDebugModalOpen(true);
+          }}
+          title="Show Raw User Data"
+        >
+          <i className="fa-solid fa-info" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={(e) => {
+            e.stopPropagation();
+            navigate({ to: buildUserProfilePath(user), state: { userUuid: user.uuid } });
+          }}
+          title="View User Profile"
+        >
+          <i className="fa-solid fa-user" />
+        </Button>
+      </CardFooter>
 
       <UserDebugModal
         open={debugModalOpen}

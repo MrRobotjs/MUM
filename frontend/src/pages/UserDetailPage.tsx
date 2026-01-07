@@ -42,6 +42,9 @@ const ProfileTab = ({ user }: { user: UserDetail }) => {
   const playerStats = user.stream_stats?.players ?? [];
   const isServiceUser = user.user_type.toLowerCase() === 'service';
   const roleBadges = user.user_roles_detail;
+  const adminRoleBadges = user.admin_roles_detail && user.admin_roles_detail.length > 0
+    ? user.admin_roles_detail
+    : user.roles.admin_roles.map((role) => ({ name: role }));
 
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
@@ -231,13 +234,21 @@ const ProfileTab = ({ user }: { user: UserDetail }) => {
 
             <div>
               <div className="text-xs uppercase text-muted-foreground/60">Admin Roles</div>
-              {user.roles.admin_roles.length === 0 ? (
+              {adminRoleBadges.length === 0 ? (
                 <p className="mt-1 text-sm text-muted-foreground">No admin roles assigned.</p>
               ) : (
                 <div className="mt-2 flex flex-wrap gap-2">
-                  {user.roles.admin_roles.map((role) => (
-                    <Badge key={role} roleKind="admin" className="text-xs font-semibold" hover={false}>
-                      {role}
+                  {adminRoleBadges.map((role) => (
+                    <Badge
+                      key={role.name}
+                      hexColor={role.color}
+                      iconClass={role.icon}
+                      roleKind="admin"
+                      className="text-xs font-semibold"
+                      title={role.description ?? undefined}
+                      hover={false}
+                    >
+                      {role.name}
                     </Badge>
                   ))}
                 </div>

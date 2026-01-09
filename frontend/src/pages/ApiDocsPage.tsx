@@ -78,6 +78,9 @@ export const ApiDocsPage = () => {
             darkMode: document.documentElement.classList.contains('dark'),
             searchHotKey: 'k',
             showSidebar: true,
+            authentication: {
+              preferredSecurityScheme: 'BearerAuth',
+            },
           }}
         />
       </div>

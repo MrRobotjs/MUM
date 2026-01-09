@@ -70,6 +70,11 @@ def _build_invite_state(invite: Invite) -> Dict[str, Any]:
     require_discord_guild = bool(invite.require_discord_guild_membership)
     discord_guild_id = Setting.get('DISCORD_GUILD_ID')
     discord_invite_url = Setting.get('DISCORD_SERVER_INVITE_URL')
+    guild_verified = session.get(f'{prefix}discord_guild_verified')
+    guild_error = session.get(f'{prefix}discord_guild_error')
+    if not require_discord_guild:
+        guild_verified = None
+        guild_error = None
 
     has_plex_servers = any(server.service_type.name.upper() == 'PLEX' for server in invite.servers)
     servers_with_libraries: Dict[int, Dict[str, Any]] = {}
@@ -264,6 +269,8 @@ def _build_invite_state(invite: Invite) -> Dict[str, Any]:
             'user': already_authenticated_discord_user,
             'guild_id': discord_guild_id,
             'invite_url': discord_invite_url,
+            'guild_verified': guild_verified,
+            'guild_error': guild_error,
         },
         'account': {
             'allowed': allow_user_accounts,
@@ -333,6 +340,37 @@ def _handle_discord_oauth_callback(invite: Invite, fallback_path: str):
             'discriminator': discord_user.get('discriminator'),
             'verified': discord_user.get('verified'),
         }
+        if invite.require_discord_guild_membership:
+            guild_id = Setting.get('DISCORD_GUILD_ID')
+            is_member = False
+            if guild_id:
+                guilds_url = f"{DISCORD_API_BASE_URL}/users/@me/guilds"
+                guilds_response = requests.get(guilds_url, headers=auth_headers, timeout=10)
+                if guilds_response.ok:
+                    try:
+                        guilds = guilds_response.json()
+                        guild_id_str = str(guild_id)
+                        is_member = any(
+                            str(guild.get('id')) == guild_id_str
+                            for guild in guilds
+                            if isinstance(guild, dict)
+                        )
+                    except Exception:
+                        is_member = False
+                else:
+                    current_app.logger.warning(
+                        "Discord guild check failed for invite %s: %s - %s",
+                        invite.id,
+                        guilds_response.status_code,
+                        guilds_response.text[:200],
+                    )
+            if not is_member:
+                session.pop(f'{prefix}discord_user', None)
+                session[f'{prefix}discord_guild_verified'] = False
+                session[f'{prefix}discord_guild_error'] = "You must join the Discord server before continuing."
+            else:
+                session[f'{prefix}discord_guild_verified'] = True
+                session.pop(f'{prefix}discord_guild_error', None)
     except Exception as exc:
         current_app.logger.error("Discord callback failed for invite %s: %s", invite.id, exc)
     return_path = session.get(f'invite_{invite.id}_return_path')
@@ -738,6 +776,16 @@ def complete_invite_v2(path: InvitePath):
     if requires_discord and oauth_enabled and not discord_user:
         return _error_response(request_id, 400, 'DISCORD_REQUIRED', 'Discord account linking is required for this invite.')
 
+    if invite.require_discord_guild_membership:
+        guild_verified = session.get(f'{prefix}discord_guild_verified')
+        if guild_verified is not True:
+            return _error_response(
+                request_id,
+                400,
+                'DISCORD_GUILD_REQUIRED',
+                'You must be a member of the required Discord server before completing the invite.',
+            )
+
     if allow_user_accounts and not account_data:
         return _error_response(request_id, 400, 'ACCOUNT_REQUIRED', 'Account details must be provided before completing the invite.')
 
@@ -802,6 +850,8 @@ def complete_invite_v2(path: InvitePath):
         # Clear session markers for this invite
         session.pop(f'{prefix}plex_user', None)
         session.pop(f'{prefix}discord_user', None)
+        session.pop(f'{prefix}discord_guild_verified', None)
+        session.pop(f'{prefix}discord_guild_error', None)
         session.pop(f'{prefix}plex_conflict', None)
         session.pop(f'{prefix}return_path', None)
         session.pop(f'{prefix}user_account_created', None)

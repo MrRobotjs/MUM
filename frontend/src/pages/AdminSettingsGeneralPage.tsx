@@ -20,6 +20,8 @@ const buildGeneralFormValues = (settings: GeneralSettings | null): GeneralSettin
   session_monitoring_interval: 30, // Not editable here - managed in streaming settings
   api_timeout_seconds: 3, // Not editable here - managed in advanced settings
   jwt_cookie_secure: false,
+  jwt_access_token_expires_minutes: 10,
+  jwt_refresh_token_expires_days: 14,
   ...(settings ?? {}),
 });
 
@@ -178,6 +180,38 @@ const GeneralSettingsForm = ({ initialValues, refresh }: GeneralSettingsFormProp
                 </span>
               )}
             </p>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="jwt_access_token_expires_minutes">Access Token Expiration (minutes)</Label>
+              <Input
+                id="jwt_access_token_expires_minutes"
+                type="number"
+                min={1}
+                max={1440}
+                value={formValues.jwt_access_token_expires_minutes}
+                onChange={(e) => handleChange('jwt_access_token_expires_minutes', Number(e.target.value))}
+              />
+              <p className="text-xs text-muted-foreground">
+                Shorter values require more frequent refreshes. Range: 1-1440 minutes.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="jwt_refresh_token_expires_days">Refresh Token Expiration (days)</Label>
+              <Input
+                id="jwt_refresh_token_expires_days"
+                type="number"
+                min={1}
+                max={365}
+                value={formValues.jwt_refresh_token_expires_days}
+                onChange={(e) => handleChange('jwt_refresh_token_expires_days', Number(e.target.value))}
+              />
+              <p className="text-xs text-muted-foreground">
+                Controls how long users stay signed in without logging in again. Range: 1-365 days.
+              </p>
+            </div>
           </div>
         </CardContent>
       </Card>

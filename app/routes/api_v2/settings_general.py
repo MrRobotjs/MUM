@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from uuid import uuid4
+from datetime import timedelta
 from flask import jsonify, request, current_app, g
 from app.utils.jwt_decorators import jwt_required_with_user, jwt_permission_required
 from pydantic import BaseModel, Field, field_validator
@@ -23,11 +24,37 @@ class GeneralSettingsData(BaseModel):
     session_monitoring_interval: int
     api_timeout_seconds: int
     jwt_cookie_secure: bool
+    jwt_access_token_expires_minutes: int
+    jwt_refresh_token_expires_days: int
 
 
 class GeneralSettingsResponse(BaseModel):
     data: GeneralSettingsData
     meta: dict
+
+
+def _get_jwt_access_minutes() -> int:
+    stored = Setting.get("JWT_ACCESS_TOKEN_EXPIRES_MINUTES")
+    if stored is not None:
+        return int(stored)
+    configured = current_app.config.get("JWT_ACCESS_TOKEN_EXPIRES")
+    if isinstance(configured, timedelta):
+        return max(1, int(configured.total_seconds() // 60))
+    if isinstance(configured, (int, float)):
+        return max(1, int(configured // 60))
+    return 10
+
+
+def _get_jwt_refresh_days() -> int:
+    stored = Setting.get("JWT_REFRESH_TOKEN_EXPIRES_DAYS")
+    if stored is not None:
+        return int(stored)
+    configured = current_app.config.get("JWT_REFRESH_TOKEN_EXPIRES")
+    if isinstance(configured, timedelta):
+        return max(1, int(configured.total_seconds() // 86400))
+    if isinstance(configured, (int, float)):
+        return max(1, int(configured // 86400))
+    return 14
 
 
 def _serialize_general_settings() -> dict:
@@ -39,6 +66,8 @@ def _serialize_general_settings() -> dict:
         "session_monitoring_interval": Setting.get("SESSION_MONITORING_INTERVAL_SECONDS", 30),
         "api_timeout_seconds": Setting.get("API_TIMEOUT_SECONDS", current_app.config.get("API_TIMEOUT_SECONDS", 3)),
         "jwt_cookie_secure": Setting.get_bool("JWT_COOKIE_SECURE", bool(current_app.config.get("JWT_COOKIE_SECURE", False))),
+        "jwt_access_token_expires_minutes": _get_jwt_access_minutes(),
+        "jwt_refresh_token_expires_days": _get_jwt_refresh_days(),
     }
 
 
@@ -63,6 +92,8 @@ class UpdateGeneralBody(BaseModel):
     session_monitoring_interval: int
     api_timeout_seconds: int
     jwt_cookie_secure: bool = Field(default=False, description="Use Secure cookie flag for refresh tokens (enable on HTTPS)")
+    jwt_access_token_expires_minutes: int
+    jwt_refresh_token_expires_days: int
 
     @field_validator("app_base_url")
     @classmethod
@@ -80,6 +111,20 @@ class UpdateGeneralBody(BaseModel):
             return v
         if not (v.startswith("http://") or v.startswith("https://")):
             raise ValueError("Local application URL must start with http:// or https://.")
+        return v
+
+    @field_validator("jwt_access_token_expires_minutes")
+    @classmethod
+    def validate_access_minutes(cls, v: int):
+        if v < 1 or v > 1440:
+            raise ValueError("Access token expiration must be between 1 and 1440 minutes.")
+        return v
+
+    @field_validator("jwt_refresh_token_expires_days")
+    @classmethod
+    def validate_refresh_days(cls, v: int):
+        if v < 1 or v > 365:
+            raise ValueError("Refresh token expiration must be between 1 and 365 days.")
         return v
 
 
@@ -111,6 +156,8 @@ def update_general_settings(body: UpdateGeneralBody, current_user):
     session_interval = body.session_monitoring_interval
     api_timeout = body.api_timeout_seconds
     jwt_cookie_secure = bool(body.jwt_cookie_secure)
+    access_minutes = int(body.jwt_access_token_expires_minutes)
+    refresh_days = int(body.jwt_refresh_token_expires_days)
 
     if not app_base_url:
         return jsonify({"error": {"code": "BASE_URL_REQUIRED", "message": "Application base URL is required."}, "meta": {"request_id": request_id}}), 400
@@ -134,6 +181,8 @@ def update_general_settings(body: UpdateGeneralBody, current_user):
     Setting.set("SESSION_MONITORING_INTERVAL_SECONDS", session_interval, SettingValueType.INTEGER, "Session Monitoring Interval")
     Setting.set("API_TIMEOUT_SECONDS", api_timeout, SettingValueType.INTEGER, "API Request Timeout")
     Setting.set("JWT_COOKIE_SECURE", jwt_cookie_secure, SettingValueType.BOOLEAN, "JWT Refresh Cookie Secure Flag")
+    Setting.set("JWT_ACCESS_TOKEN_EXPIRES_MINUTES", access_minutes, SettingValueType.INTEGER, "JWT Access Token Expiration (Minutes)")
+    Setting.set("JWT_REFRESH_TOKEN_EXPIRES_DAYS", refresh_days, SettingValueType.INTEGER, "JWT Refresh Token Expiration (Days)")
 
     current_app.config["APP_NAME"] = app_name or current_app.config.get("APP_NAME")
     current_app.config["APP_BASE_URL"] = app_base_url.rstrip("/")
@@ -141,6 +190,8 @@ def update_general_settings(body: UpdateGeneralBody, current_user):
     current_app.config["SESSION_MONITORING_INTERVAL_SECONDS"] = session_interval
     current_app.config["API_TIMEOUT_SECONDS"] = api_timeout
     current_app.config["JWT_COOKIE_SECURE"] = jwt_cookie_secure
+    current_app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(minutes=access_minutes)
+    current_app.config["JWT_REFRESH_TOKEN_EXPIRES"] = timedelta(days=refresh_days)
     if hasattr(g, "app_name"):
         g.app_name = current_app.config["APP_NAME"]
     if hasattr(g, "app_base_url"):

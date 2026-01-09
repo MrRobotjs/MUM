@@ -3,6 +3,7 @@ import os
 import logging
 from logging.handlers import RotatingFileHandler
 import secrets
+from datetime import timedelta
 from werkzeug.middleware.proxy_fix import ProxyFix
 from flask import request, redirect, url_for, current_app, send_from_directory, jsonify
 from urllib.parse import quote
@@ -49,6 +50,14 @@ def initialize_settings_from_db(app_instance):
             db_sk = settings_dict.get('SECRET_KEY')
             if db_sk:
                 app_instance.config['SECRET_KEY'] = db_sk
+
+            access_minutes = settings_dict.get('JWT_ACCESS_TOKEN_EXPIRES_MINUTES')
+            if isinstance(access_minutes, int):
+                app_instance.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(minutes=access_minutes)
+
+            refresh_days = settings_dict.get('JWT_REFRESH_TOKEN_EXPIRES_DAYS')
+            if isinstance(refresh_days, int):
+                app_instance.config['JWT_REFRESH_TOKEN_EXPIRES'] = timedelta(days=refresh_days)
 
             app_instance.logger.info("Application settings loaded from database.")
 

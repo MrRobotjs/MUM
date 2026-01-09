@@ -119,6 +119,8 @@ type WizardState = {
     } | null;
     guild_id?: string | null;
     invite_url?: string | null;
+    guild_verified?: boolean | null;
+    guild_error?: string | null;
   };
   account: WizardAccount;
   servers: WizardServer[];
@@ -1233,6 +1235,20 @@ export const InviteWizardPage = () => {
                       </div>
                     </div>
                   </div>
+
+                  {state.discord.guild_error && (
+                    <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4 mb-6">
+                      <div className="flex items-start gap-3">
+                        <div className="w-6 h-6 rounded-full bg-destructive/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                          <i className="fa-solid fa-triangle-exclamation text-destructive text-xs" />
+                        </div>
+                        <div>
+                          <h4 className="font-medium text-destructive mb-1">Discord Server Membership Required</h4>
+                          <p className="text-sm text-foreground/80">{state.discord.guild_error}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {state.discord.requires_guild && (
                     <div className="bg-[#5865F2]/10 border border-[#5865F2]/20 rounded-lg p-4 mb-6">

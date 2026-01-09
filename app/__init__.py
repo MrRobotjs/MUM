@@ -98,9 +98,17 @@ def create_app(config_name=None):
     # Do NOT set servers with a base path because paths registered below already
     # include '/admin/api/v2', and adding a server with that prefix would duplicate it in examples.
     info = Info(title="Media User Manager API", version="2.0.0")
+    security_schemes = {
+        "BearerAuth": {
+            "type": "http",
+            "scheme": "bearer",
+            "bearerFormat": "JWT",
+        }
+    }
     app = OpenAPI(
         __name__,
         info=info,
+        security_schemes=security_schemes,
         instance_relative_config=True,
         # Expose docs and JSON under admin namespace to avoid conflicts
         doc_prefix="/admin/api/v2/openapi",

@@ -9,6 +9,7 @@ account_tag = Tag(name="Account", description="Account management endpoints")
 api_v2 = APIBlueprint(
     name="api_v2",
     import_name=__name__,
+    abp_security=[{"BearerAuth": []}],
 )
 
 # Ensure module sub-imports register their routes on api_v2

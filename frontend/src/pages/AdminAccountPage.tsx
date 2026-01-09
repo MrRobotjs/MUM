@@ -760,7 +760,7 @@ const AdminAccountPage = () => {
               <IconUserShield className="h-10 w-10" />
             </div>
             <div className="space-y-1">
-              <h1 className="text-3xl font-semibold text-foreground md:text-4xl">{displayName}</h1>
+              <h1 className="text-3xl font-semibold text-foreground md:text-4xl text-center">{displayName}</h1>
               <p className="text-sm text-muted-foreground">{account.user.email || account.user.username || 'Administrator'}</p>
             </div>
             <Badge variant="outline" className="gap-2 uppercase tracking-wide">

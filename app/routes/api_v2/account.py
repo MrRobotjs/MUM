@@ -6,6 +6,7 @@ from uuid import uuid4
 from flask import jsonify, current_app
 from app.utils.jwt_decorators import jwt_required_with_user
 from pydantic import BaseModel, Field, field_validator
+from sqlalchemy import func
 
 from app.extensions import db
 from app.models import User, UserPreferences, UserType, EventType
@@ -77,6 +78,20 @@ class UpdateTimezoneBody(BaseModel):
 class InitialCredentialsBody(BaseModel):
     username: str = Field(..., min_length=3, max_length=80)
     password: str = Field(..., min_length=8)
+
+
+class UpdateEmailBody(BaseModel):
+    email: str
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, v: str) -> str:
+        email = (v or "").strip()
+        if not email:
+            raise ValueError("Email is required.")
+        if "@" not in email or email.startswith("@") or email.endswith("@"):
+            raise ValueError("Email must be a valid address.")
+        return email
 
 
 class UserPreferencesResponse(BaseModel):
@@ -273,6 +288,69 @@ def set_initial_credentials(body: InitialCredentialsBody, current_user):
     log_event(
         EventType.ADMIN_PASSWORD_CHANGE,
         f"Initial local credentials configured for '{current_user.localUsername}'.",
+        admin_id=current_user.id,
+    )
+
+    response = {
+        "data": _serialize_account_payload(current_user),
+        "meta": {"request_id": request_id},
+    }
+    return jsonify(response), 200
+
+
+@api_v2.patch(
+    "/account/email",
+    tags=[account_tag],
+    summary="Update account email",
+    responses={200: AccountResponse, 400: ErrorResponse, 409: ErrorResponse, 500: ErrorResponse},
+)
+@jwt_required_with_user()
+def update_account_email(body: UpdateEmailBody, current_user):
+    request_id = str(uuid4())
+    email = body.email.strip()
+
+    existing_user = User.query.filter(
+        User.userType.in_([UserType.OWNER, UserType.LOCAL]),
+        func.lower(User.email) == email.lower(),
+        User.id != current_user.id,
+    ).first()
+    if existing_user:
+        return (
+            jsonify(
+                {
+                    "error": {
+                        "code": "EMAIL_IN_USE",
+                        "message": "That email address is already in use.",
+                    },
+                    "meta": {"request_id": request_id},
+                }
+            ),
+            409,
+        )
+
+    current_user.email = email
+
+    try:
+        db.session.commit()
+    except Exception as exc:  # pragma: no cover - defensive logging
+        current_app.logger.exception("Failed to update account email: %s", exc)
+        db.session.rollback()
+        return (
+            jsonify(
+                {
+                    "error": {
+                        "code": "EMAIL_UPDATE_FAILED",
+                        "message": "Unable to update account email.",
+                    },
+                    "meta": {"request_id": request_id},
+                }
+            ),
+            500,
+        )
+
+    log_event(
+        EventType.SETTING_CHANGE,
+        f"Account email updated for '{current_user.localUsername}'.",
         admin_id=current_user.id,
     )
 

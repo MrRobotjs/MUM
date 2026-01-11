@@ -482,6 +482,7 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
                   hexColor={role.color ?? undefined}
                   iconClass={role.icon ?? undefined}
                   roleKind="admin"
+                  badgeStyle={role.badge_style ?? undefined}
                   className="rounded-full gap-1 text-xs font-medium"
                   title={role.description ?? undefined}
                   hover={false}

@@ -15,6 +15,19 @@ from sqlalchemy import func
 
 
 roles_tag = Tag(name="Admin Roles", description="Admin roles and permissions")
+DEFAULT_BADGE_STYLE = "default"
+ALLOWED_BADGE_STYLES = {"default", "fill", "outline"}
+
+
+def _normalize_badge_style(value: str | None) -> str | None:
+    if value is None:
+        return None
+    candidate = value.strip().lower()
+    if not candidate:
+        return None
+    if candidate not in ALLOWED_BADGE_STYLES:
+        return None
+    return candidate
 
 
 class PermissionRef(BaseModel):
@@ -30,6 +43,7 @@ class RoleRef(BaseModel):
     position: int | None = None
     color: str | None = None
     icon: str | None = None
+    badge_style: str | None = None
     is_staff_role: bool
     is_auto_managed: bool
     permissions: list[PermissionRef] | None = None
@@ -60,6 +74,7 @@ def _serialize_admin_role(role, include_permissions=False, include_users=False, 
         'position': role.position,
         'color': role.color,
         'icon': role.icon,
+        'badge_style': getattr(role, 'badge_style', DEFAULT_BADGE_STYLE),
         'is_staff_role': role.is_staff_role(),
         'is_auto_managed': role.is_auto_managed
     }
@@ -134,6 +149,7 @@ class CreateRoleBody(BaseModel):
     position: int = 0
     color: str | None = None
     icon: str | None = None
+    badge_style: str | None = None
     permissions: list[str] = []
 
 
@@ -160,10 +176,29 @@ def create_admin_role(current_user):
     position = int(data.get('position', 0))
     color = data.get('color')
     icon = data.get('icon')
+    raw_badge_style = data.get('badge_style') if 'badge_style' in data else None
+    badge_style = _normalize_badge_style(raw_badge_style)
+    if raw_badge_style is not None and badge_style is None:
+        return jsonify({
+            'error': {
+                'code': 'INVALID_BADGE_STYLE',
+                'message': 'Invalid badge_style. Expected one of: default, fill, outline.',
+                'details': {'badge_style': raw_badge_style},
+            },
+            'meta': {'request_id': request_id},
+        }), 400
+    badge_style = badge_style or DEFAULT_BADGE_STYLE
     description = data.get('description')
     permission_ids = data.get('permissions', []) or []
 
-    new_role = AdminRole(name=name, description=description, position=position, color=color, icon=icon)
+    new_role = AdminRole(
+        name=name,
+        description=description,
+        position=position,
+        color=color,
+        icon=icon,
+        badge_style=badge_style,
+    )
     # Only allow the single 'administrator' permission
     if permission_ids:
         admin_perm = AdminPermission.query.filter_by(name='administrator').first()
@@ -179,6 +214,7 @@ class UpdateRoleBody(BaseModel):
     position: int | None = None
     color: str | None = None
     icon: str | None = None
+    badge_style: str | None = None
     permissions: list[str] | None = None
 
 
@@ -211,6 +247,18 @@ def update_admin_role(path: RolePath, current_user):
         role.color = data['color']
     if 'icon' in data:
         role.icon = data['icon']
+    if 'badge_style' in data:
+        badge_style = _normalize_badge_style(data.get('badge_style'))
+        if badge_style is None:
+            return jsonify({
+                'error': {
+                    'code': 'INVALID_BADGE_STYLE',
+                    'message': 'Invalid badge_style. Expected one of: default, fill, outline.',
+                    'details': {'badge_style': data.get('badge_style')},
+                },
+                'meta': {'request_id': request_id},
+            }), 400
+        role.badge_style = badge_style
     if 'permissions' in data:
         permission_ids = data.get('permissions') or []
         admin_perm = AdminPermission.query.filter_by(name='administrator').first()

@@ -117,6 +117,7 @@ class AdminRole(db.Model):
     position = db.Column(db.Integer, nullable=False, default=0)  # Hierarchy position (higher = more powerful)
     color = db.Column(db.String(7), nullable=True, default='#808080')
     icon = db.Column(db.String(100), nullable=True)
+    badge_style = db.Column(db.String(20), nullable=False, default='default')
     is_auto_managed = db.Column(db.Boolean, default=False, nullable=False)
     
     # Many-to-many relationship with permissions

@@ -14,6 +14,7 @@ export type AdminRole = {
   position: number;
   color: string | null;
   icon: string | null;
+  badge_style?: string | null;
   is_staff_role: boolean;
   is_auto_managed: boolean;
   permissions?: AdminPermission[];

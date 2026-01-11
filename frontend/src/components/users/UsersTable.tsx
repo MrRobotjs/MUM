@@ -28,6 +28,7 @@ export type UserRow = {
     name: string;
     color?: string | null;
     icon?: string | null;
+    badge_style?: string | null;
     description?: string | null;
   }>;
   user_roles: Array<{
@@ -465,6 +466,7 @@ export const UsersTable = ({
                               hexColor={role.color ?? undefined}
                               iconClass={role.icon ?? undefined}
                               roleKind="admin"
+                              badgeStyle={role.badge_style ?? undefined}
                               className="text-xs font-medium"
                               title={role.description ?? undefined}
                             >

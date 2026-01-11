@@ -30,6 +30,7 @@ type AdminRole = {
   position?: number
   color?: string | null
   icon?: string | null
+  badge_style?: string | null
 }
 
 type Admin = {
@@ -438,6 +439,7 @@ const AdminSettingsAdminManagementPage = () => {
                                   hexColor={role.color}
                                   iconClass={role.icon}
                                   roleKind="admin"
+                                  badgeStyle={role.badge_style ?? undefined}
                                   className="text-xs font-medium"
                                   hover={false}
                                 >

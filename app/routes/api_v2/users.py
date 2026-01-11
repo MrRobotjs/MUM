@@ -181,6 +181,7 @@ def _to_item(u: User) -> dict:
                 "name": getattr(r, "name", None),
                 "color": getattr(r, "color", None),
                 "icon": getattr(r, "icon", None),
+                "badge_style": getattr(r, "badge_style", None),
                 "description": getattr(r, "description", None),
             }
             for r in getattr(u, "admin_roles", []) or []

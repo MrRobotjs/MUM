@@ -266,6 +266,7 @@ def get_user(path: UserPath, current_user):
                 "name": role.name,
                 "color": getattr(role, "color", None),
                 "icon": getattr(role, "icon", None),
+                "badge_style": getattr(role, "badge_style", None),
                 "description": getattr(role, "description", None),
             }
             for role in getattr(user, "admin_roles", [])

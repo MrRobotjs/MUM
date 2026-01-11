@@ -96,7 +96,7 @@ export const AdminSettingsAdminRolesEditPage = () => {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={handleTabChange}>
-        <TabsList className="w-full justify-start">
+        <TabsList className="w-full justify-start overflow-x-auto">
           <TabsTrigger value="display">
             <IconPalette className="mr-2 size-4" />
             Display Settings

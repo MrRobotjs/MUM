@@ -23,6 +23,7 @@ interface UserRoleDisplayTabProps {
 }
 
 const presetColors: Array<{ hex: string; label: string }> = [
+  { hex: '#3b82f6', label: 'Default' },
   { hex: '#f04747', label: 'Red' },
   { hex: '#faa61a', label: 'Orange' },
   { hex: '#fee75c', label: 'Yellow' },
@@ -326,10 +327,10 @@ export const UserRoleDisplayTab = ({ role, onUpdate }: UserRoleDisplayTabProps) 
                   <p className="text-xs font-medium uppercase text-muted-foreground">
                     Preset colors
                   </p>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {presetColors.map((preset) => {
-                      const isSelected = preset.hex.toLowerCase() === formValues.color.toLowerCase()
-                      return (
+              <div className="mt-2 flex flex-wrap gap-2">
+                {presetColors.map((preset) => {
+                  const isSelected = preset.hex.toLowerCase() === formValues.color.toLowerCase()
+                  return (
                         <button
                           key={preset.hex}
                           type="button"

@@ -23,6 +23,7 @@ class RoleRef(BaseModel):
     position: int | None = None
     color: str | None = None
     icon: str | None = None
+    badge_style: str | None = None
 
 
 class AdminItem(BaseModel):
@@ -57,7 +58,8 @@ def _serialize_admin(user: User):
                 'description': role.description,
                 'position': role.position,
                 'color': role.color,
-                'icon': role.icon
+                'icon': role.icon,
+                'badge_style': getattr(role, 'badge_style', None),
             }
             for role in user.admin_roles
         ]

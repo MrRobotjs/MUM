@@ -18,6 +18,7 @@ export type UserSummary = {
     name: string;
     color?: string | null;
     icon?: string | null;
+    badge_style?: string | null;
     description?: string | null;
   }>;
 };
@@ -73,6 +74,7 @@ export const UserSummaryCard = ({ user }: UserSummaryCardProps) => {
                   hexColor={role.color}
                   iconClass={role.icon}
                   roleKind="admin"
+                  badgeStyle={role.badge_style ?? undefined}
                   className="text-xs font-medium"
                   title={role.description ?? undefined}
                   hover={false}

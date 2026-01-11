@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import type { IconDefinition } from '@fortawesome/fontawesome-svg-core'
-import { IconPalette, IconDeviceFloppy, IconInfoCircle, IconSearch, IconX, IconCategory, IconGridDots } from '@tabler/icons-react'
+import { IconPalette, IconDeviceFloppy, IconInfoCircle, IconSearch, IconX, IconWand, IconGridDots } from '@tabler/icons-react'
 import { UserRole } from '../../hooks/useUserRoles'
 import { useAlerts } from '../../contexts'
 import { requestJson } from '../../util/apiClient'
@@ -300,7 +300,7 @@ export const UserRoleDisplayTab = ({ role, onUpdate }: UserRoleDisplayTabProps) 
                       className="flex size-12 items-center justify-center rounded-full border border-white/40 shadow"
                       style={{ backgroundColor: formValues.color }}
                     >
-                      <IconCategory className="h-6 w-6 text-white/80 drop-shadow" />
+                      <IconWand className="h-6 w-6 text-white/80 drop-shadow" />
                     </span>
                     <div className="space-y-1">
                       <div className="flex items-center gap-2 text-sm font-medium text-foreground">
@@ -635,29 +635,6 @@ export const UserRoleDisplayTab = ({ role, onUpdate }: UserRoleDisplayTabProps) 
               </div>
             </div>
 
-            {/* Live Preview */}
-            <div className="rounded-lg border border-dashed border-border bg-muted/40 p-4">
-              <p className="text-xs font-medium uppercase text-muted-foreground">Live preview</p>
-              <div className="mt-3 flex flex-wrap items-center gap-3">
-                <Badge
-                  hexColor={formValues.color}
-                  icon={
-                    currentIconDef
-                      ? <FontAwesomeIcon icon={currentIconDef} className="text-[0.65rem]" />
-                      : undefined
-                  }
-                  iconClass={!currentIconDef ? formValues.icon || null : null}
-                  roleKind="user"
-                  badgeStyle={formValues.badge_style}
-                  className="rounded-full px-3 py-1 text-sm shadow-sm"
-                >
-                  {formValues.name || 'Role Name'}
-                </Badge>
-                <span className="text-xs text-muted-foreground">
-                  {formValues.description || 'Description preview text'}
-                </span>
-              </div>
-            </div>
           </CardContent>
         </Card>
 

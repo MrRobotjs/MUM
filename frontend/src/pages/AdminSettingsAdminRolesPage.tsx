@@ -20,7 +20,7 @@ import {
   type AdminRole,
 } from '../hooks/useAdminRoles'
 import { PageHeader } from '../components'
-import { useAlerts } from '../contexts'
+import { useAlerts, useTheme } from '../contexts'
 import { requestJson } from '../util/apiClient'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -41,6 +41,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { cn } from '@/lib/utils'
+import { resolveCssVarHex } from '@/lib/themeColors'
 
 type RoleFormValues = {
   name: string
@@ -56,6 +57,11 @@ export const AdminSettingsAdminRolesPage = () => {
   const { roles, loading, error, refresh } = useAdminRoles(true, false, true)
   const { permissions } = useAdminPermissions()
   const { success, error: showError } = useAlerts()
+  const { theme } = useTheme()
+  const themePrimaryHex = useMemo(
+    () => resolveCssVarHex('--primary', '#3b82f6'),
+    [theme]
+  )
 
   const [sortedRoles, setSortedRoles] = useState<AdminRole[]>([])
   const [reordering, setReordering] = useState(false)
@@ -67,7 +73,7 @@ export const AdminSettingsAdminRolesPage = () => {
     name: '',
     description: '',
     position: 0,
-    color: '#3b82f6',
+    color: themePrimaryHex,
     icon: '',
     permission_ids: [],
   })
@@ -103,7 +109,7 @@ export const AdminSettingsAdminRolesPage = () => {
         name: role.name,
         description: role.description ?? '',
         position: role.position,
-        color: role.color ?? '#3b82f6',
+        color: role.color ?? themePrimaryHex,
         icon: role.icon ?? '',
         permission_ids: role.permissions?.map((p) => p.id) ?? [],
       })
@@ -112,7 +118,7 @@ export const AdminSettingsAdminRolesPage = () => {
         name: '',
         description: '',
         position: nextPosition,
-        color: '#3b82f6',
+        color: themePrimaryHex,
         icon: '',
         permission_ids: [],
       })
@@ -552,16 +558,16 @@ const SortableRoleRow = ({ role, disabled, onEdit, onDelete }: SortableRoleRowPr
         <div className="flex items-center gap-3">
           <div
             className="flex size-10 shrink-0 items-center justify-center rounded-full border-2"
-            style={{
-              backgroundColor: `${role.color || '#3b82f6'}20`,
-              borderColor: `${role.color || '#3b82f6'}40`,
-            }}
+              style={{
+                backgroundColor: `${role.color || themePrimaryHex}20`,
+                borderColor: `${role.color || themePrimaryHex}40`,
+              }}
           >
-            {role.icon ? (
-              <i className={`fa-solid ${role.icon}`} style={{ color: role.color || '#3b82f6' }} />
-            ) : (
-              <i className="fa-solid fa-shield-halved" style={{ color: role.color || '#3b82f6' }} />
-            )}
+              {role.icon ? (
+                <i className={`fa-solid ${role.icon}`} style={{ color: role.color || themePrimaryHex }} />
+              ) : (
+                <i className="fa-solid fa-shield-halved" style={{ color: role.color || themePrimaryHex }} />
+              )}
           </div>
           <div className="min-w-0 max-w-[200px] md:max-w-none">
             <div className="flex items-center gap-2">

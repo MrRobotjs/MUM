@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import {
   IconInfoCircle,
@@ -37,9 +37,10 @@ import {
 } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
 import { requestJson } from '../util/apiClient';
-import { useAlerts } from '../contexts';
+import { useAlerts, useTheme } from '../contexts';
 import { cn } from '@/lib/utils';
 import { ResponsiveDialog } from '@/components/ui/responsive-dialog';
+import { resolveCssVarHex } from '@/lib/themeColors';
 
 type RoleFormValues = {
   name: string;
@@ -65,12 +66,17 @@ export const AdminSettingsUserRolesPage = () => {
   const navigate = useNavigate();
   const { roles, loading, error, refresh } = useUserRoles(false, true);
   const { success, error: showError } = useAlerts();
+  const { theme } = useTheme();
+  const themePrimaryHex = useMemo(
+    () => resolveCssVarHex('--primary', '#3b82f6'),
+    [theme]
+  );
   const [modalOpen, setModalOpen] = useState(false);
   const [editingRole, setEditingRole] = useState<UserRole | null>(null);
   const [formValues, setFormValues] = useState<RoleFormValues>({
     name: '',
     description: '',
-    color: '#3b82f6',
+    color: themePrimaryHex,
     icon: '',
   });
   const [submitting, setSubmitting] = useState(false);
@@ -96,7 +102,7 @@ export const AdminSettingsUserRolesPage = () => {
     setFormValues({
       name: '',
       description: '',
-      color: '#3b82f6',
+      color: themePrimaryHex,
       icon: '',
     });
     setModalOpen(true);

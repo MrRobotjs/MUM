@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import type { IconDefinition } from '@fortawesome/fontawesome-svg-core'
-import { IconTag, IconAlignLeft, IconPalette, IconIcons, IconDeviceFloppy, IconSparkles, IconInfoCircle, IconSearch, IconX, IconGridDots, IconWand } from '@tabler/icons-react'
+import { IconTag, IconAlignLeft, IconPalette, IconIcons, IconDeviceFloppy, IconSparkles, IconInfoCircle, IconSearch, IconX, IconGridDots, IconWand, IconCheck } from '@tabler/icons-react'
 import { AdminRole } from '../../hooks/useAdminRoles'
-import { useAlerts } from '../../contexts'
+import { useAlerts, useTheme } from '../../contexts'
 import { requestJson } from '../../util/apiClient'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -14,6 +14,7 @@ import { Badge as RoleBadge } from '@/components/common/Badge'
 import { ResponsiveDialog } from '@/components/ui/responsive-dialog'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
+import { getReadableTextColor, resolveCssVarHex } from '@/lib/themeColors'
 import { AtSign, Square, SquareDashed } from 'lucide-react'
 
 interface AdminRoleDisplayTabProps {
@@ -21,8 +22,7 @@ interface AdminRoleDisplayTabProps {
   onUpdate: () => Promise<void>
 }
 
-const PRESET_COLORS: Array<{ hex: string; label: string }> = [
-  { hex: '#808080', label: 'Default' },
+const BASE_PRESET_COLORS: Array<{ hex: string; label: string }> = [
   { hex: '#f04747', label: 'Red' },
   { hex: '#faa61a', label: 'Orange' },
   { hex: '#fee75c', label: 'Yellow' },
@@ -30,6 +30,7 @@ const PRESET_COLORS: Array<{ hex: string; label: string }> = [
   { hex: '#5865f2', label: 'Blurple' },
   { hex: '#eb459e', label: 'Pink' },
   { hex: '#9c84ef', label: 'Purple' },
+  { hex: '#808080', label: 'Gray' },
 ]
 const BADGE_STYLE_OPTIONS: Array<{ value: 'default' | 'fill' | 'outline'; label: string; description: string }> = [
   {
@@ -66,14 +67,23 @@ const formatIconName = (name: string) => {
 
 export const AdminRoleDisplayTab = ({ role, onUpdate }: AdminRoleDisplayTabProps) => {
   const { success, error: showError } = useAlerts()
+  const { theme } = useTheme()
   const iconInputRef = useRef<HTMLInputElement | null>(null)
   const isMobile = useIsMobile()
+  const themePrimaryHex = useMemo(
+    () => resolveCssVarHex('--primary', '#3b82f6'),
+    [theme]
+  )
+  const presetColors = useMemo(
+    () => [{ hex: themePrimaryHex, label: 'Default' }, ...BASE_PRESET_COLORS],
+    [themePrimaryHex]
+  )
   const [submitting, setSubmitting] = useState(false)
 
   const [formValues, setFormValues] = useState({
     name: role.name,
     description: role.description || '',
-    color: role.color || '#808080',
+    color: role.color || themePrimaryHex,
     icon: role.icon || '',
     badge_style: role.badge_style || 'default',
   })
@@ -90,11 +100,11 @@ export const AdminRoleDisplayTab = ({ role, onUpdate }: AdminRoleDisplayTabProps
     setFormValues({
       name: role.name,
       description: role.description || '',
-      color: role.color || '#808080',
+      color: role.color || themePrimaryHex,
       icon: role.icon || '',
       badge_style: role.badge_style || 'default',
     })
-  }, [role])
+  }, [role, themePrimaryHex])
 
   useEffect(() => {
     if (iconBrowseOpen && !iconsLoaded && !loadingIcons) {
@@ -304,7 +314,10 @@ export const AdminRoleDisplayTab = ({ role, onUpdate }: AdminRoleDisplayTabProps
                   className="relative flex size-12 items-center justify-center rounded-full border border-white/40 shadow transition hover:shadow-md"
                   style={{ backgroundColor: formValues.color }}
                 >
-                  <IconWand className="h-6 w-6 text-white/80 drop-shadow" />
+                  <IconWand
+                    className="h-6 w-6 drop-shadow"
+                    style={{ color: getReadableTextColor(formValues.color) }}
+                  />
                   <Input
                     id="color"
                     type="color"
@@ -331,22 +344,26 @@ export const AdminRoleDisplayTab = ({ role, onUpdate }: AdminRoleDisplayTabProps
                 Preset colors
               </p>
               <div className="mt-2 flex flex-wrap gap-2">
-                {PRESET_COLORS.map((preset) => {
+                {presetColors.map((preset) => {
                   const isSelected = preset.hex.toLowerCase() === formValues.color.toLowerCase()
                   return (
                     <button
                       key={preset.hex}
                       type="button"
                       className={cn(
-                        'flex size-9 items-center justify-center rounded-full border-2 transition',
-                        isSelected
-                          ? 'border-primary ring-2 ring-primary/40'
-                          : 'border-transparent hover:border-border'
+                        'relative flex size-9 items-center justify-center rounded-full border-2 border-transparent transition',
+                        'hover:border-border'
                       )}
                       style={{ backgroundColor: preset.hex }}
                       title={preset.label}
                       onClick={() => setFormValues((prev) => ({ ...prev, color: preset.hex }))}
                     >
+                      {isSelected && (
+                        <IconCheck
+                          className="size-4"
+                          style={{ color: getReadableTextColor(preset.hex) }}
+                        />
+                      )}
                       <span className="sr-only">{preset.label}</span>
                     </button>
                   )

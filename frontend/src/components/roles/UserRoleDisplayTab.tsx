@@ -1,9 +1,9 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import type { IconDefinition } from '@fortawesome/fontawesome-svg-core'
-import { IconPalette, IconDeviceFloppy, IconInfoCircle, IconSearch, IconX, IconWand, IconGridDots } from '@tabler/icons-react'
+import { IconPalette, IconDeviceFloppy, IconInfoCircle, IconSearch, IconX, IconWand, IconGridDots, IconCheck } from '@tabler/icons-react'
 import { UserRole } from '../../hooks/useUserRoles'
-import { useAlerts } from '../../contexts'
+import { useAlerts, useTheme } from '../../contexts'
 import { requestJson } from '../../util/apiClient'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -14,6 +14,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { ResponsiveDialog } from '@/components/ui/responsive-dialog'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
+import { getReadableTextColor, resolveCssVarHex } from '@/lib/themeColors'
 import { Badge } from '@/components/common/Badge'
 import { AtSign, Square, SquareDashed } from 'lucide-react'
 
@@ -22,8 +23,7 @@ interface UserRoleDisplayTabProps {
   onUpdate: () => Promise<void>
 }
 
-const presetColors: Array<{ hex: string; label: string }> = [
-  { hex: '#3b82f6', label: 'Default' },
+const BASE_PRESET_COLORS: Array<{ hex: string; label: string }> = [
   { hex: '#f04747', label: 'Red' },
   { hex: '#faa61a', label: 'Orange' },
   { hex: '#fee75c', label: 'Yellow' },
@@ -53,14 +53,23 @@ const formatIconName = (name: string) => {
 
 export const UserRoleDisplayTab = ({ role, onUpdate }: UserRoleDisplayTabProps) => {
   const { success, error: showError } = useAlerts()
+  const { theme } = useTheme()
   const iconInputRef = useRef<HTMLInputElement | null>(null)
   const isMobile = useIsMobile()
+  const themePrimaryHex = useMemo(
+    () => resolveCssVarHex('--primary', '#3b82f6'),
+    [theme]
+  )
+  const presetColors = useMemo(
+    () => [{ hex: themePrimaryHex, label: 'Default' }, ...BASE_PRESET_COLORS],
+    [themePrimaryHex]
+  )
 
   // Form State
   const [formValues, setFormValues] = useState({
     name: role.name,
     description: role.description || '',
-    color: role.color || '#3b82f6',
+    color: role.color || themePrimaryHex,
     icon: role.icon || '',
     badge_style: role.badge_style || 'default',
   })
@@ -133,6 +142,16 @@ export const UserRoleDisplayTab = ({ role, onUpdate }: UserRoleDisplayTabProps) 
       loadIcons();
     }
   }, [iconBrowseOpen, iconsLoaded, loadingIcons, showError]);
+
+  useEffect(() => {
+    setFormValues({
+      name: role.name,
+      description: role.description || '',
+      color: role.color || themePrimaryHex,
+      icon: role.icon || '',
+      badge_style: role.badge_style || 'default',
+    })
+  }, [role, themePrimaryHex])
 
   // Filter Logic
   const styleOptions: { id: IconSetType; label: string }[] = [
@@ -301,7 +320,10 @@ export const UserRoleDisplayTab = ({ role, onUpdate }: UserRoleDisplayTabProps) 
                       className="relative flex size-12 items-center justify-center rounded-full border border-white/40 shadow transition hover:shadow-md"
                       style={{ backgroundColor: formValues.color }}
                     >
-                      <IconWand className="h-6 w-6 text-white/80 drop-shadow" />
+                  <IconWand
+                    className="h-6 w-6 drop-shadow"
+                    style={{ color: getReadableTextColor(formValues.color) }}
+                  />
                       <Input
                         id="color"
                         type="color"
@@ -331,23 +353,27 @@ export const UserRoleDisplayTab = ({ role, onUpdate }: UserRoleDisplayTabProps) 
                 {presetColors.map((preset) => {
                   const isSelected = preset.hex.toLowerCase() === formValues.color.toLowerCase()
                   return (
-                        <button
-                          key={preset.hex}
-                          type="button"
-                          className={cn(
-                            'flex size-9 items-center justify-center rounded-full border-2 transition',
-                            isSelected
-                              ? 'border-primary ring-2 ring-primary/40'
-                              : 'border-transparent hover:border-border'
-                          )}
-                          style={{ backgroundColor: preset.hex }}
-                          title={preset.label}
-                          onClick={() => setFormValues({ ...formValues, color: preset.hex })}
-                        >
-                          <span className="sr-only">{preset.label}</span>
-                        </button>
-                      )
-                    })}
+                    <button
+                      key={preset.hex}
+                      type="button"
+                      className={cn(
+                        'relative flex size-9 items-center justify-center rounded-full border-2 border-transparent transition',
+                        'hover:border-border'
+                      )}
+                      style={{ backgroundColor: preset.hex }}
+                      title={preset.label}
+                      onClick={() => setFormValues({ ...formValues, color: preset.hex })}
+                    >
+                      {isSelected && (
+                        <IconCheck
+                          className="size-4"
+                          style={{ color: getReadableTextColor(preset.hex) }}
+                        />
+                      )}
+                      <span className="sr-only">{preset.label}</span>
+                    </button>
+                  )
+                })}
                   </div>
                 </div>
               </div>

@@ -60,10 +60,7 @@ export const UserRoleDisplayTab = ({ role, onUpdate }: UserRoleDisplayTabProps) 
     () => resolveCssVarHex('--primary', '#3b82f6'),
     [theme]
   )
-  const presetColors = useMemo(
-    () => [{ hex: themePrimaryHex, label: 'Default' }, ...BASE_PRESET_COLORS],
-    [themePrimaryHex]
-  )
+  const presetColors = BASE_PRESET_COLORS
 
   // Form State
   const [formValues, setFormValues] = useState({
@@ -316,23 +313,41 @@ export const UserRoleDisplayTab = ({ role, onUpdate }: UserRoleDisplayTabProps) 
               <div className="rounded-lg border border-border bg-muted/40 p-4">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-center gap-4">
-                    <div
-                      className="relative flex size-12 items-center justify-center rounded-full border border-white/40 shadow transition hover:shadow-md"
-                      style={{ backgroundColor: formValues.color }}
-                    >
+                <button
+                  type="button"
+                  className={cn(
+                    'relative flex size-12 items-center justify-center rounded-full border border-border/60 shadow-sm transition',
+                    'hover:border-border'
+                  )}
+                  style={{ backgroundColor: themePrimaryHex }}
+                  title="Default color"
+                  onClick={() => setFormValues({ ...formValues, color: themePrimaryHex })}
+                >
+                  {formValues.color.toLowerCase() === themePrimaryHex.toLowerCase() && (
+                    <IconCheck
+                      className="size-4"
+                      style={{ color: getReadableTextColor(themePrimaryHex) }}
+                    />
+                  )}
+                  <span className="sr-only">Default color</span>
+                </button>
+                <div
+                  className="relative flex size-12 items-center justify-center rounded-full border border-white/40 shadow transition hover:shadow-md"
+                  style={{ backgroundColor: formValues.color }}
+                >
                   <IconWand
                     className="h-6 w-6 drop-shadow"
                     style={{ color: getReadableTextColor(formValues.color) }}
                   />
-                      <Input
-                        id="color"
-                        type="color"
-                        value={formValues.color}
-                        onChange={(e) => setFormValues({ ...formValues, color: e.target.value })}
-                        className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-                        aria-label="Choose badge color"
-                      />
-                    </div>
+                  <Input
+                    id="color"
+                    type="color"
+                    value={formValues.color}
+                    onChange={(e) => setFormValues({ ...formValues, color: e.target.value })}
+                    className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                    aria-label="Choose badge color"
+                  />
+                </div>
                     <div className="space-y-1">
                       <div className="flex items-center gap-2 text-sm font-medium text-foreground">
                         <IconPalette className="h-4 w-4" />

@@ -74,10 +74,7 @@ export const AdminRoleDisplayTab = ({ role, onUpdate }: AdminRoleDisplayTabProps
     () => resolveCssVarHex('--primary', '#3b82f6'),
     [theme]
   )
-  const presetColors = useMemo(
-    () => [{ hex: themePrimaryHex, label: 'Default' }, ...BASE_PRESET_COLORS],
-    [themePrimaryHex]
-  )
+  const presetColors = BASE_PRESET_COLORS
   const [submitting, setSubmitting] = useState(false)
 
   const [formValues, setFormValues] = useState({
@@ -310,6 +307,24 @@ export const AdminRoleDisplayTab = ({ role, onUpdate }: AdminRoleDisplayTabProps
           <div className="space-y-4">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-4">
+                <button
+                  type="button"
+                  className={cn(
+                    'relative flex size-12 items-center justify-center rounded-full border border-border/60 shadow-sm transition',
+                    'hover:border-border'
+                  )}
+                  style={{ backgroundColor: themePrimaryHex }}
+                  title="Default color"
+                  onClick={() => setFormValues((prev) => ({ ...prev, color: themePrimaryHex }))}
+                >
+                  {formValues.color.toLowerCase() === themePrimaryHex.toLowerCase() && (
+                    <IconCheck
+                      className="size-4"
+                      style={{ color: getReadableTextColor(themePrimaryHex) }}
+                    />
+                  )}
+                  <span className="sr-only">Default color</span>
+                </button>
                 <div
                   className="relative flex size-12 items-center justify-center rounded-full border border-white/40 shadow transition hover:shadow-md"
                   style={{ backgroundColor: formValues.color }}

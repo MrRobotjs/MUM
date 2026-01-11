@@ -296,12 +296,20 @@ export const UserRoleDisplayTab = ({ role, onUpdate }: UserRoleDisplayTabProps) 
               <div className="rounded-lg border border-border bg-muted/40 p-4">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-center gap-4">
-                    <span
-                      className="flex size-12 items-center justify-center rounded-full border border-white/40 shadow"
+                    <div
+                      className="relative flex size-12 items-center justify-center rounded-full border border-white/40 shadow transition hover:shadow-md"
                       style={{ backgroundColor: formValues.color }}
                     >
                       <IconWand className="h-6 w-6 text-white/80 drop-shadow" />
-                    </span>
+                      <Input
+                        id="color"
+                        type="color"
+                        value={formValues.color}
+                        onChange={(e) => setFormValues({ ...formValues, color: e.target.value })}
+                        className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                        aria-label="Choose badge color"
+                      />
+                    </div>
                     <div className="space-y-1">
                       <div className="flex items-center gap-2 text-sm font-medium text-foreground">
                         <IconPalette className="h-4 w-4" />
@@ -312,14 +320,6 @@ export const UserRoleDisplayTab = ({ role, onUpdate }: UserRoleDisplayTabProps) 
                       </p>
                     </div>
                   </div>
-                  <Input
-                    id="color"
-                    type="color"
-                    value={formValues.color}
-                    onChange={(e) => setFormValues({ ...formValues, color: e.target.value })}
-                    className="h-12 w-20 cursor-pointer rounded-md border border-border bg-background p-1 shadow-sm sm:h-10"
-                    aria-label="Custom color picker"
-                  />
                 </div>
 
                 <div className="mt-4">

@@ -189,6 +189,22 @@ const groupSessionsBy = (
   return grouped;
 };
 
+const mergeSessions = (primary: ActiveSession[], secondary: ActiveSession[]) => {
+  const merged = new Map<string, ActiveSession>();
+  const add = (session: ActiveSession) => {
+    const key = `${session.service_type ?? 'unknown'}:${session.server_name ?? 'unknown'}:${session.session_key}`;
+    if (!merged.has(key)) {
+      merged.set(key, session);
+    }
+  };
+  primary.forEach(add);
+  secondary.forEach(add);
+  return Array.from(merged.values());
+};
+
+const buildSessionKey = (session: ActiveSession) =>
+  `${session.service_type ?? 'unknown'}:${session.server_name ?? 'unknown'}:${session.session_key}`;
+
 export const StreamingPage = () => {
   const [page, setPage] = useState(1);
   const [serviceType, setServiceType] = useState('all');
@@ -229,9 +245,11 @@ export const StreamingPage = () => {
   const [selectedSession, setSelectedSession] = useState<ActiveSession | null>(null);
   const [terminateMessage, setTerminateMessage] = useState('');
   const [manualRefreshLoading, setManualRefreshLoading] = useState(false);
+  const [sessionOrder, setSessionOrder] = useState<string[]>([]);
 
   const { success, error: showError } = useAlerts();
   const liveServicesRef = useRef<string[]>([]);
+  const httpOnlySessionsRef = useRef<ActiveSession[]>([]);
   const lastUpdateRef = useRef<Date | null>(null);
   const [wsTruthActive, setWsTruthActive] = useState(false);
   const websocketServiceTypes = useMemo(() => new Set(['plex', 'emby', 'jellyfin']), []);
@@ -309,18 +327,18 @@ export const StreamingPage = () => {
           : '/admin/api/v2/streaming/active';
         const response = await requestJson<ActiveSessionsResponse>(requestPath);
         const httpSessions = applySessionSource(response.sessions ?? [], 'http');
-        const filteredHttpSessions = httpOnly
-          ? httpSessions.filter(
-              (session) => !websocketServiceTypes.has(session.service_type?.toLowerCase() ?? '')
-            )
-          : httpSessions;
+        const nonWebsocketSessions = httpSessions.filter(
+          (session) => !websocketServiceTypes.has(session.service_type?.toLowerCase() ?? '')
+        );
+        httpOnlySessionsRef.current = nonWebsocketSessions;
+        const filteredHttpSessions = httpOnly ? nonWebsocketSessions : httpSessions;
 
         if (httpOnly) {
           setActiveSessions((prev) => {
             const preservedSessions = prev?.sessions?.filter((session) =>
               websocketServiceTypes.has(session.service_type?.toLowerCase() ?? '')
             ) ?? [];
-            const mergedSessions = [...preservedSessions, ...filteredHttpSessions];
+            const mergedSessions = mergeSessions(preservedSessions, filteredHttpSessions);
             return {
               sessions: mergedSessions,
               total_count: mergedSessions.length,
@@ -420,6 +438,13 @@ export const StreamingPage = () => {
           }
           const mappedSessions = data.sessions.map(mapUnifiedSessionToActiveSession);
           const sourceResult = applySourceFromLiveServices(mappedSessions, data.live_services ?? []);
+          const nonWebsocketSessions = sourceResult.sessions.filter(
+            (session) => !websocketServiceTypes.has(session.service_type?.toLowerCase() ?? '')
+          );
+          if (nonWebsocketSessions.length > 0) {
+            httpOnlySessionsRef.current = nonWebsocketSessions;
+          }
+          const mergedSessions = mergeSessions(sourceResult.sessions, httpOnlySessionsRef.current);
           const now = data.timestamp ? new Date(data.timestamp) : new Date();
 
         // Update session offsets immediately from websocket data
@@ -440,10 +465,10 @@ export const StreamingPage = () => {
         // This handles both adding new sessions AND removing stopped sessions (empty array clears UI)
         // Use sessions.length as source of truth when sessions array is provided (it's the actual current state)
         setActiveSessions({
-          sessions: sourceResult.sessions,
-          total_count: data.active_count ?? sourceResult.sessions.length,
-          by_server: {},
-          by_service: {},
+          sessions: mergedSessions,
+          total_count: mergedSessions.length,
+          by_server: groupSessionsBy(mergedSessions, 'server_name'),
+          by_service: groupSessionsBy(mergedSessions, 'service_type'),
           meta: { request_id: '', timestamp: data.timestamp },
         });
         } else if (data.active_count !== undefined) {
@@ -451,11 +476,12 @@ export const StreamingPage = () => {
           // Even without session data, update count immediately
           // If active_count is 0 and we have no sessions array, clear sessions
           if (data.active_count === 0) {
+            const preservedSessions = httpOnlySessionsRef.current;
             setActiveSessions({
-              sessions: [],
-            total_count: 0,
-            by_server: {},
-            by_service: {},
+              sessions: preservedSessions,
+              total_count: preservedSessions.length,
+              by_server: groupSessionsBy(preservedSessions, 'server_name'),
+              by_service: groupSessionsBy(preservedSessions, 'service_type'),
             })
             setSessionOffsets({})
             setLastUpdateAt(now);
@@ -465,10 +491,17 @@ export const StreamingPage = () => {
               setLastHttpUpdateAt(now);
             }
           } else {
-            setActiveSessions((prev) => ({
-              ...prev,
-              total_count: data.active_count,
-            }))
+            setActiveSessions((prev) => {
+              const previousSessions = prev?.sessions ?? [];
+              const mergedSessions = mergeSessions(previousSessions, httpOnlySessionsRef.current);
+              return {
+                ...(prev ?? {}),
+                sessions: mergedSessions,
+                total_count: mergedSessions.length,
+                by_server: groupSessionsBy(mergedSessions, 'server_name'),
+                by_service: groupSessionsBy(mergedSessions, 'service_type'),
+              };
+            })
             setLastUpdateAt(now);
             if (isWsUpdate) {
               setLastWsUpdateAt(now);
@@ -487,6 +520,13 @@ export const StreamingPage = () => {
           if (Array.isArray(lastSessionData.sessions)) {
             const mappedSessions = lastSessionData.sessions.map(mapUnifiedSessionToActiveSession);
             const sourceResult = applySourceFromLiveServices(mappedSessions, lastSessionData.live_services ?? []);
+            const nonWebsocketSessions = sourceResult.sessions.filter(
+              (session) => !websocketServiceTypes.has(session.service_type?.toLowerCase() ?? '')
+            );
+            if (nonWebsocketSessions.length > 0) {
+              httpOnlySessionsRef.current = nonWebsocketSessions;
+            }
+            const mergedSessions = mergeSessions(sourceResult.sessions, httpOnlySessionsRef.current);
             const now = lastSessionData.timestamp ? new Date(lastSessionData.timestamp) : new Date();
           const updateSource = lastSessionData.update_source;
           const updateLiveServices = lastSessionData.update_live_services ?? [];
@@ -510,10 +550,10 @@ export const StreamingPage = () => {
         // Update active sessions state from websocket data
         // Use sessions.length as source of truth when sessions array is provided
         setActiveSessions({
-          sessions: sourceResult.sessions,
-          total_count: lastSessionData.active_count ?? sourceResult.sessions.length,
-          by_server: {},
-          by_service: {},
+          sessions: mergedSessions,
+          total_count: mergedSessions.length,
+          by_server: groupSessionsBy(mergedSessions, 'server_name'),
+          by_service: groupSessionsBy(mergedSessions, 'service_type'),
           meta: { request_id: '', timestamp: lastSessionData.timestamp },
         });
       }
@@ -633,7 +673,58 @@ export const StreamingPage = () => {
     };
   }, [activeSessions, lastUpdateAt, sessionOffsets, tick, liveServiceSet]);
 
-  const sessionsData = interpolatedSessions ?? activeSessions;
+  const baseSessionsData = interpolatedSessions ?? activeSessions;
+
+  useEffect(() => {
+    if (!baseSessionsData?.sessions) {
+      return;
+    }
+    const nextKeys = baseSessionsData.sessions.map(buildSessionKey);
+    setSessionOrder((prev) => {
+      const prevSet = new Set(prev);
+      const nextSet = new Set(nextKeys);
+      const filteredPrev = prev.filter((key) => nextSet.has(key));
+      const additions = nextKeys.filter((key) => !prevSet.has(key));
+      const merged = [...filteredPrev, ...additions];
+      if (merged.length === prev.length && merged.every((key, index) => key === prev[index])) {
+        return prev;
+      }
+      return merged;
+    });
+  }, [baseSessionsData]);
+
+  const sessionsData = useMemo(() => {
+    if (!baseSessionsData) {
+      return baseSessionsData;
+    }
+    const byKey = new Map<string, ActiveSession>();
+    baseSessionsData.sessions.forEach((session) => {
+      byKey.set(buildSessionKey(session), session);
+    });
+    const orderedSessions: ActiveSession[] = [];
+    const seen = new Set<string>();
+    sessionOrder.forEach((key) => {
+      const session = byKey.get(key);
+      if (session) {
+        orderedSessions.push(session);
+        seen.add(key);
+      }
+    });
+    baseSessionsData.sessions.forEach((session) => {
+      const key = buildSessionKey(session);
+      if (!seen.has(key)) {
+        orderedSessions.push(session);
+        seen.add(key);
+      }
+    });
+    return {
+      ...baseSessionsData,
+      sessions: orderedSessions,
+      total_count: orderedSessions.length,
+      by_server: groupSessionsBy(orderedSessions, 'server_name'),
+      by_service: groupSessionsBy(orderedSessions, 'service_type'),
+    };
+  }, [baseSessionsData, sessionOrder]);
 
 
 

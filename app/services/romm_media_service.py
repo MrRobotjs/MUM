@@ -346,37 +346,8 @@ class RommMediaService(BaseMediaService):
             return False
     
     def get_active_sessions(self) -> List[Dict[str, Any]]:
-        """Get currently active gaming sessions from RomM"""
-        try:
-            if not self._setup_auth_headers():
-                self.log_error("Failed to setup authentication for session retrieval")
-                return []
-            
-            # RomM doesn't have traditional "streaming sessions" like media servers
-            # But we can get recent activity or currently playing games
-            response = self.session.get(f"{self.url.rstrip('/')}/api/stats/recent-activity")
-            response.raise_for_status()
-            
-            activity_data = response.json()
-            sessions = []
-            
-            # Convert recent activity to session-like format
-            for activity in activity_data.get('recent_plays', []):
-                sessions.append({
-                    'session_id': f"romm_{activity.get('id', '')}",
-                    'user_id': str(activity.get('user_id', '')),
-                    'username': activity.get('username', 'Unknown'),
-                    'game_title': activity.get('rom_name', 'Unknown Game'),
-                    'platform': activity.get('platform_name', 'Unknown Platform'),
-                    'started_at': activity.get('played_at', ''),
-                    'state': 'playing' if activity.get('is_active', False) else 'recent'
-                })
-            
-            return sessions
-            
-        except Exception as e:
-            self.log_error(f"Error retrieving active sessions: {e}")
-            return []
+        """Get active RomM sessions - not supported."""
+        return []
     
     def terminate_session(self, session_id: str, reason: str = None) -> bool:
         """Terminate an active gaming session"""
@@ -391,30 +362,8 @@ class RommMediaService(BaseMediaService):
             return False
     
     def get_formatted_sessions(self) -> List[Dict[str, Any]]:
-        """Get active sessions formatted for display"""
-        sessions = self.get_active_sessions()
-        formatted_sessions = []
-        
-        for session in sessions:
-            formatted_sessions.append({
-                'session_id': session.get('session_id', ''),
-                'user_name': session.get('username', 'Unknown'),
-                'user_id': session.get('user_id', ''),
-                'media_title': session.get('game_title', 'Unknown Game'),
-                'media_type': 'game',
-                'platform': session.get('platform', 'Unknown Platform'),
-                'state': session.get('state', 'unknown'),
-                'started_at': session.get('started_at', ''),
-                'server_name': self.name,
-                'server_id': self.server_id,
-                'service_type': 'romm',
-                'can_terminate': False,  # RomM doesn't support session termination
-                'progress_percent': 0,  # Not applicable for games
-                'bandwidth': 0,  # Not applicable for games
-                'location': 'Unknown'
-            })
-        
-        return formatted_sessions
+        """Get active RomM sessions formatted for display - not supported."""
+        return []
     
     def get_server_info(self) -> Dict[str, Any]:
         """Get RomM server information"""

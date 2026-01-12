@@ -23,14 +23,26 @@ interface AdminRoleDisplayTabProps {
 }
 
 const BASE_PRESET_COLORS: Array<{ hex: string; label: string }> = [
-  { hex: '#f04747', label: 'Red' },
-  { hex: '#faa61a', label: 'Orange' },
-  { hex: '#fee75c', label: 'Yellow' },
-  { hex: '#57f287', label: 'Green' },
-  { hex: '#5865f2', label: 'Blurple' },
-  { hex: '#eb459e', label: 'Pink' },
-  { hex: '#9c84ef', label: 'Purple' },
-  { hex: '#808080', label: 'Gray' },
+  { hex: '#1abc9c', label: 'Teal' },
+  { hex: '#2ecc71', label: 'Green' },
+  { hex: '#3498db', label: 'Blue' },
+  { hex: '#9b59b6', label: 'Purple' },
+  { hex: '#e84393', label: 'Pink' },
+  { hex: '#f1c40f', label: 'Yellow' },
+  { hex: '#f39c12', label: 'Orange' },
+  { hex: '#e67e22', label: 'Deep Orange' },
+  { hex: '#e74c3c', label: 'Red' },
+  { hex: '#95a5a6', label: 'Gray' },
+  { hex: '#16a085', label: 'Deep Teal' },
+  { hex: '#27ae60', label: 'Dark Green' },
+  { hex: '#2980b9', label: 'Navy' },
+  { hex: '#8e44ad', label: 'Dark Purple' },
+  { hex: '#d81b60', label: 'Magenta' },
+  { hex: '#d68910', label: 'Amber' },
+  { hex: '#d35400', label: 'Dark Orange' },
+  { hex: '#bf360c', label: 'Burnt Orange' }, // Adjusted to match Deep Orange better if needed, or stick to exiting
+  { hex: '#c0392b', label: 'Dark Red' },
+  { hex: '#607d8b', label: 'Blue Gray' }, // Replacing Dark Gray / aligning with Gray
 ]
 const BADGE_STYLE_OPTIONS: Array<{ value: 'default' | 'fill' | 'outline'; label: string; description: string }> = [
   {
@@ -297,93 +309,82 @@ export const AdminRoleDisplayTab = ({ role, onUpdate }: AdminRoleDisplayTabProps
 
         {/* Color */}
         <div className="rounded-lg border border-border bg-card p-4 transition-colors hover:border-border/60">
-          <div className="mb-3 flex items-center justify-between">
+          <div className="mb-3 space-y-1">
             <div className="flex items-center gap-2">
               <IconPalette className="size-4 text-amber-600 dark:text-amber-400" />
               <Label className="font-medium">Role Color</Label>
             </div>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <span className="font-medium text-foreground">Selected</span>
+              <span className="font-mono uppercase">{formValues.color}</span>
+            </div>
           </div>
 
-          <div className="space-y-4">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-center gap-4">
-                <button
-                  type="button"
-                  className={cn(
-                    'relative flex size-12 items-center justify-center rounded-full border border-border/60 shadow-sm transition',
-                    'hover:border-border'
-                  )}
+          <div className="flex flex-wrap gap-3">
+            {/* Default Color Box */}
+            <button
+              type="button"
+              className={cn(
+                'relative flex size-16 shrink-0 items-center justify-center rounded-md border-2 transition-all',
+                formValues.color.toLowerCase() === themePrimaryHex.toLowerCase()
+                  ? 'border-transparent'
+                  : 'border-transparent hover:border-border'
+              )}
                   style={{ backgroundColor: themePrimaryHex }}
-                  title="Default color"
-                  onClick={() => setFormValues((prev) => ({ ...prev, color: themePrimaryHex }))}
-                >
-                  {formValues.color.toLowerCase() === themePrimaryHex.toLowerCase() && (
-                    <IconCheck
-                      className="size-4"
-                      style={{ color: getReadableTextColor(themePrimaryHex) }}
-                    />
-                  )}
-                  <span className="sr-only">Default color</span>
-                </button>
-                <div
-                  className="relative flex size-12 items-center justify-center rounded-full border border-white/40 shadow transition hover:shadow-md"
-                  style={{ backgroundColor: formValues.color }}
-                >
-                  <IconWand
-                    className="h-6 w-6 drop-shadow"
-                    style={{ color: getReadableTextColor(formValues.color) }}
-                  />
-                  <Input
-                    id="color"
-                    type="color"
-                    value={formValues.color}
-                    onChange={(e) => setFormValues((prev) => ({ ...prev, color: e.target.value }))}
-                    className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-                    aria-label="Choose badge color"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-                    <IconPalette className="h-4 w-4" />
-                    Selected Color
-                  </div>
-                  <p className="font-mono text-xs uppercase text-muted-foreground">
-                    {formValues.color}
-                  </p>
-                </div>
-              </div>
+              title="Default color"
+              onClick={() => setFormValues((prev) => ({ ...prev, color: themePrimaryHex }))}
+            >
+              <span className="sr-only">Default color</span>
+            </button>
+
+            {/* Custom Color Box */}
+            <div
+              className={cn(
+                'relative flex size-16 shrink-0 items-center justify-center rounded-md border-2 transition-all',
+                'border-transparent shadow-sm'
+              )}
+              style={{ backgroundColor: formValues.color }}
+            >
+              <IconWand
+                className="absolute right-1 top-1 size-4 opacity-50 drop-shadow-md transition-opacity hover:opacity-100"
+                style={{ color: getReadableTextColor(formValues.color) }}
+              />
+              <Input
+                id="color"
+                type="color"
+                value={formValues.color}
+                onChange={(e) => setFormValues((prev) => ({ ...prev, color: e.target.value }))}
+                className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                aria-label="Choose badge color"
+              />
             </div>
 
-            <div>
-              <p className="text-xs font-medium uppercase text-muted-foreground">
-                Preset colors
-              </p>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {presetColors.map((preset) => {
-                  const isSelected = preset.hex.toLowerCase() === formValues.color.toLowerCase()
-                  return (
-                    <button
-                      key={preset.hex}
-                      type="button"
-                      className={cn(
-                        'relative flex size-9 items-center justify-center rounded-full border-2 border-transparent transition',
-                        'hover:border-border'
-                      )}
-                      style={{ backgroundColor: preset.hex }}
-                      title={preset.label}
-                      onClick={() => setFormValues((prev) => ({ ...prev, color: preset.hex }))}
-                    >
-                      {isSelected && (
-                        <IconCheck
-                          className="size-4"
-                          style={{ color: getReadableTextColor(preset.hex) }}
-                        />
-                      )}
-                      <span className="sr-only">{preset.label}</span>
-                    </button>
-                  )
-                })}
-              </div>
+            {/* Preset Colors Grid */}
+            <div className="grid grid-cols-10 gap-1.5 pt-0.5">
+              {presetColors.map((preset) => {
+                const isSelected = preset.hex.toLowerCase() === formValues.color.toLowerCase()
+                return (
+                  <button
+                    key={preset.hex}
+                    type="button"
+                    className={cn(
+                      'relative flex size-7 items-center justify-center rounded-md transition-all',
+                      isSelected ? 'scale-110 z-10' : 'hover:scale-110 hover:z-10'
+                    )}
+                    style={{ backgroundColor: preset.hex }}
+                    title={preset.label}
+                    onClick={() => setFormValues((prev) => ({ ...prev, color: preset.hex }))}
+                  >
+                    {isSelected && (
+                      <IconCheck
+                        className="size-4 drop-shadow-sm"
+                        style={{ color: getReadableTextColor(preset.hex) }}
+                      />
+                    )}
+                    <span className="sr-only">{preset.label}</span>
+                  </button>
+                )
+              })}
             </div>
           </div>
         </div>
@@ -658,11 +659,10 @@ export const AdminRoleDisplayTab = ({ role, onUpdate }: AdminRoleDisplayTabProps
                   type="button"
                   onClick={() => setFormValues((prev) => ({ ...prev, badge_style: option.value }))}
                   aria-pressed={isSelected}
-                  className={`flex flex-col items-start gap-2 rounded-lg border p-3 text-left transition ${
-                    isSelected
-                      ? 'border-primary bg-primary/5 shadow-sm'
-                      : 'border-border bg-muted/30 hover:border-border/60'
-                  }`}
+                  className={`flex flex-col items-start gap-2 rounded-lg border p-3 text-left transition ${isSelected
+                    ? 'border-primary bg-primary/5 shadow-sm'
+                    : 'border-border bg-muted/30 hover:border-border/60'
+                    }`}
                 >
                   <RoleBadge
                     hexColor={formValues.color}

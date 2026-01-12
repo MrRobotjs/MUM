@@ -24,14 +24,26 @@ interface UserRoleDisplayTabProps {
 }
 
 const BASE_PRESET_COLORS: Array<{ hex: string; label: string }> = [
-  { hex: '#f04747', label: 'Red' },
-  { hex: '#faa61a', label: 'Orange' },
-  { hex: '#fee75c', label: 'Yellow' },
-  { hex: '#57f287', label: 'Green' },
-  { hex: '#5865f2', label: 'Blurple' },
-  { hex: '#eb459e', label: 'Pink' },
-  { hex: '#9c84ef', label: 'Purple' },
-  { hex: '#808080', label: 'Gray' },
+  { hex: '#1abc9c', label: 'Teal' },
+  { hex: '#2ecc71', label: 'Green' },
+  { hex: '#3498db', label: 'Blue' },
+  { hex: '#9b59b6', label: 'Purple' },
+  { hex: '#e84393', label: 'Pink' },
+  { hex: '#f1c40f', label: 'Yellow' },
+  { hex: '#f39c12', label: 'Orange' },
+  { hex: '#e67e22', label: 'Deep Orange' },
+  { hex: '#e74c3c', label: 'Red' },
+  { hex: '#95a5a6', label: 'Gray' },
+  { hex: '#16a085', label: 'Deep Teal' },
+  { hex: '#27ae60', label: 'Dark Green' },
+  { hex: '#2980b9', label: 'Navy' },
+  { hex: '#8e44ad', label: 'Dark Purple' },
+  { hex: '#d81b60', label: 'Magenta' },
+  { hex: '#d68910', label: 'Amber' },
+  { hex: '#d35400', label: 'Dark Orange' },
+  { hex: '#bf360c', label: 'Burnt Orange' },
+  { hex: '#c0392b', label: 'Dark Red' },
+  { hex: '#607d8b', label: 'Blue Gray' },
 ]
 
 // Types for our dynamic icon system
@@ -309,34 +321,42 @@ export const UserRoleDisplayTab = ({ role, onUpdate }: UserRoleDisplayTabProps) 
 
             {/* Color Picker */}
             <div className="space-y-3">
-              <Label htmlFor="color">Color</Label>
-              <div className="rounded-lg border border-border bg-muted/40 p-4">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex items-center gap-4">
+              <div className="space-y-1">
+                <Label htmlFor="color">Role Color</Label>
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <span className="font-medium text-foreground">Selected</span>
+                  <span className="font-mono uppercase">{formValues.color}</span>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-3">
+                {/* Default Color Box */}
                 <button
                   type="button"
                   className={cn(
-                    'relative flex size-12 items-center justify-center rounded-full border border-border/60 shadow-sm transition',
-                    'hover:border-border'
+                    'relative flex size-16 shrink-0 items-center justify-center rounded-md border-2 transition-all',
+                    formValues.color.toLowerCase() === themePrimaryHex.toLowerCase()
+                      ? 'border-transparent'
+                      : 'border-transparent hover:border-border'
                   )}
                   style={{ backgroundColor: themePrimaryHex }}
                   title="Default color"
                   onClick={() => setFormValues({ ...formValues, color: themePrimaryHex })}
                 >
-                  {formValues.color.toLowerCase() === themePrimaryHex.toLowerCase() && (
-                    <IconCheck
-                      className="size-4"
-                      style={{ color: getReadableTextColor(themePrimaryHex) }}
-                    />
-                  )}
                   <span className="sr-only">Default color</span>
                 </button>
+
+                {/* Custom Color Box */}
                 <div
-                  className="relative flex size-12 items-center justify-center rounded-full border border-white/40 shadow transition hover:shadow-md"
+                  className={cn(
+                    'relative flex size-16 shrink-0 items-center justify-center rounded-md border-2 transition-all',
+                    'border-transparent shadow-sm'
+                  )}
                   style={{ backgroundColor: formValues.color }}
                 >
+                  {/* Edit Pencil Icon (using Wand to avoid new import for now, or could check if Pencil exists) */}
                   <IconWand
-                    className="h-6 w-6 drop-shadow"
+                    className="absolute right-1 top-1 size-4 opacity-50 drop-shadow-md transition-opacity hover:opacity-100"
                     style={{ color: getReadableTextColor(formValues.color) }}
                   />
                   <Input
@@ -347,49 +367,37 @@ export const UserRoleDisplayTab = ({ role, onUpdate }: UserRoleDisplayTabProps) 
                     className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
                     aria-label="Choose badge color"
                   />
-                </div>
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-                        <IconPalette className="h-4 w-4" />
-                        Selected Color
-                      </div>
-                      <p className="font-mono text-xs uppercase text-muted-foreground">
-                        {formValues.color}
-                      </p>
-                    </div>
-                  </div>
+                  {/* Active Indicator for Custom Color (if it's not one of the presets, or just always show outline) */}
                 </div>
 
-                <div className="mt-4">
-                  <p className="text-xs font-medium uppercase text-muted-foreground">
-                    Preset colors
-                  </p>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {presetColors.map((preset) => {
-                  const isSelected = preset.hex.toLowerCase() === formValues.color.toLowerCase()
-                  return (
-                    <button
-                      key={preset.hex}
-                      type="button"
-                      className={cn(
-                        'relative flex size-9 items-center justify-center rounded-full border-2 border-transparent transition',
-                        'hover:border-border'
-                      )}
-                      style={{ backgroundColor: preset.hex }}
-                      title={preset.label}
-                      onClick={() => setFormValues({ ...formValues, color: preset.hex })}
-                    >
-                      {isSelected && (
-                        <IconCheck
-                          className="size-4"
-                          style={{ color: getReadableTextColor(preset.hex) }}
-                        />
-                      )}
-                      <span className="sr-only">{preset.label}</span>
-                    </button>
-                  )
-                })}
-                  </div>
+                {/* Divider/Separator ? Or just spacing. The image shows them grouped. */}
+
+                {/* Preset Colors Grid */}
+                <div className="grid grid-cols-10 gap-1.5 pt-0.5">
+                  {presetColors.map((preset) => {
+                    const isSelected = preset.hex.toLowerCase() === formValues.color.toLowerCase()
+                    return (
+                      <button
+                        key={preset.hex}
+                        type="button"
+                        className={cn(
+                          'relative flex size-7 items-center justify-center rounded-md transition-all',
+                          isSelected ? 'scale-110 z-10' : 'hover:scale-110 hover:z-10'
+                        )}
+                        style={{ backgroundColor: preset.hex }}
+                        title={preset.label}
+                        onClick={() => setFormValues({ ...formValues, color: preset.hex })}
+                      >
+                        {isSelected && (
+                          <IconCheck
+                            className="size-4 drop-shadow-sm"
+                            style={{ color: getReadableTextColor(preset.hex) }}
+                          />
+                        )}
+                        <span className="sr-only">{preset.label}</span>
+                      </button>
+                    )
+                  })}
                 </div>
               </div>
             </div>
@@ -543,88 +551,88 @@ export const UserRoleDisplayTab = ({ role, onUpdate }: UserRoleDisplayTabProps) 
                           <div className="inline-flex size-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
                           <p className="text-sm text-muted-foreground">Loading full icon library...</p>
                         </div>
-                  ) : (
-                    <div className="flex h-[520px] flex-col">
-                      <div className="p-3 border-b border-border space-y-3">
-                        <div className="relative">
-                          <IconSearch className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-                          <Input
-                            placeholder={`Search ${availableIconsCount} icons...`}
-                            value={iconBrowseQuery}
-                            onChange={(e) => setIconBrowseQuery(e.target.value)}
-                            className="h-9 pl-9 text-xs"
-                          />
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          {styleOptions.map((style) => {
-                            const isActive = activeStyleFilters.includes(style.id)
-                            const StyleIcon = styleIcons[style.id]
-                            return (
-                              <button
-                                key={style.id}
-                                type="button"
-                                onClick={() => {
-                                  setActiveStyleFilters((prev) => (
-                                    prev.includes(style.id)
-                                      ? prev.filter((value) => value !== style.id)
-                                      : [...prev, style.id]
-                                  ))
-                                }}
-                                className="rounded-full focus:outline-none focus:ring-2 focus:ring-primary/30"
-                                aria-pressed={isActive}
-                              >
-                                <Badge
-                                  color={isActive ? 'bg-primary' : 'bg-muted/60'}
-                                  className={cn(
-                                    "rounded-full px-3 py-1 text-xs font-medium gap-1",
-                                    isActive ? "text-primary-foreground" : "text-muted-foreground"
-                                  )}
-                                  hover={false}
-                                >
-                                  <StyleIcon className="text-[0.65rem]" />
-                                  {style.label}
-                                </Badge>
-                              </button>
-                            )
-                          })}
-                        </div>
-                      </div>
+                      ) : (
+                        <div className="flex h-[520px] flex-col">
+                          <div className="p-3 border-b border-border space-y-3">
+                            <div className="relative">
+                              <IconSearch className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                              <Input
+                                placeholder={`Search ${availableIconsCount} icons...`}
+                                value={iconBrowseQuery}
+                                onChange={(e) => setIconBrowseQuery(e.target.value)}
+                                className="h-9 pl-9 text-xs"
+                              />
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {styleOptions.map((style) => {
+                                const isActive = activeStyleFilters.includes(style.id)
+                                const StyleIcon = styleIcons[style.id]
+                                return (
+                                  <button
+                                    key={style.id}
+                                    type="button"
+                                    onClick={() => {
+                                      setActiveStyleFilters((prev) => (
+                                        prev.includes(style.id)
+                                          ? prev.filter((value) => value !== style.id)
+                                          : [...prev, style.id]
+                                      ))
+                                    }}
+                                    className="rounded-full focus:outline-none focus:ring-2 focus:ring-primary/30"
+                                    aria-pressed={isActive}
+                                  >
+                                    <Badge
+                                      color={isActive ? 'bg-primary' : 'bg-muted/60'}
+                                      className={cn(
+                                        "rounded-full px-3 py-1 text-xs font-medium gap-1",
+                                        isActive ? "text-primary-foreground" : "text-muted-foreground"
+                                      )}
+                                      hover={false}
+                                    >
+                                      <StyleIcon className="text-[0.65rem]" />
+                                      {style.label}
+                                    </Badge>
+                                  </button>
+                                )
+                              })}
+                            </div>
+                          </div>
 
-                      <div className="flex-1 p-3 overflow-y-auto custom-scrollbar">
-                        {filteredDisplayIcons.length === 0 ? (
-                          <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
-                            <IconSearch className="size-8 mb-2 opacity-50" />
-                            <p className="text-sm font-medium">No icons found</p>
-                            <p className="text-xs opacity-70">
-                              No icons match your filters and search.
-                            </p>
+                          <div className="flex-1 p-3 overflow-y-auto custom-scrollbar">
+                            {filteredDisplayIcons.length === 0 ? (
+                              <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
+                                <IconSearch className="size-8 mb-2 opacity-50" />
+                                <p className="text-sm font-medium">No icons found</p>
+                                <p className="text-xs opacity-70">
+                                  No icons match your filters and search.
+                                </p>
+                              </div>
+                            ) : (
+                              <div className="grid grid-cols-6 gap-2" key={activeStyleFilters.join('-') || 'all'}>
+                                {filteredDisplayIcons.map((icon) => (
+                                  <button
+                                    key={`${icon.prefix}-${icon.iconName}`}
+                                    type="button"
+                                    onClick={() => handleIconSelect(icon)}
+                                    className="group flex flex-col items-center justify-center gap-2 rounded-md border border-transparent p-2 text-muted-foreground hover:border-border hover:bg-muted/50 hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 aspect-square"
+                                    title={icon.label}
+                                  >
+                                    <FontAwesomeIcon icon={icon.definition} className="text-xl" />
+                                    <span className="text-[9px] text-center w-full truncate leading-tight opacity-70 group-hover:opacity-100">
+                                      {icon.label}
+                                    </span>
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                            {!iconBrowseQuery && filteredDisplayIcons.length < availableIconsCount && (
+                              <div className="p-4 text-center text-xs text-muted-foreground italic">
+                                Showing top 300 icons. Search to find more...
+                              </div>
+                            )}
                           </div>
-                        ) : (
-                          <div className="grid grid-cols-6 gap-2" key={activeStyleFilters.join('-') || 'all'}>
-                            {filteredDisplayIcons.map((icon) => (
-                              <button
-                                key={`${icon.prefix}-${icon.iconName}`}
-                                type="button"
-                                onClick={() => handleIconSelect(icon)}
-                                className="group flex flex-col items-center justify-center gap-2 rounded-md border border-transparent p-2 text-muted-foreground hover:border-border hover:bg-muted/50 hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 aspect-square"
-                                title={icon.label}
-                              >
-                                <FontAwesomeIcon icon={icon.definition} className="text-xl" />
-                                <span className="text-[9px] text-center w-full truncate leading-tight opacity-70 group-hover:opacity-100">
-                                  {icon.label}
-                                </span>
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                        {!iconBrowseQuery && filteredDisplayIcons.length < availableIconsCount && (
-                          <div className="p-4 text-center text-xs text-muted-foreground italic">
-                            Showing top 300 icons. Search to find more...
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
+                        </div>
+                      )}
                     </ResponsiveDialog>
                   </>
                 )}

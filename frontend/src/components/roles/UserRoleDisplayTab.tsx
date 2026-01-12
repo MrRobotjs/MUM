@@ -28,22 +28,22 @@ const BASE_PRESET_COLORS: Array<{ hex: string; label: string }> = [
   { hex: '#2ecc71', label: 'Green' },
   { hex: '#3498db', label: 'Blue' },
   { hex: '#9b59b6', label: 'Purple' },
-  { hex: '#e84393', label: 'Pink' },
+  { hex: '#e91e63', label: 'Pink' },
   { hex: '#f1c40f', label: 'Yellow' },
-  { hex: '#f39c12', label: 'Orange' },
-  { hex: '#e67e22', label: 'Deep Orange' },
+  { hex: '#e67e22', label: 'Orange' },
   { hex: '#e74c3c', label: 'Red' },
   { hex: '#95a5a6', label: 'Gray' },
-  { hex: '#16a085', label: 'Deep Teal' },
-  { hex: '#27ae60', label: 'Dark Green' },
-  { hex: '#2980b9', label: 'Navy' },
-  { hex: '#8e44ad', label: 'Dark Purple' },
-  { hex: '#d81b60', label: 'Magenta' },
-  { hex: '#d68910', label: 'Amber' },
-  { hex: '#d35400', label: 'Dark Orange' },
-  { hex: '#bf360c', label: 'Burnt Orange' },
-  { hex: '#c0392b', label: 'Dark Red' },
   { hex: '#607d8b', label: 'Blue Gray' },
+  { hex: '#11806a', label: 'Dark Teal' },
+  { hex: '#1f8b4c', label: 'Dark Green' },
+  { hex: '#206694', label: 'Dark Blue' },
+  { hex: '#71368a', label: 'Dark Purple' },
+  { hex: '#ad1457', label: 'Dark Pink' },
+  { hex: '#c27c0e', label: 'Dark Yellow' },
+  { hex: '#a84300', label: 'Dark Orange' },
+  { hex: '#992d22', label: 'Dark Red' },
+  { hex: '#979c9f', label: 'Dark Gray' },
+  { hex: '#546e7a', label: 'Dark Blue Gray' },
 ]
 
 // Types for our dynamic icon system
@@ -324,10 +324,6 @@ export const UserRoleDisplayTab = ({ role, onUpdate }: UserRoleDisplayTabProps) 
             <div className="space-y-3">
               <div className="space-y-1">
                 <Label htmlFor="color">Role Color</Label>
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <span className="font-medium text-foreground">Selected</span>
-                  <span className="font-mono uppercase">{formValues.color}</span>
-                </div>
               </div>
 
               <div className="flex flex-wrap gap-3">
@@ -408,6 +404,10 @@ export const UserRoleDisplayTab = ({ role, onUpdate }: UserRoleDisplayTabProps) 
                     )
                   })}
                 </div>
+              </div>
+              <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+                <span className="font-medium text-foreground">Selected</span>
+                <span className="font-mono uppercase">{formValues.color}</span>
               </div>
             </div>
 

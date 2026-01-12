@@ -27,22 +27,22 @@ const BASE_PRESET_COLORS: Array<{ hex: string; label: string }> = [
   { hex: '#2ecc71', label: 'Green' },
   { hex: '#3498db', label: 'Blue' },
   { hex: '#9b59b6', label: 'Purple' },
-  { hex: '#e84393', label: 'Pink' },
+  { hex: '#e91e63', label: 'Pink' },
   { hex: '#f1c40f', label: 'Yellow' },
-  { hex: '#f39c12', label: 'Orange' },
-  { hex: '#e67e22', label: 'Deep Orange' },
+  { hex: '#e67e22', label: 'Orange' },
   { hex: '#e74c3c', label: 'Red' },
   { hex: '#95a5a6', label: 'Gray' },
-  { hex: '#16a085', label: 'Deep Teal' },
-  { hex: '#27ae60', label: 'Dark Green' },
-  { hex: '#2980b9', label: 'Navy' },
-  { hex: '#8e44ad', label: 'Dark Purple' },
-  { hex: '#d81b60', label: 'Magenta' },
-  { hex: '#d68910', label: 'Amber' },
-  { hex: '#d35400', label: 'Dark Orange' },
-  { hex: '#bf360c', label: 'Burnt Orange' }, // Adjusted to match Deep Orange better if needed, or stick to exiting
-  { hex: '#c0392b', label: 'Dark Red' },
-  { hex: '#607d8b', label: 'Blue Gray' }, // Replacing Dark Gray / aligning with Gray
+  { hex: '#607d8b', label: 'Blue Gray' },
+  { hex: '#11806a', label: 'Dark Teal' },
+  { hex: '#1f8b4c', label: 'Dark Green' },
+  { hex: '#206694', label: 'Dark Blue' },
+  { hex: '#71368a', label: 'Dark Purple' },
+  { hex: '#ad1457', label: 'Dark Pink' },
+  { hex: '#c27c0e', label: 'Dark Yellow' },
+  { hex: '#a84300', label: 'Dark Orange' },
+  { hex: '#992d22', label: 'Dark Red' },
+  { hex: '#979c9f', label: 'Dark Gray' },
+  { hex: '#546e7a', label: 'Dark Blue Gray' },
 ]
 const BADGE_STYLE_OPTIONS: Array<{ value: 'default' | 'fill' | 'outline'; label: string; description: string }> = [
   {
@@ -315,45 +315,41 @@ export const AdminRoleDisplayTab = ({ role, onUpdate }: AdminRoleDisplayTabProps
               <IconPalette className="size-4 text-amber-600 dark:text-amber-400" />
               <Label className="font-medium">Role Color</Label>
             </div>
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <span className="font-medium text-foreground">Selected</span>
-              <span className="font-mono uppercase">{formValues.color}</span>
-            </div>
           </div>
 
-          <div className="flex flex-wrap gap-3">
+            <div className="flex flex-wrap gap-3">
             {/* Default Color Box */}
             <button
               type="button"
               className={cn(
                 'relative flex size-16 shrink-0 items-center justify-center rounded-md border transition-all',
-                    isDefaultColorSelected
-                      ? 'border-transparent'
-                      : 'border-transparent hover:border-border'
-                  )}
-                  style={{ backgroundColor: themePrimaryHex }}
-                  title="Default color"
-                  onClick={() => setFormValues((prev) => ({ ...prev, color: themePrimaryHex }))}
-                >
-                  {isDefaultColorSelected && (
-                    <IconCheck
-                      className="size-6 drop-shadow-sm"
-                      style={{ color: getReadableTextColor(themePrimaryHex) }}
-                    />
-                  )}
-                  <span className="sr-only">Default color</span>
-                </button>
+                isDefaultColorSelected
+                  ? 'border-transparent'
+                  : 'border-transparent hover:border-border'
+              )}
+              style={{ backgroundColor: themePrimaryHex }}
+              title="Default color"
+              onClick={() => setFormValues((prev) => ({ ...prev, color: themePrimaryHex }))}
+            >
+              {isDefaultColorSelected && (
+                <IconCheck
+                  className="size-6 drop-shadow-sm"
+                  style={{ color: getReadableTextColor(themePrimaryHex) }}
+                />
+              )}
+              <span className="sr-only">Default color</span>
+            </button>
 
             {/* Custom Color Box */}
             <div
-                  className={cn(
-                    'relative flex size-16 shrink-0 items-center justify-center rounded-md border transition-all',
-                    isDefaultColorSelected
-                      ? 'border-border/60 bg-transparent'
-                      : 'border-transparent shadow-sm'
-                  )}
-                  style={{ backgroundColor: isDefaultColorSelected ? 'transparent' : formValues.color }}
-                >
+              className={cn(
+                'relative flex size-16 shrink-0 items-center justify-center rounded-md border transition-all',
+                isDefaultColorSelected
+                  ? 'border-border/60 bg-transparent'
+                  : 'border-transparent shadow-sm'
+              )}
+              style={{ backgroundColor: isDefaultColorSelected ? 'transparent' : formValues.color }}
+            >
               <IconPaintFilled
                 className="absolute right-1 top-1 size-4 drop-shadow-md"
                 style={{ color: getReadableTextColor(formValues.color) }}
@@ -394,9 +390,13 @@ export const AdminRoleDisplayTab = ({ role, onUpdate }: AdminRoleDisplayTabProps
                   </button>
                 )
               })}
+                </div>
+              </div>
+              <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+                <span className="font-medium text-foreground">Selected</span>
+                <span className="font-mono uppercase">{formValues.color}</span>
+              </div>
             </div>
-          </div>
-        </div>
 
         {/* Icon */}
         <div className="rounded-lg border border-border bg-card p-4 transition-colors hover:border-border/60">

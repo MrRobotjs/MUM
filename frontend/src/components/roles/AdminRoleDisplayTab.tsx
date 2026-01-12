@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import type { IconDefinition } from '@fortawesome/fontawesome-svg-core'
-import { IconTag, IconAlignLeft, IconPalette, IconIcons, IconDeviceFloppy, IconSparkles, IconInfoCircle, IconSearch, IconX, IconGridDots, IconWand, IconCheck } from '@tabler/icons-react'
+import { IconTag, IconAlignLeft, IconPalette, IconIcons, IconDeviceFloppy, IconSparkles, IconInfoCircle, IconSearch, IconX, IconGridDots, IconPaintFilled, IconCheck } from '@tabler/icons-react'
 import { AdminRole } from '../../hooks/useAdminRoles'
 import { useAlerts, useTheme } from '../../contexts'
 import { requestJson } from '../../util/apiClient'
@@ -96,6 +96,7 @@ export const AdminRoleDisplayTab = ({ role, onUpdate }: AdminRoleDisplayTabProps
     icon: role.icon || '',
     badge_style: role.badge_style || 'default',
   })
+  const isDefaultColorSelected = formValues.color.toLowerCase() === themePrimaryHex.toLowerCase()
 
   const [iconBrowseOpen, setIconBrowseOpen] = useState(false)
   const [iconBrowseQuery, setIconBrowseQuery] = useState('')
@@ -325,28 +326,36 @@ export const AdminRoleDisplayTab = ({ role, onUpdate }: AdminRoleDisplayTabProps
             <button
               type="button"
               className={cn(
-                'relative flex size-16 shrink-0 items-center justify-center rounded-md border-2 transition-all',
-                formValues.color.toLowerCase() === themePrimaryHex.toLowerCase()
-                  ? 'border-transparent'
-                  : 'border-transparent hover:border-border'
-              )}
+                'relative flex size-16 shrink-0 items-center justify-center rounded-md border transition-all',
+                    isDefaultColorSelected
+                      ? 'border-transparent'
+                      : 'border-transparent hover:border-border'
+                  )}
                   style={{ backgroundColor: themePrimaryHex }}
-              title="Default color"
-              onClick={() => setFormValues((prev) => ({ ...prev, color: themePrimaryHex }))}
-            >
-              <span className="sr-only">Default color</span>
-            </button>
+                  title="Default color"
+                  onClick={() => setFormValues((prev) => ({ ...prev, color: themePrimaryHex }))}
+                >
+                  {isDefaultColorSelected && (
+                    <IconCheck
+                      className="size-6 drop-shadow-sm"
+                      style={{ color: getReadableTextColor(themePrimaryHex) }}
+                    />
+                  )}
+                  <span className="sr-only">Default color</span>
+                </button>
 
             {/* Custom Color Box */}
             <div
-              className={cn(
-                'relative flex size-16 shrink-0 items-center justify-center rounded-md border-2 transition-all',
-                'border-transparent shadow-sm'
-              )}
-              style={{ backgroundColor: formValues.color }}
-            >
-              <IconWand
-                className="absolute right-1 top-1 size-4 opacity-50 drop-shadow-md transition-opacity hover:opacity-100"
+                  className={cn(
+                    'relative flex size-16 shrink-0 items-center justify-center rounded-md border transition-all',
+                    isDefaultColorSelected
+                      ? 'border-border/60 bg-transparent'
+                      : 'border-transparent shadow-sm'
+                  )}
+                  style={{ backgroundColor: isDefaultColorSelected ? 'transparent' : formValues.color }}
+                >
+              <IconPaintFilled
+                className="absolute right-1 top-1 size-4 drop-shadow-md"
                 style={{ color: getReadableTextColor(formValues.color) }}
               />
               <Input

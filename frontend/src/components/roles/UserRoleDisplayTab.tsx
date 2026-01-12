@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import type { IconDefinition } from '@fortawesome/fontawesome-svg-core'
-import { IconPalette, IconDeviceFloppy, IconInfoCircle, IconSearch, IconX, IconWand, IconGridDots, IconCheck } from '@tabler/icons-react'
+import { IconPalette, IconDeviceFloppy, IconInfoCircle, IconSearch, IconX, IconPaintFilled, IconGridDots, IconCheck } from '@tabler/icons-react'
 import { UserRole } from '../../hooks/useUserRoles'
 import { useAlerts, useTheme } from '../../contexts'
 import { requestJson } from '../../util/apiClient'
@@ -83,6 +83,7 @@ export const UserRoleDisplayTab = ({ role, onUpdate }: UserRoleDisplayTabProps) 
     badge_style: role.badge_style || 'default',
   })
   const [submitting, setSubmitting] = useState(false)
+  const isDefaultColorSelected = formValues.color.toLowerCase() === themePrimaryHex.toLowerCase()
 
   // Icon Browser State
   const [iconBrowseOpen, setIconBrowseOpen] = useState(false)
@@ -334,8 +335,8 @@ export const UserRoleDisplayTab = ({ role, onUpdate }: UserRoleDisplayTabProps) 
                 <button
                   type="button"
                   className={cn(
-                    'relative flex size-16 shrink-0 items-center justify-center rounded-md border-2 transition-all',
-                    formValues.color.toLowerCase() === themePrimaryHex.toLowerCase()
+                    'relative flex size-16 shrink-0 items-center justify-center rounded-md border transition-all',
+                    isDefaultColorSelected
                       ? 'border-transparent'
                       : 'border-transparent hover:border-border'
                   )}
@@ -343,20 +344,28 @@ export const UserRoleDisplayTab = ({ role, onUpdate }: UserRoleDisplayTabProps) 
                   title="Default color"
                   onClick={() => setFormValues({ ...formValues, color: themePrimaryHex })}
                 >
+                  {isDefaultColorSelected && (
+                    <IconCheck
+                      className="size-6 drop-shadow-sm"
+                      style={{ color: getReadableTextColor(themePrimaryHex) }}
+                    />
+                  )}
                   <span className="sr-only">Default color</span>
                 </button>
 
                 {/* Custom Color Box */}
                 <div
                   className={cn(
-                    'relative flex size-16 shrink-0 items-center justify-center rounded-md border-2 transition-all',
-                    'border-transparent shadow-sm'
+                    'relative flex size-16 shrink-0 items-center justify-center rounded-md transition-all',
+                    isDefaultColorSelected
+                      ? 'border-border/60 bg-transparent'
+                      : 'border-transparent shadow-sm'
                   )}
-                  style={{ backgroundColor: formValues.color }}
+                  style={{ backgroundColor: isDefaultColorSelected ? 'transparent' : formValues.color }}
                 >
                   {/* Edit Pencil Icon (using Wand to avoid new import for now, or could check if Pencil exists) */}
-                  <IconWand
-                    className="absolute right-1 top-1 size-4 opacity-50 drop-shadow-md transition-opacity hover:opacity-100"
+                  <IconPaintFilled
+                    className="absolute right-1 top-1 size-4 drop-shadow-md"
                     style={{ color: getReadableTextColor(formValues.color) }}
                   />
                   <Input

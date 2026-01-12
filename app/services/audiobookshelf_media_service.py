@@ -422,48 +422,6 @@ class AudiobookShelfMediaService(BaseMediaService):
             self.log_error(f"Error deleting user: {e}")
             return False
     
-    def get_active_sessions(self) -> List[Dict[str, Any]]:
-        """Get active AudiobookShelf sessions"""
-        try:
-            sessions = self._make_request('sessions')
-            result = []
-            
-            for session in sessions.get('sessions', []):
-                if not session.get('mediaPlayer'):
-                    continue  # Skip inactive sessions
-                
-                media_player = session.get('mediaPlayer', {})
-                library_item = session.get('libraryItem', {})
-                media = library_item.get('media', {})
-                
-                result.append({
-                    'session_id': session.get('id', ''),
-                    'user_id': session.get('userId', ''),
-                    'username': session.get('user', {}).get('username', 'Unknown'),
-                    'media_title': media.get('metadata', {}).get('title', 'Unknown'),
-                    'media_type': library_item.get('mediaType', 'unknown'),
-                    'player': session.get('playMethod', 'Unknown'),
-                    'platform': '',
-                    'state': 'playing' if media_player.get('playing') else 'paused',
-                    'progress_percent': round((media_player.get('currentTime', 0) / media_player.get('duration', 1)) * 100, 1),
-                    'ip_address': '',
-                    'is_lan': False
-                })
-            
-            return result
-        except Exception as e:
-            self.log_error(f"Error fetching active sessions: {e}")
-            return []
-    
-    def terminate_session(self, session_id: str, reason: str = None) -> bool:
-        """Terminate an AudiobookShelf session"""
-        try:
-            self._make_request(f'sessions/{session_id}/close', method='POST')
-            return True
-        except Exception as e:
-            self.log_error(f"Error terminating session: {e}")
-            return False
-    
     def get_server_info(self) -> Dict[str, Any]:
         """Get AudiobookShelf server information"""
         try:
@@ -499,11 +457,6 @@ class AudiobookShelfMediaService(BaseMediaService):
                 'online': False,
                 'version': 'Unknown'
             }
-
-    def get_formatted_sessions(self) -> List[Dict[str, Any]]:
-        """Get active AudiobookShelf sessions formatted for display"""
-        # TODO: Implement AudiobookShelf session formatting
-        return []
 
     def get_geoip_info(self, ip_address: str) -> Dict[str, Any]:
         """Get GeoIP information for a given IP address."""
@@ -695,13 +648,13 @@ class AudiobookShelfMediaService(BaseMediaService):
         """Get active AudioBookshelf listening sessions"""
         try:
             # Use the sessions API endpoint
-            endpoint = "sessions"
+            endpoint = "sessions/open"
             self.log_info(f"AudioBookshelf: Fetching active sessions from {endpoint}")
             response = self._make_request(endpoint)
             self._log_http_payload(response)
             
             # Extract sessions from the response
-            sessions = response.get('sessions', [])
+            sessions = response.get('sessions', []) if isinstance(response, dict) else []
             self.log_info(f"AudioBookshelf: Retrieved {len(sessions)} sessions from API")
             
             # Debug: Log the full response structure
@@ -725,28 +678,7 @@ class AudiobookShelfMediaService(BaseMediaService):
                 duration = session.get('duration', 0)
                 progress = (current_time / duration * 100) if duration > 0 else 0
                 
-                # Calculate how long ago the session was last updated
-                updated_at = session.get('updatedAt')
-                if updated_at:
-                    try:
-                        import datetime
-                        updated_timestamp = updated_at / 1000  # Convert from milliseconds
-                        updated_datetime = datetime.datetime.fromtimestamp(updated_timestamp)
-                        now = datetime.datetime.now()
-                        time_since_update = (now - updated_datetime).total_seconds()
-                        # self.log_info(f"  - Last updated: {time_since_update:.1f} seconds ago ({updated_datetime})")
-                        
-                        # Flag potentially stale sessions and filter them out
-                        if time_since_update > 15:  # 15 seconds
-                            # self.log_warning(f"  - POTENTIALLY STALE: Session hasn't been updated in {time_since_update:.1f} seconds - FILTERING OUT")
-                            continue  # Skip this stale session
-                        
-                    except Exception as e:
-                        # self.log_info(f"  - Could not parse update time: {e}")
-                        # If we can't parse the timestamp, assume it's stale and skip it
-                        # self.log_warning(f"  - Skipping session due to unparseable timestamp")
-                        continue
-                
+                # Open sessions are already filtered to active playback by AudioBookshelf.
                 # self.log_info(f"  - Progress: {progress:.1f}%")
                 # self.log_info(f"  - Session is ACTIVE (updated recently)")
                 

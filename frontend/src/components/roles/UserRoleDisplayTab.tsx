@@ -352,7 +352,7 @@ export const UserRoleDisplayTab = ({ role, onUpdate }: UserRoleDisplayTabProps) 
                 {/* Custom Color Box */}
                 <div
                   className={cn(
-                    'relative flex size-16 shrink-0 items-center justify-center rounded-md transition-all',
+                    'relative flex size-16 shrink-0 items-center justify-center rounded-md border transition-all',
                     isDefaultColorSelected
                       ? 'border-border/60 bg-transparent'
                       : 'border-transparent shadow-sm'

@@ -8,6 +8,7 @@ from flask_openapi3 import Tag
 
 from app.routes.api_v2 import api_v2
 from app.models import Setting, EventType
+from app.models_media_services import ServiceType
 from app.utils.helpers import log_event
 from app.services.media_service_manager import MediaServiceManager
 from app.services.media_service_factory import MediaServiceFactory
@@ -123,6 +124,12 @@ def get_active_sessions(current_user):
     request_id = uuid4().hex
     try:
         all_servers = MediaServiceManager.get_all_servers()
+        http_only = str(request.args.get('http_only', '')).lower() in {'1', 'true', 'yes'}
+        if http_only:
+            websocket_services = {ServiceType.PLEX, ServiceType.EMBY, ServiceType.JELLYFIN}
+            all_servers = [
+                server for server in all_servers if server.service_type not in websocket_services
+            ]
         sessions = []
         by_server = {}
         by_service = {}

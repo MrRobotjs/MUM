@@ -25,7 +25,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { IconDots } from '@tabler/icons-react';
+import { IconDots, IconRefresh } from '@tabler/icons-react';
 import type { UnifiedSession } from '../types/realtime';
 import type { ActiveSession, ActiveSessionsResponse, ViewMode } from '../types/streaming';
 
@@ -174,6 +174,21 @@ const buildOffsetsFromSessions = (sessions: ActiveSession[]) => {
   return offsets;
 };
 
+const groupSessionsBy = (
+  sessions: ActiveSession[],
+  key: 'server_name' | 'service_type'
+) => {
+  const grouped: Record<string, ActiveSession[]> = {};
+  sessions.forEach((session) => {
+    const groupKey = String(session[key] ?? 'Unknown');
+    if (!grouped[groupKey]) {
+      grouped[groupKey] = [];
+    }
+    grouped[groupKey].push(session);
+  });
+  return grouped;
+};
+
 export const StreamingPage = () => {
   const [page, setPage] = useState(1);
   const [serviceType, setServiceType] = useState('all');
@@ -213,11 +228,13 @@ export const StreamingPage = () => {
   const [showTerminateModal, setShowTerminateModal] = useState(false);
   const [selectedSession, setSelectedSession] = useState<ActiveSession | null>(null);
   const [terminateMessage, setTerminateMessage] = useState('');
+  const [manualRefreshLoading, setManualRefreshLoading] = useState(false);
 
   const { success, error: showError } = useAlerts();
   const liveServicesRef = useRef<string[]>([]);
   const lastUpdateRef = useRef<Date | null>(null);
   const [wsTruthActive, setWsTruthActive] = useState(false);
+  const websocketServiceTypes = useMemo(() => new Set(['plex', 'emby', 'jellyfin']), []);
   const [bootstrapping, setBootstrapping] = useState(true);
 
   // HTTP fetch only for initial bootstrap and manual refresh (like Tautulli - no polling)
@@ -255,18 +272,24 @@ export const StreamingPage = () => {
   );
 
   const fetchActiveSessions = useCallback(
-    async (options?: { silent?: boolean; force?: boolean; reason?: 'manual' | 'initial' }) => {
+    async (options?: {
+      silent?: boolean;
+      force?: boolean;
+      reason?: 'manual' | 'initial';
+      httpOnly?: boolean;
+    }) => {
+      const silent = options?.silent ?? false;
+      const force = options?.force ?? false;
+      const httpOnly = options?.httpOnly ?? false;
+
       // Skip HTTP fetch if websocket is active and providing recent updates (< 5s)
-      if (wsTruthActive && lastUpdateRef.current) {
+      if (!force && wsTruthActive && lastUpdateRef.current) {
         const timeSinceLastUpdate = Date.now() - lastUpdateRef.current.getTime()
         if (timeSinceLastUpdate < 5000) {
           // Websocket is providing fresh data - no HTTP fetch needed (like Tautulli)
           return;
         }
       }
-
-      const silent = options?.silent ?? false;
-      const force = options?.force ?? false;
 
       // Only fetch if forced (manual refresh) or initial bootstrap
       if (!force && silent && lastUpdateRef.current) {
@@ -281,51 +304,78 @@ export const StreamingPage = () => {
         if (!silent) {
           setLoading(true);
         }
-        const response = await requestJson<ActiveSessionsResponse>('/admin/api/v2/streaming/active');
+        const requestPath = httpOnly
+          ? '/admin/api/v2/streaming/active?http_only=1'
+          : '/admin/api/v2/streaming/active';
+        const response = await requestJson<ActiveSessionsResponse>(requestPath);
         const httpSessions = applySessionSource(response.sessions ?? [], 'http');
-        setActiveSessions({
-          ...response,
-          sessions: httpSessions,
-          by_server: applyGroupedSource(response.by_server, 'http'),
-          by_service: applyGroupedSource(response.by_service, 'http'),
-        });
+        const filteredHttpSessions = httpOnly
+          ? httpSessions.filter(
+              (session) => !websocketServiceTypes.has(session.service_type?.toLowerCase() ?? '')
+            )
+          : httpSessions;
+
+        if (httpOnly) {
+          setActiveSessions((prev) => {
+            const preservedSessions = prev?.sessions?.filter((session) =>
+              websocketServiceTypes.has(session.service_type?.toLowerCase() ?? '')
+            ) ?? [];
+            const mergedSessions = [...preservedSessions, ...filteredHttpSessions];
+            return {
+              sessions: mergedSessions,
+              total_count: mergedSessions.length,
+              by_server: groupSessionsBy(mergedSessions, 'server_name'),
+              by_service: groupSessionsBy(mergedSessions, 'service_type'),
+              meta: response.meta,
+            };
+          });
+        } else {
+          setActiveSessions({
+            ...response,
+            sessions: httpSessions,
+            by_server: applyGroupedSource(response.by_server, 'http'),
+            by_service: applyGroupedSource(response.by_service, 'http'),
+          });
+        }
         const fetchCompletedAt = new Date();
         // no-op debug removed
         const liveServicesCurrent = new Set(['plex', ...liveServicesRef.current]);
-        setSessionOffsets((previous) => {
-          const offsets: Record<string, number> = {};
-          response.sessions.forEach((session) => {
-            const key = session.session_key;
-            const serviceType = session.service_type?.toLowerCase() ?? '';
-            const isLiveService = liveServicesCurrent.has(serviceType);
-            const baseSeconds = parseDurationToSeconds(session.current_time);
-            const previousBase = previous[key];
-            let value = baseSeconds;
-            const sessionState = session.state?.toLowerCase();
+        if (!httpOnly) {
+          setSessionOffsets((previous) => {
+            const offsets: Record<string, number> = {};
+            response.sessions.forEach((session) => {
+              const key = session.session_key;
+              const serviceType = session.service_type?.toLowerCase() ?? '';
+              const isLiveService = liveServicesCurrent.has(serviceType);
+              const baseSeconds = parseDurationToSeconds(session.current_time);
+              const previousBase = previous[key];
+              let value = baseSeconds;
+              const sessionState = session.state?.toLowerCase();
 
-            if (
-              isLiveService &&
-              sessionState === 'playing' &&
-              previousBase !== undefined &&
-              lastUpdateRef.current
-            ) {
-              const elapsed = (fetchCompletedAt.getTime() - lastUpdateRef.current.getTime()) / 1000;
-              if (elapsed > 0) {
-                const predicted = previousBase + elapsed;
-                if (predicted > value && predicted - value <= 3) {
-                  value = predicted;
-                  // no-op debug removed
+              if (
+                isLiveService &&
+                sessionState === 'playing' &&
+                previousBase !== undefined &&
+                lastUpdateRef.current
+              ) {
+                const elapsed = (fetchCompletedAt.getTime() - lastUpdateRef.current.getTime()) / 1000;
+                if (elapsed > 0) {
+                  const predicted = previousBase + elapsed;
+                  if (predicted > value && predicted - value <= 3) {
+                    value = predicted;
+                    // no-op debug removed
+                  }
                 }
               }
-            }
 
-            offsets[key] = value;
+              offsets[key] = value;
+            });
+            return offsets;
           });
-          return offsets;
-        });
-        setLastUpdateAt(fetchCompletedAt);
+          setLastUpdateAt(fetchCompletedAt);
+          lastUpdateRef.current = fetchCompletedAt;
+        }
         setLastHttpUpdateAt(fetchCompletedAt);
-        lastUpdateRef.current = fetchCompletedAt;
       } catch (error) {
         console.error('Failed to fetch active sessions:', error);
       } finally {
@@ -335,7 +385,7 @@ export const StreamingPage = () => {
         setBootstrapping(false);
       }
     },
-    [wsTruthActive, applyGroupedSource, applySessionSource]
+    [wsTruthActive, applyGroupedSource, applySessionSource, websocketServiceTypes]
   );
 
   // Use WebSocket for real-time updates (like Tautulli - no polling, only websocket push)
@@ -631,6 +681,16 @@ export const StreamingPage = () => {
     }
   };
 
+  const handleManualRefresh = async () => {
+    if (manualRefreshLoading) return;
+    setManualRefreshLoading(true);
+    try {
+      await fetchActiveSessions({ silent: false, reason: 'manual', force: true, httpOnly: true });
+    } finally {
+      setManualRefreshLoading(false);
+    }
+  };
+
   const openTerminateModal = (session: ActiveSession) => {
     setSelectedSession(session);
     setTerminateMessage('');
@@ -652,6 +712,17 @@ export const StreamingPage = () => {
 
   const headerActions = (
     <div className="flex items-center gap-2">
+      <Button
+        variant="outline"
+        size="sm"
+        type="button"
+        onClick={handleManualRefresh}
+        disabled={manualRefreshLoading}
+        title="Refresh HTTP-only services"
+      >
+        <IconRefresh className={`h-4 w-4 ${manualRefreshLoading ? 'animate-spin' : ''}`} />
+        <span className="ml-2">Refresh HTTP</span>
+      </Button>
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
@@ -723,6 +794,7 @@ export const StreamingPage = () => {
           lastUpdateAt={lastUpdateAt}
           lastWsUpdateAt={lastWsUpdateAt}
           lastHttpUpdateAt={lastHttpUpdateAt}
+          sessionMonitoringInterval={streamingSettings?.session_monitoring_interval ?? null}
           onTerminateSession={openTerminateModal}
         />
       </div>

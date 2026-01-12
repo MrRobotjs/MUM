@@ -16,6 +16,7 @@ interface ActiveStreamsCardProps {
   lastUpdateAt: Date | null;
   lastWsUpdateAt: Date | null;
   lastHttpUpdateAt: Date | null;
+  sessionMonitoringInterval: number | null;
   onTerminateSession: (session: ActiveSession) => void;
 }
 
@@ -25,10 +26,9 @@ export const ActiveStreamsCard = ({
   loading,
   bootstrapping,
   wsTruthActive,
-  isConnected,
   lastUpdateAt,
-  lastWsUpdateAt,
   lastHttpUpdateAt,
+  sessionMonitoringInterval,
   onTerminateSession
 }: ActiveStreamsCardProps) => {
   const [showSourceInfo, setShowSourceInfo] = useState(false);
@@ -96,20 +96,16 @@ export const ActiveStreamsCard = ({
     return null;
   };
 
-  const isLive = wsTruthActive && isConnected && lastUpdateAt && Date.now() - lastUpdateAt.getTime() < 5000;
-
-  const formatAge = (value: Date | null) => {
-    if (!value) return null;
-    const seconds = Math.max(0, Math.floor((Date.now() - value.getTime()) / 1000));
-    if (seconds < 60) return `${seconds}s`;
-    const minutes = Math.floor(seconds / 60);
-    if (minutes < 60) return `${minutes}m`;
-    const hours = Math.floor(minutes / 60);
-    return `${hours}h`;
-  };
-
-  const wsAge = formatAge(lastWsUpdateAt);
-  const httpAge = formatAge(lastHttpUpdateAt);
+  const httpIntervalSeconds =
+    typeof sessionMonitoringInterval === 'number' && sessionMonitoringInterval > 0
+      ? sessionMonitoringInterval
+      : null;
+  const httpCountdown = (() => {
+    if (!httpIntervalSeconds || !lastHttpUpdateAt) return null;
+    const elapsed = Math.max(0, Math.floor((Date.now() - lastHttpUpdateAt.getTime()) / 1000));
+    const remaining = Math.max(0, httpIntervalSeconds - elapsed);
+    return `${remaining}s`;
+  })();
 
   return (
     <Card className="pt-0 gap-0 overflow-hidden border border-border/60 shadow-md">
@@ -183,33 +179,7 @@ export const ActiveStreamsCard = ({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            {isLive ? (
-              <Badge variant="outline" className="border-green-600 bg-green-500/10 text-xs text-green-600">
-                <span className="mr-1 inline-flex h-2 w-2 animate-pulse rounded-full bg-green-500" />
-                Live
-              </Badge>
-            ) : (
-              <Badge variant="outline" className="text-xs text-muted-foreground">
-                <i className="fa-solid fa-circle text-[10px] text-muted-foreground" />
-                Standby
-              </Badge>
-            )}
-            {wsAge && (
-              <Badge
-                asChild
-                variant="outline"
-                className="text-xs border-emerald-500/40 text-emerald-600 cursor-pointer hover:bg-emerald-500/10"
-              >
-                <button
-                  type="button"
-                  onClick={() => setShowSourceInfo(true)}
-                  aria-label="Explain WS and HTTP stream badges"
-                >
-                  WS {wsAge}
-                </button>
-              </Badge>
-            )}
-            {httpAge && (
+            {httpCountdown && (
               <Badge
                 asChild
                 variant="outline"
@@ -220,7 +190,7 @@ export const ActiveStreamsCard = ({
                   onClick={() => setShowSourceInfo(true)}
                   aria-label="Explain WS and HTTP stream badges"
                 >
-                  HTTP {httpAge}
+                  HTTP next {httpCountdown}
                 </button>
               </Badge>
             )}

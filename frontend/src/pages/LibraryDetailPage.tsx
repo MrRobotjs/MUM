@@ -817,7 +817,7 @@ export const LibraryDetailPage = () => {
 
           {/* Search and Controls */}
           <Card>
-            <CardContent className="p-4">
+            <CardContent>
               <div className="flex flex-col sm:flex-row gap-4">
                 <form onSubmit={handleSearch} className="flex-1">
                   <div className="relative">

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { useLocation, useNavigate, useParams, useSearch } from '@tanstack/react-router';
 import { useAlerts } from '../contexts/AlertContext';
@@ -10,6 +10,7 @@ import { useOverseerr } from '../hooks/useOverseerr';
 import { useServers } from '../hooks/useServers';
 import { useUserSettings } from '../hooks/useUserSettings';
 import { useUserUuidBySlug } from '../hooks/useUserUuidBySlug';
+import { useStreamingWebSocket } from '../hooks/useStreamingWebSocket';
 import { requestJson } from '../util/apiClient';
 import {
   ServiceAccountsCard,
@@ -24,6 +25,9 @@ import { Badge } from '@/components/common/Badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Pagination } from '@/components/common/Pagination';
 import { getServiceMeta } from '@/config/pluginMetadata';
+import type { UnifiedSession } from '@/types/realtime';
+import type { UserNowPlaying } from '@/components/users/UserCard';
+import { Activity, Loader2, Music, Pause, Play } from 'lucide-react';
 
 type TabKey = 'profile' | 'history' | 'settings' | 'overseerr' | 'security';
 
@@ -36,8 +40,27 @@ const formatDateTime = (value?: string | null, withTime = true) => {
 const formatDuration = (value?: string | null) => value || '0m';
 const formatNumber = (value?: number | null) => (typeof value === 'number' ? value.toLocaleString() : '0');
 
+const getSessionPriority = (state?: string) => {
+  const normalized = state?.toLowerCase();
+  if (normalized === 'playing' || normalized === 'listening') return 4;
+  if (normalized === 'buffering') return 3;
+  if (normalized === 'paused') return 2;
+  if (normalized) return 1;
+  return 0;
+};
+
+const getPlaybackInfo = (state?: string) => {
+  const s = state?.toLowerCase() || '';
+  if (s === 'playing') return { icon: Play, color: 'text-green-500', bg: 'bg-green-500/10', border: 'border-green-500/20', animate: true };
+  if (s === 'listening') return { icon: Music, color: 'text-green-500', bg: 'bg-green-500/10', border: 'border-green-500/20', animate: true };
+  if (s === 'paused') return { icon: Pause, color: 'text-amber-500', bg: 'bg-amber-500/10', border: 'border-amber-500/20', animate: false };
+  if (s === 'buffering') return { icon: Loader2, color: 'text-blue-500', bg: 'bg-blue-500/10', border: 'border-blue-500/20', animate: true, spin: true };
+  return { icon: Activity, color: 'text-muted-foreground', bg: 'bg-secondary/50', border: 'border-border/50', animate: false };
+};
+
 const ProfileTab = ({ user }: { user: UserDetail }) => {
   const theme = getServiceMeta(user.service_type ?? user.service_types?.[0]);
+  const { lastSessionData } = useStreamingWebSocket({ autoConnect: false });
   const globalStats = user.stream_stats?.global ?? {};
   const playerStats = user.stream_stats?.players ?? [];
   const isServiceUser = user.user_type.toLowerCase() === 'service';
@@ -45,10 +68,89 @@ const ProfileTab = ({ user }: { user: UserDetail }) => {
   const adminRoleBadges = user.admin_roles_detail && user.admin_roles_detail.length > 0
     ? user.admin_roles_detail
     : user.roles.admin_roles.map((role) => ({ name: role }));
+  const nowPlaying = useMemo<UserNowPlaying | null>(() => {
+    const sessions = (lastSessionData?.sessions ?? []) as UnifiedSession[];
+    if (!sessions.length) return null;
+    const userSessions = sessions.filter(
+      (session) => session.user?.uuid && String(session.user.uuid) === String(user.uuid)
+    );
+    if (!userSessions.length) return null;
+    const sorted = [...userSessions].sort(
+      (left, right) => getSessionPriority(right.state) - getSessionPriority(left.state)
+    );
+    const primary = sorted[0];
+    if (!primary) return null;
+    return {
+      state: primary.state ?? 'unknown',
+      mediaTitle: primary.item?.title ?? 'Unknown Title',
+      serviceType: primary.server?.service ?? null,
+      serverName: primary.server?.name ?? null,
+      sessionCount: userSessions.length,
+    };
+  }, [lastSessionData?.sessions, user.uuid]);
+  const playbackInfo = nowPlaying ? getPlaybackInfo(nowPlaying.state) : null;
+  const PlaybackIcon = playbackInfo?.icon;
 
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
       <div className="space-y-6">
+        {nowPlaying && playbackInfo && PlaybackIcon ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>Now Playing</CardTitle>
+              <CardDescription>Live session status for this user.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className={cn(
+                "relative overflow-hidden rounded-md border p-2.5",
+                playbackInfo.bg,
+                playbackInfo.border
+              )}>
+                <div className="flex items-start gap-3">
+                  <div className={cn(
+                    "relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-background/50 shadow-sm",
+                    playbackInfo.color
+                  )}>
+                    <PlaybackIcon className={cn("h-4 w-4", playbackInfo.spin && "animate-spin")} />
+                  </div>
+
+                  <div className="flex-1 min-w-0 flex flex-col justify-center">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-semibold leading-none truncate w-full" title={nowPlaying.mediaTitle}>
+                        {nowPlaying.mediaTitle || 'Unknown Title'}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5 mt-1">
+                      <span className={cn(
+                        "text-[10px] font-bold uppercase tracking-wider",
+                        playbackInfo.color
+                      )}>
+                        {nowPlaying.state}
+                      </span>
+                      {nowPlaying.serverName && (
+                        <>
+                          <span className="text-[10px] text-muted-foreground/60">·</span>
+                          <span className="text-[10px] text-muted-foreground font-medium truncate max-w-[140px]" title={nowPlaying.serverName}>
+                            {nowPlaying.serverName}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {nowPlaying.sessionCount && nowPlaying.sessionCount > 1 && (
+                    <div className="flex shrink-0 items-center justify-center h-5 px-1.5 rounded-full bg-background/50 border border-border/50 shadow-sm">
+                      <span className="text-[10px] font-medium text-muted-foreground">
+                        +{nowPlaying.sessionCount - 1}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ) : null}
+
         <Card>
           <CardHeader>
             <CardTitle>Account Snapshot</CardTitle>

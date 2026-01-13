@@ -69,6 +69,71 @@ const calculateProgress = (currentSeconds: number, duration?: string) => {
   return Math.min(100, Math.max(0, (currentSeconds / totalSeconds) * 100));
 };
 
+type AudiobookshelfSignal = {
+  currentTimeSeconds: number | null;
+  updatedAtMs: number | null;
+  timeListeningSeconds: number | null;
+};
+
+const parseAudiobookshelfSignal = (session: ActiveSession): AudiobookshelfSignal => {
+  let currentTimeSeconds: number | null = null;
+  let updatedAtMs: number | null = null;
+  let timeListeningSeconds: number | null = null;
+
+  if (session.raw_data_json) {
+    try {
+      const parsed = JSON.parse(session.raw_data_json) as {
+        currentTime?: unknown;
+        updatedAt?: unknown;
+        timeListening?: unknown;
+      };
+
+      const rawCurrentTime = parsed?.currentTime;
+      if (typeof rawCurrentTime === 'number' && Number.isFinite(rawCurrentTime)) {
+        currentTimeSeconds = rawCurrentTime;
+      } else if (typeof rawCurrentTime === 'string' && rawCurrentTime.trim()) {
+        const parsedCurrent = Number(rawCurrentTime);
+        if (Number.isFinite(parsedCurrent)) {
+          currentTimeSeconds = parsedCurrent;
+        }
+      }
+
+      const rawUpdatedAt = parsed?.updatedAt;
+      if (typeof rawUpdatedAt === 'number' && Number.isFinite(rawUpdatedAt)) {
+        updatedAtMs = rawUpdatedAt;
+      } else if (typeof rawUpdatedAt === 'string' && rawUpdatedAt.trim()) {
+        const parsedUpdatedAt = Number(rawUpdatedAt);
+        if (Number.isFinite(parsedUpdatedAt)) {
+          updatedAtMs = parsedUpdatedAt;
+        } else {
+          const parsedDate = Date.parse(rawUpdatedAt);
+          if (!Number.isNaN(parsedDate)) {
+            updatedAtMs = parsedDate;
+          }
+        }
+      }
+
+      const rawTimeListening = parsed?.timeListening;
+      if (typeof rawTimeListening === 'number' && Number.isFinite(rawTimeListening)) {
+        timeListeningSeconds = rawTimeListening;
+      } else if (typeof rawTimeListening === 'string' && rawTimeListening.trim()) {
+        const parsedListening = Number(rawTimeListening);
+        if (Number.isFinite(parsedListening)) {
+          timeListeningSeconds = parsedListening;
+        }
+      }
+    } catch {
+      // Ignore raw payload parsing errors; fall back to formatted fields.
+    }
+  }
+
+  if (currentTimeSeconds === null && session.current_time) {
+    currentTimeSeconds = parseDurationToSeconds(session.current_time);
+  }
+
+  return { currentTimeSeconds, updatedAtMs, timeListeningSeconds };
+};
+
 const mapUnifiedSessionToActiveSession = (session: UnifiedSession): ActiveSession => {
   const playback = session.playback ?? {};
   const item = session.item ?? { title: 'Unknown Title', type: 'unknown' };
@@ -251,6 +316,18 @@ export const StreamingPage = () => {
   const liveServicesRef = useRef<string[]>([]);
   const httpOnlySessionsRef = useRef<ActiveSession[]>([]);
   const lastUpdateRef = useRef<Date | null>(null);
+  const audiobookshelfPlaybackRef = useRef<
+    Record<
+      string,
+      {
+        currentTimeSeconds: number | null;
+        updatedAtMs: number | null;
+        timeListeningSeconds: number | null;
+        lastMovementAt: number;
+        lastSampleAt: number;
+      }
+    >
+  >({});
   const [wsTruthActive, setWsTruthActive] = useState(false);
   const websocketServiceTypes = useMemo(() => new Set(['plex', 'emby', 'jellyfin']), []);
   const [bootstrapping, setBootstrapping] = useState(true);
@@ -287,6 +364,82 @@ export const StreamingPage = () => {
       return { sessions: withSources, hasWs, hasHttp };
     },
     []
+  );
+
+  const applyAudiobookshelfPlaybackState = useCallback(
+    (sessions: ActiveSession[], options?: { mode?: 'manual' | 'auto' }) => {
+      const now = Date.now();
+      const intervalSeconds = streamingSettings?.session_monitoring_interval ?? 30;
+      const thresholdMs = Math.max(1, intervalSeconds) * 1000;
+      const mode = options?.mode ?? 'auto';
+      const nextCache = { ...audiobookshelfPlaybackRef.current };
+      const activeKeys = new Set<string>();
+
+      const updatedSessions = sessions.map((session) => {
+        if ((session.service_type ?? '').toLowerCase() !== 'audiobookshelf') {
+          return session;
+        }
+
+        const key = buildSessionKey(session);
+        activeKeys.add(key);
+        const { currentTimeSeconds, updatedAtMs, timeListeningSeconds } =
+          parseAudiobookshelfSignal(session);
+        const prev = nextCache[key];
+        const prevCurrent = prev?.currentTimeSeconds ?? null;
+        const prevUpdatedAt = prev?.updatedAtMs ?? null;
+        const prevTimeListening = prev?.timeListeningSeconds ?? null;
+        const currentTimeChanged =
+          currentTimeSeconds !== null && prevCurrent !== null
+            ? Math.abs(currentTimeSeconds - prevCurrent) >= 0.25
+            : currentTimeSeconds !== prevCurrent;
+        const updatedAtChanged = updatedAtMs !== null && updatedAtMs !== prevUpdatedAt;
+        const timeListeningChanged =
+          timeListeningSeconds !== null && prevTimeListening !== null
+            ? Math.abs(timeListeningSeconds - prevTimeListening) >= 1
+            : timeListeningSeconds !== prevTimeListening;
+        const movementDetected = currentTimeChanged || updatedAtChanged || timeListeningChanged;
+        const updatedAtClamped = updatedAtMs !== null ? Math.min(updatedAtMs, now) : null;
+        let lastMovementAt = prev?.lastMovementAt ?? (updatedAtClamped ?? now);
+        const lastSampleAt = now;
+
+        if (movementDetected) {
+          if (updatedAtChanged && updatedAtClamped !== null) {
+            lastMovementAt = updatedAtClamped;
+          } else {
+            lastMovementAt = now;
+          }
+        }
+
+        nextCache[key] = {
+          currentTimeSeconds,
+          updatedAtMs,
+          timeListeningSeconds,
+          lastMovementAt,
+          lastSampleAt,
+        };
+
+        const manualOverride =
+          mode === 'manual' &&
+          !movementDetected &&
+          Boolean(prev?.lastSampleAt) &&
+          now - (prev?.lastSampleAt ?? now) >= 1000;
+        const isPaused = manualOverride || now - lastMovementAt >= thresholdMs;
+        const nextState = isPaused ? 'Paused' : 'Listening';
+        if (session.state === nextState) {
+          return session;
+        }
+        return { ...session, state: nextState };
+      });
+
+      Object.keys(nextCache).forEach((key) => {
+        if (!activeKeys.has(key)) {
+          delete nextCache[key];
+        }
+      });
+      audiobookshelfPlaybackRef.current = nextCache;
+      return updatedSessions;
+    },
+    [streamingSettings?.session_monitoring_interval]
   );
 
   const fetchActiveSessions = useCallback(
@@ -326,7 +479,11 @@ export const StreamingPage = () => {
           ? '/admin/api/v2/streaming/active?http_only=1'
           : '/admin/api/v2/streaming/active';
         const response = await requestJson<ActiveSessionsResponse>(requestPath);
-        const httpSessions = applySessionSource(response.sessions ?? [], 'http');
+        const sampleMode = options?.reason === 'manual' ? 'manual' : 'auto';
+        const httpSessions = applyAudiobookshelfPlaybackState(
+          applySessionSource(response.sessions ?? [], 'http'),
+          { mode: sampleMode }
+        );
         const nonWebsocketSessions = httpSessions.filter(
           (session) => !websocketServiceTypes.has(session.service_type?.toLowerCase() ?? '')
         );
@@ -348,11 +505,11 @@ export const StreamingPage = () => {
             };
           });
         } else {
-          setActiveSessions({
-            ...response,
-            sessions: httpSessions,
-            by_server: applyGroupedSource(response.by_server, 'http'),
-            by_service: applyGroupedSource(response.by_service, 'http'),
+        setActiveSessions({
+          ...response,
+          sessions: httpSessions,
+          by_server: applyGroupedSource(response.by_server, 'http'),
+          by_service: applyGroupedSource(response.by_service, 'http'),
           });
         }
         const fetchCompletedAt = new Date();
@@ -403,7 +560,13 @@ export const StreamingPage = () => {
         setBootstrapping(false);
       }
     },
-    [wsTruthActive, applyGroupedSource, applySessionSource, websocketServiceTypes]
+    [
+      wsTruthActive,
+      applyGroupedSource,
+      applySessionSource,
+      applyAudiobookshelfPlaybackState,
+      websocketServiceTypes,
+    ]
   );
 
   // Use WebSocket for real-time updates (like Tautulli - no polling, only websocket push)
@@ -438,13 +601,14 @@ export const StreamingPage = () => {
           }
           const mappedSessions = data.sessions.map(mapUnifiedSessionToActiveSession);
           const sourceResult = applySourceFromLiveServices(mappedSessions, data.live_services ?? []);
-          const nonWebsocketSessions = sourceResult.sessions.filter(
+          const mergedSessions = mergeSessions(sourceResult.sessions, httpOnlySessionsRef.current);
+          const mergedSessionsWithState = applyAudiobookshelfPlaybackState(mergedSessions);
+          const nonWebsocketSessions = mergedSessionsWithState.filter(
             (session) => !websocketServiceTypes.has(session.service_type?.toLowerCase() ?? '')
           );
           if (nonWebsocketSessions.length > 0) {
             httpOnlySessionsRef.current = nonWebsocketSessions;
           }
-          const mergedSessions = mergeSessions(sourceResult.sessions, httpOnlySessionsRef.current);
           const now = data.timestamp ? new Date(data.timestamp) : new Date();
 
         // Update session offsets immediately from websocket data
@@ -465,10 +629,10 @@ export const StreamingPage = () => {
         // This handles both adding new sessions AND removing stopped sessions (empty array clears UI)
         // Use sessions.length as source of truth when sessions array is provided (it's the actual current state)
         setActiveSessions({
-          sessions: mergedSessions,
-          total_count: mergedSessions.length,
-          by_server: groupSessionsBy(mergedSessions, 'server_name'),
-          by_service: groupSessionsBy(mergedSessions, 'service_type'),
+          sessions: mergedSessionsWithState,
+          total_count: mergedSessionsWithState.length,
+          by_server: groupSessionsBy(mergedSessionsWithState, 'server_name'),
+          by_service: groupSessionsBy(mergedSessionsWithState, 'service_type'),
           meta: { request_id: '', timestamp: data.timestamp },
         });
         } else if (data.active_count !== undefined) {
@@ -493,10 +657,10 @@ export const StreamingPage = () => {
           } else {
             setActiveSessions((prev) => {
               const previousSessions = prev?.sessions ?? [];
-              const mergedSessions = mergeSessions(previousSessions, httpOnlySessionsRef.current);
-              return {
-                ...(prev ?? {}),
-                sessions: mergedSessions,
+            const mergedSessions = mergeSessions(previousSessions, httpOnlySessionsRef.current);
+            return {
+              ...(prev ?? {}),
+              sessions: mergedSessions,
                 total_count: mergedSessions.length,
                 by_server: groupSessionsBy(mergedSessions, 'server_name'),
                 by_service: groupSessionsBy(mergedSessions, 'service_type'),
@@ -520,13 +684,14 @@ export const StreamingPage = () => {
           if (Array.isArray(lastSessionData.sessions)) {
             const mappedSessions = lastSessionData.sessions.map(mapUnifiedSessionToActiveSession);
             const sourceResult = applySourceFromLiveServices(mappedSessions, lastSessionData.live_services ?? []);
-            const nonWebsocketSessions = sourceResult.sessions.filter(
+            const mergedSessions = mergeSessions(sourceResult.sessions, httpOnlySessionsRef.current);
+            const mergedSessionsWithState = applyAudiobookshelfPlaybackState(mergedSessions);
+            const nonWebsocketSessions = mergedSessionsWithState.filter(
               (session) => !websocketServiceTypes.has(session.service_type?.toLowerCase() ?? '')
             );
             if (nonWebsocketSessions.length > 0) {
               httpOnlySessionsRef.current = nonWebsocketSessions;
             }
-            const mergedSessions = mergeSessions(sourceResult.sessions, httpOnlySessionsRef.current);
             const now = lastSessionData.timestamp ? new Date(lastSessionData.timestamp) : new Date();
           const updateSource = lastSessionData.update_source;
           const updateLiveServices = lastSessionData.update_live_services ?? [];
@@ -550,15 +715,15 @@ export const StreamingPage = () => {
         // Update active sessions state from websocket data
         // Use sessions.length as source of truth when sessions array is provided
         setActiveSessions({
-          sessions: mergedSessions,
-          total_count: mergedSessions.length,
-          by_server: groupSessionsBy(mergedSessions, 'server_name'),
-          by_service: groupSessionsBy(mergedSessions, 'service_type'),
+          sessions: mergedSessionsWithState,
+          total_count: mergedSessionsWithState.length,
+          by_server: groupSessionsBy(mergedSessionsWithState, 'server_name'),
+          by_service: groupSessionsBy(mergedSessionsWithState, 'service_type'),
           meta: { request_id: '', timestamp: lastSessionData.timestamp },
         });
       }
     }
-  }, [lastSessionData, activeSessions, applySourceFromLiveServices]);
+  }, [lastSessionData, activeSessions, applySourceFromLiveServices, applyAudiobookshelfPlaybackState]);
 
   // Fetch initial data when websocket connects (if we don't have data yet)
   useEffect(() => {

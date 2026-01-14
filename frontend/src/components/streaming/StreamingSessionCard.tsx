@@ -277,6 +277,7 @@ export const StreamingSessionCard = ({ session, onTerminate, pluginFeaturesBySer
       : 'Direct Play';
   const normalizedServiceType = (session.service_type ?? '').toLowerCase();
   const serviceMeta = getServiceMeta(session.service_type);
+  const isAudiobookshelf = normalizedServiceType === 'audiobookshelf';
   const supportsSessionMessage = Boolean(
     normalizedServiceType &&
     pluginFeaturesByService?.[normalizedServiceType]?.features?.includes('session_message')
@@ -299,10 +300,9 @@ export const StreamingSessionCard = ({ session, onTerminate, pluginFeaturesBySer
       : 'border-sky-500/40 text-sky-600';
   const sourceBadgeHoverClass =
     sessionSource === 'ws' ? 'hover:bg-emerald-500/10' : 'hover:bg-sky-500/10';
-  const audiobookshelfAuthor =
-    normalizedServiceType === 'audiobookshelf'
-      ? session.parent_title ?? tryExtractAudiobookshelfAuthor(session.raw_data_json)
-      : undefined;
+  const audiobookshelfAuthor = isAudiobookshelf
+    ? session.parent_title ?? tryExtractAudiobookshelfAuthor(session.raw_data_json)
+    : undefined;
 
   const handleUserProfileClick = async (e: MouseEvent<HTMLAnchorElement>) => {
     e.preventDefault();
@@ -451,13 +451,28 @@ export const StreamingSessionCard = ({ session, onTerminate, pluginFeaturesBySer
                     <span className="capitalize">{session.media_type}</span>
                   </>
                 )}
-                {/* Terminate Button - Desktop Position (Absolute top right of card normally, but here let's keep it accessible) */}
               </div>
               {audiobookshelfAuthor && (
                 <div className="text-xs text-muted-foreground/80 sm:text-sm">
                   by <span className="text-foreground/90">{audiobookshelfAuthor}</span>
                 </div>
               )}
+              <div className="flex items-center gap-2 text-[10px] text-muted-foreground/70 sm:text-xs">
+                <span className="text-[10px] uppercase tracking-widest text-muted-foreground/70">{serviceMeta.label}</span>
+                <Badge
+                  asChild
+                  variant="outline"
+                  className={`text-[10px] px-1.5 py-0 cursor-pointer ${sourceBadgeClass} ${sourceBadgeHoverClass}`}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setShowSourceInfo(true)}
+                    aria-label="Explain WS and HTTP stream badges"
+                  >
+                    {sessionSource === 'ws' ? 'WS' : 'HTTP'}
+                  </button>
+                </Badge>
+              </div>
             </div>
           </div>
 
@@ -762,25 +777,6 @@ export const StreamingSessionCard = ({ session, onTerminate, pluginFeaturesBySer
               </div>
             </div>
           </div>
-
-            {/* Platform Icon / Service Watermark (Right side of footer) */}
-            <div className="flex flex-col items-end gap-1">
-              <span className="text-[10px] uppercase tracking-widest text-muted-foreground/80">{serviceMeta.label}</span>
-              <Badge
-                asChild
-                variant="outline"
-                className={`text-[10px] px-1.5 py-0 cursor-pointer ${sourceBadgeClass} ${sourceBadgeHoverClass}`}
-              >
-                <button
-                  type="button"
-                  onClick={() => setShowSourceInfo(true)}
-                  aria-label="Explain WS and HTTP stream badges"
-                >
-                  {sessionSource === 'ws' ? 'WS' : 'HTTP'}
-                </button>
-              </Badge>
-              {/* Could add a logo here if available */}
-            </div>
         </div>
       </div>
     </div>

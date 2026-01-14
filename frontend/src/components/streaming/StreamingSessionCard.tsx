@@ -457,7 +457,7 @@ export const StreamingSessionCard = ({ session, onTerminate, pluginFeaturesBySer
                   by <span className="text-foreground/90">{audiobookshelfAuthor}</span>
                 </div>
               )}
-              <div className="flex items-center gap-2 text-[10px] text-muted-foreground/70 sm:text-xs">
+              <div className="flex items-center gap-2 text-[10px] text-muted-foreground/70 sm:text-xs mt-1">
                 <span className="text-[10px] uppercase tracking-widest text-muted-foreground/70">{serviceMeta.label}</span>
                 <Badge
                   asChild

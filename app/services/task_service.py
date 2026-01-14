@@ -51,7 +51,7 @@ def monitor_media_sessions_task():
     with scheduler.app.app_context():
         _run_media_session_monitor(
             source="scheduler",
-            exclude_service_types={ServiceType.PLEX},
+            exclude_service_types={ServiceType.PLEX, ServiceType.EMBY, ServiceType.JELLYFIN},
         )
 
 def _run_media_session_monitor(
@@ -59,6 +59,7 @@ def _run_media_session_monitor(
     exclude_service_types: Optional[Iterable[Union[ServiceType, str]]] = None,
     source: str = "manual",
     live_service_types: Optional[Iterable[Union[ServiceType, str]]] = None,
+    summary_data: Optional[Dict[str, Any]] = None,
 ) -> None:
     """
     Core logic for processing active media sessions, parameterised so it can be invoked from the
@@ -851,6 +852,7 @@ def _run_media_session_monitor(
                 sessions=formatted_sessions,  # ✅ Full session data (empty array if no sessions)
                 live_services=live_services_payload,
                 servers=target_servers,
+                summary_data=summary_data,
             )
             current_app.logger.debug(
                 f"Broadcasted WebSocket update: {active_count} active sessions, {len(formatted_sessions)} formatted sessions"

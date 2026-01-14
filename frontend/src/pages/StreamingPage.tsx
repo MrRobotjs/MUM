@@ -10,7 +10,7 @@ import {
 import { useServers } from '../hooks/useServers';
 import { useStreamingSettings } from '../hooks/useStreamingSettings';
 import { useStreamingSummary } from '../hooks/useStreamingSummary';
-import { replaceHttpSessionSnapshots, useStreamingWebSocket } from '../hooks/useStreamingWebSocket';
+import { useStreamingWebSocket } from '../hooks/useStreamingWebSocket';
 import { PageHeader } from '../components';
 import { Button } from '@/components/ui/button';
 import { requestJson } from '../util/apiClient';
@@ -248,7 +248,7 @@ export const StreamingPage = () => {
   const [manualRefreshLoading, setManualRefreshLoading] = useState(false);
   const [sessionOrder, setSessionOrder] = useState<string[]>([]);
 
-  const { success, error: showError } = useAlerts();
+  const { success, error: showError, warning: showWarning } = useAlerts();
   const liveServicesRef = useRef<string[]>([]);
   const httpOnlySessionsRef = useRef<ActiveSession[]>([]);
   const lastUpdateRef = useRef<Date | null>(null);
@@ -344,16 +344,6 @@ export const StreamingPage = () => {
         const filteredHttpSessions = httpOnly ? nonWebsocketSessions : httpSessions;
 
         if (httpOnly) {
-          const countsByService: Record<string, number> = {};
-          filteredHttpSessions.forEach((session) => {
-            const serviceType = session.service_type?.toLowerCase();
-            if (!serviceType) return;
-            countsByService[serviceType] = (countsByService[serviceType] ?? 0) + 1;
-          });
-          replaceHttpSessionSnapshots(
-            countsByService,
-            response.meta?.timestamp as string | undefined
-          );
           setActiveSessions((prev) => {
             const preservedSessions = prev?.sessions?.filter((session) =>
               websocketServiceTypes.has(session.service_type?.toLowerCase() ?? '')
@@ -446,9 +436,12 @@ export const StreamingPage = () => {
           : typeof updateChannel === 'string' && updateChannel.includes('.')
             ? updateChannel.split('.')[0].toLowerCase()
             : '';
+      const summarySource =
+        typeof data.summary?.update_source === 'string'
+          ? data.summary.update_source.toLowerCase()
+          : '';
+      const isManualRefresh = summarySource === 'manual_refresh';
       const isManualHttpSnapshot = updateSourceNormalized === 'http';
-      const shouldReplaceHttpSessions =
-        updateSourceNormalized !== '' && !websocketServiceTypes.has(updateSourceNormalized);
       console.debug('[StreamingPage] WS update', {
         active_count: data.active_count,
         sessions_len: Array.isArray(data.sessions) ? data.sessions.length : null,
@@ -473,14 +466,12 @@ export const StreamingPage = () => {
           }
           const mappedSessions = data.sessions.map(mapUnifiedSessionToActiveSession);
           const sourceResult = applySourceFromLiveServices(mappedSessions, data.live_services ?? []);
-          const mergedSessions = mergeSessions(sourceResult.sessions, httpOnlySessionsRef.current);
-          const mergedSessionsWithState = applyAudiobookshelfPlaybackState(mergedSessions);
-          const nonWebsocketSessions = mergedSessionsWithState.filter(
+          const nonWebsocketSessions = sourceResult.sessions.filter(
             (session) => !websocketServiceTypes.has(session.service_type?.toLowerCase() ?? '')
           );
-          if (shouldReplaceHttpSessions || nonWebsocketSessions.length > 0) {
-            httpOnlySessionsRef.current = nonWebsocketSessions;
-          }
+          httpOnlySessionsRef.current = nonWebsocketSessions;
+          const mergedSessions = mergeSessions(sourceResult.sessions, httpOnlySessionsRef.current);
+          const mergedSessionsWithState = applyAudiobookshelfPlaybackState(mergedSessions);
           const now = data.timestamp ? new Date(data.timestamp) : new Date();
 
         // Update session offsets immediately from websocket data
@@ -491,7 +482,7 @@ export const StreamingPage = () => {
           setLastUpdateAt(now);
           if (isWsUpdate) {
             setLastWsUpdateAt(now);
-          } else if (!isManualHttpSnapshot && (updateSource || updateLiveServices.length > 0)) {
+          } else if (!isManualHttpSnapshot && !isManualRefresh && (updateSource || updateLiveServices.length > 0)) {
             setLastHttpUpdateAt(now);
           }
           lastUpdateRef.current = now;
@@ -523,7 +514,7 @@ export const StreamingPage = () => {
             setLastUpdateAt(now);
             if (isWsUpdate) {
               setLastWsUpdateAt(now);
-            } else if (!isManualHttpSnapshot && (updateSource || updateLiveServices.length > 0)) {
+            } else if (!isManualHttpSnapshot && !isManualRefresh && (updateSource || updateLiveServices.length > 0)) {
               setLastHttpUpdateAt(now);
             }
           } else {
@@ -541,7 +532,7 @@ export const StreamingPage = () => {
             setLastUpdateAt(now);
             if (isWsUpdate) {
               setLastWsUpdateAt(now);
-            } else if (!isManualHttpSnapshot && (updateSource || updateLiveServices.length > 0)) {
+            } else if (!isManualHttpSnapshot && !isManualRefresh && (updateSource || updateLiveServices.length > 0)) {
               setLastHttpUpdateAt(now);
             }
           }
@@ -556,9 +547,7 @@ export const StreamingPage = () => {
           if (Array.isArray(lastSessionData.sessions)) {
             const mappedSessions = lastSessionData.sessions.map(mapUnifiedSessionToActiveSession);
             const sourceResult = applySourceFromLiveServices(mappedSessions, lastSessionData.live_services ?? []);
-            const mergedSessions = mergeSessions(sourceResult.sessions, httpOnlySessionsRef.current);
-            const mergedSessionsWithState = applyAudiobookshelfPlaybackState(mergedSessions);
-            const nonWebsocketSessions = mergedSessionsWithState.filter(
+            const nonWebsocketSessions = sourceResult.sessions.filter(
               (session) => !websocketServiceTypes.has(session.service_type?.toLowerCase() ?? '')
             );
             const updateSource = lastSessionData.update_source;
@@ -572,24 +561,27 @@ export const StreamingPage = () => {
                 : typeof updateChannel === 'string' && updateChannel.includes('.')
                   ? updateChannel.split('.')[0].toLowerCase()
                   : '';
+            const summarySource =
+              typeof lastSessionData.summary?.update_source === 'string'
+                ? lastSessionData.summary.update_source.toLowerCase()
+                : '';
+            const isManualRefresh = summarySource === 'manual_refresh';
             const isManualHttpSnapshot = updateSourceNormalized === 'http';
-            const shouldReplaceHttpSessions =
-              updateSourceNormalized !== '' && !websocketServiceTypes.has(updateSourceNormalized);
-            if (shouldReplaceHttpSessions || nonWebsocketSessions.length > 0) {
-              httpOnlySessionsRef.current = nonWebsocketSessions;
-            }
+            httpOnlySessionsRef.current = nonWebsocketSessions;
+            const mergedSessions = mergeSessions(sourceResult.sessions, httpOnlySessionsRef.current);
+            const mergedSessionsWithState = applyAudiobookshelfPlaybackState(mergedSessions);
             const now = lastSessionData.timestamp ? new Date(lastSessionData.timestamp) : new Date();
 
         // Update session offsets
         const offsets = buildOffsetsFromSessions(sourceResult.sessions);
 
           setSessionOffsets(offsets);
-          setLastUpdateAt(now);
-          if (isWsUpdate) {
-            setLastWsUpdateAt(now);
-          } else if (!isManualHttpSnapshot && (updateSource || updateLiveServices.length > 0)) {
-            setLastHttpUpdateAt(now);
-          }
+            setLastUpdateAt(now);
+            if (isWsUpdate) {
+              setLastWsUpdateAt(now);
+            } else if (!isManualHttpSnapshot && !isManualRefresh && (updateSource || updateLiveServices.length > 0)) {
+              setLastHttpUpdateAt(now);
+            }
         lastUpdateRef.current = now;
         setWsTruthActive(true);
         setBootstrapping(false);
@@ -821,9 +813,15 @@ export const StreamingPage = () => {
 
   const handleManualRefresh = async () => {
     if (manualRefreshLoading) return;
+    if (!isConnected) {
+      showWarning('Realtime streaming updates are disconnected. Refresh is unavailable.');
+      return;
+    }
     setManualRefreshLoading(true);
     try {
-      await fetchActiveSessions({ silent: false, reason: 'manual', force: true, httpOnly: true });
+      await requestJson('/admin/api/v2/streaming/refresh', { method: 'POST' });
+    } catch (error) {
+      showError('Failed to refresh sessions: ' + String(error));
     } finally {
       setManualRefreshLoading(false);
     }
@@ -855,8 +853,8 @@ export const StreamingPage = () => {
         size="sm"
         type="button"
         onClick={handleManualRefresh}
-        disabled={manualRefreshLoading}
-        title="Refresh HTTP-only services"
+        disabled={manualRefreshLoading || !isConnected}
+        title={isConnected ? 'Refresh HTTP-only services' : 'Realtime streaming updates are disconnected'}
       >
         <IconRefresh className={`h-4 w-4 ${manualRefreshLoading ? 'animate-spin' : ''}`} />
         <span className="ml-2">Refresh HTTP</span>

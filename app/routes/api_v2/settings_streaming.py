@@ -112,6 +112,11 @@ class ActiveSessionsResponse(BaseModel):
     meta: dict
 
 
+class StreamingRefreshResponse(BaseModel):
+    data: dict
+    meta: dict
+
+
 @api_v2.get(
     "/streaming/active",
     tags=[streaming_tag],
@@ -156,6 +161,31 @@ def get_active_sessions(current_user):
     except Exception as exc:
         current_app.logger.error(f"Failed to get active sessions: {exc}", exc_info=True)
         return jsonify({'error': {'code': 'FETCH_FAILED', 'message': 'Failed to retrieve active sessions.'}, 'meta': {'request_id': request_id}}), 500
+
+
+@api_v2.post(
+    "/streaming/refresh",
+    tags=[streaming_tag],
+    summary="Trigger an immediate streaming refresh",
+    responses={200: StreamingRefreshResponse, 500: ErrorResponse},
+)
+@jwt_required_with_user()
+@jwt_permission_required('administrator')
+def refresh_streaming_sessions(current_user):
+    request_id = uuid4().hex
+    try:
+        websocket_services = {ServiceType.PLEX, ServiceType.EMBY, ServiceType.JELLYFIN}
+        from app.services.task_service import _run_media_session_monitor
+
+        _run_media_session_monitor(
+            exclude_service_types=websocket_services,
+            source="manual-refresh",
+            summary_data={"update_source": "manual_refresh"},
+        )
+        return jsonify({'data': {'ok': True}, 'meta': {'request_id': request_id}})
+    except Exception as exc:
+        current_app.logger.error(f"Failed to refresh streaming sessions: {exc}", exc_info=True)
+        return jsonify({'error': {'code': 'REFRESH_FAILED', 'message': 'Failed to refresh streaming sessions.'}, 'meta': {'request_id': request_id}}), 500
 
 
 class TerminateBody(BaseModel):

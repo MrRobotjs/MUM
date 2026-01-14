@@ -1,9 +1,10 @@
-import { ReactNode } from 'react';
+import { ReactNode, useEffect, useRef } from 'react';
 import { useLocation, Link } from '@tanstack/react-router';
 import { AppSidebar } from './AppSidebar';
 import { ModeToggle } from './ModeToggle';
 import { NotificationDropdown } from './NotificationDropdown';
 import { useAuth } from '../../contexts/AuthContext';
+import { useAlerts } from '../../contexts/AlertContext';
 import { useServers } from '../../hooks/useServers';
 import { useStreamingWebSocket } from '../../hooks/useStreamingWebSocket';
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
@@ -49,11 +50,31 @@ const generateBreadcrumbs = (pathname: string) => {
 const StreamingWebSocketBootstrap = () => {
   const { hasAdminAccess } = useAuth();
   const { servers: mediaServers } = useServers({ activeOnly: true });
+  const { warning, info } = useAlerts();
+  const hasConnectedOnce = useRef(false);
+  const hasDisconnectedOnce = useRef(false);
+  const lastConnected = useRef(false);
 
-  useStreamingWebSocket({
+  const { isConnected } = useStreamingWebSocket({
     autoConnect: hasAdminAccess,
     servers: mediaServers,
   });
+
+  useEffect(() => {
+    if (!hasAdminAccess) return;
+    if (isConnected) {
+      if (!hasConnectedOnce.current) {
+        hasConnectedOnce.current = true;
+      }
+      if (hasDisconnectedOnce.current && !lastConnected.current) {
+        info('Connection restored: WebSocket reconnected.');
+      }
+    } else if (hasConnectedOnce.current && lastConnected.current) {
+      warning('Lost connection: WebSocket disconnected.');
+      hasDisconnectedOnce.current = true;
+    }
+    lastConnected.current = isConnected;
+  }, [hasAdminAccess, isConnected, info, warning]);
 
   return null;
 };

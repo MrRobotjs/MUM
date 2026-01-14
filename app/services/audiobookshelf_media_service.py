@@ -859,7 +859,7 @@ class AudiobookShelfMediaService(BaseMediaService):
                     'media_type': media_type,
                     'library_name': raw_session.get('libraryName', 'Unknown Library'),
                     'year': None,  # AudioBookshelf doesn't provide year in session data
-                    'state': 'Listening',  # AudioBookshelf sessions show as "Listening" instead of "Playing"
+                    'state': 'Active',  # AudioBookshelf sessions show as "Active" instead of "Playing"
                     'progress': round(progress, 1),
                     'thumb_url': thumb_url,
                     'session_key': session_id,

@@ -42,7 +42,7 @@ const UserCardSkeleton = () => (
 
 const getSessionPriority = (state?: string) => {
   const normalized = state?.toLowerCase();
-  if (normalized === 'playing' || normalized === 'listening') return 4;
+  if (normalized === 'playing' || normalized === 'listening' || normalized === 'active') return 4;
   if (normalized === 'buffering') return 3;
   if (normalized === 'paused') return 2;
   if (normalized) return 1;

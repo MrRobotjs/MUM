@@ -138,7 +138,7 @@ interface StreamingSessionCardProps {
 
 const getStateColor = (state?: string) => {
   const normalized = state?.toLowerCase();
-  if (normalized === 'playing' || normalized === 'listening') return 'text-green-500 bg-green-500';
+  if (normalized === 'playing' || normalized === 'listening' || normalized === 'active') return 'text-green-500 bg-green-500';
   if (normalized === 'paused') return 'text-amber-500 bg-amber-500';
   if (normalized === 'buffering') return 'text-blue-500 bg-blue-500';
   return 'text-gray-500 bg-gray-500';
@@ -584,7 +584,7 @@ export const StreamingSessionCard = ({ session, onTerminate, pluginFeaturesBySer
         <div className="flex items-center justify-between bg-transparent px-4 py-1.5 backdrop-blur-sm text-[10px] uppercase font-bold tracking-wider text-muted-foreground">
           <div className="flex items-center gap-2">
             <span className={`${stateColor.split(' ')[0]}`}>
-              {normalizedState === 'playing' ? <i className="fa-solid fa-play mr-1" /> : null}
+              {normalizedState === 'playing' || normalizedState === 'active' ? <i className="fa-solid fa-play mr-1" /> : null}
               {normalizedState === 'paused' ? <i className="fa-solid fa-pause mr-1" /> : null}
               {normalizedState === 'buffering' ? <i className="fa-solid fa-circle-notch fa-spin mr-1" /> : null}
               {session.state}

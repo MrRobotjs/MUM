@@ -10,7 +10,7 @@ import {
 import { useServers } from '../hooks/useServers';
 import { useStreamingSettings } from '../hooks/useStreamingSettings';
 import { useStreamingSummary } from '../hooks/useStreamingSummary';
-import { useStreamingWebSocket } from '../hooks/useStreamingWebSocket';
+import { replaceHttpSessionSnapshots, useStreamingWebSocket } from '../hooks/useStreamingWebSocket';
 import { PageHeader } from '../components';
 import { Button } from '@/components/ui/button';
 import { requestJson } from '../util/apiClient';
@@ -69,70 +69,6 @@ const calculateProgress = (currentSeconds: number, duration?: string) => {
   return Math.min(100, Math.max(0, (currentSeconds / totalSeconds) * 100));
 };
 
-type AudiobookshelfSignal = {
-  currentTimeSeconds: number | null;
-  updatedAtMs: number | null;
-  timeListeningSeconds: number | null;
-};
-
-const parseAudiobookshelfSignal = (session: ActiveSession): AudiobookshelfSignal => {
-  let currentTimeSeconds: number | null = null;
-  let updatedAtMs: number | null = null;
-  let timeListeningSeconds: number | null = null;
-
-  if (session.raw_data_json) {
-    try {
-      const parsed = JSON.parse(session.raw_data_json) as {
-        currentTime?: unknown;
-        updatedAt?: unknown;
-        timeListening?: unknown;
-      };
-
-      const rawCurrentTime = parsed?.currentTime;
-      if (typeof rawCurrentTime === 'number' && Number.isFinite(rawCurrentTime)) {
-        currentTimeSeconds = rawCurrentTime;
-      } else if (typeof rawCurrentTime === 'string' && rawCurrentTime.trim()) {
-        const parsedCurrent = Number(rawCurrentTime);
-        if (Number.isFinite(parsedCurrent)) {
-          currentTimeSeconds = parsedCurrent;
-        }
-      }
-
-      const rawUpdatedAt = parsed?.updatedAt;
-      if (typeof rawUpdatedAt === 'number' && Number.isFinite(rawUpdatedAt)) {
-        updatedAtMs = rawUpdatedAt;
-      } else if (typeof rawUpdatedAt === 'string' && rawUpdatedAt.trim()) {
-        const parsedUpdatedAt = Number(rawUpdatedAt);
-        if (Number.isFinite(parsedUpdatedAt)) {
-          updatedAtMs = parsedUpdatedAt;
-        } else {
-          const parsedDate = Date.parse(rawUpdatedAt);
-          if (!Number.isNaN(parsedDate)) {
-            updatedAtMs = parsedDate;
-          }
-        }
-      }
-
-      const rawTimeListening = parsed?.timeListening;
-      if (typeof rawTimeListening === 'number' && Number.isFinite(rawTimeListening)) {
-        timeListeningSeconds = rawTimeListening;
-      } else if (typeof rawTimeListening === 'string' && rawTimeListening.trim()) {
-        const parsedListening = Number(rawTimeListening);
-        if (Number.isFinite(parsedListening)) {
-          timeListeningSeconds = parsedListening;
-        }
-      }
-    } catch {
-      // Ignore raw payload parsing errors; fall back to formatted fields.
-    }
-  }
-
-  if (currentTimeSeconds === null && session.current_time) {
-    currentTimeSeconds = parseDurationToSeconds(session.current_time);
-  }
-
-  return { currentTimeSeconds, updatedAtMs, timeListeningSeconds };
-};
 
 const mapUnifiedSessionToActiveSession = (session: UnifiedSession): ActiveSession => {
   const playback = session.playback ?? {};
@@ -316,18 +252,6 @@ export const StreamingPage = () => {
   const liveServicesRef = useRef<string[]>([]);
   const httpOnlySessionsRef = useRef<ActiveSession[]>([]);
   const lastUpdateRef = useRef<Date | null>(null);
-  const audiobookshelfPlaybackRef = useRef<
-    Record<
-      string,
-      {
-        currentTimeSeconds: number | null;
-        updatedAtMs: number | null;
-        timeListeningSeconds: number | null;
-        lastMovementAt: number;
-        lastSampleAt: number;
-      }
-    >
-  >({});
   const [wsTruthActive, setWsTruthActive] = useState(false);
   const websocketServiceTypes = useMemo(() => new Set(['plex', 'emby', 'jellyfin']), []);
   const [bootstrapping, setBootstrapping] = useState(true);
@@ -367,79 +291,8 @@ export const StreamingPage = () => {
   );
 
   const applyAudiobookshelfPlaybackState = useCallback(
-    (sessions: ActiveSession[], options?: { mode?: 'manual' | 'auto' }) => {
-      const now = Date.now();
-      const intervalSeconds = streamingSettings?.session_monitoring_interval ?? 30;
-      const thresholdMs = Math.max(1, intervalSeconds) * 1000;
-      const mode = options?.mode ?? 'auto';
-      const nextCache = { ...audiobookshelfPlaybackRef.current };
-      const activeKeys = new Set<string>();
-
-      const updatedSessions = sessions.map((session) => {
-        if ((session.service_type ?? '').toLowerCase() !== 'audiobookshelf') {
-          return session;
-        }
-
-        const key = buildSessionKey(session);
-        activeKeys.add(key);
-        const { currentTimeSeconds, updatedAtMs, timeListeningSeconds } =
-          parseAudiobookshelfSignal(session);
-        const prev = nextCache[key];
-        const prevCurrent = prev?.currentTimeSeconds ?? null;
-        const prevUpdatedAt = prev?.updatedAtMs ?? null;
-        const prevTimeListening = prev?.timeListeningSeconds ?? null;
-        const currentTimeChanged =
-          currentTimeSeconds !== null && prevCurrent !== null
-            ? Math.abs(currentTimeSeconds - prevCurrent) >= 0.25
-            : currentTimeSeconds !== prevCurrent;
-        const updatedAtChanged = updatedAtMs !== null && updatedAtMs !== prevUpdatedAt;
-        const timeListeningChanged =
-          timeListeningSeconds !== null && prevTimeListening !== null
-            ? Math.abs(timeListeningSeconds - prevTimeListening) >= 1
-            : timeListeningSeconds !== prevTimeListening;
-        const movementDetected = currentTimeChanged || updatedAtChanged || timeListeningChanged;
-        const updatedAtClamped = updatedAtMs !== null ? Math.min(updatedAtMs, now) : null;
-        let lastMovementAt = prev?.lastMovementAt ?? (updatedAtClamped ?? now);
-        const lastSampleAt = now;
-
-        if (movementDetected) {
-          if (updatedAtChanged && updatedAtClamped !== null) {
-            lastMovementAt = updatedAtClamped;
-          } else {
-            lastMovementAt = now;
-          }
-        }
-
-        nextCache[key] = {
-          currentTimeSeconds,
-          updatedAtMs,
-          timeListeningSeconds,
-          lastMovementAt,
-          lastSampleAt,
-        };
-
-        const manualOverride =
-          mode === 'manual' &&
-          !movementDetected &&
-          Boolean(prev?.lastSampleAt) &&
-          now - (prev?.lastSampleAt ?? now) >= 1000;
-        const isPaused = manualOverride || now - lastMovementAt >= thresholdMs;
-        const nextState = isPaused ? 'Paused' : 'Listening';
-        if (session.state === nextState) {
-          return session;
-        }
-        return { ...session, state: nextState };
-      });
-
-      Object.keys(nextCache).forEach((key) => {
-        if (!activeKeys.has(key)) {
-          delete nextCache[key];
-        }
-      });
-      audiobookshelfPlaybackRef.current = nextCache;
-      return updatedSessions;
-    },
-    [streamingSettings?.session_monitoring_interval]
+    (sessions: ActiveSession[], _options?: { mode?: 'manual' | 'auto' }) => sessions,
+    []
   );
 
   const fetchActiveSessions = useCallback(
@@ -491,6 +344,16 @@ export const StreamingPage = () => {
         const filteredHttpSessions = httpOnly ? nonWebsocketSessions : httpSessions;
 
         if (httpOnly) {
+          const countsByService: Record<string, number> = {};
+          filteredHttpSessions.forEach((session) => {
+            const serviceType = session.service_type?.toLowerCase();
+            if (!serviceType) return;
+            countsByService[serviceType] = (countsByService[serviceType] ?? 0) + 1;
+          });
+          replaceHttpSessionSnapshots(
+            countsByService,
+            response.meta?.timestamp as string | undefined
+          );
           setActiveSessions((prev) => {
             const preservedSessions = prev?.sessions?.filter((session) =>
               websocketServiceTypes.has(session.service_type?.toLowerCase() ?? '')
@@ -550,7 +413,6 @@ export const StreamingPage = () => {
           setLastUpdateAt(fetchCompletedAt);
           lastUpdateRef.current = fetchCompletedAt;
         }
-        setLastHttpUpdateAt(fetchCompletedAt);
       } catch (error) {
         console.error('Failed to fetch active sessions:', error);
       } finally {
@@ -577,6 +439,16 @@ export const StreamingPage = () => {
       const updateLiveServices = data.update_live_services ?? [];
       const hasLiveServices = updateLiveServices.length > 0;
       const isWsUpdate = hasLiveServices || (typeof updateSource === 'string' && updateSource.includes('websocket'));
+      const updateChannel = data.update_channel;
+      const updateSourceNormalized =
+        typeof updateSource === 'string' && updateSource.trim()
+          ? updateSource.toLowerCase()
+          : typeof updateChannel === 'string' && updateChannel.includes('.')
+            ? updateChannel.split('.')[0].toLowerCase()
+            : '';
+      const isManualHttpSnapshot = updateSourceNormalized === 'http';
+      const shouldReplaceHttpSessions =
+        updateSourceNormalized !== '' && !websocketServiceTypes.has(updateSourceNormalized);
       console.debug('[StreamingPage] WS update', {
         active_count: data.active_count,
         sessions_len: Array.isArray(data.sessions) ? data.sessions.length : null,
@@ -606,7 +478,7 @@ export const StreamingPage = () => {
           const nonWebsocketSessions = mergedSessionsWithState.filter(
             (session) => !websocketServiceTypes.has(session.service_type?.toLowerCase() ?? '')
           );
-          if (nonWebsocketSessions.length > 0) {
+          if (shouldReplaceHttpSessions || nonWebsocketSessions.length > 0) {
             httpOnlySessionsRef.current = nonWebsocketSessions;
           }
           const now = data.timestamp ? new Date(data.timestamp) : new Date();
@@ -619,7 +491,7 @@ export const StreamingPage = () => {
           setLastUpdateAt(now);
           if (isWsUpdate) {
             setLastWsUpdateAt(now);
-          } else if (updateSource || updateLiveServices.length > 0) {
+          } else if (!isManualHttpSnapshot && (updateSource || updateLiveServices.length > 0)) {
             setLastHttpUpdateAt(now);
           }
           lastUpdateRef.current = now;
@@ -651,7 +523,7 @@ export const StreamingPage = () => {
             setLastUpdateAt(now);
             if (isWsUpdate) {
               setLastWsUpdateAt(now);
-            } else if (updateSource || updateLiveServices.length > 0) {
+            } else if (!isManualHttpSnapshot && (updateSource || updateLiveServices.length > 0)) {
               setLastHttpUpdateAt(now);
             }
           } else {
@@ -669,7 +541,7 @@ export const StreamingPage = () => {
             setLastUpdateAt(now);
             if (isWsUpdate) {
               setLastWsUpdateAt(now);
-            } else if (updateSource || updateLiveServices.length > 0) {
+            } else if (!isManualHttpSnapshot && (updateSource || updateLiveServices.length > 0)) {
               setLastHttpUpdateAt(now);
             }
           }
@@ -689,14 +561,24 @@ export const StreamingPage = () => {
             const nonWebsocketSessions = mergedSessionsWithState.filter(
               (session) => !websocketServiceTypes.has(session.service_type?.toLowerCase() ?? '')
             );
-            if (nonWebsocketSessions.length > 0) {
+            const updateSource = lastSessionData.update_source;
+            const updateLiveServices = lastSessionData.update_live_services ?? [];
+            const hasLiveServices = updateLiveServices.length > 0;
+            const isWsUpdate = hasLiveServices || (typeof updateSource === 'string' && updateSource.includes('websocket'));
+            const updateChannel = lastSessionData.update_channel;
+            const updateSourceNormalized =
+              typeof updateSource === 'string' && updateSource.trim()
+                ? updateSource.toLowerCase()
+                : typeof updateChannel === 'string' && updateChannel.includes('.')
+                  ? updateChannel.split('.')[0].toLowerCase()
+                  : '';
+            const isManualHttpSnapshot = updateSourceNormalized === 'http';
+            const shouldReplaceHttpSessions =
+              updateSourceNormalized !== '' && !websocketServiceTypes.has(updateSourceNormalized);
+            if (shouldReplaceHttpSessions || nonWebsocketSessions.length > 0) {
               httpOnlySessionsRef.current = nonWebsocketSessions;
             }
             const now = lastSessionData.timestamp ? new Date(lastSessionData.timestamp) : new Date();
-          const updateSource = lastSessionData.update_source;
-          const updateLiveServices = lastSessionData.update_live_services ?? [];
-          const hasLiveServices = updateLiveServices.length > 0;
-          const isWsUpdate = hasLiveServices || (typeof updateSource === 'string' && updateSource.includes('websocket'));
 
         // Update session offsets
         const offsets = buildOffsetsFromSessions(sourceResult.sessions);
@@ -705,7 +587,7 @@ export const StreamingPage = () => {
           setLastUpdateAt(now);
           if (isWsUpdate) {
             setLastWsUpdateAt(now);
-          } else if (updateSource || updateLiveServices.length > 0) {
+          } else if (!isManualHttpSnapshot && (updateSource || updateLiveServices.length > 0)) {
             setLastHttpUpdateAt(now);
           }
         lastUpdateRef.current = now;

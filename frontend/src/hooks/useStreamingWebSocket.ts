@@ -29,6 +29,9 @@ interface UseStreamingWebSocketOptions {
 type StreamingListener = (data: StreamingUpdate) => void;
 type ChannelListener = (event: UnifiedEvent) => void;
 
+const HTTP_SNAPSHOT_PREFIX = '__http.';
+const HTTP_SNAPSHOT_SUFFIX = '.sessions__';
+
 const channelSnapshots = new Map<string, StreamingUpdate>();
 const streamingListeners = new Set<StreamingListener>();
 const streamingState = {
@@ -98,6 +101,10 @@ const recomputeAggregate = () => {
 // This ensures channel snapshots are updated globally
 const handleEnvelopeGlobal = (event: UnifiedEvent) => {
   if (event.type !== 'SessionUpdate') return;
+  const serviceType = event.channel?.split('.')[0]?.toLowerCase();
+  if (serviceType) {
+    channelSnapshots.delete(`${HTTP_SNAPSHOT_PREFIX}${serviceType}${HTTP_SNAPSHOT_SUFFIX}`);
+  }
   const payload = (event.payload || {}) as SessionUpdatePayload;
   channelSnapshots.set(event.channel, {
     ...payload,
@@ -111,6 +118,55 @@ const handleEnvelopeGlobal = (event: UnifiedEvent) => {
 
 const clearChannelSnapshots = () => {
   channelSnapshots.clear();
+  recomputeAggregate();
+};
+
+const setHttpSessionSnapshot = (payload: {
+  serviceType: string;
+  sessions?: SessionUpdatePayload['sessions'];
+  activeCount?: number;
+  timestamp?: string;
+}) => {
+  const serviceType = payload.serviceType?.toLowerCase();
+  if (!serviceType) return;
+  const sessions = Array.isArray(payload.sessions) ? payload.sessions : [];
+  const activeCount = typeof payload.activeCount === 'number' ? payload.activeCount : sessions.length;
+  const channel = `${HTTP_SNAPSHOT_PREFIX}${serviceType}${HTTP_SNAPSHOT_SUFFIX}`;
+  channelSnapshots.set(channel, {
+    sessions,
+    active_count: activeCount,
+    timestamp: payload.timestamp ?? new Date().toISOString(),
+    source: 'http',
+    channel,
+  });
+};
+
+const clearHttpSessionSnapshots = () => {
+  Array.from(channelSnapshots.keys()).forEach((channel) => {
+    if (channel.startsWith(HTTP_SNAPSHOT_PREFIX) && channel.endsWith(HTTP_SNAPSHOT_SUFFIX)) {
+      channelSnapshots.delete(channel);
+    }
+  });
+};
+
+export const updateHttpSessionSnapshot = (payload: {
+  serviceType: string;
+  sessions?: SessionUpdatePayload['sessions'];
+  activeCount?: number;
+  timestamp?: string;
+}) => {
+  setHttpSessionSnapshot(payload);
+  recomputeAggregate();
+};
+
+export const replaceHttpSessionSnapshots = (
+  countsByService: Record<string, number>,
+  timestamp?: string
+) => {
+  clearHttpSessionSnapshots();
+  Object.entries(countsByService).forEach(([serviceType, activeCount]) => {
+    setHttpSessionSnapshot({ serviceType, activeCount, timestamp });
+  });
   recomputeAggregate();
 };
 

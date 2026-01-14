@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { requestJson } from '../util/apiClient';
 import { useAlerts } from '../contexts/AlertContext';
 import { PageHeader } from '../components';
@@ -68,6 +68,11 @@ const AdminSettingsApiDebugPage = () => {
   const [response, setResponse] = useState<ApiResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'formatted' | 'raw' | 'headers' | 'curl'>('formatted');
+  const [scrollAnchor, setScrollAnchor] = useState<'top' | 'bottom'>('top');
+  const formattedRef = useRef<HTMLPreElement | null>(null);
+  const rawRef = useRef<HTMLPreElement | null>(null);
+  const headersRef = useRef<HTMLDivElement | null>(null);
+  const curlRef = useRef<HTMLPreElement | null>(null);
   const { success, error: showError } = useAlerts();
 
   useEffect(() => {
@@ -258,6 +263,31 @@ const AdminSettingsApiDebugPage = () => {
     if (statusCode >= 400) return 'text-destructive';
     return 'text-yellow-500';
   };
+
+  const scrollToAnchor = useCallback(() => {
+    if (!response) return;
+    const target =
+      activeTab === 'formatted'
+        ? formattedRef.current
+        : activeTab === 'raw'
+          ? rawRef.current
+          : activeTab === 'headers'
+            ? headersRef.current
+            : curlRef.current;
+
+    if (!target) return;
+    if (scrollAnchor === 'bottom') {
+      target.scrollTop = target.scrollHeight;
+    } else {
+      target.scrollTop = 0;
+    }
+  }, [activeTab, scrollAnchor, response]);
+
+  useEffect(() => {
+    if (!response) return;
+    const frame = window.requestAnimationFrame(scrollToAnchor);
+    return () => window.cancelAnimationFrame(frame);
+  }, [response, activeTab, scrollAnchor, scrollToAnchor]);
 
   const examples: Record<string, ExampleEndpoint[]> = {
     plex: [
@@ -477,6 +507,15 @@ const AdminSettingsApiDebugPage = () => {
                 </>
               )}
             </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setScrollAnchor((prev) => (prev === 'top' ? 'bottom' : 'top'))}
+              title={`Scroll response to ${scrollAnchor === 'top' ? 'top' : 'bottom'}`}
+            >
+              <i className={`fa-solid ${scrollAnchor === 'top' ? 'fa-arrow-up' : 'fa-arrow-down'} mr-2`} />
+              Scroll: {scrollAnchor === 'top' ? 'Top' : 'Bottom'}
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -554,7 +593,7 @@ const AdminSettingsApiDebugPage = () => {
 
               {/* Formatted Response */}
               <TabsContent value="formatted">
-                <pre className="bg-muted rounded-lg p-4 overflow-auto max-h-96 text-sm whitespace-pre-wrap">
+                <pre ref={formattedRef} className="bg-muted rounded-lg p-4 overflow-auto max-h-96 text-sm whitespace-pre-wrap">
                   {response.response_format === 'xml' && response.response_xml
                     ? formatXml(response.response_xml)
                     : response.response_json
@@ -565,14 +604,14 @@ const AdminSettingsApiDebugPage = () => {
 
               {/* Raw Response */}
               <TabsContent value="raw">
-                <pre className="bg-muted rounded-lg p-4 overflow-auto max-h-96 text-sm whitespace-pre-wrap">
+                <pre ref={rawRef} className="bg-muted rounded-lg p-4 overflow-auto max-h-96 text-sm whitespace-pre-wrap">
                   {response.response_text || 'No response body received'}
                 </pre>
               </TabsContent>
 
               {/* Headers */}
               <TabsContent value="headers">
-                <div className="rounded-lg border shadow-sm overflow-hidden">
+                <div ref={headersRef} className="rounded-lg border shadow-sm overflow-auto max-h-96">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -594,7 +633,7 @@ const AdminSettingsApiDebugPage = () => {
 
               {/* cURL Command */}
               <TabsContent value="curl">
-                <pre className="bg-muted rounded-lg p-4 overflow-auto text-sm whitespace-pre-wrap">
+                <pre ref={curlRef} className="bg-muted rounded-lg p-4 overflow-auto text-sm whitespace-pre-wrap">
                   {generateCurlCommand()}
                 </pre>
                 <div className="mt-2">

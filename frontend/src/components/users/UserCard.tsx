@@ -142,7 +142,7 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
   const getPlaybackInfo = (state?: string) => {
     const s = state?.toLowerCase() || '';
     if (s === 'playing') return { icon: Play, color: 'text-green-500', bg: 'bg-green-500/10', border: 'border-green-500/20', animate: true };
-    if (s === 'listening') return { icon: Music, color: 'text-green-500', bg: 'bg-green-500/10', border: 'border-green-500/20', animate: true };
+    if (s === 'listening' || s === 'active') return { icon: Music, color: 'text-green-500', bg: 'bg-green-500/10', border: 'border-green-500/20', animate: true };
     if (s === 'paused') return { icon: Pause, color: 'text-amber-500', bg: 'bg-amber-500/10', border: 'border-amber-500/20', animate: false };
     if (s === 'buffering') return { icon: Loader2, color: 'text-blue-500', bg: 'bg-blue-500/10', border: 'border-blue-500/20', animate: true, spin: true };
     return { icon: Activity, color: 'text-muted-foreground', bg: 'bg-secondary/50', border: 'border-border/50', animate: false };

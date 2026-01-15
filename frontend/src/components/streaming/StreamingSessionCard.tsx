@@ -256,6 +256,37 @@ const tryExtractAudiobookshelfAuthor = (rawDataJson?: string) => {
   }
 };
 
+const tryExtractPlexEdition = (rawDataJson?: string) => {
+  if (!rawDataJson) return undefined;
+  try {
+    const parsed = JSON.parse(rawDataJson) as Record<string, unknown>;
+    const unwrapNode = (value: unknown) => {
+      if (Array.isArray(value)) {
+        const first = value[0];
+        return typeof first === 'object' && first ? (first as Record<string, unknown>) : undefined;
+      }
+      return typeof value === 'object' && value ? (value as Record<string, unknown>) : undefined;
+    };
+    const container = unwrapNode(parsed.MediaContainer) ?? parsed;
+    const mediaNode =
+      unwrapNode(container.Video) ??
+      unwrapNode(container.Track) ??
+      unwrapNode(container.Photo) ??
+      container;
+    const editionValue =
+      mediaNode?.['@editionTitle'] ??
+      mediaNode?.['@edition'] ??
+      mediaNode?.editionTitle ??
+      mediaNode?.edition;
+    if (typeof editionValue === 'string' && editionValue.trim()) {
+      return editionValue.trim();
+    }
+    return undefined;
+  } catch {
+    return undefined;
+  }
+};
+
 export const StreamingSessionCard = ({ session, onTerminate, pluginFeaturesByService }: StreamingSessionCardProps) => {
   const [showStreamInfo, setShowStreamInfo] = useState(false);
   const [showSendMessage, setShowSendMessage] = useState(false);
@@ -303,6 +334,7 @@ export const StreamingSessionCard = ({ session, onTerminate, pluginFeaturesBySer
   const audiobookshelfAuthor = isAudiobookshelf
     ? session.parent_title ?? tryExtractAudiobookshelfAuthor(session.raw_data_json)
     : undefined;
+  const plexEdition = normalizedServiceType === 'plex' ? tryExtractPlexEdition(session.raw_data_json) : undefined;
 
   const handleUserProfileClick = async (e: MouseEvent<HTMLAnchorElement>) => {
     e.preventDefault();
@@ -441,7 +473,10 @@ export const StreamingSessionCard = ({ session, onTerminate, pluginFeaturesBySer
 
             <div className="flex flex-col text-sm text-muted-foreground sm:text-base">
               {session.grandparent_title && (
-                <span className="truncate opacity-90" title={`${session.grandparent_title}${session.parent_title ? ` — ${session.parent_title}` : ''}`}>{session.grandparent_title} {session.parent_title ? `— ${session.parent_title}` : ''}</span>
+                <span className="truncate opacity-90" title={`${session.grandparent_title}${session.parent_title ? ` - ${session.parent_title}` : ''}`}>{session.grandparent_title} {session.parent_title ? `- ${session.parent_title}` : ''}</span>
+              )}
+              {plexEdition && (
+                <span className="truncate opacity-90 text-xs sm:text-sm" title={plexEdition}>{plexEdition}</span>
               )}
               <div className="flex items-center gap-2 text-xs text-muted-foreground/80 sm:text-sm">
                 {session.year && <span>{session.year}</span>}

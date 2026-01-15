@@ -829,6 +829,36 @@ class PlexMediaService(BaseMediaService):
                     mum_users_map_by_plex_id[str(access.external_user_alt_id)] = user_to_store
         
         formatted_sessions = []
+        metadata_cache = {}
+        server = self._get_server_instance()
+
+        def get_source_container(rating_key, media_id=None, part_id=None):
+            if not rating_key or not server:
+                return None
+            rating_key_str = str(rating_key)
+            if rating_key_str not in metadata_cache:
+                try:
+                    metadata_cache[rating_key_str] = server.fetchItem(int(rating_key_str)) if rating_key_str.isdigit() else server.fetchItem(rating_key_str)
+                except Exception:
+                    metadata_cache[rating_key_str] = None
+            metadata_item = metadata_cache.get(rating_key_str)
+            if not metadata_item:
+                return None
+            media_items = getattr(metadata_item, 'media', None) or []
+            media_match = None
+            if media_id:
+                media_match = next((m for m in media_items if str(getattr(m, 'id', '')) == str(media_id)), None)
+            if not media_match and media_items:
+                media_match = media_items[0]
+            if not media_match:
+                return None
+            container = getattr(media_match, 'container', None)
+            if not container and part_id:
+                parts = getattr(media_match, 'parts', None) or []
+                part_match = next((p for p in parts if str(getattr(p, 'id', '')) == str(part_id)), None)
+                if part_match:
+                    container = getattr(part_match, 'container', None)
+            return container
         
         def get_standard_resolution(height_str):
             if not height_str: return "SD"
@@ -912,6 +942,7 @@ class PlexMediaService(BaseMediaService):
                 mum_user_id = mum_user.id if mum_user else None
                 mum_user_uuid = mum_user.uuid if mum_user else None
                 session_key = raw_session.sessionKey
+                rating_key = getattr(raw_session, 'ratingKey', None)
                 
                 # User avatar
                 user_avatar_url = None
@@ -928,14 +959,26 @@ class PlexMediaService(BaseMediaService):
                 original_media_part = None
                 original_video_stream = None
                 original_audio_stream = None
+                stream_media = None
+                stream_media_part = None
+                source_container = None
                 
                 if raw_session.media:
+                    stream_media = next((m for m in raw_session.media if getattr(m, 'selected', False)), raw_session.media[0])
+                    if stream_media and stream_media.parts:
+                        stream_media_part = next((p for p in stream_media.parts if getattr(p, 'selected', False)), stream_media.parts[0])
                     original_media = next((m for m in raw_session.media if not m.selected), raw_session.media[0])
                     if original_media and original_media.parts:
                         original_media_part = original_media.parts[0]
                         if original_media_part and original_media_part.streams:
                             original_video_stream = next((s for s in original_media_part.streams if s.streamType == 1), None)
                             original_audio_stream = next((s for s in original_media_part.streams if s.streamType == 2), None)
+                if rating_key:
+                    source_container = get_source_container(
+                        rating_key,
+                        media_id=getattr(stream_media, 'id', None),
+                        part_id=getattr(stream_media_part, 'id', None)
+                    )
                 
                 # Initialize details
                 quality_detail = ""
@@ -952,8 +995,12 @@ class PlexMediaService(BaseMediaService):
                     stream_details = f"Transcode {status} {speed}".strip()
                     
                     # Container
-                    original_container = original_media_part.container.upper() if original_media_part and hasattr(original_media_part, 'container') and original_media_part.container else 'N/A'
-                    transcoded_container = transcode_session.container.upper() if transcode_session and hasattr(transcode_session, 'container') and transcode_session.container else 'N/A'
+                    original_container_value = source_container or (original_media_part.container if original_media_part and hasattr(original_media_part, 'container') and original_media_part.container else None)
+                    original_container = original_container_value.upper() if original_container_value else 'N/A'
+                    transcoded_container_value = transcode_session.container if transcode_session and hasattr(transcode_session, 'container') and transcode_session.container else None
+                    if not transcoded_container_value and stream_media and hasattr(stream_media, 'container') and stream_media.container:
+                        transcoded_container_value = stream_media.container
+                    transcoded_container = transcoded_container_value.upper() if transcoded_container_value else 'N/A'
                     container_detail = f"Converting ({original_container} → {transcoded_container})"
 
                     # Video
@@ -1022,7 +1069,8 @@ class PlexMediaService(BaseMediaService):
                         stream_details = "Direct Stream"
 
                     original_res = get_standard_resolution(original_video_stream.height) if original_video_stream else "Unknown"
-                    container_detail = original_media_part.container.upper() if original_media_part and hasattr(original_media_part, 'container') and original_media_part.container else "Unknown"
+                    original_container_value = source_container or (original_media_part.container if original_media_part and hasattr(original_media_part, 'container') and original_media_part.container else None)
+                    container_detail = original_container_value.upper() if original_container_value else "Unknown"
                     
                     # Use the determined stream type (Direct Play or Direct Stream) for details
                     stream_type = "Direct Stream" if stream_details == "Direct Stream" else "Direct Play"

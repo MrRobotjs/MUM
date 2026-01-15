@@ -783,7 +783,23 @@ class PlexMediaService(BaseMediaService):
         raw_sessions = self.get_active_sessions()
         if not raw_sessions:
             return []
-        
+
+        session_editions = {}
+        if self._last_raw_sessions_payload:
+            try:
+                root = ET.fromstring(self._last_raw_sessions_payload)
+                for node in root:
+                    if node.tag not in ('Video', 'Track', 'Photo'):
+                        continue
+                    session_key = node.attrib.get('sessionKey')
+                    if not session_key:
+                        continue
+                    edition_value = node.attrib.get('editionTitle') or node.attrib.get('edition')
+                    if edition_value:
+                        session_editions[str(session_key)] = edition_value
+            except Exception as e:
+                self.log_warning(f"Could not parse session editions from raw payload: {e}")
+
         # Get user mapping for Plex users via service users
         user_ids_in_session = set()
         user_alt_ids_in_session = set()
@@ -1100,6 +1116,17 @@ class PlexMediaService(BaseMediaService):
                     raw_session_dict = xmltodict.parse(raw_xml_string)
                 raw_json_string = json.dumps(raw_session_dict, indent=2)
 
+                edition = None
+                session_key_str = str(session_key) if session_key is not None else ''
+                if session_key_str and session_key_str in session_editions:
+                    edition = session_editions[session_key_str]
+                if hasattr(raw_session, 'editionTitle') and raw_session.editionTitle:
+                    edition = raw_session.editionTitle
+                elif hasattr(raw_session, 'edition') and raw_session.edition:
+                    edition = raw_session.edition
+                elif hasattr(raw_session, '_data') and raw_session._data is not None:
+                    edition = raw_session._data.attrib.get('editionTitle') or raw_session._data.attrib.get('edition')
+
                 # Additional details
                 grandparent_title = getattr(raw_session, 'grandparentTitle', None)
                 parent_title = getattr(raw_session, 'parentTitle', None)
@@ -1116,6 +1143,7 @@ class PlexMediaService(BaseMediaService):
                     'media_title': media_title,
                     'grandparent_title': grandparent_title,
                     'parent_title': parent_title,
+                    'edition': edition,
                     'media_type': media_type,
                     'library_name': library_name,
                     'year': year,

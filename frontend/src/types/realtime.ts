@@ -39,6 +39,7 @@ export interface UnifiedSession {
     type: string;
     library?: string | null;
     year?: string | number | null;
+    edition?: string | null;
     thumb?: string | null;
     grandparent_title?: string | null;
     parent_title?: string | null;

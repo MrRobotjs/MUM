@@ -10,6 +10,7 @@ export type ActiveSession = {
   media_title: string;
   grandparent_title?: string;
   parent_title?: string;
+  edition?: string;
   media_type: string;
   library_name: string;
   year?: string;

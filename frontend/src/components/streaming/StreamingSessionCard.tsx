@@ -256,37 +256,6 @@ const tryExtractAudiobookshelfAuthor = (rawDataJson?: string) => {
   }
 };
 
-const tryExtractPlexEdition = (rawDataJson?: string) => {
-  if (!rawDataJson) return undefined;
-  try {
-    const parsed = JSON.parse(rawDataJson) as Record<string, unknown>;
-    const unwrapNode = (value: unknown) => {
-      if (Array.isArray(value)) {
-        const first = value[0];
-        return typeof first === 'object' && first ? (first as Record<string, unknown>) : undefined;
-      }
-      return typeof value === 'object' && value ? (value as Record<string, unknown>) : undefined;
-    };
-    const container = unwrapNode(parsed.MediaContainer) ?? parsed;
-    const mediaNode =
-      unwrapNode(container.Video) ??
-      unwrapNode(container.Track) ??
-      unwrapNode(container.Photo) ??
-      container;
-    const editionValue =
-      mediaNode?.['@editionTitle'] ??
-      mediaNode?.['@edition'] ??
-      mediaNode?.editionTitle ??
-      mediaNode?.edition;
-    if (typeof editionValue === 'string' && editionValue.trim()) {
-      return editionValue.trim();
-    }
-    return undefined;
-  } catch {
-    return undefined;
-  }
-};
-
 export const StreamingSessionCard = ({ session, onTerminate, pluginFeaturesByService }: StreamingSessionCardProps) => {
   const [showStreamInfo, setShowStreamInfo] = useState(false);
   const [showSendMessage, setShowSendMessage] = useState(false);
@@ -334,7 +303,7 @@ export const StreamingSessionCard = ({ session, onTerminate, pluginFeaturesBySer
   const audiobookshelfAuthor = isAudiobookshelf
     ? session.parent_title ?? tryExtractAudiobookshelfAuthor(session.raw_data_json)
     : undefined;
-  const plexEdition = normalizedServiceType === 'plex' ? tryExtractPlexEdition(session.raw_data_json) : undefined;
+  const plexEdition = normalizedServiceType === 'plex' ? session.edition : undefined;
 
   const handleUserProfileClick = async (e: MouseEvent<HTMLAnchorElement>) => {
     e.preventDefault();

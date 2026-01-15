@@ -132,6 +132,7 @@ const mapUnifiedSessionToActiveSession = (session: UnifiedSession): ActiveSessio
     media_title: item.title || 'Unknown Title',
     grandparent_title: item.grandparent_title ?? undefined,
     parent_title: item.parent_title ?? undefined,
+    edition: item.edition ?? undefined,
     media_type: item.type || 'unknown',
     library_name: item.library || 'Unknown Library',
     year: item.year ? String(item.year) : undefined,

@@ -125,6 +125,7 @@ def normalize_session(
     media_type = (session.get("media_type") or session.get("type") or "unknown").lower()
     library_name = session.get("library_name")
     year = session.get("year")
+    edition = session.get("edition")
     thumb_url = session.get("thumb_url")
     grandparent_title = session.get("grandparent_title")
     parent_title = session.get("parent_title")
@@ -182,6 +183,7 @@ def normalize_session(
             "type": media_type,
             "library": library_name,
             "year": year,
+            "edition": edition,
             "thumb": thumb_url,
             "grandparent_title": grandparent_title,
             "parent_title": parent_title,
@@ -252,4 +254,3 @@ def build_session_update_event(
         "payload": payload,
         "timestamp": ts,
     }
-

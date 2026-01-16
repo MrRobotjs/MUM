@@ -789,7 +789,7 @@ class PlexMediaService(BaseMediaService):
             try:
                 root = ET.fromstring(self._last_raw_sessions_payload)
                 for node in root:
-                    if node.tag not in ('Video', 'Track', 'Photo'):
+                    if node.tag not in ('Video', 'Track', 'Photo', 'Metadata'):
                         continue
                     session_key = node.attrib.get('sessionKey')
                     if not session_key:

@@ -983,7 +983,7 @@ class PlexMediaService(BaseMediaService):
                     stream_media = next((m for m in raw_session.media if getattr(m, 'selected', False)), raw_session.media[0])
                     if stream_media and stream_media.parts:
                         stream_media_part = next((p for p in stream_media.parts if getattr(p, 'selected', False)), stream_media.parts[0])
-                    original_media = next((m for m in raw_session.media if not m.selected), raw_session.media[0])
+                    original_media = stream_media
                     if original_media and original_media.parts:
                         original_media_part = original_media.parts[0]
                         if original_media_part and original_media_part.streams:
@@ -1131,7 +1131,7 @@ class PlexMediaService(BaseMediaService):
                 grandparent_title = getattr(raw_session, 'grandparentTitle', None)
                 parent_title = getattr(raw_session, 'parentTitle', None)
                 player_state = getattr(raw_session.player, 'state', 'N/A').capitalize()
-                bitrate_calc = raw_session.media[0].bitrate if raw_session.media and raw_session.media[0] and hasattr(raw_session.media[0], 'bitrate') else 0
+                bitrate_calc = original_media.bitrate if original_media and hasattr(original_media, 'bitrate') else 0
 
                 session_details = {
                     'user': user_name,

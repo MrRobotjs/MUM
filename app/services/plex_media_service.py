@@ -785,20 +785,36 @@ class PlexMediaService(BaseMediaService):
             return []
 
         session_editions = {}
+        raw_session_map = {}
         if self._last_raw_sessions_payload:
             try:
-                root = ET.fromstring(self._last_raw_sessions_payload)
-                for node in root:
-                    if node.tag not in ('Video', 'Track', 'Photo', 'Metadata'):
-                        continue
-                    session_key = node.attrib.get('sessionKey')
-                    if not session_key:
-                        continue
-                    edition_value = node.attrib.get('editionTitle') or node.attrib.get('edition')
-                    if edition_value:
-                        session_editions[str(session_key)] = edition_value
+                # Use xmltodict to parse the whole payload into a map for easy access
+                # We need to handle both single items and lists because xmltodict behaves differently
+                # depending on the number of children
+                payload_dict = xmltodict.parse(self._last_raw_sessions_payload)
+                if payload_dict and 'MediaContainer' in payload_dict:
+                    container = payload_dict['MediaContainer']
+                    # Valid session tags
+                    tags = ['Video', 'Track', 'Photo', 'Metadata']
+                    
+                    for tag in tags:
+                        if tag in container:
+                            items = container[tag]
+                            if not isinstance(items, list):
+                                items = [items]
+                            
+                            for item in items:
+                                session_key = item.get('@sessionKey')
+                                if session_key:
+                                    raw_session_map[str(session_key)] = item
+                                    
+                                    # Also capture edition info while we're here
+                                    edition = item.get('@editionTitle') or item.get('@edition')
+                                    if edition:
+                                        session_editions[str(session_key)] = edition
+                                        
             except Exception as e:
-                self.log_warning(f"Could not parse session editions from raw payload: {e}")
+                self.log_warning(f"Could not parse raw payload for detailed attributes: {e}")
 
         # Get user mapping for Plex users via service users
         user_ids_in_session = set()
@@ -1017,6 +1033,9 @@ class PlexMediaService(BaseMediaService):
                     status = "Throttled" if transcode_session and transcode_session.throttled else ""
                     stream_details = f"Transcode {status} {speed}".strip()
                     
+                    # Get raw XML data for this session if available
+                    raw_xml_data = raw_session_map.get(str(session_key))
+                    
                     # Container
                     original_container_value = source_container or (original_media_part.container if original_media_part and hasattr(original_media_part, 'container') and original_media_part.container else None)
                     original_container = original_container_value.upper() if original_container_value else 'N/A'
@@ -1028,14 +1047,41 @@ class PlexMediaService(BaseMediaService):
 
                     # Video
                     original_res = get_standard_resolution(original_video_stream.height) if original_video_stream else "Unknown"
+                    # Try to get resolution from raw XML media/video tag which is often more accurate than height calc
+                    if raw_xml_data and raw_xml_data.get('@videoResolution'):
+                        raw_res = raw_xml_data.get('@videoResolution')
+                        if raw_res and str(raw_res).isdigit():
+                             original_res = f"{raw_res}p"
+                        elif raw_res:
+                             original_res = str(raw_res)
+
                     transcoded_res = get_standard_resolution(transcode_session.height) if transcode_session else "Unknown"
+                    
+                    # Check for HW acceleration
+                    hw_decode = False
+                    hw_encode = False
+                    if raw_xml_data and 'TranscodeSession' in raw_xml_data:
+                        ts_xml = raw_xml_data['TranscodeSession']
+                        hw_decode = ts_xml.get('@transcodeHwDecoding') == '1'
+                        hw_encode = ts_xml.get('@transcodeHwEncoding') == '1'
+
                     if transcode_session and transcode_session.videoDecision == "copy":
                         original_codec = original_video_stream.codec.upper() if original_video_stream and hasattr(original_video_stream, 'codec') and original_video_stream.codec else 'Unknown'
                         video_detail = f"Direct Stream ({original_codec} {original_res})"
                     else:
                         original_codec = original_video_stream.codec.upper() if original_video_stream and hasattr(original_video_stream, 'codec') and original_video_stream.codec else 'Unknown'
                         transcoded_codec = transcode_session.videoCodec.upper() if transcode_session and hasattr(transcode_session, 'videoCodec') and transcode_session.videoCodec else 'N/A'
-                        video_detail = f"Transcode ({original_codec} {original_res} → {transcoded_codec} {transcoded_res})"
+                        
+                        # Add (HW) indicators to match Tautulli's style
+                        source_label = f"{original_codec} {original_res}"
+                        if hw_decode:
+                            source_label = f"{original_codec} (HW) {original_res}"
+                            
+                        dest_label = f"{transcoded_codec} {transcoded_res}"
+                        if hw_encode:
+                            dest_label = f"{transcoded_codec} (HW) {transcoded_res}"
+                            
+                        video_detail = f"Transcode ({source_label} → {dest_label})"
 
                     # Audio
                     if transcode_session and transcode_session.audioDecision == "copy":

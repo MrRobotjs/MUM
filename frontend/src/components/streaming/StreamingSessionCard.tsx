@@ -492,11 +492,11 @@ export const StreamingSessionCard = ({ session, onTerminate, pluginFeaturesBySer
                   <i className="fa-solid fa-ellipsis-vertical" />
                 </Button>
               </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuLabel>Session Controls</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  {supportsSessionMessage && (
-                    <DropdownMenuItem
+              <DropdownMenuContent align="end">
+                <DropdownMenuLabel>Session Controls</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {supportsSessionMessage && (
+                  <DropdownMenuItem
                     onClick={() => {
                       setSendMessageText('');
                       setSendMessageHeader('MUM');
@@ -506,18 +506,18 @@ export const StreamingSessionCard = ({ session, onTerminate, pluginFeaturesBySer
                   >
                     <i className="fa-solid fa-message mr-2" />
                     Send Message
-                    </DropdownMenuItem>
-                  )}
-                  <DropdownMenuItem
-                    onClick={() => setShowPayload(true)}
-                  >
-                    <i className="fa-solid fa-code mr-2" />
-                    Payload
                   </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => onTerminate(session)}
-                    className="text-red-600 focus:text-red-600 focus:bg-red-100 dark:focus:bg-red-900/20"
-                  >
+                )}
+                <DropdownMenuItem
+                  onClick={() => setShowPayload(true)}
+                >
+                  <i className="fa-solid fa-code mr-2" />
+                  Payload
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => onTerminate(session)}
+                  className="text-red-600 focus:text-red-600 focus:bg-red-100 dark:focus:bg-red-900/20"
+                >
                   <i className="fa-solid fa-ban mr-2" />
                   Terminate Stream
                 </DropdownMenuItem>
@@ -623,6 +623,14 @@ export const StreamingSessionCard = ({ session, onTerminate, pluginFeaturesBySer
 
         {/* --- Technical Details Section --- */}
         <div className="flex flex-1 flex-col gap-2 p-4 backdrop-blur-sm">
+          {/* Quality Line */}
+          <div className="flex items-start gap-3 text-xs sm:text-sm">
+            <span className="min-w-[40px] font-medium text-muted-foreground">Quality</span>
+            <span className="text-foreground/90 font-medium">
+              {session.quality_detail || 'Unknown'}
+            </span>
+          </div>
+
           {/* Container Line */}
           <div className="flex items-start gap-3 text-xs sm:text-sm">
             <span className="min-w-[40px] font-medium text-muted-foreground">Container</span>
@@ -637,7 +645,6 @@ export const StreamingSessionCard = ({ session, onTerminate, pluginFeaturesBySer
             <div className="flex flex-col">
               <span className="text-foreground/90 font-medium">
                 {session.video_detail || 'Unknown Video'}
-                {session.bitrate_calc ? ` (${Math.round(session.bitrate_calc / 1000)} Mbps)` : ''}
               </span>
               <span className="flex items-center gap-1 text-[11px] sm:text-xs text-muted-foreground">
                 <i className={`fa-solid fa-arrow-turn-up text-[10px] transform rotate-90`} />

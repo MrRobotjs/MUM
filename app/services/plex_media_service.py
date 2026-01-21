@@ -864,7 +864,7 @@ class PlexMediaService(BaseMediaService):
         metadata_cache = {}
         server = self._get_server_instance()
 
-        def get_source_container(rating_key, media_id=None, part_id=None):
+        def get_metadata_item(rating_key):
             if not rating_key or not server:
                 return None
             rating_key_str = str(rating_key)
@@ -873,24 +873,38 @@ class PlexMediaService(BaseMediaService):
                     metadata_cache[rating_key_str] = server.fetchItem(int(rating_key_str)) if rating_key_str.isdigit() else server.fetchItem(rating_key_str)
                 except Exception:
                     metadata_cache[rating_key_str] = None
-            metadata_item = metadata_cache.get(rating_key_str)
+            return metadata_cache.get(rating_key_str)
+
+        def get_source_media_details(rating_key, media_id=None, part_id=None):
+            metadata_item = get_metadata_item(rating_key)
             if not metadata_item:
-                return None
+                return None, None, None, None
             media_items = getattr(metadata_item, 'media', None) or []
-            media_match = None
+            source_media = None
             if media_id:
-                media_match = next((m for m in media_items if str(getattr(m, 'id', '')) == str(media_id)), None)
-            if not media_match and media_items:
-                media_match = media_items[0]
-            if not media_match:
-                return None
-            container = getattr(media_match, 'container', None)
-            if not container and part_id:
-                parts = getattr(media_match, 'parts', None) or []
-                part_match = next((p for p in parts if str(getattr(p, 'id', '')) == str(part_id)), None)
-                if part_match:
-                    container = getattr(part_match, 'container', None)
-            return container
+                source_media = next((m for m in media_items if str(getattr(m, 'id', '')) == str(media_id)), None)
+            if not source_media and media_items:
+                source_media = media_items[0]
+            if not source_media:
+                return None, None, None, None
+            parts = getattr(source_media, 'parts', None) or []
+            source_part = None
+            if part_id:
+                source_part = next((p for p in parts if str(getattr(p, 'id', '')) == str(part_id)), None)
+            if not source_part and parts:
+                source_part = parts[0]
+            streams = getattr(source_part, 'streams', None) or []
+            source_video_stream = next((s for s in streams if s.streamType == 1), None)
+            source_audio_stream = next((s for s in streams if s.streamType == 2), None)
+            return source_media, source_part, source_video_stream, source_audio_stream
+
+        def get_source_container(rating_key, media_id=None, part_id=None):
+            source_media, source_part, _, _ = get_source_media_details(rating_key, media_id, part_id)
+            if source_media and getattr(source_media, 'container', None):
+                return source_media.container
+            if source_part and getattr(source_part, 'container', None):
+                return source_part.container
+            return None
         
         def get_standard_resolution(height_str):
             if not height_str:
@@ -914,6 +928,48 @@ class PlexMediaService(BaseMediaService):
                 return f"{height}p"
             except (ValueError, TypeError):
                 return "SD"
+
+        def normalize_video_resolution(video_resolution):
+            if not video_resolution:
+                return None
+            normalized = str(video_resolution).strip().lower().replace('ip', '')
+            if not normalized:
+                return None
+            overrides = {
+                'sd': 'SD',
+                '2k': '2k',
+                '4k': '4k'
+            }
+            if normalized in overrides:
+                return overrides[normalized]
+            if normalized.isdigit():
+                return f"{normalized}p"
+            return normalized
+
+        def get_resolution_label(video_resolution, height_value=None):
+            normalized = normalize_video_resolution(video_resolution)
+            if normalized:
+                return normalized
+            return get_standard_resolution(height_value)
+
+        def get_stream_media_xml(raw_xml_data):
+            if not raw_xml_data:
+                return None
+            media_node = raw_xml_data.get('Media')
+            if isinstance(media_node, list):
+                selected_media = next((m for m in media_node if m.get('@selected') == '1'), None)
+                return selected_media or media_node[0]
+            if isinstance(media_node, dict):
+                return media_node
+            return None
+
+        def get_transcode_session_xml(raw_xml_data):
+            if not raw_xml_data:
+                return None
+            transcode_node = raw_xml_data.get('TranscodeSession')
+            if isinstance(transcode_node, list):
+                return transcode_node[0] if transcode_node else None
+            return transcode_node
         
         for raw_session in raw_sessions:
             try:
@@ -994,30 +1050,42 @@ class PlexMediaService(BaseMediaService):
                         user_avatar_url = f"/admin/api/v2/media/plex/images/proxy?path={user_thumb_url.lstrip('/')}"
                 
                 # Media details
-                original_media = None
-                original_media_part = None
-                original_video_stream = None
-                original_audio_stream = None
+                source_media = None
+                source_media_part = None
+                source_video_stream = None
+                source_audio_stream = None
                 stream_media = None
                 stream_media_part = None
+                stream_video_stream = None
+                stream_audio_stream = None
                 source_container = None
                 
                 if raw_session.media:
                     stream_media = next((m for m in raw_session.media if getattr(m, 'selected', False)), raw_session.media[0])
                     if stream_media and stream_media.parts:
                         stream_media_part = next((p for p in stream_media.parts if getattr(p, 'selected', False)), stream_media.parts[0])
-                    original_media = stream_media
-                    if original_media and original_media.parts:
-                        original_media_part = original_media.parts[0]
-                        if original_media_part and original_media_part.streams:
-                            original_video_stream = next((s for s in original_media_part.streams if s.streamType == 1), None)
-                            original_audio_stream = next((s for s in original_media_part.streams if s.streamType == 2), None)
+                    if stream_media_part and stream_media_part.streams:
+                        stream_video_stream = next((s for s in stream_media_part.streams if s.streamType == 1), None)
+                        stream_audio_stream = next((s for s in stream_media_part.streams if s.streamType == 2), None)
                 if rating_key:
+                    source_media, source_media_part, source_video_stream, source_audio_stream = get_source_media_details(
+                        rating_key,
+                        media_id=getattr(stream_media, 'id', None),
+                        part_id=getattr(stream_media_part, 'id', None)
+                    )
                     source_container = get_source_container(
                         rating_key,
                         media_id=getattr(stream_media, 'id', None),
                         part_id=getattr(stream_media_part, 'id', None)
                     )
+                if not source_media:
+                    source_media = stream_media
+                if not source_media_part:
+                    source_media_part = stream_media_part
+                if not source_video_stream:
+                    source_video_stream = stream_video_stream
+                if not source_audio_stream:
+                    source_audio_stream = stream_audio_stream
                 
                 # Initialize details
                 quality_detail = ""
@@ -1037,7 +1105,7 @@ class PlexMediaService(BaseMediaService):
                     raw_xml_data = raw_session_map.get(str(session_key))
                     
                     # Container
-                    original_container_value = source_container or (original_media_part.container if original_media_part and hasattr(original_media_part, 'container') and original_media_part.container else None)
+                    original_container_value = source_container or (source_media_part.container if source_media_part and hasattr(source_media_part, 'container') and source_media_part.container else None)
                     original_container = original_container_value.upper() if original_container_value else 'N/A'
                     transcoded_container_value = transcode_session.container if transcode_session and hasattr(transcode_session, 'container') and transcode_session.container else None
                     if not transcoded_container_value and stream_media and hasattr(stream_media, 'container') and stream_media.container:
@@ -1046,30 +1114,30 @@ class PlexMediaService(BaseMediaService):
                     container_detail = f"Converting ({original_container} → {transcoded_container})"
 
                     # Video
-                    original_res = get_standard_resolution(original_video_stream.height) if original_video_stream else "Unknown"
-                    # Try to get resolution from raw XML media/video tag which is often more accurate than height calc
-                    if raw_xml_data and raw_xml_data.get('@videoResolution'):
-                        raw_res = raw_xml_data.get('@videoResolution')
-                        if raw_res and str(raw_res).isdigit():
-                             original_res = f"{raw_res}p"
-                        elif raw_res:
-                             original_res = str(raw_res)
+                    source_video_resolution = getattr(source_media, 'videoResolution', None) if source_media else None
+                    original_res = get_resolution_label(source_video_resolution, source_video_stream.height if source_video_stream else None)
 
-                    transcoded_res = get_standard_resolution(transcode_session.height) if transcode_session else "Unknown"
+                    stream_xml_media = get_stream_media_xml(raw_xml_data)
+                    stream_video_resolution = None
+                    if stream_xml_media and isinstance(stream_xml_media, dict):
+                        stream_video_resolution = stream_xml_media.get('@videoResolution') or stream_xml_media.get('@height')
+                    if not stream_video_resolution and stream_media:
+                        stream_video_resolution = getattr(stream_media, 'videoResolution', None) or getattr(stream_media, 'height', None)
+                    transcoded_res = get_resolution_label(stream_video_resolution, transcode_session.height if transcode_session else None)
                     
                     # Check for HW acceleration
                     hw_decode = False
                     hw_encode = False
-                    if raw_xml_data and 'TranscodeSession' in raw_xml_data:
-                        ts_xml = raw_xml_data['TranscodeSession']
+                    ts_xml = get_transcode_session_xml(raw_xml_data)
+                    if ts_xml and isinstance(ts_xml, dict):
                         hw_decode = ts_xml.get('@transcodeHwDecoding') == '1'
                         hw_encode = ts_xml.get('@transcodeHwEncoding') == '1'
 
                     if transcode_session and transcode_session.videoDecision == "copy":
-                        original_codec = original_video_stream.codec.upper() if original_video_stream and hasattr(original_video_stream, 'codec') and original_video_stream.codec else 'Unknown'
+                        original_codec = source_video_stream.codec.upper() if source_video_stream and hasattr(source_video_stream, 'codec') and source_video_stream.codec else 'Unknown'
                         video_detail = f"Direct Stream ({original_codec} {original_res})"
                     else:
-                        original_codec = original_video_stream.codec.upper() if original_video_stream and hasattr(original_video_stream, 'codec') and original_video_stream.codec else 'Unknown'
+                        original_codec = source_video_stream.codec.upper() if source_video_stream and hasattr(source_video_stream, 'codec') and source_video_stream.codec else 'Unknown'
                         transcoded_codec = transcode_session.videoCodec.upper() if transcode_session and hasattr(transcode_session, 'videoCodec') and transcode_session.videoCodec else 'N/A'
                         
                         # Add (HW) indicators to match Tautulli's style
@@ -1085,10 +1153,10 @@ class PlexMediaService(BaseMediaService):
 
                     # Audio
                     if transcode_session and transcode_session.audioDecision == "copy":
-                        original_audio_display = original_audio_stream.displayTitle if original_audio_stream and hasattr(original_audio_stream, 'displayTitle') else "Unknown"
+                        original_audio_display = source_audio_stream.displayTitle if source_audio_stream and hasattr(source_audio_stream, 'displayTitle') else "Unknown"
                         audio_detail = f"Direct Stream ({original_audio_display})"
                     else:
-                        original_audio_display = original_audio_stream.displayTitle if original_audio_stream and hasattr(original_audio_stream, 'displayTitle') else "Unknown"
+                        original_audio_display = source_audio_stream.displayTitle if source_audio_stream and hasattr(source_audio_stream, 'displayTitle') else "Unknown"
                         audio_channel_layout_map = {1: "Mono", 2: "Stereo", 6: "5.1", 8: "7.1"}
                         transcoded_channel_layout = audio_channel_layout_map.get(transcode_session.audioChannels, f"{transcode_session.audioChannels}ch") if transcode_session and hasattr(transcode_session, 'audioChannels') and transcode_session.audioChannels else "N/A"
                         transcoded_audio_codec = transcode_session.audioCodec.upper() if transcode_session and hasattr(transcode_session, 'audioCodec') and transcode_session.audioCodec else 'N/A'
@@ -1137,20 +1205,21 @@ class PlexMediaService(BaseMediaService):
                     elif raw_session.media and any(p.decision == 'transcode' for m in raw_session.media for p in m.parts if p):
                         stream_details = "Direct Stream"
 
-                    original_res = get_standard_resolution(original_video_stream.height) if original_video_stream else "Unknown"
-                    original_container_value = source_container or (original_media_part.container if original_media_part and hasattr(original_media_part, 'container') and original_media_part.container else None)
+                    source_video_resolution = getattr(source_media, 'videoResolution', None) if source_media else None
+                    original_res = get_resolution_label(source_video_resolution, source_video_stream.height if source_video_stream else None)
+                    original_container_value = source_container or (source_media_part.container if source_media_part and hasattr(source_media_part, 'container') and source_media_part.container else None)
                     container_detail = original_container_value.upper() if original_container_value else "Unknown"
                     
                     # Use the determined stream type (Direct Play or Direct Stream) for details
                     stream_type = "Direct Stream" if stream_details == "Direct Stream" else "Direct Play"
                     
-                    if original_video_stream and hasattr(original_video_stream, 'codec') and original_video_stream.codec:
-                        video_detail = f"{stream_type} ({original_video_stream.codec.upper()} {original_res})"
+                    if source_video_stream and hasattr(source_video_stream, 'codec') and source_video_stream.codec:
+                        video_detail = f"{stream_type} ({source_video_stream.codec.upper()} {original_res})"
                     else:
                         video_detail = f"{stream_type} (Unknown Video)"
                     
-                    if original_audio_stream and hasattr(original_audio_stream, 'displayTitle') and original_audio_stream.displayTitle:
-                        audio_detail = f"{stream_type} ({original_audio_stream.displayTitle})"
+                    if source_audio_stream and hasattr(source_audio_stream, 'displayTitle') and source_audio_stream.displayTitle:
+                        audio_detail = f"{stream_type} ({source_audio_stream.displayTitle})"
                     else:
                         audio_detail = f"{stream_type} (Unknown Audio)"
                     
@@ -1160,7 +1229,7 @@ class PlexMediaService(BaseMediaService):
                     if selected_subtitle_stream:
                         subtitle_detail = f"{stream_type} ({selected_subtitle_stream.displayTitle})"
 
-                    quality_detail = f"Original ({original_media.bitrate / 1000:.1f} Mbps)" if original_media and hasattr(original_media, 'bitrate') and original_media.bitrate else "Original (Bitrate N/A)"
+                    quality_detail = f"Original ({source_media.bitrate / 1000:.1f} Mbps)" if source_media and hasattr(source_media, 'bitrate') and source_media.bitrate else "Original (Bitrate N/A)"
 
                 # Raw data for modal
                 raw_session_dict = {}
@@ -1184,7 +1253,7 @@ class PlexMediaService(BaseMediaService):
                 grandparent_title = getattr(raw_session, 'grandparentTitle', None)
                 parent_title = getattr(raw_session, 'parentTitle', None)
                 player_state = getattr(raw_session.player, 'state', 'N/A').capitalize()
-                bitrate_calc = original_media.bitrate if original_media and hasattr(original_media, 'bitrate') else 0
+                bitrate_calc = source_media.bitrate if source_media and hasattr(source_media, 'bitrate') else 0
 
                 session_details = {
                     'user': user_name,

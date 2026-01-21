@@ -970,6 +970,45 @@ class PlexMediaService(BaseMediaService):
             if isinstance(transcode_node, list):
                 return transcode_node[0] if transcode_node else None
             return transcode_node
+
+        video_quality_profiles = {
+            20000: '20 Mbps 1080p',
+            12000: '12 Mbps 1080p',
+            10000: '10 Mbps 1080p',
+            8000: '8 Mbps 1080p',
+            4000: '4 Mbps 720p',
+            3000: '3 Mbps 720p',
+            2000: '2 Mbps 720p',
+            1500: '1.5 Mbps 480p',
+            720: '0.7 Mbps 328p',
+            320: '0.3 Mbps 240p',
+            208: '0.2 Mbps 160p',
+            96: '0.096 Mbps',
+            64: '0.064 Mbps'
+        }
+        video_quality_bitrates = sorted(video_quality_profiles.keys())
+
+        def get_quality_profile(stream_bitrate, source_bitrate):
+            if stream_bitrate is None:
+                return None
+            try:
+                stream_bitrate_value = int(stream_bitrate)
+            except (TypeError, ValueError):
+                return None
+            source_bitrate_value = None
+            if source_bitrate is not None:
+                try:
+                    source_bitrate_value = int(source_bitrate)
+                except (TypeError, ValueError):
+                    source_bitrate_value = None
+            candidates = [
+                bitrate for bitrate in video_quality_bitrates
+                if stream_bitrate_value <= bitrate and (source_bitrate_value is None or bitrate <= source_bitrate_value)
+            ]
+            if not candidates:
+                return "Original"
+            selected = min(candidates)
+            return video_quality_profiles.get(selected)
         
         for raw_session in raw_sessions:
             try:
@@ -1186,9 +1225,13 @@ class PlexMediaService(BaseMediaService):
 
                     # Quality
                     transcoded_media = next((m for m in raw_session.media if m.selected), None) if raw_session.media else None
-                    quality_res = get_standard_resolution(getattr(transcoded_media, 'height', transcode_session.height if transcode_session else 0))
-                    if transcoded_media and hasattr(transcoded_media, 'bitrate') and transcoded_media.bitrate:
-                        quality_detail = f"{quality_res} ({transcoded_media.bitrate / 1000:.1f} Mbps)"
+                    stream_bitrate = getattr(transcoded_media, 'bitrate', None) if transcoded_media else None
+                    source_bitrate = getattr(source_media, 'bitrate', None) if source_media else None
+                    quality_profile = get_quality_profile(stream_bitrate, source_bitrate)
+                    quality_res = get_resolution_label(stream_video_resolution, transcode_session.height if transcode_session else 0)
+                    if stream_bitrate:
+                        profile_label = quality_profile or quality_res
+                        quality_detail = f"{profile_label} ({stream_bitrate / 1000:.1f} Mbps)"
                     else:
                         quality_detail = f"{quality_res} (Bitrate N/A)"
 

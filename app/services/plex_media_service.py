@@ -988,6 +988,15 @@ class PlexMediaService(BaseMediaService):
                 return None
             return bandwidth_kbps / 1000.0
 
+        def format_bandwidth(bandwidth_mbps):
+            if bandwidth_mbps is None:
+                return None
+            if bandwidth_mbps >= 1000:
+                return f"{bandwidth_mbps / 1000:.1f} Gbps"
+            if bandwidth_mbps < 1:
+                return f"{bandwidth_mbps * 1000:.0f} Kbps"
+            return f"{bandwidth_mbps:.1f} Mbps"
+
         video_quality_profiles = {
             20000: '20 Mbps 1080p',
             12000: '12 Mbps 1080p',
@@ -1145,7 +1154,8 @@ class PlexMediaService(BaseMediaService):
                 
                 raw_xml_data = raw_session_map.get(str(session_key))
                 bandwidth_mbps = get_session_bandwidth_mbps(raw_xml_data)
-                bandwidth_detail = f"{bandwidth_mbps:.1f} Mbps" if bandwidth_mbps is not None else f"Streaming via {location_lan_wan}"
+                bandwidth_label = format_bandwidth(bandwidth_mbps)
+                bandwidth_detail = bandwidth_label if bandwidth_label is not None else f"Streaming via {location_lan_wan}"
 
                 # Initialize details
                 quality_detail = ""
@@ -1329,6 +1339,8 @@ class PlexMediaService(BaseMediaService):
                 grandparent_title = getattr(raw_session, 'grandparentTitle', None)
                 parent_title = getattr(raw_session, 'parentTitle', None)
                 player_state = getattr(raw_session.player, 'state', 'N/A').capitalize()
+                if getattr(raw_session, 'type', '').lower() == 'track' and player_state.lower() == 'playing':
+                    player_state = 'Listening'
                 bitrate_calc = source_media.bitrate if source_media and hasattr(source_media, 'bitrate') else 0
 
                 session_details = {

@@ -971,6 +971,23 @@ class PlexMediaService(BaseMediaService):
                 return transcode_node[0] if transcode_node else None
             return transcode_node
 
+        def get_session_bandwidth_mbps(raw_xml_data):
+            if not raw_xml_data:
+                return None
+            session_node = raw_xml_data.get('Session')
+            if isinstance(session_node, list):
+                session_node = session_node[0] if session_node else None
+            if not isinstance(session_node, dict):
+                return None
+            bandwidth_value = session_node.get('@bandwidth')
+            try:
+                bandwidth_kbps = int(bandwidth_value)
+            except (TypeError, ValueError):
+                return None
+            if bandwidth_kbps <= 0:
+                return None
+            return bandwidth_kbps / 1000.0
+
         video_quality_profiles = {
             20000: '20 Mbps 1080p',
             12000: '12 Mbps 1080p',
@@ -1126,6 +1143,10 @@ class PlexMediaService(BaseMediaService):
                 if not source_audio_stream:
                     source_audio_stream = stream_audio_stream
                 
+                raw_xml_data = raw_session_map.get(str(session_key))
+                bandwidth_mbps = get_session_bandwidth_mbps(raw_xml_data)
+                bandwidth_detail = f"{bandwidth_mbps:.1f} Mbps" if bandwidth_mbps is not None else f"Streaming via {location_lan_wan}"
+
                 # Initialize details
                 quality_detail = ""
                 stream_details = ""
@@ -1139,9 +1160,6 @@ class PlexMediaService(BaseMediaService):
                     speed = f"(Speed: {transcode_session.speed:.1f})" if transcode_session and transcode_session.speed is not None else ""
                     status = "Throttled" if transcode_session and transcode_session.throttled else ""
                     stream_details = f"Transcode {status} {speed}".strip()
-                    
-                    # Get raw XML data for this session if available
-                    raw_xml_data = raw_session_map.get(str(session_key))
                     
                     # Container
                     original_container_value = source_container or (source_media_part.container if source_media_part and hasattr(source_media_part, 'container') and source_media_part.container else None)
@@ -1269,7 +1287,22 @@ class PlexMediaService(BaseMediaService):
                     selected_subtitle_stream = None
                     if raw_session.media:
                         selected_subtitle_stream = next((s for m in raw_session.media for p in m.parts for s in p.streams if p and s.streamType == 3 and s.selected), None)
-                    if selected_subtitle_stream:
+                    if transcode_session and transcode_session.subtitleDecision == "transcode":
+                        if selected_subtitle_stream:
+                            lang = selected_subtitle_stream.language or "Unknown"
+                            dest_format = (getattr(selected_subtitle_stream, 'format', '???') or '???').upper()
+                            display_title = selected_subtitle_stream.displayTitle
+                            match = re.search(r'\((.*?)\)', display_title)
+                            original_format = match.group(1).upper() if match else '???'
+                            if original_format != dest_format and dest_format != '???':
+                                subtitle_detail = f"Transcode ({lang} - {original_format} → {dest_format})"
+                            else:
+                                subtitle_detail = f"Transcode ({display_title})"
+                        else:
+                            subtitle_detail = "Transcode (Unknown)"
+                    elif transcode_session and transcode_session.subtitleDecision == "copy":
+                        subtitle_detail = f"Direct Stream ({selected_subtitle_stream.displayTitle})" if selected_subtitle_stream else "Direct Stream (Unknown)"
+                    elif selected_subtitle_stream:
                         subtitle_detail = f"{stream_type} ({selected_subtitle_stream.displayTitle})"
 
                     quality_detail = f"Original ({source_media.bitrate / 1000:.1f} Mbps)" if source_media and hasattr(source_media, 'bitrate') and source_media.bitrate else "Original (Bitrate N/A)"
@@ -1326,7 +1359,7 @@ class PlexMediaService(BaseMediaService):
                     'location_detail': f"{location_lan_wan}: {location_ip}",
                     'is_public_ip': not is_lan,
                     'location_ip': location_ip,
-                    'bandwidth_detail': f"Streaming via {location_lan_wan}",
+                    'bandwidth_detail': bandwidth_detail,
                     'bitrate_calc': bitrate_calc,
                     'location_type_calc': location_lan_wan,
                     'is_transcode_calc': is_transcoding,

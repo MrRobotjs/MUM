@@ -631,6 +631,14 @@ export const StreamingSessionCard = ({ session, onTerminate, pluginFeaturesBySer
             </span>
           </div>
 
+          {/* Bandwidth Line */}
+          <div className="flex items-start gap-3 text-xs sm:text-sm">
+            <span className="min-w-[40px] font-medium text-muted-foreground">Bandwidth</span>
+            <span className="text-foreground/90 font-medium">
+              {session.bandwidth_detail || 'Unknown'}
+            </span>
+          </div>
+
           {/* Container Line */}
           <div className="flex items-start gap-3 text-xs sm:text-sm">
             <span className="min-w-[40px] font-medium text-muted-foreground">Container</span>

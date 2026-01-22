@@ -997,6 +997,19 @@ class PlexMediaService(BaseMediaService):
                 return f"{bandwidth_mbps * 1000:.0f} Kbps"
             return f"{bandwidth_mbps:.1f} Mbps"
 
+        def format_kbps_bitrate(bitrate_kbps):
+            if bitrate_kbps is None:
+                return None
+            try:
+                bitrate_value = float(bitrate_kbps)
+            except (TypeError, ValueError):
+                return None
+            if bitrate_value < 1000:
+                return f"{bitrate_value:.0f} kbps"
+            if bitrate_value < 1_000_000:
+                return f"{bitrate_value / 1000:.1f} Mbps"
+            return f"{bitrate_value / 1_000_000:.1f} Gbps"
+
         video_quality_profiles = {
             20000: '20 Mbps 1080p',
             12000: '12 Mbps 1080p',
@@ -1045,7 +1058,10 @@ class PlexMediaService(BaseMediaService):
                 player_platform = getattr(player, 'platform', '')
                 product = getattr(player, 'product', 'N/A')
                 media_title = getattr(raw_session, 'title', "Unknown Title")
-                media_type = getattr(raw_session, 'type', 'unknown').capitalize()
+                raw_type = getattr(raw_session, 'type', 'unknown')
+                media_type = raw_type.capitalize()
+                if getattr(raw_session, 'subtype', None) == 'musicVideo':
+                    media_type = 'musicVideo'
                 year = getattr(raw_session, 'year', None)
                 library_name = getattr(raw_session, 'librarySectionTitle', "N/A")
                 progress = (raw_session.viewOffset / raw_session.duration) * 100 if raw_session.duration else 0
@@ -1284,7 +1300,9 @@ class PlexMediaService(BaseMediaService):
                     # Use the determined stream type (Direct Play or Direct Stream) for details
                     stream_type = "Direct Stream" if stream_details == "Direct Stream" else "Direct Play"
                     
-                    if source_video_stream and hasattr(source_video_stream, 'codec') and source_video_stream.codec:
+                    if getattr(raw_session, 'type', '').lower() == 'track':
+                        video_detail = "Audio Only"
+                    elif source_video_stream and hasattr(source_video_stream, 'codec') and source_video_stream.codec:
                         video_detail = f"{stream_type} ({source_video_stream.codec.upper()} {original_res})"
                     else:
                         video_detail = f"{stream_type} (Unknown Video)"
@@ -1315,7 +1333,23 @@ class PlexMediaService(BaseMediaService):
                     elif selected_subtitle_stream:
                         subtitle_detail = f"{stream_type} ({selected_subtitle_stream.displayTitle})"
 
-                    quality_detail = f"Original ({source_media.bitrate / 1000:.1f} Mbps)" if source_media and hasattr(source_media, 'bitrate') and source_media.bitrate else "Original (Bitrate N/A)"
+                    quality_detail = "Original (Bitrate N/A)"
+                    if source_media and hasattr(source_media, 'bitrate') and source_media.bitrate:
+                        quality_detail = f"Original ({source_media.bitrate / 1000:.1f} Mbps)"
+                    elif getattr(raw_session, 'type', '').lower() == 'track':
+                        audio_bitrate_kbps = None
+                        for stream in (source_audio_stream, stream_audio_stream):
+                            if stream and hasattr(stream, 'bitrate') and stream.bitrate:
+                                try:
+                                    audio_bitrate_kbps = int(stream.bitrate)
+                                except (TypeError, ValueError):
+                                    audio_bitrate_kbps = None
+                                if audio_bitrate_kbps:
+                                    break
+                        if audio_bitrate_kbps:
+                            formatted_audio_bitrate = format_kbps_bitrate(audio_bitrate_kbps)
+                            if formatted_audio_bitrate:
+                                quality_detail = f"Original ({formatted_audio_bitrate})"
 
                 # Raw data for modal
                 raw_session_dict = {}

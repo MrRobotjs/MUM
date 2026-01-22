@@ -452,7 +452,9 @@ export const StreamingSessionCard = ({ session, onTerminate, pluginFeaturesBySer
                 {session.media_type && (
                   <>
                     {session.year ? <span className="text-muted-foreground/60">•</span> : null}
-                    <span className="capitalize">{session.media_type}</span>
+                    <span className="capitalize">
+                      {session.media_type.toLowerCase() === 'musicvideo' ? 'Music Video' : session.media_type}
+                    </span>
                   </>
                 )}
               </div>

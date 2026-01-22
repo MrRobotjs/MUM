@@ -786,6 +786,7 @@ class PlexMediaService(BaseMediaService):
 
         session_editions = {}
         raw_session_map = {}
+        primary_extra_metadata_map = {}
         if self._last_raw_sessions_payload:
             try:
                 # Use xmltodict to parse the whole payload into a map for easy access
@@ -812,6 +813,15 @@ class PlexMediaService(BaseMediaService):
                                     edition = item.get('@editionTitle') or item.get('@edition')
                                     if edition:
                                         session_editions[str(session_key)] = edition
+                            for item in items:
+                                primary_extra_key = item.get('@primaryExtraKey')
+                                artist_name = item.get('@grandparentTitle')
+                                album_name = item.get('@parentTitle')
+                                if primary_extra_key and (artist_name or album_name):
+                                    primary_extra_metadata_map[primary_extra_key] = {
+                                        'artist': artist_name,
+                                        'album': album_name
+                                    }
                                         
             except Exception as e:
                 self.log_warning(f"Could not parse raw payload for detailed attributes: {e}")
@@ -1372,6 +1382,25 @@ class PlexMediaService(BaseMediaService):
                 # Additional details
                 grandparent_title = getattr(raw_session, 'grandparentTitle', None)
                 parent_title = getattr(raw_session, 'parentTitle', None)
+                if getattr(raw_session, 'subtype', None) == 'musicVideo' and (not grandparent_title or not parent_title):
+                    artist_candidates = []
+                    if raw_xml_data:
+                        raw_key = raw_xml_data.get('@key')
+                        raw_rating_key = raw_xml_data.get('@ratingKey')
+                        if raw_key:
+                            artist_candidates.append(raw_key)
+                        if raw_rating_key:
+                            artist_candidates.append(f"/library/metadata/{raw_rating_key}")
+                    for candidate_key in artist_candidates:
+                        metadata = primary_extra_metadata_map.get(candidate_key)
+                        if not metadata:
+                            continue
+                        if not grandparent_title and metadata.get('artist'):
+                            grandparent_title = metadata['artist']
+                        if not parent_title and metadata.get('album'):
+                            parent_title = metadata['album']
+                        if grandparent_title or parent_title:
+                            break
                 player_state = getattr(raw_session.player, 'state', 'N/A').capitalize()
                 if getattr(raw_session, 'type', '').lower() == 'track' and player_state.lower() == 'playing':
                     player_state = 'Listening'

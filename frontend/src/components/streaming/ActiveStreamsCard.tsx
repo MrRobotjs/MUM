@@ -129,15 +129,16 @@ export const ActiveStreamsCard = ({
                   const directPlayCount = sessionsData.total_count - transcodeCount;
 
                   // Bandwidth summation:
-                  // - Legacy Flask UI used `bitrate_calc` (kbps) -> Mbps, and `location_type_calc` (LAN/WAN).
-                  // - `bandwidth_detail` is often a descriptive string (e.g. "Streaming via LAN") and may not contain Mbps.
+                  // Prefer per-session bandwidth_detail values (Kbps/Mbps/Gbps) and avoid bitrate fallbacks.
                   const getSessionBandwidthMbps = (session: ActiveSession) => {
-                    const bitrateKbps = session.bitrate_calc;
-                    if (typeof bitrateKbps === 'number' && Number.isFinite(bitrateKbps) && bitrateKbps > 0) {
-                      return bitrateKbps / 1000;
-                    }
-                    const match = session.bandwidth_detail?.match(/(\d+(\.\d+)?)\s*Mbps/i);
-                    return match ? parseFloat(match[1]) : 0;
+                    const detail = session.bandwidth_detail ?? '';
+                    const gbps = detail.match(/(\d+(\.\d+)?)\s*Gbps/i);
+                    if (gbps) return parseFloat(gbps[1]) * 1000;
+                    const mbps = detail.match(/(\d+(\.\d+)?)\s*Mbps/i);
+                    if (mbps) return parseFloat(mbps[1]);
+                    const kbps = detail.match(/(\d+(\.\d+)?)\s*Kbps/i);
+                    if (kbps) return parseFloat(kbps[1]) / 1000;
+                    return 0;
                   };
 
                   const isLanSession = (session: ActiveSession) => {

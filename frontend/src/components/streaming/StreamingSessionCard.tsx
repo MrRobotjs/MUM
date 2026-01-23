@@ -275,6 +275,9 @@ export const StreamingSessionCard = ({ session, onTerminate, pluginFeaturesBySer
     : streamDetailLower.includes('direct stream')
       ? 'Direct Stream'
       : 'Direct Play';
+  const isAudioOnlyVideo = (session.video_detail ?? '').toLowerCase() === 'audio only';
+  const hideVideoStreamStatus =
+    isAudioOnlyVideo || (session.media_type ?? '').toLowerCase() === 'track';
   const normalizedServiceType = (session.service_type ?? '').toLowerCase();
   const serviceMeta = getServiceMeta(session.service_type);
   const isAudiobookshelf = normalizedServiceType === 'audiobookshelf';
@@ -656,48 +659,50 @@ export const StreamingSessionCard = ({ session, onTerminate, pluginFeaturesBySer
               <span className="text-foreground/90 font-medium">
                 {session.video_detail || 'Unknown Video'}
               </span>
-              <span className="flex items-center gap-1 text-[11px] sm:text-xs text-muted-foreground">
-                <i className={`fa-solid fa-arrow-turn-up text-[10px] transform rotate-90`} />
-                {isTranscoding ? (
-                  <span className="text-amber-400 flex items-center gap-1">
-                    <span className="flex items-center gap-1">
-                      Transcode {session.transcode_reason ? `(${session.transcode_reason})` : ''}
+              {!hideVideoStreamStatus ? (
+                <span className="flex items-center gap-1 text-[11px] sm:text-xs text-muted-foreground">
+                  <i className={`fa-solid fa-arrow-turn-up text-[10px] transform rotate-90`} />
+                  {isTranscoding ? (
+                    <span className="text-amber-400 flex items-center gap-1">
+                      <span className="flex items-center gap-1">
+                        Transcode {session.transcode_reason ? `(${session.transcode_reason})` : ''}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setShowStreamInfo(true);
+                          }}
+                          className="hover:text-amber-300 transition-colors focus:outline-none"
+                          title="What does this mean?"
+                        >
+                          <i className="fa-solid fa-circle-info text-[10px]" />
+                        </button>
+                      </span>
+                      {session.transcode_throttled !== undefined || session.transcode_speed !== undefined ? (
+                        <span className="text-gray-500 flex items-center gap-1 ml-1">
+                          ({session.transcode_throttled ? 'Throttled' : 'Active'}
+                          {session.transcode_speed !== undefined && session.transcode_speed > 0 ? `, Speed: ${session.transcode_speed}` : ''})
+                        </span>
+                      ) : null}
+                    </span>
+                  ) : (
+                    <span className="text-green-400 flex items-center gap-1">
+                      {directMethodLabel}
                       <button
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
                           setShowStreamInfo(true);
                         }}
-                        className="hover:text-amber-300 transition-colors focus:outline-none"
+                        className="hover:text-green-300 transition-colors focus:outline-none"
                         title="What does this mean?"
                       >
                         <i className="fa-solid fa-circle-info text-[10px]" />
                       </button>
                     </span>
-                    {session.transcode_throttled !== undefined || session.transcode_speed !== undefined ? (
-                      <span className="text-gray-500 flex items-center gap-1 ml-1">
-                        ({session.transcode_throttled ? 'Throttled' : 'Active'}
-                        {session.transcode_speed !== undefined && session.transcode_speed > 0 ? `, Speed: ${session.transcode_speed}` : ''})
-                      </span>
-                    ) : null}
-                  </span>
-                ) : (
-                  <span className="text-green-400 flex items-center gap-1">
-                    {directMethodLabel}
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setShowStreamInfo(true);
-                      }}
-                      className="hover:text-green-300 transition-colors focus:outline-none"
-                      title="What does this mean?"
-                    >
-                      <i className="fa-solid fa-circle-info text-[10px]" />
-                    </button>
-                  </span>
-                )}
-              </span>
+                  )}
+                </span>
+              ) : null}
             </div>
           </div>
           <StreamInfoDialog open={showStreamInfo} onOpenChange={setShowStreamInfo} />

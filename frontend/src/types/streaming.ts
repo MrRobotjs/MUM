@@ -46,6 +46,22 @@ export type ActiveSession = {
   is_public_ip?: boolean;
   bandwidth_detail?: string;
 
+  // Media details for dialogs
+  media_path?: string;
+  media_duration?: number;
+  media_bitrate?: number;
+  media_width?: number;
+  media_height?: number;
+  media_aspect_ratio?: string;
+  media_audio_channels?: number;
+  media_audio_codec?: string;
+  media_video_codec?: string;
+  media_video_resolution?: string;
+  media_container?: string;
+  media_video_frame_rate?: string;
+  media_video_profile?: string;
+  media_has_voice_activity?: boolean | number | string;
+
   // Raw data for debugging
   raw_data_json?: string;
 

@@ -26,9 +26,25 @@ export function MediaDetailsDialog({ open, onOpenChange, session }: MediaDetails
     const { success, error: showError } = useAlerts();
 
     // Parse raw data to extract detailed info
-    let details: Record<string, string | number | null | undefined> = {};
+    let details: Record<string, string | number | null | undefined> = {
+        path: session.media_path,
+        duration: session.media_duration,
+        bitrate: session.media_bitrate,
+        width: session.media_width,
+        height: session.media_height,
+        aspectRatio: session.media_aspect_ratio,
+        audioChannels: session.media_audio_channels,
+        audioCodec: session.media_audio_codec,
+        videoCodec: session.media_video_codec,
+        videoResolution: session.media_video_resolution,
+        container: session.media_container,
+        videoFrameRate: session.media_video_frame_rate,
+        videoProfile: session.media_video_profile,
+        hasVoiceActivity: session.media_has_voice_activity,
+    };
     try {
-        if (session.raw_data_json) {
+        const needsRawFallback = Object.values(details).some((value) => value === undefined || value === null);
+        if (needsRawFallback && session.raw_data_json) {
             const raw = JSON.parse(session.raw_data_json) as Record<string, any>;
 
             const pickFirst = (value: any) => (Array.isArray(value) ? value[0] : value);
@@ -66,7 +82,7 @@ export function MediaDetailsDialog({ open, onOpenChange, session }: MediaDetails
             const videoStream = getStream(1);
             const audioStream = getStream(2);
 
-            details = {
+            const rawDetails = {
                 path: getAttr(part, 'file'),
                 duration: toNumber(getAttr(root, 'duration')) ?? toNumber(getAttr(media, 'duration')),
                 bitrate: toNumber(getAttr(media, 'bitrate')),
@@ -81,6 +97,22 @@ export function MediaDetailsDialog({ open, onOpenChange, session }: MediaDetails
                 videoFrameRate: getAttr(media, 'videoFrameRate') ?? getAttr(videoStream, 'frameRate'),
                 videoProfile: getAttr(videoStream, 'profile'),
                 hasVoiceActivity: getAttr(media, 'hasVoiceActivity'),
+            };
+            details = {
+                path: details.path ?? rawDetails.path,
+                duration: details.duration ?? rawDetails.duration,
+                bitrate: details.bitrate ?? rawDetails.bitrate,
+                width: details.width ?? rawDetails.width,
+                height: details.height ?? rawDetails.height,
+                aspectRatio: details.aspectRatio ?? rawDetails.aspectRatio,
+                audioChannels: details.audioChannels ?? rawDetails.audioChannels,
+                audioCodec: details.audioCodec ?? rawDetails.audioCodec,
+                videoCodec: details.videoCodec ?? rawDetails.videoCodec,
+                videoResolution: details.videoResolution ?? rawDetails.videoResolution,
+                container: details.container ?? rawDetails.container,
+                videoFrameRate: details.videoFrameRate ?? rawDetails.videoFrameRate,
+                videoProfile: details.videoProfile ?? rawDetails.videoProfile,
+                hasVoiceActivity: details.hasVoiceActivity ?? rawDetails.hasVoiceActivity,
             };
 
             // Handle Tautulli/other variations if needed, but start with standard Plex key names

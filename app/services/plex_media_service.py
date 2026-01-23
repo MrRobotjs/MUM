@@ -1401,6 +1401,13 @@ class PlexMediaService(BaseMediaService):
                             parent_title = metadata['album']
                         if grandparent_title or parent_title:
                             break
+                    if not grandparent_title or not parent_title:
+                        metadata_item = get_metadata_item(rating_key)
+                        if metadata_item:
+                            if not grandparent_title:
+                                grandparent_title = getattr(metadata_item, 'grandparentTitle', None)
+                            if not parent_title:
+                                parent_title = getattr(metadata_item, 'parentTitle', None)
                 player_state = getattr(raw_session.player, 'state', 'N/A').capitalize()
                 if getattr(raw_session, 'type', '').lower() == 'track' and player_state.lower() == 'playing':
                     player_state = 'Listening'
@@ -1431,6 +1438,20 @@ class PlexMediaService(BaseMediaService):
                     'video_detail': video_detail,
                     'audio_detail': audio_detail,
                     'subtitle_detail': subtitle_detail,
+                    'media_path': getattr(stream_media_part, 'file', None),
+                    'media_duration': getattr(stream_media, 'duration', None) or getattr(raw_session, 'duration', None),
+                    'media_bitrate': getattr(stream_media, 'bitrate', None),
+                    'media_width': getattr(stream_media, 'width', None) or getattr(stream_video_stream, 'width', None),
+                    'media_height': getattr(stream_media, 'height', None) or getattr(stream_video_stream, 'height', None),
+                    'media_aspect_ratio': getattr(stream_media, 'aspectRatio', None) or getattr(stream_video_stream, 'aspectRatio', None),
+                    'media_audio_channels': getattr(stream_media, 'audioChannels', None) or getattr(stream_audio_stream, 'channels', None),
+                    'media_audio_codec': getattr(stream_media, 'audioCodec', None) or getattr(stream_audio_stream, 'codec', None),
+                    'media_video_codec': getattr(stream_media, 'videoCodec', None) or getattr(stream_video_stream, 'codec', None),
+                    'media_video_resolution': getattr(stream_media, 'videoResolution', None) or getattr(raw_session, 'videoResolution', None),
+                    'media_container': getattr(stream_media, 'container', None) or getattr(stream_media_part, 'container', None),
+                    'media_video_frame_rate': getattr(stream_media, 'videoFrameRate', None) or getattr(stream_video_stream, 'frameRate', None),
+                    'media_video_profile': getattr(stream_video_stream, 'profile', None) or getattr(stream_media, 'videoProfile', None),
+                    'media_has_voice_activity': getattr(stream_media, 'hasVoiceActivity', None),
                     'location_detail': f"{location_lan_wan}: {location_ip}",
                     'is_public_ip': not is_lan,
                     'location_ip': location_ip,

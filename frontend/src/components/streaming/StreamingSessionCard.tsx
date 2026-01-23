@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ResponsiveDialog } from '@/components/ui/responsive-dialog';
 import { StreamingSourceInfoDialog } from './StreamingSourceInfoDialog';
+import { MediaDetailsDialog } from './MediaDetailsDialog';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { requestJson } from '@/util/apiClient';
@@ -261,6 +262,7 @@ export const StreamingSessionCard = ({ session, onTerminate, pluginFeaturesBySer
   const [showSendMessage, setShowSendMessage] = useState(false);
   const [showSourceInfo, setShowSourceInfo] = useState(false);
   const [showPayload, setShowPayload] = useState(false);
+  const [showMediaDetails, setShowMediaDetails] = useState(false);
   const [sendMessageText, setSendMessageText] = useState('');
   const [sendMessageHeader, setSendMessageHeader] = useState('MUM');
   const [sendMessageTimeoutSeconds, setSendMessageTimeoutSeconds] = useState<string>('');
@@ -514,6 +516,12 @@ export const StreamingSessionCard = ({ session, onTerminate, pluginFeaturesBySer
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuItem
+                  onClick={() => setShowMediaDetails(true)}
+                >
+                  <i className="fa-solid fa-circle-info mr-2" />
+                  Details
+                </DropdownMenuItem>
+                <DropdownMenuItem
                   onClick={() => setShowPayload(true)}
                 >
                   <i className="fa-solid fa-code mr-2" />
@@ -711,6 +719,11 @@ export const StreamingSessionCard = ({ session, onTerminate, pluginFeaturesBySer
             onOpenChange={setShowPayload}
             payload={session.raw_data_json}
             onCopy={handleCopyRawPayload}
+          />
+          <MediaDetailsDialog
+            open={showMediaDetails}
+            onOpenChange={setShowMediaDetails}
+            session={session}
           />
 
 

@@ -998,6 +998,19 @@ class PlexMediaService(BaseMediaService):
                 return None
             return bandwidth_kbps / 1000.0
 
+        def infer_music_video_metadata_from_path(file_path):
+            if not file_path:
+                return None, None
+            parts = [p for p in re.split(r'[\\/]+', str(file_path)) if p]
+            if len(parts) < 3:
+                return None, None
+            for idx, part in enumerate(parts):
+                label = part.strip().lower()
+                if label in ('music', 'music videos', 'musicvideos'):
+                    if idx + 2 < len(parts):
+                        return parts[idx + 1], parts[idx + 2]
+            return None, None
+
         def format_bandwidth(bandwidth_mbps):
             if bandwidth_mbps is None:
                 return None
@@ -1408,6 +1421,14 @@ class PlexMediaService(BaseMediaService):
                                 grandparent_title = getattr(metadata_item, 'grandparentTitle', None)
                             if not parent_title:
                                 parent_title = getattr(metadata_item, 'parentTitle', None)
+                    if not grandparent_title or not parent_title:
+                        inferred_artist, inferred_album = infer_music_video_metadata_from_path(
+                            getattr(stream_media_part, 'file', None)
+                        )
+                        if not grandparent_title and inferred_artist:
+                            grandparent_title = inferred_artist
+                        if not parent_title and inferred_album:
+                            parent_title = inferred_album
                 player_state = getattr(raw_session.player, 'state', 'N/A').capitalize()
                 if getattr(raw_session, 'type', '').lower() == 'track' and player_state.lower() == 'playing':
                     player_state = 'Listening'

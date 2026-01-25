@@ -9,7 +9,7 @@
   --color-jellyfin: oklch(0.63 0.27 304.24);
   --color-emby: oklch(73.4% 0.19 150.17);
   --color-kavita: oklch(0.74 0.13 163.11);
-  --color-audiobookshelf: oklch(62.8% 0.16 263.78);
+  --color-audiobookshelf: oklch(68% 0.11 77.62);
   --color-komga: oklch(64.9% 0.22 29.4);
   --color-romm: oklch(62.28% 0.16 282.4);
 
@@ -66,17 +66,17 @@
   --color-kavita-950: oklch(28% 0.04 163.11);
 
   /* Audiobookshelf Color Palette */
-  --color-audiobookshelf-50: oklch(95% 0.02 263.78);
-  --color-audiobookshelf-100: oklch(90% 0.04 263.78);
-  --color-audiobookshelf-200: oklch(82% 0.08 263.78);
-  --color-audiobookshelf-300: oklch(74% 0.12 263.78);
-  --color-audiobookshelf-400: oklch(68% 0.14 263.78);
-  --color-audiobookshelf-500: oklch(62.8% 0.16 263.78);
-  --color-audiobookshelf-600: oklch(58% 0.14 263.78);
-  --color-audiobookshelf-700: oklch(48% 0.12 263.78);
-  --color-audiobookshelf-800: oklch(38% 0.10 263.78);
-  --color-audiobookshelf-900: oklch(28% 0.08 263.78);
-  --color-audiobookshelf-950: oklch(18% 0.06 263.78);
+  --color-audiobookshelf-50: oklch(95% 0.014 77.62);
+  --color-audiobookshelf-100: oklch(90% 0.028 77.62);
+  --color-audiobookshelf-200: oklch(82% 0.055 77.62);
+  --color-audiobookshelf-300: oklch(74% 0.082 77.62);
+  --color-audiobookshelf-400: oklch(68% 0.096 77.62);
+  --color-audiobookshelf-500: oklch(62.8% 0.11 77.62);
+  --color-audiobookshelf-600: oklch(58% 0.096 77.62);
+  --color-audiobookshelf-700: oklch(48% 0.082 77.62);
+  --color-audiobookshelf-800: oklch(38% 0.069 77.62);
+  --color-audiobookshelf-900: oklch(28% 0.055 77.62);
+  --color-audiobookshelf-950: oklch(18% 0.041 77.62);
 
   /* Komga Color Palette */
   --color-komga-50: oklch(96% 0.02 29.4);

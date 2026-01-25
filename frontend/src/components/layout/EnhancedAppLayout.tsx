@@ -1,4 +1,4 @@
-import { ReactNode, useEffect, useRef } from 'react';
+import { ReactNode, useEffect, useRef, useState } from 'react';
 import { useLocation, Link } from '@tanstack/react-router';
 import { AppSidebar } from './AppSidebar';
 import { ModeToggle } from './ModeToggle';
@@ -7,6 +7,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useAlerts } from '../../contexts/AlertContext';
 import { useServers } from '../../hooks/useServers';
 import { useStreamingWebSocket } from '../../hooks/useStreamingWebSocket';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { Separator } from '@/components/ui/separator';
 import {
@@ -85,9 +86,41 @@ export const EnhancedAppLayout = ({
 }: EnhancedAppLayoutProps) => {
   const { session } = useAuth();
   const location = useLocation();
+  const isMobile = useIsMobile();
+  const [showMobileHeader, setShowMobileHeader] = useState(true);
+  const lastScrollY = useRef(0);
 
   const appName = session?.app_name || 'Multimedia User Manager';
   const breadcrumbs = generateBreadcrumbs(location.pathname);
+
+  useEffect(() => {
+    if (!showSidebar || !isMobile) {
+      setShowMobileHeader(true);
+      return;
+    }
+
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY || 0;
+      const delta = currentScrollY - lastScrollY.current;
+      const threshold = 6;
+
+      if (Math.abs(delta) < threshold) return;
+
+      if (currentScrollY <= 0) {
+        setShowMobileHeader(true);
+      } else if (delta > 0) {
+        setShowMobileHeader(false);
+      } else {
+        setShowMobileHeader(true);
+      }
+
+      lastScrollY.current = currentScrollY;
+    };
+
+    lastScrollY.current = window.scrollY || 0;
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [isMobile, showSidebar]);
 
   if (!showSidebar) {
     // Simple layout without sidebar (for login, public pages, etc.)
@@ -134,7 +167,15 @@ export const EnhancedAppLayout = ({
       <AppSidebar variant="inset" collapsible="icon" />
       <SidebarInset>
         {/* Header/Navbar */}
-        <header className="flex h-(--header-height) shrink-0 items-center gap-2 border-b transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-(--header-height)">
+        <header
+          className={`flex h-(--header-height) shrink-0 items-center gap-2 border-b transition-[width,height] duration-300 ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-(--header-height) ${
+            isMobile
+              ? `sticky top-0 z-30 bg-card/95 backdrop-blur transition-transform duration-250 ease-out will-change-transform ${
+                  showMobileHeader ? 'translate-y-0' : '-translate-y-full'
+                }`
+              : ''
+          }`}
+        >
           <div className="flex w-full items-center gap-1 px-4 lg:gap-2 lg:px-6">
             <SidebarTrigger className="-ml-1" />
             <Separator orientation="vertical" className="mx-2 data-[orientation=vertical]:h-4" />

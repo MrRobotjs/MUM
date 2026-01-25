@@ -581,9 +581,12 @@ class AudiobookShelfMediaService(BaseMediaService):
                     self.log_info(f"AudioBookshelf: coverPath for '{title}': {cover_path}")
                     
                     if cover_path:
-                        # Try using the actual cover path from the API response
+                        # Prefer stable API cover endpoints over metadata paths
+                        normalized_cover = str(cover_path).lstrip('/')
+                        if normalized_cover.startswith('metadata/items/') and item_id:
+                            normalized_cover = f"items/{item_id}/cover"
                         # coverPath might be something like "/audiobooks/Terry Goodkind/.../cover.jpg"
-                        thumb_url = f"/admin/api/v2/media/audiobookshelf/images/proxy?path={cover_path.lstrip('/')}"
+                        thumb_url = f"/admin/api/v2/media/audiobookshelf/images/proxy?path={normalized_cover}"
                         processed_item['thumb'] = thumb_url
                         self.log_info(f"AudioBookshelf: Generated thumb URL from coverPath for '{title}': {thumb_url}")
                     elif item_id:

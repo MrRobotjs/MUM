@@ -501,6 +501,15 @@ def audiobookshelf_image_proxy_v2(current_user):
         abort(503)
 
     try:
+        # Normalize metadata cover paths to stable item cover endpoints
+        normalized_path = image_path.lstrip('/')
+        if normalized_path.startswith('metadata/items/'):
+            parts = normalized_path.split('/')
+            if len(parts) >= 3:
+                item_id = parts[2]
+                normalized_path = f"items/{item_id}/cover"
+        image_path = normalized_path
+
         if not image_path.startswith('/'):
             image_path = '/' + image_path
         full_image_url = f"{abs_service.url.rstrip('/')}/api{image_path}"

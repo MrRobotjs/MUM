@@ -482,6 +482,9 @@ const ProfileTab = ({ user }: { user: UserDetail }) => {
                     key={player?.name ?? 'unknown'}
                     className="rounded-xl border border-border bg-muted/40 p-4 text-center shadow-sm transition-shadow hover:shadow-md dark:border-border/70 dark:bg-muted/20"
                   >
+                    <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                      <i className="fa-solid fa-play text-xl" />
+                    </div>
                     <div className="mb-3 text-sm font-semibold text-foreground" title={player?.name ?? 'Unknown'}>
                       {player?.name ?? 'Unknown Player'}
                     </div>

@@ -65,11 +65,27 @@ def api_debug_execute(body: ApiDebugExecuteBody, current_user):
         except Exception:
             server = MediaServer.query.filter_by(server_nickname=server_identifier).first()
 
+        server_url = None
+        service_type = ""
+        api_key = None
+        username = None
+        password = None
+
         if not server:
-            return jsonify({"error": {"code": "SERVER_NOT_FOUND", "message": "Server not found"}}), 404
+            if server_identifier == "plex.tv":
+                server_url = "https://plex.tv"
+                service_type = "plex"
+            else:
+                return jsonify({"error": {"code": "SERVER_NOT_FOUND", "message": "Server not found"}}), 404
+        else:
+            server_url = server.url
+            service_type = server.service_type.value if server.service_type else ""
+            api_key = server.api_key
+            username = server.username
+            password = server.password
 
         # Build base URL with optional protocol override
-        base_url = (server.url or "").strip()
+        base_url = (server_url or "").strip()
         protocol = body.protocol if body.protocol in ("http", "https") else None
         if protocol:
             sanitized = base_url or ""
@@ -112,16 +128,15 @@ def api_debug_execute(body: ApiDebugExecuteBody, current_user):
         headers["Content-Type"] = "application/json"
 
         auth = None
-        st = server.service_type.value if server.service_type else ""
-        if st == "plex" and server.api_key:
-            headers["X-Plex-Token"] = server.api_key
-        elif st in ("jellyfin", "emby") and server.api_key:
-            headers["X-Emby-Token"] = server.api_key
-        elif st in ("kavita", "audiobookshelf", "komga", "romm") and server.api_key:
-            headers["Authorization"] = f"Bearer {server.api_key}"
+        if service_type == "plex" and api_key:
+            headers["X-Plex-Token"] = api_key
+        elif service_type in ("jellyfin", "emby") and api_key:
+            headers["X-Emby-Token"] = api_key
+        elif service_type in ("kavita", "audiobookshelf", "komga", "romm") and api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
 
-        if server.username and server.password:
-            auth = (server.username, server.password)
+        if username and password:
+            auth = (username, password)
 
         # Execute request
         method = (body.method or "GET").upper()

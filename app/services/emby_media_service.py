@@ -377,6 +377,8 @@ class EmbyMediaService(BaseMediaService):
                 mum_user_id = mum_user.id if mum_user else None
                 mum_user_uuid = mum_user.uuid if mum_user else None
 
+                playback_state = "paused" if play_state.get("IsPaused") else "playing"
+
                 formatted.append(
                     {
                         "user": user_name,
@@ -391,7 +393,7 @@ class EmbyMediaService(BaseMediaService):
                         "media_type": media_type,
                         "library_name": now_playing.get("LibraryName") or "Library",
                         "year": year,
-                        "state": play_state.get("PlayState", "Unknown"),
+                        "state": playback_state,
                         "progress": round(progress, 1),
                         "thumb_url": thumb_url,
                         "session_key": session_key,

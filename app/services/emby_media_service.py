@@ -371,9 +371,36 @@ class EmbyMediaService(BaseMediaService):
                     except Exception:
                         pass
 
+                def format_bandwidth(bandwidth_mbps):
+                    if bandwidth_mbps is None:
+                        return None
+                    if bandwidth_mbps >= 1000:
+                        return f"{bandwidth_mbps / 1000:.1f} Gbps"
+                    if bandwidth_mbps < 1:
+                        return f"{bandwidth_mbps * 1000:.0f} Kbps"
+                    return f"{bandwidth_mbps:.1f} Mbps"
+
+                bandwidth_label = None
+                if bitrate_bps:
+                    try:
+                        bandwidth_label = format_bandwidth(float(bitrate_bps) / 1_000_000)
+                    except Exception:
+                        bandwidth_label = None
+
                 location_ip = session.get("RemoteEndPoint", "N/A")
-                is_remote = session.get("IsRemote", False)
-                location_lan_wan = "WAN" if is_remote else "LAN"
+                is_remote = session.get("IsRemote")
+                is_lan = True
+                if isinstance(is_remote, bool):
+                    is_lan = not is_remote
+                elif location_ip and location_ip not in ("N/A", "localhost", "127.0.0.1", "::1"):
+                    try:
+                        import ipaddress
+
+                        ip_value = ipaddress.ip_address(location_ip)
+                        is_lan = ip_value.is_private or ip_value.is_loopback
+                    except (ValueError, ipaddress.AddressValueError):
+                        is_lan = True
+                location_lan_wan = "LAN" if is_lan else "WAN"
                 session_key = session.get("Id", "")
 
                 current_time = format_time_ms(int(position_ticks / 10000)) if position_ticks else "0:00"
@@ -420,8 +447,8 @@ class EmbyMediaService(BaseMediaService):
                         "transcode_reason": None,
                         "location_detail": f"{location_lan_wan}: {location_ip}",
                         "location_ip": location_ip,
-                        "is_public_ip": is_remote,
-                        "bandwidth_detail": f"Streaming via {location_lan_wan}",
+                        "is_public_ip": not is_lan,
+                        "bandwidth_detail": bandwidth_label if bandwidth_label is not None else f"Streaming via {location_lan_wan}",
                         "bitrate_calc": None,
                         "location_type_calc": location_lan_wan,
                         "is_transcode_calc": is_transcoding,

@@ -4,6 +4,9 @@ import requests
 import requests.exceptions
 import time
 import hashlib
+import re
+import xml.etree.ElementTree as ET
+from urllib.parse import urlparse, urljoin, urlencode
 from app.services.base_media_service import BaseMediaService
 from app.models_media_services import ServiceType
 from app.utils.timeout_helper import get_api_timeout
@@ -13,12 +16,14 @@ _JWT_TOKEN_CACHE = {}
 
 class KavitaMediaService(BaseMediaService):
     """Kavita implementation of BaseMediaService"""
-    
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._jwt_token = None
         # Create a unique cache key for this server instance
         self._cache_key = self._generate_cache_key()
+        self._opds_library_url_cache: Dict[str, str] = {}
+        self._opds_page_url_cache: Dict[tuple[str, int], str] = {}
     
     @property
     def service_type(self) -> ServiceType:
@@ -206,6 +211,244 @@ class KavitaMediaService(BaseMediaService):
         except requests.exceptions.RequestException as e:
             self.log_error(f"API request failed: {e}")
             raise
+
+    def _get_opds_base_url(self) -> Optional[str]:
+        """Get the base OPDS URL using the Kavita API key (token)."""
+        if not self.url or not self.api_key:
+            return None
+        return f"{self.url.rstrip('/')}/api/Opds/{self.api_key}"
+
+    def _fetch_opds_feed(self, feed_url: str) -> str:
+        headers = {
+            "accept": "application/atom+xml, application/xml;q=0.9, */*;q=0.8"
+        }
+        timeout = get_api_timeout()
+        response = requests.get(feed_url, headers=headers, timeout=timeout)
+        response.raise_for_status()
+        return response.text
+
+    def _parse_opds_feed(self, feed_xml: str, base_url: str) -> tuple[list[Dict[str, Any]], Optional[str]]:
+        entries: list[Dict[str, Any]] = []
+        next_link: Optional[str] = None
+
+        try:
+            root = ET.fromstring(feed_xml)
+        except ET.ParseError as e:
+            self.log_warning(f"OPDS feed parse error: {e}")
+            return entries, next_link
+
+        ns = None
+        if root.tag.startswith("{"):
+            ns = root.tag.split("}")[0].strip("{")
+
+        def _findall(node, tag_name: str):
+            if ns:
+                return node.findall(f"{{{ns}}}{tag_name}")
+            return node.findall(tag_name)
+
+        def _findtext(node, tag_name: str, default: str = ""):
+            if ns:
+                child = node.find(f"{{{ns}}}{tag_name}")
+            else:
+                child = node.find(tag_name)
+            if child is not None and child.text:
+                return child.text
+            return default
+
+        # Find next link on the feed
+        for link_el in _findall(root, "link"):
+            rel = (link_el.get("rel") or "").lower()
+            if rel == "next":
+                href = link_el.get("href")
+                if href:
+                    next_link = urljoin(base_url, href)
+                break
+
+        for entry in _findall(root, "entry"):
+            title = (_findtext(entry, "title", "") or "").strip()
+            entry_id = (_findtext(entry, "id", "") or "").strip()
+            updated = (_findtext(entry, "updated", "") or "").strip()
+            summary = (_findtext(entry, "summary", "") or "").strip()
+            if not summary:
+                summary = (_findtext(entry, "content", "") or "").strip()
+
+            authors = []
+            for author_el in _findall(entry, "author"):
+                name = (_findtext(author_el, "name", "") or "").strip()
+                if name:
+                    authors.append(name)
+
+            image_href = None
+            nav_link = None
+            for link_el in _findall(entry, "link"):
+                rel = (link_el.get("rel") or "").lower()
+                href = link_el.get("href")
+                if not href:
+                    continue
+                resolved = urljoin(base_url, href)
+                if ("image/thumbnail" in rel or "thumbnail" in rel) and not image_href:
+                    image_href = resolved
+                elif "image" in rel and not image_href:
+                    image_href = resolved
+                if not nav_link and rel not in {"self"}:
+                    nav_link = resolved
+
+            entries.append({
+                "title": title,
+                "id": entry_id,
+                "updated": updated,
+                "summary": summary,
+                "authors": authors,
+                "image_href": image_href,
+                "link": nav_link,
+            })
+
+        return entries, next_link
+
+    def _strip_opds_token_from_path(self, path: str) -> str:
+        if not path:
+            return ""
+        marker = "/api/opds/"
+        lower_path = path.lower()
+        if marker in lower_path:
+            after = path[lower_path.index(marker) + len(marker):]
+            parts = after.split("/", 1)
+            if len(parts) == 2:
+                return "/" + parts[1]
+            return "/"
+        return path
+
+    def _extract_opds_image_path(self, href: Optional[str]) -> Optional[str]:
+        if not href:
+            return None
+        parsed = urlparse(href)
+        path = self._strip_opds_token_from_path(parsed.path or "")
+        if not path:
+            return None
+        if parsed.query:
+            return f"{path}?{parsed.query}"
+        return path
+
+    def _resolve_opds_library_url(self, library_key: str) -> Optional[str]:
+        if not library_key:
+            return None
+
+        cached = self._opds_library_url_cache.get(library_key)
+        if cached:
+            return cached
+
+        base_url = self._get_opds_base_url()
+        if not base_url:
+            return None
+
+        candidate = f"{base_url}/libraries/{library_key}"
+        self._opds_library_url_cache[library_key] = candidate
+        return candidate
+
+    def _extract_series_id(self, value: Optional[str]) -> Optional[str]:
+        if not value:
+            return None
+        match = re.search(r"/series/(\d+)", value)
+        if match:
+            return match.group(1)
+        return None
+
+    def get_library_content(self, library_key: str, page: int = 1, per_page: int = 50) -> Dict[str, Any]:
+        """Get library content for Kavita via OPDS."""
+        try:
+            if page < 1:
+                page = 1
+            library_type = None
+            try:
+                for lib in self.get_libraries():
+                    if str(lib.get("id")) == str(library_key):
+                        library_type = lib.get("type")
+                        break
+            except Exception:
+                library_type = None
+
+            base_feed_url = self._resolve_opds_library_url(library_key)
+            if not base_feed_url:
+                return {"success": False, "error": "OPDS feed not available for library"}
+
+            query = urlencode({"pageNumber": page})
+            feed_url = f"{base_feed_url}?{query}"
+
+            feed_xml = self._fetch_opds_feed(feed_url)
+            entries, next_link = self._parse_opds_feed(feed_xml, feed_url)
+
+            items: list[Dict[str, Any]] = []
+            for entry in entries:
+                entry_link = entry.get("link")
+                series_id = self._extract_series_id(entry_link) or self._extract_series_id(entry.get("id"))
+                raw_entry_id = series_id or entry.get("id") or entry_link or entry.get("title")
+                if not raw_entry_id:
+                    continue
+                entry_id = str(raw_entry_id)
+                if "api/opds" in entry_id:
+                    parsed_id = urlparse(entry_id)
+                    cleaned_path = self._strip_opds_token_from_path(parsed_id.path or "")
+                    if cleaned_path:
+                        entry_id = cleaned_path + (f"?{parsed_id.query}" if parsed_id.query else "")
+                title = entry.get("title") or "Unknown Title"
+                summary = entry.get("summary") or ""
+                updated = entry.get("updated") or ""
+                authors = entry.get("authors") or []
+
+                image_path = self._extract_opds_image_path(entry.get("image_href"))
+                if not image_path and series_id:
+                    image_path = f"/image?{urlencode({'seriesId': series_id, 'libraryId': library_key})}"
+                thumb_url = None
+                if image_path:
+                    from urllib.parse import quote
+                    thumb_url = (
+                        f"/admin/api/v2/media/kavita/images/proxy?path={quote(image_path, safe='')}"
+                        f"&server_id={self.server_id}"
+                    )
+
+                sanitized_link = None
+                if entry.get("link"):
+                    parsed_link = urlparse(str(entry.get("link")))
+                    cleaned_link_path = self._strip_opds_token_from_path(parsed_link.path or "")
+                    if cleaned_link_path:
+                        sanitized_link = cleaned_link_path + (f"?{parsed_link.query}" if parsed_link.query else "")
+
+                items.append({
+                    "id": str(series_id or entry_id),
+                    "external_id": str(series_id or entry_id),
+                    "title": title,
+                    "summary": summary,
+                    "type": (library_type or "book"),
+                    "thumb": thumb_url,
+                    "added_at": updated,
+                    "raw_data": {
+                        "opds_id": entry_id,
+                        "opds_link": sanitized_link,
+                        "opds_updated": updated,
+                        "opds_authors": authors,
+                    },
+                })
+
+            has_next = bool(next_link)
+            if next_link:
+                self._opds_page_url_cache[(library_key, page + 1)] = next_link
+
+            return {
+                "success": True,
+                "items": items,
+                "has_next": has_next,
+                "pagination": {
+                    "page": page,
+                    "per_page": per_page,
+                    "total": 0,
+                    "total_pages": 0,
+                    "has_next": has_next,
+                    "has_prev": page > 1,
+                },
+            }
+        except Exception as e:
+            self.log_error(f"Error getting library content via OPDS for library {library_key}: {e}")
+            return {"success": False, "error": str(e)}
     
     def test_connection(self) -> Tuple[bool, str]:
         """Test connection to Kavita server"""

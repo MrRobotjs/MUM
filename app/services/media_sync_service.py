@@ -97,12 +97,21 @@ class MediaSyncService:
                         break
                     
                     items = content_data.get('items', [])
-                    total_items = content_data.get('total') or 0
+                    pagination = content_data.get('pagination', {}) if isinstance(content_data, dict) else {}
+                    total_items = content_data.get('total') or pagination.get('total') or 0
                     total_pages = (
                         content_data.get('pages')
+                        or pagination.get('total_pages')
                         or ((total_items + per_page - 1) // per_page if total_items else None)
                         or 0
                     )
+                    has_next = (
+                        content_data.get('has_next')
+                        if isinstance(content_data, dict)
+                        else None
+                    )
+                    if has_next is None:
+                        has_next = pagination.get('has_next')
 
                     if not items:
                         break
@@ -121,10 +130,21 @@ class MediaSyncService:
                         message=f"Syncing {media_type}, page {page}{'/' + str(total_pages) if total_pages else ''}"
                     )
                     
-                    # Check if we've got all items
+                    # Stop if we ran out of items
+                    if not items:
+                        break
+
+                    # Respect explicit paging signals from the service
+                    if has_next is False:
+                        break
+                    if has_next is True:
+                        page += 1
+                        continue
+
+                    # Fallback heuristic when pagination is unknown
                     if len(items) < per_page:
                         break
-                        
+
                     page += 1
                     
                     # Add a small delay to prevent overwhelming the API

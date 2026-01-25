@@ -386,6 +386,69 @@ def komga_image_proxy_v2(current_user):
 
 
 @api_v2.get(
+    "/media/kavita/images/proxy",
+    tags=[media_tag],
+    summary="Proxy Kavita OPDS images",
+)
+@jwt_required_with_user()
+def kavita_image_proxy_v2(current_user):
+    image_path = request.args.get('path')
+    server_id = request.args.get('server_id')
+    if not image_path:
+        current_app.logger.warning("API v2 kavita_image_proxy: 'path' parameter is missing.")
+        return "Missing path parameter", 400
+    if not server_id:
+        current_app.logger.warning("API v2 kavita_image_proxy: 'server_id' parameter is missing.")
+        return "Missing server_id parameter", 400
+
+    try:
+        kavita_server = MediaServer.query.filter_by(id=server_id, service_type=ServiceType.KAVITA).first()
+        if not kavita_server:
+            current_app.logger.error("API v2 kavita_image_proxy: Kavita server not found.")
+            return "Kavita server not found", 404
+
+        if not kavita_server.api_key:
+            current_app.logger.error("API v2 kavita_image_proxy: Kavita server missing API key.")
+            return "Kavita API key not configured", 500
+
+        # Strip any embedded OPDS token from the path and rebuild with server API key
+        marker = "/api/opds/"
+        path = image_path
+        lower_path = path.lower()
+        if marker in lower_path:
+            after = path[lower_path.index(marker) + len(marker):]
+            parts = after.split("/", 1)
+            if len(parts) == 2:
+                path = "/" + parts[1]
+            else:
+                path = "/"
+
+        base_opds = f"{kavita_server.url.rstrip('/')}/api/Opds/{kavita_server.api_key}"
+        if not path.startswith("/"):
+            path = "/" + path
+        image_url = f"{base_opds}{path}"
+
+        timeout = get_api_timeout()
+        img_response = requests.get(image_url, stream=True, timeout=timeout, headers=_get_conditional_headers() or None)
+        return _build_image_response(img_response)
+    except requests.exceptions.HTTPError as e_http:
+        current_app.logger.error(
+            f"API v2 kavita_image_proxy: HTTPError ({e_http.response.status_code}) fetching from Kavita: {e_http} for path {image_path}"
+        )
+        return "Error fetching image from Kavita", e_http.response.status_code
+    except requests.exceptions.RequestException as e_req:
+        current_app.logger.error(
+            f"API v2 kavita_image_proxy: RequestException fetching from Kavita: {e_req} for path {image_path}"
+        )
+        return "Error connecting to Kavita", 500
+    except Exception as e:
+        current_app.logger.error(
+            f"API v2 kavita_image_proxy: Unexpected error for path {image_path}: {e}", exc_info=True
+        )
+        return "Error fetching image", 500
+
+
+@api_v2.get(
     "/media/audiobookshelf/images/proxy",
     tags=[media_tag],
     summary="Proxy AudioBookshelf images",

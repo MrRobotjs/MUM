@@ -123,6 +123,15 @@ const mapUnifiedSessionToActiveSession = (session: UnifiedSession): ActiveSessio
     ? `${network.location}${network.ip ? `: ${network.ip}` : ''}`
     : network.ip ?? '';
 
+  const rawPayload =
+    typeof session.raw === 'string'
+      ? session.raw
+      : session.raw && typeof session.raw === 'object'
+        ? JSON.stringify(session.raw)
+        : typeof (session as { original?: { raw_data_json?: unknown } })?.original?.raw_data_json === 'string'
+          ? (session as { original?: { raw_data_json?: string } }).original?.raw_data_json
+          : undefined;
+
   return {
     session_key: session.session_id,
     user: user.name || 'Unknown User',
@@ -157,7 +166,7 @@ const mapUnifiedSessionToActiveSession = (session: UnifiedSession): ActiveSessio
     location_ip: network.ip ?? undefined,
     is_public_ip: network.is_public_ip ?? undefined,
     bandwidth_detail: network.bandwidth ?? undefined,
-    raw_data_json: typeof session.raw === 'string' ? session.raw : undefined,
+    raw_data_json: rawPayload,
     bitrate_calc: typeof quality.bitrate === 'number' ? quality.bitrate : undefined,
     location_type_calc: network.location ?? undefined,
     is_transcode_calc:

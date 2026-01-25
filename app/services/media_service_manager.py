@@ -596,6 +596,13 @@ class MediaServiceManager:
         username = user_data.get('username')
         email = user_data.get('email')
         external_user_id = str(user_data.get('id')) if user_data.get('id') else None
+
+        if server.service_type == ServiceType.PLEX and user_data.get('is_owner'):
+            current_app.logger.info(
+                "Skipping auto-linking for Plex owner '%s' to avoid cross-server ambiguity.",
+                username or email or "unknown",
+            )
+            return None
         
         # Try to find existing local user by checking if they already have access to this specific server
         user = None

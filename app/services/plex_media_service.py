@@ -503,10 +503,62 @@ class PlexMediaService(BaseMediaService):
         processed_users_data = []
         try:
             all_associated_users = admin_account.users()
+            owner_in_list = False
+            if admin_plex_id is not None:
+                for plex_user_obj in all_associated_users:
+                    if getattr(plex_user_obj, 'id', None) == admin_plex_id:
+                        owner_in_list = True
+                        break
+
+            if admin_plex_id and not owner_in_list:
+                owner_thumb_url = getattr(admin_account, 'thumb', None)
+                owner_uuid = getattr(admin_account, 'uuid', None)
+                if not owner_uuid and owner_thumb_url and "/users/" in owner_thumb_url and "/avatar" in owner_thumb_url:
+                    try:
+                        owner_uuid = owner_thumb_url.split('/users/')[1].split('/avatar')[0]
+                    except IndexError:
+                        owner_uuid = None
+
+                owner_username = (
+                    getattr(admin_account, 'username', None)
+                    or getattr(admin_account, 'title', None)
+                    or getattr(admin_account, 'email', None)
+                    or "Owner"
+                )
+                owner_email = getattr(admin_account, 'email', None)
+                owner_raw_data = {
+                    'plex_account_attrs': {
+                        'id': getattr(admin_account, 'id', None),
+                        'uuid': getattr(admin_account, 'uuid', None),
+                        'username': getattr(admin_account, 'username', None),
+                        'title': getattr(admin_account, 'title', None),
+                        'email': getattr(admin_account, 'email', None),
+                        'thumb': getattr(admin_account, 'thumb', None),
+                    },
+                    'is_owner': True,
+                    'timestamp': datetime.utcnow().isoformat()
+                }
+
+                owner_user_data_basic = {
+                    'id': str(admin_plex_id),
+                    'uuid': owner_uuid,
+                    'username': owner_username,
+                    'email': owner_email,
+                    'thumb': owner_thumb_url,
+                    'is_home_user': bool(getattr(admin_account, 'home', False)),
+                    'shares_back': False,
+                    'allow_downloads': True,
+                    'library_ids': all_my_server_library_ids_as_strings[:],
+                    'accepted_at': None,
+                    'raw_data': owner_raw_data,
+                    'is_owner': True
+                }
+                processed_users_data.append(owner_user_data_basic)
+
             for plex_user_obj in all_associated_users:
                 plex_user_id_int = getattr(plex_user_obj, 'id', None)
                 if plex_user_id_int is None: continue
-                if admin_plex_id and plex_user_id_int == admin_plex_id: continue
+                is_owner = bool(admin_plex_id and plex_user_id_int == admin_plex_id)
                 
                 plex_user_uuid_str = None
                 plex_thumb_url = getattr(plex_user_obj, 'thumb', None)
@@ -580,6 +632,9 @@ class PlexMediaService(BaseMediaService):
                 allow_downloads = bool(getattr(plex_user_obj, 'allowSync', False))
                 if user_share_details and user_share_details.get('allow_downloads') is not None:
                     allow_downloads = bool(user_share_details.get('allow_downloads'))
+                if is_owner:
+                    # Owner always has full access on their own server.
+                    allow_downloads = True
 
                 user_data_basic = {
                     'id': str(plex_user_id_int),
@@ -592,14 +647,19 @@ class PlexMediaService(BaseMediaService):
                     'allow_downloads': allow_downloads,
                     'library_ids': [],
                     'accepted_at': accepted_at_val,
-                    'raw_data': raw_user_data
+                    'raw_data': raw_user_data,
+                    'is_owner': is_owner
                 }
 
                 user_share_details = detailed_shares_by_userid.get(plex_user_id_int)
                 add_user_to_MUM_list = False
                 effective_library_ids = []
 
-                if user_share_details:
+                if is_owner:
+                    effective_library_ids = all_my_server_library_ids_as_strings[:]
+                    add_user_to_MUM_list = True
+                    user_data_basic['raw_data']['is_owner'] = True
+                elif user_share_details:
                     if user_share_details.get('allLibraries'):
                         effective_library_ids = all_my_server_library_ids_as_strings[:] 
                         add_user_to_MUM_list = True

@@ -296,6 +296,30 @@ class EmbyMediaService(BaseMediaService):
                 media_type = (now_playing.get("Type") or "unknown").capitalize()
                 year = now_playing.get("ProductionYear")
 
+                # Build thumb URL using Emby image proxy
+                thumb_url = None
+                item_id = now_playing.get("Id")
+                media_type_raw = now_playing.get("Type") or ""
+                media_type_lower = str(media_type_raw).lower()
+                if item_id:
+                    if media_type_lower == "episode" and now_playing.get("SeriesId"):
+                        series_id = now_playing.get("SeriesId")
+                        series_image_tag = (
+                            now_playing.get("SeriesPrimaryImageTag")
+                            or (now_playing.get("ImageTags") or {}).get("SeriesPrimary")
+                        )
+                        thumb_url = f"/admin/api/v2/media/emby/images/proxy?item_id={series_id}&image_type=Primary"
+                        if series_image_tag:
+                            thumb_url += f"&image_tag={series_image_tag}"
+                    else:
+                        primary_image_tag = (
+                            now_playing.get("PrimaryImageTag")
+                            or (now_playing.get("ImageTags") or {}).get("Primary")
+                        )
+                        thumb_url = f"/admin/api/v2/media/emby/images/proxy?item_id={item_id}&image_type=Primary"
+                        if primary_image_tag:
+                            thumb_url += f"&image_tag={primary_image_tag}"
+
                 is_transcoding = play_state.get("PlayMethod") == "Transcode"
                 transcoding_info = session.get("TranscodingInfo") or {}
                 media_streams = now_playing.get("MediaStreams", [])
@@ -369,7 +393,7 @@ class EmbyMediaService(BaseMediaService):
                         "year": year,
                         "state": play_state.get("PlayState", "Unknown"),
                         "progress": round(progress, 1),
-                        "thumb_url": None,
+                        "thumb_url": thumb_url,
                         "session_key": session_key,
                         "quality_detail": quality_detail,
                         "stream_detail": stream_detail,

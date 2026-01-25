@@ -58,7 +58,7 @@ class Config:
     # Access via Authorization header; Refresh via HttpOnly cookie
     JWT_TOKEN_LOCATION = ["headers", "cookies"]
     from datetime import timedelta as _td  # local alias to avoid top-level import collisions
-    JWT_ACCESS_TOKEN_EXPIRES = _td(minutes=10)
+    JWT_ACCESS_TOKEN_EXPIRES = _td(minutes=60)
     JWT_REFRESH_TOKEN_EXPIRES = _td(days=14)
     JWT_COOKIE_SECURE = False  # Set True in production with HTTPS
     JWT_COOKIE_HTTPONLY = True

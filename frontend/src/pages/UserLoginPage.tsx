@@ -9,6 +9,7 @@ import { Button } from '../components/ui/button';
 import { Checkbox } from '../components/ui/checkbox';
 import { Separator } from '../components/ui/separator';
 import { Alert, AlertDescription } from '../components/ui/alert';
+import { ResponsiveDialog } from '../components/ui/responsive-dialog';
 
 type LocationState = {
   from?: string;
@@ -24,6 +25,7 @@ const UserLoginPage = () => {
   const [submitting, setSubmitting] = useState(false);
   const [logoutNotice, setLogoutNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showInactivityInfo, setShowInactivityInfo] = useState(false);
 
   // Prefer ?next= query, then location.state.from, else user dashboard
   const nextParam = search.next;
@@ -171,7 +173,20 @@ const UserLoginPage = () => {
               <CardContent className="space-y-6">
               {logoutNotice && (
                 <Alert variant="warning">
-                  <AlertDescription>{logoutNotice}</AlertDescription>
+                  <AlertDescription>
+                    <div className="flex items-start justify-between gap-3">
+                      <span>{logoutNotice}</span>
+                      <button
+                        type="button"
+                        className="inline-flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
+                        aria-label="Why did this happen?"
+                        title="Why did this happen?"
+                        onClick={() => setShowInactivityInfo(true)}
+                      >
+                        <i className="fa-solid fa-circle-info text-sm" />
+                      </button>
+                    </div>
+                  </AlertDescription>
                 </Alert>
               )}
               {error && (
@@ -245,6 +260,24 @@ const UserLoginPage = () => {
                     )}
                   </Button>
                 </form>
+
+                <ResponsiveDialog
+                  open={showInactivityInfo}
+                  onOpenChange={setShowInactivityInfo}
+                  title="Why did this happen?"
+                  description="Your session can only refresh when the app makes API requests."
+                >
+                  <div className="space-y-3 text-sm text-muted-foreground">
+                    <p>
+                      For security, sessions expire after inactivity. If you browse a page that doesn’t make API calls,
+                      the app has no chance to refresh your session, so it can expire even while you’re on the site.
+                    </p>
+                    <p>
+                      Selecting "Remember this device" keeps you signed in longer by extending the refresh token
+                      lifetime to 30 days.
+                    </p>
+                  </div>
+                </ResponsiveDialog>
 
                 {/* Additional Info */}
                 <div className="pt-6">

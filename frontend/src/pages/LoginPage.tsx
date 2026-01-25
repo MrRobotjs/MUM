@@ -6,8 +6,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../co
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Button } from '../components/ui/button';
+import { Checkbox } from '../components/ui/checkbox';
 import { Separator } from '../components/ui/separator';
 import { Alert, AlertDescription } from '../components/ui/alert';
+import { ResponsiveDialog } from '../components/ui/responsive-dialog';
 
 type LocationState = {
   from?: string;
@@ -24,6 +26,7 @@ const LoginPage = () => {
   const [logoutNotice, setLogoutNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [allowUserAccounts, setAllowUserAccounts] = useState(false);
+  const [showInactivityInfo, setShowInactivityInfo] = useState(false);
 
   // Prefer ?next= query, then location.state.from, else dashboard
   const search = useSearch({ from: '/admin/login', strict: false }) as { next?: string; error?: string };
@@ -232,7 +235,20 @@ const LoginPage = () => {
               <CardContent className="space-y-6">
                 {logoutNotice && (
                   <Alert variant="warning">
-                    <AlertDescription>{logoutNotice}</AlertDescription>
+                    <AlertDescription>
+                      <div className="flex items-start justify-between gap-3">
+                        <span>{logoutNotice}</span>
+                        <button
+                          type="button"
+                          className="inline-flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
+                          aria-label="Why did this happen?"
+                          title="Why did this happen?"
+                          onClick={() => setShowInactivityInfo(true)}
+                        >
+                          <i className="fa-solid fa-circle-info text-sm" />
+                        </button>
+                      </div>
+                    </AlertDescription>
                   </Alert>
                 )}
                 {error && (
@@ -278,6 +294,18 @@ const LoginPage = () => {
                     />
                   </div>
 
+                  {/* Remember Me Checkbox */}
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="remember"
+                      checked={rememberMe}
+                      onCheckedChange={(checked) => setRememberMe(checked === true)}
+                    />
+                    <Label htmlFor="remember" className="text-sm font-normal cursor-pointer">
+                      Remember this device
+                    </Label>
+                  </div>
+
                   {/* Sign In Button */}
                   <Button
                     type="submit"
@@ -294,6 +322,24 @@ const LoginPage = () => {
                     )}
                   </Button>
                 </form>
+
+                <ResponsiveDialog
+                  open={showInactivityInfo}
+                  onOpenChange={setShowInactivityInfo}
+                  title="Why did this happen?"
+                  description="Your session can only refresh when the app makes API requests."
+                >
+                  <div className="space-y-3 text-sm text-muted-foreground">
+                    <p>
+                      For security, sessions expire after inactivity. If you browse a page that doesn’t make API calls,
+                      the app has no chance to refresh your session, so it can expire even while you’re on the site.
+                    </p>
+                    <p>
+                      Selecting "Remember this device" keeps you signed in longer by extending the refresh token
+                      lifetime to 30 days.
+                    </p>
+                  </div>
+                </ResponsiveDialog>
 
                 {/* Divider */}
                 <div className="relative">

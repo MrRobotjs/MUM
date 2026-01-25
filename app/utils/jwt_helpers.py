@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import datetime, timezone, timedelta
+from typing import Optional, Dict, Any
 
 from flask import current_app
 from sqlalchemy.exc import IntegrityError
@@ -55,8 +55,16 @@ def make_access_token(user: User) -> str:
     return create_access_token(identity=identity, additional_claims=claims)
 
 
-def make_refresh_token(user: User) -> str:
-    return create_refresh_token(identity=user.uuid)
+def make_refresh_token(
+    user: User,
+    expires_delta: Optional[timedelta] = None,
+    additional_claims: Optional[Dict[str, Any]] = None,
+) -> str:
+    return create_refresh_token(
+        identity=user.uuid,
+        expires_delta=expires_delta,
+        additional_claims=additional_claims or {},
+    )
 
 
 def set_refresh_cookie(resp, refresh_token: str):

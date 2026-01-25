@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from uuid import uuid4
 import time
 
@@ -198,6 +198,7 @@ def get_session(current_user):
 class JwtLoginBody(BaseModel):
     username: str
     password: str
+    remember: bool = False
 
 
 class JwtLoginResponse(BaseModel):
@@ -216,6 +217,7 @@ def jwt_login():
     payload = request.get_json(silent=True) or {}
     username = (payload.get('username') or '').strip()
     password = payload.get('password') or ''
+    remember = bool(payload.get('remember', False))
 
     if not username or not password:
         return jsonify({'error': {'code': 'INVALID_PAYLOAD', 'message': 'Username and password are required.'}, 'meta': {'request_id': request_id}}), 400
@@ -231,7 +233,9 @@ def jwt_login():
 
     # Issue JWTs
     access_token = make_access_token(user)
-    refresh_token = make_refresh_token(user)
+    refresh_expires = timedelta(days=30) if remember else None
+    refresh_claims = {"remember": True} if remember else None
+    refresh_token = make_refresh_token(user, expires_delta=refresh_expires, additional_claims=refresh_claims)
 
     user.last_login_at = datetime.utcnow()
     try:
@@ -286,11 +290,15 @@ def jwt_refresh():
         return jsonify({'error': {'code': 'FORBIDDEN', 'message': 'Account is disabled.'}, 'meta': {'request_id': request_id}}), 403
 
     # Optional: rotate refresh token (revoke old; set new)
-    old_jti = get_jwt().get('jti')
+    jwt_payload = get_jwt()
+    old_jti = jwt_payload.get('jti')
+    remember = bool(jwt_payload.get('remember'))
     current_app.logger.info(f"[JWT_REFRESH] Old JTI: {old_jti}")
 
     # Create new tokens FIRST before revoking old one
-    new_refresh = make_refresh_token(user)
+    refresh_expires = timedelta(days=30) if remember else None
+    refresh_claims = {"remember": True} if remember else None
+    new_refresh = make_refresh_token(user, expires_delta=refresh_expires, additional_claims=refresh_claims)
     new_access = make_access_token(user)
     current_app.logger.info(f"[JWT_REFRESH] New tokens created")
 

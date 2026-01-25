@@ -407,6 +407,22 @@ class EmbyMediaService(BaseMediaService):
                 duration_time = format_time_ms(int(runtime_ticks / 10000)) if runtime_ticks else "0:00"
                 runtime_ms = int(runtime_ticks / 10000) if runtime_ticks else None
 
+                subtitle_index = play_state.get("SubtitleStreamIndex")
+                subtitle_detail = None
+                if subtitle_index is None or subtitle_index == -1:
+                    subtitle_detail = "None"
+                else:
+                    subtitle_stream = next(
+                        (s for s in media_streams if s.get("Type") == "Subtitle" and s.get("Index") == subtitle_index),
+                        None,
+                    )
+                    if subtitle_stream:
+                        display = subtitle_stream.get("DisplayTitle", "Unknown")
+                        codec = subtitle_stream.get("Codec", "Unknown").upper()
+                        subtitle_detail = f"{display} ({codec})"
+                    else:
+                        subtitle_detail = "None"
+
                 # Match by UserId first (more reliable), then fall back to username
                 emby_user_id = session.get("UserId")
                 mum_user = None
@@ -443,7 +459,7 @@ class EmbyMediaService(BaseMediaService):
                         "container_detail": container_detail,
                         "video_detail": video_detail,
                         "audio_detail": audio_detail,
-                        "subtitle_detail": None,
+                        "subtitle_detail": subtitle_detail,
                         "transcode_reason": None,
                         "location_detail": f"{location_lan_wan}: {location_ip}",
                         "location_ip": location_ip,

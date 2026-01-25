@@ -465,6 +465,22 @@ class JellyfinMediaService(BaseMediaService):
                 current_time_formatted = format_time_ms(playback_position_ms) if playback_position_ms else "0:00"
                 duration_formatted = format_time_ms(runtime_ms) if runtime_ms else "0:00"
 
+                subtitle_index = play_state.get("SubtitleStreamIndex")
+                subtitle_detail = None
+                if subtitle_index is None or subtitle_index == -1:
+                    subtitle_detail = "None"
+                else:
+                    subtitle_stream = next(
+                        (s for s in media_streams if s.get("Type") == "Subtitle" and s.get("Index") == subtitle_index),
+                        None,
+                    )
+                    if subtitle_stream:
+                        display = subtitle_stream.get("DisplayTitle", "Unknown")
+                        codec = subtitle_stream.get("Codec", "Unknown").upper()
+                        subtitle_detail = f"{display} ({codec})"
+                    else:
+                        subtitle_detail = "None"
+
                 # Match by UserId first (more reliable), then fall back to username
                 jellyfin_user_id = raw_session.get("UserId")
                 mum_user = None
@@ -499,14 +515,7 @@ class JellyfinMediaService(BaseMediaService):
                         "container_detail": container_detail,
                         "video_detail": video_detail,
                         "audio_detail": audio_detail,
-                        "subtitle_detail": next(
-                            (
-                                f"{s.get('DisplayTitle', 'Unknown')} ({s.get('Codec', 'Unknown').upper()})"
-                                for s in media_streams
-                                if s.get("Type") == "Subtitle" and s.get("Index") == play_state.get("SubtitleStreamIndex")
-                            ),
-                            None
-                        ),
+                        "subtitle_detail": subtitle_detail,
                         "transcode_reason": None,
                         "location_detail": f"{'LAN' if is_local else 'WAN'}: {location_ip}",
                         "location_ip": location_ip,

@@ -74,6 +74,34 @@ export interface UnifiedSession {
     is_public_ip?: boolean | null;
     bandwidth?: string | null;
   };
+  media?: {
+    path?: string | null;
+    duration_ms?: number | null;
+    bitrate_kbps?: number | null;
+    width?: number | null;
+    height?: number | null;
+    aspect_ratio?: string | null;
+    audio_channels?: number | null;
+    audio_codec?: string | null;
+    video_codec?: string | null;
+    video_resolution?: string | number | null;
+    container?: string | null;
+    video_frame_rate?: string | number | null;
+    video_profile?: string | null;
+    has_voice_activity?: boolean | number | string | null;
+    author?: string | null;
+    publisher?: string | null;
+    isbn?: string | null;
+    genres?: string | null;
+    chapter_title?: string | null;
+    chapter_index?: number | null;
+    chapter_count?: number | null;
+    player?: string | null;
+    abridged?: boolean | null;
+    explicit?: boolean | null;
+    language?: string | null;
+    series?: string | null;
+  };
   raw?: string | null;
   original?: unknown;
 }

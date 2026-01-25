@@ -163,6 +163,35 @@ def normalize_session(
         "bandwidth": session.get("bandwidth_detail"),
     }
 
+    media = {
+        "path": session.get("media_path"),
+        "duration_ms": session.get("media_duration"),
+        "bitrate_kbps": session.get("media_bitrate"),
+        "width": session.get("media_width"),
+        "height": session.get("media_height"),
+        "aspect_ratio": session.get("media_aspect_ratio"),
+        "audio_channels": session.get("media_audio_channels"),
+        "audio_codec": session.get("media_audio_codec"),
+        "video_codec": session.get("media_video_codec"),
+        "video_resolution": session.get("media_video_resolution"),
+        "container": session.get("media_container"),
+        "video_frame_rate": session.get("media_video_frame_rate"),
+        "video_profile": session.get("media_video_profile"),
+        "has_voice_activity": session.get("media_has_voice_activity"),
+        "author": session.get("media_author"),
+        "publisher": session.get("media_publisher"),
+        "isbn": session.get("media_isbn"),
+        "genres": session.get("media_genres"),
+        "chapter_title": session.get("media_chapter_title"),
+        "chapter_index": session.get("media_chapter_index"),
+        "chapter_count": session.get("media_chapter_count"),
+        "player": session.get("media_player"),
+        "abridged": session.get("media_abridged"),
+        "explicit": session.get("media_explicit"),
+        "language": session.get("media_language"),
+        "series": session.get("media_series"),
+    }
+
     server_name = session.get("server_name") or (server.server_nickname if server else None)
     server_id = session.get("server_id") or (server.id if server else None)
 
@@ -203,6 +232,7 @@ def normalize_session(
         },
         "quality": quality,
         "network": network,
+        "media": media,
         "raw": session.get("raw_data_json"),
         # Retain the original formatted session for developers when debugging new services.
         "original": deepcopy(session),

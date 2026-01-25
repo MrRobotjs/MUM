@@ -78,6 +78,7 @@ const mapUnifiedSessionToActiveSession = (session: UnifiedSession): ActiveSessio
   const server = session.server ?? { service: 'unknown', name: '' };
   const client = session.client ?? {};
   const user = session.user ?? { name: 'Unknown User' };
+  const media = session.media ?? {};
 
   const durationSeconds =
     playback.duration_seconds ?? parseDurationToSeconds(playback.duration_text ?? undefined);
@@ -128,9 +129,7 @@ const mapUnifiedSessionToActiveSession = (session: UnifiedSession): ActiveSessio
       ? session.raw
       : session.raw && typeof session.raw === 'object'
         ? JSON.stringify(session.raw)
-        : typeof (session as { original?: { raw_data_json?: unknown } })?.original?.raw_data_json === 'string'
-          ? (session as { original?: { raw_data_json?: string } }).original?.raw_data_json
-          : undefined;
+        : undefined;
 
   return {
     session_key: session.session_id,
@@ -173,6 +172,58 @@ const mapUnifiedSessionToActiveSession = (session: UnifiedSession): ActiveSessio
       typeof quality.is_transcode === 'boolean' ? quality.is_transcode : undefined,
     transcode_speed: transcodeSpeed,
     transcode_throttled: transcodeThrottled,
+    media_path: media.path ?? undefined,
+    media_duration:
+      typeof media.duration_ms === 'number' ? media.duration_ms : undefined,
+    media_bitrate:
+      typeof media.bitrate_kbps === 'number' ? media.bitrate_kbps : undefined,
+    media_width: typeof media.width === 'number' ? media.width : undefined,
+    media_height: typeof media.height === 'number' ? media.height : undefined,
+    media_aspect_ratio:
+      typeof media.aspect_ratio === 'string' ? media.aspect_ratio : undefined,
+    media_audio_channels:
+      typeof media.audio_channels === 'number' ? media.audio_channels : undefined,
+    media_audio_codec:
+      typeof media.audio_codec === 'string' ? media.audio_codec : undefined,
+    media_video_codec:
+      typeof media.video_codec === 'string' ? media.video_codec : undefined,
+    media_video_resolution:
+      typeof media.video_resolution === 'string' || typeof media.video_resolution === 'number'
+        ? String(media.video_resolution)
+        : undefined,
+    media_container:
+      typeof media.container === 'string' ? media.container : undefined,
+    media_video_frame_rate:
+      typeof media.video_frame_rate === 'string' || typeof media.video_frame_rate === 'number'
+        ? String(media.video_frame_rate)
+        : undefined,
+    media_video_profile:
+      typeof media.video_profile === 'string' ? media.video_profile : undefined,
+    media_has_voice_activity:
+      typeof media.has_voice_activity === 'boolean' ||
+      typeof media.has_voice_activity === 'number' ||
+      typeof media.has_voice_activity === 'string'
+        ? media.has_voice_activity
+        : undefined,
+    media_author: typeof media.author === 'string' ? media.author : undefined,
+    media_publisher:
+      typeof media.publisher === 'string' ? media.publisher : undefined,
+    media_isbn: typeof media.isbn === 'string' ? media.isbn : undefined,
+    media_genres: typeof media.genres === 'string' ? media.genres : undefined,
+    media_chapter_title:
+      typeof media.chapter_title === 'string' ? media.chapter_title : undefined,
+    media_chapter_index:
+      typeof media.chapter_index === 'number' ? media.chapter_index : undefined,
+    media_chapter_count:
+      typeof media.chapter_count === 'number' ? media.chapter_count : undefined,
+    media_player: typeof media.player === 'string' ? media.player : undefined,
+    media_abridged:
+      typeof media.abridged === 'boolean' ? media.abridged : undefined,
+    media_explicit:
+      typeof media.explicit === 'boolean' ? media.explicit : undefined,
+    media_language:
+      typeof media.language === 'string' ? media.language : undefined,
+    media_series: typeof media.series === 'string' ? media.series : undefined,
   };
 };
 

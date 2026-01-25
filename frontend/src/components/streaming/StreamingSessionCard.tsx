@@ -310,6 +310,10 @@ export const StreamingSessionCard = ({ session, onTerminate, pluginFeaturesBySer
     ? session.parent_title ?? tryExtractAudiobookshelfAuthor(session.raw_data_json)
     : undefined;
   const plexEdition = normalizedServiceType === 'plex' ? session.edition : undefined;
+  const playerPlatformLabel =
+    normalizedServiceType === 'plex'
+      ? (session.product || session.player_platform)
+      : session.player_platform;
 
   const handleUserProfileClick = async (e: MouseEvent<HTMLAnchorElement>) => {
     e.preventDefault();
@@ -815,7 +819,7 @@ export const StreamingSessionCard = ({ session, onTerminate, pluginFeaturesBySer
                 <div className="flex items-center gap-1 truncate">
                   <span className="text-muted-foreground/80">{session.player_title}</span>
                   <i className="fa-solid fa-arrow-right text-[10px] opacity-50" />
-                  <span className="text-muted-foreground/80">{session.player_platform}</span>
+                  <span className="text-muted-foreground/80">{playerPlatformLabel}</span>
                 </div>
                 <div className="truncate text-[11px] opacity-70">
                   {session.location_detail}

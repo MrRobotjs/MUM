@@ -41,6 +41,18 @@ export function MediaDetailsDialog({ open, onOpenChange, session }: MediaDetails
         videoFrameRate: session.media_video_frame_rate,
         videoProfile: session.media_video_profile,
         hasVoiceActivity: session.media_has_voice_activity,
+        author: session.media_author,
+        publisher: session.media_publisher,
+        isbn: session.media_isbn,
+        genres: session.media_genres,
+        chapterTitle: session.media_chapter_title,
+        chapterIndex: session.media_chapter_index,
+        chapterCount: session.media_chapter_count,
+        mediaPlayer: session.media_player,
+        abridged: session.media_abridged,
+        explicit: session.media_explicit,
+        language: session.media_language,
+        series: session.media_series,
     };
     try {
         const needsRawFallback = Object.values(details).some((value) => value === undefined || value === null);
@@ -154,6 +166,48 @@ export function MediaDetailsDialog({ open, onOpenChange, session }: MediaDetails
         details.hasVoiceActivity === 1 ||
         details.hasVoiceActivity === '1' ||
         details.hasVoiceActivity === true;
+    const hasVideo =
+        Boolean(details.videoCodec) ||
+        Boolean(details.videoProfile) ||
+        Boolean(details.videoResolution) ||
+        Boolean(details.width) ||
+        Boolean(details.height);
+
+    const chapterIndex = typeof details.chapterIndex === 'number' ? details.chapterIndex : undefined;
+    const chapterCount = typeof details.chapterCount === 'number' ? details.chapterCount : undefined;
+    const chapterTitle = details.chapterTitle ? String(details.chapterTitle) : '';
+    let chapterValue: string | undefined;
+    if (chapterIndex && chapterCount) {
+        chapterValue = `Chapter ${chapterIndex} / ${chapterCount}${chapterTitle ? `: ${chapterTitle}` : ''}`;
+    } else if (chapterTitle) {
+        chapterValue = chapterTitle;
+    }
+
+    const detailItems: MediaDetailItem[] = [
+        { label: 'DURATION', value: formatDuration(details.duration as number | undefined) },
+        { label: 'BITRATE', value: formatBitrate(details.bitrate as number | undefined) },
+        { label: 'WIDTH', value: details.width, },
+        { label: 'HEIGHT', value: details.height, },
+        { label: 'ASPECT RATIO', value: details.aspectRatio, },
+        { label: 'AUDIO CHANNELS', value: details.audioChannels, },
+        { label: 'AUDIO CODEC', value: details.audioCodec ? String(details.audioCodec).toUpperCase() : 'N/A' },
+        { label: 'VIDEO CODEC', value: details.videoCodec ? String(details.videoCodec).toUpperCase() : 'N/A' },
+        { label: 'VIDEO RESOLUTION', value: details.videoResolution, },
+        { label: 'CONTAINER', value: details.container ? String(details.container).toUpperCase() : 'N/A' },
+        { label: 'VIDEO FRAME RATE', value: details.videoFrameRate, },
+        { label: 'VIDEO PROFILE', value: details.videoProfile ? String(details.videoProfile).toUpperCase() : 'N/A' },
+        { label: 'HAS VOICE ACTIVITY', value: hasVoiceActivity ? 'Yes' : hasVoiceActivity === false ? 'No' : 'N/A' },
+        { label: 'AUTHOR', value: details.author },
+        { label: 'SERIES', value: details.series },
+        { label: 'PUBLISHER', value: details.publisher },
+        { label: 'ISBN', value: details.isbn },
+        { label: 'LANGUAGE', value: details.language },
+        { label: 'GENRES', value: details.genres },
+        { label: 'MEDIA PLAYER', value: details.mediaPlayer },
+        { label: 'CHAPTER', value: chapterValue },
+        { label: 'ABRIDGED', value: details.abridged === true ? 'Yes' : details.abridged === false ? 'No' : undefined },
+        { label: 'EXPLICIT', value: details.explicit === true ? 'Yes' : details.explicit === false ? 'No' : undefined },
+    ];
 
     return (
         <ResponsiveDialog
@@ -189,29 +243,24 @@ export function MediaDetailsDialog({ open, onOpenChange, session }: MediaDetails
 
                     {/* Grid Details */}
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                        <DetailCard label="DURATION" value={formatDuration(details.duration)} />
-                        <DetailCard label="BITRATE" value={formatBitrate(details.bitrate)} />
-                        <DetailCard label="WIDTH" value={details.width} />
-
-                        <DetailCard label="HEIGHT" value={details.height} />
-                        <DetailCard label="ASPECT RATIO" value={details.aspectRatio} />
-                        <DetailCard label="AUDIO CHANNELS" value={details.audioChannels} />
-
-                        <DetailCard label="AUDIO CODEC" value={String(details.audioCodec || '').toUpperCase()} />
-                        <DetailCard
-                            label="VIDEO CODEC"
-                            value={details.videoCodec ? String(details.videoCodec).toUpperCase() : 'N/A'}
-                        />
-                        <DetailCard label="VIDEO RESOLUTION" value={details.videoResolution} />
-
-                        <DetailCard label="CONTAINER" value={String(details.container || '').toUpperCase()} />
-                        <DetailCard label="VIDEO FRAME RATE" value={details.videoFrameRate} />
-                        <DetailCard
-                            label="VIDEO PROFILE"
-                            value={details.videoProfile ? String(details.videoProfile).toUpperCase() : 'N/A'}
-                        />
-
-                        <DetailCard label="HAS VOICE ACTIVITY" value={hasVoiceActivity ? "Yes" : "No"} />
+                        {detailItems
+                            .filter((item) => {
+                                const hiddenWhenNoVideo = new Set([
+                                    'WIDTH',
+                                    'HEIGHT',
+                                    'ASPECT RATIO',
+                                    'VIDEO RESOLUTION',
+                                    'VIDEO FRAME RATE',
+                                ]);
+                                if (!hasVideo && hiddenWhenNoVideo.has(item.label)) return false;
+                                const value = item.value;
+                                if (value === null || value === undefined || value === '') return false;
+                                if (value === 'N/A' && !['VIDEO CODEC', 'VIDEO PROFILE'].includes(item.label)) return false;
+                                return true;
+                            })
+                            .map((item) => (
+                                <DetailCard key={item.label} label={item.label} value={item.value} />
+                            ))}
                     </div>
 
                 </div>

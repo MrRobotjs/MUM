@@ -766,6 +766,53 @@ class AudiobookShelfMediaService(BaseMediaService):
                 
                 # Display title (episode or chapter info)
                 display_title = raw_session.get('displayTitle', media_title)
+
+                # Media details (best-effort from AudioBookshelf payloads)
+                audio_files = []
+                if isinstance(media_metadata.get('audioFiles'), list):
+                    audio_files = media_metadata.get('audioFiles')
+                elif isinstance(raw_session.get('audioFiles'), list):
+                    audio_files = raw_session.get('audioFiles')
+                audio_file = audio_files[0] if audio_files else {}
+                media_path = (
+                    audio_file.get('path')
+                    or audio_file.get('file')
+                    or raw_session.get('mediaPath')
+                    or raw_session.get('path')
+                )
+                media_container = audio_file.get('container')
+                if not media_container and media_path and isinstance(media_path, str) and '.' in media_path:
+                    media_container = media_path.split('.')[-1].lower()
+                media_bitrate = audio_file.get('bitrate') or audio_file.get('bitRate') or raw_session.get('bitrate')
+                if media_bitrate is not None:
+                    try:
+                        bitrate_value = float(media_bitrate)
+                        if bitrate_value >= 100000:
+                            media_bitrate = int(round(bitrate_value / 1000))
+                        else:
+                            media_bitrate = int(round(bitrate_value))
+                    except (TypeError, ValueError):
+                        media_bitrate = None
+
+                chapters = raw_session.get('chapters') or []
+                current_chapter = None
+                if isinstance(chapters, list) and chapters:
+                    for chapter in chapters:
+                        try:
+                            start = float(chapter.get('start', 0))
+                            end = float(chapter.get('end', 0))
+                            if start <= current_time < end:
+                                current_chapter = chapter
+                                break
+                        except (TypeError, ValueError):
+                            continue
+                chapter_index = None
+                if current_chapter is not None:
+                    if isinstance(current_chapter.get('id'), int):
+                        chapter_index = current_chapter.get('id') + 1
+                    else:
+                        chapter_index = chapters.index(current_chapter) + 1
+                chapter_count = len(chapters) if isinstance(chapters, list) else None
                 
                 # Location info
                 location_ip = device_info.get('ipAddress', 'N/A')
@@ -870,6 +917,32 @@ class AudiobookShelfMediaService(BaseMediaService):
                     'video_detail': 'N/A (Audio Only)',
                     'audio_detail': 'Direct Stream (Original)',
                     'subtitle_detail': 'N/A',
+                    'media_path': media_path,
+                    'media_duration': int(duration * 1000) if duration else None,
+                    'media_bitrate': media_bitrate if isinstance(media_bitrate, (int, float)) else None,
+                    'media_width': None,
+                    'media_height': None,
+                    'media_aspect_ratio': None,
+                    'media_audio_channels': audio_file.get('channels') or audio_file.get('audioChannels'),
+                    'media_audio_codec': audio_file.get('codec') or audio_file.get('audioCodec'),
+                    'media_video_codec': None,
+                    'media_video_resolution': None,
+                    'media_container': media_container,
+                    'media_video_frame_rate': None,
+                    'media_video_profile': None,
+                    'media_has_voice_activity': None,
+                    'media_author': display_author,
+                    'media_publisher': media_metadata.get('publisher'),
+                    'media_isbn': media_metadata.get('isbn'),
+                    'media_genres': ', '.join(media_metadata.get('genres', [])) if media_metadata.get('genres') else None,
+                    'media_chapter_title': current_chapter.get('title') if current_chapter else None,
+                    'media_chapter_index': chapter_index,
+                    'media_chapter_count': chapter_count,
+                    'media_player': raw_session.get('mediaPlayer'),
+                    'media_abridged': media_metadata.get('abridged'),
+                    'media_explicit': media_metadata.get('explicit'),
+                    'media_language': media_metadata.get('language'),
+                    'media_series': ', '.join(media_metadata.get('series', [])) if media_metadata.get('series') else None,
                     'location_detail': f"{location_type}: {display_ip}",
                     'is_public_ip': not is_lan,
                     'location_ip': display_ip,

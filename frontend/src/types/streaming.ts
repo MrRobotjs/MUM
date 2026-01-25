@@ -61,6 +61,18 @@ export type ActiveSession = {
   media_video_frame_rate?: string;
   media_video_profile?: string;
   media_has_voice_activity?: boolean | number | string;
+  media_author?: string;
+  media_publisher?: string;
+  media_isbn?: string;
+  media_genres?: string;
+  media_chapter_title?: string;
+  media_chapter_index?: number;
+  media_chapter_count?: number;
+  media_player?: string;
+  media_abridged?: boolean;
+  media_explicit?: boolean;
+  media_language?: string;
+  media_series?: string;
 
   // Raw data for debugging
   raw_data_json?: string;

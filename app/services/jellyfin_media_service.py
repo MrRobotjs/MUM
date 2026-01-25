@@ -334,6 +334,10 @@ class JellyfinMediaService(BaseMediaService):
                 is_transcoding = play_method == "transcode"
                 is_direct_stream = play_method == "directstream"
                 transcoding_info = raw_session.get("TranscodingInfo", {})
+                media_sources = now_playing.get("MediaSources", []) or []
+                if isinstance(media_sources, dict):
+                    media_sources = [media_sources]
+                media_source = media_sources[0] if media_sources else {}
                 media_streams = now_playing.get("MediaStreams", [])
                 original_video_stream = next((s for s in media_streams if s.get("Type") == "Video"), None)
                 original_audio_stream = next((s for s in media_streams if s.get("Type") == "Audio" and s.get("IsDefault")), None)
@@ -498,6 +502,24 @@ class JellyfinMediaService(BaseMediaService):
                         "location_type_calc": "LAN" if is_local else "WAN",
                         "is_transcode_calc": is_transcoding,
                         "raw_data_json": json.dumps(raw_session, indent=2),
+                        "media_path": media_source.get("Path") or now_playing.get("Path"),
+                        "media_duration": runtime_ms,
+                        "media_bitrate": (
+                            int(media_source.get("Bitrate") / 1000)
+                            if media_source.get("Bitrate")
+                            else None
+                        ),
+                        "media_width": media_source.get("Width") or (original_video_stream or {}).get("Width"),
+                        "media_height": media_source.get("Height") or (original_video_stream or {}).get("Height"),
+                        "media_aspect_ratio": media_source.get("AspectRatio") or (original_video_stream or {}).get("AspectRatio"),
+                        "media_audio_channels": media_source.get("AudioChannels") or (original_audio_stream or {}).get("Channels"),
+                        "media_audio_codec": media_source.get("AudioCodec") or (original_audio_stream or {}).get("Codec"),
+                        "media_video_codec": media_source.get("VideoCodec") or (original_video_stream or {}).get("Codec"),
+                        "media_video_resolution": media_source.get("VideoResolution") or media_source.get("Height"),
+                        "media_container": media_source.get("Container") or now_playing.get("Container"),
+                        "media_video_frame_rate": media_source.get("VideoFrameRate") or (original_video_stream or {}).get("FrameRate"),
+                        "media_video_profile": media_source.get("VideoProfile") or (original_video_stream or {}).get("Profile"),
+                        "media_has_voice_activity": media_source.get("HasVoiceActivity"),
                         "service_type": "jellyfin",
                         "server_name": self.name,
                         "current_time": current_time_formatted,

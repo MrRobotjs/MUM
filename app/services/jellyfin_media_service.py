@@ -14,6 +14,7 @@ from app.services.base_media_service import BaseMediaService
 from app.models_media_services import ServiceType
 from app.models import User, UserType
 from app.utils.timeout_helper import get_api_timeout_with_fallback
+from app.utils.format_rate import format_bps_rate
 from app.services import realtime_session_cache
 
 
@@ -382,7 +383,12 @@ class JellyfinMediaService(BaseMediaService):
                     transcoded_height = transcoding_info.get("Height", 0)
                     transcoded_res = get_standard_resolution(transcoded_height)
                     transcoded_bitrate = transcoding_info.get("Bitrate", 0)
-                    quality_detail = f"{transcoded_res} ({transcoded_bitrate/1_000_000:.1f} Mbps)" if transcoded_bitrate else f"{transcoded_res} (Transcoding)"
+                    transcoded_label = format_bps_rate(transcoded_bitrate)
+                    quality_detail = (
+                        f"{transcoded_res} ({transcoded_label})"
+                        if transcoded_label
+                        else f"{transcoded_res} (Transcoding)"
+                    )
                 else:
                     stream_details = "Direct Stream" if is_direct_stream else "Direct Play"
                     container_detail = now_playing.get("Container", "Unknown").upper()
@@ -443,7 +449,12 @@ class JellyfinMediaService(BaseMediaService):
                     source_bitrate_bps = safe_int(queue_source.get("Bitrate"), 0)
                 media_bitrate_kbps = int(round(source_bitrate_bps / 1000.0)) if source_bitrate_bps else None
 
-                bandwidth_detail = f"Streaming via {'LAN' if raw_session.get('IsLocal', True) else 'WAN'}"
+                bandwidth_label = format_bps_rate(bitrate_bps)
+                bandwidth_detail = (
+                    bandwidth_label
+                    if bandwidth_label
+                    else f"Streaming via {'LAN' if raw_session.get('IsLocal', True) else 'WAN'}"
+                )
                 location_ip = raw_session.get("RemoteEndPoint", "N/A")
                 is_local = raw_session.get("IsLocal", True)
                 session_key = raw_session.get("Id", "")

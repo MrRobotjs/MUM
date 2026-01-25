@@ -5,6 +5,7 @@ import requests
 from app.services.base_media_service import BaseMediaService
 from app.models_media_services import ServiceType
 from app.utils.timeout_helper import get_api_timeout
+from app.utils.format_rate import format_bps_rate
 from app.services import realtime_session_cache
 
 
@@ -365,27 +366,11 @@ class EmbyMediaService(BaseMediaService):
                         audio_bitrate = (original_audio_stream or {}).get("BitRate") if original_audio_stream else 0
                         bitrate_bps = (video_bitrate or 0) + (audio_bitrate or 0)
 
-                if bitrate_bps:
-                    try:
-                        quality_detail = f"{quality_detail} ({float(bitrate_bps) / 1_000_000:.1f} Mbps)"
-                    except Exception:
-                        pass
+                bitrate_label = format_bps_rate(bitrate_bps)
+                if bitrate_label:
+                    quality_detail = f"{quality_detail} ({bitrate_label})"
 
-                def format_bandwidth(bandwidth_mbps):
-                    if bandwidth_mbps is None:
-                        return None
-                    if bandwidth_mbps >= 1000:
-                        return f"{bandwidth_mbps / 1000:.1f} Gbps"
-                    if bandwidth_mbps < 1:
-                        return f"{bandwidth_mbps * 1000:.0f} Kbps"
-                    return f"{bandwidth_mbps:.1f} Mbps"
-
-                bandwidth_label = None
-                if bitrate_bps:
-                    try:
-                        bandwidth_label = format_bandwidth(float(bitrate_bps) / 1_000_000)
-                    except Exception:
-                        bandwidth_label = None
+                bandwidth_label = bitrate_label
 
                 location_ip = session.get("RemoteEndPoint", "N/A")
                 is_remote = session.get("IsRemote")

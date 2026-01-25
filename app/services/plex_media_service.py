@@ -14,6 +14,7 @@ from app.models_media_services import ServiceType
 from app.utils.timeout_helper import get_api_timeout
 from app.models import User, UserType, Setting, EventType
 from app.utils.helpers import log_event
+from app.utils.format_rate import format_bps_rate
 
 class PlexMediaService(BaseMediaService):
     """Plex implementation of BaseMediaService"""
@@ -981,7 +982,7 @@ class PlexMediaService(BaseMediaService):
                 return transcode_node[0] if transcode_node else None
             return transcode_node
 
-        def get_session_bandwidth_mbps(raw_xml_data):
+        def get_session_bandwidth_bps(raw_xml_data):
             if not raw_xml_data:
                 return None
             session_node = raw_xml_data.get('Session')
@@ -996,7 +997,7 @@ class PlexMediaService(BaseMediaService):
                 return None
             if bandwidth_kbps <= 0:
                 return None
-            return bandwidth_kbps / 1000.0
+            return bandwidth_kbps * 1000
 
         def infer_music_video_metadata_from_path(file_path):
             if not file_path:
@@ -1011,27 +1012,6 @@ class PlexMediaService(BaseMediaService):
                         return parts[idx + 1], parts[idx + 2]
             return None, None
 
-        def format_bandwidth(bandwidth_mbps):
-            if bandwidth_mbps is None:
-                return None
-            if bandwidth_mbps >= 1000:
-                return f"{bandwidth_mbps / 1000:.1f} Gbps"
-            if bandwidth_mbps < 1:
-                return f"{bandwidth_mbps * 1000:.0f} Kbps"
-            return f"{bandwidth_mbps:.1f} Mbps"
-
-        def format_kbps_bitrate(bitrate_kbps):
-            if bitrate_kbps is None:
-                return None
-            try:
-                bitrate_value = float(bitrate_kbps)
-            except (TypeError, ValueError):
-                return None
-            if bitrate_value < 1000:
-                return f"{bitrate_value:.0f} kbps"
-            if bitrate_value < 1_000_000:
-                return f"{bitrate_value / 1000:.1f} Mbps"
-            return f"{bitrate_value / 1_000_000:.1f} Gbps"
 
         video_quality_profiles = {
             20000: '20 Mbps 1080p',
@@ -1192,8 +1172,8 @@ class PlexMediaService(BaseMediaService):
                     source_audio_stream = stream_audio_stream
                 
                 raw_xml_data = raw_session_map.get(str(session_key))
-                bandwidth_mbps = get_session_bandwidth_mbps(raw_xml_data)
-                bandwidth_label = format_bandwidth(bandwidth_mbps)
+                bandwidth_bps = get_session_bandwidth_bps(raw_xml_data)
+                bandwidth_label = format_bps_rate(bandwidth_bps)
                 bandwidth_detail = bandwidth_label if bandwidth_label is not None else f"Streaming via {location_lan_wan}"
 
                 # Initialize details
@@ -1298,7 +1278,11 @@ class PlexMediaService(BaseMediaService):
                     quality_res = get_resolution_label(stream_video_resolution, transcode_session.height if transcode_session else 0)
                     if stream_bitrate:
                         profile_label = quality_profile or quality_res
-                        quality_detail = f"{profile_label} ({stream_bitrate / 1000:.1f} Mbps)"
+                        try:
+                            stream_label = format_bps_rate(float(stream_bitrate) * 1000)
+                        except (TypeError, ValueError):
+                            stream_label = None
+                        quality_detail = f"{profile_label} ({stream_label})" if stream_label else profile_label
                     else:
                         quality_detail = f"{quality_res} (Bitrate N/A)"
 
@@ -1358,7 +1342,11 @@ class PlexMediaService(BaseMediaService):
 
                     quality_detail = "Original (Bitrate N/A)"
                     if source_media and hasattr(source_media, 'bitrate') and source_media.bitrate:
-                        quality_detail = f"Original ({source_media.bitrate / 1000:.1f} Mbps)"
+                        try:
+                            source_label = format_bps_rate(float(source_media.bitrate) * 1000)
+                        except (TypeError, ValueError):
+                            source_label = None
+                        quality_detail = f"Original ({source_label})" if source_label else "Original (Bitrate N/A)"
                     elif getattr(raw_session, 'type', '').lower() == 'track':
                         audio_bitrate_kbps = None
                         for stream in (source_audio_stream, stream_audio_stream):
@@ -1370,7 +1358,10 @@ class PlexMediaService(BaseMediaService):
                                 if audio_bitrate_kbps:
                                     break
                         if audio_bitrate_kbps:
-                            formatted_audio_bitrate = format_kbps_bitrate(audio_bitrate_kbps)
+                            try:
+                                formatted_audio_bitrate = format_bps_rate(float(audio_bitrate_kbps) * 1000)
+                            except (TypeError, ValueError):
+                                formatted_audio_bitrate = None
                             if formatted_audio_bitrate:
                                 quality_detail = f"Original ({formatted_audio_bitrate})"
 

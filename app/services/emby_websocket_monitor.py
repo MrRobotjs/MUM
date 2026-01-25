@@ -8,7 +8,7 @@ from __future__ import annotations
 import json
 import threading
 from typing import Dict, List, Optional
-from urllib.parse import urlparse
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 from flask import current_app
 from websocket import WebSocketApp
@@ -103,8 +103,7 @@ class EmbyWebsocketMonitor:
     def _build_websocket_url(self, server: MediaServer) -> str:
         """Build Emby WebSocket URL.
 
-        Emby uses /embywebsocket endpoint.
-        Converts http:// to ws:// and https:// to wss://.
+        Emby uses the base HTTP URL with the scheme swapped (http -> ws, https -> wss).
         """
         base_url = server.url.rstrip('/')
         parsed = urlparse(base_url)
@@ -112,18 +111,17 @@ class EmbyWebsocketMonitor:
         # Convert HTTP scheme to WebSocket scheme
         scheme = 'wss' if parsed.scheme == 'https' else 'ws'
         netloc = parsed.netloc or parsed.path
-        path = parsed.path.rstrip('/')
+        path = parsed.path
 
         if not netloc:
             raise ValueError(f"Invalid Emby server URL: {server.url}")
 
-        # Build WebSocket URL with /embywebsocket endpoint
-        if path:
-            ws_path = f"{path}/embywebsocket"
-        else:
-            ws_path = "/embywebsocket"
+        query_params = dict(parse_qsl(parsed.query, keep_blank_values=True))
+        query_params['api_key'] = server.api_key
+        query_params['deviceId'] = 'mum'
+        query = urlencode(query_params, doseq=True)
 
-        return f"{scheme}://{netloc}{ws_path}?api_key={server.api_key}&deviceId=mum"
+        return urlunparse((scheme, netloc, path, '', query, ''))
 
     def _is_session_event(self, message_text: str) -> bool:
         """Check if message is session-related to avoid processing unrelated events."""

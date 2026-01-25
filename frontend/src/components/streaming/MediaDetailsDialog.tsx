@@ -101,7 +101,7 @@ export function MediaDetailsDialog({ open, onOpenChange, session }: MediaDetails
                     chapterIndex: details.chapterIndex ?? chapterIndex,
                     chapterCount: details.chapterCount ?? (chapters.length || undefined),
                 };
-            } else if (serviceType === 'jellyfin') {
+            } else if (serviceType === 'jellyfin' || serviceType === 'emby') {
                 const pickFirst = (value: any) => (Array.isArray(value) ? value[0] : value);
                 const toNumber = (value: any) => {
                     if (value === null || value === undefined) return undefined;

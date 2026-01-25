@@ -58,78 +58,132 @@ export function MediaDetailsDialog({ open, onOpenChange, session }: MediaDetails
         const needsRawFallback = Object.values(details).some((value) => value === undefined || value === null);
         if (needsRawFallback && session.raw_data_json) {
             const raw = JSON.parse(session.raw_data_json) as Record<string, any>;
+            const serviceType = (session.service_type || '').toLowerCase();
 
-            const pickFirst = (value: any) => (Array.isArray(value) ? value[0] : value);
-            const getAttr = (obj: any, key: string) => {
-                if (!obj) return undefined;
-                if (obj[key] !== undefined) return obj[key];
-                const atKey = `@${key}`;
-                if (obj[atKey] !== undefined) return obj[atKey];
-                return undefined;
-            };
-            const toNumber = (value: any) => {
-                if (value === null || value === undefined) return undefined;
-                const num = Number(value);
-                return Number.isFinite(num) ? num : undefined;
-            };
-
-            const root =
-                raw.Video ||
-                raw.Track ||
-                pickFirst(raw.MediaContainer?.Video) ||
-                pickFirst(raw.MediaContainer?.Track) ||
-                raw;
-
-            const media = pickFirst(root?.Media);
-            const part = pickFirst(media?.Part);
-            const streams = part?.Stream;
-
-            const getStream = (type: number) => {
-                if (Array.isArray(streams)) {
-                    return streams.find((s) => Number(getAttr(s, 'streamType')) === type) ?? null;
+            if (serviceType === 'audiobookshelf') {
+                const durationValue = typeof raw.duration === 'number' ? raw.duration : undefined;
+                const durationMs = durationValue
+                    ? durationValue > 10_000_000
+                        ? Math.round(durationValue)
+                        : Math.round(durationValue * 1000)
+                    : undefined;
+                const chapters = Array.isArray(raw.chapters) ? raw.chapters : [];
+                let chapterTitle: string | undefined;
+                let chapterIndex: number | undefined;
+                if (durationValue !== undefined && chapters.length) {
+                    for (const chapter of chapters) {
+                        const start = Number(chapter?.start ?? 0);
+                        const end = Number(chapter?.end ?? 0);
+                        if (raw.currentTime >= start && raw.currentTime < end) {
+                            chapterTitle = chapter?.title;
+                            chapterIndex =
+                                typeof chapter?.id === 'number'
+                                    ? chapter.id + 1
+                                    : chapters.indexOf(chapter) + 1;
+                            break;
+                        }
+                    }
                 }
-                if (streams && Number(getAttr(streams, 'streamType')) === type) return streams;
-                return null;
-            };
-            const videoStream = getStream(1);
-            const audioStream = getStream(2);
+                const mediaMetadata = raw.mediaMetadata || {};
+                details = {
+                    ...details,
+                    duration: details.duration ?? durationMs,
+                    author: details.author ?? raw.displayAuthor,
+                    publisher: details.publisher ?? mediaMetadata.publisher,
+                    isbn: details.isbn ?? mediaMetadata.isbn,
+                    genres: details.genres ?? (Array.isArray(mediaMetadata.genres) ? mediaMetadata.genres.join(', ') : undefined),
+                    language: details.language ?? mediaMetadata.language,
+                    series: details.series ?? (Array.isArray(mediaMetadata.series) ? mediaMetadata.series.join(', ') : undefined),
+                    abridged: details.abridged ?? mediaMetadata.abridged,
+                    explicit: details.explicit ?? mediaMetadata.explicit,
+                    mediaPlayer: details.mediaPlayer ?? raw.mediaPlayer,
+                    chapterTitle: details.chapterTitle ?? chapterTitle,
+                    chapterIndex: details.chapterIndex ?? chapterIndex,
+                    chapterCount: details.chapterCount ?? (chapters.length || undefined),
+                };
+            } else {
+                const pickFirst = (value: any) => (Array.isArray(value) ? value[0] : value);
+                const getAttr = (obj: any, key: string) => {
+                    if (!obj) return undefined;
+                    if (obj[key] !== undefined) return obj[key];
+                    const atKey = `@${key}`;
+                    if (obj[atKey] !== undefined) return obj[atKey];
+                    return undefined;
+                };
+                const toNumber = (value: any) => {
+                    if (value === null || value === undefined) return undefined;
+                    const num = Number(value);
+                    return Number.isFinite(num) ? num : undefined;
+                };
 
-            const rawDetails = {
-                path: getAttr(part, 'file'),
-                duration: toNumber(getAttr(root, 'duration')) ?? toNumber(getAttr(media, 'duration')),
-                bitrate: toNumber(getAttr(media, 'bitrate')),
-                width: toNumber(getAttr(media, 'width')) ?? toNumber(getAttr(videoStream, 'width')),
-                height: toNumber(getAttr(media, 'height')) ?? toNumber(getAttr(videoStream, 'height')),
-                aspectRatio: getAttr(media, 'aspectRatio') ?? getAttr(videoStream, 'aspectRatio'),
-                audioChannels: toNumber(getAttr(media, 'audioChannels')) ?? toNumber(getAttr(audioStream, 'channels')),
-                audioCodec: getAttr(media, 'audioCodec') ?? getAttr(audioStream, 'codec'),
-                videoCodec: getAttr(media, 'videoCodec') ?? getAttr(videoStream, 'codec'),
-                videoResolution: getAttr(media, 'videoResolution') ?? getAttr(root, 'videoResolution'),
-                container: getAttr(media, 'container'),
-                videoFrameRate: getAttr(media, 'videoFrameRate') ?? getAttr(videoStream, 'frameRate'),
-                videoProfile: getAttr(videoStream, 'profile'),
-                hasVoiceActivity: getAttr(media, 'hasVoiceActivity'),
-            };
-            details = {
-                path: details.path ?? rawDetails.path,
-                duration: details.duration ?? rawDetails.duration,
-                bitrate: details.bitrate ?? rawDetails.bitrate,
-                width: details.width ?? rawDetails.width,
-                height: details.height ?? rawDetails.height,
-                aspectRatio: details.aspectRatio ?? rawDetails.aspectRatio,
-                audioChannels: details.audioChannels ?? rawDetails.audioChannels,
-                audioCodec: details.audioCodec ?? rawDetails.audioCodec,
-                videoCodec: details.videoCodec ?? rawDetails.videoCodec,
-                videoResolution: details.videoResolution ?? rawDetails.videoResolution,
-                container: details.container ?? rawDetails.container,
-                videoFrameRate: details.videoFrameRate ?? rawDetails.videoFrameRate,
-                videoProfile: details.videoProfile ?? rawDetails.videoProfile,
-                hasVoiceActivity: details.hasVoiceActivity ?? rawDetails.hasVoiceActivity,
-            };
+                const root =
+                    raw.Video ||
+                    raw.Track ||
+                    pickFirst(raw.MediaContainer?.Video) ||
+                    pickFirst(raw.MediaContainer?.Track) ||
+                    raw;
 
-            // Handle Tautulli/other variations if needed, but start with standard Plex key names
-            // If direct properies exist on raw root (sometimes flattened)
-            if (!details.path && raw.File) details.path = raw.File;
+                const media = pickFirst(root?.Media);
+                const part = pickFirst(media?.Part);
+                const streams = part?.Stream;
+
+                const getStream = (type: number) => {
+                    if (Array.isArray(streams)) {
+                        return streams.find((s) => Number(getAttr(s, 'streamType')) === type) ?? null;
+                    }
+                    if (streams && Number(getAttr(streams, 'streamType')) === type) return streams;
+                    return null;
+                };
+                const videoStream = getStream(1);
+                const audioStream = getStream(2);
+
+                const rawDetails = {
+                    path: getAttr(part, 'file'),
+                    duration: toNumber(getAttr(root, 'duration')) ?? toNumber(getAttr(media, 'duration')),
+                    bitrate: toNumber(getAttr(media, 'bitrate')),
+                    width: toNumber(getAttr(media, 'width')) ?? toNumber(getAttr(videoStream, 'width')),
+                    height: toNumber(getAttr(media, 'height')) ?? toNumber(getAttr(videoStream, 'height')),
+                    aspectRatio: getAttr(media, 'aspectRatio') ?? getAttr(videoStream, 'aspectRatio'),
+                    audioChannels: toNumber(getAttr(media, 'audioChannels')) ?? toNumber(getAttr(audioStream, 'channels')),
+                    audioCodec: getAttr(media, 'audioCodec') ?? getAttr(audioStream, 'codec'),
+                    videoCodec: getAttr(media, 'videoCodec') ?? getAttr(videoStream, 'codec'),
+                    videoResolution: getAttr(media, 'videoResolution') ?? getAttr(root, 'videoResolution'),
+                    container: getAttr(media, 'container'),
+                    videoFrameRate: getAttr(media, 'videoFrameRate') ?? getAttr(videoStream, 'frameRate'),
+                    videoProfile: getAttr(videoStream, 'profile'),
+                    hasVoiceActivity: getAttr(media, 'hasVoiceActivity'),
+                };
+                details = {
+                    path: details.path ?? rawDetails.path,
+                    duration: details.duration ?? rawDetails.duration,
+                    bitrate: details.bitrate ?? rawDetails.bitrate,
+                    width: details.width ?? rawDetails.width,
+                    height: details.height ?? rawDetails.height,
+                    aspectRatio: details.aspectRatio ?? rawDetails.aspectRatio,
+                    audioChannels: details.audioChannels ?? rawDetails.audioChannels,
+                    audioCodec: details.audioCodec ?? rawDetails.audioCodec,
+                    videoCodec: details.videoCodec ?? rawDetails.videoCodec,
+                    videoResolution: details.videoResolution ?? rawDetails.videoResolution,
+                    container: details.container ?? rawDetails.container,
+                    videoFrameRate: details.videoFrameRate ?? rawDetails.videoFrameRate,
+                    videoProfile: details.videoProfile ?? rawDetails.videoProfile,
+                    hasVoiceActivity: details.hasVoiceActivity ?? rawDetails.hasVoiceActivity,
+                    author: details.author,
+                    publisher: details.publisher,
+                    isbn: details.isbn,
+                    genres: details.genres,
+                    chapterTitle: details.chapterTitle,
+                    chapterIndex: details.chapterIndex,
+                    chapterCount: details.chapterCount,
+                    mediaPlayer: details.mediaPlayer,
+                    abridged: details.abridged,
+                    explicit: details.explicit,
+                    language: details.language,
+                    series: details.series,
+                };
+
+                if (!details.path && raw.File) details.path = raw.File;
+            }
         }
     } catch (e) {
         console.error("Failed to parse session raw data", e);

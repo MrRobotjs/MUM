@@ -101,6 +101,120 @@ export function MediaDetailsDialog({ open, onOpenChange, session }: MediaDetails
                     chapterIndex: details.chapterIndex ?? chapterIndex,
                     chapterCount: details.chapterCount ?? (chapters.length || undefined),
                 };
+            } else if (serviceType === 'jellyfin') {
+                const pickFirst = (value: any) => (Array.isArray(value) ? value[0] : value);
+                const toNumber = (value: any) => {
+                    if (value === null || value === undefined) return undefined;
+                    if (typeof value === 'number') return Number.isFinite(value) ? value : undefined;
+                    if (typeof value === 'string' && value.trim()) {
+                        const parsed = Number(value.trim());
+                        return Number.isFinite(parsed) ? parsed : undefined;
+                    }
+                    return undefined;
+                };
+                const toMsFromTicks = (value: any) => {
+                    const ticks = toNumber(value);
+                    if (ticks === undefined) return undefined;
+                    return Math.round(ticks / 10000);
+                };
+                const sessionObject =
+                    typeof raw === 'object' && raw !== null && 'Data' in raw
+                        ? pickFirst((raw as { Data?: unknown[] }).Data)
+                        : raw;
+
+                const nowPlaying = (sessionObject as any)?.NowPlayingItem ?? {};
+                const playState = (sessionObject as any)?.PlayState ?? {};
+                const mediaSources = Array.isArray(nowPlaying?.MediaSources)
+                    ? nowPlaying.MediaSources
+                    : nowPlaying?.MediaSources
+                        ? [nowPlaying.MediaSources]
+                        : [];
+                const mediaSource = mediaSources[0] ?? {};
+                const mediaStreams = Array.isArray(nowPlaying?.MediaStreams) ? nowPlaying.MediaStreams : [];
+                const videoStream =
+                    mediaStreams.find((stream: any) => String(stream?.Type || '').toLowerCase() === 'video') ?? null;
+                const audioIndex = toNumber(playState?.AudioStreamIndex);
+                const audioStreams = mediaStreams.filter(
+                    (stream: any) => String(stream?.Type || '').toLowerCase() === 'audio'
+                );
+                const audioStream =
+                    (audioIndex !== undefined
+                        ? audioStreams.find((stream: any) => toNumber(stream?.Index) === audioIndex)
+                        : null) ?? audioStreams[0] ?? null;
+
+                const bitrateBpsFallback =
+                    (toNumber(videoStream?.BitRate) ?? 0) + (toNumber(audioStream?.BitRate) ?? 0);
+                const bitrateBps =
+                    toNumber(mediaSource?.Bitrate) ??
+                    toNumber(mediaSource?.BitRate) ??
+                    (bitrateBpsFallback > 0 ? bitrateBpsFallback : undefined);
+                const bitrateKbps = bitrateBps !== undefined ? Math.round(bitrateBps / 1000) : undefined;
+
+                const width = toNumber(mediaSource?.Width) ?? toNumber(videoStream?.Width) ?? toNumber(nowPlaying?.Width);
+                const height = toNumber(mediaSource?.Height) ?? toNumber(videoStream?.Height) ?? toNumber(nowPlaying?.Height);
+                const aspectRatio =
+                    mediaSource?.AspectRatio ?? videoStream?.AspectRatio ?? nowPlaying?.AspectRatio;
+                const videoFrameRate =
+                    toNumber(mediaSource?.VideoFrameRate) ??
+                    toNumber(videoStream?.RealFrameRate) ??
+                    toNumber(videoStream?.AverageFrameRate);
+                const videoFrameRateValue =
+                    videoFrameRate !== undefined ? String(videoFrameRate) : undefined;
+
+                const chapters = Array.isArray(nowPlaying?.Chapters) ? nowPlaying.Chapters : [];
+                const positionTicks = toNumber(playState?.PositionTicks);
+                let chapterTitle: string | undefined;
+                let chapterIndex: number | undefined;
+                if (positionTicks !== undefined && chapters.length > 0) {
+                    const sortedChapters = [...chapters].sort(
+                        (a, b) => (toNumber(a?.StartPositionTicks) ?? 0) - (toNumber(b?.StartPositionTicks) ?? 0)
+                    );
+                    for (let i = 0; i < sortedChapters.length; i += 1) {
+                        const start = toNumber(sortedChapters[i]?.StartPositionTicks) ?? 0;
+                        const nextStart =
+                            i + 1 < sortedChapters.length
+                                ? toNumber(sortedChapters[i + 1]?.StartPositionTicks) ?? Number.POSITIVE_INFINITY
+                                : Number.POSITIVE_INFINITY;
+                        if (positionTicks >= start && positionTicks < nextStart) {
+                            chapterTitle = sortedChapters[i]?.Name;
+                            chapterIndex = i + 1;
+                            break;
+                        }
+                    }
+                }
+
+                const genres =
+                    Array.isArray(nowPlaying?.Genres) && nowPlaying.Genres.length
+                        ? nowPlaying.Genres.join(', ')
+                        : undefined;
+
+                details = {
+                    ...details,
+                    path: details.path ?? mediaSource?.Path ?? nowPlaying?.Path,
+                    duration: details.duration ?? toMsFromTicks(nowPlaying?.RunTimeTicks),
+                    bitrate: details.bitrate ?? bitrateKbps,
+                    width: details.width ?? width,
+                    height: details.height ?? height,
+                    aspectRatio: details.aspectRatio ?? aspectRatio,
+                    audioChannels: details.audioChannels ?? toNumber(mediaSource?.AudioChannels) ?? toNumber(audioStream?.Channels),
+                    audioCodec: details.audioCodec ?? mediaSource?.AudioCodec ?? audioStream?.Codec,
+                    videoCodec: details.videoCodec ?? mediaSource?.VideoCodec ?? videoStream?.Codec,
+                    videoResolution:
+                        details.videoResolution ??
+                        mediaSource?.VideoResolution ??
+                        (height ? `${height}p` : undefined),
+                    container: details.container ?? mediaSource?.Container ?? nowPlaying?.Container,
+                    videoFrameRate: details.videoFrameRate ?? videoFrameRateValue,
+                    videoProfile: details.videoProfile ?? mediaSource?.VideoProfile ?? videoStream?.Profile,
+                    hasVoiceActivity: details.hasVoiceActivity ?? mediaSource?.HasVoiceActivity,
+                    language: details.language ?? audioStream?.Language,
+                    genres: details.genres ?? genres,
+                    series: details.series ?? nowPlaying?.SeriesName,
+                    mediaPlayer: details.mediaPlayer ?? (sessionObject as any)?.Client ?? (sessionObject as any)?.DeviceName,
+                    chapterTitle: details.chapterTitle ?? chapterTitle,
+                    chapterIndex: details.chapterIndex ?? chapterIndex,
+                    chapterCount: details.chapterCount ?? (chapters.length || undefined),
+                };
             } else {
                 const pickFirst = (value: any) => (Array.isArray(value) ? value[0] : value);
                 const getAttr = (obj: any, key: string) => {

@@ -20,6 +20,7 @@ import { Badge } from '@/components/ui/badge';
 import { useNavigate } from '@tanstack/react-router';
 import { buildUserProfilePath } from '@/util/routes';
 import type { ActiveSession, PluginMetaResponse } from '@/types/streaming';
+import { ServiceIcon } from '@/components/services/ServiceIcon';
 
 const StreamInfoDialog = ({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) => {
   return (
@@ -468,9 +469,15 @@ export const StreamingSessionCard = ({ session, onTerminate, pluginFeaturesBySer
                   by <span className="text-foreground/90">{audiobookshelfAuthor}</span>
                 </div>
               )}
-              <div className="flex items-center gap-2 text-[10px] text-muted-foreground/70 sm:text-xs mt-1">
-                <span className="text-[10px] uppercase tracking-widest text-muted-foreground/70">{serviceMeta.label}</span>
-                <Badge
+                <div className="flex items-center gap-2 text-[10px] text-muted-foreground/70 sm:text-xs mt-1">
+                  <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-widest text-muted-foreground/70">
+                    <ServiceIcon
+                      serviceType={session.service_type}
+                      className="w-3 h-3 text-[10px]"
+                    />
+                    {session.server_name || serviceMeta.label}
+                  </span>
+                  <Badge
                   asChild
                   variant="outline"
                   className={`text-[10px] px-1.5 py-0 cursor-pointer ${sourceBadgeClass} ${sourceBadgeHoverClass}`}

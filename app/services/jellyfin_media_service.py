@@ -507,6 +507,8 @@ class JellyfinMediaService(BaseMediaService):
                         "media_bitrate": (
                             int(media_source.get("Bitrate") / 1000)
                             if media_source.get("Bitrate")
+                            else int(now_playing.get("Bitrate") / 1000)
+                            if now_playing.get("Bitrate")
                             else None
                         ),
                         "media_width": media_source.get("Width") or (original_video_stream or {}).get("Width"),

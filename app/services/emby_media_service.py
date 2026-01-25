@@ -337,10 +337,13 @@ class EmbyMediaService(BaseMediaService):
                 container_detail = (now_playing.get("Container") or "Unknown").upper()
                 quality_detail = ""
 
+                bitrate_bps = None
+
                 if is_transcoding and transcoding_info:
                     stream_detail = "Transcode"
                     target_height = transcoding_info.get("Height", 0)
                     quality_detail = get_standard_resolution(target_height)
+                    bitrate_bps = transcoding_info.get("Bitrate")
                     transcoded_codec = transcoding_info.get("VideoCodec", "Unknown").upper()
                     video_detail = f"Transcode ({transcoded_codec} {quality_detail})"
                     audio_codec = transcoding_info.get("AudioCodec", "Unknown").upper()
@@ -356,6 +359,17 @@ class EmbyMediaService(BaseMediaService):
                     else:
                         audio_detail = "Direct Play (Unknown Audio)"
                     quality_detail = get_standard_resolution(original_video_stream.get("Height") if original_video_stream else None)
+                    bitrate_bps = media_source.get("Bitrate") or now_playing.get("Bitrate")
+                    if not bitrate_bps:
+                        video_bitrate = (original_video_stream or {}).get("BitRate") if original_video_stream else 0
+                        audio_bitrate = (original_audio_stream or {}).get("BitRate") if original_audio_stream else 0
+                        bitrate_bps = (video_bitrate or 0) + (audio_bitrate or 0)
+
+                if bitrate_bps:
+                    try:
+                        quality_detail = f"{quality_detail} ({float(bitrate_bps) / 1_000_000:.1f} Mbps)"
+                    except Exception:
+                        pass
 
                 location_ip = session.get("RemoteEndPoint", "N/A")
                 is_remote = session.get("IsRemote", False)

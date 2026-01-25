@@ -817,9 +817,9 @@ export const StreamingSessionCard = ({ session, onTerminate, pluginFeaturesBySer
               )}
               <div className="flex flex-col text-xs text-muted-foreground sm:text-sm">
                 <div className="flex items-center gap-1 truncate">
-                  <span className="text-muted-foreground/80">{session.player_title}</span>
+                  <span className="text-muted-foreground/80" title="Player">{session.player_title}</span>
                   <i className="fa-solid fa-arrow-right text-[10px] opacity-50" />
-                  <span className="text-muted-foreground/80">{playerPlatformLabel}</span>
+                  <span className="text-muted-foreground/80" title="Product">{playerPlatformLabel}</span>
                 </div>
                 <div className="truncate text-[11px] opacity-70">
                   {session.location_detail}

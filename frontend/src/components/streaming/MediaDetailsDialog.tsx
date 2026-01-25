@@ -198,12 +198,18 @@ export function MediaDetailsDialog({ open, onOpenChange, session }: MediaDetails
                         <DetailCard label="AUDIO CHANNELS" value={details.audioChannels} />
 
                         <DetailCard label="AUDIO CODEC" value={String(details.audioCodec || '').toUpperCase()} />
-                        <DetailCard label="VIDEO CODEC" value={String(details.videoCodec || '').toUpperCase()} />
+                        <DetailCard
+                            label="VIDEO CODEC"
+                            value={details.videoCodec ? String(details.videoCodec).toUpperCase() : 'N/A'}
+                        />
                         <DetailCard label="VIDEO RESOLUTION" value={details.videoResolution} />
 
                         <DetailCard label="CONTAINER" value={String(details.container || '').toUpperCase()} />
                         <DetailCard label="VIDEO FRAME RATE" value={details.videoFrameRate} />
-                        <DetailCard label="VIDEO PROFILE" value={String(details.videoProfile || '').toUpperCase()} />
+                        <DetailCard
+                            label="VIDEO PROFILE"
+                            value={details.videoProfile ? String(details.videoProfile).toUpperCase() : 'N/A'}
+                        />
 
                         <DetailCard label="HAS VOICE ACTIVITY" value={hasVoiceActivity ? "Yes" : "No"} />
                     </div>

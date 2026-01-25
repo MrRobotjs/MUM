@@ -396,10 +396,13 @@ class KavitaMediaService(BaseMediaService):
                 authors = entry.get("authors") or []
 
                 image_path = self._extract_opds_image_path(entry.get("image_href"))
-                if not image_path and series_id:
-                    image_path = f"/image?{urlencode({'seriesId': series_id, 'libraryId': library_key})}"
                 thumb_url = None
-                if image_path:
+                if series_id:
+                    thumb_url = (
+                        f"/admin/api/v2/media/kavita/images/proxy?series_id={series_id}"
+                        f"&server_id={self.server_id}"
+                    )
+                elif image_path:
                     from urllib.parse import quote
                     thumb_url = (
                         f"/admin/api/v2/media/kavita/images/proxy?path={quote(image_path, safe='')}"

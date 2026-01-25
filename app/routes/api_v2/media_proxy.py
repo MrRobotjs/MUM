@@ -394,9 +394,15 @@ def komga_image_proxy_v2(current_user):
 def kavita_image_proxy_v2(current_user):
     image_path = request.args.get('path')
     server_id = request.args.get('server_id')
+    series_id = request.args.get('series_id')
+    library_id = request.args.get('library_id')
+    volume_id = request.args.get('volume_id')
+    chapter_id = request.args.get('chapter_id')
+    page_number = request.args.get('page_number')
     if not image_path:
-        current_app.logger.warning("API v2 kavita_image_proxy: 'path' parameter is missing.")
-        return "Missing path parameter", 400
+        if not (series_id or library_id or volume_id or chapter_id):
+            current_app.logger.warning("API v2 kavita_image_proxy: missing path or entity id.")
+            return "Missing path or entity id", 400
     if not server_id:
         current_app.logger.warning("API v2 kavita_image_proxy: 'server_id' parameter is missing.")
         return "Missing server_id parameter", 400
@@ -411,22 +417,45 @@ def kavita_image_proxy_v2(current_user):
             current_app.logger.error("API v2 kavita_image_proxy: Kavita server missing API key.")
             return "Kavita API key not configured", 500
 
-        # Strip any embedded OPDS token from the path and rebuild with server API key
-        marker = "/api/opds/"
-        path = image_path
-        lower_path = path.lower()
-        if marker in lower_path:
-            after = path[lower_path.index(marker) + len(marker):]
-            parts = after.split("/", 1)
-            if len(parts) == 2:
-                path = "/" + parts[1]
-            else:
-                path = "/"
+        if series_id or library_id or volume_id or chapter_id:
+            # Use standard image endpoint with apiKey query parameter
+            params = {"apiKey": kavita_server.api_key}
+            if series_id:
+                params["seriesId"] = series_id
+            if library_id:
+                params["libraryId"] = library_id
+            if volume_id:
+                params["volumeId"] = volume_id
+            if chapter_id:
+                params["chapterId"] = chapter_id
+            image_url = f"{kavita_server.url.rstrip('/')}/api/Image/series-cover"
+            if volume_id:
+                image_url = f"{kavita_server.url.rstrip('/')}/api/Image/volume-cover"
+            if chapter_id:
+                image_url = f"{kavita_server.url.rstrip('/')}/api/Image/chapter-cover"
+            if library_id and not (series_id or volume_id or chapter_id):
+                image_url = f"{kavita_server.url.rstrip('/')}/api/Image/library-cover"
+            if page_number is not None:
+                params["pageNumber"] = page_number
+            from urllib.parse import urlencode
+            image_url = f"{image_url}?{urlencode(params)}"
+        else:
+            # Strip any embedded OPDS token from the path and rebuild with server API key
+            marker = "/api/opds/"
+            path = image_path or ""
+            lower_path = path.lower()
+            if marker in lower_path:
+                after = path[lower_path.index(marker) + len(marker):]
+                parts = after.split("/", 1)
+                if len(parts) == 2:
+                    path = "/" + parts[1]
+                else:
+                    path = "/"
 
-        base_opds = f"{kavita_server.url.rstrip('/')}/api/Opds/{kavita_server.api_key}"
-        if not path.startswith("/"):
-            path = "/" + path
-        image_url = f"{base_opds}{path}"
+            base_opds = f"{kavita_server.url.rstrip('/')}/api/Opds/{kavita_server.api_key}"
+            if not path.startswith("/"):
+                path = "/" + path
+            image_url = f"{base_opds}{path}"
 
         timeout = get_api_timeout()
         img_response = requests.get(image_url, stream=True, timeout=timeout, headers=_get_conditional_headers() or None)

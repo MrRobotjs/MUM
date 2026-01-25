@@ -429,6 +429,20 @@ class JellyfinMediaService(BaseMediaService):
 
                 bitrate_calc_kbps = int(round(bitrate_bps / 1000.0)) if bitrate_bps else 0
 
+                source_bitrate_bps = 0
+                queue_items = raw_session.get("NowPlayingQueueFullItems") or []
+                match_item = next(
+                    (item for item in queue_items if item.get("Id") == now_playing.get("Id")),
+                    None,
+                )
+                if match_item:
+                    queue_sources = match_item.get("MediaSources", []) or []
+                    if isinstance(queue_sources, dict):
+                        queue_sources = [queue_sources]
+                    queue_source = queue_sources[0] if queue_sources else {}
+                    source_bitrate_bps = safe_int(queue_source.get("Bitrate"), 0)
+                media_bitrate_kbps = int(round(source_bitrate_bps / 1000.0)) if source_bitrate_bps else None
+
                 bandwidth_detail = f"Streaming via {'LAN' if raw_session.get('IsLocal', True) else 'WAN'}"
                 location_ip = raw_session.get("RemoteEndPoint", "N/A")
                 is_local = raw_session.get("IsLocal", True)
@@ -504,13 +518,7 @@ class JellyfinMediaService(BaseMediaService):
                         "raw_data_json": json.dumps(raw_session, indent=2),
                         "media_path": media_source.get("Path") or now_playing.get("Path"),
                         "media_duration": runtime_ms,
-                        "media_bitrate": (
-                            int(media_source.get("Bitrate") / 1000)
-                            if media_source.get("Bitrate")
-                            else int(now_playing.get("Bitrate") / 1000)
-                            if now_playing.get("Bitrate")
-                            else None
-                        ),
+                        "media_bitrate": media_bitrate_kbps,
                         "media_width": media_source.get("Width") or (original_video_stream or {}).get("Width"),
                         "media_height": media_source.get("Height") or (original_video_stream or {}).get("Height"),
                         "media_aspect_ratio": media_source.get("AspectRatio") or (original_video_stream or {}).get("AspectRatio"),

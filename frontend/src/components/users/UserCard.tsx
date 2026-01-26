@@ -11,6 +11,7 @@ import { UserDebugModal } from './UserDebugModal';
 import { cn } from '@/lib/utils';
 import { Badge } from '../common/Badge';
 import { getServicePalette, type ThemePalette } from '@/config/pluginMetadata';
+import { ServiceIcon } from '@/components/services/ServiceIcon';
 import { Folder, Play, Pause, Activity, Music, Loader2, Mail, Calendar, Clock, Server, StickyNote, Link, Library, Shield, User, Crown, Layers } from 'lucide-react';
 
 export type UserNowPlaying = {
@@ -228,12 +229,12 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
 
             <div className="flex items-center gap-2">
               {isService ? (
-                <Badge color={palette.avatar} className="text-xs font-semibold tracking-wider gap-1.5 border-border/30" hover={false}>
-                  <Server strokeWidth={3} className="w-3 h-3" />
+                <Badge color={palette.avatar} className="text-xs font-semibold tracking-wider gap-1 border-border/30" hover={false}>
+                  <ServiceIcon serviceType={serviceType} className="relative top-[0.2px] text-[10px] w-3 h-3" />
                   <span className="truncate max-w-[120px]">{user.server_nickname || 'Service Account'}</span>
                 </Badge>
               ) : user.user_type.toLowerCase() === 'owner' ? (
-                <Badge color="bg-amber-500" className="text-xs font-semibold tracking-wider gap-1.5" hover={false}>
+                <Badge color="bg-amber-500" className="text-xs font-semibold tracking-wider gap-1" hover={false}>
                   <Crown strokeWidth={3} className="w-3 h-3" />
                   <span>Owner</span>
                 </Badge>

@@ -184,7 +184,7 @@ export const InviteCard = ({
                       .map((meta) => (
                         <span
                           key={`${server.id}-${meta.key}`}
-                          className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] font-semibold ${meta.className}`}
+                          className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[11px] font-semibold ${meta.className}`}
                         >
                           <i className={`${meta.icon} w-3 h-3`} />
                           {meta.label}
@@ -207,7 +207,7 @@ export const InviteCard = ({
                         </div>
                         <div className="flex flex-wrap gap-2">
                           {invite.grants_all_libraries ? (
-                            <span className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] font-semibold bg-green-500/10 text-green-500 border-green-500/20">
+                            <span className="inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[11px] font-semibold bg-green-500/10 text-green-500 border-green-500/20">
                               <i className="fa-solid fa-infinity w-3 h-3" />
                               All Libraries
                             </span>
@@ -215,7 +215,7 @@ export const InviteCard = ({
                             libs.map((library) => (
                               <span
                                 key={`${server.id}-${library.id}-${library.name}`}
-                                className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] font-semibold ${getServiceBadgeClass(library.service_type)}`}
+                                className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[11px] font-semibold ${getServiceBadgeClass(library.service_type)}`}
                                 title={`${library.name} (${library.server_name})`}
                               >
                                 {getServiceIcon(library.service_type, 'w-3 h-3')}
@@ -223,7 +223,7 @@ export const InviteCard = ({
                               </span>
                             ))
                           ) : (
-                            <span className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] font-semibold bg-muted text-muted-foreground border-border">
+                            <span className="inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[11px] font-semibold bg-muted text-muted-foreground border-border">
                               <i className="fa-solid fa-question w-3 h-3" />
                               No Libraries
                             </span>
@@ -257,13 +257,13 @@ export const InviteCard = ({
               </div>
               <div className="flex flex-wrap gap-2">
                 {invite.require_discord_auth && (
-                  <span className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold bg-[#5865F2]/10 text-[#5865F2] border-[#5865F2]/20">
+                  <span className="inline-flex items-center gap-1 text-[11px] rounded-full border px-2 py-1 text-xs font-semibold bg-[#5865F2]/10 text-[#5865F2] border-[#5865F2]/20">
                     <i className="fa-solid fa-link w-3 h-3" />
                     Auth Required
                   </span>
                 )}
                 {invite.require_discord_guild_membership && (
-                  <span className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold bg-[#5865F2]/10 text-[#5865F2] border-[#5865F2]/20">
+                  <span className="inline-flex items-center gap-1 text-[11px] rounded-full border px-2 py-1 text-xs font-semibold bg-[#5865F2]/10 text-[#5865F2] border-[#5865F2]/20">
                     <i className="fa-solid fa-users w-3 h-3" />
                     Guild Required
                   </span>

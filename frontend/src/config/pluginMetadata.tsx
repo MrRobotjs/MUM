@@ -4,6 +4,15 @@
  */
 
 import { cloneElement, type ReactElement } from 'react'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import {
+  faBook,
+  faBookOpen,
+  faCirclePlay,
+  faCube,
+  faGamepad,
+  faHeadphones,
+} from '@fortawesome/free-solid-svg-icons'
 import { cn } from '@/lib/utils'
 
 // Plex SVG Icon
@@ -65,7 +74,7 @@ export const SERVICE_META: Record<string, ServiceMeta> = {
     }
   },
   jellyfin: {
-    icon: <i className="fa-solid fa-cube text-jellyfin" />,
+    icon: <FontAwesomeIcon icon={faCube} className="text-jellyfin" />,
     label: 'Jellyfin',
     gradient: 'from-jellyfin/10 via-jellyfin/10 to-jellyfin/20',
     streamingGradient: 'bg-gradient-to-br via-card to-card from-jellyfin/30',
@@ -87,7 +96,7 @@ export const SERVICE_META: Record<string, ServiceMeta> = {
     }
   },
   emby: {
-    icon: <i className="fa-solid fa-play-circle text-emby" />,
+    icon: <FontAwesomeIcon icon={faCirclePlay} className="text-emby" />,
     label: 'Emby',
     gradient: 'from-emby/10 via-emby/10 to-emby/20',
     streamingGradient: 'bg-gradient-to-br via-card to-card from-emby/30',
@@ -109,7 +118,7 @@ export const SERVICE_META: Record<string, ServiceMeta> = {
     }
   },
   kavita: {
-    icon: <i className="fa-solid fa-book text-kavita" />,
+    icon: <FontAwesomeIcon icon={faBook} className="text-kavita" />,
     label: 'Kavita',
     gradient: 'from-kavita/10 via-kavita/10 to-kavita/20',
     streamingGradient: 'bg-gradient-to-br via-card to-card from-kavita/30',
@@ -131,7 +140,7 @@ export const SERVICE_META: Record<string, ServiceMeta> = {
     }
   },
   audiobookshelf: {
-    icon: <i className="fa-solid fa-headphones text-audiobookshelf" />,
+    icon: <FontAwesomeIcon icon={faHeadphones} className="text-audiobookshelf" />,
     label: 'AudioBookshelf',
     gradient: 'from-audiobookshelf/10 via-audiobookshelf/10 to-audiobookshelf/20',
     streamingGradient: 'bg-gradient-to-br via-card to-card from-audiobookshelf/30',
@@ -153,7 +162,7 @@ export const SERVICE_META: Record<string, ServiceMeta> = {
     }
   },
   komga: {
-    icon: <i className="fa-solid fa-book-open text-komga" />,
+    icon: <FontAwesomeIcon icon={faBookOpen} className="text-komga" />,
     label: 'Komga',
     gradient: 'from-komga/10 via-komga/10 to-komga/20',
     streamingGradient: 'bg-gradient-to-br via-card to-card from-komga/30',
@@ -175,7 +184,7 @@ export const SERVICE_META: Record<string, ServiceMeta> = {
     }
   },
   romm: {
-    icon: <i className="fa-solid fa-gamepad text-romm" />,
+    icon: <FontAwesomeIcon icon={faGamepad} className="text-romm" />,
     label: 'RomM',
     gradient: 'from-romm/10 via-romm/10 to-romm/20',
     streamingGradient: 'bg-gradient-to-br via-card to-card from-romm/30',

@@ -1,5 +1,5 @@
 import { type ReactNode } from 'react';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import type { InviteRow, InviteServer, InviteServerFeature } from './InvitesTable';
@@ -82,7 +82,7 @@ export const InviteCard = ({
 
   return (
     <Card
-      className={`relative overflow-hidden border transition-all duration-200 ease-in-out group cursor-pointer ${
+      className={`relative gap-2 py-3 overflow-hidden border transition-all duration-200 ease-in-out group cursor-pointer ${
         selected ? 'ring-2 ring-primary shadow-xl translate-y-[-2px]' : 'hover:shadow-lg'
       }`}
       onClick={() => onToggleSelect(invite.id)}
@@ -97,56 +97,53 @@ export const InviteCard = ({
         />
       </div>
 
-      <CardContent className="relative z-10 flex h-full flex-col space-y-4">
-        {/* Header: Path, External Link, Dates */}
-        <div className="flex items-start justify-between gap-3">
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 flex-wrap">
-              <button
-                className="font-semibold text-primary text-left hover:underline underline-offset-4 p-0"
-                title="Click to copy invite link"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onCopyLink(invite);
-                }}
-              >
-                {invite.custom_path || invite.token.substring(0, 12)}
-              </button>
-              <a
-                href={`/invite/${invite.custom_path || invite.token}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-muted-foreground hover:text-foreground p-1"
-                title="Open link in new tab"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <i className="fa-solid fa-external-link-alt fa-xs" />
-              </a>
-            </div>
-            <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-              <span>
-                <i className="fa-solid fa-calendar-plus fa-fw mr-1" />
-                {invite.created_at ? new Date(invite.created_at).toLocaleDateString() : 'Created: N/A'}
-              </span>
-              <span className={invite.status === 'expired' ? 'text-destructive' : ''}>
-                <i className="fa-solid fa-clock fa-fw mr-1" />
-                {invite.expires_at ? new Date(invite.expires_at).toLocaleDateString() : 'Never expires'}
-              </span>
-            </div>
-          </div>
-
-          {/* Status & Usage */}
-          <div className="flex flex-col items-end gap-2 text-right">
-            <span
-              className={`inline-flex items-center gap-2 rounded-full border px-2 py-1 text-xs font-medium ${statusMeta.className}`}
+      <CardHeader className="relative z-10 gap-0">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              className="font-semibold text-primary text-left hover:underline underline-offset-4 p-0"
+              title="Click to copy invite link"
+              onClick={(e) => {
+                e.stopPropagation();
+                onCopyLink(invite);
+              }}
             >
-              <i className="fa-solid fa-circle-dot fa-xs" />
-              {statusMeta.label}
-            </span>
-            <div className="flex items-center gap-2 text-xs text-muted-foreground font-semibold bg-muted/40 border border-border px-2 py-1 rounded-full">
-              <i className="fa-solid fa-users-line fa-fw" />
-              <span>{invite.uses_count ?? invite.current_uses ?? 0} / {invite.max_uses ?? '\u221e'} uses</span>
-            </div>
+              {invite.custom_path || invite.token.substring(0, 12)}
+            </button>
+            <a
+              href={`/invite/${invite.custom_path || invite.token}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-muted-foreground hover:text-foreground p-1"
+              title="Open link in new tab"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <i className="fa-solid fa-external-link-alt fa-xs" />
+            </a>
+          </div>
+          <span
+            className={`inline-flex items-center gap-2 rounded-full border px-2 py-1 text-xs font-medium ${statusMeta.className}`}
+          >
+            <i className="fa-solid fa-circle-dot fa-xs" />
+            {statusMeta.label}
+          </span>
+        </div>
+      </CardHeader>
+
+      <CardContent className="relative z-10 flex h-full flex-col space-y-4">
+        {/* Dates + Usage */}
+        <div className="space-y-2 text-xs text-muted-foreground">
+          <div>
+            <i className="fa-solid fa-calendar-plus fa-fw mr-1" />
+            {invite.created_at ? new Date(invite.created_at).toLocaleDateString() : 'Created: N/A'}
+          </div>
+          <div className={invite.status === 'expired' ? 'text-destructive' : ''}>
+            <i className="fa-solid fa-clock fa-fw mr-1" />
+            {invite.expires_at ? new Date(invite.expires_at).toLocaleDateString() : 'Never expires'}
+          </div>
+          <div className="flex items-center gap-2 font-semibold bg-muted/40 border border-border px-2 py-1 rounded-full w-fit">
+            <i className="fa-solid fa-users-line fa-fw" />
+            <span>{invite.uses_count ?? invite.current_uses ?? 0} / {invite.max_uses ?? '\u221e'} uses</span>
           </div>
         </div>
 
@@ -194,7 +191,7 @@ export const InviteCard = ({
                     return (
                       <div
                         key={server.id}
-                        className="rounded-lg border border-border/60 bg-muted/40 p-3 space-y-2"
+                        className="rounded-lg border border-border/60 bg-muted/40 px-3 py-2 space-y-2"
                       >
                         <div className="flex items-center gap-2 pb-1 border-b border-border/40">
                           {getServiceIcon(server.service_type, 'w-4 h-4 text-muted-foreground')}

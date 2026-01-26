@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
 import { StreamingSessionCard } from './StreamingSessionCard';
 import { StreamingSourceInfoDialog } from './StreamingSourceInfoDialog';
 import { useAdminApi } from '@/hooks/useAdminApi';
@@ -113,7 +114,7 @@ export const ActiveStreamsCard = ({
       <CardHeader className="pt-6 border-b border-border/60 bg-gradient-to-r from-primary/5 via-transparent to-transparent pb-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary shadow-inner">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary shadow-inner">
               <i className="fa-solid fa-tower-broadcast text-lg" />
             </div>
             <div className="space-y-1">
@@ -215,11 +216,17 @@ export const ActiveStreamsCard = ({
         ) : sessionsData && sessionsData.total_count > 0 ? (
           renderActiveSessions()
         ) : (
-          <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border/60 bg-muted/30 py-12 text-muted-foreground">
-            <i className="fa-solid fa-circle-pause mb-4 text-4xl opacity-30" />
-            <p className="text-lg text-foreground">No active streams</p>
-            <p className="mt-2 text-sm">Streams will appear here when users start playing media</p>
-          </div>
+          <Empty className="border border-dashed border-border/60 bg-muted/30 py-10 sm:py-12">
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <i className="fa-solid fa-circle-pause text-xl opacity-70" />
+              </EmptyMedia>
+              <EmptyTitle>No active streams</EmptyTitle>
+              <EmptyDescription className="max-w-xs text-pretty">
+                Streams will appear here when users start playing media.
+              </EmptyDescription>
+            </EmptyHeader>
+          </Empty>
         )}
       </CardContent>
     </Card>

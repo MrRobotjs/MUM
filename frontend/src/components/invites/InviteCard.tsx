@@ -1,4 +1,20 @@
 import { type ReactNode } from 'react';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import type { IconDefinition } from '@fortawesome/fontawesome-svg-core';
+import {
+  faArrowUpRightFromSquare,
+  faCalendarPlus,
+  faCircleDot,
+  faClock,
+  faInfinity,
+  faLink,
+  faPenToSquare,
+  faQuestion,
+  faServer,
+  faUsers,
+  faChartLine
+} from '@fortawesome/free-solid-svg-icons';
+import { faDiscord } from '@fortawesome/free-brands-svg-icons';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -9,7 +25,7 @@ type FeatureKey = 'allow_downloads' | 'invite_to_plex_home' | 'allow_live_tv' | 
 export type FeatureMeta = {
   key: FeatureKey;
   label: string;
-  icon: string;
+  icon: IconDefinition;
   className: string;
   onlyServices?: string[];
   hideIfUniformTrue?: boolean;
@@ -118,13 +134,13 @@ export const InviteCard = ({
               title="Open link in new tab"
               onClick={(e) => e.stopPropagation()}
             >
-              <i className="fa-solid fa-external-link-alt fa-xs" />
+              <FontAwesomeIcon icon={faArrowUpRightFromSquare} className="h-3 w-3" />
             </a>
           </div>
           <span
-            className={`inline-flex items-center gap-2 rounded-full border px-2 py-1 text-xs font-medium ${statusMeta.className}`}
+            className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs font-medium ${statusMeta.className}`}
           >
-            <i className="fa-solid fa-circle-dot fa-xs" />
+            <FontAwesomeIcon icon={faCircleDot} className="h-2 w-2" />
             {statusMeta.label}
           </span>
         </div>
@@ -134,15 +150,15 @@ export const InviteCard = ({
         {/* Dates + Usage */}
         <div className="space-y-2 text-xs text-muted-foreground">
           <div>
-            <i className="fa-solid fa-calendar-plus fa-fw mr-1" />
+            <FontAwesomeIcon icon={faCalendarPlus} className="mr-1 h-3 w-3" />
             {invite.created_at ? new Date(invite.created_at).toLocaleDateString() : 'Created: N/A'}
           </div>
           <div className={invite.status === 'expired' ? 'text-destructive' : ''}>
-            <i className="fa-solid fa-clock fa-fw mr-1" />
+            <FontAwesomeIcon icon={faClock} className="mr-1 h-3 w-3" />
             {invite.expires_at ? new Date(invite.expires_at).toLocaleDateString() : 'Never expires'}
           </div>
           <div className="flex items-center gap-2 font-semibold bg-muted/40 border border-border px-2 py-1 rounded-full w-fit">
-            <i className="fa-solid fa-users-line fa-fw" />
+            <FontAwesomeIcon icon={faUsers} className="h-3 w-3" />
             <span>{invite.uses_count ?? invite.current_uses ?? 0} / {invite.max_uses ?? '\u221e'} uses</span>
           </div>
         </div>
@@ -152,7 +168,7 @@ export const InviteCard = ({
           {/* Server Details grouped by server */}
           <div className="space-y-2">
             <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-              <i className="fa-solid fa-server fa-fw" /> Server Access
+              <FontAwesomeIcon icon={faServer} className="h-3 w-3" /> Server Access
             </div>
             <div className="space-y-2">
               {invite.servers?.length ? (
@@ -183,7 +199,7 @@ export const InviteCard = ({
                           key={`${server.id}-${meta.key}`}
                           className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[11px] font-semibold ${meta.className}`}
                         >
-                          <i className={`${meta.icon} w-3 h-3`} />
+                          <FontAwesomeIcon icon={meta.icon} className="h-3 w-3" />
                           {meta.label}
                         </span>
                       ));
@@ -205,7 +221,7 @@ export const InviteCard = ({
                         <div className="flex flex-wrap gap-2">
                           {invite.grants_all_libraries ? (
                             <span className="inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[11px] font-semibold bg-green-500/10 text-green-500 border-green-500/20">
-                              <i className="fa-solid fa-infinity w-3 h-3" />
+                              <FontAwesomeIcon icon={faInfinity} className="h-3 w-3" />
                               All Libraries
                             </span>
                           ) : libs.length ? (
@@ -221,7 +237,7 @@ export const InviteCard = ({
                             ))
                           ) : (
                             <span className="inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[11px] font-semibold bg-muted text-muted-foreground border-border">
-                              <i className="fa-solid fa-question w-3 h-3" />
+                              <FontAwesomeIcon icon={faQuestion} className="h-3 w-3" />
                               No Libraries
                             </span>
                           )}
@@ -240,7 +256,7 @@ export const InviteCard = ({
           {hasMembershipDuration && (
             <div className="flex flex-wrap gap-2">
               <span className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold bg-orange-500/10 text-orange-500 border-orange-500/20">
-                <i className="fa-solid fa-clock w-3 h-3" />
+                <FontAwesomeIcon icon={faClock} className="h-3 w-3" />
                 {invite.membership_duration_days} days
               </span>
             </div>
@@ -250,18 +266,18 @@ export const InviteCard = ({
           {(invite.require_discord_auth || invite.require_discord_guild_membership) && (
             <div className="space-y-1">
               <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                <i className="fa-brands fa-discord fa-fw" /> Discord
+                <FontAwesomeIcon icon={faDiscord} className="h-3 w-3" /> Discord
               </div>
               <div className="flex flex-wrap gap-2">
                 {invite.require_discord_auth && (
                   <span className="inline-flex items-center gap-1 text-[11px] rounded-full border px-2 py-1 text-xs font-semibold bg-[#5865F2]/10 text-[#5865F2] border-[#5865F2]/20">
-                    <i className="fa-solid fa-link w-3 h-3" />
+                    <FontAwesomeIcon icon={faLink} className="h-3 w-3" />
                     Auth Required
                   </span>
                 )}
                 {invite.require_discord_guild_membership && (
                   <span className="inline-flex items-center gap-1 text-[11px] rounded-full border px-2 py-1 text-xs font-semibold bg-[#5865F2]/10 text-[#5865F2] border-[#5865F2]/20">
-                    <i className="fa-solid fa-users w-3 h-3" />
+                    <FontAwesomeIcon icon={faUsers} className="h-3 w-3" />
                     Guild Required
                   </span>
                 )}
@@ -281,7 +297,7 @@ export const InviteCard = ({
               onViewDetail(invite);
             }}
           >
-            <i className="fa-solid fa-chart-line" />
+            <FontAwesomeIcon icon={faChartLine} className="h-4 w-4" />
           </Button>
           <Button
             variant="ghost"
@@ -292,7 +308,7 @@ export const InviteCard = ({
               onEdit(invite);
             }}
           >
-            <i className="fa-solid fa-pen-to-square" />
+            <FontAwesomeIcon icon={faPenToSquare} className="h-4 w-4" />
           </Button>
         </div>
       </CardContent>

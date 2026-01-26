@@ -23,6 +23,8 @@ import { Button } from '../components/ui/button';
 import { ResponsiveDialog } from '../components/ui/responsive-dialog';
 import { PageHeader } from '../components';
 import { IconDots } from '@tabler/icons-react';
+import type { IconDefinition } from '@fortawesome/fontawesome-svg-core';
+import { faDownload, faGaugeHigh, faHome, faServer, faTv } from '@fortawesome/free-solid-svg-icons';
 import type { InviteLibrary, InviteServer } from '../components/invites/InvitesTable';
 import { getServiceBadgeClass as getServiceBadgeMeta, getServiceIcon } from '../config/pluginMetadata';
 
@@ -51,7 +53,7 @@ type PluginMetaResponse = {
 type FeatureMetaConfig = {
   key: FeatureKey;
   label: string;
-  icon: string;
+  icon: IconDefinition;
   defaultClassName: string;
   tintServiceType?: string;
   hideIfUniformTrue?: boolean;
@@ -61,27 +63,27 @@ const FEATURE_META_CONFIG: FeatureMetaConfig[] = [
   {
     key: 'allow_downloads',
     label: 'Downloads',
-    icon: 'fa-solid fa-download',
+    icon: faDownload,
     defaultClassName: 'bg-blue-500/10 text-blue-500 border-blue-500/20'
   },
   {
     key: 'invite_to_plex_home',
     label: 'Plex Home',
-    icon: 'fa-solid fa-home',
+    icon: faHome,
     tintServiceType: 'plex',
     defaultClassName: 'bg-[#e5a00d]/10 text-[#e5a00d] border-[#e5a00d]/20'
   },
   {
     key: 'allow_live_tv',
     label: 'Live TV',
-    icon: 'fa-solid fa-tv',
+    icon: faTv,
     tintServiceType: 'plex',
     defaultClassName: 'bg-purple-500/10 text-purple-500 border-purple-500/20'
   },
   {
     key: 'allow_4k_transcode',
     label: '4K Transcode',
-    icon: 'fa-solid fa-gauge-high',
+    icon: faGaugeHigh,
     defaultClassName: 'bg-sky-500/10 text-sky-600 border-sky-500/20'
   }
 ];
@@ -98,8 +100,8 @@ const buildFeatureMeta = (inviteFeatureSupport: Record<string, string[]>): Featu
     return `border ${getServiceBadgeClass(serviceType)}`;
   };
 
-  const serviceIcon = (_serviceType?: string, fallbackIcon?: string) => {
-    return fallbackIcon || 'fa-solid fa-server';
+  const serviceIcon = (_serviceType?: string, fallbackIcon?: IconDefinition) => {
+    return fallbackIcon || faServer;
   };
 
   return FEATURE_META_CONFIG.map((cfg) => {

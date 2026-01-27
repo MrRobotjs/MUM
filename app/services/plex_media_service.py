@@ -535,7 +535,7 @@ class PlexMediaService(BaseMediaService):
                         'email': getattr(admin_account, 'email', None),
                         'thumb': getattr(admin_account, 'thumb', None),
                     },
-                    'is_owner': True,
+                    'is_media_server_owner': True,
                     'timestamp': datetime.utcnow().isoformat()
                 }
 
@@ -551,7 +551,7 @@ class PlexMediaService(BaseMediaService):
                     'library_ids': all_my_server_library_ids_as_strings[:],
                     'accepted_at': None,
                     'raw_data': owner_raw_data,
-                    'is_owner': True
+                    'is_media_server_owner': True
                 }
                 processed_users_data.append(owner_user_data_basic)
 
@@ -628,7 +628,7 @@ class PlexMediaService(BaseMediaService):
                     'users_sharing_back_ids': list(users_sharing_back_ids),
                     'timestamp': datetime.utcnow().isoformat()
                 }
-                raw_user_data['is_owner'] = is_owner
+                raw_user_data['is_media_server_owner'] = is_owner
 
                 allow_downloads = bool(getattr(plex_user_obj, 'allowSync', False))
                 if user_share_details and user_share_details.get('allow_downloads') is not None:
@@ -649,7 +649,7 @@ class PlexMediaService(BaseMediaService):
                     'library_ids': [],
                     'accepted_at': accepted_at_val,
                     'raw_data': raw_user_data,
-                    'is_owner': is_owner
+                    'is_media_server_owner': is_owner
                 }
 
                 user_share_details = detailed_shares_by_userid.get(plex_user_id_int)
@@ -659,7 +659,7 @@ class PlexMediaService(BaseMediaService):
                 if is_owner:
                     effective_library_ids = all_my_server_library_ids_as_strings[:]
                     add_user_to_MUM_list = True
-                    user_data_basic['raw_data']['is_owner'] = True
+                    user_data_basic['raw_data']['is_media_server_owner'] = True
                 elif user_share_details:
                     if user_share_details.get('allLibraries'):
                         effective_library_ids = all_my_server_library_ids_as_strings[:] 

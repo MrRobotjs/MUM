@@ -225,8 +225,11 @@ class MediaServiceManager:
                 user = MediaServiceManager._find_or_create_user(user_data, server)
                 allow_downloads_from_sync = user_data.get('allow_downloads')
                 is_owner_from_sync = None
-                if server.service_type == ServiceType.PLEX and 'is_owner' in user_data:
-                    is_owner_from_sync = bool(user_data.get('is_owner'))
+                if server.service_type == ServiceType.PLEX:
+                    if 'is_media_server_owner' in user_data:
+                        is_owner_from_sync = bool(user_data.get('is_media_server_owner'))
+                    elif 'is_owner' in user_data:
+                        is_owner_from_sync = bool(user_data.get('is_owner'))
                 
                 # Check if service user already exists for this server user
                 access = None
@@ -280,7 +283,8 @@ class MediaServiceManager:
                                 access.sync_downloads_role(allow_downloads_from_sync)
                             if is_owner_from_sync is not None:
                                 owner_settings = dict(access.service_settings or {})
-                                owner_settings['is_owner'] = is_owner_from_sync
+                                owner_settings.pop('is_owner', None)
+                                owner_settings['is_media_server_owner'] = is_owner_from_sync
                                 access.service_settings = owner_settings
                                 access.sync_owner_role(is_owner_from_sync)
                             
@@ -338,7 +342,7 @@ class MediaServiceManager:
                     # Store service-specific raw data in service user
                     user_raw_data = user_data.get('raw_data') or {}
                     current_app.logger.info(f"AudioBookshelf sync - Creating new user {user_data.get('username')} raw_data: {type(user_raw_data)} with {len(str(user_raw_data))} chars")
-                    initial_service_settings = {'is_owner': is_owner_from_sync} if is_owner_from_sync is not None else {}
+                    initial_service_settings = {'is_media_server_owner': is_owner_from_sync} if is_owner_from_sync is not None else {}
                     
                     access = User(
                         userType=UserType.SERVICE,  # CRITICAL: Set userType for unified model
@@ -443,11 +447,13 @@ class MediaServiceManager:
                     current_app.logger.info(f"AudioBookshelf sync - Updating existing standalone user {user_data.get('username')} raw_data: {type(raw_data_to_store)} with {len(str(raw_data_to_store))} chars")
                     access.user_raw_data = raw_data_to_store
                     if is_owner_from_sync is not None:
-                        current_owner_flag = bool((access.service_settings or {}).get('is_owner'))
+                        settings = access.service_settings or {}
+                        current_owner_flag = bool(settings.get('is_media_server_owner', settings.get('is_owner')))
                         if current_owner_flag != is_owner_from_sync:
                             changes.append(f"Owner status changed from {current_owner_flag} to {is_owner_from_sync}")
                         owner_settings = dict(access.service_settings or {})
-                        owner_settings['is_owner'] = is_owner_from_sync
+                        owner_settings.pop('is_owner', None)
+                        owner_settings['is_media_server_owner'] = is_owner_from_sync
                         access.service_settings = owner_settings
                         access.sync_owner_role(is_owner_from_sync)
                     
@@ -617,7 +623,9 @@ class MediaServiceManager:
         email = user_data.get('email')
         external_user_id = str(user_data.get('id')) if user_data.get('id') else None
 
-        if server.service_type == ServiceType.PLEX and user_data.get('is_owner'):
+        if server.service_type == ServiceType.PLEX and (
+            user_data.get('is_media_server_owner') or user_data.get('is_owner')
+        ):
             current_app.logger.info(
                 "Skipping auto-linking for Plex owner '%s' to avoid cross-server ambiguity.",
                 username or email or "unknown",

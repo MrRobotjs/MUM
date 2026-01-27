@@ -67,7 +67,9 @@ def upgrade():
             WHERE u.userType = 'SERVICE'
               AND s.service_type = 'PLEX'
               AND (
-                u.service_settings LIKE '%"is_owner": true%'
+                u.service_settings LIKE '%"is_media_server_owner": true%'
+                OR u.user_raw_data LIKE '%"is_media_server_owner": true%'
+                OR u.service_settings LIKE '%"is_owner": true%'
                 OR u.user_raw_data LIKE '%"is_owner": true%'
               )
             """
@@ -112,4 +114,3 @@ def downgrade():
             text("DELETE FROM users_roles WHERE id = :id"),
             {"id": owner_role[0]},
         )
-

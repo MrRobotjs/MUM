@@ -447,17 +447,23 @@ class User(db.Model):
         elif not downloads_enabled and downloads_role in self.user_roles:
             self.user_roles.remove(downloads_role)
 
-    def sync_owner_role(self, is_owner: bool | None = None):
-        """Sync the 'Owner' role based on a service-provided owner flag."""
+    def sync_owner_role(self, is_media_server_owner: bool | None = None):
+        """Sync the 'Owner' role based on a media-server owner flag."""
         owner_role = UserRole.query.filter_by(name='Owner').first()
         if not owner_role:
             return
 
-        if is_owner is None:
+        if is_media_server_owner is None:
             settings = self.service_settings or {}
-            owner_enabled = bool(settings.get('is_owner')) if isinstance(settings, dict) else False
+            if isinstance(settings, dict):
+                # Prefer the explicit key but tolerate the older one until next sync.
+                owner_enabled = bool(
+                    settings.get('is_media_server_owner', settings.get('is_owner'))
+                )
+            else:
+                owner_enabled = False
         else:
-            owner_enabled = bool(is_owner)
+            owner_enabled = bool(is_media_server_owner)
 
         if owner_enabled and owner_role not in self.user_roles:
             self.user_roles.append(owner_role)

@@ -628,6 +628,7 @@ class PlexMediaService(BaseMediaService):
                     'users_sharing_back_ids': list(users_sharing_back_ids),
                     'timestamp': datetime.utcnow().isoformat()
                 }
+                raw_user_data['is_owner'] = is_owner
 
                 allow_downloads = bool(getattr(plex_user_obj, 'allowSync', False))
                 if user_share_details and user_share_details.get('allow_downloads') is not None:

@@ -447,6 +447,23 @@ class User(db.Model):
         elif not downloads_enabled and downloads_role in self.user_roles:
             self.user_roles.remove(downloads_role)
 
+    def sync_owner_role(self, is_owner: bool | None = None):
+        """Sync the 'Owner' role based on a service-provided owner flag."""
+        owner_role = UserRole.query.filter_by(name='Owner').first()
+        if not owner_role:
+            return
+
+        if is_owner is None:
+            settings = self.service_settings or {}
+            owner_enabled = bool(settings.get('is_owner')) if isinstance(settings, dict) else False
+        else:
+            owner_enabled = bool(is_owner)
+
+        if owner_enabled and owner_role not in self.user_roles:
+            self.user_roles.append(owner_role)
+        elif not owner_enabled and owner_role in self.user_roles:
+            self.user_roles.remove(owner_role)
+
     # Staff Role Management (Special Admin Role)
     def _ensure_staff_role(self):
         """Automatically assign 'Staff' admin role when user gets admin roles"""

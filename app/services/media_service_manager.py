@@ -224,6 +224,9 @@ class MediaServiceManager:
             for user_data in users_data:
                 user = MediaServiceManager._find_or_create_user(user_data, server)
                 allow_downloads_from_sync = user_data.get('allow_downloads')
+                is_owner_from_sync = None
+                if server.service_type == ServiceType.PLEX and 'is_owner' in user_data:
+                    is_owner_from_sync = bool(user_data.get('is_owner'))
                 
                 # Check if service user already exists for this server user
                 access = None
@@ -275,6 +278,11 @@ class MediaServiceManager:
                             if manage_downloads_role and allow_downloads_from_sync is not None:
                                 access.allow_downloads = bool(allow_downloads_from_sync)
                                 access.sync_downloads_role(allow_downloads_from_sync)
+                            if is_owner_from_sync is not None:
+                                owner_settings = dict(access.service_settings or {})
+                                owner_settings['is_owner'] = is_owner_from_sync
+                                access.service_settings = owner_settings
+                                access.sync_owner_role(is_owner_from_sync)
                             
                             # Set service-specific fields
                             if server.service_type == ServiceType.PLEX:
@@ -330,6 +338,7 @@ class MediaServiceManager:
                     # Store service-specific raw data in service user
                     user_raw_data = user_data.get('raw_data') or {}
                     current_app.logger.info(f"AudioBookshelf sync - Creating new user {user_data.get('username')} raw_data: {type(user_raw_data)} with {len(str(user_raw_data))} chars")
+                    initial_service_settings = {'is_owner': is_owner_from_sync} if is_owner_from_sync is not None else {}
                     
                     access = User(
                         userType=UserType.SERVICE,  # CRITICAL: Set userType for unified model
@@ -341,6 +350,7 @@ class MediaServiceManager:
                         external_email=user_data.get('email'),
                         allowed_library_ids=MediaServiceManager._convert_library_ids_for_kavita(server, user_data.get('library_ids', [])),
                         user_raw_data=user_raw_data,  # Store raw data here instead of local user
+                        service_settings=initial_service_settings,
                         is_active=True,
                         # Add the missing status fields
                         is_home_user=user_data.get('is_home_user', False),
@@ -349,6 +359,8 @@ class MediaServiceManager:
                     )
                     if manage_downloads_role and allow_downloads_from_sync is not None:
                         access.sync_downloads_role(allow_downloads_from_sync)
+                    if is_owner_from_sync is not None:
+                        access.sync_owner_role(is_owner_from_sync)
                     
                     # Set service-specific fields for new users
                     if server.service_type == ServiceType.PLEX:
@@ -430,6 +442,14 @@ class MediaServiceManager:
                     raw_data_to_store = user_data.get('raw_data') or {}
                     current_app.logger.info(f"AudioBookshelf sync - Updating existing standalone user {user_data.get('username')} raw_data: {type(raw_data_to_store)} with {len(str(raw_data_to_store))} chars")
                     access.user_raw_data = raw_data_to_store
+                    if is_owner_from_sync is not None:
+                        current_owner_flag = bool((access.service_settings or {}).get('is_owner'))
+                        if current_owner_flag != is_owner_from_sync:
+                            changes.append(f"Owner status changed from {current_owner_flag} to {is_owner_from_sync}")
+                        owner_settings = dict(access.service_settings or {})
+                        owner_settings['is_owner'] = is_owner_from_sync
+                        access.service_settings = owner_settings
+                        access.sync_owner_role(is_owner_from_sync)
                     
                     # Update service-specific fields for existing standalone users
                     if server.service_type == ServiceType.PLEX:

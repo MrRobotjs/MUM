@@ -6,6 +6,7 @@ import {
   faCalendarPlus,
   faCircleDot,
   faClock,
+  faFolder,
   faInfinity,
   faLink,
   faPenToSquare,
@@ -130,11 +131,11 @@ export const InviteCard = ({
               href={`/invite/${invite.custom_path || invite.token}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-muted-foreground hover:text-foreground p-1"
+              className="text-muted-foreground hover:text-foreground p-0"
               title="Open link in new tab"
               onClick={(e) => e.stopPropagation()}
             >
-              <FontAwesomeIcon icon={faArrowUpRightFromSquare} className="h-3 w-3" />
+              <FontAwesomeIcon icon={faArrowUpRightFromSquare} className="h-2 w-2" />
             </a>
           </div>
           <span
@@ -231,7 +232,7 @@ export const InviteCard = ({
                                 className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[11px] font-semibold ${getServiceBadgeClass(library.service_type)}`}
                                 title={`${library.name} (${library.server_name})`}
                               >
-                                {getServiceIcon(library.service_type, 'w-3 h-3')}
+                                <FontAwesomeIcon icon={faFolder} className="h-3 w-3" />
                                 {library.name}
                               </span>
                             ))

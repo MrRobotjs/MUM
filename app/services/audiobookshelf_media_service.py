@@ -1,6 +1,7 @@
 # File: app/services/audiobookshelf_media_service.py
 from typing import List, Dict, Any, Optional, Tuple
 import json
+from json import JSONDecodeError
 import logging
 from logging.handlers import RotatingFileHandler
 import os
@@ -210,7 +211,18 @@ class AudiobookShelfMediaService(BaseMediaService):
                 raise ValueError(f"Unsupported method: {method}")
             
             response.raise_for_status()
-            return response.json() if response.content else {}
+            if not response.content:
+                return {}
+            # Some ABS endpoints return 200 with an empty body.
+            if not response.text.strip():
+                return {}
+            try:
+                return response.json()
+            except JSONDecodeError:
+                self.log_warning(
+                    f"AudioBookshelf returned non-JSON response for {endpoint}; treating as empty."
+                )
+                return {}
         except requests.exceptions.RequestException as e:
             self.log_error(f"API request failed: {e}")
             raise
@@ -973,9 +985,19 @@ class AudiobookShelfMediaService(BaseMediaService):
         return formatted_sessions
 
     def terminate_session(self, session_id: str, reason: str = None) -> bool:
-        """Terminate an AudioBookshelf session (not supported by AudioBookshelf API)"""
-        self.log_warning(f"AudioBookshelf does not support session termination via API")
-        return False
+        """Terminate an AudioBookshelf session via the close endpoint."""
+        try:
+            endpoint = f"session/{session_id}/close"
+            # Audiobookshelf accepts an empty body here; sync data is optional.
+            self.log_info(
+                f"AudioBookshelf: Terminating session {session_id} via {endpoint}"
+                + (f" (reason: {reason})" if reason else "")
+            )
+            self._make_request(endpoint, method="POST", data={})
+            return True
+        except Exception as e:
+            self.log_error(f"Error terminating AudioBookshelf session {session_id}: {e}")
+            return False
 
     def check_username_exists(self, username: str) -> bool:
         """Check if a username already exists in AudiobookShelf"""

@@ -25,6 +25,9 @@ export const TerminateSessionModal = ({
   onClose,
   onConfirm
 }: TerminateSessionModalProps) => {
+  const serviceType = session?.service_type?.toLowerCase();
+  const supportsTerminationMessage = serviceType !== 'audiobookshelf';
+
   return (
     <ResponsiveDialog
       open={open && Boolean(session)}
@@ -61,22 +64,28 @@ export const TerminateSessionModal = ({
             </div>
           </div>
 
-          <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <i className="fa-solid fa-message text-blue-600 dark:text-blue-400 text-sm" />
-              <h5 className="text-base font-semibold text-foreground">Optional Message</h5>
+          {supportsTerminationMessage ? (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <i className="fa-solid fa-message text-blue-600 dark:text-blue-400 text-sm" />
+                <h5 className="text-base font-semibold text-foreground">Optional Message</h5>
+              </div>
+              <Textarea
+                rows={3}
+                placeholder="e.g., Server maintenance starting soon."
+                value={message}
+                onChange={(e) => onMessageChange(e.target.value)}
+                className="resize-none"
+              />
+              <p className="text-sm text-muted-foreground">
+                This message will be displayed to the user when their session is terminated.
+              </p>
             </div>
-            <Textarea
-              rows={3}
-              placeholder="e.g., Server maintenance starting soon."
-              value={message}
-              onChange={(e) => onMessageChange(e.target.value)}
-              className="resize-none"
-            />
+          ) : (
             <p className="text-sm text-muted-foreground">
-              This message will be displayed to the user when their session is terminated.
+              Messages are not supported for AudioBookshelf session termination.
             </p>
-          </div>
+          )}
         </div>
       ) : null}
     </ResponsiveDialog>

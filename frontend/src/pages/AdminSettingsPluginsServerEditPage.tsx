@@ -24,6 +24,8 @@ type ServerFormValues = {
   service_type: string;
   url: string;
   api_key?: string;
+  username?: string;
+  password?: string;
   public_url?: string;
   jellyfin_owner_user_id?: string;
   overseerr_url?: string;
@@ -46,6 +48,14 @@ const normalizeServerPayload = (values: ServerFormValues, pluginId: string) => {
 
   if (values.api_key) {
     payload.api_key = values.api_key;
+  }
+
+  if (values.username) {
+    payload.username = values.username;
+  }
+
+  if (values.password) {
+    payload.password = values.password;
   }
 
   if (values.overseerr_api_key) {
@@ -79,6 +89,8 @@ export const AdminSettingsPluginsServerEditPage = () => {
     service_type: pluginId || 'plex',
     url: '',
     api_key: '',
+    username: '',
+    password: '',
     public_url: '',
     jellyfin_owner_user_id: '',
     overseerr_url: '',
@@ -100,6 +112,8 @@ export const AdminSettingsPluginsServerEditPage = () => {
         service_type: server.service_type,
         url: server.url,
         api_key: '',
+        username: '',
+        password: '',
         public_url: server.public_url || '',
         jellyfin_owner_user_id: server.jellyfin_owner_user_id || '',
         overseerr_url: server.overseerr_url || '',
@@ -119,6 +133,13 @@ export const AdminSettingsPluginsServerEditPage = () => {
     setError(null);
 
     try {
+      const isRomm = values.service_type === 'romm';
+      if (isRomm && (!values.username?.trim() || !values.password)) {
+        setConnectionTestStatus('error');
+        showError('RomM requires a username and password.');
+        return;
+      }
+
       const testData: any = {
         name: values.server_nickname,
         url: values.url,
@@ -127,6 +148,14 @@ export const AdminSettingsPluginsServerEditPage = () => {
 
       if (values.api_key) {
         testData.api_key = values.api_key;
+      }
+
+      if (values.username) {
+        testData.username = values.username;
+      }
+
+      if (values.password) {
+        testData.password = values.password;
       }
 
       if (values.overseerr_enabled) {
@@ -178,6 +207,16 @@ export const AdminSettingsPluginsServerEditPage = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    const isRomm = values.service_type === 'romm';
+    if (isRomm) {
+      const hasUsername = Boolean(values.username?.trim());
+      const hasPassword = Boolean(values.password);
+      if (hasUsername !== hasPassword) {
+        showError('Provide both RomM username and password, or leave both blank to keep existing credentials.');
+        return;
+      }
+    }
+
     if (values.service_type === 'plex') {
       const interval = values.websocket_refresh_interval ?? 30;
       if (!Number.isFinite(interval) || interval < 2 || interval > 300) {
@@ -210,6 +249,9 @@ export const AdminSettingsPluginsServerEditPage = () => {
       const updated: ServerFormValues = { ...prev, [field]: value };
 
       if (field === 'service_type') {
+        if (value === 'romm') {
+          updated.api_key = '';
+        }
         if (value === 'plex') {
           if (!updated.websocket_refresh_interval || updated.websocket_refresh_interval < 2) {
             updated.websocket_refresh_interval = 30;
@@ -296,6 +338,8 @@ export const AdminSettingsPluginsServerEditPage = () => {
     );
   };
 
+  const isRomm = values.service_type === 'romm';
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -358,18 +402,44 @@ export const AdminSettingsPluginsServerEditPage = () => {
                     />
                   </FormField>
 
-                  <FormField id="api_key" label="API Key">
-                    <Input
-                      id="api_key"
-                      type="password"
-                      value={values.api_key}
-                      onChange={(e) => handleFieldChange('api_key', e.target.value)}
-                      placeholder="••••••••"
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Leave blank to keep existing key
-                    </p>
-                  </FormField>
+                  {isRomm ? (
+                    <>
+                      <FormField id="username" label="Username">
+                        <Input
+                          id="username"
+                          type="text"
+                          value={values.username ?? ''}
+                          onChange={(e) => handleFieldChange('username', e.target.value)}
+                          placeholder="RomM username"
+                        />
+                      </FormField>
+                      <FormField id="password" label="Password">
+                        <Input
+                          id="password"
+                          type="password"
+                          value={values.password ?? ''}
+                          onChange={(e) => handleFieldChange('password', e.target.value)}
+                          placeholder="••••••••"
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Leave both fields blank to keep existing credentials
+                        </p>
+                      </FormField>
+                    </>
+                  ) : (
+                    <FormField id="api_key" label="API Key">
+                      <Input
+                        id="api_key"
+                        type="password"
+                        value={values.api_key}
+                        onChange={(e) => handleFieldChange('api_key', e.target.value)}
+                        placeholder="••••••••"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Leave blank to keep existing key
+                      </p>
+                    </FormField>
+                  )}
 
                   {values.service_type === 'jellyfin' ? (
                     <FormField

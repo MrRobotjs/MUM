@@ -20,6 +20,8 @@ export type ServerFormValues = {
   service_type: string;
   url: string;
   api_key?: string;
+  username?: string;
+  password?: string;
   public_url?: string;
   jellyfin_owner_user_id?: string;
   overseerr_url?: string;
@@ -42,6 +44,14 @@ const normalizeServerPayload = (values: ServerFormValues, pluginId: string) => {
 
   if (values.api_key) {
     payload.api_key = values.api_key;
+  }
+
+  if (values.username) {
+    payload.username = values.username;
+  }
+
+  if (values.password) {
+    payload.password = values.password;
   }
 
   if (values.overseerr_api_key) {
@@ -76,6 +86,8 @@ export const ServerAddForm = ({ pluginId, onSuccess, onCancel }: ServerAddFormPr
     service_type: pluginId || 'plex',
     url: '',
     api_key: '',
+    username: '',
+    password: '',
     public_url: '',
     jellyfin_owner_user_id: '',
     overseerr_url: '',
@@ -95,6 +107,13 @@ export const ServerAddForm = ({ pluginId, onSuccess, onCancel }: ServerAddFormPr
     setError(null);
 
     try {
+      const isRomm = values.service_type === 'romm';
+      if (isRomm && (!values.username?.trim() || !values.password)) {
+        setConnectionTestStatus('error');
+        showError('RomM requires a username and password.');
+        return;
+      }
+
       const testData: any = {
         name: values.server_nickname,
         url: values.url,
@@ -103,6 +122,14 @@ export const ServerAddForm = ({ pluginId, onSuccess, onCancel }: ServerAddFormPr
 
       if (values.api_key) {
         testData.api_key = values.api_key;
+      }
+
+      if (values.username) {
+        testData.username = values.username;
+      }
+
+      if (values.password) {
+        testData.password = values.password;
       }
 
       if (values.overseerr_enabled) {
@@ -154,6 +181,12 @@ export const ServerAddForm = ({ pluginId, onSuccess, onCancel }: ServerAddFormPr
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    const isRomm = values.service_type === 'romm';
+    if (isRomm && (!values.username?.trim() || !values.password)) {
+      showError('RomM requires a username and password.');
+      return;
+    }
+
     if (values.service_type === 'plex') {
       const interval = values.websocket_refresh_interval ?? 30;
       if (!Number.isFinite(interval) || interval < 2 || interval > 300) {
@@ -185,6 +218,9 @@ export const ServerAddForm = ({ pluginId, onSuccess, onCancel }: ServerAddFormPr
       const updated: ServerFormValues = { ...prev, [field]: value };
 
       if (field === 'service_type') {
+        if (value === 'romm') {
+          updated.api_key = '';
+        }
         if (value === 'plex') {
           if (!updated.websocket_refresh_interval || updated.websocket_refresh_interval < 2) {
             updated.websocket_refresh_interval = 30;
@@ -234,6 +270,8 @@ export const ServerAddForm = ({ pluginId, onSuccess, onCancel }: ServerAddFormPr
       </>
     );
   };
+
+  const isRomm = values.service_type === 'romm';
 
   return (
     <form id="server-add-form" onSubmit={handleSubmit} className="space-y-6">
@@ -291,15 +329,40 @@ export const ServerAddForm = ({ pluginId, onSuccess, onCancel }: ServerAddFormPr
                   />
                 </FormField>
 
-                <FormField id="api_key" label="API Key">
-                  <Input
-                    id="api_key"
-                    type="password"
-                    value={values.api_key}
-                    onChange={(e) => handleFieldChange('api_key', e.target.value)}
-                    placeholder="Enter API key"
-                  />
-                </FormField>
+                {isRomm ? (
+                  <>
+                    <FormField id="username" label="Username" required>
+                      <Input
+                        id="username"
+                        type="text"
+                        value={values.username ?? ''}
+                        onChange={(e) => handleFieldChange('username', e.target.value)}
+                        placeholder="RomM username"
+                        required
+                      />
+                    </FormField>
+                    <FormField id="password" label="Password" required>
+                      <Input
+                        id="password"
+                        type="password"
+                        value={values.password ?? ''}
+                        onChange={(e) => handleFieldChange('password', e.target.value)}
+                        placeholder="RomM password"
+                        required
+                      />
+                    </FormField>
+                  </>
+                ) : (
+                  <FormField id="api_key" label="API Key">
+                    <Input
+                      id="api_key"
+                      type="password"
+                      value={values.api_key}
+                      onChange={(e) => handleFieldChange('api_key', e.target.value)}
+                      placeholder="Enter API key"
+                    />
+                  </FormField>
+                )}
 
                 {values.service_type === 'jellyfin' ? (
                   <FormField

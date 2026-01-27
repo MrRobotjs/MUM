@@ -851,6 +851,7 @@ export const StreamingPage = () => {
     if (!selectedSession) return;
 
     try {
+      const serviceType = selectedSession.service_type?.toLowerCase() ?? '';
       await requestJson('/admin/api/v2/streaming/terminate', {
         method: 'POST',
         body: JSON.stringify({
@@ -866,7 +867,12 @@ export const StreamingPage = () => {
       setShowTerminateModal(false);
       setSelectedSession(null);
       setTerminateMessage('');
-      fetchActiveSessions();
+      if (serviceType === 'audiobookshelf') {
+        // ABS is HTTP-only; force a refresh even if websockets are active.
+        fetchActiveSessions({ force: true, httpOnly: true, reason: 'manual' });
+      } else {
+        fetchActiveSessions();
+      }
     } catch (error) {
       showError('Failed to terminate session: ' + String(error));
     }

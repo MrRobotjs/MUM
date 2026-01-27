@@ -20,6 +20,8 @@ export type ServerFormValues = {
   service_type: string;
   url: string;
   api_key?: string;
+  username?: string;
+  password?: string;
   public_url?: string;
   overseerr_url?: string;
   overseerr_api_key?: string;
@@ -55,6 +57,8 @@ export const ServerModal = ({
     service_type: 'plex',
     url: '',
     api_key: '',
+    username: '',
+    password: '',
     public_url: '',
     overseerr_url: '',
     overseerr_api_key: '',
@@ -77,6 +81,8 @@ export const ServerModal = ({
         service_type: initialValues.service_type,
         url: initialValues.url,
         api_key: '',
+        username: '',
+        password: '',
         public_url: initialValues.public_url || '',
         overseerr_url: initialValues.overseerr_url || '',
         overseerr_api_key: '',
@@ -94,6 +100,8 @@ export const ServerModal = ({
         service_type: defaultServiceType ?? 'plex',
         url: '',
         api_key: '',
+        username: '',
+        password: '',
         public_url: '',
         overseerr_url: '',
         overseerr_api_key: '',
@@ -112,6 +120,14 @@ export const ServerModal = ({
     setError(null);
 
     try {
+      const isRomm = values.service_type === 'romm';
+      if (isRomm && (!values.username?.trim() || !values.password)) {
+        setConnectionTestStatus('error');
+        setConnectionTested(false);
+        showError('RomM requires a username and password.');
+        return;
+      }
+
       const testData: any = {
         name: values.server_nickname,
         url: values.url,
@@ -121,6 +137,14 @@ export const ServerModal = ({
       // Add API key if provided
       if (values.api_key) {
         testData.api_key = values.api_key;
+      }
+
+      if (values.username) {
+        testData.username = values.username;
+      }
+
+      if (values.password) {
+        testData.password = values.password;
       }
 
       // Add Overseerr fields if enabled
@@ -191,6 +215,15 @@ export const ServerModal = ({
       }
     }
 
+    if (values.service_type === 'romm') {
+      const hasUsername = Boolean(values.username?.trim());
+      const hasPassword = Boolean(values.password);
+      if (hasUsername !== hasPassword) {
+        showError('Provide both RomM username and password, or leave both blank to keep existing credentials.');
+        return;
+      }
+    }
+
     setError(null);
     setSubmitting(true);
 
@@ -210,6 +243,9 @@ export const ServerModal = ({
       const updated: ServerFormValues = { ...prev, [field]: value };
 
       if (field === 'service_type') {
+        if (value === 'romm') {
+          updated.api_key = '';
+        }
         if (value === 'plex') {
           if (!updated.websocket_refresh_interval || updated.websocket_refresh_interval < 2) {
             updated.websocket_refresh_interval = 30;
@@ -227,7 +263,7 @@ export const ServerModal = ({
     });
 
     // Reset connection test if critical fields change
-    if (['url', 'api_key', 'service_type'].includes(field) && connectionTested) {
+    if (['url', 'api_key', 'username', 'password', 'service_type'].includes(field) && connectionTested) {
       setConnectionTested(false);
       setConnectionTestStatus('idle');
     }
@@ -303,6 +339,8 @@ export const ServerModal = ({
     }
   };
 
+  const isRomm = values.service_type === 'romm';
+
   return (
     <ResponsiveDialog
       open={open}
@@ -370,18 +408,48 @@ export const ServerModal = ({
           />
         </FormField>
 
-        <FormField id="api_key" label="API Key">
-          <Input
-            id="api_key"
-            type="password"
-            value={values.api_key}
-            onChange={(e) => handleFieldChange('api_key', e.target.value)}
-            placeholder={initialValues ? '••••••••' : 'API key or token'}
-          />
-          <p className="mt-1 text-xs text-muted-foreground">
-            {initialValues ? 'Leave blank to keep existing key' : 'Required for most services'}
-          </p>
-        </FormField>
+        {isRomm ? (
+          <>
+            <FormField id="username" label="Username">
+              <Input
+                id="username"
+                type="text"
+                value={values.username ?? ''}
+                onChange={(e) => handleFieldChange('username', e.target.value)}
+                placeholder="RomM username"
+                required={!initialValues}
+              />
+            </FormField>
+            <FormField id="password" label="Password">
+              <Input
+                id="password"
+                type="password"
+                value={values.password ?? ''}
+                onChange={(e) => handleFieldChange('password', e.target.value)}
+                placeholder={initialValues ? '••••••••' : 'RomM password'}
+                required={!initialValues}
+              />
+              {initialValues ? (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Leave both fields blank to keep existing credentials
+                </p>
+              ) : null}
+            </FormField>
+          </>
+        ) : (
+          <FormField id="api_key" label="API Key">
+            <Input
+              id="api_key"
+              type="password"
+              value={values.api_key}
+              onChange={(e) => handleFieldChange('api_key', e.target.value)}
+              placeholder={initialValues ? '••••••••' : 'API key or token'}
+            />
+            <p className="mt-1 text-xs text-muted-foreground">
+              {initialValues ? 'Leave blank to keep existing key' : 'Required for most services'}
+            </p>
+          </FormField>
+        )}
 
         <FormField id="server_name" label="Server Name (Optional)">
           <Input

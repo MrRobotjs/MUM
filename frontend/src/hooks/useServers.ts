@@ -8,6 +8,7 @@ export type Server = {
   service_type: string;
   url: string;
   public_url: string | null;
+  jellyfin_owner_user_id?: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;

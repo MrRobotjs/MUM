@@ -225,11 +225,10 @@ class MediaServiceManager:
                 user = MediaServiceManager._find_or_create_user(user_data, server)
                 allow_downloads_from_sync = user_data.get('allow_downloads')
                 is_owner_from_sync = None
-                if server.service_type == ServiceType.PLEX:
-                    if 'is_media_server_owner' in user_data:
-                        is_owner_from_sync = bool(user_data.get('is_media_server_owner'))
-                    elif 'is_owner' in user_data:
-                        is_owner_from_sync = bool(user_data.get('is_owner'))
+                if 'is_media_server_owner' in user_data:
+                    is_owner_from_sync = bool(user_data.get('is_media_server_owner'))
+                elif server.service_type == ServiceType.PLEX and 'is_owner' in user_data:
+                    is_owner_from_sync = bool(user_data.get('is_owner'))
                 
                 # Check if service user already exists for this server user
                 access = None
@@ -623,11 +622,11 @@ class MediaServiceManager:
         email = user_data.get('email')
         external_user_id = str(user_data.get('id')) if user_data.get('id') else None
 
-        if server.service_type == ServiceType.PLEX and (
-            user_data.get('is_media_server_owner') or user_data.get('is_owner')
+        if user_data.get('is_media_server_owner') or (
+            server.service_type == ServiceType.PLEX and user_data.get('is_owner')
         ):
             current_app.logger.info(
-                "Skipping auto-linking for Plex owner '%s' to avoid cross-server ambiguity.",
+                "Skipping auto-linking for media-server owner '%s' to avoid cross-server ambiguity.",
                 username or email or "unknown",
             )
             return None

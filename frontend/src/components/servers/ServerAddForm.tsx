@@ -21,6 +21,7 @@ export type ServerFormValues = {
   url: string;
   api_key?: string;
   public_url?: string;
+  jellyfin_owner_user_id?: string;
   overseerr_url?: string;
   overseerr_api_key?: string;
   overseerr_enabled?: boolean;
@@ -51,6 +52,13 @@ const normalizeServerPayload = (values: ServerFormValues, pluginId: string) => {
     payload.websocket_refresh_interval = values.websocket_refresh_interval ?? 30;
   }
 
+  if (pluginId === 'jellyfin') {
+    const ownerId = values.jellyfin_owner_user_id?.trim();
+    if (ownerId) {
+      payload.jellyfin_owner_user_id = ownerId;
+    }
+  }
+
   return payload;
 };
 
@@ -69,6 +77,7 @@ export const ServerAddForm = ({ pluginId, onSuccess, onCancel }: ServerAddFormPr
     url: '',
     api_key: '',
     public_url: '',
+    jellyfin_owner_user_id: '',
     overseerr_url: '',
     overseerr_api_key: '',
     overseerr_enabled: false,
@@ -291,6 +300,22 @@ export const ServerAddForm = ({ pluginId, onSuccess, onCancel }: ServerAddFormPr
                     placeholder="Enter API key"
                   />
                 </FormField>
+
+                {values.service_type === 'jellyfin' ? (
+                  <FormField
+                    id="jellyfin_owner_user_id"
+                    label="Owner ID (Optional)"
+                    description="Jellyfin app tokens are not user-scoped. Provide the owner user ID to enable Owner role detection."
+                  >
+                    <Input
+                      id="jellyfin_owner_user_id"
+                      type="text"
+                      value={values.jellyfin_owner_user_id ?? ''}
+                      onChange={(e) => handleFieldChange('jellyfin_owner_user_id', e.target.value)}
+                      placeholder="e.g. 811aef0f3fed4fccbaf491c3715acabb"
+                    />
+                  </FormField>
+                ) : null}
 
                 <FormField id="public_url" label="Public URL (Optional)">
                   <Input

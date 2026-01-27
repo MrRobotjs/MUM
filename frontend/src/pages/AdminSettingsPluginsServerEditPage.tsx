@@ -25,6 +25,7 @@ type ServerFormValues = {
   url: string;
   api_key?: string;
   public_url?: string;
+  jellyfin_owner_user_id?: string;
   overseerr_url?: string;
   overseerr_api_key?: string;
   overseerr_enabled?: boolean;
@@ -55,6 +56,11 @@ const normalizeServerPayload = (values: ServerFormValues, pluginId: string) => {
     payload.websocket_refresh_interval = values.websocket_refresh_interval ?? 30;
   }
 
+  if (pluginId === 'jellyfin') {
+    const ownerId = values.jellyfin_owner_user_id?.trim();
+    payload.jellyfin_owner_user_id = ownerId || '';
+  }
+
   return payload;
 };
 
@@ -74,6 +80,7 @@ export const AdminSettingsPluginsServerEditPage = () => {
     url: '',
     api_key: '',
     public_url: '',
+    jellyfin_owner_user_id: '',
     overseerr_url: '',
     overseerr_api_key: '',
     overseerr_enabled: false,
@@ -94,6 +101,7 @@ export const AdminSettingsPluginsServerEditPage = () => {
         url: server.url,
         api_key: '',
         public_url: server.public_url || '',
+        jellyfin_owner_user_id: server.jellyfin_owner_user_id || '',
         overseerr_url: server.overseerr_url || '',
         overseerr_api_key: '',
         overseerr_enabled: server.overseerr_enabled ?? false,
@@ -363,6 +371,22 @@ export const AdminSettingsPluginsServerEditPage = () => {
                     </p>
                   </FormField>
 
+                  {values.service_type === 'jellyfin' ? (
+                    <FormField
+                      id="jellyfin_owner_user_id"
+                      label="Owner ID (Optional)"
+                      description="Jellyfin app tokens are not user-scoped. Provide the owner user ID to enable Owner role detection."
+                    >
+                      <Input
+                        id="jellyfin_owner_user_id"
+                        type="text"
+                        value={values.jellyfin_owner_user_id ?? ''}
+                        onChange={(e) => handleFieldChange('jellyfin_owner_user_id', e.target.value)}
+                        placeholder="e.g. 811aef0f3fed4fccbaf491c3715acabb"
+                      />
+                    </FormField>
+                  ) : null}
+
                   <FormField id="public_url" label="Public URL (Optional)">
                     <Input
                       id="public_url"
@@ -490,4 +514,3 @@ export const AdminSettingsPluginsServerEditPage = () => {
 };
 
 export default AdminSettingsPluginsServerEditPage;
-

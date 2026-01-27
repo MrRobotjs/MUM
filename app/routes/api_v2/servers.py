@@ -27,6 +27,7 @@ class ServerItem(BaseModel):
     service_type: str
     url: Optional[str] = None
     public_url: Optional[str] = None
+    jellyfin_owner_user_id: Optional[str] = None
     is_active: Optional[bool] = None
     overseerr_enabled: Optional[bool] = None
     overseerr_url: Optional[str] = None
@@ -65,6 +66,7 @@ class CreateServerBody(BaseModel):
     username: Optional[str] = None
     password: Optional[str] = None
     public_url: Optional[str] = None
+    jellyfin_owner_user_id: Optional[str] = None
     is_active: Optional[bool] = True
     overseerr_enabled: Optional[bool] = False
     overseerr_url: Optional[str] = None
@@ -79,6 +81,7 @@ class UpdateServerBody(BaseModel):
     username: Optional[str] = None
     password: Optional[str] = None
     public_url: Optional[str] = None
+    jellyfin_owner_user_id: Optional[str] = None
     is_active: Optional[bool] = None
     overseerr_enabled: Optional[bool] = None
     overseerr_url: Optional[str] = None
@@ -86,6 +89,7 @@ class UpdateServerBody(BaseModel):
 
 
 def _to_item(server: MediaServer) -> dict:
+    config = getattr(server, "config", {}) or {}
     return {
         "id": server.id,
         "server_nickname": getattr(server, "server_nickname", None) or getattr(server, "name", None),
@@ -93,6 +97,7 @@ def _to_item(server: MediaServer) -> dict:
         "service_type": (server.service_type.value if hasattr(server.service_type, "value") else str(server.service_type)),
         "url": getattr(server, "url", None),
         "public_url": getattr(server, "public_url", None),
+        "jellyfin_owner_user_id": config.get("jellyfin_owner_user_id"),
         "is_active": bool(getattr(server, "is_active", True)),
         "overseerr_enabled": bool(getattr(server, "overseerr_enabled", False)),
         "overseerr_url": getattr(server, "overseerr_url", None),
@@ -137,6 +142,13 @@ def create_server(body: CreateServerBody, current_user):
     except Exception:
         st = body.service_type
 
+    st_value = st.value if hasattr(st, "value") else str(st)
+    config: dict = {}
+    if st_value == ServiceType.JELLYFIN.value and body.jellyfin_owner_user_id:
+        owner_id = body.jellyfin_owner_user_id.strip()
+        if owner_id:
+            config["jellyfin_owner_user_id"] = owner_id
+
     server = MediaServer(
         server_nickname=body.server_nickname,
         server_name=body.server_name or body.server_nickname,
@@ -149,6 +161,7 @@ def create_server(body: CreateServerBody, current_user):
         overseerr_enabled=bool(body.overseerr_enabled),
         overseerr_url=body.overseerr_url,
         overseerr_api_key=body.overseerr_api_key,
+        config=config,
         is_active=True if body.is_active is None else body.is_active,
     )
 
@@ -224,10 +237,20 @@ def update_server(path: ServerPath, body: UpdateServerBody, current_user):
         return jsonify({"error": {"code": "NOT_FOUND", "message": "Server not found"}}), 404
 
     data = body.model_dump(exclude_none=True)
+    jellyfin_owner_user_id = data.pop("jellyfin_owner_user_id", None)
 
     # Map and set fields if present
     for k, v in data.items():
         setattr(server, k, v)
+
+    if jellyfin_owner_user_id is not None:
+        config = dict(getattr(server, "config", {}) or {})
+        owner_id = jellyfin_owner_user_id.strip()
+        if owner_id:
+            config["jellyfin_owner_user_id"] = owner_id
+        else:
+            config.pop("jellyfin_owner_user_id", None)
+        server.config = config
 
     db.session.add(server)
     db.session.commit()

@@ -94,6 +94,28 @@ class JellyfinMediaService(BaseMediaService):
         try:
             if not self._authenticated and not self._authenticate():
                 return []
+            owner_user_id: Optional[str] = None
+            if isinstance(self.config, dict):
+                configured_owner_id = (self.config.get("jellyfin_owner_user_id") or "").strip()
+                if configured_owner_id:
+                    owner_user_id = configured_owner_id
+                    self.log_info("Using configured Jellyfin owner ID for owner detection.")
+
+            if not owner_user_id:
+                try:
+                    me_resp = self.session.get(
+                        f"{self.url.rstrip('/')}/Users/Me",
+                        timeout=get_api_timeout_with_fallback(10),
+                    )
+                    if me_resp.status_code == 400:
+                        # API keys can be server-scoped and not owned by a user.
+                        self.log_info("Jellyfin token is not owned by a user; owner detection skipped.")
+                    else:
+                        me_resp.raise_for_status()
+                        me_payload = me_resp.json() or {}
+                        owner_user_id = me_payload.get("Id")
+                except Exception as me_err:
+                    self.log_warning(f"Failed to resolve Jellyfin owner via /Users/Me: {me_err}")
             resp = self.session.get(f"{self.url.rstrip('/')}/Users", timeout=get_api_timeout_with_fallback(10))
             resp.raise_for_status()
             users = resp.json()
@@ -112,6 +134,7 @@ class JellyfinMediaService(BaseMediaService):
                     except Exception:
                         policy = {}
                 allow_downloads = bool(policy.get("EnableContentDownloading", False))
+                is_media_server_owner = bool(owner_user_id and user_id == owner_user_id)
                 result.append(
                     {
                         "id": user_id,
@@ -121,9 +144,12 @@ class JellyfinMediaService(BaseMediaService):
                         "thumb": None,
                         "is_home_user": False,
                         "allow_downloads": allow_downloads,
+                        "is_media_server_owner": is_media_server_owner,
                         "raw_data": {
                             "user": user,
                             "policy": policy,
+                            "is_media_server_owner": is_media_server_owner,
+                            "owner_user_id": owner_user_id,
                         },
                     }
                 )

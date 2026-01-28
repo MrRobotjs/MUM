@@ -145,7 +145,7 @@ const MediaPosterCard = ({ item, libraryId }: { item: MediaItem; libraryId: stri
       </div>
 
       <div className="mt-2 text-center">
-        <h4 className="font-medium text-sm line-clamp-2 group-hover:text-primary transition-colors" title={item.title}>
+        <h4 className="font-medium text-sm line-clamp-1 truncate group-hover:text-primary transition-colors" title={item.title}>
           {item.title}
         </h4>
         {item.year && (
@@ -533,7 +533,6 @@ export const LibraryDetailPage = () => {
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
     setPageInput('');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const getPaginationRange = (current: number, total: number) => {

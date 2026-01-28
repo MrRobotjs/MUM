@@ -867,7 +867,11 @@ export const LibraryDetailPage = () => {
                       placeholder="Search library content..."
                       className="pl-10"
                       value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
+                      onChange={(e) => {
+                        setSearchQuery(e.target.value);
+                        setCurrentPage(1);
+                        setPageInput('');
+                      }}
                     />
                   </div>
                 </form>

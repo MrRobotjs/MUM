@@ -65,6 +65,7 @@ interface MediaItem {
   sort_title?: string;
   item_type?: string;
   year?: number;
+  edition?: string;
   rating?: number;
   thumb?: string;
   added_at?: string;
@@ -144,12 +145,16 @@ const MediaPosterCard = ({ item, libraryId }: { item: MediaItem; libraryId: stri
         )}
       </div>
 
-      <div className="mt-2 text-center">
+      <div className="mt-2 text-left">
         <h4 className="font-medium text-sm line-clamp-1 truncate group-hover:text-primary transition-colors" title={item.title}>
           {item.title}
         </h4>
-        {item.year && (
-          <p className="text-xs text-muted-foreground mt-1">{item.year}</p>
+        {(item.year || item.edition) && (
+          <p className="text-xs text-muted-foreground mt-1 line-clamp-1 truncate">
+            {item.year ? item.year : null}
+            {item.year && item.edition ? ' · ' : null}
+            {item.edition ? item.edition : null}
+          </p>
         )}
       </div>
     </Link>

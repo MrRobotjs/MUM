@@ -11,7 +11,7 @@ from flask_openapi3 import Tag
 
 from app.routes.api_v2 import api_v2
 # JWT permission checking handled by jwt_permission_required
-from app.models_media_services import MediaLibrary, MediaServer
+from app.models_media_services import MediaLibrary, MediaServer, MediaStreamHistory
 from app.extensions import db
 
 
@@ -670,32 +670,137 @@ def get_library_stats(path: LibraryPath, current_user):
     if not lib:
         return jsonify({"error": {"code": "LIBRARY_NOT_FOUND", "message": f"Library with ID {path.library_id} not found", "details": {"library_id": path.library_id}}, "meta": {"request_id": request_id}}), 404
 
-    days = request.args.get("days", type=int, default=30)
-    from app.routes.library_modules_deprecated.statistics import get_advanced_library_statistics, get_library_user_engagement_metrics
-    stats = get_advanced_library_statistics(lib, days=days)
-    user_metrics = get_library_user_engagement_metrics(lib, days=days)
+    # Migrate stats computation into v2 (no deprecated imports).
+    days = request.args.get("days", type=int, default=30) or 30
+    days = max(1, min(days, 365))
 
-    # Build daily chart data
-    from app.models_media_services import MediaStreamHistory
-    end_date = datetime.now(timezone.utc)
-    start_date = end_date - timedelta(days=days)
-    streams = MediaStreamHistory.query.filter(
-        MediaStreamHistory.server_id == lib.server_id,
-        MediaStreamHistory.library_name == lib.name,
-        MediaStreamHistory.started_at >= start_date,
-        MediaStreamHistory.started_at <= end_date,
-    ).all()
-    daily = {}
+    end_day = datetime.now(timezone.utc).date()
+    start_day = end_day - timedelta(days=days - 1)
+    start_dt = datetime.combine(start_day, datetime.min.time(), tzinfo=timezone.utc)
+    end_dt = datetime.combine(end_day, datetime.max.time(), tzinfo=timezone.utc)
+
+    streams = (
+        MediaStreamHistory.query.filter(
+            MediaStreamHistory.server_id == lib.server_id,
+            MediaStreamHistory.library_name == lib.name,
+            MediaStreamHistory.started_at >= start_dt,
+            MediaStreamHistory.started_at <= end_dt,
+        ).all()
+    )
+
+    total_streams = len(streams)
+    unique_users = len({s.user_uuid for s in streams if s.user_uuid})
+    total_duration = sum(s.duration_seconds or 0 for s in streams)
+    average_session_length = (total_duration / total_streams) if total_streams else 0
+
+    # Peak hours (top 5 by count).
+    hour_counts: dict[int, int] = {}
     for s in streams:
-        day = s.started_at.date().isoformat() if s.started_at else None
-        if not day:
+        if not s.started_at:
             continue
-        daily[day] = daily.get(day, 0) + 1
+        hour = int(s.started_at.hour)
+        hour_counts[hour] = hour_counts.get(hour, 0) + 1
+    peak_hours = dict(sorted(hour_counts.items(), key=lambda x: x[1], reverse=True)[:5])
 
-    chart = [{"date": k, "count": v} for k, v in sorted(daily.items())]
+    # Trending content (top 10 by plays).
+    content_counts: dict[str, int] = {}
+    for s in streams:
+        title = (s.media_title or "").strip() or "Unknown Title"
+        content_counts[title] = content_counts.get(title, 0) + 1
+    trending_content = [
+        {"title": title, "streams": count}
+        for title, count in sorted(content_counts.items(), key=lambda x: x[1], reverse=True)[:10]
+    ]
+
+    stats = {
+        "total_streams": total_streams,
+        "unique_users": unique_users,
+        "total_duration": total_duration,
+        "average_session_length": average_session_length,
+        "peak_hours": peak_hours,
+        "trending_content": trending_content,
+        "completion_rates": {},
+    }
+
+    # User engagement metrics (not currently rendered, but kept for parity).
+    user_accumulator: dict[str, dict] = {}
+    for s in streams:
+        if not s.user_uuid:
+            continue
+        entry = user_accumulator.setdefault(
+            s.user_uuid,
+            {
+                "user_uuid": s.user_uuid,
+                "session_count": 0,
+                "total_watch_time": 0,
+                "unique_content": set(),
+                "last_activity": None,
+            },
+        )
+        entry["session_count"] += 1
+        entry["total_watch_time"] += int(s.duration_seconds or 0)
+        if s.media_title:
+            entry["unique_content"].add(s.media_title)
+        if s.started_at and (
+            entry["last_activity"] is None or s.started_at > entry["last_activity"]
+        ):
+            entry["last_activity"] = s.started_at
+
+    user_metrics = []
+    for data in user_accumulator.values():
+        session_count = int(data["session_count"])
+        total_watch_time = int(data["total_watch_time"])
+        avg_len = (total_watch_time / session_count) if session_count else 0
+        last_activity = data["last_activity"]
+        user_metrics.append(
+            {
+                "user_uuid": data["user_uuid"],
+                "session_count": session_count,
+                "total_watch_time": total_watch_time,
+                "avg_session_length": avg_len,
+                "unique_content_watched": len(data["unique_content"]),
+                "last_activity": last_activity.isoformat() if last_activity else None,
+            }
+        )
+
+    user_metrics.sort(key=lambda x: x["session_count"], reverse=True)
+
+    # Build chart data in the shape expected by the frontend.
+    # Each point contains label, plays, and watch time (minutes).
+    per_day: dict[str, dict[str, float]] = {}
+    for i in range(days):
+        day = start_day + timedelta(days=i)
+        key = day.isoformat()
+        per_day[key] = {"plays": 0, "seconds": 0}
+
+    for s in streams:
+        if not s.started_at:
+            continue
+        key = s.started_at.date().isoformat()
+        if key not in per_day:
+            continue
+        per_day[key]["plays"] += 1
+        per_day[key]["seconds"] += float(s.duration_seconds or 0)
+
+    chart_data = [
+        {
+            "label": day,
+            "plays": int(values["plays"]),
+            "time": round(values["seconds"] / 60, 1),
+        }
+        for day, values in sorted(per_day.items())
+    ]
+
+    # Keep a simple daily series as well for any legacy consumers.
+    daily = [{"date": point["label"], "count": point["plays"]} for point in chart_data]
     return jsonify(
         {
-            "data": {"stats": stats, "user_metrics": user_metrics, "daily": chart},
+            "data": {
+                "stats": stats,
+                "user_metrics": user_metrics,
+                "chart_data": chart_data,
+                "daily": daily,
+            },
             "meta": {"request_id": request_id},
         }
     )

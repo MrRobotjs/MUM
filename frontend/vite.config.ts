@@ -40,14 +40,7 @@ export default defineConfig(({ mode }) => {
       outDir: path.resolve(__dirname, '../app/static/dist'),
       emptyOutDir: true,
       sourcemap: true,
-      rollupOptions: {
-        output: {
-          manualChunks: {
-            'react-vendor': ['react', 'react-dom', '@tanstack/react-router'],
-          }
-        }
-      },
-      chunkSizeWarningLimit: 1000
+      chunkSizeWarningLimit: 3000
     },
     base: '/static/dist/' // Assets will be served from /static/dist/assets/...
   };

@@ -6,6 +6,8 @@ import {
   createRoute,
   createRootRoute,
 } from '@tanstack/react-router'
+import { lazy, Suspense } from 'react';
+import { Spinner } from '@/components/ui/spinner';
 import AdminShell from './AdminShell';
 import AdminGuard from './AdminGuard';
 import DashboardPage from '../pages/DashboardPage';
@@ -37,7 +39,7 @@ import AdminSettingsLogsPage from '../pages/AdminSettingsLogsPage';
 import AdminSettingsApiDebugPage from '../pages/AdminSettingsApiDebugPage';
 import AdminSettingsPage from '../pages/AdminSettingsPage';
 import AdminNotificationsPage from '../pages/AdminNotificationsPage';
-import ApiDocsPage from '../pages/ApiDocsPage';
+const ApiDocsPage = lazy(() => import('../pages/ApiDocsPage'));
 import AdminAccountPage from '../pages/AdminAccountPage';
 import UserDashboardPage from '../pages/UserDashboardPage';
 import SetupAccountPage from '../pages/SetupAccountPage';
@@ -192,7 +194,18 @@ const apiDocsStandalone = createRoute({
   path: 'api-docs',
   component: () => (
     <AdminGuard>
-      <ApiDocsPage />
+      <Suspense
+        fallback={
+          <div className="flex min-h-[50vh] items-center justify-center px-6 py-10 text-muted-foreground">
+            <div className="flex items-center gap-3 text-base sm:text-lg">
+              <Spinner className="size-5 sm:size-6 text-muted-foreground" />
+              <span>Loading API docs...</span>
+            </div>
+          </div>
+        }
+      >
+        <ApiDocsPage />
+      </Suspense>
     </AdminGuard>
   ),
 })
@@ -203,7 +216,18 @@ const adminApiDocsStandalone = createRoute({
   path: 'admin/api-docs',
   component: () => (
     <AdminGuard>
-      <ApiDocsPage />
+      <Suspense
+        fallback={
+          <div className="flex min-h-[50vh] items-center justify-center px-6 py-10 text-muted-foreground">
+            <div className="flex items-center gap-3 text-base sm:text-lg">
+              <Spinner className="size-5 sm:size-6 text-muted-foreground" />
+              <span>Loading API docs...</span>
+            </div>
+          </div>
+        }
+      >
+        <ApiDocsPage />
+      </Suspense>
     </AdminGuard>
   ),
 })

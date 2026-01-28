@@ -12,7 +12,30 @@ import { cn } from '@/lib/utils';
 import { Badge } from '../common/Badge';
 import { getServicePalette, type ThemePalette } from '@/config/pluginMetadata';
 import { ServiceIcon } from '@/components/services/ServiceIcon';
-import { Folder, Play, Pause, Activity, Music, Loader2, Mail, Calendar, Clock, Server, StickyNote, Link, Library, Shield, User, Crown, Layers } from 'lucide-react';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import type { IconDefinition } from '@fortawesome/fontawesome-svg-core';
+import {
+  faBook,
+  faCalendar,
+  faChevronDown,
+  faChevronUp,
+  faCircleInfo,
+  faClock,
+  faCrown,
+  faEnvelope,
+  faFolder,
+  faLayerGroup,
+  faLink,
+  faMusic,
+  faPause,
+  faPlay,
+  faServer,
+  faShieldHalved,
+  faSignal,
+  faSpinner,
+  faStickyNote,
+  faUser
+} from '@fortawesome/free-solid-svg-icons';
 
 export type UserNowPlaying = {
   state: string;
@@ -142,15 +165,14 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
   // Helper to determine icon and color based on playback state
   const getPlaybackInfo = (state?: string) => {
     const s = state?.toLowerCase() || '';
-    if (s === 'playing') return { icon: Play, color: 'text-green-500', bg: 'bg-green-500/10', border: 'border-green-500/20', animate: true };
-    if (s === 'listening' || s === 'active') return { icon: Music, color: 'text-green-500', bg: 'bg-green-500/10', border: 'border-green-500/20', animate: true };
-    if (s === 'paused') return { icon: Pause, color: 'text-amber-500', bg: 'bg-amber-500/10', border: 'border-amber-500/20', animate: false };
-    if (s === 'buffering') return { icon: Loader2, color: 'text-blue-500', bg: 'bg-blue-500/10', border: 'border-blue-500/20', animate: true, spin: true };
-    return { icon: Activity, color: 'text-muted-foreground', bg: 'bg-secondary/50', border: 'border-border/50', animate: false };
+    if (s === 'playing') return { icon: faPlay, color: 'text-green-500', bg: 'bg-green-500/10', border: 'border-green-500/20', animate: true };
+    if (s === 'listening' || s === 'active') return { icon: faMusic, color: 'text-green-500', bg: 'bg-green-500/10', border: 'border-green-500/20', animate: true };
+    if (s === 'paused') return { icon: faPause, color: 'text-amber-500', bg: 'bg-amber-500/10', border: 'border-amber-500/20', animate: false };
+    if (s === 'buffering') return { icon: faSpinner, color: 'text-blue-500', bg: 'bg-blue-500/10', border: 'border-blue-500/20', animate: true, spin: true };
+    return { icon: faSignal, color: 'text-muted-foreground', bg: 'bg-secondary/50', border: 'border-border/50', animate: false };
   };
 
   const playbackInfo = nowPlaying ? getPlaybackInfo(nowPlaying.state) : null;
-  const PlaybackIcon = playbackInfo?.icon;
   const showLinkedSection = !isService || Boolean(user.linked_local_user);
   const adminRoleBadges = user.admin_roles_detail && user.admin_roles_detail.length > 0
     ? user.admin_roles_detail
@@ -235,12 +257,12 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
                 </Badge>
               ) : user.user_type.toLowerCase() === 'owner' ? (
                 <Badge color="bg-amber-500" className="text-xs font-semibold tracking-wider gap-1" hover={false}>
-                  <Crown strokeWidth={3} className="w-3 h-3" />
+                  <FontAwesomeIcon icon={faCrown} className="w-3 h-3" />
                   <span>Owner</span>
                 </Badge>
               ) : (
                 <Badge color="bg-primary" className="text-xs font-semibold tracking-wider gap-1.5" hover={false}>
-                  <User strokeWidth={3} className="w-3 h-3" />
+                  <FontAwesomeIcon icon={faUser} className="w-3 h-3" />
                   <span>Local User</span>
                 </Badge>
               )}
@@ -254,28 +276,28 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
           <div className="flex flex-col gap-1.5">
             {settings.show_email_section && (
               <div className="flex items-center gap-1.5 overflow-hidden" title={user.external_email ?? 'No email'}>
-                <Mail strokeWidth={3} className="h-3 w-3 shrink-0 text-blue-400" />
+                <FontAwesomeIcon icon={faEnvelope} className="h-3 w-3 shrink-0 text-blue-400" />
                 <span className="text-[10px] font-semibold uppercase tracking-wider shrink-0">Email:</span>
                 <span className="truncate">{user.external_email ?? 'No email'}</span>
               </div>
             )}
             {settings.show_added_section && (
               <div className="flex items-center gap-1.5 overflow-hidden" title={`Added: ${user.created_at ? new Date(user.created_at).toLocaleString() : 'Unknown'}`}>
-                <Calendar strokeWidth={3} className="h-3 w-3 shrink-0 text-blue-400" />
+                <FontAwesomeIcon icon={faCalendar} className="h-3 w-3 shrink-0 text-blue-400" />
                 <span className="text-[10px] font-semibold uppercase tracking-wider shrink-0">Added:</span>
                 <span className="truncate">{user.created_at ? new Date(user.created_at).toLocaleDateString() : '—'}</span>
               </div>
             )}
             {user.service_join_date && (
               <div className="flex items-center gap-1.5 overflow-hidden" title={`Service Join: ${new Date(user.service_join_date).toLocaleString()}`}>
-                <Server strokeWidth={3} className="h-3 w-3 shrink-0 text-blue-400" />
+                <FontAwesomeIcon icon={faServer} className="h-3 w-3 shrink-0 text-blue-400" />
                 <span className="text-[10px] font-semibold uppercase tracking-wider shrink-0">Joined:</span>
                 <span className="truncate">{new Date(user.service_join_date).toLocaleDateString()}</span>
               </div>
             )}
             {settings.show_streamed_section && (
               <div className="flex items-center gap-1.5 overflow-hidden" title={`Last Streamed: ${user.last_streamed_at ? new Date(user.last_streamed_at).toLocaleString() : 'Never'}`}>
-                <Clock strokeWidth={3} className={cn("h-3 w-3 shrink-0", user.last_streamed_at && "text-green-500")} />
+                <FontAwesomeIcon icon={faClock} className={cn("h-3 w-3 shrink-0", user.last_streamed_at && "text-green-500")} />
                 <span className="text-[10px] font-semibold uppercase tracking-wider shrink-0">Seen:</span>
                 <span className="truncate">{user.last_streamed_at ? new Date(user.last_streamed_at).toLocaleDateString() : 'Never'}</span>
               </div>
@@ -287,7 +309,7 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
         {settings.show_user_notes && user.notes && (
           <div className="relative rounded-md bg-yellow-500/5 border border-yellow-500/10 p-2">
             <div className="flex items-start gap-2">
-              <StickyNote strokeWidth={3} className="h-3 w-3 text-yellow-500 shrink-0" />
+              <FontAwesomeIcon icon={faStickyNote} className="h-3 w-3 text-yellow-500 shrink-0" />
               <p className="text-[10px] text-muted-foreground leading-tight line-clamp-3">{user.notes}</p>
             </div>
           </div>
@@ -299,7 +321,7 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
             {!isService && (
               <div className="flex items-center justify-between rounded-md bg-secondary/30 px-2 py-1.5 border border-border/40">
                 <span className="text-[10px] font-medium text-muted-foreground flex items-center gap-1.5">
-                  <Link className="h-3 w-3" />
+                  <FontAwesomeIcon icon={faLink} className="h-3 w-3" />
                   Linked Services
                 </span>
                 <span className={cn(
@@ -313,7 +335,7 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
 
             {isService && user.linked_local_user && (
               <div className="flex items-center gap-2 rounded-md bg-primary/5 px-2 py-1.5 border border-primary/10">
-                <Link className="h-3 w-3 text-primary shrink-0" />
+                <FontAwesomeIcon icon={faLink} className="h-3 w-3 text-primary shrink-0" />
                 <div className="flex flex-col min-w-0">
                   <span className="text-[10px] font-medium leading-none text-muted-foreground mb-0.5">Linked to</span>
                   <span className="text-xs font-semibold leading-none truncate text-primary" title={user.linked_local_user.display_name || user.linked_local_user.username}>
@@ -326,7 +348,7 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
         ) : null}
 
         {/* Now Playing Section Redesign */}
-        {settings.show_streamed_section && nowPlaying && playbackInfo && PlaybackIcon ? (
+        {settings.show_streamed_section && nowPlaying && playbackInfo ? (
           <div className={cn(
             "relative overflow-hidden rounded-md border p-2.5",
             playbackInfo.bg,
@@ -337,7 +359,7 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
                 "relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-background/50 shadow-sm",
                 playbackInfo.color
               )}>
-                <PlaybackIcon className={cn("h-4 w-4", playbackInfo.spin && "animate-spin")} />
+                <FontAwesomeIcon icon={playbackInfo.icon as IconDefinition} spin={Boolean(playbackInfo.spin)} className="h-4 w-4" />
               </div>
 
               <div className="flex-1 min-w-0 flex flex-col justify-center">
@@ -378,7 +400,7 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
         {isService && settings.show_libraries_section && (
           <div>
             <div className="text-[10px] uppercase tracking-wider font-semibold mb-2 flex items-center gap-1.5">
-              <Library strokeWidth={3} className="h-3 w-3 text-blue-400" />
+              <FontAwesomeIcon icon={faBook} className="h-3 w-3 text-blue-400" />
               Libraries <span className="text-muted-foreground/60 font-normal">({user.has_all_libraries ? 'All' : (user.libraries?.length ?? 0)})</span>
             </div>
 
@@ -386,7 +408,7 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
               <>
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge color="bg-blue-500" className="text-xs font-medium gap-1" hover={false}>
-                    <Layers strokeWidth={3} className="w-3 h-3" />
+                    <FontAwesomeIcon icon={faLayerGroup} className="w-3 h-3" />
                     All Libraries
                   </Badge>
                   {user.libraries && user.libraries.length > 0 && (
@@ -400,12 +422,11 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
                       }}
                     >
                       {showAllLibraries ? 'Hide' : 'Show'}
-                      <i
-                        className={cn(
-                          'fa-solid ml-1 text-[8px]',
-                          showAllLibraries ? 'fa-chevron-up' : 'fa-chevron-down'
-                        )}
-                      />
+                      {showAllLibraries ? (
+                        <FontAwesomeIcon icon={faChevronUp} className="ml-1 h-3 w-3" />
+                      ) : (
+                        <FontAwesomeIcon icon={faChevronDown} className="ml-1 h-3 w-3" />
+                      )}
                     </Button>
                   )}
                 </div>
@@ -433,7 +454,7 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
                     className="text-xs font-medium gap-1"
                     hover={false}
                   >
-                    <Folder strokeWidth={3} className="w-3 h-3" />
+                    <FontAwesomeIcon icon={faFolder} className="w-3 h-3" />
                     {library}
                   </Badge>
                 ))}
@@ -449,7 +470,7 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
         {settings.show_roles_section && user.user_roles.length > 0 && (
           <div>
             <div className="text-[10px] uppercase tracking-wider font-semibold mb-2 flex items-center gap-1.5">
-              <Shield className="h-3 w-3 text-blue-400" strokeWidth={3}/>
+              <FontAwesomeIcon icon={faShieldHalved} className="h-3 w-3 text-blue-400" />
               Roles
             </div>
             <div className="flex flex-wrap gap-1.5">
@@ -473,7 +494,7 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
         {settings.show_roles_section && adminRoleBadges.length > 0 && (
           <div>
             <div className="text-[10px] uppercase tracking-wider font-semibold mb-2 flex items-center gap-1.5">
-              <Crown strokeWidth={3} className="h-3 w-3 text-amber-500" />
+              <FontAwesomeIcon icon={faCrown} className="h-3 w-3 text-amber-500" />
               Admin Roles
             </div>
             <div className="flex flex-wrap gap-1.5">
@@ -506,7 +527,7 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
           }}
           title="Show Raw User Data"
         >
-          <i className="fa-solid fa-info" />
+          <FontAwesomeIcon icon={faCircleInfo} className="h-4 w-4" />
         </Button>
         <Button
           variant="ghost"
@@ -517,7 +538,7 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
           }}
           title="View User Profile"
         >
-          <i className="fa-solid fa-user" />
+          <FontAwesomeIcon icon={faUser} className="h-4 w-4" />
         </Button>
       </CardFooter>
 

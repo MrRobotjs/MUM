@@ -10,6 +10,19 @@ import { Checkbox } from '../components/ui/checkbox';
 import { Separator } from '../components/ui/separator';
 import { Alert, AlertDescription } from '../components/ui/alert';
 import { ResponsiveDialog } from '../components/ui/responsive-dialog';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import {
+  faChartBar,
+  faChartLine,
+  faCircleInfo,
+  faCog,
+  faCrown,
+  faLock,
+  faServer,
+  faShieldHalved,
+  faUserShield,
+  faUsers
+} from '@fortawesome/free-solid-svg-icons';
 
 type LocationState = {
   from?: string;
@@ -167,7 +180,7 @@ const LoginPage = () => {
                 <div className="mb-8">
                   <div className="flex flex-col items-center lg:flex-row lg:justify-start mb-6">
                     <div className="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center mb-4 lg:mb-0 lg:mr-4">
-                      <i className="fas fa-crown text-primary text-2xl" />
+                      <FontAwesomeIcon icon={faCrown} className="text-primary text-2xl" />
                     </div>
                     <div className="text-center lg:text-left">
                       <h1 className="text-4xl lg:text-5xl font-bold">MUM</h1>
@@ -179,15 +192,15 @@ const LoginPage = () => {
                     <p className="text-lg">Administrator access portal. Sign in to manage your media services and user accounts.</p>
                     <div className="flex flex-wrap justify-center lg:justify-start gap-4 text-sm">
                       <div className="flex items-center">
-                        <i className="fas fa-crown text-primary mr-2" />
+                        <FontAwesomeIcon icon={faCrown} className="text-primary mr-2" />
                         <span>Admin Controls</span>
                       </div>
                       <div className="flex items-center">
-                        <i className="fas fa-cog text-primary mr-2" />
+                        <FontAwesomeIcon icon={faCog} className="text-primary mr-2" />
                         <span>System Management</span>
                       </div>
                       <div className="flex items-center">
-                        <i className="fas fa-chart-line text-primary mr-2" />
+                        <FontAwesomeIcon icon={faChartLine} className="text-primary mr-2" />
                         <span>Analytics & Reports</span>
                       </div>
                     </div>
@@ -199,22 +212,22 @@ const LoginPage = () => {
                   <h3 className="text-xl font-semibold mb-4">Administrative Features</h3>
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div className="bg-muted/50 rounded-lg p-3 hover:bg-muted/80 hover:-translate-y-0.5 hover:shadow-md transition-all duration-200 ease-in-out">
-                      <i className="fas fa-users text-primary mb-2 block" />
+                      <FontAwesomeIcon icon={faUsers} className="text-primary mb-2 block" />
                       <div className="font-medium">User Management</div>
                       <div className="text-muted-foreground">Manage accounts & access</div>
                     </div>
                     <div className="bg-muted/50 rounded-lg p-3 hover:bg-muted/80 hover:-translate-y-0.5 hover:shadow-md transition-all duration-200 ease-in-out">
-                      <i className="fas fa-server text-primary mb-2 block" />
+                      <FontAwesomeIcon icon={faServer} className="text-primary mb-2 block" />
                       <div className="font-medium">Server Control</div>
                       <div className="text-muted-foreground">Multi-service support</div>
                     </div>
                     <div className="bg-muted/50 rounded-lg p-3 hover:bg-muted/80 hover:-translate-y-0.5 hover:shadow-md transition-all duration-200 ease-in-out">
-                      <i className="fas fa-chart-bar text-primary mb-2 block" />
+                      <FontAwesomeIcon icon={faChartBar} className="text-primary mb-2 block" />
                       <div className="font-medium">Analytics</div>
                       <div className="text-muted-foreground">Usage insights</div>
                     </div>
                     <div className="bg-muted/50 rounded-lg p-3 hover:bg-muted/80 hover:-translate-y-0.5 hover:shadow-md transition-all duration-200 ease-in-out">
-                      <i className="fas fa-shield-alt text-primary mb-2 block" />
+                      <FontAwesomeIcon icon={faShieldHalved} className="text-primary mb-2 block" />
                       <div className="font-medium">Security</div>
                       <div className="text-muted-foreground">Access control</div>
                     </div>
@@ -245,7 +258,7 @@ const LoginPage = () => {
                           title="Why did this happen?"
                           onClick={() => setShowInactivityInfo(true)}
                         >
-                          <i className="fa-solid fa-circle-info text-sm" />
+                          <FontAwesomeIcon icon={faCircleInfo} className="text-sm" />
                         </button>
                       </div>
                     </AlertDescription>
@@ -261,7 +274,7 @@ const LoginPage = () => {
                   {/* Username Field */}
                   <div className="space-y-2">
                     <Label htmlFor="username" className="flex items-center gap-2">
-                      <i className="fas fa-user-shield text-muted-foreground text-sm" />
+                      <FontAwesomeIcon icon={faUserShield} className="text-muted-foreground text-sm" />
                       <span>Username</span>
                     </Label>
                     <Input
@@ -279,7 +292,7 @@ const LoginPage = () => {
                   {/* Password Field */}
                   <div className="space-y-2">
                     <Label htmlFor="password" className="flex items-center gap-2">
-                      <i className="fas fa-lock text-muted-foreground text-sm" />
+                      <FontAwesomeIcon icon={faLock} className="text-muted-foreground text-sm" />
                       <span>Password</span>
                     </Label>
                     <Input
@@ -395,7 +408,7 @@ const LoginPage = () => {
             {/* Security Notice */}
             <div className="mt-6 text-center">
               <div className="inline-flex items-center text-xs text-muted-foreground">
-                <i className="fas fa-shield-alt mr-2" />
+                <FontAwesomeIcon icon={faShieldHalved} className="mr-2" />
                 <span>Your connection is secure and encrypted</span>
               </div>
             </div>

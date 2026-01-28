@@ -250,6 +250,7 @@ export const LibraryDetailPage = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
+  const [pageInput, setPageInput] = useState('');
   const [pageSize, setPageSize] = useState(24);
 
   // Filter state
@@ -531,7 +532,42 @@ export const LibraryDetailPage = () => {
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
+    setPageInput('');
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const getPaginationRange = (current: number, total: number) => {
+    if (total <= 1) {
+      return { pages: [1], start: 1, end: 1 };
+    }
+
+    const windowSize = 5;
+    const half = Math.floor(windowSize / 2);
+    let start = Math.max(1, current - half);
+    let end = Math.min(total, current + half);
+
+    if (end - start + 1 < windowSize) {
+      if (start === 1) {
+        end = Math.min(total, start + windowSize - 1);
+      } else if (end === total) {
+        start = Math.max(1, end - windowSize + 1);
+      }
+    }
+
+    const pages = [];
+    for (let page = start; page <= end; page += 1) {
+      pages.push(page);
+    }
+
+    return { pages, start, end };
+  };
+
+  const handlePageInputSubmit = () => {
+    if (!pageInput.trim()) return;
+    const parsed = Number(pageInput);
+    if (!Number.isFinite(parsed)) return;
+    const target = Math.min(Math.max(1, parsed), totalPages);
+    handlePageChange(target);
   };
 
   if (loading) {
@@ -735,11 +771,11 @@ export const LibraryDetailPage = () => {
           </div>
         </TabsContent>
 
-        <TabsContent value="media" className="space-y-6">
+        <TabsContent value="media" className="space-y-6 mt-3">
           {/* Sync Progress Bar */}
           {effectiveIsSyncing && (
             <Card className="border-primary/50 bg-primary/5">
-              <CardContent className="p-4">
+              <CardContent>
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-sm">
                     <div className="flex items-center gap-2">
@@ -911,35 +947,99 @@ export const LibraryDetailPage = () => {
           )}
 
           {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="flex justify-center gap-2">
-              {currentPage > 1 && (
-                <Button variant="outline" size="sm" onClick={() => handlePageChange(currentPage - 1)}>
-                  <i className="fa-solid fa-chevron-left"></i>
-                </Button>
-              )}
-
-              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                const page = i + 1;
-                return (
+          {totalPages > 1 && (() => {
+            const { pages, start, end } = getPaginationRange(currentPage, totalPages);
+            return (
+              <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-center sm:gap-4">
+                <div className="flex flex-wrap items-center justify-center gap-2">
                   <Button
-                    key={page}
-                    variant={page === currentPage ? "default" : "outline"}
+                    variant="outline"
                     size="sm"
-                    onClick={() => handlePageChange(page)}
+                    onClick={() => handlePageChange(currentPage - 1)}
+                    disabled={currentPage <= 1}
                   >
-                    {page}
+                    <i className="fa-solid fa-chevron-left"></i>
                   </Button>
-                );
-              })}
 
-              {currentPage < totalPages && (
-                <Button variant="outline" size="sm" onClick={() => handlePageChange(currentPage + 1)}>
-                  <i className="fa-solid fa-chevron-right"></i>
-                </Button>
-              )}
-            </div>
-          )}
+                  {start > 1 && (
+                    <>
+                      <Button
+                        key={1}
+                        variant={currentPage === 1 ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => handlePageChange(1)}
+                      >
+                        1
+                      </Button>
+                      {start > 2 && (
+                        <span className="px-2 text-sm text-muted-foreground">…</span>
+                      )}
+                    </>
+                  )}
+
+                  {pages.map((page) => (
+                    <Button
+                      key={page}
+                      variant={page === currentPage ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => handlePageChange(page)}
+                    >
+                      {page}
+                    </Button>
+                  ))}
+
+                  {end < totalPages && (
+                    <>
+                      {end < totalPages - 1 && (
+                        <span className="px-2 text-sm text-muted-foreground">…</span>
+                      )}
+                      <Button
+                        key={totalPages}
+                        variant={currentPage === totalPages ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => handlePageChange(totalPages)}
+                      >
+                        {totalPages}
+                      </Button>
+                    </>
+                  )}
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handlePageChange(currentPage + 1)}
+                    disabled={currentPage >= totalPages}
+                  >
+                    <i className="fa-solid fa-chevron-right"></i>
+                  </Button>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">
+                    Page {currentPage} of {totalPages}
+                  </span>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={totalPages}
+                    value={pageInput}
+                    onChange={(e) => setPageInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handlePageInputSubmit();
+                      }
+                    }}
+                    placeholder="Go"
+                    className="h-8 w-20 text-center"
+                  />
+                  <Button variant="outline" size="sm" onClick={handlePageInputSubmit}>
+                    Go
+                  </Button>
+                </div>
+              </div>
+            );
+          })()}
         </TabsContent>
 
         <TabsContent value="collections" className="space-y-6">

@@ -586,7 +586,7 @@ export const LibraryDetailPage = () => {
 
   if (error || !library) {
     return (
-      <div className="container mx-auto px-4 py-8 space-y-6">
+      <div className="container mx-auto space-y-6">
         <div className="space-y-4">
           <h1 className="text-3xl font-bold">Library Not Found</h1>
           <p className="text-muted-foreground">The requested library could not be loaded</p>
@@ -651,7 +651,7 @@ export const LibraryDetailPage = () => {
   
 
   return (
-    <div className="container mx-auto px-4 py-8 space-y-6">
+    <div className="container mx-auto space-y-6">
       {/* Header Section */}
       <Card className="bg-gradient-to-r from-primary/10 to-secondary/10">
         <CardContent className="p-8">

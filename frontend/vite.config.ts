@@ -1,6 +1,7 @@
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
+import { visualizer } from 'rollup-plugin-visualizer';
 import path from 'path';
 
 export default defineConfig(({ mode }) => {
@@ -8,8 +9,26 @@ export default defineConfig(({ mode }) => {
   const flaskPort = Number(env.FLASK_PORT || env.VITE_FLASK_PORT || 5000);
   const frontendPort = Number(env.FRONTEND_PORT || env.VITE_FRONTEND_PORT || 5173);
 
+  const isAnalyze = mode === 'analyze';
+  const analyzePlugins = isAnalyze
+    ? [
+        visualizer({
+          filename: path.resolve(__dirname, '../app/static/dist/bundle-stats.html'),
+          gzipSize: true,
+          brotliSize: true,
+          open: false,
+        }),
+        visualizer({
+          filename: path.resolve(__dirname, '../app/static/dist/bundle-stats.json'),
+          template: 'raw-data',
+          gzipSize: true,
+          brotliSize: true,
+        }),
+      ]
+    : [];
+
   return {
-    plugins: [react(), tailwindcss()],
+    plugins: [react(), tailwindcss(), ...analyzePlugins],
     resolve: {
       alias: {
         '@': path.resolve(__dirname, 'src'),

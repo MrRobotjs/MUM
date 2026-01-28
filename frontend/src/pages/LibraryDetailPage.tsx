@@ -576,7 +576,7 @@ export const LibraryDetailPage = () => {
 
   if (loading) {
     return (
-      <div className="container mx-auto px-4 py-8 space-y-6">
+      <div className="container mx-auto space-y-6">
         <Skeleton className="h-48 w-full rounded-xl" />
         <Skeleton className="h-12 w-full rounded-xl" />
         <Skeleton className="h-96 w-full rounded-xl" />

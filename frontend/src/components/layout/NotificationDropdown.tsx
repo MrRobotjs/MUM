@@ -11,6 +11,15 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import { useNotifications } from '../../hooks/useNotifications';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import {
+  faBell,
+  faCheckDouble,
+  faCircleCheck,
+  faCircleExclamation,
+  faCircleInfo,
+  faTriangleExclamation
+} from '@fortawesome/free-solid-svg-icons';
 
 export const NotificationDropdown = () => {
   const navigate = useNavigate();
@@ -23,14 +32,14 @@ export const NotificationDropdown = () => {
   const getNotificationIcon = (notificationType: string) => {
     switch (notificationType) {
       case 'SERVER_CONNECTION_FAILED':
-        return 'fa-solid fa-circle-exclamation text-destructive';
+        return { icon: faCircleExclamation, className: 'text-destructive' };
       case 'USER_LIMIT_WARNING':
-        return 'fa-solid fa-triangle-exclamation text-yellow-500';
+        return { icon: faTriangleExclamation, className: 'text-yellow-500' };
       case 'USER_ACCEPTED_INVITE':
-        return 'fa-solid fa-circle-check text-green-500';
+        return { icon: faCircleCheck, className: 'text-green-500' };
       case 'SERVER_NOT_SYNCED':
       default:
-        return 'fa-solid fa-circle-info text-blue-500';
+        return { icon: faCircleInfo, className: 'text-blue-500' };
     }
   };
 
@@ -75,12 +84,12 @@ export const NotificationDropdown = () => {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={handleOpenNotifications}>
-                <i className="fa-solid fa-bell mr-2" />
+                <FontAwesomeIcon icon={faBell} className="mr-2" />
                 Open Notifications
               </DropdownMenuItem>
               {unreadCount > 0 && (
                 <DropdownMenuItem onClick={markAllAsRead}>
-                  <i className="fa-solid fa-check-double mr-2" />
+                  <FontAwesomeIcon icon={faCheckDouble} className="mr-2" />
                   Mark all as read
                 </DropdownMenuItem>
               )}
@@ -101,7 +110,10 @@ export const NotificationDropdown = () => {
                 onClick={() => !notification.read && markAsRead(notification.id)}
               >
                 <div className="flex w-full items-start gap-2">
-                  <i className={`${getNotificationIcon(notification.notification_type)} mt-0.5`} />
+                  <FontAwesomeIcon
+                    icon={getNotificationIcon(notification.notification_type).icon}
+                    className={`${getNotificationIcon(notification.notification_type).className} mt-0.5`}
+                  />
                   <div className="flex-1 space-y-1">
                     <div className="flex items-center justify-between gap-2">
                       <p className="text-sm font-medium leading-none">

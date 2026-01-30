@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react'
-import { IconShieldHalf, IconDeviceFloppy, IconInfoCircle, IconLock } from '@tabler/icons-react'
 import { AdminRole, AdminPermission } from '../../hooks/useAdminRoles'
 import { useAlerts } from '../../contexts'
 import { requestJson } from '../../util/apiClient'
@@ -8,6 +7,21 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import type { IconDefinition } from '@fortawesome/fontawesome-svg-core'
+import {
+  faBook,
+  faCircleInfo,
+  faFileLines,
+  faFloppyDisk,
+  faLock,
+  faPlay,
+  faServer,
+  faShieldHalved,
+  faTicketSimple,
+  faUserShield,
+  faUsersGear
+} from '@fortawesome/free-solid-svg-icons'
 
 interface AdminRolePermissionsTabProps {
   role: AdminRole
@@ -136,6 +150,16 @@ const PERMISSIONS_STRUCTURE: Record<
   },
 }
 
+const PERMISSION_ICON_MAP: Record<string, IconDefinition> = {
+  'user-shield': faUserShield,
+  ticket: faTicketSimple,
+  'users-gear': faUsersGear,
+  play: faPlay,
+  'file-text': faFileLines,
+  library: faBook,
+  server: faServer,
+}
+
 export const AdminRolePermissionsTab = ({ role, permissions, onUpdate }: AdminRolePermissionsTabProps) => {
   const { success, error: showError } = useAlerts()
   const [submitting, setSubmitting] = useState(false)
@@ -191,7 +215,7 @@ export const AdminRolePermissionsTab = ({ role, permissions, onUpdate }: AdminRo
       <div className="rounded-lg border border-border bg-card p-6">
         <div className="mb-6 flex items-center gap-3">
           <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-green-100/20">
-            <IconShieldHalf className="size-5 text-green-600 dark:text-green-400" />
+            <FontAwesomeIcon icon={faShieldHalved} className="size-5 text-green-600 dark:text-green-400" />
           </div>
           <div>
             <h2 className="mb-1 text-xl font-semibold">Role Permissions</h2>
@@ -203,7 +227,7 @@ export const AdminRolePermissionsTab = ({ role, permissions, onUpdate }: AdminRo
 
         {/* Info Card */}
         <Alert variant="info">
-          <IconInfoCircle />
+          <FontAwesomeIcon icon={faCircleInfo} />
           <AlertTitle>Permission Guidelines</AlertTitle>
           <AlertDescription>
             Administrator grants full access across the admin dashboard. Other legacy permissions
@@ -216,7 +240,7 @@ export const AdminRolePermissionsTab = ({ role, permissions, onUpdate }: AdminRo
       <div className="rounded-lg border border-border bg-card p-6">
         <div className="mb-2 flex items-center gap-3">
           <div className="flex size-8 items-center justify-center rounded-full bg-primary/20">
-            <IconLock className="text-primary" />
+            <FontAwesomeIcon icon={faLock} className="text-primary" />
           </div>
           <div className="flex-1">
             <h3 className="text-lg font-semibold">Administrator</h3>
@@ -237,6 +261,7 @@ export const AdminRolePermissionsTab = ({ role, permissions, onUpdate }: AdminRo
       <div className="space-y-4">
         {Object.entries(PERMISSIONS_STRUCTURE).map(([category, data]) => {
           const categoryChecked = isCategoryChecked(category)
+          const categoryIcon = PERMISSION_ICON_MAP[data.icon] ?? faCircleInfo
 
           return (
             <div key={category} className="rounded-lg border border-border bg-card p-6">
@@ -250,7 +275,7 @@ export const AdminRolePermissionsTab = ({ role, permissions, onUpdate }: AdminRo
                   />
                   <div className="flex items-center gap-3">
                     <div className="flex size-8 items-center justify-center rounded-full bg-primary/20">
-                      <i className={`fa-solid fa-${data.icon} text-sm text-primary`} />
+                      <FontAwesomeIcon icon={categoryIcon} className="text-sm text-primary" />
                     </div>
                     <div>
                       <h3 className="text-lg font-semibold">{data.label}</h3>
@@ -294,7 +319,7 @@ export const AdminRolePermissionsTab = ({ role, permissions, onUpdate }: AdminRo
       {/* Save Button */}
       <div className="flex items-center justify-end gap-3 border-t border-border pt-6">
         <Button type="submit" disabled={submitting} size="lg">
-          <IconDeviceFloppy className="mr-2 size-4" />
+          <FontAwesomeIcon icon={faFloppyDisk} className="mr-2 size-4" />
           {submitting ? 'Saving...' : 'Save Permissions'}
         </Button>
       </div>

@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { IconUsers, IconUserPlus, IconUserMinus, IconSearch, IconInfoCircle } from '@tabler/icons-react'
 import useSWR from 'swr'
 import { UserRole } from '../../hooks/useUserRoles'
 import { useAlerts } from '../../contexts'
@@ -12,6 +11,15 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { ResponsiveDialog } from '@/components/ui/responsive-dialog'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import {
+  faCircleInfo,
+  faMagnifyingGlass,
+  faUserMinus,
+  faUserPlus,
+  faUsers,
+  faUsersSlash
+} from '@fortawesome/free-solid-svg-icons'
 
 interface UserRoleMembersTabProps {
   role: UserRole
@@ -156,7 +164,7 @@ export const UserRoleMembersTab = ({ role, onUpdate }: UserRoleMembersTabProps) 
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/20">
-              <IconUsers className="size-5 text-primary" />
+              <FontAwesomeIcon icon={faUsers} className="size-5 text-primary" />
             </div>
             <div>
               <h2 className="mb-1 text-xl font-semibold">Role Members</h2>
@@ -167,7 +175,7 @@ export const UserRoleMembersTab = ({ role, onUpdate }: UserRoleMembersTabProps) 
           </div>
           {!isAutoManagedRole && (
             <Button onClick={handleOpenAddModal}>
-              <IconUserPlus className="mr-2 size-4" />
+              <FontAwesomeIcon icon={faUserPlus} className="mr-2 size-4" />
               Add User
             </Button>
           )}
@@ -175,7 +183,7 @@ export const UserRoleMembersTab = ({ role, onUpdate }: UserRoleMembersTabProps) 
 
         {/* Stats Card */}
         <Alert variant="info">
-          <IconInfoCircle />
+          <FontAwesomeIcon icon={faCircleInfo} />
           <AlertTitle>Current Members</AlertTitle>
           <AlertDescription>
             {members.length} user{members.length !== 1 ? 's' : ''} assigned to this role
@@ -183,7 +191,7 @@ export const UserRoleMembersTab = ({ role, onUpdate }: UserRoleMembersTabProps) 
         </Alert>
         {isAutoManagedRole && (
           <Alert variant="info">
-            <IconInfoCircle />
+            <FontAwesomeIcon icon={faCircleInfo} />
             <AlertTitle>Auto-managed role</AlertTitle>
             <AlertDescription>
               Membership is synced from service permissions and cannot be edited manually.
@@ -197,7 +205,7 @@ export const UserRoleMembersTab = ({ role, onUpdate }: UserRoleMembersTabProps) 
         <CardHeader>
           <div className="flex items-center gap-3">
             <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/20">
-              <IconUsers className="size-5 text-primary" />
+              <FontAwesomeIcon icon={faUsers} className="size-5 text-primary" />
             </div>
             <div>
               <CardTitle className="mb-1 text-xl font-semibold">Member List</CardTitle>
@@ -209,7 +217,7 @@ export const UserRoleMembersTab = ({ role, onUpdate }: UserRoleMembersTabProps) 
           <div className="space-y-2">
             <Label className="text-sm font-medium">Search Members</Label>
             <div className="relative">
-              <IconSearch className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <FontAwesomeIcon icon={faMagnifyingGlass} className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 type="text"
                 placeholder="Search current members..."
@@ -227,7 +235,7 @@ export const UserRoleMembersTab = ({ role, onUpdate }: UserRoleMembersTabProps) 
             </div>
           ) : filteredMembers.length === 0 ? (
             <div className="py-12 text-center">
-              <i className="fa-solid fa-users-slash mb-4 text-4xl text-muted-foreground/30" />
+              <FontAwesomeIcon icon={faUsersSlash} className="mb-4 text-4xl text-muted-foreground/30" />
               <h4 className="mb-2 text-lg font-semibold">No Members</h4>
               <p className="mb-4 text-sm text-muted-foreground">
                 {searchQuery
@@ -236,7 +244,7 @@ export const UserRoleMembersTab = ({ role, onUpdate }: UserRoleMembersTabProps) 
               </p>
               {!searchQuery && !isAutoManagedRole && (
                 <Button size="sm" onClick={handleOpenAddModal}>
-                  <IconUserPlus className="mr-2 size-4" />
+                  <FontAwesomeIcon icon={faUserPlus} className="mr-2 size-4" />
                   Add First Member
                 </Button>
               )}
@@ -264,15 +272,15 @@ export const UserRoleMembersTab = ({ role, onUpdate }: UserRoleMembersTabProps) 
                   </div>
                   {!isAutoManagedRole && (
                     <div className="flex items-center gap-2">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="text-destructive hover:bg-destructive/10"
-                        onClick={() => handleRemoveMember(member.uuid, member.username)}
-                      >
-                        <IconUserMinus className="mr-1 size-4" />
-                        Remove
-                      </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-destructive hover:bg-destructive/10"
+                      onClick={() => handleRemoveMember(member.uuid, member.username)}
+                    >
+                      <FontAwesomeIcon icon={faUserMinus} className="mr-1 size-4" />
+                      Remove
+                    </Button>
                     </div>
                   )}
                 </div>
@@ -304,7 +312,7 @@ export const UserRoleMembersTab = ({ role, onUpdate }: UserRoleMembersTabProps) 
         <div className="space-y-4">
           {availableUsers.length === 0 ? (
             <Alert variant="info">
-              <IconInfoCircle />
+              <FontAwesomeIcon icon={faCircleInfo} />
               <AlertDescription>
                 {hasEligibleUsers
                   ? 'All eligible users are already members of this role.'

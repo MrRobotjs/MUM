@@ -1,5 +1,7 @@
 import { type Plugin } from '../../hooks/usePlugins'
 import { Button } from '@/components/ui/button'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { faGithub } from '@fortawesome/free-brands-svg-icons'
 
 export interface PluginCardActionsProps {
   plugin: Plugin
@@ -48,7 +50,7 @@ export const PluginCardActions = ({
           className="gap-2"
         >
           <a href={plugin.repository_url} target="_blank" rel="noopener noreferrer">
-            <i className="fa-brands fa-github" /> Repository
+            <FontAwesomeIcon icon={faGithub} /> Repository
           </a>
         </Button>
       ) : null}

@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react'
-import { IconUsers, IconUserPlus, IconUserMinus, IconSearch, IconInfoCircle } from '@tabler/icons-react'
 import useSWR from 'swr'
 import { AdminRole } from '../../hooks/useAdminRoles'
 import { useAlerts } from '../../contexts'
@@ -13,6 +12,15 @@ import { Badge } from '@/components/ui/badge'
 import { ResponsiveDialog } from '@/components/ui/responsive-dialog'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import {
+  faCircleInfo,
+  faMagnifyingGlass,
+  faUserMinus,
+  faUserPlus,
+  faUsers,
+  faUsersSlash
+} from '@fortawesome/free-solid-svg-icons'
 
 interface AdminRoleMembersTabProps {
   role: AdminRole
@@ -209,7 +217,7 @@ export const AdminRoleMembersTab = ({ role, onUpdate }: AdminRoleMembersTabProps
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/20">
-              <IconUsers className="size-5 text-primary" />
+              <FontAwesomeIcon icon={faUsers} className="size-5 text-primary" />
             </div>
             <div>
               <h2 className="mb-1 text-xl font-semibold">Role Members</h2>
@@ -220,7 +228,7 @@ export const AdminRoleMembersTab = ({ role, onUpdate }: AdminRoleMembersTabProps
           </div>
           {!isAutoManaged && (
             <Button onClick={handleOpenAddModal}>
-              <IconUserPlus className="mr-2 size-4" />
+              <FontAwesomeIcon icon={faUserPlus} className="mr-2 size-4" />
               Add Admin
             </Button>
           )}
@@ -228,7 +236,7 @@ export const AdminRoleMembersTab = ({ role, onUpdate }: AdminRoleMembersTabProps
 
         {/* Stats Card */}
         <Alert variant="info">
-          <IconInfoCircle />
+          <FontAwesomeIcon icon={faCircleInfo} />
           <AlertTitle>Current Members</AlertTitle>
           <AlertDescription>
             {members.length} administrator{members.length !== 1 ? 's' : ''} assigned to this role
@@ -237,7 +245,7 @@ export const AdminRoleMembersTab = ({ role, onUpdate }: AdminRoleMembersTabProps
 
         {isAutoManaged && (
           <Alert variant="info">
-            <IconInfoCircle />
+            <FontAwesomeIcon icon={faCircleInfo} />
             <AlertTitle>Auto-managed membership</AlertTitle>
             <AlertDescription>
               Members for this role are managed by the system. Add or remove admin roles to
@@ -252,7 +260,7 @@ export const AdminRoleMembersTab = ({ role, onUpdate }: AdminRoleMembersTabProps
         <CardHeader>
           <div className="flex items-center gap-3">
             <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/20">
-              <IconUsers className="size-5 text-primary" />
+              <FontAwesomeIcon icon={faUsers} className="size-5 text-primary" />
             </div>
             <div>
               <CardTitle className="mb-1 text-xl font-semibold">Member List</CardTitle>
@@ -264,7 +272,7 @@ export const AdminRoleMembersTab = ({ role, onUpdate }: AdminRoleMembersTabProps
           <div className="space-y-2">
             <Label className="text-sm font-medium">Search Members</Label>
             <div className="relative">
-              <IconSearch className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <FontAwesomeIcon icon={faMagnifyingGlass} className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 type="text"
                 placeholder="Search current members..."
@@ -282,7 +290,7 @@ export const AdminRoleMembersTab = ({ role, onUpdate }: AdminRoleMembersTabProps
             </div>
           ) : filteredMembers.length === 0 ? (
             <div className="py-12 text-center">
-              <i className="fa-solid fa-users-slash mb-4 text-4xl text-muted-foreground/30" />
+              <FontAwesomeIcon icon={faUsersSlash} className="mb-4 text-4xl text-muted-foreground/30" />
               <h4 className="mb-2 text-lg font-semibold">No Members</h4>
               <p className="mb-4 text-sm text-muted-foreground">
                 {searchQuery
@@ -291,7 +299,7 @@ export const AdminRoleMembersTab = ({ role, onUpdate }: AdminRoleMembersTabProps
               </p>
               {!searchQuery && !isAutoManaged && (
                 <Button size="sm" onClick={handleOpenAddModal}>
-                  <IconUserPlus className="mr-2 size-4" />
+                  <FontAwesomeIcon icon={faUserPlus} className="mr-2 size-4" />
                   Add First Member
                 </Button>
               )}
@@ -327,7 +335,7 @@ export const AdminRoleMembersTab = ({ role, onUpdate }: AdminRoleMembersTabProps
                           className="text-destructive hover:bg-destructive/10"
                           onClick={() => handleRemoveMember(member.uuid, member.username)}
                         >
-                          <IconUserMinus className="mr-1 size-4" />
+                          <FontAwesomeIcon icon={faUserMinus} className="mr-1 size-4" />
                           Remove
                         </Button>
                       </div>
@@ -365,7 +373,7 @@ export const AdminRoleMembersTab = ({ role, onUpdate }: AdminRoleMembersTabProps
         <div className="space-y-4">
           {availableUsers.length === 0 ? (
             <Alert variant="info">
-              <IconInfoCircle />
+              <FontAwesomeIcon icon={faCircleInfo} />
               <AlertDescription>
                 {hasLocalUsers
                   ? 'All local users are already members of this role.'

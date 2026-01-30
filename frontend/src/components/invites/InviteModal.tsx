@@ -7,6 +7,31 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/colla
 import { Button } from '@/components/ui/button';
 import { ResponsiveDialog } from '@/components/ui/responsive-dialog';
 import { ServiceIcon } from '@/components';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import {
+  faCalendar,
+  faCalendarDays,
+  faCheck,
+  faChevronDown,
+  faCircleExclamation,
+  faClock,
+  faCog,
+  faDownload,
+  faFilm,
+  faHashtag,
+  faHome,
+  faLink,
+  faPhotoFilm,
+  faPlus,
+  faRobot,
+  faRotate,
+  faServer,
+  faShieldHalved,
+  faTicketSimple,
+  faTv,
+  faUsers
+} from '@fortawesome/free-solid-svg-icons';
+import { faDiscord } from '@fortawesome/free-brands-svg-icons';
 
 export type InviteFormValues = {
   custom_path?: string;
@@ -411,7 +436,7 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
         </>
       ) : (
         <>
-          <i className="fa-solid fa-ticket-simple mr-2" />
+          <FontAwesomeIcon icon={faTicketSimple} className="mr-2" />
           {editingMode ? 'Update Invite' : 'Create Invite'}
         </>
       )}
@@ -430,28 +455,28 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
     >
       <div className="rounded-lg border bg-muted/40 p-4 grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
         <div className="flex items-center gap-2">
-          <i className="fa-solid fa-server text-primary" />
+          <FontAwesomeIcon icon={faServer} className="text-primary" />
           <div>
             <p className="text-xs text-muted-foreground">Servers</p>
             <p className="font-semibold">{selectedServerCount}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <i className="fa-solid fa-photo-film text-blue-400" />
+          <FontAwesomeIcon icon={faPhotoFilm} className="text-blue-400" />
           <div>
             <p className="text-xs text-muted-foreground">Libraries</p>
             <p className="font-semibold">{selectedLibraryCount}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <i className="fa-solid fa-calendar-days text-yellow-400" />
+          <FontAwesomeIcon icon={faCalendarDays} className="text-yellow-400" />
           <div>
             <p className="text-xs text-muted-foreground">Expires</p>
             <p className="font-semibold">{expiresLabel}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <i className="fa-solid fa-hashtag text-emerald-500" />
+          <FontAwesomeIcon icon={faHashtag} className="text-emerald-500" />
           <div>
             <p className="text-xs text-muted-foreground">Max Uses</p>
             <p className="font-semibold">{maxUsesLabel}</p>
@@ -470,7 +495,7 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
             <div className="space-y-3">
               <label className="space-y-1 block">
                 <div className="flex items-center gap-2 text-sm font-medium">
-                  <i className="fa-solid fa-link text-primary" />
+                  <FontAwesomeIcon icon={faLink} className="text-primary" />
                   Custom Path
                   <span className="ml-2 rounded border border-yellow-500/30 bg-yellow-500/10 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-yellow-400">
                     Optional
@@ -489,7 +514,7 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
 
               <label className="space-y-1 block">
                 <div className="flex items-center gap-2 text-sm font-medium">
-                  <i className="fa-solid fa-calendar text-yellow-400" />
+                  <FontAwesomeIcon icon={faCalendar} className="text-yellow-400" />
                   Invite Expiration
                 </div>
                 <Input
@@ -509,7 +534,7 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
                 <h4 className="font-medium text-lg">Server & Access</h4>
                 {serverError ? (
                   <span className="text-destructive text-xs flex items-center gap-1">
-                    <i className="fa-solid fa-circle-exclamation" /> {serverError}
+                    <FontAwesomeIcon icon={faCircleExclamation} /> {serverError}
                   </span>
                 ) : null}
               </div>
@@ -525,7 +550,7 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
               </div>
             ) : Object.keys(groupedServers).length === 0 ? (
               <div className="text-center py-8 rounded-lg border bg-muted/30">
-                <i className="fa-solid fa-server text-muted-foreground text-3xl mb-2" />
+                <FontAwesomeIcon icon={faServer} className="text-muted-foreground text-3xl mb-2" />
                 <p className="text-sm text-muted-foreground">No servers available</p>
               </div>
             ) : (
@@ -536,7 +561,7 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
                       <div className="flex items-center gap-2">
                         <ServiceIcon
                           serviceType={serviceType}
-                          className={serviceType.toLowerCase() === 'plex' ? 'fa-lg w-5 h-5' : 'fa-lg'}
+                          className={serviceType.toLowerCase() === 'plex' ? 'w-5 h-5' : 'w-4 h-4'}
                         />
                         <span className="text-sm font-semibold uppercase tracking-wide">{serviceType}</span>
                       </div>
@@ -580,9 +605,9 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
                               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                                 <span>{selectedCountForServer} libraries</span>
                                 {isSelected ? (
-                                  <i className="fa-solid fa-check text-primary" />
+                                  <FontAwesomeIcon icon={faCheck} className="text-primary" />
                                 ) : (
-                                  <i className="fa-solid fa-plus" />
+                                  <FontAwesomeIcon icon={faPlus} />
                                 )}
                               </div>
                             </button>
@@ -620,7 +645,7 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
                                       onClick={() => loadLibrariesForServer(server.id, true)}
                                       title="Refresh libraries from server"
                                     >
-                                      <i className="fa-solid fa-rotate" />
+                                      <FontAwesomeIcon icon={faRotate} />
                                     </Button>
                                   </div>
                                   <Input
@@ -662,7 +687,7 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
                                     <div className="rounded-md border bg-background px-3 py-2">
                                       <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-2 text-sm font-medium">
-                                          <i className="fa-solid fa-download text-blue-400" />
+                                          <FontAwesomeIcon icon={faDownload} className="text-blue-400" />
                                           Allow Downloads
                                         </div>
                                         <Switch
@@ -679,12 +704,12 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
                                     {server.service_type?.toLowerCase() === 'plex' ? (
                                       <>
                                         <div className="rounded-md border bg-background px-3 py-2">
-                                          <div className="flex items-center justify-between">
-                                            <div className="flex items-center gap-2 text-sm font-medium">
-                                              <i className="fa-solid fa-home text-primary" />
-                                              Plex Home
-                                            </div>
-                                            <Switch
+                                        <div className="flex items-center justify-between">
+                                          <div className="flex items-center gap-2 text-sm font-medium">
+                                            <FontAwesomeIcon icon={faHome} className="text-primary" />
+                                            Plex Home
+                                          </div>
+                                          <Switch
                                               checked={featureState.invite_to_plex_home ?? false}
                                               onCheckedChange={(checked) => {
                                                 updateServerFeature(server.id, { invite_to_plex_home: checked });
@@ -694,12 +719,12 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
                                           </div>
                                         </div>
                                         <div className="rounded-md border bg-background px-3 py-2">
-                                          <div className="flex items-center justify-between">
-                                            <div className="flex items-center gap-2 text-sm font-medium">
-                                              <i className="fa-solid fa-tv text-purple-400" />
-                                              Live TV
-                                            </div>
-                                            <Switch
+                                        <div className="flex items-center justify-between">
+                                          <div className="flex items-center gap-2 text-sm font-medium">
+                                            <FontAwesomeIcon icon={faTv} className="text-purple-400" />
+                                            Live TV
+                                          </div>
+                                          <Switch
                                               checked={featureState.allow_live_tv ?? false}
                                               onCheckedChange={(checked) => {
                                                 updateServerFeature(server.id, { allow_live_tv: checked });
@@ -709,12 +734,12 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
                                           </div>
                                         </div>
                                         <div className="rounded-md border bg-background px-3 py-2">
-                                          <div className="flex items-center justify-between">
-                                            <div className="flex items-center gap-2 text-sm font-medium">
-                                              <i className="fa-solid fa-film text-primary" />
-                                              Allow 4K Transcode
-                                            </div>
-                                            <Switch
+                                        <div className="flex items-center justify-between">
+                                          <div className="flex items-center gap-2 text-sm font-medium">
+                                            <FontAwesomeIcon icon={faFilm} className="text-primary" />
+                                            Allow 4K Transcode
+                                          </div>
+                                          <Switch
                                               checked={featureState.allow_4k_transcode ?? true}
                                               onCheckedChange={(checked) => {
                                                 updateServerFeature(server.id, { allow_4k_transcode: checked });
@@ -748,10 +773,10 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
           >
             <CollapsibleTrigger className="flex w-full items-center justify-between p-4 hover:bg-accent/50 transition-colors">
               <div className="flex items-center gap-2">
-                <i className="fa-solid fa-cog text-blue-400 text-sm" />
+                <FontAwesomeIcon icon={faCog} className="text-blue-400 text-sm" />
                 <span className="text-lg font-medium">Advanced Options</span>
               </div>
-              <i className="fa-solid fa-chevron-down text-muted-foreground" />
+              <FontAwesomeIcon icon={faChevronDown} className="text-muted-foreground" />
             </CollapsibleTrigger>
             <CollapsibleContent className="space-y-4 p-4 pt-2">
               <div className="space-y-3">
@@ -762,7 +787,7 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
                 <div className="rounded-lg p-4 border bg-background space-y-3">
                   <label className="space-y-1 block">
                     <div className="flex items-center gap-2 text-sm font-medium">
-                      <i className="fa-solid fa-hashtag text-primary" />
+                      <FontAwesomeIcon icon={faHashtag} className="text-primary" />
                       Maximum Uses
                     </div>
                     <Input
@@ -777,7 +802,7 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
 
                   <label className="space-y-1 block">
                     <div className="flex items-center gap-2 text-sm font-medium">
-                      <i className="fa-solid fa-clock text-yellow-400" />
+                      <FontAwesomeIcon icon={faClock} className="text-yellow-400" />
                       Membership Expiration
                     </div>
                     <Input
@@ -801,7 +826,7 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
                           <div className="rounded-lg p-4 border bg-background">
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-2">
-                                <i className="fa-brands fa-discord text-blue-400 text-sm" />
+                                <FontAwesomeIcon icon={faDiscord} className="text-blue-400 text-sm" />
                                 <div>
                                   <p className="font-medium text-sm">Require Discord Authentication</p>
                                   <p className="text-xs text-muted-foreground">Invitees must link a Discord account.</p>
@@ -817,7 +842,7 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
                           <div className="rounded-lg p-4 border bg-background">
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-2">
-                                <i className="fa-solid fa-users text-yellow-400 text-sm" />
+                                <FontAwesomeIcon icon={faUsers} className="text-yellow-400 text-sm" />
                                 <div>
                                   <p className="font-medium text-sm">Require Discord Server Membership</p>
                                   <p className="text-xs text-muted-foreground">Invitees must be in your Discord server.</p>
@@ -841,7 +866,7 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
                   <div className="rounded-lg p-4 border bg-background">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <i className="fa-solid fa-shield-halved text-blue-400 text-sm" />
+                        <FontAwesomeIcon icon={faShieldHalved} className="text-blue-400 text-sm" />
                         <div>
                           <p className="font-medium text-sm">Grant Purge Whitelist</p>
                           <p className="text-xs text-muted-foreground">Protect from automated purges.</p>
@@ -857,7 +882,7 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
                   <div className="rounded-lg p-4 border bg-background opacity-60">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <i className="fa-solid fa-robot text-blue-400 text-sm" />
+                        <FontAwesomeIcon icon={faRobot} className="text-blue-400 text-sm" />
                         <div>
                           <p className="font-medium text-sm">Grant Bot Whitelist (WIP)</p>
                           <p className="text-xs text-muted-foreground">Coming soon. Not yet applied.</p>

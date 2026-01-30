@@ -9,6 +9,8 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { useUserPreferences } from '@/hooks/useUserPreferences';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faArrowsLeftRight } from '@fortawesome/free-solid-svg-icons';
 
 type StreamingSettingsModalProps = {
   open: boolean;
@@ -118,8 +120,9 @@ export const StreamingSettingsModal = ({ open, onClose }: StreamingSettingsModal
               label={
                 <span className="inline-flex items-center gap-2">
                   Sidebar stream counter
-                  <i
-                    className={`fa-solid fa-arrow-right-arrow-left text-sm ${syncEnabled ? 'text-emerald-500' : 'text-muted-foreground'}`}
+                  <FontAwesomeIcon
+                    icon={faArrowsLeftRight}
+                    className={`text-sm ${syncEnabled ? 'text-emerald-500' : 'text-muted-foreground'}`}
                     aria-hidden="true"
                   />
                 </span>

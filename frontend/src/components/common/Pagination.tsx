@@ -1,4 +1,6 @@
 import { Button } from '@/components/ui/button';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faChevronLeft, faChevronRight } from '@fortawesome/free-solid-svg-icons';
 
 interface PaginationProps {
   currentPage: number;
@@ -63,7 +65,7 @@ export const Pagination = ({ currentPage, totalPages, onPageChange, loading = fa
         type="button"
         aria-label="Previous page"
       >
-        <i className="fa-solid fa-chevron-left" />
+        <FontAwesomeIcon icon={faChevronLeft} />
       </Button>
 
       {/* Page Numbers */}
@@ -106,7 +108,7 @@ export const Pagination = ({ currentPage, totalPages, onPageChange, loading = fa
         type="button"
         aria-label="Next page"
       >
-        <i className="fa-solid fa-chevron-right" />
+        <FontAwesomeIcon icon={faChevronRight} />
       </Button>
 
       {/* Loading Indicator */}

@@ -21,6 +21,25 @@ import { useNavigate } from '@tanstack/react-router';
 import { buildUserProfilePath } from '@/util/routes';
 import type { ActiveSession, PluginMetaResponse } from '@/types/streaming';
 import { ServiceIcon } from '@/components/services/ServiceIcon';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import {
+  faArrowRight,
+  faArrowTurnUp,
+  faBan,
+  faCircleInfo,
+  faCircleNotch,
+  faCirclePlay,
+  faCode,
+  faCopy,
+  faEllipsisVertical,
+  faFileExport,
+  faGears,
+  faImage,
+  faMessage,
+  faPaperPlane,
+  faPause,
+  faPlay
+} from '@fortawesome/free-solid-svg-icons';
 
 const StreamInfoDialog = ({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) => {
   return (
@@ -34,7 +53,7 @@ const StreamInfoDialog = ({ open, onOpenChange }: { open: boolean; onOpenChange:
         <div className="space-y-3">
           <div className="rounded-lg border p-3 border-green-500/20 bg-green-500/5">
             <div className="font-semibold text-green-500 mb-1 flex items-center gap-2">
-              <i className="fa-solid fa-play-circle" /> Direct Play
+              <FontAwesomeIcon icon={faCirclePlay} /> Direct Play
             </div>
             <p className="text-muted-foreground">
               The player handles the file natively. Best quality, near-zero server CPU usage.
@@ -43,7 +62,7 @@ const StreamInfoDialog = ({ open, onOpenChange }: { open: boolean; onOpenChange:
 
           <div className="rounded-lg border p-3 border-green-500/20 bg-green-500/5">
             <div className="font-semibold text-green-400 mb-1 flex items-center gap-2">
-              <i className="fa-solid fa-file-export" /> Direct Stream
+              <FontAwesomeIcon icon={faFileExport} /> Direct Stream
             </div>
             <p className="text-muted-foreground">
               The video/audio streams are compatible, but the container (file format) is not.
@@ -53,7 +72,7 @@ const StreamInfoDialog = ({ open, onOpenChange }: { open: boolean; onOpenChange:
 
           <div className="rounded-lg border p-3 border-amber-500/20 bg-amber-500/5">
             <div className="font-semibold text-amber-500 mb-1 flex items-center gap-2">
-              <i className="fa-solid fa-gears" /> Transcode
+              <FontAwesomeIcon icon={faGears} /> Transcode
             </div>
             <p className="text-muted-foreground mb-2">
               The server is converting video or audio on-the-fly. High CPU/GPU usage.
@@ -113,7 +132,7 @@ const PayloadDialog = ({
         <div className="space-y-3">
           <div className="flex items-center justify-end">
             <Button variant="outline" size="sm" onClick={onCopy}>
-              <i className="fa-solid fa-copy mr-2" />
+              <FontAwesomeIcon icon={faCopy} className="mr-2" />
               Copy to Clipboard
             </Button>
           </div>
@@ -436,7 +455,7 @@ export const StreamingSessionCard = ({ session, onTerminate, pluginFeaturesBySer
               />
             ) : (
               <div className="flex h-full w-full items-center justify-center text-muted-foreground">
-                <i className="fa-solid fa-image fa-lg" />
+                <FontAwesomeIcon icon={faImage} size="lg" />
               </div>
             )}
 
@@ -507,7 +526,7 @@ export const StreamingSessionCard = ({ session, onTerminate, pluginFeaturesBySer
                   size="icon"
                   className="h-8 w-8 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
                 >
-                  <i className="fa-solid fa-ellipsis-vertical" />
+                  <FontAwesomeIcon icon={faEllipsisVertical} />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
@@ -522,27 +541,27 @@ export const StreamingSessionCard = ({ session, onTerminate, pluginFeaturesBySer
                       setShowSendMessage(true);
                     }}
                   >
-                    <i className="fa-solid fa-message mr-2" />
+                    <FontAwesomeIcon icon={faMessage} className="mr-2" />
                     Send Message
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuItem
                   onClick={() => setShowMediaDetails(true)}
                 >
-                  <i className="fa-solid fa-circle-info mr-2" />
+                  <FontAwesomeIcon icon={faCircleInfo} className="mr-2" />
                   Details
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => setShowPayload(true)}
                 >
-                  <i className="fa-solid fa-code mr-2" />
+                  <FontAwesomeIcon icon={faCode} className="mr-2" />
                   Payload
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => onTerminate(session)}
                   className="text-red-600 focus:text-red-600 focus:bg-red-100 dark:focus:bg-red-900/20"
                 >
-                  <i className="fa-solid fa-ban mr-2" />
+                  <FontAwesomeIcon icon={faBan} className="mr-2" />
                   Terminate Stream
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -573,7 +592,7 @@ export const StreamingSessionCard = ({ session, onTerminate, pluginFeaturesBySer
               disabled={sendingMessage || !sendMessageText.trim()}
               className="gap-2"
             >
-              <i className="fa-solid fa-paper-plane" />
+              <FontAwesomeIcon icon={faPaperPlane} />
               Send
             </Button>,
           ]}
@@ -627,9 +646,9 @@ export const StreamingSessionCard = ({ session, onTerminate, pluginFeaturesBySer
         <div className="flex items-center justify-between bg-transparent px-4 py-1.5 backdrop-blur-sm text-[10px] uppercase font-bold tracking-wider text-muted-foreground">
           <div className="flex items-center gap-2">
             <span className={`${stateColor.split(' ')[0]}`}>
-              {normalizedState === 'playing' || normalizedState === 'active' ? <i className="fa-solid fa-play mr-1" /> : null}
-              {normalizedState === 'paused' ? <i className="fa-solid fa-pause mr-1" /> : null}
-              {normalizedState === 'buffering' ? <i className="fa-solid fa-circle-notch fa-spin mr-1" /> : null}
+              {normalizedState === 'playing' || normalizedState === 'active' ? <FontAwesomeIcon icon={faPlay} className="mr-1" /> : null}
+              {normalizedState === 'paused' ? <FontAwesomeIcon icon={faPause} className="mr-1" /> : null}
+              {normalizedState === 'buffering' ? <FontAwesomeIcon icon={faCircleNotch} spin className="mr-1" /> : null}
               {session.state}
             </span>
             <span className="text-muted-foreground/50">|</span>
@@ -680,7 +699,7 @@ export const StreamingSessionCard = ({ session, onTerminate, pluginFeaturesBySer
               </span>
               {!hideVideoStreamStatus ? (
                 <span className="flex items-center gap-1 text-[11px] sm:text-xs text-muted-foreground">
-                  <i className={`fa-solid fa-arrow-turn-up text-[10px] transform rotate-90`} />
+                  <FontAwesomeIcon icon={faArrowTurnUp} className="text-[10px] transform rotate-90" />
                   {isTranscoding ? (
                     <span className="text-amber-400 flex items-center gap-1">
                       <span className="flex items-center gap-1">
@@ -694,7 +713,7 @@ export const StreamingSessionCard = ({ session, onTerminate, pluginFeaturesBySer
                           className="hover:text-amber-300 transition-colors focus:outline-none"
                           title="What does this mean?"
                         >
-                          <i className="fa-solid fa-circle-info text-[10px]" />
+                          <FontAwesomeIcon icon={faCircleInfo} className="text-[10px]" />
                         </button>
                       </span>
                       {session.transcode_throttled !== undefined || session.transcode_speed !== undefined ? (
@@ -716,7 +735,7 @@ export const StreamingSessionCard = ({ session, onTerminate, pluginFeaturesBySer
                         className="hover:text-green-300 transition-colors focus:outline-none"
                         title="What does this mean?"
                       >
-                        <i className="fa-solid fa-circle-info text-[10px]" />
+                        <FontAwesomeIcon icon={faCircleInfo} className="text-[10px]" />
                       </button>
                     </span>
                   )}
@@ -746,7 +765,7 @@ export const StreamingSessionCard = ({ session, onTerminate, pluginFeaturesBySer
               <span className="text-foreground/90 font-medium">{resolvedAudioDetail || 'Unknown Audio'}</span>
               {isTranscoding && session.stream_detail?.toLowerCase().includes('audio') && (
                 <span className="flex items-center gap-1 text-[11px] sm:text-xs text-gray-400">
-                  <i className={`fa-solid fa-arrow-turn-up text-[10px] transform rotate-90`} />
+                  <FontAwesomeIcon icon={faArrowTurnUp} className="text-[10px] transform rotate-90" />
                   <span className="text-amber-400 flex items-center gap-1">
                     <span className="flex items-center gap-1">
                       Transcode
@@ -759,7 +778,7 @@ export const StreamingSessionCard = ({ session, onTerminate, pluginFeaturesBySer
                         className="hover:text-amber-300 transition-colors focus:outline-none"
                         title="What does this mean?"
                       >
-                        <i className="fa-solid fa-circle-info text-[10px]" />
+                        <FontAwesomeIcon icon={faCircleInfo} className="text-[10px]" />
                       </button>
                     </span>
                     {session.transcode_throttled !== undefined || session.transcode_speed !== undefined ? (
@@ -818,7 +837,7 @@ export const StreamingSessionCard = ({ session, onTerminate, pluginFeaturesBySer
               <div className="flex flex-col text-xs text-muted-foreground sm:text-sm">
                 <div className="flex items-center gap-1 truncate">
                   <span className="text-muted-foreground/80" title="Player">{session.player_title}</span>
-                  <i className="fa-solid fa-arrow-right text-[10px] opacity-50" />
+                  <FontAwesomeIcon icon={faArrowRight} className="text-[10px] opacity-50" />
                   <span className="text-muted-foreground/80" title="Product">{playerPlatformLabel}</span>
                 </div>
                 <div className="truncate text-[11px] opacity-70">

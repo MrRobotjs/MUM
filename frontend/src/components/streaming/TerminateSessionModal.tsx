@@ -2,6 +2,8 @@ import { Button } from '@/components/ui/button';
 import { ResponsiveDialog } from '@/components/ui/responsive-dialog';
 import { Textarea } from '@/components/ui/textarea';
 import type { ActiveSession } from '@/types/streaming';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faBan, faMessage, faTriangleExclamation } from '@fortawesome/free-solid-svg-icons';
 
 type TerminateSession = Pick<
   ActiveSession,
@@ -42,7 +44,7 @@ export const TerminateSessionModal = ({
           Cancel
         </Button>,
         <Button key="terminate" variant="destructive" onClick={onConfirm} className="gap-2">
-          <i className="fa-solid fa-ban" />
+          <FontAwesomeIcon icon={faBan} />
           Terminate Session
         </Button>,
       ]}
@@ -52,7 +54,7 @@ export const TerminateSessionModal = ({
           <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4">
             <div className="flex items-start gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-destructive/20">
-                <i className="fa-solid fa-exclamation-triangle text-destructive" />
+                <FontAwesomeIcon icon={faTriangleExclamation} className="text-destructive" />
               </div>
               <div className="space-y-1">
                 <h4 className="text-base font-semibold text-foreground">Confirm Session Termination</h4>
@@ -67,7 +69,7 @@ export const TerminateSessionModal = ({
           {supportsTerminationMessage ? (
             <div className="space-y-3">
               <div className="flex items-center gap-2">
-                <i className="fa-solid fa-message text-blue-600 dark:text-blue-400 text-sm" />
+                <FontAwesomeIcon icon={faMessage} className="text-blue-600 dark:text-blue-400 text-sm" />
                 <h5 className="text-base font-semibold text-foreground">Optional Message</h5>
               </div>
               <Textarea

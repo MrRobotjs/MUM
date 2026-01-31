@@ -2,6 +2,8 @@ import { ResponsiveDialog } from '@/components/ui/responsive-dialog';
 import { ActiveSession } from '@/types/streaming';
 import { Button } from '@/components/ui/button';
 import { useAlerts } from '@/contexts/AlertContext';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faCopy } from '@fortawesome/free-solid-svg-icons';
 
 interface MediaDetailsDialogProps {
     open: boolean;
@@ -154,7 +156,7 @@ export function MediaDetailsDialog({ open, onOpenChange, session }: MediaDetails
                                 onClick={handleCopyPath}
                                 className="text-zinc-400 hover:text-white hover:bg-zinc-800 shrink-0"
                             >
-                                <i className="fa-solid fa-copy" />
+                                <FontAwesomeIcon icon={faCopy} />
                             </Button>
                         )}
                     </div>

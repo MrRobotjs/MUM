@@ -6,6 +6,8 @@ import { StreamingSessionCard } from './StreamingSessionCard';
 import { StreamingSourceInfoDialog } from './StreamingSourceInfoDialog';
 import { useAdminApi } from '@/hooks/useAdminApi';
 import type { ActiveSession, ActiveSessionsResponse, PluginMetaResponse, ViewMode } from '@/types/streaming';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faCirclePause, faCogs, faServer, faTowerBroadcast } from '@fortawesome/free-solid-svg-icons';
 
 interface ActiveStreamsCardProps {
   sessionsData: ActiveSessionsResponse | null;
@@ -62,7 +64,7 @@ export const ActiveStreamsCard = ({
           {Object.entries(sessionsData.by_server).map(([serverName, sessions]) => (
             <div key={serverName}>
               <h3 className="mb-3 flex items-center gap-2 text-lg font-semibold text-foreground">
-                <i className="fa-solid fa-server text-primary" />
+                <FontAwesomeIcon icon={faServer} className="text-primary" />
                 {serverName}
                 <Badge variant="secondary" className="ml-2">{sessions.length}</Badge>
               </h3>
@@ -81,7 +83,7 @@ export const ActiveStreamsCard = ({
           {Object.entries(sessionsData.by_service).map(([serviceType, sessions]) => (
             <div key={serviceType}>
               <h3 className="mb-3 flex items-center gap-2 text-lg font-semibold text-foreground">
-                <i className="fa-solid fa-cogs text-primary" />
+                <FontAwesomeIcon icon={faCogs} className="text-primary" />
                 {serviceType.toUpperCase()}
                 <Badge variant="secondary" className="ml-2">{sessions.length}</Badge>
               </h3>
@@ -115,7 +117,7 @@ export const ActiveStreamsCard = ({
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-3">
             <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary shadow-inner">
-              <i className="fa-solid fa-tower-broadcast text-lg" />
+              <FontAwesomeIcon icon={faTowerBroadcast} className="text-lg" />
             </div>
             <div className="space-y-1">
               <CardTitle className="flex items-center gap-2 text-2xl text-foreground">
@@ -219,7 +221,7 @@ export const ActiveStreamsCard = ({
           <Empty className="border border-dashed border-border/60 bg-muted/30 py-10 sm:py-12">
             <EmptyHeader>
               <EmptyMedia variant="icon">
-                <i className="fa-solid fa-circle-pause text-xl opacity-70" />
+                <FontAwesomeIcon icon={faCirclePause} className="text-xl opacity-70" />
               </EmptyMedia>
               <EmptyTitle>No active streams</EmptyTitle>
               <EmptyDescription className="max-w-xs text-pretty">

@@ -1,8 +1,7 @@
-import { useState, useRef, useEffect, useMemo } from 'react'
+import { useState, useRef, useEffect, useMemo, lazy, Suspense } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import type { IconDefinition } from '@fortawesome/fontawesome-svg-core'
 import { faCog } from '@fortawesome/free-solid-svg-icons'
-import { IconPalette, IconDeviceFloppy, IconInfoCircle, IconSearch, IconX, IconPaintFilled, IconGridDots, IconCheck } from '@tabler/icons-react'
+import { IconPalette, IconDeviceFloppy, IconInfoCircle, IconX, IconPaintFilled, IconGridDots, IconCheck } from '@tabler/icons-react'
 import { UserRole } from '../../hooks/useUserRoles'
 import { useAlerts, useTheme } from '../../contexts'
 import { requestJson } from '../../util/apiClient'
@@ -17,7 +16,10 @@ import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
 import { getReadableTextColor, resolveCssVarHex } from '@/lib/themeColors'
 import { Badge } from '@/components/common/Badge'
-import { AtSign, Square, SquareDashed } from 'lucide-react'
+ 
+import type { FontAwesomeBrowserIcon } from '@/components/icons/FontAwesomeIconBrowser'
+
+const FontAwesomeIconBrowser = lazy(() => import('@/components/icons/FontAwesomeIconBrowser'))
 
 interface UserRoleDisplayTabProps {
   role: UserRole
@@ -47,22 +49,6 @@ const BASE_PRESET_COLORS: Array<{ hex: string; label: string }> = [
   { hex: '#546e7a', label: 'Dark Blue Gray' },
 ]
 
-// Types for our dynamic icon system
-type IconSetType = 'solid' | 'regular' | 'brands';
-type LoadedIcon = {
-  prefix: IconSetType;
-  iconName: string;
-  definition: IconDefinition;
-  label: string;
-}
-
-// Helper to format icon names (e.g., 'arrow-up' -> 'Arrow Up')
-const formatIconName = (name: string) => {
-  return name
-    .split('-')
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ');
-}
 
 export const UserRoleDisplayTab = ({ role, onUpdate }: UserRoleDisplayTabProps) => {
   const { success, error: showError } = useAlerts()
@@ -88,71 +74,6 @@ export const UserRoleDisplayTab = ({ role, onUpdate }: UserRoleDisplayTabProps) 
 
   // Icon Browser State
   const [iconBrowseOpen, setIconBrowseOpen] = useState(false)
-  const [iconBrowseQuery, setIconBrowseQuery] = useState('')
-  const [activeStyleFilters, setActiveStyleFilters] = useState<IconSetType[]>([])
-
-  // Data State
-  const [loadedIcons, setLoadedIcons] = useState<Record<IconSetType, LoadedIcon[]>>({ solid: [], regular: [], brands: [] })
-  const [loadingIcons, setLoadingIcons] = useState(false)
-  const [iconsLoaded, setIconsLoaded] = useState(false)
-
-  // Helper to resolve the currently selected icon for preview
-  const resolveCurrentIcon = () => {
-    if (!formValues.icon) return null;
-    const [style, name] = formValues.icon.includes(' ')
-      ? formValues.icon.split(' ')
-      : ['fa-solid', formValues.icon]; // default to solid if no style prefix
-
-    // Normalize prefix
-    const prefix = style === 'fa-brands' ? 'brands' : style === 'fa-regular' ? 'regular' : 'solid';
-    const cleanName = name?.replace(/^fa-/, '') || '';
-
-    // Search in loaded icons first
-    const found = loadedIcons[prefix as IconSetType]?.find(i => i.iconName === cleanName);
-    return found?.definition || null;
-  }
-
-  // Load icons lazily when the browser opens
-  useEffect(() => {
-    if (iconBrowseOpen && !iconsLoaded && !loadingIcons) {
-      const loadIcons = async () => {
-        setLoadingIcons(true);
-        try {
-          // Dynamic imports for the icon packs
-          const [solidPack, regularPack, brandsPack] = await Promise.all([
-            import('@fortawesome/free-solid-svg-icons'),
-            import('@fortawesome/free-regular-svg-icons'),
-            import('@fortawesome/free-brands-svg-icons')
-          ]);
-
-          const processPack = (pack: any, prefix: IconSetType): LoadedIcon[] => {
-            return Object.keys(pack)
-              .filter(key => key !== 'fas' && key !== 'far' && key !== 'fab' && key !== 'prefix' && pack[key].iconName)
-              .map(key => ({
-                prefix,
-                iconName: pack[key].iconName,
-                definition: pack[key],
-                label: formatIconName(pack[key].iconName)
-              }));
-          };
-
-          setLoadedIcons({
-            solid: processPack(solidPack, 'solid'),
-            regular: processPack(regularPack, 'regular'),
-            brands: processPack(brandsPack, 'brands')
-          });
-          setIconsLoaded(true);
-        } catch (err) {
-          console.error("Failed to load icon packs:", err);
-          showError("Failed to load full icon library. Some icons may be unavailable.");
-        } finally {
-          setLoadingIcons(false);
-        }
-      };
-
-      loadIcons();
-    }
-  }, [iconBrowseOpen, iconsLoaded, loadingIcons, showError]);
 
   useEffect(() => {
     setFormValues({
@@ -164,57 +85,11 @@ export const UserRoleDisplayTab = ({ role, onUpdate }: UserRoleDisplayTabProps) 
     })
   }, [role, themePrimaryHex])
 
-  // Filter Logic
-  const styleOptions: { id: IconSetType; label: string }[] = [
-    { id: 'solid', label: 'Solid' },
-    { id: 'regular', label: 'Regular' },
-    { id: 'brands', label: 'Brands' }
-  ];
-  const styleIcons: Record<IconSetType, React.ComponentType<{ className?: string }>> = {
-    solid: Square,
-    regular: SquareDashed,
-    brands: AtSign,
-  };
-
-  const filteredDisplayIcons = useMemo(() => {
-    const activeStyles = activeStyleFilters.length > 0
-      ? activeStyleFilters
-      : (styleOptions.map((style) => style.id) as IconSetType[])
-    let icons = activeStyles.flatMap((style) => loadedIcons[style] || [])
-
-    // Filter by Search Query
-    if (iconBrowseQuery) {
-      const q = iconBrowseQuery.toLowerCase();
-      icons = icons.filter(icon =>
-        icon.iconName.includes(q) ||
-        icon.label.toLowerCase().includes(q)
-      );
-    }
-
-    // Limit output for performance if no search active (first load optimization)
-    if (!iconBrowseQuery) {
-      return icons.slice(0, 300); // Render first 300 to keep DOM light
-    }
-
-    return icons;
-  }, [activeStyleFilters, loadedIcons, iconBrowseQuery, styleOptions]);
-
-  const availableIconsCount = useMemo(() => {
-    const activeStyles = activeStyleFilters.length > 0
-      ? activeStyleFilters
-      : (styleOptions.map((style) => style.id) as IconSetType[])
-    return activeStyles.reduce((total, style) => total + (loadedIcons[style]?.length || 0), 0)
-  }, [activeStyleFilters, loadedIcons, styleOptions]);
-
   const handleBrowseOpenChange = (nextOpen: boolean) => {
     setIconBrowseOpen(nextOpen);
-    if (nextOpen) {
-      setIconBrowseQuery('');
-      setActiveStyleFilters([]);
-    }
   };
 
-  const handleIconSelect = (icon: LoadedIcon) => {
+  const handleIconSelect = (icon: FontAwesomeBrowserIcon) => {
     const prefix = icon.prefix === 'brands' ? 'fa-brands' : icon.prefix === 'regular' ? 'fa-regular' : 'fa-solid';
     setFormValues({ ...formValues, icon: `${prefix} fa-${icon.iconName}` });
     setIconBrowseOpen(false);
@@ -238,7 +113,6 @@ export const UserRoleDisplayTab = ({ role, onUpdate }: UserRoleDisplayTabProps) 
     }
   }
 
-  const currentIconDef = resolveCurrentIcon();
   const badgeStyleOptions: Array<{ value: 'default' | 'fill' | 'outline'; label: string; description: string }> = [
     {
       value: 'default',
@@ -447,100 +321,26 @@ export const UserRoleDisplayTab = ({ role, onUpdate }: UserRoleDisplayTabProps) 
                       <IconGridDots className="size-4" />
                       Browse Icons
                     </Button>
-                    <ResponsiveDialog
-                      open={iconBrowseOpen}
-                      onOpenChange={handleBrowseOpenChange}
-                      title="Browse icons"
-                      description="Choose a Font Awesome style and icon."
-                      bodyClassName="px-0"
-                      contentClassName="max-w-none"
-                    >
-                      {loadingIcons ? (
-                        <div className="flex h-64 items-center justify-center flex-col gap-3 px-4">
-                          <div className="inline-flex size-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                          <p className="text-sm text-muted-foreground">Loading full icon library...</p>
-                        </div>
-                      ) : (
-                        <div className="flex h-[70vh] flex-col">
-                          <div className="border-b border-border p-3">
-                            <div className="relative">
-                              <IconSearch className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-                              <Input
-                                placeholder={`Search ${availableIconsCount} icons...`}
-                                value={iconBrowseQuery}
-                                onChange={(e) => setIconBrowseQuery(e.target.value)}
-                                className="h-9 pl-9 text-xs"
-                              />
-                            </div>
+                    <Suspense
+                      fallback={(
+                        <ResponsiveDialog
+                          open={iconBrowseOpen}
+                          onOpenChange={handleBrowseOpenChange}
+                          title="Browse icons"
+                          description="Choose a Font Awesome style and icon."
+                        >
+                          <div className="flex h-48 items-center justify-center text-sm text-muted-foreground">
+                            Loading icon browser…
                           </div>
-
-                          <div className="flex-1 p-3 overflow-y-auto custom-scrollbar">
-                            {filteredDisplayIcons.length === 0 ? (
-                              <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
-                                <IconSearch className="size-8 mb-2 opacity-50" />
-                                <p className="text-sm font-medium">No icons found</p>
-                                <p className="text-xs opacity-70">
-                                  No icons match your filters and search.
-                                </p>
-                              </div>
-                            ) : (
-                              <div className="grid grid-cols-4 gap-2" key={activeStyleFilters.join('-') || 'all'}>
-                                {filteredDisplayIcons.map((icon) => (
-                                  <button
-                                    key={`${icon.prefix}-${icon.iconName}`}
-                                    type="button"
-                                    onClick={() => handleIconSelect(icon)}
-                                    className="group flex flex-col items-center justify-center gap-2 rounded-md border border-transparent p-2 text-muted-foreground hover:border-border hover:bg-muted/50 hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 aspect-square"
-                                    title={icon.label}
-                                  >
-                                    <FontAwesomeIcon icon={icon.definition} className="text-xl" />
-                                    <span className="text-[9px] text-center w-full truncate leading-tight opacity-70 group-hover:opacity-100">
-                                      {icon.label}
-                                    </span>
-                                  </button>
-                                ))}
-                              </div>
-                            )}
-                            {!iconBrowseQuery && filteredDisplayIcons.length < availableIconsCount && (
-                              <div className="p-4 text-center text-xs text-muted-foreground italic">
-                                Showing top 300 icons. Search to find more...
-                              </div>
-                            )}
-                          </div>
-
-                          <div className="border-t border-border bg-background/95 px-4 py-3">
-                            <div className="grid grid-cols-3 gap-3">
-                              {styleOptions.map(style => {
-                                const isActive = activeStyleFilters.includes(style.id)
-                                const StyleIcon = styleIcons[style.id]
-                                return (
-                                  <button
-                                    key={style.id}
-                                    type="button"
-                                    onClick={() => {
-                                      setActiveStyleFilters((prev) => (
-                                        prev.includes(style.id)
-                                          ? prev.filter((value) => value !== style.id)
-                                          : [...prev, style.id]
-                                      ))
-                                    }}
-                                    aria-label={`${style.label} icons`}
-                                    className={cn(
-                                      "flex items-center justify-center rounded-md border border-border p-2 text-muted-foreground transition-colors",
-                                      isActive
-                                        ? "bg-primary/10 text-primary border-primary/30"
-                                        : "hover:bg-muted hover:text-foreground"
-                                    )}
-                                  >
-                                    <StyleIcon className="text-sm" />
-                                  </button>
-                                )
-                              })}
-                            </div>
-                          </div>
-                        </div>
+                        </ResponsiveDialog>
                       )}
-                    </ResponsiveDialog>
+                    >
+                      <FontAwesomeIconBrowser
+                        open={iconBrowseOpen}
+                        onOpenChange={handleBrowseOpenChange}
+                        onSelect={handleIconSelect}
+                      />
+                    </Suspense>
                   </>
                 ) : (
                   <>
@@ -548,102 +348,39 @@ export const UserRoleDisplayTab = ({ role, onUpdate }: UserRoleDisplayTabProps) 
                       <IconGridDots className="size-4" />
                       Browse Icons
                     </Button>
-                    <ResponsiveDialog
-                      open={iconBrowseOpen}
-                      onOpenChange={handleBrowseOpenChange}
-                      title="Browse icons"
-                      description="Choose a Font Awesome style and icon."
-                      bodyClassName="px-0"
-                      contentClassName="max-w-4xl"
-                    >
-                      {loadingIcons ? (
-                        <div className="flex h-64 items-center justify-center flex-col gap-3 px-4">
-                          <div className="inline-flex size-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                          <p className="text-sm text-muted-foreground">Loading full icon library...</p>
-                        </div>
-                      ) : (
-                        <div className="flex h-[520px] flex-col">
-                          <div className="p-3 border-b border-border space-y-3">
-                            <div className="relative">
-                              <IconSearch className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-                              <Input
-                                placeholder={`Search ${availableIconsCount} icons...`}
-                                value={iconBrowseQuery}
-                                onChange={(e) => setIconBrowseQuery(e.target.value)}
-                                className="h-9 pl-9 text-xs"
-                              />
-                            </div>
-                            <div className="flex flex-wrap gap-2">
-                              {styleOptions.map((style) => {
-                                const isActive = activeStyleFilters.includes(style.id)
-                                const StyleIcon = styleIcons[style.id]
-                                return (
-                                  <button
-                                    key={style.id}
-                                    type="button"
-                                    onClick={() => {
-                                      setActiveStyleFilters((prev) => (
-                                        prev.includes(style.id)
-                                          ? prev.filter((value) => value !== style.id)
-                                          : [...prev, style.id]
-                                      ))
-                                    }}
-                                    className="rounded-full focus:outline-none focus:ring-2 focus:ring-primary/30"
-                                    aria-pressed={isActive}
-                                  >
-                                    <Badge
-                                      color={isActive ? 'bg-primary' : 'bg-muted/60'}
-                                      className={cn(
-                                        "rounded-full px-3 py-1 text-xs font-medium gap-1",
-                                        isActive ? "text-primary-foreground" : "text-muted-foreground"
-                                      )}
-                                      hover={false}
-                                    >
-                                      <StyleIcon className="text-[0.65rem]" />
-                                      {style.label}
-                                    </Badge>
-                                  </button>
-                                )
-                              })}
-                            </div>
+                    <Suspense
+                      fallback={(
+                        <ResponsiveDialog
+                          open={iconBrowseOpen}
+                          onOpenChange={handleBrowseOpenChange}
+                          title="Browse icons"
+                          description="Choose a Font Awesome style and icon."
+                        >
+                          <div className="flex h-48 items-center justify-center text-sm text-muted-foreground">
+                            Loading icon browser…
                           </div>
-
-                          <div className="flex-1 p-3 overflow-y-auto custom-scrollbar">
-                            {filteredDisplayIcons.length === 0 ? (
-                              <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
-                                <IconSearch className="size-8 mb-2 opacity-50" />
-                                <p className="text-sm font-medium">No icons found</p>
-                                <p className="text-xs opacity-70">
-                                  No icons match your filters and search.
-                                </p>
-                              </div>
-                            ) : (
-                              <div className="grid grid-cols-6 gap-2" key={activeStyleFilters.join('-') || 'all'}>
-                                {filteredDisplayIcons.map((icon) => (
-                                  <button
-                                    key={`${icon.prefix}-${icon.iconName}`}
-                                    type="button"
-                                    onClick={() => handleIconSelect(icon)}
-                                    className="group flex flex-col items-center justify-center gap-2 rounded-md border border-transparent p-2 text-muted-foreground hover:border-border hover:bg-muted/50 hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 aspect-square"
-                                    title={icon.label}
-                                  >
-                                    <FontAwesomeIcon icon={icon.definition} className="text-xl" />
-                                    <span className="text-[9px] text-center w-full truncate leading-tight opacity-70 group-hover:opacity-100">
-                                      {icon.label}
-                                    </span>
-                                  </button>
-                                ))}
-                              </div>
-                            )}
-                            {!iconBrowseQuery && filteredDisplayIcons.length < availableIconsCount && (
-                              <div className="p-4 text-center text-xs text-muted-foreground italic">
-                                Showing top 300 icons. Search to find more...
-                              </div>
-                            )}
-                          </div>
-                        </div>
+                        </ResponsiveDialog>
                       )}
-                    </ResponsiveDialog>
+                    >
+                      <FontAwesomeIconBrowser
+                        open={iconBrowseOpen}
+                        onOpenChange={handleBrowseOpenChange}
+                        onSelect={handleIconSelect}
+                        renderStyleBadge={({ isActive, label, StyleIcon }) => (
+                          <Badge
+                            color={isActive ? 'bg-primary' : 'bg-muted/60'}
+                            className={cn(
+                              'rounded-full px-3 py-1 text-xs font-medium gap-1',
+                              isActive ? 'text-primary-foreground' : 'text-muted-foreground'
+                            )}
+                            hover={false}
+                          >
+                            <StyleIcon className="text-[0.65rem]" />
+                            {label}
+                          </Badge>
+                        )}
+                      />
+                    </Suspense>
                   </>
                 )}
               </div>
@@ -673,12 +410,7 @@ export const UserRoleDisplayTab = ({ role, onUpdate }: UserRoleDisplayTabProps) 
                     >
                       <Badge
                         hexColor={formValues.color}
-                        icon={
-                          currentIconDef
-                            ? <FontAwesomeIcon icon={currentIconDef} className="text-[0.65rem]" />
-                            : undefined
-                        }
-                        iconClass={!currentIconDef ? formValues.icon || null : null}
+                        iconClass={formValues.icon || null}
                         roleKind="user"
                         badgeStyle={option.value}
                         className="rounded-full px-3 py-1 text-xs"

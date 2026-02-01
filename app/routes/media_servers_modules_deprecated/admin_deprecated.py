@@ -1,5 +1,5 @@
 # File: app/routes/media_servers_modules/admin.py
-"""DEPRECATED: Legacy SSR admin routes for media servers. Replaced by React SPA + /admin/api/v2/servers.*"""
+"""DEPRECATED: Legacy SSR admin routes for media servers. Replaced by React SPA + /api/v2/servers.*"""
 from flask import Blueprint, redirect, url_for, flash, current_app, jsonify
 from flask_login import login_required, current_user
 from app.models_media_services import MediaServer

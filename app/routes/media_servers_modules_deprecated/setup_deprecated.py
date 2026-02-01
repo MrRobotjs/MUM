@@ -2,8 +2,8 @@
 """DEPRECATED: Legacy SSR setup wizard routes for media servers.
 
 Replaced by React SPA under /setup/ui and API v2 endpoints:
-- /admin/api/v2/servers...
-- /admin/api/v2/setup/plugins/<plugin_id>/test-connection
+- /api/v2/servers...
+- /api/v2/setup/plugins/<plugin_id>/test-connection
 """
 from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app, jsonify
 from flask_login import login_required, current_user

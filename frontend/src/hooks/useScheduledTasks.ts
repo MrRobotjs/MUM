@@ -24,7 +24,7 @@ interface ScheduledTasksResponse {
 
 export const useScheduledTasks = () => {
   const { data, error, isLoading, mutate } = useSWR<ScheduledTasksResponse>(
-    '/admin/api/v2/settings/scheduled-tasks',
+    '/api/v2/settings/scheduled-tasks',
     (url: string) => requestJson<ScheduledTasksResponse>(url),
     { refreshInterval: 5000 } // Auto-refresh every 5 seconds for real-time countdown
   );

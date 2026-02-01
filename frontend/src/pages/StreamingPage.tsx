@@ -391,8 +391,8 @@ export const StreamingPage = () => {
           setLoading(true);
         }
         const requestPath = httpOnly
-          ? '/admin/api/v2/streaming/active?http_only=1'
-          : '/admin/api/v2/streaming/active';
+          ? '/api/v2/streaming/active?http_only=1'
+          : '/api/v2/streaming/active';
         const response = await requestJson<ActiveSessionsResponse>(requestPath);
         const sampleMode = options?.reason === 'manual' ? 'manual' : 'auto';
         const httpSessions = applyAudiobookshelfPlaybackState(
@@ -853,7 +853,7 @@ export const StreamingPage = () => {
 
     try {
       const serviceType = selectedSession.service_type?.toLowerCase() ?? '';
-      await requestJson('/admin/api/v2/streaming/terminate', {
+      await requestJson('/api/v2/streaming/terminate', {
         method: 'POST',
         body: JSON.stringify({
           session_key: selectedSession.session_key,
@@ -887,7 +887,7 @@ export const StreamingPage = () => {
     }
     setManualRefreshLoading(true);
     try {
-      await requestJson('/admin/api/v2/streaming/refresh', { method: 'POST' });
+      await requestJson('/api/v2/streaming/refresh', { method: 'POST' });
     } catch (error) {
       showError('Failed to refresh sessions: ' + String(error));
     } finally {

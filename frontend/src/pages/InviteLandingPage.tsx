@@ -50,7 +50,7 @@ const InviteLandingPage = () => {
     setSubmitting(true);
     try {
       // Validate invite via v2 public endpoint before redirecting
-      const res = await fetch(`/api/v2/public/invite/${encodeURIComponent(token)}`, {
+      const res = await fetch(`/api/v2/invite/${encodeURIComponent(token)}`, {
         headers: { Accept: 'application/json' },
         credentials: 'include',
       });

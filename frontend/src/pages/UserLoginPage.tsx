@@ -82,7 +82,7 @@ const UserLoginPage = () => {
           user?: unknown;
         };
       }>(
-        '/api/v2/public/auth/jwt/login',
+        '/api/v2/auth/jwt/login',
         {
           method: 'POST',
           body: JSON.stringify({

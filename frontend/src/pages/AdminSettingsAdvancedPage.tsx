@@ -313,7 +313,7 @@ const AdvancedSettingsForm = ({ initialValues, refresh }: AdvancedSettingsFormPr
     setSubmitting(true);
 
     try {
-      await requestJson('/admin/api/v2/settings/advanced', {
+      await requestJson('/api/v2/settings/advanced', {
         method: 'PATCH',
         body: JSON.stringify(formValues),
       });

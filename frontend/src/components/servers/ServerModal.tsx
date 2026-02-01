@@ -156,7 +156,7 @@ export const ServerModal = ({
         testData.overseerr_api_key = values.overseerr_api_key || '';
       }
 
-      const response = await requestJson(`/admin/api/v2/setup/plugins/${values.service_type}/test-connection`, {
+      const response = await requestJson(`/api/v2/setup/plugins/${values.service_type}/test-connection`, {
         method: 'POST',
         body: JSON.stringify(testData),
       });

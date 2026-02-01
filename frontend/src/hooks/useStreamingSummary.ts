@@ -40,7 +40,7 @@ type StreamingSummaryResponse = {
 
 export const useStreamingSummary = () => {
   const { data, error, isLoading } = useSWR<StreamingSummaryResponse>(
-    '/admin/api/v2/streams/summary',
+    '/api/v2/streams/summary',
     (url: string) => requestJson<StreamingSummaryResponse>(url),
     {
       revalidateOnFocus: false,

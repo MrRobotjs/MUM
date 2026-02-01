@@ -148,7 +148,7 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
             });
           }
 
-          await requestJson('/admin/api/v2/users/bulk', {
+          await requestJson('/api/v2/users/bulk', {
             method: 'POST',
             body: JSON.stringify({
               user_uuids: userUuids,
@@ -161,7 +161,7 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
         }
 
         case 'extend_access': {
-          await requestJson('/admin/api/v2/users/bulk', {
+          await requestJson('/api/v2/users/bulk', {
             method: 'POST',
             body: JSON.stringify({
               user_uuids: userUuids,
@@ -179,7 +179,7 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
             return;
           }
 
-          await requestJson('/admin/api/v2/users/bulk', {
+          await requestJson('/api/v2/users/bulk', {
             method: 'POST',
             body: JSON.stringify({
               user_uuids: userUuids,
@@ -192,7 +192,7 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
         }
 
         case 'clear_expiration': {
-          await requestJson('/admin/api/v2/users/bulk', {
+          await requestJson('/api/v2/users/bulk', {
             method: 'POST',
             body: JSON.stringify({
               user_uuids: userUuids,
@@ -210,7 +210,7 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
             return;
           }
 
-          await requestJson('/admin/api/v2/users/merge', {
+          await requestJson('/api/v2/users/merge', {
             method: 'POST',
             body: JSON.stringify({
               service_user_uuids: userUuids,
@@ -227,7 +227,7 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
             return;
           }
 
-          await requestJson('/admin/api/v2/users/bulk', {
+          await requestJson('/api/v2/users/bulk', {
             method: 'POST',
             body: JSON.stringify({
               user_uuids: userUuids,

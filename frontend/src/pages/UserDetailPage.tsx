@@ -1025,7 +1025,7 @@ export const UserDetailPage = () => {
     if (resettingPassword) return;
     setResettingPassword(true);
     try {
-      await requestJson(`/admin/api/v2/users/${user.uuid}/reset-password`, {
+      await requestJson(`/api/v2/users/${user.uuid}/reset-password`, {
         method: 'POST'
       });
       success('User will be prompted to set a new password on next login.');
@@ -1038,7 +1038,7 @@ export const UserDetailPage = () => {
 
   const handleUnlink = async (serviceUuid: string) => {
     try {
-      await requestJson(`/admin/api/v2/users/${user.uuid}/service-accounts/${serviceUuid}`, {
+      await requestJson(`/api/v2/users/${user.uuid}/service-accounts/${serviceUuid}`, {
         method: 'DELETE'
       });
       await refreshAccounts();
@@ -1049,7 +1049,7 @@ export const UserDetailPage = () => {
   };
 
   const handleLink = async (serviceUuid: string) => {
-    await requestJson(`/admin/api/v2/users/${user.uuid}/service-accounts`, {
+    await requestJson(`/api/v2/users/${user.uuid}/service-accounts`, {
       method: 'POST',
       body: JSON.stringify({ service_uuid: serviceUuid })
     });
@@ -1058,7 +1058,7 @@ export const UserDetailPage = () => {
   };
 
   const handleSaveSettings = async (payload: Partial<UserSettings>) => {
-    await requestJson(`/admin/api/v2/users/${user.uuid}/settings`, {
+    await requestJson(`/api/v2/users/${user.uuid}/settings`, {
       method: 'PATCH',
       body: JSON.stringify(payload)
     });
@@ -1070,7 +1070,7 @@ export const UserDetailPage = () => {
     if (resyncing) return;
     setResyncing(true);
     try {
-      await requestJson(`/admin/api/v2/users/${user.uuid}/sync`, {
+      await requestJson(`/api/v2/users/${user.uuid}/sync`, {
         method: 'POST'
       });
       await Promise.all([refreshAccounts(), refreshAvailable()]);

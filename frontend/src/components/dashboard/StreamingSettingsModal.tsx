@@ -63,7 +63,7 @@ export const StreamingSettingsModal = ({ open, onClose }: StreamingSettingsModal
         setInitialStreamCounterEnabled(streamCounterEnabled);
       }
 
-      await requestJson('/admin/api/v2/settings/streaming', {
+      await requestJson('/api/v2/settings/streaming', {
         method: 'PATCH',
         body: JSON.stringify({
           session_monitoring_interval: interval,

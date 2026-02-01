@@ -180,7 +180,7 @@ export const AdminRolePermissionsTab = ({ role, permissions, onUpdate }: AdminRo
       // Only send the Administrator permission ID when enabled
       const permissionIds = isAdministrator && adminPermission ? [adminPermission.id] : []
 
-      await requestJson(`/admin/api/v2/admin-roles/${role.id}`, {
+      await requestJson(`/api/v2/admin-roles/${role.id}`, {
         method: 'PATCH',
         body: JSON.stringify({ permissions: permissionIds }),
       })

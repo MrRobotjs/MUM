@@ -10,7 +10,7 @@ from sqlalchemy import and_, or_
 from app.extensions import db
 from app.models_media_services import MediaItem, MediaLibrary, MediaServer
 from app.services.media_service_factory import MediaServiceFactory
-from app.routes.api_v2.library_sync_status import update_library_sync_progress
+from app.routes.api.v2.library_sync_status import update_library_sync_progress
 
 
 class MediaSyncService:

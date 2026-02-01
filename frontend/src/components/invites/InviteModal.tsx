@@ -174,7 +174,7 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
   const loadServers = async () => {
     setLoadingServers(true);
     try {
-      const response = await requestJson('/admin/api/v2/servers', { method: 'GET' });
+      const response = await requestJson('/api/v2/servers', { method: 'GET' });
       setServers(response.data || []);
     } catch (error) {
       console.error('Failed to load servers:', error);
@@ -194,8 +194,8 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
 
     try {
       const endpoint = forceRefresh
-        ? `/admin/api/v2/servers/${serverId}/libraries/refresh`
-        : `/admin/api/v2/servers/${serverId}/libraries`;
+        ? `/api/v2/servers/${serverId}/libraries/refresh`
+        : `/api/v2/servers/${serverId}/libraries`;
       const method = forceRefresh ? 'POST' : 'GET';
 
       const response = await requestJson(endpoint, { method });

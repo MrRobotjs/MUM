@@ -4,7 +4,7 @@ import { requestJson } from '../util/apiClient';
 export const useAvailableServiceAccounts = (uuid?: string, enabled = true) => {
   const shouldFetch = Boolean(uuid) && enabled;
   const { data, error, isLoading, mutate } = useSWR(
-    shouldFetch ? `/admin/api/v2/users/${uuid}/available-service-accounts` : null,
+    shouldFetch ? `/api/v2/users/${uuid}/available-service-accounts` : null,
     (url: string) => requestJson(url),
     { revalidateOnFocus: false }
   );

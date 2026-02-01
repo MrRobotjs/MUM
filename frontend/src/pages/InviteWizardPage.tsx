@@ -499,7 +499,7 @@ export const InviteWizardPage = () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetchJson<WizardResponse>(`/api/v2/public/invite/${encodeURIComponent(token)}/wizard`);
+      const response = await fetchJson<WizardResponse>(`/api/v2/invite/${encodeURIComponent(token)}/wizard`);
       setState(response.data);
     } catch (err) {
       setError((err as Error).message || 'Failed to load invite');
@@ -559,7 +559,7 @@ export const InviteWizardPage = () => {
         use_same_email: accountForm.use_same_email,
         use_same_password: accountForm.use_same_password
       };
-      const response = await fetchJson<WizardResponse>(`/api/v2/public/invite/${encodeURIComponent(token)}/account`, {
+      const response = await fetchJson<WizardResponse>(`/api/v2/invite/${encodeURIComponent(token)}/account`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -582,7 +582,7 @@ export const InviteWizardPage = () => {
     setStartingPlex(true);
     try {
       const response = await fetchJson<{ data: { redirect_url?: string; state: WizardState } }>(
-        `/api/v2/public/invite/${encodeURIComponent(token)}/plex/start`,
+        `/api/v2/invite/${encodeURIComponent(token)}/plex/start`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -605,7 +605,7 @@ export const InviteWizardPage = () => {
 
   const handleResolvePlex = async (action: 'link_existing' | 'use_different') => {
     try {
-      const response = await fetchJson<WizardResponse>(`/api/v2/public/invite/${encodeURIComponent(token)}/plex/resolve`, {
+      const response = await fetchJson<WizardResponse>(`/api/v2/invite/${encodeURIComponent(token)}/plex/resolve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action })
@@ -622,7 +622,7 @@ export const InviteWizardPage = () => {
     setStartingDiscord(true);
     try {
       const response = await fetchJson<{ data: { redirect_url?: string; state: WizardState } }>(
-        `/api/v2/public/invite/${encodeURIComponent(token)}/discord/start`,
+        `/api/v2/invite/${encodeURIComponent(token)}/discord/start`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -665,7 +665,7 @@ export const InviteWizardPage = () => {
     setSavingServerId(serverId);
     try {
       const response = await fetchJson<WizardResponse>(
-        `/api/v2/public/invite/${encodeURIComponent(token)}/server/${serverId}/credentials`,
+        `/api/v2/invite/${encodeURIComponent(token)}/server/${serverId}/credentials`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -689,7 +689,7 @@ export const InviteWizardPage = () => {
   const handleComplete = async () => {
     setCompleting(true);
     try {
-      const response = await fetchJson<CompletionResponse>(`/api/v2/public/invite/${encodeURIComponent(token)}/complete`, {
+      const response = await fetchJson<CompletionResponse>(`/api/v2/invite/${encodeURIComponent(token)}/complete`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       });

@@ -63,7 +63,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
     setIsStartingSync(true)
     try {
-      await requestJson('/admin/api/v2/users/sync-all', {
+      await requestJson('/api/v2/users/sync-all', {
         method: 'POST',
       })
 

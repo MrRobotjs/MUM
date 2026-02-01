@@ -75,7 +75,7 @@ export const bootstrapAuth = async (opts?: { force?: boolean }) => {
 
   bootstrapPromise = (async () => {
     try {
-      const resp = await fetch('/admin/api/v2/auth/jwt/refresh', {
+      const resp = await fetch('/api/v2/auth/jwt/refresh', {
         method: 'POST',
         credentials: 'include',
         headers: { Accept: 'application/json' },

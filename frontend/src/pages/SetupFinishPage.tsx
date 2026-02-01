@@ -20,7 +20,7 @@ function SetupFinishContent() {
     }
     setCompleting(true)
     try {
-      await requestJson('/admin/api/v2/setup/complete', {
+      await requestJson('/api/v2/setup/complete', {
         method: 'POST',
         body: JSON.stringify({})
       })

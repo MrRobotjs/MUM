@@ -71,7 +71,7 @@ export const StreamingTable = ({
   if (startDate) params.set('start', startDate);
   if (endDate) params.set('end', endDate);
   const { data, isLoading: loading, error } = useSWR<StreamsResponse>(
-    `/admin/api/v2/streams?${params.toString()}`,
+    `/api/v2/streams?${params.toString()}`,
     (url: string) => requestJson<StreamsResponse>(url),
     { revalidateOnFocus: false }
   );

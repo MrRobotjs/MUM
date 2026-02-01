@@ -127,7 +127,7 @@ const AdminSettingsApiDebugPage = () => {
 
   const fetchServers = async () => {
     try {
-      const response = await requestJson<{ data: Server[] }>('/admin/api/v2/servers');
+      const response = await requestJson<{ data: Server[] }>('/api/v2/servers');
       setServers(response.data || []);
     } catch (error) {
       showError('Failed to load servers: ' + String(error));
@@ -179,7 +179,7 @@ const AdminSettingsApiDebugPage = () => {
     setActiveTab('formatted');
 
     try {
-      const result = await requestJson<ApiResponse>('/admin/api/v2/tools/api-debug/execute', {
+      const result = await requestJson<ApiResponse>('/api/v2/tools/api-debug/execute', {
         method: 'POST',
         body: JSON.stringify({
           method: httpMethod,

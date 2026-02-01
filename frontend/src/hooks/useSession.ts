@@ -5,7 +5,7 @@ import { bootstrapAuth, getAuthSnapshot, subscribeToAuthStore } from '../store/a
 
 export const useSession = () => {
   const auth = useSyncExternalStore(subscribeToAuthStore, getAuthSnapshot, getAuthSnapshot);
-  const sessionKey = auth.status === 'authenticated' ? '/admin/api/v2/auth/session' : null;
+  const sessionKey = auth.status === 'authenticated' ? '/api/v2/auth/session' : null;
 
   const { data, error, isLoading, mutate } = useSWR(
     sessionKey,

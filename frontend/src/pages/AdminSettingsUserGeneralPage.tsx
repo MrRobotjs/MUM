@@ -25,7 +25,7 @@ const UserAccountSettingsForm = ({ initialValue, refresh }: UserAccountSettingsF
   const handleSave = async () => {
     try {
       setSaving(true)
-      await requestJson('/admin/api/v2/settings/user-accounts', {
+      await requestJson('/api/v2/settings/user-accounts', {
         method: 'PATCH',
         body: JSON.stringify({ allow_user_accounts: allowUserAccounts })
       })

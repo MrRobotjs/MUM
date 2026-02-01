@@ -62,7 +62,7 @@ export const PurgeUsersModal = ({ onClose, onPurgeComplete }: PurgeUsersModalPro
           users: EligibleUser[];
           criteria: PurgeCriteria;
         };
-      }>(`/admin/api/v2/users/eligible-for-purge?inactive_days=${inactiveDays}&exclude_sharers=${excludeSharers}&exclude_whitelisted=${excludeWhitelisted}&ignore_creation_date=${ignoreCreationDate}`);
+      }>(`/api/v2/users/eligible-for-purge?inactive_days=${inactiveDays}&exclude_sharers=${excludeSharers}&exclude_whitelisted=${excludeWhitelisted}&ignore_creation_date=${ignoreCreationDate}`);
 
       const users = result.data.users;
       setEligibleUsers(users);
@@ -116,7 +116,7 @@ export const PurgeUsersModal = ({ onClose, onPurgeComplete }: PurgeUsersModalPro
           failed: number;
           message: string;
         };
-      }>('/admin/api/v2/users/purge', {
+      }>('/api/v2/users/purge', {
         method: 'POST',
         body: JSON.stringify({
           user_uuids: Array.from(selectedUserUuids),

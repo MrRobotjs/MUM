@@ -42,7 +42,7 @@ function SetupAccountContent() {
     try {
       const response = await requestJson<{
         data?: { access_token?: string }
-      }>('/admin/api/v2/setup/account', {
+      }>('/api/v2/setup/account', {
         method: 'POST',
         body: JSON.stringify({
           username,
@@ -70,7 +70,7 @@ function SetupAccountContent() {
     try {
       const response = await requestJson<{
         data?: { redirect_url?: string }
-      }>('/admin/api/v2/auth/plex/start', {
+      }>('/api/v2/auth/plex/start', {
         method: 'POST',
         body: JSON.stringify({ next: '/setup/account' }),
       })

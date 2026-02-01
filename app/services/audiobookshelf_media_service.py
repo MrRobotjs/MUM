@@ -598,12 +598,12 @@ class AudiobookShelfMediaService(BaseMediaService):
                         if normalized_cover.startswith('metadata/items/') and item_id:
                             normalized_cover = f"items/{item_id}/cover"
                         # coverPath might be something like "/audiobooks/Terry Goodkind/.../cover.jpg"
-                        thumb_url = f"/admin/api/v2/media/audiobookshelf/images/proxy?path={normalized_cover}"
+                        thumb_url = f"/api/v2/media/audiobookshelf/images/proxy?path={normalized_cover}"
                         processed_item['thumb'] = thumb_url
                         self.log_info(f"AudioBookshelf: Generated thumb URL from coverPath for '{title}': {thumb_url}")
                     elif item_id:
                         # Fallback: try the standard items endpoint
-                        thumb_url = f"/admin/api/v2/media/audiobookshelf/images/proxy?path=items/{item_id}/cover"
+                        thumb_url = f"/api/v2/media/audiobookshelf/images/proxy?path=items/{item_id}/cover"
                         processed_item['thumb'] = thumb_url
                         self.log_info(f"AudioBookshelf: Generated fallback thumb URL for '{title}': {thumb_url}")
                     
@@ -870,11 +870,11 @@ class AudiobookShelfMediaService(BaseMediaService):
                 
                 if library_item_id:
                     # Use the same working pattern as media library: items/{id}/cover
-                    thumb_url = f"/admin/api/v2/media/audiobookshelf/images/proxy?path=items/{library_item_id}/cover"
+                    thumb_url = f"/api/v2/media/audiobookshelf/images/proxy?path=items/{library_item_id}/cover"
                     self.log_info(f"AudioBookshelf session thumb_url (using items pattern): {thumb_url}")
                 elif cover_path:
                     # Fallback to original coverPath if no libraryItemId
-                    thumb_url = f"/admin/api/v2/media/audiobookshelf/images/proxy?path={cover_path.lstrip('/')}"
+                    thumb_url = f"/api/v2/media/audiobookshelf/images/proxy?path={cover_path.lstrip('/')}"
                     self.log_info(f"AudioBookshelf session thumb_url (using coverPath): {thumb_url}")
                 # If neither available, leave thumb_url as None for HTML placeholder
                 

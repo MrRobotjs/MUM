@@ -47,7 +47,7 @@ export function NavUser({
   const handleLogout = async () => {
     try {
       // Use keepalive so the request can complete even during navigation/unload
-      await requestJson('/admin/api/v2/auth/jwt/logout', { method: 'POST', keepalive: true })
+      await requestJson('/api/v2/auth/jwt/logout', { method: 'POST', keepalive: true })
     } catch (_error) {
       // Ignore logout errors; proceed with client-side cleanup
     } finally {

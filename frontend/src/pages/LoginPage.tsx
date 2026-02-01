@@ -55,7 +55,7 @@ const LoginPage = () => {
   useEffect(() => {
     const checkUserAccounts = async () => {
       try {
-        const response = await requestJson<{ data: { allow_user_accounts: boolean } }>('/admin/api/v2/settings/user-accounts');
+        const response = await requestJson<{ data: { allow_user_accounts: boolean } }>('/api/v2/settings/user-accounts');
         setAllowUserAccounts(response.data?.allow_user_accounts || false);
       } catch {
         // If check fails, default to false
@@ -110,7 +110,7 @@ const LoginPage = () => {
           user?: unknown;
         };
       }>(
-        '/admin/api/v2/auth/jwt/login',
+        '/api/v2/auth/jwt/login',
         {
           method: 'POST',
           body: JSON.stringify({
@@ -147,7 +147,7 @@ const LoginPage = () => {
           redirect_url?: string;
         };
       }>(
-        '/admin/api/v2/auth/plex/start',
+        '/api/v2/auth/plex/start',
         {
           method: 'POST',
           body: JSON.stringify({

@@ -212,7 +212,7 @@ def _subscribe_channels(sid: str, channels: Iterable[str]):
         # System channels can send a snapshot immediately
         if channel == "system.sync_status":
             try:
-                from app.routes.api_v2.sync_status import get_sync_status
+                from app.routes.api.v2.sync_status import get_sync_status
 
                 snapshot = {
                     "channel": channel,

@@ -347,12 +347,12 @@ class JellyfinMediaService(BaseMediaService):
                     # Build relative URL that the frontend can use
                     if media_type == "Episode" and now_playing.get("SeriesId"):
                         series_image_tag = now_playing.get("SeriesPrimaryImageTag") or (now_playing.get("ImageTags") or {}).get("SeriesPrimary")
-                        thumb_url = f"/admin/api/v2/media/jellyfin/images/proxy?item_id={now_playing.get('SeriesId')}&image_type=Primary"
+                        thumb_url = f"/api/v2/media/jellyfin/images/proxy?item_id={now_playing.get('SeriesId')}&image_type=Primary"
                         if series_image_tag:
                             thumb_url += f"&image_tag={series_image_tag}"
                     else:
                         primary_image_tag = now_playing.get("PrimaryImageTag") or (now_playing.get("ImageTags") or {}).get("Primary")
-                        thumb_url = f"/admin/api/v2/media/jellyfin/images/proxy?item_id={item_id}&image_type=Primary"
+                        thumb_url = f"/api/v2/media/jellyfin/images/proxy?item_id={item_id}&image_type=Primary"
                         if primary_image_tag:
                             thumb_url += f"&image_tag={primary_image_tag}"
 

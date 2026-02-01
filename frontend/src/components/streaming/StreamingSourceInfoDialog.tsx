@@ -27,7 +27,7 @@ export const StreamingSourceInfoDialog = ({
           The "HTTP next" badge counts down using the server's session monitoring interval.
         </p>
         <p>
-          These come from <code className="font-mono text-xs">/admin/api/v2/streaming/active</code>.
+          These come from <code className="font-mono text-xs">/api/v2/streaming/active</code>.
         </p>
       </div>
       <div className="rounded-lg border border-border/60 bg-muted/40 p-3 text-foreground/80">

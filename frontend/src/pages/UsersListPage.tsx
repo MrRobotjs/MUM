@@ -235,7 +235,7 @@ export const UsersListPage = () => {
             total_removed: number;
           };
         };
-      }>('/admin/api/v2/users/sync-all', {
+      }>('/api/v2/users/sync-all', {
         method: 'POST'
       });
 

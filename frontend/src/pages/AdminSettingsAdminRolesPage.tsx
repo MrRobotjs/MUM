@@ -284,7 +284,7 @@ export const AdminSettingsAdminRolesPage = () => {
     }
 
     try {
-      await requestJson(`/admin/api/v2/admin-roles/${role.id}`, {
+      await requestJson(`/api/v2/admin-roles/${role.id}`, {
         method: 'DELETE',
       })
       success('Role deleted successfully')
@@ -321,13 +321,13 @@ export const AdminSettingsAdminRolesPage = () => {
       }
 
       if (editingRole) {
-        await requestJson(`/admin/api/v2/admin-roles/${editingRole.id}`, {
+        await requestJson(`/api/v2/admin-roles/${editingRole.id}`, {
           method: 'PATCH',
           body: JSON.stringify(payload),
         })
         success('Role updated successfully')
       } else {
-        await requestJson('/admin/api/v2/admin-roles', {
+        await requestJson('/api/v2/admin-roles', {
           method: 'POST',
           body: JSON.stringify(payload),
         })
@@ -356,7 +356,7 @@ export const AdminSettingsAdminRolesPage = () => {
     try {
       await Promise.all(
         changedRoles.map((role) =>
-          requestJson(`/admin/api/v2/admin-roles/${role.id}`, {
+          requestJson(`/api/v2/admin-roles/${role.id}`, {
             method: 'PATCH',
             body: JSON.stringify({ position: role.position }),
           })

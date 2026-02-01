@@ -176,7 +176,7 @@ const DiscordSettingsForm = ({ initialState, refresh }: DiscordSettingsFormProps
     setSubmitting(true)
 
     try {
-      await requestJson('/admin/api/v2/settings/discord', {
+      await requestJson('/api/v2/settings/discord', {
         method: 'PATCH',
         body: JSON.stringify({
           ...formValues,
@@ -198,7 +198,7 @@ const DiscordSettingsForm = ({ initialState, refresh }: DiscordSettingsFormProps
     setTesting(true)
     try {
       const response = await requestJson<{ data: { success: boolean; message?: string } }>(
-        '/admin/api/v2/settings/discord/test',
+        '/api/v2/settings/discord/test',
         { method: 'POST', body: JSON.stringify({ type }) }
       )
       if (response.data?.success) {

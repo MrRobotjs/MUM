@@ -128,7 +128,7 @@ export const AdminRoleDisplayTab = ({ role, onUpdate }: AdminRoleDisplayTabProps
     setSubmitting(true)
 
     try {
-      await requestJson(`/admin/api/v2/admin-roles/${role.id}`, {
+      await requestJson(`/api/v2/admin-roles/${role.id}`, {
         method: 'PATCH',
         body: JSON.stringify({
           name: formValues.name,

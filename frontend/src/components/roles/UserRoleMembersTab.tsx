@@ -57,15 +57,15 @@ export const UserRoleMembersTab = ({ role, onUpdate }: UserRoleMembersTabProps) 
     data: membersData,
     mutate: refreshMembers,
     isLoading: membersLoading,
-  } = useSWR<{ data: RoleMember[] }>(`/admin/api/v2/user-roles/${role.id}/users`, requestJson)
+  } = useSWR<{ data: RoleMember[] }>(`/api/v2/user-roles/${role.id}/users`, requestJson)
 
   // Fetch all eligible users (local + service) for adding new members
   const { data: localUsersData } = useSWR<{ data: AppUser[] }>(
-    '/admin/api/v2/users?user_type=local&page_size=100',
+    '/api/v2/users?user_type=local&page_size=100',
     requestJson
   )
   const { data: serviceUsersData } = useSWR<{ data: AppUser[] }>(
-    '/admin/api/v2/users?user_type=service&page_size=100',
+    '/api/v2/users?user_type=service&page_size=100',
     requestJson
   )
 
@@ -103,7 +103,7 @@ export const UserRoleMembersTab = ({ role, onUpdate }: UserRoleMembersTabProps) 
     try {
       await Promise.all(
         selectedUsers.map((userUuid) =>
-          requestJson(`/admin/api/v2/user-roles/${role.id}/users`, {
+          requestJson(`/api/v2/user-roles/${role.id}/users`, {
             method: 'POST',
             body: JSON.stringify({ user_uuid: userUuid }),
           })
@@ -132,7 +132,7 @@ export const UserRoleMembersTab = ({ role, onUpdate }: UserRoleMembersTabProps) 
     }
 
     try {
-      await requestJson(`/admin/api/v2/user-roles/${role.id}/users/${memberUuid}`, {
+      await requestJson(`/api/v2/user-roles/${role.id}/users/${memberUuid}`, {
         method: 'DELETE',
       })
 

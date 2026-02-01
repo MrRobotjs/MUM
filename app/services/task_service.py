@@ -647,9 +647,9 @@ def _run_media_session_monitor(
                         cover_path = session.get('coverPath')
                         thumb_url = None
                         if library_item_id:
-                            thumb_url = f"/admin/api/v2/media/audiobookshelf/images/proxy?path=items/{library_item_id}/cover"
+                            thumb_url = f"/api/v2/media/audiobookshelf/images/proxy?path=items/{library_item_id}/cover"
                         elif cover_path:
-                            thumb_url = f"/admin/api/v2/media/audiobookshelf/images/proxy?path={cover_path.lstrip('/')}"
+                            thumb_url = f"/api/v2/media/audiobookshelf/images/proxy?path={cover_path.lstrip('/')}"
                     else:
                         # Jellyfin session format (dict)
                         now_playing = session.get('NowPlayingItem', {})

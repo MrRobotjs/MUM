@@ -71,14 +71,14 @@ export const AdminRoleMembersTab = ({ role, onUpdate }: AdminRoleMembersTabProps
     data: membersData,
     mutate: refreshMembers,
     isLoading: membersLoading,
-  } = useSWR<{ data: RoleMember[] }>(`/admin/api/v2/admin-roles/${role.id}/users`, requestJson)
+  } = useSWR<{ data: RoleMember[] }>(`/api/v2/admin-roles/${role.id}/users`, requestJson)
 
   // Fetch all admins (for existing members)
-  const { data: adminsData } = useSWR<{ data: Admin[] }>('/admin/api/v2/admins', requestJson)
+  const { data: adminsData } = useSWR<{ data: Admin[] }>('/api/v2/admins', requestJson)
 
   // Fetch all local users (for adding new members)
   const { data: localUsersData } = useSWR<{ data: LocalUser[] }>(
-    '/admin/api/v2/users?user_type=local&page_size=100',
+    '/api/v2/users?user_type=local&page_size=100',
     requestJson
   )
 
@@ -109,7 +109,7 @@ export const AdminRoleMembersTab = ({ role, onUpdate }: AdminRoleMembersTabProps
     setSubmitting(true)
     try {
       // Fetch all roles once to map role names to IDs
-      const allRolesResponse = await requestJson<{ data: AdminRole[] }>('/admin/api/v2/admin-roles?include_permissions=false')
+      const allRolesResponse = await requestJson<{ data: AdminRole[] }>('/api/v2/admin-roles?include_permissions=false')
       const allRoles = allRolesResponse.data
 
       // Get the current role IDs for each selected user and add this role
@@ -132,7 +132,7 @@ export const AdminRoleMembersTab = ({ role, onUpdate }: AdminRoleMembersTabProps
             ? currentRoleIds
             : [...currentRoleIds, role.id]
 
-          return requestJson(`/admin/api/v2/admins/${user.id}`, {
+          return requestJson(`/api/v2/admins/${user.id}`, {
             method: 'PATCH',
             body: JSON.stringify({ role_ids: newRoleIds }),
           })
@@ -182,7 +182,7 @@ export const AdminRoleMembersTab = ({ role, onUpdate }: AdminRoleMembersTabProps
       const currentRoleIds = admin.admin_roles.map((r) => r.id)
       const newRoleIds = currentRoleIds.filter((id) => id !== role.id)
 
-      await requestJson(`/admin/api/v2/admins/${admin.id}`, {
+      await requestJson(`/api/v2/admins/${admin.id}`, {
         method: 'PATCH',
         body: JSON.stringify({ role_ids: newRoleIds }),
       })

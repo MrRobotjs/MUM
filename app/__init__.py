@@ -96,7 +96,7 @@ def create_app(config_name=None):
     
     # Use OpenAPI (subclass of Flask) to enable automatic OpenAPI 3.1 generation for api_v2
     # Do NOT set servers with a base path because paths registered below already
-    # include '/admin/api/v2', and adding a server with that prefix would duplicate it in examples.
+    # include '/api/v2', and adding a server with that prefix would duplicate it in examples.
     info = Info(title="Media User Manager API", version="2.0.0")
     security_schemes = {
         "BearerAuth": {
@@ -111,7 +111,7 @@ def create_app(config_name=None):
         security_schemes=security_schemes,
         instance_relative_config=True,
         # Expose docs and JSON under admin namespace to avoid conflicts
-        doc_prefix="/admin/api/v2/openapi",
+        doc_prefix="/api/v2/openapi",
         doc_url="/openapi.json",
     )
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
@@ -336,16 +336,11 @@ def create_app(config_name=None):
     # app.register_blueprint(api_v1_bp, url_prefix='/admin/api/v1')
     # Register OpenAPI3-powered API v2 (admin)
     try:
-        from .routes.api_v2 import api_v2 as api_v2_bp
-        app.register_api(api_v2_bp, url_prefix='/admin/api/v2')
+        from .routes.api.v2 import api_v2 as api_v2_bp
+        app.register_api(api_v2_bp, url_prefix='/api/v2')
     except Exception as e:
         app.logger.error(f"Failed to register api_v2 (OpenAPI): {e}")
-    # Register OpenAPI3-powered Public API v2
-    try:
-        from .routes.api_v2.public import api_v2_public as api_v2_public_bp
-        app.register_api(api_v2_public_bp, url_prefix='/api/v2')
-    except Exception as e:
-        app.logger.error(f"Failed to register api_v2_public (OpenAPI): {e}")
+    # Public API v2 endpoints are registered on the main api_v2 blueprint.
     # User SSR blueprint deprecated; user portal served by SPA at /user
     # app.register_blueprint(user_bp)
     # Media servers (legacy SSR) - deprecated; SPA + API v2 replace these
@@ -354,7 +349,7 @@ def create_app(config_name=None):
     # app.register_blueprint(media_servers_admin_bp, url_prefix='/admin')  # Deprecated SSR admin routes
     # from .routes.plugins import bp as plugins_bp
     # app.register_blueprint(plugins_bp, url_prefix='/admin')
-    # User preferences SSR deprecated; use /admin/api/v2/account/timezone
+    # User preferences SSR deprecated; use /api/v2/account/timezone
     # from .routes.user_preferences_deprecated import user_preferences_bp
     # app.register_blueprint(user_preferences_bp, url_prefix='/settings/preferences')
     # from .routes.streaming import bp as streaming_bp

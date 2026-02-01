@@ -111,7 +111,7 @@ const AdminSettingsAdminManagementPage = () => {
   const fetchAdmins = async () => {
     try {
       setLoading(true)
-      const response = await requestJson<{ data: Admin[] }>('/admin/api/v2/admins')
+      const response = await requestJson<{ data: Admin[] }>('/api/v2/admins')
       setAdmins(response.data || [])
     } catch (error) {
       showError(`Failed to load admins: ${error}`)
@@ -122,7 +122,7 @@ const AdminSettingsAdminManagementPage = () => {
 
   const fetchRoles = async () => {
     try {
-      const response = await requestJson<{ data: AdminRoleOption[] }>('/admin/api/v2/admin-roles')
+      const response = await requestJson<{ data: AdminRoleOption[] }>('/api/v2/admin-roles')
       setRoles(response.data || [])
     } catch (error) {
       console.error('Failed to load roles:', error)
@@ -157,7 +157,7 @@ const AdminSettingsAdminManagementPage = () => {
 
     try {
       setSubmitting(true)
-      await requestJson('/admin/api/v2/admins', {
+      await requestJson('/api/v2/admins', {
         method: 'POST',
         body: JSON.stringify({
           username: createUsername,
@@ -187,7 +187,7 @@ const AdminSettingsAdminManagementPage = () => {
 
     try {
       setSubmitting(true)
-      await requestJson(`/admin/api/v2/admins/${selectedAdmin.id}`, {
+      await requestJson(`/api/v2/admins/${selectedAdmin.id}`, {
         method: 'PATCH',
         body: JSON.stringify({
           role_ids: editRoleIds
@@ -218,7 +218,7 @@ const AdminSettingsAdminManagementPage = () => {
 
     try {
       setSubmitting(true)
-      await requestJson(`/admin/api/v2/admins/${selectedAdmin.id}/reset-password`, {
+      await requestJson(`/api/v2/admins/${selectedAdmin.id}/reset-password`, {
         method: 'POST',
         body: JSON.stringify({
           password: resetPassword
@@ -244,7 +244,7 @@ const AdminSettingsAdminManagementPage = () => {
     }
 
     try {
-      await requestJson(`/admin/api/v2/admins/${admin.id}`, {
+      await requestJson(`/api/v2/admins/${admin.id}`, {
         method: 'DELETE'
       })
 

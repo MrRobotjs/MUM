@@ -54,8 +54,8 @@ function SetupPluginsContent() {
     }
 
     const endpoint = action === 'enable'
-      ? `/admin/api/v2/plugins/${pluginId}/enable`
-      : `/admin/api/v2/plugins/${pluginId}/disable`
+      ? `/api/v2/plugins/${pluginId}/enable`
+      : `/api/v2/plugins/${pluginId}/disable`
 
     setActionLoading(pluginId)
     try {

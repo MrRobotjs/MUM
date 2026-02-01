@@ -48,7 +48,7 @@ const GeneralSettingsForm = ({ initialValues, refresh }: GeneralSettingsFormProp
     setSubmitting(true);
 
     try {
-      await requestJson('/admin/api/v2/settings/general', {
+      await requestJson('/api/v2/settings/general', {
         method: 'PATCH',
         body: JSON.stringify(formValues),
       });

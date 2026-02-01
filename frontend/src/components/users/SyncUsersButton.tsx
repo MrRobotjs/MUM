@@ -38,7 +38,7 @@ export const SyncUsersButton = () => {
   const handleSync = async () => {
     setSyncing(true);
     try {
-      const result = await requestJson<SyncAllResponse>('/admin/api/v2/users/sync-all', {
+      const result = await requestJson<SyncAllResponse>('/api/v2/users/sync-all', {
         method: 'POST'
       });
 

@@ -1383,6 +1383,6 @@ def geoip_lookup(ip_address):
     return render_template('components/modals/geoip_modal.html', geoip_data=geoip_data, ip_address=ip_address)
 """DEPRECATED: Legacy admin API endpoints (v1/SSR helpers).
 
-React admin relies exclusively on `/admin/api/v2` (OpenAPI 3) now.
+React admin relies exclusively on `/api/v2` (OpenAPI 3) now.
 This module is retained only for reference and can be removed later.
 """

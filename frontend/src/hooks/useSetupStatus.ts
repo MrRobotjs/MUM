@@ -22,7 +22,7 @@ export function useSetupStatus() {
   const fetchStatus = useCallback(async () => {
     setLoading(true)
     try {
-      const response = await requestJson<SetupStatusResponse>('/admin/api/v2/setup/status')
+      const response = await requestJson<SetupStatusResponse>('/api/v2/setup/status')
       setStatus(response?.data ?? null)
       setError(null)
     } catch (err) {

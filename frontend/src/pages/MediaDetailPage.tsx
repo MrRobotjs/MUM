@@ -129,7 +129,7 @@ export const MediaDetailPage = () => {
     try {
       setLoading(true);
       const response = await requestJson(
-        `/admin/api/v2/libraries/${libraryId}/media/${mediaId}?include_library=true`
+        `/api/v2/libraries/${libraryId}/media/${mediaId}?include_library=true`
       );
 
       if (response.data) {
@@ -157,7 +157,7 @@ export const MediaDetailPage = () => {
       }
 
       const response = await requestJson(
-        `/admin/api/v2/libraries/${libraryId}/media/${mediaId}/episodes?${params}`
+        `/api/v2/libraries/${libraryId}/media/${mediaId}/episodes?${params}`
       );
 
       if (response.data) {
@@ -179,7 +179,7 @@ export const MediaDetailPage = () => {
     try {
       setSyncing(true);
       const response = await requestJson(
-        `/admin/api/v2/libraries/${libraryId}/media/${mediaId}/episodes/sync`,
+        `/api/v2/libraries/${libraryId}/media/${mediaId}/episodes/sync`,
         { method: 'POST' }
       );
 
@@ -205,7 +205,7 @@ export const MediaDetailPage = () => {
     try {
       setPurgingEpisodes(true);
       const response = await requestJson(
-        `/admin/api/v2/libraries/${libraryId}/media/${mediaId}/episodes/purge`,
+        `/api/v2/libraries/${libraryId}/media/${mediaId}/episodes/purge`,
         { method: 'POST' }
       );
 

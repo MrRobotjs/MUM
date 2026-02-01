@@ -717,7 +717,7 @@ def library_detail(server_nickname, library_name):
                     pass
                 else:
                     # Convert to proxy URL
-                    entry.thumb_path = f"/admin/api/v2/media/{server.service_type.value}/images/proxy?path={entry.thumb_path.lstrip('/')}"
+                    entry.thumb_path = f"/api/v2/media/{server.service_type.value}/images/proxy?path={entry.thumb_path.lstrip('/')}"
             
             if entry.grandparent_thumb_path:
                 if entry.grandparent_thumb_path.startswith('/api/'):
@@ -725,7 +725,7 @@ def library_detail(server_nickname, library_name):
                 elif entry.grandparent_thumb_path.startswith('http'):
                     pass
                 else:
-                    entry.grandparent_thumb_path = f"/admin/api/v2/media/{server.service_type.value}/images/proxy?path={entry.grandparent_thumb_path.lstrip('/')}"
+                    entry.grandparent_thumb_path = f"/api/v2/media/{server.service_type.value}/images/proxy?path={entry.grandparent_thumb_path.lstrip('/')}"
             
             if entry.parent_thumb_path:
                 if entry.parent_thumb_path.startswith('/api/'):
@@ -733,7 +733,7 @@ def library_detail(server_nickname, library_name):
                 elif entry.parent_thumb_path.startswith('http'):
                     pass
                 else:
-                    entry.parent_thumb_path = f"/admin/api/v2/media/{server.service_type.value}/images/proxy?path={entry.parent_thumb_path.lstrip('/')}"
+                    entry.parent_thumb_path = f"/api/v2/media/{server.service_type.value}/images/proxy?path={entry.parent_thumb_path.lstrip('/')}"
             
             # Add media item for clickable links
             entry.linked_media_item = None

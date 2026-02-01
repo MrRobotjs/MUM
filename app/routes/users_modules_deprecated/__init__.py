@@ -1,6 +1,6 @@
 """
 DEPRECATED: Legacy SSR users module package. The admin Users UI migrated to the React SPA
-and communicates via `/admin/api/v2`. This package remains only for historical reference.
+and communicates via `/api/v2`. This package remains only for historical reference.
 """
 
 from flask import Blueprint

@@ -1,8 +1,8 @@
 """
 DEPRECATED: Public invite authentication initiation.
 Replaced by v2 public endpoints used by the SPA:
-- POST /api/v2/public/invite/<token>/plex/start
-- POST /api/v2/public/invite/<token>/discord/start
+- POST /api/v2/invite/<token>/plex/start
+- POST /api/v2/invite/<token>/discord/start
 """
 
 import uuid
@@ -17,11 +17,11 @@ import requests
 @invites_bp.route('/plex_auth/<int:invite_id>')
 @setup_required
 def initiate_plex_auth(invite_id):
-    """DEPRECATED: Use /api/v2/public/invite/<token>/plex/start from the SPA."""
-    return jsonify({'error': {'code': 'DEPRECATED', 'message': 'Use /api/v2/public/invite/<token>/plex/start'}}), 410
+    """DEPRECATED: Use /api/v2/invite/<token>/plex/start from the SPA."""
+    return jsonify({'error': {'code': 'DEPRECATED', 'message': 'Use /api/v2/invite/<token>/plex/start'}}), 410
 
 @invites_bp.route('/discord_auth/<int:invite_id>')
 @setup_required
 def initiate_discord_auth(invite_id):
-    """DEPRECATED: Use /api/v2/public/invite/<token>/discord/start via wizard."""
-    return jsonify({'error': {'code': 'DEPRECATED', 'message': 'Use /api/v2/public/invite/<token>/discord/start'}}), 410
+    """DEPRECATED: Use /api/v2/invite/<token>/discord/start via wizard."""
+    return jsonify({'error': {'code': 'DEPRECATED', 'message': 'Use /api/v2/invite/<token>/discord/start'}}), 410

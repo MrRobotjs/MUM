@@ -53,7 +53,7 @@ export const useLibrarySyncStatus = (libraryId: string | number, pollInterval = 
 
     const fetchStatus = async () => {
       try {
-        const resp = await requestJson<LibrarySyncStatusResponse>(`/admin/api/v2/libraries/${libraryId}/sync-status`);
+        const resp = await requestJson<LibrarySyncStatusResponse>(`/api/v2/libraries/${libraryId}/sync-status`);
         setStatus(resp.data);
         setLoading(false);
       } catch (err) {
@@ -83,7 +83,7 @@ export const useLibrarySyncStatus = (libraryId: string | number, pollInterval = 
   // Expose a manual refetch to allow immediate updates when starting sync
   const refetch = async () => {
     try {
-      const resp = await requestJson<LibrarySyncStatusResponse>(`/admin/api/v2/libraries/${libraryId}/sync-status`);
+      const resp = await requestJson<LibrarySyncStatusResponse>(`/api/v2/libraries/${libraryId}/sync-status`);
       setStatus(resp.data);
       setLoading(false);
     } catch {

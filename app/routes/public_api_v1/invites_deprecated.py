@@ -1,4 +1,4 @@
-"""DEPRECATED: Public API v1 invite validation (use /api/v2/public/invite)."""
+"""DEPRECATED: Public API v1 invite validation (use /api/v2/invite)."""
 from uuid import uuid4
 
 from flask import jsonify

@@ -209,7 +209,7 @@ const InitialCredentialsForm = ({ initialUsername, onSuccess }: InitialCredentia
 
     setSubmitting(true);
     try {
-      const response = await requestJson<AccountResponse>('/admin/api/v2/account/initial-credentials', {
+      const response = await requestJson<AccountResponse>('/api/v2/account/initial-credentials', {
         method: 'POST',
         body: JSON.stringify({
           username: form.username,
@@ -307,7 +307,7 @@ const PasswordForm = ({ onSuccess }: PasswordFormProps) => {
 
     setSubmitting(true);
     try {
-      await requestJson('/admin/api/v2/auth/change-password', {
+      await requestJson('/api/v2/auth/change-password', {
         method: 'POST',
         body: JSON.stringify({
           current_password: form.currentPassword,
@@ -394,7 +394,7 @@ const EmailForm = ({ initialEmail, onSuccess }: EmailFormProps) => {
     setError(null);
     setSubmitting(true);
     try {
-      await requestJson('/admin/api/v2/account/email', {
+      await requestJson('/api/v2/account/email', {
         method: 'PATCH',
         body: JSON.stringify({ email }),
       });
@@ -456,7 +456,7 @@ const TimezoneForm = ({ initialValues, onSuccess }: TimezoneFormProps) => {
     setError(null);
     setSubmitting(true);
     try {
-      const response = await requestJson<AccountResponse>('/admin/api/v2/account/timezone', {
+      const response = await requestJson<AccountResponse>('/api/v2/account/timezone', {
         method: 'PUT',
         body: JSON.stringify({
           preference: form.preference,
@@ -575,7 +575,7 @@ const PlexSSOCard = ({ initialError }: PlexSSOCardProps) => {
     try {
       const response = await requestJson<{
         data?: { redirect_url?: string };
-      }>('/admin/api/v2/auth/plex/start', {
+      }>('/api/v2/auth/plex/start', {
         method: 'POST',
         body: JSON.stringify({ next: '/admin/account?tab=credentials' }),
       });
@@ -660,7 +660,7 @@ const AdminAccountPage = () => {
     setLoading(true);
     setFetchError(null);
     try {
-      const response = await requestJson<AccountResponse>('/admin/api/v2/account');
+      const response = await requestJson<AccountResponse>('/api/v2/account');
       setAccount(response.data);
     } catch (error) {
       const message = getApiErrorMessage(error);

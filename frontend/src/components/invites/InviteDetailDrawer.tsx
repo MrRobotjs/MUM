@@ -97,7 +97,7 @@ export const InviteDetailDrawer = ({ inviteId, onClose }: InviteDetailDrawerProp
       setLoading(true);
       setError(null);
       try {
-        const json = await requestJson<ApiResponse>(`/admin/api/v2/invites/${inviteId}`);
+        const json = await requestJson<ApiResponse>(`/api/v2/invites/${inviteId}`);
         const payload = (json as any)?.data ?? (json as any);
         const normalized: InviteDetail = {
           ...(payload as InviteDetail),

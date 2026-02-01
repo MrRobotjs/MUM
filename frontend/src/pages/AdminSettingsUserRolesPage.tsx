@@ -244,8 +244,8 @@ export const AdminSettingsUserRolesPage = () => {
 
     try {
       const endpoint = editingRole
-        ? `/admin/api/v2/user-roles/${editingRole.id}`
-        : '/admin/api/v2/user-roles';
+        ? `/api/v2/user-roles/${editingRole.id}`
+        : '/api/v2/user-roles';
       const method = editingRole ? 'PATCH' : 'POST';
 
       await requestJson(endpoint, {
@@ -273,7 +273,7 @@ export const AdminSettingsUserRolesPage = () => {
     }
 
     try {
-      await requestJson(`/admin/api/v2/user-roles/${role.id}`, {
+      await requestJson(`/api/v2/user-roles/${role.id}`, {
         method: 'DELETE',
       });
       success('Role deleted successfully');

@@ -309,7 +309,7 @@ class EmbyMediaService(BaseMediaService):
                             now_playing.get("SeriesPrimaryImageTag")
                             or (now_playing.get("ImageTags") or {}).get("SeriesPrimary")
                         )
-                        thumb_url = f"/admin/api/v2/media/emby/images/proxy?item_id={series_id}&image_type=Primary"
+                        thumb_url = f"/api/v2/media/emby/images/proxy?item_id={series_id}&image_type=Primary"
                         if series_image_tag:
                             thumb_url += f"&image_tag={series_image_tag}"
                     else:
@@ -317,7 +317,7 @@ class EmbyMediaService(BaseMediaService):
                             now_playing.get("PrimaryImageTag")
                             or (now_playing.get("ImageTags") or {}).get("Primary")
                         )
-                        thumb_url = f"/admin/api/v2/media/emby/images/proxy?item_id={item_id}&image_type=Primary"
+                        thumb_url = f"/api/v2/media/emby/images/proxy?item_id={item_id}&image_type=Primary"
                         if primary_image_tag:
                             thumb_url += f"&image_tag={primary_image_tag}"
 

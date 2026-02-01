@@ -33,13 +33,13 @@ function SetupAppContent() {
 
     setSubmitting(true)
     try {
-      await ensureCsrfToken('/admin/api/v2/auth/csrf-token')
+      await ensureCsrfToken('/api/v2/auth/csrf-token')
       const form = new FormData()
       form.set('app_name', appName)
       form.set('app_base_url', appBaseUrl)
       if (appLocalUrl) form.set('app_local_url', appLocalUrl)
 
-      await requestJson('/admin/api/v2/setup/app', {
+      await requestJson('/api/v2/setup/app', {
         method: 'POST',
         body: form
       })

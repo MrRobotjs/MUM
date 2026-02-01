@@ -17,7 +17,7 @@ export const useUserUuidBySlug = (serverNickname?: string, username?: string) =>
   const lookupTerm = username?.trim() ?? '';
 
   const { data, error, isLoading } = useSWR<UsersLookupResponse>(
-    shouldFetch ? `/admin/api/v2/users?search=${encodeURIComponent(lookupTerm)}&page_size=50` : null,
+    shouldFetch ? `/api/v2/users?search=${encodeURIComponent(lookupTerm)}&page_size=50` : null,
     (url: string) => requestJson<UsersLookupResponse>(url),
     { revalidateOnFocus: false }
   );

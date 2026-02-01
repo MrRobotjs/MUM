@@ -1,4 +1,4 @@
-"""DEPRECATED: Public API v1 invite wizard (use /api/v2/public/invite-wizard endpoints)."""
+"""DEPRECATED: Public API v1 invite wizard (use /api/v2/invite-wizard endpoints)."""
 from __future__ import annotations
 
 from datetime import datetime

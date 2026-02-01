@@ -1,4 +1,4 @@
-"""DEPRECATED: Public API v1 user identity endpoint (use /api/v2/public/session)."""
+"""DEPRECATED: Public API v1 user identity endpoint (use /api/v2/session)."""
 from uuid import uuid4
 
 from flask import jsonify

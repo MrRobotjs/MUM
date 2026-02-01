@@ -42,7 +42,7 @@ export const useLibraries = (options: UseLibrariesOptions = {}) => {
   if (options.search) params.append('search', options.search);
   if (options.includeServer !== false) params.append('include_server', 'true');
 
-  const url = `/admin/api/v2/libraries${params.toString() ? `?${params.toString()}` : ''}`;
+  const url = `/api/v2/libraries${params.toString() ? `?${params.toString()}` : ''}`;
 
   const { data, error, isLoading, mutate } = useSWR<LibrariesResponse>(
     url,
@@ -59,7 +59,7 @@ export const useLibraries = (options: UseLibrariesOptions = {}) => {
 
 export const useLibraryDetail = (libraryId?: number) => {
   const url = libraryId
-    ? `/admin/api/v2/libraries/${libraryId}?include_server=true&include_items_count=true`
+    ? `/api/v2/libraries/${libraryId}?include_server=true&include_items_count=true`
     : null;
 
   const { data, error, isLoading, mutate } = useSWR(url, (url: string) =>

@@ -478,7 +478,7 @@ class RommMediaService(BaseMediaService):
                 thumb_url = None
                 if rom.get('path_cover_large'):
                     # Use the image proxy to handle mixed content issues (HTTPS page loading HTTP images)
-                    thumb_url = f"/admin/api/v2/media/romm/images/proxy?path={rom['path_cover_large']}&server_id={self.server_id}"
+                    thumb_url = f"/api/v2/media/romm/images/proxy?path={rom['path_cover_large']}&server_id={self.server_id}"
                     self.log_info(f"Generated proxy cover URL for ROM '{rom.get('name')}': {thumb_url}")
                 
                 items.append({

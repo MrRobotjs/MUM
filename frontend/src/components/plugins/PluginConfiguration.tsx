@@ -59,7 +59,7 @@ export const PluginConfiguration = ({
   const handleToggleServerStatus = async (server: Server) => {
     const newStatus = !server.is_active
     try {
-      await requestJson(`/admin/api/v2/servers/${server.id}`, {
+      await requestJson(`/api/v2/servers/${server.id}`, {
         method: 'PATCH',
         body: JSON.stringify({ is_active: newStatus })
       })
@@ -76,7 +76,7 @@ export const PluginConfiguration = ({
     }
 
     try {
-      await requestJson(`/admin/api/v2/servers/${server.id}`, {
+      await requestJson(`/api/v2/servers/${server.id}`, {
         method: 'DELETE'
       })
       success(`Server "${server.server_nickname}" removed`)

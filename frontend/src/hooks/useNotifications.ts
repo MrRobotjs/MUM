@@ -33,7 +33,7 @@ export const useNotifications = (filters?: NotificationFilters) => {
   if (filters?.type) params.append('type', filters.type);
   if (filters?.limit) params.append('limit', filters.limit.toString());
 
-  const url = `/admin/api/v2/notifications?${params.toString()}`;
+  const url = `/api/v2/notifications?${params.toString()}`;
 
   const { data, error, isLoading, mutate } = useSWR<NotificationsResponse>(
     url,
@@ -41,21 +41,21 @@ export const useNotifications = (filters?: NotificationFilters) => {
   );
 
   const markAsRead = async (notificationId: number) => {
-    await requestJson(`/admin/api/v2/notifications/${notificationId}/read`, {
+    await requestJson(`/api/v2/notifications/${notificationId}/read`, {
       method: 'PATCH',
     });
     mutate(); // Refresh the list
   };
 
   const markAllAsRead = async () => {
-    await requestJson('/admin/api/v2/notifications/mark-all-read', {
+    await requestJson('/api/v2/notifications/mark-all-read', {
       method: 'POST',
     });
     mutate(); // Refresh the list
   };
 
   const deleteNotification = async (notificationId: number) => {
-    await requestJson(`/admin/api/v2/notifications/${notificationId}`, {
+    await requestJson(`/api/v2/notifications/${notificationId}`, {
       method: 'DELETE',
     });
     mutate(); // Refresh the list

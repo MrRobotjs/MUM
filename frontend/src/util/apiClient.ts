@@ -46,7 +46,7 @@ export class ApiError extends Error {
 const csrfToken: string | null = null;
 export const setCsrfToken = (_token: string | null) => {};
 export const clearCsrfToken = () => {};
-export const ensureCsrfToken = async (_csrfUrl = '/admin/api/v2/auth/csrf-token') => null;
+export const ensureCsrfToken = async (_csrfUrl = '/api/v2/auth/csrf-token') => null;
 
 const getJson = async (response: Response): Promise<ParsedJson | null> => {
   const text = await response.text();
@@ -94,7 +94,7 @@ export const apiFetch = async (
 
   if (!token && !isAuthEndpoint && hasRefreshCookie) {
     try {
-      const refreshResp = await fetch('/admin/api/v2/auth/jwt/refresh', {
+      const refreshResp = await fetch('/api/v2/auth/jwt/refresh', {
         method: 'POST',
         credentials: 'include',
         headers: { Accept: 'application/json' },
@@ -126,7 +126,7 @@ export const apiFetch = async (
   } catch (networkErr) {
     // Network-level failure: attempt a refresh once, then retry original request
     try {
-      const refreshResp = await fetch('/admin/api/v2/auth/jwt/refresh', {
+      const refreshResp = await fetch('/api/v2/auth/jwt/refresh', {
         method: 'POST',
         credentials: 'include',
         headers: { Accept: 'application/json' },
@@ -157,7 +157,7 @@ export const apiFetch = async (
   // On 401, attempt refresh flow once, then retry original request
   if (response.status === 401) {
     try {
-      const refreshResp = await fetch('/admin/api/v2/auth/jwt/refresh', {
+      const refreshResp = await fetch('/api/v2/auth/jwt/refresh', {
         method: 'POST',
         credentials: 'include',
         headers: { Accept: 'application/json' },

@@ -66,7 +66,7 @@ export const useUsers = (filters: UsersFilters = {}) => {
     if (filters.role) params.set('role', filters.role);
     if (filters.sort) params.set('sort', filters.sort);
 
-    return `/admin/api/v2/users?${params.toString()}`;
+    return `/api/v2/users?${params.toString()}`;
   };
 
   const { data, error, size, setSize, isLoading, mutate } = useSWRInfinite<UsersResponse>(

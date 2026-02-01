@@ -23,7 +23,7 @@ interface SystemConfigResponse {
 
 export const useSystemConfig = () => {
   const { data, error, isLoading, mutate } = useSWR<SystemConfigResponse>(
-    '/admin/api/v2/settings/system-config',
+    '/api/v2/settings/system-config',
     (url: string) => requestJson<SystemConfigResponse>(url)
   );
 

@@ -95,7 +95,7 @@ export const useUsersPaginated = (filters: UsersFilters = {}) => {
   if (filters.sort) params.set('sort', filters.sort);
 
   const { data, error, isLoading, mutate } = useSWR<UsersResponse>(
-    `/admin/api/v2/users?${params.toString()}`,
+    `/api/v2/users?${params.toString()}`,
     (url: string) => requestJson<UsersResponse>(url),
     {
       revalidateOnFocus: false

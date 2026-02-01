@@ -183,7 +183,7 @@ export const LibrariesPage = () => {
   const handleSyncServer = async (serverId: number) => {
     setSyncingServerId(serverId);
     try {
-      await requestJson(`/admin/api/v2/servers/${serverId}/sync-libraries`, {
+      await requestJson(`/api/v2/servers/${serverId}/sync-libraries`, {
         method: 'POST'
       });
       success('Library sync started');
@@ -203,7 +203,7 @@ export const LibrariesPage = () => {
     setSyncingAll(true);
     try {
       for (const server of servers) {
-        await requestJson(`/admin/api/v2/servers/${server.id}/sync-libraries`, {
+        await requestJson(`/api/v2/servers/${server.id}/sync-libraries`, {
           method: 'POST'
         });
       }
@@ -223,7 +223,7 @@ export const LibrariesPage = () => {
     setRawLoading(true);
     try {
       const result = await requestJson<{ data: Record<string, unknown> }>(
-        `/admin/api/v2/libraries/${library.id}?include_server=true`
+        `/api/v2/libraries/${library.id}?include_server=true`
       );
       setRawData(result.data);
     } catch (err) {

@@ -350,7 +350,7 @@ export const StreamingSessionCard = ({ session, onTerminate, pluginFeaturesBySer
     if (expectedExternalId) {
       try {
         const response = await requestJson<{ data?: { external_user_id?: string | null; external_user_alt_id?: string | null } }>(
-          `/admin/api/v2/users/${uuid}`
+          `/api/v2/users/${uuid}`
         );
         const externalUserId = response?.data?.external_user_id ? String(response.data.external_user_id) : null;
         const externalUserAltId = response?.data?.external_user_alt_id ? String(response.data.external_user_alt_id) : null;
@@ -401,7 +401,7 @@ export const StreamingSessionCard = ({ session, onTerminate, pluginFeaturesBySer
 
     try {
       setSendingMessage(true);
-      await requestJson('/admin/api/v2/streaming/message', {
+      await requestJson('/api/v2/streaming/message', {
         method: 'POST',
         body: JSON.stringify({
           session_key: session.session_key,

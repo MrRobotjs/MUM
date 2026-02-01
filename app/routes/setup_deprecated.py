@@ -2,7 +2,7 @@
 
 This module previously provided SSR routes for account/app/discord setup and
 Plex SSO callbacks. The SPA now serves UI under /setup/ui and API v2 under
-/admin/api/v2 handles setup-related actions. Keep only for historical reference.
+/api/v2 handles setup-related actions. Keep only for historical reference.
 """
 import uuid
 from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app, session, g

@@ -9,7 +9,7 @@ export const useUserHistory = (uuid?: string, pageSize = 10) => {
     }
 
     const page = pageIndex + 1;
-    return `/admin/api/v2/users/${uuid}/history?page=${page}&page_size=${pageSize}`;
+    return `/api/v2/users/${uuid}/history?page=${page}&page_size=${pageSize}`;
   };
 
   const { data, error, size, setSize, isLoading } = useSWRInfinite(getKey, (url: string) => requestJson(url), {

@@ -1,6 +1,6 @@
 """
 DEPRECATED: Admin invite bulk operations (SSR/legacy).
-Use v2 endpoint: POST /admin/api/v2/invites/bulk (see app/routes/api_v2/invites_bulk.py).
+Use v2 endpoint: POST /api/v2/invites/bulk (see app/routes/api_v2/invites_bulk.py).
 """
 
 from flask import request, jsonify, current_app

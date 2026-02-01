@@ -1,4 +1,4 @@
-"""DEPRECATED: Public API v1 auth/session endpoints (use /api/v2/public/session)."""
+"""DEPRECATED: Public API v1 auth/session endpoints (use /api/v2/session)."""
 from datetime import datetime
 from uuid import uuid4
 

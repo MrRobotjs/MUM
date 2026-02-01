@@ -399,13 +399,13 @@ class KavitaMediaService(BaseMediaService):
                 thumb_url = None
                 if series_id:
                     thumb_url = (
-                        f"/admin/api/v2/media/kavita/images/proxy?series_id={series_id}"
+                        f"/api/v2/media/kavita/images/proxy?series_id={series_id}"
                         f"&server_id={self.server_id}"
                     )
                 elif image_path:
                     from urllib.parse import quote
                     thumb_url = (
-                        f"/admin/api/v2/media/kavita/images/proxy?path={quote(image_path, safe='')}"
+                        f"/api/v2/media/kavita/images/proxy?path={quote(image_path, safe='')}"
                         f"&server_id={self.server_id}"
                     )
 

@@ -1,4 +1,4 @@
-"""DEPRECATED: Legacy API endpoints for library operations. Use v2 endpoints under /admin/api/v2."""
+"""DEPRECATED: Legacy API endpoints for library operations. Use v2 endpoints under /api/v2."""
 
 from flask import current_app, make_response, json, request
 from flask_login import login_required, current_user

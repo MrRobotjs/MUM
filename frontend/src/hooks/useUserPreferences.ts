@@ -41,7 +41,7 @@ export function useUserPreferences(options: UseUserPreferencesOptions = {}) {
     setError(null);
 
     try {
-      const response = await requestJson<UserPreferencesData>('/admin/api/v2/account/preferences');
+      const response = await requestJson<UserPreferencesData>('/api/v2/account/preferences');
       setDbPreferences(response.preferences);
       setSyncEnabled(response.sync_enabled);
     } catch (err) {
@@ -89,7 +89,7 @@ export function useUserPreferences(options: UseUserPreferencesOptions = {}) {
           [key]: value,
         };
 
-        await requestJson('/admin/api/v2/account/preferences', {
+        await requestJson('/api/v2/account/preferences', {
           method: 'PATCH',
           body: JSON.stringify({ preferences: updatedPreferences }),
         });
@@ -124,7 +124,7 @@ export function useUserPreferences(options: UseUserPreferencesOptions = {}) {
         };
 
         // Update preferences in DB
-        await requestJson('/admin/api/v2/account/preferences', {
+        await requestJson('/api/v2/account/preferences', {
           method: 'PATCH',
           body: JSON.stringify({ preferences: localPrefs }),
         });
@@ -133,7 +133,7 @@ export function useUserPreferences(options: UseUserPreferencesOptions = {}) {
       }
 
       // Toggle sync setting
-      const response = await requestJson<UserPreferencesData>('/admin/api/v2/account/preferences/sync', {
+      const response = await requestJson<UserPreferencesData>('/api/v2/account/preferences/sync', {
         method: 'PATCH',
         body: JSON.stringify({ sync_enabled: enabled }),
       });

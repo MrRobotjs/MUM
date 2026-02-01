@@ -5,7 +5,7 @@ It has been superseded by public_spa.py and api_v2/auth.py.
 """
 # NOTE:
 # - This module now serves only the SPA shells (/auth/login, /admin/login) and returns 410 for
-#   deprecated SSO endpoints. All active auth flows are provided by v2 under /admin/api/v2/auth/*.
+#   deprecated SSO endpoints. All active auth flows are provided by v2 under /api/v2/auth/*.
 import uuid
 from flask import Blueprint, redirect, url_for, flash, request, session, current_app, g, send_from_directory
 import os
@@ -32,7 +32,7 @@ def is_safe_url(target):
 
 @bp.route('/auth/login', methods=['GET'])
 def app_login():
-    """Serve React SPA login; client handles auth via /admin/api/v2/auth/login."""
+    """Serve React SPA login; client handles auth via /api/v2/auth/login."""
     if current_user.is_authenticated and getattr(g, 'setup_complete', False):
         if current_user.userType == UserType.OWNER:
             return redirect('/admin/dashboard')
@@ -53,7 +53,7 @@ def app_login():
 @bp.route('/admin', methods=['GET'], endpoint='admin_login')
 @bp.route('/admin/login', methods=['GET'], endpoint='admin_login2')
 def admin_login():
-    """Serve SPA for admin login; React handles POST via /admin/api/v2/auth/login."""
+    """Serve SPA for admin login; React handles POST via /api/v2/auth/login."""
     if current_user.is_authenticated and current_user.userType == UserType.OWNER and getattr(g, 'setup_complete', False):
         return redirect('/admin/dashboard')
     dist_path = os.path.join(current_app.root_path, 'static', 'dist')
@@ -79,8 +79,8 @@ def user_login():
 
 @bp.route('/plex_sso_admin', methods=['POST'])
 def plex_sso_login_admin():
-    # DEPRECATED: React should call /admin/api/v2/auth/plex/start
-    return jsonify({'error': {'code': 'DEPRECATED', 'message': 'Use /admin/api/v2/auth/plex/start'}}), 410
+    # DEPRECATED: React should call /api/v2/auth/plex/start
+    return jsonify({'error': {'code': 'DEPRECATED', 'message': 'Use /api/v2/auth/plex/start'}}), 410
     # Only redirect to dashboard if already logged in AND already linked to Plex.
     # This allows a logged-in, non-linked user to proceed.
     if current_user.is_authenticated and current_user.plex_uuid and getattr(g, 'setup_complete', False):
@@ -156,8 +156,8 @@ def plex_sso_login_admin():
 
 @bp.route('/plex_sso_callback_admin') 
 def plex_sso_callback_admin():
-    # DEPRECATED: React should use /admin/api/v2/auth/plex/callback
-    return jsonify({'error': {'code': 'DEPRECATED', 'message': 'Use /admin/api/v2/auth/plex/callback'}}), 410
+    # DEPRECATED: React should use /api/v2/auth/plex/callback
+    return jsonify({'error': {'code': 'DEPRECATED', 'message': 'Use /api/v2/auth/plex/callback'}}), 410
     pin_id_from_session = session.get('plex_pin_id_admin_login')
     pin_code_from_session = session.get('plex_pin_code_admin_login')
     client_id_from_session = session.get('plex_client_id_admin_login')
@@ -334,8 +334,8 @@ DISCORD_API_BASE_URL = 'https://discord.com/api/v10'
 @bp.route('/discord/link_admin', methods=['POST'])
 @login_required
 def discord_link_admin():
-    # DEPRECATED: React should call /admin/api/v2/auth/discord/link
-    return jsonify({'error': {'code': 'DEPRECATED', 'message': 'Use /admin/api/v2/auth/discord/link'}}), 410
+    # DEPRECATED: React should call /api/v2/auth/discord/link
+    return jsonify({'error': {'code': 'DEPRECATED', 'message': 'Use /api/v2/auth/discord/link'}}), 410
     current_app.logger.info("--- discord_link_admin CALLED (CSRF Exempted for Test) ---") # New log
     enabled_setting_val = Setting.get('DISCORD_OAUTH_ENABLED', False)
     client_id_val = Setting.get('DISCORD_CLIENT_ID')
@@ -392,8 +392,8 @@ def discord_link_admin():
 @bp.route('/discord/callback_admin')
 @login_required
 def discord_callback_admin():
-    # DEPRECATED: React should use /admin/api/v2/auth/discord/callback
-    return jsonify({'error': {'code': 'DEPRECATED', 'message': 'Use /admin/api/v2/auth/discord/callback'}}), 410
+    # DEPRECATED: React should use /api/v2/auth/discord/callback
+    return jsonify({'error': {'code': 'DEPRECATED', 'message': 'Use /api/v2/auth/discord/callback'}}), 410
     returned_state = request.args.get('state')
     if not returned_state or returned_state != session.pop('discord_oauth_state_admin_link', None):
         flash('Discord linking failed: Invalid state.', 'danger')
@@ -508,5 +508,5 @@ def discord_callback_admin():
 @bp.route('/discord/unlink_admin', methods=['POST'])
 @login_required
 def discord_unlink_admin():
-    # DEPRECATED: Use /admin/api/v2/auth/discord/unlink
-    return jsonify({'error': {'code': 'DEPRECATED', 'message': 'Use /admin/api/v2/auth/discord/unlink'}}), 410
+    # DEPRECATED: Use /api/v2/auth/discord/unlink
+    return jsonify({'error': {'code': 'DEPRECATED', 'message': 'Use /api/v2/auth/discord/unlink'}}), 410

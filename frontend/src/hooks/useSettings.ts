@@ -58,7 +58,7 @@ type SettingsResponse<T> = {
 
 export const useGeneralSettings = () => {
   const { data, error, isLoading, mutate } = useSWR<SettingsResponse<GeneralSettings>>(
-    '/admin/api/v2/settings/general',
+    '/api/v2/settings/general',
     (url: string) => requestJson<SettingsResponse<GeneralSettings>>(url)
   );
 
@@ -72,7 +72,7 @@ export const useGeneralSettings = () => {
 
 export const useDiscordSettings = () => {
   const { data, error, isLoading, mutate } = useSWR<SettingsResponse<DiscordSettings>>(
-    '/admin/api/v2/settings/discord',
+    '/api/v2/settings/discord',
     (url: string) => requestJson<SettingsResponse<DiscordSettings>>(url)
   );
 
@@ -86,7 +86,7 @@ export const useDiscordSettings = () => {
 
 export const useAdvancedSettings = () => {
   const { data, error, isLoading, mutate } = useSWR<SettingsResponse<AdvancedSettings>>(
-    '/admin/api/v2/settings/advanced',
+    '/api/v2/settings/advanced',
     (url: string) => requestJson<SettingsResponse<AdvancedSettings>>(url)
   );
 
@@ -100,7 +100,7 @@ export const useAdvancedSettings = () => {
 
 export const useUserAccountSettings = () => {
   const { data, error, isLoading, mutate } = useSWR<SettingsResponse<UserAccountSettings>>(
-    '/admin/api/v2/settings/user-accounts',
+    '/api/v2/settings/user-accounts',
     (url: string) => requestJson<SettingsResponse<UserAccountSettings>>(url)
   );
 

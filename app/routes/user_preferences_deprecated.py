@@ -1,7 +1,7 @@
 
 """DEPRECATED: SSR user preferences routes replaced by API v2.
 
-Use /admin/api/v2/account/timezone for updating preferences.
+Use /api/v2/account/timezone for updating preferences.
 """
 from flask import Blueprint, render_template, redirect, url_for, flash
 from flask_login import login_required, current_user

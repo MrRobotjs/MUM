@@ -1,6 +1,6 @@
 """
 DEPRECATED: OAuth callback handlers for public invites.
-Replaced by v2 public callbacks under /api/v2/public/invite/<token>/(plex|discord)/callback
+Replaced by v2 public callbacks under /api/v2/invite/<token>/(plex|discord)/callback
 """
 
 import time
@@ -20,8 +20,8 @@ DISCORD_API_BASE_URL = 'https://discord.com/api/v10'
 @invites_bp.route('/plex_callback') # Path is /invites/plex_callback
 @setup_required
 def plex_oauth_callback():
-    return jsonify({'error': {'code': 'DEPRECATED', 'message': 'Use /api/v2/public/invite/<token>/plex/callback'}}), 410
-    return redirect('/api/v2/public/invite/unknown/plex/callback')
+    return jsonify({'error': {'code': 'DEPRECATED', 'message': 'Use /api/v2/invite/<token>/plex/callback'}}), 410
+    return redirect('/api/v2/invite/unknown/plex/callback')
     invite_id = session.get('plex_oauth_invite_id')
     pin_code_from_session = session.get('plex_pin_code_invite_flow')
     pin_id_from_session = session.get('plex_pin_id_invite_flow')
@@ -216,8 +216,8 @@ def plex_oauth_callback():
 @invites_bp.route('/discord_callback')
 @setup_required
 def discord_oauth_callback():
-    return jsonify({'error': {'code': 'DEPRECATED', 'message': 'Use /api/v2/public/invite/<token>/discord/callback'}}), 410
-    return redirect('/api/v2/public/invite/unknown/discord/callback')
+    return jsonify({'error': {'code': 'DEPRECATED', 'message': 'Use /api/v2/invite/<token>/discord/callback'}}), 410
+    return redirect('/api/v2/invite/unknown/discord/callback')
     invite_id_from_session = session.get('discord_oauth_invite_id')
     returned_state = request.args.get('state')
     

@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 from flask_openapi3 import Tag
 
 from app.routes.api_v2 import api_v2
-from app.models import User, UserType, Invite, HistoryLog, EventType
+from app.models import User, UserType, Invite
 from app.models_media_services import MediaServer, MediaLibrary, MediaStreamHistory
 from app.extensions import db
 
@@ -45,7 +45,7 @@ def get_metrics(current_user):
     total_invites = Invite.query.count()
     active_invites = Invite.query.filter_by(is_active=True).count()
     used_invites = Invite.query.filter(Invite.current_uses > 0).count()
-    invites_used_this_week = HistoryLog.query.filter(HistoryLog.event_type.in_([EventType.INVITE_USED_SUCCESS_PLEX, EventType.INVITE_USED_SUCCESS_DISCORD, EventType.INVITE_USER_ACCEPTED_AND_SHARED]), HistoryLog.timestamp >= week_ago).count()
+    invites_used_this_week = 0
 
     total_servers = MediaServer.query.count()
     active_servers = MediaServer.query.filter_by(is_active=True).count()
@@ -56,12 +56,9 @@ def get_metrics(current_user):
     streams_this_week = MediaStreamHistory.query.filter(MediaStreamHistory.started_at >= week_ago).count()
     active_sessions = MediaStreamHistory.query.filter(MediaStreamHistory.stopped_at.is_(None)).count()
 
-    recent_events_today = HistoryLog.query.filter(HistoryLog.timestamp >= day_ago).count()
-    recent_events_week = HistoryLog.query.filter(HistoryLog.timestamp >= week_ago).count()
-
-    from sqlalchemy import func
-    top_events = db.session.query(HistoryLog.event_type, func.count(HistoryLog.id).label('count')).filter(HistoryLog.timestamp >= week_ago).group_by(HistoryLog.event_type).order_by(func.count(HistoryLog.id).desc()).limit(5).all()
-    top_event_types = [{'event_type': (e[0].value if e[0] else 'unknown'), 'count': e[1]} for e in top_events]
+    recent_events_today = 0
+    recent_events_week = 0
+    top_event_types = []
 
     metrics = {
         'users': {
@@ -148,4 +145,3 @@ def get_streaming_metrics(query: StreamingMetricsQuery, current_user):
     streams_by_server = db.session.query(MediaServer.server_nickname, sql_func.count(MediaStreamHistory.id).label('count')).join(MediaStreamHistory).filter(MediaStreamHistory.started_at >= cutoff).group_by(MediaServer.server_nickname).all()
     server_breakdown = [{'server': s[0], 'count': s[1]} for s in streams_by_server]
     return jsonify({'data': {'total_streams': total_streams, 'avg_duration_seconds': round(avg_duration, 2) if avg_duration else 0, 'by_server': server_breakdown, 'days': query.days}, 'meta': {'request_id': request_id, 'deprecated': False, 'generated_at': datetime.utcnow().isoformat() + 'Z'}})
-

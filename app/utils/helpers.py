@@ -10,7 +10,6 @@ try:
     from flask_jwt_extended import current_user as jwt_current_user
 except Exception:  # pragma: no cover - optional
     jwt_current_user = None
-from sqlalchemy import inspect
 # app.models import HistoryLog, EventType # This creates circular import if models also import helpers
 # from app.extensions import db # Same here
 
@@ -75,73 +74,13 @@ def setup_required(f):
     return decorated_function
 
 
-def log_event(event_type, message: str, details: dict = None, # Removed type hint for EventType to avoid import here
-              admin_id: int = None, user_id = None, invite_id: int = None):
-    """Logs an event to the HistoryLog. Gracefully handles DB not ready."""
-    from app.models import HistoryLog, EventType as EventTypeEnum # Local import for models and Enum
-    from app.extensions import db # Local import for db
-    # Use JWT current_user if available
-
-    if not isinstance(event_type, EventTypeEnum): # Use the imported Enum
-        current_app.logger.error(f"Invalid event_type provided to log_event: {event_type}")
-        return
-
+def log_event(event_type, message: str, details: dict = None,
+              admin_id: int = None, user_id=None, invite_id: int = None):
+    """HistoryLog removed: keep call sites but do not persist events."""
     try:
-        # Check if HistoryLog table exists before trying to write to it
-        # This is especially for early startup/CLI commands like `flask db upgrade`
-        history_table_exists = False
-        try:
-            inspector = inspect(db.engine)
-            history_table_exists = inspector.has_table(HistoryLog.__tablename__)
-        except Exception:
-            history_table_exists = False
-
-        if not history_table_exists:
-            current_app.logger.info(f"History_logs table not found. Skipping log: {event_type.name} - {message}")
-            return
-
-        log_entry = HistoryLog(
-            event_type=event_type,
-            message=message,
-            details=details or {}
-        )
-
-        cu = None
-        try:
-            cu = jwt_current_user
-        except Exception:
-            cu = None
-        if admin_id is None and cu and hasattr(cu, 'id'):
-            from app.models import UserType
-            if cu.userType == UserType.OWNER:
-                log_entry.admin_id = cu.id
-        elif admin_id: # Ensure explicitly passed admin_id is used
-             log_entry.admin_id = admin_id
-
-
-        if user_id: 
-            # Handle UUID or numeric user ID
-            try:
-                if isinstance(user_id, str) and len(str(user_id)) > 10:
-                    # Likely a UUID, try to get the user and extract numeric ID
-                    user_obj, user_type = get_user_by_uuid(str(user_id))
-                    # Only store local user IDs in the log
-                    if user_obj and user_type == "user_app_access":
-                        log_entry.user_id = user_obj.id
-                else:
-                    # Assume it's already a numeric ID (backward compatibility)
-                    log_entry.user_id = int(user_id)
-            except Exception as e:
-                current_app.logger.warning(f"Invalid user_id format in log_event: {user_id}: {e}")
-                # Don't set user_id if parsing fails
-        if invite_id: log_entry.invite_id = invite_id
-
-        db.session.add(log_entry)
-        db.session.commit()
-        # Event logged to database
-    except Exception as e:
-        db.session.rollback()
-        current_app.logger.error(f"Error logging event (original: {event_type.name} - {message}): {e}")
+        current_app.logger.debug(f"HistoryLog disabled; event suppressed: {event_type} - {message}")
+    except Exception:
+        pass
 
 
 def get_csrf_token():

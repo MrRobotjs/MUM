@@ -7,9 +7,9 @@ from uuid import uuid4
 from flask import jsonify, current_app
 from flask_openapi3 import Tag
 from pydantic import BaseModel, Field
-from sqlalchemy import or_, desc
+from sqlalchemy import or_
 
-from app.models import User, UserType, HistoryLog
+from app.models import User, UserType
 from app.models_media_services import MediaLibrary, MediaStreamHistory
 from app.routes.api_v2 import api_v2
 from app.services import user_service
@@ -60,17 +60,6 @@ def _serialize_service_accounts(user: User) -> list[dict]:
                 }
             )
     return linked
-
-
-def _serialize_history_entry(entry):
-    """Serialize a HistoryLog entry"""
-    return {
-        "id": entry.id,
-        "timestamp": entry.timestamp.isoformat() if entry.timestamp else None,
-        "event_type": entry.event_type.value if entry.event_type else None,
-        "message": entry.message,
-        "details": entry.details or {},
-    }
 
 
 def _serialize_stream_history_entry(entry):

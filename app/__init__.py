@@ -332,7 +332,7 @@ def create_app(config_name=None):
     # Legacy API v1 blueprints deprecated; React SPA uses API v2 only
     # from .routes.public_api_v1 import bp as public_api_v1_bp
     # app.register_blueprint(public_api_v1_bp, url_prefix='/api/v1')
-    # from .routes.api_v1 import bp as api_v1_bp
+    # from .routes.api_v1_deprecated import bp as api_v1_bp
     # app.register_blueprint(api_v1_bp, url_prefix='/admin/api/v1')
     # Register OpenAPI3-powered API v2 (admin)
     try:

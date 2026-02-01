@@ -4,15 +4,14 @@ from datetime import datetime
 from typing import List, Optional
 
 from flask import jsonify
-from app.utils.jwt_decorators import jwt_required_with_user, jwt_permission_required
-from pydantic import BaseModel, Field
 from flask_openapi3 import Tag
+from pydantic import BaseModel, Field
+from sqlalchemy import desc
 
 from app.routes.api_v2 import api_v2
-from app.extensions import db
-from app.models import User, UserType, HistoryLog, EventType
+from app.models import User
 from app.models_media_services import MediaStreamHistory
-from sqlalchemy import desc
+from app.utils.jwt_decorators import jwt_required_with_user
 
 
 users_tag = Tag(name="Users", description="User management endpoints")
@@ -25,9 +24,6 @@ class UserPath(BaseModel):
 class HistoryQuery(BaseModel):
     page: int = Field(1, ge=1)
     page_size: int = Field(25, ge=1, le=100)
-    event_types: Optional[str] = Field(
-        None, description="Comma-separated EventType names (e.g., ADMIN_LOGIN_SUCCESS,INVITE_CREATED)"
-    )
 
 
 class HistoryItem(BaseModel):
@@ -58,37 +54,13 @@ class HistoryListResponse(BaseModel):
     meta: MetaModel
 
 
-class ErrorDetail(BaseModel):
-    code: str
-    message: str
-
-
-class ErrorResponse(BaseModel):
-    error: ErrorDetail
-    meta: MetaModel | dict | None = None
-
-
-def _serialize_history(log: HistoryLog) -> dict:
-    return {
-        "id": log.id,
-        "timestamp": log.timestamp.isoformat() if getattr(log, "timestamp", None) else None,
-        "event_type": log.event_type.value if getattr(log, "event_type", None) else None,
-        "message": getattr(log, "message", None),
-        "details": getattr(log, "details", None) or {},
-    }
-
-
 def _serialize_stream_history(entry: MediaStreamHistory) -> dict:
-    """Serialize a MediaStreamHistory entry"""
-    # Build poster URL for Plex or Jellyfin
     poster_url = None
     if entry.thumb_url and entry.server:
         service_type = entry.server.service_type.value
         if service_type == 'plex':
-            # Plex thumb paths need to go through the image proxy
             poster_url = f"/admin/api/v2/media/plex/images/proxy?path={entry.thumb_url.lstrip('/')}"
         elif service_type == 'jellyfin':
-            # Jellyfin paths like /Items/{Id}/Images/Primary need to go through jellyfin proxy
             poster_url = f"/admin/api/v2/media/jellyfin/images/proxy?path={entry.thumb_url.lstrip('/')}"
         elif service_type == 'audiobookshelf':
             if entry.thumb_url.startswith("/admin/api/v2/media/audiobookshelf/images/proxy"):
@@ -117,21 +89,11 @@ def _serialize_stream_history(entry: MediaStreamHistory) -> dict:
     }
 
 
-def _apply_user_filter(query, user: User):
-    if user.userType == UserType.OWNER:
-        return query.filter(HistoryLog.owner_id == user.id)
-    if user.userType == UserType.LOCAL:
-        return query.filter(HistoryLog.local_user_id == user.id)
-    if user.userType == UserType.SERVICE and user.linked_parent:
-        return query.filter(HistoryLog.local_user_id == user.linked_parent.id)
-    return query.filter(False)
-
-
 @api_v2.get(
     "/users/<uuid>/history",
     tags=[users_tag],
     summary="Get user streaming history",
-    responses={200: HistoryListResponse, 404: ErrorResponse},
+    responses={200: HistoryListResponse},
 )
 @jwt_required_with_user()
 def get_user_history(path: UserPath, query: HistoryQuery, current_user):
@@ -140,10 +102,8 @@ def get_user_history(path: UserPath, query: HistoryQuery, current_user):
     if not user:
         return jsonify({"error": {"code": "NOT_FOUND", "message": "User not found"}, "meta": {"request_id": request_id}}), 404
 
-    # Query streaming history for this user
     q = MediaStreamHistory.query.filter(MediaStreamHistory.user_uuid == user.uuid).order_by(desc(MediaStreamHistory.started_at))
 
-    # Pagination
     page = query.page
     size = query.page_size
     total_items = q.count()

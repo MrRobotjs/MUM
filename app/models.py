@@ -898,7 +898,7 @@ class Setting(db.Model): # ... (Setting model remains the same structure, new ke
 
 # ServiceAccount model removed - replaced by UserAppAccess + UserMediaAccess architecture
 
-# (Invite, InviteUsage, HistoryLog models as before - no immediate changes for bot setup yet)
+# (Invite, InviteUsage models)
 class Invite(db.Model):
     __tablename__ = 'invites'; id = db.Column(db.Integer, primary_key=True)
     token = db.Column(db.String(64), unique=True, nullable=False, index=True, default=lambda: secrets.token_urlsafe(8))
@@ -955,16 +955,6 @@ class InviteUsage(db.Model): # ... (as before)
     discord_username = db.Column(db.String(255), nullable=True); discord_auth_successful = db.Column(db.Boolean, default=False, nullable=False) # Added nullable=False
     userId = db.Column(db.String(36), db.ForeignKey('users.uuid'), nullable=True, index=True); user = db.relationship('User', foreign_keys=[userId])
     accepted_invite = db.Column(db.Boolean, default=False, nullable=False); status_message = db.Column(db.String(255), nullable=True) # Added nullable=False
-
-class HistoryLog(db.Model): # ... (as before)
-    __tablename__ = 'history_logs'; id = db.Column(db.Integer, primary_key=True)
-    timestamp = db.Column(db.DateTime, default=utcnow, index=True)
-    event_type = db.Column(db.Enum(EventType), nullable=False, index=True); message = db.Column(db.Text, nullable=False)
-    details = db.Column(MutableDict.as_mutable(JSONEncodedDict), nullable=True)
-    owner_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True); owner = db.relationship('User', foreign_keys='HistoryLog.owner_id')
-    local_user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True); affected_local_user = db.relationship('User', foreign_keys='HistoryLog.local_user_id')
-    invite_id = db.Column(db.Integer, db.ForeignKey('invites.id'), nullable=True); related_invite = db.relationship('Invite')
-    def __repr__(self): return f'<HistoryLog {self.timestamp} [{self.event_type.name}]: {self.message[:50]}>'
 
 # StreamHistory model removed - replaced by MediaStreamHistory in models_media_services.py
 

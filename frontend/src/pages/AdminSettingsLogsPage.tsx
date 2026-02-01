@@ -9,6 +9,15 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../co
 import { Badge } from '../components/ui/badge';
 import { requestJson } from '../util/apiClient';
 import { useAlerts } from '../contexts';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import {
+  faTrashCan,
+  faFilter,
+  faTimes,
+  faTriangleExclamation,
+  faUserShield,
+  faUser,
+} from '@fortawesome/free-solid-svg-icons';
 
 export const AdminSettingsLogsPage = () => {
   const [page, setPage] = useState(1);
@@ -76,7 +85,7 @@ export const AdminSettingsLogsPage = () => {
 
   const headerActions = (
     <Button variant="destructive" size="sm" onClick={() => setShowClearModal(true)}>
-      <i className="fa-solid fa-trash-can mr-2" /> Clear Logs
+      <FontAwesomeIcon icon={faTrashCan} className="mr-2" /> Clear Logs
     </Button>
   );
 
@@ -93,7 +102,7 @@ export const AdminSettingsLogsPage = () => {
         <CardHeader>
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
-              <i className="fa-solid fa-filter text-primary text-sm" />
+              <FontAwesomeIcon icon={faFilter} className="text-primary text-sm" />
             </div>
             <div>
               <CardTitle>Filter Logs</CardTitle>
@@ -168,7 +177,7 @@ export const AdminSettingsLogsPage = () => {
             <div className="flex gap-3">
               {hasFilters && (
                 <Button variant="ghost" onClick={handleClearFilters}>
-                  <i className="fa-solid fa-times mr-2" />
+                  <FontAwesomeIcon icon={faTimes} className="mr-2" />
                   Clear Filters
                 </Button>
               )}
@@ -191,7 +200,7 @@ export const AdminSettingsLogsPage = () => {
       {error && (
         <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4">
           <div className="flex items-start gap-3">
-            <i className="fa-solid fa-exclamation-triangle text-destructive" />
+            <FontAwesomeIcon icon={faTriangleExclamation} className="text-destructive" />
             <span>Failed to load logs: {(error as Error).message}</span>
           </div>
         </div>
@@ -243,13 +252,13 @@ export const AdminSettingsLogsPage = () => {
                   <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
                     {log.owner && (
                       <span>
-                        <i className="fa-solid fa-user-shield mr-1" />
+                        <FontAwesomeIcon icon={faUserShield} className="mr-1" />
                         Admin: {log.owner.display_name || log.owner.username}
                       </span>
                     )}
                     {log.local_user && (
                       <span>
-                        <i className="fa-solid fa-user mr-1" />
+                        <FontAwesomeIcon icon={faUser} className="mr-1" />
                         User: {log.local_user.display_name || log.local_user.username}
                       </span>
                     )}
@@ -308,7 +317,7 @@ export const AdminSettingsLogsPage = () => {
                   Cancel
                 </Button>
                 <Button variant="destructive" onClick={handleClearLogs}>
-                  <i className="fa-solid fa-trash-can mr-2" />
+                  <FontAwesomeIcon icon={faTrashCan} className="mr-2" />
                   Clear Logs
                 </Button>
               </div>

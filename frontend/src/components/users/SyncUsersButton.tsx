@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { requestJson } from '../../util/apiClient';
 import { useAlerts } from '../../contexts/AlertContext';
 import { Button } from '../ui/button';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faSync } from '@fortawesome/free-solid-svg-icons';
 
 interface SyncResult {
   server_id: number;
@@ -81,7 +83,7 @@ export const SyncUsersButton = () => {
         </>
       ) : (
         <>
-          <i className="fa-solid fa-sync mr-2" />
+          <FontAwesomeIcon icon={faSync} className="mr-2" />
           Sync All Users
         </>
       )}

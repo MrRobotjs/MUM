@@ -29,6 +29,20 @@ import {
   IconX,
   IconTrash
 } from '@tabler/icons-react';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import {
+  faCube,
+  faCirclePlay,
+  faBook,
+  faHeadphones,
+  faBookOpen,
+  faGamepad,
+  faTriangleExclamation,
+  faFileLines,
+  faPlay,
+  faChevronLeft,
+  faChevronRight,
+} from '@fortawesome/free-solid-svg-icons';
 
 type ServiceType = 'plex' | 'jellyfin' | 'emby' | 'kavita' | 'audiobookshelf' | 'komga' | 'romm';
 
@@ -231,42 +245,42 @@ export const MediaDetailPage = () => {
         bg: 'bg-jellyfin-50 dark:bg-jellyfin-400/10',
         text: 'text-jellyfin-700 dark:text-jellyfin-400',
         ring: 'ring-jellyfin-600/20 dark:ring-jellyfin-500/20',
-        icon: <i className="fa-solid fa-cube w-3 h-3"></i>,
+        icon: <FontAwesomeIcon icon={faCube} className="w-3 h-3" />,
         name: 'Jellyfin'
       },
       emby: {
         bg: 'bg-emby-50 dark:bg-emby-400/10',
         text: 'text-emby-700 dark:text-emby-400',
         ring: 'ring-emby-600/20 dark:ring-emby-500/20',
-        icon: <i className="fa-solid fa-play-circle w-3 h-3"></i>,
+        icon: <FontAwesomeIcon icon={faCirclePlay} className="w-3 h-3" />,
         name: 'Emby'
       },
       kavita: {
         bg: 'bg-kavita-50 dark:bg-kavita-400/10',
         text: 'text-kavita-700 dark:text-kavita-400',
         ring: 'ring-kavita-600/20 dark:ring-kavita-500/20',
-        icon: <i className="fa-solid fa-book w-3 h-3"></i>,
+        icon: <FontAwesomeIcon icon={faBook} className="w-3 h-3" />,
         name: 'Kavita'
       },
       audiobookshelf: {
         bg: 'bg-audiobookshelf-50 dark:bg-audiobookshelf-400/10',
         text: 'text-audiobookshelf-700 dark:text-audiobookshelf-400',
         ring: 'ring-audiobookshelf-600/20 dark:ring-audiobookshelf-500/20',
-        icon: <i className="fa-solid fa-headphones w-3 h-3"></i>,
+        icon: <FontAwesomeIcon icon={faHeadphones} className="w-3 h-3" />,
         name: 'AudiobookShelf'
       },
       komga: {
         bg: 'bg-komga-50 dark:bg-komga-400/10',
         text: 'text-komga-700 dark:text-komga-400',
         ring: 'ring-komga-600/20 dark:ring-komga-500/20',
-        icon: <i className="fa-solid fa-book-open w-3 h-3"></i>,
+        icon: <FontAwesomeIcon icon={faBookOpen} className="w-3 h-3" />,
         name: 'Komga'
       },
       romm: {
         bg: 'bg-romm-50 dark:bg-romm-400/10',
         text: 'text-romm-700 dark:text-romm-400',
         ring: 'ring-romm-600/20 dark:ring-romm-500/20',
-        icon: <i className="fa-solid fa-gamepad w-3 h-3"></i>,
+        icon: <FontAwesomeIcon icon={faGamepad} className="w-3 h-3" />,
         name: 'RomM'
       }
     };
@@ -307,7 +321,7 @@ export const MediaDetailPage = () => {
       <div className="container mx-auto px-4 py-8 space-y-6">
         <Card className="border-destructive">
           <CardContent className="p-6 flex items-center gap-3">
-            <i className="fa-solid fa-exclamation-triangle text-destructive"></i>
+            <FontAwesomeIcon icon={faTriangleExclamation} className="text-destructive" />
             <span className="text-destructive">{error || 'Media item not found'}</span>
           </CardContent>
         </Card>
@@ -505,7 +519,7 @@ export const MediaDetailPage = () => {
               <Card>
                 <CardContent className="p-6 space-y-4">
                   <h3 className="text-lg font-semibold flex items-center gap-2">
-                    <i className="fa-solid fa-file-text text-primary"></i>
+                    <FontAwesomeIcon icon={faFileLines} className="text-primary" />
                     Summary
                   </h3>
                   <p className="text-sm text-muted-foreground leading-relaxed">{mediaItem.summary}</p>
@@ -676,7 +690,7 @@ export const MediaDetailPage = () => {
                           {/* Hover Overlay */}
                           <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
                             <div className="text-center text-white p-2">
-                              <i className="fa-solid fa-play text-2xl mb-2"></i>
+                              <FontAwesomeIcon icon={faPlay} className="text-2xl mb-2" />
                               <div className="text-xs">View Episode</div>
                             </div>
                           </div>
@@ -724,7 +738,7 @@ export const MediaDetailPage = () => {
                     <div className="flex justify-center gap-2 flex-wrap">
                       {episodesPage > 1 && (
                         <Button variant="outline" size="sm" onClick={() => setEpisodesPage(episodesPage - 1)}>
-                          <i className="fa-solid fa-chevron-left"></i>
+                          <FontAwesomeIcon icon={faChevronLeft} />
                         </Button>
                       )}
 
@@ -798,7 +812,7 @@ export const MediaDetailPage = () => {
 
                       {episodesPage < episodesTotalPages && (
                         <Button variant="outline" size="sm" onClick={() => setEpisodesPage(episodesPage + 1)}>
-                          <i className="fa-solid fa-chevron-right"></i>
+                          <FontAwesomeIcon icon={faChevronRight} />
                         </Button>
                       )}
                     </div>

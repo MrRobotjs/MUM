@@ -10,6 +10,20 @@ import { Checkbox } from '../components/ui/checkbox';
 import { Separator } from '../components/ui/separator';
 import { Alert, AlertDescription } from '../components/ui/alert';
 import { ResponsiveDialog } from '../components/ui/responsive-dialog';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import {
+  faCircleInfo,
+  faClockRotateLeft,
+  faDownload,
+  faFilm,
+  faLock,
+  faMobileScreen,
+  faPlay,
+  faServer,
+  faShieldHalved,
+  faUser,
+  faUserGear,
+} from '@fortawesome/free-solid-svg-icons';
 
 type LocationState = {
   from?: string;
@@ -105,7 +119,7 @@ const UserLoginPage = () => {
                 <div className="mb-8">
                   <div className="flex flex-col items-center lg:flex-row lg:justify-start mb-6">
                     <div className="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center mb-4 lg:mb-0 lg:mr-4">
-                      <i className="fas fa-film text-primary text-2xl" />
+                      <FontAwesomeIcon icon={faFilm} className="text-primary text-2xl" />
                     </div>
                     <div className="text-center lg:text-left">
                       <h1 className="text-4xl lg:text-5xl font-bold">MUM</h1>
@@ -117,15 +131,15 @@ const UserLoginPage = () => {
                     <p className="text-lg">Welcome to your personal media hub! Access your content, manage your preferences, and explore your multimedia library.</p>
                     <div className="flex flex-wrap justify-center lg:justify-start gap-4 text-sm">
                       <div className="flex items-center">
-                        <i className="fas fa-play text-primary mr-2" />
+                        <FontAwesomeIcon icon={faPlay} className="text-primary mr-2" />
                         <span>Stream Content</span>
                       </div>
                       <div className="flex items-center">
-                        <i className="fas fa-user-cog text-primary mr-2" />
+                        <FontAwesomeIcon icon={faUserGear} className="text-primary mr-2" />
                         <span>Personal Dashboard</span>
                       </div>
                       <div className="flex items-center">
-                        <i className="fas fa-server text-primary mr-2" />
+                        <FontAwesomeIcon icon={faServer} className="text-primary mr-2" />
                         <span>Multi-Service Access</span>
                       </div>
                     </div>
@@ -137,22 +151,22 @@ const UserLoginPage = () => {
                   <h3 className="text-xl font-semibold mb-4">Platform Features</h3>
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div className="bg-muted/50 rounded-lg p-3 hover:bg-muted/80 hover:-translate-y-0.5 hover:shadow-md transition-all duration-200 ease-in-out">
-                      <i className="fas fa-film text-primary mb-2 block" />
+                      <FontAwesomeIcon icon={faFilm} className="text-primary mb-2 block" />
                       <div className="font-medium">Your Library</div>
                       <div className="text-muted-foreground">Personal media collection</div>
                     </div>
                     <div className="bg-muted/50 rounded-lg p-3 hover:bg-muted/80 hover:-translate-y-0.5 hover:shadow-md transition-all duration-200 ease-in-out">
-                      <i className="fas fa-history text-primary mb-2 block" />
+                      <FontAwesomeIcon icon={faClockRotateLeft} className="text-primary mb-2 block" />
                       <div className="font-medium">Watch History</div>
                       <div className="text-muted-foreground">Track your viewing</div>
                     </div>
                     <div className="bg-muted/50 rounded-lg p-3 hover:bg-muted/80 hover:-translate-y-0.5 hover:shadow-md transition-all duration-200 ease-in-out">
-                      <i className="fas fa-download text-primary mb-2 block" />
+                      <FontAwesomeIcon icon={faDownload} className="text-primary mb-2 block" />
                       <div className="font-medium">Offline Access</div>
                       <div className="text-muted-foreground">Download for later</div>
                     </div>
                     <div className="bg-muted/50 rounded-lg p-3 hover:bg-muted/80 hover:-translate-y-0.5 hover:shadow-md transition-all duration-200 ease-in-out">
-                      <i className="fas fa-mobile-alt text-primary mb-2 block" />
+                      <FontAwesomeIcon icon={faMobileScreen} className="text-primary mb-2 block" />
                       <div className="font-medium">Multi-Device</div>
                       <div className="text-muted-foreground">Access anywhere</div>
                     </div>
@@ -183,7 +197,7 @@ const UserLoginPage = () => {
                         title="Why did this happen?"
                         onClick={() => setShowInactivityInfo(true)}
                       >
-                        <i className="fa-solid fa-circle-info text-sm" />
+                        <FontAwesomeIcon icon={faCircleInfo} className="text-sm" />
                       </button>
                     </div>
                   </AlertDescription>
@@ -199,7 +213,7 @@ const UserLoginPage = () => {
                   {/* Username Field */}
                   <div className="space-y-2">
                     <Label htmlFor="username" className="flex items-center gap-2">
-                      <i className="fas fa-user text-muted-foreground text-sm" />
+                      <FontAwesomeIcon icon={faUser} className="text-muted-foreground text-sm" />
                       <span>Username or Email</span>
                     </Label>
                     <Input
@@ -217,7 +231,7 @@ const UserLoginPage = () => {
                   {/* Password Field */}
                   <div className="space-y-2">
                     <Label htmlFor="password" className="flex items-center gap-2">
-                      <i className="fas fa-lock text-muted-foreground text-sm" />
+                      <FontAwesomeIcon icon={faLock} className="text-muted-foreground text-sm" />
                       <span>Password</span>
                     </Label>
                     <Input
@@ -298,7 +312,7 @@ const UserLoginPage = () => {
             {/* Security Notice */}
             <div className="mt-6 text-center">
               <div className="inline-flex items-center text-xs text-muted-foreground">
-                <i className="fas fa-shield-alt mr-2" />
+                <FontAwesomeIcon icon={faShieldHalved} className="mr-2" />
                 <span>Your connection is secure and encrypted</span>
               </div>
             </div>

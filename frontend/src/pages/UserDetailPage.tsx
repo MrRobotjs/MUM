@@ -28,6 +28,37 @@ import { getServiceMeta } from '@/config/pluginMetadata';
 import type { UnifiedSession } from '@/types/realtime';
 import type { UserNowPlaying } from '@/components/users/UserCard';
 import { Activity, Loader2, Music, Pause, Play } from 'lucide-react';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import {
+  faAt,
+  faIdCard,
+  faFingerprint,
+  faCalendarPlus,
+  faServer,
+  faDatabase,
+  faLink,
+  faCircleCheck,
+  faCircleXmark,
+  faHouse,
+  faShareNodes,
+  faShieldHalved,
+  faFolder,
+  faChartSimple,
+  faClock,
+  faCalendarWeek,
+  faCalendarDays,
+  faInfinity,
+  faLayerGroup,
+  faTv,
+  faPlay,
+  faClockRotateLeft,
+  faUserClock,
+  faLock,
+  faUnlock,
+  faKey,
+  faUser,
+} from '@fortawesome/free-solid-svg-icons';
+import { faDiscord } from '@fortawesome/free-brands-svg-icons';
 
 type TabKey = 'profile' | 'history' | 'settings' | 'overseerr' | 'security';
 
@@ -162,7 +193,7 @@ const ProfileTab = ({ user }: { user: UserDetail }) => {
 
             <div className="space-y-3 text-sm">
               <div className="flex items-start gap-3">
-                <i className="fa-solid fa-at mt-1 text-blue-600 dark:text-blue-400" />
+                <FontAwesomeIcon icon={faAt} className="mt-1 text-blue-600 dark:text-blue-400" />
                 <div>
                   <div className="text-muted-foreground">Email</div>
                   <div className="font-medium">{user.email ?? user.external_email ?? 'Not provided'}</div>
@@ -170,7 +201,7 @@ const ProfileTab = ({ user }: { user: UserDetail }) => {
               </div>
 
               <div className="flex items-start gap-3">
-                <i className="fa-solid fa-id-card mt-1 text-green-600 dark:text-green-400" />
+                <FontAwesomeIcon icon={faIdCard} className="mt-1 text-green-600 dark:text-green-400" />
                 <div>
                   <div className="text-muted-foreground">Username</div>
                   <div className="font-medium">
@@ -181,7 +212,7 @@ const ProfileTab = ({ user }: { user: UserDetail }) => {
 
               {user.external_user_id ? (
                 <div className="flex items-start gap-3">
-                  <i className="fa-solid fa-fingerprint mt-1 text-amber-600 dark:text-amber-400" />
+                  <FontAwesomeIcon icon={faFingerprint} className="mt-1 text-amber-600 dark:text-amber-400" />
                   <div>
                     <div className="text-muted-foreground">External User ID</div>
                     <div className="font-mono text-sm">{user.external_user_id}</div>
@@ -191,7 +222,7 @@ const ProfileTab = ({ user }: { user: UserDetail }) => {
 
               {user.service_join_date ? (
                 <div className="flex items-start gap-3">
-                  <i className="fa-solid fa-calendar-plus mt-1 text-primary" />
+                  <FontAwesomeIcon icon={faCalendarPlus} className="mt-1 text-primary" />
                   <div>
                     <div className="text-muted-foreground">Service Join Date</div>
                     <div className="font-medium">{formatDateTime(user.service_join_date, false)}</div>
@@ -201,7 +232,7 @@ const ProfileTab = ({ user }: { user: UserDetail }) => {
 
               {user.server_names.length > 0 ? (
                 <div className="flex items-start gap-3">
-                  <i className="fa-solid fa-server mt-1 text-secondary" />
+                  <FontAwesomeIcon icon={faServer} className="mt-1 text-secondary" />
                   <div className="space-y-1">
                     <div className="text-muted-foreground">
                       Connected {user.server_names.length > 1 ? 'Servers' : 'Server'}
@@ -214,7 +245,7 @@ const ProfileTab = ({ user }: { user: UserDetail }) => {
                           className="text-xs font-semibold gap-2"
                           hover={false}
                         >
-                          <i className="fa-solid fa-database w-3 h-3" />
+                          <FontAwesomeIcon icon={faDatabase} className="w-3 h-3" />
                           {server}
                         </Badge>
                       ))}
@@ -225,7 +256,7 @@ const ProfileTab = ({ user }: { user: UserDetail }) => {
 
               {isServiceUser && user.linked_local_user ? (
                 <div className="flex items-start gap-3">
-                  <i className="fa-solid fa-link mt-1 text-primary" />
+                  <FontAwesomeIcon icon={faLink} className="mt-1 text-primary" />
                   <div>
                     <div className="text-muted-foreground">Linked Local Account</div>
                     <div className="font-medium">
@@ -240,7 +271,7 @@ const ProfileTab = ({ user }: { user: UserDetail }) => {
 
               {user.discord_username || user.discord_user_id ? (
                 <div className="flex items-start gap-3">
-                  <i className="fa-brands fa-discord mt-1 text-indigo-500" />
+                  <FontAwesomeIcon icon={faDiscord} className="mt-1 text-indigo-500" />
                   <div>
                     <div className="text-muted-foreground">Discord</div>
                     <div className="font-medium">
@@ -260,37 +291,37 @@ const ProfileTab = ({ user }: { user: UserDetail }) => {
                 <div className="mt-3 flex flex-wrap gap-2">
                   {user.is_active && (
                     <Badge color="bg-green-600" className="text-xs font-semibold gap-1" hover={false}>
-                      <i className="fa-solid fa-circle-check w-3 h-3 mt-0.5" />
+                      <FontAwesomeIcon icon={faCircleCheck} className="w-3 h-3 mt-0.5" />
                       Active
                     </Badge>
                   )}
                   {!user.is_active && (
                     <Badge color="bg-amber-600" className="text-xs font-semibold gap-1" hover={false}>
-                      <i className="fa-solid fa-circle-xmark w-3 h-3 mt-0.5" />
+                      <FontAwesomeIcon icon={faCircleXmark} className="w-3 h-3 mt-0.5" />
                       Inactive
                     </Badge>
                   )}
                   {user.is_home_user && (
                     <Badge color="bg-blue-600" className="text-xs font-semibold gap-1" hover={false}>
-                      <i className="fa-solid fa-house w-3 h-3 mt-0.5" />
+                      <FontAwesomeIcon icon={faHouse} className="w-3 h-3 mt-0.5" />
                       Home User
                     </Badge>
                   )}
                   {user.shares_back && (
                     <Badge color="bg-purple-600" className="text-xs font-semibold gap-1" hover={false}>
-                      <i className="fa-solid fa-share-nodes w-3 h-3 mt-0.5" />
+                      <FontAwesomeIcon icon={faShareNodes} className="w-3 h-3 mt-0.5" />
                       Shares Back
                     </Badge>
                   )}
                   {user.is_purge_whitelisted && (
                     <Badge color="bg-amber-600" className="text-xs font-semibold gap-1" hover={false}>
-                      <i className="fa-solid fa-shield-halved w-3 h-3 mt-0.5" />
+                      <FontAwesomeIcon icon={faShieldHalved} className="w-3 h-3 mt-0.5" />
                       Purge Protected
                     </Badge>
                   )}
                   {user.is_discord_bot_whitelisted && (
                     <Badge color="bg-blue-600" className="text-xs font-semibold gap-1" hover={false}>
-                      <i className="fa-brands fa-discord w-3 h-3 mt-0.5" />
+                      <FontAwesomeIcon icon={faDiscord} className="w-3 h-3 mt-0.5" />
                       Discord Bot Allowed
                     </Badge>
                   )}
@@ -314,7 +345,7 @@ const ProfileTab = ({ user }: { user: UserDetail }) => {
                         className="text-xs font-medium gap-2"
                         hover={false}
                       >
-                        <i className="fa-solid fa-folder w-3 h-3" />
+                        <FontAwesomeIcon icon={faFolder} className="w-3 h-3" />
                         {library}
                       </Badge>
                     ))}
@@ -396,7 +427,7 @@ const ProfileTab = ({ user }: { user: UserDetail }) => {
           <CardContent className="space-y-4">
             {Object.keys(globalStats).length === 0 ? (
               <div className="flex flex-col items-center gap-3 py-8 text-muted-foreground/60">
-                <i className="fa-solid fa-chart-simple text-3xl" />
+                <FontAwesomeIcon icon={faChartSimple} className="text-3xl" />
                 <p className="text-sm">No streaming activity has been recorded for this user yet.</p>
               </div>
             ) : (
@@ -407,28 +438,28 @@ const ProfileTab = ({ user }: { user: UserDetail }) => {
                     plays: globalStats.plays_24h ?? 0,
                     duration: globalStats.duration_24h,
                     gradient: 'from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20',
-                    icon: <i className="fa-solid fa-clock text-blue-600 dark:text-blue-300" />
+                    icon: <FontAwesomeIcon icon={faClock} className="text-blue-600 dark:text-blue-300" />
                   },
                   {
                     title: 'Last 7 Days',
                     plays: globalStats.plays_7d ?? 0,
                     duration: globalStats.duration_7d,
                     gradient: 'from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20',
-                    icon: <i className="fa-solid fa-calendar-week text-green-600 dark:text-green-300" />
+                    icon: <FontAwesomeIcon icon={faCalendarWeek} className="text-green-600 dark:text-green-300" />
                   },
                   {
                     title: 'Last 30 Days',
                     plays: globalStats.plays_30d ?? 0,
                     duration: globalStats.duration_30d,
                     gradient: 'from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20',
-                    icon: <i className="fa-solid fa-calendar-days text-purple-600 dark:text-purple-300" />
+                    icon: <FontAwesomeIcon icon={faCalendarDays} className="text-purple-600 dark:text-purple-300" />
                   },
                   {
                     title: 'All Time',
                     plays: globalStats.all_time_plays ?? 0,
                     duration: globalStats.all_time_duration,
                     gradient: 'from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20',
-                    icon: <i className="fa-solid fa-infinity text-orange-600 dark:text-orange-300" />
+                    icon: <FontAwesomeIcon icon={faInfinity} className="text-orange-600 dark:text-orange-300" />
                   }
                 ].map((stat) => (
                   <div
@@ -464,7 +495,7 @@ const ProfileTab = ({ user }: { user: UserDetail }) => {
             </div>
             {playerStats.length > 0 ? (
               <span className="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium bg-muted text-muted-foreground">
-                <i className="fa-solid fa-layer-group mr-1" />
+                <FontAwesomeIcon icon={faLayerGroup} className="mr-1" />
                 {playerStats.length} unique players
               </span>
             ) : null}
@@ -472,7 +503,7 @@ const ProfileTab = ({ user }: { user: UserDetail }) => {
           <CardContent>
             {playerStats.length === 0 ? (
               <div className="flex flex-col items-center gap-3 py-8 text-muted-foreground/60">
-                <i className="fa-solid fa-tv text-3xl" />
+                <FontAwesomeIcon icon={faTv} className="text-3xl" />
                 <p className="text-sm">No player telemetry has been captured yet.</p>
               </div>
             ) : (
@@ -483,7 +514,7 @@ const ProfileTab = ({ user }: { user: UserDetail }) => {
                     className="rounded-xl border border-border bg-muted/40 p-4 text-center shadow-sm transition-shadow hover:shadow-md dark:border-border/70 dark:bg-muted/20"
                   >
                     <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                      <i className="fa-solid fa-play text-xl" />
+                      <FontAwesomeIcon icon={faPlay} className="text-xl" />
                     </div>
                     <div className="mb-3 text-sm font-semibold text-foreground" title={player?.name ?? 'Unknown'}>
                       {player?.name ?? 'Unknown Player'}
@@ -546,7 +577,7 @@ const HistoryTab = ({ entries, loading, error, currentPage, totalPages, onPageCh
 
       {entries.length === 0 && !loading ? (
         <div className="flex flex-col items-center gap-3 py-10 text-muted-foreground/60">
-          <i className="fa-solid fa-clock-rotate-left text-3xl" />
+          <FontAwesomeIcon icon={faClockRotateLeft} className="text-3xl" />
           <p className="text-sm">No streaming history to display yet.</p>
         </div>
       ) : (
@@ -587,11 +618,11 @@ const HistoryTab = ({ entries, loading, error, currentPage, totalPages, onPageCh
                                 className="w-full h-full object-cover"
                                 onError={(e) => {
                                   (e.target as HTMLImageElement).style.display = 'none';
-                                  (e.target as HTMLImageElement).parentElement!.innerHTML = '<i class="fa-solid fa-play text-muted-foreground/40 text-sm"></i>';
+                                  (e.target as HTMLImageElement).parentElement!.innerHTML = '<span class="text-muted-foreground/40 text-sm">▶</span>';
                                 }}
                               />
                             ) : (
-                              <i className="fa-solid fa-play text-muted-foreground/40 text-sm" />
+                              <FontAwesomeIcon icon={faPlay} className="text-muted-foreground/40 text-sm" />
                             )}
                           </div>
                         </td>
@@ -602,7 +633,7 @@ const HistoryTab = ({ entries, loading, error, currentPage, totalPages, onPageCh
                           )}
                           {details.library_name && (
                             <div className="text-xs text-muted-foreground/60">
-                              <i className="fa-solid fa-folder w-3 h-3 mr-1" />
+                              <FontAwesomeIcon icon={faFolder} className="mr-1 h-3 w-3" />
                               {details.library_name as string}
                             </div>
                           )}
@@ -740,7 +771,7 @@ const SecurityTab = ({ user, onResetPassword, resetting }: SecurityTabProps) => 
             <p className="text-sm text-muted-foreground">Recent access details for this local account.</p>
           </div>
           <span className="inline-flex items-center rounded-md px-2.5 py-0.5 text-xs font-semibold bg-muted text-muted-foreground">
-            <i className="fa-solid fa-user-clock mr-1" />
+            <FontAwesomeIcon icon={faUserClock} className="mr-1" />
             {user.is_active ? 'Active' : 'Inactive'}
           </span>
         </header>
@@ -777,12 +808,12 @@ const SecurityTab = ({ user, onResetPassword, resetting }: SecurityTabProps) => 
           </div>
           {user.has_password ? (
             <span className="inline-flex items-center rounded-md px-2.5 py-0.5 text-xs font-semibold bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-300 gap-2">
-              <i className="fa-solid fa-lock" />
+              <FontAwesomeIcon icon={faLock} />
               Password Protected
             </span>
           ) : (
             <span className="inline-flex items-center rounded-md px-2.5 py-0.5 text-xs font-semibold bg-amber-100 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300 gap-2">
-              <i className="fa-solid fa-unlock" />
+              <FontAwesomeIcon icon={faUnlock} />
               No Password Set
             </span>
           )}
@@ -802,7 +833,7 @@ const SecurityTab = ({ user, onResetPassword, resetting }: SecurityTabProps) => 
               onClick={onResetPassword}
               disabled={resetting}
             >
-              <i className="fa-solid fa-key mr-2" />
+              <FontAwesomeIcon icon={faKey} className="mr-2" />
               {resetting ? 'Resetting…' : 'Reset Password'}
             </button>
           </div>
@@ -1079,7 +1110,7 @@ export const UserDetailPage = () => {
                 {!isServiceUser ? (
                   <>
                     <Badge color="bg-primary" className="text-sm font-medium px-3 py-1 gap-2" hover={false}>
-                      <i className="fa-solid fa-user w-4 h-4" />
+                      <FontAwesomeIcon icon={faUser} className="h-4 w-4" />
                       Local Account
                     </Badge>
 
@@ -1102,14 +1133,14 @@ export const UserDetailPage = () => {
                 ) : (
                   <>
                     <Badge color={heroTheme.palette?.avatar ?? 'bg-primary'} className="text-sm font-medium gap-2" hover={false}>
-                      <i className="fa-solid fa-server w-3 h-3 mb-0.5" />
+                      <FontAwesomeIcon icon={faServer} className="h-3 w-3 mb-0.5" />
                       {user.server_nickname || `${heroTheme.label} User`}
                     </Badge>
 
                     {/* Show linked local user badge if this service user is linked to a local account */}
                     {user.linked_local_user && (
                       <Badge color="bg-primary" className="text-sm font-medium px-3 py-1 gap-2" hover={false}>
-                        <i className="fa-solid fa-link w-4 h-4" />
+                        <FontAwesomeIcon icon={faLink} className="h-4 w-4" />
                         {user.linked_local_user.display_name ?? user.linked_local_user.username ?? 'Local account'}
                       </Badge>
                     )}

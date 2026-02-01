@@ -17,6 +17,27 @@ import { useServerOptions } from '../../hooks/useServerOptions';
 import { useAlerts } from '../../contexts/AlertContext';
 import { requestJson } from '../../util/apiClient';
 import { ResponsiveDialog } from '../ui/responsive-dialog';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import {
+  faCalendar,
+  faCalendarPlus,
+  faCheck,
+  faCircle,
+  faCircleInfo,
+  faCircleMinus,
+  faCirclePlus,
+  faCog,
+  faFolder,
+  faInfinity,
+  faLink,
+  faListCheck,
+  faServer,
+  faSliders,
+  faTrash,
+  faTriangleExclamation,
+  faUnlock,
+  faUsersGear,
+} from '@fortawesome/free-solid-svg-icons';
 
 interface MassEditUsersModalProps {
   isOpen: boolean;
@@ -86,11 +107,11 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
     return 'unchecked';
   };
 
-  const getLibraryCheckboxIcon = (libraryId: number): string => {
+  const getLibraryCheckboxIcon = (libraryId: number): { icon: typeof faCircle; className: string } => {
     const state = librarySelections[libraryId] || 'unchanged';
-    if (state === 'add') return 'fa-plus-circle text-green-600 dark:text-green-400';
-    if (state === 'remove') return 'fa-minus-circle text-destructive';
-    return 'fa-circle text-muted-foreground';
+    if (state === 'add') return { icon: faCirclePlus, className: 'text-green-600 dark:text-green-400' };
+    if (state === 'remove') return { icon: faCircleMinus, className: 'text-destructive' };
+    return { icon: faCircle, className: 'text-muted-foreground' };
   };
 
   const handleSubmit = async () => {
@@ -238,7 +259,7 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
           <div className="space-y-4">
             <div className="bg-blue-50 dark:bg-blue-400/10 rounded-lg p-4 border border-blue-500/30">
               <div className="flex items-start gap-3">
-                <i className="fa-solid fa-info-circle text-blue-600 dark:text-blue-400 text-lg mt-0.5" />
+                <FontAwesomeIcon icon={faCircleInfo} className="text-blue-600 dark:text-blue-400 text-lg mt-0.5" />
                 <div>
                   <h5 className="font-medium mb-1">Library Access Control</h5>
                   <p className="text-sm text-muted-foreground">
@@ -250,7 +271,7 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
 
             <div className="space-y-2">
               <Label htmlFor="server">
-                <i className="fa-solid fa-server mr-2" />
+                <FontAwesomeIcon icon={faServer} className="mr-2" />
                 Server
               </Label>
               <Select value={selectedServerId} onValueChange={setSelectedServerId}>
@@ -274,7 +295,7 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
                 onCheckedChange={(checked) => setGrantAllLibraries(checked === true)}
               />
               <Label htmlFor="grant-all" className="cursor-pointer">
-                <i className="fa-solid fa-unlock mr-2" />
+                <FontAwesomeIcon icon={faUnlock} className="mr-2" />
                 Grant access to all libraries
               </Label>
             </div>
@@ -282,7 +303,7 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
             {!grantAllLibraries && selectedServerId && (
               <div className="space-y-2">
                 <Label>
-                  <i className="fa-solid fa-folder mr-2" />
+                  <FontAwesomeIcon icon={faFolder} className="mr-2" />
                   Select Libraries
                 </Label>
                 <div className="max-h-64 overflow-y-auto border rounded-lg p-3 space-y-2">
@@ -301,7 +322,10 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
                         className="flex items-center gap-3 p-2 rounded hover:bg-muted cursor-pointer"
                         onClick={() => handleToggleLibrary(library.id)}
                       >
-                        <i className={`fa-solid ${getLibraryCheckboxIcon(library.id)} text-lg`} />
+                        <FontAwesomeIcon
+                          icon={getLibraryCheckboxIcon(library.id).icon}
+                          className={`text-lg ${getLibraryCheckboxIcon(library.id).className}`}
+                        />
                         <div className="flex-1">
                           <div className="font-medium text-sm">{library.name}</div>
                           {library.library_type && (
@@ -329,7 +353,7 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
           <div className="space-y-4">
             <div className="bg-blue-50 dark:bg-blue-400/10 rounded-lg p-4 border border-blue-500/30">
               <div className="flex items-start gap-3">
-                <i className="fa-solid fa-info-circle text-blue-600 dark:text-blue-400 text-lg mt-0.5" />
+                <FontAwesomeIcon icon={faCircleInfo} className="text-blue-600 dark:text-blue-400 text-lg mt-0.5" />
                 <div>
                   <h5 className="font-medium mb-1">Extend Access Duration</h5>
                   <p className="text-sm text-muted-foreground">
@@ -341,7 +365,7 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
 
             <div className="space-y-2">
               <Label htmlFor="extend-days">
-                <i className="fa-solid fa-calendar-plus mr-2" />
+                <FontAwesomeIcon icon={faCalendarPlus} className="mr-2" />
                 Number of Days to Add
               </Label>
               <Input
@@ -364,7 +388,7 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
           <div className="space-y-4">
             <div className="bg-blue-50 dark:bg-blue-400/10 rounded-lg p-4 border border-blue-500/30">
               <div className="flex items-start gap-3">
-                <i className="fa-solid fa-info-circle text-blue-600 dark:text-blue-400 text-lg mt-0.5" />
+                <FontAwesomeIcon icon={faCircleInfo} className="text-blue-600 dark:text-blue-400 text-lg mt-0.5" />
                 <div>
                   <h5 className="font-medium mb-1">Set Expiration Date</h5>
                   <p className="text-sm text-muted-foreground">
@@ -376,13 +400,13 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
 
             <div className="space-y-2">
               <Label>
-                <i className="fa-solid fa-calendar mr-2" />
+                <FontAwesomeIcon icon={faCalendar} className="mr-2" />
                 Expiration Date
               </Label>
               <Popover>
                 <PopoverTrigger asChild>
                   <Button variant="outline" className="w-full justify-start text-left font-normal">
-                    <i className="fa-solid fa-calendar mr-2" />
+                    <FontAwesomeIcon icon={faCalendar} className="mr-2" />
                     {expirationDate ? expirationDate.toLocaleDateString() : 'Select date...'}
                   </Button>
                 </PopoverTrigger>
@@ -410,7 +434,7 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
           <div className="space-y-4">
             <div className="bg-amber-50 dark:bg-amber-400/10 rounded-lg p-4 border border-amber-500/30">
               <div className="flex items-start gap-3">
-                <i className="fa-solid fa-exclamation-triangle text-amber-600 dark:text-amber-400 text-lg mt-0.5" />
+                <FontAwesomeIcon icon={faTriangleExclamation} className="text-amber-600 dark:text-amber-400 text-lg mt-0.5" />
                 <div>
                   <h5 className="font-medium mb-1">Clear Expiration Date</h5>
                   <p className="text-sm text-muted-foreground">
@@ -422,7 +446,7 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
 
             <div className="bg-muted/50 rounded-lg p-4">
               <div className="flex items-center gap-3">
-                <i className="fa-solid fa-infinity text-primary text-2xl" />
+                <FontAwesomeIcon icon={faInfinity} className="text-primary text-2xl" />
                 <div>
                   <p className="font-medium">Indefinite Access</p>
                   <p className="text-sm text-muted-foreground">
@@ -439,7 +463,7 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
           <div className="space-y-4">
             <div className="bg-blue-50 dark:bg-blue-400/10 rounded-lg p-4 border border-blue-500/30">
               <div className="flex items-start gap-3">
-                <i className="fa-solid fa-info-circle text-blue-600 dark:text-blue-400 text-lg mt-0.5" />
+                <FontAwesomeIcon icon={faCircleInfo} className="text-blue-600 dark:text-blue-400 text-lg mt-0.5" />
                 <div>
                   <h5 className="font-medium mb-1">Merge into Local Account</h5>
                   <p className="text-sm text-muted-foreground">
@@ -451,7 +475,7 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
 
             <div className="space-y-2">
               <Label htmlFor="target-uuid">
-                <i className="fa-solid fa-link mr-2" />
+                <FontAwesomeIcon icon={faLink} className="mr-2" />
                 Target Local User UUID
               </Label>
               <Input
@@ -473,7 +497,7 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
           <div className="space-y-4">
             <div className="bg-destructive/10 rounded-lg p-4 border border-destructive/30">
               <div className="flex items-start gap-3">
-                <i className="fa-solid fa-exclamation-triangle text-destructive text-lg mt-0.5" />
+                <FontAwesomeIcon icon={faTriangleExclamation} className="text-destructive text-lg mt-0.5" />
                 <div>
                   <h5 className="font-medium mb-1 text-destructive">Permanent Deletion</h5>
                   <p className="text-sm text-muted-foreground">
@@ -513,14 +537,14 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
     <div className="space-y-6 py-4">
       <div className="space-y-4">
         <div className="flex items-center gap-2">
-          <i className="fa-solid fa-cog text-primary text-sm" />
+          <FontAwesomeIcon icon={faCog} className="text-primary text-sm" />
           <h4 className="font-medium text-lg">Select Action</h4>
         </div>
 
         <div className="bg-muted/50 rounded-lg p-4 border">
           <div className="space-y-2">
             <Label htmlFor="action">
-              <i className="fa-solid fa-list-check text-primary text-sm mr-2" />
+              <FontAwesomeIcon icon={faListCheck} className="text-primary text-sm mr-2" />
               Action to Perform
             </Label>
             <Select value={action} onValueChange={setAction}>
@@ -529,27 +553,27 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="modify_libraries">
-                  <i className="fa-solid fa-folder mr-2" />
+                  <FontAwesomeIcon icon={faFolder} className="mr-2" />
                   Modify Library Access
                 </SelectItem>
                 <SelectItem value="extend_access">
-                  <i className="fa-solid fa-calendar-plus mr-2" />
+                  <FontAwesomeIcon icon={faCalendarPlus} className="mr-2" />
                   Extend Access Duration
                 </SelectItem>
                 <SelectItem value="set_expiration">
-                  <i className="fa-solid fa-calendar mr-2" />
+                  <FontAwesomeIcon icon={faCalendar} className="mr-2" />
                   Set Expiration Date
                 </SelectItem>
                 <SelectItem value="clear_expiration">
-                  <i className="fa-solid fa-infinity mr-2" />
+                  <FontAwesomeIcon icon={faInfinity} className="mr-2" />
                   Clear Expiration Date
                 </SelectItem>
                 <SelectItem value="merge_local">
-                  <i className="fa-solid fa-link mr-2" />
+                  <FontAwesomeIcon icon={faLink} className="mr-2" />
                   Merge into Local Account
                 </SelectItem>
                 <SelectItem value="delete">
-                  <i className="fa-solid fa-trash mr-2" />
+                  <FontAwesomeIcon icon={faTrash} className="mr-2" />
                   Delete Users
                 </SelectItem>
               </SelectContent>
@@ -564,7 +588,7 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
       {action && (
         <div className="space-y-4">
           <div className="flex items-center gap-2">
-            <i className="fa-solid fa-sliders text-primary text-sm" />
+            <FontAwesomeIcon icon={faSliders} className="text-primary text-sm" />
             <h4 className="font-medium text-lg">Configure Action</h4>
           </div>
           {renderActionContent()}
@@ -590,7 +614,7 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
         </>
       ) : (
         <>
-          <i className={`fa-solid ${action === 'delete' ? 'fa-trash' : 'fa-check'} mr-2`} />
+          <FontAwesomeIcon icon={action === 'delete' ? faTrash : faCheck} className="mr-2" />
           Apply Changes
         </>
       )}
@@ -604,7 +628,7 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
       title={
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
-            <i className="fa-solid fa-users-cog text-primary text-lg" />
+            <FontAwesomeIcon icon={faUsersGear} className="text-primary text-lg" />
           </div>
           <span>Mass Edit Users</span>
         </div>

@@ -26,6 +26,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { IconDots, IconRefresh } from '@tabler/icons-react';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faGear, faLayerGroup, faServer, faGears, faHistory } from '@fortawesome/free-solid-svg-icons';
 import type { UnifiedSession } from '../types/realtime';
 import type { ActiveSession, ActiveSessionsResponse, ViewMode } from '../types/streaming';
 
@@ -942,7 +944,7 @@ export const StreamingPage = () => {
             collisionPadding={8}
           >
             <DropdownMenuItem onSelect={() => setSettingsOpen(true)}>
-              <i className="fa-solid fa-cog fa-fw mr-2" />
+              <FontAwesomeIcon icon={faGear} fixedWidth className="mr-2" />
               Settings
             </DropdownMenuItem>
             <DropdownMenuSeparator />
@@ -951,7 +953,7 @@ export const StreamingPage = () => {
               onSelect={() => setViewMode('merged')}
               className={viewMode === 'merged' ? 'bg-accent text-accent-foreground' : ''}
             >
-              <i className="fa-solid fa-layer-group fa-fw mr-2" />
+              <FontAwesomeIcon icon={faLayerGroup} fixedWidth className="mr-2" />
               <span className="flex-1">Merged</span>
               <div className="flex items-center gap-2">
                 <Badge variant="secondary" className="text-xs bg-primary">Default</Badge>
@@ -961,14 +963,14 @@ export const StreamingPage = () => {
               onSelect={() => setViewMode('categorized')}
               className={viewMode === 'categorized' ? 'bg-accent text-accent-foreground' : ''}
             >
-              <i className="fa-solid fa-server fa-fw mr-2" />
+              <FontAwesomeIcon icon={faServer} fixedWidth className="mr-2" />
               <span className="flex-1">Categorized by Server</span>
             </DropdownMenuItem>
             <DropdownMenuItem
               onSelect={() => setViewMode('service')}
               className={viewMode === 'service' ? 'bg-accent text-accent-foreground' : ''}
             >
-              <i className="fa-solid fa-cogs fa-fw mr-2" />
+              <FontAwesomeIcon icon={faGears} fixedWidth className="mr-2" />
               <span className="flex-1">Categorized by Service</span>
             </DropdownMenuItem>
           </DropdownMenuContent>
@@ -1004,7 +1006,7 @@ export const StreamingPage = () => {
 
       {/* Historical Data Section - EXISTING */}
       <div className="divider text-muted-foreground">
-        <i className="fa-solid fa-history mr-2" />
+        <FontAwesomeIcon icon={faHistory} className="mr-2" />
         Historical Streaming Data
       </div>
 

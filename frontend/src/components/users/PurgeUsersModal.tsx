@@ -8,6 +8,8 @@ import { Label } from '../ui/label';
 import { Button } from '../ui/button';
 import { Alert, AlertDescription } from '../ui/alert';
 import { ResponsiveDialog } from '../ui/responsive-dialog';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faTrash } from '@fortawesome/free-solid-svg-icons';
 
 interface EligibleUser {
   uuid: string;
@@ -335,7 +337,7 @@ export const PurgeUsersModal = ({ onClose, onPurgeComplete }: PurgeUsersModalPro
           </>
         ) : (
           <>
-            <i className="fa-solid fa-trash mr-2" />
+            <FontAwesomeIcon icon={faTrash} className="mr-2" />
             Purge Selected Users
           </>
         )}

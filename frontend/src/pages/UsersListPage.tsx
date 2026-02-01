@@ -49,6 +49,28 @@ import { Card, CardContent } from '../components/ui/card';
 import { Progress } from '../components/ui/progress';
 import { IconDots, IconRefresh } from '@tabler/icons-react';
 import { Separator } from '../components/ui/separator';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import {
+  faCog,
+  faList,
+  faTableCellsLarge,
+  faMagnifyingGlass,
+  faFilter,
+  faUser,
+  faEnvelope,
+  faNoteSticky,
+  faSort,
+  faListOl,
+  faServer,
+  faUsers,
+  faUserTag,
+  faUserClock,
+  faPenToSquare,
+  faTrash,
+  faSquare,
+  faSquareCheck,
+  faSquareMinus,
+} from '@fortawesome/free-solid-svg-icons';
 
 export const UsersListPage = () => {
   const getPreferredView = () => {
@@ -261,7 +283,7 @@ export const UsersListPage = () => {
         >
           {/* Sync action moved to filter bar dropdown */}
           <DropdownMenuItem onSelect={() => setShowDisplaySettingsModal(true)}>
-            <i className="fa-solid fa-cog fa-fw mr-2" />
+            <FontAwesomeIcon icon={faCog} fixedWidth className="mr-2" />
             Display Settings
           </DropdownMenuItem>
 
@@ -271,7 +293,7 @@ export const UsersListPage = () => {
             onSelect={() => setView('table')}
             className={cn('mb-0.5', view === 'table' && 'bg-accent text-accent-foreground')}
           >
-            <i className="fa-solid fa-list fa-fw mr-2" />
+            <FontAwesomeIcon icon={faList} fixedWidth className="mr-2" />
             <span className="flex-1">Table View</span>
             {preferredView === 'table' && (
               <Badge variant="secondary" className="text-xs bg-primary">Default</Badge>
@@ -281,7 +303,7 @@ export const UsersListPage = () => {
             onSelect={() => setView('cards')}
             className={view === 'cards' ? 'bg-accent text-accent-foreground' : ''}
           >
-            <i className="fa-solid fa-th-large fa-fw mr-2" />
+            <FontAwesomeIcon icon={faTableCellsLarge} fixedWidth className="mr-2" />
             <span className="flex-1">Card View</span>
             {preferredView === 'cards' && (
               <Badge variant="secondary" className="text-xs bg-primary">Default</Badge>
@@ -391,19 +413,19 @@ export const UsersListPage = () => {
             className="flex-1"
           />
           <Button onClick={() => mutate()}>
-            <i className="fa-solid fa-search" />
+            <FontAwesomeIcon icon={faMagnifyingGlass} />
           </Button>
           <Sheet open={showFilterDrawer} onOpenChange={setShowFilterDrawer}>
             <SheetTrigger asChild>
               <Button variant="secondary">
-                <i className="fa-solid fa-filter mr-0 sm:mr-2" />
+                <FontAwesomeIcon icon={faFilter} className="mr-0 sm:mr-2" />
                 <span className="hidden sm:inline">Sort & Filter</span>
               </Button>
             </SheetTrigger>
             <SheetContent className="w-[92vw] sm:max-w-md p-6">
               <SheetHeader>
                 <SheetTitle>
-                  <i className="fa-solid fa-filter mr-2" />
+                  <FontAwesomeIcon icon={faFilter} className="mr-2" />
                   Sort & Filter Options
                 </SheetTitle>
                 <SheetDescription>
@@ -418,7 +440,7 @@ export const UsersListPage = () => {
                 {/* Search Username */}
                 <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
                   <Label htmlFor="searchUsername">
-                    <i className="fa-solid fa-user mr-2" />
+                    <FontAwesomeIcon icon={faUser} className="mr-2" />
                     Search Username
                   </Label>
                   <Input
@@ -433,7 +455,7 @@ export const UsersListPage = () => {
                 {/* Search Email */}
                 <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
                   <Label htmlFor="searchEmail">
-                    <i className="fa-solid fa-envelope mr-2" />
+                    <FontAwesomeIcon icon={faEnvelope} className="mr-2" />
                     Search Email
                   </Label>
                   <Input
@@ -448,7 +470,7 @@ export const UsersListPage = () => {
                 {/* Search Notes */}
                 <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
                   <Label htmlFor="searchNotes">
-                    <i className="fa-solid fa-sticky-note mr-2" />
+                    <FontAwesomeIcon icon={faNoteSticky} className="mr-2" />
                     Search Notes
                   </Label>
                   <Input
@@ -466,7 +488,7 @@ export const UsersListPage = () => {
                 {/* Sort Options */}
                 <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
                   <Label htmlFor="sort">
-                    <i className="fa-solid fa-sort mr-2" />
+                    <FontAwesomeIcon icon={faSort} className="mr-2" />
                     Sort by
                   </Label>
                   <Select value={sort} onValueChange={setSort}>
@@ -487,7 +509,7 @@ export const UsersListPage = () => {
                 {/* Per Page */}
                 <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
                   <Label htmlFor="perPage">
-                    <i className="fa-solid fa-list-ol mr-2" />
+                    <FontAwesomeIcon icon={faListOl} className="mr-2" />
                     Per Page
                   </Label>
                   <Select value={String(pageSize)} onValueChange={(val) => setPageSize(Number(val))}>
@@ -509,7 +531,7 @@ export const UsersListPage = () => {
                 {/* Server Filter */}
                 <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
                   <Label htmlFor="serverId">
-                    <i className="fa-solid fa-server mr-2" />
+                    <FontAwesomeIcon icon={faServer} className="mr-2" />
                     Server
                   </Label>
                   <Select value={serverId} onValueChange={setServerId}>
@@ -530,7 +552,7 @@ export const UsersListPage = () => {
                 {/* User Type Filter */}
                 <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
                   <Label htmlFor="userType">
-                    <i className="fa-solid fa-users mr-2" />
+                    <FontAwesomeIcon icon={faUsers} className="mr-2" />
                     User Type
                   </Label>
                   <Select value={userType} onValueChange={setUserType}>
@@ -549,7 +571,7 @@ export const UsersListPage = () => {
                 {/* Filter Type */}
                 <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
                   <Label htmlFor="filterType">
-                    <i className="fa-solid fa-filter mr-2" />
+                    <FontAwesomeIcon icon={faFilter} className="mr-2" />
                     Filter by
                   </Label>
                   <Select value={filterType} onValueChange={setFilterType}>
@@ -569,7 +591,7 @@ export const UsersListPage = () => {
                 {/* Role Filter */}
                 <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
                   <Label htmlFor="role">
-                    <i className="fa-solid fa-user-tag mr-2" />
+                    <FontAwesomeIcon icon={faUserTag} className="mr-2" />
                     Filter by Role
                   </Label>
                   <Select value={role || 'all'} onValueChange={(val) => setRole(val === 'all' ? '' : val)}>
@@ -664,7 +686,7 @@ export const UsersListPage = () => {
                   }}
                   className="cursor-pointer text-amber-600 dark:text-amber-400"
                 >
-                  <i className="fa-solid fa-user-clock mr-2 text-amber-600 dark:text-amber-400" />
+                  <FontAwesomeIcon icon={faUserClock} className="mr-2 text-amber-600 dark:text-amber-400" />
                   Purge
                 </DropdownMenuItem>
               )}
@@ -678,7 +700,7 @@ export const UsersListPage = () => {
         <Card className="mb-4 sticky top-0 z-1">
           <CardContent className="flex items-center gap-2">
             <Button variant="default" onClick={() => setShowMassEditModal(true)}>
-              <i className="fa-solid fa-pen-to-square mr-0 sm:mr-2" />
+              <FontAwesomeIcon icon={faPenToSquare} className="mr-0 sm:mr-2" />
               <span className="hidden sm:inline">Mass Edit ({selectedUserIds.size} selected)</span>
               <span className="inline sm:hidden">({selectedUserIds.size})</span>
             </Button>
@@ -687,17 +709,20 @@ export const UsersListPage = () => {
                 console.log('Delete users:', Array.from(selectedUserIds));
               }
             }}>
-              <i className="fa-solid fa-trash mr-0 sm:mr-2" />
+              <FontAwesomeIcon icon={faTrash} className="mr-0 sm:mr-2" />
               <span className="hidden sm:inline">Delete Selected</span>
             </Button>
             <Button variant="secondary" onClick={toggleSelectAll}>
-              <i className={`fa-solid ${
-                selectAllState === 'none'
-                  ? 'fa-square'
-                  : selectAllState === 'all'
-                  ? 'fa-square-check'
-                  : 'fa-square-minus'
-              } mr-0 sm:mr-2`} />
+              <FontAwesomeIcon
+                icon={
+                  selectAllState === 'none'
+                    ? faSquare
+                    : selectAllState === 'all'
+                    ? faSquareCheck
+                    : faSquareMinus
+                }
+                className="mr-0 sm:mr-2"
+              />
               <span className="hidden sm:inline">
                 {selectAllState === 'all' ? 'Deselect All' : 'Select All'}
               </span>

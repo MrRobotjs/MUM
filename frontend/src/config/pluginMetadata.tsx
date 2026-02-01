@@ -12,6 +12,7 @@ import {
   faCube,
   faGamepad,
   faHeadphones,
+  faServer,
 } from '@fortawesome/free-solid-svg-icons'
 import { cn } from '@/lib/utils'
 
@@ -220,7 +221,7 @@ export const getServiceMeta = (serviceType?: string): ServiceMeta => {
     libraryBadgeClass: 'bg-muted text-foreground ring-border',
     chipClass: 'bg-gray-100 text-gray-700 ring-gray-600/30 dark:bg-gray-400/20 dark:text-gray-200',
     detailGradient: 'from-gray/10 via-gray/10 to-gray/20',
-    icon: <i className="fa-solid fa-server" />,
+    icon: <FontAwesomeIcon icon={faServer} />,
     palette: {
       bg: 'bg-gray-50',
       bgDark: 'dark:bg-gray-400/10',

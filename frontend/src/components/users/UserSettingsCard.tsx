@@ -12,6 +12,14 @@ import {
   IconCalendarTime,
   IconFolders,
 } from '@tabler/icons-react'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import {
+  faDownload,
+  faVideo,
+  faCircleInfo,
+  faSquareCheck,
+  faSquare,
+} from '@fortawesome/free-solid-svg-icons'
 
 export type UserSettings = {
   uuid: string
@@ -205,9 +213,9 @@ export const UserSettingsCard = ({ settings, loading, error, onSave }: UserSetti
         <CardContent className="space-y-4">
           <Card className="opacity-60 pointer-events-none">
             <CardContent className="flex items-center justify-between gap-3">
-              <div>
-                <div className="flex items-center gap-2 mb-1 text-muted-foreground">
-                  <i className="fa-solid fa-download" />
+                <div>
+                  <div className="flex items-center gap-2 mb-1 text-muted-foreground">
+                  <FontAwesomeIcon icon={faDownload} />
                   <span className="font-medium">Allow Downloads</span>
                 </div>
                 <p className="text-xs text-muted-foreground">
@@ -220,9 +228,9 @@ export const UserSettingsCard = ({ settings, loading, error, onSave }: UserSetti
 
           <Card>
             <CardContent className="flex items-center justify-between gap-3">
-              <div>
-                <div className="flex items-center gap-2 mb-1 text-foreground">
-                  <i className="fa-solid fa-video text-green-600 dark:text-green-400" />
+                <div>
+                  <div className="flex items-center gap-2 mb-1 text-foreground">
+                  <FontAwesomeIcon icon={faVideo} className="text-green-600 dark:text-green-400" />
                   <span className="font-medium">Allow 4K Transcode</span>
                 </div>
                 <p className="text-xs text-muted-foreground">
@@ -250,7 +258,7 @@ export const UserSettingsCard = ({ settings, loading, error, onSave }: UserSetti
         <CardContent className="space-y-4">
           <Card className="bg-muted/40">
             <CardContent className="flex items-start gap-3">
-              <i className="fa-solid fa-info-circle text-blue-600 dark:text-blue-400 mt-1" />
+              <FontAwesomeIcon icon={faCircleInfo} className="text-blue-600 dark:text-blue-400 mt-1" />
               <div className="text-sm text-muted-foreground">
                 Set an expiration date to automatically revoke user access. Leave blank for permanent access.
               </div>
@@ -302,11 +310,11 @@ export const UserSettingsCard = ({ settings, loading, error, onSave }: UserSetti
             </div>
             <div className="flex gap-2">
               <Button type="button" variant="secondary" size="sm" onClick={handleSelectAllLibraries}>
-                <i className="fa-solid fa-check-square mr-2" />
+                <FontAwesomeIcon icon={faSquareCheck} className="mr-2" />
                 Select All
               </Button>
               <Button type="button" variant="outline" size="sm" onClick={handleDeselectAllLibraries}>
-                <i className="fa-solid fa-square mr-2" />
+                <FontAwesomeIcon icon={faSquare} className="mr-2" />
                 Clear All
               </Button>
             </div>

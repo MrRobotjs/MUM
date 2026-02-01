@@ -5,6 +5,19 @@ import { Label } from '../ui/label';
 import { Button } from '../ui/button';
 import { ResponsiveDialog } from '../ui/responsive-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import type { IconDefinition } from '@fortawesome/fontawesome-svg-core';
+import {
+  faNoteSticky,
+  faEnvelope,
+  faCalendarPlus,
+  faPlay,
+  faFolder,
+  faUserTag,
+  faEye,
+  faSync,
+  faSave,
+} from '@fortawesome/free-solid-svg-icons';
 
 interface UserDisplaySettings {
   show_user_notes: boolean;
@@ -100,7 +113,7 @@ export const UserDisplaySettingsModal = ({ isOpen, onClose }: UserDisplaySetting
     checked,
     onChange,
   }: {
-    icon: string;
+    icon: IconDefinition;
     iconColor: string;
     label: string;
     description: string;
@@ -111,7 +124,7 @@ export const UserDisplaySettingsModal = ({ isOpen, onClose }: UserDisplaySetting
       <div className="flex items-center justify-between gap-4">
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-1">
-            <i className={`fa-solid ${icon} ${iconColor} text-sm`} />
+            <FontAwesomeIcon icon={icon} className={`${iconColor} text-sm`} />
             <Label htmlFor={label} className="cursor-pointer font-medium text-foreground">
               {label}
             </Label>
@@ -156,7 +169,7 @@ export const UserDisplaySettingsModal = ({ isOpen, onClose }: UserDisplaySetting
         </>
       ) : (
         <>
-          <i className="fa-solid fa-save" />
+          <FontAwesomeIcon icon={faSave} className="mr-2" />
           Save Settings
         </>
       )}
@@ -175,7 +188,7 @@ export const UserDisplaySettingsModal = ({ isOpen, onClose }: UserDisplaySetting
         <h4 className="mb-3 text-lg font-medium text-foreground">Card Display Options</h4>
 
         <ToggleOption
-          icon="fa-sticky-note"
+          icon={faNoteSticky}
           iconColor="text-amber-600 dark:text-amber-400"
           label="Show User Notes on Cards"
           description="Display user notes directly on user cards for quick reference"
@@ -184,7 +197,7 @@ export const UserDisplaySettingsModal = ({ isOpen, onClose }: UserDisplaySetting
         />
 
         <ToggleOption
-          icon="fa-envelope"
+          icon={faEnvelope}
           iconColor="text-blue-500"
           label="Show Email Section"
           description="Display email information on user cards"
@@ -193,7 +206,7 @@ export const UserDisplaySettingsModal = ({ isOpen, onClose }: UserDisplaySetting
         />
 
         <ToggleOption
-          icon="fa-calendar-plus"
+          icon={faCalendarPlus}
           iconColor="text-green-500"
           label="Show Added Section"
           description="Display when the user was added to the system"
@@ -202,7 +215,7 @@ export const UserDisplaySettingsModal = ({ isOpen, onClose }: UserDisplaySetting
         />
 
         <ToggleOption
-          icon="fa-play"
+          icon={faPlay}
           iconColor="text-purple-500"
           label="Show Streamed Section"
           description="Display streaming activity and statistics"
@@ -211,7 +224,7 @@ export const UserDisplaySettingsModal = ({ isOpen, onClose }: UserDisplaySetting
         />
 
         <ToggleOption
-          icon="fa-folder"
+          icon={faFolder}
           iconColor="text-orange-500"
           label="Show Libraries Section"
           description="Display library access and permissions"
@@ -220,7 +233,7 @@ export const UserDisplaySettingsModal = ({ isOpen, onClose }: UserDisplaySetting
         />
 
         <ToggleOption
-          icon="fa-user-tag"
+          icon={faUserTag}
           iconColor="text-red-500"
           label="Show Roles Section"
           description="Display user roles and permissions"
@@ -234,7 +247,7 @@ export const UserDisplaySettingsModal = ({ isOpen, onClose }: UserDisplaySetting
             <div className="flex-1">
               <div className="flex justify-between mb-1 items-center">
                 <div className="flex items-center gap-2">
-                  <i className="fa-solid fa-eye text-secondary text-sm" />
+                  <FontAwesomeIcon icon={faEye} className="text-secondary text-sm" />
                   <h5 className="font-medium text-foreground">Preferred Default View</h5>
                 </div>
                 <Select value={preferredView} onValueChange={(value) => setPreferredView(value as 'cards' | 'table')}>
@@ -260,7 +273,7 @@ export const UserDisplaySettingsModal = ({ isOpen, onClose }: UserDisplaySetting
         <h4 className="mb-3 text-lg font-medium text-foreground">Behavior Settings</h4>
 
         <ToggleOption
-          icon="fa-sync"
+          icon={faSync}
           iconColor="text-green-600 dark:text-green-400"
           label="Auto-sync Users on Page Load"
           description="Automatically sync users from all services when visiting this page"

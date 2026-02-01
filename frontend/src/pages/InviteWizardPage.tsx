@@ -11,6 +11,40 @@ import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '../components/ui/collapsible';
 import { Skeleton } from '../components/ui/skeleton';
 import { useAlerts } from '../contexts/AlertContext';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import {
+  faArrowLeft,
+  faArrowRight,
+  faCalendar,
+  faCheck,
+  faCircleCheck,
+  faCircleInfo,
+  faCircleXmark,
+  faChevronDown,
+  faDownload,
+  faEnvelopeOpenText,
+  faExternalLinkAlt,
+  faFilm,
+  faFolder,
+  faHouseUser,
+  faInfo,
+  faKey,
+  faLink,
+  faRightToBracket,
+  faRotateRight,
+  faSave,
+  faServer,
+  faStar,
+  faTriangleExclamation,
+  faTv,
+  faUser,
+  faUserCheck,
+  faUserClock,
+  faUserPlus,
+  faUsers,
+} from '@fortawesome/free-solid-svg-icons';
+import { faClock } from '@fortawesome/free-regular-svg-icons';
+import { faDiscord } from '@fortawesome/free-brands-svg-icons';
 
 type WizardStep = {
   id: string;
@@ -249,11 +283,14 @@ const ServerAccessDetails = ({ server, invite, grantLibraryIds }: ServerAccessDe
         <CollapsibleTrigger className="flex items-center justify-between w-full p-4 cursor-pointer hover:bg-muted/50 transition-colors">
           <div className="flex items-center gap-3">
             <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center flex-shrink-0">
-              <i className="fa-solid fa-info text-blue-500 text-xs" />
+              <FontAwesomeIcon icon={faInfo} className="text-blue-500 text-xs" />
             </div>
             <span className="font-medium text-foreground">{server.name} Access Details</span>
           </div>
-          <i className={cn("fa-solid fa-chevron-down text-muted-foreground transition-transform", isOpen && "rotate-180")} />
+          <FontAwesomeIcon
+            icon={faChevronDown}
+            className={cn('text-muted-foreground transition-transform', isOpen && 'rotate-180')}
+          />
         </CollapsibleTrigger>
 
         <CollapsibleContent>
@@ -262,7 +299,7 @@ const ServerAccessDetails = ({ server, invite, grantLibraryIds }: ServerAccessDe
             <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4">
               <div className="flex items-start gap-3">
                 <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <i className="fa-solid fa-server text-blue-500 text-xs" />
+                  <FontAwesomeIcon icon={faServer} className="text-blue-500 text-xs" />
                 </div>
                 <div>
                   <h4 className="font-medium text-blue-600 dark:text-blue-400 mb-2">Server Information</h4>
@@ -284,7 +321,7 @@ const ServerAccessDetails = ({ server, invite, grantLibraryIds }: ServerAccessDe
             <div className="bg-primary/10 border border-primary/20 rounded-lg p-4">
               <div className="flex items-start gap-3">
                 <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <i className="fa-solid fa-folder text-primary text-xs" />
+                  <FontAwesomeIcon icon={faFolder} className="text-primary text-xs" />
                 </div>
                 <div className="flex-1">
                   <h4 className="font-medium text-primary mb-2">Library Access</h4>
@@ -301,7 +338,7 @@ const ServerAccessDetails = ({ server, invite, grantLibraryIds }: ServerAccessDe
                         {matchingLibraries.map(lib => (
                           <div key={lib.id} className="flex items-center gap-2 text-sm">
                             <div className="w-3 h-3 rounded-full bg-primary/20 flex items-center justify-center">
-                              <i className="fa-solid fa-check text-primary text-xs" />
+                              <FontAwesomeIcon icon={faCheck} className="text-primary text-xs" />
                             </div>
                             <span className="text-muted-foreground">{lib.name}</span>
                           </div>
@@ -321,7 +358,7 @@ const ServerAccessDetails = ({ server, invite, grantLibraryIds }: ServerAccessDe
             <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-4">
               <div className="flex items-start gap-3">
                 <div className="w-6 h-6 rounded-full bg-green-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <i className="fa-solid fa-star text-green-500 text-xs" />
+                  <FontAwesomeIcon icon={faStar} className="text-green-500 text-xs" />
                 </div>
                 <div>
                   <h4 className="font-medium text-green-600 dark:text-green-400 mb-2">Features & Permissions</h4>
@@ -329,51 +366,51 @@ const ServerAccessDetails = ({ server, invite, grantLibraryIds }: ServerAccessDe
                     {server.service_type === 'PLEX' ? (
                       <>
                         <div className="flex items-center gap-2">
-                          <i className="fa-solid fa-download w-4 text-green-500" />
+                          <FontAwesomeIcon icon={faDownload} className="w-4 text-green-500" />
                           <span>Downloads/Sync: <strong>{features.allow_downloads ? 'Enabled' : 'Disabled'}</strong></span>
                         </div>
                         <div className="flex items-center gap-2">
-                          <i className="fa-solid fa-house-user w-4 text-green-500" />
+                          <FontAwesomeIcon icon={faHouseUser} className="w-4 text-green-500" />
                           <span>Plex Home Invite: <strong>{features.invite_to_plex_home ? 'Yes' : 'No'}</strong></span>
                         </div>
                         <div className="flex items-center gap-2">
-                          <i className="fa-solid fa-tv w-4 text-green-500" />
+                          <FontAwesomeIcon icon={faTv} className="w-4 text-green-500" />
                           <span>Live TV Access: <strong>{features.allow_live_tv ? 'Enabled' : 'Disabled'}</strong></span>
                         </div>
                         <div className="flex items-center gap-2">
-                          <i className="fa-solid fa-film w-4 text-green-500" />
+                          <FontAwesomeIcon icon={faFilm} className="w-4 text-green-500" />
                           <span>4K Transcoding: <strong>{features.allow_4k_transcode ? 'Enabled' : 'Disabled'}</strong></span>
                         </div>
                       </>
                     ) : server.service_type === 'JELLYFIN' ? (
                       <>
                         <div className="flex items-center gap-2">
-                          <i className="fa-solid fa-user w-4 text-green-500" />
+                          <FontAwesomeIcon icon={faUser} className="w-4 text-green-500" />
                           <span>Account Type: <strong>New user account will be created</strong></span>
                         </div>
                         <div className="flex items-center gap-2">
-                          <i className="fa-solid fa-key w-4 text-green-500" />
+                          <FontAwesomeIcon icon={faKey} className="w-4 text-green-500" />
                           <span>Authentication: <strong>Username and password (required)</strong></span>
                         </div>
                         <div className="flex items-center gap-2">
-                          <i className="fa-solid fa-download w-4 text-green-500" />
+                          <FontAwesomeIcon icon={faDownload} className="w-4 text-green-500" />
                           <span>Downloads: <strong>Available through Jellyfin apps</strong></span>
                         </div>
                       </>
                     ) : server.service_type === 'EMBY' ? (
                       <>
                         <div className="flex items-center gap-2">
-                          <i className="fa-solid fa-user w-4 text-green-500" />
+                          <FontAwesomeIcon icon={faUser} className="w-4 text-green-500" />
                           <span>Account Type: <strong>New user account will be created</strong></span>
                         </div>
                         <div className="flex items-center gap-2">
-                          <i className="fa-solid fa-key w-4 text-green-500" />
+                          <FontAwesomeIcon icon={faKey} className="w-4 text-green-500" />
                           <span>Authentication: <strong>Username and password</strong></span>
                         </div>
                       </>
                     ) : (
                       <div className="flex items-center gap-2">
-                        <i className="fa-solid fa-user w-4 text-green-500" />
+                        <FontAwesomeIcon icon={faUser} className="w-4 text-green-500" />
                         <span>Account Type: <strong>New user account will be created</strong></span>
                       </div>
                     )}
@@ -386,27 +423,27 @@ const ServerAccessDetails = ({ server, invite, grantLibraryIds }: ServerAccessDe
             <div className="bg-purple-500/10 border border-purple-500/20 rounded-lg p-4">
               <div className="flex items-start gap-3">
                 <div className="w-6 h-6 rounded-full bg-purple-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <i className="fa-solid fa-calendar text-purple-500 text-xs" />
+                  <FontAwesomeIcon icon={faCalendar} className="text-purple-500 text-xs" />
                 </div>
                 <div>
                   <h4 className="font-medium text-purple-600 dark:text-purple-400 mb-2">Invite Details</h4>
                   <div className="space-y-1 text-sm text-muted-foreground">
                     <div className="flex items-center gap-2">
-                      <i className="fa-regular fa-clock w-4 text-muted-foreground" />
+                      <FontAwesomeIcon icon={faClock} className="w-4 text-muted-foreground" />
                       <span>Expires: <strong>{formatExpiry(invite.expires_at)}</strong></span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <i className="fa-solid fa-users w-4 text-muted-foreground" />
+                      <FontAwesomeIcon icon={faUsers} className="w-4 text-muted-foreground" />
                       <span>Uses Left: <strong>{invite.max_uses !== null ? (invite.max_uses - invite.current_uses) : 'Unlimited'}</strong></span>
                     </div>
                     {invite.membership_duration_days ? (
                       <div className="flex items-center gap-2">
-                        <i className="fa-solid fa-user-clock w-4 text-muted-foreground" />
+                        <FontAwesomeIcon icon={faUserClock} className="w-4 text-muted-foreground" />
                         <span>Membership Duration: <strong>{invite.membership_duration_days} day{invite.membership_duration_days !== 1 ? 's' : ''} after acceptance</strong></span>
                       </div>
                     ) : (
                       <div className="flex items-center gap-2">
-                        <i className="fa-solid fa-user-check w-4 text-muted-foreground" />
+                        <FontAwesomeIcon icon={faUserCheck} className="w-4 text-muted-foreground" />
                         <span>Membership: <strong>Permanent</strong></span>
                       </div>
                     )}
@@ -418,7 +455,7 @@ const ServerAccessDetails = ({ server, invite, grantLibraryIds }: ServerAccessDe
             {/* Info Footer */}
             <div className="bg-muted/50 border border-border/50 rounded-lg p-3">
               <div className="flex items-start gap-2">
-                <i className="fa-solid fa-info-circle text-muted-foreground text-xs mt-0.5" />
+                <FontAwesomeIcon icon={faCircleInfo} className="text-muted-foreground text-xs mt-0.5" />
                 <p className="text-xs text-muted-foreground">
                   This information shows what access you'll receive after completing the setup.
                 </p>
@@ -808,7 +845,7 @@ export const InviteWizardPage = () => {
         <div className="bg-card border border-destructive/30 rounded-xl shadow-lg overflow-hidden max-w-md w-full">
           <div className="bg-red-50 dark:bg-red-400/10 border-b border-red-200 dark:border-red-500/20 p-6 text-center">
             <div className="w-16 h-16 rounded-full bg-red-100/20 flex items-center justify-center mx-auto mb-4">
-              <i className="fa-solid fa-circle-xmark text-red-600 dark:text-red-400 text-2xl" />
+              <FontAwesomeIcon icon={faCircleXmark} className="text-red-600 dark:text-red-400 text-2xl" />
             </div>
             <h1 className="text-2xl font-bold text-red-600 dark:text-red-400 mb-2">Invite Problem</h1>
             <p className="text-muted-foreground text-sm">There was an issue with your invite</p>
@@ -816,7 +853,7 @@ export const InviteWizardPage = () => {
           <div className="p-6 text-center">
             <p className="text-foreground mb-6">{error ?? 'Unable to load this invite link.'}</p>
             <Button onClick={() => loadState()} variant="outline">
-              <i className="fa-solid fa-rotate-right mr-2" />
+              <FontAwesomeIcon icon={faRotateRight} className="mr-2" />
               Try Again
             </Button>
           </div>
@@ -832,7 +869,7 @@ export const InviteWizardPage = () => {
           <div className="bg-gradient-to-br from-success/10 to-primary/10 border border-green-200 dark:border-green-500/20 rounded-xl p-8 shadow-lg">
             <div className="text-center mb-8">
               <div className="w-20 h-20 rounded-full bg-green-100/20 flex items-center justify-center mx-auto mb-6">
-                <i className="fa-solid fa-check-circle text-green-600 dark:text-green-400 text-3xl" />
+              <FontAwesomeIcon icon={faCircleCheck} className="text-green-600 dark:text-green-400 text-3xl" />
               </div>
               <h2 className="text-3xl font-bold text-green-600 dark:text-green-400 mb-3">Welcome, {completion.username}!</h2>
               <p className="text-muted-foreground text-lg">Your invitation has been completed successfully</p>
@@ -844,7 +881,7 @@ export const InviteWizardPage = () => {
                   <div className="bg-[#e5a00d]/10 border border-[#e5a00d]/20 rounded-lg p-4">
                     <div className="flex items-start gap-3">
                       <div className="w-6 h-6 rounded-full bg-[#e5a00d]/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                        <i className="fa-solid fa-right-to-bracket text-[#e5a00d] text-xs" />
+                        <FontAwesomeIcon icon={faRightToBracket} className="text-[#e5a00d] text-xs" />
                       </div>
                       <div>
                         <h4 className="font-medium text-[#e5a00d] mb-1">Plex Account Connected</h4>
@@ -866,7 +903,7 @@ export const InviteWizardPage = () => {
                           />
                         ) : (
                           <AvatarFallback className="bg-[#5865F2]/20">
-                            <i className="fa-brands fa-discord text-[#5865F2] text-xs" />
+                            <FontAwesomeIcon icon={faDiscord} className="text-[#5865F2] text-xs" />
                           </AvatarFallback>
                         )}
                       </Avatar>
@@ -885,7 +922,7 @@ export const InviteWizardPage = () => {
             <div className="bg-muted/50 border rounded-lg p-6 mb-8">
               <div className="flex items-center justify-center gap-3 mb-4">
                 <div className="w-8 h-8 rounded-full bg-green-100/20 flex items-center justify-center">
-                  <i className="fa-solid fa-server text-green-600 dark:text-green-400 text-sm" />
+                  <FontAwesomeIcon icon={faServer} className="text-green-600 dark:text-green-400 text-sm" />
                 </div>
                 <h3 className="font-medium text-foreground text-lg">Media Server Access</h3>
               </div>
@@ -894,7 +931,7 @@ export const InviteWizardPage = () => {
                   <div key={server.name} className="flex items-center justify-between gap-2 text-sm bg-card rounded-lg p-3">
                     <div className="flex items-center gap-2">
                       <div className="w-4 h-4 rounded-full bg-green-100/20 flex items-center justify-center">
-                        <i className="fa-solid fa-check text-green-600 dark:text-green-400 text-xs" />
+                        <FontAwesomeIcon icon={faCheck} className="text-green-600 dark:text-green-400 text-xs" />
                       </div>
                       <span className="font-medium">{server.name}</span>
                       <span className="text-xs text-muted-foreground">({server.service_type})</span>
@@ -903,7 +940,7 @@ export const InviteWizardPage = () => {
                       <Button asChild variant="ghost" size="sm">
                         <a href={server.access_url} target="_blank" rel="noreferrer" className="gap-1">
                           Open
-                          <i className="fa-solid fa-external-link-alt text-xs" />
+                          <FontAwesomeIcon icon={faExternalLinkAlt} className="text-xs" />
                         </a>
                       </Button>
                     )}
@@ -928,7 +965,7 @@ export const InviteWizardPage = () => {
           {/* Header */}
           <div className="bg-gradient-to-r from-primary/10 to-secondary/10 p-6 text-center border-b border">
             <div className="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center mx-auto mb-4">
-              <i className="fa-solid fa-envelope-open-text text-primary text-2xl" />
+              <FontAwesomeIcon icon={faEnvelopeOpenText} className="text-primary text-2xl" />
             </div>
             <h1 className="text-2xl font-bold text-foreground mb-2">You're Invited!</h1>
             <p className="text-muted-foreground text-sm">
@@ -982,7 +1019,7 @@ export const InviteWizardPage = () => {
                             )}
                           >
                             {step.completed ? (
-                              <i className="fa-solid fa-check text-xs" />
+                              <FontAwesomeIcon icon={faCheck} className="text-xs" />
                             ) : (
                               <i className={`${step.icon} text-xs`} />
                             )}
@@ -1031,7 +1068,7 @@ export const InviteWizardPage = () => {
                 <div className="bg-muted/50 border rounded-lg p-6">
                   <div className="flex items-center gap-3 mb-6">
                     <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
-                      <i className="fa-solid fa-user-plus text-primary text-lg" />
+                      <FontAwesomeIcon icon={faUserPlus} className="text-primary text-lg" />
                     </div>
                     <div>
                       <h2 className="text-xl font-semibold text-foreground mb-1">Set Up Your Account</h2>
@@ -1106,7 +1143,7 @@ export const InviteWizardPage = () => {
                     <div className="bg-blue-50 dark:bg-blue-400/10 border border-blue-200 dark:border-blue-500/20 rounded-lg p-4 mt-6">
                       <div className="flex items-start gap-3 mb-4">
                         <div className="w-6 h-6 rounded-full bg-blue-100/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                          <i className="fa-solid fa-link text-blue-600 dark:text-blue-400 text-xs" />
+                          <FontAwesomeIcon icon={faLink} className="text-blue-600 dark:text-blue-400 text-xs" />
                         </div>
                         <div>
                           <h4 className="font-medium text-blue-600 dark:text-blue-400 mb-1">Cross-Server Convenience</h4>
@@ -1173,7 +1210,7 @@ export const InviteWizardPage = () => {
                           </>
                         ) : (
                           <>
-                            <i className="fa-solid fa-save mr-2" />
+                            <FontAwesomeIcon icon={faSave} className="mr-2" />
                             Save Account Details & Continue
                           </>
                         )}
@@ -1194,7 +1231,7 @@ export const InviteWizardPage = () => {
                         />
                       ) : (
                         <AvatarFallback className="bg-[#5865F2]/20">
-                          <i className="fa-brands fa-discord text-[#5865F2] text-sm" />
+                          <FontAwesomeIcon icon={faDiscord} className="text-[#5865F2] text-sm" />
                         </AvatarFallback>
                       )}
                     </Avatar>
@@ -1219,7 +1256,7 @@ export const InviteWizardPage = () => {
                 <div className="bg-muted/50 border rounded-lg p-6">
                   <div className="flex items-center gap-3 mb-6">
                     <div className="w-10 h-10 rounded-full bg-[#5865F2]/20 flex items-center justify-center flex-shrink-0">
-                      <i className="fa-brands fa-discord text-[#5865F2] text-lg" />
+                      <FontAwesomeIcon icon={faDiscord} className="text-[#5865F2] text-lg" />
                     </div>
                     <div>
                       <h2 className="text-xl font-semibold text-foreground mb-1">Discord Authentication</h2>
@@ -1240,7 +1277,7 @@ export const InviteWizardPage = () => {
                     <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4 mb-6">
                       <div className="flex items-start gap-3">
                         <div className="w-6 h-6 rounded-full bg-destructive/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                          <i className="fa-solid fa-triangle-exclamation text-destructive text-xs" />
+                          <FontAwesomeIcon icon={faTriangleExclamation} className="text-destructive text-xs" />
                         </div>
                         <div>
                           <h4 className="font-medium text-destructive mb-1">Discord Server Membership Required</h4>
@@ -1254,7 +1291,7 @@ export const InviteWizardPage = () => {
                     <div className="bg-[#5865F2]/10 border border-[#5865F2]/20 rounded-lg p-4 mb-6">
                       <div className="flex items-start gap-3">
                         <div className="w-6 h-6 rounded-full bg-[#5865F2]/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                          <i className="fa-solid fa-info text-[#5865F2] text-xs" />
+                          <FontAwesomeIcon icon={faInfo} className="text-[#5865F2] text-xs" />
                         </div>
                         <div>
                           <h4 className="font-medium text-[#5865F2] mb-1">Discord Server Required</h4>
@@ -1268,9 +1305,9 @@ export const InviteWizardPage = () => {
                               className="bg-[#5865F2] text-white hover:bg-[#4752C4]"
                             >
                               <a href={state.discord.invite_url} target="_blank" rel="noopener noreferrer" className="gap-2">
-                                <i className="fa-brands fa-discord" />
+                                <FontAwesomeIcon icon={faDiscord} />
                                 Join Discord Server First
-                                <i className="fa-solid fa-external-link-alt text-xs" />
+                                <FontAwesomeIcon icon={faExternalLinkAlt} className="text-xs" />
                               </a>
                             </Button>
                           )}
@@ -1291,7 +1328,7 @@ export const InviteWizardPage = () => {
               </>
                     ) : (
                       <>
-                        <i className="fa-brands fa-discord mr-2" />
+                        <FontAwesomeIcon icon={faDiscord} className="mr-2" />
                         Continue with Discord
                       </>
                     )}
@@ -1343,7 +1380,7 @@ export const InviteWizardPage = () => {
                           {state.plex.conflict.type === 'can_link' ? (
                             <div className="space-y-3">
                               <div className="flex items-start gap-3">
-                                <i className="fa-solid fa-exclamation-triangle text-amber-600 dark:text-amber-400 mt-0.5" />
+                                <FontAwesomeIcon icon={faTriangleExclamation} className="text-amber-600 dark:text-amber-400 mt-0.5" />
                                 <div>
                                   <p className="text-sm">
                                     We found an existing local account for <strong>{state.plex.conflict.plex_username}</strong>.
@@ -1426,7 +1463,7 @@ export const InviteWizardPage = () => {
                 <div key={activeServer.id} className="bg-muted/50 border rounded-lg p-6">
                   <div className="flex items-center gap-3 mb-6">
                     <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
-                      <i className="fa-solid fa-server text-primary text-lg" />
+                      <FontAwesomeIcon icon={faServer} className="text-primary text-lg" />
                     </div>
                     <div>
                       <h2 className="text-xl font-semibold text-foreground mb-1">
@@ -1441,7 +1478,7 @@ export const InviteWizardPage = () => {
                   {activeServer.username_conflict && (
                     <div className="bg-amber-50 dark:bg-amber-400/10 border border-amber-200 dark:border-amber-500/20 rounded-lg p-3 mb-4">
                       <div className="flex items-start gap-2">
-                        <i className="fa-solid fa-exclamation-triangle text-amber-600 dark:text-amber-400 text-sm mt-0.5" />
+                        <FontAwesomeIcon icon={faTriangleExclamation} className="text-amber-600 dark:text-amber-400 text-sm mt-0.5" />
                         <div className="text-sm">
                           <p className="font-medium text-amber-600 dark:text-amber-400 mb-1">Username Not Available</p>
                           <p className="text-foreground/80">
@@ -1510,7 +1547,7 @@ export const InviteWizardPage = () => {
                         </>
                       ) : (
                         <>
-                          <i className="fa-solid fa-user-plus mr-2" />
+                          <FontAwesomeIcon icon={faUserPlus} className="mr-2" />
                           {activeServer.completed ? 'Update Account Details' : `Create Account on ${activeServer.name}`}
                         </>
                       )}
@@ -1535,7 +1572,7 @@ export const InviteWizardPage = () => {
                       variant="outline"
                       onClick={() => selectStep(previousStepId)}
                     >
-                      <i className="fa-solid fa-arrow-left mr-2" />
+                      <FontAwesomeIcon icon={faArrowLeft} className="mr-2" />
                       Previous
                     </Button>
                   ) : (
@@ -1548,7 +1585,7 @@ export const InviteWizardPage = () => {
                     disabled={!nextStepId}
                   >
                     Next
-                    <i className="fa-solid fa-arrow-right ml-2" />
+                    <FontAwesomeIcon icon={faArrowRight} className="ml-2" />
                   </Button>
                 </div>
               )}
@@ -1558,7 +1595,7 @@ export const InviteWizardPage = () => {
                 <div className="bg-gradient-to-br from-success/10 to-primary/10 border border-green-200 dark:border-green-500/20 rounded-lg p-8">
                   <div className="text-center mb-8">
                     <div className="w-20 h-20 rounded-full bg-green-100/20 flex items-center justify-center mx-auto mb-6">
-                      <i className="fa-solid fa-check-circle text-green-600 dark:text-green-400 text-3xl" />
+                      <FontAwesomeIcon icon={faCircleCheck} className="text-green-600 dark:text-green-400 text-3xl" />
                     </div>
                     <h2 className="text-2xl font-bold text-green-600 dark:text-green-400 mb-3">Ready to Complete Setup!</h2>
                     <p className="text-muted-foreground text-lg">
@@ -1578,7 +1615,7 @@ export const InviteWizardPage = () => {
                       </>
                     ) : (
                       <>
-                        <i className="fa-solid fa-check mr-2" />
+                        <FontAwesomeIcon icon={faCheck} className="mr-2" />
                         Create All Accounts & Complete Setup
                       </>
                     )}

@@ -1,5 +1,7 @@
-import { type CSSProperties, ReactNode, useEffect, useRef, useState } from 'react';
+import { type CSSProperties, ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import type { IconDefinition } from '@fortawesome/fontawesome-svg-core';
 
 export interface BadgeProps {
   children: ReactNode;
@@ -77,24 +79,89 @@ const resolveColorVariable = (bgClass: string): string => {
   return '--primary';
 };
 
-const normalizeIconClass = (iconClass?: string | null) => {
+type IconSetType = 'solid' | 'regular' | 'brands';
+
+const ICON_STYLE_TOKENS = new Set(['fa-solid', 'fa-regular', 'fa-brands', 'fa-light', 'fa-thin', 'fa-duotone']);
+const ICON_MODIFIER_TOKENS = new Set([
+  'fa-fw',
+  'fa-xs',
+  'fa-sm',
+  'fa-lg',
+  'fa-2x',
+  'fa-3x',
+  'fa-4x',
+  'fa-5x',
+  'fa-6x',
+  'fa-7x',
+  'fa-8x',
+  'fa-9x',
+  'fa-10x',
+  'fa-spin',
+  'fa-pulse',
+  'fa-spin-pulse',
+  'fa-spin-reverse',
+  'fa-bounce',
+  'fa-shake',
+  'fa-beat',
+  'fa-fade',
+  'fa-flip',
+  'fa-rotate-90',
+  'fa-rotate-180',
+  'fa-rotate-270',
+  'fa-flip-horizontal',
+  'fa-flip-vertical',
+]);
+
+const iconPackCache: Partial<Record<IconSetType, Map<string, IconDefinition>>> = {};
+const iconPackPromiseCache: Partial<Record<IconSetType, Promise<Map<string, IconDefinition>>>> = {};
+const iconDefinitionCache = new Map<string, IconDefinition>();
+
+const parseIconClass = (iconClass?: string | null): { prefix: IconSetType; iconName: string } | null => {
   if (!iconClass) return null;
   const trimmed = iconClass.trim();
   if (!trimmed) return null;
-  const hasStyle =
-    trimmed.includes('fa-solid') ||
-    trimmed.includes('fa-regular') ||
-    trimmed.includes('fa-brands') ||
-    trimmed.includes('fa-light') ||
-    trimmed.includes('fa-thin') ||
-    trimmed.includes('fa-duotone');
-  if (hasStyle) {
-    return trimmed;
+  const tokens = trimmed.split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) return null;
+
+  const styleToken = tokens.find((token) => ICON_STYLE_TOKENS.has(token));
+  const prefix: IconSetType = styleToken === 'fa-brands' ? 'brands' : styleToken === 'fa-regular' ? 'regular' : 'solid';
+
+  const iconToken = tokens.find((token) => token.startsWith('fa-') && !ICON_STYLE_TOKENS.has(token) && !ICON_MODIFIER_TOKENS.has(token));
+  if (!iconToken) return null;
+  const iconName = iconToken.replace(/^fa-/, '');
+  if (!iconName) return null;
+  return { prefix, iconName };
+};
+
+const loadIconPack = async (prefix: IconSetType) => {
+  if (iconPackCache[prefix]) {
+    return iconPackCache[prefix]!;
   }
-  if (trimmed.includes('fa-')) {
-    return `fa-solid ${trimmed}`;
+  if (iconPackPromiseCache[prefix]) {
+    return iconPackPromiseCache[prefix]!;
   }
-  return trimmed;
+
+  const loader = async () => {
+    const pack =
+      prefix === 'brands'
+        ? await import('@fortawesome/free-brands-svg-icons')
+        : prefix === 'regular'
+          ? await import('@fortawesome/free-regular-svg-icons')
+          : await import('@fortawesome/free-solid-svg-icons');
+    const map = new Map<string, IconDefinition>();
+    Object.keys(pack).forEach((key) => {
+      const value = (pack as Record<string, IconDefinition>)[key];
+      if (value && (value as IconDefinition).iconName) {
+        map.set(value.iconName, value);
+      }
+    });
+    iconPackCache[prefix] = map;
+    return map;
+  };
+
+  const promise = loader();
+  iconPackPromiseCache[prefix] = promise;
+  return promise;
 };
 
 export const Badge = ({
@@ -149,10 +216,46 @@ export const Badge = ({
     textShadow: '0 1px 1px rgba(0,0,0,0.2)',
   };
 
-  const normalizedIconClass = normalizeIconClass(iconClass);
+  const parsedIcon = useMemo(() => parseIconClass(iconClass), [iconClass]);
+  const iconCacheKey = parsedIcon ? `${parsedIcon.prefix}:${parsedIcon.iconName}` : null;
+  const [resolvedIconDef, setResolvedIconDef] = useState<IconDefinition | null>(null);
+
+  useEffect(() => {
+    if (!parsedIcon || !iconCacheKey) {
+      setResolvedIconDef(null);
+      return;
+    }
+
+    const cached = iconDefinitionCache.get(iconCacheKey);
+    if (cached) {
+      setResolvedIconDef(cached);
+      return;
+    }
+
+    let cancelled = false;
+    loadIconPack(parsedIcon.prefix)
+      .then((pack) => {
+        if (cancelled) return;
+        const found = pack.get(parsedIcon.iconName) ?? null;
+        if (found) {
+          iconDefinitionCache.set(iconCacheKey, found);
+        }
+        setResolvedIconDef(found);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setResolvedIconDef(null);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [parsedIcon, iconCacheKey]);
+
   const resolvedIcon = icon
-    ?? (normalizedIconClass
-      ? <i className={`${normalizedIconClass} text-[0.65rem]`} />
+    ?? (resolvedIconDef
+      ? <FontAwesomeIcon icon={resolvedIconDef} className="text-[0.65rem]" />
       : undefined);
   const colorOverride = hexColor ? { '--badge-color': hexColor } : null;
   const [isHovering, setIsHovering] = useState(false);

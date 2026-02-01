@@ -31,6 +31,8 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { ResponsiveDialog } from '@/components/ui/responsive-dialog';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faCircle, faServer, faDesktop } from '@fortawesome/free-solid-svg-icons';
 
 // Helper function to calculate countdown from next_run_time
 const useCountdown = (nextRunTime: string | null) => {
@@ -214,20 +216,40 @@ const ScheduledTaskRow = ({ task, onClick }: ScheduledTaskRowProps) => {
   const getStateBadge = () => {
     if (task.type === 'WebSocket') {
       if (task.state === 'Connected') {
-        return <span className="inline-flex items-center gap-1 text-xs text-emerald-600"><i className="fa-solid fa-circle text-[6px]" /> Connected</span>;
+        return (
+          <span className="inline-flex items-center gap-1 text-xs text-emerald-600">
+            <FontAwesomeIcon icon={faCircle} className="text-[6px]" /> Connected
+          </span>
+        );
       } else {
-        return <span className="inline-flex items-center gap-1 text-xs text-red-600"><i className="fa-solid fa-circle text-[6px]" /> Disconnected</span>;
+        return (
+          <span className="inline-flex items-center gap-1 text-xs text-red-600">
+            <FontAwesomeIcon icon={faCircle} className="text-[6px]" /> Disconnected
+          </span>
+        );
       }
     } else {
-      return <span className="inline-flex items-center gap-1 text-xs text-blue-600"><i className="fa-solid fa-circle text-[6px]" /> Active</span>;
+      return (
+        <span className="inline-flex items-center gap-1 text-xs text-blue-600">
+          <FontAwesomeIcon icon={faCircle} className="text-[6px]" /> Active
+        </span>
+      );
     }
   };
 
   const getSideBadge = () => {
     if (task.side === 'Server') {
-      return <span className="inline-flex items-center gap-1.5 rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-700 dark:bg-purple-900/30 dark:text-purple-400"><i className="fa-solid fa-server text-[10px]" /> Server</span>;
+      return (
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">
+          <FontAwesomeIcon icon={faServer} className="text-[10px]" /> Server
+        </span>
+      );
     } else {
-      return <span className="inline-flex items-center gap-1.5 rounded-full bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-700 dark:bg-sky-900/30 dark:text-sky-400"><i className="fa-solid fa-desktop text-[10px]" /> Client</span>;
+      return (
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-700 dark:bg-sky-900/30 dark:text-sky-400">
+          <FontAwesomeIcon icon={faDesktop} className="text-[10px]" /> Client
+        </span>
+      );
     }
   };
 
@@ -634,16 +656,16 @@ export const AdminSettingsAdvancedPage = () => {
                   {selectedTask.type === 'WebSocket' ? (
                     selectedTask.state === 'Connected' ? (
                       <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
-                        <i className="fa-solid fa-circle text-[6px]" /> Connected
+                        <FontAwesomeIcon icon={faCircle} className="text-[6px]" /> Connected
                       </span>
                     ) : (
                       <span className="inline-flex items-center gap-1.5 rounded-full bg-red-100 px-2.5 py-1 text-xs font-medium text-red-700 dark:bg-red-900/30 dark:text-red-400">
-                        <i className="fa-solid fa-circle text-[6px]" /> Disconnected
+                        <FontAwesomeIcon icon={faCircle} className="text-[6px]" /> Disconnected
                       </span>
                     )
                   ) : (
                     <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-100 px-2.5 py-1 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
-                      <i className="fa-solid fa-circle text-[6px]" /> Active
+                      <FontAwesomeIcon icon={faCircle} className="text-[6px]" /> Active
                     </span>
                   )}
                 </div>
@@ -651,11 +673,11 @@ export const AdminSettingsAdvancedPage = () => {
                   <span className="text-xs text-muted-foreground">Side:</span>
                   {selectedTask.side === 'Server' ? (
                     <span className="inline-flex items-center gap-1.5 rounded-full bg-purple-100 px-2.5 py-1 text-xs font-medium text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">
-                      <i className="fa-solid fa-server text-[10px]" /> Server
+                      <FontAwesomeIcon icon={faServer} className="text-[10px]" /> Server
                     </span>
                   ) : (
                     <span className="inline-flex items-center gap-1.5 rounded-full bg-sky-100 px-2.5 py-1 text-xs font-medium text-sky-700 dark:bg-sky-900/30 dark:text-sky-400">
-                      <i className="fa-solid fa-desktop text-[10px]" /> Client
+                      <FontAwesomeIcon icon={faDesktop} className="text-[10px]" /> Client
                     </span>
                   )}
                 </div>

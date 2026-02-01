@@ -16,6 +16,16 @@ import { ResponsiveDialog } from '../components/ui/responsive-dialog';
 import { Badge } from '../components/ui/badge';
 import { Separator } from '../components/ui/separator';
 import { getServiceMeta } from '@/config/pluginMetadata';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import {
+  faSyncAlt,
+  faCircleInfo,
+  faSliders,
+  faMagnifyingGlass,
+  faSync,
+  faCode,
+  faCopy,
+} from '@fortawesome/free-solid-svg-icons';
 
 type LibraryGroup = {
   serviceType: string;
@@ -265,7 +275,7 @@ export const LibrariesPage = () => {
               </span>
             ) : (
               <span className="flex items-center gap-2">
-                <i className="fa-solid fa-sync-alt" /> Sync Libraries
+                <FontAwesomeIcon icon={faSyncAlt} /> Sync Libraries
               </span>
             )}
           </Button>
@@ -274,7 +284,7 @@ export const LibrariesPage = () => {
 
       {(error || serversLoading) && (
         <div className="flex items-center gap-2 rounded-xl border border-yellow-500/20 bg-yellow-500/10 p-4 text-sm text-yellow-400">
-          <i className="fa-solid fa-circle-info" />
+          <FontAwesomeIcon icon={faCircleInfo} />
           <span>
             {error
               ? `Failed to load libraries: ${(error as Error).message}`
@@ -305,7 +315,7 @@ export const LibrariesPage = () => {
             </div>
             <Button variant="ghost" size="sm" onClick={handleClearFilters} disabled={!filtersApplied}>
               <span className="flex items-center gap-2">
-                <i className="fa-solid fa-sliders" /> Reset
+                <FontAwesomeIcon icon={faSliders} /> Reset
               </span>
             </Button>
           </div>
@@ -354,7 +364,7 @@ export const LibrariesPage = () => {
             <div className="space-y-2">
               <Label htmlFor="search">Search</Label>
               <div className="relative">
-                <i className="fa-solid fa-magnifying-glass pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground" />
+                <FontAwesomeIcon icon={faMagnifyingGlass} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground" />
                 <Input
                   id="search"
                   type="text"
@@ -470,7 +480,7 @@ export const LibrariesPage = () => {
                                 </span>
                               ) : (
                                 <span className="flex items-center gap-2">
-                                  <i className="fa-solid fa-sync" /> Sync
+                                  <FontAwesomeIcon icon={faSync} /> Sync
                                 </span>
                               )}
                             </Button>
@@ -531,7 +541,7 @@ export const LibrariesPage = () => {
                                   <TableCell>{formatDateTime(library.last_scanned)}</TableCell>
                                   <TableCell className="text-right">
                                     <Button size="sm" variant="ghost" onClick={() => openRawModal(library)}>
-                                      <i className="fa-solid fa-code" />
+                                      <FontAwesomeIcon icon={faCode} />
                                       <span className="sr-only">View raw JSON</span>
                                     </Button>
                                   </TableCell>
@@ -575,7 +585,7 @@ export const LibrariesPage = () => {
             Close
           </Button>,
           <Button key="copy" onClick={copyRawData} disabled={!rawData}>
-            <i className="fa-solid fa-copy" /> Copy JSON
+            <FontAwesomeIcon icon={faCopy} className="mr-2" /> Copy JSON
           </Button>,
         ]}
         contentClassName="max-w-3xl"

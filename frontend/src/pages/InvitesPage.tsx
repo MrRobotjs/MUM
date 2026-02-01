@@ -24,7 +24,26 @@ import { ResponsiveDialog } from '../components/ui/responsive-dialog';
 import { PageHeader } from '../components';
 import { IconDots } from '@tabler/icons-react';
 import type { IconDefinition } from '@fortawesome/fontawesome-svg-core';
-import { faDownload, faGaugeHigh, faHome, faServer, faTv } from '@fortawesome/free-solid-svg-icons';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import {
+  faBan,
+  faCheck,
+  faDownload,
+  faFilter,
+  faGaugeHigh,
+  faHome,
+  faList,
+  faPlus,
+  faSave,
+  faServer,
+  faSliders,
+  faSquare,
+  faSquareCheck,
+  faTableCellsLarge,
+  faTicket,
+  faTrash,
+  faTv,
+} from '@fortawesome/free-solid-svg-icons';
 import type { InviteLibrary, InviteServer } from '../components/invites/InvitesTable';
 import { getServiceBadgeClass as getServiceBadgeMeta, getServiceIcon } from '../config/pluginMetadata';
 
@@ -370,7 +389,7 @@ export const InvitesPage = () => {
   const headerActions = (
     <div className="flex flex-col items-end gap-2 sm:flex-row sm:items-center">
       <Button onClick={openCreateModal} className="w-full sm:w-auto">
-        <i className="fa-solid fa-plus mr-2" /> Create Invite
+        <FontAwesomeIcon icon={faPlus} className="mr-2" /> Create Invite
       </Button>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
@@ -385,22 +404,22 @@ export const InvitesPage = () => {
               onSelect={() => setViewMode('table')}
               className={viewMode === 'table' ? 'bg-primary/10' : ''}
             >
-              <i className="fa-solid fa-list fa-fw mr-2" />
+              <FontAwesomeIcon icon={faList} fixedWidth className="mr-2" />
               <span className="flex-1">Table View</span>
-              {viewMode === 'table' && <i className="fa-solid fa-check fa-fw ml-2 text-primary" />}
+              {viewMode === 'table' && <FontAwesomeIcon icon={faCheck} fixedWidth className="ml-2 text-primary" />}
             </DropdownMenuItem>
             <DropdownMenuItem
               onSelect={() => setViewMode('cards')}
               className={viewMode === 'cards' ? 'bg-primary/10' : ''}
             >
-              <i className="fa-solid fa-th-large fa-fw mr-2" />
+              <FontAwesomeIcon icon={faTableCellsLarge} fixedWidth className="mr-2" />
               <span className="flex-1">Card View</span>
-              {viewMode === 'cards' && <i className="fa-solid fa-check fa-fw ml-2 text-primary" />}
+              {viewMode === 'cards' && <FontAwesomeIcon icon={faCheck} fixedWidth className="ml-2 text-primary" />}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuLabel>Settings</DropdownMenuLabel>
             <DropdownMenuItem onSelect={() => setSettingsOpen(true)}>
-              <i className="fa-solid fa-sliders fa-fw mr-2" />
+              <FontAwesomeIcon icon={faSliders} fixedWidth className="mr-2" />
               <span className="flex-1">Invite Settings</span>
             </DropdownMenuItem>
           </DropdownMenuContent>
@@ -467,7 +486,7 @@ export const InvitesPage = () => {
               Apply
             </Label>
             <Button type="submit" className="w-full">
-              <i className="fa-solid fa-filter mr-2" /> Apply
+              <FontAwesomeIcon icon={faFilter} className="mr-2" /> Apply
             </Button>
           </div>
         </div>
@@ -482,7 +501,7 @@ export const InvitesPage = () => {
               variant="destructive"
               onClick={() => handleBulkAction('delete')}
             >
-              <i className="fa-solid fa-trash mr-0 sm:mr-2" />
+              <FontAwesomeIcon icon={faTrash} className="mr-0 sm:mr-2" />
               <span className="hidden sm:inline-block">Delete ({selectedIds.size} selected)</span>
               <span className="inline-block sm:hidden">({selectedIds.size})</span>
             </Button>
@@ -491,7 +510,7 @@ export const InvitesPage = () => {
               variant="outline"
               onClick={() => handleBulkAction('disable')}
             >
-              <i className="fa-solid fa-ban mr-0 sm:mr-2" />
+              <FontAwesomeIcon icon={faBan} className="mr-0 sm:mr-2" />
               <span className="hidden sm:inline-block">Disable Selected</span>
             </Button>
             <Button
@@ -499,7 +518,7 @@ export const InvitesPage = () => {
               variant="outline"
               onClick={() => handleBulkAction('enable')}
             >
-              <i className="fa-solid fa-check mr-0 sm:mr-2" />
+              <FontAwesomeIcon icon={faCheck} className="mr-0 sm:mr-2" />
               <span className="hidden sm:inline-block">Enable Selected</span>
             </Button>
             <Button
@@ -508,7 +527,7 @@ export const InvitesPage = () => {
               onClick={() => handleSelectAll(true)}
               title="Select all invites currently visible"
             >
-              <i className="fa-solid fa-check-square mr-0 sm:mr-2" />
+              <FontAwesomeIcon icon={faSquareCheck} className="mr-0 sm:mr-2" />
               <span className="hidden sm:inline-block">Select All</span>
             </Button>
             <Button
@@ -517,7 +536,7 @@ export const InvitesPage = () => {
               onClick={() => handleSelectAll(false)}
               title="Deselect All"
             >
-              <i className="fa-solid fa-square mr-0 sm:mr-2" />
+              <FontAwesomeIcon icon={faSquare} className="mr-0 sm:mr-2" />
               <span className="hidden sm:inline-block">Deselect All</span>
             </Button>
           </div>
@@ -546,7 +565,7 @@ export const InvitesPage = () => {
             </div>
           ) : invites.length === 0 ? (
             <div className="col-span-full text-center py-10 rounded-lg border shadow-sm">
-              <i className="fa-solid fa-ticket-slash fa-3x text-muted-foreground mb-4" />
+              <FontAwesomeIcon icon={faTicket} size="3x" className="text-muted-foreground mb-4" />
               <p className="text-xl text-muted-foreground">No invites found matching your criteria.</p>
             </div>
           ) : (
@@ -631,7 +650,7 @@ export const InvitesPage = () => {
               </>
             ) : (
               <>
-                <i className="fa-solid fa-save mr-2" />
+                <FontAwesomeIcon icon={faSave} className="mr-2" />
                 Save Defaults
               </>
             )}

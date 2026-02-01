@@ -38,6 +38,14 @@ ChartJS.register(
 );
 import { IconArrowLeft, IconRefresh, IconSearch, IconInfoCircle, IconStar, IconMovie, IconStack2, IconChartBar, IconHistory, IconServer, IconTag, IconEye, IconTrash, IconUsers, IconClock } from '@tabler/icons-react';
 import { useLibrarySyncStatus } from '../hooks/useLibrarySyncStatus';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import {
+  faStar,
+  faTriangleExclamation,
+  faFolderOpen,
+  faChevronLeft,
+  faChevronRight,
+} from '@fortawesome/free-solid-svg-icons';
 
 type ServiceType = 'plex' | 'jellyfin' | 'emby' | 'kavita' | 'audiobookshelf' | 'komga' | 'romm';
 
@@ -126,7 +134,7 @@ const MediaPosterCard = ({ item, libraryId }: { item: MediaItem; libraryId: stri
 
         {item.rating && (
           <div className="absolute top-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded-full flex items-center gap-1">
-            <i className="fa-solid fa-star text-yellow-400"></i>
+            <FontAwesomeIcon icon={faStar} className="text-yellow-400" />
             {item.rating.toFixed(1)}
           </div>
         )}
@@ -593,7 +601,7 @@ export const LibraryDetailPage = () => {
         </div>
         <Card className="border-destructive">
           <CardContent className="p-6 flex items-center gap-3">
-            <i className="fa-solid fa-exclamation-triangle text-destructive"></i>
+            <FontAwesomeIcon icon={faTriangleExclamation} className="text-destructive" />
             <span className="text-destructive">{error || 'Library not found'}</span>
           </CardContent>
         </Card>
@@ -946,7 +954,7 @@ export const LibraryDetailPage = () => {
             <Card>
               <CardContent className="p-12 text-center">
                 <div className="w-16 h-16 rounded-full bg-accent flex items-center justify-center mx-auto mb-4">
-                  <i className="fa-solid fa-folder-open text-2xl text-muted-foreground"></i>
+                  <FontAwesomeIcon icon={faFolderOpen} className="text-2xl text-muted-foreground" />
                 </div>
                 <h3 className="text-lg font-medium mb-2">No Media Found</h3>
                 <p className="text-muted-foreground">This library appears to be empty or no results match your search.</p>
@@ -966,7 +974,7 @@ export const LibraryDetailPage = () => {
                     onClick={() => handlePageChange(currentPage - 1)}
                     disabled={currentPage <= 1}
                   >
-                    <i className="fa-solid fa-chevron-left"></i>
+                    <FontAwesomeIcon icon={faChevronLeft} />
                   </Button>
 
                   {start > 1 && (
@@ -1018,7 +1026,7 @@ export const LibraryDetailPage = () => {
                     onClick={() => handlePageChange(currentPage + 1)}
                     disabled={currentPage >= totalPages}
                   >
-                    <i className="fa-solid fa-chevron-right"></i>
+                    <FontAwesomeIcon icon={faChevronRight} />
                   </Button>
                 </div>
 

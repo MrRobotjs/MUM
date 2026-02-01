@@ -15,6 +15,8 @@ import { ApiError, requestJson } from '@/util/apiClient';
 import { useAlerts } from '../contexts/AlertContext';
 import { useUserPreferences } from '@/hooks/useUserPreferences';
 import { IconUserShield, IconInfoCircle, IconKey, IconClock } from '@tabler/icons-react';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faArrowRightArrowLeft } from '@fortawesome/free-solid-svg-icons';
 
 type AccountUser = {
   uuid: string;
@@ -124,7 +126,7 @@ const SyncPreferencesCard = ({
         <CardTitle>User Preferences</CardTitle>
         <CardDescription>
           Manage your personal preferences and cross-device synchronization. Settings marked with
-          <i className="fa-solid fa-arrow-right-arrow-left mx-1" aria-hidden="true" /> can be synced across devices.
+          <FontAwesomeIcon icon={faArrowRightArrowLeft} className="mx-1" aria-hidden="true" /> can be synced across devices.
           When a syncable setting is enabled, that icon turns green to indicate it will follow you everywhere.
         </CardDescription>
       </CardHeader>
@@ -134,8 +136,9 @@ const SyncPreferencesCard = ({
             <div className="space-y-0.5">
               <Label htmlFor="sync-preferences" className="text-base font-medium cursor-pointer flex items-center gap-2">
                 <span>Sync settings across devices</span>
-                <i
-                  className={`fa-solid fa-arrow-right-arrow-left text-sm ${pendingSyncEnabled ? 'text-emerald-500' : 'text-muted-foreground'}`}
+                <FontAwesomeIcon
+                  icon={faArrowRightArrowLeft}
+                  className={`text-sm ${pendingSyncEnabled ? 'text-emerald-500' : 'text-muted-foreground'}`}
                   aria-hidden="true"
                 />
               </Label>

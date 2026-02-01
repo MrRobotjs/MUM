@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import {
   IconInfoCircle,
@@ -41,12 +41,139 @@ import { useAlerts, useTheme } from '../contexts';
 import { cn } from '@/lib/utils';
 import { ResponsiveDialog } from '@/components/ui/responsive-dialog';
 import { resolveCssVarHex } from '@/lib/themeColors';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import type { IconDefinition } from '@fortawesome/fontawesome-svg-core';
+import { faTag, faTags, faPenToSquare, faTrashCan } from '@fortawesome/free-solid-svg-icons';
 
 type RoleFormValues = {
   name: string;
   description: string;
   color: string;
   icon: string;
+};
+
+type IconSetType = 'solid' | 'regular' | 'brands';
+const ICON_STYLE_TOKENS = new Set(['fa-solid', 'fa-regular', 'fa-brands', 'fa-light', 'fa-thin', 'fa-duotone']);
+const ICON_MODIFIER_TOKENS = new Set([
+  'fa-fw',
+  'fa-xs',
+  'fa-sm',
+  'fa-lg',
+  'fa-2x',
+  'fa-3x',
+  'fa-4x',
+  'fa-5x',
+  'fa-6x',
+  'fa-7x',
+  'fa-8x',
+  'fa-9x',
+  'fa-10x',
+  'fa-spin',
+  'fa-pulse',
+  'fa-spin-pulse',
+  'fa-spin-reverse',
+  'fa-bounce',
+  'fa-shake',
+  'fa-beat',
+  'fa-fade',
+  'fa-flip',
+  'fa-rotate-90',
+  'fa-rotate-180',
+  'fa-rotate-270',
+  'fa-flip-horizontal',
+  'fa-flip-vertical',
+]);
+
+const iconPackCache: Partial<Record<IconSetType, Map<string, IconDefinition>>> = {};
+const iconPackPromiseCache: Partial<Record<IconSetType, Promise<Map<string, IconDefinition>>>> = {};
+const iconDefinitionCache = new Map<string, IconDefinition>();
+
+const parseIconClass = (iconClass?: string | null): { prefix: IconSetType; iconName: string } | null => {
+  if (!iconClass) return null;
+  const trimmed = iconClass.trim();
+  if (!trimmed) return null;
+  const tokens = trimmed.split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) return null;
+
+  const styleToken = tokens.find((token) => ICON_STYLE_TOKENS.has(token));
+  const prefix: IconSetType = styleToken === 'fa-brands' ? 'brands' : styleToken === 'fa-regular' ? 'regular' : 'solid';
+  const iconToken = tokens.find((token) => token.startsWith('fa-') && !ICON_STYLE_TOKENS.has(token) && !ICON_MODIFIER_TOKENS.has(token));
+  if (!iconToken) return null;
+  const iconName = iconToken.replace(/^fa-/, '');
+  if (!iconName) return null;
+  return { prefix, iconName };
+};
+
+const loadIconPack = async (prefix: IconSetType) => {
+  if (iconPackCache[prefix]) {
+    return iconPackCache[prefix]!;
+  }
+  if (iconPackPromiseCache[prefix]) {
+    return iconPackPromiseCache[prefix]!;
+  }
+
+  const loader = async () => {
+    const pack =
+      prefix === 'brands'
+        ? await import('@fortawesome/free-brands-svg-icons')
+        : prefix === 'regular'
+          ? await import('@fortawesome/free-regular-svg-icons')
+          : await import('@fortawesome/free-solid-svg-icons');
+    const map = new Map<string, IconDefinition>();
+    Object.keys(pack).forEach((key) => {
+      const value = (pack as Record<string, IconDefinition>)[key];
+      if (value && (value as IconDefinition).iconName) {
+        map.set(value.iconName, value);
+      }
+    });
+    iconPackCache[prefix] = map;
+    return map;
+  };
+
+  const promise = loader();
+  iconPackPromiseCache[prefix] = promise;
+  return promise;
+};
+
+const useResolvedIconDefinition = (iconClass?: string | null) => {
+  const [definition, setDefinition] = useState<IconDefinition | null>(null);
+  const parsed = useMemo(() => parseIconClass(iconClass), [iconClass]);
+  const cacheKey = parsed ? `${parsed.prefix}:${parsed.iconName}` : null;
+
+  useEffect(() => {
+    if (!parsed || !cacheKey) {
+      setDefinition(null);
+      return;
+    }
+
+    const cached = iconDefinitionCache.get(cacheKey);
+    if (cached) {
+      setDefinition(cached);
+      return;
+    }
+
+    let cancelled = false;
+    loadIconPack(parsed.prefix)
+      .then((pack) => {
+        if (cancelled) return;
+        const found = pack.get(parsed.iconName) ?? null;
+        if (found) {
+          iconDefinitionCache.set(cacheKey, found);
+        }
+        setDefinition(found);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setDefinition(null);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [parsed, cacheKey]);
+
+  return definition;
 };
 
 const presetColors: Array<{ hex: string; label: string }> = [
@@ -81,20 +208,11 @@ export const AdminSettingsUserRolesPage = () => {
   });
   const [submitting, setSubmitting] = useState(false);
 
-  const resolveRoleIconClass = (icon?: string | null) => {
-    if (!icon) return null;
-    const trimmed = icon.trim();
-    if (!trimmed) return null;
-    const hasStyle =
-      trimmed.includes('fa-solid') ||
-      trimmed.includes('fa-regular') ||
-      trimmed.includes('fa-brands') ||
-      trimmed.includes('fa-light') ||
-      trimmed.includes('fa-thin') ||
-      trimmed.includes('fa-duotone');
-    if (hasStyle) return trimmed;
-    if (trimmed.includes('fa-')) return `fa-solid ${trimmed}`;
-    return trimmed;
+  const RoleIconCircle = ({ iconClass, color }: { iconClass?: string | null; color: string }) => {
+    const resolved = useResolvedIconDefinition(iconClass);
+    return (
+      <FontAwesomeIcon icon={resolved ?? faTag} style={{ color }} />
+    );
   };
 
   const handleCreate = () => {
@@ -358,7 +476,7 @@ export const AdminSettingsUserRolesPage = () => {
                     <TableRow>
                       <TableCell colSpan={5} className="py-8 text-center">
                         <div className="text-muted-foreground">
-                          <i className="fa-solid fa-tags mb-2 text-2xl text-muted-foreground/30" />
+                          <FontAwesomeIcon icon={faTags} className="mb-2 text-2xl text-muted-foreground/30" />
                           <p className="text-sm">No user roles found. Create roles to assign visual badges to users.</p>
                         </div>
                       </TableCell>
@@ -375,11 +493,7 @@ export const AdminSettingsUserRolesPage = () => {
                                 borderColor: `${role.color || '#808080'}40`,
                               }}
                             >
-                              {role.icon ? (
-                                <i className={resolveRoleIconClass(role.icon) ?? ''} style={{ color: role.color || '#808080' }} />
-                              ) : (
-                                <i className="fa-solid fa-tag" style={{ color: role.color || '#808080' }} />
-                              )}
+                              <RoleIconCircle iconClass={role.icon} color={role.color || '#808080'} />
                             </div>
                             <div>
                               <div className="flex items-center gap-2">
@@ -420,7 +534,7 @@ export const AdminSettingsUserRolesPage = () => {
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-2">
                             <Button variant="ghost" size="sm" onClick={() => handleEdit(role)}>
-                              <i className="fa-solid fa-pen-to-square mr-1 size-3" />
+                              <FontAwesomeIcon icon={faPenToSquare} className="mr-1 size-3" />
                               <span className="hidden md:inline">Edit</span>
                             </Button>
                             {!isAutoManagedRole(role) && (
@@ -430,7 +544,7 @@ export const AdminSettingsUserRolesPage = () => {
                                 className="text-destructive hover:bg-destructive/10"
                                 onClick={() => handleDelete(role)}
                               >
-                                <i className="fa-solid fa-trash-can mr-1 size-3" />
+                                <FontAwesomeIcon icon={faTrashCan} className="mr-1 size-3" />
                                 <span className="hidden md:inline">Delete</span>
                               </Button>
                             )}

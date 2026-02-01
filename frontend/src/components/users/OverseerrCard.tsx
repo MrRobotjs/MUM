@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { requestJson } from '../../util/apiClient';
 import { useAlerts } from '../../contexts/AlertContext';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faStar, faCheck, faXmark } from '@fortawesome/free-solid-svg-icons';
 
 type OverseerrLink = {
   server_id: number;
@@ -201,7 +203,7 @@ export const OverseerrCard = ({ links, loading, error }: OverseerrCardProps) => 
                                   </span>
                                   {rating ? (
                                     <span className="inline-flex items-center gap-1">
-                                      <i className="fa-solid fa-star text-yellow-500" />
+                                      <FontAwesomeIcon icon={faStar} className="text-yellow-500" />
                                       {Number(rating).toFixed(1)}
                                     </span>
                                   ) : null}
@@ -220,7 +222,7 @@ export const OverseerrCard = ({ links, loading, error }: OverseerrCardProps) => 
                                       {updatingId === req.id ? (
                                         <span className="inline-flex size-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
                                       ) : (
-                                        <i className="fa-solid fa-check mr-1" />
+                                        <FontAwesomeIcon icon={faCheck} className="mr-1" />
                                       )}
                                       Approve
                                     </button>
@@ -232,7 +234,7 @@ export const OverseerrCard = ({ links, loading, error }: OverseerrCardProps) => 
                                       {updatingId === req.id ? (
                                         <span className="inline-flex size-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
                                       ) : (
-                                        <i className="fa-solid fa-xmark mr-1" />
+                                        <FontAwesomeIcon icon={faXmark} className="mr-1" />
                                       )}
                                       Decline
                                     </button>

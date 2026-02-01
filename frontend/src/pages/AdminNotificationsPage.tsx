@@ -7,6 +7,18 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { useNotifications } from '../hooks/useNotifications';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import {
+  faCircleExclamation,
+  faTriangleExclamation,
+  faCircleCheck,
+  faCircleInfo,
+  faCheckDouble,
+  faFilter,
+  faBellSlash,
+  faCheck,
+  faTrash,
+} from '@fortawesome/free-solid-svg-icons';
 
 export const AdminNotificationsPage = () => {
   const { notifications, unreadCount, markAsRead, markAllAsRead, deleteNotification } = useNotifications({ limit: 100 });
@@ -24,17 +36,17 @@ export const AdminNotificationsPage = () => {
     });
   }, [notifications, filter, typeFilter, searchQuery]);
 
-  const getNotificationIcon = (notificationType: string) => {
+  const getNotificationIcon = (notificationType: string): { icon: typeof faCircleInfo; className: string } => {
     switch (notificationType) {
       case 'SERVER_CONNECTION_FAILED':
-        return 'fa-solid fa-circle-exclamation text-destructive';
+        return { icon: faCircleExclamation, className: 'text-destructive' };
       case 'USER_LIMIT_WARNING':
-        return 'fa-solid fa-triangle-exclamation text-yellow-500';
+        return { icon: faTriangleExclamation, className: 'text-yellow-500' };
       case 'USER_ACCEPTED_INVITE':
-        return 'fa-solid fa-circle-check text-green-500';
+        return { icon: faCircleCheck, className: 'text-green-500' };
       case 'SERVER_NOT_SYNCED':
       default:
-        return 'fa-solid fa-circle-info text-blue-500';
+        return { icon: faCircleInfo, className: 'text-blue-500' };
     }
   };
 
@@ -71,7 +83,7 @@ export const AdminNotificationsPage = () => {
     <div className="flex gap-2">
       {unreadCount > 0 && (
         <Button variant="outline" size="sm" onClick={markAllAsRead}>
-          <i className="fa-solid fa-check-double mr-2" />
+          <FontAwesomeIcon icon={faCheckDouble} className="mr-2" />
           Mark all as read
         </Button>
       )}
@@ -91,7 +103,7 @@ export const AdminNotificationsPage = () => {
         <CardHeader>
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
-              <i className="fa-solid fa-filter text-primary text-sm" />
+              <FontAwesomeIcon icon={faFilter} className="text-primary text-sm" />
             </div>
             <div>
               <CardTitle>Filter Notifications</CardTitle>
@@ -152,7 +164,7 @@ export const AdminNotificationsPage = () => {
         {filteredNotifications.length === 0 ? (
           <Card>
             <CardContent className="p-8 text-center text-muted-foreground">
-              <i className="fa-solid fa-bell-slash text-4xl mb-4 block" />
+              <FontAwesomeIcon icon={faBellSlash} className="text-4xl mb-4 block" />
               <p className="text-lg font-medium">No notifications found</p>
               <p className="text-sm">Try adjusting your filters</p>
             </CardContent>
@@ -163,10 +175,13 @@ export const AdminNotificationsPage = () => {
               <CardContent>
                 <div className="space-y-3">
                   {/* Header row */}
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex items-start gap-3 flex-1">
-                      <i className={`${getNotificationIcon(notification.notification_type)} mt-1 text-lg`} />
-                      <div className="flex-1 space-y-2">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-start gap-3 flex-1">
+                    <FontAwesomeIcon
+                      icon={getNotificationIcon(notification.notification_type).icon}
+                      className={`${getNotificationIcon(notification.notification_type).className} mt-1 text-lg`}
+                    />
+                    <div className="flex-1 space-y-2">
                         <div className="flex items-center gap-2 flex-wrap">
                           <h3 className="font-semibold text-base">{notification.title}</h3>
                           <Badge variant={getNotificationBadgeVariant(notification.notification_type)} className="text-xs">
@@ -194,7 +209,7 @@ export const AdminNotificationsPage = () => {
                           onClick={() => markAsRead(notification.id)}
                           title="Mark as read"
                         >
-                          <i className="fa-solid fa-check" />
+                          <FontAwesomeIcon icon={faCheck} />
                         </Button>
                       )}
                       <Button
@@ -203,7 +218,7 @@ export const AdminNotificationsPage = () => {
                         onClick={() => deleteNotification(notification.id)}
                         title="Delete notification"
                       >
-                        <i className="fa-solid fa-trash text-destructive" />
+                        <FontAwesomeIcon icon={faTrash} className="text-destructive" />
                       </Button>
                     </div>
                   </div>

@@ -9,6 +9,25 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import {
+  faCircleInfo,
+  faTerminal,
+  faTrash,
+  faPlus,
+  faPlay,
+  faArrowUp,
+  faArrowDown,
+  faTriangleExclamation,
+  faClipboardList,
+  faCopy,
+  faLightbulb,
+  faCube,
+  faPlayCircle,
+  faBook,
+  faHeadphones,
+  faBookOpen,
+} from '@fortawesome/free-solid-svg-icons';
 
 type QueryParameter = {
   key: string;
@@ -339,7 +358,7 @@ const AdminSettingsApiDebugPage = () => {
       <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4">
         <div className="flex items-start gap-3">
           <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-            <i className="fa-solid fa-info-circle text-blue-500 text-xs" />
+            <FontAwesomeIcon icon={faCircleInfo} className="text-blue-500 text-xs" />
           </div>
           <div>
             <h4 className="font-medium text-blue-500 mb-1">Debug Tool</h4>
@@ -355,7 +374,7 @@ const AdminSettingsApiDebugPage = () => {
         <CardHeader>
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center flex-shrink-0">
-              <i className="fa-solid fa-terminal text-blue-500 text-sm" />
+              <FontAwesomeIcon icon={faTerminal} className="text-blue-500 text-sm" />
             </div>
             <div>
               <CardTitle>API Request Builder</CardTitle>
@@ -470,13 +489,13 @@ const AdminSettingsApiDebugPage = () => {
                     onClick={() => removeParameter(index)}
                     disabled={parameters.length === 1}
                   >
-                    <i className="fa-solid fa-trash text-xs" />
+                    <FontAwesomeIcon icon={faTrash} className="text-xs" />
                   </Button>
                 </div>
               ))}
             </div>
             <Button type="button" size="sm" variant="outline" onClick={addParameter}>
-              <i className="fa-solid fa-plus mr-2" />
+              <FontAwesomeIcon icon={faPlus} className="mr-2" />
               Add Parameter
             </Button>
           </div>
@@ -502,7 +521,7 @@ const AdminSettingsApiDebugPage = () => {
                 </>
               ) : (
                 <>
-                  <i className="fa-solid fa-play mr-2" />
+                  <FontAwesomeIcon icon={faPlay} className="mr-2" />
                   Execute Request
                 </>
               )}
@@ -513,7 +532,7 @@ const AdminSettingsApiDebugPage = () => {
               onClick={() => setScrollAnchor((prev) => (prev === 'top' ? 'bottom' : 'top'))}
               title={`Scroll response to ${scrollAnchor === 'top' ? 'top' : 'bottom'}`}
             >
-              <i className={`fa-solid ${scrollAnchor === 'top' ? 'fa-arrow-up' : 'fa-arrow-down'} mr-2`} />
+              <FontAwesomeIcon icon={scrollAnchor === 'top' ? faArrowUp : faArrowDown} className="mr-2" />
               Scroll: {scrollAnchor === 'top' ? 'Top' : 'Bottom'}
             </Button>
           </div>
@@ -525,7 +544,7 @@ const AdminSettingsApiDebugPage = () => {
         <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4">
           <div className="flex items-start gap-3">
             <div className="w-6 h-6 rounded-full bg-destructive/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-              <i className="fa-solid fa-exclamation-triangle text-destructive text-xs" />
+              <FontAwesomeIcon icon={faTriangleExclamation} className="text-destructive text-xs" />
             </div>
             <div>
               <h4 className="font-medium text-destructive mb-1">Request Failed</h4>
@@ -541,7 +560,7 @@ const AdminSettingsApiDebugPage = () => {
           <CardHeader>
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center flex-shrink-0">
-                <i className="fa-solid fa-clipboard-list text-green-500 text-sm" />
+                <FontAwesomeIcon icon={faClipboardList} className="text-green-500 text-sm" />
               </div>
               <div>
                 <CardTitle>Response</CardTitle>
@@ -638,7 +657,7 @@ const AdminSettingsApiDebugPage = () => {
                 </pre>
                 <div className="mt-2">
                   <Button size="sm" variant="outline" onClick={copyCurlCommand}>
-                    <i className="fa-solid fa-copy mr-2" />
+                    <FontAwesomeIcon icon={faCopy} className="mr-2" />
                     Copy cURL Command
                   </Button>
                 </div>
@@ -653,7 +672,7 @@ const AdminSettingsApiDebugPage = () => {
         <CardHeader>
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-full bg-yellow-500/20 flex items-center justify-center flex-shrink-0">
-              <i className="fa-solid fa-lightbulb text-yellow-500 text-sm" />
+              <FontAwesomeIcon icon={faLightbulb} className="text-yellow-500 text-sm" />
             </div>
             <div>
               <CardTitle>Common API Endpoints</CardTitle>
@@ -666,7 +685,7 @@ const AdminSettingsApiDebugPage = () => {
             {/* Plex Examples */}
             <div className="bg-muted rounded-lg p-4">
               <h4 className="font-semibold text-sm mb-2 text-plex-500">
-                <i className="fa-solid fa-play mr-1" />
+                <FontAwesomeIcon icon={faPlay} className="mr-1" />
                 Plex
               </h4>
               <div className="space-y-2 text-xs">
@@ -685,7 +704,7 @@ const AdminSettingsApiDebugPage = () => {
             {/* Jellyfin Examples */}
             <div className="bg-muted rounded-lg p-4">
               <h4 className="font-semibold text-sm mb-2 text-jellyfin-500">
-                <i className="fa-solid fa-cube mr-1" />
+                <FontAwesomeIcon icon={faCube} className="mr-1" />
                 Jellyfin
               </h4>
               <div className="space-y-2 text-xs">
@@ -704,7 +723,7 @@ const AdminSettingsApiDebugPage = () => {
             {/* Emby Examples */}
             <div className="bg-muted rounded-lg p-4">
               <h4 className="font-semibold text-sm mb-2 text-emby-500">
-                <i className="fa-solid fa-play-circle mr-1" />
+                <FontAwesomeIcon icon={faPlayCircle} className="mr-1" />
                 Emby
               </h4>
               <div className="space-y-2 text-xs">
@@ -723,7 +742,7 @@ const AdminSettingsApiDebugPage = () => {
             {/* Kavita Examples */}
             <div className="bg-muted rounded-lg p-4">
               <h4 className="font-semibold text-sm mb-2 text-kavita-500">
-                <i className="fa-solid fa-book mr-1" />
+                <FontAwesomeIcon icon={faBook} className="mr-1" />
                 Kavita
               </h4>
               <div className="space-y-2 text-xs">
@@ -742,7 +761,7 @@ const AdminSettingsApiDebugPage = () => {
             {/* AudiobookShelf Examples */}
             <div className="bg-muted rounded-lg p-4">
               <h4 className="font-semibold text-sm mb-2 text-audiobookshelf-500">
-                <i className="fa-solid fa-headphones mr-1" />
+                <FontAwesomeIcon icon={faHeadphones} className="mr-1" />
                 AudiobookShelf
               </h4>
               <div className="space-y-2 text-xs">
@@ -761,7 +780,7 @@ const AdminSettingsApiDebugPage = () => {
             {/* Komga Examples */}
             <div className="bg-muted rounded-lg p-4">
               <h4 className="font-semibold text-sm mb-2 text-komga-500">
-                <i className="fa-solid fa-book-open mr-1" />
+                <FontAwesomeIcon icon={faBookOpen} className="mr-1" />
                 Komga
               </h4>
               <div className="space-y-2 text-xs">

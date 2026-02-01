@@ -9,6 +9,14 @@ import { cn } from '@/lib/utils';
 import { Button } from '../ui/button';
 import { UserDebugModal } from './UserDebugModal';
 import { Badge } from '../common/Badge';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import {
+  faLayerGroup,
+  faFolderOpen,
+  faFolder,
+  faCircleInfo,
+  faUser,
+} from '@fortawesome/free-solid-svg-icons';
 
 export type UserRow = {
   uuid: string;
@@ -204,7 +212,7 @@ export const UsersTable = ({
     if (user.has_all_libraries) {
       return (
         <Badge color="bg-blue-500" className="text-xs font-medium gap-1" hover={false}>
-          <i className="fa-solid fa-layer-group w-3 h-3" />
+          <FontAwesomeIcon icon={faLayerGroup} className="h-3 w-3" />
           {user.server_nickname ? `All libraries on ${user.server_nickname}` : 'All libraries'}
         </Badge>
       );
@@ -213,7 +221,7 @@ export const UsersTable = ({
     if (!user.libraries || user.libraries.length === 0) {
       return (
         <Badge color="bg-muted" className="text-xs font-medium gap-1" hover={false}>
-          <i className="fa-solid fa-folder-open w-3 h-3" />
+          <FontAwesomeIcon icon={faFolderOpen} className="h-3 w-3" />
           No libraries
         </Badge>
       );
@@ -228,7 +236,7 @@ export const UsersTable = ({
       <div className="flex flex-wrap items-center gap-1">
         {visibleLibraries.map((library) => (
           <Badge key={library} color="bg-blue-500" className="text-xs font-medium gap-1" hover={false}>
-            <i className="fa-solid fa-folder w-3 h-3 mt-0.5" />
+            <FontAwesomeIcon icon={faFolder} className="h-3 w-3 mt-0.5" />
             {library}
           </Badge>
         ))}
@@ -539,7 +547,7 @@ export const UsersTable = ({
                               setDebugUserUuid(user.uuid);
                             }}
                           >
-                            <i className="fa-solid fa-info" />
+                            <FontAwesomeIcon icon={faCircleInfo} />
                           </Button>
                           <Button
                             variant="ghost"
@@ -550,7 +558,7 @@ export const UsersTable = ({
                               navigate({ to: buildUserProfilePath(user), state: { userUuid: user.uuid } });
                             }}
                           >
-                            <i className="fa-solid fa-user" />
+                            <FontAwesomeIcon icon={faUser} />
                           </Button>
                         </div>
                       </TableCell>

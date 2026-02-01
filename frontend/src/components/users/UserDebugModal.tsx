@@ -13,6 +13,15 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { requestJson } from '../../util/apiClient';
 import { useAlerts } from '../../contexts';
 import { IconAlertCircle } from '@tabler/icons-react';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import {
+  faUser,
+  faCircleInfo,
+  faCode,
+  faTriangleExclamation,
+  faLightbulb,
+  faCopy,
+} from '@fortawesome/free-solid-svg-icons';
 
 interface UserDebugModalProps {
   open: boolean;
@@ -123,9 +132,9 @@ export const UserDebugModal = ({ open, onClose, userUuid }: UserDebugModalProps)
           <div className="space-y-4">
             {/* User Info Card */}
             <div className="bg-muted/50 rounded-lg p-4 border border-border">
-              <div className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <i className="fa-solid fa-user text-primary text-sm" />
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <FontAwesomeIcon icon={faUser} className="text-primary text-sm" />
                 </div>
                 <div className="flex-1">
                   <h4 className="font-medium mb-1">User Information</h4>
@@ -161,9 +170,9 @@ export const UserDebugModal = ({ open, onClose, userUuid }: UserDebugModalProps)
               <>
                 {/* Data Type Info */}
                 <div className="bg-muted/50 rounded-lg p-4 border border-border">
-                  <div className="flex items-start gap-3">
-                    <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                      <i className="fa-solid fa-info text-primary text-sm" />
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <FontAwesomeIcon icon={faCircleInfo} className="text-primary text-sm" />
                     </div>
                     <div className="flex-1 text-sm">
                       <p className="text-foreground">
@@ -181,7 +190,7 @@ export const UserDebugModal = ({ open, onClose, userUuid }: UserDebugModalProps)
                 <div className="bg-muted/30 rounded-lg border border-border">
                   <div className="flex items-center justify-between p-3 border-b border-border bg-muted/50">
                     <div className="flex items-center gap-2">
-                      <i className="fa-solid fa-code text-primary text-sm" />
+                      <FontAwesomeIcon icon={faCode} className="text-primary text-sm" />
                       <span className="font-medium text-sm">Raw User Data</span>
                     </div>
                     <div className="text-xs text-muted-foreground">
@@ -212,7 +221,7 @@ export const UserDebugModal = ({ open, onClose, userUuid }: UserDebugModalProps)
               <div className="space-y-4">
                 <div className="bg-amber-500/10 rounded-lg p-8 border border-amber-500/30 text-center">
                   <div className="w-16 h-16 rounded-full bg-amber-500/20 flex items-center justify-center mx-auto mb-4">
-                    <i className="fa-solid fa-exclamation-triangle text-amber-600 dark:text-amber-400 text-2xl" />
+                    <FontAwesomeIcon icon={faTriangleExclamation} className="text-amber-600 dark:text-amber-400 text-2xl" />
                   </div>
                   <h5 className="font-medium mb-2">No Raw Data Available</h5>
                   <p className="text-sm text-muted-foreground mb-4">
@@ -227,7 +236,7 @@ export const UserDebugModal = ({ open, onClose, userUuid }: UserDebugModalProps)
 
                 <div className="bg-primary/10 rounded-lg p-4 border border-primary/30">
                   <div className="flex items-start gap-3">
-                    <i className="fa-solid fa-lightbulb text-primary text-sm mt-0.5" />
+                    <FontAwesomeIcon icon={faLightbulb} className="text-primary text-sm mt-0.5" />
                     <div>
                       <h6 className="font-medium mb-1">Suggestion</h6>
                       <p className="text-sm text-muted-foreground">
@@ -247,7 +256,7 @@ export const UserDebugModal = ({ open, onClose, userUuid }: UserDebugModalProps)
           </Button>
           {debugData?.has_data && (
             <Button variant="default" onClick={handleCopyToClipboard}>
-              <i className="fa-solid fa-copy mr-2" />
+              <FontAwesomeIcon icon={faCopy} className="mr-2" />
               Copy to Clipboard
             </Button>
           )}

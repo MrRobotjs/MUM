@@ -22,6 +22,16 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import {
+  faCrown,
+  faUserTie,
+  faKey,
+  faUser,
+  faShieldHalved,
+  faTriangleExclamation,
+  faUsersSlash,
+} from '@fortawesome/free-solid-svg-icons'
 
 type AdminRole = {
   id: string
@@ -374,9 +384,9 @@ const AdminSettingsAdminManagementPage = () => {
                               }`}
                             >
                               {isOwner(admin) ? (
-                                <i className="fa-solid fa-crown text-xs text-amber-600 dark:text-amber-400" />
+                                <FontAwesomeIcon icon={faCrown} className="text-xs text-amber-600 dark:text-amber-400" />
                               ) : (
-                                <i className="fa-solid fa-user-tie text-xs text-blue-600 dark:text-blue-400" />
+                                <FontAwesomeIcon icon={faUserTie} className="text-xs text-blue-600 dark:text-blue-400" />
                               )}
                             </div>
                             <span className="font-mono text-sm">{admin.id}</span>
@@ -389,7 +399,7 @@ const AdminSettingsAdminManagementPage = () => {
                             <Avatar className={isOwner(admin) ? 'bg-amber-100/20 text-amber-600 dark:text-amber-400' : 'bg-primary/20 text-primary'}>
                               <AvatarFallback>
                                 {isOwner(admin) ? (
-                                  <i className="fa-solid fa-crown" />
+                                  <FontAwesomeIcon icon={faCrown} />
                                 ) : (
                                   getInitials(admin.username)
                                 )}
@@ -412,7 +422,7 @@ const AdminSettingsAdminManagementPage = () => {
                               borderColor: isOwner(admin) ? '#faa61a40' : '#5865f240'
                             }}
                           >
-                            <i className={`mr-1 size-3 ${isOwner(admin) ? 'fa-solid fa-crown' : 'fa-solid fa-user-tie'}`} />
+                            <FontAwesomeIcon icon={isOwner(admin) ? faCrown : faUserTie} className="mr-1 size-3" />
                             {isOwner(admin) ? 'Owner' : 'Staff'}
                           </UiBadge>
                         </TableCell>
@@ -428,7 +438,7 @@ const AdminSettingsAdminManagementPage = () => {
                                 borderColor: '#faa61a40'
                               }}
                             >
-                              <i className="fa-solid fa-key mr-1 size-3" />
+                              <FontAwesomeIcon icon={faKey} className="mr-1 size-3" />
                               All Permissions
                             </UiBadge>
                           ) : admin.admin_roles.length > 0 ? (
@@ -540,7 +550,7 @@ const AdminSettingsAdminManagementPage = () => {
           {/* Account Details */}
           <div className="space-y-4">
             <h4 className="flex items-center gap-2 text-lg font-medium">
-              <i className="fa-solid fa-user text-sm text-green-600 dark:text-green-400" />
+              <FontAwesomeIcon icon={faUser} className="text-sm text-green-600 dark:text-green-400" />
               Account Details
             </h4>
 
@@ -560,7 +570,7 @@ const AdminSettingsAdminManagementPage = () => {
           {/* Security Settings */}
           <div className="space-y-4">
             <h4 className="flex items-center gap-2 text-lg font-medium">
-              <i className="fa-solid fa-shield-halved text-sm text-amber-600 dark:text-amber-400" />
+              <FontAwesomeIcon icon={faShieldHalved} className="text-sm text-amber-600 dark:text-amber-400" />
               Security Settings
             </h4>
 
@@ -591,7 +601,7 @@ const AdminSettingsAdminManagementPage = () => {
 
             <Alert className="border-amber-500/30 bg-amber-50 dark:bg-amber-400/10">
               <div className="flex items-start gap-2">
-                <i className="fa-solid fa-exclamation-triangle mt-0.5 text-sm text-amber-600 dark:text-amber-400" />
+                <FontAwesomeIcon icon={faTriangleExclamation} className="mt-0.5 text-sm text-amber-600 dark:text-amber-400" />
                 <div>
                   <AlertTitle>Security Notice</AlertTitle>
                   <AlertDescription>
@@ -606,7 +616,7 @@ const AdminSettingsAdminManagementPage = () => {
           {roles.length > 0 && (
             <div className="space-y-4">
               <h4 className="flex items-center gap-2 text-lg font-medium">
-                <i className="fa-solid fa-key text-sm text-primary" />
+                <FontAwesomeIcon icon={faKey} className="text-sm text-primary" />
                 Assign Roles (Optional)
               </h4>
 
@@ -645,7 +655,7 @@ const AdminSettingsAdminManagementPage = () => {
       >
         <form id="edit-admin-form" onSubmit={handleEditAdmin} className="space-y-4">
           <h4 className="flex items-center gap-2 text-lg font-medium">
-            <i className="fa-solid fa-key text-sm text-green-600 dark:text-green-400" />
+            <FontAwesomeIcon icon={faKey} className="text-sm text-green-600 dark:text-green-400" />
             Permissions & Roles
           </h4>
 
@@ -664,7 +674,7 @@ const AdminSettingsAdminManagementPage = () => {
               </div>
             ) : (
               <div className="py-4 text-center">
-                <i className="fa-solid fa-users-slash mb-2 text-2xl text-muted-foreground/30" />
+                <FontAwesomeIcon icon={faUsersSlash} className="mb-2 text-2xl text-muted-foreground/30" />
                 <p className="text-sm text-muted-foreground">No roles exist yet.</p>
               </div>
             )}

@@ -37,6 +37,7 @@ import { ResponsiveDialog } from '@/components/ui/responsive-dialog';
 import { resolveCssVarHex } from '@/lib/themeColors';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import type { IconDefinition } from '@fortawesome/fontawesome-svg-core';
+import { Spinner } from '@/components/ui/spinner'
 import {
   faTag,
   faTags,
@@ -461,7 +462,7 @@ export const AdminSettingsUserRolesPage = () => {
         <CardContent>
           {loading ? (
             <div className="flex items-center justify-center py-12">
-              <span className="inline-flex size-4 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
+              <Spinner className="size-4 text-muted-foreground" />
             </div>
           ) : (
             <div className="overflow-x-auto rounded-lg border">

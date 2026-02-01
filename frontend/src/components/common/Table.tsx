@@ -1,5 +1,6 @@
 import { ReactNode } from 'react';
 import { cn } from '@/lib/utils';
+import { Spinner } from '@/components/ui/spinner'
 
 export type Column<T> = {
   key: string;
@@ -65,7 +66,7 @@ export const Table = <T,>({
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <span className="loading loading-spinner loading-lg"></span>
+        <Spinner className="size-6" />
       </div>
     );
   }

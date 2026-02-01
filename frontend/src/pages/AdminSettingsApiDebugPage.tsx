@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../co
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { Spinner } from '@/components/ui/spinner'
 import {
   faCircleInfo,
   faTerminal,
@@ -516,7 +517,7 @@ const AdminSettingsApiDebugPage = () => {
             >
               {loading ? (
                 <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2" />
+                  <Spinner className="h-4 w-4 mr-2" />
                   Executing...
                 </>
               ) : (

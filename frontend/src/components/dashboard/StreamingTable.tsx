@@ -4,6 +4,7 @@ import { Pagination } from '../common/Pagination';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Link } from '@tanstack/react-router';
 import { buildUserProfilePath } from '@/util/routes';
+import { Spinner } from '@/components/ui/spinner'
 import {
   Table,
   TableBody,
@@ -78,7 +79,7 @@ export const StreamingTable = ({
   if (loading) {
     return (
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <span className="loading loading-spinner loading-sm" /> Loading streams…
+        <Spinner className="size-4" /> Loading streams…
       </div>
     );
   }

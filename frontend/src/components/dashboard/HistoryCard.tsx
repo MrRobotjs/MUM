@@ -3,6 +3,7 @@ import { useAdminApi } from '../../hooks/useAdminApi';
 import { DashboardCard } from './DashboardLayout';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faRotate } from '@fortawesome/free-solid-svg-icons';
+import { Spinner } from '@/components/ui/spinner'
 
 type HistoryEntry = {
   id: number;
@@ -24,7 +25,7 @@ export const HistoryCard = () => {
     <DashboardCard title="Recent Activity">
       {loading ? (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          <Spinner className="h-4 w-4 text-primary" />
           Loading history…
         </div>
       ) : error ? (

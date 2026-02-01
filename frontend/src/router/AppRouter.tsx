@@ -7,7 +7,7 @@ import {
   createRootRoute,
 } from '@tanstack/react-router'
 import { lazy, Suspense } from 'react';
-import { Spinner } from '@/components/ui/spinner';
+import { Spinner } from '@/components/ui/spinner'
 import AdminShell from './AdminShell';
 import AdminGuard from './AdminGuard';
 import DashboardPage from '../pages/DashboardPage';

@@ -22,6 +22,7 @@ import {
 } from '@/components/ui/table'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { Spinner } from '@/components/ui/spinner'
 import {
   faCrown,
   faUserTie,
@@ -356,7 +357,7 @@ const AdminSettingsAdminManagementPage = () => {
         <CardContent>
           {loading ? (
             <div className="flex items-center justify-center py-12">
-              <span className="inline-flex size-4 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
+              <Spinner className="size-4 text-muted-foreground" />
             </div>
           ) : (
             <div className="overflow-x-auto rounded-lg border">
@@ -536,7 +537,7 @@ const AdminSettingsAdminManagementPage = () => {
             Cancel
           </Button>,
           <Button key="submit" type="submit" form="create-admin-form" disabled={submitting}>
-            {submitting && <span className="mr-2 inline-flex size-4 animate-spin rounded-full border-2 border-background border-t-transparent" />}
+            {submitting && <Spinner className="mr-2 size-4 text-background" />}
             <FontAwesomeIcon icon={faUserPlus} className="mr-2 size-4" />
             Create Admin
           </Button>
@@ -657,7 +658,7 @@ const AdminSettingsAdminManagementPage = () => {
             Cancel
           </Button>,
           <Button key="submit" type="submit" form="edit-admin-form" disabled={submitting}>
-            {submitting && <span className="mr-2 inline-flex size-4 animate-spin rounded-full border-2 border-background border-t-transparent" />}
+            {submitting && <Spinner className="mr-2 size-4 text-background" />}
             <FontAwesomeIcon icon={faCheck} className="mr-2 size-4" />
             Save Changes
           </Button>
@@ -702,7 +703,7 @@ const AdminSettingsAdminManagementPage = () => {
             Cancel
           </Button>,
           <Button key="submit" type="submit" form="reset-password-form" variant="default" disabled={submitting} className="bg-amber-100 hover:bg-amber-100/90">
-            {submitting && <span className="mr-2 inline-flex size-4 animate-spin rounded-full border-2 border-background border-t-transparent" />}
+            {submitting && <Spinner className="mr-2 size-4 text-background" />}
             <FontAwesomeIcon icon={faKey} className="mr-2 size-4" />
             Reset Password
           </Button>

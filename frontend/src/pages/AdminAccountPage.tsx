@@ -16,6 +16,7 @@ import { useAlerts } from '../contexts/AlertContext';
 import { useUserPreferences } from '@/hooks/useUserPreferences';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faArrowRightArrowLeft, faUserShield, faCircleInfo, faKey, faClock } from '@fortawesome/free-solid-svg-icons';
+import { Spinner } from '@/components/ui/spinner'
 
 type AccountUser = {
   uuid: string;
@@ -616,7 +617,7 @@ const PlexSSOCard = ({ initialError }: PlexSSOCardProps) => {
           >
             {loading ? (
               <>
-                <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2" />
+                <Spinner className="h-4 w-4 mr-2" />
                 Connecting...
               </>
             ) : (

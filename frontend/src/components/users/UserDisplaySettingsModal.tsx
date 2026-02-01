@@ -7,6 +7,7 @@ import { ResponsiveDialog } from '../ui/responsive-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import type { IconDefinition } from '@fortawesome/fontawesome-svg-core';
+import { Spinner } from '@/components/ui/spinner'
 import {
   faNoteSticky,
   faEnvelope,
@@ -164,7 +165,7 @@ export const UserDisplaySettingsModal = ({ isOpen, onClose }: UserDisplaySetting
     >
       {saving ? (
         <>
-          <span className="loading loading-spinner loading-xs" />
+          <Spinner className="size-3" />
           Saving...
         </>
       ) : (
@@ -178,7 +179,7 @@ export const UserDisplaySettingsModal = ({ isOpen, onClose }: UserDisplaySetting
 
   const body = loading ? (
     <div className="flex items-center justify-center py-8">
-      <span className="loading loading-spinner loading-lg" />
+      <Spinner className="size-6" />
     </div>
   ) : (
     <div className="space-y-6">

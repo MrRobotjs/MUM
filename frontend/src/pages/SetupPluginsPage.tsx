@@ -13,6 +13,7 @@ import { useAlerts } from '../contexts'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Spinner } from '@/components/ui/spinner'
 
 const getPluginKey = (plugin: Plugin) => plugin.pluginId || plugin.id
 
@@ -131,7 +132,7 @@ function SetupPluginsContent() {
 
       {loading ? (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <span className="loading loading-spinner loading-sm" /> Loading plugins…
+          <Spinner className="size-4" /> Loading plugins…
         </div>
       ) : error ? (
         // Don't show plugins if there's an error

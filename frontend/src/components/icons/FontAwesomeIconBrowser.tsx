@@ -5,6 +5,7 @@ import { IconAt, IconSearch, IconSquareDashed, IconSquareFilled } from '@tabler/
 import { ResponsiveDialog } from '@/components/ui/responsive-dialog';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
+import { Spinner } from '@/components/ui/spinner'
 
 type IconSetType = 'solid' | 'regular' | 'brands';
 export type FontAwesomeBrowserIcon = {
@@ -157,7 +158,7 @@ export const FontAwesomeIconBrowser = ({
     >
       {loadingIcons ? (
         <div className="flex h-64 items-center justify-center flex-col gap-3 px-4">
-          <div className="inline-flex size-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          <Spinner className="size-6 text-primary" />
           <p className="text-sm text-muted-foreground">Loading full icon library...</p>
         </div>
       ) : (

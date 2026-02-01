@@ -11,6 +11,7 @@ import { Separator } from '../components/ui/separator';
 import { Alert, AlertDescription } from '../components/ui/alert';
 import { ResponsiveDialog } from '../components/ui/responsive-dialog';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { Spinner } from '@/components/ui/spinner'
 import {
   faChartBar,
   faChartLine,
@@ -327,7 +328,7 @@ const LoginPage = () => {
                   >
                     {submitting ? (
                       <>
-                        <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2" />
+                        <Spinner className="h-4 w-4 mr-2" />
                         Signing in...
                       </>
                     ) : (
@@ -374,7 +375,7 @@ const LoginPage = () => {
                 >
                   {plexLoading ? (
                     <>
-                      <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2" />
+                      <Spinner className="h-4 w-4 mr-2" />
                       Connecting...
                     </>
                   ) : (

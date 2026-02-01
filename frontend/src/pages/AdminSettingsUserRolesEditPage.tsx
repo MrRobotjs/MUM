@@ -7,6 +7,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { UserRoleDisplayTab } from '../components/roles/UserRoleDisplayTab'
 import { UserRoleMembersTab } from '../components/roles/UserRoleMembersTab'
+import { Spinner } from '@/components/ui/spinner'
 
 export const AdminSettingsUserRolesEditPage = () => {
   const { roleId } = useParams({ from: '/admin/settings/user-roles/$roleId/edit' })
@@ -29,7 +30,7 @@ export const AdminSettingsUserRolesEditPage = () => {
     return (
       <div className="space-y-6">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <span className="inline-flex size-4 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
+          <Spinner className="size-4 text-muted-foreground" />
           Loading role...
         </div>
       </div>

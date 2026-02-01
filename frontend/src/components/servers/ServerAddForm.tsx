@@ -13,6 +13,7 @@ import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { SERVICE_TYPES } from '@/config/pluginMetadata';
+import { Spinner } from '@/components/ui/spinner'
 
 type ConnectionTestStatus = 'idle' | 'testing' | 'success' | 'error';
 
@@ -243,7 +244,7 @@ export const ServerAddForm = ({ pluginId, onSuccess, onCancel }: ServerAddFormPr
     if (connectionTestStatus === 'testing') {
       return (
         <>
-          <span className="inline-flex size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+          <Spinner className="size-4" />
           Testing...
         </>
       );

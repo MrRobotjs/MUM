@@ -18,6 +18,7 @@ import { useAlerts } from '../../contexts/AlertContext';
 import { requestJson } from '../../util/apiClient';
 import { ResponsiveDialog } from '../ui/responsive-dialog';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { Spinner } from '@/components/ui/spinner'
 import {
   faCalendar,
   faCalendarPlus,
@@ -309,7 +310,7 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
                 <div className="max-h-64 overflow-y-auto border rounded-lg p-3 space-y-2">
                   {librariesLoading ? (
                     <div className="flex items-center justify-center py-4">
-                      <span className="loading loading-spinner loading-sm" />
+                      <Spinner className="size-4" />
                     </div>
                   ) : libraries.length === 0 ? (
                     <p className="text-sm text-muted-foreground text-center py-4">
@@ -609,7 +610,7 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
     >
       {submitting ? (
         <>
-          <span className="loading loading-spinner loading-xs mr-2" />
+          <Spinner className="mr-2 size-3" />
           Processing...
         </>
       ) : (

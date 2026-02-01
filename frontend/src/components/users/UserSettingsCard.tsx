@@ -6,6 +6,7 @@ import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { Input } from '@/components/ui/input'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { Spinner } from '@/components/ui/spinner'
 import {
   faDownload,
   faVideo,
@@ -75,7 +76,7 @@ export const UserSettingsCard = ({ settings, loading, error, onSave }: UserSetti
       <Card className="border-border shadow-sm">
         <CardContent className="p-6">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <span className="inline-flex size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+            <Spinner className="size-4" />
             Loading user settings…
           </div>
         </CardContent>

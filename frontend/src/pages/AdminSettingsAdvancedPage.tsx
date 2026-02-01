@@ -24,6 +24,7 @@ import {
 } from '@/components/ui/table';
 import { ResponsiveDialog } from '@/components/ui/responsive-dialog';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { Spinner } from '@/components/ui/spinner'
 import {
   faCircle,
   faServer,
@@ -423,7 +424,7 @@ export const AdminSettingsAdvancedPage = () => {
 
       {loading ? (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <span className="inline-flex size-4 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
+          <Spinner className="size-4 text-muted-foreground" />
           Loading advanced settings...
         </div>
       ) : (
@@ -452,7 +453,7 @@ export const AdminSettingsAdvancedPage = () => {
         <CardContent>
           {configLoading ? (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <span className="inline-flex size-4 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
+              <Spinner className="size-4 text-muted-foreground" />
               Loading configuration...
             </div>
           ) : !config ? (
@@ -516,7 +517,7 @@ export const AdminSettingsAdvancedPage = () => {
         <CardContent>
           {tasksLoading ? (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <span className="inline-flex size-4 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
+              <Spinner className="size-4 text-muted-foreground" />
               Loading scheduled tasks...
             </div>
           ) : tasks.length === 0 ? (

@@ -13,6 +13,7 @@ import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faCircleExclamation, faCircleInfo } from '@fortawesome/free-solid-svg-icons'
+import { Spinner } from '@/components/ui/spinner'
 
 export interface PluginConfigurationProps {
   plugin: Plugin
@@ -182,7 +183,7 @@ export const PluginConfiguration = ({
 
           {serversLoading ? (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <span className="inline-flex size-4 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
+              <Spinner className="size-4 text-muted-foreground" />
               Loading servers…
             </div>
           ) : pluginServers.length === 0 ? (

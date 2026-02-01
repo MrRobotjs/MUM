@@ -1,6 +1,7 @@
 import { Button } from '@/components/ui/button';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faChevronLeft, faChevronRight } from '@fortawesome/free-solid-svg-icons';
+import { Spinner } from '@/components/ui/spinner'
 
 interface PaginationProps {
   currentPage: number;
@@ -113,7 +114,7 @@ export const Pagination = ({ currentPage, totalPages, onPageChange, loading = fa
 
       {/* Loading Indicator */}
       {loading && (
-        <span className="loading loading-spinner loading-sm ml-2" />
+        <Spinner className="ml-2 size-4" />
       )}
     </div>
   );

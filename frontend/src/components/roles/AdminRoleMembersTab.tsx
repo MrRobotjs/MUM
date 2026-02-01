@@ -13,6 +13,7 @@ import { ResponsiveDialog } from '@/components/ui/responsive-dialog'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { Spinner } from '@/components/ui/spinner'
 import {
   faCircleInfo,
   faMagnifyingGlass,
@@ -285,7 +286,7 @@ export const AdminRoleMembersTab = ({ role, onUpdate }: AdminRoleMembersTabProps
 
           {membersLoading ? (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <span className="inline-flex size-4 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
+              <Spinner className="size-4 text-muted-foreground" />
               Loading members...
             </div>
           ) : filteredMembers.length === 0 ? (

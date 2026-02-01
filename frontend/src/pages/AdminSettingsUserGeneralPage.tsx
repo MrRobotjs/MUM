@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
 import { useUserAccountSettings } from '../hooks/useSettings'
+import { Spinner } from '@/components/ui/spinner'
 
 type UserAccountSettingsFormProps = {
   initialValue: boolean
@@ -85,7 +86,7 @@ const UserAccountSettingsForm = ({ initialValue, refresh }: UserAccountSettingsF
             <div className="flex justify-end">
               <Button size="sm" onClick={handleSave} disabled={saving}>
                 {saving ? (
-                  <span className="mr-2 inline-flex size-4 animate-spin rounded-full border-2 border-background border-t-transparent" />
+                  <Spinner className="mr-2 size-4 text-background" />
                 ) : (
                   <FontAwesomeIcon icon={faFloppyDisk} className="mr-2 size-4" />
                 )}
@@ -112,7 +113,7 @@ const AdminSettingsUserGeneralPage = () => {
   if (loading) {
     return (
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <span className="inline-flex size-4 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
+        <Spinner className="size-4 text-muted-foreground" />
         Loading settings.
       </div>
     )

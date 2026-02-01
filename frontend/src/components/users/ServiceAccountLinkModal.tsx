@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { ResponsiveDialog } from '../ui/responsive-dialog';
+import { Spinner } from '@/components/ui/spinner'
 
 export type AvailableServiceAccount = {
   uuid: string;
@@ -59,7 +60,7 @@ export const ServiceAccountLinkModal = ({
 
   const body = loading ? (
     <div className="flex items-center gap-2 text-sm text-muted-foreground">
-      <span className="loading loading-spinner loading-sm" />
+      <Spinner className="size-4" />
       Loading available service accounts…
     </div>
   ) : error ? (

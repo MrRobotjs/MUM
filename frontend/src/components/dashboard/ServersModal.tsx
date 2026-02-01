@@ -1,6 +1,7 @@
 import { useAdminApi } from '../../hooks/useAdminApi';
 import { ResponsiveDialog } from '../ui/responsive-dialog';
 import { Badge } from '@/components/ui/badge';
+import { Spinner } from '@/components/ui/spinner'
 
 type ServerItem = {
   id: number;
@@ -50,7 +51,7 @@ export const ServersModal = ({ open, onClose }: ServersModalProps) => {
     >
       {loading ? (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <span className="loading loading-spinner loading-sm" /> Checking server status.
+          <Spinner className="size-4" /> Checking server status.
         </div>
       ) : error ? (
         <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">

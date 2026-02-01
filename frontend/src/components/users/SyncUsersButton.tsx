@@ -4,6 +4,7 @@ import { useAlerts } from '../../contexts/AlertContext';
 import { Button } from '../ui/button';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faSync } from '@fortawesome/free-solid-svg-icons';
+import { Spinner } from '@/components/ui/spinner'
 
 interface SyncResult {
   server_id: number;
@@ -78,7 +79,7 @@ export const SyncUsersButton = () => {
     >
       {syncing ? (
         <>
-          <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-current mr-2" />
+          <Spinner className="h-3 w-3 mr-2" />
           Syncing...
         </>
       ) : (

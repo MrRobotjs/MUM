@@ -13,6 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { Pagination } from '../components/common/Pagination';
 import { Progress } from '../components/ui/progress';
 import { ResponsiveDialog } from '../components/ui/responsive-dialog';
+import { Spinner } from '@/components/ui/spinner'
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -804,7 +805,7 @@ export const LibraryDetailPage = () => {
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-sm">
                     <div className="flex items-center gap-2">
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary" />
+                      <Spinner className="h-4 w-4 text-primary" />
                       <span className="font-medium">
                         {(backendSyncing && libSyncStatus?.progress?.message) || (
                           phase === 'episodes'

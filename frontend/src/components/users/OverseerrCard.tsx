@@ -3,6 +3,7 @@ import { requestJson } from '../../util/apiClient';
 import { useAlerts } from '../../contexts/AlertContext';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faStar, faCheck, faXmark } from '@fortawesome/free-solid-svg-icons';
+import { Spinner } from '@/components/ui/spinner'
 
 type OverseerrLink = {
   server_id: number;
@@ -62,7 +63,7 @@ export const OverseerrCard = ({ links, loading, error }: OverseerrCardProps) => 
         <h3 className="text-lg font-semibold">Overseerr Status</h3>
         {loading ? (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <span className="inline-flex size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+            <Spinner className="size-4" />
             Loading Overseerr data.
           </div>
         ) : error ? (
@@ -220,7 +221,7 @@ export const OverseerrCard = ({ links, loading, error }: OverseerrCardProps) => 
                                       onClick={() => handleUpdateStatus(link.server_id, req.id, 'approve')}
                                     >
                                       {updatingId === req.id ? (
-                                        <span className="inline-flex size-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                                        <Spinner className="size-3" />
                                       ) : (
                                         <FontAwesomeIcon icon={faCheck} className="mr-1" />
                                       )}
@@ -232,7 +233,7 @@ export const OverseerrCard = ({ links, loading, error }: OverseerrCardProps) => 
                                       onClick={() => handleUpdateStatus(link.server_id, req.id, 'decline')}
                                     >
                                       {updatingId === req.id ? (
-                                        <span className="inline-flex size-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                                        <Spinner className="size-3" />
                                       ) : (
                                         <FontAwesomeIcon icon={faXmark} className="mr-1" />
                                       )}

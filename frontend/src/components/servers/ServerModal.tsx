@@ -14,6 +14,7 @@ import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { SERVICE_TYPES } from '@/config/pluginMetadata';
+import { Spinner } from '@/components/ui/spinner'
 
 export type ServerFormValues = {
   server_nickname: string;
@@ -276,7 +277,7 @@ export const ServerModal = ({
     if (connectionTestStatus === 'testing') {
       return (
         <>
-          <span className="inline-flex size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+          <Spinner className="size-4" />
           Testing...
         </>
       );

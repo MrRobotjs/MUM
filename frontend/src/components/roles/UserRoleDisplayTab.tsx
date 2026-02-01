@@ -17,6 +17,7 @@ import { getReadableTextColor, resolveCssVarHex } from '@/lib/themeColors'
 import { Badge } from '@/components/common/Badge'
  
 import type { FontAwesomeBrowserIcon } from '@/components/icons/FontAwesomeIconBrowser'
+import { Spinner } from '@/components/ui/spinner'
 
 const FontAwesomeIconBrowser = lazy(() => import('@/components/icons/FontAwesomeIconBrowser'))
 
@@ -437,7 +438,7 @@ export const UserRoleDisplayTab = ({ role, onUpdate }: UserRoleDisplayTabProps) 
           <Button type="submit" disabled={submitting}>
             {submitting ? (
               <>
-                <span className="mr-2 inline-flex size-4 animate-spin rounded-full border-2 border-background border-t-transparent" />
+                <Spinner className="mr-2 size-4 text-background" />
                 Saving...
               </>
             ) : (

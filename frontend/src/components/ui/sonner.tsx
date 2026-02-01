@@ -4,9 +4,9 @@ import {
   faCircleInfo,
   faTriangleExclamation,
   faCircleXmark,
-  faSpinner,
 } from "@fortawesome/free-solid-svg-icons"
 import { Toaster as Sonner, type ToasterProps } from "sonner"
+import { Spinner } from "@/components/ui/spinner"
 
 const Toaster = ({ ...props }: ToasterProps) => {
   // Use the current theme from document element
@@ -22,7 +22,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
         info: <FontAwesomeIcon icon={faCircleInfo} className="size-4" />,
         warning: <FontAwesomeIcon icon={faTriangleExclamation} className="size-4" />,
         error: <FontAwesomeIcon icon={faCircleXmark} className="size-4" />,
-        loading: <FontAwesomeIcon icon={faSpinner} className="size-4 animate-spin" />,
+        loading: <Spinner className="size-4" />,
       }}
       style={
         {

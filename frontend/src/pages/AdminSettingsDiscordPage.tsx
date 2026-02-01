@@ -23,6 +23,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
+import { Spinner } from '@/components/ui/spinner'
 
 type DiscordFormValues = {
   enable_oauth: boolean
@@ -622,7 +623,7 @@ const DiscordSettingsForm = ({ initialState, refresh }: DiscordSettingsFormProps
           >
             {testing ? (
               <>
-                <span className="mr-2 inline-flex size-4 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
+                <Spinner className="mr-2 size-4 text-muted-foreground" />
                 Testing...
               </>
             ) : (
@@ -644,7 +645,7 @@ const DiscordSettingsForm = ({ initialState, refresh }: DiscordSettingsFormProps
           <Button type="submit" disabled={!hasChanges || submitting}>
             {submitting ? (
               <>
-                <span className="mr-2 inline-flex size-4 animate-spin rounded-full border-2 border-background border-t-transparent" />
+                <Spinner className="mr-2 size-4 text-background" />
                 Saving...
               </>
             ) : (
@@ -666,7 +667,7 @@ export const AdminSettingsDiscordPage = () => {
   if (loading) {
     return (
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <span className="inline-flex size-4 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
+        <Spinner className="size-4 text-muted-foreground" />
         Loading Discord settings...
       </div>
     )

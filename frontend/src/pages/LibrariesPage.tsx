@@ -26,6 +26,7 @@ import {
   faCode,
   faCopy,
 } from '@fortawesome/free-solid-svg-icons';
+import { Spinner } from '@/components/ui/spinner'
 
 type LibraryGroup = {
   serviceType: string;
@@ -271,7 +272,7 @@ export const LibrariesPage = () => {
           >
             {syncingAll ? (
               <span className="flex items-center gap-2">
-                <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-current" /> Syncing...
+                <Spinner className="h-3 w-3" /> Syncing...
               </span>
             ) : (
               <span className="flex items-center gap-2">
@@ -382,7 +383,7 @@ export const LibrariesPage = () => {
 
       {loading ? (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current" /> Loading libraries...
+          <Spinner className="h-4 w-4" /> Loading libraries...
         </div>
       ) : groups.length === 0 ? (
         <Card>
@@ -476,7 +477,7 @@ export const LibrariesPage = () => {
                             >
                               {syncingServerId === server.id ? (
                                 <span className="flex items-center gap-2">
-                                  <div className="h-3 w-3 animate-spin rounded-full border-b-2 border-current" /> Syncing
+                                  <Spinner className="h-3 w-3 text-current" /> Syncing
                                 </span>
                               ) : (
                                 <span className="flex items-center gap-2">
@@ -592,7 +593,7 @@ export const LibrariesPage = () => {
       >
         {rawLoading ? (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current" /> Loading...
+            <Spinner className="h-4 w-4" /> Loading...
           </div>
         ) : rawData ? (
           <pre className="max-h-96 overflow-auto rounded bg-muted/50 p-4 text-xs font-mono">

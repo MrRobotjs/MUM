@@ -4,6 +4,7 @@ import { useAdminApi } from '../../hooks/useAdminApi';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faRotate, faEye, faServer } from '@fortawesome/free-solid-svg-icons';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Spinner } from '@/components/ui/spinner'
 
 type ServerStatusResponse = {
   data: {
@@ -44,7 +45,7 @@ export const ServerStatusCard = ({ onViewAll }: ServerStatusCardProps = {}) => {
       <CardContent>
         {loading ? (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            <Spinner className="h-4 w-4 text-primary" />
             Loading server status…
           </div>
         ) : error ? (

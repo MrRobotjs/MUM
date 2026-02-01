@@ -8,6 +8,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faCircleExclamation } from '@fortawesome/free-solid-svg-icons'
+import { Spinner } from '@/components/ui/spinner'
 
 function SetupPluginConfigContent() {
   const { pluginId } = useParams({ from: '/setup/plugins/$pluginId' })
@@ -29,7 +30,7 @@ function SetupPluginConfigContent() {
   if (pluginsLoading) {
     return (
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <span className="inline-flex size-4 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
+        <Spinner className="size-4 text-muted-foreground" />
         Loading plugin details…
       </div>
     )

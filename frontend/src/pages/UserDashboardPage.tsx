@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useNavigate, useSearch } from '@tanstack/react-router';
 import { useAuth } from '../contexts/AuthContext';
+import { Spinner } from '@/components/ui/spinner'
 
 export default function UserDashboardPage() {
   const navigate = useNavigate();
@@ -36,7 +37,7 @@ export default function UserDashboardPage() {
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-muted">
-        <span className="loading loading-spinner loading-lg" />
+        <Spinner className="size-6" />
       </div>
     );
   }

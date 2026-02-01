@@ -32,6 +32,7 @@ import {
   faUsers
 } from '@fortawesome/free-solid-svg-icons';
 import { faDiscord } from '@fortawesome/free-brands-svg-icons';
+import { Spinner } from '@/components/ui/spinner'
 
 export type InviteFormValues = {
   custom_path?: string;
@@ -431,7 +432,7 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
     <Button key="submit" onClick={handleSubmit} disabled={loading}>
       {loading ? (
         <>
-          <span className="loading loading-spinner loading-xs mr-2" />
+          <Spinner className="mr-2 size-3" />
           Saving...
         </>
       ) : (
@@ -545,7 +546,7 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
 
             {loadingServers ? (
               <div className="text-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2" />
+                <Spinner className="h-8 w-8 text-primary mx-auto mb-2" />
                 <p className="text-sm text-muted-foreground mt-2">Loading servers...</p>
               </div>
             ) : Object.keys(groupedServers).length === 0 ? (
@@ -658,7 +659,7 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
                                 <div className="max-h-44 overflow-y-auto rounded-md border bg-background/60 p-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
                                   {server.loadingLibraries ? (
                                     <div className="col-span-2 flex items-center justify-center gap-2 text-sm text-muted-foreground">
-                                      <div className="animate-spin h-4 w-4 border-b-2 border-primary rounded-full" />
+                                      <Spinner className="h-4 w-4 text-primary" />
                                       Loading libraries...
                                     </div>
                                   ) : filteredLibraries.length === 0 ? (

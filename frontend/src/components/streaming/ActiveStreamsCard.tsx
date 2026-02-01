@@ -8,6 +8,7 @@ import { useAdminApi } from '@/hooks/useAdminApi';
 import type { ActiveSession, ActiveSessionsResponse, PluginMetaResponse, ViewMode } from '@/types/streaming';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faCirclePause, faCogs, faServer, faTowerBroadcast } from '@fortawesome/free-solid-svg-icons';
+import { Spinner } from '@/components/ui/spinner'
 
 interface ActiveStreamsCardProps {
   sessionsData: ActiveSessionsResponse | null;
@@ -211,7 +212,7 @@ export const ActiveStreamsCard = ({
         {/* Only show loading if we truly don't have data yet and websocket hasn't provided any */}
         {(bootstrapping && !wsTruthActive && !sessionsData) || (loading && !sessionsData) ? (
           <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border/60 bg-muted/30 py-12 text-muted-foreground">
-            <span className="loading loading-lg loading-spinner text-primary" />
+            <Spinner className="size-6 text-primary" />
             <p className="mt-4 text-lg">Loading active streams...</p>
             <p className="text-sm">Connecting to your media servers...</p>
           </div>

@@ -63,6 +63,7 @@ import {
   faWaveSquare,
 } from '@fortawesome/free-solid-svg-icons';
 import { faDiscord } from '@fortawesome/free-brands-svg-icons';
+import { Spinner } from '@/components/ui/spinner'
 
 type TabKey = 'profile' | 'history' | 'settings' | 'overseerr' | 'security';
 
@@ -574,7 +575,7 @@ const HistoryTab = ({ entries, loading, error, currentPage, totalPages, onPageCh
     <section className="space-y-4">
       {loading && entries.length === 0 ? (
         <div className="flex items-center gap-3 rounded border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
-          <span className="inline-flex size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+          <Spinner className="size-4" />
           Fetching recent history…
         </div>
       ) : null}
@@ -945,7 +946,7 @@ export const UserDetailPage = () => {
     if (slugLoading) {
       return (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <span className="inline-flex size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+          <Spinner className="size-4" />
           Resolving user path…
         </div>
       );
@@ -974,7 +975,7 @@ export const UserDetailPage = () => {
   if (loading) {
     return (
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <span className="inline-flex size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+        <Spinner className="size-4" />
         Loading user profile…
       </div>
     );

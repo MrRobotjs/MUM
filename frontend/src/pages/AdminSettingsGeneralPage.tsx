@@ -12,6 +12,7 @@ import { Label } from '../components/ui/label';
 import { Switch } from '../components/ui/switch';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Alert, AlertDescription } from '../components/ui/alert';
+import { Spinner } from '@/components/ui/spinner'
 
 const buildGeneralFormValues = (settings: GeneralSettings | null): GeneralSettings => ({
   app_name: '',
@@ -240,7 +241,7 @@ export const AdminSettingsGeneralPage = () => {
   if (loading) {
     return (
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current" />
+        <Spinner className="h-4 w-4" />
         Loading settings...
       </div>
     );

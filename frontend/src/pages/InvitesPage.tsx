@@ -46,6 +46,7 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 import type { InviteLibrary, InviteServer } from '../components/invites/InvitesTable';
 import { getServiceBadgeClass as getServiceBadgeMeta, getServiceIcon } from '../config/pluginMetadata';
+import { Spinner } from '@/components/ui/spinner'
 
 // Helper function to get service-specific styling
 const getServiceBadgeClass = (serviceType: string): string => {
@@ -560,7 +561,7 @@ export const InvitesPage = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {loading ? (
             <div className="col-span-full text-center p-8">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4" />
+              <Spinner className="h-12 w-12 text-primary mx-auto mb-4" />
               <p>Loading invites...</p>
             </div>
           ) : invites.length === 0 ? (
@@ -645,7 +646,7 @@ export const InvitesPage = () => {
           >
             {inviteSettingsSaving ? (
               <>
-                <span className="loading loading-spinner loading-xs mr-2" />
+                <Spinner className="mr-2 size-3" />
                 Saving...
               </>
             ) : (
@@ -660,7 +661,7 @@ export const InvitesPage = () => {
       >
         {!discordSettings ? (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <span className="inline-flex size-4 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
+            <Spinner className="size-4 text-muted-foreground" />
             Loading Discord settings...
           </div>
         ) : (

@@ -2,6 +2,7 @@ import React from 'react';
 import { Navigate, Outlet, useLocation } from '@tanstack/react-router';
 import { useAuth } from '../contexts/AuthContext';
 import { ApiError } from '../util/apiClient';
+import { Spinner } from '@/components/ui/spinner'
 
 type Props = {
   children?: React.ReactNode
@@ -15,7 +16,7 @@ const AdminGuard = ({ children }: Props) => {
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-muted text-muted-foreground">
-        <span className="loading loading-spinner loading-lg" />
+        <Spinner className="size-6" />
       </div>
     );
   }

@@ -7,8 +7,9 @@ import { Label } from '../components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card'
 import { Alert, AlertDescription } from '../components/ui/alert'
 import { Badge } from '../components/ui/badge'
+import { Spinner } from '../components/ui/spinner'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faSpinner, faGlobe, faGear, faCheck } from '@fortawesome/free-solid-svg-icons'
+import { faGlobe, faGear, faCheck } from '@fortawesome/free-solid-svg-icons'
 import { SetupLayout, useSetupStatusContext } from './SetupLayout'
 
 function SetupAppContent() {
@@ -120,7 +121,7 @@ function SetupAppContent() {
                 />
               </div>
               <Button type="submit" className="w-full" disabled={submitting}>
-                {submitting && <FontAwesomeIcon icon={faSpinner} className="mr-2 h-4 w-4 animate-spin" />}
+                {submitting && <Spinner className="mr-2 h-4 w-4" />}
                 Save and Continue
               </Button>
             </form>

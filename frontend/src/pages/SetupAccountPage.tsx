@@ -8,8 +8,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../co
 import { Badge } from '../components/ui/badge'
 import { Separator } from '../components/ui/separator'
 import { Alert, AlertDescription } from '../components/ui/alert'
+import { Spinner } from '../components/ui/spinner'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faCrown, faSpinner, faCheck, faFilm } from '@fortawesome/free-solid-svg-icons'
+import { faCrown, faCheck, faFilm } from '@fortawesome/free-solid-svg-icons'
 import { SetupLayout, useSetupStatusContext } from './SetupLayout'
 import { setAccessToken } from '../util/tokenStore'
 
@@ -110,7 +111,7 @@ function SetupAccountContent() {
             <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
               <Button variant="secondary" onClick={startPlexSSO} disabled={plexLoading}>
                 {plexLoading ? (
-                  <FontAwesomeIcon icon={faSpinner} className="mr-2 h-4 w-4 animate-spin" />
+                  <Spinner className="mr-2 h-4 w-4" />
                 ) : (
                   <FontAwesomeIcon icon={faFilm} className="mr-2 h-4 w-4" />
                 )}
@@ -172,7 +173,7 @@ function SetupAccountContent() {
                   />
                 </div>
                 <Button type="submit" className="w-full" disabled={submitting}>
-                  {submitting && <FontAwesomeIcon icon={faSpinner} className="mr-2 h-4 w-4 animate-spin" />}
+                  {submitting && <Spinner className="mr-2 h-4 w-4" />}
                   Create Administrator Account
                 </Button>
               </form>
@@ -207,7 +208,7 @@ function SetupAccountContent() {
               <Button variant="outline" className="w-full" onClick={startPlexSSO} disabled={plexLoading}>
                 {plexLoading ? (
                   <>
-                    <FontAwesomeIcon icon={faSpinner} className="mr-2 h-4 w-4 animate-spin" />
+                    <Spinner className="mr-2 h-4 w-4" />
                     Starting Plex...
                   </>
                 ) : (

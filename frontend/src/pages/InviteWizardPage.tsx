@@ -45,6 +45,7 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 import { faClock } from '@fortawesome/free-regular-svg-icons';
 import { faDiscord } from '@fortawesome/free-brands-svg-icons';
+import { Spinner } from '@/components/ui/spinner'
 
 type WizardStep = {
   id: string;
@@ -1205,7 +1206,7 @@ export const InviteWizardPage = () => {
                       <Button type="submit" className="w-full h-12" disabled={savingAccount}>
                         {savingAccount ? (
                           <>
-                            <span className="loading loading-spinner loading-xs mr-2" />
+                            <Spinner className="mr-2 size-3" />
                             Saving...
                           </>
                         ) : (
@@ -1323,7 +1324,7 @@ export const InviteWizardPage = () => {
           >
             {startingDiscord ? (
               <>
-                <span className="loading loading-spinner loading-xs mr-2" />
+                <Spinner className="mr-2 size-3" />
                 Preparing...
               </>
                     ) : (
@@ -1420,7 +1421,7 @@ export const InviteWizardPage = () => {
                       >
                         {startingPlex ? (
                           <>
-                            <span className="loading loading-spinner loading-xs mr-2" />
+                            <Spinner className="mr-2 size-3" />
                             Preparing...
                           </>
                         ) : (
@@ -1542,7 +1543,7 @@ export const InviteWizardPage = () => {
                     >
                       {savingServerId === activeServer.id ? (
                         <>
-                          <span className="loading loading-spinner loading-xs mr-2" />
+                          <Spinner className="mr-2 size-3" />
                           Saving...
                         </>
                       ) : (
@@ -1610,7 +1611,7 @@ export const InviteWizardPage = () => {
                   >
                     {completing ? (
                       <>
-                        <span className="loading loading-spinner loading-sm mr-2" />
+                        <Spinner className="mr-2 size-4" />
                         Finalizing...
                       </>
                     ) : (

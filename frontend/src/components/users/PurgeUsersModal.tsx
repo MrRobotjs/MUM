@@ -9,6 +9,7 @@ import { Label } from '../ui/label';
 import { Button } from '../ui/button';
 import { Alert, AlertDescription } from '../ui/alert';
 import { ResponsiveDialog } from '../ui/responsive-dialog';
+import { Spinner } from '@/components/ui/spinner'
 
 interface EligibleUser {
   uuid: string;
@@ -215,7 +216,7 @@ export const PurgeUsersModal = ({ onClose, onPurgeComplete }: PurgeUsersModalPro
       >
         {loading ? (
           <>
-            <span className="loading loading-spinner loading-xs mr-2" />
+            <Spinner className="mr-2 size-3" />
             Loading...
           </>
         ) : (
@@ -331,7 +332,7 @@ export const PurgeUsersModal = ({ onClose, onPurgeComplete }: PurgeUsersModalPro
       >
         {purging ? (
           <>
-            <span className="loading loading-spinner loading-xs mr-2" />
+            <Spinner className="mr-2 size-3" />
             Purging...
           </>
         ) : (

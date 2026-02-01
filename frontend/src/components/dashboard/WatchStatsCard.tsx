@@ -13,6 +13,7 @@ import {
   faMobileScreenButton,
   faTabletScreenButton,
 } from '@fortawesome/free-solid-svg-icons';
+import { Spinner } from '@/components/ui/spinner'
 import {
   faChrome,
   faFirefoxBrowser,
@@ -120,7 +121,7 @@ export const WatchStatsCard = () => {
     <DashboardCard title="Watch Statistics (7 days)">
       {loading ? (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          <Spinner className="h-4 w-4 text-primary" />
           Calculating watch stats…
         </div>
       ) : error ? (

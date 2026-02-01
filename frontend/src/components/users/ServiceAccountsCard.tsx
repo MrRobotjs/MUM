@@ -1,5 +1,6 @@
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Spinner } from '@/components/ui/spinner'
 
 export type ServiceAccount = {
   uuid: string
@@ -24,7 +25,7 @@ export const ServiceAccountsCard = ({ accounts, loading, error, onUnlink, onLink
       <Card>
         <CardContent className="p-6">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <span className="inline-flex size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+            <Spinner className="size-4" />
             Loading service accounts.
           </div>
         </CardContent>

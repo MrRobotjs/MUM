@@ -10,6 +10,7 @@ import { Badge } from '../components/ui/badge';
 import { requestJson } from '../util/apiClient';
 import { useAlerts } from '../contexts';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { Spinner } from '@/components/ui/spinner'
 import {
   faTrashCan,
   faFilter,
@@ -188,7 +189,7 @@ export const AdminSettingsLogsPage = () => {
           {loading && (
             <div className="text-center p-4">
               <div className="flex items-center justify-center gap-2">
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current" />
+                <Spinner className="h-4 w-4" />
                 <span className="text-sm text-muted-foreground">Loading logs...</span>
               </div>
             </div>

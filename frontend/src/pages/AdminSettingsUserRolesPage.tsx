@@ -1,12 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import {
-  IconInfoCircle,
-  IconAlertTriangle,
-  IconList,
-  IconPalette,
-  IconDroplet,
-} from '@tabler/icons-react';
+
 
 import { useUserRoles, type UserRole } from '../hooks/useUserRoles';
 import { PageHeader } from '../components';
@@ -43,7 +37,17 @@ import { ResponsiveDialog } from '@/components/ui/responsive-dialog';
 import { resolveCssVarHex } from '@/lib/themeColors';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import type { IconDefinition } from '@fortawesome/fontawesome-svg-core';
-import { faTag, faTags, faPenToSquare, faTrashCan } from '@fortawesome/free-solid-svg-icons';
+import {
+  faTag,
+  faTags,
+  faPenToSquare,
+  faTrashCan,
+  faCircleInfo,
+  faTriangleExclamation,
+  faList,
+  faPalette,
+  faDroplet,
+} from '@fortawesome/free-solid-svg-icons';
 
 type RoleFormValues = {
   name: string;
@@ -318,16 +322,16 @@ export const AdminSettingsUserRolesPage = () => {
         </label>
         <div className="rounded-lg border border-border bg-muted/40 p-4">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-4">
-              <span
-                className="flex size-12 items-center justify-center rounded-full border border-white/40 shadow"
-                style={{ backgroundColor: formValues.color }}
-              >
-                <IconDroplet className="h-6 w-6 text-white/80 drop-shadow" />
-              </span>
-              <div className="space-y-1">
-                <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-                  <IconPalette className="h-4 w-4" />
+                <div className="flex items-center gap-4">
+                  <span
+                    className="flex size-12 items-center justify-center rounded-full border border-white/40 shadow"
+                    style={{ backgroundColor: formValues.color }}
+                  >
+                <FontAwesomeIcon icon={faDroplet} className="h-6 w-6 text-white/80 drop-shadow" />
+                  </span>
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                  <FontAwesomeIcon icon={faPalette} className="h-4 w-4" />
                   Selected Color
                 </div>
                 <p className="font-mono text-xs uppercase text-muted-foreground">
@@ -427,14 +431,14 @@ export const AdminSettingsUserRolesPage = () => {
 
       {error && (
         <Alert variant="destructive">
-          <IconAlertTriangle />
+          <FontAwesomeIcon icon={faTriangleExclamation} className="h-4 w-4" />
           <AlertTitle>Unable to load roles</AlertTitle>
           <AlertDescription>{(error as Error).message}</AlertDescription>
         </Alert>
       )}
 
       <Alert variant="info">
-        <IconInfoCircle />
+        <FontAwesomeIcon icon={faCircleInfo} className="h-4 w-4" />
         <AlertTitle>Visual roles only</AlertTitle>
         <AlertDescription>
           User roles are cosmetic and do not grant permissions. Use Admin Roles to manage access
@@ -446,7 +450,7 @@ export const AdminSettingsUserRolesPage = () => {
         <CardHeader>
           <div className="flex items-center gap-3">
             <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/20">
-              <IconList className="size-5 text-primary" />
+              <FontAwesomeIcon icon={faList} className="size-5 text-primary" />
             </div>
             <div>
               <CardTitle className="mb-1 text-xl font-semibold">Existing Roles</CardTitle>

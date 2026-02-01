@@ -27,8 +27,8 @@ import { Pagination } from '@/components/common/Pagination';
 import { getServiceMeta } from '@/config/pluginMetadata';
 import type { UnifiedSession } from '@/types/realtime';
 import type { UserNowPlaying } from '@/components/users/UserCard';
-import { Activity, Loader2, Music, Pause, Play } from 'lucide-react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import type { IconDefinition } from '@fortawesome/fontawesome-svg-core';
 import {
   faAt,
   faIdCard,
@@ -57,6 +57,10 @@ import {
   faUnlock,
   faKey,
   faUser,
+  faMusic,
+  faPause,
+  faSpinner,
+  faWaveSquare,
 } from '@fortawesome/free-solid-svg-icons';
 import { faDiscord } from '@fortawesome/free-brands-svg-icons';
 
@@ -82,11 +86,11 @@ const getSessionPriority = (state?: string) => {
 
 const getPlaybackInfo = (state?: string) => {
   const s = state?.toLowerCase() || '';
-  if (s === 'playing') return { icon: Play, color: 'text-green-500', bg: 'bg-green-500/10', border: 'border-green-500/20', animate: true };
-  if (s === 'listening' || s === 'active') return { icon: Music, color: 'text-green-500', bg: 'bg-green-500/10', border: 'border-green-500/20', animate: true };
-  if (s === 'paused') return { icon: Pause, color: 'text-amber-500', bg: 'bg-amber-500/10', border: 'border-amber-500/20', animate: false };
-  if (s === 'buffering') return { icon: Loader2, color: 'text-blue-500', bg: 'bg-blue-500/10', border: 'border-blue-500/20', animate: true, spin: true };
-  return { icon: Activity, color: 'text-muted-foreground', bg: 'bg-secondary/50', border: 'border-border/50', animate: false };
+  if (s === 'playing') return { icon: faPlay, color: 'text-green-500', bg: 'bg-green-500/10', border: 'border-green-500/20', animate: true };
+  if (s === 'listening' || s === 'active') return { icon: faMusic, color: 'text-green-500', bg: 'bg-green-500/10', border: 'border-green-500/20', animate: true };
+  if (s === 'paused') return { icon: faPause, color: 'text-amber-500', bg: 'bg-amber-500/10', border: 'border-amber-500/20', animate: false };
+  if (s === 'buffering') return { icon: faSpinner, color: 'text-blue-500', bg: 'bg-blue-500/10', border: 'border-blue-500/20', animate: true, spin: true };
+  return { icon: faWaveSquare, color: 'text-muted-foreground', bg: 'bg-secondary/50', border: 'border-border/50', animate: false };
 };
 
 const ProfileTab = ({ user }: { user: UserDetail }) => {
@@ -120,7 +124,7 @@ const ProfileTab = ({ user }: { user: UserDetail }) => {
     };
   }, [lastSessionData?.sessions, user.uuid]);
   const playbackInfo = nowPlaying ? getPlaybackInfo(nowPlaying.state) : null;
-  const PlaybackIcon = playbackInfo?.icon;
+  const PlaybackIcon = playbackInfo?.icon as IconDefinition | undefined;
 
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
@@ -138,11 +142,16 @@ const ProfileTab = ({ user }: { user: UserDetail }) => {
                 playbackInfo.border
               )}>
                 <div className="flex items-start gap-3">
-                  <div className={cn(
-                    "relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-background/50 shadow-sm",
-                    playbackInfo.color
-                  )}>
-                    <PlaybackIcon className={cn("h-4 w-4", playbackInfo.spin && "animate-spin")} />
+                  <div
+                    className={cn(
+                      "relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-background/50 shadow-sm",
+                      playbackInfo.color
+                    )}
+                  >
+                    <FontAwesomeIcon
+                      icon={PlaybackIcon}
+                      className={cn("h-4 w-4", playbackInfo.spin && "animate-spin")}
+                    />
                   </div>
 
                   <div className="flex-1 min-w-0 flex flex-col justify-center">

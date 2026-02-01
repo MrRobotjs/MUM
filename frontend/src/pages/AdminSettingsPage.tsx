@@ -1,16 +1,17 @@
 import { Link } from '@tanstack/react-router';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
-  IconSettings,
-  IconUsers,
-  IconShield,
-  IconUserShield,
-  IconPuzzle,
-  IconBrandDiscord,
-  IconShieldCheck,
-  IconFileText,
-  IconCode,
-  IconChevronRight,
-} from '@tabler/icons-react';
+  faGear,
+  faUsers,
+  faShield,
+  faUserShield,
+  faPuzzlePiece,
+  faShieldHalved,
+  faFileLines,
+  faCode,
+  faChevronRight,
+} from '@fortawesome/free-solid-svg-icons';
+import { faDiscord } from '@fortawesome/free-brands-svg-icons';
 import { PageHeader } from '../components';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 
@@ -40,7 +41,7 @@ const SettingsCategory = ({ title, description, icon, href }: SettingsCategoryPr
                 </CardDescription>
               </div>
             </div>
-            <IconChevronRight className="size-5 text-muted-foreground transition-transform group-hover:translate-x-1 group-hover:text-primary" />
+            <FontAwesomeIcon icon={faChevronRight} className="size-5 text-muted-foreground transition-transform group-hover:translate-x-1 group-hover:text-primary" />
           </div>
         </CardHeader>
       </Card>
@@ -61,7 +62,7 @@ export const AdminSettingsPage = () => {
         <SettingsCategory
           title="General"
           description="Configure application name, URL, and global settings"
-          icon={<IconSettings className="size-6" />}
+          icon={<FontAwesomeIcon icon={faGear} className="size-6" />}
           href="/admin/settings/general"
         />
 
@@ -69,7 +70,7 @@ export const AdminSettingsPage = () => {
         <SettingsCategory
           title="User Settings"
           description="Configure default user settings and preferences"
-          icon={<IconUsers className="size-6" />}
+          icon={<FontAwesomeIcon icon={faUsers} className="size-6" />}
           href="/admin/settings/users/general"
         />
 
@@ -77,7 +78,7 @@ export const AdminSettingsPage = () => {
         <SettingsCategory
           title="User Roles"
           description="Manage user roles and permissions for end users"
-          icon={<IconShield className="size-6" />}
+          icon={<FontAwesomeIcon icon={faShield} className="size-6" />}
           href="/admin/settings/user-roles"
         />
 
@@ -85,7 +86,7 @@ export const AdminSettingsPage = () => {
         <SettingsCategory
           title="Admin Roles"
           description="Manage administrator roles and access control"
-          icon={<IconUserShield className="size-6" />}
+          icon={<FontAwesomeIcon icon={faUserShield} className="size-6" />}
           href="/admin/settings/admin-roles"
         />
 
@@ -93,7 +94,7 @@ export const AdminSettingsPage = () => {
         <SettingsCategory
           title="Admin Management"
           description="Manage administrator accounts and privileges"
-          icon={<IconUserShield className="size-6" />}
+          icon={<FontAwesomeIcon icon={faUserShield} className="size-6" />}
           href="/admin/settings/admins"
         />
 
@@ -101,7 +102,7 @@ export const AdminSettingsPage = () => {
         <SettingsCategory
           title="Plugins & Servers"
           description="Connect and configure media servers (Plex, Jellyfin, Emby, etc.)"
-          icon={<IconPuzzle className="size-6" />}
+          icon={<FontAwesomeIcon icon={faPuzzlePiece} className="size-6" />}
           href="/admin/settings/plugins"
         />
 
@@ -109,7 +110,7 @@ export const AdminSettingsPage = () => {
         <SettingsCategory
           title="Discord"
           description="Configure Discord bot integration and notifications"
-          icon={<IconBrandDiscord className="size-6" />}
+          icon={<FontAwesomeIcon icon={faDiscord} className="size-6" />}
           href="/admin/settings/discord"
         />
 
@@ -117,7 +118,7 @@ export const AdminSettingsPage = () => {
         <SettingsCategory
           title="Advanced"
           description="Advanced configuration, scheduled tasks, and system information"
-          icon={<IconShieldCheck className="size-6" />}
+          icon={<FontAwesomeIcon icon={faShieldHalved} className="size-6" />}
           href="/admin/settings/advanced"
         />
 
@@ -125,7 +126,7 @@ export const AdminSettingsPage = () => {
         <SettingsCategory
           title="Logs"
           description="View application logs and debugging information"
-          icon={<IconFileText className="size-6" />}
+          icon={<FontAwesomeIcon icon={faFileLines} className="size-6" />}
           href="/admin/settings/logs"
         />
 
@@ -133,7 +134,7 @@ export const AdminSettingsPage = () => {
         <SettingsCategory
           title="API Debug"
           description="Test and debug API endpoints with live requests"
-          icon={<IconCode className="size-6" />}
+          icon={<FontAwesomeIcon icon={faCode} className="size-6" />}
           href="/admin/settings/api-debug"
         />
       </div>

@@ -22,7 +22,6 @@ import {
 import { Button } from '../components/ui/button';
 import { ResponsiveDialog } from '../components/ui/responsive-dialog';
 import { PageHeader } from '../components';
-import { IconDots } from '@tabler/icons-react';
 import type { IconDefinition } from '@fortawesome/fontawesome-svg-core';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
@@ -33,6 +32,7 @@ import {
   faGaugeHigh,
   faHome,
   faList,
+  faEllipsis,
   faPlus,
   faSave,
   faServer,
@@ -394,7 +394,7 @@ export const InvitesPage = () => {
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" size="sm" type="button" title="More options">
-            <IconDots className="h-4 w-4" />
+            <FontAwesomeIcon icon={faEllipsis} className="h-4 w-4" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuPortal>

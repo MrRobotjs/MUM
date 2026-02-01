@@ -1,9 +1,10 @@
 "use client"
 
-import { type Icon } from "@tabler/icons-react"
 import { type ReactNode } from "react"
 import { Link } from "@tanstack/react-router"
-import { IconDots } from "@tabler/icons-react"
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome"
+import type { IconDefinition } from "@fortawesome/fontawesome-svg-core"
+import { faEllipsis } from "@fortawesome/free-solid-svg-icons"
 
 import {
   SidebarGroup,
@@ -28,12 +29,12 @@ export function NavMain({
   items: {
     title: string
     url: string
-    icon?: Icon
+    icon?: IconDefinition
     isActive?: boolean
     statusIndicator?: ReactNode
     actions?: {
       label: string
-      icon?: Icon
+      icon?: IconDefinition
       iconClassName?: string
       onClick: () => void
       disabled?: boolean
@@ -58,7 +59,7 @@ export function NavMain({
               <SidebarMenuItem key={item.title}>
                 <SidebarMenuButton asChild tooltip={item.title} isActive={item.isActive}>
                   <Link to={item.url} onClick={handleNavLinkClick}>
-                    {item.icon && <item.icon />}
+                    {item.icon && <FontAwesomeIcon icon={item.icon} className="h-4 w-4" />}
                     <span>{item.title}</span>
                   </Link>
                 </SidebarMenuButton>
@@ -86,7 +87,7 @@ export function NavMain({
                             allActionsDisabled && 'opacity-40'
                           )}
                         >
-                          <IconDots />
+                          <FontAwesomeIcon icon={faEllipsis} className="h-4 w-4" />
                           <span className="sr-only">More</span>
                         </SidebarMenuAction>
                       </DropdownMenuTrigger>
@@ -108,7 +109,8 @@ export function NavMain({
                             }}
                           >
                             {action.icon && (
-                              <action.icon
+                              <FontAwesomeIcon
+                                icon={action.icon}
                                 className={cn("mr-2 h-4 w-4", action.iconClassName)}
                               />
                             )}

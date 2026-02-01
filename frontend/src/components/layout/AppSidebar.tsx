@@ -1,16 +1,17 @@
 "use client"
 
 import * as React from "react"
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome"
 import {
-  IconChartLine,
-  IconUsers,
-  IconTicket,
-  IconStack2,
-  IconBroadcast as IconRadio,
-  IconDeviceDesktop,
-  IconRefresh,
-  IconCheck,
-} from "@tabler/icons-react"
+  faChartLine,
+  faUsers,
+  faTicket,
+  faLayerGroup,
+  faTowerBroadcast,
+  faDesktop,
+  faRotate,
+  faCheck,
+} from "@fortawesome/free-solid-svg-icons"
 import { useLocation } from "@tanstack/react-router"
 
 import { NavMain } from "@/components/layout/NavMain"
@@ -137,9 +138,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const syncStatusIndicator = isAdministrator
     ? (
         syncInProgress ? (
-          <IconRefresh className="size-4 text-primary animate-spin" />
+          <FontAwesomeIcon icon={faRotate} className="size-4 text-primary animate-spin" />
         ) : showSyncComplete ? (
-          <IconCheck className="size-4 text-emerald-500" />
+          <FontAwesomeIcon icon={faCheck} className="size-4 text-emerald-500" />
         ) : null
       )
     : null
@@ -172,18 +173,18 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     {
       title: 'Dashboard',
       url: '/admin/dashboard',
-      icon: IconChartLine,
+      icon: faChartLine,
       isActive: isNavItemActive('/admin/dashboard'),
     },
     {
       title: 'Users',
       url: '/admin/users',
-      icon: IconUsers,
+      icon: faUsers,
       isActive: isNavItemActive('/admin/users'),
       actions: [
         {
           label: 'Sync Users',
-          icon: IconRefresh,
+          icon: faRotate,
           iconClassName: syncInProgress ? 'animate-spin text-primary' : undefined,
           onClick: handleSyncUsers,
           disabled: syncInProgress,
@@ -194,19 +195,19 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     {
       title: 'Invites',
       url: '/admin/invites',
-      icon: IconTicket,
+      icon: faTicket,
       isActive: isNavItemActive('/admin/invites'),
     },
     {
       title: 'Libraries',
       url: '/admin/libraries',
-      icon: IconStack2,
+      icon: faLayerGroup,
       isActive: isNavItemActive('/admin/libraries'),
     },
     {
       title: 'Streaming',
       url: '/admin/streaming',
-      icon: IconRadio,
+      icon: faTowerBroadcast,
       isActive: isNavItemActive('/admin/streaming'),
       statusIndicator: streamBadgeIndicator,
     },
@@ -230,7 +231,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             >
               <a href="/admin/dashboard" onClick={handleLogoClick}>
                 <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                  <IconDeviceDesktop className="size-4" />
+                  <FontAwesomeIcon icon={faDesktop} className="size-4" />
                 </div>
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-semibold">Admin Dashboard</span>

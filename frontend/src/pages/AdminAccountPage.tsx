@@ -14,9 +14,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ApiError, requestJson } from '@/util/apiClient';
 import { useAlerts } from '../contexts/AlertContext';
 import { useUserPreferences } from '@/hooks/useUserPreferences';
-import { IconUserShield, IconInfoCircle, IconKey, IconClock } from '@tabler/icons-react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faArrowRightArrowLeft } from '@fortawesome/free-solid-svg-icons';
+import { faArrowRightArrowLeft, faUserShield, faCircleInfo, faKey, faClock } from '@fortawesome/free-solid-svg-icons';
 
 type AccountUser = {
   uuid: string;
@@ -167,9 +166,9 @@ const SyncPreferencesCard = ({
             {syncDirty ? <span className="text-sm text-muted-foreground">Unsaved change</span> : null}
           </div>
           {pendingSyncEnabled && (
-            <Alert>
-              <IconInfoCircle className="h-4 w-4" />
-              <AlertDescription>
+              <Alert>
+                <FontAwesomeIcon icon={faCircleInfo} className="h-4 w-4" />
+                <AlertDescription>
                 When sync is enabled, your preferences are saved to the database and will apply across all devices where you sign in.
                 When disabled, preferences are stored locally in your browser only.
               </AlertDescription>
@@ -760,14 +759,14 @@ const AdminAccountPage = () => {
         <CardContent className="p-8">
           <div className="flex flex-col items-center space-y-4">
             <div className="flex h-24 w-24 items-center justify-center rounded-full border-4 border-primary/30 bg-primary text-primary-foreground shadow-lg">
-              <IconUserShield className="h-10 w-10" />
+              <FontAwesomeIcon icon={faUserShield} className="h-10 w-10" />
             </div>
             <div className="space-y-1">
               <h1 className="text-3xl font-semibold text-foreground md:text-4xl text-center">{displayName}</h1>
               <p className="text-sm text-muted-foreground">{account.user.email || account.user.username || 'Administrator'}</p>
             </div>
             <Badge variant="outline" className="gap-2 uppercase tracking-wide">
-              <IconUserShield className="h-3.5 w-3.5" />
+              <FontAwesomeIcon icon={faUserShield} className="h-3.5 w-3.5" />
               System Administrator
             </Badge>
           </div>
@@ -778,15 +777,15 @@ const AdminAccountPage = () => {
       <Tabs value={activeTab} onValueChange={(value) => setTab(value as TabType)}>
         <TabsList className="w-full justify-start overflow-x-auto">
           <TabsTrigger value="overview">
-            <IconInfoCircle className="mr-2 h-4 w-4" />
+            <FontAwesomeIcon icon={faCircleInfo} className="mr-2 h-4 w-4" />
             Overview
           </TabsTrigger>
           <TabsTrigger value="credentials">
-            <IconKey className="mr-2 h-4 w-4" />
+            <FontAwesomeIcon icon={faKey} className="mr-2 h-4 w-4" />
             Credentials
           </TabsTrigger>
           <TabsTrigger value="preferences">
-            <IconClock className="mr-2 h-4 w-4" />
+            <FontAwesomeIcon icon={faClock} className="mr-2 h-4 w-4" />
             Preferences
           </TabsTrigger>
         </TabsList>

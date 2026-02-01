@@ -9,26 +9,6 @@ import { Card, CardContent } from '../components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Skeleton } from '../components/ui/skeleton';
-import {
-  IconArrowLeft,
-  IconRefresh,
-  IconSearch,
-  IconInfoCircle,
-  IconStar,
-  IconMovie,
-  IconList,
-  IconChartLine,
-  IconServer,
-  IconTag,
-  IconFolder,
-  IconCalendar,
-  IconClock,
-  IconPlus,
-  IconEye,
-  IconDeviceTv,
-  IconX,
-  IconTrash
-} from '@tabler/icons-react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faCube,
@@ -42,6 +22,24 @@ import {
   faPlay,
   faChevronLeft,
   faChevronRight,
+  faArrowLeft,
+  faRotate,
+  faMagnifyingGlass,
+  faCircleInfo,
+  faStar,
+  faFilm,
+  faList,
+  faChartLine,
+  faServer,
+  faTag,
+  faFolder,
+  faCalendar,
+  faClock,
+  faPlus,
+  faEye,
+  faTv,
+  faXmark,
+  faTrash,
 } from '@fortawesome/free-solid-svg-icons';
 
 type ServiceType = 'plex' | 'jellyfin' | 'emby' | 'kavita' | 'audiobookshelf' | 'komga' | 'romm';
@@ -327,7 +325,7 @@ export const MediaDetailPage = () => {
         </Card>
         <Link to={`/admin/libraries/${libraryId}?tab=media`}>
           <Button>
-            <IconArrowLeft className="mr-2 h-4 w-4" />
+            <FontAwesomeIcon icon={faArrowLeft} className="mr-2 h-4 w-4" />
             Back to Library
           </Button>
         </Link>
@@ -355,7 +353,7 @@ export const MediaDetailPage = () => {
                 </div>
               ) : (
                 <div className="w-48 h-72 rounded-lg bg-accent flex items-center justify-center text-6xl text-muted-foreground">
-                  <IconMovie className="h-24 w-24" />
+                  <FontAwesomeIcon icon={faFilm} className="h-24 w-24" />
                 </div>
               )}
             </div>
@@ -370,27 +368,27 @@ export const MediaDetailPage = () => {
                 {getServiceBadge(serviceType)}
 
                 <span className="inline-flex items-center rounded-md bg-muted px-2 py-1 text-xs font-medium text-muted-foreground ring-1 ring-inset ring-border gap-1">
-                  <IconServer className="w-3 h-3" />
+                  <FontAwesomeIcon icon={faServer} className="w-3 h-3" />
                   {mediaItem.library?.server?.server_nickname}
                 </span>
 
                 <Link to={`/admin/libraries/${libraryId}`}>
                   <span className="inline-flex items-center rounded-md bg-blue-50 dark:bg-blue-400/10 px-2 py-1 text-xs font-medium text-blue-700 dark:text-blue-400 ring-1 ring-inset ring-blue-600/20 dark:ring-blue-500/20 gap-1 hover:bg-blue-100 dark:hover:bg-blue-400/20 transition-colors cursor-pointer">
-                    <IconFolder className="w-3 h-3" />
+                    <FontAwesomeIcon icon={faFolder} className="w-3 h-3" />
                     {mediaItem.library?.name}
                   </span>
                 </Link>
 
                 {(mediaItem as any).type && (
                   <span className="inline-flex items-center rounded-md bg-purple-50 dark:bg-purple-400/10 px-2 py-1 text-xs font-medium text-purple-700 dark:text-purple-400 ring-1 ring-inset ring-purple-600/20 dark:ring-purple-500/20 gap-1">
-                    <IconTag className="w-3 h-3" />
+                    <FontAwesomeIcon icon={faTag} className="w-3 h-3" />
                     {(mediaItem as any).type}
                   </span>
                 )}
 
                 {mediaItem.year && (
                   <span className="inline-flex items-center rounded-md bg-orange-50 dark:bg-orange-400/10 px-2 py-1 text-xs font-medium text-orange-700 dark:text-orange-400 ring-1 ring-inset ring-orange-600/20 dark:ring-orange-500/20 gap-1">
-                    <IconCalendar className="w-3 h-3" />
+                    <FontAwesomeIcon icon={faCalendar} className="w-3 h-3" />
                     {mediaItem.year}
                   </span>
                 )}
@@ -407,19 +405,19 @@ export const MediaDetailPage = () => {
               <div className="flex flex-wrap gap-4 text-sm text-muted-foreground justify-center lg:justify-start">
                 {mediaItem.rating && (
                   <div className="flex items-center gap-1">
-                    <IconStar className="h-4 w-4 text-yellow-500" />
+                    <FontAwesomeIcon icon={faStar} className="h-4 w-4 text-yellow-500" />
                     <span>{mediaItem.rating.toFixed(1)}</span>
                   </div>
                 )}
                 {mediaItem.duration && (
                   <div className="flex items-center gap-1">
-                    <IconClock className="h-4 w-4" />
+                    <FontAwesomeIcon icon={faClock} className="h-4 w-4" />
                     <span>{formatDuration(mediaItem.duration)}</span>
                   </div>
                 )}
                 {mediaItem.added_at && (
                   <div className="flex items-center gap-1">
-                    <IconPlus className="h-4 w-4" />
+                    <FontAwesomeIcon icon={faPlus} className="h-4 w-4" />
                     <span>Added {new Date(mediaItem.added_at).toLocaleDateString()}</span>
                   </div>
                 )}
@@ -433,17 +431,17 @@ export const MediaDetailPage = () => {
       <Tabs value={activeTab} onValueChange={(value) => setTab(value as TabType)}>
         <TabsList className="w-full justify-start">
           <TabsTrigger value="overview">
-            <IconInfoCircle className="mr-2 h-4 w-4" />
+            <FontAwesomeIcon icon={faCircleInfo} className="mr-2 h-4 w-4" />
             Overview
           </TabsTrigger>
           {isTVShow && (
             <TabsTrigger value="episodes">
-              <IconList className="mr-2 h-4 w-4" />
+              <FontAwesomeIcon icon={faList} className="mr-2 h-4 w-4" />
               Episodes
             </TabsTrigger>
           )}
           <TabsTrigger value="activity">
-            <IconChartLine className="mr-2 h-4 w-4" />
+            <FontAwesomeIcon icon={faChartLine} className="mr-2 h-4 w-4" />
             Activity
           </TabsTrigger>
         </TabsList>
@@ -454,7 +452,7 @@ export const MediaDetailPage = () => {
             <Card>
               <CardContent className="p-6 space-y-4">
                 <h3 className="text-lg font-semibold flex items-center gap-2">
-                  <IconInfoCircle className="h-5 w-5 text-primary" />
+                  <FontAwesomeIcon icon={faCircleInfo} className="h-5 w-5 text-primary" />
                   Media Information
                 </h3>
                 <div className="space-y-3">
@@ -535,7 +533,7 @@ export const MediaDetailPage = () => {
               {/* Episodes Header */}
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <h3 className="text-lg font-semibold flex items-center">
-                  <IconList className="text-primary mr-2 h-5 w-5" />
+                  <FontAwesomeIcon icon={faList} className="text-primary mr-2 h-5 w-5" />
                   Episodes
                   <span className="text-sm text-muted-foreground ml-2">
                     ({episodesTotalItems} episodes)
@@ -553,12 +551,12 @@ export const MediaDetailPage = () => {
                   >
                     {purgingEpisodes ? (
                       <>
-                        <IconRefresh className="mr-2 h-4 w-4 animate-spin" />
+                        <FontAwesomeIcon icon={faRotate} className="mr-2 h-4 w-4 animate-spin" />
                         Purging...
                       </>
                     ) : (
                       <>
-                        <IconTrash className="mr-2 h-4 w-4" />
+                        <FontAwesomeIcon icon={faTrash} className="mr-2 h-4 w-4" />
                         Purge
                       </>
                     )}
@@ -566,12 +564,12 @@ export const MediaDetailPage = () => {
                   <Button onClick={handleSyncEpisodes} disabled={syncing || purgingEpisodes} size="sm">
                     {syncing ? (
                       <>
-                        <IconRefresh className="mr-2 h-4 w-4 animate-spin" />
+                        <FontAwesomeIcon icon={faRotate} className="mr-2 h-4 w-4 animate-spin" />
                         Syncing...
                       </>
                     ) : (
                       <>
-                        <IconRefresh className="mr-2 h-4 w-4" />
+                        <FontAwesomeIcon icon={faRotate} className="mr-2 h-4 w-4" />
                         Sync
                       </>
                     )}
@@ -586,7 +584,7 @@ export const MediaDetailPage = () => {
                     {/* Search Box */}
                     <div className="flex-1">
                       <div className="relative">
-                        <IconSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <FontAwesomeIcon icon={faMagnifyingGlass} className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                         <Input
                           type="text"
                           placeholder="Search episodes..."
@@ -603,7 +601,7 @@ export const MediaDetailPage = () => {
                             className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground"
                             onClick={() => setEpisodesSearch('')}
                           >
-                            <IconX className="h-4 w-4" />
+                            <FontAwesomeIcon icon={faXmark} className="h-4 w-4" />
                           </button>
                         )}
                       </div>
@@ -683,7 +681,7 @@ export const MediaDetailPage = () => {
                             />
                           ) : (
                             <div className="absolute inset-0 bg-accent flex items-center justify-center text-muted-foreground">
-                              <IconDeviceTv className="h-12 w-12" />
+                              <FontAwesomeIcon icon={faTv} className="h-12 w-12" />
                             </div>
                           )}
 
@@ -698,7 +696,7 @@ export const MediaDetailPage = () => {
                           {/* Rating Badge */}
                           {episode.rating && (
                             <div className="absolute top-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded-full flex items-center gap-1">
-                              <IconStar className="h-3 w-3 text-yellow-400" />
+                              <FontAwesomeIcon icon={faStar} className="h-3 w-3 text-yellow-400" />
                               {episode.rating.toFixed(1)}
                             </div>
                           )}
@@ -711,7 +709,7 @@ export const MediaDetailPage = () => {
                           {/* Stream Count Badge */}
                           {episode.stream_count !== undefined && episode.stream_count > 0 && (
                             <div className="absolute bottom-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded-full flex items-center gap-1">
-                              <IconEye className="h-3 w-3" />
+                              <FontAwesomeIcon icon={faEye} className="h-3 w-3" />
                               {episode.stream_count}
                             </div>
                           )}
@@ -822,7 +820,7 @@ export const MediaDetailPage = () => {
                 <Card>
                   <CardContent className="p-12 text-center">
                     <div className="w-16 h-16 rounded-full bg-accent flex items-center justify-center mx-auto mb-4">
-                      <IconList className="h-8 w-8 text-muted-foreground" />
+                      <FontAwesomeIcon icon={faList} className="h-8 w-8 text-muted-foreground" />
                     </div>
                     <h3 className="text-lg font-medium mb-2">No Episodes Found</h3>
                     <p className="text-sm text-muted-foreground max-w-md mx-auto">
@@ -839,7 +837,7 @@ export const MediaDetailPage = () => {
           <Card>
             <CardContent className="p-12 text-center">
               <div className="w-16 h-16 rounded-full bg-accent flex items-center justify-center mx-auto mb-4">
-                <IconChartLine className="h-8 w-8 text-muted-foreground" />
+                <FontAwesomeIcon icon={faChartLine} className="h-8 w-8 text-muted-foreground" />
               </div>
               <h3 className="text-lg font-medium mb-2">Activity</h3>
               <p className="text-muted-foreground">Activity tracking feature coming soon</p>
@@ -851,7 +849,7 @@ export const MediaDetailPage = () => {
       {/* Back Button */}
       <Link to={`/admin/libraries/${libraryId}?tab=media`}>
         <Button variant="ghost">
-          <IconArrowLeft className="mr-2 h-4 w-4" />
+          <FontAwesomeIcon icon={faArrowLeft} className="mr-2 h-4 w-4" />
           Back to Library
         </Button>
       </Link>

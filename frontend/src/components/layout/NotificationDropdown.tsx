@@ -1,4 +1,3 @@
-import { Bell, MoreVertical } from 'lucide-react';
 import { useNavigate } from '@tanstack/react-router';
 import { Button } from '@/components/ui/button';
 import {
@@ -18,6 +17,7 @@ import {
   faCircleCheck,
   faCircleExclamation,
   faCircleInfo,
+  faEllipsisVertical,
   faTriangleExclamation
 } from '@fortawesome/free-solid-svg-icons';
 
@@ -62,7 +62,7 @@ export const NotificationDropdown = () => {
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" size="icon" className="relative">
-          <Bell className="h-5 w-5" />
+          <FontAwesomeIcon icon={faBell} className="h-5 w-5" />
           {unreadCount > 0 && (
             <Badge
               variant="destructive"
@@ -79,7 +79,7 @@ export const NotificationDropdown = () => {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="h-6 w-6">
-                <MoreVertical className="h-4 w-4" />
+                <FontAwesomeIcon icon={faEllipsisVertical} className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">

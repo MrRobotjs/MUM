@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect, useMemo, lazy, Suspense } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faCog } from '@fortawesome/free-solid-svg-icons'
-import { IconPalette, IconDeviceFloppy, IconInfoCircle, IconX, IconPaintFilled, IconGridDots, IconCheck } from '@tabler/icons-react'
+import { faCog, faPalette, faFloppyDisk, faCircleInfo, faXmark, faPaintbrush, faGrip, faCheck } from '@fortawesome/free-solid-svg-icons'
 import { UserRole } from '../../hooks/useUserRoles'
 import { useAlerts, useTheme } from '../../contexts'
 import { requestJson } from '../../util/apiClient'
@@ -135,10 +134,10 @@ export const UserRoleDisplayTab = ({ role, onUpdate }: UserRoleDisplayTabProps) 
     <div className="space-y-6">
       {/* Display Settings Overview */}
       <div className="rounded-lg border border-border bg-card p-6">
-        <div className="mb-6 flex items-center gap-3">
-          <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/20">
-            <IconPalette className="size-5 text-primary" />
-          </div>
+          <div className="mb-6 flex items-center gap-3">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/20">
+            <FontAwesomeIcon icon={faPalette} className="size-5 text-primary" />
+            </div>
           <div>
             <h2 className="mb-1 text-xl font-semibold">Visual Display</h2>
             <p className="text-sm text-muted-foreground">
@@ -148,7 +147,7 @@ export const UserRoleDisplayTab = ({ role, onUpdate }: UserRoleDisplayTabProps) 
         </div>
 
         <Alert variant="info">
-          <IconInfoCircle />
+          <FontAwesomeIcon icon={faCircleInfo} className="h-4 w-4" />
           <AlertTitle>Cosmetic Only</AlertTitle>
           <AlertDescription>
             User roles are visual badges only and do not grant any permissions or access.
@@ -216,7 +215,8 @@ export const UserRoleDisplayTab = ({ role, onUpdate }: UserRoleDisplayTabProps) 
                   onClick={() => setFormValues({ ...formValues, color: themePrimaryHex })}
                 >
                   {isDefaultColorSelected && (
-                    <IconCheck
+                    <FontAwesomeIcon
+                      icon={faCheck}
                       className="size-6 drop-shadow-sm"
                       style={{ color: getReadableTextColor(themePrimaryHex) }}
                     />
@@ -235,7 +235,8 @@ export const UserRoleDisplayTab = ({ role, onUpdate }: UserRoleDisplayTabProps) 
                   style={{ backgroundColor: isDefaultColorSelected ? 'transparent' : formValues.color }}
                 >
                   {/* Edit Pencil Icon (using Wand to avoid new import for now, or could check if Pencil exists) */}
-                  <IconPaintFilled
+                  <FontAwesomeIcon
+                    icon={faPaintbrush}
                     className="absolute right-1 top-1 size-4 drop-shadow-md"
                     style={{ color: getReadableTextColor(formValues.color) }}
                   />
@@ -269,7 +270,8 @@ export const UserRoleDisplayTab = ({ role, onUpdate }: UserRoleDisplayTabProps) 
                         onClick={() => setFormValues({ ...formValues, color: preset.hex })}
                       >
                         {isSelected && (
-                          <IconCheck
+                          <FontAwesomeIcon
+                            icon={faCheck}
                             className="size-4 drop-shadow-sm"
                             style={{ color: getReadableTextColor(preset.hex) }}
                           />
@@ -305,7 +307,7 @@ export const UserRoleDisplayTab = ({ role, onUpdate }: UserRoleDisplayTabProps) 
                       onClick={() => setFormValues({ ...formValues, icon: '' })}
                       className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                     >
-                      <IconX className="size-4" />
+                      <FontAwesomeIcon icon={faXmark} className="size-4" />
                     </button>
                   )}
                 </div>
@@ -318,7 +320,7 @@ export const UserRoleDisplayTab = ({ role, onUpdate }: UserRoleDisplayTabProps) 
                       type="button"
                       onClick={() => handleBrowseOpenChange(true)}
                     >
-                      <IconGridDots className="size-4" />
+                      <FontAwesomeIcon icon={faGrip} className="size-4" />
                       Browse Icons
                     </Button>
                     <Suspense
@@ -345,7 +347,7 @@ export const UserRoleDisplayTab = ({ role, onUpdate }: UserRoleDisplayTabProps) 
                 ) : (
                   <>
                     <Button variant="outline" className="gap-2" type="button" onClick={() => handleBrowseOpenChange(true)}>
-                      <IconGridDots className="size-4" />
+                      <FontAwesomeIcon icon={faGrip} className="size-4" />
                       Browse Icons
                     </Button>
                     <Suspense
@@ -440,7 +442,7 @@ export const UserRoleDisplayTab = ({ role, onUpdate }: UserRoleDisplayTabProps) 
               </>
             ) : (
               <>
-                <IconDeviceFloppy className="mr-2 size-4" />
+                <FontAwesomeIcon icon={faFloppyDisk} className="mr-2 size-4" />
                 Save Changes
               </>
             )}

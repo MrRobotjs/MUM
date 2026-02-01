@@ -1,7 +1,8 @@
 import { Button } from '@/components/ui/button';
 import { useAdminApi } from '../../hooks/useAdminApi';
 import { DashboardCard } from './DashboardLayout';
-import { IconRefresh } from '@tabler/icons-react';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faRotate } from '@fortawesome/free-solid-svg-icons';
 
 type HistoryEntry = {
   id: number;
@@ -53,7 +54,7 @@ export const HistoryCard = () => {
 
       <div className="flex justify-end pt-4">
         <Button variant="ghost" size="sm" onClick={() => mutate()}>
-          <IconRefresh className="mr-2 h-4 w-4" />
+          <FontAwesomeIcon icon={faRotate} className="mr-2 h-4 w-4" />
           Refresh
         </Button>
       </div>

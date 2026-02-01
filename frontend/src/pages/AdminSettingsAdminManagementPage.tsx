@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react'
-import { IconUserPlus, IconPencil, IconKey, IconTrash, IconSearch, IconShield, IconLock, IconUsersGroup, IconAlertCircle, IconCheck, IconInfoCircle, IconList } from '@tabler/icons-react'
 import { requestJson } from '../util/apiClient'
 import { useAlerts } from '../contexts'
 import { useAuth } from '../contexts/AuthContext'
@@ -31,6 +30,17 @@ import {
   faShieldHalved,
   faTriangleExclamation,
   faUsersSlash,
+  faUserPlus,
+  faPen,
+  faTrash,
+  faMagnifyingGlass,
+  faShield,
+  faLock,
+  faUsers,
+  faCircleExclamation,
+  faCheck,
+  faCircleInfo,
+  faList,
 } from '@fortawesome/free-solid-svg-icons'
 
 type AdminRole = {
@@ -285,7 +295,7 @@ const AdminSettingsAdminManagementPage = () => {
         description="Manage administrator accounts and their permissions"
         actions={
           <Button onClick={() => setShowCreateModal(true)}>
-            <IconUserPlus className="mr-2 size-4" />
+            <FontAwesomeIcon icon={faUserPlus} className="mr-2 size-4" />
             Create New Admin
           </Button>
         }
@@ -296,7 +306,7 @@ const AdminSettingsAdminManagementPage = () => {
         <CardHeader>
           <div className="flex items-center gap-3">
             <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/20">
-              <IconUsersGroup className="size-5 text-primary" />
+              <FontAwesomeIcon icon={faUsers} className="size-5 text-primary" />
             </div>
             <div>
               <CardTitle className="mb-1 text-xl font-semibold">System Administrators</CardTitle>
@@ -308,7 +318,7 @@ const AdminSettingsAdminManagementPage = () => {
         </CardHeader>
         <CardContent>
           <Alert variant="info">
-            <IconInfoCircle />
+            <FontAwesomeIcon icon={faCircleInfo} className="h-4 w-4" />
             <AlertTitle>Admin Guidelines</AlertTitle>
             <AlertDescription>
               The primary owner cannot be edited or deleted. You cannot modify your own account for security reasons.
@@ -323,7 +333,7 @@ const AdminSettingsAdminManagementPage = () => {
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
               <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/20">
-                <IconList className="size-5 text-primary" />
+                <FontAwesomeIcon icon={faList} className="size-5 text-primary" />
               </div>
               <div>
                 <CardTitle className="mb-1 text-xl font-semibold">Administrators List</CardTitle>
@@ -332,7 +342,7 @@ const AdminSettingsAdminManagementPage = () => {
             </div>
 
             <div className="relative w-full sm:w-auto">
-              <IconSearch className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <FontAwesomeIcon icon={faMagnifyingGlass} className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 type="text"
                 placeholder="Search administrators..."
@@ -365,7 +375,7 @@ const AdminSettingsAdminManagementPage = () => {
                     <TableRow>
                       <TableCell colSpan={5} className="py-8 text-center">
                         <div className="text-muted-foreground">
-                          <IconSearch className="mx-auto mb-2 size-6" />
+                          <FontAwesomeIcon icon={faMagnifyingGlass} className="mx-auto mb-2 size-6" />
                           <p className="text-sm">
                             {searchQuery ? `No administrators found matching "${searchQuery}"` : 'No administrators found'}
                           </p>
@@ -467,18 +477,18 @@ const AdminSettingsAdminManagementPage = () => {
                           <div className="flex items-center justify-end gap-2">
                             {isOwner(admin) ? (
                               <Button variant="ghost" size="sm" disabled>
-                                <IconShield className="mr-1 size-4" />
+                                <FontAwesomeIcon icon={faShield} className="mr-1 size-4" />
                                 <span className="hidden md:inline">Protected</span>
                               </Button>
                             ) : isCurrentUser(admin) ? (
                               <Button variant="ghost" size="sm" disabled>
-                                <IconLock className="mr-1 size-4" />
+                                <FontAwesomeIcon icon={faLock} className="mr-1 size-4" />
                                 <span className="hidden md:inline">Locked</span>
                               </Button>
                             ) : (
                               <>
                                 <Button variant="ghost" size="sm" onClick={() => openEditModal(admin)} title="Edit Administrator">
-                                  <IconPencil className="mr-1 size-4" />
+                                  <FontAwesomeIcon icon={faPen} className="mr-1 size-4" />
                                   <span className="hidden md:inline">Edit</span>
                                 </Button>
                                 <Button
@@ -488,7 +498,7 @@ const AdminSettingsAdminManagementPage = () => {
                                   onClick={() => openResetPasswordModal(admin)}
                                   title="Reset Password"
                                 >
-                                  <IconKey className="mr-1 size-4" />
+                                  <FontAwesomeIcon icon={faKey} className="mr-1 size-4" />
                                   <span className="hidden md:inline">Reset</span>
                                 </Button>
                                 <Button
@@ -498,7 +508,7 @@ const AdminSettingsAdminManagementPage = () => {
                                   onClick={() => handleDeleteAdmin(admin)}
                                   title="Delete Administrator"
                                 >
-                                  <IconTrash className="mr-1 size-4" />
+                                  <FontAwesomeIcon icon={faTrash} className="mr-1 size-4" />
                                   <span className="hidden md:inline">Delete</span>
                                 </Button>
                               </>
@@ -527,7 +537,7 @@ const AdminSettingsAdminManagementPage = () => {
           </Button>,
           <Button key="submit" type="submit" form="create-admin-form" disabled={submitting}>
             {submitting && <span className="mr-2 inline-flex size-4 animate-spin rounded-full border-2 border-background border-t-transparent" />}
-            <IconUserPlus className="mr-2 size-4" />
+            <FontAwesomeIcon icon={faUserPlus} className="mr-2 size-4" />
             Create Admin
           </Button>
         ]}
@@ -535,7 +545,7 @@ const AdminSettingsAdminManagementPage = () => {
         <Alert variant="info" className="mb-6">
           <div className="flex items-start gap-3">
             <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-blue-100/20">
-              <IconAlertCircle className="size-4 text-blue-600 dark:text-blue-400" />
+              <FontAwesomeIcon icon={faCircleExclamation} className="size-4 text-blue-600 dark:text-blue-400" />
             </div>
             <div>
               <AlertTitle>Administrator Account</AlertTitle>
@@ -648,7 +658,7 @@ const AdminSettingsAdminManagementPage = () => {
           </Button>,
           <Button key="submit" type="submit" form="edit-admin-form" disabled={submitting}>
             {submitting && <span className="mr-2 inline-flex size-4 animate-spin rounded-full border-2 border-background border-t-transparent" />}
-            <IconCheck className="mr-2 size-4" />
+            <FontAwesomeIcon icon={faCheck} className="mr-2 size-4" />
             Save Changes
           </Button>
         ]}
@@ -693,7 +703,7 @@ const AdminSettingsAdminManagementPage = () => {
           </Button>,
           <Button key="submit" type="submit" form="reset-password-form" variant="default" disabled={submitting} className="bg-amber-100 hover:bg-amber-100/90">
             {submitting && <span className="mr-2 inline-flex size-4 animate-spin rounded-full border-2 border-background border-t-transparent" />}
-            <IconKey className="mr-2 size-4" />
+            <FontAwesomeIcon icon={faKey} className="mr-2 size-4" />
             Reset Password
           </Button>
         ]}

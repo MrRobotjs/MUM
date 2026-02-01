@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { IconWifi, IconCheck, IconX, IconAlertCircle } from '@tabler/icons-react';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faWifi, faCheck, faXmark, faCircleExclamation } from '@fortawesome/free-solid-svg-icons';
 import { FormField } from '../';
 import type { Server } from '../../hooks/useServers';
 import { ResponsiveDialog } from '../ui/responsive-dialog';
@@ -283,7 +284,7 @@ export const ServerModal = ({
     if (connectionTestStatus === 'success') {
       return (
         <>
-          <IconCheck className="size-4" />
+          <FontAwesomeIcon icon={faCheck} className="size-4" />
           Connection Successful
         </>
       );
@@ -291,14 +292,14 @@ export const ServerModal = ({
     if (connectionTestStatus === 'error') {
       return (
         <>
-          <IconX className="size-4" />
+          <FontAwesomeIcon icon={faXmark} className="size-4" />
           Connection Failed
         </>
       );
     }
     return (
       <>
-        <IconWifi className="size-4" />
+        <FontAwesomeIcon icon={faWifi} className="size-4" />
         Test Connection
       </>
     );
@@ -353,7 +354,7 @@ export const ServerModal = ({
       <form id={formId} onSubmit={handleSubmit} className="space-y-4">
         {error && (
           <Alert variant="destructive">
-            <IconAlertCircle />
+            <FontAwesomeIcon icon={faCircleExclamation} className="h-4 w-4" />
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}

@@ -1,6 +1,7 @@
 import { ReactNode, createContext, useContext, useEffect } from 'react'
 import { Link, useNavigate } from '@tanstack/react-router'
-import { IconCheck, IconServer, IconSettings, IconShield } from '@tabler/icons-react'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { faCheck, faServer, faGear, faShield } from '@fortawesome/free-solid-svg-icons'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card'
 import { Badge } from '../components/ui/badge'
 import { Alert, AlertDescription } from '../components/ui/alert'
@@ -18,10 +19,10 @@ type StepDefinition = {
 }
 
 const steps: StepDefinition[] = [
-  { id: 'account', label: 'Owner Account', description: 'Create administrator credentials', href: '/setup/account', icon: <IconShield className="h-4 w-4" /> },
-  { id: 'plugins', label: 'Media Services', description: 'Enable Plex, Jellyfin, Emby…', href: '/setup/plugins', icon: <IconServer className="h-4 w-4" /> },
-  { id: 'app', label: 'App Config', description: 'Branding & base URL', href: '/setup/app', icon: <IconSettings className="h-4 w-4" /> },
-  { id: 'finish', label: 'Finish', description: 'You are all set', icon: <IconCheck className="h-4 w-4" /> },
+  { id: 'account', label: 'Owner Account', description: 'Create administrator credentials', href: '/setup/account', icon: <FontAwesomeIcon icon={faShield} className="h-4 w-4" /> },
+  { id: 'plugins', label: 'Media Services', description: 'Enable Plex, Jellyfin, Emby…', href: '/setup/plugins', icon: <FontAwesomeIcon icon={faServer} className="h-4 w-4" /> },
+  { id: 'app', label: 'App Config', description: 'Branding & base URL', href: '/setup/app', icon: <FontAwesomeIcon icon={faGear} className="h-4 w-4" /> },
+  { id: 'finish', label: 'Finish', description: 'You are all set', icon: <FontAwesomeIcon icon={faCheck} className="h-4 w-4" /> },
 ]
 
 type SetupStatusContextValue = {
@@ -66,7 +67,7 @@ export function SetupLayout({ stepId, title, subtitle, children }: SetupLayoutPr
           <Card className="w-full shadow-lg border border-border rounded-xl overflow-hidden pt-0">
             <CardHeader className="text-center bg-gradient-to-r from-primary/10 to-secondary/10 px-6 py-8">
               <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/15">
-                <IconShield className="h-8 w-8 text-primary" />
+                <FontAwesomeIcon icon={faShield} className="h-8 w-8 text-primary" />
               </div>
               <CardTitle className="text-2xl">{title}</CardTitle>
               <CardDescription className="text-base text-muted-foreground">{subtitle}</CardDescription>
@@ -96,7 +97,7 @@ export function SetupLayout({ stepId, title, subtitle, children }: SetupLayoutPr
                               : 'bg-muted text-muted-foreground'
                         )}
                       >
-                        {isCompleted && !isCurrent ? <IconCheck className="h-4 w-4" /> : step.icon}
+                        {isCompleted && !isCurrent ? <FontAwesomeIcon icon={faCheck} className="h-4 w-4" /> : step.icon}
                       </div>
                       <div className="min-w-0">
                         <p

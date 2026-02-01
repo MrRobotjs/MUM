@@ -36,7 +36,6 @@ ChartJS.register(
   Tooltip,
   Legend
 );
-import { IconArrowLeft, IconRefresh, IconSearch, IconInfoCircle, IconStar, IconMovie, IconStack2, IconChartBar, IconHistory, IconServer, IconTag, IconEye, IconTrash, IconUsers, IconClock } from '@tabler/icons-react';
 import { useLibrarySyncStatus } from '../hooks/useLibrarySyncStatus';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
@@ -45,6 +44,20 @@ import {
   faFolderOpen,
   faChevronLeft,
   faChevronRight,
+  faArrowLeft,
+  faRotate,
+  faMagnifyingGlass,
+  faCircleInfo,
+  faFilm,
+  faLayerGroup,
+  faChartBar,
+  faClockRotateLeft,
+  faServer,
+  faTag,
+  faEye,
+  faTrash,
+  faUsers,
+  faClock,
 } from '@fortawesome/free-solid-svg-icons';
 
 type ServiceType = 'plex' | 'jellyfin' | 'emby' | 'kavita' | 'audiobookshelf' | 'komga' | 'romm';
@@ -128,7 +141,7 @@ const MediaPosterCard = ({ item, libraryId }: { item: MediaItem; libraryId: stri
           </>
         ) : (
           <div className="absolute inset-0 bg-accent flex items-center justify-center text-muted-foreground">
-            <IconMovie className="h-12 w-12" />
+            <FontAwesomeIcon icon={faFilm} className="h-12 w-12" />
           </div>
         )}
 
@@ -141,7 +154,7 @@ const MediaPosterCard = ({ item, libraryId }: { item: MediaItem; libraryId: stri
 
         {item.stream_count && item.stream_count > 0 && (
           <div className="absolute bottom-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded-full flex items-center gap-1">
-            <IconEye className="h-3 w-3" />
+            <FontAwesomeIcon icon={faEye} className="h-3 w-3" />
             {item.stream_count}
           </div>
         )}
@@ -196,13 +209,13 @@ const CollectionCard = ({ collection }: { collection: any }) => {
           </>
         ) : (
           <div className="absolute inset-0 bg-accent flex items-center justify-center text-muted-foreground">
-            <IconStack2 className="h-12 w-12" />
+            <FontAwesomeIcon icon={faLayerGroup} className="h-12 w-12" />
           </div>
         )}
 
         <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
           <div className="text-center text-white p-2">
-            <IconStack2 className="h-8 w-8 mx-auto mb-2" />
+            <FontAwesomeIcon icon={faLayerGroup} className="h-8 w-8 mx-auto mb-2" />
             <div className="text-xs">View Collection</div>
           </div>
         </div>
@@ -607,7 +620,7 @@ export const LibraryDetailPage = () => {
         </Card>
         <Link to="/admin/libraries">
           <Button>
-            <IconArrowLeft className="mr-2 h-4 w-4" />
+            <FontAwesomeIcon icon={faArrowLeft} className="mr-2 h-4 w-4" />
             Back to Libraries
           </Button>
         </Link>
@@ -671,12 +684,12 @@ export const LibraryDetailPage = () => {
               {getServiceBadge(serviceType)}
 
               <span className="inline-flex items-center rounded-md bg-muted px-2 py-1 text-xs font-medium text-muted-foreground ring-1 ring-inset ring-border gap-1">
-                <IconServer className="w-3 h-3" />
+                <FontAwesomeIcon icon={faServer} className="w-3 h-3" />
                 {library.server?.server_nickname}
               </span>
 
               <span className="inline-flex items-center rounded-md bg-blue-50 dark:bg-blue-400/10 px-2 py-1 text-xs font-medium text-blue-700 dark:text-blue-400 ring-1 ring-inset ring-blue-600/20 dark:ring-blue-500/20 gap-1">
-                <IconTag className="w-3 h-3" />
+                <FontAwesomeIcon icon={faTag} className="w-3 h-3" />
                 {libraryStats?.library_type || 'Mixed'}
               </span>
             </div>
@@ -688,25 +701,25 @@ export const LibraryDetailPage = () => {
       <Tabs value={activeTab} onValueChange={(value) => setTab(value as TabType)}>
         <TabsList className="w-full justify-start overflow-x-auto">
           <TabsTrigger value="overview">
-            <IconInfoCircle className="mr-2 h-4 w-4" />
+            <FontAwesomeIcon icon={faCircleInfo} className="mr-2 h-4 w-4" />
             Overview
           </TabsTrigger>
           <TabsTrigger value="media">
-            <IconMovie className="mr-2 h-4 w-4" />
+            <FontAwesomeIcon icon={faFilm} className="mr-2 h-4 w-4" />
             Media
           </TabsTrigger>
           {serviceType === 'plex' && (
             <TabsTrigger value="collections">
-              <IconStack2 className="mr-2 h-4 w-4" />
+              <FontAwesomeIcon icon={faLayerGroup} className="mr-2 h-4 w-4" />
               Collections
             </TabsTrigger>
           )}
           <TabsTrigger value="stats">
-            <IconChartBar className="mr-2 h-4 w-4" />
+            <FontAwesomeIcon icon={faChartBar} className="mr-2 h-4 w-4" />
             Stats
           </TabsTrigger>
           <TabsTrigger value="activity">
-            <IconHistory className="mr-2 h-4 w-4" />
+            <FontAwesomeIcon icon={faClockRotateLeft} className="mr-2 h-4 w-4" />
             Recent Activity
           </TabsTrigger>
         </TabsList>
@@ -717,7 +730,7 @@ export const LibraryDetailPage = () => {
             <Card>
               <CardContent className="p-6 space-y-4">
                 <h3 className="text-lg font-semibold flex items-center">
-                  <IconInfoCircle className="mr-2 h-5 w-5 text-blue-500" />
+                  <FontAwesomeIcon icon={faCircleInfo} className="mr-2 h-5 w-5 text-blue-500" />
                   Library Details
                 </h3>
                 <div className="space-y-3">
@@ -761,7 +774,7 @@ export const LibraryDetailPage = () => {
             <Card>
               <CardContent className="p-6 space-y-4">
                 <h3 className="text-lg font-semibold flex items-center">
-                  <IconStar className="mr-2 h-5 w-5 text-yellow-500" />
+                  <FontAwesomeIcon icon={faStar} className="mr-2 h-5 w-5 text-yellow-500" />
                   Most Popular Content
                 </h3>
                 {libraryStats?.popular_content && libraryStats.popular_content.length > 0 ? (
@@ -838,12 +851,12 @@ export const LibraryDetailPage = () => {
             >
               {purging ? (
                 <>
-                  <IconTrash className="mr-2 h-4 w-4 animate-spin" />
+                  <FontAwesomeIcon icon={faTrash} className="mr-2 h-4 w-4 animate-spin" />
                   Purging...
                 </>
               ) : (
                 <>
-                  <IconTrash className="mr-2 h-4 w-4" />
+                  <FontAwesomeIcon icon={faTrash} className="mr-2 h-4 w-4" />
                   Purge DB
                 </>
               )}
@@ -851,12 +864,12 @@ export const LibraryDetailPage = () => {
             <Button onClick={handleSyncClick} disabled={syncing || purging}>
               {syncing ? (
                 <>
-                  <IconRefresh className="mr-2 h-4 w-4 animate-spin" />
+                  <FontAwesomeIcon icon={faRotate} className="mr-2 h-4 w-4 animate-spin" />
                   Syncing...
                 </>
               ) : (
                 <>
-                  <IconRefresh className="mr-2 h-4 w-4" />
+                  <FontAwesomeIcon icon={faRotate} className="mr-2 h-4 w-4" />
                   Sync Library
                 </>
               )}
@@ -869,7 +882,7 @@ export const LibraryDetailPage = () => {
               <div className="flex flex-col sm:flex-row gap-4">
                 <form onSubmit={handleSearch} className="flex-1">
                   <div className="relative">
-                    <IconSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <FontAwesomeIcon icon={faMagnifyingGlass} className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
                       type="text"
                       placeholder="Search library content..."
@@ -1063,7 +1076,7 @@ export const LibraryDetailPage = () => {
             <Card>
               <CardContent className="p-12 text-center">
                 <div className="w-16 h-16 rounded-full bg-accent flex items-center justify-center mx-auto mb-4">
-                  <IconStack2 className="h-8 w-8 text-muted-foreground" />
+                  <FontAwesomeIcon icon={faLayerGroup} className="h-8 w-8 text-muted-foreground" />
                 </div>
                 <h3 className="text-lg font-medium mb-2">Collections Not Available</h3>
                 <p className="text-muted-foreground">Collections are only available for Plex libraries.</p>
@@ -1086,7 +1099,7 @@ export const LibraryDetailPage = () => {
             <>
               <div>
                 <h3 className="text-lg font-semibold mb-2 flex items-center">
-                  <IconStack2 className="mr-2 h-5 w-5" />
+                  <FontAwesomeIcon icon={faLayerGroup} className="mr-2 h-5 w-5" />
                   Collections in {library.name}
                 </h3>
                 <p className="text-muted-foreground">
@@ -1104,7 +1117,7 @@ export const LibraryDetailPage = () => {
             <Card>
               <CardContent className="p-12 text-center">
                 <div className="w-16 h-16 rounded-full bg-accent flex items-center justify-center mx-auto mb-4">
-                  <IconStack2 className="h-8 w-8 text-muted-foreground" />
+                  <FontAwesomeIcon icon={faLayerGroup} className="h-8 w-8 text-muted-foreground" />
                 </div>
                 <h3 className="text-lg font-medium mb-2">No Collections Found</h3>
                 <p className="text-muted-foreground">This library doesn't have any collections yet.</p>
@@ -1151,7 +1164,7 @@ export const LibraryDetailPage = () => {
                         <p className="text-sm text-muted-foreground">Total Streams</p>
                         <p className="text-2xl font-bold text-primary">{statsData.stats.total_streams || 0}</p>
                       </div>
-                      <IconEye className="h-8 w-8 text-primary opacity-20" />
+                      <FontAwesomeIcon icon={faEye} className="h-8 w-8 text-primary opacity-20" />
                     </div>
                   </CardContent>
                 </Card>
@@ -1163,7 +1176,7 @@ export const LibraryDetailPage = () => {
                         <p className="text-sm text-muted-foreground">Unique Users</p>
                         <p className="text-2xl font-bold text-secondary">{statsData.stats.unique_users || 0}</p>
                       </div>
-                      <IconUsers className="h-8 w-8 text-secondary opacity-20" />
+                      <FontAwesomeIcon icon={faUsers} className="h-8 w-8 text-secondary opacity-20" />
                     </div>
                   </CardContent>
                 </Card>
@@ -1177,7 +1190,7 @@ export const LibraryDetailPage = () => {
                           {Math.floor((statsData.stats.total_duration || 0) / 3600)}h
                         </p>
                       </div>
-                      <IconClock className="h-8 w-8 text-muted-foreground opacity-20" />
+                      <FontAwesomeIcon icon={faClock} className="h-8 w-8 text-muted-foreground opacity-20" />
                     </div>
                   </CardContent>
                 </Card>
@@ -1191,7 +1204,7 @@ export const LibraryDetailPage = () => {
                           {Math.floor((statsData.stats.average_session_length || 0) / 60)}m
                         </p>
                       </div>
-                      <IconChartBar className="h-8 w-8 text-muted-foreground opacity-20" />
+                      <FontAwesomeIcon icon={faChartBar} className="h-8 w-8 text-muted-foreground opacity-20" />
                     </div>
                   </CardContent>
                 </Card>
@@ -1366,7 +1379,7 @@ export const LibraryDetailPage = () => {
                   <Card>
                     <CardContent className="p-6">
                       <h3 className="text-lg font-semibold mb-4 flex items-center">
-                        <IconChartBar className="mr-2 h-5 w-5" />
+                        <FontAwesomeIcon icon={faChartBar} className="mr-2 h-5 w-5" />
                         Watch Time Activity
                       </h3>
                       <div className="relative h-[300px]">
@@ -1394,7 +1407,7 @@ export const LibraryDetailPage = () => {
                 <Card>
                   <CardContent className="p-6">
                     <h3 className="text-lg font-semibold mb-4 flex items-center">
-                      <IconStar className="mr-2 h-5 w-5" />
+                      <FontAwesomeIcon icon={faStar} className="mr-2 h-5 w-5" />
                       Most Popular Content
                     </h3>
                     <div className="space-y-3">
@@ -1415,7 +1428,7 @@ export const LibraryDetailPage = () => {
             <Card>
               <CardContent className="p-12 text-center">
                 <div className="w-16 h-16 rounded-full bg-accent flex items-center justify-center mx-auto mb-4">
-                  <IconChartBar className="h-8 w-8 text-muted-foreground" />
+                  <FontAwesomeIcon icon={faChartBar} className="h-8 w-8 text-muted-foreground" />
                 </div>
                 <h3 className="text-lg font-medium mb-2">No Statistics Available</h3>
                 <p className="text-muted-foreground">
@@ -1430,7 +1443,7 @@ export const LibraryDetailPage = () => {
           {/* Time Range Selector */}
           <div className="flex justify-between items-center">
             <h3 className="text-lg font-semibold flex items-center">
-              <IconHistory className="mr-2 h-5 w-5" />
+              <FontAwesomeIcon icon={faClockRotateLeft} className="mr-2 h-5 w-5" />
               Recent Activity
             </h3>
             <Select value={activityDays.toString()} onValueChange={(val) => { setActivityDays(Number(val)); setActivityPage(1); }}>
@@ -1534,7 +1547,7 @@ export const LibraryDetailPage = () => {
                                 />
                               ) : null}
                               <div className={`w-full h-full bg-muted/50 rounded border border-border flex items-center justify-center ${stream.thumb_path ? 'hidden' : 'flex'}`}>
-                                <IconMovie className="h-6 w-6 text-muted-foreground opacity-40" />
+                                <FontAwesomeIcon icon={faFilm} className="h-6 w-6 text-muted-foreground opacity-40" />
                               </div>
                             </div>
 
@@ -1617,7 +1630,7 @@ export const LibraryDetailPage = () => {
                     <TableCell colSpan={5} className="py-12 text-center">
                       <div className="flex flex-col items-center">
                         <div className="w-16 h-16 rounded-full bg-accent flex items-center justify-center mb-4">
-                          <IconHistory className="h-8 w-8 text-muted-foreground" />
+                          <FontAwesomeIcon icon={faClockRotateLeft} className="h-8 w-8 text-muted-foreground" />
                         </div>
                         <h3 className="text-lg font-medium mb-2">No Recent Activity</h3>
                         <p className="text-sm text-muted-foreground">
@@ -1676,7 +1689,7 @@ export const LibraryDetailPage = () => {
         <div className="space-y-4 py-4">
           <div className="space-y-2">
             <h4 className="font-medium flex items-center gap-2">
-              <IconMovie className="h-4 w-4" />
+              <FontAwesomeIcon icon={faFilm} className="h-4 w-4" />
               TV Shows Only
             </h4>
             <p className="text-sm text-muted-foreground">
@@ -1686,7 +1699,7 @@ export const LibraryDetailPage = () => {
 
           <div className="space-y-2">
             <h4 className="font-medium flex items-center gap-2">
-              <IconStack2 className="h-4 w-4" />
+              <FontAwesomeIcon icon={faLayerGroup} className="h-4 w-4" />
               TV Shows + Episodes
             </h4>
             <p className="text-sm text-muted-foreground">

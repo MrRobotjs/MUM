@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { IconWifi, IconCheck, IconX, IconAlertCircle } from '@tabler/icons-react';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faWifi, faCheck, faXmark, faCircleExclamation } from '@fortawesome/free-solid-svg-icons';
 import { FormField } from '../';
 import { useAlerts } from '../../contexts';
 import { requestJson } from '../../util/apiClient';
@@ -250,7 +251,7 @@ export const ServerAddForm = ({ pluginId, onSuccess, onCancel }: ServerAddFormPr
     if (connectionTestStatus === 'success') {
       return (
         <>
-          <IconCheck className="size-4" />
+          <FontAwesomeIcon icon={faCheck} className="size-4" />
           Connection Successful
         </>
       );
@@ -258,14 +259,14 @@ export const ServerAddForm = ({ pluginId, onSuccess, onCancel }: ServerAddFormPr
     if (connectionTestStatus === 'error') {
       return (
         <>
-          <IconX className="size-4" />
+          <FontAwesomeIcon icon={faXmark} className="size-4" />
           Connection Failed
         </>
       );
     }
     return (
       <>
-        <IconWifi className="size-4" />
+        <FontAwesomeIcon icon={faWifi} className="size-4" />
         Test Connection
       </>
     );
@@ -277,7 +278,7 @@ export const ServerAddForm = ({ pluginId, onSuccess, onCancel }: ServerAddFormPr
     <form id="server-add-form" onSubmit={handleSubmit} className="space-y-6">
       {error && (
         <Alert variant="destructive">
-          <IconAlertCircle />
+          <FontAwesomeIcon icon={faCircleExclamation} className="h-4 w-4" />
           <AlertTitle>Error</AlertTitle>
           <AlertDescription>{error}</AlertDescription>
         </Alert>

@@ -1,4 +1,5 @@
-import { IconMoon, IconSun, IconDeviceDesktop } from '@tabler/icons-react';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faMoon, faSun, faDesktop } from '@fortawesome/free-solid-svg-icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Button } from '@/components/ui/button';
 
@@ -17,11 +18,11 @@ export function ModeToggle() {
 
   const getIcon = () => {
     if (theme === 'light') {
-      return <IconSun className="h-5 w-5" />;
+      return <FontAwesomeIcon icon={faSun} className="h-5 w-5" />;
     } else if (theme === 'dark') {
-      return <IconMoon className="h-5 w-5" />;
+      return <FontAwesomeIcon icon={faMoon} className="h-5 w-5" />;
     } else {
-      return <IconDeviceDesktop className="h-5 w-5" />;
+      return <FontAwesomeIcon icon={faDesktop} className="h-5 w-5" />;
     }
   };
 

@@ -47,7 +47,6 @@ import {
 } from '../components/ui/dropdown-menu';
 import { Card, CardContent } from '../components/ui/card';
 import { Progress } from '../components/ui/progress';
-import { IconDots, IconRefresh } from '@tabler/icons-react';
 import { Separator } from '../components/ui/separator';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
@@ -70,6 +69,8 @@ import {
   faSquare,
   faSquareCheck,
   faSquareMinus,
+  faEllipsis,
+  faRotate,
 } from '@fortawesome/free-solid-svg-icons';
 
 export const UsersListPage = () => {
@@ -270,7 +271,7 @@ export const UsersListPage = () => {
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" size="sm" type="button" title="More options">
-          <IconDots className="h-4 w-4" />
+          <FontAwesomeIcon icon={faEllipsis} className="h-4 w-4" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuPortal>
@@ -656,7 +657,7 @@ export const UsersListPage = () => {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" className="gap-2">
-                <IconDots className="size-4" />
+                <FontAwesomeIcon icon={faEllipsis} className="size-4" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
@@ -670,7 +671,8 @@ export const UsersListPage = () => {
                   }}
                   className="cursor-pointer"
                 >
-                  <IconRefresh
+                  <FontAwesomeIcon
+                    icon={faRotate}
                     className={cn(
                       'mr-2 size-4',
                       syncStatus.is_syncing && 'animate-spin text-primary'

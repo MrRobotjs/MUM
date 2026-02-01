@@ -1,7 +1,19 @@
 import { useState, useEffect, useRef, useMemo, lazy, Suspense } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faIdBadge, faPalette } from '@fortawesome/free-solid-svg-icons'
-import { IconTag, IconAlignLeft, IconPalette, IconIcons, IconDeviceFloppy, IconSparkles, IconInfoCircle, IconX, IconGridDots, IconPaintFilled, IconCheck } from '@tabler/icons-react'
+import {
+  faIdBadge,
+  faPalette,
+  faTag,
+  faAlignLeft,
+  faIcons,
+  faFloppyDisk,
+  faStar,
+  faCircleInfo,
+  faXmark,
+  faGrip,
+  faPaintbrush,
+  faCheck,
+} from '@fortawesome/free-solid-svg-icons'
 import { AdminRole } from '../../hooks/useAdminRoles'
 import { useAlerts, useTheme } from '../../contexts'
 import { requestJson } from '../../util/apiClient'
@@ -139,7 +151,7 @@ export const AdminRoleDisplayTab = ({ role, onUpdate }: AdminRoleDisplayTabProps
     <form onSubmit={handleSubmit} className="space-y-6">
       {/* Description Card */}
       <Alert variant="info">
-        <IconInfoCircle />
+        <FontAwesomeIcon icon={faCircleInfo} className="h-4 w-4" />
         <AlertTitle>Role Configuration</AlertTitle>
         <AlertDescription>
           Customize the role's name, description, and visual appearance. Changes will be
@@ -158,7 +170,7 @@ export const AdminRoleDisplayTab = ({ role, onUpdate }: AdminRoleDisplayTabProps
         <div className="rounded-lg border border-border bg-card p-4 transition-colors hover:border-border/60">
           <div className="mb-2 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <IconTag className="size-4 text-primary" />
+              <FontAwesomeIcon icon={faTag} className="size-4 text-primary" />
               <Label htmlFor="name" className="font-medium">
                 Role Name
               </Label>
@@ -181,7 +193,7 @@ export const AdminRoleDisplayTab = ({ role, onUpdate }: AdminRoleDisplayTabProps
         <div className="rounded-lg border border-border bg-card p-4 transition-colors hover:border-border/60">
           <div className="mb-2 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <IconAlignLeft className="size-4 text-sky-600 dark:text-sky-400" />
+              <FontAwesomeIcon icon={faAlignLeft} className="size-4 text-sky-600 dark:text-sky-400" />
               <Label htmlFor="description" className="font-medium">
                 Description
               </Label>
@@ -213,7 +225,7 @@ export const AdminRoleDisplayTab = ({ role, onUpdate }: AdminRoleDisplayTabProps
         <div className="rounded-lg border border-border bg-card p-4 transition-colors hover:border-border/60">
           <div className="mb-3 space-y-1">
             <div className="flex items-center gap-2">
-              <IconPalette className="size-4 text-amber-600 dark:text-amber-400" />
+              <FontAwesomeIcon icon={faPalette} className="size-4 text-amber-600 dark:text-amber-400" />
               <Label className="font-medium">Role Color</Label>
             </div>
           </div>
@@ -233,7 +245,8 @@ export const AdminRoleDisplayTab = ({ role, onUpdate }: AdminRoleDisplayTabProps
               onClick={() => setFormValues((prev) => ({ ...prev, color: themePrimaryHex }))}
             >
               {isDefaultColorSelected && (
-                <IconCheck
+                <FontAwesomeIcon
+                  icon={faCheck}
                   className="size-6 drop-shadow-sm"
                   style={{ color: getReadableTextColor(themePrimaryHex) }}
                 />
@@ -251,7 +264,8 @@ export const AdminRoleDisplayTab = ({ role, onUpdate }: AdminRoleDisplayTabProps
               )}
               style={{ backgroundColor: isDefaultColorSelected ? 'transparent' : formValues.color }}
             >
-              <IconPaintFilled
+              <FontAwesomeIcon
+                icon={faPaintbrush}
                 className="absolute right-1 top-1 size-4 drop-shadow-md"
                 style={{ color: getReadableTextColor(formValues.color) }}
               />
@@ -282,7 +296,8 @@ export const AdminRoleDisplayTab = ({ role, onUpdate }: AdminRoleDisplayTabProps
                     onClick={() => setFormValues((prev) => ({ ...prev, color: preset.hex }))}
                   >
                     {isSelected && (
-                      <IconCheck
+                      <FontAwesomeIcon
+                        icon={faCheck}
                         className="size-4 drop-shadow-sm"
                         style={{ color: getReadableTextColor(preset.hex) }}
                       />
@@ -303,7 +318,7 @@ export const AdminRoleDisplayTab = ({ role, onUpdate }: AdminRoleDisplayTabProps
         <div className="rounded-lg border border-border bg-card p-4 transition-colors hover:border-border/60">
           <div className="mb-2 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <IconIcons className="size-4 text-indigo-600 dark:text-indigo-400" />
+              <FontAwesomeIcon icon={faIcons} className="size-4 text-indigo-600 dark:text-indigo-400" />
               <Label htmlFor="icon" className="font-medium">
                 Icon
               </Label>
@@ -328,7 +343,7 @@ export const AdminRoleDisplayTab = ({ role, onUpdate }: AdminRoleDisplayTabProps
                   onClick={() => setFormValues((prev) => ({ ...prev, icon: '' }))}
                   className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                 >
-                  <IconX className="size-4" />
+                  <FontAwesomeIcon icon={faXmark} className="size-4" />
                 </button>
               )}
             </div>
@@ -341,7 +356,7 @@ export const AdminRoleDisplayTab = ({ role, onUpdate }: AdminRoleDisplayTabProps
                   type="button"
                   onClick={() => handleBrowseOpenChange(true)}
                 >
-                  <IconGridDots className="size-4" />
+                  <FontAwesomeIcon icon={faGrip} className="size-4" />
                   Browse Icons
                 </Button>
                 <Suspense
@@ -381,7 +396,7 @@ export const AdminRoleDisplayTab = ({ role, onUpdate }: AdminRoleDisplayTabProps
             ) : (
               <>
                 <Button variant="outline" className="h-11 gap-2" type="button" onClick={() => handleBrowseOpenChange(true)}>
-                  <IconGridDots className="size-4" />
+                  <FontAwesomeIcon icon={faGrip} className="size-4" />
                   Browse Icons
                 </Button>
                 <Suspense
@@ -429,7 +444,7 @@ export const AdminRoleDisplayTab = ({ role, onUpdate }: AdminRoleDisplayTabProps
         <div className="rounded-lg border border-border bg-card p-4 transition-colors hover:border-border/60">
           <div className="mb-2 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <IconSparkles className="size-4 text-purple-600 dark:text-purple-400" />
+              <FontAwesomeIcon icon={faStar} className="size-4 text-purple-600 dark:text-purple-400" />
               <Label className="font-medium">Badge Style</Label>
             </div>
             <UiBadge variant="secondary" className="text-xs">
@@ -473,7 +488,7 @@ export const AdminRoleDisplayTab = ({ role, onUpdate }: AdminRoleDisplayTabProps
       {/* Action Buttons */}
       <div className="flex items-center justify-end gap-3 border-t border-border pt-6">
         <Button type="submit" disabled={submitting} size="lg">
-          <IconDeviceFloppy className="mr-2 size-4" />
+          <FontAwesomeIcon icon={faFloppyDisk} className="mr-2 size-4" />
           {submitting ? 'Saving...' : 'Save Display Settings'}
         </Button>
       </div>

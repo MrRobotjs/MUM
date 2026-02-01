@@ -6,7 +6,8 @@ import { SetupLayout } from './SetupLayout'
 import { ApiError } from '../util/apiClient'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { IconAlertCircle } from '@tabler/icons-react'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { faCircleExclamation } from '@fortawesome/free-solid-svg-icons'
 
 function SetupPluginConfigContent() {
   const { pluginId } = useParams({ from: '/setup/plugins/$pluginId' })
@@ -37,7 +38,7 @@ function SetupPluginConfigContent() {
   if (pluginsError && !(pluginsError instanceof ApiError && pluginsError.status === 401)) {
     return (
       <Alert variant="destructive">
-        <IconAlertCircle />
+        <FontAwesomeIcon icon={faCircleExclamation} className="h-4 w-4" />
         <AlertTitle>Failed to load plugins</AlertTitle>
         <AlertDescription>{(pluginsError as Error).message}</AlertDescription>
       </Alert>
@@ -51,7 +52,7 @@ function SetupPluginConfigContent() {
           Back to Plugins
         </Button>
         <Alert variant="destructive">
-          <IconAlertCircle />
+          <FontAwesomeIcon icon={faCircleExclamation} className="h-4 w-4" />
           <AlertTitle>Plugin not found</AlertTitle>
           <AlertDescription>Plugin "{resolvedPluginId}" could not be located.</AlertDescription>
         </Alert>
@@ -98,6 +99,5 @@ export default function SetupPluginConfigPage() {
     </SetupLayout>
   )
 }
-
 
 

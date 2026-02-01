@@ -1,22 +1,23 @@
 "use client"
 
 import * as React from "react"
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome"
+import type { IconDefinition } from "@fortawesome/fontawesome-svg-core"
 import {
-  IconSettings,
-  IconAdjustments,
-  IconUsers,
-  IconSettings as IconCog,
-  IconUserCircle as IconUserTag,
-  IconShield,
-  IconShieldHalf,
-  IconPuzzle,
-  IconBrandDiscord,
-  IconClock as IconTimeline,
-  IconCode,
-  IconGauge,
-  IconChevronRight,
-  IconBook,
-} from "@tabler/icons-react"
+  faGear,
+  faSliders,
+  faUsers,
+  faUserCircle,
+  faShield,
+  faShieldHalved,
+  faPuzzlePiece,
+  faClock,
+  faCode,
+  faGauge,
+  faChevronRight,
+  faBook,
+} from "@fortawesome/free-solid-svg-icons"
+import { faDiscord } from "@fortawesome/free-brands-svg-icons"
 import { Link, useLocation } from "@tanstack/react-router"
 
 import {
@@ -40,13 +41,13 @@ import { useAuth } from "@/contexts/AuthContext"
 type NavItem = {
   title: string
   url: string
-  icon: any
+  icon: IconDefinition
   permission?: string
 }
 
 type NavSection = {
   title: string
-  icon: any
+  icon: IconDefinition
   permission?: string
   items: NavItem[]
 }
@@ -79,43 +80,43 @@ export function NavSettings() {
     {
       title: 'General',
       url: '/admin/settings/general',
-      icon: IconAdjustments,
+      icon: faSliders,
       permission: 'manage_general_settings',
     },
     {
       title: 'Users',
-      icon: IconUsers,
+      icon: faUsers,
       permission: 'view_users',
       items: [
         {
           title: 'General',
           url: '/admin/settings/users/general',
-          icon: IconCog,
+          icon: faGear,
           permission: 'manage_users_general',
         },
         {
           title: 'Roles',
           url: '/admin/settings/user-roles',
-          icon: IconUserTag,
+          icon: faUserCircle,
           permission: 'manage_user_roles',
         },
       ],
     },
     {
       title: 'Manage Admins',
-      icon: IconShield,
+      icon: faShield,
       permission: 'view_admins_tab',
       items: [
         {
           title: 'Admins',
           url: '/admin/settings/admins',
-          icon: IconShieldHalf,
+          icon: faShieldHalved,
           permission: 'manage_admins',
         },
         {
           title: 'Roles',
           url: '/admin/settings/admin-roles',
-          icon: IconShield,
+          icon: faShield,
           permission: 'manage_roles',
         },
       ],
@@ -123,37 +124,37 @@ export function NavSettings() {
     {
       title: 'Plugins',
       url: '/admin/settings/plugins',
-      icon: IconPuzzle,
+      icon: faPuzzlePiece,
       permission: 'manage_plugins',
     },
     {
       title: 'Discord',
       url: '/admin/settings/discord',
-      icon: IconBrandDiscord,
+      icon: faDiscord,
       permission: 'manage_discord_settings',
     },
     {
       title: 'Logs',
       url: '/admin/settings/logs',
-      icon: IconTimeline,
+      icon: faClock,
       permission: 'view_logs',
     },
     {
       title: 'Advanced',
       url: '/admin/settings/advanced',
-      icon: IconGauge,
+      icon: faGauge,
       permission: 'manage_advanced_settings',
     },
     {
       title: 'API Debug',
       url: '/admin/settings/api-debug',
-      icon: IconCode,
+      icon: faCode,
       permission: 'manage_advanced_settings',
     },
     {
       title: 'API Docs',
       url: '/admin/api-docs',
-      icon: IconBook,
+      icon: faBook,
       permission: 'manage_advanced_settings',
     },
   ]
@@ -207,9 +208,12 @@ export function NavSettings() {
                 <SidebarMenuItem>
                   <CollapsibleTrigger asChild>
                     <SidebarMenuButton tooltip={item.title}>
-                      <item.icon />
+                      <FontAwesomeIcon icon={item.icon} className="h-4 w-4" />
                       <span>{item.title}</span>
-                      <IconChevronRight className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+                      <FontAwesomeIcon
+                        icon={faChevronRight}
+                        className="ml-auto h-4 w-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90"
+                      />
                     </SidebarMenuButton>
                   </CollapsibleTrigger>
                   <CollapsibleContent>
@@ -218,7 +222,7 @@ export function NavSettings() {
                         <SidebarMenuSubItem key={subItem.title}>
                           <SidebarMenuSubButton asChild isActive={isNavItemActive(subItem.url)}>
                             <Link to={subItem.url} onClick={handleNavLinkClick}>
-                              <subItem.icon />
+                              <FontAwesomeIcon icon={subItem.icon} className="h-4 w-4" />
                               <span>{subItem.title}</span>
                             </Link>
                           </SidebarMenuSubButton>
@@ -237,9 +241,9 @@ export function NavSettings() {
             if (item.title === 'API Docs') {
               return (
                 <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild tooltip={item.title}>
-                    <a href={item.url} target="_blank" rel="noopener noreferrer">
-                      <item.icon />
+                <SidebarMenuButton asChild tooltip={item.title}>
+                  <a href={item.url} target="_blank" rel="noopener noreferrer">
+                      <FontAwesomeIcon icon={item.icon} className="h-4 w-4" />
                       <span>{item.title}</span>
                     </a>
                   </SidebarMenuButton>
@@ -249,9 +253,9 @@ export function NavSettings() {
 
             return (
               <SidebarMenuItem key={item.title}>
-                <SidebarMenuButton asChild tooltip={item.title} isActive={isNavItemActive(item.url)}>
-                  <Link to={item.url} onClick={handleNavLinkClick}>
-                    <item.icon />
+              <SidebarMenuButton asChild tooltip={item.title} isActive={isNavItemActive(item.url)}>
+                <Link to={item.url} onClick={handleNavLinkClick}>
+                    <FontAwesomeIcon icon={item.icon} className="h-4 w-4" />
                     <span>{item.title}</span>
                   </Link>
                 </SidebarMenuButton>

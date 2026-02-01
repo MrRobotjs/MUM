@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams, useSearch } from '@tanstack/react-router'
-import { IconArrowLeft, IconPalette, IconKey, IconUsers, IconPencil, IconAlertCircle, IconInfoCircle } from '@tabler/icons-react'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { faArrowLeft, faPalette, faKey, faUsers, faPen, faCircleExclamation, faCircleInfo } from '@fortawesome/free-solid-svg-icons'
 import { useAdminRoles, useAdminPermissions } from '../hooks/useAdminRoles'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -42,12 +43,12 @@ export const AdminSettingsAdminRolesEditPage = () => {
     return (
       <div className="space-y-6">
         <Alert variant="destructive">
-          <IconAlertCircle />
+          <FontAwesomeIcon icon={faCircleExclamation} className="h-4 w-4" />
           <AlertTitle>Role not found</AlertTitle>
           <AlertDescription>The requested role could not be found.</AlertDescription>
         </Alert>
         <Button onClick={handleBack} variant="outline">
-          <IconArrowLeft className="mr-2 size-4" />
+          <FontAwesomeIcon icon={faArrowLeft} className="mr-2 size-4" />
           Back to Role List
         </Button>
       </div>
@@ -61,7 +62,7 @@ export const AdminSettingsAdminRolesEditPage = () => {
       {/* Navigation */}
       <div className="flex items-center">
         <Button variant="ghost" size="sm" onClick={handleBack}>
-          <IconArrowLeft className="mr-2 size-4" />
+          <FontAwesomeIcon icon={faArrowLeft} className="mr-2 size-4" />
           Back to Role List
         </Button>
       </div>
@@ -70,7 +71,7 @@ export const AdminSettingsAdminRolesEditPage = () => {
       <div className="space-y-4">
         <div className="flex items-center gap-4">
           <div className="flex size-12 shrink-0 items-center justify-center rounded-full bg-primary/20">
-            <IconPencil className="size-5 text-primary" />
+            <FontAwesomeIcon icon={faPen} className="size-5 text-primary" />
           </div>
           <div>
             <h1 className="text-2xl font-bold">Edit Role</h1>
@@ -83,7 +84,7 @@ export const AdminSettingsAdminRolesEditPage = () => {
         {/* Staff Role Notice */}
         {isAutoManaged && (
           <Alert variant="info">
-            <IconInfoCircle />
+            <FontAwesomeIcon icon={faCircleInfo} className="h-4 w-4" />
             <AlertTitle>Automatically Managed Role</AlertTitle>
             <AlertDescription>
               This role is automatically managed by the system. It is assigned based on admin
@@ -98,17 +99,17 @@ export const AdminSettingsAdminRolesEditPage = () => {
       <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList className="w-full justify-start overflow-x-auto">
           <TabsTrigger value="display">
-            <IconPalette className="mr-2 size-4" />
+            <FontAwesomeIcon icon={faPalette} className="mr-2 size-4" />
             Display Settings
           </TabsTrigger>
           {!isAutoManaged && (
             <TabsTrigger value="permissions">
-              <IconKey className="mr-2 size-4" />
+              <FontAwesomeIcon icon={faKey} className="mr-2 size-4" />
               Permissions
             </TabsTrigger>
           )}
           <TabsTrigger value="members">
-            <IconUsers className="mr-2 size-4" />
+            <FontAwesomeIcon icon={faUsers} className="mr-2 size-4" />
             Members ({role.user_count ?? 0})
           </TabsTrigger>
         </TabsList>

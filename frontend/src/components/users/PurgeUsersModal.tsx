@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react';
-import { IconAlertTriangle, IconInfoCircle } from '@tabler/icons-react';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faTrash, faTriangleExclamation, faCircleInfo } from '@fortawesome/free-solid-svg-icons';
 import { requestJson } from '../../util/apiClient';
 import { useAlerts } from '../../contexts/AlertContext';
 import { Input } from '../ui/input';
@@ -8,8 +9,6 @@ import { Label } from '../ui/label';
 import { Button } from '../ui/button';
 import { Alert, AlertDescription } from '../ui/alert';
 import { ResponsiveDialog } from '../ui/responsive-dialog';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faTrash } from '@fortawesome/free-solid-svg-icons';
 
 interface EligibleUser {
   uuid: string;
@@ -150,7 +149,7 @@ export const PurgeUsersModal = ({ onClose, onPurgeComplete }: PurgeUsersModalPro
     body: (
       <div className="space-y-4">
         <Alert variant="warning">
-          <IconAlertTriangle />
+          <FontAwesomeIcon icon={faTriangleExclamation} className="h-4 w-4" />
           <AlertDescription>
             This will permanently delete selected users and all their associated data. This action cannot be undone.
           </AlertDescription>
@@ -230,7 +229,7 @@ export const PurgeUsersModal = ({ onClose, onPurgeComplete }: PurgeUsersModalPro
     body: (
       <div className="space-y-4">
         <Alert variant="info">
-          <IconInfoCircle />
+          <FontAwesomeIcon icon={faCircleInfo} className="h-4 w-4" />
           <AlertDescription>
             Found {eligibleUsers.length} user{eligibleUsers.length !== 1 ? 's' : ''} matching your criteria.
             Review and select which users to purge.
@@ -298,7 +297,7 @@ export const PurgeUsersModal = ({ onClose, onPurgeComplete }: PurgeUsersModalPro
     body: (
       <div className="space-y-4">
         <Alert variant="destructive">
-          <IconAlertTriangle />
+          <FontAwesomeIcon icon={faTriangleExclamation} className="h-4 w-4" />
           <AlertDescription>
             <p className="font-semibold">Final Confirmation</p>
             <p className="text-sm">

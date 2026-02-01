@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useNavigate, useParams } from '@tanstack/react-router';
-import { IconWifi, IconCheck, IconX, IconAlertCircle } from '@tabler/icons-react';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faWifi, faCheck, faXmark, faCircleExclamation } from '@fortawesome/free-solid-svg-icons';
 import { PageHeader } from '../components';
 import { FormField } from '../components';
 import { useServers, useServerDetail } from '../hooks/useServers';
@@ -295,7 +296,7 @@ export const AdminSettingsPluginsServerEditPage = () => {
           ← Back
         </Button>
         <Alert variant="destructive">
-          <IconAlertCircle />
+          <FontAwesomeIcon icon={faCircleExclamation} className="h-4 w-4" />
           <AlertTitle>Server not found</AlertTitle>
           <AlertDescription>
             {serverError ? (serverError as Error).message : 'The requested server could not be found.'}
@@ -317,7 +318,7 @@ export const AdminSettingsPluginsServerEditPage = () => {
     if (connectionTestStatus === 'success') {
       return (
         <>
-          <IconCheck className="size-4" />
+          <FontAwesomeIcon icon={faCheck} className="size-4" />
           Connection Successful
         </>
       );
@@ -325,14 +326,14 @@ export const AdminSettingsPluginsServerEditPage = () => {
     if (connectionTestStatus === 'error') {
       return (
         <>
-          <IconX className="size-4" />
+          <FontAwesomeIcon icon={faXmark} className="size-4" />
           Connection Failed
         </>
       );
     }
     return (
       <>
-        <IconWifi className="size-4" />
+        <FontAwesomeIcon icon={faWifi} className="size-4" />
         Test Connection
       </>
     );
@@ -350,7 +351,7 @@ export const AdminSettingsPluginsServerEditPage = () => {
       <form id="server-edit-form" onSubmit={handleSubmit} className="space-y-6">
         {error && (
           <Alert variant="destructive">
-            <IconAlertCircle />
+            <FontAwesomeIcon icon={faCircleExclamation} className="h-4 w-4" />
             <AlertTitle>Error</AlertTitle>
             <AlertDescription>{error}</AlertDescription>
           </Alert>

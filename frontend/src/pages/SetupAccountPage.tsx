@@ -8,7 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../co
 import { Badge } from '../components/ui/badge'
 import { Separator } from '../components/ui/separator'
 import { Alert, AlertDescription } from '../components/ui/alert'
-import { IconCrown, IconLoader2, IconCheck, IconMovie } from '@tabler/icons-react'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { faCrown, faSpinner, faCheck, faFilm } from '@fortawesome/free-solid-svg-icons'
 import { SetupLayout, useSetupStatusContext } from './SetupLayout'
 import { setAccessToken } from '../util/tokenStore'
 
@@ -97,7 +98,7 @@ function SetupAccountContent() {
         <Card className="border border-primary/30 bg-primary/5">
           <CardHeader className="text-center">
             <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-primary/15">
-              <IconCheck className="h-8 w-8 text-primary" />
+              <FontAwesomeIcon icon={faCheck} className="h-8 w-8 text-primary" />
             </div>
             <CardTitle className="text-xl">Administrator Account Ready</CardTitle>
             <CardDescription>You can proceed to enabling media services.</CardDescription>
@@ -109,9 +110,9 @@ function SetupAccountContent() {
             <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
               <Button variant="secondary" onClick={startPlexSSO} disabled={plexLoading}>
                 {plexLoading ? (
-                  <IconLoader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <FontAwesomeIcon icon={faSpinner} className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
-                  <IconMovie className="mr-2 h-4 w-4" />
+                  <FontAwesomeIcon icon={faFilm} className="mr-2 h-4 w-4" />
                 )}
                 {plexLoading ? 'Starting Plex...' : 'Link Plex Account'}
               </Button>
@@ -125,7 +126,7 @@ function SetupAccountContent() {
             <CardHeader>
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
-                  <IconCrown className="h-5 w-5" />
+                  <FontAwesomeIcon icon={faCrown} className="h-5 w-5" />
                 </div>
                 <div>
                   <CardTitle>Create Administrator Account</CardTitle>
@@ -171,7 +172,7 @@ function SetupAccountContent() {
                   />
                 </div>
                 <Button type="submit" className="w-full" disabled={submitting}>
-                  {submitting && <IconLoader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  {submitting && <FontAwesomeIcon icon={faSpinner} className="mr-2 h-4 w-4 animate-spin" />}
                   Create Administrator Account
                 </Button>
               </form>
@@ -188,7 +189,7 @@ function SetupAccountContent() {
             <CardHeader>
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-500/10 text-amber-600">
-                  <IconMovie className="h-5 w-5" />
+                  <FontAwesomeIcon icon={faFilm} className="h-5 w-5" />
                 </div>
                 <div>
                   <CardTitle>Link Plex Account</CardTitle>
@@ -206,12 +207,12 @@ function SetupAccountContent() {
               <Button variant="outline" className="w-full" onClick={startPlexSSO} disabled={plexLoading}>
                 {plexLoading ? (
                   <>
-                    <IconLoader2 className="mr-2 h-4 w-4 animate-spin" />
+                    <FontAwesomeIcon icon={faSpinner} className="mr-2 h-4 w-4 animate-spin" />
                     Starting Plex...
                   </>
                 ) : (
                   <>
-                    <IconMovie className="mr-2 h-4 w-4" />
+                    <FontAwesomeIcon icon={faFilm} className="mr-2 h-4 w-4" />
                     Continue with Plex
                   </>
                 )}

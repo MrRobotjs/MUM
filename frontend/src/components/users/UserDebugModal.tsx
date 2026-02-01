@@ -12,7 +12,6 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { requestJson } from '../../util/apiClient';
 import { useAlerts } from '../../contexts';
-import { IconAlertCircle } from '@tabler/icons-react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faUser,
@@ -21,6 +20,7 @@ import {
   faTriangleExclamation,
   faLightbulb,
   faCopy,
+  faCircleExclamation,
 } from '@fortawesome/free-solid-svg-icons';
 
 interface UserDebugModalProps {
@@ -123,7 +123,7 @@ export const UserDebugModal = ({ open, onClose, userUuid }: UserDebugModalProps)
 
         {error && (
           <Alert variant="destructive">
-            <IconAlertCircle />
+            <FontAwesomeIcon icon={faCircleExclamation} className="h-4 w-4" />
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}

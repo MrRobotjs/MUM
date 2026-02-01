@@ -5,13 +5,6 @@ import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { Input } from '@/components/ui/input'
-import {
-  IconNotes,
-  IconShieldCheck,
-  IconPlayerPlay,
-  IconCalendarTime,
-  IconFolders,
-} from '@tabler/icons-react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import {
   faDownload,
@@ -19,6 +12,10 @@ import {
   faCircleInfo,
   faSquareCheck,
   faSquare,
+  faNoteSticky,
+  faPlay,
+  faCalendarDays,
+  faFolderOpen,
 } from '@fortawesome/free-solid-svg-icons'
 
 export type UserSettings = {
@@ -149,7 +146,7 @@ export const UserSettingsCard = ({ settings, loading, error, onSave }: UserSetti
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <IconNotes className="h-5 w-5 text-muted-foreground" />
+            <FontAwesomeIcon icon={faNoteSticky} className="h-5 w-5 text-muted-foreground" />
             <span>Notes & Comments</span>
           </CardTitle>
           <CardDescription>Internal notes about this user (not visible to them).</CardDescription>
@@ -205,7 +202,7 @@ export const UserSettingsCard = ({ settings, loading, error, onSave }: UserSetti
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <IconPlayerPlay className="h-5 w-5 text-muted-foreground" />
+            <FontAwesomeIcon icon={faPlay} className="h-5 w-5 text-muted-foreground" />
             <span>Stream Permissions</span>
           </CardTitle>
           <CardDescription>Control high-impact streaming capabilities.</CardDescription>
@@ -250,7 +247,7 @@ export const UserSettingsCard = ({ settings, loading, error, onSave }: UserSetti
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <IconCalendarTime className="h-5 w-5 text-muted-foreground" />
+            <FontAwesomeIcon icon={faCalendarDays} className="h-5 w-5 text-muted-foreground" />
             <span>Access Expiration</span>
           </CardTitle>
           <CardDescription>Automatically revoke access on a specific date.</CardDescription>
@@ -303,7 +300,7 @@ export const UserSettingsCard = ({ settings, loading, error, onSave }: UserSetti
           <CardHeader className="flex flex-row items-center justify-between space-y-0">
             <div>
               <CardTitle className="flex items-center gap-2">
-                <IconFolders className="h-5 w-5 text-muted-foreground" />
+                <FontAwesomeIcon icon={faFolderOpen} className="h-5 w-5 text-muted-foreground" />
                 <span>Library Access</span>
               </CardTitle>
               <CardDescription>Select which libraries this user can access.</CardDescription>

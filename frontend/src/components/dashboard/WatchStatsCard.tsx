@@ -3,23 +3,26 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAdminApi } from '../../hooks/useAdminApi';
 import { DashboardCard } from './DashboardLayout';
 // Images use cookie-based auth; no token param needed
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
-  IconRefresh,
-  IconMovie,
-  IconDeviceTv,
-  IconTrendingUp,
-  IconBrandChrome,
-  IconBrandFirefox,
-  IconBrandSafari,
-  IconBrandEdge,
-  IconBrandAndroid,
-  IconBrandApple,
-  IconBrandWindows,
-  IconDeviceDesktop,
-  IconDeviceMobile,
-  IconDeviceTablet,
-  IconBrandOpera
-} from '@tabler/icons-react';
+  faRotate,
+  faFilm,
+  faTv,
+  faArrowTrendUp,
+  faDesktop,
+  faMobileScreenButton,
+  faTabletScreenButton,
+} from '@fortawesome/free-solid-svg-icons';
+import {
+  faChrome,
+  faFirefoxBrowser,
+  faSafari,
+  faEdge,
+  faAndroid,
+  faApple,
+  faWindows,
+  faOpera,
+} from '@fortawesome/free-brands-svg-icons';
 
 type WatchStatsResponse = {
   data: {
@@ -41,26 +44,30 @@ const getPlatformIcon = (platform: string) => {
   const platformLower = platform.toLowerCase();
 
   // Browsers
-  if (platformLower.includes('chrome')) return <IconBrandChrome className="h-5 w-5" />;
-  if (platformLower.includes('firefox')) return <IconBrandFirefox className="h-5 w-5" />;
-  if (platformLower.includes('safari')) return <IconBrandSafari className="h-5 w-5" />;
-  if (platformLower.includes('edge')) return <IconBrandEdge className="h-5 w-5" />;
-  if (platformLower.includes('opera')) return <IconBrandOpera className="h-5 w-5" />;
+  if (platformLower.includes('chrome')) return <FontAwesomeIcon icon={faChrome} className="h-5 w-5" />;
+  if (platformLower.includes('firefox')) return <FontAwesomeIcon icon={faFirefoxBrowser} className="h-5 w-5" />;
+  if (platformLower.includes('safari')) return <FontAwesomeIcon icon={faSafari} className="h-5 w-5" />;
+  if (platformLower.includes('edge')) return <FontAwesomeIcon icon={faEdge} className="h-5 w-5" />;
+  if (platformLower.includes('opera')) return <FontAwesomeIcon icon={faOpera} className="h-5 w-5" />;
 
   // Operating Systems / Devices
-  if (platformLower.includes('android')) return <IconBrandAndroid className="h-5 w-5" />;
+  if (platformLower.includes('android')) return <FontAwesomeIcon icon={faAndroid} className="h-5 w-5" />;
   if (platformLower.includes('ios') || platformLower.includes('iphone') || platformLower.includes('ipad')) {
-    return <IconBrandApple className="h-5 w-5" />;
+    return <FontAwesomeIcon icon={faApple} className="h-5 w-5" />;
   }
-  if (platformLower.includes('macos') || platformLower.includes('mac os')) return <IconBrandApple className="h-5 w-5" />;
-  if (platformLower.includes('windows')) return <IconBrandWindows className="h-5 w-5" />;
+  if (platformLower.includes('macos') || platformLower.includes('mac os')) return <FontAwesomeIcon icon={faApple} className="h-5 w-5" />;
+  if (platformLower.includes('windows')) return <FontAwesomeIcon icon={faWindows} className="h-5 w-5" />;
 
   // Device types
-  if (platformLower.includes('mobile') || platformLower.includes('phone')) return <IconDeviceMobile className="h-5 w-5" />;
-  if (platformLower.includes('tablet') || platformLower.includes('ipad')) return <IconDeviceTablet className="h-5 w-5" />;
+  if (platformLower.includes('mobile') || platformLower.includes('phone')) {
+    return <FontAwesomeIcon icon={faMobileScreenButton} className="h-5 w-5" />;
+  }
+  if (platformLower.includes('tablet') || platformLower.includes('ipad')) {
+    return <FontAwesomeIcon icon={faTabletScreenButton} className="h-5 w-5" />;
+  }
 
   // Default
-  return <IconDeviceDesktop className="h-5 w-5" />;
+  return <FontAwesomeIcon icon={faDesktop} className="h-5 w-5" />;
 };
 
 const MediaList = ({ items, type }: { items: Array<{ title?: string; name?: string; plays: number; duration: string; poster_url?: string }>; type: 'movie' | 'show' }) => (
@@ -74,14 +81,16 @@ const MediaList = ({ items, type }: { items: Array<{ title?: string; name?: stri
           <Avatar className="h-12 w-12 rounded-md">
             <AvatarImage src={item.poster_url || ''} alt={title} className="object-cover" />
             <AvatarFallback className="rounded-md bg-primary/10 text-primary">
-              {type === 'movie' ? <IconMovie className="h-5 w-5" /> : <IconDeviceTv className="h-5 w-5" />}
+              {type === 'movie'
+                ? <FontAwesomeIcon icon={faFilm} className="h-5 w-5" />
+                : <FontAwesomeIcon icon={faTv} className="h-5 w-5" />}
             </AvatarFallback>
           </Avatar>
           <div className="flex-1 min-w-0">
             <p className="font-medium truncate text-sm">{title}</p>
             <p className="text-xs text-muted-foreground">{item.plays} plays · {item.duration}</p>
           </div>
-          <IconTrendingUp className="h-4 w-4 text-muted-foreground shrink-0" />
+          <FontAwesomeIcon icon={faArrowTrendUp} className="h-4 w-4 text-muted-foreground shrink-0" />
         </li>
       );
     })}
@@ -138,14 +147,14 @@ export const WatchStatsCard = () => {
           <div className="grid gap-6 lg:grid-cols-3">
             <div className="space-y-3">
               <h3 className="text-sm font-semibold flex items-center gap-2">
-                <IconMovie className="h-4 w-4 text-primary" />
+                <FontAwesomeIcon icon={faFilm} className="h-4 w-4 text-primary" />
                 Top Movies
               </h3>
               <MediaList items={data.data.top_movies} type="movie" />
             </div>
             <div className="space-y-3">
               <h3 className="text-sm font-semibold flex items-center gap-2">
-                <IconDeviceTv className="h-4 w-4 text-primary" />
+                <FontAwesomeIcon icon={faTv} className="h-4 w-4 text-primary" />
                 Top Shows
               </h3>
               <MediaList items={data.data.top_shows} type="show" />
@@ -162,7 +171,7 @@ export const WatchStatsCard = () => {
 
       <div className="flex justify-end pt-4">
         <Button variant="ghost" size="sm" onClick={() => mutate()}>
-          <IconRefresh className="mr-2 h-4 w-4" />
+          <FontAwesomeIcon icon={faRotate} className="mr-2 h-4 w-4" />
           Refresh
         </Button>
       </div>

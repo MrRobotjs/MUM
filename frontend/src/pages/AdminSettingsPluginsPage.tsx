@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
-import { IconAlertCircle, IconInfoCircle } from '@tabler/icons-react'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { faCircleExclamation, faCircleInfo } from '@fortawesome/free-solid-svg-icons'
 
 import { usePlugins, type Plugin } from '../hooks/usePlugins'
 import { useServers } from '../hooks/useServers'
@@ -129,13 +130,13 @@ export const AdminSettingsPluginsPage = () => {
 
       {error ? (
         <Alert variant="destructive">
-          <IconAlertCircle />
+          <FontAwesomeIcon icon={faCircleExclamation} className="h-4 w-4" />
           <AlertTitle>Failed to load plugins</AlertTitle>
           <AlertDescription>{(error as Error).message}</AlertDescription>
         </Alert>
       ) : (
         <Alert variant="info">
-          <IconInfoCircle />
+          <FontAwesomeIcon icon={faCircleInfo} className="h-4 w-4" />
           <AlertTitle>Built-in Plugins</AlertTitle>
           <AlertDescription>
             Enable and configure built-in media service plugins to connect to your servers.

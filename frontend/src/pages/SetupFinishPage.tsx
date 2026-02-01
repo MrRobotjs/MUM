@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
-import { IconCircleCheck, IconSparkles } from '@tabler/icons-react'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { faCircleCheck, faStar } from '@fortawesome/free-solid-svg-icons'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card'
 import { Button } from '../components/ui/button'
 import { SetupLayout, useSetupStatusContext } from './SetupLayout'
@@ -37,14 +38,14 @@ function SetupFinishContent() {
       <Card className="border border-primary/40 bg-primary/5">
         <CardHeader className="text-center space-y-3">
           <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-primary/15 text-primary">
-            <IconCircleCheck className="h-8 w-8" />
+            <FontAwesomeIcon icon={faCircleCheck} className="h-8 w-8" />
           </div>
           <CardTitle className="text-2xl">Setup Complete</CardTitle>
           <CardDescription className="text-base text-muted-foreground">
             MUM is ready for invites, automations, and day-to-day admin work.
           </CardDescription>
           <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-            <IconSparkles className="h-4 w-4" />
+            <FontAwesomeIcon icon={faStar} className="h-4 w-4" />
             <span>{status?.completed_steps?.length ?? 0} steps completed</span>
           </div>
         </CardHeader>

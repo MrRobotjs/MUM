@@ -39,7 +39,6 @@
     "chart.js": "^4.5.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "lucide-react": "^0.553.0",
     "react": "^19.2.0",
     "react-chartjs-2": "^5.3.1",
     "react-day-picker": "^9.11.1",

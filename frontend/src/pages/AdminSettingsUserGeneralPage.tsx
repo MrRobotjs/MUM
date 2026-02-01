@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { IconDeviceFloppy, IconUsers, IconAlertTriangle, IconInfoCircle } from '@tabler/icons-react'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { faFloppyDisk, faUsers, faTriangleExclamation, faCircleInfo } from '@fortawesome/free-solid-svg-icons'
 import { requestJson } from '../util/apiClient'
 import { useAlerts } from '../contexts'
 import { PageHeader } from '../components'
@@ -49,7 +50,7 @@ const UserAccountSettingsForm = ({ initialValue, refresh }: UserAccountSettingsF
           <CardHeader>
             <div className="flex items-center gap-3">
               <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/20">
-                <IconUsers className="size-5 text-primary" />
+                <FontAwesomeIcon icon={faUsers} className="size-5 text-primary" />
               </div>
               <div>
                 <CardTitle className="mb-1 text-xl font-semibold">User Accounts</CardTitle>
@@ -75,7 +76,7 @@ const UserAccountSettingsForm = ({ initialValue, refresh }: UserAccountSettingsF
             </div>
 
             <Alert variant="info">
-              <IconInfoCircle />
+              <FontAwesomeIcon icon={faCircleInfo} className="h-4 w-4" />
               <AlertDescription>
                 <strong>Note:</strong> User accounts are separate from media service accounts. Users will still need to be invited to media servers separately through the invitation system.
               </AlertDescription>
@@ -86,7 +87,7 @@ const UserAccountSettingsForm = ({ initialValue, refresh }: UserAccountSettingsF
                 {saving ? (
                   <span className="mr-2 inline-flex size-4 animate-spin rounded-full border-2 border-background border-t-transparent" />
                 ) : (
-                  <IconDeviceFloppy className="mr-2 size-4" />
+                  <FontAwesomeIcon icon={faFloppyDisk} className="mr-2 size-4" />
                 )}
                 {saving ? 'Saving.' : 'Save User Account Settings'}
               </Button>
@@ -96,7 +97,7 @@ const UserAccountSettingsForm = ({ initialValue, refresh }: UserAccountSettingsF
 
         <div className="flex items-center justify-end gap-3">
           <Button size="sm" disabled>
-            <IconDeviceFloppy className="mr-2 size-4" />
+            <FontAwesomeIcon icon={faFloppyDisk} className="mr-2 size-4" />
             Save Settings
           </Button>
         </div>
@@ -120,7 +121,7 @@ const AdminSettingsUserGeneralPage = () => {
   if (error) {
     return (
       <Alert variant="destructive">
-        <IconAlertTriangle />
+        <FontAwesomeIcon icon={faTriangleExclamation} className="h-4 w-4" />
         <AlertTitle>Failed to load settings</AlertTitle>
         <AlertDescription>{(error as Error).message}</AlertDescription>
       </Alert>

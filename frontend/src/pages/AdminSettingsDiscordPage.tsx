@@ -1,5 +1,18 @@
 import { useState } from 'react'
-import { IconAlertCircle, IconAlertTriangle, IconBrandDiscord, IconCopy, IconDeviceFloppy, IconInfoCircle, IconKey, IconRefresh, IconRobot, IconTestPipe, IconUsers } from '@tabler/icons-react'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import {
+  faCircleExclamation,
+  faTriangleExclamation,
+  faCopy,
+  faFloppyDisk,
+  faCircleInfo,
+  faKey,
+  faRotate,
+  faRobot,
+  faFlask,
+  faUsers,
+} from '@fortawesome/free-solid-svg-icons'
+import { faDiscord } from '@fortawesome/free-brands-svg-icons'
 import { useDiscordSettings, type DiscordSettings } from '../hooks/useSettings'
 import { PageHeader } from '../components'
 import { requestJson } from '../util/apiClient'
@@ -257,7 +270,7 @@ const DiscordSettingsForm = ({ initialState, refresh }: DiscordSettingsFormProps
       />
 
       <Alert variant="info">
-        <IconInfoCircle />
+        <FontAwesomeIcon icon={faCircleInfo} className="h-4 w-4" />
         <AlertTitle>Discord Integration Setup</AlertTitle>
         <AlertDescription>
           <p>Create a Discord application at{' '}
@@ -279,7 +292,7 @@ const DiscordSettingsForm = ({ initialState, refresh }: DiscordSettingsFormProps
             <div className="flex items-center justify-between gap-4">
               <div className="flex items-center gap-3">
                 <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/20">
-                  <IconBrandDiscord className="size-5 text-primary" />
+                  <FontAwesomeIcon icon={faDiscord} className="size-5 text-primary" />
                 </div>
                 <div>
                   <CardTitle className="mb-1 text-xl font-semibold">Discord OAuth</CardTitle>
@@ -293,7 +306,7 @@ const DiscordSettingsForm = ({ initialState, refresh }: DiscordSettingsFormProps
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-start gap-3">
                   <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/20">
-                    <IconKey className="size-4 text-primary" />
+                    <FontAwesomeIcon icon={faKey} className="size-4 text-primary" />
                   </div>
                   <div>
                     <p className="text-sm font-medium">Enable Auth Feature</p>
@@ -401,7 +414,7 @@ const DiscordSettingsForm = ({ initialState, refresh }: DiscordSettingsFormProps
                       disabled={!formMeta.redirect_uri_invite}
                       aria-label="Copy invite redirect URI"
                     >
-                      <IconCopy className="size-4" />
+                      <FontAwesomeIcon icon={faCopy} className="size-4" />
                     </Button>
                   </div>
                 </div>
@@ -426,7 +439,7 @@ const DiscordSettingsForm = ({ initialState, refresh }: DiscordSettingsFormProps
                       disabled={!formMeta.redirect_uri_admin}
                       aria-label="Copy admin redirect URI"
                     >
-                      <IconCopy className="size-4" />
+                      <FontAwesomeIcon icon={faCopy} className="size-4" />
                     </Button>
                   </div>
                   <p className="text-xs text-muted-foreground">
@@ -440,7 +453,7 @@ const DiscordSettingsForm = ({ initialState, refresh }: DiscordSettingsFormProps
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-start gap-3">
                   <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/20">
-                    <IconUsers className="size-4 text-primary" />
+                    <FontAwesomeIcon icon={faUsers} className="size-4 text-primary" />
                   </div>
                   <div>
                     <p className="text-sm font-medium">Enable Discord Membership Requirement Feature</p>
@@ -501,7 +514,7 @@ const DiscordSettingsForm = ({ initialState, refresh }: DiscordSettingsFormProps
             <div className="flex items-center justify-between gap-4">
               <div className="flex items-center gap-3">
                 <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/20">
-                  <IconRobot className="size-5 text-primary" />
+                  <FontAwesomeIcon icon={faRobot} className="size-5 text-primary" />
                 </div>
                 <div>
                   <CardTitle className="mb-1 text-xl font-semibold">Bot Configuration</CardTitle>
@@ -523,7 +536,7 @@ const DiscordSettingsForm = ({ initialState, refresh }: DiscordSettingsFormProps
           </CardHeader>
           <CardContent className="space-y-4">
             <Alert variant="warning">
-              <IconAlertTriangle />
+              <FontAwesomeIcon icon={faTriangleExclamation} className="h-4 w-4" />
               <AlertTitle>Under Development</AlertTitle>
               <AlertDescription>
                 Bot configuration is not functional yet and is still a WIP.
@@ -614,7 +627,7 @@ const DiscordSettingsForm = ({ initialState, refresh }: DiscordSettingsFormProps
               </>
             ) : (
               <>
-                <IconTestPipe className="mr-2 size-4" />
+                <FontAwesomeIcon icon={faFlask} className="mr-2 size-4" />
                 Test Connection
               </>
             )}
@@ -625,7 +638,7 @@ const DiscordSettingsForm = ({ initialState, refresh }: DiscordSettingsFormProps
             onClick={handleReset}
             disabled={!hasChanges || submitting}
           >
-            <IconRefresh className="mr-2 size-4" />
+            <FontAwesomeIcon icon={faRotate} className="mr-2 size-4" />
             Reset
           </Button>
           <Button type="submit" disabled={!hasChanges || submitting}>
@@ -636,7 +649,7 @@ const DiscordSettingsForm = ({ initialState, refresh }: DiscordSettingsFormProps
               </>
             ) : (
               <>
-                <IconDeviceFloppy className="mr-2 size-4" />
+                <FontAwesomeIcon icon={faFloppyDisk} className="mr-2 size-4" />
                 Save Changes
               </>
             )}
@@ -662,7 +675,7 @@ export const AdminSettingsDiscordPage = () => {
   if (error) {
     return (
       <Alert variant="destructive">
-        <IconAlertCircle />
+        <FontAwesomeIcon icon={faCircleExclamation} className="h-4 w-4" />
         <AlertTitle>Error</AlertTitle>
         <AlertDescription>
           Failed to load Discord settings: {(error as Error).message}

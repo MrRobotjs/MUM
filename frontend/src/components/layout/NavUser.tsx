@@ -1,11 +1,12 @@
 "use client"
 
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome"
 import {
-  IconDotsVertical,
-  IconLogout,
-  IconUserCircle,
-  IconSettings,
-} from "@tabler/icons-react"
+  faEllipsisVertical,
+  faRightFromBracket,
+  faUserCircle,
+  faGear,
+} from "@fortawesome/free-solid-svg-icons"
 
 import {
   Avatar,
@@ -83,7 +84,7 @@ export function NavUser({
                 <span className="truncate font-semibold">{user.name}</span>
                 <span className="truncate text-xs text-muted-foreground">{user.email}</span>
               </div>
-              <IconDotsVertical className="ml-auto size-4" />
+              <FontAwesomeIcon icon={faEllipsisVertical} className="ml-auto size-4" />
             </SidebarMenuButton>
           </DropdownMenuTrigger>
           <DropdownMenuContent
@@ -115,7 +116,7 @@ export function NavUser({
                   navigate({ to: "/admin/account" })
                 }}
               >
-                <IconUserCircle />
+                <FontAwesomeIcon icon={faUserCircle} className="h-4 w-4" />
                 My Account
               </DropdownMenuItem>
               <DropdownMenuItem
@@ -124,13 +125,13 @@ export function NavUser({
                   navigate({ to: "/admin/settings/general" })
                 }}
               >
-                <IconSettings />
+                <FontAwesomeIcon icon={faGear} className="h-4 w-4" />
                 App Settings
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleLogout}>
-              <IconLogout />
+              <FontAwesomeIcon icon={faRightFromBracket} className="h-4 w-4" />
               Log out
             </DropdownMenuItem>
           </DropdownMenuContent>

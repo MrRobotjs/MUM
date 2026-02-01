@@ -11,7 +11,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
-import { IconAlertCircle, IconInfoCircle } from '@tabler/icons-react'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { faCircleExclamation, faCircleInfo } from '@fortawesome/free-solid-svg-icons'
 
 export interface PluginConfigurationProps {
   plugin: Plugin
@@ -147,7 +148,7 @@ export const PluginConfiguration = ({
 
           {plugin.lastError ? (
             <Alert variant="destructive">
-              <IconAlertCircle />
+              <FontAwesomeIcon icon={faCircleExclamation} className="h-4 w-4" />
               <AlertTitle>Plugin warning</AlertTitle>
               <AlertDescription>{plugin.lastError}</AlertDescription>
             </Alert>
@@ -173,7 +174,7 @@ export const PluginConfiguration = ({
         <CardContent className="space-y-4">
           {serversError ? (
             <Alert variant="destructive">
-              <IconAlertCircle />
+              <FontAwesomeIcon icon={faCircleExclamation} className="h-4 w-4" />
               <AlertTitle>Failed to load servers</AlertTitle>
               <AlertDescription>{(serversError as Error).message}</AlertDescription>
             </Alert>
@@ -186,7 +187,7 @@ export const PluginConfiguration = ({
             </div>
           ) : pluginServers.length === 0 ? (
             <Alert variant="info">
-              <IconInfoCircle />
+              <FontAwesomeIcon icon={faCircleInfo} className="h-4 w-4" />
               <AlertTitle>No servers configured</AlertTitle>
               <AlertDescription>
                 There are no servers linked to this plugin yet. Click "Add Server" to get started.

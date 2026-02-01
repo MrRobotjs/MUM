@@ -25,9 +25,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { IconDots, IconRefresh } from '@tabler/icons-react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faGear, faLayerGroup, faServer, faGears, faHistory } from '@fortawesome/free-solid-svg-icons';
+import { faGear, faLayerGroup, faServer, faGears, faHistory, faEllipsis, faRotate } from '@fortawesome/free-solid-svg-icons';
 import type { UnifiedSession } from '../types/realtime';
 import type { ActiveSession, ActiveSessionsResponse, ViewMode } from '../types/streaming';
 
@@ -925,14 +924,14 @@ export const StreamingPage = () => {
         disabled={manualRefreshLoading || !isConnected}
         title={isConnected ? 'Refresh HTTP-only services' : 'Realtime streaming updates are disconnected'}
       >
-        <IconRefresh className={`h-4 w-4 ${manualRefreshLoading ? 'animate-spin' : ''}`} />
+        <FontAwesomeIcon icon={faRotate} className={`h-4 w-4 ${manualRefreshLoading ? 'animate-spin' : ''}`} />
         <span className="ml-2">Refresh HTTP</span>
       </Button>
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" size="sm" type="button" title="More options">
-            <IconDots className="h-4 w-4" />
+            <FontAwesomeIcon icon={faEllipsis} className="h-4 w-4" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuPortal>

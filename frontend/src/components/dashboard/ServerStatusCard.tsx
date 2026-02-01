@@ -1,7 +1,8 @@
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useAdminApi } from '../../hooks/useAdminApi';
-import { IconRefresh, IconEye, IconServer, IconActivity } from '@tabler/icons-react';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faRotate, faEye, faServer } from '@fortawesome/free-solid-svg-icons';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 type ServerStatusResponse = {
@@ -77,7 +78,7 @@ export const ServerStatusCard = ({ onViewAll }: ServerStatusCardProps = {}) => {
                     <div className="flex items-start justify-between">
                       <div className="flex items-center gap-2">
                         <div className="rounded-md bg-primary/10 p-2 text-primary">
-                          <IconServer className="h-4 w-4" />
+                          <FontAwesomeIcon icon={faServer} className="h-4 w-4" />
                         </div>
                         <span className="font-semibold">{server.name}</span>
                       </div>
@@ -113,12 +114,12 @@ export const ServerStatusCard = ({ onViewAll }: ServerStatusCardProps = {}) => {
 
         <div className="flex items-center justify-between pt-4">
           <Button variant="ghost" size="sm" onClick={() => mutate()}>
-            <IconRefresh className="mr-2 h-4 w-4" />
+            <FontAwesomeIcon icon={faRotate} className="mr-2 h-4 w-4" />
             Refresh
           </Button>
           {onViewAll ? (
             <Button variant="ghost" size="sm" onClick={onViewAll}>
-              <IconEye className="mr-2 h-4 w-4" />
+              <FontAwesomeIcon icon={faEye} className="mr-2 h-4 w-4" />
               View All
             </Button>
           ) : null}

@@ -1,12 +1,4 @@
 import { useState, useEffect, useMemo } from 'react';
-import {
-  IconAlertTriangle,
-  IconShieldLock,
-  IconShieldCheck,
-  IconClockHour4,
-  IconInfoCircle,
-} from '@tabler/icons-react';
-
 import { useAdvancedSettings, type AdvancedSettings } from '../hooks/useSettings';
 import { useScheduledTasks } from '../hooks/useScheduledTasks';
 import { useSystemConfig } from '../hooks/useSystemConfig';
@@ -32,7 +24,16 @@ import {
 } from '@/components/ui/table';
 import { ResponsiveDialog } from '@/components/ui/responsive-dialog';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faCircle, faServer, faDesktop } from '@fortawesome/free-solid-svg-icons';
+import {
+  faCircle,
+  faServer,
+  faDesktop,
+  faTriangleExclamation,
+  faShieldHalved,
+  faShield,
+  faClock,
+  faCircleInfo,
+} from '@fortawesome/free-solid-svg-icons';
 
 // Helper function to calculate countdown from next_run_time
 const useCountdown = (nextRunTime: string | null) => {
@@ -336,7 +337,7 @@ const AdvancedSettingsForm = ({ initialValues, refresh }: AdvancedSettingsFormPr
         <CardHeader>
           <div className="flex items-center gap-3">
             <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/20">
-              <IconShieldCheck className="size-5 text-primary" />
+              <FontAwesomeIcon icon={faShield} className="size-5 text-primary" />
             </div>
             <div>
               <CardTitle className="mb-1 text-xl font-semibold">API Requests</CardTitle>
@@ -406,14 +407,14 @@ export const AdminSettingsAdvancedPage = () => {
 
       {error && (
         <Alert variant="destructive">
-          <IconAlertTriangle />
+          <FontAwesomeIcon icon={faTriangleExclamation} className="h-4 w-4" />
           <AlertTitle>Failed to load advanced settings</AlertTitle>
           <AlertDescription>{(error as Error).message}</AlertDescription>
         </Alert>
       )}
 
       <Alert variant="default">
-        <IconShieldLock />
+        <FontAwesomeIcon icon={faShieldHalved} className="h-4 w-4" />
         <AlertTitle>Performance & Monitoring</AlertTitle>
         <AlertDescription>
           Configure timeouts and monitoring intervals for optimal performance. Changes take effect immediately.
@@ -440,7 +441,7 @@ export const AdminSettingsAdvancedPage = () => {
         <CardHeader>
           <div className="flex items-center gap-3">
             <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/20">
-              <IconShieldCheck className="size-5 text-primary" />
+              <FontAwesomeIcon icon={faShield} className="size-5 text-primary" />
             </div>
             <div>
               <CardTitle className="mb-1 text-xl font-semibold">MUM Configuration</CardTitle>
@@ -504,7 +505,7 @@ export const AdminSettingsAdvancedPage = () => {
         <CardHeader>
           <div className="flex items-center gap-3">
             <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/20">
-              <IconClockHour4 className="size-5 text-primary" />
+              <FontAwesomeIcon icon={faClock} className="size-5 text-primary" />
             </div>
             <div>
               <CardTitle className="mb-1 text-xl font-semibold">Scheduled Tasks</CardTitle>
@@ -550,7 +551,7 @@ export const AdminSettingsAdvancedPage = () => {
         onOpenChange={setIsModalOpen}
         title={
           <div className="flex items-center gap-2">
-            <IconInfoCircle className="size-5 text-primary" />
+            <FontAwesomeIcon icon={faCircleInfo} className="size-5 text-primary" />
             Task Details
           </div>
         }

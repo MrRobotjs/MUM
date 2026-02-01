@@ -1,6 +1,7 @@
 import { useMemo, useEffect, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
-import { IconInfoCircle, IconAlertCircle } from '@tabler/icons-react'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { faCircleInfo, faCircleExclamation } from '@fortawesome/free-solid-svg-icons'
 
 import { usePlugins, type Plugin } from '../hooks/usePlugins'
 import { useServers } from '../hooks/useServers'
@@ -112,7 +113,7 @@ function SetupPluginsContent() {
     <div className="space-y-6">
       {error && !(error instanceof ApiError && error.status === 401) ? (
         <Alert variant="destructive">
-          <IconAlertCircle />
+          <FontAwesomeIcon icon={faCircleExclamation} className="h-4 w-4" />
           <AlertTitle>Error Loading Plugins</AlertTitle>
           <AlertDescription>
             {error instanceof Error ? error.message : 'Failed to load plugins. Please try again.'}
@@ -120,7 +121,7 @@ function SetupPluginsContent() {
         </Alert>
       ) : (
         <Alert variant="info">
-          <IconInfoCircle />
+          <FontAwesomeIcon icon={faCircleInfo} className="h-4 w-4" />
           <AlertTitle>Plugin Setup</AlertTitle>
           <AlertDescription>
             Review the available plugins below. Click "Configure" on a plugin to enable it and add your servers.

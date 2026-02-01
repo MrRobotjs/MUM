@@ -3,7 +3,8 @@ import { useNavigate } from '@tanstack/react-router'
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card'
 import { Badge } from '../components/ui/badge'
-import { IconBrandDiscord } from '@tabler/icons-react'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { faDiscord } from '@fortawesome/free-brands-svg-icons'
 import { SetupLayout } from './SetupLayout'
 import { requestJson } from '../util/apiClient'
 import { useAlerts } from '../contexts'
@@ -34,7 +35,7 @@ function SetupDiscordContent() {
         <CardHeader>
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-300">
-              <IconBrandDiscord className="h-5 w-5" />
+              <FontAwesomeIcon icon={faDiscord} className="h-5 w-5" />
             </div>
             <div>
               <CardTitle>Discord OAuth</CardTitle>

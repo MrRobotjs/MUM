@@ -1,12 +1,14 @@
-import { Loader2Icon } from "lucide-react"
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome"
+import { faSpinner } from "@fortawesome/free-solid-svg-icons"
 
 import { cn } from "@/lib/utils"
 
-function Spinner({ className, ...props }: React.ComponentProps<"svg">) {
+function Spinner({ className, ...props }: React.ComponentProps<typeof FontAwesomeIcon>) {
   return (
-    <Loader2Icon
+    <FontAwesomeIcon
       role="status"
       aria-label="Loading"
+      icon={faSpinner}
       className={cn("size-4 animate-spin", className)}
       {...props}
     />

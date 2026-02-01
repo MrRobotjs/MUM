@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { IconSettings, IconShieldLock } from '@tabler/icons-react';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faGear, faShieldHalved } from '@fortawesome/free-solid-svg-icons';
 
 import { useGeneralSettings, type GeneralSettings } from '../hooks/useSettings';
 import { PageHeader } from '../components';
@@ -73,7 +74,7 @@ const GeneralSettingsForm = ({ initialValues, refresh }: GeneralSettingsFormProp
         <CardHeader>
           <div className="flex items-center gap-3">
             <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/20">
-              <IconSettings className="size-5 text-primary" />
+              <FontAwesomeIcon icon={faGear} className="size-5 text-primary" />
             </div>
             <div>
               <CardTitle className="mb-1 text-xl font-semibold">Application</CardTitle>
@@ -139,7 +140,7 @@ const GeneralSettingsForm = ({ initialValues, refresh }: GeneralSettingsFormProp
         <CardHeader>
           <div className="flex items-center gap-3">
             <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/20">
-              <IconShieldLock className="size-5 text-primary" />
+              <FontAwesomeIcon icon={faShieldHalved} className="size-5 text-primary" />
             </div>
             <div>
               <CardTitle className="mb-1 text-xl font-semibold">Security</CardTitle>

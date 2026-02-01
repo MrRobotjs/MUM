@@ -5,7 +5,8 @@ import { PluginConfiguration } from '../components/plugins';
 import { PageHeader } from '../components';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { IconAlertCircle } from '@tabler/icons-react';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faCircleExclamation } from '@fortawesome/free-solid-svg-icons';
 
 export const AdminSettingsPluginsDetailPage = () => {
   const { pluginId } = useParams({ from: '/admin/settings/plugins/$pluginId' });
@@ -26,7 +27,7 @@ export const AdminSettingsPluginsDetailPage = () => {
   if (pluginsError) {
     return (
       <Alert variant="destructive">
-        <IconAlertCircle />
+        <FontAwesomeIcon icon={faCircleExclamation} className="h-4 w-4" />
         <AlertTitle>Failed to load plugins</AlertTitle>
         <AlertDescription>{(pluginsError as Error).message}</AlertDescription>
       </Alert>
@@ -40,7 +41,7 @@ export const AdminSettingsPluginsDetailPage = () => {
           ← Back to Plugins
         </Button>
         <Alert variant="destructive">
-          <IconAlertCircle />
+          <FontAwesomeIcon icon={faCircleExclamation} className="h-4 w-4" />
           <AlertTitle>Plugin not found</AlertTitle>
           <AlertDescription>Plugin "{resolvedPluginId}" could not be located.</AlertDescription>
         </Alert>

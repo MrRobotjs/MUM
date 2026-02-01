@@ -7,7 +7,8 @@ import { Label } from '../components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card'
 import { Alert, AlertDescription } from '../components/ui/alert'
 import { Badge } from '../components/ui/badge'
-import { IconLoader2, IconWorld, IconSettings, IconCheck } from '@tabler/icons-react'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { faSpinner, faGlobe, faGear, faCheck } from '@fortawesome/free-solid-svg-icons'
 import { SetupLayout, useSetupStatusContext } from './SetupLayout'
 
 function SetupAppContent() {
@@ -66,7 +67,7 @@ function SetupAppContent() {
         <Card className="border border-primary/30 bg-primary/5">
           <CardHeader className="text-center">
             <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-primary/15">
-              <IconCheck className="h-8 w-8 text-primary" />
+              <FontAwesomeIcon icon={faCheck} className="h-8 w-8 text-primary" />
             </div>
             <CardTitle className="text-xl">Configuration Saved</CardTitle>
             <CardDescription>Your branding and URLs are set.</CardDescription>
@@ -80,7 +81,7 @@ function SetupAppContent() {
           <CardHeader>
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
-                  <IconSettings className="h-5 w-5" />
+                  <FontAwesomeIcon icon={faGear} className="h-5 w-5" />
               </div>
               <div>
                 <CardTitle>App Identity</CardTitle>
@@ -119,7 +120,7 @@ function SetupAppContent() {
                 />
               </div>
               <Button type="submit" className="w-full" disabled={submitting}>
-                {submitting && <IconLoader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {submitting && <FontAwesomeIcon icon={faSpinner} className="mr-2 h-4 w-4 animate-spin" />}
                 Save and Continue
               </Button>
             </form>
@@ -130,7 +131,7 @@ function SetupAppContent() {
       <Card className="border border-muted">
         <CardHeader className="flex flex-row items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
-            <IconWorld className="h-5 w-5" />
+            <FontAwesomeIcon icon={faGlobe} className="h-5 w-5" />
           </div>
           <div>
             <CardTitle>Why two URLs?</CardTitle>

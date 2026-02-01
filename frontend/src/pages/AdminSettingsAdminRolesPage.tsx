@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
-import { IconGripVertical, IconAlertCircle, IconInfoCircle, IconShield } from '@tabler/icons-react'
 import {
   DndContext,
   MouseSensor,
@@ -48,6 +47,10 @@ import {
   faShieldHalved,
   faPenToSquare,
   faTrashCan,
+  faGripVertical,
+  faCircleExclamation,
+  faCircleInfo,
+  faShield,
 } from '@fortawesome/free-solid-svg-icons'
 
 type RoleFormValues = {
@@ -432,14 +435,14 @@ export const AdminSettingsAdminRolesPage = () => {
 
       {error ? (
         <Alert variant="destructive">
-          <IconAlertCircle />
+          <FontAwesomeIcon icon={faCircleExclamation} className="h-4 w-4" />
           <AlertTitle>Failed to load roles</AlertTitle>
           <AlertDescription>{(error as Error).message}</AlertDescription>
         </Alert>
       ) : null}
 
       <Alert variant="info">
-        <IconInfoCircle />
+        <FontAwesomeIcon icon={faCircleInfo} className="h-4 w-4" />
         <AlertTitle>Role hierarchy</AlertTitle>
         <AlertDescription>
           Drag roles using the handle to adjust their hierarchy. Higher positions have more
@@ -451,7 +454,7 @@ export const AdminSettingsAdminRolesPage = () => {
         <CardHeader>
           <div className="flex items-center gap-3">
             <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/20">
-              <IconShield className="size-5 text-primary" />
+              <FontAwesomeIcon icon={faShield} className="size-5 text-primary" />
             </div>
             <div>
               <CardTitle className="mb-1 text-xl font-semibold">Existing Roles</CardTitle>
@@ -683,7 +686,7 @@ const SortableRoleRow = ({ role, disabled, onEdit, onDelete }: SortableRoleRowPr
           {...(!disabled ? { ...listeners, ...attributes } : {})}
           aria-label={`Reorder ${role.name}`}
         >
-          <IconGripVertical className="size-5" />
+          <FontAwesomeIcon icon={faGripVertical} className="size-5" />
         </button>
       </TableCell>
       <TableCell>

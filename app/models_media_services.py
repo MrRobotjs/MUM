@@ -224,11 +224,11 @@ class MediaItem(db.Model):
         thumb_url = None
         if self.thumb_path:
             if self.thumb_path.startswith('/admin/api/'):
-                # Already a proxy URL with correct prefix (Jellyfin or other services)
-                thumb_url = self.thumb_path
+                # Legacy admin-prefixed proxy URL; normalize to unified API base
+                thumb_url = self.thumb_path.replace('/admin', '', 1)
             elif self.thumb_path.startswith('/api/'):
-                # Legacy proxy URL without admin prefix - add it
-                thumb_url = f"/admin{self.thumb_path}"
+                # Unified proxy URL - keep as-is
+                thumb_url = self.thumb_path
             elif self.thumb_path.startswith('http'):
                 # Full URL (like RomM) - use as-is
                 thumb_url = self.thumb_path

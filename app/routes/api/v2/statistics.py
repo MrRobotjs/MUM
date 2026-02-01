@@ -48,9 +48,9 @@ def _construct_poster_url(thumb_path, service_type):
     if not thumb_path:
         return None
     if thumb_path.startswith('/admin/api/'):
-        return thumb_path
+        return thumb_path.replace('/admin', '', 1)
     elif thumb_path.startswith('/api/'):
-        return f"/admin{thumb_path}"
+        return thumb_path
     elif thumb_path.startswith('http'):
         return thumb_path
     else:

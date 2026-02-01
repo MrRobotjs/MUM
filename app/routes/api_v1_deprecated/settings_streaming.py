@@ -4,8 +4,8 @@ from flask import jsonify, request, current_app
 from flask_login import login_required, current_user
 
 from app.routes.api_v1_deprecated import bp
-from app.models import Setting, EventType
-from app.utils.helpers import permission_required, log_event
+from app.models import Setting
+from app.utils.helpers import permission_required
 from app.services.media_service_manager import MediaServiceManager
 from app.services.media_service_factory import MediaServiceFactory
 from app.extensions import db
@@ -108,10 +108,6 @@ def api_update_streaming_settings():
         Setting.set('SESSION_MONITORING_INTERVAL_SECONDS', str(interval_value))
         Setting.set('STREAMING_WEBSOCKET_REFRESH_INTERVAL_SECONDS', str(websocket_interval_value))
 
-        log_event(
-            EventType.SETTING_CHANGE,
-            f"Streaming settings updated: badge={'on' if enable_badge else 'off'}, interval={interval_value}, websocket_refresh={websocket_interval_value}",
-            admin_id=getattr(current_user, 'id', None)
         )
 
         return jsonify({
@@ -248,10 +244,6 @@ def api_terminate_session():
         success = service.terminate_session(session_key, message)
 
         if success:
-            log_event(
-                EventType.STREAMING_SESSION_TERMINATED,
-                f"Session {session_key} terminated on {server_name}",
-                admin_id=getattr(current_user, 'id', None)
             )
 
             return jsonify({

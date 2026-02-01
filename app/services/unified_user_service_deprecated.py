@@ -7,8 +7,7 @@ from app.models_media_services import MediaServer, ServiceType
 from app.services.media_service_manager import MediaServiceManager
 from app.services.media_service_factory import MediaServiceFactory
 from app.extensions import db
-from app.utils.helpers import log_event
-from app.models import User, UserType, EventType
+from app.models import User, UserType
 
 class UnifiedUserService:
     """Service for managing users across all media services"""
@@ -340,12 +339,6 @@ class UnifiedUserService:
         if changes_made:
             try:
                 db.session.commit()
-                log_event(
-                    EventType.MUM_USER_LIBRARIES_EDITED,
-                    f"Updated access for '{user.get_display_name()}' on {server.server_nickname}",
-                    user_id=user_id,
-                    admin_id=admin_id
-                )
                 return True
             except Exception as e:
                 db.session.rollback()
@@ -386,12 +379,6 @@ class UnifiedUserService:
             db.session.delete(access)
             db.session.commit()
             
-            log_event(
-                EventType.PLEX_USER_REMOVED,
-                f"Removed '{user.get_display_name()}' from {server.server_nickname}",
-                user_id=user_id,
-                admin_id=admin_id
-            )
             
             return True
         except Exception as e:
@@ -420,11 +407,6 @@ class UnifiedUserService:
             db.session.delete(user)
             db.session.commit()
             
-            log_event(
-                EventType.MUM_USER_DELETED_FROM_MUM,
-                f"Deleted user '{username}' completely from MUM",
-                admin_id=admin_id
-            )
             
             return True
         except Exception as e:

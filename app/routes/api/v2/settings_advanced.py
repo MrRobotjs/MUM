@@ -11,9 +11,8 @@ from pydantic import BaseModel, Field
 from flask_openapi3 import Tag
 
 from app.routes.api.v2 import api_v2
-from app.models import Setting, SettingValueType, EventType, User
+from app.models import Setting, SettingValueType, User
 from app.models_media_services import MediaServer, ServiceType
-from app.utils.helpers import log_event
 from app.extensions import scheduler, db
 
 
@@ -78,7 +77,6 @@ def update_advanced_settings(body: UpdateAdvancedBody, current_user):
     # Apply to app config if relevant
     current_app.config['API_TIMEOUT_SECONDS'] = int(body.api_timeout_seconds)
 
-    log_event(EventType.SETTING_CHANGE, "Advanced settings updated via API.", admin_id=current_user.id)
     return jsonify({"data": _serialize_advanced_settings(), "meta": {"request_id": request_id}}), 200
 
 

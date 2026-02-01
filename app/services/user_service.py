@@ -3,10 +3,10 @@ from flask import current_app
 from sqlalchemy.exc import IntegrityError
 from datetime import datetime, timezone, timedelta
 from sqlalchemy import func, case, or_
-from app.models import User, UserType, EventType
+from app.models import User, UserType
 from app.models_media_services import ServiceType, MediaServer, MediaStreamHistory
 from app.extensions import db
-from app.utils.helpers import log_event, format_duration
+from app.utils.helpers import format_duration
 from app.services.media_service_manager import MediaServiceManager
 from app.services.media_service_factory import MediaServiceFactory
 
@@ -180,14 +180,6 @@ def sync_users_from_plex():
             db.session.commit()
             current_app.logger.info(f"DB commit successful for sync. Added: {len(added_users_details)}, Updated: {len(updated_users_details)}, Removed: {len(removed_users_details)}")
             # Log summary event
-            log_event(EventType.PLEX_SYNC_USERS_COMPLETE, 
-                      f"Plex user sync complete. Added: {len(added_users_details)}, Updated: {len(updated_users_details)}, Removed: {len(removed_users_details)}, Errors: {error_count}.",
-                      details={
-                          "added_count": len(added_users_details),
-                          "updated_count": len(updated_users_details),
-                          "removed_count": len(removed_users_details),
-                          "errors": error_count
-                      })
         except Exception as e_commit:
             db.session.rollback()
             msg = f"DB commit error during sync: {e_commit}"
@@ -254,17 +246,14 @@ def update_user_details(user_id, notes=None, new_library_ids=None,
     if is_discord_bot_whitelisted is not None and user.is_discord_bot_whitelisted != is_discord_bot_whitelisted:
         user.is_discord_bot_whitelisted = is_discord_bot_whitelisted
         changes_made_to_mum = True
-        log_event(EventType.SETTING_CHANGE, f"User '{user.get_display_name()}' Discord Bot Whitelist set to {is_discord_bot_whitelisted}", user_id=user.id, admin_id=admin_id)
 
     if is_purge_whitelisted is not None and user.is_purge_whitelisted != is_purge_whitelisted:
         user.is_purge_whitelisted = is_purge_whitelisted
         changes_made_to_mum = True
-        log_event(EventType.SETTING_CHANGE, f"User '{user.get_display_name()}' Purge Whitelist set to {is_purge_whitelisted}", user_id=user.id, admin_id=admin_id)
         
     if allow_4k_transcode is not None and user.allow_4k_transcode != allow_4k_transcode:
         user.allow_4k_transcode = allow_4k_transcode
         changes_made_to_mum = True
-        log_event(EventType.SETTING_CHANGE, f"User '{user.get_display_name()}' Allow 4K Transcode set to {allow_4k_transcode}", user_id=user.id, admin_id=admin_id)
 
 
     # --- Plex-related settings ---
@@ -276,14 +265,12 @@ def update_user_details(user_id, notes=None, new_library_ids=None,
             libraries_changed = True
             user.allowed_library_ids = new_library_ids # Update MUM record
             changes_made_to_mum = True
-            log_event(EventType.MUM_USER_LIBRARIES_EDITED, f"Manually updated libraries for '{user.get_display_name()}'.", user_id=user.id, admin_id=admin_id)
 
     downloads_changed = False
     if allow_downloads is not None and user.allow_downloads != allow_downloads:
         downloads_changed = True
         user.allow_downloads = allow_downloads # Update MUM record
         changes_made_to_mum = True
-        log_event(EventType.SETTING_CHANGE, f"User '{user.get_display_name()}' Allow Downloads set to {allow_downloads}", user_id=user.id, admin_id=admin_id)
         
     # --- Make the API call to Plex ONLY IF a Plex-related setting changed ---
     if libraries_changed or downloads_changed:
@@ -408,22 +395,12 @@ def delete_user_from_mum_and_plex(user_id, admin_id: int = None):
         
         db.session.commit()
         
-        log_event(EventType.MUM_USER_DELETED_FROM_MUM, 
-                 f"User '{username}' removed from MUM and {service_type.value} server.", 
-                 admin_id=admin_id, 
-                 details={
-                     'deleted_username': username, 
-                     'deleted_user_id_in_mum': user_id, 
-                     'service_type': service_type.value,
-                     'service_user_id': user_service_id
-                 })
         return True
         
     except Exception as e:
         db.session.rollback()
         current_app.logger.error(f"Failed to fully delete user {username}: {e}", exc_info=True)
         # Log event for the failure as well
-        log_event(EventType.ERROR_GENERAL, f"Failed to delete user {username}: {e}", admin_id=admin_id, user_id=user_id)
         raise Exception(f"Failed to remove user {username} from MUM: {e}")
 
 def mass_update_user_libraries(user_ids: list, new_library_ids: list, admin_id: int = None):
@@ -480,7 +457,6 @@ def mass_update_user_libraries(user_ids: list, new_library_ids: list, admin_id: 
     if processed_count > 0 or error_count > 0: 
         try:
             db.session.commit()
-            log_event(EventType.MUM_USER_LIBRARIES_EDITED, f"Mass update: Libs processed for {processed_count} users.", admin_id=admin_id, details={'attempted_count': len(user_ids), 'success_count': processed_count - error_count, 'errors': error_count})
         except Exception as e:
             db.session.rollback(); current_app.logger.error(f"Mass Update: DB commit error: {e}");
             error_count = len(users_to_update); 
@@ -636,7 +612,6 @@ def mass_update_user_libraries_by_server(user_ids: list, updates_by_server: dict
     if processed_count > 0 or error_count > 0:
         try:
             db.session.commit()
-            log_event(EventType.MUM_USER_LIBRARIES_EDITED, f"Mass library update by server complete. Processed {processed_count} user-server relations with {error_count} errors.", admin_id=admin_id)
         except Exception as e:
             db.session.rollback()
             current_app.logger.error(f"Mass Update by Server: DB commit error: {e}")
@@ -662,7 +637,6 @@ def mass_update_bot_whitelist(user_uuids: list, should_whitelist: bool, admin_id
     
     if updated_count > 0: 
         db.session.commit()
-    log_event(EventType.SETTING_CHANGE, f"Mass updated Discord Bot Whitelist for {updated_count} service users to {should_whitelist}.", admin_id=admin_id, details={"count": updated_count, "whitelisted": should_whitelist})
     return updated_count
 
 def mass_update_purge_whitelist(user_uuids: list, should_whitelist: bool, admin_id: int = None):
@@ -682,7 +656,6 @@ def mass_update_purge_whitelist(user_uuids: list, should_whitelist: bool, admin_
     
     if updated_count > 0: 
         db.session.commit()
-    log_event(EventType.SETTING_CHANGE, f"Mass updated Purge Whitelist for {updated_count} service users to {should_whitelist}.", admin_id=admin_id, details={"count": updated_count, "whitelisted": should_whitelist})
     return updated_count
 
 def mass_delete_users(user_ids: list, admin_id: int = None):
@@ -812,18 +785,15 @@ def mass_delete_users(user_ids: list, admin_id: int = None):
             current_app.logger.info(f"Mass Delete: Committing deletion of {processed_count} users to database...")
             db.session.commit()
             current_app.logger.info(f"Mass Delete: Successfully committed {processed_count} user deletions")
-            log_event(EventType.MUM_USER_DELETED_FROM_MUM, f"Mass delete: {processed_count} users removed from MUM and media servers.", admin_id=admin_id, details={'deleted_count': processed_count, 'errors': error_count, 'attempted_ids_count': len(user_ids), 'deleted_usernames_sample': usernames_for_log_detail[:10]})
         except Exception as e_commit:
             db.session.rollback()
             current_app.logger.error(f"Mass Delete: DB commit error: {e_commit}")
             # All deletions failed due to commit error
             error_count += processed_count
             processed_count = 0
-            log_event(EventType.ERROR_GENERAL, f"Mass delete DB commit failed: {e_commit}", admin_id=admin_id, details={'attempted_count': len(user_ids)})
     elif error_count > 0:
         # No successes, only errors, still log the attempt
         current_app.logger.warning(f"Mass Delete: No users were successfully processed. {error_count} errors occurred.")
-        log_event(EventType.ERROR_GENERAL, f"Mass delete attempt failed for all {error_count} users selected.", admin_id=admin_id, details={'attempted_count': len(user_ids), 'errors': error_count})
     else:
         current_app.logger.warning("Mass Delete: No users were provided for deletion.")
 
@@ -1003,9 +973,6 @@ def purge_inactive_users(user_ids_to_purge: list[int], admin_id: int, inactive_d
     if error_count > 0:
         result_message += f" {error_count} errors."
 
-    log_event(EventType.MUM_USER_DELETED_FROM_MUM, result_message, admin_id=admin_id, details={
-        "action": "purge_selected_inactive_service_users", "purged_count": purged_count, "errors": error_count
-    })
     
     return {"message": result_message, "purged_count": purged_count, "errors": error_count}
 
@@ -1273,7 +1240,6 @@ def mass_extend_access(user_uuids: list, days_to_extend: int, admin_id: int = No
     
     if processed_count > 0: 
         db.session.commit()
-    log_event(EventType.SETTING_CHANGE, f"Mass extended access for {processed_count} service users by {days_to_extend} days.", admin_id=admin_id, details={"count": processed_count, "days": days_to_extend})
     return processed_count, error_count
 
 def mass_set_expiration(user_uuids: list, new_expiration_date, admin_id: int = None):
@@ -1296,7 +1262,6 @@ def mass_set_expiration(user_uuids: list, new_expiration_date, admin_id: int = N
     
     if processed_count > 0: 
         db.session.commit()
-    log_event(EventType.SETTING_CHANGE, f"Mass set expiration for {processed_count} service users to {new_expiration_date}.", admin_id=admin_id, details={"count": processed_count, "expiration_date": str(new_expiration_date)})
     return processed_count, error_count
 
 def mass_clear_expiration(user_uuids: list, admin_id: int = None):
@@ -1319,7 +1284,6 @@ def mass_clear_expiration(user_uuids: list, admin_id: int = None):
     
     if processed_count > 0: 
         db.session.commit()
-    log_event(EventType.SETTING_CHANGE, f"Mass cleared expiration for {processed_count} service users.", admin_id=admin_id, details={"count": processed_count})
     return processed_count, error_count
 
 def merge_service_users_into_local_account(user_uuids: list, username: str, password: str, admin_id: int = None):
@@ -1423,14 +1387,6 @@ def merge_service_users_into_local_account(user_uuids: list, username: str, pass
         db.session.commit()
         
         # Log the event
-        log_event(EventType.SETTING_CHANGE, 
-                  f"Created local account '{username}' and linked {processed_count} service users",
-                  admin_id=admin_id,
-                  details={
-                      "local_username": username,
-                      "linked_service_users": processed_count,
-                      "errors": error_count
-                  })
         
         current_app.logger.info(f"Successfully created local account '{username}' and linked {processed_count} service users")
         

@@ -12,8 +12,7 @@ from flask import current_app
 from app.services.base_media_service import BaseMediaService
 from app.models_media_services import ServiceType
 from app.utils.timeout_helper import get_api_timeout
-from app.models import User, UserType, Setting, EventType
-from app.utils.helpers import log_event
+from app.models import User, UserType, Setting
 from app.utils.format_rate import format_bps_rate
 
 class PlexMediaService(BaseMediaService):

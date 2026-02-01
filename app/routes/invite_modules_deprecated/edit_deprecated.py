@@ -6,10 +6,10 @@ import json
 from datetime import datetime, timezone
 from flask import render_template, request, current_app, flash, make_response
 from flask_login import login_required, current_user
-from app.models import User, UserType, Invite, Setting, EventType
+from app.models import User, UserType, Invite, Setting
 from app.forms import InviteEditForm
 from app.extensions import db
-from app.utils.helpers import setup_required, calculate_expiry_date, log_event, permission_required
+from app.utils.helpers import setup_required, calculate_expiry_date, permission_required
 from app.services.media_service_manager import MediaServiceManager
 from . import invites_admin_bp as invites_bp
 
@@ -160,7 +160,6 @@ def update_invite(invite_id):
         invite.allow_live_tv = form.allow_live_tv.data
         
         db.session.commit()
-        log_event(EventType.SETTING_CHANGE, f"Invite '{invite.custom_path or invite.token}' updated.", invite_id=invite.id, admin_id=current_user.id)
         
         response = make_response("", 204)
         trigger_payload = {"refreshInvitesList": True, "showToastEvent": {"message": "Invite updated successfully!", "category": "success"}}

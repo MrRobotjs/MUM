@@ -21,8 +21,7 @@ from sqlalchemy import func
 from pydantic import BaseModel
 
 from app.extensions import db
-from app.models import User, UserType, Setting, EventType
-from app.utils.helpers import log_event
+from app.models import User, UserType, Setting
 
 from . import api_v2, public_session_tag
 
@@ -93,7 +92,6 @@ def public_jwt_login_v2():
 
     candidate = _find_local_user(username)
     if not candidate or not candidate.check_password(password):
-        log_event(EventType.ADMIN_LOGIN_FAIL, f"Failed local login attempt for '{username}'.")
         return jsonify({'error': {'code': 'INVALID_CREDENTIALS', 'message': 'Invalid username or password.'}, 'meta': {'request_id': request_id}}), 401
 
     if not candidate.is_active:
@@ -110,7 +108,6 @@ def public_jwt_login_v2():
 
     resp = jsonify({'data': {'access_token': access_token, 'user': _serialize_portal_user(candidate)}, 'meta': {'request_id': request_id}})
     set_refresh_cookie(resp, refresh_token)
-    log_event(EventType.ADMIN_LOGIN_SUCCESS, f"App user '{candidate.localUsername}' logged in (JWT public).")
     return resp, 200
 
 

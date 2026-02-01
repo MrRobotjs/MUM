@@ -1,9 +1,8 @@
 # File: app/services/task_service.py
 from flask import current_app
 from app.extensions import scheduler
-from app.models import Setting, EventType, User, UserType
+from app.models import Setting, User, UserType
 from app.models_media_services import MediaServer, MediaStreamHistory, ServiceType
-from app.utils.helpers import log_event
 from . import user_service  # user_service is needed for deleting users
 from app.services.media_service_manager import MediaServiceManager
 from datetime import datetime, timezone, timedelta
@@ -527,12 +526,6 @@ def _run_media_session_monitor(
                                 exc_info=True,
                             )
                         if terminated:
-                            log_event(
-                                EventType.STREAMING_SESSION_TERMINATED,
-                                f"Terminated 4K transcode session for user {user_media_access.external_username if user_media_access else mum_user.get_display_name() if mum_user else 'unknown'}.",
-                                user_id=(mum_user.id if mum_user else user_media_access.id if user_media_access else None),
-                                details={"reason": reason, "session_key": str(session_key)},
-                            )
                             _active_stream_sessions.pop(session_key, None)
                             continue
                         else:
@@ -913,23 +906,10 @@ def check_user_access_expirations_task():
                 UnifiedUserService.delete_user_completely(user_id=mum_user_id_for_log, admin_id=system_admin_id)
                 removal_count += 1
                 
-                log_event(
-                    EventType.MUM_USER_DELETED_FROM_MUM,
-                    f"User '{username_for_log}' automatically removed due to expired invite-based access (expired: {original_expiry_for_log}).",
-                    user_id=mum_user_id_for_log,
-                    admin_id=system_admin_id, 
-                    details={"reason": "Automated removal: invite access duration expired."}
-                )
                 current_app.logger.info(f"Successfully removed expired user '{username_for_log}'")
                 
             except Exception as e:
                 current_app.logger.error(f"Error removing expired user '{username_for_log}': {e}", exc_info=True)
-                log_event(
-                    EventType.ERROR_GENERAL,
-                    f"Task failed to remove expired user '{username_for_log}': {e}",
-                    user_id=mum_user_id_for_log,
-                    admin_id=system_admin_id
-                )
         
         current_app.logger.info(f"User expiration check complete. Removed: {removal_count}/{len(expired_users)} users.")
 
@@ -997,7 +977,6 @@ def _schedule_job_if_not_exists_or_reschedule(
     except Exception as e:
         current_app.logger.error(f"Task_Service: Error adding/rescheduling job '{job_id}': {e}", exc_info=True)
         try:
-            log_event(EventType.ERROR_GENERAL, f"Failed to schedule/reschedule task '{job_id}': {e}")
         except Exception as e_log:
             current_app.logger.error(f"Task_Service: Failed to log scheduling error for '{job_id}' to DB: {e_log}")
         return False
@@ -1025,7 +1004,6 @@ def schedule_all_tasks():
         misfire_grace_time=15,
         coalesce=True,
     ):
-        log_event(EventType.APP_STARTUP, f"Media session monitoring scheduled ({session_interval_seconds}s interval)")
 
     # 2. User Access Expiration Check
     if _schedule_job_if_not_exists_or_reschedule(
@@ -1037,4 +1015,3 @@ def schedule_all_tasks():
         misfire_grace_time=15,
         coalesce=True,
     ):
-        log_event(EventType.APP_STARTUP, f"User expiration check scheduled ({session_interval_seconds}s interval)")

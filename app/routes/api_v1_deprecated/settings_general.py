@@ -4,8 +4,8 @@ from flask import jsonify, request, current_app, g
 from flask_login import login_required, current_user
 
 from app.routes.api_v1_deprecated import bp
-from app.models import Setting, SettingValueType, EventType
-from app.utils.helpers import permission_required, log_event
+from app.models import Setting, SettingValueType
+from app.utils.helpers import permission_required
 
 
 def _serialize_general_settings():
@@ -117,10 +117,8 @@ def update_general_settings():
     if hasattr(g, 'app_local_url'):
         g.app_local_url = current_app.config['APP_LOCAL_URL']
 
-    log_event(EventType.SETTING_CHANGE, "General application settings updated via API.", admin_id=current_user.id)
 
     return jsonify({
         'data': _serialize_general_settings(),
         'meta': {'request_id': request_id}
     }), 200
-

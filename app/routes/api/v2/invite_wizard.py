@@ -9,7 +9,7 @@ from flask import jsonify, request, session, current_app, url_for, g, redirect
 from urllib.parse import urlencode
 from pydantic import BaseModel
 
-from app.models import Invite, User, UserType, Setting, EventType
+from app.models import Invite, User, UserType, Setting
 from app.extensions import db
 from app.services import invite_service
 from app.services.media_service_factory import MediaServiceFactory

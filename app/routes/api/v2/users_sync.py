@@ -10,8 +10,7 @@ from pydantic import BaseModel, Field
 from flask_openapi3 import Tag
 
 from app.routes.api.v2 import api_v2
-from app.models import User, UserType, EventType
-from app.utils.helpers import log_event
+from app.models import User, UserType
 from app.models_media_services import MediaServer
 from app.services.media_service_manager import MediaServiceManager
 # JWT permission checking handled by jwt_permission_required, log_event
@@ -134,11 +133,6 @@ def sync_all_users(current_user):
     finally:
         end_sync()
 
-    log_event(
-        EventType.SETTING_CHANGE,
-        f"Manual sync triggered for all servers. Results: {total_added} added, {total_updated} updated, {total_removed} removed.",
-        admin_id=getattr(current_user, "id", None),
-    )
 
     return (
         jsonify(
@@ -221,10 +215,5 @@ def sync_user_accounts(path: UserPath, current_user):
             current_app.logger.error(f"User sync failed for server {sid}: {exc}", exc_info=True)
             results.append({"server_id": server.id if server else sid, "server_name": getattr(server, "server_nickname", None), "success": False, "message": str(exc)})
 
-    log_event(
-        EventType.SETTING_CHANGE,
-        f"Manual sync triggered for user '{user.localUsername or getattr(user, 'external_username', None)}'.",
-        admin_id=getattr(current_user, "id", None),
-    )
 
     return jsonify({"data": {"results": results, "user": {"uuid": user.uuid, "username": user.localUsername or getattr(user, "external_username", None), "user_type": user.userType.value if hasattr(user.userType, "value") else str(user.userType), "service_account_count": len([c for c in getattr(user, 'linked_children', []) or [] if c.userType == UserType.SERVICE])}}, "meta": {"request_id": request_id, "deprecated": False}}), 200

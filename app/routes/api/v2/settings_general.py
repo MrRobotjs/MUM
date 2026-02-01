@@ -8,8 +8,7 @@ from pydantic import BaseModel, Field, field_validator
 from flask_openapi3 import Tag
 
 from app.routes.api.v2 import api_v2
-from app.utils.helpers import log_event
-from app.models import Setting, SettingValueType, EventType
+from app.models import Setting, SettingValueType
 # JWT permission checking handled by jwt_permission_required, log_event
 
 
@@ -199,6 +198,5 @@ def update_general_settings(body: UpdateGeneralBody, current_user):
     if hasattr(g, "app_local_url"):
         g.app_local_url = current_app.config["APP_LOCAL_URL"]
 
-    log_event(EventType.SETTING_CHANGE, "General application settings updated via API.", admin_id=current_user.id)
 
     return jsonify({"data": _serialize_general_settings(), "meta": {"request_id": request_id}}), 200

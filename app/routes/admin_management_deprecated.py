@@ -4,10 +4,10 @@ from flask import (
     flash, request, current_app, make_response
 )
 from flask_login import login_required, current_user
-from app.models import User, UserType, AdminRole, UserRole, EventType
+from app.models import User, UserType, AdminRole, UserRole
 from app.forms import AdminCreateForm, LocalUserEditForm, UserResetPasswordForm
 from app.extensions import db
-from app.utils.helpers import log_event, setup_required, permission_required, any_permission_required
+from app.utils.helpers import setup_required, permission_required, any_permission_required
 import json
 
 bp = Blueprint('admin_management', __name__)
@@ -153,7 +153,6 @@ def reset_password(admin_id):
             user.force_password_change = True # Force change on next login
             db.session.commit()
             
-            log_event(EventType.ADMIN_PASSWORD_CHANGE, f"Password was reset for user '{user.localUsername}'.", admin_id=current_user.id)
             toast = {"showToastEvent": {"message": "Password has been reset.", "category": "success"}}
             response = make_response("", 204)
             response.headers['HX-Trigger'] = json.dumps(toast)

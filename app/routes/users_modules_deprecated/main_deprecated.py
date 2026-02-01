@@ -3,11 +3,11 @@
 from flask import render_template, request, current_app, session, make_response, redirect, url_for, flash 
 from flask_login import login_required, current_user
 from sqlalchemy import or_, func, desc
-from app.models import User, UserType, Setting, EventType
+from app.models import User, UserType, Setting
 from app.models_media_services import ServiceType, MediaStreamHistory
 from app.forms import MassUserEditForm, UserEditForm
 from app.extensions import db
-from app.utils.helpers import log_event, setup_required, permission_required
+from app.utils.helpers import setup_required, permission_required
 from app.services import user_service
 from app.services.unified_user_service import UnifiedUserService
 from app.services.media_service_manager import MediaServiceManager

@@ -3,12 +3,11 @@ from __future__ import annotations
 from uuid import uuid4
 from flask import jsonify, request
 from app.utils.jwt_decorators import jwt_required_with_user, jwt_permission_required
-from app.utils.helpers import log_event
 from pydantic import BaseModel, Field
 from flask_openapi3 import Tag
 
 from app.routes.api.v2 import api_v2
-from app.models import User, UserType, AdminRole, EventType
+from app.models import User, UserType, AdminRole
 from app.extensions import db
 # JWT permission checking handled by jwt_permission_required, log_event
 
@@ -134,7 +133,6 @@ def create_admin(current_user):
         new_user.force_password_change = True
         db.session.add(new_user)
         db.session.commit()
-        log_event(EventType.MUM_USER_ADDED_FROM_PLEX, f"Admin user '{username}' created via API.", admin_id=current_user.id)
     except Exception as exc:
         db.session.rollback()
         return jsonify({'error': {'code': 'CREATE_FAILED', 'message': str(exc)}, 'meta': {'request_id': request_id}}), 500
@@ -178,7 +176,6 @@ def update_admin(path: AdminPath, current_user):
     try:
         user.set_admin_roles(roles)
         db.session.commit()
-        log_event(EventType.SETTING_CHANGE, f"Admin roles updated for '{user.localUsername}'.", admin_id=current_user.id)
     except Exception as exc:
         db.session.rollback()
         return jsonify({'error': {'code': 'UPDATE_FAILED', 'message': str(exc)}, 'meta': {'request_id': request_id}}), 500
@@ -217,7 +214,6 @@ def reset_admin_password(path: AdminPath, current_user):
         user.set_password(new_password)
         user.force_password_change = True
         db.session.commit()
-        log_event(EventType.ADMIN_PASSWORD_CHANGE, f"Password reset for '{user.localUsername}'.", admin_id=current_user.id)
     except Exception as exc:
         db.session.rollback()
         return jsonify({'error': {'code': 'RESET_FAILED', 'message': str(exc)}, 'meta': {'request_id': request_id}}), 500
@@ -246,7 +242,6 @@ def delete_admin(path: AdminPath, current_user):
     try:
         db.session.delete(user)
         db.session.commit()
-        log_event(EventType.SETTING_CHANGE, f"Admin user '{user.localUsername}' deleted via API.", admin_id=current_user.id)
     except Exception as exc:
         db.session.rollback()
         return jsonify({'error': {'code': 'DELETE_FAILED', 'message': str(exc)}, 'meta': {'request_id': request_id}}), 500

@@ -3,9 +3,9 @@
 
 from flask import request, current_app
 from flask_login import login_required, current_user
-from app.models import User, UserType, EventType
+from app.models import User, UserType
 from app.extensions import db
-from app.utils.helpers import log_event, permission_required
+from app.utils.helpers import permission_required
 from . import users_bp
 import json
 
@@ -153,9 +153,6 @@ def link_service_user():
         db.session.commit()
         
         # Log the event
-        log_event(EventType.SETTING_CHANGE, 
-                  f"Service account '{service_user.external_username}' linked to local user '{local_user.localUsername}'",
-                  admin_id=current_user.id)
         
         return {'success': True, 'message': 'User linked successfully'}
     
@@ -237,9 +234,6 @@ def link_service_users():
         
         # Log the event
         if linked_users:
-            log_event(EventType.SETTING_CHANGE, 
-                      f"Service accounts {', '.join(linked_users)} linked to local user '{local_user.localUsername}'",
-                      admin_id=current_user.id)
         
         # Prepare response message
         messages = []

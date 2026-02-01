@@ -9,8 +9,7 @@ from pydantic import BaseModel, Field
 from flask_openapi3 import Tag
 
 from app.routes.api.v2 import api_v2
-from app.models import User, UserType, EventType
-from app.utils.helpers import log_event
+from app.models import User, UserType
 from app.extensions import db
 
 
@@ -128,10 +127,6 @@ def link_service_account(path: LocalUserPath, body: LinkBody, current_user):
     service_user.linkedUserId = user.uuid
     db.session.commit()
 
-    log_event(
-        EventType.SETTING_CHANGE,
-        f"Service account '{service_user.external_username}' linked to user '{user.localUsername}'.",
-    )
 
     return jsonify(_serialize_service_account(service_user)), 200
 
@@ -157,10 +152,6 @@ def unlink_service_account(path: ServiceUserPath, current_user):
     service_user.linkedUserId = None
     db.session.commit()
 
-    log_event(
-        EventType.SETTING_CHANGE,
-        f"Service account '{service_user.external_username}' unlinked from user '{user.localUsername}'.",
-    )
 
     return jsonify({"data": {"success": True}, "meta": {"request_id": request_id}}), 200
 

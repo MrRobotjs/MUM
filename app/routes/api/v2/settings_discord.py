@@ -7,8 +7,7 @@ from pydantic import BaseModel, Field
 from flask_openapi3 import Tag
 
 from app.routes.api.v2 import api_v2
-from app.models import Setting, SettingValueType, EventType
-from app.utils.helpers import log_event
+from app.models import Setting, SettingValueType
 # JWT permission checking handled by jwt_permission_required, log_event
 
 
@@ -244,7 +243,6 @@ def update_discord_settings(body: UpdateDiscordBody, current_user):
         Setting.set('DISCORD_BOT_LOG_CHANNEL_ID', '', SettingValueType.STRING)
         Setting.set('DISCORD_BOT_WHITELIST_SHARERS', whitelist_sharers, SettingValueType.BOOLEAN)
 
-    log_event(EventType.DISCORD_CONFIG_SAVE, "Discord settings updated via API.", admin_id=current_user.id)
 
     return jsonify({'data': _serialize_discord_settings(current_user), 'meta': {'request_id': request_id}}), 200
 

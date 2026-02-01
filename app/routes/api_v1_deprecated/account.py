@@ -7,9 +7,8 @@ from flask import jsonify, request, current_app
 from flask_login import login_required, current_user
 
 from app.extensions import db
-from app.models import User, UserPreferences, UserType, EventType
+from app.models import User, UserPreferences, UserType
 from app.routes.api_v1_deprecated import bp
-from app.utils.helpers import log_event
 
 
 def _serialize_account_payload():
@@ -242,15 +241,9 @@ def set_initial_credentials():
             500,
         )
 
-    log_event(
-        EventType.ADMIN_PASSWORD_CHANGE,
-        f"Initial local credentials configured for '{current_user.localUsername}'.",
-        admin_id=current_user.id,
-    )
 
     response = {
         "data": _serialize_account_payload(),
         "meta": {"request_id": request_id},
     }
     return jsonify(response), 200
-

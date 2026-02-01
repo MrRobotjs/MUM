@@ -4,10 +4,10 @@ from flask import (
     flash, request, current_app, make_response
 )
 from flask_login import login_required, current_user
-from app.models import User, UserType, Setting, EventType
+from app.models import User, UserType, Setting
 from app.forms import PluginSettingsForm
 from app.extensions import db
-from app.utils.helpers import log_event, setup_required, permission_required
+from app.utils.helpers import setup_required, permission_required
 from app.utils.connection_tester_deprecated import test_server_connection
 from app.services.plugin_manager import plugin_manager
 import traceback
@@ -179,11 +179,6 @@ def edit_server(plugin_id, server_id):
             
             db.session.commit()
             
-            log_event(
-                EventType.SETTING_CHANGE,
-                f"Updated media server: {server.server_nickname}",
-                admin_id=current_user.id
-            )
             
             response = make_response(redirect(url_for('plugin_management.configure', plugin_id=plugin_id)))
             response.headers['HX-Trigger'] = json.dumps({"showToastEvent": {"message": f'Media server "{server.server_nickname}" updated successfully!', "category": "success"}})
@@ -289,11 +284,6 @@ def add_server(plugin_id):
             else:
                 success_message += 'Sync completed with no new items.'
 
-            log_event(
-                EventType.SETTING_CHANGE,
-                f"Added new media server: {new_server.server_nickname}",
-                admin_id=current_user.id
-            )
 
             response = make_response(redirect(url_for('plugin_management.configure', plugin_id=plugin_id)))
             response.headers['HX-Trigger'] = json.dumps({"showToastEvent": {"message": success_message, "category": "success"}})
@@ -343,7 +333,6 @@ def disable_server(plugin_id, server_id):
         
         toast_message = f'Server "{server.server_nickname}" disabled successfully!'
         toast_category = 'success'
-        log_event(EventType.SETTING_CHANGE, f"Server '{server.server_nickname}' disabled", admin_id=current_user.id)
         
     except Exception as e:
         db.session.rollback()
@@ -439,11 +428,6 @@ def test_connection(plugin_id):
                 }
         
         # Log the test attempt
-        log_event(
-            EventType.SETTING_CHANGE,
-            f"Connection test for {plugin_id.title()} server: {'Success' if success else 'Failed'} - {message}",
-            admin_id=current_user.id
-        )
         
         # Return results
         result = {'success': success, 'message': message}
@@ -558,11 +542,6 @@ def test_existing_server_connection(plugin_id, server_id):
                 }
         
         # Log the test attempt
-        log_event(
-            EventType.SETTING_CHANGE,
-            f"Connection test for existing {plugin_id.title()} server '{server.server_nickname}': {'Success' if success else 'Failed'} - {message}",
-            admin_id=current_user.id
-        )
         
         # Return results
         result = {'success': success, 'message': message}
@@ -726,7 +705,6 @@ def enable_server(plugin_id, server_id):
         db.session.commit()
         
         flash(f'Server "{server.server_nickname}" enabled successfully!', 'success')
-        log_event(EventType.SETTING_CHANGE, f"Server '{server.server_nickname}' enabled", admin_id=current_user.id)
         
     except Exception as e:
         db.session.rollback()
@@ -784,11 +762,6 @@ def delete_server(plugin_id, server_id):
         db.session.commit()
         
         flash(f'Server "{server_name}" and all associated data deleted successfully!', 'success')
-        log_event(
-            EventType.SETTING_CHANGE, 
-            f"Server '{server_name}' deleted with {users_count} users, {libraries_count} libraries, and {stream_history_count} stream history records", 
-            admin_id=current_user.id
-        )
         
     except Exception as e:
         db.session.rollback()

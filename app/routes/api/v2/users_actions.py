@@ -8,8 +8,7 @@ from pydantic import BaseModel, Field
 from flask_openapi3 import Tag
 
 from app.routes.api.v2 import api_v2
-from app.models import User, UserType, EventType
-from app.utils.helpers import log_event
+from app.models import User, UserType
 from app.extensions import db
 
 
@@ -79,11 +78,6 @@ def reset_user_password(path: UserPath, current_user):
     user.force_password_change = True
     db.session.commit()
 
-    log_event(
-        EventType.ADMIN_PASSWORD_CHANGE,
-        f"Password reset initiated for user '{user.localUsername}'.",
-        admin_id=current_user.id,
-    )
 
     return (
         jsonify(

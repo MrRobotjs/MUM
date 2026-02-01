@@ -4,8 +4,8 @@ from flask import jsonify, request, current_app, g
 from flask_login import login_required, current_user
 
 from app.routes.api_v1_deprecated import bp
-from app.models import Setting, SettingValueType, EventType
-from app.utils.helpers import permission_required, log_event
+from app.models import Setting, SettingValueType
+from app.utils.helpers import permission_required
 
 
 def _compute_redirects():
@@ -183,7 +183,6 @@ def update_discord_settings():
         Setting.set('DISCORD_BOT_LOG_CHANNEL_ID', '', SettingValueType.STRING)
         Setting.set('DISCORD_BOT_WHITELIST_SHARERS', whitelist_sharers, SettingValueType.BOOLEAN)
 
-    log_event(EventType.DISCORD_CONFIG_SAVE, "Discord settings updated via API.", admin_id=current_user.id)
 
     return jsonify({'data': _serialize_discord_settings(), 'meta': {'request_id': request_id}}), 200
 

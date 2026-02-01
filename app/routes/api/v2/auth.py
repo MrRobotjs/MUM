@@ -11,9 +11,8 @@ from pydantic import BaseModel, Field
 from flask_openapi3 import Tag
 
 from app.extensions import db
-from app.models import User, UserType, Setting, EventType
+from app.models import User, UserType, Setting
 from app.routes.api.v2 import api_v2
-from app.utils.helpers import log_event
 from app.utils.timeout_helper import get_api_timeout
 from plexapi.myplex import MyPlexAccount
 from plexapi.exceptions import PlexApiException
@@ -111,7 +110,6 @@ def admin_logout_v2(current_user):
     request_id = str(uuid4())
     actor = _serialize_user(current_user)
     if actor:
-        log_event(EventType.ADMIN_LOGOUT, f"User '{actor.get('username')}' logged out.")
     return jsonify({'data': {'success': True}, 'meta': {'request_id': request_id, 'deprecated': False}}), 200
 
 
@@ -146,7 +144,6 @@ def change_password(current_user):
         current_app.logger.error(f"Failed to update password: {exc}", exc_info=True)
         db.session.rollback()
         return jsonify({'error': {'code': 'PASSWORD_UPDATE_FAILED', 'message': 'Failed to update password.'}, 'meta': {'request_id': request_id}}), 500
-    log_event(EventType.ADMIN_PASSWORD_CHANGE, f"Password changed for '{current_user.localUsername}'.", admin_id=current_user.id)
     return jsonify({'data': {'success': True}, 'meta': {'request_id': request_id, 'deprecated': False}}), 200
 
 
@@ -179,7 +176,6 @@ def set_password(current_user):
         current_app.logger.error(f"Failed to set password: {exc}", exc_info=True)
         db.session.rollback()
         return jsonify({'error': {'code': 'PASSWORD_UPDATE_FAILED', 'message': 'Failed to set password.'}, 'meta': {'request_id': request_id}}), 500
-    log_event(EventType.ADMIN_PASSWORD_CHANGE, f"Password set for '{current_user.localUsername}'.", admin_id=current_user.id)
     return jsonify({'data': {'success': True}, 'meta': {'request_id': request_id, 'deprecated': False}}), 200
 
 
@@ -226,7 +222,6 @@ def jwt_login():
 
     user = _find_admin_user(username)
     if not user or not user.check_password(password):
-        log_event(EventType.ADMIN_LOGIN_FAIL, f"Failed admin login attempt for '{username}'.")
         return jsonify({'error': {'code': 'INVALID_CREDENTIALS', 'message': 'Invalid username or password.'}, 'meta': {'request_id': request_id}}), 401
     if not user.is_active:
         return jsonify({'error': {'code': 'ACCOUNT_DISABLED', 'message': 'Account is disabled.'}, 'meta': {'request_id': request_id}}), 403
@@ -251,7 +246,6 @@ def jwt_login():
     except Exception:
         pass
     set_refresh_cookie(resp, refresh_token)
-    log_event(EventType.ADMIN_LOGIN_SUCCESS, f"Admin '{user.localUsername}' logged in (JWT).")
     return resp, 200
 
 
@@ -540,10 +534,8 @@ def plex_sso_callback_admin_v2():
             except Exception:
                 pass
             set_refresh_cookie(resp, refresh_token)
-            log_event(EventType.ADMIN_LOGIN_SUCCESS, f"Admin '{admin_to_update.localUsername or admin_to_update.plex_username}' logged in via Plex SSO.", admin_id=admin_to_update.id)
             return resp
         else:
-            log_event(EventType.ADMIN_LOGIN_SUCCESS, f"Admin '{admin_to_update.localUsername or admin_to_update.plex_username}' linked via Plex.", admin_id=admin_to_update.id)
             next_url = session.pop('plex_admin_login_next_url', '/admin/settings/discord')
             return redirect(next_url)
     except PlexApiException as e_plex:
@@ -619,7 +611,6 @@ def discord_callback_admin_v2(current_user):
         admin_to_update.discord_refresh_token = refresh_token
         admin_to_update.discord_token_expires_at = token_expires_at
         db.session.commit()
-        log_event(EventType.DISCORD_ADMIN_LINK_SUCCESS, f"Admin '{admin_to_update.localUsername or admin_to_update.plex_username}' linked Discord '{admin_to_update.discord_username}'.", admin_id=admin_to_update.id)
         flash('Discord account linked successfully!', 'success')
     except requests.exceptions.RequestException as e:
         error_detail = str(e)
@@ -663,5 +654,4 @@ def discord_unlink_admin_v2(current_user):
         current_app.logger.error(f"Failed to unlink Discord: {exc}")
         db.session.rollback()
         return jsonify({'error': {'code': 'DISCORD_UNLINK_FAILED', 'message': 'Unable to unlink Discord.'}, 'meta': {'request_id': request_id}}), 500
-    log_event(EventType.DISCORD_ADMIN_UNLINK, f"Admin '{current_user.localUsername or current_user.plex_username}' unlinked Discord '{discord_username_log}'.", admin_id=current_user.id)
     return jsonify({'data': {'success': True}, 'meta': {'request_id': request_id}}), 200

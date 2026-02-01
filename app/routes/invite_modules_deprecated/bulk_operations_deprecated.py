@@ -5,9 +5,9 @@ Use v2 endpoint: POST /api/v2/invites/bulk (see app/routes/api_v2/invites_bulk.p
 
 from flask import request, jsonify, current_app
 from flask_login import login_required, current_user
-from app.models import User, UserType, Invite, EventType
+from app.models import User, UserType, Invite
 from app.extensions import db
-from app.utils.helpers import setup_required, permission_required, log_event
+from app.utils.helpers import setup_required, permission_required
 from . import invites_admin_bp as invites_bp
 
 @invites_bp.route("/delete_multiple", methods=["POST"])
@@ -35,10 +35,6 @@ def delete_multiple():
         
         # Log the bulk deletion
         for invite_id, path_or_token in invite_details:
-            log_event(EventType.INVITE_DELETED, 
-                      f"Invite \"{path_or_token}\" deleted (bulk operation).", 
-                      invite_id=invite_id,
-                      admin_id=current_user.id)
         
         return jsonify({
             "success": True, 
@@ -80,10 +76,6 @@ def disable_multiple():
         
         # Log the bulk disable
         for invite_id, path_or_token in invite_details:
-            log_event(EventType.SETTING_CHANGE, 
-                      f"Invite \"{path_or_token}\" disabled (bulk operation).", 
-                      invite_id=invite_id,
-                      admin_id=current_user.id)
         
         return jsonify({
             "success": True, 
@@ -130,10 +122,6 @@ def toggle_multiple():
         
         # Log the bulk toggle
         for invite_id, path_or_token in invite_details:
-            log_event(EventType.SETTING_CHANGE, 
-                      f"Invite \"{path_or_token}\" {action_text} (bulk operation).", 
-                      invite_id=invite_id,
-                      admin_id=current_user.id)
         
         return jsonify({
             "success": True, 

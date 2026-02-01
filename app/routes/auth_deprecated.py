@@ -12,9 +12,8 @@ import os
 from flask_login import login_user, logout_user, login_required, current_user
 from urllib.parse import urlsplit, urljoin, urlencode
 import time
-from app.utils.helpers import log_event
 from app.utils.timeout_helper import get_api_timeout
-from app.models import User, UserType, Setting, EventType, SettingValueType
+from app.models import User, UserType, Setting, SettingValueType
 from app.extensions import db
 from plexapi.myplex import MyPlexAccount 
 from plexapi.exceptions import Unauthorized, NotFound, PlexApiException
@@ -256,7 +255,6 @@ def plex_sso_callback_admin():
         db.session.commit()
         
         login_user(admin_to_update, remember=True)
-        log_event(EventType.ADMIN_LOGIN_SUCCESS, log_message, admin_id=admin_to_update.id)
         
         next_url = session.pop('plex_admin_login_next_url', '/admin/dashboard')
         if not is_safe_url(next_url):
@@ -293,15 +291,12 @@ def logout():
     if current_user.userType == UserType.OWNER:
         # Owner
         user_name = current_user.localUsername
-        log_event(EventType.ADMIN_LOGOUT, f"Owner '{user_name}' logged out.")
     elif current_user.userType == UserType.LOCAL:
         # Local user
         user_name = current_user.localUsername
-        log_event(EventType.ADMIN_LOGOUT, f"App user '{user_name}' logged out.")
     else:
         # Unknown user type
         user_name = getattr(current_user, 'username', 'Unknown')
-        log_event(EventType.ADMIN_LOGOUT, f"Unknown user type '{user_name}' logged out.")
     
     logout_user()
     flash('You have been logged out.', 'success')
@@ -323,7 +318,6 @@ def logout_setup():
     # ... (same)
     if current_user.is_authenticated:
         admin_name = current_user.localUsername or current_user.plex_username
-        log_event(EventType.ADMIN_LOGOUT, f"Admin '{admin_name}' logged out during setup.", admin_id=current_user.id)
         logout_user()
     session.clear(); flash('Logged out of setup.', 'info'); return redirect(url_for('setup.account_setup'))
 
@@ -487,7 +481,6 @@ def discord_callback_admin():
             current_app.logger.error(f"DISCORD LINK: Could not re-fetch user {admin_to_update.id} after commit for re-login.")
         # --- END KEY CHANGE ---
 
-        log_event(EventType.DISCORD_ADMIN_LINK_SUCCESS, f"Admin '{admin_to_update.localUsername or admin_to_update.plex_username}' linked Discord '{admin_to_update.discord_username}'.", admin_id=admin_to_update.id)
         flash('Discord account linked successfully!', 'success')
 
     except requests.exceptions.RequestException as e:

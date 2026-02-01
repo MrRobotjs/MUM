@@ -5,10 +5,10 @@ from flask_login import login_required, current_user
 
 from app.routes.api_v1_deprecated import bp
 from app.routes.api_v1_deprecated.sync_status import get_sync_status, start_sync, update_sync_progress, end_sync
-from app.models import User, UserType, EventType
+from app.models import User, UserType
 from app.models_media_services import MediaServer
 from app.services.media_service_manager import MediaServiceManager
-from app.utils.helpers import permission_required, log_event
+from app.utils.helpers import permission_required
 
 
 def _serialize_basic_user(user: User):
@@ -106,10 +106,6 @@ def sync_all_users():
         # Always end sync status when done
         end_sync()
 
-    log_event(
-        EventType.SETTING_CHANGE,
-        f"Manual sync triggered for all servers. Results: {total_added} added, {total_updated} updated, {total_removed} removed.",
-        admin_id=getattr(current_user, 'id', None)
     )
 
     return jsonify({
@@ -194,10 +190,6 @@ def sync_user_accounts(user_uuid):
                 'message': str(exc)
             })
 
-    log_event(
-        EventType.SETTING_CHANGE,
-        f"Manual sync triggered for user '{user.localUsername or user.external_username}'.",
-        admin_id=getattr(current_user, 'id', None)
     )
 
     return jsonify({

@@ -9,9 +9,8 @@ from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import func
 
 from app.extensions import db
-from app.models import User, UserPreferences, UserType, EventType
+from app.models import User, UserPreferences, UserType
 from app.routes.api.v2 import api_v2, account_tag
-from app.utils.helpers import log_event
 
 
 class AccountUserModel(BaseModel):
@@ -285,11 +284,6 @@ def set_initial_credentials(body: InitialCredentialsBody, current_user):
             500,
         )
 
-    log_event(
-        EventType.ADMIN_PASSWORD_CHANGE,
-        f"Initial local credentials configured for '{current_user.localUsername}'.",
-        admin_id=current_user.id,
-    )
 
     response = {
         "data": _serialize_account_payload(current_user),
@@ -348,11 +342,6 @@ def update_account_email(body: UpdateEmailBody, current_user):
             500,
         )
 
-    log_event(
-        EventType.SETTING_CHANGE,
-        f"Account email updated for '{current_user.localUsername}'.",
-        admin_id=current_user.id,
-    )
 
     response = {
         "data": _serialize_account_payload(current_user),

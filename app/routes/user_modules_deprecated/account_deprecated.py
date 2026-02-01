@@ -4,10 +4,10 @@
 from flask import render_template, redirect, url_for, flash, request, current_app, make_response, abort
 from flask_login import login_required, current_user
 from datetime import datetime
-from app.models import User, UserType, EventType
+from app.models import User, UserType
 from app.models_media_services import MediaServer
 from app.extensions import db
-from app.utils.helpers import permission_required, log_event
+from app.utils.helpers import permission_required
 from . import user_bp
 import urllib.parse
 import json
@@ -52,7 +52,6 @@ def account():
                 current_user.updated_at = datetime.utcnow()
                 db.session.commit()
                 
-                log_event(EventType.SETTING_CHANGE, f"Password was changed for user '{current_user.get_display_name()}'.", admin_id=current_user.id)
                 flash('Password has been updated successfully.', 'success')
                 return redirect(url_for('user.account'))
         
@@ -64,7 +63,6 @@ def account():
                 timezone_form.time_format.data
             )
             
-            log_event(EventType.SETTING_CHANGE, f"Timezone preferences updated for user '{current_user.get_display_name()}'.", admin_id=current_user.id)
             flash('Timezone preferences have been updated successfully.', 'success')
             return redirect(url_for('user.account'))
     
@@ -102,7 +100,6 @@ def reset_app_user_password(username):
             user_app_access.updated_at = datetime.utcnow()
             db.session.commit()
             
-            log_event(EventType.SETTING_CHANGE, f"Password was reset for app user '{user_app_access.get_display_name()}'.", admin_id=current_user.id)
             toast = {"showToastEvent": {"message": "Password has been reset successfully.", "category": "success"}}
             
             return make_response("<!-- success -->", 200, {'HX-Trigger': json.dumps(toast)})
@@ -192,7 +189,6 @@ def reset_password(username=None, server_nickname=None, server_username=None):
             user_app_access.updated_at = datetime.utcnow()
             db.session.commit()
             
-            log_event(EventType.SETTING_CHANGE, f"Password was reset for user '{user_app_access.get_display_name()}'.", admin_id=current_user.id)
             
             toast = {"showToastEvent": {"message": "Password has been reset successfully.", "category": "success"}}
             

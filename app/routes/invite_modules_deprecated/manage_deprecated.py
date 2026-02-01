@@ -6,11 +6,11 @@ import time
 from datetime import datetime
 from flask import render_template, redirect, url_for, flash, request, current_app, g, make_response
 from flask_login import login_required, current_user
-from app.models import User, UserType, Invite, Setting, EventType
+from app.models import User, UserType, Invite, Setting
 from app.models_media_services import MediaServer
 from app.forms import InviteCreateForm
 from app.extensions import db
-from app.utils.helpers import setup_required, permission_required, log_event
+from app.utils.helpers import setup_required, permission_required
 from app.services.media_service_manager import MediaServiceManager
 from . import invites_admin_bp as invites_bp
 import json
@@ -361,7 +361,6 @@ def create_invite():
             if hasattr(new_invite, 'force_discord_auth') and new_invite.force_discord_auth is not None: log_msg_details += f" Force Discord Auth: {new_invite.force_discord_auth} (Override)."
             if hasattr(new_invite, 'force_guild_membership') and new_invite.force_guild_membership is not None: log_msg_details += f" Force Guild Membership: {new_invite.force_guild_membership} (Override)."
                 
-            log_event(EventType.INVITE_CREATED, f"Invite created: Path='{custom_path or new_invite.token}'. {log_msg_details}", invite_id=new_invite.id, admin_id=current_user.id)
             toast_message_text = f"Invite link created successfully!"; toast_category = "success"
             if request.headers.get('HX-Request'):
                 response = make_response(""); response.status_code = 204 
@@ -412,7 +411,6 @@ def toggle_invite_status(invite_id):
         db.session.commit()
         
         status_text = "activated" if invite.is_active else "deactivated"
-        log_event(EventType.SETTING_CHANGE, f"Invite '{invite.custom_path or invite.token}' (ID: {invite_id}) {status_text} by admin.", invite_id=invite_id, admin_id=current_user.id)
         
         # Return the updated invite card row to match HTMX target
         from datetime import datetime
@@ -454,10 +452,6 @@ def delete_invite(invite_id):
         db.session.delete(invite)
         db.session.commit()
         
-        log_event(EventType.INVITE_DELETED, 
-                  f"Invite '{path_or_token}' deleted.", 
-                  invite_id=mum_invite_id_for_log, # Use the stored ID for log
-                  admin_id=current_user.id)
         
         toast_message = f"Invite '{path_or_token}' deleted successfully."
         toast_category = "success"
@@ -478,10 +472,6 @@ def delete_invite(invite_id):
     except Exception as e:
         db.session.rollback()
         current_app.logger.error(f"Error deleting invite '{path_or_token}': {e}", exc_info=True)
-        log_event(EventType.ERROR_GENERAL, 
-                  f"Error deleting invite '{path_or_token}': {str(e)}", 
-                  invite_id=mum_invite_id_for_log, 
-                  admin_id=current_user.id)
         
         toast_message = f"Error deleting invite '{path_or_token}'. Please try again."
         toast_category = "error"

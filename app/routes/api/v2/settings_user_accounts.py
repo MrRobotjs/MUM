@@ -7,8 +7,7 @@ from pydantic import BaseModel
 from flask_openapi3 import Tag
 
 from app.routes.api.v2 import api_v2
-from app.models import Setting, SettingValueType, EventType
-from app.utils.helpers import log_event
+from app.models import Setting, SettingValueType
 
 
 settings_tag = Tag(name="Settings", description="Application settings")
@@ -56,5 +55,4 @@ def update_user_account_settings(body: UpdateUserAccountBody, current_user):
     request_id = uuid4().hex
     allow_accounts = bool(body.allow_user_accounts)
     Setting.set("ALLOW_USER_ACCOUNTS", allow_accounts, SettingValueType.BOOLEAN, "Allow User Accounts")
-    log_event(EventType.SETTING_CHANGE, "User account settings updated via API.", admin_id=current_user.id)
     return jsonify({"data": _serialize_user_account_settings(), "meta": {"request_id": request_id}}), 200

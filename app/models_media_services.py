@@ -223,10 +223,7 @@ class MediaItem(db.Model):
         # Handle different thumbnail formats for different services
         thumb_url = None
         if self.thumb_path:
-            if self.thumb_path.startswith('/admin/api/'):
-                # Legacy admin-prefixed proxy URL; normalize to unified API base
-                thumb_url = self.thumb_path.replace('/admin', '', 1)
-            elif self.thumb_path.startswith('/api/'):
+            if self.thumb_path.startswith('/api/'):
                 # Unified proxy URL - keep as-is
                 thumb_url = self.thumb_path
             elif self.thumb_path.startswith('http'):

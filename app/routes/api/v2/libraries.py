@@ -881,9 +881,7 @@ def get_library_activity(path: LibraryPath, current_user):
             if media_item and getattr(media_item, "item_type", None):
                 media_type = media_item.item_type
         if media_item and getattr(media_item, "thumb_path", None):
-            if media_item.thumb_path.startswith("/admin/api/"):
-                thumb_path = media_item.thumb_path.replace("/admin", "", 1)
-            elif media_item.thumb_path.startswith("/api/"):
+            if media_item.thumb_path.startswith("/api/"):
                 thumb_path = media_item.thumb_path
             elif media_item.thumb_path.startswith("http"):
                 thumb_path = media_item.thumb_path

@@ -54,8 +54,6 @@ class StreamItem(BaseModel):
 def _construct_poster_url(thumb_path: Optional[str], service_type: Optional[str]) -> Optional[str]:
     if not thumb_path:
         return None
-    if thumb_path.startswith('/admin/api/'):
-        return thumb_path.replace('/admin', '', 1)
     if thumb_path.startswith('/api/'):
         return thumb_path
     if thumb_path.startswith('http'):

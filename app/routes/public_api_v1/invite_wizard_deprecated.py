@@ -10,7 +10,7 @@ from flask import jsonify, request, session, current_app, url_for, g
 from urllib.parse import urlencode
 
 from app.routes.public_api_v1 import bp
-from app.models import Invite, User, UserType, Setting
+from app.models import Invite, User, UserType, Setting, EventType
 from app.extensions import db
 from app.services import invite_service
 from app.services.media_service_factory import MediaServiceFactory
@@ -609,6 +609,12 @@ def complete_invite(token):
                 "Created local user account %s for invite %s",
                 account_data['username'],
                 invite.id,
+            )
+            from app.utils.helpers import log_event
+            log_event(
+                EventType.MUM_USER_ADDED_FROM_PLEX,
+                f"Local user account '{account_data['username']}' created via invite {invite.id}",
+                invite_id=invite.id,
             )
 
         success, result = invite_service.accept_invite_and_grant_access(

@@ -6,6 +6,8 @@ setup UI pages, replacing legacy server-rendered templates.
 
 from flask import Blueprint, send_from_directory, current_app, redirect
 from app.utils.helpers import setup_required
+from app.utils.helpers import log_event
+from app.models import EventType
 import os
 
 public_spa_bp = Blueprint('public_spa', __name__)
@@ -44,6 +46,11 @@ def invite_token_spa(invite_path_or_token: str):
         from app.services import invite_service
         invite, error_message = invite_service.validate_invite_usability(invite_path_or_token)
         if invite and not error_message:
+            log_event(
+                EventType.INVITE_VIEWED,
+                f"Invite '{invite.custom_path or invite.token}' (ID: {invite.id}) viewed/accessed.",
+                invite_id=invite.id,
+            )
     except Exception as exc:
         current_app.logger.debug(f"Invite view log skipped: {exc}")
     return _serve_index()

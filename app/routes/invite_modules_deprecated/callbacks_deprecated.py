@@ -8,8 +8,8 @@ from flask import redirect, url_for, flash, request, current_app, session, jsoni
 from markupsafe import Markup
 from plexapi.myplex import MyPlexAccount
 from plexapi.exceptions import PlexApiException
-from app.models import User, UserType, Invite, Setting
-from app.utils.helpers import setup_required
+from app.models import User, UserType, Invite, Setting, EventType
+from app.utils.helpers import setup_required, log_event
 from app.utils.timeout_helper import get_api_timeout
 from app.services.media_service_factory import MediaServiceFactory
 from . import invites_public_bp as invites_bp
@@ -197,12 +197,15 @@ def plex_oauth_callback():
                 'email': getattr(plex_account, 'email', None), 
                 'thumb': getattr(plex_account, 'thumb', None)
             }
+            log_event(EventType.INVITE_USED_SUCCESS_PLEX, f"Plex auth success for {plex_account.localUsername} on invite {invite.id}.", invite_id=invite.id)
             current_app.logger.info(f"New Plex user {plex_account.localUsername} - proceeding with invite")
 
     except PlexApiException as e_plex:
         flash(f'Plex API error: {str(e_plex)}', 'danger')
+        log_event(EventType.ERROR_PLEX_API, f"Invite {invite.id}: Plex PIN check PlexApiException: {e_plex}", invite_id=invite.id)
     except Exception as e: 
         flash(f"Error during Plex login for invite: {str(e)[:150]}", "danger")
+        log_event(EventType.ERROR_PLEX_API, f"Invite {invite.id}: Plex callback error: {e}", invite_id=invite.id)
     finally: 
         session.pop('plex_oauth_invite_id', None)
         session.pop('plex_pin_code_invite_flow', None)
@@ -246,6 +249,7 @@ def discord_oauth_callback():
     if not code:
         error_description = request.args.get("error_description", "Authentication with Discord failed. No authorization code received.")
         flash(f'Discord login failed: {error_description}', 'danger')
+        log_event(EventType.ERROR_DISCORD_API, f"Discord OAuth callback failed (no code): {error_description}", invite_id=invite_id_from_session)
         return redirect(public_invite_page_url_with_path)
 
     client_id = Setting.get('DISCORD_CLIENT_ID')
@@ -254,6 +258,7 @@ def discord_oauth_callback():
     
     if not (client_id and client_secret and redirect_uri_for_token_exchange):
         flash('Discord integration is not properly configured by the admin. Cannot complete login.', 'danger')
+        log_event(EventType.ERROR_DISCORD_API, "Discord OAuth callback failed: MUM settings (client_id/secret/redirect_uri_invite) missing.", invite_id=invite_id_from_session)
         return redirect(public_invite_page_url_with_path)
 
     token_url = f"{DISCORD_API_BASE_URL}/oauth2/token"
@@ -308,6 +313,7 @@ def discord_oauth_callback():
                 if server_invite_link: error_html += f" Please join using the button below and then attempt to link your Discord account again on the invite page."
                 else: error_html += " Please contact an administrator for an invite to the server."
                 flash(Markup(error_html), 'warning')
+                log_event(EventType.DISCORD_BOT_GUILD_MEMBER_CHECK_FAIL, f"User {discord_username_from_oauth} (ID: {discord_user_data['id']}) failed guild membership check for guild {configured_guild_id}.", invite_id=invite_object_for_redirect.id)
                 session.pop('discord_oauth_invite_id', None)
                 return redirect(public_invite_page_url_with_path)
         
@@ -320,6 +326,7 @@ def discord_oauth_callback():
             'verified': discord_user_data.get('verified')
         }
         session[f'invite_{invite_object_for_redirect.id}_discord_user'] = discord_user_info_for_session
+        log_event(EventType.INVITE_USED_SUCCESS_DISCORD, f"Discord auth success for {discord_username_from_oauth} on invite {invite_object_for_redirect.id}.", invite_id=invite_object_for_redirect.id)
 
     except requests.exceptions.HTTPError as e_http:
         error_message = f"Discord API Error ({e_http.response.status_code})"
@@ -329,9 +336,11 @@ def discord_oauth_callback():
         except ValueError: 
             error_message = e_http.response.text[:200] if e_http.response.text else error_message
         flash(f'Failed to link Discord: {error_message}', 'danger')
+        log_event(EventType.ERROR_DISCORD_API, f"Invite {invite_id_from_session}: Discord callback HTTPError: {error_message}", invite_id=invite_id_from_session, details={'status_code': e_http.response.status_code})
 
     except Exception as e_gen:
         flash('An unexpected error occurred during Discord login. Please try again.', 'danger')
+        log_event(EventType.ERROR_DISCORD_API, f"Invite {invite_id_from_session}: Unexpected Discord callback error: {e_gen}", invite_id=invite_id_from_session, details={'error': str(e_gen)})
     finally:
         session.pop('discord_oauth_invite_id', None) 
 

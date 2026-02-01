@@ -7,7 +7,8 @@ from app.models_media_services import MediaServer
 from app.services.media_service_manager import MediaServiceManager
 from app.services.media_service_factory import MediaServiceFactory
 from app.extensions import db
-from app.models import User, UserType
+from app.utils.helpers import log_event
+from app.models import User, UserType, EventType
 
 class UnifiedInviteService:
     """Service for managing invites across all media services"""
@@ -59,6 +60,12 @@ class UnifiedInviteService:
         db.session.add(invite)
         db.session.commit()
         
+        log_event(
+            EventType.INVITE_CREATED,
+            f"Multi-service invite created for {len(server_configs)} servers",
+            admin_id=admin_id,
+            invite_id=invite.id
+        )
         
         return invite
     
@@ -181,6 +188,13 @@ class UnifiedInviteService:
             db.session.commit()
             
             # Log the event
+            log_event(
+                EventType.INVITE_USED_SUCCESS_PLEX,
+                f"Multi-service invite accepted by {user.get_display_name()}. "
+                f"Access granted to {len(successful_servers)} servers.",
+                user_id=user.id,
+                invite_id=invite.id
+            )
             
             return {
                 'success': True,

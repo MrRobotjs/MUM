@@ -4,8 +4,8 @@ from flask import Blueprint, redirect, url_for, flash, current_app, jsonify
 from flask_login import login_required, current_user
 from app.models_media_services import MediaServer
 from app.extensions import db
-from app.utils.helpers import setup_required, permission_required
-from app.models import User, UserType
+from app.utils.helpers import log_event, setup_required, permission_required
+from app.models import User, UserType, EventType
 
 # Create a blueprint for admin routes (prefix will be added in app/__init__.py)
 bp = Blueprint('media_servers_admin', __name__)
@@ -28,6 +28,7 @@ def delete_server(server_id):
         db.session.commit()
         
         flash(f'Server "{server_name}" deleted successfully!', 'success')
+        log_event(EventType.SETTING_CHANGE, f"Deleted {server.service_type.name} server '{server_name}'", admin_id=current_user.id)
         
     except Exception as e:
         db.session.rollback()
@@ -51,6 +52,7 @@ def enable_server(server_id):
         db.session.commit()
         
         flash(f'Server "{server.server_nickname}" enabled successfully!', 'success')
+        log_event(EventType.SETTING_CHANGE, f"Server '{server.server_nickname}' enabled", admin_id=current_user.id)
         
     except Exception as e:
         db.session.rollback()
@@ -74,6 +76,7 @@ def disable_server(server_id):
         db.session.commit()
         
         flash(f'Server "{server.server_nickname}" disabled successfully!', 'success')
+        log_event(EventType.SETTING_CHANGE, f"Server '{server.server_nickname}' disabled", admin_id=current_user.id)
         
     except Exception as e:
         db.session.rollback()

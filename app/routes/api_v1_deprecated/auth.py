@@ -6,9 +6,9 @@ from flask_login import login_required, current_user, login_user, logout_user
 from sqlalchemy import func
 
 from app.extensions import db
-from app.models import User, UserType, Setting
+from app.models import User, UserType, Setting, EventType
 from app.routes.api_v1_deprecated import bp
-from app.utils.helpers import get_csrf_token
+from app.utils.helpers import get_csrf_token, log_event
 
 
 def _serialize_user(user: User | None) -> dict | None:
@@ -119,6 +119,7 @@ def admin_login():
     candidate = _find_admin_user(username)
 
     if not candidate or not candidate.check_password(password):
+        log_event(EventType.ADMIN_LOGIN_FAIL, f"Failed admin login attempt for '{username}'.")
         return jsonify({
             'error': {
                 'code': 'INVALID_CREDENTIALS',
@@ -154,6 +155,7 @@ def admin_login():
         current_app.logger.error(f"Failed to persist login timestamp: {exc}", exc_info=True)
         db.session.rollback()
 
+    log_event(EventType.ADMIN_LOGIN_SUCCESS, f"Admin '{candidate.localUsername}' logged in.", admin_id=candidate.id)
 
     return jsonify({
         'data': _issue_session_payload(candidate),
@@ -172,6 +174,7 @@ def admin_logout():
     actor = _serialize_user(current_user)
     logout_user()
     if actor:
+        log_event(EventType.ADMIN_LOGOUT, f"User '{actor.get('username')}' logged out.")
 
     return jsonify({
         'data': {'success': True},
@@ -233,6 +236,7 @@ def change_password():
             'meta': {'request_id': request_id}
         }), 500
 
+    log_event(EventType.ADMIN_PASSWORD_CHANGE, f"Password changed for '{current_user.localUsername}'.", admin_id=current_user.id)
 
     return jsonify({
         'data': {'success': True},
@@ -294,6 +298,7 @@ def set_password():
             'meta': {'request_id': request_id}
         }), 500
 
+    log_event(EventType.ADMIN_PASSWORD_CHANGE, f"Password set for '{current_user.localUsername}'.", admin_id=current_user.id)
 
     return jsonify({
         'data': {'success': True},

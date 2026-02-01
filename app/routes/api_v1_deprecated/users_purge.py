@@ -4,9 +4,9 @@ from flask import jsonify, request, current_app
 from flask_login import login_required, current_user
 
 from app.routes.api_v1_deprecated import bp
-from app.models import User
+from app.models import User, EventType
 from app.services import user_service
-from app.utils.helpers import permission_required
+from app.utils.helpers import permission_required, log_event
 
 
 @bp.route('/users/eligible-for-purge', methods=['GET'])
@@ -182,6 +182,10 @@ def purge_users():
                 'message': 'User purged successfully'
             })
 
+        log_event(
+            EventType.SETTING_CHANGE,
+            f"Purged {results.get('deleted', 0)} inactive users. Criteria: {inactive_days} inactive days.",
+            admin_id=getattr(current_user, 'id', None)
         )
 
         return jsonify({

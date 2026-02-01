@@ -5,9 +5,9 @@ from flask import jsonify, request
 from flask_login import login_required
 
 from app.routes.api_v1_deprecated import bp
-from app.models import User, UserType
+from app.models import User, UserType, EventType
 from app.extensions import db
-from app.utils.helpers import permission_required
+from app.utils.helpers import log_event, permission_required
 
 
 def _serialize_service_account(account: User):
@@ -85,6 +85,10 @@ def link_service_account(user_uuid):
     service_user.linkedUserId = user.uuid
     db.session.commit()
 
+    log_event(
+        EventType.SETTING_CHANGE,
+        f"Service account '{service_user.external_username}' linked to user '{user.localUsername}'."
+    )
 
     return jsonify({
         'data': _serialize_service_account(service_user),
@@ -111,6 +115,10 @@ def unlink_service_account(user_uuid, service_uuid):
     service_user.linkedUserId = None
     db.session.commit()
 
+    log_event(
+        EventType.SETTING_CHANGE,
+        f"Service account '{service_user.external_username}' unlinked from user '{user.localUsername}'."
+    )
 
     return jsonify({
         'data': {'success': True},

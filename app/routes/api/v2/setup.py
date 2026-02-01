@@ -11,9 +11,10 @@ from flask_openapi3 import Tag
 from app.routes.api.v2 import api_v2
 from app.utils.setup_helpers import get_completed_steps, is_setup_finished, mark_setup_complete
 from app.models_media_services import ServiceType, MediaServer
-from app.models import User, Setting, SettingValueType
+from app.models import User, EventType, Setting, SettingValueType
 from app.models_plugins import Plugin, PluginStatus
 from app.extensions import db
+from app.utils.helpers import log_event
 from app.utils.jwt_helpers import make_access_token, make_refresh_token, set_refresh_cookie
 
 
@@ -125,6 +126,7 @@ def setup_create_owner(body: SetupAccountRequest, current_user=None):
         current_app.logger.warning(f"Failed to update last_login for owner: {exc}")
         db.session.rollback()
 
+    log_event(EventType.ADMIN_LOGIN_SUCCESS, f"Owner '{owner.localUsername}' created via setup and logged in.", admin_id=owner.id)
 
     response_payload = {
         'data': {
@@ -195,6 +197,7 @@ def setup_app_config(current_user=None):
 
     if current_user is not None and hasattr(current_user, "id"):
         try:
+            log_event(EventType.SETTING_CHANGE, f"Setup updated application settings (Public URL: {app_base_url}).", admin_id=current_user.id)
         except Exception:
             current_app.logger.warning("Failed to log setup app config event", exc_info=True)
 
@@ -336,6 +339,11 @@ def setup_complete(body: SetupCompleteRequest, current_user):
         # Mark setup as complete
         mark_setup_complete()
 
+        log_event(
+            EventType.ADMIN_LOGIN_SUCCESS,
+            f"Initial setup completed by admin '{current_user.localUsername}'",
+            admin_id=current_user.id
+        )
 
         return jsonify({
             'data': {

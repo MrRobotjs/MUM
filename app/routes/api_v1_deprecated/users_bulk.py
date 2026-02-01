@@ -5,9 +5,9 @@ from flask import jsonify, request, current_app
 from flask_login import login_required, current_user
 
 from app.extensions import db
-from app.models import User, UserType
+from app.models import User, UserType, EventType
 from app.routes.api_v1_deprecated import bp
-from app.utils.helpers import permission_required
+from app.utils.helpers import permission_required, log_event
 
 
 def _status_entry(user: User, action: str, status: str, message: str | None = None):
@@ -229,6 +229,11 @@ def bulk_user_operations():
             'meta': {'request_id': request_id}
         }), 500
 
+    log_event(
+        EventType.SETTING_CHANGE,
+        f"Bulk user operations executed ({', '.join(actions_executed)}). "
+        f"Updated: {stats['updated']}, Deleted: {stats['deleted']}, Skipped: {stats['skipped']}, Errors: {stats['errors']}.",
+        admin_id=getattr(current_user, 'id', None)
     )
 
     return jsonify({

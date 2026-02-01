@@ -3,9 +3,9 @@
 from flask import render_template, redirect, url_for, flash, request, current_app, abort, make_response
 from flask_login import login_required, current_user
 from datetime import datetime, timezone, timedelta
-from app.models import User, UserType
+from app.models import User, UserType, EventType
 from app.models_media_services import MediaStreamHistory, ServiceType
-from app.utils.helpers import permission_required
+from app.utils.helpers import permission_required, log_event
 from app.extensions import db
 from app.services.media_service_factory import MediaServiceFactory
 from app.services.media_service_manager import MediaServiceManager

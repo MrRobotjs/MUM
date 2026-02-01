@@ -3,8 +3,9 @@
 from flask import current_app
 from datetime import datetime, timezone, timedelta
 from sqlalchemy.exc import IntegrityError
-from app.models import Invite, User, UserType, InviteUsage, Setting
+from app.models import Invite, User, UserType, InviteUsage, EventType, Setting
 from app.extensions import db
+from app.utils.helpers import log_event
 from app.models_media_services import ServiceType
 from . import user_service # Use . to import from current package
 from .media_service_factory import MediaServiceFactory
@@ -36,19 +37,24 @@ def validate_invite_usability(invite_path_or_token):
     ).first()
 
     if not invite:
+        log_event(EventType.INVITE_VIEWED, f"Invite '{invite_path_or_token}' not found.", details={'identifier': invite_path_or_token})
         return None, "Invite link is invalid or does not exist."
 
     if not invite.is_active:
+        log_event(EventType.INVITE_VIEWED, f"Invite '{invite_path_or_token}' (ID: {invite.id}) is deactivated.", invite_id=invite.id)
         return None, "This invite link has been deactivated."
     
     if invite.is_expired:
+        log_event(EventType.INVITE_EXPIRED, f"Invite '{invite_path_or_token}' (ID: {invite.id}) has expired.", invite_id=invite.id)
         return None, "This invite link has expired."
 
     if invite.has_reached_max_uses:
+        log_event(EventType.INVITE_MAX_USES_REACHED, f"Invite '{invite_path_or_token}' (ID: {invite.id}) has reached its maximum number of uses.", invite_id=invite.id)
         return None, "This invite link has reached its maximum number of uses."
     
     # Log that the valid invite was viewed (attempted to be used)
     # More detailed usage logging happens upon auth attempts or acceptance.
+    log_event(EventType.INVITE_VIEWED, f"Invite '{invite_path_or_token}' (ID: {invite.id}) viewed/accessed.", invite_id=invite.id)
     return invite, None
 
 
@@ -87,6 +93,7 @@ def accept_invite_and_grant_access(invite: Invite, plex_user_uuid: str, plex_use
     current_app.logger.info(f"Invite servers: {[s.server_nickname for s in invite.servers]}")
     current_app.logger.info(f"Invite grant_library_ids: {invite.grant_library_ids}")
     if not invite.is_usable:
+        log_event(EventType.INVITE_VIEWED, f"Attempt to use unusable invite '{invite.custom_path or invite.token}' (ID: {invite.id}).", invite_id=invite.id, details={'reason': 'not usable'})
         return False, "This invite is no longer valid (expired, maxed out, or deactivated)."
 
     # Look for existing user by Plex UUID via service user
@@ -128,6 +135,7 @@ def accept_invite_and_grant_access(invite: Invite, plex_user_uuid: str, plex_use
         db.session.add(invite)
         try:
             db.session.commit()
+            log_event(EventType.INVITE_USED_ACCOUNT_LINKED, f"Existing user {plex_username} used invite {invite.id} (Discord linked/re-confirmed).", user_id=existing_mum_user.id, invite_id=invite.id)
         except Exception as e_commit:
             db.session.rollback()
             current_app.logger.error(f"Error committing usage for existing user on invite {invite.id}: {e_commit}")
@@ -139,6 +147,7 @@ def accept_invite_and_grant_access(invite: Invite, plex_user_uuid: str, plex_use
     servers_to_grant_access = invite.servers if invite.servers else []
     
     if not servers_to_grant_access:
+        log_event(EventType.ERROR_GENERAL, f"No servers found for invite {invite.id} when trying to grant access to {plex_username}", invite_id=invite.id)
         return False, "No servers are configured for this invite. Please contact admin."
     
     # Grant access to each server
@@ -315,9 +324,23 @@ def accept_invite_and_grant_access(invite: Invite, plex_user_uuid: str, plex_use
                     continue
                 
             successful_servers.append(server.server_nickname)
+            log_event(
+                EventType.PLEX_USER_ADDED,
+                f"User '{plex_username}' granted access to {server.server_nickname}. Downloads: {'enabled' if feature_state['allow_downloads'] else 'disabled'}.",
+                invite_id=invite.id,
+                details={
+                    'plex_user': plex_username,
+                    'server': server.server_nickname,
+                    'allow_downloads': feature_state["allow_downloads"],
+                    'allow_4k_transcode': feature_state["allow_4k_transcode"],
+                    'allow_live_tv': feature_state["allow_live_tv"],
+                    'invite_to_plex_home': feature_state["invite_to_plex_home"],
+                },
+            )
             
         except Exception as e:
             failed_servers.append(f"{server.server_nickname} ({str(e)})")
+            log_event(EventType.ERROR_PLEX_API, f"Failed to grant access to {server.server_nickname} for {plex_username} via invite {invite.id}: {e}", invite_id=invite.id)
     
     # Check if any servers were successful
     if not successful_servers:
@@ -327,6 +350,7 @@ def accept_invite_and_grant_access(invite: Invite, plex_user_uuid: str, plex_use
     # Log partial success if some servers failed
     if failed_servers:
         current_app.logger.warning(f"Partial success for invite {invite.id}: Access granted to {successful_servers}, but failed for {failed_servers}")
+        log_event(EventType.ERROR_GENERAL, f"Partial success for invite {invite.id}: granted access to {successful_servers}, failed for {failed_servers}", invite_id=invite.id)
 
     # Create service accounts and link them to local user
     try:
@@ -513,14 +537,19 @@ def accept_invite_and_grant_access(invite: Invite, plex_user_uuid: str, plex_use
         purge_whitelisted = first_media_access.is_purge_whitelisted if first_media_access else False
         bot_whitelisted = first_media_access.is_discord_bot_whitelisted if first_media_access else False
 
+        log_event(EventType.INVITE_USER_ACCEPTED_AND_SHARED, 
+                  f"User '{plex_username}' accepted invite '{invite.id}'. Purge WL: {purge_whitelisted}, Bot WL: {bot_whitelisted}. Access expires: {user_access_expires_at.strftime('%Y-%m-%d') if user_access_expires_at else 'Permanent'}.", 
+                  user_id=new_user.id, invite_id=invite.id)
         
         return True, new_user 
 
     except IntegrityError as ie_user:
         db.session.rollback()
         current_app.logger.error(f"Database integrity error creating MUM user {plex_username} from invite {invite.id}: {ie_user}", exc_info=True)
+        log_event(EventType.ERROR_GENERAL, f"DB integrity error creating user {plex_username} from invite {invite.id}: {ie_user}", invite_id=invite.id)
         return False, "A database error occurred creating your user account. This could be due to a conflict. Please contact admin."
     except Exception as e_user:
         db.session.rollback()
         current_app.logger.error(f"Failed to create MUM user {plex_username} from invite {invite.id} after Plex share: {e_user}", exc_info=True)
+        log_event(EventType.ERROR_GENERAL, f"Error creating MUM user {plex_username} from invite {invite.id} after Plex share: {e_user}", invite_id=invite.id)
         return False, f"An unexpected error occurred creating your user account after Plex access was granted: {e_user}. Please contact admin."

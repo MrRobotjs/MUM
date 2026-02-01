@@ -4,10 +4,10 @@
 from flask import render_template, redirect, url_for, flash, request, current_app, make_response, abort
 from flask_login import login_required, current_user
 from datetime import datetime, timezone, timedelta
-from app.models import User, UserType
+from app.models import User, UserType, EventType
 from app.models_media_services import MediaStreamHistory
 from app.extensions import db
-from app.utils.helpers import permission_required
+from app.utils.helpers import permission_required, log_event
 from . import user_bp
 import urllib.parse
 import json
@@ -111,6 +111,7 @@ def delete_stream_history(username=None, server_nickname=None, server_username=N
         db.session.commit()
         
         # Log the action
+        log_event(EventType.USER_EDIT, log_message, admin_id=current_user.id)
         
         current_app.logger.info(log_message)
         

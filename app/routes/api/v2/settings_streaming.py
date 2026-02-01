@@ -7,8 +7,9 @@ from pydantic import BaseModel, Field
 from flask_openapi3 import Tag
 
 from app.routes.api.v2 import api_v2
-from app.models import Setting
+from app.models import Setting, EventType
 from app.models_media_services import ServiceType
+from app.utils.helpers import log_event
 from app.services.media_service_manager import MediaServiceManager
 from app.services.media_service_factory import MediaServiceFactory
 from app.extensions import db
@@ -91,6 +92,10 @@ def update_streaming_settings(body: UpdateStreamingBody, current_user):
         Setting.set('SESSION_MONITORING_INTERVAL_SECONDS', str(interval_value))
         Setting.set('STREAMING_WEBSOCKET_REFRESH_INTERVAL_SECONDS', str(websocket_interval_value))
 
+        log_event(
+            EventType.SETTING_CHANGE,
+            f"Streaming settings updated: interval={interval_value}, websocket_refresh={websocket_interval_value}",
+            admin_id=getattr(current_user, 'id', None)
         )
 
         return jsonify({'data': _load_streaming_settings(), 'meta': {'request_id': request_id, 'deprecated': False}})
@@ -226,6 +231,7 @@ def terminate_session(body: TerminateBody, current_user):
 
         success = service.terminate_session(session_key, message)
         if success:
+            log_event(EventType.STREAMING_SESSION_TERMINATED, f"Session {session_key} terminated on {server_name}", admin_id=getattr(current_user, 'id', None))
             return jsonify({'data': {'success': True, 'message': 'Session terminated successfully'}, 'meta': {'request_id': request_id}})
         else:
             return jsonify({'error': {'code': 'TERMINATION_FAILED', 'message': 'Failed to terminate session.'}, 'meta': {'request_id': request_id}}), 500
@@ -295,6 +301,11 @@ def send_session_message(body: SendMessageBody, current_user):
             )
         )
         if success:
+            log_event(
+                EventType.SETTING_CHANGE,
+                f"Message sent to session {session_key} on {server_name}",
+                admin_id=getattr(current_user, 'id', None),
+            )
             return jsonify({'data': {'success': True, 'message': 'Message sent successfully'}, 'meta': {'request_id': request_id}})
         else:
             return jsonify({'error': {'code': 'MESSAGE_FAILED', 'message': 'Failed to send message.'}, 'meta': {'request_id': request_id}}), 500

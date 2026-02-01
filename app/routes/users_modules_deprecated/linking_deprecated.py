@@ -3,9 +3,9 @@
 
 from flask import render_template, request, current_app, make_response
 from flask_login import login_required, current_user
-from app.models import User, UserType
+from app.models import User, UserType, EventType
 from app.extensions import db
-from app.utils.helpers import permission_required
+from app.utils.helpers import log_event, permission_required
 from . import users_bp
 import json
 
@@ -233,6 +233,9 @@ def link_service_to_local(local_user_id, service_user_id):
         service_access.linkedUserId = local_user_id
         db.session.commit()
         
+        log_event(EventType.SETTING_CHANGE, 
+                  f"Service account '{service_access.external_username}' linked to local user '{local_user.localUsername}'",
+                  admin_id=current_user.id)
         
         return make_response("", 200)
     except Exception as e:
@@ -253,6 +256,9 @@ def unlink_service_from_local(service_user_id):
         service_access.linkedUserId = None
         db.session.commit()
         
+        log_event(EventType.SETTING_CHANGE, 
+                  f"Service account '{service_access.external_username}' unlinked from local user '{old_local_user.localUsername if old_local_user else 'Unknown'}'",
+                  admin_id=current_user.id)
         
         return make_response("", 200)
     except Exception as e:

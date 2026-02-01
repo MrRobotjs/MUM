@@ -11,11 +11,11 @@ from app.models_media_services import MediaServer, ServiceType
 from app.models_plugins import Plugin
 from app.forms import MediaServerForm
 from app.extensions import db
-from app.utils.helpers import setup_required, permission_required
+from app.utils.helpers import log_event, setup_required, permission_required
 from app.extensions import csrf
 from app.services.media_service_manager import MediaServiceManager
 from app.services.media_service_factory import MediaServiceFactory
-from app.models import User, UserType
+from app.models import User, UserType, EventType
 
 # Create a blueprint for setup routes (no prefix - will be handled in app/__init__.py)
 bp = Blueprint('media_servers_setup', __name__)
@@ -80,6 +80,7 @@ def add_server_setup(plugin_id):
                 flash(f'Server "{server.server_nickname}" added successfully!', 'success')
                 # Only log event if user is authenticated (during setup, user might not be fully authenticated)
                 if current_user.is_authenticated:
+                    log_event(EventType.SETTING_CHANGE, f"Added {server.service_type.name} server '{server.server_nickname}'", admin_id=current_user.id)
                 
                 return redirect(url_for('media_servers_setup.setup_list_servers', plugin_id=plugin_id))
             else:
@@ -137,6 +138,7 @@ def setup_edit_server(plugin_id, server_id):
             flash(f'Server "{server.server_nickname}" updated successfully!', 'success')
             # Only log event if user is authenticated 
             if current_user.is_authenticated:
+                log_event(EventType.SETTING_CHANGE, f"Updated {server.service_type.name} server '{server.server_nickname}'", admin_id=current_user.id)
             
             return redirect(url_for('media_servers_setup.setup_list_servers', plugin_id=plugin_id))
         
@@ -228,6 +230,7 @@ def delete_server_setup(plugin_id, server_id):
         
         # Only log event if user is authenticated 
         if current_user.is_authenticated:
+            log_event(EventType.SETTING_CHANGE, f"Deleted {server.service_type.name} server '{server_name}'", admin_id=current_user.id)
         
         return redirect(url_for('media_servers_setup.setup_list_servers', plugin_id=plugin_id))
         

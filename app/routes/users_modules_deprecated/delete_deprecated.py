@@ -3,9 +3,9 @@
 
 from flask import render_template, request, current_app, make_response
 from flask_login import login_required, current_user
-from app.models import User, UserType
+from app.models import User, UserType, EventType
 from app.extensions import db
-from app.utils.helpers import setup_required, permission_required
+from app.utils.helpers import log_event, setup_required, permission_required
 from app.services.unified_user_service import UnifiedUserService
 from . import users_bp
 import json
@@ -125,6 +125,9 @@ def delete_local_user(user_uuid):
             db.session.commit()
             
             # Log the event
+            log_event(EventType.MUM_USER_DELETED_FROM_MUM, 
+                     f"Local user '{username}' deleted. {linked_count} service accounts converted to standalone users.",
+                     admin_id=current_user.id)
             
             message = f"Local user '{username}' deleted. {linked_count} service accounts converted to standalone users."
         
@@ -193,6 +196,7 @@ def delete_user(user_uuid):
 
         except Exception as e:
             current_app.logger.error(f"Route Error deleting user {username}: {e}", exc_info=True)
+            log_event(EventType.ERROR_GENERAL, f"Route: Failed to delete user {username}: {e}", user_id=actual_id, admin_id=current_user.id)
             
             toast = {
                 "showToastEvent": {
@@ -298,6 +302,9 @@ def delete_app_user(username):
         db.session.commit()
         
         # Log the event
+        log_event(EventType.MUM_USER_DELETED_FROM_MUM, 
+                 f"App user '{username}' deleted by admin.",
+                 admin_id=current_user.id)
         
         toast = {
             "showToastEvent": {

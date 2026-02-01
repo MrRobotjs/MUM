@@ -11,10 +11,11 @@ from plexapi.exceptions import Unauthorized, NotFound, PlexApiException
 from plexapi.myplex import MyPlexAccount 
 import secrets
 import urllib.parse 
-from app.models import User, UserType, Setting, SettingValueType
+from app.models import User, UserType, Setting, EventType, SettingValueType
 from app.forms import AccountSetupForm, AppBaseUrlForm, DiscordConfigForm
 from app.extensions import db
 from sqlalchemy import inspect
+from app.utils.helpers import log_event
 from app.utils.plex_auth_helpers_deprecated import create_plex_pin_login, check_plex_pin_status, get_plex_auth_url
 
 bp = Blueprint('setup', __name__)
@@ -192,6 +193,8 @@ def account_setup():
                     db.session.add(owner)
                     db.session.commit()
                     login_user(owner, remember=True) # Log in the newly created owner
+                    log_event(EventType.ADMIN_LOGIN_SUCCESS, f"Owner '{owner.localUsername}' created and logged in (setup).", admin_id=owner.id) # Use owner.id
+                    flash('Admin account created successfully.', 'success')
                     current_app.logger.info(f"Account setup complete, redirecting to plugins setup: {url_for('setup.plugins')}")
                     return redirect(url_for('setup.plugins'))
                 except Exception as e_db_commit:
@@ -268,6 +271,7 @@ def plex_sso_callback_setup_admin():
             else: flash("Owner account exists but doesn't match this Plex account.", "danger"); return redirect(url_for('setup.account_setup'))
         owner = User(userType=UserType.OWNER, plex_uuid=plex_account.uuid, plex_username=plex_account.localUsername, plex_thumb=plex_account.thumb, discord_email=plex_account.email)
         db.session.add(owner); db.session.commit(); login_user(owner, remember=True)
+        log_event(EventType.ADMIN_LOGIN_SUCCESS, f"Owner '{owner.plex_username}' created (Plex SSO setup).")
         flash(f'Owner account for {owner.plex_username} created successfully using Plex.', 'success')
         session.pop('plex_pin_id_admin_setup', None); session.pop('plex_pin_code_admin_setup', None); session.pop('plex_headers_admin_setup', None)
         return redirect(url_for('setup.plugins'))
@@ -308,6 +312,7 @@ def app_config():
             log_message += f", Local URL='{app_local_url}'"
         # Only log event if user is authenticated (during setup, user might not be fully authenticated)
         if current_user.is_authenticated:
+            log_event(EventType.SETTING_CHANGE, log_message, admin_id=current_user.id)
         flash('Application settings saved.', 'success')
         return redirect(url_for('setup.discord_config'))
         
@@ -347,8 +352,10 @@ def discord_config():
                 return render_template('setup/discord/index.html', form=form, discord_invite_redirect_uri=discord_invite_redirect_uri, discord_admin_link_redirect_uri=discord_admin_link_redirect_uri, saved_discord_enabled=enable_discord, prev_step_url=url_for('setup.app_config'), completed_steps=get_completed_steps(), current_step_id='discord')
             Setting.set('DISCORD_CLIENT_ID', form.discord_client_id.data, SettingValueType.STRING); Setting.set('DISCORD_CLIENT_SECRET', form.discord_client_secret.data, SettingValueType.SECRET)
             Setting.set('DISCORD_REDIRECT_URI_INVITE', discord_invite_redirect_uri, SettingValueType.STRING); Setting.set('DISCORD_REDIRECT_URI_ADMIN_LINK', discord_admin_link_redirect_uri, SettingValueType.STRING)
+            log_event(EventType.DISCORD_CONFIG_SAVE, "Discord OAuth enabled/configured.", admin_id=current_user.id); flash('Discord configuration saved.', 'success')
         else:
             Setting.set('DISCORD_CLIENT_ID', "", SettingValueType.STRING); Setting.set('DISCORD_CLIENT_SECRET', "", SettingValueType.SECRET)
+            log_event(EventType.DISCORD_CONFIG_SAVE, "Discord OAuth disabled.", admin_id=current_user.id); flash('Discord OAuth disabled.', 'info')
         return redirect(url_for('setup.finish_setup'))
     if request.method == 'GET':
         from flask import send_from_directory
@@ -392,6 +399,8 @@ def finish_setup():
     if not Setting.get('SECRET_KEY'):
         app_secret_key = secrets.token_hex(32)
         Setting.set('SECRET_KEY', app_secret_key, SettingValueType.SECRET, "Application Secret Key"); current_app.config['SECRET_KEY'] = app_secret_key
+        log_event(EventType.SETTING_CHANGE, "SECRET_KEY generated at finish.")
+    flash('Application setup complete!', 'success'); log_event(EventType.APP_STARTUP, "Setup completed.", admin_id=current_user.id)
     if hasattr(g, 'setup_complete'): g.setup_complete = True; current_app.config['SETUP_COMPLETE'] = True
     return redirect('/admin/dashboard')
 

@@ -74,6 +74,11 @@ def setup_required(f):
     return decorated_function
 
 
+def log_event(event_type, message: str, details: dict = None,
+              admin_id: int = None, user_id=None, invite_id: int = None):
+    """HistoryLog removed: keep call sites but do not persist events."""
+    try:
+        current_app.logger.debug(f"HistoryLog disabled; event suppressed: {event_type} - {message}")
     except Exception:
         pass
 

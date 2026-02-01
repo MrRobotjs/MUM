@@ -3,8 +3,8 @@ from flask import Blueprint, request, current_app, render_template, Response, ab
 from flask_login import login_required, current_user
 import requests
 import json
-from app.models import User, UserType, Invite, Setting
-from app.utils.helpers import permission_required
+from app.models import User, UserType, EventType, Invite, Setting
+from app.utils.helpers import log_event, permission_required
 from app.utils.timeout_helper import get_api_timeout
 from app.extensions import csrf, db
 from app.models_media_services import ServiceType, MediaServer
@@ -1238,6 +1238,9 @@ def terminate_session():
         success = service.terminate_session(session_key, message)
         
         if success:
+            log_event(EventType.SETTING_CHANGE, 
+                     f"Terminated {service_type} session {session_key} on {target_server.server_nickname}",
+                     admin_id=current_user.id if hasattr(current_user, 'id') else None)
             return jsonify(success=True, message=f"Termination command sent for {service_type} session {session_key}.")
         else:
             return jsonify(success=False, error=f"Failed to send termination command ({service_type} connection issue?)."), 500

@@ -4,8 +4,8 @@ from flask import jsonify, request
 from flask_login import login_required, current_user
 
 from app.routes.api_v1_deprecated import bp
-from app.models import Setting, SettingValueType
-from app.utils.helpers import permission_required
+from app.models import Setting, SettingValueType, EventType
+from app.utils.helpers import permission_required, log_event
 
 
 def _serialize_user_account_settings():
@@ -32,5 +32,7 @@ def update_user_account_settings():
     allow_accounts = bool(payload.get('allow_user_accounts', False))
 
     Setting.set('ALLOW_USER_ACCOUNTS', allow_accounts, SettingValueType.BOOLEAN, "Allow User Accounts")
+    log_event(EventType.SETTING_CHANGE, "User account settings updated via API.", admin_id=current_user.id)
 
     return jsonify({'data': _serialize_user_account_settings(), 'meta': {'request_id': request_id}}), 200
+

@@ -4,9 +4,9 @@ from flask import jsonify, request
 from flask_login import login_required, current_user
 
 from app.routes.api_v1_deprecated import bp
-from app.models import User, UserType, AdminRole
+from app.models import User, UserType, AdminRole, EventType
 from app.extensions import db
-from app.utils.helpers import permission_required, any_permission_required
+from app.utils.helpers import permission_required, any_permission_required, log_event
 
 
 def _serialize_admin(user: User):
@@ -86,6 +86,7 @@ def create_admin():
         new_user.force_password_change = True
         db.session.add(new_user)
         db.session.commit()
+        log_event(EventType.MUM_USER_ADDED_FROM_PLEX, f"Admin user '{username}' created via API.", admin_id=current_user.id)
     except Exception as exc:
         db.session.rollback()
         return jsonify({
@@ -118,6 +119,7 @@ def update_admin(admin_id):
     try:
         user.set_admin_roles(roles)
         db.session.commit()
+        log_event(EventType.SETTING_CHANGE, f"Admin roles updated for '{user.localUsername}'.", admin_id=current_user.id)
     except Exception as exc:
         db.session.rollback()
         return jsonify({
@@ -152,6 +154,7 @@ def reset_admin_password(admin_id):
         user.set_password(new_password)
         user.force_password_change = True
         db.session.commit()
+        log_event(EventType.ADMIN_PASSWORD_CHANGE, f"Password reset for '{user.localUsername}'.", admin_id=current_user.id)
     except Exception as exc:
         db.session.rollback()
         return jsonify({
@@ -183,6 +186,7 @@ def delete_admin(admin_id):
     try:
         db.session.delete(user)
         db.session.commit()
+        log_event(EventType.SETTING_CHANGE, f"Admin user '{user.localUsername}' deleted via API.", admin_id=current_user.id)
     except Exception as exc:
         db.session.rollback()
         return jsonify({

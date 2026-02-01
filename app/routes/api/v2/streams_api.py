@@ -12,7 +12,7 @@ from flask_openapi3 import Tag
 
 from app.routes.api.v2 import api_v2
 from app.models_media_services import MediaStreamHistory, MediaServer, ServiceType
-from app.models import User, UserType
+from app.models import User, UserType, EventType
 # JWT permission checking handled by jwt_permission_required, log_event
 from app.services.media_service_factory import MediaServiceFactory
 from sqlalchemy import desc, func, or_
@@ -422,5 +422,11 @@ def terminate_stream(path: StreamPath, body: TerminateBody, current_user):
     if not success:
         return jsonify({"error": {"code": "TERMINATION_FAILED", "message": "The media server did not accept the termination command."}, "meta": {"request_id": request_id}}), 502
 
+    log_event(
+        EventType.SETTING_CHANGE,
+        f"Terminated {server.service_type.value} session {session_key} on {server.server_nickname}",
+        admin_id=getattr(current_user, "id", None),
+        server_id=server.id,
+    )
 
     return jsonify({"data": {"success": True, "message": f"Termination command sent for session {session_key}."}, "meta": {"request_id": request_id}})

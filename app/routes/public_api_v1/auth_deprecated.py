@@ -7,9 +7,9 @@ from flask_login import login_user, logout_user, current_user, login_required
 from sqlalchemy import func
 
 from app.extensions import db
-from app.models import User, UserType, Setting
+from app.models import User, UserType, Setting, EventType
 from app.routes.public_api_v1 import bp
-from app.utils.helpers import get_csrf_token
+from app.utils.helpers import get_csrf_token, log_event
 
 
 def _serialize_portal_user(user: User | None):
@@ -100,6 +100,7 @@ def local_login():
 
     candidate = _find_local_user(username)
     if not candidate or not candidate.check_password(password):
+        log_event(EventType.ADMIN_LOGIN_FAIL, f"Failed local login attempt for '{username}'.")
         return jsonify({
             'error': {
                 'code': 'INVALID_CREDENTIALS',
@@ -124,6 +125,7 @@ def local_login():
     except Exception:
         db.session.rollback()
 
+    log_event(EventType.ADMIN_LOGIN_SUCCESS, f"App user '{candidate.localUsername}' logged in.")
 
     return jsonify({
         'data': _session_payload(candidate),
@@ -141,6 +143,7 @@ def local_logout():
     actor = _serialize_portal_user(current_user)
     logout_user()
     if actor:
+        log_event(EventType.ADMIN_LOGOUT, f"User '{actor.get('username')}' logged out (public API).")
     return jsonify({
         'data': {'success': True},
         'meta': {

@@ -10,7 +10,7 @@ from flask_openapi3 import Tag
 
 from app.routes.api.v2 import api_v2
 from app.extensions import db
-from app.models import User, UserType
+from app.models import User, UserType, EventType
 # JWT permission checking handled by jwt_permission_required, log_event
 from app.utils.helpers import get_user_by_uuid
 from app.services import user_service
@@ -169,6 +169,11 @@ def merge_users(body: MergeBody, current_user):
             500,
         )
 
+    log_event(
+        EventType.SETTING_CHANGE,
+        f"Linked {linked} service users to local user '{getattr(target_obj, 'localUsername', None)}'",
+        admin_id=getattr(current_user, "id", None),
+    )
 
     return (
         jsonify({

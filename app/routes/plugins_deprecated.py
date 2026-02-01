@@ -6,8 +6,8 @@ import os
 from app.models_plugins import Plugin, PluginStatus, PluginType
 from app.services.plugin_manager import plugin_manager
 from app.extensions import db
-from app.utils.helpers import setup_required, permission_required
-from app.models import User, UserType
+from app.utils.helpers import log_event, setup_required, permission_required
+from app.models import User, UserType, EventType
 import json
 from app.utils.setup_helpers import get_completed_steps
 
@@ -65,8 +65,10 @@ def enable_plugin(plugin_id):
         plugin = Plugin.query.filter_by(plugin_id=plugin_id).first()
         if plugin and plugin.servers_count > 0:
             toast_message = f'Plugin "{plugin_id}" enabled successfully! {plugin.servers_count} associated server(s) have been activated.'
+            log_event(EventType.SETTING_CHANGE, f"Plugin '{plugin_id}' enabled and {plugin.servers_count} servers activated", admin_id=current_user.id)
         else:
             toast_message = f'Plugin "{plugin_id}" enabled successfully!'
+            log_event(EventType.SETTING_CHANGE, f"Plugin '{plugin_id}' enabled", admin_id=current_user.id)
         toast_category = 'success'
     else:
         plugin = Plugin.query.filter_by(plugin_id=plugin_id).first()
@@ -111,6 +113,7 @@ def disable_plugin(plugin_id):
         else:
             toast_message = f'Plugin "{plugin_id}" disabled successfully! Associated servers have been deactivated.'
             toast_category = 'success'
+        log_event(EventType.SETTING_CHANGE, f"Plugin '{plugin_id}' disabled and servers deactivated", admin_id=current_user.id)
     else:
         plugin = Plugin.query.filter_by(plugin_id=plugin_id).first()
         error_msg = plugin.last_error if plugin else "Plugin not found"
@@ -200,6 +203,7 @@ def install_plugin():
                 
                 if success:
                     flash('Plugin installed successfully!', 'success')
+                    log_event(EventType.SETTING_CHANGE, f"Plugin installed from {filename}", admin_id=current_user.id)
                 else:
                     flash('Failed to install plugin. Check logs for details.', 'danger')
                 
@@ -243,6 +247,7 @@ def uninstall_plugin(plugin_id):
     
     if success:
         flash(f'Plugin "{plugin_id}" uninstalled successfully!', 'success')
+        log_event(EventType.SETTING_CHANGE, f"Plugin '{plugin_id}' uninstalled", admin_id=current_user.id)
     else:
         flash(f'Failed to uninstall plugin "{plugin_id}"', 'danger')
     

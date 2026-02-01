@@ -11,8 +11,8 @@ from flask_openapi3 import Tag
 
 from app.routes.api.v2 import api_v2
 from app.extensions import db
-from app.models import User, UserType
-# JWT permission checking handled by jwt_permission_required
+from app.models import User, UserType, EventType
+# JWT permission checking handled by jwt_permission_required, log_event
 
 
 users_tag = Tag(name="Users", description="User management endpoints")
@@ -263,6 +263,11 @@ def bulk_user_operations(body: BulkBody, current_user):
         db.session.rollback()
         return jsonify({"error": {"code": "BULK_UPDATE_FAILED", "message": "Database error while applying bulk operations."}, "meta": {"request_id": request_id}}), 500
 
+    log_event(
+        EventType.SETTING_CHANGE,
+        f"Bulk user operations executed ({', '.join(actions_executed)}). Updated: {stats['updated']}, Deleted: {stats['deleted']}, Skipped: {stats['skipped']}, Errors: {stats['errors']}.",
+        admin_id=getattr(current_user, "id", None),
+    )
 
     return (
         jsonify({

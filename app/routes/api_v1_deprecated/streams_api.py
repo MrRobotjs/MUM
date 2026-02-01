@@ -8,8 +8,8 @@ from sqlalchemy import desc, func
 
 from app.routes.api_v1_deprecated import bp
 from app.models_media_services import MediaStreamHistory, MediaServer, ServiceType
-from app.models import User
-from app.utils.helpers import permission_required
+from app.models import User, EventType
+from app.utils.helpers import permission_required, log_event
 from app.services.media_service_factory import MediaServiceFactory
 
 
@@ -284,6 +284,12 @@ def terminate_stream(stream_id):
             }
         }), 502
 
+    log_event(
+        EventType.SETTING_CHANGE,
+        f"Terminated {server.service_type.value} session {session_key} on {server.server_nickname}",
+        admin_id=getattr(current_user, 'id', None),
+        server_id=server.id
+    )
 
     return jsonify({
         'data': {

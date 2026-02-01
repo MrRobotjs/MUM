@@ -3,7 +3,7 @@
 Kept for deprecated routes only.
 """
 from flask import current_app
-from app.models import User, UserType, HistoryLog
+from app.models import User, UserType, HistoryLog, EventType
 from app.extensions import db
 from app.utils.helpers import log_event # For logging the clear action itself
 
@@ -56,10 +56,15 @@ def clear_history_logs(event_types_to_clear: list[str] = None, admin_id: int = N
         elif not event_types_to_clear:
              log_message += " (All types)"
 
+        log_event(EventType.SETTING_CHANGE, # Or a new EventType like HISTORY_CLEARED
+                  log_message,
+                  admin_id=admin_id,
+                  details=action_details)
         current_app.logger.info(f"History_Service.py - clear_history_logs(): {log_message}")
         return cleared_count
     except Exception as e:
         db.session.rollback()
         current_app.logger.error(f"History_Service.py - clear_history_logs(): Error clearing history logs: {e}", exc_info=True)
         # Optionally log this error to history as well, or raise it
+        log_event(EventType.ERROR_GENERAL, f"Failed to clear history logs: {e}", admin_id=admin_id, details={"error": str(e)})
         raise # Re-raise so the route can catch it and flash an error

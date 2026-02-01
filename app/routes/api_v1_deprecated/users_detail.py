@@ -7,10 +7,10 @@ from flask_login import login_required, current_user
 from sqlalchemy import or_
 
 from app.routes.api_v1_deprecated import bp
-from app.models import User, UserType, AdminRole, UserRole
+from app.models import User, UserType, AdminRole, UserRole, EventType
 from app.models_media_services import MediaLibrary
 from app.extensions import db
-from app.utils.helpers import permission_required
+from app.utils.helpers import permission_required, log_event
 from app.services import user_service
 
 
@@ -267,6 +267,10 @@ def update_user_detail(user_uuid):
             'meta': {'request_id': request_id}
         }), 500
 
+    log_event(
+        EventType.SETTING_CHANGE,
+        f"User '{user.localUsername or user.external_username}' updated via API.",
+        admin_id=getattr(current_user, 'id', None)
     )
 
     return jsonify({

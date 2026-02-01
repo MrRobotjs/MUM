@@ -10,7 +10,9 @@ from app.routes.api.v2 import api_v2
 from app.models_plugins import Plugin, PluginRepository
 from app.services.plugin_manager import plugin_manager
 from app.extensions import db
+from app.utils.helpers import log_event
 # JWT permission checking handled by jwt_permission_required, log_event
+from app.models import EventType
 from app.configuration.plugin_metadata import get_all_plugin_metadata
 
 
@@ -85,6 +87,7 @@ def _plugin_action(plugin_id: str, action: str, current_user):
         return jsonify({'error': {'code': 'PLUGIN_ACTION_FAILED', 'message': plugin.last_error or 'Plugin action failed.'}, 'meta': {'request_id': request_id}}), 500
 
     db.session.commit()
+    log_event(EventType.SETTING_CHANGE, f"Plugin '{plugin_id}' {action}d.", admin_id=current_user.id)
     return jsonify({'data': _serialize_plugin(plugin), 'meta': {'request_id': request_id}})
 
 
@@ -249,6 +252,7 @@ def create_plugin_repository(current_user):
     repo = PluginRepository(name=name, url=url_value, description=description)
     db.session.add(repo)
     db.session.commit()
+    log_event(EventType.SETTING_CHANGE, f"Plugin repository '{name}' added.", admin_id=current_user.id)
     return jsonify({'data': {'id': repo.id}, 'meta': {'request_id': request_id}}), 201
 
 
@@ -270,4 +274,5 @@ def delete_plugin_repository(repo_id, current_user):
     repo = PluginRepository.query.get_or_404(repo_id)
     db.session.delete(repo)
     db.session.commit()
+    log_event(EventType.SETTING_CHANGE, f"Plugin repository '{repo.name}' removed.", admin_id=current_user.id)
     return jsonify({'data': {'success': True}, 'meta': {'request_id': request_id}})

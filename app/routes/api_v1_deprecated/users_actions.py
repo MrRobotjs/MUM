@@ -5,8 +5,8 @@ from flask import jsonify
 from flask_login import login_required, current_user
 
 from app.routes.api_v1_deprecated import bp
-from app.models import User
-from app.utils.helpers import permission_required
+from app.models import User, EventType
+from app.utils.helpers import log_event, permission_required
 from app.extensions import db
 
 
@@ -31,6 +31,11 @@ def reset_user_password(user_uuid):
     user.force_password_change = True
     db.session.commit()
 
+    log_event(
+        EventType.ADMIN_PASSWORD_CHANGE,
+        f"Password reset initiated for user '{user.localUsername}'.",
+        admin_id=current_user.id
+    )
 
     response = {
         'data': {

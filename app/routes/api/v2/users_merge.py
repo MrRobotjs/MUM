@@ -12,7 +12,7 @@ from app.routes.api.v2 import api_v2
 from app.extensions import db
 from app.models import User, UserType, EventType
 # JWT permission checking handled by jwt_permission_required, log_event
-from app.utils.helpers import get_user_by_uuid
+from app.utils.helpers import get_user_by_uuid, log_event
 from app.services import user_service
 
 

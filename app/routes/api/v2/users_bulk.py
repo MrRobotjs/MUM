@@ -12,6 +12,7 @@ from flask_openapi3 import Tag
 from app.routes.api.v2 import api_v2
 from app.extensions import db
 from app.models import User, UserType, EventType
+from app.utils.helpers import log_event
 # JWT permission checking handled by jwt_permission_required, log_event
 
 

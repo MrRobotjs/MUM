@@ -13,6 +13,7 @@ from flask_openapi3 import Tag
 from app.routes.api.v2 import api_v2
 from app.models_media_services import MediaStreamHistory, MediaServer, ServiceType
 from app.models import User, UserType, EventType
+from app.utils.helpers import log_event
 # JWT permission checking handled by jwt_permission_required, log_event
 from app.services.media_service_factory import MediaServiceFactory
 from sqlalchemy import desc, func, or_

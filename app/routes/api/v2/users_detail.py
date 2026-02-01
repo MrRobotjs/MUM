@@ -7,7 +7,7 @@ from uuid import uuid4
 from flask import jsonify, current_app
 from flask_openapi3 import Tag
 from pydantic import BaseModel, Field
-from sqlalchemy import or_
+from sqlalchemy import or_, desc
 
 from app.models import User, UserType
 from app.models_media_services import MediaLibrary, MediaStreamHistory

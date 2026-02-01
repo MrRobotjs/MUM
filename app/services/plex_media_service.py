@@ -1035,6 +1035,17 @@ class PlexMediaService(BaseMediaService):
                 return media_node
             return None
 
+        def get_media_part_file(raw_xml_data):
+            media_node = get_stream_media_xml(raw_xml_data)
+            if not isinstance(media_node, dict):
+                return None
+            part_node = media_node.get('Part')
+            if isinstance(part_node, list):
+                part_node = next((p for p in part_node if p.get('@selected') == '1'), None) or (part_node[0] if part_node else None)
+            if isinstance(part_node, dict):
+                return part_node.get('@file')
+            return None
+
         def get_transcode_session_xml(raw_xml_data):
             if not raw_xml_data:
                 return None
@@ -1236,6 +1247,11 @@ class PlexMediaService(BaseMediaService):
                 bandwidth_bps = get_session_bandwidth_bps(raw_xml_data)
                 bandwidth_label = format_bps_rate(bandwidth_bps)
                 bandwidth_detail = bandwidth_label if bandwidth_label is not None else f"Streaming via {location_lan_wan}"
+                media_path = (
+                    getattr(stream_media_part, 'file', None)
+                    or getattr(source_media_part, 'file', None)
+                    or get_media_part_file(raw_xml_data)
+                )
 
                 # Initialize details
                 quality_detail = ""
@@ -1511,7 +1527,7 @@ class PlexMediaService(BaseMediaService):
                     'video_detail': video_detail,
                     'audio_detail': audio_detail,
                     'subtitle_detail': subtitle_detail,
-                    'media_path': getattr(stream_media_part, 'file', None),
+                    'media_path': media_path,
                     'media_duration': getattr(stream_media, 'duration', None) or getattr(raw_session, 'duration', None),
                     'media_bitrate': getattr(stream_media, 'bitrate', None),
                     'media_width': getattr(stream_media, 'width', None) or getattr(stream_video_stream, 'width', None),

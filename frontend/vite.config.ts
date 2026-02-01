@@ -59,7 +59,18 @@ export default defineConfig(({ mode }) => {
       outDir: path.resolve(__dirname, '../app/static/dist'),
       emptyOutDir: true,
       sourcemap: true,
-      chunkSizeWarningLimit: 3000
+      chunkSizeWarningLimit: 3000,
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (!id.includes('node_modules')) return;
+            if (id.includes('@fortawesome/free-solid-svg-icons')) return 'fa-solid';
+            if (id.includes('@fortawesome/free-brands-svg-icons')) return 'fa-brands';
+            if (id.includes('@fortawesome/free-regular-svg-icons')) return 'fa-regular';
+            if (id.includes('@fortawesome/fontawesome-svg-core')) return 'fa-core';
+          }
+        }
+      }
     },
     base: '/static/dist/' // Assets will be served from /static/dist/assets/...
   };

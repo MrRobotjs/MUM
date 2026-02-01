@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import type { IconDefinition } from '@fortawesome/fontawesome-svg-core'
+import { faIdBadge, faPalette } from '@fortawesome/free-solid-svg-icons'
 import { IconTag, IconAlignLeft, IconPalette, IconIcons, IconDeviceFloppy, IconSparkles, IconInfoCircle, IconSearch, IconX, IconGridDots, IconPaintFilled, IconCheck } from '@tabler/icons-react'
 import { AdminRole } from '../../hooks/useAdminRoles'
 import { useAlerts, useTheme } from '../../contexts'
@@ -249,7 +250,7 @@ export const AdminRoleDisplayTab = ({ role, onUpdate }: AdminRoleDisplayTabProps
       {/* Basic Settings Section */}
       <div className="space-y-4">
         <h4 className="flex items-center gap-2 text-lg font-medium">
-          <i className="fa-solid fa-id-badge text-sm text-primary" />
+          <FontAwesomeIcon icon={faIdBadge} className="text-sm text-primary" />
           Basic Settings
         </h4>
 
@@ -304,7 +305,7 @@ export const AdminRoleDisplayTab = ({ role, onUpdate }: AdminRoleDisplayTabProps
       {/* Visual Appearance Section */}
       <div className="space-y-4">
         <h4 className="flex items-center gap-2 text-lg font-medium">
-          <i className="fa-solid fa-palette text-sm text-amber-600 dark:text-amber-400" />
+          <FontAwesomeIcon icon={faPalette} className="text-sm text-amber-600 dark:text-amber-400" />
           Visual Appearance
         </h4>
 

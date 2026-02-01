@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import type { IconDefinition } from '@fortawesome/fontawesome-svg-core'
+import { faCog } from '@fortawesome/free-solid-svg-icons'
 import { IconPalette, IconDeviceFloppy, IconInfoCircle, IconSearch, IconX, IconPaintFilled, IconGridDots, IconCheck } from '@tabler/icons-react'
 import { UserRole } from '../../hooks/useUserRoles'
 import { useAlerts, useTheme } from '../../contexts'
@@ -287,7 +288,7 @@ export const UserRoleDisplayTab = ({ role, onUpdate }: UserRoleDisplayTabProps) 
           <CardHeader>
             <div className="flex items-center gap-3">
               <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/20">
-                <i className="fa-solid fa-cog text-sm text-primary" />
+                <FontAwesomeIcon icon={faCog} className="text-sm text-primary" />
               </div>
               <div>
                 <CardTitle className="mb-1 text-xl font-semibold">Role Settings</CardTitle>

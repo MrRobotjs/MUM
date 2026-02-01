@@ -11,7 +11,6 @@ import {
   faShield,
   faShieldHalved,
   faPuzzlePiece,
-  faClock,
   faCode,
   faGauge,
   faChevronRight,
@@ -132,12 +131,6 @@ export function NavSettings() {
       url: '/admin/settings/discord',
       icon: faDiscord,
       permission: 'manage_discord_settings',
-    },
-    {
-      title: 'Logs',
-      url: '/admin/settings/logs',
-      icon: faClock,
-      permission: 'view_logs',
     },
     {
       title: 'Advanced',

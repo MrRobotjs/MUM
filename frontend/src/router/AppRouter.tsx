@@ -35,7 +35,6 @@ import { AdminSettingsPluginsServerAddPage } from '../pages/AdminSettingsPlugins
 import { AdminSettingsPluginsServerEditPage } from '../pages/AdminSettingsPluginsServerEditPage';
 import AdminSettingsDiscordPage from '../pages/AdminSettingsDiscordPage';
 import AdminSettingsAdvancedPage from '../pages/AdminSettingsAdvancedPage';
-import AdminSettingsLogsPage from '../pages/AdminSettingsLogsPage';
 import AdminSettingsApiDebugPage from '../pages/AdminSettingsApiDebugPage';
 import AdminSettingsPage from '../pages/AdminSettingsPage';
 import AdminNotificationsPage from '../pages/AdminNotificationsPage';
@@ -184,7 +183,6 @@ const adminServerAdd = createRoute({ getParentRoute: () => adminRoute, path: 'se
 const adminServerEdit = createRoute({ getParentRoute: () => adminRoute, path: 'settings/plugins/$pluginId/servers/$serverId', component: AdminSettingsPluginsServerEditPage })
 const adminDiscord = createRoute({ getParentRoute: () => adminRoute, path: 'settings/discord', component: AdminSettingsDiscordPage })
 const adminAdvanced = createRoute({ getParentRoute: () => adminRoute, path: 'settings/advanced', component: AdminSettingsAdvancedPage })
-const adminLogs = createRoute({ getParentRoute: () => adminRoute, path: 'settings/logs', component: AdminSettingsLogsPage })
 const adminApiDebug = createRoute({ getParentRoute: () => adminRoute, path: 'settings/api-debug', component: AdminSettingsApiDebugPage })
 const adminUsersGeneral = createRoute({ getParentRoute: () => adminRoute, path: 'settings/users/general', component: AdminSettingsUserGeneralPage })
 const adminAdmins = createRoute({ getParentRoute: () => adminRoute, path: 'settings/admins', component: AdminSettingsAdminManagementPage })
@@ -295,7 +293,6 @@ const routeTree = rootRoute.addChildren([
     adminServerEdit,
     adminDiscord,
     adminAdvanced,
-    adminLogs,
     adminApiDebug,
     adminUsersGeneral,
     adminAdmins,

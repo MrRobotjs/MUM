@@ -39,7 +39,6 @@ from . import servers_libraries  # noqa: E402,F401
 from . import settings_general  # noqa: E402,F401
 from . import settings_user_accounts  # noqa: E402,F401
 from . import settings_advanced  # noqa: E402,F401
-from . import settings_logs  # noqa: E402,F401
 from . import settings_discord  # noqa: E402,F401
 from . import settings_streaming  # noqa: E402,F401
 from . import plugins  # noqa: E402,F401

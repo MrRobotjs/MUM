@@ -12,7 +12,6 @@ import type { IconDefinition } from '@fortawesome/fontawesome-svg-core'
 import {
   faBook,
   faCircleInfo,
-  faFileLines,
   faFloppyDisk,
   faLock,
   faPlay,
@@ -106,20 +105,6 @@ const PERMISSIONS_STRUCTURE: Record<
       kill_stream: { label: 'Terminate Stream', description: "Can stop a user's active stream." },
     },
   },
-  EventLogs: {
-    label: 'Application Logs',
-    icon: 'file-text',
-    children: {
-      view_logs: {
-        label: 'View Application Logs',
-        description: 'Can access the full "Application Logs" page in settings.',
-      },
-      clear_logs: {
-        label: 'Clear Application Logs',
-        description: 'Can erase the full "Application Logs".',
-      },
-    },
-  },
   Libraries: {
     label: 'Libraries',
     icon: 'library',
@@ -155,7 +140,6 @@ const PERMISSION_ICON_MAP: Record<string, IconDefinition> = {
   ticket: faTicketSimple,
   'users-gear': faUsersGear,
   play: faPlay,
-  'file-text': faFileLines,
   library: faBook,
   server: faServer,
 }

@@ -361,7 +361,6 @@ class RoleCreateForm(FlaskForm):
     can_manage_users = BooleanField('Can Manage Users')
     can_manage_invites = BooleanField('Can Manage Invites') 
     can_manage_settings = BooleanField('Can Manage Settings')
-    can_view_logs = BooleanField('Can View Logs')
     
     submit = SubmitField('Create Role')
 

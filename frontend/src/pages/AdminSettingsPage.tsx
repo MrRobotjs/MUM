@@ -7,7 +7,6 @@ import {
   faUserShield,
   faPuzzlePiece,
   faShieldHalved,
-  faFileLines,
   faCode,
   faChevronRight,
 } from '@fortawesome/free-solid-svg-icons';
@@ -120,14 +119,6 @@ export const AdminSettingsPage = () => {
           description="Advanced configuration, scheduled tasks, and system information"
           icon={<FontAwesomeIcon icon={faShieldHalved} className="size-6" />}
           href="/admin/settings/advanced"
-        />
-
-        {/* Logs */}
-        <SettingsCategory
-          title="Logs"
-          description="View application logs and debugging information"
-          icon={<FontAwesomeIcon icon={faFileLines} className="size-6" />}
-          href="/admin/settings/logs"
         />
 
         {/* API Debug */}

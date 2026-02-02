@@ -250,6 +250,9 @@ def get_user(path: UserPath, current_user):
         "is_active": user.is_active,
         "notes": user.notes,
         "roles": _serialize_roles(user),
+        "server_id": getattr(user, "server_id", None),
+        "allowed_library_ids": [str(v) for v in (allowed_library_ids or [])],
+        "has_all_libraries": has_all_libraries,
         "admin_roles_detail": [
             {
                 "name": role.name,
@@ -294,9 +297,11 @@ def get_user(path: UserPath, current_user):
             "service_types": service_context.get("service_types"),
             "server_nickname": service_context.get("primary_server_name"),
             "server_names": service_context.get("server_names"),
+            "server_id": getattr(user, "server_id", None),
             "linked_local_user": linked_local_user,
             "libraries": libraries,
             "has_all_libraries": has_all_libraries,
+            "allowed_library_ids": [str(v) for v in (allowed_library_ids or [])],
             "last_activity_at": user.last_activity_at.isoformat() if user.last_activity_at else None,
             "service_join_date": user.service_join_date.isoformat() if user.service_join_date else None,
             "access_expires_at": user.access_expires_at.isoformat() if user.access_expires_at else None,

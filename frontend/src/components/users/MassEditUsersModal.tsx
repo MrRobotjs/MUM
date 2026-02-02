@@ -23,10 +23,7 @@ import {
   faCalendar,
   faCalendarPlus,
   faCheck,
-  faCircle,
   faCircleInfo,
-  faCircleMinus,
-  faCirclePlus,
   faCog,
   faFolder,
   faInfinity,
@@ -47,10 +44,8 @@ interface MassEditUsersModalProps {
   onComplete?: () => void;
 }
 
-type TriState = 'add' | 'remove' | 'unchanged';
-
-interface LibrarySelection {
-  [libraryId: number]: TriState;
+interface LibraryChecks {
+  [libraryId: string]: boolean;
 }
 
 export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplete }: MassEditUsersModalProps) => {
@@ -60,8 +55,12 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
 
   // Modify Libraries state
   const [selectedServerId, setSelectedServerId] = useState<string>('');
-  const [librarySelections, setLibrarySelections] = useState<LibrarySelection>({});
+  const [libraryChecks, setLibraryChecks] = useState<LibraryChecks>({});
   const [grantAllLibraries, setGrantAllLibraries] = useState(false);
+  const [loadingUserLibraries, setLoadingUserLibraries] = useState(false);
+  const [userLibraryIds, setUserLibraryIds] = useState<Set<string>>(new Set());
+  const [userHasAllLibraries, setUserHasAllLibraries] = useState(false);
+  const [libraryChecksInitialized, setLibraryChecksInitialized] = useState(false);
 
   // Extend Access state
   const [extendDays, setExtendDays] = useState<number>(30);
@@ -79,10 +78,78 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
   });
 
   useEffect(() => {
+    const loadUserLibraries = async () => {
+      if (!isOpen || action !== 'modify_libraries' || !selectedServerId) return;
+      if (selectedUserIds.size !== 1) {
+        setUserLibraryIds(new Set());
+        setUserHasAllLibraries(false);
+        setLoadingUserLibraries(false);
+        return;
+      }
+
+      const [userUuid] = Array.from(selectedUserIds);
+      try {
+        setLoadingUserLibraries(true);
+        const response = await requestJson(`/api/v2/users/${userUuid}`);
+        const data = response?.data ?? {};
+        const userServerId = data?.server_id ? String(data.server_id) : '';
+        if (data?.user_type !== 'service' || (userServerId && userServerId !== selectedServerId)) {
+          setUserLibraryIds(new Set());
+          setUserHasAllLibraries(false);
+          return;
+        }
+
+        const allowedIds = new Set<string>((data.allowed_library_ids || []).map((id: string) => String(id)));
+        setUserLibraryIds(allowedIds);
+        setUserHasAllLibraries(Boolean(data.has_all_libraries));
+      } catch {
+        setUserLibraryIds(new Set());
+        setUserHasAllLibraries(false);
+      } finally {
+        setLoadingUserLibraries(false);
+      }
+    };
+
+    loadUserLibraries();
+  }, [action, isOpen, selectedServerId, selectedUserIds]);
+
+  useEffect(() => {
+    if (action !== 'modify_libraries' || libraryChecksInitialized) return;
+    if (librariesLoading || loadingUserLibraries || !selectedServerId) return;
+    if (!libraries.length) return;
+
+    const nextChecks: LibraryChecks = {};
+    libraries.forEach((library: Library) => {
+      const libraryId = getLibraryIdentifier(library);
+      nextChecks[libraryId] = userHasAllLibraries ? true : userLibraryIds.has(String(libraryId));
+    });
+    console.debug('[MassEditUsersModal] init library checks', {
+      selectedServerId,
+      userHasAllLibraries,
+      userLibraryIds: Array.from(userLibraryIds),
+      nextChecks,
+    });
+    setLibraryChecks(nextChecks);
+    setLibraryChecksInitialized(true);
+  }, [
+    action,
+    libraryChecksInitialized,
+    libraries,
+    librariesLoading,
+    loadingUserLibraries,
+    selectedServerId,
+    userHasAllLibraries,
+    userLibraryIds,
+  ]);
+
+  useEffect(() => {
     // Reset state when action changes
     if (action === 'modify_libraries') {
-      setLibrarySelections({});
+      setLibraryChecks({});
       setGrantAllLibraries(false);
+      setUserLibraryIds(new Set());
+      setUserHasAllLibraries(false);
+      setLibraryChecksInitialized(false);
       setSelectedServerId(servers.length > 0 ? String(servers[0].id) : '');
     } else if (action === 'extend_access') {
       setExtendDays(30);
@@ -93,26 +160,22 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
     }
   }, [action, servers]);
 
-  const handleToggleLibrary = (libraryId: number) => {
-    setLibrarySelections(prev => {
-      const current = prev[libraryId] || 'unchanged';
-      const next = current === 'unchanged' ? 'add' : current === 'add' ? 'remove' : 'unchanged';
-      return { ...prev, [libraryId]: next };
-    });
+  useEffect(() => {
+    if (action !== 'modify_libraries') return;
+    setLibraryChecks({});
+    setUserLibraryIds(new Set());
+    setUserHasAllLibraries(false);
+    setLibraryChecksInitialized(false);
+  }, [action, selectedServerId]);
+
+  const handleToggleLibrary = (libraryId: string) => {
+    setLibraryChecks(prev => ({ ...prev, [libraryId]: !prev[libraryId] }));
   };
 
-  const getLibraryCheckboxState = (libraryId: number): 'checked' | 'indeterminate' | 'unchecked' => {
-    const state = librarySelections[libraryId] || 'unchanged';
-    if (state === 'add') return 'checked';
-    if (state === 'remove') return 'indeterminate';
-    return 'unchecked';
-  };
-
-  const getLibraryCheckboxIcon = (libraryId: number): { icon: typeof faCircle; className: string } => {
-    const state = librarySelections[libraryId] || 'unchanged';
-    if (state === 'add') return { icon: faCirclePlus, className: 'text-green-600 dark:text-green-400' };
-    if (state === 'remove') return { icon: faCircleMinus, className: 'text-destructive' };
-    return { icon: faCircle, className: 'text-muted-foreground' };
+  const getLibraryIdentifier = (library: Library): string => {
+    const serviceType = library.server?.service_type?.toLowerCase();
+    if (serviceType === 'kavita' && library.internal_id) return String(library.internal_id);
+    return String(library.external_id ?? library.internal_id ?? library.id);
   };
 
   const handleSubmit = async () => {
@@ -129,22 +192,25 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
             return;
           }
 
-          const librariesToAdd = Object.entries(librarySelections)
-            .filter(([_, state]) => state === 'add')
-            .map(([id]) => Number(id));
-
-          const librariesToRemove = Object.entries(librarySelections)
-            .filter(([_, state]) => state === 'remove')
-            .map(([id]) => Number(id));
-
           const operations: any[] = [];
           if (grantAllLibraries) {
             operations.push({ action: 'update_libraries', library_ids: [] });
           } else {
+            const selectedLibraryIds = Object.entries(libraryChecks)
+              .filter(([_, checked]) => checked)
+              .map(([id]) => id);
+            console.debug('[MassEditUsersModal] submit libraries', {
+              selectedServerId,
+              selectedUserIds: Array.from(selectedUserIds),
+              grantAllLibraries,
+              selectedLibraryIds,
+              libraryChecks,
+              userHasAllLibraries,
+              userLibraryIds: Array.from(userLibraryIds),
+            });
             operations.push({
               action: 'update_libraries',
-              libraries_to_add: librariesToAdd,
-              libraries_to_remove: librariesToRemove,
+              library_ids: selectedLibraryIds,
             });
           }
 
@@ -264,7 +330,7 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
                 <div>
                   <h5 className="font-medium mb-1">Library Access Control</h5>
                   <p className="text-sm text-muted-foreground">
-                    Click libraries to cycle through: <span className="text-green-600 dark:text-green-400">Add (+)</span> → <span className="text-destructive">Remove (−)</span> → Unchanged
+                    Checked libraries indicate current access for the selected user. Uncheck to remove access.
                   </p>
                 </div>
               </div>
@@ -307,45 +373,50 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
                   <FontAwesomeIcon icon={faFolder} className="mr-2" />
                   Select Libraries
                 </Label>
-                <div className="max-h-64 overflow-y-auto border rounded-lg p-3 space-y-2">
-                  {librariesLoading ? (
-                    <div className="flex items-center justify-center py-4">
-                      <Spinner className="size-4" />
-                    </div>
-                  ) : libraries.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-4">
-                      No libraries found for this server
-                    </p>
-                  ) : (
-                    libraries.map((library: Library) => (
-                      <div
-                        key={library.id}
-                        className="flex items-center gap-3 p-2 rounded hover:bg-muted cursor-pointer"
-                        onClick={() => handleToggleLibrary(library.id)}
-                      >
-                        <FontAwesomeIcon
-                          icon={getLibraryCheckboxIcon(library.id).icon}
-                          className={`text-lg ${getLibraryCheckboxIcon(library.id).className}`}
-                        />
-                        <div className="flex-1">
-                          <div className="font-medium text-sm">{library.name}</div>
-                          {library.library_type && (
-                            <div className="text-xs text-muted-foreground">{library.library_type}</div>
-                          )}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {librarySelections[library.id] === 'add'
-                            ? 'Add'
-                            : librarySelections[library.id] === 'remove'
-                            ? 'Remove'
-                            : 'No change'}
-                        </div>
+                  <div className="max-h-64 overflow-y-auto border rounded-lg p-3 space-y-2">
+                    {librariesLoading || loadingUserLibraries ? (
+                      <div className="flex items-center justify-center py-4">
+                        <Spinner className="size-4" />
                       </div>
-                    ))
+                    ) : libraries.length === 0 ? (
+                      <p className="text-sm text-muted-foreground text-center py-4">
+                        No libraries found for this server
+                      </p>
+                    ) : (
+                      libraries.map((library: Library) => {
+                        const libraryId = getLibraryIdentifier(library);
+                        const isChecked = !!libraryChecks[libraryId];
+                        return (
+                          <label
+                            key={libraryId}
+                            className="flex items-center gap-3 p-2 rounded hover:bg-muted cursor-pointer"
+                          >
+                            <Checkbox
+                              checked={isChecked}
+                              onCheckedChange={() => handleToggleLibrary(libraryId)}
+                            />
+                            <div className="flex-1">
+                              <div className="font-medium text-sm">{library.name}</div>
+                              {library.library_type && (
+                                <div className="text-xs text-muted-foreground">{library.library_type}</div>
+                              )}
+                            </div>
+                          </label>
+                      )})
+                    )}
+                  </div>
+                  {selectedUserIds.size !== 1 && (
+                    <p className="text-xs text-muted-foreground">
+                      Multiple users selected — checkboxes don’t reflect per-user access.
+                    </p>
+                  )}
+                  {selectedUserIds.size === 1 && userHasAllLibraries && (
+                    <p className="text-xs text-muted-foreground">
+                      This user currently has access to all libraries.
+                    </p>
                   )}
                 </div>
-              </div>
-            )}
+              )}
           </div>
         );
 

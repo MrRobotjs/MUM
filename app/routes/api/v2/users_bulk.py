@@ -88,15 +88,6 @@ def bulk_user_operations(body: BulkBody, current_user):
     request_id = uuid4().hex
     user_uuids = body.user_uuids
     operations = body.operations
-    try:
-        ops_payload = [op.dict() for op in operations]
-    except Exception:
-        ops_payload = [getattr(op, "__dict__", {}) for op in operations]
-    current_app.logger.debug(
-        "Bulk user operations request "
-        f"request_id={request_id} user_uuids={user_uuids} operations={ops_payload}"
-    )
-
     users = User.query.filter(User.uuid.in_(user_uuids)).all()
     if not users:
         return jsonify({"error": {"code": "USERS_NOT_FOUND", "message": "No matching users were found."}, "meta": {"request_id": request_id}}), 404
@@ -144,28 +135,10 @@ def bulk_user_operations(body: BulkBody, current_user):
                     library_ids = getattr(operation, "library_ids", None)
                     libs_to_add = getattr(operation, "libraries_to_add", None)
                     libs_to_remove = getattr(operation, "libraries_to_remove", None)
-                    current_app.logger.debug(
-                        "Bulk update libraries: operation payload "
-                        f"user={user.uuid} library_ids={library_ids} "
-                        f"libraries_to_add={libs_to_add} libraries_to_remove={libs_to_remove}"
-                    )
-
                     if library_ids is not None:
                         if not isinstance(library_ids, list):
                             raise ValueError("library_ids must be a list.")
-                        current_app.logger.debug(
-                            "Bulk update libraries: explicit library_ids "
-                            f"user={user.uuid} count={len(library_ids)} ids={library_ids}"
-                        )
-                        current_app.logger.debug(
-                            "Bulk update libraries: before set "
-                            f"user={user.uuid} allowed_library_ids={user.allowed_library_ids}"
-                        )
                         user.allowed_library_ids = library_ids
-                        current_app.logger.debug(
-                            "Bulk update libraries: after set "
-                            f"user={user.uuid} allowed_library_ids={user.allowed_library_ids}"
-                        )
                     else:
                         # Compute final set from deltas against current setting
                         current = set(user.allowed_library_ids or [])
@@ -178,39 +151,14 @@ def bulk_user_operations(body: BulkBody, current_user):
                                     current.remove(lid)
                                 except KeyError:
                                     pass
-                        current_app.logger.debug(
-                            "Bulk update libraries: delta update "
-                            f"user={user.uuid} add={libs_to_add} remove={libs_to_remove} "
-                            f"final_count={len(current)} final_ids={sorted(list(current))}"
-                        )
-                        current_app.logger.debug(
-                            "Bulk update libraries: before set "
-                            f"user={user.uuid} allowed_library_ids={user.allowed_library_ids}"
-                        )
                         user.allowed_library_ids = list(current)
-                        current_app.logger.debug(
-                            "Bulk update libraries: after set "
-                            f"user={user.uuid} allowed_library_ids={user.allowed_library_ids}"
-                        )
 
                     if user.server_id:
                         server = MediaServer.query.get(user.server_id)
                         service = MediaServiceFactory.create_service_from_db(server) if server else None
                         if service and hasattr(service, "update_user_access") and user.external_user_id:
-                            current_app.logger.debug(
-                                "Bulk update libraries: sync prerequisites "
-                                f"user={user.uuid} server_id={user.server_id} "
-                                f"external_user_id={user.external_user_id} "
-                                f"server_nickname={server.server_nickname if server else None} "
-                                f"service_type={server.service_type if server else None}"
-                            )
                             allowed_ids = user.allowed_library_ids or []
                             server_libraries = MediaLibrary.query.filter_by(server_id=user.server_id).all()
-                            current_app.logger.debug(
-                                "Bulk update libraries: server libraries "
-                                f"user={user.uuid} server_id={user.server_id} "
-                                f"count={len(server_libraries)}"
-                            )
                             library_by_identifier = {}
                             for lib in server_libraries:
                                 if lib.external_id:
@@ -227,11 +175,6 @@ def bulk_user_operations(body: BulkBody, current_user):
                                 ]
                             else:
                                 api_library_ids = [lib.external_id for lib in server_libraries if lib.external_id]
-
-                            current_app.logger.debug(
-                                "Bulk update libraries: api_library_ids "
-                                f"user={user.uuid} count={len(api_library_ids)} ids={api_library_ids}"
-                            )
                             try:
                                 service.update_user_access(user.external_user_id, api_library_ids)
                             except Exception as exc:

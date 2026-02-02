@@ -123,12 +123,6 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
       const libraryId = getLibraryIdentifier(library);
       nextChecks[libraryId] = userHasAllLibraries ? true : userLibraryIds.has(String(libraryId));
     });
-    console.debug('[MassEditUsersModal] init library checks', {
-      selectedServerId,
-      userHasAllLibraries,
-      userLibraryIds: Array.from(userLibraryIds),
-      nextChecks,
-    });
     setLibraryChecks(nextChecks);
     setLibraryChecksInitialized(true);
   }, [
@@ -199,15 +193,6 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
             const selectedLibraryIds = Object.entries(libraryChecks)
               .filter(([_, checked]) => checked)
               .map(([id]) => id);
-            console.debug('[MassEditUsersModal] submit libraries', {
-              selectedServerId,
-              selectedUserIds: Array.from(selectedUserIds),
-              grantAllLibraries,
-              selectedLibraryIds,
-              libraryChecks,
-              userHasAllLibraries,
-              userLibraryIds: Array.from(userLibraryIds),
-            });
             operations.push({
               action: 'update_libraries',
               library_ids: selectedLibraryIds,

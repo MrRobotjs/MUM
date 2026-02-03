@@ -168,50 +168,65 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     return false
   }
 
+  const isSettingsRoute = location.pathname.startsWith('/admin/settings')
+
   // All nav items are visible to administrators (owner or users with admin roles)
-  const navMainItems = isAdministrator ? [
-    {
-      title: 'Dashboard',
-      url: '/admin/dashboard',
-      icon: faChartLine,
-      isActive: isNavItemActive('/admin/dashboard'),
-    },
-    {
-      title: 'Users',
-      url: '/admin/users',
-      icon: faUsers,
-      isActive: isNavItemActive('/admin/users'),
-      actions: [
-        {
-          label: 'Sync Users',
-          icon: faRotate,
-          iconClassName: syncInProgress ? 'animate-spin text-primary' : undefined,
-          onClick: handleSyncUsers,
-          disabled: syncInProgress,
-        }
-      ],
-      statusIndicator: syncStatusIndicator,
-    },
-    {
-      title: 'Invites',
-      url: '/admin/invites',
-      icon: faTicket,
-      isActive: isNavItemActive('/admin/invites'),
-    },
-    {
-      title: 'Libraries',
-      url: '/admin/libraries',
-      icon: faLayerGroup,
-      isActive: isNavItemActive('/admin/libraries'),
-    },
-    {
-      title: 'Streaming',
-      url: '/admin/streaming',
-      icon: faTowerBroadcast,
-      isActive: isNavItemActive('/admin/streaming'),
-      statusIndicator: streamBadgeIndicator,
-    },
-  ] : []
+  const navMainItems = isAdministrator
+    ? (
+        isSettingsRoute
+          ? [
+              {
+                title: 'Dashboard',
+                url: '/admin/dashboard',
+                icon: faChartLine,
+                isActive: isNavItemActive('/admin/dashboard'),
+              },
+            ]
+          : [
+              {
+                title: 'Dashboard',
+                url: '/admin/dashboard',
+                icon: faChartLine,
+                isActive: isNavItemActive('/admin/dashboard'),
+              },
+              {
+                title: 'Users',
+                url: '/admin/users',
+                icon: faUsers,
+                isActive: isNavItemActive('/admin/users'),
+                actions: [
+                  {
+                    label: 'Sync Users',
+                    icon: faRotate,
+                    iconClassName: syncInProgress ? 'animate-spin text-primary' : undefined,
+                    onClick: handleSyncUsers,
+                    disabled: syncInProgress,
+                  }
+                ],
+                statusIndicator: syncStatusIndicator,
+              },
+              {
+                title: 'Invites',
+                url: '/admin/invites',
+                icon: faTicket,
+                isActive: isNavItemActive('/admin/invites'),
+              },
+              {
+                title: 'Libraries',
+                url: '/admin/libraries',
+                icon: faLayerGroup,
+                isActive: isNavItemActive('/admin/libraries'),
+              },
+              {
+                title: 'Streaming',
+                url: '/admin/streaming',
+                icon: faTowerBroadcast,
+                isActive: isNavItemActive('/admin/streaming'),
+                statusIndicator: streamBadgeIndicator,
+              },
+            ]
+      )
+    : []
 
   const user = {
     name: currentUser?.display_name || currentUser?.username || 'User',
@@ -244,7 +259,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </SidebarHeader>
       <SidebarContent>
         <NavMain items={navMainItems} />
-        <NavSettings />
+        {isSettingsRoute ? <NavSettings /> : null}
       </SidebarContent>
       <SidebarFooter>
         <NavUser user={user} />

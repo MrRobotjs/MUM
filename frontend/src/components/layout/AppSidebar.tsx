@@ -15,6 +15,7 @@ import {
 import { useLocation } from "@tanstack/react-router"
 
 import { NavMain } from "@/components/layout/NavMain"
+import { NavServers } from "@/components/layout/NavServers"
 import { NavSettings } from "@/components/layout/NavSettings"
 import { NavUser } from "@/components/layout/NavUser"
 import {
@@ -259,6 +260,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </SidebarHeader>
       <SidebarContent>
         <NavMain items={navMainItems} />
+        {!isSettingsRoute ? <NavServers /> : null}
         {isSettingsRoute ? <NavSettings /> : null}
       </SidebarContent>
       <SidebarFooter>

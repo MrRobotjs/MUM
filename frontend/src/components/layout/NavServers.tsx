@@ -2,14 +2,11 @@
 
 import * as React from "react"
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome"
-import {
-  faChevronRight,
-  faLayerGroup,
-  faServer,
-} from "@fortawesome/free-solid-svg-icons"
+import { faChevronRight, faLayerGroup, faServer } from "@fortawesome/free-solid-svg-icons"
 import { Link, useLocation } from "@tanstack/react-router"
 
 import { useServerOptions } from "@/hooks/useServerOptions"
+import { getServiceIcon } from "@/config/pluginMetadata"
 import {
   Collapsible,
   CollapsibleContent,
@@ -36,13 +33,6 @@ type ServerGroup = {
   }>
 }
 
-const formatServiceType = (value: string) => {
-  if (!value) return "Servers"
-  return value
-    .replace(/[_-]+/g, " ")
-    .replace(/\b\w/g, (char) => char.toUpperCase())
-}
-
 export function NavServers() {
   const { servers } = useServerOptions()
   const { isMobile, setOpenMobile } = useSidebar()
@@ -58,21 +48,14 @@ export function NavServers() {
     return null
   }
 
-  const grouped = servers.reduce<Record<string, ServerGroup>>((acc, server) => {
-    const serviceType = server.service_type || "servers"
-    if (!acc[serviceType]) {
-      acc[serviceType] = {
-        serviceType,
-        servers: [],
-      }
-    }
-    acc[serviceType].servers.push(server)
-    return acc
-  }, {})
-
-  const groups = Object.values(grouped).sort((a, b) =>
-    a.serviceType.localeCompare(b.serviceType)
-  )
+  const groups: ServerGroup[] = [
+    {
+      serviceType: "servers",
+      servers: [...servers].sort((a, b) =>
+        (a.server_nickname || "").localeCompare(b.server_nickname || "")
+      ),
+    },
+  ]
 
   const isServerLibrariesActive = (serverId: number) =>
     location.pathname.startsWith(`/admin/libraries/${serverId}`)
@@ -81,19 +64,21 @@ export function NavServers() {
     <>
       {groups.map((group) => (
         <SidebarGroup key={group.serviceType}>
-          <SidebarGroupLabel>
-            {formatServiceType(group.serviceType)}
-          </SidebarGroupLabel>
+          <SidebarGroupLabel>Media Servers</SidebarGroupLabel>
           <SidebarMenu>
             {group.servers.map((server) => {
               const isActive = isServerLibrariesActive(server.id)
               const libraryUrl = `/admin/libraries/${server.id}?tab=overview`
+              const serviceIcon =
+                getServiceIcon(server.service_type, "h-4 w-4") ?? (
+                  <FontAwesomeIcon icon={faServer} className="h-4 w-4" />
+                )
               return (
                 <Collapsible key={server.id} asChild defaultOpen={isActive}>
                   <SidebarMenuItem>
                     <CollapsibleTrigger asChild>
                       <SidebarMenuButton tooltip={server.server_nickname}>
-                        <FontAwesomeIcon icon={faServer} className="h-4 w-4" />
+                        {serviceIcon}
                         <span>{server.server_nickname}</span>
                         <FontAwesomeIcon
                           icon={faChevronRight}

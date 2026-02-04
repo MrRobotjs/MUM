@@ -19,9 +19,11 @@ export const PluginCard = ({
   className = ''
 }: PluginCardProps) => {
   const statusBadge = plugin.installed
-    ? plugin.enabled
-      ? { label: 'Enabled', variant: 'success' as const }
-      : { label: 'Disabled', variant: 'secondary' as const }
+    ? plugin.status === 'error'
+      ? { label: 'Error', variant: 'destructive' as const }
+      : plugin.enabledByUser
+        ? { label: 'Enabled', variant: 'success' as const }
+        : { label: 'Disabled', variant: 'secondary' as const }
     : { label: 'Not Installed', variant: 'outline' as const }
 
   const hasServers = serversConfigured > 0

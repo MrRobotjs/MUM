@@ -36,6 +36,7 @@ class Plugin(db.Model):
     # Plugin metadata
     plugin_type = db.Column(db.Enum(PluginType), nullable=False, default=PluginType.CORE)
     status = db.Column(db.Enum(PluginStatus), nullable=False, default=PluginStatus.DISABLED)
+    enabled_by_user = db.Column(db.Boolean, nullable=False, default=False)
     
     # Plugin details
     author = db.Column(db.String(100), nullable=True)
@@ -73,7 +74,7 @@ class Plugin(db.Model):
     
     @property
     def is_enabled(self):
-        return self.status == PluginStatus.ENABLED
+        return bool(self.enabled_by_user)
     
     @property
     def is_core(self):

@@ -25,6 +25,7 @@ class PluginItem(BaseModel):
     description: str | None = None
     type: str | None = None
     status: str | None = None
+    enabled_by_user: bool | None = None
     author: str | None = None
     homepage: str | None = None
     repository: str | None = None
@@ -49,6 +50,10 @@ class PluginMetadataResponse(BaseModel):
     meta: dict
 
 
+class PluginPath(BaseModel):
+    plugin_id: str
+
+
 def _serialize_plugin(plugin: Plugin):
     return {
         'plugin_id': plugin.plugin_id,
@@ -56,6 +61,7 @@ def _serialize_plugin(plugin: Plugin):
         'description': plugin.description,
         'type': plugin.plugin_type.value if plugin.plugin_type else None,
         'status': plugin.status.value if plugin.status else None,
+        'enabled_by_user': bool(getattr(plugin, "enabled_by_user", False)),
         'author': plugin.author,
         'homepage': plugin.homepage,
         'repository': plugin.repository,
@@ -162,8 +168,8 @@ def get_plugin_metadata_endpoint(current_user):
 )
 @jwt_required_with_user()
 @jwt_permission_required('administrator')
-def enable_plugin(plugin_id, current_user):
-    return _plugin_action(plugin_id, 'enable', current_user)
+def enable_plugin(path: PluginPath, current_user):
+    return _plugin_action(path.plugin_id, 'enable', current_user)
 
 
 @api_v2.post(
@@ -173,8 +179,8 @@ def enable_plugin(plugin_id, current_user):
 )
 @jwt_required_with_user()
 @jwt_permission_required('administrator')
-def disable_plugin(plugin_id, current_user):
-    return _plugin_action(plugin_id, 'disable', current_user)
+def disable_plugin(path: PluginPath, current_user):
+    return _plugin_action(path.plugin_id, 'disable', current_user)
 
 
 class RepoItem(BaseModel):

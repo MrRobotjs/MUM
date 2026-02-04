@@ -6,6 +6,7 @@ type PluginApi = {
   name?: string | null;
   description?: string | null;
   status?: string | null;
+  enabled_by_user?: boolean | null;
   author?: string | null;
   repository?: string | null;
   homepage?: string | null;
@@ -41,6 +42,7 @@ export type Plugin = {
   description: string | null;
   status: string | null;
   enabled: boolean;
+  enabledByUser: boolean;
   installed: boolean;
   author: string | null;
   repository_url: string | null;
@@ -59,8 +61,9 @@ const normalizePlugin = (item: PluginApi): Plugin => {
   const name = item.name ?? available?.name ?? pluginId;
   const description = item.description ?? available?.description ?? null;
   const status = item.status ?? null;
+  const enabledByUser = Boolean(item.enabled_by_user);
   const installed = Boolean(item.installed_at) || Boolean(status);
-  const enabled = status === 'enabled';
+  const enabled = enabledByUser;
   const author = item.author ?? available?.author ?? null;
   const repository = item.repository ?? available?.repository ?? null;
   const homepage = item.homepage ?? available?.homepage ?? null;
@@ -80,6 +83,7 @@ const normalizePlugin = (item: PluginApi): Plugin => {
     description,
     status,
     enabled,
+    enabledByUser,
     installed,
     author,
     repository_url: repository,

@@ -24,15 +24,15 @@ export const PluginCardActions = ({
     <>
       <Button
         size="sm"
-        variant={plugin.enabled ? 'outline' : 'default'}
+        variant={plugin.enabledByUser ? 'outline' : 'default'}
         onClick={() =>
-          plugin.enabled
+          plugin.enabledByUser
             ? onToggle(plugin, 'disable')
             : onToggle(plugin, 'enable')
         }
-        disabled={isLoading || (!plugin.enabled && !hasServers)}
+        disabled={isLoading || (!plugin.enabledByUser && !hasServers)}
       >
-        {isLoading ? 'Working…' : plugin.enabled ? 'Disable' : 'Enable'}
+        {isLoading ? 'Working…' : plugin.enabledByUser ? 'Disable' : 'Enable'}
       </Button>
       <Button
         size="sm"

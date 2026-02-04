@@ -98,6 +98,7 @@ class PluginManager:
                     version='1.0.0',
                     plugin_type=PluginType.CORE,
                     status=PluginStatus.DISABLED,  # Start disabled, user chooses
+                    enabled_by_user=False,
                     module_path=plugin_info['module_path'],
                     service_class=plugin_info['service_class'],
                     supported_features=plugin_info['supported_features'],
@@ -115,7 +116,7 @@ class PluginManager:
     
     def get_enabled_plugins(self) -> List[Plugin]:
         """Get only enabled plugins"""
-        return Plugin.query.filter_by(status=PluginStatus.ENABLED).all()
+        return Plugin.query.filter_by(enabled_by_user=True).all()
     
     def enable_plugin(self, plugin_id: str) -> bool:
         """Enable a plugin"""
@@ -129,6 +130,7 @@ class PluginManager:
             if not service_class:
                 plugin.status = PluginStatus.ERROR
                 plugin.last_error = "Failed to load plugin class"
+                plugin.enabled_by_user = True
                 db.session.commit()
                 return False
             
@@ -149,10 +151,12 @@ class PluginManager:
             except Exception as e:
                 plugin.status = PluginStatus.ERROR
                 plugin.last_error = f"Plugin instantiation failed: {str(e)}"
+                plugin.enabled_by_user = True
                 db.session.commit()
                 return False
             
             plugin.status = PluginStatus.ENABLED
+            plugin.enabled_by_user = True
             plugin.last_error = None
             plugin.last_updated = datetime.utcnow()
             
@@ -227,6 +231,7 @@ class PluginManager:
                 del self._plugin_instances[plugin_id]
             
             plugin.status = PluginStatus.DISABLED
+            plugin.enabled_by_user = False
             plugin.last_error = None
             db.session.commit()
             
@@ -263,6 +268,21 @@ class PluginManager:
         except Exception as e:
             current_app.logger.error(f"Error loading plugin {plugin.plugin_id}: {e}")
             return None
+
+    def _load_plugin_with_error(self, plugin: Plugin) -> tuple[Optional[Type[BaseMediaService]], Optional[str]]:
+        """Load a plugin class and return a detailed error message if it fails"""
+        try:
+            module = importlib.import_module(plugin.module_path)
+            service_class = getattr(module, plugin.service_class)
+            if not issubclass(service_class, BaseMediaService):
+                return None, f"Plugin class {plugin.service_class} is not a BaseMediaService subclass"
+            return service_class, None
+        except ImportError as e:
+            return None, f"Failed to import plugin module {plugin.module_path}: {e}"
+        except AttributeError as e:
+            return None, f"Plugin class {plugin.service_class} not found in {plugin.module_path}: {e}"
+        except Exception as e:
+            return None, f"Error loading plugin {plugin.plugin_id}: {e}"
     
     def get_plugin_class(self, plugin_id: str) -> Optional[Type[BaseMediaService]]:
         """Get a loaded plugin class"""
@@ -270,7 +290,7 @@ class PluginManager:
             return self._loaded_plugins[plugin_id]
         
         # Try to load if not already loaded
-        plugin = Plugin.query.filter_by(plugin_id=plugin_id, status=PluginStatus.ENABLED).first()
+        plugin = Plugin.query.filter_by(plugin_id=plugin_id, enabled_by_user=True).first()
         if plugin:
             service_class = self._load_plugin(plugin)
             if service_class:
@@ -285,14 +305,18 @@ class PluginManager:
         
         for plugin in enabled_plugins:
             try:
-                service_class = self._load_plugin(plugin)
+                service_class, load_error = self._load_plugin_with_error(plugin)
                 if service_class:
                     self._loaded_plugins[plugin.plugin_id] = service_class
                     current_app.logger.info(f"Loaded plugin: {plugin.plugin_id}")
+                    plugin.status = PluginStatus.ENABLED
+                    plugin.last_error = None
                 else:
-                    current_app.logger.error(f"Failed to load enabled plugin: {plugin.plugin_id}")
+                    current_app.logger.error(
+                        f"Failed to load enabled plugin: {plugin.plugin_id}. {load_error}"
+                    )
                     plugin.status = PluginStatus.ERROR
-                    plugin.last_error = "Failed to load at startup"
+                    plugin.last_error = load_error or "Failed to load at startup"
             except Exception as e:
                 current_app.logger.error(f"Error loading plugin {plugin.plugin_id}: {e}")
                 plugin.status = PluginStatus.ERROR

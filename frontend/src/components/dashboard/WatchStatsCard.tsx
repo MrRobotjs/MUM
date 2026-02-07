@@ -145,7 +145,7 @@ export const WatchStatsCard = () => {
             </div>
           </div>
 
-          <div className="grid gap-6 lg:grid-cols-3">
+          <div className="grid gap-6 grid-cols-1 lg:grid-cols-3">
             <div className="space-y-3">
               <h3 className="text-sm font-semibold flex items-center gap-2">
                 <FontAwesomeIcon icon={faFilm} className="h-4 w-4 text-primary" />

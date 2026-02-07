@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { requestJson } from '../../util/apiClient';
 import { Input } from '../ui/input';
 import { Checkbox } from '../ui/checkbox';
@@ -123,9 +123,20 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
   const [serverError, setServerError] = useState<string | null>(null);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [librarySearch, setLibrarySearch] = useState<Record<number, string>>({});
+  const editingMode = isEditing ?? Boolean(initialValues);
 
   const isServerEffectivelyActive = (server?: Server | null) => server?.effective_active !== false;
 
+  const visibleServers = useMemo(
+    () => servers.filter((server) => isServerEffectivelyActive(server)),
+    [servers]
+  );
+  const displayServers = useMemo(() => {
+    if (!editingMode) return visibleServers;
+    return servers.filter(
+      (server) => isServerEffectivelyActive(server) || selectedServerIds.has(server.id)
+    );
+  }, [editingMode, servers, selectedServerIds, visibleServers]);
   const selectedServerCount = selectedServerIds.size;
   const selectedLibraryCount = selectedLibraries.size;
   const expiresLabel = form.expires_at ? new Date(form.expires_at).toLocaleDateString() : 'Never';
@@ -453,7 +464,7 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
     await onSubmit(submitData);
   };
 
-  const groupedServers = servers.reduce((acc, server) => {
+  const groupedServers = displayServers.reduce((acc, server) => {
     const type = server.service_type || 'Unknown';
     if (!acc[type]) acc[type] = [];
     acc[type].push(server);
@@ -466,7 +477,6 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
     }
   };
 
-  const editingMode = isEditing ?? Boolean(initialValues);
   const footerButtons = [
     <Button key="cancel" variant="outline" onClick={onClose} disabled={loading}>
       Cancel

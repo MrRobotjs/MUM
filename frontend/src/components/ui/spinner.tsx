@@ -1,9 +1,9 @@
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome"
+import { FontAwesomeIcon, type FontAwesomeIconProps } from "@fortawesome/react-fontawesome"
 import { faSpinner } from "@fortawesome/free-solid-svg-icons"
 
 import { cn } from "@/lib/utils"
 
-function Spinner({ className, ...props }: React.ComponentProps<typeof FontAwesomeIcon>) {
+function Spinner({ className, ...props }: Omit<FontAwesomeIconProps, "icon">) {
   return (
     <FontAwesomeIcon
       role="status"

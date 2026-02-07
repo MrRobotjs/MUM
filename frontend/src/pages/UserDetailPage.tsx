@@ -927,7 +927,7 @@ export const UserDetailPage = () => {
     loading: overseerrLoading,
     error: overseerrError
   } = useOverseerr(effectiveUuid);
-  const { servers: plexServers } = useServers({ serviceType: 'plex' });
+  const { servers: plexServers } = useServers({ serviceType: 'plex', activeOnly: true });
   const {
     settings,
     loading: settingsLoading,

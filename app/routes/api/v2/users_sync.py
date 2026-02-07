@@ -76,7 +76,7 @@ def sync_all_users(current_user):
             409,
         )
 
-    servers = MediaServer.query.filter_by(is_active=True).all()
+    servers = MediaServiceManager.get_effective_servers(active_only=True)
     if not servers:
         return jsonify({"data": {"results": [], "message": "No active media servers found."}, "meta": {"request_id": request_id, "deprecated": False}}), 200
 
@@ -201,6 +201,9 @@ def sync_user_accounts(path: UserPath, current_user):
         server = MediaServer.query.get(sid)
         if not server:
             results.append({"server_id": sid, "success": False, "message": "Server not found."})
+            continue
+        if not MediaServiceManager.is_server_effectively_active(server):
+            results.append({"server_id": sid, "success": False, "message": "Server inactive or plugin disabled."})
             continue
         try:
             sync_result = MediaServiceManager.sync_server_users(server.id)

@@ -8,6 +8,9 @@ export type InviteServer = {
   server_nickname?: string | null;
   name?: string | null;
   service_type: string;
+  is_active?: boolean;
+  plugin_enabled?: boolean;
+  effective_active?: boolean;
 };
 
 export type InviteServerFeature = {
@@ -37,6 +40,13 @@ export type InviteRow = {
   current_uses: number;
   uses_count?: number; // Alias for current_uses used in some contexts
   is_active: boolean;
+  is_expired?: boolean;
+  has_reached_max_uses?: boolean;
+  is_usable?: boolean;
+  is_effectively_usable?: boolean;
+  is_paused?: boolean;
+  effective_server_count?: number;
+  disabled_server_count?: number;
   status?: string; // Status computed on frontend: 'active' | 'inactive' | 'expired' | 'maxed'
   created_at?: string | null;
   updated_at?: string | null;
@@ -45,6 +55,7 @@ export type InviteRow = {
   require_discord_auth?: boolean;
   require_discord_guild_membership?: boolean;
   servers?: InviteServer[];
+  disabled_servers?: InviteServer[];
   libraries?: InviteLibrary[];
   grants_all_libraries?: boolean;
   invite_to_plex_home?: boolean;
@@ -72,7 +83,22 @@ export const InvitesTable = ({
   loading,
   onEdit,
   onViewDetail
-}: InvitesTableProps) => (
+}: InvitesTableProps) => {
+  const getStatusLabel = (invite: InviteRow) => {
+    const isExpired =
+      invite.is_expired ?? (invite.expires_at ? new Date(invite.expires_at).getTime() < Date.now() : false);
+    const uses = invite.uses_count ?? invite.current_uses ?? 0;
+    const maxUses = invite.max_uses ?? null;
+    const isMaxed =
+      invite.has_reached_max_uses ?? (typeof maxUses === 'number' && maxUses > 0 ? uses >= maxUses : false);
+    if (isExpired) return { label: 'Expired', variant: 'destructive' as const };
+    if (isMaxed) return { label: 'Maxed', variant: 'outline' as const };
+    if (invite.is_active === false) return { label: 'Disabled', variant: 'secondary' as const };
+    if (invite.is_paused) return { label: 'Paused', variant: 'outline' as const };
+    return { label: 'Active', variant: 'default' as const };
+  };
+
+  return (
   <div className="overflow-hidden rounded-xl border shadow-sm">
     <Table>
       <TableHeader>
@@ -110,9 +136,10 @@ export const InvitesTable = ({
               {invite.current_uses} / {invite.max_uses ?? '∞'}
             </TableCell>
             <TableCell>
-              <Badge variant={invite.is_active ? 'default' : 'secondary'}>
-                {invite.is_active ? 'Active' : 'Disabled'}
-              </Badge>
+              {(() => {
+                const status = getStatusLabel(invite);
+                return <Badge variant={status.variant}>{status.label}</Badge>;
+              })()}
             </TableCell>
             <TableCell className="text-right">
               <div className="flex justify-end gap-2">
@@ -150,6 +177,7 @@ export const InvitesTable = ({
       </TableBody>
     </Table>
   </div>
-);
+  );
+};
 
 export default InvitesTable;

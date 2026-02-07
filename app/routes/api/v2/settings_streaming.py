@@ -128,7 +128,7 @@ class StreamingRefreshResponse(BaseModel):
 def get_active_sessions(current_user):
     request_id = uuid4().hex
     try:
-        all_servers = MediaServiceManager.get_all_servers()
+        all_servers = MediaServiceManager.get_effective_servers(active_only=True)
         http_only = str(request.args.get('http_only', '')).lower() in {'1', 'true', 'yes'}
         if http_only:
             websocket_services = {ServiceType.PLEX, ServiceType.EMBY, ServiceType.JELLYFIN}

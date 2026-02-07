@@ -160,27 +160,6 @@ class PluginManager:
             plugin.last_error = None
             plugin.last_updated = datetime.utcnow()
             
-            # Auto-enable any servers for this plugin
-            if plugin.servers_count > 0:
-                from app.models_media_services import MediaServer, ServiceType
-                try:
-                    # Find the corresponding ServiceType enum value
-                    service_type = None
-                    for st in ServiceType:
-                        if st.value == plugin_id:
-                            service_type = st
-                            break
-                    
-                    if service_type:
-                        # Enable all servers for this plugin
-                        servers_to_enable = MediaServer.query.filter_by(service_type=service_type).all()
-                        for server in servers_to_enable:
-                            server.is_active = True
-                        
-                        current_app.logger.info(f"Auto-enabled {len(servers_to_enable)} server(s) for plugin '{plugin_id}'")
-                except Exception as e:
-                    current_app.logger.error(f"Error auto-enabling servers for plugin '{plugin_id}': {e}")
-            
             db.session.commit()
             
             current_app.logger.info(f"Plugin '{plugin_id}' enabled successfully")
@@ -201,27 +180,6 @@ class PluginManager:
         
         try:
             # Allow disabling the last plugin - user will be trapped on plugins page until they enable another
-            
-            # Disable all servers for this plugin
-            if plugin.servers_count > 0:
-                from app.models_media_services import MediaServer, ServiceType
-                try:
-                    # Find the corresponding ServiceType enum value
-                    service_type = None
-                    for st in ServiceType:
-                        if st.value == plugin_id:
-                            service_type = st
-                            break
-                    
-                    if service_type:
-                        # Deactivate all servers for this plugin
-                        servers_to_disable = MediaServer.query.filter_by(service_type=service_type).all()
-                        for server in servers_to_disable:
-                            server.is_active = False
-                        
-                        current_app.logger.info(f"Deactivated {len(servers_to_disable)} server(s) for plugin '{plugin_id}'")
-                except Exception as e:
-                    current_app.logger.error(f"Error deactivating servers for plugin '{plugin_id}': {e}")
             
             # Remove from loaded plugins
             if plugin_id in self._loaded_plugins:

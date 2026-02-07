@@ -12,6 +12,7 @@ from flask_openapi3 import Tag
 from app.routes.api.v2 import api_v2
 # JWT permission checking handled by jwt_permission_required
 from app.models_media_services import MediaLibrary, MediaServer, MediaStreamHistory
+from app.services.media_service_manager import MediaServiceManager
 from app.extensions import db
 
 
@@ -88,8 +89,47 @@ class LibrariesListResponse(BaseModel):
 @jwt_permission_required('administrator')
 def list_libraries(query: LibrariesQuery, current_user):
     request_id = uuid4().hex
-    q = MediaLibrary.query
+    effective_servers = MediaServiceManager.get_effective_servers(active_only=True)
+    effective_server_ids = {s.id for s in effective_servers}
+    if not effective_server_ids:
+        return jsonify(
+            {
+                "data": [],
+                "meta": {
+                    "request_id": request_id,
+                    "deprecated": False,
+                    "filters": {
+                        "server_id": query.server_id,
+                        "library_type": query.library_type,
+                        "search": query.search,
+                        "include_server": query.include_server,
+                    },
+                    "total_count": 0,
+                    "generated_at": datetime.utcnow().isoformat() + "Z",
+                },
+            }
+        )
+
+    q = MediaLibrary.query.filter(MediaLibrary.server_id.in_(effective_server_ids))
     if query.server_id:
+        if query.server_id not in effective_server_ids:
+            return jsonify(
+                {
+                    "data": [],
+                    "meta": {
+                        "request_id": request_id,
+                        "deprecated": False,
+                        "filters": {
+                            "server_id": query.server_id,
+                            "library_type": query.library_type,
+                            "search": query.search,
+                            "include_server": query.include_server,
+                        },
+                        "total_count": 0,
+                        "generated_at": datetime.utcnow().isoformat() + "Z",
+                    },
+                }
+            )
         q = q.filter_by(server_id=query.server_id)
     if query.library_type:
         q = q.filter_by(library_type=query.library_type)
@@ -139,6 +179,18 @@ def get_library(path: LibraryPath, current_user):
     lib = MediaLibrary.query.get(path.library_id)
     if not lib:
         return jsonify({"error": {"code": "LIBRARY_NOT_FOUND", "message": f"Library with ID {path.library_id} not found", "details": {"library_id": path.library_id}}, "meta": {"request_id": request_id}}), 404
+
+    if not MediaServiceManager.is_server_effectively_active(lib.server):
+        return jsonify(
+            {
+                "error": {
+                    "code": "LIBRARY_NOT_FOUND",
+                    "message": f"Library with ID {path.library_id} not found",
+                    "details": {"library_id": path.library_id},
+                },
+                "meta": {"request_id": request_id},
+            }
+        ), 404
 
     include_server = (request.args.get("include_server", "true").lower() == "true")
     include_items_count = (request.args.get("include_items_count", "false").lower() == "true")

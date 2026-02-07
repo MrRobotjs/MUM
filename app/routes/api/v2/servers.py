@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 
-from flask import jsonify, current_app
+from flask import jsonify, current_app, request
 from app.utils.jwt_decorators import jwt_required_with_user, jwt_permission_required
 from pydantic import BaseModel, Field, ConfigDict
 
@@ -13,6 +13,7 @@ from flask_openapi3 import Tag
 
 from app.models_media_services import MediaServer, ServiceType
 from app.services.media_service_manager import MediaServiceManager
+from app.services.media_service_factory import MediaServiceFactory
 from app.models import Notification, NotificationType
 from app.utils.timezone_utils import utcnow
 
@@ -33,6 +34,10 @@ class ServerItem(BaseModel):
     overseerr_url: Optional[str] = None
     last_status: Optional[bool] = None
     last_sync_at: Optional[str] = None
+    plugin_enabled: Optional[bool] = None
+    effective_active: Optional[bool] = None
+    websocket_refresh_interval: Optional[int] = None
+    status: Optional[dict] = None
 
 
 class ServerListData(BaseModel):
@@ -88,8 +93,25 @@ class UpdateServerBody(BaseModel):
     overseerr_api_key: Optional[str] = None
 
 
-def _to_item(server: MediaServer) -> dict:
+def _to_item(
+    server: MediaServer,
+    enabled_types: Optional[set[ServiceType]] = None,
+    include_status: bool = False,
+) -> dict:
     config = getattr(server, "config", {}) or {}
+    plugin_enabled = (
+        server.service_type in enabled_types
+        if enabled_types is not None
+        else MediaServiceManager.is_plugin_enabled(server.service_type)
+    )
+    effective_active = bool(getattr(server, "is_active", False) and plugin_enabled)
+    websocket_refresh_interval = None
+    if server.service_type == ServiceType.PLEX:
+        try:
+            websocket_refresh_interval = int(config.get("websocket_refresh_interval", 30))
+        except (TypeError, ValueError):
+            websocket_refresh_interval = 30
+
     return {
         "id": server.id,
         "server_nickname": getattr(server, "server_nickname", None) or getattr(server, "name", None),
@@ -105,6 +127,9 @@ def _to_item(server: MediaServer) -> dict:
         "last_sync_at": getattr(server, "last_status_check", None).isoformat() + "Z"
         if getattr(server, "last_status_check", None)
         else None,
+        "plugin_enabled": plugin_enabled,
+        "effective_active": effective_active,
+        "websocket_refresh_interval": websocket_refresh_interval,
     }
 
 
@@ -116,8 +141,55 @@ def _to_item(server: MediaServer) -> dict:
 )
 @jwt_required_with_user()
 def list_servers(current_user):
-    servers = MediaServer.query.all()
-    items = [_to_item(s) for s in servers]
+    include_status = request.args.get("include_status", "false").lower() == "true"
+    active_only_param = request.args.get("active_only")
+    if active_only_param is None:
+        active_only = False
+    else:
+        active_only = active_only_param.lower() != "false"
+    service_type_param = request.args.get("service_type")
+
+    enabled_types = set(MediaServiceManager.get_enabled_service_types())
+
+    servers_query = MediaServer.query
+    if active_only:
+        if not enabled_types:
+            return jsonify({"data": []}), 200
+        servers_query = servers_query.filter(
+            MediaServer.is_active.is_(True),
+            MediaServer.service_type.in_(enabled_types),
+        )
+
+    if service_type_param:
+        try:
+            service_type_enum = ServiceType(service_type_param.lower())
+            servers_query = servers_query.filter(MediaServer.service_type == service_type_enum)
+        except ValueError:
+            servers_query = servers_query.filter(False)
+
+    servers = servers_query.all()
+    items = []
+    for server in servers:
+        item = _to_item(server, enabled_types=enabled_types, include_status=include_status)
+        if include_status:
+            if item["effective_active"]:
+                status = {}
+                try:
+                    service = MediaServiceFactory.create_service_from_db(server)
+                    if service:
+                        status = service.get_server_info() or {}
+                except Exception as exc:
+                    status = {"online": False, "error": str(exc)}
+                item["status"] = status
+            else:
+                item["status"] = {
+                    "online": False,
+                    "error": "Plugin disabled"
+                    if not item["plugin_enabled"]
+                    else "Server inactive",
+                }
+        items.append(item)
+
     return jsonify({"data": items}), 200
 
 
@@ -223,7 +295,27 @@ def get_server(path: ServerPath, current_user):
     server = MediaServer.query.get(path.server_id)
     if not server:
         return jsonify({"error": {"code": "NOT_FOUND", "message": "Server not found"}}), 404
-    return jsonify(_to_item(server)), 200
+    include_status = request.args.get("include_status", "false").lower() == "true"
+    enabled_types = set(MediaServiceManager.get_enabled_service_types())
+    item = _to_item(server, enabled_types=enabled_types, include_status=include_status)
+    if include_status:
+        if item["effective_active"]:
+            status = {}
+            try:
+                service = MediaServiceFactory.create_service_from_db(server)
+                if service:
+                    status = service.get_server_info() or {}
+            except Exception as exc:
+                status = {"online": False, "error": str(exc)}
+            item["status"] = status
+        else:
+            item["status"] = {
+                "online": False,
+                "error": "Plugin disabled"
+                if not item["plugin_enabled"]
+                else "Server inactive",
+            }
+    return jsonify(item), 200
 
 
 @api_v2.patch(

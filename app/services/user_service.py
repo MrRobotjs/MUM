@@ -2,7 +2,7 @@
 from flask import current_app
 from sqlalchemy.exc import IntegrityError
 from datetime import datetime, timezone, timedelta
-from sqlalchemy import func, case, or_
+from sqlalchemy import func, case, or_, and_
 from app.models import User, UserType, EventType
 from app.models_media_services import ServiceType, MediaServer, MediaStreamHistory
 from app.extensions import db
@@ -1109,8 +1109,15 @@ def get_user_stream_stats(user_id):
         current_app.logger.error(f"User not found in get_user_stream_stats: {user_id}")
         return {'global': {}, 'players': []}
     
+    effective_server_ids = {s.id for s in MediaServiceManager.get_effective_servers(active_only=True)}
+    if not effective_server_ids:
+        return {'global': {}, 'players': []}
+
     # Build query filter using unified user_uuid column
-    filter_condition = MediaStreamHistory.user_uuid == user_obj.uuid
+    filter_condition = and_(
+        MediaStreamHistory.user_uuid == user_obj.uuid,
+        MediaStreamHistory.server_id.in_(effective_server_ids),
+    )
     current_app.logger.debug(f"STATS SERVICE: UUID lookup successful for {user_id} -> user_uuid: {user_obj.uuid}")
 
     # --- Global Stats ---

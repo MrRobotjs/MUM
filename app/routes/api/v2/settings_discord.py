@@ -54,6 +54,8 @@ class DiscordSettingsResponse(BaseModel):
 
 def _serialize_discord_settings(current_user) -> dict:
     invite_redirect, admin_redirect = _compute_redirects()
+    stored_invite_redirect = (Setting.get('DISCORD_REDIRECT_URI_INVITE') or '').strip() or None
+    stored_admin_redirect = (Setting.get('DISCORD_REDIRECT_URI_ADMIN_LINK') or '').strip() or None
     stored_client_secret = Setting.get('DISCORD_CLIENT_SECRET')
     stored_bot_token = Setting.get('DISCORD_BOT_TOKEN')
     return {
@@ -61,8 +63,8 @@ def _serialize_discord_settings(current_user) -> dict:
         'client_id': Setting.get('DISCORD_CLIENT_ID'),
         'client_secret_set': bool(stored_client_secret),
         'oauth_auth_url': Setting.get('DISCORD_OAUTH_AUTH_URL'),
-        'redirect_uri_invite': invite_redirect,
-        'redirect_uri_admin': admin_redirect,
+        'redirect_uri_invite': stored_invite_redirect or invite_redirect,
+        'redirect_uri_admin': stored_admin_redirect or admin_redirect,
         'default_require_discord_auth': Setting.get_bool('DISCORD_INVITE_REQUIRE_AUTH_DEFAULT', False),
         'default_require_discord_guild_membership': Setting.get_bool('DISCORD_INVITE_REQUIRE_GUILD_DEFAULT', False),
         'enable_membership_requirement': Setting.get_bool('ENABLE_DISCORD_MEMBERSHIP_REQUIREMENT', False),

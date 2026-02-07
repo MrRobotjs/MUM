@@ -57,6 +57,11 @@ const InviteLandingPage = () => {
       if (!res.ok) {
         throw new Error('Invite not found or expired');
       }
+      const payload = await res.json();
+      if (payload?.data?.is_paused) {
+        setError('This invite is temporarily unavailable because all servers are disabled.');
+        return;
+      }
       navigate(`/invite/${encodeURIComponent(token)}`);
     } catch (err) {
       setError((err as Error).message || 'Unable to validate invite');

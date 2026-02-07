@@ -98,6 +98,16 @@ type WizardServer = {
   features?: ServerFeatures;
 };
 
+type DisabledServer = {
+  id: number;
+  name: string;
+  service_type: string;
+  is_active: boolean;
+  plugin_enabled: boolean;
+  effective_active: boolean;
+  reason?: string | null;
+};
+
 type WizardAccount = {
   allowed: boolean;
   completed: boolean;
@@ -122,6 +132,7 @@ type WizardState = {
     max_uses: number | null;
     current_uses: number;
     is_active: boolean;
+    is_paused: boolean;
     allow_downloads: boolean;
     invite_to_plex_home: boolean;
     allow_live_tv: boolean;
@@ -131,6 +142,8 @@ type WizardState = {
     require_discord_auth: boolean;
     require_discord_guild_membership: boolean;
     server_count: number;
+    effective_server_count: number;
+    disabled_server_count: number;
   };
   steps: WizardStep[];
   next_step_id: string | null;
@@ -159,6 +172,7 @@ type WizardState = {
   };
   account: WizardAccount;
   servers: WizardServer[];
+  disabled_servers?: DisabledServer[];
   meta: {
     server_label: string;
     has_multiple_servers: boolean;
@@ -493,6 +507,9 @@ export const InviteWizardPage = () => {
         avatarHash: state.discord.user.avatar,
       })
     : null;
+  const disabledServers = state?.disabled_servers ?? [];
+  const isPaused = Boolean(state?.invite?.is_paused);
+  const hasDisabledServers = disabledServers.length > 0;
 
   const loadState = useCallback(async () => {
     if (!token) return;
@@ -541,6 +558,10 @@ export const InviteWizardPage = () => {
   const handleAccountSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!state) return;
+    if (state.invite.is_paused) {
+      showError('This invite is temporarily unavailable because all servers are disabled.');
+      return;
+    }
 
     if (accountForm.password !== accountForm.confirm_password) {
       setAccountErrors({ confirm_password: ['Passwords do not match'] });
@@ -579,6 +600,10 @@ export const InviteWizardPage = () => {
 
   const handleStartPlex = async () => {
     if (!state) return;
+    if (state.invite.is_paused) {
+      showError('This invite is temporarily unavailable because all servers are disabled.');
+      return;
+    }
     setStartingPlex(true);
     try {
       const response = await fetchJson<{ data: { redirect_url?: string; state: WizardState } }>(
@@ -619,6 +644,10 @@ export const InviteWizardPage = () => {
 
   const handleStartDiscord = async () => {
     if (!state) return;
+    if (state.invite.is_paused) {
+      showError('This invite is temporarily unavailable because all servers are disabled.');
+      return;
+    }
     setStartingDiscord(true);
     try {
       const response = await fetchJson<{ data: { redirect_url?: string; state: WizardState } }>(
@@ -656,6 +685,10 @@ export const InviteWizardPage = () => {
   const handleSaveServer = async (serverId: number) => {
     const form = serverForms[serverId];
     if (!form) return;
+    if (state?.invite.is_paused) {
+      showError('This invite is temporarily unavailable because all servers are disabled.');
+      return;
+    }
 
     if (form.password !== form.password_confirm) {
       showError('Passwords do not match');
@@ -687,6 +720,10 @@ export const InviteWizardPage = () => {
   };
 
   const handleComplete = async () => {
+    if (state?.invite.is_paused) {
+      showError('This invite is temporarily unavailable because all servers are disabled.');
+      return;
+    }
     setCompleting(true);
     try {
       const response = await fetchJson<CompletionResponse>(`/api/v2/invite/${encodeURIComponent(token)}/complete`, {
@@ -976,28 +1013,94 @@ export const InviteWizardPage = () => {
 
           {/* Content */}
           <div className="p-6 sm:p-8">
-            {/* Progress Steps */}
-              {state.steps.length > 0 && (
-                <div className="mb-8">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="font-medium text-foreground">Setup Progress</h2>
-                  <span className="text-sm text-muted-foreground">
-                    {completedCount} of {state.steps.length} completed
-                  </span>
+            {isPaused ? (
+              <div className="space-y-4">
+                <div className="rounded-xl border border-amber-300/60 bg-amber-100/70 dark:bg-amber-500/10 p-6 text-center">
+                  <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-amber-200/50 dark:bg-amber-500/10">
+                    <FontAwesomeIcon icon={faTriangleExclamation} className="text-amber-600 text-xl" />
+                  </div>
+                  <h2 className="text-xl font-semibold text-amber-700 mb-2">Invite Temporarily Unavailable</h2>
+                  <p className="text-sm text-foreground/80">
+                    All servers tied to this invite are currently disabled. Your invite is paused until at least one
+                    server is re-enabled.
+                  </p>
+                  <Button onClick={() => loadState()} variant="outline" className="mt-4">
+                    <FontAwesomeIcon icon={faRotateRight} className="mr-2" />
+                    Refresh Status
+                  </Button>
                 </div>
-                <div className="flex items-center gap-2">
-                  {state.steps.map((step, index) => {
-                    const isActive = index === activeStepIndex;
-                    const canSelectStep = step.completed || step.id === activeStepId;
-                    return (
-                      <div key={step.id} className="flex items-center flex-1">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (canSelectStep) {
-                              selectStep(step.id);
-                            }
-                          }}
+
+                {hasDisabledServers ? (
+                  <div className="rounded-xl border p-4">
+                    <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-3">
+                      Disabled Servers
+                    </h3>
+                    <div className="space-y-2">
+                      {disabledServers.map((server) => (
+                        <div key={server.id} className="flex items-center justify-between rounded-lg border bg-muted/40 px-3 py-2 text-sm">
+                          <div>
+                            <div className="font-medium">{server.name}</div>
+                            <div className="text-xs text-muted-foreground uppercase">{server.service_type}</div>
+                          </div>
+                          <span className="text-xs text-amber-600">
+                            {server.is_active === false ? 'Server disabled' : server.plugin_enabled === false ? 'Plugin disabled' : 'Unavailable'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            ) : (
+              <>
+                {hasDisabledServers ? (
+                  <div className="mb-6 rounded-xl border border-amber-300/60 bg-amber-100/70 dark:bg-amber-500/10 p-4">
+                    <div className="flex items-start gap-3">
+                      <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-full bg-amber-200/50 dark:bg-amber-500/10">
+                        <FontAwesomeIcon icon={faTriangleExclamation} className="text-amber-600 text-sm" />
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="text-sm font-semibold text-amber-700">Some servers are unavailable</h3>
+                        <p className="text-xs text-foreground/70 mb-3">
+                          You can still continue, but access for the servers below will be skipped.
+                        </p>
+                        <div className="space-y-1">
+                          {disabledServers.map((server) => (
+                            <div key={server.id} className="flex items-center justify-between text-xs text-muted-foreground">
+                              <span>{server.name} ({server.service_type})</span>
+                              <span className="text-amber-600">
+                                {server.is_active === false ? 'Server disabled' : server.plugin_enabled === false ? 'Plugin disabled' : 'Unavailable'}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+
+                {/* Progress Steps */}
+                {state.steps.length > 0 && (
+                  <div className="mb-8">
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="font-medium text-foreground">Setup Progress</h2>
+                    <span className="text-sm text-muted-foreground">
+                      {completedCount} of {state.steps.length} completed
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {state.steps.map((step, index) => {
+                      const isActive = index === activeStepIndex;
+                      const canSelectStep = step.completed || step.id === activeStepId;
+                      return (
+                        <div key={step.id} className="flex items-center flex-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (canSelectStep) {
+                                selectStep(step.id);
+                              }
+                            }}
                           disabled={!canSelectStep}
                           className={cn(
                             'flex items-center gap-2 p-3 rounded-lg transition-colors flex-1',
@@ -1627,6 +1730,8 @@ export const InviteWizardPage = () => {
                 </div>
               )}
             </div>
+          </>
+        )}
           </div>
         </div>
       </div>

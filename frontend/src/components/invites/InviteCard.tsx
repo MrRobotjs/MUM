@@ -45,10 +45,12 @@ type InviteCardProps = {
 };
 
 const getInviteStatusMeta = (invite: InviteRow) => {
-  const isExpired = invite.expires_at ? new Date(invite.expires_at).getTime() < Date.now() : false;
+  const isExpired = invite.is_expired ?? (invite.expires_at ? new Date(invite.expires_at).getTime() < Date.now() : false);
   const uses = invite.uses_count ?? invite.current_uses ?? 0;
   const maxUses = invite.max_uses ?? null;
-  const isMaxed = typeof maxUses === 'number' && maxUses > 0 ? uses >= maxUses : false;
+  const isMaxed =
+    invite.has_reached_max_uses ?? (typeof maxUses === 'number' && maxUses > 0 ? uses >= maxUses : false);
+  const isPaused = invite.is_paused ?? false;
 
   if (isExpired) {
     return { label: 'Expired', className: 'bg-destructive/10 text-destructive border-destructive/20' };
@@ -58,6 +60,9 @@ const getInviteStatusMeta = (invite: InviteRow) => {
   }
   if (invite.is_active === false) {
     return { label: 'Inactive', className: 'bg-muted text-muted-foreground border-border' };
+  }
+  if (isPaused) {
+    return { label: 'Paused', className: 'bg-slate-500/10 text-slate-600 border-slate-500/20' };
   }
   return { label: 'Active', className: 'bg-green-500/10 text-green-600 border-green-500/20' };
 };
@@ -205,19 +210,36 @@ export const InviteCard = ({
                         </span>
                       ));
 
+                    const serverUnavailable = server.effective_active === false;
+                    const serverIsActive = server.is_active !== false;
+                    const pluginEnabled = server.plugin_enabled !== false;
+                    const overlayLabel = !serverIsActive
+                      ? 'Server Disabled'
+                      : !pluginEnabled
+                        ? 'Plugin Disabled'
+                        : null;
+                    const showOverlay = serverUnavailable && overlayLabel;
+
                     return (
                       <div
                         key={server.id}
-                        className="rounded-lg border border-border/60 bg-muted/40 px-3 py-2 space-y-2"
+                        className={`relative rounded-lg border border-border/60 bg-muted/40 px-3 py-2 space-y-2 ${serverUnavailable ? 'opacity-70' : ''}`}
                       >
+                        {showOverlay ? (
+                          <div className="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-slate-900/70 text-xs font-semibold uppercase tracking-wide text-white mb-0">
+                            {overlayLabel}
+                          </div>
+                        ) : null}
                         <div className="flex items-center gap-2 pb-1 border-b border-border/40">
                           {getServiceIcon(server.service_type, 'w-4 h-4 text-muted-foreground')}
                           <span className="text-sm font-semibold text-foreground">
                             {server.server_nickname || server.name || 'Unnamed server'}
                           </span>
-                          <span className={`ml-auto text-[10px] uppercase tracking-wider font-medium ${getServiceBadgeClass(server.service_type).replace('border', '').replace('bg-', 'text-').split(' ').find(c => c.startsWith('text-')) || 'text-muted-foreground'}`}>
-                            {server.service_type}
-                          </span>
+                          {serverUnavailable && !showOverlay ? (
+                            <span className="text-[10px] uppercase tracking-wider font-medium text-amber-600">
+                              Unavailable
+                            </span>
+                          ) : null}
                         </div>
                         <div className="flex flex-wrap gap-2">
                           {invite.grants_all_libraries ? (

@@ -73,6 +73,17 @@ def v2_get_server_libraries(path: ServerLibPath, current_user):
             404,
         )
 
+    if not MediaServiceManager.is_server_effectively_active(server):
+        return (
+            jsonify({
+                "error": {
+                    "code": "SERVER_NOT_ACTIVE",
+                    "message": "Server is inactive or its plugin is disabled",
+                }
+            }),
+            404,
+        )
+
     try:
         db_libraries = MediaLibrary.query.filter_by(server_id=path.server_id).all()
         libraries: list[dict] = []
@@ -131,6 +142,11 @@ def v2_refresh_server_libraries(path: ServerLibPath, current_user):
     if not server:
         return jsonify({
             "error": {"code": "SERVER_NOT_FOUND", "message": "Server not found"}
+        }), 404
+
+    if not MediaServiceManager.is_server_effectively_active(server):
+        return jsonify({
+            "error": {"code": "SERVER_NOT_ACTIVE", "message": "Server is inactive or its plugin is disabled"}
         }), 404
 
     service = MediaServiceFactory.create_service_from_db(server)

@@ -364,6 +364,7 @@ export const InvitesPage = () => {
     () => [
       { label: 'All', value: 'all' },
       { label: 'Usable', value: 'usable' },
+      { label: 'Paused', value: 'paused' },
       { label: 'Active', value: 'active' },
       { label: 'Inactive', value: 'inactive' },
       { label: 'Expired', value: 'expired' },

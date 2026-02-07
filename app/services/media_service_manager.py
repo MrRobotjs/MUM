@@ -3,6 +3,7 @@ from typing import Any, Dict, Iterable, List, Optional, Set, Union
 from flask import current_app
 from app.models_media_services import MediaServer, MediaLibrary, ServiceType, MediaItem
 from app.models import User, UserType, Setting
+from app.models_plugins import Plugin, PluginStatus
 from app.services.media_service_factory import MediaServiceFactory
 from app.extensions import db
 from datetime import datetime
@@ -10,6 +11,51 @@ from app.services import realtime_session_cache
 
 class MediaServiceManager:
     """Centralized manager for all media services"""
+
+    @staticmethod
+    def get_enabled_service_types() -> List[ServiceType]:
+        """Return ServiceType values for plugins enabled by the user."""
+        enabled_types: List[ServiceType] = []
+        try:
+            plugins = Plugin.query.filter(
+                Plugin.enabled_by_user.is_(True),
+                Plugin.status == PluginStatus.ENABLED,
+            ).all()
+            for plugin in plugins:
+                try:
+                    enabled_types.append(ServiceType(plugin.plugin_id))
+                except Exception:
+                    # Skip plugins that do not map to a ServiceType
+                    continue
+        except Exception:
+            return []
+        return enabled_types
+
+    @staticmethod
+    def is_plugin_enabled(plugin_id: Union[ServiceType, str]) -> bool:
+        """Check if a plugin is enabled and in a healthy state."""
+        if isinstance(plugin_id, ServiceType):
+            plugin_id = plugin_id.value
+        plugin = Plugin.query.filter_by(plugin_id=str(plugin_id)).first()
+        return bool(plugin and plugin.enabled_by_user and plugin.status == PluginStatus.ENABLED)
+
+    @staticmethod
+    def is_server_effectively_active(server: Optional[MediaServer]) -> bool:
+        """Effective availability: server is active and its plugin is enabled."""
+        if not server or not getattr(server, "is_active", False):
+            return False
+        return MediaServiceManager.is_plugin_enabled(server.service_type)
+
+    @staticmethod
+    def get_effective_servers(active_only: bool = True) -> List[MediaServer]:
+        """Get servers that are active and whose plugin is enabled."""
+        enabled_types = MediaServiceManager.get_enabled_service_types()
+        if not enabled_types:
+            return []
+        query = MediaServer.query.filter(MediaServer.service_type.in_(enabled_types))
+        if active_only:
+            query = query.filter_by(is_active=True)
+        return query.all()
     
     @staticmethod
     def get_all_servers(active_only: bool = True) -> List[MediaServer]:
@@ -712,6 +758,7 @@ class MediaServiceManager:
     @staticmethod
     def get_all_active_sessions(
         service_types: Optional[Iterable[Union[ServiceType, str]]] = None,
+        effective_only: bool = True,
     ) -> List[Dict[str, Any]]:
         """Get active sessions from all (or selected) servers"""
         type_filter: Optional[Set[ServiceType]] = None
@@ -746,8 +793,11 @@ class MediaServiceManager:
             )
 
         all_sessions = []
-        
+
         servers = MediaServiceManager.get_all_servers()
+        if effective_only:
+            enabled_types = MediaServiceManager.get_enabled_service_types()
+            servers = [server for server in servers if server.service_type in enabled_types]
         if type_filter:
             servers = [server for server in servers if server.service_type in type_filter]
 

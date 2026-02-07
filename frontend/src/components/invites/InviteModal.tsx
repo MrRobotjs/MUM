@@ -71,8 +71,11 @@ type Server = {
   server_nickname: string;
   service_type: string;
   is_active: boolean;
+  plugin_enabled?: boolean;
+  effective_active?: boolean;
   libraries?: Library[];
   loadingLibraries?: boolean;
+  librariesUnavailable?: boolean;
 };
 
 type ServerFeatureState = {
@@ -121,6 +124,8 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [librarySearch, setLibrarySearch] = useState<Record<number, string>>({});
 
+  const isServerEffectivelyActive = (server?: Server | null) => server?.effective_active !== false;
+
   const selectedServerCount = selectedServerIds.size;
   const selectedLibraryCount = selectedLibraries.size;
   const expiresLabel = form.expires_at ? new Date(form.expires_at).toLocaleDateString() : 'Never';
@@ -166,6 +171,16 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
     selectedServerIds.forEach((serverId) => {
       const server = servers.find((s) => s.id === serverId);
       if (server && !server.libraries && !server.loadingLibraries) {
+        if (!isServerEffectivelyActive(server)) {
+          setServers((prev) =>
+            prev.map((s) =>
+              s.id === serverId
+                ? { ...s, libraries: [], librariesUnavailable: true, loadingLibraries: false }
+                : s
+            )
+          );
+          return;
+        }
         void loadLibrariesForServer(serverId, false, false);
       }
     });
@@ -188,6 +203,18 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
     forceRefresh = false,
     autoSelectLibraries = true
   ) => {
+    const targetServer = servers.find((s) => s.id === serverId);
+    if (!isServerEffectivelyActive(targetServer)) {
+      setServers((prev) =>
+        prev.map((s) =>
+          s.id === serverId
+            ? { ...s, libraries: [], librariesUnavailable: true, loadingLibraries: false }
+            : s
+        )
+      );
+      setServerError('Libraries are unavailable because this server or its plugin is disabled.');
+      return;
+    }
     setServers((prev) =>
       prev.map((s) => (s.id === serverId ? { ...s, loadingLibraries: true } : s))
     );
@@ -223,7 +250,11 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
     } catch (error) {
       console.error('Failed to load libraries:', error);
       setServers((prev) =>
-        prev.map((s) => (s.id === serverId ? { ...s, loadingLibraries: false } : s))
+        prev.map((s) =>
+          s.id === serverId
+            ? { ...s, loadingLibraries: false, librariesUnavailable: true, libraries: s.libraries ?? [] }
+            : s
+        )
       );
     }
   };
@@ -252,7 +283,18 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
       next.add(serverId);
       const server = servers.find((s) => s.id === serverId);
       if (server && !server.libraries) {
+        if (!isServerEffectivelyActive(server)) {
+          setServerError('Libraries are unavailable because this server or its plugin is disabled.');
+          setServers((prev) =>
+            prev.map((s) =>
+              s.id === serverId
+                ? { ...s, libraries: [], librariesUnavailable: true, loadingLibraries: false }
+                : s
+            )
+          );
+        } else {
         void loadLibrariesForServer(serverId);
+        }
       } else if (server?.libraries) {
         const libIds = server.libraries.map((lib) => lib.id || lib.external_id || lib.internal_id);
         setSelectedLibraries((prev) => {
@@ -533,11 +575,6 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <h4 className="font-medium text-lg">Server & Access</h4>
-                {serverError ? (
-                  <span className="text-destructive text-xs flex items-center gap-1">
-                    <FontAwesomeIcon icon={faCircleExclamation} /> {serverError}
-                  </span>
-                ) : null}
               </div>
               <span className="text-xs text-muted-foreground">
                 Select servers, then fine-tune libraries.
@@ -573,6 +610,8 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
                     <div className="divide-y">
                       {serviceServers.map((server) => {
                         const isSelected = selectedServerIds.has(server.id);
+                        const isAvailable = isServerEffectivelyActive(server);
+                        const librariesUnavailable = server.librariesUnavailable || !isAvailable;
                         const searchTerm = (librarySearch[server.id] || '').toLowerCase().trim();
                         const allLibraries = server.libraries || [];
                         const filteredLibraries = searchTerm
@@ -644,7 +683,12 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
                                       variant="ghost"
                                       size="sm"
                                       onClick={() => loadLibrariesForServer(server.id, true)}
-                                      title="Refresh libraries from server"
+                                      disabled={!isAvailable}
+                                      title={
+                                        isAvailable
+                                          ? 'Refresh libraries from server'
+                                          : 'Libraries are unavailable while this server or plugin is disabled'
+                                      }
                                     >
                                       <FontAwesomeIcon icon={faRotate} />
                                     </Button>
@@ -661,6 +705,10 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
                                     <div className="col-span-2 flex items-center justify-center gap-2 text-sm text-muted-foreground">
                                       <Spinner className="h-4 w-4 text-primary" />
                                       Loading libraries...
+                                    </div>
+                                  ) : librariesUnavailable ? (
+                                    <div className="col-span-2 text-center text-xs text-muted-foreground">
+                                      Libraries are unavailable while this server or plugin is disabled.
                                     </div>
                                   ) : filteredLibraries.length === 0 ? (
                                     <div className="col-span-2 text-center text-xs text-muted-foreground">

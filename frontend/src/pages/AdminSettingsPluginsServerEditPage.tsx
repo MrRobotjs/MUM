@@ -85,6 +85,7 @@ export const AdminSettingsPluginsServerEditPage = () => {
   const { server, loading: serverLoading, error: serverError } = useServerDetail(serverId ? Number(serverId) : undefined);
 
   const plugin = useMemo(() => plugins.find((item) => item.pluginId === pluginId), [plugins, pluginId]);
+  const isPluginEnabled = plugin?.enabledByUser ?? server?.plugin_enabled ?? true;
 
   const [values, setValues] = useState<ServerFormValues>({
     server_nickname: '',
@@ -494,15 +495,23 @@ export const AdminSettingsPluginsServerEditPage = () => {
                   ) : null}
 
                   <FormField id="is_active" label="Status">
-                    <div className="flex items-center gap-3">
-                      <Switch
-                        id="is_active"
-                        checked={values.is_active}
-                        onCheckedChange={(checked) => setValues({ ...values, is_active: checked })}
-                      />
-                      <Label htmlFor="is_active" className="cursor-pointer">
-                        Active
-                      </Label>
+                    <div className="flex flex-col gap-1">
+                      <div className="flex items-center gap-3">
+                        <Switch
+                          id="is_active"
+                          checked={values.is_active}
+                          onCheckedChange={(checked) => setValues({ ...values, is_active: checked })}
+                          disabled={!isPluginEnabled}
+                        />
+                        <Label htmlFor="is_active" className="cursor-pointer">
+                          Active
+                        </Label>
+                      </div>
+                      {!isPluginEnabled ? (
+                        <p className="text-xs text-muted-foreground">
+                          Enable the plugin to change server status.
+                        </p>
+                      ) : null}
                     </div>
                   </FormField>
                 </div>

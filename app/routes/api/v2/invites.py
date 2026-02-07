@@ -12,6 +12,7 @@ from app.routes.api.v2 import api_v2
 from app.extensions import db
 from app.models import Invite, InviteUsage, InviteServerFeature, Setting
 from app.models_media_services import MediaServer, MediaLibrary
+from app.services.media_service_manager import MediaServiceManager
 from sqlalchemy import or_ as sa_or
 
 
@@ -21,7 +22,7 @@ invites_tag = Tag(name="Invites", description="Invitation management")
 class InvitesQuery(BaseModel):
     page: int = Field(1, ge=1)
     page_size: int = Field(25, ge=1, le=100)
-    status: Optional[str] = Field(None, description="active|inactive|expired|maxed|usable")
+    status: Optional[str] = Field(None, description="active|inactive|expired|maxed|usable|paused")
     search: Optional[str] = Field(None, description="Search token or custom_path")
     server_id: Optional[int] = Field(None, description="Filter by linked server")
 
@@ -30,6 +31,9 @@ class ServerRef(BaseModel):
     id: int
     server_nickname: Optional[str] = None
     service_type: Optional[str] = None
+    is_active: Optional[bool] = None
+    plugin_enabled: Optional[bool] = None
+    effective_active: Optional[bool] = None
 
 
 class ServerFeature(BaseModel):
@@ -54,9 +58,14 @@ class InviteItem(BaseModel):
     is_expired: bool
     has_reached_max_uses: bool
     is_usable: bool
+    is_effectively_usable: Optional[bool] = None
+    is_paused: Optional[bool] = None
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
     servers: list[ServerRef] = []
+    disabled_servers: list[ServerRef] = []
+    effective_server_count: Optional[int] = None
+    disabled_server_count: Optional[int] = None
     # extras to align with v1 list
     grant_library_ids: list[str] | None = None
     allow_downloads: bool | None = None
@@ -129,11 +138,31 @@ class CreateInviteBody(BaseModel):
 
 
 def _server_ref(s: MediaServer) -> dict:
+    plugin_enabled = MediaServiceManager.is_plugin_enabled(s.service_type)
+    is_active = bool(getattr(s, "is_active", False))
+    effective_active = bool(is_active and plugin_enabled)
     return {
         "id": s.id,
         "server_nickname": getattr(s, "server_nickname", None) or getattr(s, "name", None),
         "service_type": s.service_type.value if hasattr(s.service_type, "value") else str(s.service_type),
+        "is_active": is_active,
+        "plugin_enabled": plugin_enabled,
+        "effective_active": effective_active,
     }
+
+
+def _build_invite_server_state(invite: Invite) -> tuple[list[dict], list[dict], int]:
+    servers_payload: list[dict] = []
+    disabled_servers: list[dict] = []
+    effective_count = 0
+    for server in invite.servers or []:
+        payload = _server_ref(server)
+        servers_payload.append(payload)
+        if payload.get("effective_active"):
+            effective_count += 1
+        else:
+            disabled_servers.append(payload)
+    return servers_payload, disabled_servers, effective_count
 
 
 def _resolve_server_features(invite: Invite) -> list[dict]:
@@ -269,6 +298,10 @@ def _invite_item(i: Invite) -> dict:
         if not library_ids and total_libs > 0:
             grants_all_libraries = True
 
+    servers_payload, disabled_servers, effective_server_count = _build_invite_server_state(i)
+    is_effectively_usable = bool(i.is_usable) and (not servers_payload or effective_server_count > 0)
+    is_paused = bool(servers_payload) and bool(i.is_active) and not bool(i.is_expired) and not bool(i.has_reached_max_uses) and effective_server_count == 0
+
     return {
         "id": i.id,
         "token": i.token,
@@ -280,9 +313,14 @@ def _invite_item(i: Invite) -> dict:
         "is_expired": bool(i.is_expired),
         "has_reached_max_uses": bool(i.has_reached_max_uses),
         "is_usable": bool(i.is_usable),
+        "is_effectively_usable": is_effectively_usable,
+        "is_paused": is_paused,
         "created_at": i.created_at.isoformat() + "Z" if i.created_at else None,
         "updated_at": i.updated_at.isoformat() + "Z" if i.updated_at else None,
-        "servers": [_server_ref(s) for s in (i.servers or [])],
+        "servers": servers_payload,
+        "disabled_servers": disabled_servers,
+        "effective_server_count": effective_server_count,
+        "disabled_server_count": len(disabled_servers),
         "grant_library_ids": i.grant_library_ids or [],
         "libraries": libs_payload,
         "grants_all_libraries": grants_all_libraries,
@@ -330,7 +368,7 @@ def list_invites(query: InvitesQuery, current_user):
         q = q.filter(Invite.expires_at.isnot(None)).filter(Invite.expires_at < utcnow())
     elif status == "maxed":
         q = q.filter(Invite.max_uses.isnot(None)).filter(Invite.current_uses >= Invite.max_uses)
-    elif status == "usable":
+    elif status in {"usable", "paused"}:
         from app.utils.timezone_utils import utcnow
         q = q.filter(Invite.is_active.is_(True)).filter(
             db.or_(Invite.expires_at.is_(None), Invite.expires_at > utcnow())
@@ -341,11 +379,21 @@ def list_invites(query: InvitesQuery, current_user):
     # Pagination
     page = query.page
     size = query.page_size
-    total_items = q.count()
-    total_pages = (total_items + size - 1) // size if size else 1
-    items = q.offset((page - 1) * size).limit(size).all()
-
-    data = [_invite_item(i) for i in items]
+    if status in {"usable", "paused"}:
+        items = q.all()
+        data = [_invite_item(i) for i in items]
+        if status == "usable":
+            data = [item for item in data if item.get("is_effectively_usable", item.get("is_usable"))]
+        else:
+            data = [item for item in data if item.get("is_paused")]
+        total_items = len(data)
+        total_pages = (total_items + size - 1) // size if size else 1
+        data = data[(page - 1) * size: (page - 1) * size + size]
+    else:
+        total_items = q.count()
+        total_pages = (total_items + size - 1) // size if size else 1
+        items = q.offset((page - 1) * size).limit(size).all()
+        data = [_invite_item(i) for i in items]
     return (
         jsonify(
             {
@@ -546,6 +594,7 @@ class SummaryCounts(BaseModel):
     expired: int
     maxed: int
     usable: int
+    paused: int
 
 
 class RecentInvite(BaseModel):
@@ -556,6 +605,7 @@ class RecentInvite(BaseModel):
     is_active: bool
     is_expired: bool
     has_reached_max_uses: bool
+    is_paused: Optional[bool] = None
     current_uses: Optional[int] = None
     max_uses: Optional[int] = None
 
@@ -599,30 +649,42 @@ def invite_summary(current_user):
     inactive = base_query.filter(Invite.is_active.is_(False)).count()
     expired = base_query.filter(Invite.expires_at.isnot(None), Invite.expires_at < now).count()
     maxed = base_query.filter(Invite.max_uses.isnot(None), Invite.current_uses >= Invite.max_uses).count()
-    usable = (
+    usable = 0
+    paused = 0
+    candidate_invites = (
         base_query.filter(Invite.is_active.is_(True))
         .filter(sa_or(Invite.expires_at.is_(None), Invite.expires_at >= now))
         .filter(sa_or(Invite.max_uses.is_(None), Invite.current_uses < Invite.max_uses))
-        .count()
+        .all()
     )
+    for inv in candidate_invites:
+        servers_payload, _disabled_servers, effective_server_count = _build_invite_server_state(inv)
+        if not servers_payload or effective_server_count > 0:
+            usable += 1
+        else:
+            paused += 1
 
     recent_invites = base_query.order_by(Invite.created_at.desc()).limit(5).all()
     recent_usages = InviteUsage.query.order_by(InviteUsage.used_at.desc()).limit(5).all()
 
-    recent_invite_payload = [
-        {
-            "id": inv.id,
-            "token": inv.token,
-            "custom_path": inv.custom_path,
-            "created_at": inv.created_at.isoformat() if inv.created_at else None,
-            "is_active": bool(inv.is_active),
-            "is_expired": bool(inv.is_expired),
-            "has_reached_max_uses": bool(inv.has_reached_max_uses),
-            "current_uses": inv.current_uses,
-            "max_uses": inv.max_uses,
-        }
-        for inv in recent_invites
-    ]
+    recent_invite_payload = []
+    for inv in recent_invites:
+        servers_payload, _disabled_servers, effective_server_count = _build_invite_server_state(inv)
+        is_paused = bool(servers_payload) and bool(inv.is_active) and not bool(inv.is_expired) and not bool(inv.has_reached_max_uses) and effective_server_count == 0
+        recent_invite_payload.append(
+            {
+                "id": inv.id,
+                "token": inv.token,
+                "custom_path": inv.custom_path,
+                "created_at": inv.created_at.isoformat() if inv.created_at else None,
+                "is_active": bool(inv.is_active),
+                "is_expired": bool(inv.is_expired),
+                "has_reached_max_uses": bool(inv.has_reached_max_uses),
+                "is_paused": is_paused,
+                "current_uses": inv.current_uses,
+                "max_uses": inv.max_uses,
+            }
+        )
 
     recent_usage_payload = [
         {
@@ -648,6 +710,7 @@ def invite_summary(current_user):
                         "expired": expired,
                         "maxed": maxed,
                         "usable": usable,
+                        "paused": paused,
                     },
                     "recent_invites": recent_invite_payload,
                     "recent_usages": recent_usage_payload,

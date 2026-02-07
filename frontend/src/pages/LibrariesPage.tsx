@@ -65,7 +65,7 @@ export const LibrariesPage = () => {
     includeServer: true
   });
 
-  const { servers, loading: serversLoading, refresh: refreshServers } = useServers({ includeStatus: true });
+  const { servers, loading: serversLoading, refresh: refreshServers } = useServers({ includeStatus: true, activeOnly: true });
   const { success, error: showError } = useAlerts();
 
   const [syncingAll, setSyncingAll] = useState(false);

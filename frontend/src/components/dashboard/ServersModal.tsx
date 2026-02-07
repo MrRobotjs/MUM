@@ -27,7 +27,7 @@ type ServersModalProps = {
 };
 
 export const ServersModal = ({ open, onClose }: ServersModalProps) => {
-  const { data, loading, error } = useAdminApi<ServersResponse>('/servers?include_status=true');
+  const { data, loading, error } = useAdminApi<ServersResponse>('/servers?include_status=true&active_only=true');
 
   return (
     <ResponsiveDialog

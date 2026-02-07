@@ -43,6 +43,8 @@ export const PluginConfiguration = ({
     return servers.filter((server) => (server.service_type || '').toLowerCase() === target)
   }, [servers, pluginId])
 
+  const isPluginEnabled = plugin.enabledByUser
+
   const { success, error: showError } = useAlerts()
 
   const handleAddServer = () => {
@@ -57,6 +59,9 @@ export const PluginConfiguration = ({
   }
 
   const handleToggleServerStatus = async (server: Server) => {
+    if (!isPluginEnabled) {
+      return
+    }
     const newStatus = !server.is_active
     try {
       await requestJson(`/api/v2/servers/${server.id}`, {
@@ -269,15 +274,23 @@ export const PluginConfiguration = ({
                     <Separator />
 
                     <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <Switch
-                          id={`server-${server.id}-status`}
-                          checked={server.is_active}
-                          onCheckedChange={() => handleToggleServerStatus(server)}
-                        />
-                        <Label htmlFor={`server-${server.id}-status`} className="text-sm cursor-pointer">
-                          {server.is_active ? 'Enabled' : 'Disabled'}
-                        </Label>
+                      <div className="flex flex-col gap-1">
+                        <div className="flex items-center gap-2">
+                          <Switch
+                            id={`server-${server.id}-status`}
+                            checked={server.is_active}
+                            onCheckedChange={() => handleToggleServerStatus(server)}
+                            disabled={!isPluginEnabled}
+                          />
+                          <Label htmlFor={`server-${server.id}-status`} className="text-sm cursor-pointer">
+                            {server.is_active ? 'Enabled' : 'Disabled'}
+                          </Label>
+                        </div>
+                        {!isPluginEnabled ? (
+                          <span className="text-xs text-muted-foreground">
+                            Enable the plugin to change server status.
+                          </span>
+                        ) : null}
                       </div>
                       <div className="flex items-center gap-2">
                         {showEditButton && (

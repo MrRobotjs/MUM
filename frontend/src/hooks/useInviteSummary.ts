@@ -8,6 +8,7 @@ type InviteSummaryCounts = {
   expired: number;
   maxed: number;
   usable: number;
+  paused: number;
 };
 
 type InviteSummaryItem = {
@@ -18,6 +19,7 @@ type InviteSummaryItem = {
   is_active: boolean;
   is_expired: boolean;
   has_reached_max_uses: boolean;
+  is_paused?: boolean;
   current_uses: number;
   max_uses?: number | null;
 };

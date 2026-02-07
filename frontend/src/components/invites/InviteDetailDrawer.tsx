@@ -37,6 +37,8 @@ type InviteServer = {
   url?: string | null;
   public_url?: string | null;
   is_active: boolean;
+  plugin_enabled?: boolean;
+  effective_active?: boolean;
   libraries: InviteServerLibrary[];
 };
 
@@ -49,6 +51,8 @@ type InviteDetail = {
   is_expired: boolean;
   has_reached_max_uses: boolean;
   is_usable: boolean;
+  is_effectively_usable?: boolean;
+  is_paused?: boolean;
   expires_at?: string | null;
   max_uses?: number | null;
   current_uses: number;
@@ -62,6 +66,9 @@ type InviteDetail = {
   library_selection_mode: 'all' | 'custom';
   grant_library_ids?: string[] | null;
   servers: InviteServer[];
+  disabled_servers?: InviteServer[];
+  effective_server_count?: number;
+  disabled_server_count?: number;
   usage: InviteUsageEntry[];
   usage_summary: {
     total: number;
@@ -142,15 +149,17 @@ export const InviteDetailDrawer = ({ inviteId, onClose }: InviteDetailDrawerProp
   };
 
   const statusLabel = detail
-    ? detail.is_usable
-      ? 'Usable'
-      : detail.is_expired
-        ? 'Expired'
-        : detail.has_reached_max_uses
-          ? 'Maxed'
-          : detail.is_active
-            ? 'Active'
-            : 'Disabled'
+    ? detail.is_paused
+      ? 'Paused'
+      : detail.is_usable
+        ? 'Usable'
+        : detail.is_expired
+          ? 'Expired'
+          : detail.has_reached_max_uses
+            ? 'Maxed'
+            : detail.is_active
+              ? 'Active'
+              : 'Disabled'
     : '';
 
   return (
@@ -202,7 +211,7 @@ export const InviteDetailDrawer = ({ inviteId, onClose }: InviteDetailDrawerProp
             <>
               <section className="rounded-xl border p-4 shadow-sm space-y-4">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className={cn('inline-flex items-center rounded-md px-2 py-1 text-xs font-medium uppercase', detail.is_usable ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20')}>
+                  <span className={cn('inline-flex items-center rounded-md px-2 py-1 text-xs font-medium uppercase', detail.is_paused ? 'bg-slate-500/10 text-slate-500 border border-slate-500/20' : detail.is_usable ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20')}>
                     {statusLabel}
                   </span>
                   <span className="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium bg-blue-500/10 text-blue-400 border border-blue-500/20">{detail.is_active ? 'Active' : 'Disabled'}</span>
@@ -276,9 +285,14 @@ export const InviteDetailDrawer = ({ inviteId, onClose }: InviteDetailDrawerProp
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          <span className={cn('inline-flex items-center rounded-md border px-2 py-1 text-xs font-medium', server.is_active ? 'bg-green-500/10 text-green-400 border-green-500/20' : 'bg-gray-500/10 text-gray-400 border-gray-500/20')}>
-                            {server.is_active ? 'Active' : 'Inactive'}
+                          <span className={cn('inline-flex items-center rounded-md border px-2 py-1 text-xs font-medium', server.effective_active === false ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' : server.is_active ? 'bg-green-500/10 text-green-400 border-green-500/20' : 'bg-gray-500/10 text-gray-400 border-gray-500/20')}>
+                            {server.effective_active === false ? 'Unavailable' : server.is_active ? 'Active' : 'Inactive'}
                           </span>
+                          {server.effective_active === false ? (
+                            <span className="text-xs text-muted-foreground">
+                              {server.is_active === false ? 'Server disabled' : server.plugin_enabled === false ? 'Plugin disabled' : 'Unavailable'}
+                            </span>
+                          ) : null}
                           {server.public_url ? (
                             <a className="text-sm text-primary underline-offset-4 hover:underline" href={server.public_url} target="_blank" rel="noreferrer">
                               Public URL

@@ -42,7 +42,7 @@ export const AdminSettingsPluginsPage = () => {
   const { plugins, loading, error, refresh } = usePlugins()
   const { success, error: showError } = useAlerts()
   const [actionLoading, setActionLoading] = useState<string | null>(null)
-  const { servers } = useServers({ activeOnly: true })
+  const { servers } = useServers()
 
   const serverCountByPlugin = useMemo(() => {
     const counts = new Map<string, number>()

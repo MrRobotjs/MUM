@@ -11,6 +11,7 @@ from sqlalchemy import or_, desc
 
 from app.models import User, UserType
 from app.models_media_services import MediaLibrary, MediaStreamHistory
+from app.services.media_service_manager import MediaServiceManager
 from app.routes.api.v2 import api_v2
 from app.services import user_service
 from app.utils.jwt_decorators import jwt_required_with_user
@@ -226,7 +227,11 @@ def get_user(path: UserPath, current_user):
         current_app.logger.info(f"Loading stream history for user {user.uuid}, type={user.userType.value}")
 
         # Query MediaStreamHistory by user UUID
-        stream_query = MediaStreamHistory.query.filter(MediaStreamHistory.user_uuid == user.uuid)
+        effective_server_ids = {s.id for s in MediaServiceManager.get_effective_servers(active_only=True)}
+        stream_query = MediaStreamHistory.query.filter(
+            MediaStreamHistory.user_uuid == user.uuid,
+            MediaStreamHistory.server_id.in_(effective_server_ids),
+        )
         stream_results = stream_query.order_by(desc(MediaStreamHistory.started_at)).limit(10).all()
 
         current_app.logger.info(f"Found {len(stream_results)} stream history entries for user {user.uuid}")

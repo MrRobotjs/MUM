@@ -116,7 +116,7 @@ def _run_media_session_monitor(
             return False
 
     # Check for any active media servers from the database
-    all_servers = MediaServiceManager.get_all_servers(active_only=True)
+    all_servers = MediaServiceManager.get_effective_servers(active_only=True)
     target_servers = []
     for server in all_servers:
         include_server = True

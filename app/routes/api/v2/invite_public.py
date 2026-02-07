@@ -7,6 +7,7 @@ from flask import jsonify
 from pydantic import BaseModel, Field
 from app.routes.api.v2 import api_v2, public_invite_tag
 from app.models import Invite
+from app.services.media_service_manager import MediaServiceManager
 
 
 class InvitePath(BaseModel):
@@ -20,6 +21,7 @@ class InvitePublicData(BaseModel):
     max_uses: Optional[int] = None
     current_uses: Optional[int] = None
     is_active: bool
+    is_paused: Optional[bool] = None
     grant_library_ids: list[str] | None = None
     allow_downloads: bool | None = None
 
@@ -40,6 +42,12 @@ class ErrorResponse(BaseModel):
 
 
 def _serialize_invite(inv: Invite) -> dict:
+    servers = inv.servers or []
+    effective_servers = [
+        server for server in servers
+        if MediaServiceManager.is_server_effectively_active(server)
+    ]
+    is_paused = bool(servers) and not effective_servers and bool(inv.is_active) and not bool(inv.is_expired) and not bool(inv.has_reached_max_uses)
     return {
         "token": inv.token,
         "custom_path": inv.custom_path,
@@ -47,6 +55,7 @@ def _serialize_invite(inv: Invite) -> dict:
         "max_uses": inv.max_uses,
         "current_uses": inv.current_uses,
         "is_active": bool(inv.is_active),
+        "is_paused": is_paused,
         "grant_library_ids": inv.grant_library_ids,
         "allow_downloads": bool(getattr(inv, "allow_downloads", False)),
     }

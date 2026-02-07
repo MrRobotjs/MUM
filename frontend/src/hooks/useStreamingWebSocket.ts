@@ -6,6 +6,7 @@ import {
   getRealtimeState,
   onConnectionChange,
   subscribeToChannel,
+  getRealtimeState,
 } from '../lib/realtimeSocket';
 import type { SessionUpdatePayload, UnifiedEvent } from '../types/realtime';
 
@@ -35,6 +36,14 @@ const streamingState = {
   activeCount: 0,
   liveServices: [] as string[],
   lastSessionData: null as StreamingUpdate | null,
+};
+
+const isServerEffective = (server?: Server | null) => {
+  if (!server) return false;
+  if (typeof server.effective_active === 'boolean') return server.effective_active;
+  if (server.plugin_enabled === false) return false;
+  if (server.is_active === false) return false;
+  return true;
 };
 
 const recomputeAggregate = () => {
@@ -189,7 +198,7 @@ export const useStreamingWebSocket = (options: UseStreamingWebSocketOptions = {}
     // Only generate channel keys if autoConnect is true
     if (!autoConnect) return '';
     return (servers ?? [])
-      .filter((srv) => srv && srv.id !== undefined && srv.is_active !== false)
+      .filter((srv) => srv && srv.id !== undefined && isServerEffective(srv))
       .map((srv) => `${srv.service_type}.${srv.id}.sessions`)
       .sort()
       .join('|');
@@ -208,7 +217,7 @@ export const useStreamingWebSocket = (options: UseStreamingWebSocketOptions = {}
 
     const desired = new Set(
       (servers ?? [])
-        .filter((srv) => srv && srv.id !== undefined && srv.is_active !== false)
+        .filter((srv) => srv && srv.id !== undefined && isServerEffective(srv))
         .map((srv) => `${srv.service_type}.${srv.id}.sessions`)
     );
 
@@ -222,9 +231,9 @@ export const useStreamingWebSocket = (options: UseStreamingWebSocketOptions = {}
         console.debug('[StreamingWebSocket] Unsubscribing from removed channel:', channel);
         cleanup();
         activeSubs.delete(channel);
-        // Don't delete channelSnapshots here - the realtimeSocket will handle it
-        // when the last listener unsubscribes. This allows multiple components
-        // to share the same channel subscriptions.
+        if (!getRealtimeState().channels.includes(channel)) {
+          channelSnapshots.delete(channel);
+        }
       }
     }
 

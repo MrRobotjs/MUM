@@ -10,6 +10,8 @@ export type Server = {
   public_url: string | null;
   jellyfin_owner_user_id?: string | null;
   is_active: boolean;
+  plugin_enabled?: boolean;
+  effective_active?: boolean;
   created_at: string;
   updated_at: string;
   last_status?: boolean | null;

@@ -12,6 +12,7 @@ from app.routes.api.v2 import api_v2
 from app.models import User
 from app.models_media_services import MediaStreamHistory
 from app.utils.jwt_decorators import jwt_required_with_user
+from app.services.media_service_manager import MediaServiceManager
 
 
 users_tag = Tag(name="Users", description="User management endpoints")
@@ -102,7 +103,28 @@ def get_user_history(path: UserPath, query: HistoryQuery, current_user):
     if not user:
         return jsonify({"error": {"code": "NOT_FOUND", "message": "User not found"}, "meta": {"request_id": request_id}}), 404
 
-    q = MediaStreamHistory.query.filter(MediaStreamHistory.user_uuid == user.uuid).order_by(desc(MediaStreamHistory.started_at))
+    effective_server_ids = {s.id for s in MediaServiceManager.get_effective_servers(active_only=True)}
+    if not effective_server_ids:
+        return jsonify({
+            "data": [],
+            "meta": {
+                "request_id": request_id,
+                "generated_at": datetime.utcnow().isoformat() + "Z",
+                "deprecated": False,
+                "pagination": {
+                    "page": query.page,
+                    "page_size": query.page_size,
+                    "total_items": 0,
+                    "total_pages": 1,
+                },
+                "filters": {},
+            },
+        }), 200
+
+    q = MediaStreamHistory.query.filter(
+        MediaStreamHistory.user_uuid == user.uuid,
+        MediaStreamHistory.server_id.in_(effective_server_ids),
+    ).order_by(desc(MediaStreamHistory.started_at))
 
     page = query.page
     size = query.page_size

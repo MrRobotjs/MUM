@@ -14,6 +14,7 @@ from flask_jwt_extended import decode_token
 from app.extensions import socketio
 from app.models import User, UserType
 from app.models_media_services import MediaServer
+from app.services.media_service_manager import MediaServiceManager
 from app.services.event_normalizer import MessageType, build_session_update_event
 
 bp = Blueprint('websockets', __name__)
@@ -183,6 +184,8 @@ def _validate_channel_access(sid: str, channel: str):
         return False, "invalid_channel", f"Server {parsed['server_id']} not found"
     if server.service_type.value != parsed["service"]:
         return False, "invalid_channel", "Service type mismatch for channel"
+    if not MediaServiceManager.is_server_effectively_active(server):
+        return False, "forbidden", "Server inactive or plugin disabled"
 
     # Owners and administrators can subscribe to any server; others require explicit access
     if user.userType == UserType.OWNER or _has_permission(sid, "administrator"):

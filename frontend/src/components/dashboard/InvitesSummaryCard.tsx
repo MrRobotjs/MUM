@@ -9,6 +9,7 @@ const metricClassNames: Record<string, string> = {
   total: 'bg-primary/10 text-primary',
   active: 'bg-green-50 dark:bg-green-400/10 text-green-600 dark:text-green-400',
   usable: 'bg-blue-50 dark:bg-blue-400/10 text-blue-600 dark:text-blue-400',
+  paused: 'bg-amber-50 dark:bg-amber-400/10 text-amber-600 dark:text-amber-400',
   expired: 'bg-amber-50 dark:bg-amber-400/10 text-amber-600 dark:text-amber-400',
   maxed: 'bg-red-50 dark:bg-red-400/10 text-red-600 dark:text-red-400',
   inactive: 'bg-muted text-muted-foreground'
@@ -22,6 +23,7 @@ export const InvitesSummaryCard = () => {
     ? [
         { key: 'total', label: 'Total', value: counts.total },
         { key: 'usable', label: 'Usable', value: counts.usable },
+        { key: 'paused', label: 'Paused', value: counts.paused ?? 0 },
         { key: 'active', label: 'Active', value: counts.active },
         { key: 'inactive', label: 'Inactive', value: counts.inactive },
         { key: 'expired', label: 'Expired', value: counts.expired },
@@ -92,16 +94,18 @@ export const InvitesSummaryCard = () => {
                       </div>
                       <Badge
                         variant={
-                          invite.is_expired || invite.has_reached_max_uses ? 'warning' : 'success'
+                          invite.is_paused || invite.is_expired || invite.has_reached_max_uses ? 'warning' : 'success'
                         }
                       >
-                        {invite.is_expired
-                          ? 'Expired'
-                          : invite.has_reached_max_uses
-                            ? 'Maxed'
-                            : invite.is_active
-                              ? 'Active'
-                              : 'Disabled'}
+                        {invite.is_paused
+                          ? 'Paused'
+                          : invite.is_expired
+                            ? 'Expired'
+                            : invite.has_reached_max_uses
+                              ? 'Maxed'
+                              : invite.is_active
+                                ? 'Active'
+                                : 'Disabled'}
                       </Badge>
                     </li>
                   ))}

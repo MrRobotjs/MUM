@@ -11,7 +11,7 @@ from app.services.media_service_manager import MediaServiceManager
 
 def get_stored_server_status() -> dict | None:
     """Get server status from database (last known status). Copied for v2 usage."""
-    all_servers = MediaServiceManager.get_all_servers(active_only=True)
+    all_servers = MediaServiceManager.get_effective_servers(active_only=True)
     server_count = len(all_servers)
     current_app.logger.debug(f"API v2: Found {server_count} servers to get stored status")
 
@@ -86,7 +86,7 @@ def get_stored_server_status() -> dict | None:
 def get_fresh_server_status() -> dict:
     """Fetch fresh server status data from all servers - NO CACHING. Copied for v2 usage."""
     current_app.logger.info("API v2: get_fresh_server_status() called - fetching real-time server status")
-    all_servers = MediaServiceManager.get_all_servers(active_only=True)
+    all_servers = MediaServiceManager.get_effective_servers(active_only=True)
     server_count = len(all_servers)
     current_app.logger.debug(f"API v2: Found {server_count} servers to check status")
     server_status_data: dict = {}
@@ -201,4 +201,3 @@ def get_fresh_server_status() -> dict:
         }
 
     return server_status_data
-

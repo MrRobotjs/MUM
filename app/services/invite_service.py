@@ -96,6 +96,19 @@ def accept_invite_and_grant_access(invite: Invite, plex_user_uuid: str, plex_use
         log_event(EventType.INVITE_VIEWED, f"Attempt to use unusable invite '{invite.custom_path or invite.token}' (ID: {invite.id}).", invite_id=invite.id, details={'reason': 'not usable'})
         return False, "This invite is no longer valid (expired, maxed out, or deactivated)."
 
+    effective_servers = [
+        server for server in (invite.servers or [])
+        if MediaServiceManager.is_server_effectively_active(server)
+    ]
+    if invite.servers and not effective_servers:
+        log_event(
+            EventType.INVITE_VIEWED,
+            f"Attempt to use paused invite '{invite.custom_path or invite.token}' (ID: {invite.id}).",
+            invite_id=invite.id,
+            details={'reason': 'no active servers'},
+        )
+        return False, "This invite is temporarily unavailable because all servers are disabled."
+
     # Look for existing user by Plex UUID via service user
     existing_mum_user = None
     if plex_user_uuid:
@@ -144,7 +157,7 @@ def accept_invite_and_grant_access(invite: Invite, plex_user_uuid: str, plex_use
         return False, f"You ({plex_username}) are already a member of this Plex server."
 
     # User is new to MUM. Grant access to all servers associated with the invite.
-    servers_to_grant_access = invite.servers if invite.servers else []
+    servers_to_grant_access = effective_servers
     
     if not servers_to_grant_access:
         log_event(EventType.ERROR_GENERAL, f"No servers found for invite {invite.id} when trying to grant access to {plex_username}", invite_id=invite.id)

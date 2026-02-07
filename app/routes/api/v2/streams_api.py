@@ -126,7 +126,20 @@ def _serialize_stream(stream: MediaStreamHistory) -> dict:
     }
 
 
-def _apply_filters(query, user_uuid=None, user_name=None, service_type=None, status=None, start_date=None, end_date=None):
+def _apply_filters(
+    query,
+    user_uuid=None,
+    user_name=None,
+    service_type=None,
+    status=None,
+    start_date=None,
+    end_date=None,
+    server_ids: Optional[set[int]] = None,
+):
+    if server_ids is not None:
+        if not server_ids:
+            return query.filter(False)
+        query = query.filter(MediaStreamHistory.server_id.in_(server_ids))
     if user_uuid:
         query = query.filter(MediaStreamHistory.user_uuid == user_uuid)
     if user_name:
@@ -169,6 +182,9 @@ def _apply_filters(query, user_uuid=None, user_name=None, service_type=None, sta
 def list_streams(query: StreamsQuery, current_user):
     request_id = uuid4().hex
 
+    from app.services.media_service_manager import MediaServiceManager
+    effective_server_ids = {s.id for s in MediaServiceManager.get_effective_servers(active_only=True)}
+
     start_dt = None
     end_dt = None
     if query.start:
@@ -193,6 +209,7 @@ def list_streams(query: StreamsQuery, current_user):
         query.status,
         start_dt,
         end_dt,
+        server_ids=effective_server_ids,
     )
 
     pagination = q.paginate(page=query.page, per_page=query.page_size, error_out=False)
@@ -283,6 +300,9 @@ def streams_summary(query: StreamsSummaryQuery, current_user):
     user_uuid = query.user_uuid
     service_type = query.service_type
 
+    from app.services.media_service_manager import MediaServiceManager
+    effective_server_ids = {s.id for s in MediaServiceManager.get_effective_servers(active_only=True)}
+
     start_dt = None
     end_dt = None
     if start_date_str:
@@ -299,14 +319,37 @@ def streams_summary(query: StreamsSummaryQuery, current_user):
             pass
 
     # Build filtered base query similar to v1 semantics
-    base_q = _apply_filters(MediaStreamHistory.query, user_uuid, None, service_type, None, start_dt, end_dt)
+    base_q = _apply_filters(
+        MediaStreamHistory.query,
+        user_uuid,
+        None,
+        service_type,
+        None,
+        start_dt,
+        end_dt,
+        server_ids=effective_server_ids,
+    )
 
     total_streams = base_q.count()
     active_streams = _apply_filters(
-        MediaStreamHistory.query, user_uuid, None, service_type, "active", start_dt, end_dt
+        MediaStreamHistory.query,
+        user_uuid,
+        None,
+        service_type,
+        "active",
+        start_dt,
+        end_dt,
+        server_ids=effective_server_ids,
     ).count()
     completed_streams = _apply_filters(
-        MediaStreamHistory.query, user_uuid, None, service_type, "completed", start_dt, end_dt
+        MediaStreamHistory.query,
+        user_uuid,
+        None,
+        service_type,
+        "completed",
+        start_dt,
+        end_dt,
+        server_ids=effective_server_ids,
     ).count()
 
     total_duration = base_q.with_entities(func.coalesce(func.sum(MediaStreamHistory.duration_seconds), 0)).scalar()
@@ -327,21 +370,48 @@ def streams_summary(query: StreamsSummaryQuery, current_user):
 
     from sqlalchemy import cast, Date
     daily_counts = (
-        _apply_filters(MediaStreamHistory.query, user_uuid, None, service_type, None, start_dt, end_dt)
+        _apply_filters(
+            MediaStreamHistory.query,
+            user_uuid,
+            None,
+            service_type,
+            None,
+            start_dt,
+            end_dt,
+            server_ids=effective_server_ids,
+        )
         .with_entities(func.date(MediaStreamHistory.started_at).label("day"), func.count(MediaStreamHistory.id))
         .group_by("day")
         .order_by("day")
         .all()
     )
     per_service = (
-        _apply_filters(MediaStreamHistory.query.join(MediaServer), user_uuid, None, service_type, None, start_dt, end_dt)
+        _apply_filters(
+            MediaStreamHistory.query.join(MediaServer),
+            user_uuid,
+            None,
+            service_type,
+            None,
+            start_dt,
+            end_dt,
+            server_ids=effective_server_ids,
+        )
         .with_entities(MediaServer.service_type, func.count(MediaStreamHistory.id))
         .group_by(MediaServer.service_type)
         .order_by(MediaServer.service_type)
         .all()
     )
     per_server = (
-        _apply_filters(MediaStreamHistory.query.join(MediaServer), user_uuid, None, service_type, None, start_dt, end_dt)
+        _apply_filters(
+            MediaStreamHistory.query.join(MediaServer),
+            user_uuid,
+            None,
+            service_type,
+            None,
+            start_dt,
+            end_dt,
+            server_ids=effective_server_ids,
+        )
         .with_entities(MediaServer.server_nickname, MediaServer.service_type, func.count(MediaStreamHistory.id))
         .group_by(MediaServer.server_nickname, MediaServer.service_type)
         .order_by(MediaServer.server_nickname)

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useLocation } from '@tanstack/react-router';
 // Images use cookie-based auth; no token param needed
 import { StreamingSummaryCard, StreamingSettingsModal } from '../components/dashboard';
 import {
@@ -276,7 +277,8 @@ export const StreamingPage = () => {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const { summary } = useStreamingSummary();
-  const { servers: mediaServers } = useServers();
+  const location = useLocation();
+  const { servers: mediaServers, refresh: refreshServers } = useServers({ activeOnly: true });
   const { settings: streamingSettings } = useStreamingSettings();
   // Use the admin-configured interval for truth refreshes, defaulting to 30s with a hard
   // floor of 2s to prevent thrashing.
@@ -292,6 +294,55 @@ export const StreamingPage = () => {
     return Math.max(2, streamingSettings?.websocket_refresh_interval ?? 30);
   }, [mediaServers, streamingSettings?.websocket_refresh_interval]);
   const [settingsOpen, setSettingsOpen] = useState(false);
+
+  const allowedServerSnapshot = useMemo(() => {
+    const serverNames = new Set<string>();
+    const serviceTypes = new Set<string>();
+    mediaServers.forEach((server) => {
+      if (server.service_type) {
+        serviceTypes.add(server.service_type.toLowerCase());
+      }
+      if (server.server_nickname) {
+        serverNames.add(server.server_nickname.toLowerCase());
+      }
+      if (server.server_name) {
+        serverNames.add(server.server_name.toLowerCase());
+      }
+    });
+    return { serverNames, serviceTypes };
+  }, [mediaServers]);
+
+  const allowedServersKey = useMemo(() => {
+    const typeKey = Array.from(allowedServerSnapshot.serviceTypes).sort().join('|');
+    const nameKey = Array.from(allowedServerSnapshot.serverNames).sort().join('|');
+    return `${typeKey}::${nameKey}`;
+  }, [allowedServerSnapshot]);
+
+  const filterSessionsForServers = useCallback(
+    (sessions: ActiveSession[]) => {
+      if (!allowedServerSnapshot.serviceTypes.size) {
+        return [];
+      }
+      return sessions.filter((session) => {
+        const serviceType = session.service_type?.toLowerCase() ?? '';
+        if (!allowedServerSnapshot.serviceTypes.has(serviceType)) {
+          return false;
+        }
+        if (!allowedServerSnapshot.serverNames.size) {
+          return true;
+        }
+        const serverName = session.server_name?.toLowerCase() ?? '';
+        return allowedServerSnapshot.serverNames.has(serverName);
+      });
+    },
+    [allowedServerSnapshot]
+  );
+
+  useEffect(() => {
+    if (location.pathname.startsWith('/admin/streaming')) {
+      refreshServers();
+    }
+  }, [location.pathname, refreshServers]);
 
   // For live WebSocket-backed services we snapshot the server-provided progress and then
   // animate locally between truth updates. These refs keep track of the last
@@ -672,6 +723,52 @@ export const StreamingPage = () => {
   useEffect(() => {
     liveServicesRef.current = liveServices;
   }, [liveServices]);
+
+  useEffect(() => {
+    httpOnlySessionsRef.current = filterSessionsForServers(httpOnlySessionsRef.current);
+
+    if (!activeSessions) {
+      return;
+    }
+
+    const filteredSessions = filterSessionsForServers(activeSessions.sessions);
+    const sameLength = filteredSessions.length === activeSessions.sessions.length;
+    if (sameLength) {
+      const currentKeys = new Set(activeSessions.sessions.map(buildSessionKey));
+      const filteredKeys = new Set(filteredSessions.map(buildSessionKey));
+      if (
+        currentKeys.size === filteredKeys.size &&
+        Array.from(currentKeys).every((key) => filteredKeys.has(key))
+      ) {
+        return;
+      }
+    }
+
+    setActiveSessions({
+      ...activeSessions,
+      sessions: filteredSessions,
+      total_count: filteredSessions.length,
+      by_server: groupSessionsBy(filteredSessions, 'server_name'),
+      by_service: groupSessionsBy(filteredSessions, 'service_type'),
+    });
+
+    setSessionOffsets((prev) => {
+      const next: Record<string, number> = {};
+      filteredSessions.forEach((session) => {
+        const key = session.session_key;
+        if (key in prev) {
+          next[key] = prev[key];
+        }
+      });
+      return next;
+    });
+
+    if (filteredSessions.length === 0) {
+      setSelectedSession(null);
+      setShowTerminateModal(false);
+      setTerminateMessage('');
+    }
+  }, [activeSessions, allowedServersKey, filterSessionsForServers]);
 
   // Consider Plex as a live service by default so interpolation works even before first WS payload
   const liveServiceSet = useMemo(

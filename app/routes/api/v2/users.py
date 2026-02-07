@@ -200,6 +200,15 @@ def _to_item(u: User) -> dict:
 @jwt_required_with_user()
 def list_users(query: UsersQuery, current_user):
     q = User.query.options(joinedload(User.server))
+    from app.services.media_service_manager import MediaServiceManager
+    effective_server_ids = {s.id for s in MediaServiceManager.get_effective_servers(active_only=True)}
+
+    # Hide service users that belong to inactive/disabled servers
+    if effective_server_ids is not None:
+        if effective_server_ids:
+            q = q.filter(sa_or(User.userType != UserType.SERVICE, User.server_id.in_(effective_server_ids)))
+        else:
+            q = q.filter(User.userType != UserType.SERVICE)
 
     # Filter by user type
     if query.user_type:
@@ -256,7 +265,11 @@ def list_users(query: UsersQuery, current_user):
     # Server filter (applies to service users only)
     if query.server_id:
         try:
-            q = q.filter(User.server_id == int(query.server_id))
+            server_id_int = int(query.server_id)
+            if effective_server_ids is not None and server_id_int not in effective_server_ids:
+                q = q.filter(False)
+            else:
+                q = q.filter(User.server_id == server_id_int)
         except Exception:
             pass
 
@@ -327,7 +340,10 @@ def list_users(query: UsersQuery, current_user):
             MediaStreamHistory.user_uuid,
             func.count(MediaStreamHistory.id).label("total_plays"),
             func.coalesce(func.sum(MediaStreamHistory.duration_seconds), 0).label("total_duration"),
-        ).filter(MediaStreamHistory.user_uuid.in_(user_uuids)).group_by(MediaStreamHistory.user_uuid).all()
+        ).filter(MediaStreamHistory.user_uuid.in_(user_uuids))
+        if effective_server_ids is not None:
+            stats_rows = stats_rows.filter(MediaStreamHistory.server_id.in_(effective_server_ids))
+        stats_rows = stats_rows.group_by(MediaStreamHistory.user_uuid).all()
 
         for user_uuid, total_plays, total_duration in stats_rows:
             stream_stats[user_uuid] = {
@@ -345,7 +361,10 @@ def list_users(query: UsersQuery, current_user):
         ).filter(
             MediaStreamHistory.user_uuid.in_(user_uuids),
             MediaStreamHistory.ip_address.isnot(None),
-        ).subquery()
+        )
+        if effective_server_ids is not None:
+            last_ip_subq = last_ip_subq.filter(MediaStreamHistory.server_id.in_(effective_server_ids))
+        last_ip_subq = last_ip_subq.subquery()
 
         ip_rows = db.session.query(last_ip_subq.c.user_uuid, last_ip_subq.c.ip_address).filter(last_ip_subq.c.rn == 1).all()
         for user_uuid, ip_address in ip_rows:
@@ -368,7 +387,10 @@ def list_users(query: UsersQuery, current_user):
                 partition_by=MediaStreamHistory.user_uuid,
                 order_by=MediaStreamHistory.started_at.desc(),
             ).label("rn"),
-        ).filter(MediaStreamHistory.user_uuid.in_(user_uuids)).subquery()
+        ).filter(MediaStreamHistory.user_uuid.in_(user_uuids))
+        if effective_server_ids is not None:
+            last_played_subq = last_played_subq.filter(MediaStreamHistory.server_id.in_(effective_server_ids))
+        last_played_subq = last_played_subq.subquery()
 
         last_played_rows = db.session.query(last_played_subq).filter(last_played_subq.c.rn == 1).all()
         for row in last_played_rows:
@@ -395,7 +417,10 @@ def list_users(query: UsersQuery, current_user):
         linked_service_users = User.query.options(joinedload(User.server)).filter(
             User.userType == UserType.SERVICE,
             User.linkedUserId.in_(local_uuids),
-        ).all()
+        )
+        if effective_server_ids is not None:
+            linked_service_users = linked_service_users.filter(User.server_id.in_(effective_server_ids))
+        linked_service_users = linked_service_users.all()
 
     service_users_for_libraries: dict[str, User] = {
         u.uuid: u for u in items if u.userType == UserType.SERVICE

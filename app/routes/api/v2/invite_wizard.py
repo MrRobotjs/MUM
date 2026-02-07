@@ -13,6 +13,7 @@ from app.models import Invite, User, UserType, Setting, EventType
 from app.extensions import db
 from app.services import invite_service
 from app.services.media_service_factory import MediaServiceFactory
+from app.services.media_service_manager import MediaServiceManager
 from app.utils.timezone_utils import utcnow
 
 from . import api_v2, public_wizard_tag
@@ -48,6 +49,26 @@ def _server_access_url(server) -> Optional[str]:
     return None
 
 
+def _build_server_availability(server) -> Dict[str, Any]:
+    plugin_enabled = MediaServiceManager.is_plugin_enabled(server.service_type)
+    is_active = bool(getattr(server, "is_active", False))
+    effective_active = bool(is_active and plugin_enabled)
+    reason = None
+    if not is_active:
+        reason = "server_disabled"
+    elif not plugin_enabled:
+        reason = "plugin_disabled"
+    return {
+        "id": server.id,
+        "name": server.server_nickname,
+        "service_type": server.service_type.name.upper(),
+        "is_active": is_active,
+        "plugin_enabled": plugin_enabled,
+        "effective_active": effective_active,
+        "reason": reason,
+    }
+
+
 def _build_invite_state(invite: Invite) -> Dict[str, Any]:
     prefix = f'invite_{invite.id}_'
 
@@ -76,9 +97,18 @@ def _build_invite_state(invite: Invite) -> Dict[str, Any]:
         guild_verified = None
         guild_error = None
 
-    has_plex_servers = any(server.service_type.name.upper() == 'PLEX' for server in invite.servers)
+    all_servers = invite.servers or []
+    effective_servers = [server for server in all_servers if MediaServiceManager.is_server_effectively_active(server)]
+    disabled_servers = [
+        _build_server_availability(server)
+        for server in all_servers
+        if not MediaServiceManager.is_server_effectively_active(server)
+    ]
+    invite_paused = bool(all_servers) and not effective_servers
+
+    has_plex_servers = any(server.service_type.name.upper() == 'PLEX' for server in effective_servers)
     servers_with_libraries: Dict[int, Dict[str, Any]] = {}
-    for server in invite.servers or []:
+    for server in effective_servers:
         libraries = {}
         try:
             service = MediaServiceFactory.create_service_from_db(server)
@@ -111,7 +141,7 @@ def _build_invite_state(invite: Invite) -> Dict[str, Any]:
 
     username_conflicts: Dict[int, bool] = {}
     if use_same_username and local_username:
-        for server in invite.servers:
+        for server in effective_servers:
             if server.service_type.name.upper() == 'PLEX':
                 continue
             try:
@@ -126,34 +156,35 @@ def _build_invite_state(invite: Invite) -> Dict[str, Any]:
                 username_conflicts[server.id] = False
 
     invite_steps: List[Dict[str, Any]] = []
-    if allow_user_accounts:
+    if allow_user_accounts and not invite_paused:
         invite_steps.append({'id': 'user_account', 'name': 'Account Details', 'icon': 'fa-solid fa-user-plus', 'required': True, 'completed': user_account_created})
 
-    if oauth_enabled:
+    if oauth_enabled and not invite_paused:
         invite_steps.append({'id': 'discord', 'name': 'Discord Login', 'icon': 'fa-brands fa-discord', 'required': require_discord_auth, 'completed': already_authenticated_discord_user is not None})
 
-    if has_plex_servers:
-        plex_server = next((srv for srv in invite.servers if srv.service_type.name.upper() == 'PLEX'), None)
+    if has_plex_servers and not invite_paused:
+        plex_server = next((srv for srv in effective_servers if srv.service_type.name.upper() == 'PLEX'), None)
         plex_name = plex_server.server_nickname if plex_server else 'Plex'
         invite_steps.append({'id': 'plex', 'name': f'{plex_name} Access', 'icon': 'fa-solid fa-right-to-bracket', 'required': True, 'completed': already_authenticated_plex_user is not None})
 
-    non_plex_servers = [server for server in invite.servers if server.service_type.name.upper() != 'PLEX']
+    non_plex_servers = [server for server in effective_servers if server.service_type.name.upper() != 'PLEX']
 
     def server_sort_key(server):
         return (username_conflicts.get(server.id, False), server.server_nickname)
 
-    for server in sorted(non_plex_servers, key=server_sort_key):
-        invite_steps.append({
-            'id': f'server_access_{server.id}',
-            'name': f'{server.server_nickname} Access',
-            'icon': 'fa-solid fa-server',
-            'required': True,
-            'completed': servers_with_libraries[server.id]['completed'],
-            'server_id': server.id,
-            'server_name': server.server_nickname,
-            'server_type': server.service_type.name.upper(),
-            'username_conflict': username_conflicts.get(server.id, False),
-        })
+    if not invite_paused:
+        for server in sorted(non_plex_servers, key=server_sort_key):
+            invite_steps.append({
+                'id': f'server_access_{server.id}',
+                'name': f'{server.server_nickname} Access',
+                'icon': 'fa-solid fa-server',
+                'required': True,
+                'completed': servers_with_libraries[server.id]['completed'],
+                'server_id': server.id,
+                'server_name': server.server_nickname,
+                'server_type': server.service_type.name.upper(),
+                'username_conflict': username_conflicts.get(server.id, False),
+            })
 
     next_step_id: Optional[str] = None
     for step in invite_steps:
@@ -243,6 +274,7 @@ def _build_invite_state(invite: Invite) -> Dict[str, Any]:
             'max_uses': invite.max_uses,
             'current_uses': invite.current_uses,
             'is_active': invite.is_active,
+            'is_paused': invite_paused,
             'allow_downloads': invite.allow_downloads,
             'invite_to_plex_home': invite.invite_to_plex_home,
             'allow_live_tv': invite.allow_live_tv,
@@ -251,7 +283,9 @@ def _build_invite_state(invite: Invite) -> Dict[str, Any]:
             'grant_library_ids': invite.grant_library_ids,
             'require_discord_auth': require_discord_auth,
             'require_discord_guild_membership': require_discord_guild,
-            'server_count': len(invite.servers or []),
+            'server_count': len(all_servers),
+            'effective_server_count': len(effective_servers),
+            'disabled_server_count': len(disabled_servers),
         },
         'steps': invite_steps,
         'next_step_id': next_step_id,
@@ -283,9 +317,10 @@ def _build_invite_state(invite: Invite) -> Dict[str, Any]:
             }
         },
         'servers': server_details,
+        'disabled_servers': disabled_servers,
         'meta': {
             'server_label': server_name,
-            'has_multiple_servers': len(invite.servers or []) > 1,
+            'has_multiple_servers': len(effective_servers) > 1,
         }
     }
 
@@ -419,6 +454,13 @@ def save_invite_account_v2(path: InvitePath):
     invite = _get_invite(token)
     if not invite:
         return _error_response(request_id, 404, 'INVITE_NOT_FOUND', 'Invite not found.')
+    if invite.servers:
+        effective_servers = [
+            server for server in (invite.servers or [])
+            if MediaServiceManager.is_server_effectively_active(server)
+        ]
+        if not effective_servers:
+            return _error_response(request_id, 400, 'INVITE_PAUSED', 'This invite is temporarily unavailable because all servers are disabled.')
 
     if not Setting.get_bool('ALLOW_USER_ACCOUNTS', False):
         return _error_response(request_id, 400, 'USER_ACCOUNTS_DISABLED', 'Local account creation is disabled for this server.')
@@ -468,6 +510,16 @@ def start_plex_auth_v2(path: InvitePath):
     payload = request.get_json(silent=True) or {}
 
     prefix = f'invite_{invite.id}_'
+
+    effective_servers = [
+        server for server in (invite.servers or [])
+        if MediaServiceManager.is_server_effectively_active(server)
+    ]
+    has_plex_servers = any(server.service_type.name.upper() == 'PLEX' for server in effective_servers)
+    if invite.servers and not effective_servers:
+        return _error_response(request_id, 400, 'INVITE_PAUSED', 'This invite is temporarily unavailable because all servers are disabled.')
+    if invite.servers and not has_plex_servers:
+        return _error_response(request_id, 400, 'PLEX_NOT_AVAILABLE', 'Plex access is not available for this invite.')
 
     return_path = payload.get('return_path')
     if isinstance(return_path, str) and return_path:
@@ -627,6 +679,13 @@ def start_discord_auth_v2(path: InvitePath):
     invite = _get_invite(token)
     if not invite:
         return _error_response(request_id, 404, 'INVITE_NOT_FOUND', 'Invite not found.')
+    if invite.servers:
+        effective_servers = [
+            server for server in (invite.servers or [])
+            if MediaServiceManager.is_server_effectively_active(server)
+        ]
+        if not effective_servers:
+            return _error_response(request_id, 400, 'INVITE_PAUSED', 'This invite is temporarily unavailable because all servers are disabled.')
 
     payload = request.get_json(silent=True) or {}
 
@@ -684,8 +743,11 @@ def save_server_credentials_v2(path: InviteServerPath):
     if not invite:
         return _error_response(request_id, 404, 'INVITE_NOT_FOUND', 'Invite not found.')
 
-    if not any(server.id == server_id for server in invite.servers):
+    target_server = next((server for server in (invite.servers or []) if server.id == server_id), None)
+    if not target_server:
         return _error_response(request_id, 404, 'INVITE_SERVER_NOT_FOUND', 'Server is not attached to this invite.')
+    if not MediaServiceManager.is_server_effectively_active(target_server):
+        return _error_response(request_id, 400, 'INVITE_SERVER_DISABLED', 'This server is temporarily unavailable.')
 
     payload = request.get_json(silent=True) or {}
     credentials = {
@@ -739,6 +801,15 @@ def discord_oauth_callback_public_v2():
     return _handle_discord_oauth_callback(invite, f"/invite/{fallback_token}")
 
 
+@api_v2.get(
+    "/public/discord/callback",
+    tags=[public_wizard_tag],
+    summary="Discord OAuth callback (public invite, legacy)",
+)
+def discord_oauth_callback_public_legacy_v2():
+    return discord_oauth_callback_public_v2()
+
+
 @api_v2.post(
     "/invite/<token>/complete",
     tags=[public_wizard_tag],
@@ -752,6 +823,13 @@ def complete_invite_v2(path: InvitePath):
     if not invite:
         return _error_response(request_id, 404, 'INVITE_NOT_FOUND', 'Invite not found.')
 
+    effective_servers = [
+        server for server in (invite.servers or [])
+        if MediaServiceManager.is_server_effectively_active(server)
+    ]
+    if invite.servers and not effective_servers:
+        return _error_response(request_id, 400, 'INVITE_PAUSED', 'This invite is temporarily unavailable because all servers are disabled.')
+
     prefix = f'invite_{invite.id}_'
     plex_user = session.get(f'{prefix}plex_user')
     discord_user = session.get(f'{prefix}discord_user')
@@ -761,7 +839,7 @@ def complete_invite_v2(path: InvitePath):
     account_created = session.get(f'{prefix}user_account_created', False)
     account_data = session.get(f'{prefix}user_account_data') if account_created else None
 
-    has_plex_servers = any(server.service_type.name.upper() == 'PLEX' for server in invite.servers)
+    has_plex_servers = any(server.service_type.name.upper() == 'PLEX' for server in effective_servers)
     oauth_enabled = Setting.get_bool('DISCORD_OAUTH_ENABLED', False)
     requires_discord = bool(invite.require_discord_auth)
 
@@ -791,7 +869,7 @@ def complete_invite_v2(path: InvitePath):
 
     session_servers_completed = [
         session.get(f'{prefix}server_{server.id}_completed', False)
-        for server in invite.servers
+        for server in effective_servers
         if server.service_type.name.upper() != 'PLEX'
     ]
     if session_servers_completed and not all(session_servers_completed):
@@ -844,7 +922,7 @@ def complete_invite_v2(path: InvitePath):
                 'service_type': server.service_type.name.upper(),
                 'access_url': _server_access_url(server),
             }
-            for server in invite.servers
+            for server in effective_servers
         ]
 
         # Clear session markers for this invite

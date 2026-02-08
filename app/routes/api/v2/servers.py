@@ -381,6 +381,22 @@ def delete_server(path: ServerPath, current_user):
     server_id = server.id
     service_type = server.service_type
     item = _to_item(server)
+    try:
+        from app.models import User, UserType, InviteServerFeature, invite_servers, Notification
+        from app.models_media_services import MediaLibrary, MediaItem, MediaStreamHistory
+        from app.models_overseerr import OverseerrUserLink
+
+        Notification.query.filter_by(server_id=server_id).delete(synchronize_session=False)
+        InviteServerFeature.query.filter_by(server_id=server_id).delete(synchronize_session=False)
+        db.session.execute(invite_servers.delete().where(invite_servers.c.server_id == server_id))
+        OverseerrUserLink.query.filter_by(server_id=server_id).delete(synchronize_session=False)
+        User.query.filter_by(userType=UserType.SERVICE, server_id=server_id).delete(synchronize_session=False)
+        MediaStreamHistory.query.filter_by(server_id=server_id).delete(synchronize_session=False)
+        MediaItem.query.filter_by(server_id=server_id).delete(synchronize_session=False)
+        MediaLibrary.query.filter_by(server_id=server_id).delete(synchronize_session=False)
+    except Exception as exc:
+        current_app.logger.warning("Failed to cleanup related server data before delete: %s", exc)
+
     db.session.delete(server)
     db.session.commit()
     try:

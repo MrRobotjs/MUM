@@ -16,10 +16,11 @@ from typing import Dict, List, Optional
 from urllib.parse import urlparse
 import json
 
-from flask import current_app
+from flask import current_app, has_app_context
 import os
 from websocket import WebSocketApp
 
+from app.models import Setting
 from app.models_media_services import MediaServer, ServiceType
 from app.services.media_service_manager import MediaServiceManager
 from app.services.task_service import _run_media_session_monitor
@@ -44,6 +45,50 @@ class PlexWebsocketMonitor:
         self.http_log_date = None
         self._ensure_file_logger()
         self._ensure_http_file_logger()
+
+    def _get_log_flag(self, key: str, default: bool = False) -> bool:
+        config = current_app.config if has_app_context() else self.app.config
+        value = config.get(key)
+        if isinstance(value, bool):
+            return value
+        if has_app_context():
+            try:
+                value = Setting.get_bool(key, default)
+            except Exception:
+                value = default
+            config[key] = value
+            return value
+        return default
+
+    def _is_ws_logging_enabled(self) -> bool:
+        return self._get_log_flag("PLEX_WS_LOG_ENABLED", False)
+
+    def _is_http_logging_enabled(self) -> bool:
+        return self._get_log_flag("PLEX_HTTP_LOG_ENABLED", False)
+
+    def _disable_file_logger(self) -> None:
+        if hasattr(self, "file_logger") and self.file_logger is not None:
+            for handler in list(self.file_logger.handlers):
+                if isinstance(handler, RotatingFileHandler):
+                    try:
+                        self.file_logger.removeHandler(handler)
+                        handler.close()
+                    except Exception:
+                        pass
+        self.file_logger = self.logger
+        self.log_date = None
+
+    def _disable_http_file_logger(self) -> None:
+        if hasattr(self, "http_file_logger") and self.http_file_logger is not None:
+            for handler in list(self.http_file_logger.handlers):
+                if isinstance(handler, RotatingFileHandler):
+                    try:
+                        self.http_file_logger.removeHandler(handler)
+                        handler.close()
+                    except Exception:
+                        pass
+        self.http_file_logger = self.logger
+        self.http_log_date = None
 
     def _create_file_handler_for_date(
         self, target_date: datetime
@@ -116,7 +161,11 @@ class PlexWebsocketMonitor:
         """Initialize a rotating file logger, preferring multimediausermanager/..., with fallback."""
         logger_name = "plex_ws_monitor"
         self.file_logger = logging.getLogger(logger_name)
-        
+
+        if not self._is_ws_logging_enabled():
+            self._disable_file_logger()
+            return
+
         try:
             target_date = datetime.now().date()
             handler_info = self._create_file_handler_for_date(datetime.combine(target_date, datetime.min.time()))
@@ -159,6 +208,9 @@ class PlexWebsocketMonitor:
     def _ensure_daily_log_file(self) -> None:
         """Ensure the file logger points to today's date-based file."""
         try:
+            if not self._is_ws_logging_enabled():
+                self._disable_file_logger()
+                return
             today = datetime.now().date()
             if self.log_date == today:
                 return
@@ -237,6 +289,10 @@ class PlexWebsocketMonitor:
         logger_name = "plex_http_monitor"
         self.http_file_logger = logging.getLogger(logger_name)
 
+        if not self._is_http_logging_enabled():
+            self._disable_http_file_logger()
+            return
+
         try:
             target_date = datetime.now().date()
             handler_info = self._create_http_file_handler_for_date(datetime.combine(target_date, datetime.min.time()))
@@ -274,6 +330,9 @@ class PlexWebsocketMonitor:
     def _ensure_http_daily_log_file(self) -> None:
         """Ensure the HTTP file logger points to today's date-based file."""
         try:
+            if not self._is_http_logging_enabled():
+                self._disable_http_file_logger()
+                return
             today = datetime.now().date()
             if self.http_log_date == today:
                 return
@@ -529,32 +588,35 @@ class PlexWebsocketMonitor:
             
             # Log to file logger with error handling
             try:
-                self._ensure_daily_log_file()
-                # Ensure file_logger exists and has handlers
-                if hasattr(self, 'file_logger') and self.file_logger is not None:
-                    if len(self.file_logger.handlers) > 0:
-                        self.file_logger.debug(msg)
-                        # Force flush to ensure message is written immediately
-                        for h in self.file_logger.handlers:
-                            if isinstance(h, RotatingFileHandler):
-                                try:
-                                    h.flush()
-                                except Exception:
-                                    pass  # Ignore flush errors
+                if self._is_ws_logging_enabled():
+                    self._ensure_daily_log_file()
+                    # Ensure file_logger exists and has handlers
+                    if hasattr(self, 'file_logger') and self.file_logger is not None:
+                        if len(self.file_logger.handlers) > 0:
+                            self.file_logger.debug(msg)
+                            # Force flush to ensure message is written immediately
+                            for h in self.file_logger.handlers:
+                                if isinstance(h, RotatingFileHandler):
+                                    try:
+                                        h.flush()
+                                    except Exception:
+                                        pass  # Ignore flush errors
+                        else:
+                            # No handlers, log a warning once
+                            if not hasattr(self, '_file_logger_warning_logged'):
+                                current_app.logger.warning(
+                                    "PlexWebsocketMonitor: file_logger has no handlers. Messages will only be logged to app logger."
+                                )
+                                self._file_logger_warning_logged = True
                     else:
-                        # No handlers, log a warning once
+                        # file_logger not initialized
                         if not hasattr(self, '_file_logger_warning_logged'):
                             current_app.logger.warning(
-                                "PlexWebsocketMonitor: file_logger has no handlers. Messages will only be logged to app logger."
+                                "PlexWebsocketMonitor: file_logger not initialized. Messages will only be logged to app logger."
                             )
                             self._file_logger_warning_logged = True
                 else:
-                    # file_logger not initialized
-                    if not hasattr(self, '_file_logger_warning_logged'):
-                        current_app.logger.warning(
-                            "PlexWebsocketMonitor: file_logger not initialized. Messages will only be logged to app logger."
-                        )
-                        self._file_logger_warning_logged = True
+                    self._disable_file_logger()
             except Exception as log_exc:
                 # Don't let file logging errors break message processing
                 if not hasattr(self, '_file_logger_error_logged'):
@@ -625,6 +687,9 @@ class PlexWebsocketMonitor:
             )
 
     def _log_http_payload(self, server_id: int, server: MediaServer | None, payload: object) -> None:
+        if not self._is_http_logging_enabled():
+            self._disable_http_file_logger()
+            return
         limit = current_app.config.get("PLEX_HTTP_LOG_BYTES")
         if limit is None:
             try:

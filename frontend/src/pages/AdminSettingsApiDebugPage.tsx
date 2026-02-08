@@ -9,6 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
+import { Alert, AlertDescription, AlertTitle } from '../components/ui/alert';
+import { Switch } from '../components/ui/switch';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { Spinner } from '@/components/ui/spinner'
 import {
@@ -57,6 +59,14 @@ type ApiResponse = {
   error?: string;
 };
 
+type DebugLoggingSettings = {
+  plex_http_log_enabled: boolean;
+  plex_ws_log_enabled: boolean;
+  jellyfin_ws_log_enabled: boolean;
+  emby_ws_log_enabled: boolean;
+  audiobookshelf_http_log_enabled: boolean;
+};
+
 type ExampleEndpoint = {
   method: string;
   endpoint: string;
@@ -85,6 +95,10 @@ const AdminSettingsApiDebugPage = () => {
   const [protocol, setProtocol] = useState<'http' | 'https'>('https');
   const previousServerRef = useRef<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [loggingSettings, setLoggingSettings] = useState<DebugLoggingSettings | null>(null);
+  const [loggingLoading, setLoggingLoading] = useState(false);
+  const [loggingSaving, setLoggingSaving] = useState(false);
+  const [loggingDirty, setLoggingDirty] = useState(false);
   const [response, setResponse] = useState<ApiResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'formatted' | 'raw' | 'headers' | 'curl'>('formatted');
@@ -97,6 +111,7 @@ const AdminSettingsApiDebugPage = () => {
 
   useEffect(() => {
     fetchServers();
+    fetchLoggingSettings();
   }, []);
 
   useEffect(() => {
@@ -131,6 +146,48 @@ const AdminSettingsApiDebugPage = () => {
       setServers(response.data || []);
     } catch (error) {
       showError('Failed to load servers: ' + String(error));
+    }
+  };
+
+  const fetchLoggingSettings = async () => {
+    setLoggingLoading(true);
+    try {
+      const response = await requestJson<{ data: DebugLoggingSettings }>('/api/v2/settings/debug-logging');
+      setLoggingSettings(response.data);
+      setLoggingDirty(false);
+    } catch (err) {
+      showError('Failed to load debug logging settings: ' + String(err));
+    } finally {
+      setLoggingLoading(false);
+    }
+  };
+
+  const handleLoggingToggle = (key: keyof DebugLoggingSettings, value: boolean) => {
+    if (!loggingSettings) {
+      return;
+    }
+
+    setLoggingSettings((prev) => (prev ? { ...prev, [key]: value } : prev));
+    setLoggingDirty(true);
+  };
+
+  const handleLoggingSave = async () => {
+    if (!loggingSettings || !loggingDirty) {
+      return;
+    }
+
+    setLoggingSaving(true);
+    try {
+      await requestJson('/api/v2/settings/debug-logging', {
+        method: 'PATCH',
+        body: JSON.stringify(loggingSettings),
+      });
+      success('Debug logging settings updated');
+      setLoggingDirty(false);
+    } catch (err) {
+      showError('Failed to update debug logging settings: ' + String(err));
+    } finally {
+      setLoggingSaving(false);
     }
   };
 
@@ -797,6 +854,117 @@ const AdminSettingsApiDebugPage = () => {
               </div>
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Debug Logging */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-amber-500/20 flex items-center justify-center flex-shrink-0">
+              <FontAwesomeIcon icon={faTriangleExclamation} className="text-amber-500 text-sm" />
+            </div>
+            <div>
+              <CardTitle>Debug Logging</CardTitle>
+              <CardDescription>Enable payload logging for troubleshooting integrations</CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Alert variant="warning">
+            <FontAwesomeIcon icon={faTriangleExclamation} className="h-4 w-4" />
+            <AlertTitle>Performance Warning</AlertTitle>
+            <AlertDescription>
+              Enabling any of these logs writes raw payloads to disk and can impact performance. Logs are written under
+              <span className="font-mono"> multimediausermanager/logs</span> while enabled.
+            </AlertDescription>
+          </Alert>
+
+          {loggingLoading ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Spinner className="h-4 w-4" />
+              Loading debug logging settings...
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between rounded-lg border border-border/70 bg-muted/40 p-3">
+                <div>
+                  <p className="text-sm font-medium">Plex HTTP logging</p>
+                  <p className="text-xs text-muted-foreground">Logs Plex HTTP session payloads fetched after WS events.</p>
+                </div>
+                <Switch
+                  checked={loggingSettings?.plex_http_log_enabled ?? false}
+                  onCheckedChange={(checked) => handleLoggingToggle('plex_http_log_enabled', checked)}
+                  disabled={!loggingSettings || loggingSaving}
+                />
+              </div>
+
+              <div className="flex items-center justify-between rounded-lg border border-border/70 bg-muted/40 p-3">
+                <div>
+                  <p className="text-sm font-medium">Plex WebSocket logging</p>
+                  <p className="text-xs text-muted-foreground">Logs raw Plex WebSocket messages.</p>
+                </div>
+                <Switch
+                  checked={loggingSettings?.plex_ws_log_enabled ?? false}
+                  onCheckedChange={(checked) => handleLoggingToggle('plex_ws_log_enabled', checked)}
+                  disabled={!loggingSettings || loggingSaving}
+                />
+              </div>
+
+              <div className="flex items-center justify-between rounded-lg border border-border/70 bg-muted/40 p-3">
+                <div>
+                  <p className="text-sm font-medium">Jellyfin WebSocket logging</p>
+                  <p className="text-xs text-muted-foreground">Logs raw Jellyfin WebSocket session payloads.</p>
+                </div>
+                <Switch
+                  checked={loggingSettings?.jellyfin_ws_log_enabled ?? false}
+                  onCheckedChange={(checked) => handleLoggingToggle('jellyfin_ws_log_enabled', checked)}
+                  disabled={!loggingSettings || loggingSaving}
+                />
+              </div>
+
+              <div className="flex items-center justify-between rounded-lg border border-border/70 bg-muted/40 p-3">
+                <div>
+                  <p className="text-sm font-medium">Emby WebSocket logging</p>
+                  <p className="text-xs text-muted-foreground">Logs raw Emby WebSocket session payloads.</p>
+                </div>
+                <Switch
+                  checked={loggingSettings?.emby_ws_log_enabled ?? false}
+                  onCheckedChange={(checked) => handleLoggingToggle('emby_ws_log_enabled', checked)}
+                  disabled={!loggingSettings || loggingSaving}
+                />
+              </div>
+
+              <div className="flex items-center justify-between rounded-lg border border-border/70 bg-muted/40 p-3">
+                <div>
+                  <p className="text-sm font-medium">AudiobookShelf HTTP logging</p>
+                  <p className="text-xs text-muted-foreground">Logs AudiobookShelf HTTP session payloads.</p>
+                </div>
+                <Switch
+                  checked={loggingSettings?.audiobookshelf_http_log_enabled ?? false}
+                  onCheckedChange={(checked) => handleLoggingToggle('audiobookshelf_http_log_enabled', checked)}
+                  disabled={!loggingSettings || loggingSaving}
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-3">
+                <Button
+                  type="button"
+                  onClick={handleLoggingSave}
+                  disabled={!loggingDirty || loggingSaving || loggingLoading}
+                >
+                  {loggingSaving ? (
+                    <>
+                      <Spinner className="mr-2 h-4 w-4 text-muted-foreground" />
+                      Saving...
+                    </>
+                  ) : (
+                    'Save Changes'
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

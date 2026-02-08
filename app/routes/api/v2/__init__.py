@@ -44,6 +44,7 @@ from . import settings_user_accounts  # noqa: E402,F401
 from . import settings_advanced  # noqa: E402,F401
 from . import settings_discord  # noqa: E402,F401
 from . import settings_streaming  # noqa: E402,F401
+from . import settings_debug_logging  # noqa: E402,F401
 from . import plugins  # noqa: E402,F401
 from . import admins  # noqa: E402,F401
 from . import admin_roles  # noqa: E402,F401

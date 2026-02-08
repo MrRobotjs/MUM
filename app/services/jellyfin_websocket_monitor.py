@@ -14,9 +14,10 @@ from datetime import datetime
 from typing import Dict, List, Optional
 from urllib.parse import urlparse
 
-from flask import current_app
+from flask import current_app, has_app_context
 from websocket import WebSocketApp
 
+from app.models import Setting
 from app.models_media_services import MediaServer, ServiceType
 from app.services.media_service_manager import MediaServiceManager
 from app.services.task_service import _run_media_session_monitor
@@ -78,6 +79,35 @@ class JellyfinWebsocketMonitor:
         self.logger = app.logger
         self.log_date = None
         self._ensure_file_logger()
+
+    def _get_log_flag(self, key: str, default: bool = False) -> bool:
+        config = current_app.config if has_app_context() else self.app.config
+        value = config.get(key)
+        if isinstance(value, bool):
+            return value
+        if has_app_context():
+            try:
+                value = Setting.get_bool(key, default)
+            except Exception:
+                value = default
+            config[key] = value
+            return value
+        return default
+
+    def _is_ws_logging_enabled(self) -> bool:
+        return self._get_log_flag("JELLYFIN_WS_LOG_ENABLED", False)
+
+    def _disable_file_logger(self) -> None:
+        if hasattr(self, "file_logger") and self.file_logger is not None:
+            for handler in list(self.file_logger.handlers):
+                if isinstance(handler, RotatingFileHandler):
+                    try:
+                        self.file_logger.removeHandler(handler)
+                        handler.close()
+                    except Exception:
+                        pass
+        self.file_logger = self.logger
+        self.log_date = None
 
     def _create_file_handler_for_date(self, target_date: datetime) -> RotatingFileHandler | None:
         date_str = target_date.strftime("%Y-%m-%d")
@@ -141,6 +171,10 @@ class JellyfinWebsocketMonitor:
         logger_name = "jellyfin_ws_monitor"
         self.file_logger = logging.getLogger(logger_name)
 
+        if not self._is_ws_logging_enabled():
+            self._disable_file_logger()
+            return
+
         try:
             target_date = datetime.now().date()
             handler = self._create_file_handler_for_date(datetime.combine(target_date, datetime.min.time()))
@@ -171,6 +205,9 @@ class JellyfinWebsocketMonitor:
 
     def _ensure_daily_log_file(self) -> None:
         try:
+            if not self._is_ws_logging_enabled():
+                self._disable_file_logger()
+                return
             today = datetime.now().date()
             if self.log_date == today:
                 return
@@ -179,6 +216,9 @@ class JellyfinWebsocketMonitor:
             self.logger.warning("JellyfinWebsocketMonitor: Failed to rotate daily log file: %s", exc, exc_info=True)
 
     def _log_message(self, server_id: int, text: str) -> None:
+        if not self._is_ws_logging_enabled():
+            self._disable_file_logger()
+            return
         # Default is 0 (no truncation). Set JELLYFIN_WS_LOG_BYTES to truncate.
         limit = current_app.config.get("JELLYFIN_WS_LOG_BYTES")
         if limit is None:

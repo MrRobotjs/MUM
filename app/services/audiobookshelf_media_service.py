@@ -7,9 +7,10 @@ from logging.handlers import RotatingFileHandler
 import os
 from datetime import datetime
 import requests
-from flask import current_app
+from flask import current_app, has_app_context
 from app.services.base_media_service import BaseMediaService
 from app.models_media_services import ServiceType
+from app.models import Setting
 from app.utils.timeout_helper import get_api_timeout
 
 class AudiobookShelfMediaService(BaseMediaService):
@@ -19,6 +20,35 @@ class AudiobookShelfMediaService(BaseMediaService):
         super().__init__(server_config)
         self._http_log_date = None
         self._http_file_logger = None
+
+    def _get_log_flag(self, key: str, default: bool = False) -> bool:
+        config = current_app.config if has_app_context() else {}
+        value = config.get(key) if isinstance(config, dict) else None
+        if isinstance(value, bool):
+            return value
+        if has_app_context():
+            try:
+                value = Setting.get_bool(key, default)
+            except Exception:
+                value = default
+            current_app.config[key] = value
+            return value
+        return default
+
+    def _is_http_logging_enabled(self) -> bool:
+        return self._get_log_flag("AUDIOBOOKSHELF_HTTP_LOG_ENABLED", False)
+
+    def _disable_http_file_logger(self) -> None:
+        if self._http_file_logger is not None:
+            for handler in list(self._http_file_logger.handlers):
+                if isinstance(handler, RotatingFileHandler):
+                    try:
+                        self._http_file_logger.removeHandler(handler)
+                        handler.close()
+                    except Exception:
+                        pass
+        self._http_file_logger = current_app.logger if has_app_context() else logging.getLogger(__name__)
+        self._http_log_date = None
 
     @property
     def service_type(self) -> ServiceType:
@@ -73,6 +103,10 @@ class AudiobookShelfMediaService(BaseMediaService):
         logger_name = "audiobookshelf_http_monitor"
         self._http_file_logger = logging.getLogger(logger_name)
 
+        if not self._is_http_logging_enabled():
+            self._disable_http_file_logger()
+            return
+
         try:
             target_date = datetime.now().date()
             handler_info = self._create_http_file_handler_for_date(datetime.combine(target_date, datetime.min.time()))
@@ -105,6 +139,9 @@ class AudiobookShelfMediaService(BaseMediaService):
 
     def _ensure_http_daily_log_file(self) -> None:
         try:
+            if not self._is_http_logging_enabled():
+                self._disable_http_file_logger()
+                return
             today = datetime.now().date()
             if self._http_log_date == today:
                 return
@@ -113,6 +150,9 @@ class AudiobookShelfMediaService(BaseMediaService):
             self.log_warning(f"Failed to rotate HTTP daily log file: {exc}")
 
     def _log_http_payload(self, payload: object) -> None:
+        if not self._is_http_logging_enabled():
+            self._disable_http_file_logger()
+            return
         limit = current_app.config.get("AUDIOBOOKSHELF_HTTP_LOG_BYTES")
         if limit is None:
             try:

@@ -307,6 +307,39 @@ const AdminSettingsApiDebugPage = () => {
     }
   };
 
+  const getFormattedResponseText = (): string => {
+    if (!response) return '';
+    if (response.response_format === 'xml' && response.response_xml) {
+      return formatXml(response.response_xml);
+    }
+    if (response.response_json) {
+      return formatJson(response.response_json);
+    }
+    return response.response_text || '';
+  };
+
+  const copyFormattedResponse = async () => {
+    if (!response) return;
+    const formatted = getFormattedResponseText();
+    try {
+      await navigator.clipboard.writeText(formatted);
+      success('Formatted response copied to clipboard');
+    } catch {
+      showError('Failed to copy formatted response');
+    }
+  };
+
+  const copyRawResponse = async () => {
+    if (!response) return;
+    const raw = response.response_text || '';
+    try {
+      await navigator.clipboard.writeText(raw);
+      success('Raw response copied to clipboard');
+    } catch {
+      showError('Failed to copy raw response');
+    }
+  };
+
   const generateCurlCommand = (): string => {
     if (!response) return '';
 
@@ -584,15 +617,6 @@ const AdminSettingsApiDebugPage = () => {
                 </>
               )}
             </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setScrollAnchor((prev) => (prev === 'top' ? 'bottom' : 'top'))}
-              title={`Scroll response to ${scrollAnchor === 'top' ? 'top' : 'bottom'}`}
-            >
-              <FontAwesomeIcon icon={scrollAnchor === 'top' ? faArrowUp : faArrowDown} className="mr-2" />
-              Scroll: {scrollAnchor === 'top' ? 'Top' : 'Bottom'}
-            </Button>
           </div>
         </CardContent>
       </Card>
@@ -677,6 +701,22 @@ const AdminSettingsApiDebugPage = () => {
                     ? formatJson(response.response_json)
                     : 'Response could not be formatted'}
                 </pre>
+                <div className="mt-2 flex gap-2">
+                  <Button size="sm" variant="outline" onClick={copyFormattedResponse}>
+                    <FontAwesomeIcon icon={faCopy} className="mr-2" />
+                    Copy Formatted Response
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setScrollAnchor((prev) => (prev === 'top' ? 'bottom' : 'top'))}
+                    title={`Scroll response to ${scrollAnchor === 'top' ? 'top' : 'bottom'}`}
+                  >
+                    <FontAwesomeIcon icon={scrollAnchor === 'top' ? faArrowUp : faArrowDown} className="mr-2" />
+                    Scroll: {scrollAnchor === 'top' ? 'Top' : 'Bottom'}
+                  </Button>
+                </div>
               </TabsContent>
 
               {/* Raw Response */}
@@ -684,6 +724,22 @@ const AdminSettingsApiDebugPage = () => {
                 <pre ref={rawRef} className="bg-muted rounded-lg p-4 overflow-auto max-h-96 text-sm whitespace-pre-wrap">
                   {response.response_text || 'No response body received'}
                 </pre>
+                <div className="mt-2 flex gap-2">
+                  <Button size="sm" variant="outline" onClick={copyRawResponse}>
+                    <FontAwesomeIcon icon={faCopy} className="mr-2" />
+                    Copy Raw Response
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setScrollAnchor((prev) => (prev === 'top' ? 'bottom' : 'top'))}
+                    title={`Scroll response to ${scrollAnchor === 'top' ? 'top' : 'bottom'}`}
+                  >
+                    <FontAwesomeIcon icon={scrollAnchor === 'top' ? faArrowUp : faArrowDown} className="mr-2" />
+                    Scroll: {scrollAnchor === 'top' ? 'Top' : 'Bottom'}
+                  </Button>
+                </div>
               </TabsContent>
 
               {/* Headers */}

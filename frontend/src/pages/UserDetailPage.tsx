@@ -727,6 +727,7 @@ const HistoryTab = ({ entries, loading, error, currentPage, totalPages, onPageCh
 };
 
 type SettingsTabProps = {
+  user: UserDetail;
   settings: UserSettings | null;
   settingsLoading: boolean;
   settingsError?: Error | null;
@@ -736,10 +737,13 @@ type SettingsTabProps = {
   serviceAccountsError?: Error | null;
   onLinkAccount?: () => void;
   onUnlinkAccount: (serviceUuid: string) => Promise<void>;
+  onUnlinkServiceUser?: () => Promise<void>;
+  unlinkingServiceUser?: boolean;
   allowLinking: boolean;
 };
 
 const SettingsTab = ({
+  user,
   settings,
   settingsLoading,
   settingsError,
@@ -749,21 +753,58 @@ const SettingsTab = ({
   serviceAccountsError,
   onLinkAccount,
   onUnlinkAccount,
+  onUnlinkServiceUser,
+  unlinkingServiceUser,
   allowLinking
-}: SettingsTabProps) => (
-  <div className="space-y-6">
-    <UserSettingsCard settings={settings} loading={settingsLoading} error={settingsError ?? undefined} onSave={onSaveSettings} />
-    {allowLinking ? (
-      <ServiceAccountsCard
-        accounts={serviceAccounts}
-        loading={serviceAccountsLoading}
-        error={serviceAccountsError ?? undefined}
-        onLink={onLinkAccount}
-        onUnlink={onUnlinkAccount}
-      />
-    ) : null}
-  </div>
-);
+}: SettingsTabProps) => {
+  const isServiceUser = user.user_type?.toLowerCase() === 'service';
+  const linkedLocal = user.linked_local_user;
+
+  return (
+    <div className="space-y-6">
+      <UserSettingsCard settings={settings} loading={settingsLoading} error={settingsError ?? undefined} onSave={onSaveSettings} />
+      {isServiceUser && linkedLocal ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Linked Local Account</CardTitle>
+            <CardDescription>
+              This service user is currently linked to a local MUM account.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="rounded-lg border border-border bg-muted/30 p-4">
+              <div className="text-sm text-muted-foreground">Linked to</div>
+              <div className="text-base font-semibold text-foreground">
+                {linkedLocal.display_name ?? linkedLocal.username ?? 'Local account'}
+              </div>
+              {linkedLocal.email ? (
+                <div className="text-xs text-muted-foreground">{linkedLocal.email}</div>
+              ) : null}
+            </div>
+            <button
+              type="button"
+              className="inline-flex items-center justify-center rounded-md text-sm font-medium border border-destructive/50 text-destructive hover:bg-destructive/10 h-9 px-4 py-2"
+              onClick={onUnlinkServiceUser}
+              disabled={unlinkingServiceUser}
+            >
+              <FontAwesomeIcon icon={faLink} className="mr-2" />
+              {unlinkingServiceUser ? 'Unlinking…' : 'Unlink account'}
+            </button>
+          </CardContent>
+        </Card>
+      ) : null}
+      {allowLinking ? (
+        <ServiceAccountsCard
+          accounts={serviceAccounts}
+          loading={serviceAccountsLoading}
+          error={serviceAccountsError ?? undefined}
+          onLink={onLinkAccount}
+          onUnlink={onUnlinkAccount}
+        />
+      ) : null}
+    </div>
+  );
+};
 
 type SecurityTabProps = {
   user: UserDetail;
@@ -898,9 +939,10 @@ export const UserDetailPage = () => {
   const [linkModalOpen, setLinkModalOpen] = useState(false);
   const [resyncing, setResyncing] = useState(false);
   const [resettingPassword, setResettingPassword] = useState(false);
+  const [unlinkingServiceUser, setUnlinkingServiceUser] = useState(false);
 
   const { success, error: showError } = useAlerts();
-  const { user, loading, error } = useUserDetail(effectiveUuid);
+  const { user, loading, error, refresh: refreshUser } = useUserDetail(effectiveUuid);
   const userType = user?.user_type?.toLowerCase();
   const canManageServiceAccounts = Boolean(effectiveUuid) && Boolean(userType) && userType !== 'service';
   const {
@@ -1045,6 +1087,25 @@ export const UserDetailPage = () => {
       success('Service account unlinked');
     } catch (err) {
       showError('Unlink failed: ' + String(err));
+    }
+  };
+
+  const handleUnlinkServiceUser = async () => {
+    if (!user?.linked_local_user) return;
+    if (unlinkingServiceUser) return;
+    const confirmed = window.confirm('Unlink this service account from the local user?');
+    if (!confirmed) return;
+    setUnlinkingServiceUser(true);
+    try {
+      await requestJson(`/api/v2/users/${user.linked_local_user.uuid}/service-accounts/${user.uuid}`, {
+        method: 'DELETE'
+      });
+      await refreshUser();
+      success('Service account unlinked');
+    } catch (err) {
+      showError('Unlink failed: ' + String(err));
+    } finally {
+      setUnlinkingServiceUser(false);
     }
   };
 
@@ -1197,6 +1258,7 @@ export const UserDetailPage = () => {
 
           <TabsContent value="settings" className="pt-5">
             <SettingsTab
+              user={user}
               settings={settings}
               settingsLoading={settingsLoading}
               settingsError={(settingsError as Error) ?? undefined}
@@ -1215,6 +1277,8 @@ export const UserDetailPage = () => {
                   : undefined
               }
               onUnlinkAccount={handleUnlink}
+              onUnlinkServiceUser={isServiceUser ? handleUnlinkServiceUser : undefined}
+              unlinkingServiceUser={unlinkingServiceUser}
               allowLinking={!isServiceUser}
             />
           </TabsContent>

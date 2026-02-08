@@ -763,20 +763,8 @@ class MediaServiceManager:
                 else:
                     current_app.logger.debug(f"No existing user found with Plex UUID: {uuid}")
         
-        # If no existing local user found, try to find one by username or email
-        # This allows linking server users to existing MUM accounts
-        if not user:
-            # Try to find by username first
-            if username:
-                user = User.get_by_local_username(username)
-                if user:
-                    current_app.logger.info(f"Found existing local user by username: {username}")
-            
-            # If not found by username, try by email
-            if not user and email:
-                user = User.query.filter_by(userType=UserType.LOCAL).filter_by(email=email).first()
-                if user:
-                    current_app.logger.info(f"Found existing local user by email: {email}")
+        # If no existing local user found, do not auto-link by username/email.
+        # Linking should be explicit via user account linking flows.
         
         # If still no local user found, this server user will be standalone
         # (not linked to any MUM account)

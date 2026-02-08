@@ -19,10 +19,15 @@ function SetupServerAddContent() {
     navigate({ to: '/setup/plugins/$pluginId', params: { pluginId } });
   };
 
+  const submitEndpoint = pluginId
+    ? `/api/v2/setup/plugins/${pluginId}/servers`
+    : '/api/v2/servers';
+
   return (
     <div className="space-y-6">
       <ServerAddForm
         pluginId={pluginId}
+        submitEndpoint={submitEndpoint}
         onSuccess={handleSuccess}
         onCancel={handleCancel}
       />

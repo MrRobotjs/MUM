@@ -9,12 +9,18 @@ class Config:
     # before the database is configured.
     SECRET_KEY = os.environ.get('SECRET_KEY') or secrets.token_hex(32)
 
-    # Database configuration
-    # Default to SQLite in the instance folder.
-    # The instance folder path is typically app.instance_path
+    # Database configuration (PostgreSQL)
+    # DATABASE_URL should be provided in production (e.g., docker-compose).
     SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or \
-        'sqlite:///' + os.path.join(os.path.abspath(os.path.dirname(os.path.dirname(__file__))), 'instance', 'mum.db')
+        'postgresql+psycopg://mum:mum_pass@localhost:5432/mum'
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        'pool_size': int(os.environ.get('DB_POOL_SIZE', 10)),
+        'max_overflow': int(os.environ.get('DB_MAX_OVERFLOW', 20)),
+        'pool_pre_ping': True,
+        'pool_recycle': int(os.environ.get('DB_POOL_RECYCLE', 3600)),
+        'pool_timeout': int(os.environ.get('DB_POOL_TIMEOUT', 30)),
+    }
 
     # Flask-Session configuration (example, if using server-side sessions)
     # SESSION_TYPE = 'filesystem' # or 'sqlalchemy' if you want to use the db
@@ -98,7 +104,8 @@ class DevelopmentConfig(Config):
 
 class TestingConfig(Config):
     TESTING = True
-    SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:' # Use in-memory SQLite for tests
+    SQLALCHEMY_DATABASE_URI = os.environ.get('TEST_DATABASE_URL') or \
+        'postgresql+psycopg://mum:mum_pass@localhost:5432/mum_test'
     WTF_CSRF_ENABLED = False # Disable CSRF for easier testing of forms
     SECRET_KEY = 'test_secret_key'
 

@@ -236,22 +236,36 @@ class SystemConfigResponse(BaseModel):
 def get_system_config(current_user):
     request_id = uuid4().hex
 
-    # Get database file location
+    # Get database connection information
     db_uri = current_app.config.get('SQLALCHEMY_DATABASE_URI', '')
-    if db_uri.startswith('sqlite:///'):
-        db_file = db_uri.replace('sqlite:///', '')
-    else:
-        db_file = db_uri
+    db_type = "unknown"
+    db_location = db_uri
+    try:
+        from sqlalchemy.engine.url import make_url
+        url = make_url(db_uri) if db_uri else None
+        if url:
+            db_type = url.get_backend_name()
+            if db_type == "sqlite":
+                db_location = url.database or db_uri.replace('sqlite:///', '')
+            else:
+                db_location = url.render_as_string(hide_password=True)
+    except Exception:
+        pass
 
     # Get instance path for various directories
     instance_path = current_app.instance_path
 
-    # Get SQLite version
+    # Get database version
     try:
-        result = db.session.execute(db.text("SELECT sqlite_version()")).scalar()
-        sqlite_version = result if result else "Unknown"
+        if db_type == "sqlite":
+            result = db.session.execute(db.text("SELECT sqlite_version()")).scalar()
+        elif db_type.startswith("postgres"):
+            result = db.session.execute(db.text("SELECT version()")).scalar()
+        else:
+            result = None
+        db_version = result if result else "Unknown"
     except Exception:
-        sqlite_version = "Unknown"
+        db_version = "Unknown"
 
     # Detect if running in Docker
     is_docker = os.path.exists('/.dockerenv') or os.path.exists('/run/.containerenv')
@@ -267,13 +281,15 @@ def get_system_config(current_user):
     config = {
         "git_branch": os.getenv('GIT_BRANCH', 'Unknown'),
         "git_commit": os.getenv('GIT_COMMIT', 'Unknown'),
-        "database_file": db_file,
+        "database_file": db_location,
+        "database_type": db_type,
+        "database_version": db_version,
         "log_directory": os.path.join(instance_path, 'logs'),
         "instance_directory": instance_path,
         "platform": platform_info,
         "system_timezone": timezone_name,
         "python_version": f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
-        "sqlite_version": sqlite_version,
+        "sqlite_version": db_version,
     }
 
     return jsonify({

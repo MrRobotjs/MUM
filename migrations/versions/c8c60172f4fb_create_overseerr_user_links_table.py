@@ -27,7 +27,7 @@ def upgrade():
         sa.Column('overseerr_username', sa.String(length=255), nullable=True),
         sa.Column('overseerr_email', sa.String(length=255), nullable=True),
         sa.Column('server_id', sa.Integer(), nullable=False),
-        sa.Column('is_linked', sa.Boolean(), nullable=False, server_default=sa.text('0')),
+        sa.Column('is_linked', sa.Boolean(), nullable=False, server_default=sa.text('FALSE')),
         sa.Column('last_sync_at', sa.DateTime(), nullable=False, server_default=sa.func.now()),
         sa.Column('created_at', sa.DateTime(), nullable=False, server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime(), nullable=False, server_default=sa.func.now()),
@@ -49,4 +49,3 @@ def downgrade():
     op.drop_index('ix_overseerr_user_links_plex_user_id', table_name='overseerr_user_links')
     op.drop_index('ix_overseerr_user_links_server_id', table_name='overseerr_user_links')
     op.drop_table('overseerr_user_links')
-

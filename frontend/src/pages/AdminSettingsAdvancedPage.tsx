@@ -469,8 +469,12 @@ export const AdminSettingsAdvancedPage = () => {
                 <span className="font-mono">{config.git_commit}</span>
               </div>
               <div className="flex flex-col gap-1">
-                <span className="font-medium text-muted-foreground">Database File</span>
+                <span className="font-medium text-muted-foreground">Database Location</span>
                 <span className="font-mono break-all">{config.database_file}</span>
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="font-medium text-muted-foreground">Database Type</span>
+                <span className="font-mono">{config.database_type ?? 'Unknown'}</span>
               </div>
               <div className="flex flex-col gap-1">
                 <span className="font-medium text-muted-foreground">Log Directory</span>
@@ -493,8 +497,8 @@ export const AdminSettingsAdvancedPage = () => {
                 <span className="font-mono">{config.python_version}</span>
               </div>
               <div className="flex flex-col gap-1">
-                <span className="font-medium text-muted-foreground">SQLite Version</span>
-                <span className="font-mono">{config.sqlite_version}</span>
+                <span className="font-medium text-muted-foreground">Database Version</span>
+                <span className="font-mono">{config.database_version ?? config.sqlite_version}</span>
               </div>
             </div>
           )}

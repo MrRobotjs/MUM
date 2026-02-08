@@ -46,7 +46,14 @@ class MediaServer(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     server_nickname = db.Column(db.String(100), nullable=False, unique=True)  # User-defined nickname - must be unique
     server_name = db.Column(db.String(255), nullable=True)  # Actual server name from the service
-    service_type = db.Column(db.Enum(ServiceType), nullable=False)
+    service_type = db.Column(
+        db.Enum(
+            ServiceType,
+            name="servicetype",
+            values_callable=lambda enum_cls: [entry.value for entry in enum_cls],
+        ),
+        nullable=False,
+    )
     url = db.Column(db.String(512), nullable=False)
     api_key = db.Column(db.String(512), nullable=True)  # For services that use API keys
     username = db.Column(db.String(255), nullable=True)  # For services that use username/password
@@ -206,6 +213,7 @@ class MediaItem(db.Model):
     # Indexes for performance
     __table_args__ = (
         db.Index('idx_media_items_library_type', 'library_id', 'item_type'),
+        db.Index('idx_media_items_lib_type_parent', 'library_id', 'item_type', 'parent_id'),
         db.Index('idx_media_items_external_id', 'external_id'),
         db.Index('idx_media_items_rating_key', 'rating_key'),
         db.Index('idx_media_items_title', 'title'),
@@ -295,6 +303,11 @@ class MediaStreamHistory(db.Model):
     
     # Service-specific data stored as JSON
     service_data = db.Column(MutableDict.as_mutable(JSONEncodedDict), default=dict)
+
+    __table_args__ = (
+        db.Index('idx_msh_server_rating_key', 'server_id', 'rating_key'),
+        db.Index('idx_msh_server_external_id', 'server_id', 'external_media_item_id'),
+    )
     
     # Relationships - Unified user relationship
     user = db.relationship('User', foreign_keys=[user_uuid], 

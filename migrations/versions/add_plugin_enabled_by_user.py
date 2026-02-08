@@ -25,7 +25,7 @@ def upgrade():
     conn = op.get_bind()
     try:
         conn.execute(
-            text("UPDATE plugins SET enabled_by_user = 1 WHERE status != 'disabled'")
+            text("UPDATE plugins SET enabled_by_user = TRUE WHERE status != 'DISABLED'")
         )
     except Exception:
         pass

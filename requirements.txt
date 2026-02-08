@@ -11,11 +11,12 @@ pytz>=2023.3
 Flask-Caching>=2.1.0  # For caching sync status and other data
 flask-openapi3>=4.3.0  # For OpenAPI 3.0 documentation
 SQLAlchemy>=2.0.44
+psycopg[binary]>=3.2.1
 gunicorn>=22.0.0
 python-dotenv>=1.2.1
 markupsafe>=2.0
 requests>=2.32.5
-plexapi>=4.17.1
+plexapi
 websocket-client>=1.7.0
 jellyfin-apiclient-python>=1.9.2
 discord.py>=2.6.4 # For Discord OAuth and potential bot interactions

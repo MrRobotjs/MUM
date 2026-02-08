@@ -30,7 +30,7 @@ def upgrade():
     bind.execute(
         text("""
             UPDATE admins_roles
-            SET is_auto_managed = 1
+            SET is_auto_managed = TRUE
             WHERE lower(name) = 'staff'
         """)
     )

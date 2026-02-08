@@ -78,9 +78,10 @@ export interface ServerAddFormProps {
   pluginId: string;
   onSuccess: () => void;
   onCancel: () => void;
+  submitEndpoint?: string;
 }
 
-export const ServerAddForm = ({ pluginId, onSuccess, onCancel }: ServerAddFormProps) => {
+export const ServerAddForm = ({ pluginId, onSuccess, onCancel, submitEndpoint }: ServerAddFormProps) => {
   const { success, error: showError } = useAlerts();
 
   const [values, setValues] = useState<ServerFormValues>({
@@ -198,10 +199,11 @@ export const ServerAddForm = ({ pluginId, onSuccess, onCancel }: ServerAddFormPr
     }
 
     const payload = normalizeServerPayload(values, pluginId);
+    const endpoint = submitEndpoint || '/api/v2/servers';
 
     try {
       setSubmitting(true);
-      await requestJson('/api/v2/servers', {
+      await requestJson(endpoint, {
         method: 'POST',
         body: JSON.stringify(payload)
       });

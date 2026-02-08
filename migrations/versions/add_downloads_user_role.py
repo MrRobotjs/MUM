@@ -46,9 +46,9 @@ def upgrade():
             SELECT u.uuid
             FROM users u
             JOIN media_servers s ON s.id = u.server_id
-            WHERE u.userType = 'SERVICE'
-              AND u.allow_downloads = 1
-              AND s.service_type IN ('PLEX', 'JELLYFIN', 'EMBY')
+            WHERE u."userType" = 'SERVICE'
+              AND u.allow_downloads = TRUE
+              AND s.service_type IN ('plex', 'jellyfin', 'emby')
         """)
     ).fetchall()
 

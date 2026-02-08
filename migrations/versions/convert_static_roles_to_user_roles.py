@@ -81,7 +81,7 @@ def upgrade():
 
     # Assign "Home User" role to all users where is_home_user = True
     home_users = conn.execute(
-        text("SELECT uuid FROM users WHERE is_home_user = 1")
+        text("SELECT uuid FROM users WHERE is_home_user = TRUE")
     ).fetchall()
 
     for user in home_users:
@@ -108,7 +108,7 @@ def upgrade():
 
     # Assign "Shares Back" role to all users where shares_back = True
     shares_back_users = conn.execute(
-        text("SELECT uuid FROM users WHERE shares_back = 1")
+        text("SELECT uuid FROM users WHERE shares_back = TRUE")
     ).fetchall()
 
     for user in shares_back_users:

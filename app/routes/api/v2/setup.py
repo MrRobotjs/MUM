@@ -5,16 +5,17 @@ from datetime import datetime
 from flask import jsonify, request, current_app, g
 from flask_jwt_extended import set_access_cookies
 from app.utils.jwt_decorators import jwt_required_with_user, jwt_permission_required
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from flask_openapi3 import Tag
 
 from app.routes.api.v2 import api_v2
 from app.utils.setup_helpers import get_completed_steps, is_setup_finished, mark_setup_complete
 from app.models_media_services import ServiceType, MediaServer
-from app.models import User, EventType, Setting, SettingValueType
+from app.models import User, EventType, Setting, SettingValueType, Notification, NotificationType
 from app.models_plugins import Plugin, PluginStatus
 from app.extensions import db
 from app.utils.helpers import log_event
+from app.utils.timezone_utils import utcnow
 from app.utils.jwt_helpers import make_access_token, make_refresh_token, set_refresh_cookie
 
 
@@ -215,6 +216,27 @@ class PluginServersResponse(BaseModel):
     meta: dict
 
 
+class SetupCreateServerBody(BaseModel):
+    model_config = ConfigDict(extra='ignore')
+    server_nickname: str = Field(..., description="Unique nickname")
+    url: str = Field(..., description="Base URL")
+    server_name: str | None = None
+    api_key: str | None = None
+    username: str | None = None
+    password: str | None = None
+    public_url: str | None = None
+    jellyfin_owner_user_id: str | None = None
+    is_active: bool | None = True
+    overseerr_enabled: bool | None = False
+    overseerr_url: str | None = None
+    overseerr_api_key: str | None = None
+    websocket_refresh_interval: int | None = None
+
+
+class SetupPluginPath(BaseModel):
+    plugin_id: str
+
+
 @api_v2.get(
     "/setup/plugins/<plugin_id>/servers",
     tags=[setup_tag],
@@ -252,14 +274,106 @@ def setup_plugin_servers(plugin_id: str, current_user):
     return jsonify({'data': data, 'meta': {'request_id': request_id}})
 
 
+@api_v2.post(
+    "/setup/plugins/<plugin_id>/servers",
+    tags=[setup_tag],
+    summary="Create server during setup",
+    responses={201: PluginServersResponse, 403: PluginServersResponse, 404: PluginServersResponse, 409: PluginServersResponse},
+)
+@jwt_required_with_user(optional=True)
+def setup_create_plugin_server(path: SetupPluginPath, body: SetupCreateServerBody, current_user=None):
+    request_id = str(uuid4())
+
+    if is_setup_finished():
+        return jsonify({'error': {'code': 'SETUP_COMPLETE', 'message': 'Setup already completed.'}, 'meta': {'request_id': request_id}}), 403
+
+    try:
+        service_type = ServiceType(path.plugin_id)
+    except Exception:
+        try:
+            service_type = ServiceType(path.plugin_id.lower())
+        except Exception:
+            return jsonify({'error': {'code': 'UNKNOWN_PLUGIN', 'message': 'Plugin not recognized.'}, 'meta': {'request_id': request_id}}), 404
+
+    existing = MediaServer.query.filter_by(server_nickname=body.server_nickname).first()
+    if existing:
+        return jsonify({'error': {'code': 'NICKNAME_EXISTS', 'message': 'Server nickname already exists'}, 'meta': {'request_id': request_id}}), 409
+
+    config: dict = {}
+    if service_type == ServiceType.JELLYFIN and body.jellyfin_owner_user_id:
+        owner_id = body.jellyfin_owner_user_id.strip()
+        if owner_id:
+            config["jellyfin_owner_user_id"] = owner_id
+
+    if service_type == ServiceType.PLEX and body.websocket_refresh_interval is not None:
+        try:
+            interval_value = int(body.websocket_refresh_interval)
+            config["websocket_refresh_interval"] = interval_value
+        except (TypeError, ValueError):
+            pass
+
+    server = MediaServer(
+        server_nickname=body.server_nickname,
+        server_name=body.server_name or body.server_nickname,
+        service_type=service_type,
+        url=body.url,
+        api_key=body.api_key,
+        username=body.username,
+        password=body.password,
+        public_url=body.public_url,
+        overseerr_enabled=bool(body.overseerr_enabled),
+        overseerr_url=body.overseerr_url,
+        overseerr_api_key=body.overseerr_api_key,
+        config=config,
+        is_active=True if body.is_active is None else body.is_active,
+    )
+
+    db.session.add(server)
+    db.session.commit()
+
+    # Auto-enable the plugin when a server is added
+    try:
+        plugin = Plugin.query.filter_by(plugin_id=service_type.value).first()
+        if plugin:
+            plugin.enabled_by_user = True
+            if plugin.status != PluginStatus.ENABLED:
+                plugin.status = PluginStatus.ENABLED
+            db.session.add(plugin)
+            db.session.commit()
+            current_app.logger.info(
+                f"Auto-enabled plugin '{service_type.value}' after adding server '{server.server_nickname}'"
+            )
+    except Exception as exc:
+        current_app.logger.warning(f"Failed to auto-enable plugin during setup: {exc}")
+
+    # Create notification for new unsynced server
+    try:
+        notification = Notification(
+            timestamp=utcnow(),
+            notification_type=NotificationType.SERVER_NOT_SYNCED,
+            title="New Server Not Synced",
+            message=f"Server '{server.server_nickname}' has been added but has not been synced yet. Sync users and libraries to get started.",
+            read=False,
+            server_id=server.id,
+            details={
+                "server_nickname": server.server_nickname,
+                "service_type": service_type.value,
+            },
+        )
+        db.session.add(notification)
+        db.session.commit()
+        current_app.logger.info(f"Created SERVER_NOT_SYNCED notification for server '{server.server_nickname}'")
+    except Exception as exc:
+        current_app.logger.warning(f"Failed to create notification for new server during setup: {exc}")
+
+    from app.routes.api.v2.servers import _to_item
+    return jsonify(_to_item(server)), 201
+
+
 class TestConnectionResponse(BaseModel):
     data: dict | None = None
     error: dict | None = None
     meta: dict
-
-
-class SetupPluginPath(BaseModel):
-    plugin_id: str
 
 
 @api_v2.post(

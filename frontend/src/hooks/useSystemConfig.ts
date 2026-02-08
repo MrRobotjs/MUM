@@ -5,6 +5,8 @@ export interface SystemConfig {
   git_branch: string;
   git_commit: string;
   database_file: string;
+  database_type?: string;
+  database_version?: string;
   log_directory: string;
   instance_directory: string;
   platform: string;

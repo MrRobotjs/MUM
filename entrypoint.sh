@@ -142,6 +142,43 @@ cd /app || {
   exit 1
 }
 
+# Wait for PostgreSQL to accept connections before running migrations
+if [ -n "${DATABASE_URL:-}" ]; then
+  echo "[entrypoint] ⏳ Waiting for database to be ready..."
+  if ! python - <<'PY'
+import os
+import time
+import sys
+import psycopg
+
+raw_url = os.environ.get("DATABASE_URL", "")
+if not raw_url:
+    sys.exit(0)
+
+# psycopg expects "postgresql://" not SQLAlchemy's "postgresql+psycopg://"
+url = raw_url.replace("postgresql+psycopg://", "postgresql://")
+timeout = int(os.environ.get("DB_WAIT_TIMEOUT", "60"))
+interval = float(os.environ.get("DB_WAIT_INTERVAL", "2"))
+deadline = time.time() + timeout
+
+last_error = None
+while time.time() < deadline:
+    try:
+        conn = psycopg.connect(url, connect_timeout=3)
+        conn.close()
+        sys.exit(0)
+    except Exception as exc:
+        last_error = exc
+        time.sleep(interval)
+
+print(f"[entrypoint] ❌ Database not ready after {timeout}s: {last_error}", file=sys.stderr)
+sys.exit(1)
+PY
+  then
+    exit 1
+  fi
+fi
+
 # Apply migrations with error handling
 if ! flask db upgrade; then
   echo "[entrypoint] ❌ Database migration failed"

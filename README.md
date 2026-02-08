@@ -60,18 +60,34 @@ The easiest way to deploy MUM is with Docker.
         image: ghcr.io/mrrobotjs/mum:latest # Highly encouraged to check github releases and use the latest version instead of using ‘latest’
         container_name: mum
         restart: unless-stopped
+        depends_on:
+          - postgres
         ports:
-          - "${HOST_FRONTEND_PORT:-5699}:${FRONTEND_PORT:-5000}" # Host port → React/Flask entrypoint (defaults to 5699→5000)
+          - "5699:5000" # Host port → React/Flask entrypoint
         volumes:
           - ./multimediausermanager:/app/instance
         environment:
           - TZ=America/New_York # REQUIRED: Set your local timezone
-          - PUID=1000 # Optional: User ID for file permissions
-          - PGID=1000 # Optional: Group ID for file permissions
+          - PUID=1000 # REQUIRED: User ID for file permissions
+          - PGID=1000 # REQUIRED: Group ID for file permissions
           - FLASK_LOG_LEVEL=INFO # Change to DEBUG for developer debugging
           - SOCKETIO_ASYNC_MODE=eventlet # SocketIO async mode: eventlet for Gunicorn production, threading for Flask dev server
-          - FLASK_PORT=${FLASK_PORT:-5000} # Internal Flask API port (mirrors gunicorn bind)
-          - FRONTEND_PORT=${FRONTEND_PORT:-5000} # Port exposed for the React frontend (defaults to Flask port)
+          - DATABASE_URL=postgresql+psycopg://mum:mum_pass@postgres:5432/mum
+          - FLASK_PORT=5000 # Internal Flask API port (mirrors gunicorn bind)
+          - FRONTEND_PORT=5000 # Port exposed for the React frontend - vite development (defaults to Flask port)
+      postgres:
+        image: postgres:18.1
+        container_name: mum_postgres
+        restart: unless-stopped
+        ports:
+          - "5432:5432"
+        environment:
+          - POSTGRES_USER=mum
+          - POSTGRES_PASSWORD=mum_pass
+          - POSTGRES_DB=mum
+          - PGDATA=/var/lib/postgresql/18/docker
+        volumes:
+          - ./multimediausermanager/db:/var/lib/postgresql
     ```
 
 2.  **Prepare Host Directory:**
@@ -79,7 +95,8 @@ The easiest way to deploy MUM is with Docker.
     ```bash
     mkdir ./multimediausermanager
     ```
-    This directory will store the database and other persistent data.
+    This directory will store application data and logs.
+    The PostgreSQL data directory will be stored in `./multimediausermanager/db`.
 
 3.  **Customize and Run:**
     *   Adjust the port mapping (`5699:5000`) if the host port is in use.
@@ -132,7 +149,7 @@ The admin experience is being migrated to a React SPA that lives in `frontend/`.
 - Install dependencies: `npm install` inside `frontend/`.
 - Local development: `npm run dev` (honors `FRONTEND_PORT`, defaults to 5173) and proxies API calls to the Flask backend specified by `FLASK_PORT`.
 - Production build: `npm run build` emits assets into `app/static/dist`, which Flask serves alongside existing Jinja templates during the transition.
-- Docker users can override exposed ports via `HOST_FRONTEND_PORT`, `FRONTEND_PORT`, and `FLASK_PORT` while still running a single `mum` service (keep `FRONTEND_PORT` aligned with `FLASK_PORT` unless you run the Vite dev server inside the container).
+- Docker users can change the host port by editing the left side of the `ports` mapping (e.g., `5699:5000`). Only change `FLASK_PORT` if you also change the container-side port (right side).
 
 ## Contributing
 

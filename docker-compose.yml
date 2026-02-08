@@ -4,12 +4,15 @@ services:
     build:
       context: . # The build context is the current directory
       dockerfile: Dockerfile # Specifies the Dockerfile to use
+      # BuildKit is enabled by default in newer Docker versions, but explicit config helps
     restart: unless-stopped
+    depends_on:
+      - postgres
     ports:
-      - "${HOST_FRONTEND_PORT:-5699}:${FRONTEND_PORT:-5000}" # Host port → React/Flask entrypoint (defaults to 5699→5000)
+      - "5699:5000" # Host port → React/Flask entrypoint
     volumes:
       # Mounts the ./MUM directory on the host to /app/instance in the container.
-      # This is used for persistent data like the SQLite database.
+      # This is used for persistent app data (logs, uploads, etc.).
       - ./multimediausermanager:/app/instance
     environment:
       # Set the timezone for the container.
@@ -24,9 +27,36 @@ services:
       # INFO: For general operational information (startup, successful operations, etc.).
       - FLASK_LOG_LEVEL=INFO
 
+      # SocketIO async mode: eventlet for Gunicorn production, threading for Flask dev server
+      - SOCKETIO_ASYNC_MODE=eventlet
+
+      # PostgreSQL connection (overrides SQLite when set)
+      - DATABASE_URL=postgresql+psycopg://mum:mum_pass@postgres:5432/mum
+
       # Add any other environment variables your app might need at runtime
       # For example, if you decide to pass some secrets or configurations this way:
       # - FLASK_ENV=production # Handled by .flaskenv or run.py for production
       # - SECRET_KEY=your_very_secret_key # Will be handled via .env and app config
-      - FLASK_PORT=${FLASK_PORT:-5000} # Internal Flask API port (mirrors gunicorn bind)
-      - FRONTEND_PORT=${FRONTEND_PORT:-5000} # Port exposed for the React frontend (defaults to Flask port)
+      - FLASK_PORT=5000 # Internal Flask API port (mirrors gunicorn bind)
+      - FRONTEND_PORT=5000 # Port exposed for the React frontend - vite development (defaults to Flask port)
+
+  postgres:
+    container_name: mum_postgres
+    image: postgres:18.1
+    restart: unless-stopped
+    user: "${PUID:-1000}:${PGID:-1000}"
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=mum
+      - POSTGRES_PASSWORD=mum_pass
+      - POSTGRES_DB=mum
+      - PGDATA=/var/lib/postgresql/18/docker
+    volumes:
+      - ./multimediausermanager/db:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mum -d mum"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s

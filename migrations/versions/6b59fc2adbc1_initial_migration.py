@@ -36,39 +36,11 @@ def upgrade():
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('name')
     )
-    op.create_table('invites',
-    sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('token', sa.String(length=64), nullable=False),
-    sa.Column('custom_path', sa.String(length=100), nullable=True),
-    sa.Column('expires_at', sa.DateTime(), nullable=True),
-    sa.Column('max_uses', sa.Integer(), nullable=True),
-    sa.Column('current_uses', sa.Integer(), nullable=False),
-    sa.Column('grant_library_ids', app.extensions.JSONEncodedDict(), nullable=True),
-    sa.Column('allow_downloads', sa.Boolean(), nullable=False),
-    sa.Column('created_by_owner_id', sa.Integer(), nullable=True),
-    sa.Column('created_at', sa.DateTime(), nullable=True),
-    sa.Column('updated_at', sa.DateTime(), nullable=True),
-    sa.Column('is_active', sa.Boolean(), nullable=False),
-    sa.Column('membership_duration_days', sa.Integer(), nullable=True),
-    sa.Column('require_discord_auth', sa.Boolean(), nullable=True),
-    sa.Column('require_discord_guild_membership', sa.Boolean(), nullable=True),
-    sa.Column('grant_purge_whitelist', sa.Boolean(), nullable=True),
-    sa.Column('grant_bot_whitelist', sa.Boolean(), nullable=True),
-    sa.Column('invite_to_plex_home', sa.Boolean(), nullable=True),
-    sa.Column('allow_live_tv', sa.Boolean(), nullable=True),
-    sa.ForeignKeyConstraint(['created_by_owner_id'], ['users.id'], ),
-    sa.PrimaryKeyConstraint('id')
-    )
-    with op.batch_alter_table('invites', schema=None) as batch_op:
-        batch_op.create_index(batch_op.f('ix_invites_custom_path'), ['custom_path'], unique=True)
-        batch_op.create_index(batch_op.f('ix_invites_is_active'), ['is_active'], unique=False)
-        batch_op.create_index(batch_op.f('ix_invites_token'), ['token'], unique=True)
-
     op.create_table('media_servers',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('server_nickname', sa.String(length=100), nullable=False),
     sa.Column('server_name', sa.String(length=255), nullable=True),
-    sa.Column('service_type', sa.Enum('PLEX', 'EMBY', 'JELLYFIN', 'KAVITA', 'AUDIOBOOKSHELF', 'KOMGA', 'ROMM', name='servicetype'), nullable=False),
+    sa.Column('service_type', sa.Enum('plex', 'emby', 'jellyfin', 'kavita', 'audiobookshelf', 'komga', 'romm', name='servicetype'), nullable=False),
     sa.Column('url', sa.String(length=512), nullable=False),
     sa.Column('api_key', sa.String(length=512), nullable=True),
     sa.Column('username', sa.String(length=255), nullable=True),
@@ -201,8 +173,8 @@ def upgrade():
     sa.Column('admin_roles_id', sa.Integer(), nullable=True),
     sa.ForeignKeyConstraint(['linkedUserId'], ['users.uuid'], ),
     sa.ForeignKeyConstraint(['server_id'], ['media_servers.id'], ),
-    sa.ForeignKeyConstraint(['used_invite_id'], ['invites.id'], ),
-    sa.PrimaryKeyConstraint('id')
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('uuid')
     )
     with op.batch_alter_table('users', schema=None) as batch_op:
         batch_op.create_index(batch_op.f('ix_users_access_expires_at'), ['access_expires_at'], unique=False)
@@ -217,6 +189,48 @@ def upgrade():
         batch_op.create_index(batch_op.f('ix_users_used_invite_id'), ['used_invite_id'], unique=False)
         batch_op.create_index(batch_op.f('ix_users_userType'), ['userType'], unique=False)
         batch_op.create_index(batch_op.f('ix_users_uuid'), ['uuid'], unique=True)
+
+    op.create_table('invites',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('token', sa.String(length=64), nullable=False),
+    sa.Column('custom_path', sa.String(length=100), nullable=True),
+    sa.Column('expires_at', sa.DateTime(), nullable=True),
+    sa.Column('max_uses', sa.Integer(), nullable=True),
+    sa.Column('current_uses', sa.Integer(), nullable=False),
+    sa.Column('grant_library_ids', app.extensions.JSONEncodedDict(), nullable=True),
+    sa.Column('allow_downloads', sa.Boolean(), nullable=False),
+    sa.Column('created_by_owner_id', sa.Integer(), nullable=True),
+    sa.Column('created_at', sa.DateTime(), nullable=True),
+    sa.Column('updated_at', sa.DateTime(), nullable=True),
+    sa.Column('is_active', sa.Boolean(), nullable=False),
+    sa.Column('membership_duration_days', sa.Integer(), nullable=True),
+    sa.Column('require_discord_auth', sa.Boolean(), nullable=True),
+    sa.Column('require_discord_guild_membership', sa.Boolean(), nullable=True),
+    sa.Column('grant_purge_whitelist', sa.Boolean(), nullable=True),
+    sa.Column('grant_bot_whitelist', sa.Boolean(), nullable=True),
+    sa.Column('invite_to_plex_home', sa.Boolean(), nullable=True),
+    sa.Column('allow_live_tv', sa.Boolean(), nullable=True),
+    sa.PrimaryKeyConstraint('id')
+    )
+    with op.batch_alter_table('invites', schema=None) as batch_op:
+        batch_op.create_index(batch_op.f('ix_invites_custom_path'), ['custom_path'], unique=True)
+        batch_op.create_index(batch_op.f('ix_invites_is_active'), ['is_active'], unique=False)
+        batch_op.create_index(batch_op.f('ix_invites_token'), ['token'], unique=True)
+
+    op.create_foreign_key(
+        'fk_invites_created_by_owner_id_users',
+        'invites',
+        'users',
+        ['created_by_owner_id'],
+        ['id'],
+    )
+    op.create_foreign_key(
+        'fk_users_used_invite_id_invites',
+        'users',
+        'invites',
+        ['used_invite_id'],
+        ['id'],
+    )
 
     op.create_table('users_roles',
     sa.Column('id', sa.String(length=36), nullable=False),
@@ -398,6 +412,8 @@ def upgrade():
 
 def downgrade():
     # ### commands auto generated by Alembic - please adjust! ###
+    op.drop_constraint('fk_users_used_invite_id_invites', 'users', type_='foreignkey')
+    op.drop_constraint('fk_invites_created_by_owner_id_users', 'invites', type_='foreignkey')
     with op.batch_alter_table('media_items', schema=None) as batch_op:
         batch_op.drop_index('idx_media_items_year')
         batch_op.drop_index('idx_media_items_title')

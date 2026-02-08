@@ -54,7 +54,7 @@ def upgrade():
     else:
         owner_role_id = owner_role[0]
         conn.execute(
-            text("UPDATE users_roles SET is_auto_managed = 1 WHERE id = :id"),
+            text("UPDATE users_roles SET is_auto_managed = TRUE WHERE id = :id"),
             {"id": owner_role_id},
         )
 
@@ -64,13 +64,13 @@ def upgrade():
             SELECT u.uuid
             FROM users u
             JOIN media_servers s ON s.id = u.server_id
-            WHERE u.userType = 'SERVICE'
-              AND s.service_type = 'PLEX'
+            WHERE u."userType" = 'SERVICE'
+              AND s.service_type = 'plex'
               AND (
-                u.service_settings LIKE '%"is_media_server_owner": true%'
-                OR u.user_raw_data LIKE '%"is_media_server_owner": true%'
-                OR u.service_settings LIKE '%"is_owner": true%'
-                OR u.user_raw_data LIKE '%"is_owner": true%'
+                u.service_settings::text LIKE '%"is_media_server_owner": true%'
+                OR u.user_raw_data::text LIKE '%"is_media_server_owner": true%'
+                OR u.service_settings::text LIKE '%"is_owner": true%'
+                OR u.user_raw_data::text LIKE '%"is_owner": true%'
               )
             """
         )

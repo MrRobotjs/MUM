@@ -173,30 +173,6 @@ def create_app(config_name=None):
     with app.app_context():
         initialize_settings_from_db(app)
 
-        # Create helpful SQLite indexes to speed stream-based sorting
-        try:
-            from sqlalchemy import text
-            uri = app.config.get('SQLALCHEMY_DATABASE_URI', '')
-            if uri.startswith('sqlite'):
-                stmts = [
-                    # MediaStreamHistory composite indexes for efficient lookups
-                    "CREATE INDEX IF NOT EXISTS idx_msh_server_rating_key ON media_stream_history(server_id, rating_key)",
-                    "CREATE INDEX IF NOT EXISTS idx_msh_server_external_id ON media_stream_history(server_id, external_media_item_id)",
-                    # MediaItem composite index used when mapping episodes -> shows
-                    "CREATE INDEX IF NOT EXISTS idx_media_items_lib_type_parent ON media_items(library_id, item_type, parent_id)",
-                ]
-                for s in stmts:
-                    try:
-                        db.session.execute(text(s))
-                    except Exception:
-                        pass
-                try:
-                    db.session.commit()
-                except Exception:
-                    db.session.rollback()
-        except Exception:
-            pass
-
         # Initialize plugin system only if plugins table exists
         try:
             from app.services.plugin_manager import plugin_manager

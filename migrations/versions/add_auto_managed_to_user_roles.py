@@ -27,7 +27,7 @@ def upgrade():
     bind.execute(
         text("""
             UPDATE users_roles
-            SET is_auto_managed = 1
+            SET is_auto_managed = TRUE
             WHERE lower(name) IN ('home user', 'shares back', 'downloads')
         """)
     )

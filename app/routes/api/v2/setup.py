@@ -366,6 +366,14 @@ def setup_create_plugin_server(path: SetupPluginPath, body: SetupCreateServerBod
     except Exception as exc:
         current_app.logger.warning(f"Failed to create notification for new server during setup: {exc}")
 
+    try:
+        from app.services.websocket_monitor_manager import get_websocket_monitor_manager
+
+        ws_manager = get_websocket_monitor_manager(current_app._get_current_object())
+        ws_manager.reconcile_server(server.id)
+    except Exception as exc:
+        current_app.logger.warning("Failed to reconcile websocket listeners during setup: %s", exc)
+
     from app.routes.api.v2.servers import _to_item
     return jsonify(_to_item(server)), 201
 

@@ -74,6 +74,8 @@ class EmbyWebsocketMonitor:
         self.stop_event = threading.Event()
         self.lock = threading.Lock()
         self.threads: Dict[int, threading.Thread] = {}
+        self.server_stop_events: Dict[int, threading.Event] = {}
+        self.wsapps: Dict[int, WebSocketApp] = {}
         self.logger = app.logger
         self.log_date = None
         self._ensure_file_logger()
@@ -240,14 +242,40 @@ class EmbyWebsocketMonitor:
     def start(self) -> None:
         """Spin up listeners for all active Emby servers."""
         with self.app.app_context():
-            servers = MediaServiceManager.get_servers_by_type(ServiceType.EMBY, active_only=True)
+            servers = MediaServiceManager.get_effective_servers_by_type(ServiceType.EMBY)
             if not servers:
                 self.logger.info("EmbyWebsocketMonitor: No active Emby servers found; listener not started.")
                 return
             self.logger.info("EmbyWebsocketMonitor: Starting WebSocket listeners for %d Emby server(s).", len(servers))
 
         for server in servers:
-            self._start_for_server(server.id)
+            self.start_for_server(server.id)
+
+    def _ensure_server_stop_event(self, server_id: int, reset: bool = False) -> threading.Event:
+        with self.lock:
+            event = self.server_stop_events.get(server_id)
+            if event is None or (reset and event.is_set()):
+                event = threading.Event()
+                self.server_stop_events[server_id] = event
+            return event
+
+    def start_for_server(self, server_id: int) -> None:
+        server_stop_event = self._ensure_server_stop_event(server_id, reset=True)
+        if server_stop_event.is_set():
+            server_stop_event.clear()
+        self._start_for_server(server_id)
+
+    def stop_for_server(self, server_id: int) -> None:
+        with self.lock:
+            event = self.server_stop_events.get(server_id)
+            if event:
+                event.set()
+            wsapp = self.wsapps.get(server_id)
+        if wsapp:
+            try:
+                wsapp.close()
+            except Exception:
+                self.logger.debug("EmbyWebsocketMonitor: Failed to close websocket for server %s", server_id, exc_info=True)
 
     def _start_for_server(self, server_id: int) -> None:
         with self.lock:
@@ -303,19 +331,23 @@ class EmbyWebsocketMonitor:
     def _run_for_server(self, server_id: int) -> None:
         backoff = 5
         max_backoff = 60
+        server_stop_event = self._ensure_server_stop_event(server_id)
 
-        while not self.stop_event.is_set():
+        while not self.stop_event.is_set() and not server_stop_event.is_set():
             with self.app.app_context():
                 server = MediaServer.query.get(server_id)
-                if not server or not server.is_active:
-                    self.logger.info("EmbyWebsocketMonitor: Server %s inactive; retrying in 60s.", server_id)
-                    if self.stop_event.wait(60):
+                if not server or not MediaServiceManager.is_server_effectively_active(server):
+                    self.logger.info(
+                        "EmbyWebsocketMonitor: Server %s inactive or plugin disabled; retrying in 60s.",
+                        server_id,
+                    )
+                    if self.stop_event.wait(60) or server_stop_event.is_set():
                         return
                     continue
 
                 if not server.api_key or not server.url:
                     self.logger.warning("EmbyWebsocketMonitor: Server %s missing URL or API key; retrying in 60s.", server_id)
-                    if self.stop_event.wait(60):
+                    if self.stop_event.wait(60) or server_stop_event.is_set():
                         return
                     continue
 
@@ -400,6 +432,8 @@ class EmbyWebsocketMonitor:
                     on_error=on_error,
                     on_close=on_close,
                 )
+                with self.lock:
+                    self.wsapps[server_id] = wsapp
 
                 try:
                     wsapp.run_forever(ping_interval=30, ping_timeout=10)
@@ -411,10 +445,20 @@ class EmbyWebsocketMonitor:
                         err,
                         exc_info=True,
                     )
+                finally:
+                    with self.lock:
+                        self.wsapps.pop(server_id, None)
 
-            if self.stop_event.wait(backoff):
+            if self.stop_event.wait(backoff) or server_stop_event.is_set():
                 return
             backoff = min(max_backoff, backoff * 2)
+
+        with self.lock:
+            thread = self.threads.get(server_id)
+            if thread is threading.current_thread():
+                self.threads.pop(server_id, None)
+            self.server_stop_events.pop(server_id, None)
+            self.wsapps.pop(server_id, None)
 
 
 def start_emby_websocket_monitor(app) -> None:

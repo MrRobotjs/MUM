@@ -277,6 +277,14 @@ def create_server(body: CreateServerBody, current_user):
         current_app.logger.warning(f"Failed to create notification for new server: {e}")
         # Don't fail the server creation if notification creation fails
 
+    try:
+        from app.services.websocket_monitor_manager import get_websocket_monitor_manager
+
+        ws_manager = get_websocket_monitor_manager(current_app._get_current_object())
+        ws_manager.reconcile_server(server.id)
+    except Exception as exc:
+        current_app.logger.warning("Failed to reconcile websocket listeners for new server: %s", exc)
+
     return jsonify(_to_item(server)), 201
 
 
@@ -348,6 +356,13 @@ def update_server(path: ServerPath, body: UpdateServerBody, current_user):
 
     db.session.add(server)
     db.session.commit()
+    try:
+        from app.services.websocket_monitor_manager import get_websocket_monitor_manager
+
+        ws_manager = get_websocket_monitor_manager(current_app._get_current_object())
+        ws_manager.reconcile_server(server.id)
+    except Exception as exc:
+        current_app.logger.warning("Failed to reconcile websocket listeners for updated server: %s", exc)
     return jsonify(_to_item(server)), 200
 
 
@@ -363,9 +378,18 @@ def delete_server(path: ServerPath, current_user):
     if not server:
         return jsonify({"error": {"code": "NOT_FOUND", "message": "Server not found"}}), 404
 
+    server_id = server.id
+    service_type = server.service_type
     item = _to_item(server)
     db.session.delete(server)
     db.session.commit()
+    try:
+        from app.services.websocket_monitor_manager import get_websocket_monitor_manager
+
+        ws_manager = get_websocket_monitor_manager(current_app._get_current_object())
+        ws_manager.stop_for_server(service_type, server_id)
+    except Exception as exc:
+        current_app.logger.warning("Failed to stop websocket listeners for deleted server: %s", exc)
     return jsonify(item), 200
 
 

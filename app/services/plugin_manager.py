@@ -163,6 +163,19 @@ class PluginManager:
             db.session.commit()
             
             current_app.logger.info(f"Plugin '{plugin_id}' enabled successfully")
+            try:
+                from app.services.websocket_monitor_manager import get_websocket_monitor_manager
+                from app.models_media_services import ServiceType
+
+                service_type = ServiceType(plugin_id)
+                ws_manager = get_websocket_monitor_manager(current_app._get_current_object())
+                ws_manager.reconcile_service_type(service_type)
+            except Exception as exc:
+                current_app.logger.debug(
+                    "Websocket monitor reconcile skipped for plugin %s: %s",
+                    plugin_id,
+                    exc,
+                )
             return True
             
         except Exception as e:
@@ -194,6 +207,19 @@ class PluginManager:
             db.session.commit()
             
             current_app.logger.info(f"Plugin '{plugin_id}' disabled successfully")
+            try:
+                from app.services.websocket_monitor_manager import get_websocket_monitor_manager
+                from app.models_media_services import ServiceType
+
+                service_type = ServiceType(plugin_id)
+                ws_manager = get_websocket_monitor_manager(current_app._get_current_object())
+                ws_manager.reconcile_service_type(service_type)
+            except Exception as exc:
+                current_app.logger.debug(
+                    "Websocket monitor reconcile skipped for plugin %s: %s",
+                    plugin_id,
+                    exc,
+                )
             return True
             
         except Exception as e:

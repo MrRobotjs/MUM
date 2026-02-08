@@ -56,6 +56,13 @@ class MediaServiceManager:
         if active_only:
             query = query.filter_by(is_active=True)
         return query.all()
+
+    @staticmethod
+    def get_effective_servers_by_type(service_type: ServiceType) -> List[MediaServer]:
+        """Get servers for a service type that are active and whose plugin is enabled."""
+        if not MediaServiceManager.is_plugin_enabled(service_type):
+            return []
+        return MediaServer.query.filter_by(service_type=service_type, is_active=True).all()
     
     @staticmethod
     def get_all_servers(active_only: bool = True) -> List[MediaServer]:

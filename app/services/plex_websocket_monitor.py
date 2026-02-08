@@ -36,6 +36,8 @@ class PlexWebsocketMonitor:
         self.stop_event = threading.Event()
         self.lock = threading.Lock()
         self.threads: Dict[int, threading.Thread] = {}
+        self.server_stop_events: Dict[int, threading.Event] = {}
+        self.wsapps: Dict[int, WebSocketApp] = {}
         self.last_refresh_at: Dict[int, float] = {}
         self.logger = app.logger
         self.log_date = None
@@ -282,7 +284,7 @@ class PlexWebsocketMonitor:
     def start(self) -> None:
         """Spin up listeners for all active Plex servers."""
         with self.app.app_context():
-            servers = MediaServiceManager.get_servers_by_type(ServiceType.PLEX, active_only=True)
+            servers = MediaServiceManager.get_effective_servers_by_type(ServiceType.PLEX)
             if not servers:
                 self.logger.info("PlexWebsocketMonitor: No active Plex servers found; WebSocket listener not started.")
                 return
@@ -293,7 +295,33 @@ class PlexWebsocketMonitor:
             )
 
         for server in servers:
-            self._start_for_server(server.id)
+            self.start_for_server(server.id)
+
+    def _ensure_server_stop_event(self, server_id: int, reset: bool = False) -> threading.Event:
+        with self.lock:
+            event = self.server_stop_events.get(server_id)
+            if event is None or (reset and event.is_set()):
+                event = threading.Event()
+                self.server_stop_events[server_id] = event
+            return event
+
+    def start_for_server(self, server_id: int) -> None:
+        server_stop_event = self._ensure_server_stop_event(server_id, reset=True)
+        if server_stop_event.is_set():
+            server_stop_event.clear()
+        self._start_for_server(server_id)
+
+    def stop_for_server(self, server_id: int) -> None:
+        with self.lock:
+            event = self.server_stop_events.get(server_id)
+            if event:
+                event.set()
+            wsapp = self.wsapps.get(server_id)
+        if wsapp:
+            try:
+                wsapp.close()
+            except Exception:
+                self.logger.debug("PlexWebsocketMonitor: Failed to close websocket for server %s", server_id, exc_info=True)
 
     def _start_for_server(self, server_id: int) -> None:
         with self.lock:
@@ -316,16 +344,17 @@ class PlexWebsocketMonitor:
     def _run_for_server(self, server_id: int) -> None:
         backoff = 5
         max_backoff = 60
+        server_stop_event = self._ensure_server_stop_event(server_id)
 
-        while not self.stop_event.is_set():
+        while not self.stop_event.is_set() and not server_stop_event.is_set():
             with self.app.app_context():
                 server = MediaServer.query.get(server_id)
-                if not server or not server.is_active:
+                if not server or not MediaServiceManager.is_server_effectively_active(server):
                     self.logger.info(
-                        "PlexWebsocketMonitor: Server %s inactive or missing; retrying in 60s.",
+                        "PlexWebsocketMonitor: Server %s inactive or plugin disabled; retrying in 60s.",
                         server_id,
                     )
-                    if self.stop_event.wait(60):
+                    if self.stop_event.wait(60) or server_stop_event.is_set():
                         return
                     continue
 
@@ -334,7 +363,7 @@ class PlexWebsocketMonitor:
                         "PlexWebsocketMonitor: Server %s missing URL or API token; retrying in 60s.",
                         server.server_nickname,
                     )
-                    if self.stop_event.wait(60):
+                    if self.stop_event.wait(60) or server_stop_event.is_set():
                         return
                     continue
 
@@ -355,6 +384,8 @@ class PlexWebsocketMonitor:
                     on_error=lambda ws_sock, err: self._handle_error(server_id, err),
                     on_close=lambda ws_sock, status_code, msg: self._handle_close(server_id, status_code, msg),
                 )
+                with self.lock:
+                    self.wsapps[server_id] = ws_app
 
                 sslopt = {}
                 if ws_url.startswith("wss://"):
@@ -370,13 +401,22 @@ class PlexWebsocketMonitor:
                         exc,
                         exc_info=True,
                     )
+            finally:
+                with self.lock:
+                    self.wsapps.pop(server_id, None)
 
-            if self.stop_event.wait(backoff):
+            if self.stop_event.wait(backoff) or server_stop_event.is_set():
                 return
             backoff = min(backoff * 2, max_backoff)
 
         with self.app.app_context():
             current_app.logger.info("PlexWebsocketMonitor: Stop signal received for server %s", server_id)
+        with self.lock:
+            thread = self.threads.get(server_id)
+            if thread is threading.current_thread():
+                self.threads.pop(server_id, None)
+            self.server_stop_events.pop(server_id, None)
+            self.wsapps.pop(server_id, None)
 
     def _extract_message_type(self, text: str) -> str:
         """Extract message type identifier from Plex websocket message.

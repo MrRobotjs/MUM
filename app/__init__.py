@@ -236,30 +236,14 @@ def create_app(config_name=None):
                                 app.logger.info("Scheduled background tasks successfully.")
 
                                 try:
-                                    from .services.plex_websocket_monitor import start_plex_websocket_monitor
-                                    start_plex_websocket_monitor(app)
-                                except Exception as plex_ws_error:
+                                    from .services.websocket_monitor_manager import get_websocket_monitor_manager
+
+                                    ws_manager = get_websocket_monitor_manager(app)
+                                    ws_manager.reconcile_all()
+                                except Exception as ws_error:
                                     app.logger.error(
-                                        "Failed to start Plex WebSocket monitor: %s",
-                                        plex_ws_error,
-                                        exc_info=True,
-                                    )
-                                try:
-                                    from .services.jellyfin_websocket_monitor import start_jellyfin_websocket_monitor
-                                    start_jellyfin_websocket_monitor(app)
-                                except Exception as jf_ws_error:
-                                    app.logger.error(
-                                        "Failed to start Jellyfin WebSocket monitor: %s",
-                                        jf_ws_error,
-                                        exc_info=True,
-                                    )
-                                try:
-                                    from .services.emby_websocket_monitor import start_emby_websocket_monitor
-                                    start_emby_websocket_monitor(app)
-                                except Exception as emby_ws_error:
-                                    app.logger.error(
-                                        "Failed to start Emby WebSocket monitor: %s",
-                                        emby_ws_error,
+                                        "Failed to start WebSocket monitors: %s",
+                                        ws_error,
                                         exc_info=True,
                                     )
                             else:

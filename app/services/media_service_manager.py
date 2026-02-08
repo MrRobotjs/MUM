@@ -343,7 +343,7 @@ class MediaServiceManager:
                     # This can happen when a user was created via invite but then we sync again
                     if user:
                         existing_linked_access = User.query.filter_by(userType=UserType.SERVICE).filter_by(
-                            linkedUserId=user.id,
+                            linkedUserId=user.uuid,
                             server_id=server_id
                         ).first()
                         
@@ -440,7 +440,7 @@ class MediaServiceManager:
                     
                     access = User(
                         userType=UserType.SERVICE,  # CRITICAL: Set userType for unified model
-                        linkedUserId=user.id if user else None,  # May be None for standalone server users
+                        linkedUserId=user.uuid if user else None,  # May be None for standalone server users
                         server_id=server_id,
                         external_user_id=user_data.get('id'),  # For Plex: plex_user_id ; 
                         external_user_alt_id=external_user_alt_id,  # For Plex: plex_uuid
@@ -655,7 +655,7 @@ class MediaServiceManager:
                         # In unified model, get linked user via linkedUserId
                         user_to_check = None
                         if access.linkedUserId:
-                            user_to_check = User.query.filter_by(userType=UserType.LOCAL, id=access.linkedUserId).first()
+                            user_to_check = User.query.filter_by(userType=UserType.LOCAL, uuid=access.linkedUserId).first()
                         display_name = user_to_check.get_display_name() if user_to_check else access.external_username or 'Unknown'
                         current_app.logger.info(f"Removing user access: {display_name} from server {server.server_nickname}")
                         
@@ -739,7 +739,7 @@ class MediaServiceManager:
                 # In unified model, get linked user via linkedUserId
                 user = None
                 if existing_access.linkedUserId:
-                    user = User.query.filter_by(userType=UserType.LOCAL, id=existing_access.linkedUserId).first()
+                    user = User.query.filter_by(userType=UserType.LOCAL, uuid=existing_access.linkedUserId).first()
                 current_app.logger.debug(f"Found existing user via server access: {user.get_display_name() if user else 'None'}")
         
         # For Plex, also try to match by UUID via service user

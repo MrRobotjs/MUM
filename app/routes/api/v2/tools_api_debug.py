@@ -15,6 +15,35 @@ from app.utils.jwt_decorators import jwt_required_with_user, jwt_permission_requ
 tools_tag = Tag(name="Tools", description="Developer tools and diagnostics")
 
 
+def _looks_like_jwt(token: str) -> bool:
+    if not token:
+        return False
+    parts = token.split(".")
+    return len(parts) == 3 and all(parts)
+
+
+def _get_kavita_jwt_token(base_url: str, api_key: str) -> str | None:
+    if not base_url or not api_key:
+        return None
+    if _looks_like_jwt(api_key):
+        return api_key
+
+    auth_url = f"{base_url.rstrip('/')}/api/Plugin/authenticate"
+    headers = {"accept": "text/plain"}
+    params = {"apiKey": api_key, "pluginName": "MUM"}
+    try:
+        resp = requests.post(auth_url, headers=headers, params=params, timeout=30, verify=False)
+        resp.raise_for_status()
+        try:
+            data = resp.json()
+            token = (data.get("token") or "").strip()
+        except ValueError:
+            token = resp.text.strip()
+        return token or None
+    except requests.exceptions.RequestException:
+        return None
+
+
 class QueryParam(BaseModel):
     key: str
     value: str
@@ -132,7 +161,10 @@ def api_debug_execute(body: ApiDebugExecuteBody, current_user):
             headers["X-Plex-Token"] = api_key
         elif service_type in ("jellyfin", "emby") and api_key:
             headers["X-Emby-Token"] = api_key
-        elif service_type in ("kavita", "audiobookshelf", "komga", "romm") and api_key:
+        elif service_type == "kavita" and api_key:
+            jwt_token = _get_kavita_jwt_token(base_url, api_key)
+            headers["Authorization"] = f"Bearer {jwt_token or api_key}"
+        elif service_type in ("audiobookshelf", "komga", "romm") and api_key:
             headers["Authorization"] = f"Bearer {api_key}"
 
         if username and password:

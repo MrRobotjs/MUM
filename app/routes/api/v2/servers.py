@@ -386,12 +386,12 @@ def delete_server(path: ServerPath, current_user):
         from app.models_media_services import MediaLibrary, MediaItem, MediaStreamHistory
         from app.models_overseerr import OverseerrUserLink
 
+        MediaStreamHistory.query.filter_by(server_id=server_id).delete(synchronize_session=False)
         Notification.query.filter_by(server_id=server_id).delete(synchronize_session=False)
         InviteServerFeature.query.filter_by(server_id=server_id).delete(synchronize_session=False)
         db.session.execute(invite_servers.delete().where(invite_servers.c.server_id == server_id))
         OverseerrUserLink.query.filter_by(server_id=server_id).delete(synchronize_session=False)
         User.query.filter_by(userType=UserType.SERVICE, server_id=server_id).delete(synchronize_session=False)
-        MediaStreamHistory.query.filter_by(server_id=server_id).delete(synchronize_session=False)
         MediaItem.query.filter_by(server_id=server_id).delete(synchronize_session=False)
         MediaLibrary.query.filter_by(server_id=server_id).delete(synchronize_session=False)
     except Exception as exc:

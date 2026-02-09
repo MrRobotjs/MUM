@@ -225,6 +225,8 @@ export const UsersListPage = () => {
             updated: number;
             removed: number;
             message: string;
+            library_sync_failed?: boolean;
+            library_sync_message?: string;
           }>;
           summary: {
             total_servers: number;
@@ -256,8 +258,14 @@ export const UsersListPage = () => {
 
       // Log detailed results
       results.forEach((result) => {
+        if (result.library_sync_failed) {
+          const serverLabel = result.server_name || 'Server';
+          error(`Library sync failed for ${serverLabel}: ${result.library_sync_message ?? 'Unknown error'}`);
+        }
         if (!result.success) {
-          console.error(`Sync failed for ${result.server_name}: ${result.message}`);
+          const serverLabel = result.server_name || 'Server';
+          error(`Sync failed for ${serverLabel}: ${result.message}`);
+          console.error(`Sync failed for ${serverLabel}: ${result.message}`);
         }
       });
 

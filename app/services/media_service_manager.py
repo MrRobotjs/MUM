@@ -254,6 +254,36 @@ class MediaServiceManager:
                     'success': False,
                     'message': f'No users returned from {server.server_nickname}. Server may be offline or experiencing issues.'
                 }
+
+            library_sync_attempted = False
+            library_sync_failed = False
+            library_sync_message = None
+
+            def _attempt_library_sync(reason: str) -> None:
+                nonlocal server, library_sync_attempted, library_sync_failed, library_sync_message
+                if library_sync_attempted:
+                    return
+                library_sync_attempted = True
+                current_app.logger.info(
+                    "User sync triggering library sync for %s (%s). Reason: %s",
+                    server.server_nickname,
+                    server.service_type.value,
+                    reason,
+                )
+                lib_sync_result = MediaServiceManager.sync_server_libraries(server_id)
+                if lib_sync_result.get("success"):
+                    server = MediaServiceManager.get_server_by_id(server_id) or server
+                else:
+                    library_sync_failed = True
+                    library_sync_message = lib_sync_result.get("message") or "Unknown error"
+                    current_app.logger.error(
+                        "Library sync failed during user sync for %s: %s",
+                        server.server_nickname,
+                        library_sync_message,
+                    )
+
+            if not server.libraries:
+                _attempt_library_sync("no libraries in DB")
             
             added_count = 0
             updated_count = 0
@@ -293,15 +323,7 @@ class MediaServiceManager:
                         len(missing_library_ids),
                         server.server_nickname,
                     )
-                    lib_sync_result = MediaServiceManager.sync_server_libraries(server_id)
-                    if lib_sync_result.get("success"):
-                        server = MediaServiceManager.get_server_by_id(server_id) or server
-                    else:
-                        current_app.logger.warning(
-                            "Library sync failed during user sync for %s: %s",
-                            server.server_nickname,
-                            lib_sync_result.get("message"),
-                        )
+                    _attempt_library_sync(f"{len(missing_library_ids)} unknown library IDs")
 
             if server.service_type == ServiceType.KAVITA and kavita_library_names_from_service:
                 known_library_names = {
@@ -315,15 +337,7 @@ class MediaServiceManager:
                         "User sync detected unknown Kavita library names for server %s. Triggering library sync.",
                         server.server_nickname,
                     )
-                    lib_sync_result = MediaServiceManager.sync_server_libraries(server_id)
-                    if lib_sync_result.get("success"):
-                        server = MediaServiceManager.get_server_by_id(server_id) or server
-                    else:
-                        current_app.logger.warning(
-                            "Library sync failed during user sync for %s: %s",
-                            server.server_nickname,
-                            lib_sync_result.get("message"),
-                        )
+                    _attempt_library_sync("unknown Kavita library names")
 
             # For enriching library change details - create lookup for both external_id and internal_id
             server_libraries = {}
@@ -741,7 +755,9 @@ class MediaServiceManager:
                 'removed': removed_count,
                 'updated_details': updated_details,
                 'added_details': added_details,
-                'removed_details': removed_details
+                'removed_details': removed_details,
+                'library_sync_failed': library_sync_failed,
+                'library_sync_message': library_sync_message
             }
             
         except Exception as e:

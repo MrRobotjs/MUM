@@ -32,6 +32,8 @@ class SyncResult(BaseModel):
     updated: Optional[int] = None
     removed: Optional[int] = None
     message: Optional[str] = None
+    library_sync_failed: Optional[bool] = None
+    library_sync_message: Optional[str] = None
 
 
 class SyncAllResponse(BaseModel):
@@ -112,6 +114,8 @@ def sync_all_users(current_user):
                         "updated": updated,
                         "removed": removed,
                         "message": message,
+                        "library_sync_failed": sync_result.get("library_sync_failed"),
+                        "library_sync_message": sync_result.get("library_sync_message"),
                     }
                 )
             except Exception as exc:
@@ -129,6 +133,8 @@ def sync_all_users(current_user):
                         "updated": 0,
                         "removed": 0,
                         "message": str(exc),
+                        "library_sync_failed": False,
+                        "library_sync_message": None,
                     }
                 )
     finally:
@@ -218,11 +224,20 @@ def sync_user_accounts(path: UserPath, current_user):
                     "updated": sync_result.get("updated"),
                     "removed": sync_result.get("removed"),
                     "message": message,
+                    "library_sync_failed": sync_result.get("library_sync_failed"),
+                    "library_sync_message": sync_result.get("library_sync_message"),
                 }
             )
         except Exception as exc:
             current_app.logger.error(f"User sync failed for server {sid}: {exc}", exc_info=True)
-            results.append({"server_id": server.id if server else sid, "server_name": getattr(server, "server_nickname", None), "success": False, "message": str(exc)})
+            results.append({
+                "server_id": server.id if server else sid,
+                "server_name": getattr(server, "server_nickname", None),
+                "success": False,
+                "message": str(exc),
+                "library_sync_failed": False,
+                "library_sync_message": None,
+            })
 
     log_event(
         EventType.SETTING_CHANGE,

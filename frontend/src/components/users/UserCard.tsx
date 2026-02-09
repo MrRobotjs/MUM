@@ -75,6 +75,7 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
   const [avatarError, setAvatarError] = useState(false);
   const effectiveAvatar = user.avatar_url;
   const [showAllLibraries, setShowAllLibraries] = useState(false);
+  const maxVisibleLibraries = 6;
 
   // Debug modal state
   const [debugModalOpen, setDebugModalOpen] = useState(false);
@@ -447,8 +448,11 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
                 )}
               </>
             ) : user.libraries && user.libraries.length > 0 ? (
-              <div className="flex flex-wrap gap-1.5">
-                {user.libraries.map((library) => (
+              <div className="flex flex-wrap items-center gap-1.5">
+                {(showAllLibraries || user.libraries.length <= maxVisibleLibraries
+                  ? user.libraries
+                  : user.libraries.slice(0, maxVisibleLibraries)
+                ).map((library) => (
                   <Badge
                     key={library}
                     color="bg-blue-500"
@@ -459,6 +463,24 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
                     {library}
                   </Badge>
                 ))}
+                {user.libraries.length > maxVisibleLibraries && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-5 px-2 text-[10px] rounded-full hover:bg-white/10"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setShowAllLibraries((prev) => !prev);
+                    }}
+                  >
+                    {showAllLibraries ? 'Hide' : 'Show'}
+                    {showAllLibraries ? (
+                      <FontAwesomeIcon icon={faChevronUp} className="ml-1 h-3 w-3" />
+                    ) : (
+                      <FontAwesomeIcon icon={faChevronDown} className="ml-1 h-3 w-3" />
+                    )}
+                  </Button>
+                )}
               </div>
             ) : (
               <span className="text-[10px] text-muted-foreground italic pl-1">

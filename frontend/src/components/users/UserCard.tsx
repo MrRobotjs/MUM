@@ -17,8 +17,6 @@ import type { IconDefinition } from '@fortawesome/fontawesome-svg-core';
 import {
   faBook,
   faCalendar,
-  faChevronDown,
-  faChevronUp,
   faCircleInfo,
   faClock,
   faCrown,
@@ -416,18 +414,15 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-5 px-2 text-[10px] rounded-full hover:bg-white/10"
+                      className="h-auto p-0"
                       onClick={(event) => {
                         event.stopPropagation();
                         setShowAllLibraries((prev) => !prev);
                       }}
                     >
-                      {showAllLibraries ? 'Hide' : 'Show'}
-                      {showAllLibraries ? (
-                        <FontAwesomeIcon icon={faChevronUp} className="ml-1 h-3 w-3" />
-                      ) : (
-                        <FontAwesomeIcon icon={faChevronDown} className="ml-1 h-3 w-3" />
-                      )}
+                      <Badge color="bg-blue-500" className="text-xs font-medium gap-1" hover={false}>
+                        {showAllLibraries ? '-' : '+'}{user.libraries.length}
+                      </Badge>
                     </Button>
                   )}
                 </div>
@@ -467,18 +462,15 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-5 px-2 text-[10px] rounded-full hover:bg-white/10"
+                    className="h-auto p-0"
                     onClick={(event) => {
                       event.stopPropagation();
                       setShowAllLibraries((prev) => !prev);
                     }}
                   >
-                    {showAllLibraries ? 'Hide' : 'Show'}
-                    {showAllLibraries ? (
-                      <FontAwesomeIcon icon={faChevronUp} className="ml-1 h-3 w-3" />
-                    ) : (
-                      <FontAwesomeIcon icon={faChevronDown} className="ml-1 h-3 w-3" />
-                    )}
+                    <Badge color="bg-blue-500" className="text-xs font-medium gap-1" hover={false}>
+                      {showAllLibraries ? '-' : '+'}{user.libraries.length - maxVisibleLibraries}
+                    </Badge>
                   </Button>
                 )}
               </div>

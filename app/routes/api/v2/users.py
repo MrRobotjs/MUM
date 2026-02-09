@@ -586,6 +586,8 @@ def list_users(query: UsersQuery, current_user):
             libraries, has_all_libraries = _resolve_libraries_for_service_user(u)
             item["libraries"] = libraries
             item["has_all_libraries"] = has_all_libraries
+            if has_all_libraries and not item["libraries"] and getattr(u, "server_id", None):
+                item["libraries"] = _get_all_library_names(u.server_id)
         elif u.userType in {UserType.LOCAL, UserType.OWNER}:
             earliest_join = local_service_join_map.get(u.uuid)
             if earliest_join:

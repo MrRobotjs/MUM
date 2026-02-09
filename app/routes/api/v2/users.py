@@ -428,39 +428,92 @@ def list_users(query: UsersQuery, current_user):
     for svc in linked_service_users:
         service_users_for_libraries.setdefault(svc.uuid, svc)
 
-    allowed_ids_by_server: dict[int, set[str]] = defaultdict(set)
+    server_type_by_id: dict[int, str] = {}
     for svc in service_users_for_libraries.values():
-        if not getattr(svc, "server_id", None):
-            continue
-        allowed_ids = [str(v) for v in (getattr(svc, "allowed_library_ids", []) or [])]
-        if not allowed_ids or allowed_ids == ["*"]:
-            continue
-        allowed_ids_by_server[svc.server_id].update(allowed_ids)
+        if getattr(svc, "server_id", None) and getattr(svc, "server", None) and getattr(svc.server, "service_type", None):
+            server_type_by_id[svc.server_id] = svc.server.service_type.value
 
-    libraries_by_server: dict[int, dict[str, str]] = {}
-    for server_id, allowed_ids in allowed_ids_by_server.items():
-        libs = MediaLibrary.query.filter(
-            MediaLibrary.server_id == server_id,
-            sa_or(
-                MediaLibrary.external_id.in_(allowed_ids),
-                MediaLibrary.internal_id.in_(allowed_ids),
-            ),
-        ).all()
-        lib_map: dict[str, str] = {}
+    service_server_ids = set(server_type_by_id.keys())
+    libraries_by_server: dict[int, dict[str, str]] = defaultdict(dict)
+    all_ids_by_server: dict[int, set[str]] = defaultdict(set)
+    kavita_internal_ids_by_server: dict[int, set[str]] = defaultdict(set)
+    kavita_external_to_internal_by_server: dict[int, dict[str, str]] = defaultdict(dict)
+
+    if service_server_ids:
+        libs = MediaLibrary.query.filter(MediaLibrary.server_id.in_(service_server_ids)).all()
         for lib in libs:
+            server_id = lib.server_id
+            if not server_id:
+                continue
             if lib.external_id:
-                lib_map[str(lib.external_id)] = lib.name
+                libraries_by_server[server_id][str(lib.external_id)] = lib.name
             if lib.internal_id:
-                lib_map[str(lib.internal_id)] = lib.name
-        libraries_by_server[server_id] = lib_map
+                libraries_by_server[server_id][str(lib.internal_id)] = lib.name
+
+            server_type = server_type_by_id.get(server_id)
+            if server_type == "kavita":
+                if lib.internal_id:
+                    kavita_internal_ids_by_server[server_id].add(str(lib.internal_id))
+                if lib.external_id:
+                    kavita_external_to_internal_by_server[server_id][str(lib.external_id)] = str(
+                        lib.internal_id or lib.external_id
+                    )
+                if lib.internal_id:
+                    all_ids_by_server[server_id].add(str(lib.internal_id))
+                elif lib.external_id:
+                    all_ids_by_server[server_id].add(str(lib.external_id))
+            else:
+                if lib.external_id:
+                    all_ids_by_server[server_id].add(str(lib.external_id))
+                elif lib.internal_id:
+                    all_ids_by_server[server_id].add(str(lib.internal_id))
+
+    def _get_all_library_names(server_id: Optional[int]) -> list[str]:
+        if not server_id:
+            return []
+        names = {name for name in libraries_by_server.get(server_id, {}).values() if name}
+        return sorted(names, key=str.lower)
 
     def _resolve_libraries_for_service_user(service_user: User) -> tuple[list[str], bool]:
         allowed_ids = [str(v) for v in (getattr(service_user, "allowed_library_ids", []) or [])]
+        server_id = getattr(service_user, "server_id", None)
+        server_type = server_type_by_id.get(server_id, "")
         if not allowed_ids:
-            return [], True
+            return (_get_all_library_names(server_id), True) if server_type != "kavita" else ([], False)
         if allowed_ids == ["*"]:
-            return ["All Libraries"], True
-        lib_map = libraries_by_server.get(getattr(service_user, "server_id", 0), {})
+            return _get_all_library_names(server_id), True
+        lib_map = libraries_by_server.get(server_id, {})
+
+        if server_type == "kavita":
+            names: list[str] = []
+            normalized_allowed_ids: set[str] = set()
+            has_unknown = False
+            internal_ids = kavita_internal_ids_by_server.get(server_id, set())
+            external_to_internal = kavita_external_to_internal_by_server.get(server_id, {})
+
+            for lib_id in allowed_ids:
+                if lib_id.startswith("kavita-name:"):
+                    name = lib_id.split(":", 1)[1]
+                    if name:
+                        names.append(name)
+                    has_unknown = True
+                    continue
+                names.append(lib_map.get(lib_id, f"Unknown Lib {lib_id}"))
+                normalized_id = None
+                if lib_id in internal_ids:
+                    normalized_id = lib_id
+                elif lib_id in external_to_internal:
+                    normalized_id = external_to_internal[lib_id]
+                else:
+                    has_unknown = True
+                if normalized_id:
+                    normalized_allowed_ids.add(normalized_id)
+
+            all_ids = all_ids_by_server.get(server_id, set())
+            if all_ids and normalized_allowed_ids and normalized_allowed_ids == all_ids and not has_unknown:
+                return _get_all_library_names(server_id), True
+            return names, False
+
         names = [lib_map.get(lib_id, f"Unknown Lib {lib_id}") for lib_id in allowed_ids]
         return names, False
 

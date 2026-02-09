@@ -264,6 +264,7 @@ class MediaServiceManager:
 
             # If user sync references libraries we haven't synced yet, run a library sync on-demand.
             library_ids_from_service = set()
+            kavita_library_names_from_service = set()
             for user_data in users_data:
                 for lib_id in user_data.get('library_ids', []) or []:
                     if lib_id is None:
@@ -272,6 +273,11 @@ class MediaServiceManager:
                     if lib_id_str == '0':  # Kavita "all libraries" shortcut
                         continue
                     library_ids_from_service.add(lib_id_str)
+                for lib_name in user_data.get('library_names', []) or []:
+                    if isinstance(lib_name, str) and lib_name.strip():
+                        kavita_library_names_from_service.add(
+                            MediaServiceManager._normalize_library_name(lib_name)
+                        )
 
             if library_ids_from_service:
                 known_library_ids = set()
@@ -297,6 +303,28 @@ class MediaServiceManager:
                             lib_sync_result.get("message"),
                         )
 
+            if server.service_type == ServiceType.KAVITA and kavita_library_names_from_service:
+                known_library_names = {
+                    MediaServiceManager._normalize_library_name(lib.name)
+                    for lib in server.libraries
+                    if getattr(lib, "name", None)
+                }
+                missing_library_names = sorted(kavita_library_names_from_service - known_library_names)
+                if missing_library_names or not known_library_names:
+                    current_app.logger.info(
+                        "User sync detected unknown Kavita library names for server %s. Triggering library sync.",
+                        server.server_nickname,
+                    )
+                    lib_sync_result = MediaServiceManager.sync_server_libraries(server_id)
+                    if lib_sync_result.get("success"):
+                        server = MediaServiceManager.get_server_by_id(server_id) or server
+                    else:
+                        current_app.logger.warning(
+                            "Library sync failed during user sync for %s: %s",
+                            server.server_nickname,
+                            lib_sync_result.get("message"),
+                        )
+
             # For enriching library change details - create lookup for both external_id and internal_id
             server_libraries = {}
             for lib in server.libraries:
@@ -308,6 +336,10 @@ class MediaServiceManager:
             external_user_ids_from_service = {str(u.get('id')) for u in users_data if u.get('id')}
 
             manage_downloads_role = server.service_type in {ServiceType.PLEX, ServiceType.JELLYFIN, ServiceType.EMBY}
+            kavita_name_map = None
+            kavita_all_ids = None
+            if server.service_type == ServiceType.KAVITA:
+                kavita_name_map, kavita_all_ids = MediaServiceManager._build_kavita_library_name_map(server)
 
             for user_data in users_data:
                 user = MediaServiceManager._find_or_create_user(user_data, server)
@@ -354,9 +386,13 @@ class MediaServiceManager:
                             access.external_user_id = user_data.get('id')
                             access.external_username = user_data.get('username')
                             access.external_email = user_data.get('email')
-                            # Convert external_ids to internal_ids for Kavita users
-                            library_ids = user_data.get('library_ids', [])
-                            access.allowed_library_ids = MediaServiceManager._convert_library_ids_for_kavita(server, library_ids)
+                            library_ids = MediaServiceManager._resolve_user_library_ids_for_server(
+                                server,
+                                user_data,
+                                kavita_name_map=kavita_name_map,
+                                kavita_all_ids=kavita_all_ids,
+                            )
+                            access.allowed_library_ids = library_ids
                             raw_data_to_store = user_data.get('raw_data') or {}
                             service_label = (
                                 server.service_type.value
@@ -446,7 +482,12 @@ class MediaServiceManager:
                         external_user_alt_id=external_user_alt_id,  # For Plex: plex_uuid
                         external_username=user_data.get('username'),
                         external_email=user_data.get('email'),
-                        allowed_library_ids=MediaServiceManager._convert_library_ids_for_kavita(server, user_data.get('library_ids', [])),
+                        allowed_library_ids=MediaServiceManager._resolve_user_library_ids_for_server(
+                            server,
+                            user_data,
+                            kavita_name_map=kavita_name_map,
+                            kavita_all_ids=kavita_all_ids,
+                        ),
                         user_raw_data=user_raw_data,  # Store raw data here instead of local user
                         service_settings=initial_service_settings,
                         is_active=True,
@@ -610,9 +651,13 @@ class MediaServiceManager:
                                 removed_names = [server_libraries.get(id, f"Unknown Library (ID: {id})") for id in removed_ids]
                             changes.append(f"Lost access to: {', '.join(removed_names)}")
 
-                        # Convert external_ids to internal_ids for Kavita users
-                        library_ids = user_data.get('library_ids', [])
-                        access.allowed_library_ids = MediaServiceManager._convert_library_ids_for_kavita(server, library_ids)
+                        library_ids = MediaServiceManager._resolve_user_library_ids_for_server(
+                            server,
+                            user_data,
+                            kavita_name_map=kavita_name_map,
+                            kavita_all_ids=kavita_all_ids,
+                        )
+                        access.allowed_library_ids = library_ids
                     
                     # Check for changes in status fields (is_home_user, shares_back)
                     if access.is_home_user != user_data.get('is_home_user', False):
@@ -928,6 +973,89 @@ class MediaServiceManager:
         
         return server
     
+    @staticmethod
+    def _normalize_library_name(name: str) -> str:
+        if not name:
+            return ""
+        return " ".join(name.strip().lower().split())
+
+    @staticmethod
+    def _build_kavita_library_name_map(server) -> tuple[dict[str, str], set[str]]:
+        name_map: dict[str, str] = {}
+        all_ids: set[str] = set()
+        for lib in server.libraries:
+            lib_name = getattr(lib, "name", None)
+            internal_id = getattr(lib, "internal_id", None) or getattr(lib, "external_id", None)
+            if not lib_name or not internal_id:
+                continue
+            key = MediaServiceManager._normalize_library_name(lib_name)
+            if not key:
+                continue
+            if key in name_map and name_map[key] != str(internal_id):
+                current_app.logger.warning(
+                    "Kavita library name collision on server %s for '%s' (existing=%s, new=%s)",
+                    server.server_nickname,
+                    lib_name,
+                    name_map[key],
+                    internal_id,
+                )
+                continue
+            name_map[key] = str(internal_id)
+            all_ids.add(str(internal_id))
+        return name_map, all_ids
+
+    @staticmethod
+    def _resolve_kavita_library_ids_for_user(server, user_data, name_map: dict[str, str], all_ids: set[str]) -> list[str]:
+        library_ids = user_data.get('library_ids', []) or []
+        non_zero_ids = [str(lib_id) for lib_id in library_ids if str(lib_id) not in ("0", "None", "")]
+        if non_zero_ids:
+            return MediaServiceManager._convert_library_ids_for_kavita(server, library_ids)
+
+        library_names = user_data.get('library_names', []) or []
+        resolved_ids: list[str] = []
+        unknown_names: list[str] = []
+        normalized_names = set()
+
+        for lib_name in library_names:
+            key = MediaServiceManager._normalize_library_name(lib_name)
+            if not key:
+                continue
+            normalized_names.add(key)
+            if key in name_map:
+                resolved_ids.append(name_map[key])
+            else:
+                unknown_names.append(lib_name)
+
+        if not unknown_names and normalized_names and normalized_names == set(name_map.keys()) and all_ids:
+            resolved_ids = list(all_ids)
+
+        if unknown_names:
+            current_app.logger.warning(
+                "Kavita user %s has libraries not found in DB for server %s: %s",
+                user_data.get('username') or user_data.get('id'),
+                server.server_nickname,
+                ", ".join(sorted(set(unknown_names))),
+            )
+            for name in unknown_names:
+                resolved_ids.append(f"kavita-name:{name}")
+
+        deduped: list[str] = []
+        seen: set[str] = set()
+        for lib_id in resolved_ids:
+            if lib_id in seen:
+                continue
+            seen.add(lib_id)
+            deduped.append(lib_id)
+        return deduped
+
+    @staticmethod
+    def _resolve_user_library_ids_for_server(server, user_data, kavita_name_map=None, kavita_all_ids=None) -> list[str]:
+        if server.service_type == ServiceType.KAVITA:
+            name_map = kavita_name_map or {}
+            all_ids = kavita_all_ids or set()
+            return MediaServiceManager._resolve_kavita_library_ids_for_user(server, user_data, name_map, all_ids)
+        return user_data.get('library_ids', []) or []
+
     @staticmethod
     def _convert_library_ids_for_kavita(server, library_ids):
         """Convert Kavita external_ids to internal_ids for proper storage"""

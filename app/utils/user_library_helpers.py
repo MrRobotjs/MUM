@@ -389,6 +389,12 @@ def convert_internal_ids_to_external_for_kavita(server, internal_ids: List[str])
     external_ids = []
     
     for internal_id in internal_ids:
+        if str(internal_id).startswith("kavita-name:"):
+            current_app.logger.warning(
+                "Skipping Kavita placeholder library id during sync: %s",
+                internal_id,
+            )
+            continue
         # Find the library by internal_id to get its external_id
         library = MediaLibrary.query.filter_by(
             server_id=server.id,

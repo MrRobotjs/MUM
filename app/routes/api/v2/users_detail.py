@@ -7,7 +7,7 @@ from uuid import uuid4
 from flask import jsonify, current_app
 from flask_openapi3 import Tag
 from pydantic import BaseModel, Field
-from sqlalchemy import or_, desc
+from sqlalchemy import desc
 
 from app.models import User, UserType
 from app.models_media_services import MediaLibrary, MediaStreamHistory
@@ -202,14 +202,76 @@ def get_user(path: UserPath, current_user):
     has_all_libraries = True
     allowed_library_ids = getattr(user, "allowed_library_ids", None)
     if user.userType == UserType.SERVICE:
-        has_all_libraries = not bool(allowed_library_ids)
-        if allowed_library_ids and user.server_id:
-            allowed_ids = [str(value) for value in allowed_library_ids]
-            libs = MediaLibrary.query.filter(
-                MediaLibrary.server_id == user.server_id,
-                or_(MediaLibrary.external_id.in_(allowed_ids), MediaLibrary.internal_id.in_(allowed_ids)),
-            ).all()
-            libraries = [library.name for library in libs]
+        allowed_ids = [str(value) for value in (allowed_library_ids or [])]
+        server_type = user.server.service_type.value if user.server and user.server.service_type else None
+
+        if not allowed_ids:
+            has_all_libraries = server_type != "kavita"
+        elif allowed_ids == ["*"]:
+            has_all_libraries = True
+        elif user.server_id:
+            libs = MediaLibrary.query.filter(MediaLibrary.server_id == user.server_id).all()
+            lib_map: dict[str, str] = {}
+            all_ids: set[str] = set()
+            kavita_internal_ids: set[str] = set()
+            kavita_external_to_internal: dict[str, str] = {}
+            all_names = sorted({lib.name for lib in libs if lib.name}, key=str.lower)
+
+            for lib in libs:
+                if lib.external_id:
+                    lib_map[str(lib.external_id)] = lib.name
+                if lib.internal_id:
+                    lib_map[str(lib.internal_id)] = lib.name
+
+                if server_type == "kavita":
+                    if lib.internal_id:
+                        kavita_internal_ids.add(str(lib.internal_id))
+                    if lib.external_id:
+                        kavita_external_to_internal[str(lib.external_id)] = str(lib.internal_id or lib.external_id)
+                    if lib.internal_id:
+                        all_ids.add(str(lib.internal_id))
+                    elif lib.external_id:
+                        all_ids.add(str(lib.external_id))
+                else:
+                    if lib.external_id:
+                        all_ids.add(str(lib.external_id))
+                    elif lib.internal_id:
+                        all_ids.add(str(lib.internal_id))
+
+            if server_type == "kavita":
+                names: list[str] = []
+                normalized_allowed_ids: set[str] = set()
+                has_unknown = False
+                for lib_id in allowed_ids:
+                    if lib_id.startswith("kavita-name:"):
+                        name = lib_id.split(":", 1)[1]
+                        if name:
+                            names.append(name)
+                        has_unknown = True
+                        continue
+                    names.append(lib_map.get(lib_id, f"Unknown Lib {lib_id}"))
+                    normalized_id = None
+                    if lib_id in kavita_internal_ids:
+                        normalized_id = lib_id
+                    elif lib_id in kavita_external_to_internal:
+                        normalized_id = kavita_external_to_internal[lib_id]
+                    else:
+                        has_unknown = True
+                    if normalized_id:
+                        normalized_allowed_ids.add(normalized_id)
+
+                if all_ids and normalized_allowed_ids and normalized_allowed_ids == all_ids and not has_unknown:
+                    libraries = all_names
+                    has_all_libraries = True
+                else:
+                    libraries = names
+                    has_all_libraries = False
+            else:
+                libraries = [lib_map.get(lib_id, f"Unknown Lib {lib_id}") for lib_id in allowed_ids]
+                has_all_libraries = False
+        if has_all_libraries and user.server_id and not libraries:
+            libs = MediaLibrary.query.filter(MediaLibrary.server_id == user.server_id).all()
+            libraries = sorted({lib.name for lib in libs if lib.name}, key=str.lower)
 
     stream_stats = {"global": {}, "players": []}
     try:

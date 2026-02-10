@@ -38,7 +38,6 @@ import {
   faShield,
   faLock,
   faUsers,
-  faCircleExclamation,
   faCheck,
   faCircleInfo,
   faList,
@@ -284,9 +283,20 @@ const AdminSettingsAdminManagementPage = () => {
   const isCurrentUser = (admin: Admin) => currentUser?.id === admin.id
   const canEdit = (admin: Admin) => !isOwner(admin) && !isCurrentUser(admin)
   const canDelete = (admin: Admin) => !isOwner(admin) && !isCurrentUser(admin)
+  const createAssignableRoles = roles.filter(
+    (role) => role.name.trim().toLowerCase() !== 'staff'
+  )
 
   const getInitials = (name: string): string => {
     return name ? name[0].toUpperCase() : 'A'
+  }
+
+  const openCreateModal = () => {
+    setCreateUsername('')
+    setCreatePassword('')
+    setCreateConfirmPassword('')
+    setCreateRoleIds([])
+    setShowCreateModal(true)
   }
 
   return (
@@ -295,7 +305,7 @@ const AdminSettingsAdminManagementPage = () => {
         title="Administrator Management"
         description="Manage administrator accounts and their permissions"
         actions={
-          <Button onClick={() => setShowCreateModal(true)}>
+          <Button onClick={openCreateModal}>
             <FontAwesomeIcon icon={faUserPlus} className="mr-2 size-4" />
             Create New Admin
           </Button>
@@ -531,7 +541,7 @@ const AdminSettingsAdminManagementPage = () => {
         open={showCreateModal}
         onOpenChange={setShowCreateModal}
         title="Create New Administrator"
-        contentClassName="max-w-2xl"
+        contentClassName="max-w-4xl"
         footer={[
           <Button key="cancel" variant="outline" onClick={() => setShowCreateModal(false)}>
             Cancel
@@ -543,50 +553,60 @@ const AdminSettingsAdminManagementPage = () => {
           </Button>
         ]}
       >
-        <Alert variant="info" className="mb-6">
-          <div className="flex items-start gap-3">
-            <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-blue-100/20">
-              <FontAwesomeIcon icon={faCircleExclamation} className="size-4 text-blue-600 dark:text-blue-400" />
-            </div>
-            <div>
-              <AlertTitle>Administrator Account</AlertTitle>
-              <AlertDescription>
-                Create a new administrator account with full system access. The new admin will be required to change their password on first login for security.
-              </AlertDescription>
-            </div>
-          </div>
-        </Alert>
-
         <form id="create-admin-form" onSubmit={handleCreateAdmin} className="space-y-6">
-          {/* Account Details */}
+          <Alert variant="info" className="w-full">
+            <FontAwesomeIcon icon={faCircleInfo} className="h-4 w-4" />
+            <AlertTitle>Administrator Account</AlertTitle>
+            <AlertDescription>
+              Create a new administrator account. The Staff role is assigned automatically.
+              Additional roles can be optionally assigned below.
+            </AlertDescription>
+          </Alert>
+
           <div className="space-y-4">
             <h4 className="flex items-center gap-2 text-lg font-medium">
               <FontAwesomeIcon icon={faUser} className="text-sm text-green-600 dark:text-green-400" />
               Account Details
             </h4>
 
-            <div className="space-y-2">
-              <Label htmlFor="create-username">Username</Label>
+            <div className="rounded-lg border border-border bg-card p-4 transition-colors hover:border-border/60">
+              <div className="mb-2 flex items-center justify-between">
+                <Label htmlFor="create-username" className="font-medium">
+                  Username
+                </Label>
+                <UiBadge variant="destructive" className="text-xs">
+                  Required
+                </UiBadge>
+              </div>
               <Input
                 id="create-username"
                 type="text"
                 value={createUsername}
                 onChange={(e) => setCreateUsername(e.target.value)}
                 required
+                className="h-11"
               />
-              <p className="text-xs text-muted-foreground">Choose a unique username for the administrator account</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Choose a unique username for the administrator account.
+              </p>
             </div>
           </div>
 
-          {/* Security Settings */}
           <div className="space-y-4">
             <h4 className="flex items-center gap-2 text-lg font-medium">
               <FontAwesomeIcon icon={faShieldHalved} className="text-sm text-amber-600 dark:text-amber-400" />
               Security Settings
             </h4>
 
-            <div className="space-y-2">
-              <Label htmlFor="create-password">Password</Label>
+            <div className="rounded-lg border border-border bg-card p-4 transition-colors hover:border-border/60">
+              <div className="mb-2 flex items-center justify-between">
+                <Label htmlFor="create-password" className="font-medium">
+                  Password
+                </Label>
+                <UiBadge variant="destructive" className="text-xs">
+                  Required
+                </UiBadge>
+              </div>
               <Input
                 id="create-password"
                 type="password"
@@ -594,55 +614,79 @@ const AdminSettingsAdminManagementPage = () => {
                 onChange={(e) => setCreatePassword(e.target.value)}
                 required
                 minLength={8}
+                className="h-11"
               />
-              <p className="text-xs text-muted-foreground">Create a temporary password (minimum 8 characters)</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Create a temporary password (minimum 8 characters).
+              </p>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="create-confirm-password">Confirm Password</Label>
+            <div className="rounded-lg border border-border bg-card p-4 transition-colors hover:border-border/60">
+              <div className="mb-2 flex items-center justify-between">
+                <Label htmlFor="create-confirm-password" className="font-medium">
+                  Confirm Password
+                </Label>
+                <UiBadge variant="destructive" className="text-xs">
+                  Required
+                </UiBadge>
+              </div>
               <Input
                 id="create-confirm-password"
                 type="password"
                 value={createConfirmPassword}
                 onChange={(e) => setCreateConfirmPassword(e.target.value)}
                 required
+                className="h-11"
               />
-              <p className="text-xs text-muted-foreground">Re-enter the password to confirm</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Re-enter the password to confirm.
+              </p>
             </div>
 
-            <Alert className="border-amber-500/30 bg-amber-50 dark:bg-amber-400/10">
-              <div className="flex items-start gap-2">
-                <FontAwesomeIcon icon={faTriangleExclamation} className="mt-0.5 text-sm text-amber-600 dark:text-amber-400" />
-                <div>
-                  <AlertTitle>Security Notice</AlertTitle>
-                  <AlertDescription>
-                    The new administrator will be required to change this temporary password on their first login.
-                  </AlertDescription>
-                </div>
-              </div>
+            <Alert className="w-full border-amber-500/30 bg-amber-50 dark:bg-amber-400/10">
+              <FontAwesomeIcon icon={faTriangleExclamation} className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+              <AlertTitle>Security Notice</AlertTitle>
+              <AlertDescription>
+                The new administrator will be required to change this temporary password on their first login.
+              </AlertDescription>
             </Alert>
           </div>
 
-          {/* Roles */}
-          {roles.length > 0 && (
+          {createAssignableRoles.length > 0 ? (
             <div className="space-y-4">
               <h4 className="flex items-center gap-2 text-lg font-medium">
                 <FontAwesomeIcon icon={faKey} className="text-sm text-primary" />
                 Assign Roles (Optional)
               </h4>
 
-              <div className="space-y-3 rounded-lg border p-4">
-                {roles.map((role) => (
-                  <Label key={role.id} className="flex cursor-pointer items-center gap-3 rounded p-2 hover:bg-accent">
-                    <Checkbox
-                      checked={createRoleIds.includes(role.id)}
-                      onCheckedChange={() => toggleCreateRole(role.id)}
-                    />
-                    <span>{role.name}</span>
-                  </Label>
-                ))}
+              <div className="rounded-lg border border-border bg-card p-4 transition-colors hover:border-border/60">
+                <p className="mb-3 text-xs text-muted-foreground">
+                  Staff is assigned automatically and is not shown here.
+                </p>
+                <div className="space-y-2">
+                  {createAssignableRoles.map((role) => (
+                    <Label
+                      key={role.id}
+                      className="flex cursor-pointer items-center gap-3 rounded-md border border-transparent px-2 py-2 hover:border-border"
+                    >
+                      <Checkbox
+                        checked={createRoleIds.includes(role.id)}
+                        onCheckedChange={() => toggleCreateRole(role.id)}
+                      />
+                      <span className="text-sm font-medium">{role.name}</span>
+                    </Label>
+                  ))}
+                </div>
               </div>
             </div>
+          ) : (
+            <Alert variant="info">
+              <FontAwesomeIcon icon={faCircleInfo} className="h-4 w-4" />
+              <AlertTitle>No Optional Roles</AlertTitle>
+              <AlertDescription>
+                Staff will be assigned automatically. No additional admin roles are currently available.
+              </AlertDescription>
+            </Alert>
           )}
         </form>
       </ResponsiveDialog>

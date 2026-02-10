@@ -276,6 +276,51 @@ export const UsersListPage = () => {
     }
   };
 
+  const handleDeleteSelected = async () => {
+    if (selectedUserIds.size === 0) return;
+    const count = selectedUserIds.size;
+    if (!confirm(`Are you sure you want to delete ${count} user(s)? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      const result = await requestJson<{
+        data?: {
+          summary?: {
+            updated: number;
+            deleted: number;
+            skipped: number;
+            errors: number;
+          };
+        };
+      }>('/api/v2/users/bulk', {
+        method: 'POST',
+        body: JSON.stringify({
+          user_uuids: Array.from(selectedUserIds),
+          operations: [{ action: 'delete_users' }],
+        }),
+      });
+
+      const summary = result?.data?.summary;
+      const deleted = summary?.deleted ?? 0;
+      const skipped = summary?.skipped ?? 0;
+      const errorsCount = summary?.errors ?? 0;
+
+      if (errorsCount > 0) {
+        error(
+          `Delete completed with issues: ${deleted} deleted, ${skipped} skipped, ${errorsCount} errors.`
+        );
+      } else {
+        success(`Deleted ${deleted} user${deleted !== 1 ? 's' : ''}.`);
+      }
+
+      setSelectedUserIds(new Set());
+      mutate();
+    } catch (err) {
+      error(`Failed to delete users: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    }
+  };
+
   const headerActions = (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -707,9 +752,7 @@ export const UsersListPage = () => {
               <span className="inline sm:hidden">({selectedUserIds.size})</span>
             </Button>
             <Button variant="destructive" onClick={() => {
-              if (confirm(`Are you sure you want to delete ${selectedUserIds.size} user(s)? This action cannot be undone.`)) {
-                console.log('Delete users:', Array.from(selectedUserIds));
-              }
+              handleDeleteSelected();
             }}>
               <FontAwesomeIcon icon={faTrash} className="mr-0 sm:mr-2" />
               <span className="hidden sm:inline">Delete Selected</span>

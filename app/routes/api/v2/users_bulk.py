@@ -11,7 +11,7 @@ from flask_openapi3 import Tag
 
 from app.routes.api.v2 import api_v2
 from app.extensions import db
-from app.models import User, UserType, EventType
+from app.models import User, UserType, EventType, InviteUsage
 from app.models_media_services import MediaLibrary, MediaServer
 from app.services.media_service_factory import MediaServiceFactory
 from app.utils.helpers import log_event
@@ -270,9 +270,37 @@ def bulk_user_operations(body: BulkBody, current_user):
                         results.append(_status_entry(user, action, "skipped", "Owner account cannot be deleted."))
                         continue
 
+                    if user.userType == UserType.SERVICE and user.server_id and user.external_user_id:
+                        server = MediaServer.query.get(user.server_id)
+                        service = MediaServiceFactory.create_service_from_db(server) if server else None
+                        if service and hasattr(service, "delete_user"):
+                            try:
+                                service.delete_user(str(user.external_user_id))
+                            except Exception as exc:
+                                current_app.logger.error(
+                                    "Bulk delete: failed to delete external service user %s on server %s: %s",
+                                    user.uuid,
+                                    server.server_nickname if server else user.server_id,
+                                    exc,
+                                    exc_info=True,
+                                )
+                        else:
+                            current_app.logger.warning(
+                                "Bulk delete: service delete not available for user %s on server %s",
+                                user.uuid,
+                                server.server_nickname if server else user.server_id,
+                            )
+
                     if user.userType == UserType.LOCAL:
                         for child in getattr(user, "linked_children", []) or []:
                             child.linkedUserId = None
+
+                    # Preserve invite usage history while allowing user deletion.
+                    # invite_usages.userId references users.uuid and must be nulled first.
+                    InviteUsage.query.filter_by(userId=user.uuid).update(
+                        {"userId": None},
+                        synchronize_session=False,
+                    )
 
                     db.session.delete(user)
                     deleted = True

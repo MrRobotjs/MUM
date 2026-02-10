@@ -205,7 +205,7 @@ export function NavSettings() {
                       <span>{item.title}</span>
                       <FontAwesomeIcon
                         icon={faChevronRight}
-                        className="ml-auto h-4 w-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90"
+                        className="text-[11px] ml-auto h-4 w-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90 group-data-[state=open]/menu-item:rotate-90"
                       />
                     </SidebarMenuButton>
                   </CollapsibleTrigger>

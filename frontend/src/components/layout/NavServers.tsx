@@ -119,14 +119,14 @@ const ServerNavItem = ({ server, pathname, onNavigate }: ServerNavItemProps) => 
             params={{ pluginId, serverId: String(server.id) }}
             onClick={onNavigate}
           >
-            <FontAwesomeIcon icon={faGear} className="h-3.5 w-3.5" />
+            <FontAwesomeIcon icon={faGear} className="text-[11px]" />
           </Link>
         </SidebarMenuAction>
         <SidebarMenuAction asChild className="right-2 pointer-events-none">
           <span aria-hidden="true">
             <FontAwesomeIcon
               icon={faChevronRight}
-              className="h-4 w-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90 group-data-[state=open]/menu-item:rotate-90"
+              className="text-[11px] transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90 group-data-[state=open]/menu-item:rotate-90"
             />
           </span>
         </SidebarMenuAction>
@@ -150,7 +150,7 @@ const ServerNavItem = ({ server, pathname, onNavigate }: ServerNavItemProps) => 
                         {libraryMeta}
                         <FontAwesomeIcon
                           icon={faChevronRight}
-                          className="h-4 w-4 text-muted-foreground transition-transform duration-200 group-data-[state=open]/menu-sub-item:rotate-90"
+                          className="text-[10px] text-muted-foreground transition-transform duration-200 group-data-[state=open]/menu-sub-item:rotate-90"
                         />
                       </span>
                     </button>

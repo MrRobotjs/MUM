@@ -259,6 +259,19 @@ type ServerAccessDetailsProps = {
   grantLibraryIds: string[] | null;
 };
 
+const INVITE_LIBRARY_TOKEN_SEPARATOR = '::';
+
+const isGrantLibrarySelectedForServer = (
+  grantLibraryIds: string[] | null,
+  serverId: number,
+  libraryId: string
+): boolean => {
+  if (!grantLibraryIds || grantLibraryIds.length === 0) return false;
+
+  const scopedToken = `${serverId}${INVITE_LIBRARY_TOKEN_SEPARATOR}${libraryId}`;
+  return grantLibraryIds.includes(scopedToken);
+};
+
 const ServerAccessDetails = ({ server, invite, grantLibraryIds }: ServerAccessDetailsProps) => {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -267,8 +280,10 @@ const ServerAccessDetails = ({ server, invite, grantLibraryIds }: ServerAccessDe
     if (!grantLibraryIds || grantLibraryIds.length === 0) {
       return null; // All libraries
     }
-    return server.libraries.filter(lib => grantLibraryIds.includes(lib.id));
-  }, [server.libraries, grantLibraryIds]);
+    return server.libraries.filter((lib) =>
+      isGrantLibrarySelectedForServer(grantLibraryIds, server.id, lib.id)
+    );
+  }, [server.id, server.libraries, grantLibraryIds]);
 
   const features = server.features ?? {
     allow_downloads: invite.allow_downloads,

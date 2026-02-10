@@ -17,6 +17,17 @@ from sqlalchemy import or_ as sa_or
 
 
 invites_tag = Tag(name="Invites", description="Invitation management")
+LIBRARY_TOKEN_SEPARATOR = "::"
+
+
+def _is_scoped_library_token(token: str) -> bool:
+    raw_token = str(token or "")
+    separator_index = raw_token.find(LIBRARY_TOKEN_SEPARATOR)
+    if separator_index <= 0:
+        return False
+    server_part = raw_token[:separator_index]
+    library_part = raw_token[separator_index + len(LIBRARY_TOKEN_SEPARATOR):]
+    return bool(server_part.isdigit() and library_part)
 
 
 class InvitesQuery(BaseModel):
@@ -135,6 +146,14 @@ class CreateInviteBody(BaseModel):
             return v
         v = v.strip()
         return v or None
+
+    @field_validator("grant_library_ids")
+    @classmethod
+    def validate_grant_library_ids(cls, values: list[str]) -> list[str]:
+        invalid = [token for token in values if not _is_scoped_library_token(token)]
+        if invalid:
+            raise ValueError("grant_library_ids entries must use '<server_id>::<library_id>' format")
+        return values
 
 
 def _server_ref(s: MediaServer) -> dict:
@@ -263,40 +282,92 @@ def _sync_server_features(invite: Invite, features_payload: list[ServerFeatureIn
             )
 
 
+def _split_scoped_library_token(token: str) -> tuple[Optional[int], str]:
+    raw_token = str(token or "")
+    if LIBRARY_TOKEN_SEPARATOR not in raw_token:
+        return None, ""
+
+    server_part, library_part = raw_token.split(LIBRARY_TOKEN_SEPARATOR, 1)
+    if not server_part.isdigit() or not library_part:
+        return None, ""
+    return int(server_part), library_part
+
+
+def _library_identifier_for_server(server: MediaServer, library: MediaLibrary) -> str | None:
+    service_type = server.service_type.value if hasattr(server.service_type, "value") else str(server.service_type)
+    if service_type == "kavita":
+        return str(library.internal_id or library.external_id) if (library.internal_id or library.external_id) else None
+    return str(library.external_id or library.internal_id) if (library.external_id or library.internal_id) else None
+
+
 def _invite_item(i: Invite) -> dict:
     # Map granted libraries to names/servers for display
-    library_ids = set(i.grant_library_ids or [])
+    library_tokens = [str(value) for value in (i.grant_library_ids or []) if value is not None]
+    library_tokens_set = set(library_tokens)
     libs_payload = []
     grants_all_libraries = False
 
     if i.servers:
-        server_ids = [s.id for s in i.servers]
-        if library_ids:
-            libs = (
-                MediaLibrary.query.filter(
-                    db.or_(
-                        MediaLibrary.external_id.in_(library_ids),
-                        MediaLibrary.internal_id.in_(library_ids),
+        servers_by_id = {server.id: server for server in i.servers}
+        server_ids = list(servers_by_id.keys())
+        resolved_library_ids_by_server: dict[int, set[str]] = {server_id: set() for server_id in server_ids}
+
+        for token in library_tokens_set:
+            scoped_server_id, raw_library_id = _split_scoped_library_token(token)
+            if raw_library_id and scoped_server_id in resolved_library_ids_by_server:
+                resolved_library_ids_by_server[scoped_server_id].add(raw_library_id)
+
+        if library_tokens_set:
+            seen_payload_keys: set[tuple[int, int]] = set()
+            for server_id, resolved_ids in resolved_library_ids_by_server.items():
+                if not resolved_ids:
+                    continue
+                libs = (
+                    MediaLibrary.query.filter(MediaLibrary.server_id == server_id)
+                    .filter(
+                        db.or_(
+                            MediaLibrary.external_id.in_(resolved_ids),
+                            MediaLibrary.internal_id.in_(resolved_ids),
+                        )
                     )
+                    .all()
                 )
-                .filter(MediaLibrary.server_id.in_(server_ids))
-                .all()
-            )
-            for lib in libs:
-                libs_payload.append(
-                    {
-                        "id": lib.external_id,
-                        "name": lib.name,
-                        "server_name": lib.server.server_nickname if lib.server else None,
-                        "service_type": lib.server.service_type.value if lib.server else None,
-                    }
-                )
-        # Consider "all libraries" when every library on the invite's servers is granted
-        total_libs = MediaLibrary.query.filter(MediaLibrary.server_id.in_(server_ids)).count()
-        if total_libs and library_ids and len(library_ids) >= total_libs:
-            grants_all_libraries = True
-        if not library_ids and total_libs > 0:
-            grants_all_libraries = True
+                for lib in libs:
+                    payload_key = (server_id, lib.id)
+                    if payload_key in seen_payload_keys:
+                        continue
+                    seen_payload_keys.add(payload_key)
+                    libs_payload.append(
+                        {
+                            "id": lib.external_id,
+                            "name": lib.name,
+                            "server_name": lib.server.server_nickname if lib.server else None,
+                            "service_type": lib.server.service_type.value if lib.server else None,
+                        }
+                    )
+
+            all_servers_fully_covered = True
+            for server_id, server in servers_by_id.items():
+                server_libraries = MediaLibrary.query.filter(MediaLibrary.server_id == server_id).all()
+                if not server_libraries:
+                    continue
+                required_ids = {
+                    required_id
+                    for required_id in (
+                        _library_identifier_for_server(server, library)
+                        for library in server_libraries
+                    )
+                    if required_id
+                }
+                if not required_ids:
+                    continue
+                if not required_ids.issubset(resolved_library_ids_by_server.get(server_id, set())):
+                    all_servers_fully_covered = False
+                    break
+            grants_all_libraries = all_servers_fully_covered
+        else:
+            total_libs = MediaLibrary.query.filter(MediaLibrary.server_id.in_(server_ids)).count()
+            grants_all_libraries = total_libs > 0
 
     servers_payload, disabled_servers, effective_server_count = _build_invite_server_state(i)
     is_effectively_usable = bool(i.is_usable) and (not servers_payload or effective_server_count > 0)
@@ -512,6 +583,16 @@ class UpdateInviteBody(BaseModel):
     grant_bot_whitelist: Optional[bool] = None
     server_ids: Optional[list[int]] = None
     server_features: Optional[list[ServerFeatureInput]] = None
+
+    @field_validator("grant_library_ids")
+    @classmethod
+    def validate_grant_library_ids(cls, values: Optional[list[str]]) -> Optional[list[str]]:
+        if values is None:
+            return values
+        invalid = [token for token in values if not _is_scoped_library_token(token)]
+        if invalid:
+            raise ValueError("grant_library_ids entries must use '<server_id>::<library_id>' format")
+        return values
 
 
 @api_v2.patch(

@@ -113,6 +113,27 @@ const defaultValues: InviteFormValues = {
   server_features: []
 };
 
+const LIBRARY_TOKEN_SEPARATOR = '::';
+
+const getLibraryId = (library: Library): string | null => {
+  const id = library.id || library.external_id || library.internal_id;
+  return id ? String(id) : null;
+};
+
+const getScopedLibraryToken = (serverId: number, libraryId: string): string =>
+  `${serverId}${LIBRARY_TOKEN_SEPARATOR}${libraryId}`;
+
+const parseScopedLibraryToken = (token: string): { serverId: number; libraryId: string } | null => {
+  const separatorIndex = token.indexOf(LIBRARY_TOKEN_SEPARATOR);
+  if (separatorIndex <= 0) return null;
+
+  const serverPart = token.slice(0, separatorIndex);
+  const libraryPart = token.slice(separatorIndex + LIBRARY_TOKEN_SEPARATOR.length);
+  if (!serverPart || !libraryPart || !/^\d+$/.test(serverPart)) return null;
+
+  return { serverId: Number(serverPart), libraryId: libraryPart };
+};
+
 export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing, loading }: InviteModalProps) => {
   const [form, setForm] = useState<InviteFormValues>(defaultValues);
   const [servers, setServers] = useState<Server[]>([]);
@@ -142,6 +163,11 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
   const expiresLabel = form.expires_at ? new Date(form.expires_at).toLocaleDateString() : 'Never';
   const maxUsesLabel = form.max_uses || form.max_uses === 0 ? form.max_uses : 'Unlimited';
 
+  const isLibrarySelectedForServer = (serverId: number, libraryId: string): boolean => {
+    const scopedToken = getScopedLibraryToken(serverId, libraryId);
+    return selectedLibraries.has(scopedToken);
+  };
+
   useEffect(() => {
     if (open) {
       loadServers();
@@ -156,7 +182,10 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
       }
       setForm(nextForm);
       setSelectedServerIds(new Set(initialValues?.server_ids || []));
-      setSelectedLibraries(new Set(initialValues?.grant_library_ids || []));
+      const initialLibraryTokens = (initialValues?.grant_library_ids || []).filter((token) =>
+        Boolean(parseScopedLibraryToken(token))
+      );
+      setSelectedLibraries(new Set(initialLibraryTokens));
       const featureMap: Record<number, ServerFeatureState> = {};
       (initialValues?.server_features || []).forEach((sf) => {
         featureMap[sf.server_id] = {
@@ -249,11 +278,13 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
 
         if (autoSelectLibraries) {
           const libraryIds = response.libraries.map(
-            (lib: Library) => lib.id || lib.external_id || lib.internal_id
+            (lib: Library) => getLibraryId(lib)
           );
           setSelectedLibraries((prev) => {
             const next = new Set(prev);
-            libraryIds.forEach((id: string) => next.add(id));
+            libraryIds.forEach((id: string | null) => {
+              if (id) next.add(getScopedLibraryToken(serverId, id));
+            });
             return next;
           });
         }
@@ -278,10 +309,13 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
       next.delete(serverId);
       const server = servers.find((s) => s.id === serverId);
       if (server?.libraries) {
-        const libIds = server.libraries.map((lib) => lib.id || lib.external_id || lib.internal_id);
+        const libIds = server.libraries.map((lib) => getLibraryId(lib));
         setSelectedLibraries((prev) => {
           const updated = new Set(prev);
-          libIds.forEach((id) => id && updated.delete(id));
+          libIds.forEach((id) => {
+            if (!id) return;
+            updated.delete(getScopedLibraryToken(serverId, id));
+          });
           return updated;
         });
       }
@@ -307,10 +341,12 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
         void loadLibrariesForServer(serverId);
         }
       } else if (server?.libraries) {
-        const libIds = server.libraries.map((lib) => lib.id || lib.external_id || lib.internal_id);
+        const libIds = server.libraries.map((lib) => getLibraryId(lib));
         setSelectedLibraries((prev) => {
           const updated = new Set(prev);
-          libIds.forEach((id) => id && updated.add(id));
+          libIds.forEach((id) => {
+            if (id) updated.add(getScopedLibraryToken(serverId, id));
+          });
           return updated;
         });
       }
@@ -331,13 +367,14 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
     setSelectedServerIds(next);
   };
 
-  const toggleLibrary = (libraryId: string) => {
+  const toggleLibrary = (serverId: number, libraryId: string) => {
+    const scopedToken = getScopedLibraryToken(serverId, libraryId);
     setSelectedLibraries((prev) => {
       const next = new Set(prev);
-      if (next.has(libraryId)) {
-        next.delete(libraryId);
+      if (next.has(scopedToken)) {
+        next.delete(scopedToken);
       } else {
-        next.add(libraryId);
+        next.add(scopedToken);
       }
       return next;
     });
@@ -346,10 +383,12 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
   const selectAllLibraries = (serverId: number) => {
     const server = servers.find((s) => s.id === serverId);
     if (server?.libraries) {
-      const libIds = server.libraries.map((lib) => lib.id || lib.external_id || lib.internal_id);
+      const libIds = server.libraries.map((lib) => getLibraryId(lib));
       setSelectedLibraries((prev) => {
         const next = new Set(prev);
-        libIds.forEach((id) => id && next.add(id));
+        libIds.forEach((id) => {
+          if (id) next.add(getScopedLibraryToken(serverId, id));
+        });
         return next;
       });
     }
@@ -358,10 +397,13 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
   const deselectAllLibraries = (serverId: number) => {
     const server = servers.find((s) => s.id === serverId);
     if (server?.libraries) {
-      const libIds = server.libraries.map((lib) => lib.id || lib.external_id || lib.internal_id);
+      const libIds = server.libraries.map((lib) => getLibraryId(lib));
       setSelectedLibraries((prev) => {
         const next = new Set(prev);
-        libIds.forEach((id) => id && next.delete(id));
+        libIds.forEach((id) => {
+          if (!id) return;
+          next.delete(getScopedLibraryToken(serverId, id));
+        });
         return next;
       });
     }
@@ -432,6 +474,9 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
     const allow4kAny = serverFeaturePayload.some((f) => f.allow_4k_transcode ?? true);
     const requireDiscordGuild = form.require_discord_guild_membership ?? false;
     const requireDiscordAuth = (form.require_discord_auth ?? false) || requireDiscordGuild;
+    const normalizedLibraryTokens = Array.from(selectedLibraries).filter((token) =>
+      Boolean(parseScopedLibraryToken(token))
+    );
 
     const submitData = {
       custom_path: form.custom_path?.trim() || undefined,
@@ -457,7 +502,7 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
       grant_purge_whitelist: form.grant_purge_whitelist ?? false,
       grant_bot_whitelist: false, // WIP / disabled
       server_ids: Array.from(selectedServerIds),
-      grant_library_ids: Array.from(selectedLibraries),
+      grant_library_ids: normalizedLibraryTokens,
       server_features: serverFeaturePayload
     };
 
@@ -628,8 +673,8 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
                           ? allLibraries.filter((lib) => (lib.name || '').toLowerCase().includes(searchTerm))
                           : allLibraries;
                         const selectedCountForServer = allLibraries.reduce((acc, lib) => {
-                          const id = lib.id || lib.external_id || lib.internal_id;
-                          return id && selectedLibraries.has(id) ? acc + 1 : acc;
+                          const id = getLibraryId(lib);
+                          return id && isLibrarySelectedForServer(server.id, id) ? acc + 1 : acc;
                         }, 0);
                         const featureState = getServerFeature(server.id);
 
@@ -726,12 +771,14 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
                                     </div>
                                   ) : (
                                     filteredLibraries.map((library) => {
-                                      const libId = library.id || library.external_id || library.internal_id;
+                                      const libId = getLibraryId(library);
                                       return (
-                                        <label key={libId} className="flex items-center gap-2 rounded-md border px-2 py-1 text-sm hover:border-primary/50 cursor-pointer">
+                                        <label key={libId || `${server.id}-${library.name}`} className="flex items-center gap-2 rounded-md border px-2 py-1 text-sm hover:border-primary/50 cursor-pointer">
                                           <Checkbox
-                                            checked={selectedLibraries.has(libId || '')}
-                                            onCheckedChange={() => toggleLibrary(libId || '')}
+                                            checked={Boolean(libId && isLibrarySelectedForServer(server.id, libId))}
+                                            onCheckedChange={() => {
+                                              if (libId) toggleLibrary(server.id, libId);
+                                            }}
                                           />
                                           <span className="truncate" title={library.name}>
                                             {library.name}

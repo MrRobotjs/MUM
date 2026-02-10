@@ -22,6 +22,27 @@ def _get_server_feature_state(invite: Invite, server_id: int) -> dict:
         "allow_4k_transcode": feature.allow_4k_transcode if feature and feature.allow_4k_transcode is not None else bool(invite.allow_4k_transcode),
     }
 
+
+def _resolve_invite_library_id_for_server(library_token: str, server_id: int) -> str | None:
+    """
+    Resolve an invite library token to a raw library id for a specific server.
+
+    Token format: "<server_id>::<library_id>"
+    """
+    if library_token is None:
+        return None
+
+    token = str(library_token)
+    separator = "::"
+    if separator not in token:
+        return None
+
+    server_part, library_part = token.split(separator, 1)
+    if not server_part.isdigit() or not library_part:
+        return None
+
+    return library_part if int(server_part) == int(server_id) else None
+
 def validate_invite_usability(invite_path_or_token):
     """
     Validates an invite based on its path or token.
@@ -187,8 +208,11 @@ def accept_invite_and_grant_access(invite: Invite, plex_user_uuid: str, plex_use
             server_library_ids = []
             if invite.grant_library_ids:
                 current_app.logger.debug(f"Invite service - Processing grant_library_ids: {invite.grant_library_ids}")
-                for lib_id in invite.grant_library_ids:
-                    # All library IDs are now in simple format - validate they belong to this server
+                seen_library_ids = set()
+                for library_token in invite.grant_library_ids:
+                    lib_id = _resolve_invite_library_id_for_server(library_token, server.id)
+                    if not lib_id:
+                        continue
                     from app.models_media_services import MediaLibrary
                     
                     if server.service_type.value == 'kavita':
@@ -204,7 +228,15 @@ def accept_invite_and_grant_access(invite: Invite, plex_user_uuid: str, plex_use
                         ).first()
                     
                     if db_library:
-                        server_library_ids.append(lib_id)
+                        canonical_lib_id = (
+                            str(db_library.internal_id)
+                            if server.service_type.value == 'kavita'
+                            else str(db_library.external_id)
+                        )
+                        if canonical_lib_id in seen_library_ids:
+                            continue
+                        seen_library_ids.add(canonical_lib_id)
+                        server_library_ids.append(canonical_lib_id)
                         current_app.logger.debug(f"Invite service - Added library {lib_id} for server {server.server_nickname}")
                     else:
                         current_app.logger.debug(f"Invite service - Skipped library {lib_id} - not found in server {server.server_nickname}")
@@ -427,8 +459,11 @@ def accept_invite_and_grant_access(invite: Invite, plex_user_uuid: str, plex_use
             server_library_ids = []
             if invite.grant_library_ids:
                 current_app.logger.debug(f"Invite service - Processing grant_library_ids for {server.server_nickname}: {invite.grant_library_ids}")
-                for lib_id in invite.grant_library_ids:
-                    # All library IDs are now in simple format - validate they belong to this server
+                seen_library_ids = set()
+                for library_token in invite.grant_library_ids:
+                    lib_id = _resolve_invite_library_id_for_server(library_token, server.id)
+                    if not lib_id:
+                        continue
                     try:
                         from app.models_media_services import MediaLibrary
                         
@@ -445,7 +480,15 @@ def accept_invite_and_grant_access(invite: Invite, plex_user_uuid: str, plex_use
                             ).first()
                         
                         if db_library:
-                            server_library_ids.append(lib_id)
+                            canonical_lib_id = (
+                                str(db_library.internal_id)
+                                if server.service_type.value == 'kavita'
+                                else str(db_library.external_id)
+                            )
+                            if canonical_lib_id in seen_library_ids:
+                                continue
+                            seen_library_ids.add(canonical_lib_id)
+                            server_library_ids.append(canonical_lib_id)
                             current_app.logger.info(f"Added validated library {lib_id} for server {server.server_nickname}")
                         else:
                             current_app.logger.debug(f"Skipped library {lib_id} - not found in server {server.server_nickname}")

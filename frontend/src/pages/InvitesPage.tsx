@@ -139,7 +139,10 @@ const buildFeatureMeta = (inviteFeatureSupport: Record<string, string[]>): Featu
 
 const mapInviteToForm = (invite: InviteRow): InviteFormValues => {
   const serverIds = (invite.servers ?? []).map((s: InviteServer) => s.id);
-  const libraryIds = (invite.libraries ?? []).map((l: InviteLibrary) => l.id);
+  const libraryIds =
+    invite.grant_library_ids && invite.grant_library_ids.length > 0
+      ? invite.grant_library_ids
+      : (invite.libraries ?? []).map((l: InviteLibrary) => l.id);
 
   return {
     custom_path: invite.custom_path ?? '',

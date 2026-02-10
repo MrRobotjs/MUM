@@ -752,8 +752,11 @@ class User(db.Model):
     @classmethod
     def get_by_local_username(cls, username):
         """Get user by local username (OWNER or LOCAL users)"""
+        normalized = (username or "").strip()
+        if not normalized:
+            return None
         return cls.query.filter(
-            cls.localUsername == username,
+            db.func.lower(cls.localUsername) == normalized.lower(),
             cls.userType.in_([UserType.OWNER, UserType.LOCAL])
         ).first()
     

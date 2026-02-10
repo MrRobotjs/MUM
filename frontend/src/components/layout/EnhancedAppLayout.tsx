@@ -228,8 +228,8 @@ export const EnhancedAppLayout = ({
         </header>
 
         {/* Main content */}
-        <main className="flex flex-1 flex-col px-4 py-6 lg:px-8">
-          <div className="mx-auto w-full max-w-7xl">{children}</div>
+        <main className="flex min-w-0 flex-1 flex-col px-4 py-6 lg:px-8">
+          <div className="mx-auto w-full min-w-0 max-w-7xl">{children}</div>
         </main>
       </SidebarInset>
     </SidebarProvider>

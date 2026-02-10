@@ -465,7 +465,7 @@ export const AdminSettingsUserRolesPage = () => {
               <Spinner className="size-4 text-muted-foreground" />
             </div>
           ) : (
-            <div className="overflow-x-auto rounded-lg border">
+            <div className="w-full min-w-0 rounded-lg border">
               <Table>
                 <TableHeader>
                   <TableRow>

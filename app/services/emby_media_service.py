@@ -122,7 +122,7 @@ class EmbyMediaService(BaseMediaService):
             if library_ids and user_id:
                 policy_data = {"EnabledFolders": library_ids, "EnableAllFolders": False}
                 self._make_request(f"Users/{user_id}/Policy", method="POST", data=policy_data)
-            return {"id": user_id, "username": username, "email": email}
+            return {"id": user_id, "user_id": user_id, "username": username, "email": email}
         except Exception as e:
             self.log_error(f"Error creating user: {e}")
             return {}

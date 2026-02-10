@@ -331,7 +331,13 @@ def accept_invite_and_grant_access(invite: Invite, plex_user_uuid: str, plex_use
                     current_app.logger.debug(f"Invite service - create_user result: {result}")
                     external_user_id = None
                     if isinstance(result, dict):
-                        external_user_id = result.get('user_id')
+                        external_user_id = (
+                            result.get('user_id')
+                            or result.get('id')
+                            or result.get('Id')
+                        )
+                        if external_user_id is not None:
+                            external_user_id = str(external_user_id).strip() or None
                         current_app.logger.debug(f"Invite service - Extracted user_id from result: {external_user_id}")
                     else:
                         current_app.logger.warning(f"Invite service - create_user result is not a dict: {type(result)}")

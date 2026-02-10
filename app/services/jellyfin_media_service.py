@@ -166,7 +166,8 @@ class JellyfinMediaService(BaseMediaService):
             resp = self.session.post(f"{self.url.rstrip('/')}/Users/New", json=payload, timeout=get_api_timeout_with_fallback(10))
             resp.raise_for_status()
             data = resp.json()
-            return {"id": data.get("Id"), "username": username}
+            user_id = data.get("Id")
+            return {"id": user_id, "user_id": user_id, "username": username}
         except Exception as e:
             self.log_error(f"Error creating user: {e}")
             return {}

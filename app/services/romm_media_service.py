@@ -246,9 +246,11 @@ class RommMediaService(BaseMediaService):
             
             created_user = response.json()
             self.log_info(f"Created user '{username}' in RomM")
+            user_id = str(created_user.get('id', ''))
             
             return {
-                'id': str(created_user.get('id', '')),
+                'id': user_id,
+                'user_id': user_id,
                 'username': created_user.get('username', ''),
                 'email': created_user.get('email', ''),
                 'role': created_user.get('role', ''),

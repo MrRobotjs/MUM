@@ -43,6 +43,73 @@ def _resolve_invite_library_id_for_server(library_token: str, server_id: int) ->
 
     return library_part if int(server_part) == int(server_id) else None
 
+
+def _resolve_plex_server_user_id(service, alt_external_id: str | None, identifier: str | None, username: str | None) -> tuple[str | None, str | None]:
+    """
+    Resolve Plex server user ID via MyPlexAccount.user(identifier) only.
+    Candidate order: alt_external_id -> identifier -> username.
+    """
+    if not hasattr(service, "_get_admin_account"):
+        current_app.logger.warning("Invite service - Plex ID resolver unavailable: service has no _get_admin_account().")
+        return None, None
+
+    try:
+        admin_account = service._get_admin_account()
+    except Exception as exc:
+        current_app.logger.warning(f"Invite service - Failed to get Plex admin account for ID resolution: {exc}")
+        return None, None
+
+    if not admin_account:
+        current_app.logger.warning("Invite service - Plex ID resolution skipped: admin account unavailable.")
+        return None, None
+
+    candidates: list[tuple[str, str]] = []
+    for label, raw_value in [
+        ("alt_external_id", alt_external_id),
+        ("identifier", identifier),
+        ("username", username),
+    ]:
+        value = (raw_value or "").strip()
+        if not value:
+            continue
+        if any(existing_value == value for _, existing_value in candidates):
+            continue
+        candidates.append((label, value))
+
+    if not candidates:
+        current_app.logger.warning("Invite service - Plex ID resolution skipped: no identifier candidates.")
+        return None, None
+
+    attempt = 1
+    for label, value in candidates:
+        try:
+            plex_user = admin_account.user(value)
+        except Exception as exc:
+            current_app.logger.debug(
+                "Invite service - Plex user lookup failed using %s on attempt %d: %s",
+                label,
+                attempt,
+                exc,
+            )
+            plex_user = None
+
+        if plex_user and getattr(plex_user, "id", None) is not None:
+            resolved_id = str(getattr(plex_user, "id"))
+            current_app.logger.info(
+                "Invite service - Plex ID resolution succeeded via MyPlexAccount.user(%s) on attempt %d. "
+                "resolved_server_id=%s",
+                label,
+                attempt,
+                resolved_id,
+            )
+            return resolved_id, label
+
+    current_app.logger.warning(
+        "Invite service - Plex ID resolution failed via MyPlexAccount.user() using candidates in order: "
+        "alt_external_id -> identifier -> username."
+    )
+    return None, None
+
 def validate_invite_usability(invite_path_or_token):
     """
     Validates an invite based on its path or token.
@@ -292,6 +359,28 @@ def accept_invite_and_grant_access(invite: Invite, plex_user_uuid: str, plex_use
                         current_app.logger.debug(f"Invite service - Successfully invited Plex user {plex_username}")
                     else:
                         raise Exception("Plex service missing create_user method")
+
+                resolved_plex_user_id, resolved_by = _resolve_plex_server_user_id(
+                    service=service,
+                    alt_external_id=plex_user_uuid,
+                    identifier=plex_email,
+                    username=plex_username,
+                )
+                if resolved_plex_user_id:
+                    server._temp_external_user_id = resolved_plex_user_id
+                    server._temp_plex_id_resolution = resolved_by
+                    current_app.logger.info(
+                        "Invite service - Stored resolved Plex server user ID %s for %s via %s.",
+                        resolved_plex_user_id,
+                        server.server_nickname,
+                        resolved_by,
+                    )
+                else:
+                    current_app.logger.warning(
+                        "Invite service - Could not resolve Plex server user ID immediately for %s. "
+                        "Will persist UUID and rely on sync to normalize.",
+                        server.server_nickname,
+                    )
             else:
                 # For other services (Jellyfin, Emby, etc.), create a new user
                 if hasattr(service, 'create_user'):
@@ -558,11 +647,19 @@ def accept_invite_and_grant_access(invite: Invite, plex_user_uuid: str, plex_use
                         current_app.logger.info(f"Non-Plex server - using fallback credentials: username={service_username}, email={service_email}")
             
             # Create service user record for this specific server
+            resolved_external_user_id = getattr(server, '_temp_external_user_id', None)
+            if server.service_type.name.upper() == 'PLEX' and not resolved_external_user_id:
+                current_app.logger.warning(
+                    "Invite service - Plex server ID unresolved at persistence time for %s; "
+                    "storing UUID in external_user_id as temporary fallback.",
+                    server.server_nickname,
+                )
+
             user_media_access = User(
                 userType=UserType.SERVICE,
                 linkedUserId=user_app_access.uuid if user_app_access else None,
                 server_id=server.id,
-                external_user_id=str(plex_user_uuid) if server.service_type.name.upper() == 'PLEX' else getattr(server, '_temp_external_user_id', None),
+                external_user_id=resolved_external_user_id or (str(plex_user_uuid) if server.service_type.name.upper() == 'PLEX' else None),
                 external_username=service_username,
                 external_email=service_email,
                 allowed_library_ids=server_library_ids,  # Use server-specific library IDs

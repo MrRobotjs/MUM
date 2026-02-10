@@ -22,6 +22,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Badge } from "@/components/ui/badge"
 import {
   SidebarGroup,
   SidebarGroupLabel,
@@ -88,7 +89,12 @@ const ServerNavItem = ({ server, pathname, onNavigate }: ServerNavItemProps) => 
   const libraryMeta = loading ? (
     <span className="text-[10px] text-muted-foreground">Loading...</span>
   ) : libraryCount !== null ? (
-    <span className="text-[10px] text-muted-foreground">{libraryCount}</span>
+    <Badge
+      variant="default"
+      className="h-5 min-w-5 px-1.5 text-[10px] font-semibold bg-sidebar-accent text-sidebar-accent-foreground border-transparent group-hover/menu-sub-item:bg-sidebar group-hover/menu-sub-item:text-sidebar-foreground"
+    >
+      {libraryCount}
+    </Badge>
   ) : null
 
   return (

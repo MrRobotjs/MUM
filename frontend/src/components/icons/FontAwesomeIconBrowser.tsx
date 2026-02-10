@@ -73,15 +73,28 @@ export const FontAwesomeIconBrowser = ({
             import('@fortawesome/free-brands-svg-icons'),
           ]);
 
-          const processPack = (pack: any, prefix: IconSetType): FontAwesomeBrowserIcon[] =>
-            Object.keys(pack)
-              .filter((key) => key !== 'fas' && key !== 'far' && key !== 'fab' && key !== 'prefix' && pack[key].iconName)
-              .map((key) => ({
+          const processPack = (pack: any, prefix: IconSetType): FontAwesomeBrowserIcon[] => {
+            const seenIconNames = new Set<string>();
+            const icons: FontAwesomeBrowserIcon[] = [];
+
+            Object.keys(pack).forEach((key) => {
+              if (key === 'fas' || key === 'far' || key === 'fab' || key === 'prefix') return;
+
+              const definition = pack[key];
+              const iconName = definition?.iconName as string | undefined;
+              if (!iconName || seenIconNames.has(iconName)) return;
+
+              seenIconNames.add(iconName);
+              icons.push({
                 prefix,
-                iconName: pack[key].iconName,
-                definition: pack[key],
-                label: formatIconName(pack[key].iconName),
-              }));
+                iconName,
+                definition,
+                label: formatIconName(iconName),
+              });
+            });
+
+            return icons;
+          };
 
           setLoadedIcons({
             solid: processPack(solidPack, 'solid'),

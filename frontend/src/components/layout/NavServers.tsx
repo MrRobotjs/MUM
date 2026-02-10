@@ -91,7 +91,7 @@ const ServerNavItem = ({ server, pathname, onNavigate }: ServerNavItemProps) => 
   ) : libraryCount !== null ? (
     <Badge
       variant="default"
-      className="h-5 min-w-5 px-1.5 text-[10px] font-semibold bg-sidebar-accent text-sidebar-accent-foreground border-transparent group-hover/menu-sub-item:bg-sidebar group-hover/menu-sub-item:text-sidebar-foreground"
+      className="flex items-center justify-center h-5 w-5 p-0 text-[10px] font-semibold bg-sidebar-accent text-sidebar-accent-foreground border-transparent leading-none"
     >
       {libraryCount}
     </Badge>
@@ -146,22 +146,29 @@ const ServerNavItem = ({ server, pathname, onNavigate }: ServerNavItemProps) => 
                 }
               }}
             >
-              <SidebarMenuSubItem>
+              <SidebarMenuSubItem className="relative">
                 <CollapsibleTrigger asChild>
-                  <SidebarMenuSubButton asChild className="pr-8">
-                    <button type="button">
+                  <SidebarMenuSubButton asChild className="pr-6 w-full group/nav-sub-button">
+                    <button type="button" className="w-full relative flex items-center gap-2">
                       <FontAwesomeIcon icon={faLayerGroup} className="h-4 w-4" />
                       <span>Libraries</span>
-                      <span className="ml-auto flex items-center gap-2">
-                        {libraryMeta}
+                      {libraryMeta && (
+                        <span className="flex items-center justify-center">
+                          {libraryMeta}
+                        </span>
+                      )}
+
+                      {/* Chevron for child collapsible - Inside button for clickability */}
+                      <div className="absolute right-2 top-1/2 -translate-y-1/2 flex h-7 items-center justify-center pointer-events-none">
                         <FontAwesomeIcon
                           icon={faChevronRight}
                           className="text-[10px] text-muted-foreground transition-transform duration-200 group-data-[state=open]/menu-sub-item:rotate-90"
                         />
-                      </span>
+                      </div>
                     </button>
                   </SidebarMenuSubButton>
                 </CollapsibleTrigger>
+
                 <CollapsibleContent>
                   {loading ? (
                     <div className="space-y-2 px-2 py-2">
@@ -225,7 +232,7 @@ const ServerNavItem = ({ server, pathname, onNavigate }: ServerNavItemProps) => 
           </SidebarMenuSub>
         </CollapsibleContent>
       </SidebarMenuItem>
-    </Collapsible>
+    </Collapsible >
   )
 }
 

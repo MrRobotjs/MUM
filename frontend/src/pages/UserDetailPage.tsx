@@ -230,6 +230,16 @@ const ProfileTab = ({ user }: { user: UserDetail }) => {
                 </div>
               ) : null}
 
+              {user.external_user_alt_id ? (
+                <div className="flex items-start gap-3">
+                  <FontAwesomeIcon icon={faFingerprint} className="mt-1 text-orange-600 dark:text-orange-400" />
+                  <div>
+                    <div className="text-muted-foreground">Alt External User ID</div>
+                    <div className="font-mono text-sm">{user.external_user_alt_id}</div>
+                  </div>
+                </div>
+              ) : null}
+
               {user.service_join_date ? (
                 <div className="flex items-start gap-3">
                   <FontAwesomeIcon icon={faCalendarPlus} className="mt-1 text-primary" />

@@ -298,21 +298,34 @@ def accept_invite_and_grant_access(invite: Invite, plex_user_uuid: str, plex_use
                     # Determine the username and email for this service - check server-specific credentials first
                     from flask import session
                     server_credentials = session.get(f'invite_{invite.id}_server_{server.id}_credentials')
+                    server_is_romm = server.service_type == ServiceType.ROMM
+                    service_password = ''
                     
                     if server_credentials and server_credentials.get('username'):
                         # Use server-specific credentials if available (entered during invite process)
                         service_username = server_credentials['username']
-                        service_email = server_credentials.get('email') or f"{service_username}@example.com"
+                        service_password = server_credentials.get('password') or ''
+                        provided_email = (server_credentials.get('email') or '').strip()
+                        if server_is_romm:
+                            service_email = provided_email or None
+                        else:
+                            service_email = provided_email or f"{service_username}@example.com"
                         current_app.logger.info(f"Using server-specific credentials for {server.service_type.name} creation: username={service_username}, email={service_email}")
                     elif app_user:
                         # Use local user account credentials if user accounts are enabled
                         service_username = app_user.localUsername
-                        service_email = app_user.email or f"{app_user.localUsername}@example.com"
+                        if server_is_romm:
+                            service_email = (app_user.email or '').strip() or None
+                        else:
+                            service_email = app_user.email or f"{app_user.localUsername}@example.com"
                         current_app.logger.info(f"Using local user credentials for {server.service_type.name} creation: username={service_username}, email={service_email}")
                     else:
                         # Last resort fallback to plex username if no app user or server credentials
                         service_username = plex_username or f"user_{int(datetime.now().timestamp())}"
-                        service_email = plex_email or f"{service_username}@example.com"
+                        if server_is_romm:
+                            service_email = (plex_email or '').strip() or None
+                        else:
+                            service_email = plex_email or f"{service_username}@example.com"
                         current_app.logger.info(f"Using fallback credentials for {server.service_type.name} creation: username={service_username}, email={service_email}")
                     
                     current_app.logger.debug(f"Invite service - Calling create_user for {server.service_type.name} user {service_username}")
@@ -320,7 +333,7 @@ def accept_invite_and_grant_access(invite: Invite, plex_user_uuid: str, plex_use
                     result = service.create_user(
                         username=service_username,
                         email=service_email,
-                        password=""  # Empty password for services that support it
+                        password=service_password
                     )
                     if isinstance(result, dict) and result.get('error'):
                         raise Exception(result['error'])
@@ -520,18 +533,28 @@ def accept_invite_and_grant_access(invite: Invite, plex_user_uuid: str, plex_use
                 if server_credentials and server_credentials.get('username'):
                     # Use server-specific credentials if available
                     service_username = server_credentials['username']
-                    service_email = server_credentials.get('email') or f"{service_username}@example.com"
+                    provided_email = (server_credentials.get('email') or '').strip()
+                    if server.service_type == ServiceType.ROMM:
+                        service_email = provided_email or None
+                    else:
+                        service_email = provided_email or f"{service_username}@example.com"
                     current_app.logger.info(f"Non-Plex server - using server-specific credentials: username={service_username}, email={service_email}")
                 else:
                     # Fallback to local user credentials or plex user info
                     if user_app_access and user_app_access.localUsername:
                         service_username = user_app_access.localUsername
-                        service_email = user_app_access.email or f"{service_username}@example.com"
+                        if server.service_type == ServiceType.ROMM:
+                            service_email = (user_app_access.email or '').strip() or None
+                        else:
+                            service_email = user_app_access.email or f"{service_username}@example.com"
                         current_app.logger.info(f"Non-Plex server - using local user credentials: username={service_username}, email={service_email}")
                     else:
                         # Last resort: use plex username if available
                         service_username = plex_username or f"user_{int(datetime.now().timestamp())}"
-                        service_email = plex_email or f"{service_username}@example.com"
+                        if server.service_type == ServiceType.ROMM:
+                            service_email = (plex_email or '').strip() or None
+                        else:
+                            service_email = plex_email or f"{service_username}@example.com"
                         current_app.logger.info(f"Non-Plex server - using fallback credentials: username={service_username}, email={service_email}")
             
             # Create service user record for this specific server

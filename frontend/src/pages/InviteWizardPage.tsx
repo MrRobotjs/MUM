@@ -438,6 +438,21 @@ const ServerAccessDetails = ({ server, invite, grantLibraryIds }: ServerAccessDe
                           <span>Authentication: <strong>Username and password</strong></span>
                         </div>
                       </>
+                    ) : server.service_type === 'ROMM' ? (
+                      <>
+                        <div className="flex items-center gap-2">
+                          <FontAwesomeIcon icon={faUser} className="w-4 text-green-500" />
+                          <span>Account Type: <strong>New user account will be created</strong></span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <FontAwesomeIcon icon={faKey} className="w-4 text-green-500" />
+                          <span>Authentication: <strong>Username and password (required)</strong></span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <FontAwesomeIcon icon={faEnvelopeOpenText} className="w-4 text-green-500" />
+                          <span>Email: <strong>Optional</strong></span>
+                        </div>
+                      </>
                     ) : (
                       <div className="flex items-center gap-2">
                         <FontAwesomeIcon icon={faUser} className="w-4 text-green-500" />
@@ -702,6 +717,16 @@ export const InviteWizardPage = () => {
     if (!form) return;
     if (state?.invite.is_paused) {
       showError('This invite is temporarily unavailable because all servers are disabled.');
+      return;
+    }
+
+    if (!form.username.trim()) {
+      showError('Username is required');
+      return;
+    }
+
+    if (!form.password) {
+      showError('Password is required');
       return;
     }
 
@@ -1619,15 +1644,17 @@ export const InviteWizardPage = () => {
                       />
                     </div>
 
-                    {activeServer.service_type === 'KAVITA' && (
+                    {(activeServer.service_type === 'KAVITA' || activeServer.service_type === 'ROMM') && (
                       <div className="space-y-2">
-                        <Label htmlFor={`server-${activeServer.id}-email`}>Email</Label>
+                        <Label htmlFor={`server-${activeServer.id}-email`}>
+                          {activeServer.service_type === 'ROMM' ? 'Email (Optional)' : 'Email'}
+                        </Label>
                         <Input
                           id={`server-${activeServer.id}-email`}
                           type="email"
                           value={serverForms[activeServer.id]?.email ?? ''}
                           onChange={(e) => updateServerForm(activeServer.id, 'email', e.target.value)}
-                          required
+                          required={activeServer.service_type === 'KAVITA'}
                         />
                       </div>
                     )}

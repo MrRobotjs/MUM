@@ -291,11 +291,43 @@ export const UsersListPage = () => {
           sideOffset={8}
           collisionPadding={8}
         >
-          {/* Sync action moved to filter bar dropdown */}
           <DropdownMenuItem onSelect={() => setShowDisplaySettingsModal(true)}>
             <FontAwesomeIcon icon={faCog} fixedWidth className="mr-2" />
             Display Settings
           </DropdownMenuItem>
+
+          <DropdownMenuSeparator />
+          <DropdownMenuLabel>Bulk Actions</DropdownMenuLabel>
+          {hasPermission('administrator') && (
+            <DropdownMenuItem
+              disabled={syncStatus.is_syncing}
+              onSelect={() => {
+                if (syncStatus.is_syncing) return
+                handleSync()
+              }}
+              className="cursor-pointer"
+            >
+              <FontAwesomeIcon
+                icon={faRotate}
+                className={cn(
+                  'mr-2 size-4',
+                  syncStatus.is_syncing && 'animate-spin text-primary'
+                )}
+              />
+              {syncStatus.is_syncing ? 'Syncing...' : 'Sync All Users'}
+            </DropdownMenuItem>
+          )}
+          {hasPermission('administrator') && (
+            <DropdownMenuItem
+              onSelect={() => {
+                setShowPurgeModal(true);
+              }}
+              className="cursor-pointer text-amber-600 dark:text-amber-400"
+            >
+              <FontAwesomeIcon icon={faUserClock} className="mr-2 text-amber-600 dark:text-amber-400" />
+              Purge
+            </DropdownMenuItem>
+          )}
 
           <DropdownMenuSeparator />
           <DropdownMenuLabel>View Mode</DropdownMenuLabel>
@@ -662,47 +694,6 @@ export const UsersListPage = () => {
               </div>
             </SheetContent>
           </Sheet>
-          {/* Actions */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="gap-2">
-                <FontAwesomeIcon icon={faEllipsis} className="size-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuLabel>Bulk Actions</DropdownMenuLabel>
-              {hasPermission('administrator') && (
-                <DropdownMenuItem
-                  disabled={syncStatus.is_syncing}
-                  onSelect={() => {
-                    if (syncStatus.is_syncing) return
-                    handleSync()
-                  }}
-                  className="cursor-pointer"
-                >
-                  <FontAwesomeIcon
-                    icon={faRotate}
-                    className={cn(
-                      'mr-2 size-4',
-                      syncStatus.is_syncing && 'animate-spin text-primary'
-                    )}
-                  />
-                  {syncStatus.is_syncing ? 'Syncing...' : 'Sync All Users'}
-                </DropdownMenuItem>
-              )}
-              {hasPermission('administrator') && (
-                <DropdownMenuItem
-                  onSelect={() => {
-                    setShowPurgeModal(true);
-                  }}
-                  className="cursor-pointer text-amber-600 dark:text-amber-400"
-                >
-                  <FontAwesomeIcon icon={faUserClock} className="mr-2 text-amber-600 dark:text-amber-400" />
-                  Purge
-                </DropdownMenuItem>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
         </CardContent>
       </Card>
 

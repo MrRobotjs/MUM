@@ -3,6 +3,7 @@ import { Button } from '../ui/button';
 import { Label } from '../ui/label';
 import { Input } from '../ui/input';
 import { Checkbox } from '../ui/checkbox';
+import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
 import {
   Select,
   SelectContent,
@@ -67,7 +68,7 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
 
   // Set Expiration state
   const [expirationDate, setExpirationDate] = useState<Date | undefined>(undefined);
-  const [expirationMode, setExpirationMode] = useState<'set' | 'clear'>('set');
+  const [expirationMode, setExpirationMode] = useState<'set' | 'extend' | 'clear'>('set');
 
   // Merge Local state
   const [targetLocalUserUuid, setTargetLocalUserUuid] = useState<string>('');
@@ -146,11 +147,10 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
       setUserHasAllLibraries(false);
       setLibraryChecksInitialized(false);
       setSelectedServerId(servers.length > 0 ? String(servers[0].id) : '');
-    } else if (action === 'extend_access') {
-      setExtendDays(30);
     } else if (action === 'manage_expiration') {
       setExpirationMode('set');
       setExpirationDate(undefined);
+      setExtendDays(30);
     } else if (action === 'merge_local') {
       setTargetLocalUserUuid('');
     }
@@ -213,20 +213,20 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
           break;
         }
 
-        case 'extend_access': {
-          await requestJson('/api/v2/users/bulk', {
-            method: 'POST',
-            body: JSON.stringify({
-              user_uuids: userUuids,
-              operations: [{ action: 'extend_access', days: extendDays }]
-            })
-          });
-
-          success(`Extended access by ${extendDays} days for ${userUuids.length} user${userUuids.length !== 1 ? 's' : ''}`);
-          break;
-        }
-
         case 'manage_expiration': {
+          if (expirationMode === 'extend') {
+            await requestJson('/api/v2/users/bulk', {
+              method: 'POST',
+              body: JSON.stringify({
+                user_uuids: userUuids,
+                operations: [{ action: 'extend_access', days: extendDays }]
+              })
+            });
+
+            success(`Extended access by ${extendDays} days for ${userUuids.length} user${userUuids.length !== 1 ? 's' : ''}`);
+            break;
+          }
+
           if (expirationMode === 'set') {
             if (!expirationDate) {
               error('Please select an expiration date');
@@ -311,17 +311,13 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
       case 'modify_libraries':
         return (
           <div className="space-y-4">
-            <div className="bg-blue-50 dark:bg-blue-400/10 rounded-lg p-4 border border-blue-500/30">
-              <div className="flex items-start gap-3">
-                <FontAwesomeIcon icon={faCircleInfo} className="text-blue-600 dark:text-blue-400 text-lg mt-0.5" />
-                <div>
-                  <h5 className="font-medium mb-1">Library Access Control</h5>
-                  <p className="text-sm text-muted-foreground">
-                    Checked libraries indicate current access for the selected user. Uncheck to remove access.
-                  </p>
-                </div>
-              </div>
-            </div>
+            <Alert variant="info">
+              <FontAwesomeIcon icon={faCircleInfo} className="h-4 w-4" />
+              <AlertTitle>Library Access Control</AlertTitle>
+              <AlertDescription>
+                Checked libraries indicate current access for the selected user. Uncheck to remove access.
+              </AlertDescription>
+            </Alert>
 
             <div className="space-y-2">
               <Label htmlFor="server">
@@ -329,7 +325,7 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
                 Server
               </Label>
               <Select value={selectedServerId} onValueChange={setSelectedServerId}>
-                <SelectTrigger id="server">
+                <SelectTrigger id="server" className="h-11">
                   <SelectValue placeholder="Select a server..." />
                 </SelectTrigger>
                 <SelectContent>
@@ -407,86 +403,53 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
           </div>
         );
 
-      case 'extend_access':
-        return (
-          <div className="space-y-4">
-            <div className="bg-blue-50 dark:bg-blue-400/10 rounded-lg p-4 border border-blue-500/30">
-              <div className="flex items-start gap-3">
-                <FontAwesomeIcon icon={faCircleInfo} className="text-blue-600 dark:text-blue-400 text-lg mt-0.5" />
-                <div>
-                  <h5 className="font-medium mb-1">Extend Access Duration</h5>
-                  <p className="text-sm text-muted-foreground">
-                    Add days to the current expiration date of selected users. If a user has no expiration date, it will be set to today + specified days.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="extend-days">
-                <FontAwesomeIcon icon={faCalendarPlus} className="mr-2" />
-                Number of Days to Add
-              </Label>
-              <Input
-                id="extend-days"
-                type="number"
-                min="1"
-                max="3650"
-                value={extendDays}
-                onChange={(e) => setExtendDays(Math.max(1, parseInt(e.target.value) || 0))}
-              />
-              <p className="text-sm text-muted-foreground">
-                Expiration dates will be extended by {extendDays} day{extendDays !== 1 ? 's' : ''}
-              </p>
-            </div>
-          </div>
-        );
-
       case 'manage_expiration':
         return (
           <div className="space-y-4">
-            <div
-              className={
-                expirationMode === 'set'
-                  ? 'bg-blue-50 dark:bg-blue-400/10 rounded-lg p-4 border border-blue-500/30'
-                  : 'bg-amber-50 dark:bg-amber-400/10 rounded-lg p-4 border border-amber-500/30'
-              }
-            >
-              <div className="flex items-start gap-3">
-                <FontAwesomeIcon
-                  icon={expirationMode === 'set' ? faCircleInfo : faTriangleExclamation}
-                  className={
-                    expirationMode === 'set'
-                      ? 'text-blue-600 dark:text-blue-400 text-lg mt-0.5'
-                      : 'text-amber-600 dark:text-amber-400 text-lg mt-0.5'
-                  }
-                />
-                <div>
-                  <h5 className="font-medium mb-1">
-                    {expirationMode === 'set' ? 'Set Expiration Date' : 'Clear Expiration Date'}
-                  </h5>
-                  <p className="text-sm text-muted-foreground">
-                    {expirationMode === 'set'
-                      ? 'Set a specific expiration date for all selected users. This will override any existing expiration dates.'
-                      : 'Remove expiration dates from all selected users. They will have indefinite access until a new expiration date is set.'}
-                  </p>
-                </div>
-              </div>
-            </div>
+            <Alert variant={expirationMode === 'clear' ? 'warning' : 'info'}>
+              <FontAwesomeIcon
+                icon={
+                  expirationMode === 'set'
+                    ? faCircleInfo
+                    : expirationMode === 'extend'
+                      ? faCalendarPlus
+                      : faTriangleExclamation
+                }
+                className="h-4 w-4"
+              />
+              <AlertTitle>
+                {expirationMode === 'set'
+                  ? 'Set Expiration Date'
+                  : expirationMode === 'extend'
+                    ? 'Extend Access Duration'
+                    : 'Clear Expiration Date'}
+              </AlertTitle>
+              <AlertDescription>
+                {expirationMode === 'set'
+                  ? 'Set a specific expiration date for all selected users. This will override any existing expiration dates.'
+                  : expirationMode === 'extend'
+                    ? 'Add days to the current expiration date of selected users. If a user has no expiration date, it will be set to today + specified days.'
+                    : 'Remove expiration dates from all selected users. They will have indefinite access until a new expiration date is set.'}
+              </AlertDescription>
+            </Alert>
 
             <div className="space-y-2">
               <Label htmlFor="expiration-mode">Expiration Action</Label>
               <Select
                 value={expirationMode}
-                onValueChange={(value: 'set' | 'clear') => setExpirationMode(value)}
+                onValueChange={(value: 'set' | 'extend' | 'clear') => setExpirationMode(value)}
               >
-                <SelectTrigger id="expiration-mode">
+                <SelectTrigger id="expiration-mode" className="h-11">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="set">
                     <FontAwesomeIcon icon={faCalendar} className="mr-2" />
                     Set expiration date
+                  </SelectItem>
+                  <SelectItem value="extend">
+                    <FontAwesomeIcon icon={faCalendarPlus} className="mr-2" />
+                    Extend access duration
                   </SelectItem>
                   <SelectItem value="clear">
                     <FontAwesomeIcon icon={faInfinity} className="mr-2" />
@@ -504,7 +467,7 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
                 </Label>
                 <Popover>
                   <PopoverTrigger asChild>
-                    <Button variant="outline" className="w-full justify-start text-left font-normal">
+                    <Button variant="outline" className="h-11 w-full justify-start text-left font-normal">
                       <FontAwesomeIcon icon={faCalendar} className="mr-2" />
                       {expirationDate ? expirationDate.toLocaleDateString() : 'Select date...'}
                     </Button>
@@ -525,6 +488,25 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
                   </p>
                 )}
               </div>
+            ) : expirationMode === 'extend' ? (
+              <div className="space-y-2">
+                <Label htmlFor="extend-days">
+                  <FontAwesomeIcon icon={faCalendarPlus} className="mr-2" />
+                  Number of Days to Add
+                </Label>
+                <Input
+                  id="extend-days"
+                  type="number"
+                  min="1"
+                  max="3650"
+                  value={extendDays}
+                  onChange={(e) => setExtendDays(Math.max(1, parseInt(e.target.value) || 0))}
+                  className="h-11"
+                />
+                <p className="text-sm text-muted-foreground">
+                  Expiration dates will be extended by {extendDays} day{extendDays !== 1 ? 's' : ''}
+                </p>
+              </div>
             ) : (
               <div className="bg-muted/50 rounded-lg p-4">
                 <div className="flex items-center gap-3">
@@ -544,17 +526,13 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
       case 'merge_local':
         return (
           <div className="space-y-4">
-            <div className="bg-blue-50 dark:bg-blue-400/10 rounded-lg p-4 border border-blue-500/30">
-              <div className="flex items-start gap-3">
-                <FontAwesomeIcon icon={faCircleInfo} className="text-blue-600 dark:text-blue-400 text-lg mt-0.5" />
-                <div>
-                  <h5 className="font-medium mb-1">Merge into Local Account</h5>
-                  <p className="text-sm text-muted-foreground">
-                    Link all selected service users to a single local account. This is useful for consolidating multiple service accounts under one user.
-                  </p>
-                </div>
-              </div>
-            </div>
+            <Alert variant="info">
+              <FontAwesomeIcon icon={faCircleInfo} className="h-4 w-4" />
+              <AlertTitle>Merge into Local Account</AlertTitle>
+              <AlertDescription>
+                Link all selected service users to a single local account. This is useful for consolidating multiple service accounts under one user.
+              </AlertDescription>
+            </Alert>
 
             <div className="space-y-2">
               <Label htmlFor="target-uuid">
@@ -567,6 +545,7 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
                 placeholder="Enter local user UUID..."
                 value={targetLocalUserUuid}
                 onChange={(e) => setTargetLocalUserUuid(e.target.value)}
+                className="h-11"
               />
               <p className="text-sm text-muted-foreground">
                 All {selectedUserIds.size} service user{selectedUserIds.size !== 1 ? 's' : ''} will be linked to this local account
@@ -578,19 +557,15 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
       case 'delete':
         return (
           <div className="space-y-4">
-            <div className="bg-destructive/10 rounded-lg p-4 border border-destructive/30">
-              <div className="flex items-start gap-3">
-                <FontAwesomeIcon icon={faTriangleExclamation} className="text-destructive text-lg mt-0.5" />
-                <div>
-                  <h5 className="font-medium mb-1 text-destructive">Permanent Deletion</h5>
-                  <p className="text-sm text-muted-foreground">
-                    This will permanently delete {selectedUserIds.size} user{selectedUserIds.size !== 1 ? 's' : ''} and all associated data. This action cannot be undone.
-                  </p>
-                </div>
-              </div>
-            </div>
+            <Alert variant="destructive">
+              <FontAwesomeIcon icon={faTriangleExclamation} className="h-4 w-4" />
+              <AlertTitle>Permanent Deletion</AlertTitle>
+              <AlertDescription>
+                This will permanently delete {selectedUserIds.size} user{selectedUserIds.size !== 1 ? 's' : ''} and all associated data. This action cannot be undone.
+              </AlertDescription>
+            </Alert>
 
-            <div className="bg-muted/50 rounded-lg p-4">
+            <div className="rounded-lg border border-border bg-muted/40 p-4">
               <div className="space-y-2 text-sm">
                 <p className="font-medium">The following will be deleted:</p>
                 <ul className="list-disc list-inside space-y-1 text-muted-foreground">
@@ -618,30 +593,34 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
 
   const modalBody = (
     <div className="space-y-6 py-4">
-      <div className="space-y-4">
-        <div className="flex items-center gap-2">
-          <FontAwesomeIcon icon={faCog} className="text-primary text-sm" />
-          <h4 className="font-medium text-lg">Select Action</h4>
-        </div>
+      <Alert variant="info">
+        <FontAwesomeIcon icon={faCircleInfo} className="h-4 w-4" />
+        <AlertTitle>Mass Edit Operations</AlertTitle>
+        <AlertDescription>
+          Apply one operation to all selected users at once. Review the action settings carefully before submitting.
+        </AlertDescription>
+      </Alert>
 
-        <div className="bg-muted/50 rounded-lg p-4 border">
+      <div className="space-y-4">
+        <h4 className="flex items-center gap-2 text-lg font-medium">
+          <FontAwesomeIcon icon={faCog} className="text-sm text-primary" />
+          Select Action
+        </h4>
+
+        <div className="rounded-lg border border-border bg-card p-4 transition-colors hover:border-border/60">
           <div className="space-y-2">
             <Label htmlFor="action">
               <FontAwesomeIcon icon={faListCheck} className="text-primary text-sm mr-2" />
               Action to Perform
             </Label>
             <Select value={action} onValueChange={setAction}>
-              <SelectTrigger id="action">
+              <SelectTrigger id="action" className="h-11">
                 <SelectValue placeholder="Choose an action..." />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="modify_libraries">
                   <FontAwesomeIcon icon={faFolder} className="mr-2" />
                   Modify Library Access
-                </SelectItem>
-                <SelectItem value="extend_access">
-                  <FontAwesomeIcon icon={faCalendarPlus} className="mr-2" />
-                  Extend Access Duration
                 </SelectItem>
                 <SelectItem value="manage_expiration">
                   <FontAwesomeIcon icon={faCalendar} className="mr-2" />
@@ -657,7 +636,7 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
                 </SelectItem>
               </SelectContent>
             </Select>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-xs text-muted-foreground">
               Choose what action to perform on the selected users
             </p>
           </div>
@@ -666,11 +645,13 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
 
       {action && (
         <div className="space-y-4">
-          <div className="flex items-center gap-2">
-            <FontAwesomeIcon icon={faSliders} className="text-primary text-sm" />
-            <h4 className="font-medium text-lg">Configure Action</h4>
+          <h4 className="flex items-center gap-2 text-lg font-medium">
+            <FontAwesomeIcon icon={faSliders} className="text-sm text-primary" />
+            Configure Action
+          </h4>
+          <div className="rounded-lg border border-border bg-card p-4 transition-colors hover:border-border/60">
+            {renderActionContent()}
           </div>
-          {renderActionContent()}
         </div>
       )}
     </div>
@@ -697,6 +678,8 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
           {action === 'manage_expiration'
             ? expirationMode === 'set'
               ? 'Set Expiration'
+              : expirationMode === 'extend'
+                ? 'Extend Access'
               : 'Clear Expiration'
             : 'Apply Changes'}
         </>

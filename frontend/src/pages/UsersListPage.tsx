@@ -449,7 +449,7 @@ export const UsersListPage = () => {
       {/* Sync Progress Bar */}
       {syncStatus.is_syncing && (
         <Card className="border-primary/50 bg-primary/5">
-          <CardContent className="p-4">
+          <CardContent>
             <div className="space-y-2">
               <div className="flex items-center justify-between text-sm">
                 <div className="flex items-center gap-2">
@@ -803,6 +803,9 @@ export const UsersListPage = () => {
           currentPage={pagination?.page || 1}
           totalPages={pagination?.total_pages || 1}
           onPageChange={setPage}
+          onLibraryChanged={() => {
+            mutate();
+          }}
         />
       )}
 

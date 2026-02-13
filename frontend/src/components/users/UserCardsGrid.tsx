@@ -15,6 +15,7 @@ interface UserCardsGridProps {
   currentPage?: number;
   totalPages?: number;
   onPageChange?: (page: number) => void;
+  onLibraryChanged?: () => void;
 }
 
 const UserCardSkeleton = () => (
@@ -56,7 +57,8 @@ export const UserCardsGrid = ({
   onToggleSelection,
   currentPage = 1,
   totalPages = 1,
-  onPageChange
+  onPageChange,
+  onLibraryChanged
 }: UserCardsGridProps) => {
   const { lastSessionData } = useStreamingWebSocket({ autoConnect: false });
   const nowPlayingByUser = useMemo(() => {
@@ -124,6 +126,7 @@ export const UserCardsGrid = ({
                   nowPlaying={nowPlayingByUser.get(user.uuid)}
                   isSelected={selectedUserIds.has(user.uuid)}
                   onToggleSelection={onToggleSelection}
+                  onLibraryChanged={onLibraryChanged}
                 />
               ))}
             </div>

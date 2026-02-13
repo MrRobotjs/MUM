@@ -12,6 +12,8 @@ import { Badge } from '../common/Badge';
 import { getServicePalette } from '@/config/pluginMetadata';
 import { ServiceIcon } from '@/components/services/ServiceIcon';
 import { UserAvatar } from './UserAvatar';
+import { requestJson } from '@/util/apiClient';
+import { useAlerts } from '@/contexts/AlertContext';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import type { IconDefinition } from '@fortawesome/fontawesome-svg-core';
 import {
@@ -30,6 +32,7 @@ import {
   faServer,
   faShieldHalved,
   faSignal,
+  faXmark,
   faSpinner,
   faStickyNote,
   faUser
@@ -48,6 +51,7 @@ interface UserCardProps {
   isSelected?: boolean;
   onToggleSelection?: (userId: string) => void;
   nowPlaying?: UserNowPlaying | null;
+  onLibraryChanged?: () => void;
 }
 
 interface UserDisplaySettings {
@@ -62,14 +66,19 @@ interface UserDisplaySettings {
 }
 
 
-export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlaying }: UserCardProps) => {
+export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlaying, onLibraryChanged }: UserCardProps) => {
   const navigate = useNavigate();
+  const { success, error } = useAlerts();
   const serviceType = user.service_type?.toLowerCase();
   const isService = user.user_type.toLowerCase() === 'service';
   const palette = getServicePalette(serviceType);
 
   const [showAllLibraries, setShowAllLibraries] = useState(false);
   const maxVisibleLibraries = 6;
+  const [hoveredLibraryKey, setHoveredLibraryKey] = useState<string | null>(null);
+  const [removingLibraryKeys, setRemovingLibraryKeys] = useState<Set<string>>(new Set());
+  const [displayLibraries, setDisplayLibraries] = useState<string[]>(user.libraries ?? []);
+  const [displayHasAllLibraries, setDisplayHasAllLibraries] = useState(Boolean(user.has_all_libraries));
 
   // Debug modal state
   const [debugModalOpen, setDebugModalOpen] = useState(false);
@@ -97,6 +106,13 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
     }
   }, []);
 
+  useEffect(() => {
+    setDisplayLibraries(user.libraries ?? []);
+    setDisplayHasAllLibraries(Boolean(user.has_all_libraries));
+    setRemovingLibraryKeys(new Set());
+    setHoveredLibraryKey(null);
+  }, [user.uuid, user.libraries, user.has_all_libraries]);
+
   const handleCardClick = (e: React.MouseEvent) => {
     // Don't navigate if clicking checkbox or buttons
     const target = e.target as HTMLElement;
@@ -116,6 +132,162 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
     if (onToggleSelection) {
       onToggleSelection(user.uuid);
     }
+  };
+
+  const getLibraryIdentifier = (
+    library: { external_id?: string | null; internal_id?: string | null; id?: string | number | null },
+    effectiveServiceType?: string | null
+  ) => {
+    const normalizedServiceType = (effectiveServiceType || '').toLowerCase();
+    if (normalizedServiceType === 'kavita' && library.internal_id) {
+      return String(library.internal_id);
+    }
+    return String(library.external_id ?? library.internal_id ?? library.id ?? '');
+  };
+
+  const handleRemoveLibrary = async (libraryName: string, libraryKey: string, event: React.MouseEvent) => {
+    event.stopPropagation();
+    if (!isService) return;
+    if (removingLibraryKeys.has(libraryKey)) return;
+
+    setRemovingLibraryKeys((prev) => {
+      const next = new Set(prev);
+      next.add(libraryKey);
+      return next;
+    });
+
+    try {
+      type UserDetailResponse = {
+        data: {
+          user_type?: string | null;
+          server_id?: number | null;
+          service_type?: string | null;
+          has_all_libraries?: boolean | null;
+          allowed_library_ids?: string[] | null;
+        };
+      };
+      type LibrariesResponse = {
+        data: Array<{
+          id?: number | string | null;
+          name: string;
+          external_id?: string | null;
+          internal_id?: string | null;
+          server?: { service_type?: string | null };
+        }>;
+      };
+
+      const userDetail = await requestJson<UserDetailResponse>(`/api/v2/users/${user.uuid}`);
+      const detail = userDetail?.data;
+      if (!detail || String(detail.user_type ?? '').toLowerCase() !== 'service') {
+        throw new Error('Only service users support library removal.');
+      }
+      const serverId = detail.server_id;
+      if (!serverId) {
+        throw new Error('No server is associated with this service user.');
+      }
+
+      const librariesResponse = await requestJson<LibrariesResponse>(
+        `/api/v2/libraries?server_id=${serverId}&include_server=true`
+      );
+      const serverLibraries = librariesResponse?.data ?? [];
+      const effectiveServiceType =
+        detail.service_type ??
+        serverLibraries[0]?.server?.service_type ??
+        user.service_type ??
+        null;
+
+      const idsForClickedLibrary = serverLibraries
+        .filter((library) => library.name === libraryName)
+        .map((library) => getLibraryIdentifier(library, effectiveServiceType))
+        .filter(Boolean);
+
+      if (idsForClickedLibrary.length === 0) {
+        throw new Error(`Could not resolve library "${libraryName}" on server.`);
+      }
+
+      const allServerIds = serverLibraries
+        .map((library) => getLibraryIdentifier(library, effectiveServiceType))
+        .filter(Boolean);
+      const currentAllowedIds = detail.has_all_libraries
+        ? allServerIds
+        : (detail.allowed_library_ids ?? []).map((id) => String(id));
+
+      const removalSet = new Set(idsForClickedLibrary);
+      const nextAllowedIds = currentAllowedIds.filter((id) => !removalSet.has(String(id)));
+
+      await requestJson('/api/v2/users/bulk', {
+        method: 'POST',
+        body: JSON.stringify({
+          user_uuids: [user.uuid],
+          operations: [{ action: 'update_libraries', library_ids: nextAllowedIds }],
+        }),
+      });
+
+      const nextAllowedIdSet = new Set(nextAllowedIds.map((id) => String(id)));
+      const nextLibraries = serverLibraries
+        .filter((library) => nextAllowedIdSet.has(getLibraryIdentifier(library, effectiveServiceType)))
+        .map((library) => library.name);
+      const dedupedLibraries = Array.from(new Set(nextLibraries)).sort((a, b) => a.localeCompare(b));
+      setDisplayLibraries(dedupedLibraries);
+      setDisplayHasAllLibraries(false);
+
+      success(`Removed "${libraryName}" from ${user.display_name || user.username || 'user'}.`);
+      onLibraryChanged?.();
+    } catch (err) {
+      error(`Failed to remove library: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setRemovingLibraryKeys((prev) => {
+        const next = new Set(prev);
+        next.delete(libraryKey);
+        return next;
+      });
+    }
+  };
+
+  const renderRemovableLibraryBadge = (library: string, libraryKey: string) => {
+    const isHovered = hoveredLibraryKey === libraryKey;
+    const isRemoving = removingLibraryKeys.has(libraryKey);
+    return (
+      <span
+        key={libraryKey}
+        className="inline-flex"
+        onClick={(event) => event.stopPropagation()}
+        onMouseEnter={() => setHoveredLibraryKey(libraryKey)}
+        onMouseLeave={() => setHoveredLibraryKey((prev) => (prev === libraryKey ? null : prev))}
+        title={isRemoving ? `Removing ${library}...` : `Remove ${library}`}
+      >
+        <Badge color="bg-blue-500" className="text-xs font-medium gap-1 pr-1" hover={false}>
+          <button
+            type="button"
+            className={cn(
+              'inline-flex h-4 w-4 items-center justify-center rounded-sm transition-colors',
+              isRemoving
+                ? 'cursor-wait opacity-80'
+                : isHovered
+                  ? 'cursor-pointer hover:bg-black/10 dark:hover:bg-white/10'
+                  : 'cursor-default'
+            )}
+            onClick={(event) => {
+              if (!isHovered && !isRemoving) {
+                event.stopPropagation();
+                return;
+              }
+              handleRemoveLibrary(library, libraryKey, event);
+            }}
+            disabled={isRemoving || !isHovered}
+            aria-label={isRemoving ? `Removing ${library}` : `Remove ${library}`}
+            title={isRemoving ? `Removing ${library}...` : `Remove ${library}`}
+          >
+            <FontAwesomeIcon
+              icon={isRemoving ? faSpinner : isHovered ? faXmark : faFolder}
+              spin={isRemoving}
+              className="w-3 h-3"
+            />
+          </button>
+          <span>{library}</span>
+        </Badge>
+      </span>
+    );
   };
 
   const cardGradient = () => {
@@ -406,17 +578,17 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
           <div>
             <div className="text-[10px] uppercase tracking-wider font-semibold mb-2 flex items-center gap-1.5">
               <FontAwesomeIcon icon={faBook} className="h-3 w-3 text-blue-400" />
-              Libraries <span className="text-muted-foreground/60 font-normal">({user.has_all_libraries ? 'All' : (user.libraries?.length ?? 0)})</span>
+              Libraries <span className="text-muted-foreground/60 font-normal">({displayHasAllLibraries ? 'All' : displayLibraries.length})</span>
             </div>
 
-            {user.has_all_libraries ? (
+            {displayHasAllLibraries ? (
               <>
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge color="bg-blue-500" className="text-xs font-medium gap-1" hover={false}>
                     <FontAwesomeIcon icon={faLayerGroup} className="w-3 h-3" />
                     All Libraries
                   </Badge>
-                  {user.libraries && user.libraries.length > 0 && (
+                  {displayLibraries.length > 0 && (
                     <Button
                       variant="ghost"
                       size="sm"
@@ -427,44 +599,28 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
                       }}
                     >
                       <Badge color="bg-blue-500" className="text-xs font-medium gap-1" hover={false}>
-                        {showAllLibraries ? '-' : '+'}{user.libraries.length}
+                        {showAllLibraries ? '-' : '+'}{displayLibraries.length}
                       </Badge>
                     </Button>
                   )}
                 </div>
-                {showAllLibraries && user.libraries && user.libraries.length > 0 && (
+                {showAllLibraries && displayLibraries.length > 0 && (
                   <div className="mt-2 flex flex-wrap gap-1.5 pl-1">
-                    {user.libraries.map((library) => (
-                      <Badge
-                        key={library}
-                        color="bg-blue-500"
-                        className="text-xs font-medium gap-1"
-                        hover={false}
-                      >
-                        <FontAwesomeIcon icon={faFolder} className="w-3 h-3" />
-                        {library}
-                      </Badge>
-                    ))}
+                    {displayLibraries.map((library, index) =>
+                      renderRemovableLibraryBadge(library, `all-${index}-${library}`)
+                    )}
                   </div>
                 )}
               </>
-            ) : user.libraries && user.libraries.length > 0 ? (
+            ) : displayLibraries.length > 0 ? (
               <div className="flex flex-wrap items-center gap-1.5">
-                {(showAllLibraries || user.libraries.length <= maxVisibleLibraries
-                  ? user.libraries
-                  : user.libraries.slice(0, maxVisibleLibraries)
-                ).map((library) => (
-                  <Badge
-                    key={library}
-                    color="bg-blue-500"
-                    className="text-xs font-medium gap-1"
-                    hover={false}
-                  >
-                    <FontAwesomeIcon icon={faFolder} className="w-3 h-3" />
-                    {library}
-                  </Badge>
-                ))}
-                {user.libraries.length > maxVisibleLibraries && (
+                {(showAllLibraries || displayLibraries.length <= maxVisibleLibraries
+                  ? displayLibraries
+                  : displayLibraries.slice(0, maxVisibleLibraries)
+                ).map((library, index) =>
+                  renderRemovableLibraryBadge(library, `partial-${index}-${library}`)
+                )}
+                {displayLibraries.length > maxVisibleLibraries && (
                   <Button
                     variant="ghost"
                     size="sm"
@@ -475,7 +631,7 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
                     }}
                   >
                     <Badge color="bg-blue-500" className="text-xs font-medium gap-1" hover={false}>
-                      {showAllLibraries ? '-' : '+'}{user.libraries.length - maxVisibleLibraries}
+                      {showAllLibraries ? '-' : '+'}{displayLibraries.length - maxVisibleLibraries}
                     </Badge>
                   </Button>
                 )}

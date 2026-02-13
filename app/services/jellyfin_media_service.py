@@ -176,10 +176,63 @@ class JellyfinMediaService(BaseMediaService):
         try:
             if not self._authenticated and not self._authenticate():
                 return False
-            payload = {"EnableAllFolders": False, "EnabledFolders": library_ids or []}
-            resp = self.session.post(f"{self.url.rstrip('/')}/Users/{user_id}/Policy", json=payload, timeout=get_api_timeout_with_fallback(10))
+
+            if library_ids is None and "allow_downloads" not in kwargs:
+                return True
+
+            # Jellyfin expects a full UserPolicy document for /Users/{userId}/Policy.
+            # Sending only EnabledFolders/EnableAllFolders causes HTTP 400 on many servers.
+            user_resp = self.session.get(
+                f"{self.url.rstrip('/')}/Users/{user_id}",
+                timeout=get_api_timeout_with_fallback(10),
+            )
+            user_resp.raise_for_status()
+            user_data = user_resp.json() or {}
+            policy = user_data.get("Policy") or {}
+
+            if not policy:
+                policy_resp = self.session.get(
+                    f"{self.url.rstrip('/')}/Users/{user_id}/Policy",
+                    timeout=get_api_timeout_with_fallback(10),
+                )
+                policy_resp.raise_for_status()
+                policy = policy_resp.json() or {}
+
+            if not policy.get("AuthenticationProviderId") or not policy.get("PasswordResetProviderId"):
+                self.log_error(
+                    f"Cannot update Jellyfin policy for user {user_id}: missing required "
+                    "AuthenticationProviderId/PasswordResetProviderId in current policy payload."
+                )
+                return False
+
+            if library_ids is not None:
+                normalized_library_ids = [str(lib_id) for lib_id in (library_ids or []) if lib_id]
+                if normalized_library_ids:
+                    policy["EnabledFolders"] = normalized_library_ids
+                    policy["EnableAllFolders"] = False
+                else:
+                    # Empty list means "all libraries" in our app semantics.
+                    policy["EnabledFolders"] = []
+                    policy["EnableAllFolders"] = True
+
+            if "allow_downloads" in kwargs and kwargs["allow_downloads"] is not None:
+                policy["EnableContentDownloading"] = bool(kwargs["allow_downloads"])
+
+            resp = self.session.post(
+                f"{self.url.rstrip('/')}/Users/{user_id}/Policy",
+                json=policy,
+                timeout=get_api_timeout_with_fallback(10),
+            )
             resp.raise_for_status()
             return True
+        except requests.HTTPError as e:
+            response_text = ""
+            try:
+                response_text = e.response.text[:500] if e.response is not None else ""
+            except Exception:
+                response_text = ""
+            self.log_error(f"Error updating user access: {e} | response={response_text}")
+            return False
         except Exception as e:
             self.log_error(f"Error updating user access: {e}")
             return False

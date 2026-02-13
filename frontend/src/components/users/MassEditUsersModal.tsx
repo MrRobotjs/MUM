@@ -13,7 +13,7 @@ import {
 } from '../ui/select';
 import { Calendar } from '../ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
-import { useLibraries, type Library } from '../../hooks/useLibraries';
+import { type Library } from '../../hooks/useLibraries';
 import { useServerOptions } from '../../hooks/useServerOptions';
 import { useAlerts } from '../../contexts/AlertContext';
 import { requestJson } from '../../util/apiClient';
@@ -71,19 +71,36 @@ interface ServiceLinkOption {
   fromSelection: boolean;
 }
 
+interface SelectedServiceLibraryUser {
+  uuid: string;
+  displayName: string;
+  serverId: number;
+  serverNickname: string;
+  serviceType: string;
+  allowedLibraryIds: string[];
+  hasAllLibraries: boolean;
+}
+
+interface LibraryServerSelection {
+  serverId: number;
+  serverNickname: string;
+  serviceType: string;
+  users: SelectedServiceLibraryUser[];
+  libraries: Library[];
+  libraryChecks: LibraryChecks;
+  grantAllLibraries: boolean;
+  error?: string | null;
+}
+
 export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplete }: MassEditUsersModalProps) => {
   const [action, setAction] = useState<string>('');
   const [submitting, setSubmitting] = useState(false);
   const { success, error } = useAlerts();
 
   // Modify Libraries state
-  const [selectedServerId, setSelectedServerId] = useState<string>('');
-  const [libraryChecks, setLibraryChecks] = useState<LibraryChecks>({});
-  const [grantAllLibraries, setGrantAllLibraries] = useState(false);
-  const [loadingUserLibraries, setLoadingUserLibraries] = useState(false);
-  const [userLibraryIds, setUserLibraryIds] = useState<Set<string>>(new Set());
-  const [userHasAllLibraries, setUserHasAllLibraries] = useState(false);
-  const [libraryChecksInitialized, setLibraryChecksInitialized] = useState(false);
+  const [librarySelectionsByServer, setLibrarySelectionsByServer] = useState<Record<string, LibraryServerSelection>>({});
+  const [loadingLibrarySelections, setLoadingLibrarySelections] = useState(false);
+  const [librarySelectionsError, setLibrarySelectionsError] = useState<string | null>(null);
 
   // Extend Access state
   const [extendDays, setExtendDays] = useState<number>(30);
@@ -111,79 +128,12 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
   const [serviceUserSearch, setServiceUserSearch] = useState('');
 
   const { servers } = useServerOptions();
-  const { libraries, loading: librariesLoading } = useLibraries({
-    serverId: selectedServerId ? Number(selectedServerId) : undefined,
-    includeServer: true
-  });
-
-  useEffect(() => {
-    const loadUserLibraries = async () => {
-      if (!isOpen || action !== 'modify_libraries' || !selectedServerId) return;
-      if (selectedUserIds.size !== 1) {
-        setUserLibraryIds(new Set());
-        setUserHasAllLibraries(false);
-        setLoadingUserLibraries(false);
-        return;
-      }
-
-      const [userUuid] = Array.from(selectedUserIds);
-      try {
-        setLoadingUserLibraries(true);
-        const response = await requestJson(`/api/v2/users/${userUuid}`);
-        const data = response?.data ?? {};
-        const userServerId = data?.server_id ? String(data.server_id) : '';
-        if (data?.user_type !== 'service' || (userServerId && userServerId !== selectedServerId)) {
-          setUserLibraryIds(new Set());
-          setUserHasAllLibraries(false);
-          return;
-        }
-
-        const allowedIds = new Set<string>((data.allowed_library_ids || []).map((id: string) => String(id)));
-        setUserLibraryIds(allowedIds);
-        setUserHasAllLibraries(Boolean(data.has_all_libraries));
-      } catch {
-        setUserLibraryIds(new Set());
-        setUserHasAllLibraries(false);
-      } finally {
-        setLoadingUserLibraries(false);
-      }
-    };
-
-    loadUserLibraries();
-  }, [action, isOpen, selectedServerId, selectedUserIds]);
-
-  useEffect(() => {
-    if (action !== 'modify_libraries' || libraryChecksInitialized) return;
-    if (librariesLoading || loadingUserLibraries || !selectedServerId) return;
-    if (!libraries.length) return;
-
-    const nextChecks: LibraryChecks = {};
-    libraries.forEach((library: Library) => {
-      const libraryId = getLibraryIdentifier(library);
-      nextChecks[libraryId] = userHasAllLibraries ? true : userLibraryIds.has(String(libraryId));
-    });
-    setLibraryChecks(nextChecks);
-    setLibraryChecksInitialized(true);
-  }, [
-    action,
-    libraryChecksInitialized,
-    libraries,
-    librariesLoading,
-    loadingUserLibraries,
-    selectedServerId,
-    userHasAllLibraries,
-    userLibraryIds,
-  ]);
 
   useEffect(() => {
     // Reset state when action changes
     if (action === 'modify_libraries') {
-      setLibraryChecks({});
-      setGrantAllLibraries(false);
-      setUserLibraryIds(new Set());
-      setUserHasAllLibraries(false);
-      setLibraryChecksInitialized(false);
-      setSelectedServerId(servers.length > 0 ? String(servers[0].id) : '');
+      setLibrarySelectionsByServer({});
+      setLibrarySelectionsError(null);
     } else if (action === 'manage_expiration') {
       setExpirationMode('set');
       setExpirationDate(undefined);
@@ -201,15 +151,7 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
       setLinkContextError(null);
       setServiceOptionsError(null);
     }
-  }, [action, servers]);
-
-  useEffect(() => {
-    if (action !== 'modify_libraries') return;
-    setLibraryChecks({});
-    setUserLibraryIds(new Set());
-    setUserHasAllLibraries(false);
-    setLibraryChecksInitialized(false);
-  }, [action, selectedServerId]);
+  }, [action]);
 
   const getDisplayName = (data: {
     display_name?: string | null;
@@ -229,6 +171,179 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
       'Unknown User'
     );
   };
+
+  useEffect(() => {
+    if (!isOpen || action !== 'modify_libraries') return;
+
+    let cancelled = false;
+
+    const loadLibrarySelections = async () => {
+      setLoadingLibrarySelections(true);
+      setLibrarySelectionsError(null);
+      try {
+        type UserDetailResponse = {
+          data: {
+            uuid: string;
+            user_type?: string | null;
+            server_id?: number | null;
+            server_nickname?: string | null;
+            service_type?: string | null;
+            allowed_library_ids?: string[] | null;
+            has_all_libraries?: boolean | null;
+            display_name?: string | null;
+            username?: string | null;
+            local_username?: string | null;
+            external_username?: string | null;
+            external_email?: string | null;
+            email?: string | null;
+          };
+        };
+        type LibrariesResponse = { data: Library[] };
+
+        const selectedUuids = Array.from(selectedUserIds);
+        if (selectedUuids.length === 0) {
+          setLibrarySelectionsByServer({});
+          return;
+        }
+
+        const serverMap = new Map(
+          servers.map((server) => [String(server.id), server])
+        );
+
+        const selectedDetails = await Promise.all(
+          selectedUuids.map(async (uuid) => {
+            try {
+              const response = await requestJson<UserDetailResponse>(`/api/v2/users/${uuid}`);
+              return response?.data ?? null;
+            } catch {
+              return null;
+            }
+          })
+        );
+
+        if (cancelled) return;
+
+        const selectedServiceUsers: SelectedServiceLibraryUser[] = selectedDetails
+          .filter((detail): detail is NonNullable<typeof detail> => Boolean(detail))
+          .filter((detail) => String(detail.user_type ?? '').toLowerCase() === 'service' && Boolean(detail.server_id))
+          .map((detail) => {
+            const serverId = Number(detail.server_id);
+            const fallbackServer = serverMap.get(String(serverId));
+            return {
+              uuid: detail.uuid,
+              displayName: getDisplayName(detail),
+              serverId,
+              serverNickname:
+                detail.server_nickname ??
+                fallbackServer?.server_nickname ??
+                `Server ${serverId}`,
+              serviceType:
+                detail.service_type ??
+                fallbackServer?.service_type ??
+                'service',
+              allowedLibraryIds: (detail.allowed_library_ids ?? []).map((id) => String(id)),
+              hasAllLibraries: Boolean(detail.has_all_libraries),
+            };
+          });
+
+        if (selectedServiceUsers.length === 0) {
+          setLibrarySelectionsByServer({});
+          return;
+        }
+
+        const usersByServer = new Map<string, SelectedServiceLibraryUser[]>();
+        selectedServiceUsers.forEach((serviceUser) => {
+          const key = String(serviceUser.serverId);
+          const existing = usersByServer.get(key);
+          if (existing) {
+            existing.push(serviceUser);
+          } else {
+            usersByServer.set(key, [serviceUser]);
+          }
+        });
+
+        const entries = await Promise.all(
+          Array.from(usersByServer.entries()).map(async ([serverId, usersForServer]) => {
+            const firstUser = usersForServer[0];
+            let librariesForServer: Library[] = [];
+            let serverError: string | null = null;
+
+            try {
+              const response = await requestJson<LibrariesResponse>(
+                `/api/v2/libraries?server_id=${serverId}&include_server=true`
+              );
+              librariesForServer = response?.data ?? [];
+            } catch (err) {
+              serverError =
+                err instanceof Error ? err.message : 'Failed to load libraries for this server.';
+            }
+
+            const allLibraryIds = librariesForServer.map((library) =>
+              getLibraryIdentifier(library, firstUser.serviceType)
+            );
+
+            const normalizedAllowedSets = usersForServer.map((serviceUser) =>
+              serviceUser.hasAllLibraries
+                ? new Set(allLibraryIds)
+                : new Set(serviceUser.allowedLibraryIds)
+            );
+
+            let intersection = new Set<string>();
+            if (normalizedAllowedSets.length > 0) {
+              intersection = new Set(normalizedAllowedSets[0]);
+              normalizedAllowedSets.slice(1).forEach((set) => {
+                intersection = new Set(Array.from(intersection).filter((id) => set.has(id)));
+              });
+            }
+
+            const allUsersHaveAllLibraries =
+              usersForServer.length > 0 &&
+              usersForServer.every((serviceUser) => serviceUser.hasAllLibraries);
+
+            const nextChecks: LibraryChecks = {};
+            allLibraryIds.forEach((libraryId) => {
+              nextChecks[libraryId] =
+                allUsersHaveAllLibraries || intersection.has(libraryId);
+            });
+
+            const selection: LibraryServerSelection = {
+              serverId: Number(serverId),
+              serverNickname: firstUser.serverNickname,
+              serviceType: firstUser.serviceType,
+              users: usersForServer,
+              libraries: librariesForServer,
+              libraryChecks: nextChecks,
+              grantAllLibraries: allUsersHaveAllLibraries,
+              error: serverError,
+            };
+
+            return [serverId, selection] as const;
+          })
+        );
+
+        if (cancelled) return;
+
+        setLibrarySelectionsByServer(Object.fromEntries(entries));
+      } catch (err) {
+        if (!cancelled) {
+          setLibrarySelectionsByServer({});
+          setLibrarySelectionsError(
+            err instanceof Error ? err.message : 'Failed to load selected users for library editing.'
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingLibrarySelections(false);
+        }
+      }
+    };
+
+    loadLibrarySelections();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [action, isOpen, selectedUserIds, servers]);
 
   useEffect(() => {
     if (!isOpen || action !== 'manage_local_link' || localLinkMode !== 'link') return;
@@ -509,14 +624,56 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
     });
   }, [serviceLinkOptions, serviceUserSearch]);
 
-  const handleToggleLibrary = (libraryId: string) => {
-    setLibraryChecks(prev => ({ ...prev, [libraryId]: !prev[libraryId] }));
-  };
-
-  const getLibraryIdentifier = (library: Library): string => {
-    const serviceType = library.server?.service_type?.toLowerCase();
+  const getLibraryIdentifier = (library: Library, serviceTypeHint?: string): string => {
+    const serviceType = (serviceTypeHint ?? library.server?.service_type ?? '').toLowerCase();
     if (serviceType === 'kavita' && library.internal_id) return String(library.internal_id);
     return String(library.external_id ?? library.internal_id ?? library.id);
+  };
+
+  const libraryServerSelections = useMemo(
+    () =>
+      Object.entries(librarySelectionsByServer)
+        .map(([serverId, selection]) => ({
+          serverId,
+          selection,
+        }))
+        .sort((a, b) =>
+          `${a.selection.serverNickname}`.localeCompare(
+            `${b.selection.serverNickname}`
+          )
+        ),
+    [librarySelectionsByServer]
+  );
+
+  const handleToggleServerLibrary = (serverId: string, libraryId: string) => {
+    setLibrarySelectionsByServer((prev) => {
+      const selection = prev[serverId];
+      if (!selection) return prev;
+      return {
+        ...prev,
+        [serverId]: {
+          ...selection,
+          libraryChecks: {
+            ...selection.libraryChecks,
+            [libraryId]: !selection.libraryChecks[libraryId],
+          },
+        },
+      };
+    });
+  };
+
+  const handleToggleServerGrantAll = (serverId: string, enabled: boolean) => {
+    setLibrarySelectionsByServer((prev) => {
+      const selection = prev[serverId];
+      if (!selection) return prev;
+      return {
+        ...prev,
+        [serverId]: {
+          ...selection,
+          grantAllLibraries: enabled,
+        },
+      };
+    });
   };
 
   const handleSubmit = async () => {
@@ -528,33 +685,38 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
 
       switch (action) {
         case 'modify_libraries': {
-          if (!selectedServerId) {
-            error('Please select a server');
+          const serverSelections = Object.values(librarySelectionsByServer).filter(
+            (selection) => selection.users.length > 0
+          );
+          if (serverSelections.length === 0) {
+            error('No service users selected for library updates.');
             return;
           }
 
-          const operations: any[] = [];
-          if (grantAllLibraries) {
-            operations.push({ action: 'update_libraries', library_ids: [] });
-          } else {
-            const selectedLibraryIds = Object.entries(libraryChecks)
-              .filter(([_, checked]) => checked)
-              .map(([id]) => id);
-            operations.push({
-              action: 'update_libraries',
-              library_ids: selectedLibraryIds,
-            });
-          }
+          await Promise.all(
+            serverSelections.map((selection) => {
+              const selectedLibraryIds = selection.grantAllLibraries
+                ? []
+                : Object.entries(selection.libraryChecks)
+                    .filter(([_, checked]) => checked)
+                    .map(([id]) => id);
 
-          await requestJson('/api/v2/users/bulk', {
-            method: 'POST',
-            body: JSON.stringify({
-              user_uuids: userUuids,
-              operations
+              return requestJson('/api/v2/users/bulk', {
+                method: 'POST',
+                body: JSON.stringify({
+                  user_uuids: selection.users.map((serviceUser) => serviceUser.uuid),
+                  operations: [{ action: 'update_libraries', library_ids: selectedLibraryIds }],
+                }),
+              });
             })
-          });
+          );
 
-          success(`Updated library access for ${userUuids.length} user${userUuids.length !== 1 ? 's' : ''}`);
+          const uniqueServiceUserCount = new Set(
+            serverSelections.flatMap((selection) => selection.users.map((serviceUser) => serviceUser.uuid))
+          ).size;
+          success(
+            `Updated library access for ${uniqueServiceUserCount} service user${uniqueServiceUserCount !== 1 ? 's' : ''} across ${serverSelections.length} server${serverSelections.length !== 1 ? 's' : ''}`
+          );
           break;
         }
 
@@ -684,91 +846,117 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
               <FontAwesomeIcon icon={faCircleInfo} className="h-4 w-4" />
               <AlertTitle>Library Access Control</AlertTitle>
               <AlertDescription>
-                Checked libraries indicate current access for the selected user. Uncheck to remove access.
+                Configure library access per server for all selected service users. Changes are applied by server in one submit.
               </AlertDescription>
             </Alert>
 
-            <div className="space-y-2">
-              <Label htmlFor="server">
-                <FontAwesomeIcon icon={faServer} className="mr-2" />
-                Server
-              </Label>
-              <Select value={selectedServerId} onValueChange={setSelectedServerId}>
-                <SelectTrigger id="server" className="h-11">
-                  <SelectValue placeholder="Select a server..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {servers.map((server) => (
-                    <SelectItem key={server.id} value={String(server.id)}>
-                      {server.server_nickname} ({server.service_type})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {librarySelectionsError && (
+              <Alert variant="warning">
+                <FontAwesomeIcon icon={faTriangleExclamation} className="h-4 w-4" />
+                <AlertTitle>Failed to Load Library Context</AlertTitle>
+                <AlertDescription>{librarySelectionsError}</AlertDescription>
+              </Alert>
+            )}
 
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="grant-all"
-                checked={grantAllLibraries}
-                onCheckedChange={(checked) => setGrantAllLibraries(checked === true)}
-              />
-              <Label htmlFor="grant-all" className="cursor-pointer">
-                <FontAwesomeIcon icon={faUnlock} className="mr-2" />
-                Grant access to all libraries
-              </Label>
-            </div>
-
-            {!grantAllLibraries && selectedServerId && (
-              <div className="space-y-2">
-                <Label>
-                  <FontAwesomeIcon icon={faFolder} className="mr-2" />
-                  Select Libraries
-                </Label>
-                  <div className="max-h-64 overflow-y-auto border rounded-lg p-3 space-y-2">
-                    {librariesLoading || loadingUserLibraries ? (
-                      <div className="flex items-center justify-center py-4">
-                        <Spinner className="size-4" />
+            {loadingLibrarySelections ? (
+              <div className="flex items-center justify-center py-6">
+                <Spinner className="size-4" />
+              </div>
+            ) : libraryServerSelections.length === 0 ? (
+              <div className="rounded-lg border border-border bg-muted/30 p-4 text-sm text-muted-foreground">
+                Select at least one service user to modify library access.
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {libraryServerSelections.map(({ serverId, selection }) => (
+                  <div key={serverId} className="space-y-3 rounded-lg border border-border p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold">
+                          <FontAwesomeIcon icon={faServer} className="mr-2 text-primary" />
+                          {selection.serverNickname}
+                          <span className="ml-1 text-xs font-normal text-muted-foreground">
+                            ({selection.serviceType})
+                          </span>
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Applies to {selection.users.length} selected service user{selection.users.length !== 1 ? 's' : ''}.
+                        </p>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {selection.users
+                            .slice(0, 4)
+                            .map((serviceUser) => serviceUser.displayName)
+                            .join(', ')}
+                          {selection.users.length > 4 ? ` +${selection.users.length - 4} more` : ''}
+                        </p>
                       </div>
-                    ) : libraries.length === 0 ? (
-                      <p className="text-sm text-muted-foreground text-center py-4">
-                        No libraries found for this server
+                    </div>
+
+                    {selection.users.length > 1 && (
+                      <p className="text-xs text-muted-foreground">
+                        Preselected libraries are the shared intersection across selected users on this server.
                       </p>
-                    ) : (
-                      libraries.map((library: Library) => {
-                        const libraryId = getLibraryIdentifier(library);
-                        const isChecked = !!libraryChecks[libraryId];
-                        return (
-                          <label
-                            key={libraryId}
-                            className="flex items-center gap-3 p-2 rounded hover:bg-muted cursor-pointer"
-                          >
-                            <Checkbox
-                              checked={isChecked}
-                              onCheckedChange={() => handleToggleLibrary(libraryId)}
-                            />
-                            <div className="flex-1">
-                              <div className="font-medium text-sm">{library.name}</div>
-                              {library.library_type && (
-                                <div className="text-xs text-muted-foreground">{library.library_type}</div>
-                              )}
-                            </div>
-                          </label>
-                      )})
                     )}
+
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        id={`grant-all-${serverId}`}
+                        checked={selection.grantAllLibraries}
+                        onCheckedChange={(checked) =>
+                          handleToggleServerGrantAll(serverId, checked === true)
+                        }
+                      />
+                      <Label htmlFor={`grant-all-${serverId}`} className="cursor-pointer">
+                        <FontAwesomeIcon icon={faUnlock} className="mr-2" />
+                        Grant access to all libraries on this server
+                      </Label>
+                    </div>
+
+                    {selection.error ? (
+                      <p className="text-sm text-destructive">{selection.error}</p>
+                    ) : !selection.grantAllLibraries ? (
+                      <div className="max-h-56 space-y-2 overflow-y-auto rounded-lg border p-3">
+                        {selection.libraries.length === 0 ? (
+                          <p className="py-3 text-center text-sm text-muted-foreground">
+                            No libraries found for this server.
+                          </p>
+                        ) : (
+                          selection.libraries.map((library) => {
+                            const libraryId = getLibraryIdentifier(
+                              library,
+                              selection.serviceType
+                            );
+                            return (
+                              <label
+                                key={`${serverId}-${libraryId}`}
+                                className="flex cursor-pointer items-center gap-3 rounded p-2 hover:bg-muted"
+                              >
+                                <Checkbox
+                                  checked={Boolean(selection.libraryChecks[libraryId])}
+                                  onCheckedChange={() =>
+                                    handleToggleServerLibrary(serverId, libraryId)
+                                  }
+                                />
+                                <div className="min-w-0 flex-1">
+                                  <div className="truncate text-sm font-medium">
+                                    {library.name}
+                                  </div>
+                                  {library.library_type && (
+                                    <div className="text-xs text-muted-foreground">
+                                      {library.library_type}
+                                    </div>
+                                  )}
+                                </div>
+                              </label>
+                            );
+                          })
+                        )}
+                      </div>
+                    ) : null}
                   </div>
-                  {selectedUserIds.size !== 1 && (
-                    <p className="text-xs text-muted-foreground">
-                      Multiple users selected — checkboxes don’t reflect per-user access.
-                    </p>
-                  )}
-                  {selectedUserIds.size === 1 && userHasAllLibraries && (
-                    <p className="text-xs text-muted-foreground">
-                      This user currently has access to all libraries.
-                    </p>
-                  )}
-                </div>
-              )}
+                ))}
+              </div>
+            )}
           </div>
         );
 
@@ -1221,6 +1409,10 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
     action === 'manage_local_link' &&
     localLinkMode === 'link' &&
     (multipleLocalUsersSelected || !targetLocalUserUuid || selectedServiceUserUuids.size === 0);
+  const isLibraryActionInvalid =
+    action === 'modify_libraries' &&
+    !loadingLibrarySelections &&
+    libraryServerSelections.length === 0;
 
   const footer = [
     <Button key="cancel" onClick={onClose} variant="outline" disabled={submitting}>
@@ -1229,7 +1421,7 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
     <Button
       key="submit"
       onClick={handleSubmit}
-      disabled={!action || submitting || isLinkActionInvalid}
+      disabled={!action || submitting || isLinkActionInvalid || isLibraryActionInvalid}
       variant={action === 'delete' ? 'destructive' : 'default'}
     >
       {submitting ? (

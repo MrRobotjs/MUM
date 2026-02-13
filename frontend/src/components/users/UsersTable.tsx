@@ -91,6 +91,13 @@ export type UserColumns = {
   actions: boolean;
 };
 
+export type SelectionModifiers = {
+  shiftKey?: boolean;
+  ctrlKey?: boolean;
+  metaKey?: boolean;
+  source?: 'row' | 'card' | 'checkbox';
+};
+
 type UsersTableProps = {
   users: UserRow[];
   loading?: boolean;
@@ -99,7 +106,7 @@ type UsersTableProps = {
   totalPages?: number;
   onPageChange?: (page: number) => void;
   selectedUserIds?: Set<string>;
-  onToggleSelection?: (userId: string) => void;
+  onToggleSelection?: (userId: string, modifiers?: SelectionModifiers) => void;
   onToggleSelectAll?: () => void;
   selectAllState?: 'none' | 'some' | 'all';
 };
@@ -147,7 +154,12 @@ export const UsersTable = ({
 
     // If selection is enabled, toggle on row click
     if (onToggleSelection) {
-      onToggleSelection(user.uuid);
+      onToggleSelection(user.uuid, {
+        shiftKey: e.shiftKey,
+        ctrlKey: e.ctrlKey,
+        metaKey: e.metaKey,
+        source: 'row',
+      });
     } else {
       navigate({ to: buildUserProfilePath(user), state: { userUuid: user.uuid } });
     }
@@ -383,8 +395,15 @@ export const UsersTable = ({
                       <TableCell>
                         <Checkbox
                           checked={isSelected}
-                          onCheckedChange={() => onToggleSelection(user.uuid)}
-                          onClick={(e) => e.stopPropagation()}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onToggleSelection(user.uuid, {
+                              shiftKey: e.shiftKey,
+                              ctrlKey: e.ctrlKey,
+                              metaKey: e.metaKey,
+                              source: 'checkbox',
+                            });
+                          }}
                         />
                       </TableCell>
                     )}

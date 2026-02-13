@@ -44,6 +44,9 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuPortal,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
 } from '../components/ui/dropdown-menu';
 import { Card, CardContent } from '../components/ui/card';
 import { Progress } from '../components/ui/progress';
@@ -73,6 +76,7 @@ import {
   faEllipsis,
   faRotate,
 } from '@fortawesome/free-solid-svg-icons';
+import type { SelectionModifiers } from '../components/users/UsersTable';
 
 export const UsersListPage = () => {
   const getPreferredView = () => {
@@ -99,6 +103,8 @@ export const UsersListPage = () => {
   const [showDisplaySettingsModal, setShowDisplaySettingsModal] = useState(false);
   const [showMassEditModal, setShowMassEditModal] = useState(false);
   const [showFilterDrawer, setShowFilterDrawer] = useState(false);
+  const [syncingServerId, setSyncingServerId] = useState<number | null>(null);
+  const [selectionAnchorUserId, setSelectionAnchorUserId] = useState<string | null>(null);
   const { syncStatus } = useSyncStatus();
   const { hasPermission } = useAuth();
   const { success, error } = useAlerts();
@@ -170,28 +176,58 @@ export const UsersListPage = () => {
   useEffect(() => {
     setPage(1);
     setSelectedUserIds(new Set());
+    setSelectionAnchorUserId(null);
   }, [search, userType, role, serverId, filterType, searchEmail, searchUsername, searchNotes, sort]);
 
   // Selection handlers
-  const toggleUserSelection = (userId: string) => {
+  const toggleUserSelection = (userId: string, modifiers?: SelectionModifiers) => {
+    const isShift = Boolean(modifiers?.shiftKey);
+    const isToggleModifier = Boolean(modifiers?.ctrlKey || modifiers?.metaKey);
+    const source = modifiers?.source ?? 'row';
+
     setSelectedUserIds((prev) => {
-      const newSet = new Set(prev);
-      if (newSet.has(userId)) {
-        newSet.delete(userId);
-      } else {
-        newSet.add(userId);
+      if (isShift && selectionAnchorUserId) {
+        const anchorIndex = users.findIndex((u) => u.uuid === selectionAnchorUserId);
+        const currentIndex = users.findIndex((u) => u.uuid === userId);
+
+        if (anchorIndex >= 0 && currentIndex >= 0) {
+          const [start, end] = anchorIndex < currentIndex
+            ? [anchorIndex, currentIndex]
+            : [currentIndex, anchorIndex];
+          const rangeIds = users.slice(start, end + 1).map((u) => u.uuid);
+          const next = new Set(prev);
+          rangeIds.forEach((id) => next.add(id));
+          return next;
+        }
       }
-      return newSet;
+
+      // Default behavior is additive toggle:
+      // click adds to selection, clicking selected item removes it.
+      // Ctrl/Cmd keeps the same toggle behavior for consistency.
+      if (source === 'checkbox' || source === 'row' || source === 'card' || isToggleModifier) {
+        const next = new Set(prev);
+        if (next.has(userId)) {
+          next.delete(userId);
+        } else {
+          next.add(userId);
+        }
+        return next;
+      }
+
+      return prev;
     });
+    setSelectionAnchorUserId(userId);
   };
 
   const selectAllUsers = () => {
     const allUserIds = users.map((u) => u.uuid);
     setSelectedUserIds(new Set(allUserIds));
+    setSelectionAnchorUserId(allUserIds.length > 0 ? allUserIds[allUserIds.length - 1] : null);
   };
 
   const deselectAllUsers = () => {
     setSelectedUserIds(new Set());
+    setSelectionAnchorUserId(null);
   };
 
   const toggleSelectAll = () => {
@@ -210,7 +246,7 @@ export const UsersListPage = () => {
       : 'some';
 
   const handleSync = async () => {
-    if (syncStatus.is_syncing) {
+    if (syncStatus.is_syncing || syncingServerId !== null) {
       return;
     }
     try {
@@ -275,6 +311,61 @@ export const UsersListPage = () => {
       error(`Failed to sync users: ${err instanceof Error ? err.message : 'Unknown error'}`);
     }
   };
+
+  const handleSyncSingleServer = async (targetServerId: number) => {
+    if (syncStatus.is_syncing || syncingServerId !== null) {
+      return;
+    }
+
+    const server = servers.find((item) => item.id === targetServerId);
+    const serverLabel = server?.server_nickname || 'Server';
+    setSyncingServerId(targetServerId);
+
+    try {
+      const result = await requestJson<{
+        success?: boolean;
+        message?: string;
+        added?: number;
+        updated?: number;
+        removed?: number;
+        library_sync_failed?: boolean;
+        library_sync_message?: string;
+      }>(`/api/v2/servers/${targetServerId}/sync-users`, {
+        method: 'POST',
+      });
+
+      const succeeded = Boolean(result?.success);
+      if (succeeded) {
+        const hasCounts =
+          typeof result?.added === 'number' &&
+          typeof result?.updated === 'number' &&
+          typeof result?.removed === 'number';
+
+        if (hasCounts) {
+          success(
+            `Synced ${serverLabel}: ${result.added} added, ${result.updated} updated, ${result.removed} removed`
+          );
+        } else {
+          success(`Synced ${serverLabel}.`);
+        }
+      } else {
+        error(`Sync failed for ${serverLabel}: ${result?.message ?? 'Unknown error'}`);
+      }
+
+      if (result?.library_sync_failed) {
+        error(`Library sync failed for ${serverLabel}: ${result.library_sync_message ?? 'Unknown error'}`);
+      }
+
+      mutate();
+    } catch (err) {
+      error(`Failed to sync ${serverLabel}: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setSyncingServerId(null);
+    }
+  };
+
+  const isAnySyncing = syncStatus.is_syncing || syncingServerId !== null;
+  const hasMultipleEnabledServers = servers.length > 1;
 
   const handleDeleteSelected = async () => {
     if (selectedUserIds.size === 0) return;
@@ -344,23 +435,81 @@ export const UsersListPage = () => {
           <DropdownMenuSeparator />
           <DropdownMenuLabel>Bulk Actions</DropdownMenuLabel>
           {hasPermission('administrator') && (
-            <DropdownMenuItem
-              disabled={syncStatus.is_syncing}
-              onSelect={() => {
-                if (syncStatus.is_syncing) return
-                handleSync()
-              }}
-              className="cursor-pointer"
-            >
-              <FontAwesomeIcon
-                icon={faRotate}
-                className={cn(
-                  'mr-2 size-4',
-                  syncStatus.is_syncing && 'animate-spin text-primary'
-                )}
-              />
-              {syncStatus.is_syncing ? 'Syncing...' : 'Sync All Users'}
-            </DropdownMenuItem>
+            hasMultipleEnabledServers ? (
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger disabled={isAnySyncing}>
+                  <FontAwesomeIcon
+                    icon={faRotate}
+                    className={cn(
+                      'mr-2 size-4',
+                      isAnySyncing && 'animate-spin text-primary'
+                    )}
+                  />
+                  {isAnySyncing ? 'Syncing...' : 'Sync Users'}
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent className="w-64">
+                  <DropdownMenuItem
+                    disabled={isAnySyncing}
+                    onSelect={() => {
+                      if (isAnySyncing) return;
+                      handleSync();
+                    }}
+                    className="cursor-pointer"
+                  >
+                    <FontAwesomeIcon
+                      icon={faRotate}
+                      className={cn(
+                        'mr-2 size-4',
+                        syncStatus.is_syncing && 'animate-spin text-primary'
+                      )}
+                    />
+                    Sync All Servers
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  {servers.map((server) => {
+                    const isSyncingThisServer = syncingServerId === server.id;
+                    return (
+                      <DropdownMenuItem
+                        key={server.id}
+                        disabled={isAnySyncing}
+                        onSelect={() => {
+                          if (isAnySyncing) return;
+                          handleSyncSingleServer(server.id);
+                        }}
+                        className="cursor-pointer"
+                      >
+                        <FontAwesomeIcon
+                          icon={faRotate}
+                          className={cn(
+                            'mr-2 size-4',
+                            isSyncingThisServer && 'animate-spin text-primary'
+                          )}
+                        />
+                        {`Sync ${server.server_nickname}`}
+                      </DropdownMenuItem>
+                    );
+                  })}
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+            ) : (
+              <DropdownMenuItem
+                disabled={isAnySyncing}
+                onSelect={() => {
+                  if (isAnySyncing) return;
+                  handleSync();
+                }}
+                className="cursor-pointer"
+              >
+                <FontAwesomeIcon
+                  icon={faRotate}
+                  className={cn(
+                    'mr-2 size-4',
+                    isAnySyncing && 'animate-spin text-primary'
+                  )}
+                />
+                {isAnySyncing ? 'Syncing...' : 'Sync All Users'}
+              </DropdownMenuItem>
+            )
           )}
           {hasPermission('administrator') && (
             <DropdownMenuItem

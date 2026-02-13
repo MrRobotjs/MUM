@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { buildUserProfilePath } from '../../util/routes';
-import type { UserRow } from './UsersTable';
+import type { UserRow, SelectionModifiers } from './UsersTable';
 import { Checkbox } from '../ui/checkbox';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardFooter } from '../ui/card';
@@ -49,7 +49,7 @@ export type UserNowPlaying = {
 interface UserCardProps {
   user: UserRow;
   isSelected?: boolean;
-  onToggleSelection?: (userId: string) => void;
+  onToggleSelection?: (userId: string, modifiers?: SelectionModifiers) => void;
   nowPlaying?: UserNowPlaying | null;
   onLibraryChanged?: () => void;
 }
@@ -121,16 +121,14 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
     }
     // Toggle selection on card click if selection is enabled
     if (onToggleSelection) {
-      onToggleSelection(user.uuid);
+      onToggleSelection(user.uuid, {
+        shiftKey: e.shiftKey,
+        ctrlKey: e.ctrlKey,
+        metaKey: e.metaKey,
+        source: 'card',
+      });
     } else {
       navigate({ to: buildUserProfilePath(user), state: { userUuid: user.uuid } });
-    }
-  };
-
-  const handleCheckboxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    e.stopPropagation();
-    if (onToggleSelection) {
-      onToggleSelection(user.uuid);
     }
   };
 
@@ -388,7 +386,15 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
         >
           <Checkbox
             checked={isSelected}
-            onCheckedChange={() => onToggleSelection(user.uuid)}
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleSelection(user.uuid, {
+                shiftKey: e.shiftKey,
+                ctrlKey: e.ctrlKey,
+                metaKey: e.metaKey,
+                source: 'checkbox',
+              });
+            }}
             title="Select user"
           />
         </div>

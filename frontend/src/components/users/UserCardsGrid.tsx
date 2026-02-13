@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { UserCard, type UserNowPlaying } from './UserCard';
 import { Pagination } from '../common/Pagination';
-import type { UserRow } from './UsersTable';
+import type { UserRow, SelectionModifiers } from './UsersTable';
 import { Skeleton } from '../ui/skeleton';
 import { Card, CardContent } from '../ui/card';
 import { useStreamingWebSocket } from '../../hooks/useStreamingWebSocket';
@@ -11,7 +11,7 @@ interface UserCardsGridProps {
   users: UserRow[];
   loading?: boolean;
   selectedUserIds?: Set<string>;
-  onToggleSelection?: (userId: string) => void;
+  onToggleSelection?: (userId: string, modifiers?: SelectionModifiers) => void;
   currentPage?: number;
   totalPages?: number;
   onPageChange?: (page: number) => void;

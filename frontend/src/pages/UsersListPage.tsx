@@ -52,6 +52,7 @@ import { Card, CardContent } from '../components/ui/card';
 import { Progress } from '../components/ui/progress';
 import { Separator } from '../components/ui/separator';
 import { Spinner } from '@/components/ui/spinner'
+import { ServiceIcon } from '@/components/services/ServiceIcon';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faCog,
@@ -478,11 +479,11 @@ export const UsersListPage = () => {
                         }}
                         className="cursor-pointer"
                       >
-                        <FontAwesomeIcon
-                          icon={faRotate}
+                        <ServiceIcon
+                          serviceType={server.service_type}
                           className={cn(
-                            'mr-2 size-4',
-                            isSyncingThisServer && 'animate-spin text-primary'
+                            'mr-2 h-4 w-4',
+                            isSyncingThisServer && 'animate-spin'
                           )}
                         />
                         {`Sync ${server.server_nickname}`}

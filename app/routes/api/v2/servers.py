@@ -16,6 +16,7 @@ from app.services.media_service_manager import MediaServiceManager
 from app.services.media_service_factory import MediaServiceFactory
 from app.models import Notification, NotificationType
 from app.utils.timezone_utils import utcnow
+from app.routes.api.v2.sync_status import get_sync_status, start_sync, update_sync_progress, end_sync
 
 
 servers_tag = Tag(name="Servers", description="Media server management")
@@ -465,14 +466,37 @@ def sync_server_libraries(path: ServerPathOp, current_user):
     "/servers/<server_id>/sync-users",
     tags=[servers_tag],
     summary="Sync server users",
-    responses={200: SimpleResult, 404: ErrorResponse},
+    responses={200: SimpleResult, 404: ErrorResponse, 409: ErrorResponse},
 )
 @jwt_required_with_user()
 def sync_server_users(path: ServerPathOp, current_user):
     server = MediaServer.query.get(path.server_id)
     if not server:
         return jsonify({"error": {"code": "NOT_FOUND", "message": "Server not found"}}), 404
-    result = MediaServiceManager.sync_server_users(path.server_id)
+
+    current_status = get_sync_status()
+    if current_status.get("is_syncing"):
+        return (
+            jsonify(
+                {
+                    "error": {
+                        "code": "SYNC_IN_PROGRESS",
+                        "message": (
+                            f"User sync is already in progress (started by "
+                            f"{current_status.get('started_by_username')} at {current_status.get('started_at')})"
+                        ),
+                    }
+                }
+            ),
+            409,
+        )
+
+    start_sync(1, current_user)
+    try:
+        update_sync_progress(1, 1, server.server_nickname)
+        result = MediaServiceManager.sync_server_users(path.server_id)
+    finally:
+        end_sync()
 
     # Mark SERVER_NOT_SYNCED notifications as read for this server
     try:

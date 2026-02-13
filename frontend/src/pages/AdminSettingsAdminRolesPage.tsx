@@ -44,6 +44,7 @@ import { getReadableTextColor, resolveCssVarHex } from '@/lib/themeColors'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { Spinner } from '@/components/ui/spinner'
 import { useResolvedIconDefinition } from '@/hooks/useResolvedIconDefinition'
+import { PRESET_ROLE_COLORS, ROLE_BADGE_STYLE_OPTIONS } from '@/components/roles/roleFormConstants'
 import {
   faShieldHalved,
   faPenToSquare,
@@ -78,47 +79,6 @@ type RoleFormValues = {
   permission_ids: number[]
 }
 
-const BASE_PRESET_COLORS: Array<{ hex: string; label: string }> = [
-  { hex: '#1abc9c', label: 'Teal' },
-  { hex: '#2ecc71', label: 'Green' },
-  { hex: '#3498db', label: 'Blue' },
-  { hex: '#9b59b6', label: 'Purple' },
-  { hex: '#e91e63', label: 'Pink' },
-  { hex: '#f1c40f', label: 'Yellow' },
-  { hex: '#e67e22', label: 'Orange' },
-  { hex: '#e74c3c', label: 'Red' },
-  { hex: '#95a5a6', label: 'Gray' },
-  { hex: '#607d8b', label: 'Blue Gray' },
-  { hex: '#11806a', label: 'Dark Teal' },
-  { hex: '#1f8b4c', label: 'Dark Green' },
-  { hex: '#206694', label: 'Dark Blue' },
-  { hex: '#71368a', label: 'Dark Purple' },
-  { hex: '#ad1457', label: 'Dark Pink' },
-  { hex: '#c27c0e', label: 'Dark Yellow' },
-  { hex: '#a84300', label: 'Dark Orange' },
-  { hex: '#992d22', label: 'Dark Red' },
-  { hex: '#979c9f', label: 'Dark Gray' },
-  { hex: '#546e7a', label: 'Dark Blue Gray' },
-]
-
-const BADGE_STYLE_OPTIONS: Array<{ value: 'default' | 'fill' | 'outline'; label: string; description: string }> = [
-  {
-    value: 'default',
-    label: 'Default',
-    description: 'Soft background with a subtle border.',
-  },
-  {
-    value: 'fill',
-    label: 'Fill',
-    description: 'Solid color badge with strong contrast.',
-  },
-  {
-    value: 'outline',
-    label: 'Outline',
-    description: 'Border-only style with no background.',
-  },
-]
-
 export const AdminSettingsAdminRolesPage = () => {
   const navigate = useNavigate()
   const { roles, loading, error, refresh } = useAdminRoles(true, false, true)
@@ -135,7 +95,7 @@ export const AdminSettingsAdminRolesPage = () => {
     () => resolveCssVarHex('--primary', '#3b82f6'),
     [theme]
   )
-  const presetColors = BASE_PRESET_COLORS
+  const presetColors = PRESET_ROLE_COLORS
 
   const [sortedRoles, setSortedRoles] = useState<AdminRole[]>([])
   const [reordering, setReordering] = useState(false)
@@ -738,7 +698,7 @@ export const AdminSettingsAdminRolesPage = () => {
                 </Badge>
               </div>
               <div className="grid gap-3 sm:grid-cols-3">
-                {BADGE_STYLE_OPTIONS.map((option) => {
+                {ROLE_BADGE_STYLE_OPTIONS.map((option) => {
                   const isSelected = formValues.badge_style === option.value
                   return (
                     <button

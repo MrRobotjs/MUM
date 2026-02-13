@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { Suspense, lazy, useMemo, useRef, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 
 
@@ -34,10 +34,12 @@ import { requestJson } from '../util/apiClient';
 import { useAlerts, useTheme } from '../contexts';
 import { cn } from '@/lib/utils';
 import { ResponsiveDialog } from '@/components/ui/responsive-dialog';
-import { resolveCssVarHex } from '@/lib/themeColors';
+import { getReadableTextColor, resolveCssVarHex } from '@/lib/themeColors';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { Spinner } from '@/components/ui/spinner'
 import { useResolvedIconDefinition } from '@/hooks/useResolvedIconDefinition';
+import { Label } from '@/components/ui/label'
+import { PRESET_ROLE_COLORS, ROLE_BADGE_STYLE_OPTIONS, type RoleBadgeStyle } from '@/components/roles/roleFormConstants'
 import {
   faTag,
   faTags,
@@ -47,26 +49,26 @@ import {
   faTriangleExclamation,
   faList,
   faPalette,
-  faDroplet,
+  faAlignLeft,
+  faIdBadge,
+  faIcons,
+  faStar,
+  faXmark,
+  faGrip,
+  faPaintbrush,
+  faCheck,
 } from '@fortawesome/free-solid-svg-icons';
+import type { FontAwesomeBrowserIcon } from '@/components/icons/FontAwesomeIconBrowser'
+
+const FontAwesomeIconBrowser = lazy(() => import('@/components/icons/FontAwesomeIconBrowser'))
 
 type RoleFormValues = {
   name: string;
   description: string;
   color: string;
   icon: string;
+  badge_style: RoleBadgeStyle;
 };
-
-const presetColors: Array<{ hex: string; label: string }> = [
-  { hex: '#f04747', label: 'Red' },
-  { hex: '#faa61a', label: 'Orange' },
-  { hex: '#fee75c', label: 'Yellow' },
-  { hex: '#57f287', label: 'Green' },
-  { hex: '#5865f2', label: 'Blurple' },
-  { hex: '#eb459e', label: 'Pink' },
-  { hex: '#9c84ef', label: 'Purple' },
-  { hex: '#808080', label: 'Gray' },
-];
 
 const isAutoManagedRole = (role: UserRole) => Boolean(role.is_auto_managed);
 
@@ -75,19 +77,24 @@ export const AdminSettingsUserRolesPage = () => {
   const { roles, loading, error, refresh } = useUserRoles(false, true);
   const { success, error: showError } = useAlerts();
   const { theme } = useTheme();
+  const iconInputRef = useRef<HTMLInputElement | null>(null)
   const themePrimaryHex = useMemo(
     () => resolveCssVarHex('--primary', '#3b82f6'),
     [theme]
   );
   const [modalOpen, setModalOpen] = useState(false);
   const [editingRole, setEditingRole] = useState<UserRole | null>(null);
+  const [iconBrowseOpen, setIconBrowseOpen] = useState(false)
   const [formValues, setFormValues] = useState<RoleFormValues>({
     name: '',
     description: '',
     color: themePrimaryHex,
     icon: '',
+    badge_style: 'default',
   });
   const [submitting, setSubmitting] = useState(false);
+  const isDefaultColorSelected = formValues.color.toLowerCase() === themePrimaryHex.toLowerCase()
+  const presetColors = PRESET_ROLE_COLORS
 
   const RoleIconCircle = ({ iconClass, color }: { iconClass?: string | null; color: string }) => {
     const resolved = useResolvedIconDefinition(iconClass);
@@ -103,6 +110,7 @@ export const AdminSettingsUserRolesPage = () => {
       description: '',
       color: themePrimaryHex,
       icon: '',
+      badge_style: 'default',
     });
     setModalOpen(true);
   };
@@ -161,78 +169,130 @@ export const AdminSettingsUserRolesPage = () => {
 
   const formId = 'user-role-form';
 
+  const handleBrowseOpenChange = (nextOpen: boolean) => {
+    setIconBrowseOpen(nextOpen)
+  }
+
+  const handleIconSelect = (icon: FontAwesomeBrowserIcon) => {
+    const prefix =
+      icon.prefix === 'brands' ? 'fa-brands' : icon.prefix === 'regular' ? 'fa-regular' : 'fa-solid'
+    setFormValues((prev) => ({ ...prev, icon: `${prefix} fa-${icon.iconName}` }))
+    setIconBrowseOpen(false)
+  }
+
   const renderRoleForm = () => (
-    <form id={formId} onSubmit={handleSubmit} className="space-y-4">
-      <div className="space-y-2">
-        <label className="text-sm font-medium text-foreground" htmlFor="name">
-          Role Name
-        </label>
-        <Input
-          id="name"
-          value={formValues.name}
-          onChange={(event) =>
-            setFormValues({ ...formValues, name: event.target.value })
-          }
-          required
-          placeholder="VIP Member"
-        />
-      </div>
+    <form id={formId} onSubmit={handleSubmit} className="space-y-6">
+      <Alert variant="info">
+        <FontAwesomeIcon icon={faCircleInfo} className="h-4 w-4" />
+        <AlertTitle>Role Configuration</AlertTitle>
+        <AlertDescription>
+          Customize the role&apos;s name, description, and visual appearance. User roles are cosmetic and do not grant permissions.
+        </AlertDescription>
+      </Alert>
 
-      <div className="space-y-2">
-        <label className="text-sm font-medium text-foreground" htmlFor="description">
-          Description
-        </label>
-        <Textarea
-          id="description"
-          value={formValues.description}
-          onChange={(event) =>
-            setFormValues({ ...formValues, description: event.target.value })
-          }
-          placeholder="Short description shown alongside the badge."
-          rows={3}
-        />
-      </div>
+      <div className="space-y-4">
+        <h4 className="flex items-center gap-2 text-lg font-medium">
+          <FontAwesomeIcon icon={faIdBadge} className="text-sm text-primary" />
+          Basic Settings
+        </h4>
 
-      <div className="space-y-3">
-        <label className="text-sm font-medium text-foreground" htmlFor="color">
-          Color
-        </label>
-        <div className="rounded-lg border border-border bg-muted/40 p-4">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-center gap-4">
-                  <span
-                    className="flex size-12 items-center justify-center rounded-full border border-white/40 shadow"
-                    style={{ backgroundColor: formValues.color }}
-                  >
-                <FontAwesomeIcon icon={faDroplet} className="h-6 w-6 text-white/80 drop-shadow" />
-                  </span>
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-                  <FontAwesomeIcon icon={faPalette} className="h-4 w-4" />
-                  Selected Color
-                </div>
-                <p className="font-mono text-xs uppercase text-muted-foreground">
-                  {formValues.color}
-                </p>
-              </div>
+        <div className="rounded-lg border border-border bg-card p-4 transition-colors hover:border-border/60">
+          <div className="mb-2 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <FontAwesomeIcon icon={faTag} className="size-4 text-primary" />
+              <Label htmlFor="name" className="font-medium">Role Name</Label>
+              <UiBadge variant="destructive" className="text-xs">Required</UiBadge>
             </div>
-            <Input
-              id="color"
-              type="color"
-              value={formValues.color}
-              onChange={(event) =>
-                setFormValues({ ...formValues, color: event.target.value })
-              }
-              className="h-12 w-20 cursor-pointer rounded-md border border-border bg-background p-1 shadow-sm sm:h-10"
-              aria-label="Custom color picker"
-            />
+          </div>
+          <Input
+            id="name"
+            value={formValues.name}
+            onChange={(event) => setFormValues((prev) => ({ ...prev, name: event.target.value }))}
+            required
+            className="h-11"
+            placeholder="VIP Member"
+          />
+          <p className="mt-1 text-xs text-muted-foreground">A unique name for this visual role</p>
+        </div>
+
+        <div className="rounded-lg border border-border bg-card p-4 transition-colors hover:border-border/60">
+          <div className="mb-2 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <FontAwesomeIcon icon={faAlignLeft} className="size-4 text-sky-600 dark:text-sky-400" />
+              <Label htmlFor="description" className="font-medium">Description</Label>
+              <UiBadge variant="secondary" className="text-xs">Optional</UiBadge>
+            </div>
+          </div>
+          <Textarea
+            id="description"
+            value={formValues.description}
+            onChange={(event) => setFormValues((prev) => ({ ...prev, description: event.target.value }))}
+            rows={3}
+            className="min-h-[88px]"
+            placeholder="Short description shown alongside the badge."
+          />
+          <p className="mt-1 text-xs text-muted-foreground">Displayed as helper text in role previews</p>
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        <h4 className="flex items-center gap-2 text-lg font-medium">
+          <FontAwesomeIcon icon={faPalette} className="text-sm text-amber-600 dark:text-amber-400" />
+          Visual Appearance
+        </h4>
+
+        <div className="rounded-lg border border-border bg-card p-4 transition-colors hover:border-border/60">
+          <div className="mb-3 space-y-1">
+            <div className="flex items-center gap-2">
+              <FontAwesomeIcon icon={faPalette} className="size-4 text-amber-600 dark:text-amber-400" />
+              <Label className="font-medium">Role Color</Label>
+            </div>
           </div>
 
-          <div className="mt-4">
-            <p className="text-xs font-medium uppercase text-muted-foreground">
-              Preset colors
-            </p>
-            <div className="mt-2 flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              className={cn(
+                'relative flex size-16 shrink-0 items-center justify-center rounded-md border transition-all',
+                isDefaultColorSelected ? 'border-transparent' : 'border-transparent hover:border-border'
+              )}
+              style={{ backgroundColor: themePrimaryHex }}
+              title="Default color"
+              onClick={() => setFormValues((prev) => ({ ...prev, color: themePrimaryHex }))}
+            >
+              {isDefaultColorSelected && (
+                <FontAwesomeIcon
+                  icon={faCheck}
+                  className="size-6 drop-shadow-sm"
+                  style={{ color: getReadableTextColor(themePrimaryHex) }}
+                />
+              )}
+              <span className="sr-only">Default color</span>
+            </button>
+
+            <div
+              className={cn(
+                'relative flex size-16 shrink-0 items-center justify-center rounded-md border transition-all',
+                isDefaultColorSelected ? 'border-border/60 bg-transparent' : 'border-transparent shadow-sm'
+              )}
+              style={{ backgroundColor: isDefaultColorSelected ? 'transparent' : formValues.color }}
+            >
+              <FontAwesomeIcon
+                icon={faPaintbrush}
+                className="absolute right-1 top-1 size-4 drop-shadow-md"
+                style={{ color: getReadableTextColor(formValues.color) }}
+              />
+              <Input
+                id="color"
+                type="color"
+                value={formValues.color}
+                onChange={(event) => setFormValues((prev) => ({ ...prev, color: event.target.value }))}
+                className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                aria-label="Choose badge color"
+              />
+            </div>
+
+            <div className="grid grid-cols-8 gap-1.5 pt-0.5 md:grid-cols-10">
               {presetColors.map((preset) => {
                 const isSelected = preset.hex.toLowerCase() === formValues.color.toLowerCase();
                 return (
@@ -240,55 +300,164 @@ export const AdminSettingsUserRolesPage = () => {
                     key={preset.hex}
                     type="button"
                     className={cn(
-                      'flex size-9 items-center justify-center rounded-full border-2 transition',
-                      isSelected
-                        ? 'border-primary ring-2 ring-primary/40'
-                        : 'border-transparent hover:border-border'
+                      'relative flex size-7 items-center justify-center rounded-md transition-all',
+                      isSelected ? 'scale-110 z-10' : 'hover:scale-110 hover:z-10'
                     )}
                     style={{ backgroundColor: preset.hex }}
                     title={preset.label}
-                    onClick={() => setFormValues({ ...formValues, color: preset.hex })}
+                    onClick={() => setFormValues((prev) => ({ ...prev, color: preset.hex }))}
                   >
+                    {isSelected && (
+                      <FontAwesomeIcon
+                        icon={faCheck}
+                        className="size-4 drop-shadow-sm"
+                        style={{ color: getReadableTextColor(preset.hex) }}
+                      />
+                    )}
                     <span className="sr-only">{preset.label}</span>
                   </button>
                 );
               })}
             </div>
           </div>
+          <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+            <span className="font-medium text-foreground">Selected</span>
+            <span className="font-mono uppercase">{formValues.color}</span>
+          </div>
         </div>
-      </div>
 
-      <div className="space-y-2">
-        <label className="text-sm font-medium text-foreground" htmlFor="icon">
-          Icon (FontAwesome)
-        </label>
-        <Input
-          id="icon"
-          value={formValues.icon}
-          onChange={(event) =>
-            setFormValues({ ...formValues, icon: event.target.value })
-          }
-          placeholder="fa-star"
-        />
-        <p className="text-xs text-muted-foreground">
-          Use FontAwesome class names (e.g., fa-star, fa-crown).
-        </p>
-      </div>
+        <div className="rounded-lg border border-border bg-card p-4 transition-colors hover:border-border/60">
+          <div className="mb-2 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <FontAwesomeIcon icon={faIcons} className="size-4 text-indigo-600 dark:text-indigo-400" />
+              <Label htmlFor="icon" className="font-medium">Icon</Label>
+              <UiBadge variant="secondary" className="text-xs">Optional</UiBadge>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Input
+                id="icon"
+                ref={iconInputRef}
+                value={formValues.icon}
+                onChange={(event) => setFormValues((prev) => ({ ...prev, icon: event.target.value }))}
+                placeholder="e.g. fa-solid fa-star"
+                className="h-11 pr-10 font-mono text-xs"
+              />
+              {formValues.icon && (
+                <button
+                  type="button"
+                  onClick={() => setFormValues((prev) => ({ ...prev, icon: '' }))}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  <FontAwesomeIcon icon={faXmark} className="size-4" />
+                </button>
+              )}
+            </div>
+            <Button variant="outline" className="h-11 gap-2" type="button" onClick={() => handleBrowseOpenChange(true)}>
+              <FontAwesomeIcon icon={faGrip} className="size-4" />
+              Browse Icons
+            </Button>
+            <Suspense
+              fallback={(
+                <ResponsiveDialog
+                  open={iconBrowseOpen}
+                  onOpenChange={handleBrowseOpenChange}
+                  title="Browse icons"
+                  description="Choose a Font Awesome style and icon."
+                >
+                  <div className="flex h-48 items-center justify-center text-sm text-muted-foreground">
+                    Loading icon browser...
+                  </div>
+                </ResponsiveDialog>
+              )}
+            >
+              <FontAwesomeIconBrowser
+                open={iconBrowseOpen}
+                onOpenChange={handleBrowseOpenChange}
+                onSelect={handleIconSelect}
+                renderStyleBadge={({ isActive, label, StyleIcon }) => (
+                  <Badge
+                    color={isActive ? 'bg-primary' : 'bg-muted/60'}
+                    className={cn(
+                      'rounded-full px-3 py-1 text-xs font-medium gap-1',
+                      isActive ? 'text-primary-foreground' : 'text-muted-foreground'
+                    )}
+                    hover={false}
+                  >
+                    <StyleIcon className="text-[0.65rem]" />
+                    {label}
+                  </Badge>
+                )}
+              />
+            </Suspense>
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Search and select an icon from the FontAwesome library.
+          </p>
+        </div>
 
-      <div className="rounded-lg border border-dashed border-border bg-muted/40 p-4">
-        <p className="text-xs font-medium uppercase text-muted-foreground">Live preview</p>
-        <div className="mt-3 flex flex-wrap items-center gap-3">
-          <Badge
-            hexColor={formValues.color}
-            iconClass={formValues.icon || null}
-            roleKind="user"
-            className="rounded-full px-3 py-1 text-sm shadow-sm"
-          >
-            {formValues.name || 'Role Name'}
-          </Badge>
-          <span className="text-xs text-muted-foreground">
-            {formValues.description || 'Description preview text'}
-          </span>
+        <div className="rounded-lg border border-border bg-card p-4 transition-colors hover:border-border/60">
+          <div className="mb-2 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <FontAwesomeIcon icon={faStar} className="size-4 text-purple-600 dark:text-purple-400" />
+              <Label className="font-medium">Badge Style</Label>
+            </div>
+            <UiBadge variant="secondary" className="text-xs">Optional</UiBadge>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-3">
+            {ROLE_BADGE_STYLE_OPTIONS.map((option) => {
+              const isSelected = formValues.badge_style === option.value;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setFormValues((prev) => ({ ...prev, badge_style: option.value }))}
+                  aria-pressed={isSelected}
+                  className={cn(
+                    'flex flex-col items-start gap-2 rounded-lg border p-3 text-left transition',
+                    isSelected
+                      ? 'border-primary bg-primary/5 shadow-sm'
+                      : 'border-border bg-muted/30 hover:border-border/60'
+                  )}
+                >
+                  <Badge
+                    hexColor={formValues.color}
+                    iconClass={formValues.icon || null}
+                    roleKind="user"
+                    badgeStyle={option.value}
+                    className="rounded-full px-3 py-1 text-xs"
+                    hover={false}
+                  >
+                    {formValues.name || 'Role Name'}
+                  </Badge>
+                  <div>
+                    <div className="text-xs font-semibold text-foreground">{option.label}</div>
+                    <div className="text-[10px] text-muted-foreground">{option.description}</div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="rounded-lg border border-dashed border-border bg-muted/40 p-4">
+          <p className="text-xs font-medium uppercase text-muted-foreground">Live preview</p>
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <Badge
+              hexColor={formValues.color}
+              iconClass={formValues.icon || null}
+              roleKind="user"
+              badgeStyle={formValues.badge_style}
+              className="rounded-full px-3 py-1 text-sm shadow-sm"
+              hover={false}
+            >
+              {formValues.name || 'Role Name'}
+            </Badge>
+            <span className="text-xs text-muted-foreground">
+              {formValues.description || 'Description preview text'}
+            </span>
+          </div>
         </div>
       </div>
     </form>
@@ -445,7 +614,7 @@ export const AdminSettingsUserRolesPage = () => {
         open={modalOpen}
         onOpenChange={setModalOpen}
         title={editingRole ? 'Edit User Role' : 'Create User Role'}
-        description="Define a visual badge that can be assigned to users."
+        contentClassName="max-w-4xl"
         footer={[
           <Button
             key="cancel"

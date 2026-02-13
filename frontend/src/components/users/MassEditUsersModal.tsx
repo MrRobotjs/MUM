@@ -67,6 +67,7 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
 
   // Set Expiration state
   const [expirationDate, setExpirationDate] = useState<Date | undefined>(undefined);
+  const [expirationMode, setExpirationMode] = useState<'set' | 'clear'>('set');
 
   // Merge Local state
   const [targetLocalUserUuid, setTargetLocalUserUuid] = useState<string>('');
@@ -147,7 +148,8 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
       setSelectedServerId(servers.length > 0 ? String(servers[0].id) : '');
     } else if (action === 'extend_access') {
       setExtendDays(30);
-    } else if (action === 'set_expiration') {
+    } else if (action === 'manage_expiration') {
+      setExpirationMode('set');
       setExpirationDate(undefined);
     } else if (action === 'merge_local') {
       setTargetLocalUserUuid('');
@@ -224,25 +226,25 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
           break;
         }
 
-        case 'set_expiration': {
-          if (!expirationDate) {
-            error('Please select an expiration date');
-            return;
+        case 'manage_expiration': {
+          if (expirationMode === 'set') {
+            if (!expirationDate) {
+              error('Please select an expiration date');
+              return;
+            }
+
+            await requestJson('/api/v2/users/bulk', {
+              method: 'POST',
+              body: JSON.stringify({
+                user_uuids: userUuids,
+                operations: [{ action: 'set_expiration', expires_at: expirationDate.toISOString() }]
+              })
+            });
+
+            success(`Set expiration date for ${userUuids.length} user${userUuids.length !== 1 ? 's' : ''}`);
+            break;
           }
 
-          await requestJson('/api/v2/users/bulk', {
-            method: 'POST',
-            body: JSON.stringify({
-              user_uuids: userUuids,
-              operations: [{ action: 'set_expiration', expires_at: expirationDate.toISOString() }]
-            })
-          });
-
-          success(`Set expiration date for ${userUuids.length} user${userUuids.length !== 1 ? 's' : ''}`);
-          break;
-        }
-
-        case 'clear_expiration': {
           await requestJson('/api/v2/users/bulk', {
             method: 'POST',
             body: JSON.stringify({
@@ -440,78 +442,102 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
           </div>
         );
 
-      case 'set_expiration':
+      case 'manage_expiration':
         return (
           <div className="space-y-4">
-            <div className="bg-blue-50 dark:bg-blue-400/10 rounded-lg p-4 border border-blue-500/30">
+            <div
+              className={
+                expirationMode === 'set'
+                  ? 'bg-blue-50 dark:bg-blue-400/10 rounded-lg p-4 border border-blue-500/30'
+                  : 'bg-amber-50 dark:bg-amber-400/10 rounded-lg p-4 border border-amber-500/30'
+              }
+            >
               <div className="flex items-start gap-3">
-                <FontAwesomeIcon icon={faCircleInfo} className="text-blue-600 dark:text-blue-400 text-lg mt-0.5" />
+                <FontAwesomeIcon
+                  icon={expirationMode === 'set' ? faCircleInfo : faTriangleExclamation}
+                  className={
+                    expirationMode === 'set'
+                      ? 'text-blue-600 dark:text-blue-400 text-lg mt-0.5'
+                      : 'text-amber-600 dark:text-amber-400 text-lg mt-0.5'
+                  }
+                />
                 <div>
-                  <h5 className="font-medium mb-1">Set Expiration Date</h5>
+                  <h5 className="font-medium mb-1">
+                    {expirationMode === 'set' ? 'Set Expiration Date' : 'Clear Expiration Date'}
+                  </h5>
                   <p className="text-sm text-muted-foreground">
-                    Set a specific expiration date for all selected users. This will override any existing expiration dates.
+                    {expirationMode === 'set'
+                      ? 'Set a specific expiration date for all selected users. This will override any existing expiration dates.'
+                      : 'Remove expiration dates from all selected users. They will have indefinite access until a new expiration date is set.'}
                   </p>
                 </div>
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label>
-                <FontAwesomeIcon icon={faCalendar} className="mr-2" />
-                Expiration Date
-              </Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-full justify-start text-left font-normal">
+              <Label htmlFor="expiration-mode">Expiration Action</Label>
+              <Select
+                value={expirationMode}
+                onValueChange={(value: 'set' | 'clear') => setExpirationMode(value)}
+              >
+                <SelectTrigger id="expiration-mode">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="set">
                     <FontAwesomeIcon icon={faCalendar} className="mr-2" />
-                    {expirationDate ? expirationDate.toLocaleDateString() : 'Select date...'}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={expirationDate}
-                    onSelect={setExpirationDate}
-                    disabled={(date) => date < new Date()}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
-              {expirationDate && (
-                <p className="text-sm text-muted-foreground">
-                  Users will lose access on {expirationDate.toLocaleDateString()}
-                </p>
-              )}
-            </div>
-          </div>
-        );
-
-      case 'clear_expiration':
-        return (
-          <div className="space-y-4">
-            <div className="bg-amber-50 dark:bg-amber-400/10 rounded-lg p-4 border border-amber-500/30">
-              <div className="flex items-start gap-3">
-                <FontAwesomeIcon icon={faTriangleExclamation} className="text-amber-600 dark:text-amber-400 text-lg mt-0.5" />
-                <div>
-                  <h5 className="font-medium mb-1">Clear Expiration Date</h5>
-                  <p className="text-sm text-muted-foreground">
-                    Remove expiration dates from all selected users. They will have indefinite access until a new expiration date is set.
-                  </p>
-                </div>
-              </div>
+                    Set expiration date
+                  </SelectItem>
+                  <SelectItem value="clear">
+                    <FontAwesomeIcon icon={faInfinity} className="mr-2" />
+                    Clear expiration date
+                  </SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
-            <div className="bg-muted/50 rounded-lg p-4">
-              <div className="flex items-center gap-3">
-                <FontAwesomeIcon icon={faInfinity} className="text-primary text-2xl" />
-                <div>
-                  <p className="font-medium">Indefinite Access</p>
+            {expirationMode === 'set' ? (
+              <div className="space-y-2">
+                <Label>
+                  <FontAwesomeIcon icon={faCalendar} className="mr-2" />
+                  Expiration Date
+                </Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="w-full justify-start text-left font-normal">
+                      <FontAwesomeIcon icon={faCalendar} className="mr-2" />
+                      {expirationDate ? expirationDate.toLocaleDateString() : 'Select date...'}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={expirationDate}
+                      onSelect={setExpirationDate}
+                      disabled={(date) => date < new Date()}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+                {expirationDate && (
                   <p className="text-sm text-muted-foreground">
-                    {selectedUserIds.size} user{selectedUserIds.size !== 1 ? 's' : ''} will have no expiration date
+                    Users will lose access on {expirationDate.toLocaleDateString()}
                   </p>
+                )}
+              </div>
+            ) : (
+              <div className="bg-muted/50 rounded-lg p-4">
+                <div className="flex items-center gap-3">
+                  <FontAwesomeIcon icon={faInfinity} className="text-primary text-2xl" />
+                  <div>
+                    <p className="font-medium">Indefinite Access</p>
+                    <p className="text-sm text-muted-foreground">
+                      {selectedUserIds.size} user{selectedUserIds.size !== 1 ? 's' : ''} will have no expiration date
+                    </p>
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
           </div>
         );
 
@@ -617,13 +643,9 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
                   <FontAwesomeIcon icon={faCalendarPlus} className="mr-2" />
                   Extend Access Duration
                 </SelectItem>
-                <SelectItem value="set_expiration">
+                <SelectItem value="manage_expiration">
                   <FontAwesomeIcon icon={faCalendar} className="mr-2" />
-                  Set Expiration Date
-                </SelectItem>
-                <SelectItem value="clear_expiration">
-                  <FontAwesomeIcon icon={faInfinity} className="mr-2" />
-                  Clear Expiration Date
+                  Manage Expiration
                 </SelectItem>
                 <SelectItem value="merge_local">
                   <FontAwesomeIcon icon={faLink} className="mr-2" />
@@ -672,7 +694,11 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
       ) : (
         <>
           <FontAwesomeIcon icon={action === 'delete' ? faTrash : faCheck} className="mr-2" />
-          Apply Changes
+          {action === 'manage_expiration'
+            ? expirationMode === 'set'
+              ? 'Set Expiration'
+              : 'Clear Expiration'
+            : 'Apply Changes'}
         </>
       )}
     </Button>,

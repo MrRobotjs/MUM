@@ -57,6 +57,7 @@ type UsersResponse = {
     server_nickname?: string;
     libraries?: string[];
     has_all_libraries?: boolean;
+    access_expires_at?: string | null;
     linked_local_user?: {
       uuid: string;
       username?: string | null;

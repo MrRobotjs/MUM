@@ -69,6 +69,7 @@ class UserItem(BaseModel):
     last_played: Optional[dict[str, Any]] = None
     libraries: list[str] = []
     has_all_libraries: Optional[bool] = None
+    access_expires_at: Optional[str] = None
 
 
 class PaginationMeta(BaseModel):
@@ -188,6 +189,7 @@ def _to_item(u: User) -> dict:
         ],
         "linked_service_count": _linked_service_count(u),
         "notes": getattr(u, "notes", None),
+        "access_expires_at": _isoformat(getattr(u, "access_expires_at", None)),
     }
 
 

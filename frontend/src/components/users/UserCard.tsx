@@ -176,6 +176,36 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
   const adminRoleBadges = user.admin_roles_detail && user.admin_roles_detail.length > 0
     ? user.admin_roles_detail
     : user.admin_roles.map((role) => ({ name: role }));
+  const getExpirationInfo = (expiresAt?: string | null) => {
+    if (!expiresAt) return null;
+    const expirationDate = new Date(expiresAt);
+    if (Number.isNaN(expirationDate.getTime())) return null;
+
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfExpiration = new Date(
+      expirationDate.getFullYear(),
+      expirationDate.getMonth(),
+      expirationDate.getDate()
+    );
+    const dayDelta = Math.round((startOfExpiration.getTime() - startOfToday.getTime()) / 86400000);
+
+    let relativeLabel = 'expires today';
+    if (dayDelta > 1) {
+      relativeLabel = `${dayDelta} days left`;
+    } else if (dayDelta === 1) {
+      relativeLabel = '1 day left';
+    } else if (dayDelta < 0) {
+      relativeLabel = 'expired';
+    }
+
+    return {
+      formattedDate: expirationDate.toLocaleDateString(),
+      relativeLabel,
+      isExpired: dayDelta < 0,
+    };
+  };
+  const expirationInfo = getExpirationInfo(user.access_expires_at);
 
   return (
     <Card
@@ -285,6 +315,29 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
                 <FontAwesomeIcon icon={faCalendar} className="h-3 w-3 shrink-0 text-blue-400" />
                 <span className="text-[10px] font-semibold uppercase tracking-wider shrink-0">Added:</span>
                 <span className="truncate">{user.created_at ? new Date(user.created_at).toLocaleDateString() : '—'}</span>
+              </div>
+            )}
+            {expirationInfo && (
+              <div
+                className="flex items-center gap-1.5 overflow-hidden"
+                title={`Access Expires: ${user.access_expires_at ? new Date(user.access_expires_at).toLocaleString() : 'Unknown'}`}
+              >
+                <FontAwesomeIcon
+                  icon={faCalendar}
+                  className={cn(
+                    'h-3 w-3 shrink-0',
+                    expirationInfo.isExpired ? 'text-destructive' : 'text-amber-500'
+                  )}
+                />
+                <span className="text-[10px] font-semibold uppercase tracking-wider shrink-0">Expires:</span>
+                <span
+                  className={cn(
+                    'truncate',
+                    expirationInfo.isExpired ? 'text-destructive' : undefined
+                  )}
+                >
+                  {expirationInfo.formattedDate} ({expirationInfo.relativeLabel})
+                </span>
               </div>
             )}
             {user.service_join_date && (

@@ -38,8 +38,8 @@ export const UserAvatar = ({
 
   const sizeClasses =
     size === 'md'
-      ? 'w-12 h-12 text-xl ring-2 ring-background/50 shadow-sm'
-      : 'w-8 h-8 text-sm ring-2 ring-primary/20';
+      ? 'w-12 h-12 text-3xl font-normal ring-2 ring-background/50 shadow-sm'
+      : 'w-8 h-8 text-lg font-normal ring-2 ring-primary/20';
   const fallbackColorClass = isService ? palette.avatar : 'bg-primary text-primary-foreground';
 
   if (user.avatar_url && !avatarError) {

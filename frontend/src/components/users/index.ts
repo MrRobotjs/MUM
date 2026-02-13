@@ -7,6 +7,7 @@ export * from './UserSettingsCard';
 export * from './SyncUsersButton';
 export * from './ViewToggle';
 export * from './UserCard';
+export * from './UserAvatar';
 export * from './UserCardsGrid';
 export * from './PurgeUsersModal';
 export * from './UserDebugModal';

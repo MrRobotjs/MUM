@@ -14,6 +14,7 @@ from app.models_media_services import MediaLibrary, MediaStreamHistory
 from app.services.media_service_manager import MediaServiceManager
 from app.routes.api.v2 import api_v2
 from app.services import user_service
+from app.utils.avatar_helpers import get_user_avatar_url
 from app.utils.jwt_decorators import jwt_required_with_user
 
 
@@ -101,29 +102,6 @@ def _serialize_stream_history_entry(entry):
     }
 
 
-def _get_avatar_url(user: User) -> Optional[str]:
-    if user.userType == UserType.OWNER:
-        if user.plex_thumb:
-            return user.plex_thumb
-    if user.userType in {UserType.LOCAL, UserType.OWNER}:
-        if user.discord_avatar_hash and user.discord_user_id:
-            return f"https://cdn.discordapp.com/avatars/{user.discord_user_id}/{user.discord_avatar_hash}.png?size=256"
-        if user.external_avatar_url:
-            return user.external_avatar_url
-    if user.userType == UserType.SERVICE:
-        if user.external_avatar_url:
-            return user.external_avatar_url
-        service_thumb = None
-        if user.service_settings:
-            service_thumb = user.service_settings.get("thumb")
-        if service_thumb and user.server:
-            base_url = user.server.public_url or user.server.url
-            if service_thumb.startswith("/"):
-                return f"{base_url.rstrip('/')}{service_thumb}"
-            return service_thumb
-    return None
-
-
 def _collect_service_context(user: User) -> dict:
     service_types: list[str] = []
     server_names: list[str] = []
@@ -195,7 +173,7 @@ def get_user(path: UserPath, current_user):
         )
 
     service_context = _collect_service_context(user)
-    avatar_url = _get_avatar_url(user)
+    avatar_url = get_user_avatar_url(user)
     linked_local_user = _serialize_linked_local_user(user)
 
     libraries: list[str] = []

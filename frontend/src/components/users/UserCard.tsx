@@ -6,12 +6,12 @@ import type { UserRow } from './UsersTable';
 import { Checkbox } from '../ui/checkbox';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardFooter } from '../ui/card';
-import { Skeleton } from '../ui/skeleton';
 import { UserDebugModal } from './UserDebugModal';
 import { cn } from '@/lib/utils';
 import { Badge } from '../common/Badge';
-import { getServicePalette, type ThemePalette } from '@/config/pluginMetadata';
+import { getServicePalette } from '@/config/pluginMetadata';
 import { ServiceIcon } from '@/components/services/ServiceIcon';
+import { UserAvatar } from './UserAvatar';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import type { IconDefinition } from '@fortawesome/fontawesome-svg-core';
 import {
@@ -68,10 +68,6 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
   const isService = user.user_type.toLowerCase() === 'service';
   const palette = getServicePalette(serviceType);
 
-  // Avatar loading state
-  const [avatarLoading, setAvatarLoading] = useState(true);
-  const [avatarError, setAvatarError] = useState(false);
-  const effectiveAvatar = user.avatar_url;
   const [showAllLibraries, setShowAllLibraries] = useState(false);
   const maxVisibleLibraries = 6;
 
@@ -100,16 +96,6 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
       console.error('Failed to load user display settings:', err);
     }
   }, []);
-
-  // Reset avatar loading state when avatar URL changes
-  useEffect(() => {
-    if (effectiveAvatar) {
-      setAvatarLoading(true);
-      setAvatarError(false);
-    } else {
-      setAvatarLoading(false);
-    }
-  }, [effectiveAvatar]);
 
   const handleCardClick = (e: React.MouseEvent) => {
     // Don't navigate if clicking checkbox or buttons
@@ -155,11 +141,6 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
         return 'bg-card';
     }
   };
-
-  const avatarClasses = cn(
-    'text-white w-10 h-10 rounded-full flex items-center justify-center text-2xl font-normal',
-    isService ? palette.avatar : 'bg-primary'
-  );
 
   // Helper to determine icon and color based on playback state
   const getPlaybackInfo = (state?: string) => {
@@ -243,35 +224,7 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
       <CardContent className="p-4 flex flex-col flex-1 gap-4">
         {/* Redesigned Header */}
         <div className="flex flex-row items-center gap-4">
-          <div className="relative shrink-0">
-            {effectiveAvatar && !avatarError ? (
-              <>
-                {avatarLoading && (
-                  <Skeleton className="w-12 h-12 rounded-full absolute inset-0" />
-                )}
-                <img
-                  src={effectiveAvatar}
-                  alt={user.display_name || user.username || 'User avatar'}
-                  className={cn(
-                    "w-12 h-12 rounded-full object-cover ring-2 ring-background/50 shadow-sm",
-                    avatarLoading && "opacity-0"
-                  )}
-                  onLoad={() => setAvatarLoading(false)}
-                  onError={() => {
-                    setAvatarLoading(false);
-                    setAvatarError(true);
-                  }}
-                />
-              </>
-            ) : (
-              <div className={cn(
-                "w-12 h-12 rounded-full flex items-center justify-center text-xl font-medium ring-2 ring-background/50 shadow-sm",
-                isService ? palette.avatar : 'bg-primary text-primary-foreground'
-              )}>
-                {(user.display_name || user.username || 'U')[0].toUpperCase()}
-              </div>
-            )}
-          </div>
+          <UserAvatar user={user} size="md" showLoadingSkeleton />
 
           <div className="flex-1 min-w-0 flex flex-col justify-center">
             <h2 className="text-lg font-bold leading-tight truncate tracking-tight mb-1" title={user.display_name || user.username}>

@@ -13,6 +13,7 @@ from app.routes.api.v2 import api_v2
 from app.extensions import db
 from app.models import User, UserType
 from app.models_media_services import MediaLibrary, MediaStreamHistory
+from app.utils.avatar_helpers import get_user_avatar_url
 from sqlalchemy import func, or_ as sa_or
 from sqlalchemy.orm import joinedload
 
@@ -116,30 +117,6 @@ def _email(u: User) -> Optional[str]:
     return u.email or getattr(u, "discord_email", None) or getattr(u, "external_email", None)
 
 
-def _avatar_url(u: User) -> Optional[str]:
-    if u.userType == UserType.OWNER:
-        if getattr(u, "plex_thumb", None):
-            return u.plex_thumb
-    if u.userType in {UserType.LOCAL, UserType.OWNER}:
-        if getattr(u, "discord_avatar_hash", None) and getattr(u, "discord_user_id", None):
-            return f"https://cdn.discordapp.com/avatars/{u.discord_user_id}/{u.discord_avatar_hash}.png?size=256"
-        if getattr(u, "external_avatar_url", None):
-            return u.external_avatar_url
-    if u.userType == UserType.SERVICE:
-        if getattr(u, "external_avatar_url", None):
-            return u.external_avatar_url
-        service_thumb = None
-        ss = getattr(u, "service_settings", None)
-        if ss:
-            service_thumb = ss.get("thumb")
-        if service_thumb and getattr(u, "server", None):
-            base_url = u.server.public_url or u.server.url
-            if service_thumb.startswith('/'):
-                return f"{base_url.rstrip('/')}{service_thumb}"
-            return service_thumb
-    return None
-
-
 def _isoformat(dt: Optional[datetime]) -> Optional[str]:
     if not dt:
         return None
@@ -172,7 +149,7 @@ def _to_item(u: User) -> dict:
         "email": _email(u),
         "user_type": (u.userType.value if hasattr(u.userType, "value") else str(u.userType)),
         "display_name": _compute_display_name(u),
-        "avatar_url": getattr(u, "external_avatar_url", None),
+        "avatar_url": get_user_avatar_url(u),
         "created_at": u.created_at.isoformat() + "Z" if getattr(u, "created_at", None) else None,
         "last_login_at": u.last_login_at.isoformat() + "Z" if getattr(u, "last_login_at", None) else None,
         "is_active": bool(getattr(u, "is_active", True)),
@@ -604,9 +581,6 @@ def list_users(query: UsersQuery, current_user):
                 libs = sorted(local_libraries_map.get(u.uuid, set()), key=str.lower)
                 item["libraries"] = libs
                 item["has_all_libraries"] = False
-
-        # avatar url aligned with v1 helper
-        item["avatar_url"] = _avatar_url(u)
 
         data.append(item)
 

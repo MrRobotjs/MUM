@@ -12,8 +12,9 @@ from flask_openapi3 import Tag
 
 from app.routes.api.v2 import api_v2
 from app.models_media_services import MediaStreamHistory, MediaServer, ServiceType
-from app.models import User, UserType, EventType
+from app.models import User, EventType
 from app.utils.helpers import log_event
+from app.utils.avatar_helpers import get_user_avatar_url
 # JWT permission checking handled by jwt_permission_required, log_event
 from app.services.media_service_factory import MediaServiceFactory
 from sqlalchemy import desc, func, or_
@@ -72,31 +73,6 @@ def _construct_poster_url(thumb_path: Optional[str], service_type: Optional[str]
     return f"/api/v2/media/{service_type}/images/proxy?path={thumb_path.lstrip('/')}"
 
 
-def _get_user_avatar_url(user: Optional[User]) -> Optional[str]:
-    if not user:
-        return None
-    if user.userType == UserType.OWNER and user.plex_thumb:
-        return user.plex_thumb
-    if user.userType in {UserType.LOCAL, UserType.OWNER}:
-        if user.discord_avatar_hash and user.discord_user_id:
-            extension = 'gif' if user.discord_avatar_hash.startswith('a_') else 'png'
-            return f"https://cdn.discordapp.com/avatars/{user.discord_user_id}/{user.discord_avatar_hash}.{extension}?size=128"
-        if user.external_avatar_url:
-            return user.external_avatar_url
-    if user.userType == UserType.SERVICE:
-        if user.external_avatar_url:
-            return user.external_avatar_url
-        service_thumb = None
-        if user.service_settings:
-            service_thumb = user.service_settings.get("thumb")
-        if service_thumb and user.server:
-            base_url = user.server.public_url or user.server.url
-            if service_thumb.startswith("/"):
-                return f"{base_url.rstrip('/')}{service_thumb}"
-            return service_thumb
-    return None
-
-
 class StreamsListResponse(BaseModel):
     data: list[StreamItem]
     meta: dict
@@ -107,7 +83,7 @@ def _serialize_stream(stream: MediaStreamHistory) -> dict:
         "id": stream.id,
         "user_uuid": stream.user_uuid,
         "user_display_name": stream.user.get_display_name() if stream.user else None,
-        "user_avatar_url": _get_user_avatar_url(stream.user),
+        "user_avatar_url": get_user_avatar_url(stream.user, discord_size=128, prefer_animated_discord=True),
         "media_title": stream.media_title,
         "media_type": stream.media_type,
         "server_id": stream.server_id,

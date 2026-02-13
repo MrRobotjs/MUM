@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 import { Button } from '../ui/button';
 import { UserDebugModal } from './UserDebugModal';
 import { Badge } from '../common/Badge';
+import { UserAvatar } from './UserAvatar';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faLayerGroup,
@@ -101,43 +102,6 @@ type UsersTableProps = {
   onToggleSelection?: (userId: string) => void;
   onToggleSelectAll?: () => void;
   selectAllState?: 'none' | 'some' | 'all';
-};
-
-const UserAvatar = ({ user }: { user: UserRow }) => {
-  const [avatarError, setAvatarError] = useState(false);
-  const serviceType = user.service_type?.toLowerCase();
-  const isService = user.user_type.toLowerCase() === 'service';
-
-  const avatarClasses = cn(
-    'w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium text-white',
-    isService
-      ? serviceType === 'plex' ? 'bg-plex'
-      : serviceType === 'jellyfin' ? 'bg-jellyfin'
-      : serviceType === 'emby' ? 'bg-emby'
-      : serviceType === 'kavita' ? 'bg-kavita'
-      : serviceType === 'audiobookshelf' ? 'bg-audiobookshelf'
-      : serviceType === 'komga' ? 'bg-komga'
-      : serviceType === 'romm' ? 'bg-romm'
-      : 'bg-primary'
-      : 'bg-primary'
-  );
-
-  if (user.avatar_url && !avatarError) {
-    return (
-      <img
-        src={user.avatar_url}
-        alt={user.display_name || user.username || 'User'}
-        className="w-8 h-8 rounded-full object-cover ring-2 ring-primary/20"
-        onError={() => setAvatarError(true)}
-      />
-    );
-  }
-
-  return (
-    <div className={avatarClasses}>
-      {(user.display_name || user.username || 'U')[0].toUpperCase()}
-    </div>
-  );
 };
 
 export const UsersTable = ({

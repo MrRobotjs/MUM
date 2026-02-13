@@ -1063,7 +1063,7 @@ export const UserDetailPage = () => {
 
   const heroTheme = getServiceMeta(user.service_type ?? user.service_types?.[0]);
   const effectiveAvatar = user.avatar_url ?? user.discord_avatar_url;
-  const initials = (user.display_name ?? user.username ?? 'U').slice(0, 2).toUpperCase();
+  const initials = (user.display_name ?? user.username ?? 'U')[0]?.toUpperCase() ?? 'U';
 
   const tabs: Array<{ key: TabKey; label: string; hidden?: boolean }> = [
     { key: 'profile', label: 'Profile' },

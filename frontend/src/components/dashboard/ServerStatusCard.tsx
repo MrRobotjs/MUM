@@ -1,10 +1,12 @@
+import { useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useAdminApi } from '../../hooks/useAdminApi';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faRotate, faEye, faServer } from '@fortawesome/free-solid-svg-icons';
+import { faRotate, faEye, faServer, faClock } from '@fortawesome/free-solid-svg-icons';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Spinner } from '@/components/ui/spinner'
+import { useAlerts } from '@/contexts';
 
 type ServerStatusResponse = {
   data: {
@@ -33,14 +35,70 @@ type ServerStatusCardProps = {
 
 export const ServerStatusCard = ({ onViewAll }: ServerStatusCardProps = {}) => {
   const { data, loading, error, mutate } = useAdminApi<ServerStatusResponse>('/server-status');
+  const { success, error: showError } = useAlerts();
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
 
   const summary = data?.data.summary;
   const servers = data?.data.servers ?? [];
+  const generatedAt = data?.meta?.generated_at ?? null;
+
+  useEffect(() => {
+    if (generatedAt) {
+      setLastUpdatedAt(generatedAt);
+    }
+  }, [generatedAt]);
+
+  const lastUpdatedLabel = useMemo(() => {
+    if (!lastUpdatedAt) return 'Not yet refreshed';
+    const date = new Date(lastUpdatedAt);
+    if (Number.isNaN(date.getTime())) return 'Unknown';
+    return date.toLocaleTimeString([], {
+      hour: 'numeric',
+      minute: '2-digit',
+      second: '2-digit',
+    });
+  }, [lastUpdatedAt]);
+
+  const handleRefresh = async () => {
+    if (isRefreshing) return;
+    const startedAt = performance.now();
+    setIsRefreshing(true);
+    try {
+      const refreshed = await mutate();
+      const refreshedGeneratedAt =
+        (refreshed as ServerStatusResponse | undefined)?.meta?.generated_at ??
+        generatedAt;
+      if (refreshedGeneratedAt) {
+        setLastUpdatedAt(refreshedGeneratedAt);
+      }
+      const elapsedMs = performance.now() - startedAt;
+      if (elapsedMs > 800) {
+        success('Server health updated');
+      }
+    } catch {
+      showError('Refresh failed. Try again.');
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="space-y-2">
         <CardTitle>Server Health</CardTitle>
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+          <div className="flex items-center gap-1.5">
+            <FontAwesomeIcon icon={faClock} className="h-3 w-3" />
+            <span>Updated {lastUpdatedLabel}</span>
+          </div>
+          {isRefreshing ? (
+            <div className="inline-flex items-center gap-2">
+              <Spinner className="h-3 w-3 text-primary" />
+              <span>Fetching latest server status...</span>
+            </div>
+          ) : null}
+        </div>
       </CardHeader>
       <CardContent>
         {loading ? (
@@ -114,9 +172,17 @@ export const ServerStatusCard = ({ onViewAll }: ServerStatusCardProps = {}) => {
         )}
 
         <div className="flex items-center justify-between pt-4">
-          <Button variant="ghost" size="sm" onClick={() => mutate()}>
-            <FontAwesomeIcon icon={faRotate} className="mr-2 h-4 w-4" />
-            Refresh
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleRefresh}
+            disabled={isRefreshing || loading}
+          >
+            <FontAwesomeIcon
+              icon={faRotate}
+              className={`mr-2 h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`}
+            />
+            {isRefreshing ? 'Refreshing...' : 'Refresh'}
           </Button>
           {onViewAll ? (
             <Button variant="ghost" size="sm" onClick={onViewAll}>

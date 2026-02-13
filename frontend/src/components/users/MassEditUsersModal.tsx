@@ -18,6 +18,7 @@ import { useServerOptions } from '../../hooks/useServerOptions';
 import { useAlerts } from '../../contexts/AlertContext';
 import { requestJson } from '../../util/apiClient';
 import { ResponsiveDialog } from '../ui/responsive-dialog';
+import { UserAvatar } from './UserAvatar';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { Spinner } from '@/components/ui/spinner'
 import {
@@ -54,6 +55,7 @@ interface LocalLinkUserOption {
   displayName: string;
   username?: string | null;
   email?: string | null;
+  avatarUrl?: string | null;
   userType: 'local' | 'owner';
 }
 
@@ -63,6 +65,7 @@ interface ServiceLinkOption {
   serviceType?: string | null;
   serverName?: string | null;
   email?: string | null;
+  avatarUrl?: string | null;
   linkedLocalName?: string | null;
   selectable: boolean;
   fromSelection: boolean;
@@ -243,6 +246,7 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
             username?: string | null;
             email?: string | null;
             external_email?: string | null;
+            avatar_url?: string | null;
             user_type: string;
           }>;
         };
@@ -261,6 +265,7 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
             displayName: getDisplayName(user),
             username: user.username ?? null,
             email: user.email ?? user.external_email ?? null,
+            avatarUrl: user.avatar_url ?? null,
             userType: user.user_type?.toLowerCase() === 'owner' ? 'owner' : 'local',
           });
         });
@@ -326,6 +331,7 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
               displayName: getDisplayName(detail),
               username: detail.username ?? detail.local_username ?? null,
               email: detail.email ?? detail.external_email ?? null,
+              avatarUrl: detail.avatar_url ?? detail.discord_avatar_url ?? null,
               userType: userType === 'owner' ? 'owner' : 'local',
             });
             return;
@@ -337,6 +343,7 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
               serviceType: detail.service_type ?? null,
               serverName: detail.server_nickname ?? null,
               email: detail.external_email ?? detail.email ?? null,
+              avatarUrl: detail.avatar_url ?? null,
               linkedLocalName: detail.linked_local_user?.display_name ?? detail.linked_local_user?.username ?? null,
               selectable: !detail.linked_local_user,
               fromSelection: true,
@@ -391,6 +398,7 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
             server_name?: string | null;
             external_username?: string | null;
             external_email?: string | null;
+            avatar_url?: string | null;
           }>;
         };
 
@@ -407,6 +415,7 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
             serviceType: service.service_type ?? null,
             serverName: service.server_name ?? null,
             email: service.external_email ?? null,
+            avatarUrl: service.avatar_url ?? null,
             linkedLocalName: null,
             selectable: true,
             fromSelection: false,
@@ -983,6 +992,14 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
                                 }
                               }}
                             />
+                            <UserAvatar
+                              user={{
+                                avatar_url: localUser.avatarUrl,
+                                display_name: localUser.displayName,
+                                username: localUser.username ?? localUser.email ?? undefined,
+                                user_type: localUser.userType,
+                              }}
+                            />
                             <div className="min-w-0 flex-1">
                               <div className="text-sm font-medium truncate">{localUser.displayName}</div>
                               <div className="text-xs text-muted-foreground">
@@ -1045,6 +1062,15 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
                                   }
                                   return next;
                                 });
+                              }}
+                            />
+                            <UserAvatar
+                              user={{
+                                avatar_url: serviceUser.avatarUrl,
+                                display_name: serviceUser.displayName,
+                                username: serviceUser.email ?? serviceUser.uuid,
+                                user_type: 'service',
+                                service_type: serviceUser.serviceType,
                               }}
                             />
                             <div className="min-w-0 flex-1">

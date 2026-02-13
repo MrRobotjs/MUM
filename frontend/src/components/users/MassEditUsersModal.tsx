@@ -70,8 +70,9 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
   const [expirationDate, setExpirationDate] = useState<Date | undefined>(undefined);
   const [expirationMode, setExpirationMode] = useState<'set' | 'extend' | 'clear'>('set');
 
-  // Merge Local state
+  // Local link state
   const [targetLocalUserUuid, setTargetLocalUserUuid] = useState<string>('');
+  const [localLinkMode, setLocalLinkMode] = useState<'link' | 'unlink'>('link');
 
   const { servers } = useServerOptions();
   const { libraries, loading: librariesLoading } = useLibraries({
@@ -151,8 +152,9 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
       setExpirationMode('set');
       setExpirationDate(undefined);
       setExtendDays(30);
-    } else if (action === 'merge_local') {
+    } else if (action === 'manage_local_link') {
       setTargetLocalUserUuid('');
+      setLocalLinkMode('link');
     }
   }, [action, servers]);
 
@@ -257,7 +259,20 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
           break;
         }
 
-        case 'merge_local': {
+        case 'manage_local_link': {
+          if (localLinkMode === 'unlink') {
+            await requestJson('/api/v2/users/bulk', {
+              method: 'POST',
+              body: JSON.stringify({
+                user_uuids: userUuids,
+                operations: [{ action: 'unlink_local' }]
+              })
+            });
+
+            success(`Unlinked ${userUuids.length} user${userUuids.length !== 1 ? 's' : ''} from local account`);
+            break;
+          }
+
           if (!targetLocalUserUuid) {
             error('Please enter a target local user UUID');
             return;
@@ -271,7 +286,7 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
             })
           });
 
-          success(`Merged ${userUuids.length} user${userUuids.length !== 1 ? 's' : ''} into local account`);
+          success(`Linked ${userUuids.length} user${userUuids.length !== 1 ? 's' : ''} to local account`);
           break;
         }
 
@@ -523,34 +538,74 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
           </div>
         );
 
-      case 'merge_local':
+      case 'manage_local_link':
         return (
           <div className="space-y-4">
-            <Alert variant="info">
+            <Alert variant={localLinkMode === 'unlink' ? 'warning' : 'info'}>
               <FontAwesomeIcon icon={faCircleInfo} className="h-4 w-4" />
-              <AlertTitle>Merge into Local Account</AlertTitle>
+              <AlertTitle>
+                {localLinkMode === 'link' ? 'Link to Local Account' : 'Unlink from Local Account'}
+              </AlertTitle>
               <AlertDescription>
-                Link all selected service users to a single local account. This is useful for consolidating multiple service accounts under one user.
+                {localLinkMode === 'link'
+                  ? 'Link all selected service users to a single local account. This is useful for consolidating multiple service accounts under one user.'
+                  : 'Remove local-account links from the selected service users. This only affects linking and does not delete users.'}
               </AlertDescription>
             </Alert>
 
             <div className="space-y-2">
-              <Label htmlFor="target-uuid">
-                <FontAwesomeIcon icon={faLink} className="mr-2" />
-                Target Local User UUID
-              </Label>
-              <Input
-                id="target-uuid"
-                type="text"
-                placeholder="Enter local user UUID..."
-                value={targetLocalUserUuid}
-                onChange={(e) => setTargetLocalUserUuid(e.target.value)}
-                className="h-11"
-              />
-              <p className="text-sm text-muted-foreground">
-                All {selectedUserIds.size} service user{selectedUserIds.size !== 1 ? 's' : ''} will be linked to this local account
-              </p>
+              <Label htmlFor="local-link-mode">Link Action</Label>
+              <Select
+                value={localLinkMode}
+                onValueChange={(value: 'link' | 'unlink') => setLocalLinkMode(value)}
+              >
+                <SelectTrigger id="local-link-mode" className="h-11">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="link">
+                    <FontAwesomeIcon icon={faLink} className="mr-2" />
+                    Link to local account
+                  </SelectItem>
+                  <SelectItem value="unlink">
+                    <FontAwesomeIcon icon={faLink} className="mr-2" />
+                    Unlink from local account
+                  </SelectItem>
+                </SelectContent>
+              </Select>
             </div>
+
+            {localLinkMode === 'link' ? (
+              <div className="space-y-2">
+                <Label htmlFor="target-uuid">
+                  <FontAwesomeIcon icon={faLink} className="mr-2" />
+                  Target Local User UUID
+                </Label>
+                <Input
+                  id="target-uuid"
+                  type="text"
+                  placeholder="Enter local user UUID..."
+                  value={targetLocalUserUuid}
+                  onChange={(e) => setTargetLocalUserUuid(e.target.value)}
+                  className="h-11"
+                />
+                <p className="text-sm text-muted-foreground">
+                  All {selectedUserIds.size} service user{selectedUserIds.size !== 1 ? 's' : ''} will be linked to this local account
+                </p>
+              </div>
+            ) : (
+              <div className="bg-muted/50 rounded-lg p-4">
+                <div className="flex items-center gap-3">
+                  <FontAwesomeIcon icon={faLink} className="text-primary text-lg" />
+                  <div>
+                    <p className="font-medium">Unlink Selected Users</p>
+                    <p className="text-sm text-muted-foreground">
+                      {selectedUserIds.size} selected user{selectedUserIds.size !== 1 ? 's' : ''} will be unlinked from their local account
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         );
 
@@ -626,9 +681,9 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
                   <FontAwesomeIcon icon={faCalendar} className="mr-2" />
                   Manage Expiration
                 </SelectItem>
-                <SelectItem value="merge_local">
+                <SelectItem value="manage_local_link">
                   <FontAwesomeIcon icon={faLink} className="mr-2" />
-                  Merge into Local Account
+                  Manage Local Account Link
                 </SelectItem>
                 <SelectItem value="delete">
                   <FontAwesomeIcon icon={faTrash} className="mr-2" />
@@ -681,6 +736,10 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
               : expirationMode === 'extend'
                 ? 'Extend Access'
               : 'Clear Expiration'
+            : action === 'manage_local_link'
+              ? localLinkMode === 'link'
+                ? 'Link Users'
+                : 'Unlink Users'
             : 'Apply Changes'}
         </>
       )}

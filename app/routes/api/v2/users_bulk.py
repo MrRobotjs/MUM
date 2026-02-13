@@ -264,6 +264,19 @@ def bulk_user_operations(body: BulkBody, current_user):
                     stats["updated"] += 1
                     results.append(_status_entry(user, action, "updated"))
 
+                elif action == "unlink_local":
+                    if user.userType != UserType.SERVICE:
+                        stats["skipped"] += 1
+                        results.append(_status_entry(user, action, "skipped", "Only service users can be unlinked from local accounts."))
+                        continue
+                    if not user.linkedUserId:
+                        stats["skipped"] += 1
+                        results.append(_status_entry(user, action, "skipped", "Service user is not linked to a local account."))
+                        continue
+                    user.linkedUserId = None
+                    stats["updated"] += 1
+                    results.append(_status_entry(user, action, "updated"))
+
                 elif action == "delete_users":
                     if user.userType == UserType.OWNER:
                         stats["skipped"] += 1

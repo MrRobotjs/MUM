@@ -73,6 +73,26 @@ def _serialize_service_account(account: User) -> dict:
     }
 
 
+def _serialize_available_service_account(account: User) -> dict:
+    return {
+        "uuid": account.uuid,
+        "service_type": account.server.service_type.value if account.server else None,
+        "server_name": account.server.server_nickname if account.server else None,
+        "external_username": account.external_username,
+        "external_email": account.external_email,
+        "avatar_url": account.external_avatar_url,
+    }
+
+
+def _get_unlinked_service_accounts() -> list[dict]:
+    standalone_users = (
+        User.query.filter_by(userType=UserType.SERVICE)
+        .filter(User.linkedUserId.is_(None))
+        .all()
+    )
+    return [_serialize_available_service_account(su) for su in standalone_users]
+
+
 def _get_local_user(uuid: str) -> User:
     from flask import abort
 
@@ -166,6 +186,20 @@ def unlink_service_account(path: ServiceUserPath, current_user):
 
 
 @api_v2.get(
+    "/users/service-accounts/available",
+    tags=[users_tag],
+    summary="List available (unlinked) service accounts",
+    responses={200: ListResponse},
+)
+@jwt_required_with_user()
+@jwt_permission_required('administrator')
+def list_available_service_accounts_global(current_user):
+    request_id = uuid4().hex
+    data = _get_unlinked_service_accounts()
+    return jsonify({"data": data, "meta": {"request_id": request_id, "deprecated": False}}), 200
+
+
+@api_v2.get(
     "/users/<user_uuid>/available-service-accounts",
     tags=[users_tag],
     summary="List available (unlinked) service accounts",
@@ -176,24 +210,6 @@ def unlink_service_account(path: ServiceUserPath, current_user):
 def list_available_service_accounts(path: LocalUserPath, current_user):
     request_id = uuid4().hex
     _ = _get_local_user(path.user_uuid)
-
-    standalone_users = (
-        User.query.filter_by(userType=UserType.SERVICE)
-        .filter(User.linkedUserId.is_(None))
-        .all()
-    )
-
-    data = []
-    for su in standalone_users:
-        data.append(
-            {
-                "uuid": su.uuid,
-                "service_type": su.server.service_type.value if su.server else None,
-                "server_name": su.server.server_nickname if su.server else None,
-                "external_username": su.external_username,
-                "external_email": su.external_email,
-                "avatar_url": su.external_avatar_url,
-            }
-        )
+    data = _get_unlinked_service_accounts()
 
     return jsonify({"data": data, "meta": {"request_id": request_id, "deprecated": False}}), 200

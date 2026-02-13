@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Button } from '../ui/button';
 import { Label } from '../ui/label';
 import { Input } from '../ui/input';
@@ -49,6 +49,25 @@ interface LibraryChecks {
   [libraryId: string]: boolean;
 }
 
+interface LocalLinkUserOption {
+  uuid: string;
+  displayName: string;
+  username?: string | null;
+  email?: string | null;
+  userType: 'local' | 'owner';
+}
+
+interface ServiceLinkOption {
+  uuid: string;
+  displayName: string;
+  serviceType?: string | null;
+  serverName?: string | null;
+  email?: string | null;
+  linkedLocalName?: string | null;
+  selectable: boolean;
+  fromSelection: boolean;
+}
+
 export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplete }: MassEditUsersModalProps) => {
   const [action, setAction] = useState<string>('');
   const [submitting, setSubmitting] = useState(false);
@@ -73,6 +92,20 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
   // Local link state
   const [targetLocalUserUuid, setTargetLocalUserUuid] = useState<string>('');
   const [localLinkMode, setLocalLinkMode] = useState<'link' | 'unlink'>('link');
+  const [localUsers, setLocalUsers] = useState<LocalLinkUserOption[]>([]);
+  const [serviceLinkOptions, setServiceLinkOptions] = useState<ServiceLinkOption[]>([]);
+  const [selectedServiceUserUuids, setSelectedServiceUserUuids] = useState<Set<string>>(new Set());
+  const [selectionLocalUsers, setSelectionLocalUsers] = useState<LocalLinkUserOption[]>([]);
+  const [selectionServiceUsers, setSelectionServiceUsers] = useState<ServiceLinkOption[]>([]);
+  const [loadingLinkContext, setLoadingLinkContext] = useState(false);
+  const [loadingLocalUsers, setLoadingLocalUsers] = useState(false);
+  const [loadingServiceOptions, setLoadingServiceOptions] = useState(false);
+  const [linkContextError, setLinkContextError] = useState<string | null>(null);
+  const [localUsersError, setLocalUsersError] = useState<string | null>(null);
+  const [serviceOptionsError, setServiceOptionsError] = useState<string | null>(null);
+  const [multipleLocalUsersSelected, setMultipleLocalUsersSelected] = useState(false);
+  const [localUserSearch, setLocalUserSearch] = useState('');
+  const [serviceUserSearch, setServiceUserSearch] = useState('');
 
   const { servers } = useServerOptions();
   const { libraries, loading: librariesLoading } = useLibraries({
@@ -155,6 +188,15 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
     } else if (action === 'manage_local_link') {
       setTargetLocalUserUuid('');
       setLocalLinkMode('link');
+      setSelectedServiceUserUuids(new Set());
+      setSelectionLocalUsers([]);
+      setSelectionServiceUsers([]);
+      setServiceLinkOptions([]);
+      setMultipleLocalUsersSelected(false);
+      setLocalUserSearch('');
+      setServiceUserSearch('');
+      setLinkContextError(null);
+      setServiceOptionsError(null);
     }
   }, [action, servers]);
 
@@ -165,6 +207,298 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
     setUserHasAllLibraries(false);
     setLibraryChecksInitialized(false);
   }, [action, selectedServerId]);
+
+  const getDisplayName = (data: {
+    display_name?: string | null;
+    username?: string | null;
+    local_username?: string | null;
+    external_username?: string | null;
+    external_email?: string | null;
+    email?: string | null;
+  }) => {
+    return (
+      data.display_name ||
+      data.username ||
+      data.local_username ||
+      data.external_username ||
+      data.external_email ||
+      data.email ||
+      'Unknown User'
+    );
+  };
+
+  useEffect(() => {
+    if (!isOpen || action !== 'manage_local_link' || localLinkMode !== 'link') return;
+
+    let cancelled = false;
+
+    const loadLocalUsers = async () => {
+      setLoadingLocalUsers(true);
+      setLocalUsersError(null);
+      try {
+        type UserListResponse = {
+          data: Array<{
+            uuid: string;
+            display_name?: string | null;
+            username?: string | null;
+            email?: string | null;
+            external_email?: string | null;
+            user_type: string;
+          }>;
+        };
+
+        const [localsResponse, ownersResponse] = await Promise.all([
+          requestJson<UserListResponse>('/api/v2/users?user_type=local&page_size=100&sort=username_asc'),
+          requestJson<UserListResponse>('/api/v2/users?user_type=owner&page_size=100&sort=username_asc'),
+        ]);
+
+        if (cancelled) return;
+
+        const deduped = new Map<string, LocalLinkUserOption>();
+        [...(localsResponse.data ?? []), ...(ownersResponse.data ?? [])].forEach((user) => {
+          deduped.set(user.uuid, {
+            uuid: user.uuid,
+            displayName: getDisplayName(user),
+            username: user.username ?? null,
+            email: user.email ?? user.external_email ?? null,
+            userType: user.user_type?.toLowerCase() === 'owner' ? 'owner' : 'local',
+          });
+        });
+
+        const sorted = Array.from(deduped.values()).sort((a, b) => a.displayName.localeCompare(b.displayName));
+        setLocalUsers(sorted);
+      } catch (err) {
+        setLocalUsersError(err instanceof Error ? err.message : 'Failed to load local users.');
+      } finally {
+        if (!cancelled) {
+          setLoadingLocalUsers(false);
+        }
+      }
+    };
+
+    loadLocalUsers();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, action, localLinkMode]);
+
+  useEffect(() => {
+    if (!isOpen || action !== 'manage_local_link' || localLinkMode !== 'link') return;
+
+    let cancelled = false;
+
+    const loadSelectionContext = async () => {
+      if (selectedUserIds.size === 0) {
+        setSelectionLocalUsers([]);
+        setSelectionServiceUsers([]);
+        setSelectedServiceUserUuids(new Set());
+        setMultipleLocalUsersSelected(false);
+        return;
+      }
+
+      setLoadingLinkContext(true);
+      setLinkContextError(null);
+      try {
+        const selectedUuids = Array.from(selectedUserIds);
+        const selectedDetails = await Promise.all(
+          selectedUuids.map(async (uuid) => {
+            try {
+              const response = await requestJson<{ data: any }>(`/api/v2/users/${uuid}`);
+              return response?.data ?? null;
+            } catch {
+              return null;
+            }
+          })
+        );
+
+        if (cancelled) return;
+
+        const locals: LocalLinkUserOption[] = [];
+        const services: ServiceLinkOption[] = [];
+
+        selectedDetails.forEach((detail) => {
+          if (!detail) return;
+          const userType = String(detail.user_type ?? '').toLowerCase();
+          if (userType === 'local' || userType === 'owner') {
+            locals.push({
+              uuid: detail.uuid,
+              displayName: getDisplayName(detail),
+              username: detail.username ?? detail.local_username ?? null,
+              email: detail.email ?? detail.external_email ?? null,
+              userType: userType === 'owner' ? 'owner' : 'local',
+            });
+            return;
+          }
+          if (userType === 'service') {
+            services.push({
+              uuid: detail.uuid,
+              displayName: getDisplayName(detail),
+              serviceType: detail.service_type ?? null,
+              serverName: detail.server_nickname ?? null,
+              email: detail.external_email ?? detail.email ?? null,
+              linkedLocalName: detail.linked_local_user?.display_name ?? detail.linked_local_user?.username ?? null,
+              selectable: !detail.linked_local_user,
+              fromSelection: true,
+            });
+          }
+        });
+
+        setSelectionLocalUsers(locals);
+        setSelectionServiceUsers(services);
+        setSelectedServiceUserUuids(
+          new Set(services.filter((service) => service.selectable).map((service) => service.uuid))
+        );
+        setMultipleLocalUsersSelected(locals.length > 1);
+
+        if (locals.length === 1) {
+          setTargetLocalUserUuid(locals[0].uuid);
+        } else if (locals.length === 0) {
+          setTargetLocalUserUuid('');
+        } else {
+          setTargetLocalUserUuid('');
+        }
+      } catch (err) {
+        setLinkContextError(err instanceof Error ? err.message : 'Failed to evaluate current selection.');
+      } finally {
+        if (!cancelled) {
+          setLoadingLinkContext(false);
+        }
+      }
+    };
+
+    loadSelectionContext();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, action, localLinkMode, selectedUserIds]);
+
+  useEffect(() => {
+    if (!isOpen || action !== 'manage_local_link' || localLinkMode !== 'link') return;
+
+    let cancelled = false;
+
+    const loadServiceOptions = async () => {
+      setServiceOptionsError(null);
+      setLoadingServiceOptions(true);
+
+      try {
+        type AvailableServiceResponse = {
+          data: Array<{
+            uuid: string;
+            service_type?: string | null;
+            server_name?: string | null;
+            external_username?: string | null;
+            external_email?: string | null;
+          }>;
+        };
+
+        const response = await requestJson<AvailableServiceResponse>(
+          '/api/v2/users/service-accounts/available'
+        );
+        if (cancelled) return;
+
+        const merged = new Map<string, ServiceLinkOption>();
+        (response.data ?? []).forEach((service) => {
+          merged.set(service.uuid, {
+            uuid: service.uuid,
+            displayName: service.external_username || service.external_email || 'Service User',
+            serviceType: service.service_type ?? null,
+            serverName: service.server_name ?? null,
+            email: service.external_email ?? null,
+            linkedLocalName: null,
+            selectable: true,
+            fromSelection: false,
+          });
+        });
+
+        selectionServiceUsers.forEach((service) => {
+          const existing = merged.get(service.uuid);
+          if (existing) {
+            merged.set(service.uuid, { ...existing, fromSelection: true });
+            return;
+          }
+
+          merged.set(service.uuid, {
+            ...service,
+            selectable: !service.linkedLocalName,
+            fromSelection: true,
+          });
+        });
+
+        setServiceLinkOptions(Array.from(merged.values()));
+      } catch (err) {
+        setServiceOptionsError(err instanceof Error ? err.message : 'Failed to load unlinked service users.');
+        setServiceLinkOptions(selectionServiceUsers);
+      } finally {
+        if (!cancelled) {
+          setLoadingServiceOptions(false);
+        }
+      }
+    };
+
+    loadServiceOptions();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, action, localLinkMode, selectionServiceUsers]);
+
+  useEffect(() => {
+    if (action !== 'manage_local_link' || localLinkMode !== 'link') return;
+    const selectableIds = new Set(
+      serviceLinkOptions.filter((service) => service.selectable).map((service) => service.uuid)
+    );
+    setSelectedServiceUserUuids((prev) => {
+      const next = new Set<string>();
+      prev.forEach((uuid) => {
+        if (selectableIds.has(uuid)) next.add(uuid);
+      });
+      return next;
+    });
+  }, [action, localLinkMode, serviceLinkOptions]);
+
+  const filteredLocalUsers = useMemo(() => {
+    const query = localUserSearch.trim().toLowerCase();
+    const base = !query
+      ? localUsers
+      : localUsers.filter((localUser) =>
+          [localUser.displayName, localUser.username ?? '', localUser.email ?? '']
+            .join(' ')
+            .toLowerCase()
+            .includes(query)
+        );
+
+    if (!targetLocalUserUuid) {
+      return base;
+    }
+
+    return [...base].sort((a, b) => {
+      if (a.uuid === targetLocalUserUuid) return -1;
+      if (b.uuid === targetLocalUserUuid) return 1;
+      return a.displayName.localeCompare(b.displayName);
+    });
+  }, [localUsers, localUserSearch, targetLocalUserUuid]);
+
+  const filteredServiceOptions = useMemo(() => {
+    const query = serviceUserSearch.trim().toLowerCase();
+    const base = !query
+      ? serviceLinkOptions
+      : serviceLinkOptions.filter((service) =>
+          [service.displayName, service.serviceType ?? '', service.serverName ?? '', service.email ?? '']
+            .join(' ')
+            .toLowerCase()
+            .includes(query)
+        );
+
+    return [...base].sort((a, b) => {
+      if (a.fromSelection !== b.fromSelection) {
+        return a.fromSelection ? -1 : 1;
+      }
+      return a.displayName.localeCompare(b.displayName);
+    });
+  }, [serviceLinkOptions, serviceUserSearch]);
 
   const handleToggleLibrary = (libraryId: string) => {
     setLibraryChecks(prev => ({ ...prev, [libraryId]: !prev[libraryId] }));
@@ -273,20 +607,31 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
             break;
           }
 
+          if (multipleLocalUsersSelected) {
+            error('Multiple local users are selected. Please select exactly one local user in the main list and try again.');
+            return;
+          }
+
           if (!targetLocalUserUuid) {
-            error('Please enter a target local user UUID');
+            error('Please select a local user');
+            return;
+          }
+
+          const serviceUserUuids = Array.from(selectedServiceUserUuids);
+          if (serviceUserUuids.length === 0) {
+            error('Please select at least one service user to link');
             return;
           }
 
           await requestJson('/api/v2/users/merge', {
             method: 'POST',
             body: JSON.stringify({
-              service_user_uuids: userUuids,
+              service_user_uuids: serviceUserUuids,
               target_local_user_uuid: targetLocalUserUuid
             })
           });
 
-          success(`Linked ${userUuids.length} user${userUuids.length !== 1 ? 's' : ''} to local account`);
+          success(`Linked ${serviceUserUuids.length} user${serviceUserUuids.length !== 1 ? 's' : ''} to local account`);
           break;
         }
 
@@ -576,22 +921,156 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
             </div>
 
             {localLinkMode === 'link' ? (
-              <div className="space-y-2">
-                <Label htmlFor="target-uuid">
-                  <FontAwesomeIcon icon={faLink} className="mr-2" />
-                  Target Local User UUID
-                </Label>
-                <Input
-                  id="target-uuid"
-                  type="text"
-                  placeholder="Enter local user UUID..."
-                  value={targetLocalUserUuid}
-                  onChange={(e) => setTargetLocalUserUuid(e.target.value)}
-                  className="h-11"
-                />
-                <p className="text-sm text-muted-foreground">
-                  All {selectedUserIds.size} service user{selectedUserIds.size !== 1 ? 's' : ''} will be linked to this local account
-                </p>
+              <div className="space-y-4">
+                {multipleLocalUsersSelected && (
+                  <Alert variant="warning">
+                    <FontAwesomeIcon icon={faTriangleExclamation} className="h-4 w-4" />
+                    <AlertTitle>Multiple Local Users Selected</AlertTitle>
+                    <AlertDescription>
+                      Select exactly one local user in the main list before linking service users.
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                {linkContextError && (
+                  <Alert variant="warning">
+                    <FontAwesomeIcon icon={faTriangleExclamation} className="h-4 w-4" />
+                    <AlertTitle>Selection Context Unavailable</AlertTitle>
+                    <AlertDescription>{linkContextError}</AlertDescription>
+                  </Alert>
+                )}
+
+                <div className="space-y-2">
+                  <Label>Local User</Label>
+                  <Input
+                    placeholder="Search local users..."
+                    value={localUserSearch}
+                    onChange={(event) => setLocalUserSearch(event.target.value)}
+                    className="h-11"
+                  />
+                  <div className="max-h-56 overflow-y-auto rounded-lg border p-2 space-y-1">
+                    {loadingLocalUsers || loadingLinkContext ? (
+                      <div className="flex items-center justify-center py-4">
+                        <Spinner className="size-4" />
+                      </div>
+                    ) : localUsersError ? (
+                      <p className="px-2 py-3 text-sm text-destructive">{localUsersError}</p>
+                    ) : filteredLocalUsers.length === 0 ? (
+                      <p className="px-2 py-3 text-sm text-muted-foreground">No local users found.</p>
+                    ) : (
+                      filteredLocalUsers.map((localUser) => {
+                        const selected = localUser.uuid === targetLocalUserUuid;
+                        const otherLocalDisabled = Boolean(targetLocalUserUuid) && !selected;
+                        return (
+                          <label
+                            key={localUser.uuid}
+                            className={`flex items-start gap-3 rounded-md border px-3 py-2 ${
+                              selected
+                                ? 'cursor-pointer border-primary bg-primary/10'
+                                : otherLocalDisabled
+                                  ? 'cursor-not-allowed border-border/50 bg-muted/30'
+                                  : 'cursor-pointer border-border bg-card hover:border-border/70'
+                            }`}
+                          >
+                            <Checkbox
+                              checked={selected}
+                              disabled={otherLocalDisabled}
+                              onCheckedChange={(isChecked) => {
+                                if (isChecked === true) {
+                                  setTargetLocalUserUuid(localUser.uuid);
+                                } else if (selected) {
+                                  setTargetLocalUserUuid('');
+                                }
+                              }}
+                            />
+                            <div className="min-w-0 flex-1">
+                              <div className="text-sm font-medium truncate">{localUser.displayName}</div>
+                              <div className="text-xs text-muted-foreground">
+                                {localUser.userType === 'owner' ? 'Owner' : 'Local'} · {localUser.username || localUser.email || localUser.uuid}
+                              </div>
+                            </div>
+                          </label>
+                        );
+                      })
+                    )}
+                  </div>
+                  {selectionLocalUsers.length === 1 && targetLocalUserUuid === selectionLocalUsers[0].uuid && (
+                    <p className="text-xs text-muted-foreground">
+                      Preselected from current selection: {selectionLocalUsers[0].displayName}
+                    </p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Service Users</Label>
+                  <Input
+                    placeholder="Search service users..."
+                    value={serviceUserSearch}
+                    onChange={(event) => setServiceUserSearch(event.target.value)}
+                    className="h-11"
+                  />
+                  <div className="max-h-64 overflow-y-auto rounded-lg border p-2 space-y-1">
+                    {loadingServiceOptions ? (
+                      <div className="flex items-center justify-center py-4">
+                        <Spinner className="size-4" />
+                      </div>
+                    ) : serviceOptionsError ? (
+                      <p className="px-2 py-3 text-sm text-destructive">{serviceOptionsError}</p>
+                    ) : filteredServiceOptions.length === 0 ? (
+                      <p className="px-2 py-3 text-sm text-muted-foreground">
+                        No eligible service users available.
+                      </p>
+                    ) : (
+                      filteredServiceOptions.map((serviceUser) => {
+                        const checked = selectedServiceUserUuids.has(serviceUser.uuid);
+                        return (
+                          <label
+                            key={serviceUser.uuid}
+                            className={`flex items-start gap-3 rounded-md border px-3 py-2 ${
+                              serviceUser.selectable
+                                ? 'cursor-pointer border-border bg-card hover:border-border/70'
+                                : 'cursor-not-allowed border-border/50 bg-muted/30'
+                            }`}
+                          >
+                            <Checkbox
+                              checked={checked}
+                              disabled={!serviceUser.selectable}
+                              onCheckedChange={(isChecked) => {
+                                setSelectedServiceUserUuids((prev) => {
+                                  const next = new Set(prev);
+                                  if (isChecked === true) {
+                                    next.add(serviceUser.uuid);
+                                  } else {
+                                    next.delete(serviceUser.uuid);
+                                  }
+                                  return next;
+                                });
+                              }}
+                            />
+                            <div className="min-w-0 flex-1">
+                              <div className="text-sm font-medium truncate">{serviceUser.displayName}</div>
+                              <div className="text-xs text-muted-foreground">
+                                {(serviceUser.serviceType || 'Service').toUpperCase()}
+                                {serviceUser.serverName ? ` · ${serviceUser.serverName}` : ''}
+                              </div>
+                              {!serviceUser.selectable && serviceUser.linkedLocalName && (
+                                <div className="text-[11px] text-amber-600 dark:text-amber-400">
+                                  Already linked to {serviceUser.linkedLocalName}
+                                </div>
+                              )}
+                              {serviceUser.fromSelection && (
+                                <div className="text-[11px] text-muted-foreground">From current selection</div>
+                              )}
+                            </div>
+                          </label>
+                        );
+                      })
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Selected: {selectedServiceUserUuids.size} service user{selectedServiceUserUuids.size !== 1 ? 's' : ''}
+                  </p>
+                </div>
               </div>
             ) : (
               <div className="bg-muted/50 rounded-lg p-4">
@@ -712,6 +1191,11 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
     </div>
   );
 
+  const isLinkActionInvalid =
+    action === 'manage_local_link' &&
+    localLinkMode === 'link' &&
+    (multipleLocalUsersSelected || !targetLocalUserUuid || selectedServiceUserUuids.size === 0);
+
   const footer = [
     <Button key="cancel" onClick={onClose} variant="outline" disabled={submitting}>
       Cancel
@@ -719,7 +1203,7 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
     <Button
       key="submit"
       onClick={handleSubmit}
-      disabled={!action || submitting}
+      disabled={!action || submitting || isLinkActionInvalid}
       variant={action === 'delete' ? 'destructive' : 'default'}
     >
       {submitting ? (

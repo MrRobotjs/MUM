@@ -134,6 +134,12 @@ class JellyfinMediaService(BaseMediaService):
                     except Exception:
                         policy = {}
                 allow_downloads = bool(policy.get("EnableContentDownloading", False))
+                enabled_folders = policy.get("EnabledFolders", [])
+                library_ids = [
+                    str(folder_id)
+                    for folder_id in (enabled_folders if isinstance(enabled_folders, list) else [])
+                    if folder_id not in (None, "")
+                ]
                 is_media_server_owner = bool(owner_user_id and user_id == owner_user_id)
                 result.append(
                     {
@@ -143,6 +149,7 @@ class JellyfinMediaService(BaseMediaService):
                         "email": user.get("PrimaryImageTag"),  # Jellyfin doesn't expose email by default
                         "thumb": None,
                         "is_home_user": False,
+                        "library_ids": library_ids,
                         "allow_downloads": allow_downloads,
                         "is_media_server_owner": is_media_server_owner,
                         "raw_data": {

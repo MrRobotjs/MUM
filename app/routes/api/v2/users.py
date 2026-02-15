@@ -453,12 +453,80 @@ def list_users(query: UsersQuery, current_user):
         names = {name for name in libraries_by_server.get(server_id, {}).values() if name}
         return sorted(names, key=str.lower)
 
+    def _get_jellyfin_policy_context(service_user: User) -> tuple[Optional[bool], list[str]]:
+        raw_data = getattr(service_user, "user_raw_data", None)
+        if not isinstance(raw_data, dict):
+            return None, []
+
+        policy = raw_data.get("policy")
+        if not isinstance(policy, dict):
+            user_payload = raw_data.get("user")
+            if isinstance(user_payload, dict):
+                candidate_policy = user_payload.get("Policy")
+                if isinstance(candidate_policy, dict):
+                    policy = candidate_policy
+
+        if not isinstance(policy, dict):
+            return None, []
+
+        enable_all_folders_raw = policy.get("EnableAllFolders")
+        enable_all_folders: Optional[bool] = (
+            bool(enable_all_folders_raw) if enable_all_folders_raw is not None else None
+        )
+        enabled_folders_raw = policy.get("EnabledFolders", [])
+        enabled_folders = [
+            str(folder_id)
+            for folder_id in (enabled_folders_raw if isinstance(enabled_folders_raw, list) else [])
+            if folder_id not in (None, "")
+        ]
+        return enable_all_folders, enabled_folders
+
+    def _get_plex_share_context(service_user: User) -> tuple[Optional[bool], list[str], bool]:
+        raw_data = getattr(service_user, "user_raw_data", None)
+        if not isinstance(raw_data, dict):
+            return None, [], False
+
+        is_owner = bool(raw_data.get("is_media_server_owner"))
+        share_details = raw_data.get("share_details")
+        if not isinstance(share_details, dict):
+            return None, [], is_owner
+
+        all_libraries_raw = share_details.get("allLibraries")
+        all_libraries_enabled: Optional[bool] = (
+            bool(all_libraries_raw) if all_libraries_raw is not None else None
+        )
+        shared_keys_raw = share_details.get("sharedSectionKeys", [])
+        shared_keys = [
+            str(section_id)
+            for section_id in (shared_keys_raw if isinstance(shared_keys_raw, list) else [])
+            if section_id not in (None, "")
+        ]
+        return all_libraries_enabled, shared_keys, is_owner
+
     def _resolve_libraries_for_service_user(service_user: User) -> tuple[list[str], bool]:
         allowed_ids = [str(v) for v in (getattr(service_user, "allowed_library_ids", []) or [])]
         server_id = getattr(service_user, "server_id", None)
         server_type = server_type_by_id.get(server_id, "")
+
+        if server_type == "jellyfin":
+            enable_all_folders, policy_enabled_ids = _get_jellyfin_policy_context(service_user)
+            if enable_all_folders is True:
+                return _get_all_library_names(server_id), True
+            if enable_all_folders is False and not allowed_ids and not policy_enabled_ids:
+                return [], False
+            if not allowed_ids and policy_enabled_ids:
+                allowed_ids = policy_enabled_ids
+        elif server_type == "plex":
+            all_libraries_enabled, shared_keys, is_owner = _get_plex_share_context(service_user)
+            if is_owner or all_libraries_enabled is True:
+                return _get_all_library_names(server_id), True
+            if not allowed_ids and shared_keys:
+                allowed_ids = shared_keys
+
         if not allowed_ids:
-            return (_get_all_library_names(server_id), True) if server_type != "kavita" else ([], False)
+            if server_type in {"kavita", "plex", "jellyfin"}:
+                return [], False
+            return _get_all_library_names(server_id), True
         if allowed_ids == ["*"]:
             return _get_all_library_names(server_id), True
         lib_map = libraries_by_server.get(server_id, {})

@@ -528,6 +528,8 @@ def list_users(query: UsersQuery, current_user):
                 return [], False
             return _get_all_library_names(server_id), True
         if allowed_ids == ["*"]:
+            if server_type == "kavita":
+                return _get_all_library_names(server_id), False
             return _get_all_library_names(server_id), True
         lib_map = libraries_by_server.get(server_id, {})
 
@@ -556,9 +558,6 @@ def list_users(query: UsersQuery, current_user):
                 if normalized_id:
                     normalized_allowed_ids.add(normalized_id)
 
-            all_ids = all_ids_by_server.get(server_id, set())
-            if all_ids and normalized_allowed_ids and normalized_allowed_ids == all_ids and not has_unknown:
-                return _get_all_library_names(server_id), True
             return names, False
 
         names = [lib_map.get(lib_id, f"Unknown Lib {lib_id}") for lib_id in allowed_ids]

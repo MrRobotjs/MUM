@@ -244,7 +244,7 @@ def get_user(path: UserPath, current_user):
         elif not allowed_ids:
             has_all_libraries = server_type not in {"kavita", "plex", "jellyfin"}
         elif allowed_ids == ["*"]:
-            has_all_libraries = True
+            has_all_libraries = server_type != "kavita"
         elif user.server_id:
             libs = MediaLibrary.query.filter(MediaLibrary.server_id == user.server_id).all()
             lib_map: dict[str, str] = {}
@@ -296,12 +296,8 @@ def get_user(path: UserPath, current_user):
                     if normalized_id:
                         normalized_allowed_ids.add(normalized_id)
 
-                if all_ids and normalized_allowed_ids and normalized_allowed_ids == all_ids and not has_unknown:
-                    libraries = all_names
-                    has_all_libraries = True
-                else:
-                    libraries = names
-                    has_all_libraries = False
+                libraries = names
+                has_all_libraries = False
             else:
                 libraries = [lib_map.get(lib_id, f"Unknown Lib {lib_id}") for lib_id in allowed_ids]
                 has_all_libraries = False

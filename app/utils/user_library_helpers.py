@@ -275,10 +275,6 @@ def match_stored_library_ids_to_choices(stored_ids: List[str], available_choices
     """
     if not stored_ids:
         return []
-        
-    # Handle special case for Jellyfin users with '*' (all libraries access)
-    if stored_ids == ['*']:
-        return [choice[0] for choice in available_choices]
     
     available_lib_ids = {choice[0] for choice in available_choices}
     matched_libraries = []

@@ -454,66 +454,61 @@ def list_users():
             server = next((s for s in all_servers if s.id == server_id), None)
             service_type = server.service_type.value if server else 'unknown'
             
-            # Handle special case for Jellyfin users with '*' (all libraries access)
-            if lib_ids == ['*']:
-                lib_names = ['All Libraries']
-                user_library_service_mapping[user_id]['All Libraries'] = service_type
-            else:
-                # Look up library names from the correct server
-                server_libraries = libraries_by_server.get(server_id, {})
-                lib_names = []
-                # For Kavita users, migrate legacy external_id values to internal_id
-                if service_type.lower() == 'kavita':
-                    migrated_lib_ids = []
-                    for lib_id in lib_ids:
-                        # Check if this is a legacy external_id that needs migration
-                        if str(lib_id) not in server_libraries:
-                            # Try to find the internal_id for this external_id
-                            from app.models_media_services import MediaLibrary
-                            library = MediaLibrary.query.filter_by(
-                                server_id=server_id,
-                                external_id=str(lib_id)
-                            ).first()
+            # Look up library names from the correct server
+            server_libraries = libraries_by_server.get(server_id, {})
+            lib_names = []
+            # For Kavita users, migrate legacy external_id values to internal_id
+            if service_type.lower() == 'kavita':
+                migrated_lib_ids = []
+                for lib_id in lib_ids:
+                    # Check if this is a legacy external_id that needs migration
+                    if str(lib_id) not in server_libraries:
+                        # Try to find the internal_id for this external_id
+                        from app.models_media_services import MediaLibrary
+                        library = MediaLibrary.query.filter_by(
+                            server_id=server_id,
+                            external_id=str(lib_id)
+                        ).first()
+                        
+                        if library and hasattr(library, 'internal_id') and library.internal_id:
+                            current_app.logger.info(f"KAVITA MIGRATION: Converting external_id '{lib_id}' to internal_id '{library.internal_id}' for user {user_id}")
+                            migrated_lib_ids.append(library.internal_id)
                             
-                            if library and hasattr(library, 'internal_id') and library.internal_id:
-                                current_app.logger.info(f"KAVITA MIGRATION: Converting external_id '{lib_id}' to internal_id '{library.internal_id}' for user {user_id}")
-                                migrated_lib_ids.append(library.internal_id)
+                            # Update the user's library access with the new internal_id
+                            user_access_record = next((u for u in user_access_records if u.server.id == server_id), None)
+                            if user_access_record:
+                                # Replace old external_id with new internal_id
+                                updated_ids = [library.internal_id if old_id == str(lib_id) else old_id 
+                                             for old_id in (user_access_record.allowed_library_ids or [])]
+                                user_access_record.allowed_library_ids = updated_ids
+                                current_app.logger.info(f"KAVITA MIGRATION: Updated user {user_id} library access: {updated_ids}")
                                 
-                                # Update the user's library access with the new internal_id
-                                user_access_record = next((u for u in user_access_records if u.server.id == server_id), None)
-                                if user_access_record:
-                                    # Replace old external_id with new internal_id
-                                    updated_ids = [library.internal_id if old_id == str(lib_id) else old_id 
-                                                 for old_id in (user_access_record.allowed_library_ids or [])]
-                                    user_access_record.allowed_library_ids = updated_ids
-                                    current_app.logger.info(f"KAVITA MIGRATION: Updated user {user_id} library access: {updated_ids}")
-                                    
-                                    # Commit the migration to database
-                                    try:
-                                        db.session.commit()
-                                        current_app.logger.info(f"KAVITA MIGRATION: Successfully saved migration for user {user_id}")
-                                    except Exception as e:
-                                        db.session.rollback()
-                                        current_app.logger.error(f"KAVITA MIGRATION: Failed to save migration for user {user_id}: {e}")
-                            else:
-                                current_app.logger.warning(f"KAVITA MIGRATION: Could not find internal_id for external_id '{lib_id}' for user {user_id}")
-                                migrated_lib_ids.append(lib_id)  # Keep original if migration fails
+                                # Commit the migration to database
+                                try:
+                                    db.session.commit()
+                                    current_app.logger.info(f"KAVITA MIGRATION: Successfully saved migration for user {user_id}")
+                                except Exception as e:
+                                    db.session.rollback()
+                                    current_app.logger.error(f"KAVITA MIGRATION: Failed to save migration for user {user_id}: {e}")
                         else:
-                            migrated_lib_ids.append(lib_id)
-                    
-                    # Use migrated IDs for lookup
-                    current_app.logger.debug(f"KAVITA DEBUG: Looking up migrated_lib_ids {migrated_lib_ids} in server_libraries keys: {list(server_libraries.keys())}")
-                    for lib_id in migrated_lib_ids:
-                        lib_name = server_libraries.get(str(lib_id), f'Unknown Lib {lib_id}')
-                        current_app.logger.debug(f"KAVITA DEBUG: lib_id '{lib_id}' -> lib_name '{lib_name}'")
-                        lib_names.append(lib_name)
-                        user_library_service_mapping[user_id][lib_name] = service_type
-                else:
-                    # For non-Kavita services, use normal lookup
-                    for lib_id in lib_ids:
-                        lib_name = server_libraries.get(str(lib_id), f'Unknown Lib {lib_id}')
-                        lib_names.append(lib_name)
-                        user_library_service_mapping[user_id][lib_name] = service_type
+                            current_app.logger.warning(f"KAVITA MIGRATION: Could not find internal_id for external_id '{lib_id}' for user {user_id}")
+                            migrated_lib_ids.append(lib_id)  # Keep original if migration fails
+                    else:
+                        migrated_lib_ids.append(lib_id)
+                
+                # Use migrated IDs for lookup
+                current_app.logger.debug(f"KAVITA DEBUG: Looking up migrated_lib_ids {migrated_lib_ids} in server_libraries keys: {list(server_libraries.keys())}")
+                for lib_id in migrated_lib_ids:
+                    lib_name = server_libraries.get(str(lib_id), f'Unknown Lib {lib_id}')
+                    current_app.logger.debug(f"KAVITA DEBUG: lib_id '{lib_id}' -> lib_name '{lib_name}'")
+                    lib_names.append(lib_name)
+                    user_library_service_mapping[user_id][lib_name] = service_type
+            else:
+                # For non-Kavita services, use normal lookup
+                for lib_id in lib_ids:
+                    lib_name = server_libraries.get(str(lib_id), f'Unknown Lib {lib_id}')
+                    lib_names.append(lib_name)
+                    user_library_service_mapping[user_id][lib_name] = service_type
             
             all_lib_names.extend(lib_names)
         
@@ -635,10 +630,7 @@ def list_users():
                     server_libraries = libraries_by_server.get(service_user.server_id, {})
                     lib_ids = service_user.allowed_library_ids or []
                     
-                    if lib_ids == ['*']:
-                        lib_names = ['All Libraries']
-                        user_library_service_mapping[service_user.uuid] = {'All Libraries': service_user.server.service_type.value}
-                    elif len(lib_ids) > 0:
+                    if len(lib_ids) > 0:
                         lib_names = []
                         user_library_service_mapping[service_user.uuid] = {}
                         for lib_id in lib_ids:

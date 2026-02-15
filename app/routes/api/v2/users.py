@@ -503,6 +503,20 @@ def list_users(query: UsersQuery, current_user):
         ]
         return all_libraries_enabled, shared_keys, is_owner
 
+    def _get_audiobookshelf_access_context(service_user: User) -> Optional[bool]:
+        raw_data = getattr(service_user, "user_raw_data", None)
+        if not isinstance(raw_data, dict):
+            return None
+
+        permissions = raw_data.get("permissions")
+        if not isinstance(permissions, dict):
+            return None
+
+        access_all_libraries = permissions.get("accessAllLibraries")
+        if isinstance(access_all_libraries, bool):
+            return access_all_libraries
+        return None
+
     def _resolve_libraries_for_service_user(service_user: User) -> tuple[list[str], bool]:
         allowed_ids = [str(v) for v in (getattr(service_user, "allowed_library_ids", []) or [])]
         server_id = getattr(service_user, "server_id", None)
@@ -522,14 +536,16 @@ def list_users(query: UsersQuery, current_user):
                 return _get_all_library_names(server_id), True
             if not allowed_ids and shared_keys:
                 allowed_ids = shared_keys
+        elif server_type == "audiobookshelf":
+            access_all_libraries = _get_audiobookshelf_access_context(service_user)
+            if access_all_libraries is True:
+                return _get_all_library_names(server_id), True
+            if access_all_libraries is False and not allowed_ids:
+                return [], False
 
         if not allowed_ids:
-            if server_type in {"kavita", "plex", "jellyfin"}:
+            if server_type in {"kavita", "plex", "jellyfin", "audiobookshelf"}:
                 return [], False
-            return _get_all_library_names(server_id), True
-        if allowed_ids == ["*"]:
-            if server_type == "kavita":
-                return _get_all_library_names(server_id), False
             return _get_all_library_names(server_id), True
         lib_map = libraries_by_server.get(server_id, {})
 

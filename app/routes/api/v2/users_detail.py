@@ -187,6 +187,7 @@ def get_user(path: UserPath, current_user):
         plex_all_libraries_enabled: Optional[bool] = None
         plex_shared_section_keys: list[str] = []
         plex_is_owner = False
+        audiobookshelf_access_all_libraries: Optional[bool] = None
 
         if server_type == "jellyfin":
             raw_data = getattr(user, "user_raw_data", None)
@@ -232,19 +233,29 @@ def get_user(path: UserPath, current_user):
                     ]
             if not allowed_ids and plex_shared_section_keys:
                 allowed_ids = plex_shared_section_keys
+        elif server_type == "audiobookshelf":
+            raw_data = getattr(user, "user_raw_data", None)
+            if isinstance(raw_data, dict):
+                permissions = raw_data.get("permissions")
+                if isinstance(permissions, dict):
+                    access_all_raw = permissions.get("accessAllLibraries")
+                    if isinstance(access_all_raw, bool):
+                        audiobookshelf_access_all_libraries = access_all_raw
 
         if server_type == "jellyfin" and jellyfin_enable_all_folders is True:
             has_all_libraries = True
         elif server_type == "plex" and (plex_is_owner or plex_all_libraries_enabled is True):
             has_all_libraries = True
+        elif server_type == "audiobookshelf" and audiobookshelf_access_all_libraries is True:
+            has_all_libraries = True
         elif server_type == "jellyfin" and jellyfin_enable_all_folders is False and not allowed_ids and not jellyfin_policy_enabled_ids:
             has_all_libraries = False
         elif server_type == "plex" and plex_all_libraries_enabled is False and not allowed_ids and not plex_shared_section_keys:
             has_all_libraries = False
+        elif server_type == "audiobookshelf" and audiobookshelf_access_all_libraries is False and not allowed_ids:
+            has_all_libraries = False
         elif not allowed_ids:
-            has_all_libraries = server_type not in {"kavita", "plex", "jellyfin"}
-        elif allowed_ids == ["*"]:
-            has_all_libraries = server_type != "kavita"
+            has_all_libraries = server_type not in {"kavita", "plex", "jellyfin", "audiobookshelf"}
         elif user.server_id:
             libs = MediaLibrary.query.filter(MediaLibrary.server_id == user.server_id).all()
             lib_map: dict[str, str] = {}

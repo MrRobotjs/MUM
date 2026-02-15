@@ -319,9 +319,7 @@ def view_service_user(server_nickname, server_username):
         server_libraries = libraries_by_server.get(service_user.server_id, {})
         lib_ids = service_user.allowed_library_ids or []
         
-        if lib_ids == ['*']:
-            lib_names = ['All Libraries']
-        elif len(lib_ids) > 0:
+        if len(lib_ids) > 0:
             lib_names = []
             for lib_id in lib_ids:
                 lib_name = server_libraries.get(str(lib_id), f'Unknown Lib {lib_id}')
@@ -368,7 +366,7 @@ def view_service_user(server_nickname, server_username):
 def get_overseerr_requests(server_id, server_nickname, server_username):
     """Get Overseerr requests for a service user (admin view)"""
     try:
-from app.services.overseerr_service_deprecated import OverseerrService
+        from app.services.overseerr_service_deprecated import OverseerrService
         
         # URL decode the parameters to handle special characters
         try:

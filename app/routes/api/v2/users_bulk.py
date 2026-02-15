@@ -138,14 +138,20 @@ def bulk_user_operations(body: BulkBody, current_user):
                     if library_ids is not None:
                         if not isinstance(library_ids, list):
                             raise ValueError("library_ids must be a list.")
+                        if any(str(lib_id) == "*" for lib_id in library_ids):
+                            raise ValueError("Wildcard '*' library IDs are not supported.")
                         user.allowed_library_ids = library_ids
                     else:
                         # Compute final set from deltas against current setting
                         current = set(user.allowed_library_ids or [])
                         if isinstance(libs_to_add, list):
+                            if any(str(lib_id) == "*" for lib_id in libs_to_add):
+                                raise ValueError("Wildcard '*' library IDs are not supported.")
                             for lid in libs_to_add:
                                 current.add(lid)
                         if isinstance(libs_to_remove, list):
+                            if any(str(lib_id) == "*" for lib_id in libs_to_remove):
+                                raise ValueError("Wildcard '*' library IDs are not supported.")
                             for lid in libs_to_remove:
                                 try:
                                     current.remove(lid)

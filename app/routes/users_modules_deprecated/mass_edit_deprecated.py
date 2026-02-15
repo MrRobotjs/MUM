@@ -491,22 +491,18 @@ def mass_edit_users():
         all_lib_names = []
         
         for server_id, lib_ids in servers_access.items():
-            # Handle special case for Jellyfin users with '*' (all libraries access)
-            if lib_ids == ['*']:
-                lib_names = ['All Libraries']
+            # Check if this user has library_names available (for services like Kavita)
+            if user_obj and hasattr(user_obj, 'library_names') and user_obj.library_names:
+                # Use library_names from the user object
+                lib_names = user_obj.library_names
             else:
-                # Check if this user has library_names available (for services like Kavita)
-                if user_obj and hasattr(user_obj, 'library_names') and user_obj.library_names:
-                    # Use library_names from the user object
-                    lib_names = user_obj.library_names
-                else:
-                    # Look up library names from the correct server to prevent ID collisions
-                    server_libraries = libraries_by_server.get(server_id, {})
-                    lib_names = []
-                    for lib_id in lib_ids:
-                        # Use internal_id to look up library name
-                        lib_name = server_libraries.get(str(lib_id), f'Unknown Lib {lib_id}')
-                        lib_names.append(lib_name)
+                # Look up library names from the correct server to prevent ID collisions
+                server_libraries = libraries_by_server.get(server_id, {})
+                lib_names = []
+                for lib_id in lib_ids:
+                    # Use internal_id to look up library name
+                    lib_name = server_libraries.get(str(lib_id), f'Unknown Lib {lib_id}')
+                    lib_names.append(lib_name)
             
             all_lib_names.extend(lib_names)
         

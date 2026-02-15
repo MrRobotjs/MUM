@@ -372,7 +372,17 @@ class AudiobookShelfMediaService(BaseMediaService):
                 
                 # Get user's library access
                 permissions = user.get('permissions', {})
-                library_ids = permissions.get('librariesAccessible', [])
+                library_ids_raw = user.get('librariesAccessible')
+                library_ids = [
+                    str(lib_id)
+                    for lib_id in (library_ids_raw if isinstance(library_ids_raw, list) else [])
+                    if lib_id not in (None, '')
+                ]
+                access_all_libraries = (
+                    bool(permissions.get('accessAllLibraries'))
+                    if isinstance(permissions.get('accessAllLibraries'), bool)
+                    else None
+                )
                 
                 # Debug logging for raw data
                 self.log_info(f"AudioBookshelf user {user.get('username', 'Unknown')} raw data keys: {list(user.keys()) if isinstance(user, dict) else 'not a dict'}")
@@ -387,6 +397,7 @@ class AudiobookShelfMediaService(BaseMediaService):
                     'is_home_user': False,
                     'created_at': user.get('createdAt'),
                     'library_ids': library_ids,
+                    'access_all_libraries': access_all_libraries,
                     'is_admin': user.get('type') == 'admin',
                     'raw_data': user  # Store individual user's raw data (not the full response)
                 })

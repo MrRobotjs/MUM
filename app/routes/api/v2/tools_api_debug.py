@@ -44,6 +44,12 @@ def _get_kavita_jwt_token(base_url: str, api_key: str) -> str | None:
         return None
 
 
+def _build_basic_auth(username: str, password: str):
+    if username and password:
+        return (username, password)
+    return None
+
+
 class QueryParam(BaseModel):
     key: str
     value: str
@@ -164,11 +170,23 @@ def api_debug_execute(body: ApiDebugExecuteBody, current_user):
         elif service_type == "kavita" and api_key:
             jwt_token = _get_kavita_jwt_token(base_url, api_key)
             headers["Authorization"] = f"Bearer {jwt_token or api_key}"
-        elif service_type in ("audiobookshelf", "komga", "romm") and api_key:
+        elif service_type == "audiobookshelf" and api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
+        elif service_type == "komga":
+            if api_key:
+                headers["X-API-Key"] = api_key
+            else:
+                auth = _build_basic_auth(username, password)
+        elif service_type == "romm":
+            auth = _build_basic_auth(username, password)
+            if not auth and api_key:
+                headers["Authorization"] = f"Bearer {api_key}"
+        elif api_key:
             headers["Authorization"] = f"Bearer {api_key}"
 
-        if username and password:
-            auth = (username, password)
+        # Keep a generic basic-auth fallback only when no auth mechanism was selected above.
+        if auth is None and "Authorization" not in headers and "X-API-Key" not in headers:
+            auth = _build_basic_auth(username, password)
 
         # Execute request
         method = (body.method or "GET").upper()

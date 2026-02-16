@@ -491,6 +491,20 @@ def sync_server_users(path: ServerPathOp, current_user):
             409,
         )
 
+    requester = (
+        getattr(current_user, "username", None)
+        or getattr(current_user, "localUsername", None)
+        or getattr(current_user, "email", None)
+        or "unknown"
+    )
+    current_app.logger.info(
+        "Single-server user sync requested by %s for server %s (%s) [server_id=%s]",
+        requester,
+        server.server_nickname,
+        server.service_type.value if hasattr(server.service_type, "value") else str(server.service_type),
+        path.server_id,
+    )
+
     start_sync(1, current_user)
     try:
         update_sync_progress(1, 1, server.server_nickname)

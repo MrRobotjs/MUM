@@ -172,7 +172,14 @@ class MediaServiceManager:
                         item_count=lib_data.get('item_count'),
                         internal_id=internal_id  # Explicitly set internal_id
                     )
-                    current_app.logger.info(f"KAVITA DEBUG: Creating library '{lib_data['name']}' with external_id '{external_id}' and internal_id '{internal_id}'")
+                    current_app.logger.info(
+                        "Creating library '%s' for %s (%s) with external_id '%s' and internal_id '%s'",
+                        lib_data['name'],
+                        server.server_nickname,
+                        server.service_type.value if hasattr(server.service_type, "value") else str(server.service_type),
+                        external_id,
+                        internal_id,
+                    )
                     db.session.add(lib)
                     added_count += 1
                     added_libraries.append({
@@ -235,7 +242,19 @@ class MediaServiceManager:
         if not service:
             return {'success': False, 'message': 'Service type not supported'}
 
+        service_label = (
+            server.service_type.value
+            if hasattr(server.service_type, "value")
+            else str(server.service_type)
+        )
+
         try:
+            current_app.logger.info(
+                "Starting user sync for server %s (%s) [server_id=%s]",
+                server.server_nickname,
+                service_label,
+                server_id,
+            )
             # Test connection first before attempting to sync users
             connection_test = service.test_connection()
             if not connection_test[0]:  # test_connection returns (success, message)
@@ -485,7 +504,9 @@ class MediaServiceManager:
                     
                     # Store service-specific raw data in service user
                     user_raw_data = user_data.get('raw_data') or {}
-                    current_app.logger.info(f"AudioBookshelf sync - Creating new user {user_data.get('username')} raw_data: {type(user_raw_data)} with {len(str(user_raw_data))} chars")
+                    current_app.logger.info(
+                        f"{service_label} sync - Creating new user {user_data.get('username')} raw_data: {type(user_raw_data)} with {len(str(user_raw_data))} chars"
+                    )
                     initial_service_settings = {'is_media_server_owner': is_owner_from_sync} if is_owner_from_sync is not None else {}
                     
                     access = User(
@@ -593,7 +614,9 @@ class MediaServiceManager:
                     
                     # Update raw data for existing users
                     raw_data_to_store = user_data.get('raw_data') or {}
-                    current_app.logger.info(f"AudioBookshelf sync - Updating existing standalone user {user_data.get('username')} raw_data: {type(raw_data_to_store)} with {len(str(raw_data_to_store))} chars")
+                    current_app.logger.info(
+                        f"{service_label} sync - Updating existing standalone user {user_data.get('username')} raw_data: {type(raw_data_to_store)} with {len(str(raw_data_to_store))} chars"
+                    )
                     access.user_raw_data = raw_data_to_store
                     if is_owner_from_sync is not None:
                         settings = access.service_settings or {}
@@ -635,11 +658,15 @@ class MediaServiceManager:
                     
                     old_library_ids = set(access.allowed_library_ids or [])
                     new_library_ids = set(user_data.get('library_ids', []))
-                    current_app.logger.debug(f"KAVITA SYNC: User {user_data.get('username', 'Unknown')} - Old IDs: {old_library_ids}, New IDs: {new_library_ids}")
+                    current_app.logger.debug(
+                        f"{service_label} sync: User {user_data.get('username', 'Unknown')} - Old IDs: {old_library_ids}, New IDs: {new_library_ids}"
+                    )
                     if old_library_ids != new_library_ids:
                         added_ids = new_library_ids - old_library_ids
                         removed_ids = old_library_ids - new_library_ids
-                        current_app.logger.debug(f"KAVITA SYNC: Added: {added_ids}, Removed: {removed_ids}")
+                        current_app.logger.debug(
+                            f"{service_label} sync: Added: {added_ids}, Removed: {removed_ids}"
+                        )
 
                         if added_ids:
                             # Use library_names from user_data if available (for services like Kavita)
@@ -747,6 +774,16 @@ class MediaServiceManager:
 
             db.session.commit()
             
+            current_app.logger.info(
+                "Completed user sync for server %s (%s) [server_id=%s]: %s added, %s updated, %s removed",
+                server.server_nickname,
+                service_label,
+                server_id,
+                added_count,
+                updated_count,
+                removed_count,
+            )
+
             return {
                 'success': True,
                 'message': f'Synced {len(users_data)} users',
@@ -762,7 +799,10 @@ class MediaServiceManager:
             
         except Exception as e:
             db.session.rollback()
-            current_app.logger.error(f"Error syncing users for server {server_id}: {e}", exc_info=True)
+            current_app.logger.error(
+                f"Error syncing users for server {server_id} ({server.server_nickname}, {service_label}): {e}",
+                exc_info=True,
+            )
             return {'success': False, 'message': f'Sync failed: {str(e)}'}
     
     @staticmethod

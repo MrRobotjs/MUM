@@ -84,6 +84,10 @@ def sync_all_users(current_user):
 
     # Mark sync as started
     start_sync(len(servers), current_user)
+    current_app.logger.info(
+        "Starting full user sync across %s server(s)",
+        len(servers),
+    )
 
     results = []
     total_added = total_updated = total_removed = 0
@@ -139,6 +143,13 @@ def sync_all_users(current_user):
                 )
     finally:
         end_sync()
+        current_app.logger.info(
+            "Completed full user sync across %s server(s): %s added, %s updated, %s removed",
+            len(servers),
+            total_added,
+            total_updated,
+            total_removed,
+        )
 
     log_event(
         EventType.SETTING_CHANGE,

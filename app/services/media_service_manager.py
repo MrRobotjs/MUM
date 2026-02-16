@@ -8,6 +8,12 @@ from app.services.media_service_factory import MediaServiceFactory
 from app.extensions import db
 from datetime import datetime
 from app.services import realtime_session_cache
+from app.utils.logging_scope import (
+    build_operation_banner,
+    build_operation_source_label,
+    build_service_scope,
+    elapsed_ms,
+)
 
 class MediaServiceManager:
     """Centralized manager for all media services"""
@@ -112,15 +118,31 @@ class MediaServiceManager:
         service = MediaServiceFactory.create_service_from_db(server)
         if not service:
             return {'success': False, 'message': 'Service type not supported'}
+
+        service_scope = build_service_scope(server.service_type, server.server_nickname)
+        operation_source = build_operation_source_label(
+            server.service_type,
+            server.server_nickname,
+            server_id,
+        )
+        operation_started_at = datetime.utcnow()
         
         try:
-            current_app.logger.info(f"Starting library sync for server {server_id} ({server.server_nickname})")
+            current_app.logger.info(build_operation_banner("LIBRARY SYNC", operation_source, "STARTING"))
             libraries_data = service.get_libraries()
-            current_app.logger.info(f"Retrieved {len(libraries_data)} libraries from {server.server_nickname}")
+            current_app.logger.info(
+                "%s Retrieved %d libraries from service API",
+                service_scope,
+                len(libraries_data),
+            )
             
             # Update database
             existing_libs = {lib.external_id: lib for lib in server.libraries}
-            current_app.logger.info(f"Found {len(existing_libs)} existing libraries in database")
+            current_app.logger.info(
+                "%s Found %d existing libraries in database",
+                service_scope,
+                len(existing_libs),
+            )
             updated_count = 0
             added_count = 0
             updated_libraries = []
@@ -128,7 +150,12 @@ class MediaServiceManager:
             
             for lib_data in libraries_data:
                 external_id = lib_data['external_id']
-                current_app.logger.debug(f"Processing library: {lib_data['name']} (ID: {external_id})")
+                current_app.logger.debug(
+                    "%s Processing library: %s (ID: %s)",
+                    service_scope,
+                    lib_data['name'],
+                    external_id,
+                )
                 
                 if external_id in existing_libs:
                     # Update existing library
@@ -213,7 +240,15 @@ class MediaServiceManager:
             
             server.last_sync_at = datetime.utcnow()
             db.session.commit()
-            current_app.logger.info(f"Library sync completed: {added_count} added, {updated_count} updated, {removed_count} removed")
+            current_app.logger.info(
+                "%s Library sync completed: %d added, %d updated, %d removed (duration_ms=%d)",
+                service_scope,
+                added_count,
+                updated_count,
+                removed_count,
+                elapsed_ms(operation_started_at),
+            )
+            current_app.logger.info(build_operation_banner("LIBRARY SYNC", operation_source, "FINISHED"))
             
             return {
                 'success': True,
@@ -228,7 +263,14 @@ class MediaServiceManager:
             
         except Exception as e:
             db.session.rollback()
-            current_app.logger.error(f"Error syncing libraries for server {server_id} ({server.server_nickname}): {e}", exc_info=True)
+            current_app.logger.error(
+                "%s Error syncing libraries for server_id=%s: %s",
+                service_scope,
+                server_id,
+                e,
+                exc_info=True,
+            )
+            current_app.logger.error(build_operation_banner("LIBRARY SYNC", operation_source, "FAILED"))
             return {'success': False, 'message': f'Sync failed: {str(e)}'}
     
     @staticmethod
@@ -247,17 +289,24 @@ class MediaServiceManager:
             if hasattr(server.service_type, "value")
             else str(server.service_type)
         )
+        service_scope = build_service_scope(server.service_type, server.server_nickname)
+        operation_source = build_operation_source_label(
+            server.service_type,
+            server.server_nickname,
+            server_id,
+        )
+        operation_started_at = datetime.utcnow()
 
         try:
+            current_app.logger.info(build_operation_banner("USER SYNC", operation_source, "STARTING"))
             current_app.logger.info(
-                "Starting user sync for server %s (%s) [server_id=%s]",
-                server.server_nickname,
-                service_label,
-                server_id,
+                "%s Starting user sync",
+                service_scope,
             )
             # Test connection first before attempting to sync users
             connection_test = service.test_connection()
             if not connection_test[0]:  # test_connection returns (success, message)
+                current_app.logger.error(build_operation_banner("USER SYNC", operation_source, "FAILED"))
                 return {
                     'success': False, 
                     'message': f'Server {server.server_nickname} is offline or unreachable: {connection_test[1]}'
@@ -267,7 +316,11 @@ class MediaServiceManager:
             
             # If we get an empty list, double-check if this is expected or an error
             if not users_data:
-                current_app.logger.warning(f"No users returned from {server.server_nickname}. This could indicate the server is offline or has no users.")
+                current_app.logger.warning(
+                    "%s No users returned from server. This could indicate the server is offline or has no users.",
+                    service_scope,
+                )
+                current_app.logger.error(build_operation_banner("USER SYNC", operation_source, "FAILED"))
                 # For safety, don't process removals if we get no users - this could indicate server issues
                 return {
                     'success': False,
@@ -284,9 +337,8 @@ class MediaServiceManager:
                     return
                 library_sync_attempted = True
                 current_app.logger.info(
-                    "User sync triggering library sync for %s (%s). Reason: %s",
-                    server.server_nickname,
-                    server.service_type.value,
+                    "%s User sync triggering library sync. Reason: %s",
+                    service_scope,
                     reason,
                 )
                 lib_sync_result = MediaServiceManager.sync_server_libraries(server_id)
@@ -775,14 +827,14 @@ class MediaServiceManager:
             db.session.commit()
             
             current_app.logger.info(
-                "Completed user sync for server %s (%s) [server_id=%s]: %s added, %s updated, %s removed",
-                server.server_nickname,
-                service_label,
-                server_id,
+                "%s Completed user sync: %s added, %s updated, %s removed (duration_ms=%d)",
+                service_scope,
                 added_count,
                 updated_count,
                 removed_count,
+                elapsed_ms(operation_started_at),
             )
+            current_app.logger.info(build_operation_banner("USER SYNC", operation_source, "FINISHED"))
 
             return {
                 'success': True,
@@ -800,9 +852,13 @@ class MediaServiceManager:
         except Exception as e:
             db.session.rollback()
             current_app.logger.error(
-                f"Error syncing users for server {server_id} ({server.server_nickname}, {service_label}): {e}",
+                "%s Error syncing users for server_id=%s: %s",
+                service_scope,
+                server_id,
+                e,
                 exc_info=True,
             )
+            current_app.logger.error(build_operation_banner("USER SYNC", operation_source, "FAILED"))
             return {'success': False, 'message': f'Sync failed: {str(e)}'}
     
     @staticmethod
@@ -946,7 +1002,12 @@ class MediaServiceManager:
         )
         
         for server in servers:
-            current_app.logger.warning(f"MediaServiceManager: Making API call to server '{server.server_nickname}' ({server.service_type.value}) at {server.url}")
+            server_scope = build_service_scope(server.service_type, server.server_nickname)
+            current_app.logger.warning(
+                "%s Making API call to %s",
+                server_scope,
+                server.url,
+            )
             service = MediaServiceFactory.create_service_from_db(server)
             if service:
                 try:
@@ -954,15 +1015,14 @@ class MediaServiceManager:
                     if server.service_type in {ServiceType.JELLYFIN, ServiceType.EMBY}:
                         sessions = realtime_session_cache.get_sessions(server.service_type.value, server.id)
                         current_app.logger.debug(
-                            "MediaServiceManager: Using websocket cache for %s (%s) -> %d sessions",
-                            server.server_nickname,
-                            server.service_type.value,
+                            "%s Using websocket cache -> %d sessions",
+                            server_scope,
                             len(sessions),
                         )
                     else:
-                        current_app.logger.debug(f"MediaServiceManager: Calling get_active_sessions() for {server.server_nickname}")
+                        current_app.logger.debug("%s Calling get_active_sessions()", server_scope)
                         sessions = service.get_active_sessions()
-                        current_app.logger.debug(f"MediaServiceManager: Got {len(sessions)} sessions from {server.server_nickname}")
+                        current_app.logger.debug("%s Got %d sessions", server_scope, len(sessions))
                     for session in sessions:
                         if isinstance(session, dict):
                             session['server_name'] = server.server_nickname
@@ -974,9 +1034,9 @@ class MediaServiceManager:
                             setattr(session, 'service_type', server.service_type.value)
                     all_sessions.extend(sessions)
                 except Exception as e:
-                    current_app.logger.error(f"MediaServiceManager: Error getting sessions from {server.server_nickname}: {e}")
+                    current_app.logger.error("%s Error getting sessions: %s", server_scope, e)
             else:
-                current_app.logger.warning(f"MediaServiceManager: Could not create service for {server.server_nickname}")
+                current_app.logger.warning("%s Could not create service instance", server_scope)
         
         current_app.logger.warning(f"MediaServiceManager: Total sessions found across all servers: {len(all_sessions)}")
         return all_sessions

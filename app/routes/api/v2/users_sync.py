@@ -14,6 +14,7 @@ from app.models import User, UserType, EventType
 from app.utils.helpers import log_event
 from app.models_media_services import MediaServer
 from app.services.media_service_manager import MediaServiceManager
+from app.utils.logging_scope import build_operation_banner, build_service_scope
 # JWT permission checking handled by jwt_permission_required, log_event
 
 # Reuse sync status helpers from v1 for now
@@ -84,8 +85,11 @@ def sync_all_users(current_user):
 
     # Mark sync as started
     start_sync(len(servers), current_user)
+    operation_source = "ALL-SERVERS"
+    current_app.logger.info(build_operation_banner("USER SYNC", operation_source, "STARTING"))
     current_app.logger.info(
-        "Starting full user sync across %s server(s)",
+        "%s Starting full user sync across %s server(s)",
+        build_service_scope("sync", operation_source),
         len(servers),
     )
 
@@ -96,7 +100,10 @@ def sync_all_users(current_user):
         for idx, server in enumerate(servers, 1):
             update_sync_progress(idx, len(servers), server.server_nickname)
             try:
-                current_app.logger.info(f"Syncing users for server: {server.server_nickname}")
+                current_app.logger.info(
+                    "%s Starting user sync (sync-all flow)",
+                    build_service_scope(server.service_type, server.server_nickname),
+                )
                 sync_result = MediaServiceManager.sync_server_users(server.id)
                 success = bool(sync_result.get("success"))
                 message = sync_result.get("message", "Sync completed." if success else "Sync failed.")
@@ -144,12 +151,14 @@ def sync_all_users(current_user):
     finally:
         end_sync()
         current_app.logger.info(
-            "Completed full user sync across %s server(s): %s added, %s updated, %s removed",
+            "%s Completed full user sync across %s server(s): %s added, %s updated, %s removed",
+            build_service_scope("sync", operation_source),
             len(servers),
             total_added,
             total_updated,
             total_removed,
         )
+        current_app.logger.info(build_operation_banner("USER SYNC", operation_source, "FINISHED"))
 
     log_event(
         EventType.SETTING_CHANGE,

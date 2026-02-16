@@ -17,6 +17,7 @@ from app.services.media_service_factory import MediaServiceFactory
 from app.models import Notification, NotificationType
 from app.utils.timezone_utils import utcnow
 from app.routes.api.v2.sync_status import get_sync_status, start_sync, update_sync_progress, end_sync
+from app.utils.logging_scope import build_operation_banner, build_operation_source_label, build_service_scope
 
 
 servers_tag = Tag(name="Servers", description="Media server management")
@@ -497,12 +498,17 @@ def sync_server_users(path: ServerPathOp, current_user):
         or getattr(current_user, "email", None)
         or "unknown"
     )
-    current_app.logger.info(
-        "Single-server user sync requested by %s for server %s (%s) [server_id=%s]",
-        requester,
+    operation_source = build_operation_source_label(
+        server.service_type,
         server.server_nickname,
-        server.service_type.value if hasattr(server.service_type, "value") else str(server.service_type),
         path.server_id,
+    )
+    service_scope = build_service_scope(server.service_type, server.server_nickname)
+    current_app.logger.info(build_operation_banner("USER SYNC REQUEST", operation_source, "STARTING"))
+    current_app.logger.info(
+        "%s Single-server user sync requested by %s",
+        service_scope,
+        requester,
     )
 
     start_sync(1, current_user)
@@ -511,6 +517,7 @@ def sync_server_users(path: ServerPathOp, current_user):
         result = MediaServiceManager.sync_server_users(path.server_id)
     finally:
         end_sync()
+        current_app.logger.info(build_operation_banner("USER SYNC REQUEST", operation_source, "FINISHED"))
 
     # Mark SERVER_NOT_SYNCED notifications as read for this server
     try:

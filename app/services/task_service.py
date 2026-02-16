@@ -9,6 +9,7 @@ from app.services.media_service_manager import MediaServiceManager
 from datetime import datetime, timezone, timedelta
 from app.extensions import db
 from typing import Any, Dict, Iterable, Optional, Set, Union
+from app.utils.logging_scope import build_operation_banner, build_service_scope
 
 # session_key -> {'history_id': int, 'service_type': str, 'server_id': Optional[int]}
 _active_stream_sessions: Dict[str, Dict[str, Any]] = {}
@@ -68,7 +69,7 @@ def _run_media_session_monitor(
     global _active_stream_sessions
 
     source_label = source.upper()
-    current_app.logger.info("=== MEDIA SESSION MONITOR (%s) STARTING ===", source_label)
+    current_app.logger.info(build_operation_banner("MEDIA SESSION MONITOR", source_label, "STARTING"))
 
     target_include = _normalize_service_type_set(include_service_types)
     target_exclude = _normalize_service_type_set(exclude_service_types)
@@ -135,11 +136,10 @@ def _run_media_session_monitor(
     )
 
     for server in target_servers:
+        server_scope = build_service_scope(server.service_type, server.server_nickname)
         current_app.logger.debug(
-            "[%s] Server - Name: %s, Type: %s, Active: %s",
-            source_label,
-            server.server_nickname,
-            server.service_type.value,
+            "%s Active: %s",
+            server_scope,
             server.is_active,
         )
 
@@ -824,8 +824,11 @@ def _run_media_session_monitor(
                                     session.setdefault('server_name', server.server_nickname)
                                 formatted_sessions.extend(formatted)
                         except Exception as format_err:
+                            server_scope = build_service_scope(server.service_type, server.server_nickname)
                             current_app.logger.warning(
-                                f"[{source_label}] Failed to format sessions for {server.server_nickname}: {format_err}"
+                                "%s Failed to format sessions for broadcast: %s",
+                                server_scope,
+                                format_err,
                             )
             except Exception as fetch_err:
                 current_app.logger.warning(
@@ -860,7 +863,7 @@ def _run_media_session_monitor(
         except Exception as ws_error:
             current_app.logger.warning(f"Failed to broadcast WebSocket update: {ws_error}")
 
-        current_app.logger.info("=== MEDIA SESSION MONITOR (%s) FINISHED ===", source_label)
+        current_app.logger.info(build_operation_banner("MEDIA SESSION MONITOR", source_label, "FINISHED"))
 
     except Exception as e:
         db.session.rollback()
@@ -870,6 +873,7 @@ def _run_media_session_monitor(
             e,
             exc_info=True,
         )
+        current_app.logger.error(build_operation_banner("MEDIA SESSION MONITOR", source_label, "FAILED"))
 
 def check_user_access_expirations_task():
     """

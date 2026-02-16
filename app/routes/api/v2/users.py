@@ -545,6 +545,15 @@ def list_users(query: UsersQuery, current_user):
             return access_all_libraries
         return None
 
+    def _get_komga_access_context(service_user: User) -> Optional[bool]:
+        raw_data = getattr(service_user, "user_raw_data", None)
+        if not isinstance(raw_data, dict):
+            return None
+        shared_all_libraries = raw_data.get("sharedAllLibraries")
+        if isinstance(shared_all_libraries, bool):
+            return shared_all_libraries
+        return None
+
     def _resolve_libraries_for_service_user(service_user: User) -> tuple[list[str], bool]:
         allowed_ids = [str(v) for v in (getattr(service_user, "allowed_library_ids", []) or [])]
         server_id = getattr(service_user, "server_id", None)
@@ -578,9 +587,15 @@ def list_users(query: UsersQuery, current_user):
                 return _get_all_library_names(server_id), True
             if access_all_libraries is False and not allowed_ids:
                 return [], False
+        elif server_type == "komga":
+            shared_all_libraries = _get_komga_access_context(service_user)
+            if shared_all_libraries is True:
+                return _get_all_library_names(server_id), True
+            if shared_all_libraries is False and not allowed_ids:
+                return [], False
 
         if not allowed_ids:
-            if server_type in {"kavita", "plex", "jellyfin", "emby", "audiobookshelf"}:
+            if server_type in {"kavita", "plex", "jellyfin", "emby", "audiobookshelf", "komga"}:
                 return [], False
             return _get_all_library_names(server_id), True
         lib_map = libraries_by_server.get(server_id, {})

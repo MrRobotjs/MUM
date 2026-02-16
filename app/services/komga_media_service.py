@@ -133,6 +133,7 @@ class KomgaMediaService(BaseMediaService):
         try:
             users = self._make_request('users')
             result = []
+            all_library_ids: Optional[List[str]] = None
             
             # Komga API returns a list directly, not wrapped in a 'content' object
             users_list = users if isinstance(users, list) else users.get('content', [])
@@ -142,14 +143,24 @@ class KomgaMediaService(BaseMediaService):
                 if not user_id:
                     continue
                 
-                # Get user's library access
-                try:
-                    shared_libs = self._make_request(f'users/{user_id}/shared-libraries')
-                    # Handle both list and object responses for shared libraries
-                    shared_libs_list = shared_libs if isinstance(shared_libs, list) else shared_libs.get('content', [])
-                    library_ids = [lib.get('id') for lib in shared_libs_list]
-                except:
-                    library_ids = []
+                # Komga v2 includes sharing context directly on UserDto.
+                shared_all_libraries = bool(user.get('sharedAllLibraries', False))
+                library_ids = [
+                    str(lib_id) for lib_id in (user.get('sharedLibrariesIds') or []) if lib_id
+                ]
+
+                # If a user has "all libraries" enabled but explicit IDs are empty,
+                # resolve to current library IDs for sync consistency in MUM.
+                if shared_all_libraries and not library_ids:
+                    if all_library_ids is None:
+                        libraries = self._make_request('libraries')
+                        libraries_list = (
+                            libraries if isinstance(libraries, list) else libraries.get('content', [])
+                        )
+                        all_library_ids = [
+                            str(lib.get('id')) for lib in libraries_list if lib.get('id')
+                        ]
+                    library_ids = list(all_library_ids)
                 
                 result.append({
                     'id': user_id,
@@ -159,7 +170,8 @@ class KomgaMediaService(BaseMediaService):
                     'thumb': None,  # Komga doesn't provide avatars
                     'is_home_user': False,
                     'library_ids': library_ids,
-                    'is_admin': 'ADMIN' in user.get('roles', [])
+                    'is_admin': 'ADMIN' in user.get('roles', []),
+                    'raw_data': user,
                 })
             
             return result
@@ -176,14 +188,15 @@ class KomgaMediaService(BaseMediaService):
                 'roles': ['USER']
             }
             
+            library_ids = kwargs.get('library_ids', [])
+            if library_ids:
+                user_data['sharedLibraries'] = {
+                    'all': False,
+                    'libraryIds': [str(lib_id) for lib_id in library_ids if lib_id],
+                }
+
             result = self._make_request('users', method='POST', data=user_data)
             user_id = result.get('id')
-            
-            # Set library access if specified
-            library_ids = kwargs.get('library_ids', [])
-            if library_ids and user_id:
-                for lib_id in library_ids:
-                    self._make_request(f'users/{user_id}/shared-libraries/{lib_id}', method='POST')
             
             return {
                 'success': True,
@@ -199,19 +212,14 @@ class KomgaMediaService(BaseMediaService):
         """Update Komga user's library access"""
         try:
             if library_ids is not None:
-                # Get current shared libraries
-                current_libs = self._make_request(f'users/{user_id}/shared-libraries')
-                current_lib_ids = [lib.get('id') for lib in current_libs.get('content', [])]
-                
-                # Remove libraries not in new list
-                for lib_id in current_lib_ids:
-                    if lib_id not in library_ids:
-                        self._make_request(f'users/{user_id}/shared-libraries/{lib_id}', method='DELETE')
-                
-                # Add new libraries
-                for lib_id in library_ids:
-                    if lib_id not in current_lib_ids:
-                        self._make_request(f'users/{user_id}/shared-libraries/{lib_id}', method='POST')
+                # Komga v2 updates shared libraries via PATCH /api/v2/users/{id}
+                payload = {
+                    'sharedLibraries': {
+                        'all': False,
+                        'libraryIds': [str(lib_id) for lib_id in library_ids if lib_id],
+                    }
+                }
+                self._make_request(f'users/{user_id}', method='PATCH', data=payload)
             
             return True
         except Exception as e:

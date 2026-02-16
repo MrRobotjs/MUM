@@ -190,6 +190,7 @@ def get_user(path: UserPath, current_user):
         plex_shared_section_keys: list[str] = []
         plex_is_owner = False
         audiobookshelf_access_all_libraries: Optional[bool] = None
+        komga_shared_all_libraries: Optional[bool] = None
 
         if server_type == "jellyfin":
             raw_data = getattr(user, "user_raw_data", None)
@@ -269,6 +270,12 @@ def get_user(path: UserPath, current_user):
                     access_all_raw = permissions.get("accessAllLibraries")
                     if isinstance(access_all_raw, bool):
                         audiobookshelf_access_all_libraries = access_all_raw
+        elif server_type == "komga":
+            raw_data = getattr(user, "user_raw_data", None)
+            if isinstance(raw_data, dict):
+                shared_all_raw = raw_data.get("sharedAllLibraries")
+                if isinstance(shared_all_raw, bool):
+                    komga_shared_all_libraries = shared_all_raw
 
         if server_type == "jellyfin" and jellyfin_enable_all_folders is True:
             has_all_libraries = True
@@ -278,6 +285,8 @@ def get_user(path: UserPath, current_user):
             has_all_libraries = True
         elif server_type == "audiobookshelf" and audiobookshelf_access_all_libraries is True:
             has_all_libraries = True
+        elif server_type == "komga" and komga_shared_all_libraries is True:
+            has_all_libraries = True
         elif server_type == "jellyfin" and jellyfin_enable_all_folders is False and not allowed_ids and not jellyfin_policy_enabled_ids:
             has_all_libraries = False
         elif server_type == "emby" and emby_enable_all_folders is False and not allowed_ids and not emby_policy_enabled_ids:
@@ -286,8 +295,10 @@ def get_user(path: UserPath, current_user):
             has_all_libraries = False
         elif server_type == "audiobookshelf" and audiobookshelf_access_all_libraries is False and not allowed_ids:
             has_all_libraries = False
+        elif server_type == "komga" and komga_shared_all_libraries is False and not allowed_ids:
+            has_all_libraries = False
         elif not allowed_ids:
-            has_all_libraries = server_type not in {"kavita", "plex", "jellyfin", "emby", "audiobookshelf"}
+            has_all_libraries = server_type not in {"kavita", "plex", "jellyfin", "emby", "audiobookshelf", "komga"}
         elif user.server_id:
             libs = MediaLibrary.query.filter(MediaLibrary.server_id == user.server_id).all()
             lib_map: dict[str, str] = {}

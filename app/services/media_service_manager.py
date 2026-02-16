@@ -658,7 +658,10 @@ class MediaServiceManager:
                         
                         # For services like Kavita where username is the primary identifier,
                         # also update the user's username to keep them in sync
-                        if server.service_type.value in ['kavita', 'jellyfin', 'emby', 'audiobookshelf', 'komga', 'romm']:
+                        if (
+                            user is not None
+                            and server.service_type.value in ['kavita', 'jellyfin', 'emby', 'audiobookshelf', 'komga', 'romm']
+                        ):
                             user.localUsername = user_data.get('username')
                     if access.external_email != user_data.get('email'):
                         changes.append(f"Email changed from '{access.external_email}' to '{user_data.get('email')}'")

@@ -138,22 +138,32 @@ def _build_invite_state(invite: Invite) -> Dict[str, Any]:
         }
 
     local_username = account_data.get('username') if account_data else ''
+    local_email = account_data.get('email') if account_data else ''
 
     username_conflicts: Dict[int, bool] = {}
-    if use_same_username and local_username:
-        for server in effective_servers:
-            if server.service_type.name.upper() == 'PLEX':
+    for server in effective_servers:
+        if server.service_type.name.upper() == 'PLEX':
+            continue
+        try:
+            service = MediaServiceFactory.create_service_from_db(server)
+            if not hasattr(service, 'check_username_exists'):
+                username_conflicts[server.id] = False
                 continue
-            try:
-                service = MediaServiceFactory.create_service_from_db(server)
-                if hasattr(service, 'check_username_exists'):
-                    exists = service.check_username_exists(local_username)
+
+            if server.service_type.name.upper() == 'KOMGA':
+                if use_same_email and local_email:
+                    exists = service.check_username_exists(local_email)
                     username_conflicts[server.id] = bool(exists)
                 else:
                     username_conflicts[server.id] = False
-            except Exception as exc:
-                current_app.logger.warning("Could not check username on %s: %s", server.server_nickname, exc)
+            elif use_same_username and local_username:
+                exists = service.check_username_exists(local_username)
+                username_conflicts[server.id] = bool(exists)
+            else:
                 username_conflicts[server.id] = False
+        except Exception as exc:
+            current_app.logger.warning("Could not check username on %s: %s", server.server_nickname, exc)
+            username_conflicts[server.id] = False
 
     invite_steps: List[Dict[str, Any]] = []
     if allow_user_accounts and not invite_paused:

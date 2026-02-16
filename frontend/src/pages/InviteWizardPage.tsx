@@ -575,9 +575,14 @@ export const InviteWizardPage = () => {
 
     const nextServerForms: Record<number, ServerFormState> = {};
     state.servers.forEach((server) => {
+      const isEmailIdentityServer = server.service_type === 'KOMGA';
+      const savedUsername = server.credentials?.username ?? '';
+      const savedEmail = server.credentials?.email ?? '';
+      const resolvedEmail = savedEmail || (isEmailIdentityServer ? savedUsername : '');
+      const resolvedUsername = isEmailIdentityServer ? (resolvedEmail || savedUsername) : savedUsername;
       nextServerForms[server.id] = {
-        username: server.credentials?.username ?? '',
-        email: server.credentials?.email ?? '',
+        username: resolvedUsername,
+        email: resolvedEmail,
         password: server.credentials?.password ?? '',
         password_confirm: ''
       };
@@ -720,8 +725,18 @@ export const InviteWizardPage = () => {
       return;
     }
 
-    if (!form.username.trim()) {
-      showError('Username is required');
+    const targetServer = state?.servers.find((server) => server.id === serverId);
+    const usesEmailIdentity = targetServer?.service_type === 'KOMGA';
+    const normalizedEmail = form.email.trim();
+    const normalizedUsername = usesEmailIdentity ? normalizedEmail : form.username.trim();
+
+    if (!normalizedUsername) {
+      showError(usesEmailIdentity ? 'Email is required' : 'Username is required');
+      return;
+    }
+
+    if (usesEmailIdentity && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+      showError('A valid email is required');
       return;
     }
 
@@ -743,8 +758,8 @@ export const InviteWizardPage = () => {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            username: form.username,
-            email: form.email,
+            username: normalizedUsername,
+            email: usesEmailIdentity ? normalizedEmail : form.email,
             password: form.password,
             completed: true
           })
@@ -1600,6 +1615,7 @@ export const InviteWizardPage = () => {
                 const activeServer = state.servers.find(
                   (s) => s.id === activeServerId && s.service_type !== 'PLEX'
                 );
+                const usesEmailIdentity = activeServer?.service_type === 'KOMGA';
 
                 if (!activeServer) return null;
 
@@ -1624,9 +1640,13 @@ export const InviteWizardPage = () => {
                       <div className="flex items-start gap-2">
                         <FontAwesomeIcon icon={faTriangleExclamation} className="text-amber-600 dark:text-amber-400 text-sm mt-0.5" />
                         <div className="text-sm">
-                          <p className="font-medium text-amber-600 dark:text-amber-400 mb-1">Username Not Available</p>
+                          <p className="font-medium text-amber-600 dark:text-amber-400 mb-1">
+                            {usesEmailIdentity ? 'Email Not Available' : 'Username Not Available'}
+                          </p>
                           <p className="text-foreground/80">
-                            The username is already taken on {activeServer.name}. Please choose a different username.
+                            {usesEmailIdentity
+                              ? `The email is already taken on ${activeServer.name}. Please choose a different email.`
+                              : `The username is already taken on ${activeServer.name}. Please choose a different username.`}
                           </p>
                         </div>
                       </div>
@@ -1635,11 +1655,14 @@ export const InviteWizardPage = () => {
 
                   <div className="space-y-4">
                     <div className="space-y-2">
-                      <Label htmlFor={`server-${activeServer.id}-username`}>Username</Label>
+                      <Label htmlFor={`server-${activeServer.id}-${usesEmailIdentity ? 'identity-email' : 'username'}`}>
+                        {usesEmailIdentity ? 'Email' : 'Username'}
+                      </Label>
                       <Input
-                        id={`server-${activeServer.id}-username`}
-                        value={serverForms[activeServer.id]?.username ?? ''}
-                        onChange={(e) => updateServerForm(activeServer.id, 'username', e.target.value)}
+                        id={`server-${activeServer.id}-${usesEmailIdentity ? 'identity-email' : 'username'}`}
+                        type={usesEmailIdentity ? 'email' : 'text'}
+                        value={usesEmailIdentity ? (serverForms[activeServer.id]?.email ?? '') : (serverForms[activeServer.id]?.username ?? '')}
+                        onChange={(e) => updateServerForm(activeServer.id, usesEmailIdentity ? 'email' : 'username', e.target.value)}
                         required
                       />
                     </div>

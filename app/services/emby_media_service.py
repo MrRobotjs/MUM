@@ -61,18 +61,56 @@ class EmbyMediaService(BaseMediaService):
             self.log_error(f"Error fetching raw libraries: {e}")
             return []
 
+    def get_selectable_media_folders_raw(self) -> List[Dict[str, Any]]:
+        try:
+            folders = self._make_request("Library/SelectableMediaFolders")
+            self.log_info(f"Retrieved {len(folders)} selectable media folders from Emby")
+            return folders
+        except Exception as e:
+            self.log_warning(f"Could not fetch selectable media folders from Emby: {e}")
+            return []
+
     def get_libraries(self) -> List[Dict[str, Any]]:
         try:
             libraries = self.get_libraries_raw()
+            selectable_folders = self.get_selectable_media_folders_raw()
+
+            def _norm_name(value: Any) -> str:
+                return " ".join(str(value or "").strip().lower().split())
+
+            selectable_id_by_name: Dict[str, str] = {}
+            for folder in selectable_folders:
+                if not isinstance(folder, dict):
+                    continue
+                folder_name = folder.get("Name")
+                folder_id = folder.get("Id")
+                normalized = _norm_name(folder_name)
+                if normalized and folder_id not in (None, "") and normalized not in selectable_id_by_name:
+                    selectable_id_by_name[normalized] = str(folder_id)
+
+            selectable_ids = list(selectable_id_by_name.values())
             result = []
             for lib in libraries:
+                name = lib.get("Name", "Unknown")
+                library_guid = lib.get("Guid")
+                item_id = lib.get("ItemId", name)
+                normalized_name = _norm_name(name)
+                permission_folder_id = selectable_id_by_name.get(normalized_name)
+
+                # Fallback for single-library servers when names don't line up exactly.
+                if not permission_folder_id and len(libraries) == 1 and len(selectable_ids) == 1:
+                    permission_folder_id = selectable_ids[0]
+
+                # Emby user policies (EnabledFolders) use Guid-style folder IDs in practice.
+                # Prefer Guid so user library assignments map cleanly.
+                external_id = library_guid or permission_folder_id or item_id
                 result.append(
                     {
-                        "id": lib.get("ItemId", lib.get("Name", "")),
-                        "name": lib.get("Name", "Unknown"),
+                        "id": str(external_id),
+                        "name": name,
                         "type": lib.get("CollectionType", "mixed").lower(),
                         "item_count": 0,
-                        "external_id": lib.get("ItemId", lib.get("Name", "")),
+                        "external_id": str(external_id),
                     }
                 )
             return result
@@ -88,13 +126,36 @@ class EmbyMediaService(BaseMediaService):
                 user_id = user.get("Id")
                 if not user_id:
                     continue
-                try:
-                    policy = self._make_request(f"Users/{user_id}/Policy")
-                    library_ids = policy.get("EnabledFolders", [])
-                    allow_downloads = bool(policy.get("EnableContentDownloading", False))
-                except Exception:
-                    library_ids = []
-                    allow_downloads = False
+                policy = user.get("Policy") if isinstance(user.get("Policy"), dict) else {}
+
+                # Emby OpenAPI exposes POST /Users/{Id}/Policy (write), not GET for this route.
+                # If /Users payload does not include Policy, fall back to GET /Users/{Id}.
+                if not policy:
+                    try:
+                        user_detail = self._make_request(f"Users/{user_id}")
+                        if isinstance(user_detail, dict):
+                            detail_policy = user_detail.get("Policy")
+                            if isinstance(detail_policy, dict):
+                                policy = detail_policy
+                    except Exception:
+                        policy = {}
+
+                enabled_folders = policy.get("EnabledFolders", []) if isinstance(policy, dict) else []
+                library_ids = [
+                    str(folder_id)
+                    for folder_id in (enabled_folders if isinstance(enabled_folders, list) else [])
+                    if folder_id not in (None, "")
+                ]
+                enable_all_folders = (
+                    bool(policy.get("EnableAllFolders"))
+                    if isinstance(policy, dict) and isinstance(policy.get("EnableAllFolders"), bool)
+                    else None
+                )
+                allow_downloads = (
+                    bool(policy.get("EnableContentDownloading", False))
+                    if isinstance(policy, dict)
+                    else False
+                )
                 result.append(
                     {
                         "id": user_id,
@@ -104,8 +165,13 @@ class EmbyMediaService(BaseMediaService):
                         "thumb": None,
                         "is_home_user": False,
                         "library_ids": library_ids,
+                        "enable_all_folders": enable_all_folders,
                         "allow_downloads": allow_downloads,
-                        "is_admin": user.get("Policy", {}).get("IsAdministrator", False),
+                        "is_admin": bool(policy.get("IsAdministrator", False)) if isinstance(policy, dict) else False,
+                        "raw_data": {
+                            "user": user,
+                            "policy": policy,
+                        },
                     }
                 )
             return result

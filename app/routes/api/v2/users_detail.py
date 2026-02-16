@@ -184,6 +184,8 @@ def get_user(path: UserPath, current_user):
         server_type = user.server.service_type.value if user.server and user.server.service_type else None
         jellyfin_enable_all_folders: Optional[bool] = None
         jellyfin_policy_enabled_ids: list[str] = []
+        emby_enable_all_folders: Optional[bool] = None
+        emby_policy_enabled_ids: list[str] = []
         plex_all_libraries_enabled: Optional[bool] = None
         plex_shared_section_keys: list[str] = []
         plex_is_owner = False
@@ -215,6 +217,32 @@ def get_user(path: UserPath, current_user):
                 ]
             if not allowed_ids and jellyfin_policy_enabled_ids:
                 allowed_ids = jellyfin_policy_enabled_ids
+        elif server_type == "emby":
+            raw_data = getattr(user, "user_raw_data", None)
+            policy = None
+            if isinstance(raw_data, dict):
+                raw_policy = raw_data.get("policy")
+                if isinstance(raw_policy, dict):
+                    policy = raw_policy
+                else:
+                    raw_user = raw_data.get("user")
+                    if isinstance(raw_user, dict):
+                        user_policy = raw_user.get("Policy")
+                        if isinstance(user_policy, dict):
+                            policy = user_policy
+            if isinstance(policy, dict):
+                enable_all_folders_raw = policy.get("EnableAllFolders")
+                emby_enable_all_folders = (
+                    bool(enable_all_folders_raw) if enable_all_folders_raw is not None else None
+                )
+                enabled_folders_raw = policy.get("EnabledFolders", [])
+                emby_policy_enabled_ids = [
+                    str(folder_id)
+                    for folder_id in (enabled_folders_raw if isinstance(enabled_folders_raw, list) else [])
+                    if folder_id not in (None, "")
+                ]
+            if not allowed_ids and emby_policy_enabled_ids:
+                allowed_ids = emby_policy_enabled_ids
         elif server_type == "plex":
             raw_data = getattr(user, "user_raw_data", None)
             if isinstance(raw_data, dict):
@@ -244,18 +272,22 @@ def get_user(path: UserPath, current_user):
 
         if server_type == "jellyfin" and jellyfin_enable_all_folders is True:
             has_all_libraries = True
+        elif server_type == "emby" and emby_enable_all_folders is True:
+            has_all_libraries = True
         elif server_type == "plex" and (plex_is_owner or plex_all_libraries_enabled is True):
             has_all_libraries = True
         elif server_type == "audiobookshelf" and audiobookshelf_access_all_libraries is True:
             has_all_libraries = True
         elif server_type == "jellyfin" and jellyfin_enable_all_folders is False and not allowed_ids and not jellyfin_policy_enabled_ids:
             has_all_libraries = False
+        elif server_type == "emby" and emby_enable_all_folders is False and not allowed_ids and not emby_policy_enabled_ids:
+            has_all_libraries = False
         elif server_type == "plex" and plex_all_libraries_enabled is False and not allowed_ids and not plex_shared_section_keys:
             has_all_libraries = False
         elif server_type == "audiobookshelf" and audiobookshelf_access_all_libraries is False and not allowed_ids:
             has_all_libraries = False
         elif not allowed_ids:
-            has_all_libraries = server_type not in {"kavita", "plex", "jellyfin", "audiobookshelf"}
+            has_all_libraries = server_type not in {"kavita", "plex", "jellyfin", "emby", "audiobookshelf"}
         elif user.server_id:
             libs = MediaLibrary.query.filter(MediaLibrary.server_id == user.server_id).all()
             lib_map: dict[str, str] = {}

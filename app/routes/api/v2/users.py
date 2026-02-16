@@ -481,6 +481,34 @@ def list_users(query: UsersQuery, current_user):
         ]
         return enable_all_folders, enabled_folders
 
+    def _get_emby_policy_context(service_user: User) -> tuple[Optional[bool], list[str]]:
+        raw_data = getattr(service_user, "user_raw_data", None)
+        if not isinstance(raw_data, dict):
+            return None, []
+
+        policy = raw_data.get("policy")
+        if not isinstance(policy, dict):
+            user_payload = raw_data.get("user")
+            if isinstance(user_payload, dict):
+                candidate_policy = user_payload.get("Policy")
+                if isinstance(candidate_policy, dict):
+                    policy = candidate_policy
+
+        if not isinstance(policy, dict):
+            return None, []
+
+        enable_all_folders_raw = policy.get("EnableAllFolders")
+        enable_all_folders: Optional[bool] = (
+            bool(enable_all_folders_raw) if enable_all_folders_raw is not None else None
+        )
+        enabled_folders_raw = policy.get("EnabledFolders", [])
+        enabled_folders = [
+            str(folder_id)
+            for folder_id in (enabled_folders_raw if isinstance(enabled_folders_raw, list) else [])
+            if folder_id not in (None, "")
+        ]
+        return enable_all_folders, enabled_folders
+
     def _get_plex_share_context(service_user: User) -> tuple[Optional[bool], list[str], bool]:
         raw_data = getattr(service_user, "user_raw_data", None)
         if not isinstance(raw_data, dict):
@@ -530,6 +558,14 @@ def list_users(query: UsersQuery, current_user):
                 return [], False
             if not allowed_ids and policy_enabled_ids:
                 allowed_ids = policy_enabled_ids
+        elif server_type == "emby":
+            enable_all_folders, policy_enabled_ids = _get_emby_policy_context(service_user)
+            if enable_all_folders is True:
+                return _get_all_library_names(server_id), True
+            if enable_all_folders is False and not allowed_ids and not policy_enabled_ids:
+                return [], False
+            if not allowed_ids and policy_enabled_ids:
+                allowed_ids = policy_enabled_ids
         elif server_type == "plex":
             all_libraries_enabled, shared_keys, is_owner = _get_plex_share_context(service_user)
             if is_owner or all_libraries_enabled is True:
@@ -544,7 +580,7 @@ def list_users(query: UsersQuery, current_user):
                 return [], False
 
         if not allowed_ids:
-            if server_type in {"kavita", "plex", "jellyfin", "audiobookshelf"}:
+            if server_type in {"kavita", "plex", "jellyfin", "emby", "audiobookshelf"}:
                 return [], False
             return _get_all_library_names(server_id), True
         lib_map = libraries_by_server.get(server_id, {})

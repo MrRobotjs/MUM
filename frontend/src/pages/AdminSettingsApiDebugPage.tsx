@@ -12,6 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { Alert, AlertDescription, AlertTitle } from '../components/ui/alert';
 import { Switch } from '../components/ui/switch';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { ServiceIcon } from '@/components/services/ServiceIcon';
 import { Spinner } from '@/components/ui/spinner'
 import {
   faCircleInfo,
@@ -531,7 +532,10 @@ const AdminSettingsApiDebugPage = () => {
                 <SelectContent>
                   {availableServers.map((server) => (
                     <SelectItem key={server.id} value={server.id}>
-                      {server.server_nickname} ({server.service_type})
+                      <span className="inline-flex items-center gap-2">
+                        <ServiceIcon serviceType={server.service_type} className="h-4 w-4 shrink-0" />
+                        <span>{server.server_nickname}</span>
+                      </span>
                     </SelectItem>
                   ))}
                 </SelectContent>

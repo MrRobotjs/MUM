@@ -779,7 +779,10 @@ export const UsersListPage = () => {
                       <SelectItem value="all">All Servers</SelectItem>
                       {servers.map((server) => (
                         <SelectItem key={server.id} value={String(server.id)}>
-                          {server.server_nickname}
+                          <span className="inline-flex items-center gap-2">
+                            <ServiceIcon serviceType={server.service_type} className="h-4 w-4 shrink-0" />
+                            <span>{server.server_nickname}</span>
+                          </span>
                         </SelectItem>
                       ))}
                     </SelectContent>

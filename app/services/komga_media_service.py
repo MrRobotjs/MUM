@@ -178,6 +178,41 @@ class KomgaMediaService(BaseMediaService):
         except Exception as e:
             self.log_error(f"Error fetching users: {e}")
             return []
+
+    @staticmethod
+    def _normalize_library_ids(library_ids: Optional[List[str]]) -> List[str]:
+        if not library_ids:
+            return []
+        normalized: List[str] = []
+        seen: set[str] = set()
+        for lib_id in library_ids:
+            if lib_id in (None, ""):
+                continue
+            value = str(lib_id)
+            if value in seen:
+                continue
+            seen.add(value)
+            normalized.append(value)
+        return normalized
+
+    def _get_all_library_ids(self) -> List[str]:
+        try:
+            libraries = self._make_request('libraries')
+            libraries_list = libraries if isinstance(libraries, list) else libraries.get('content', [])
+            return [str(lib.get('id')) for lib in libraries_list if lib.get('id')]
+        except Exception as e:
+            self.log_info(f"Could not resolve all Komga library ids: {e}")
+            return []
+
+    def _get_user_shared_all_libraries(self, user_id: str) -> Optional[bool]:
+        try:
+            user_data = self._make_request(f'users/{user_id}')
+            shared_all = user_data.get('sharedAllLibraries')
+            if isinstance(shared_all, bool):
+                return shared_all
+        except Exception as e:
+            self.log_info(f"Could not resolve sharedAllLibraries for Komga user {user_id}: {e}")
+        return None
     
     def create_user(self, username: str, email: str, password: str = None, **kwargs) -> Dict[str, Any]:
         """Create new Komga user"""
@@ -189,10 +224,23 @@ class KomgaMediaService(BaseMediaService):
             }
             
             library_ids = kwargs.get('library_ids', [])
-            if library_ids:
+            shared_all_libraries = kwargs.get('shared_all_libraries')
+            normalized_library_ids = self._normalize_library_ids(library_ids)
+
+            if shared_all_libraries is True:
+                user_data['sharedLibraries'] = {
+                    'all': True,
+                    'libraryIds': [],
+                }
+            elif normalized_library_ids:
                 user_data['sharedLibraries'] = {
                     'all': False,
-                    'libraryIds': [str(lib_id) for lib_id in library_ids if lib_id],
+                    'libraryIds': normalized_library_ids,
+                }
+            elif shared_all_libraries is False:
+                user_data['sharedLibraries'] = {
+                    'all': False,
+                    'libraryIds': [],
                 }
 
             result = self._make_request('users', method='POST', data=user_data)
@@ -212,13 +260,31 @@ class KomgaMediaService(BaseMediaService):
         """Update Komga user's library access"""
         try:
             if library_ids is not None:
+                shared_all_libraries = kwargs.get('shared_all_libraries')
+                normalized_library_ids = self._normalize_library_ids(library_ids)
+
+                # Preserve existing explicit "all libraries" mode when callers only pass IDs.
+                if shared_all_libraries is None and normalized_library_ids:
+                    all_library_ids = self._get_all_library_ids()
+                    if all_library_ids and set(normalized_library_ids) == set(all_library_ids):
+                        if self._get_user_shared_all_libraries(user_id) is True:
+                            shared_all_libraries = True
+
                 # Komga v2 updates shared libraries via PATCH /api/v2/users/{id}
-                payload = {
-                    'sharedLibraries': {
-                        'all': False,
-                        'libraryIds': [str(lib_id) for lib_id in library_ids if lib_id],
+                if shared_all_libraries is True:
+                    payload = {
+                        'sharedLibraries': {
+                            'all': True,
+                            'libraryIds': [],
+                        }
                     }
-                }
+                else:
+                    payload = {
+                        'sharedLibraries': {
+                            'all': False,
+                            'libraryIds': normalized_library_ids,
+                        }
+                    }
                 self._make_request(f'users/{user_id}', method='PATCH', data=payload)
             
             return True

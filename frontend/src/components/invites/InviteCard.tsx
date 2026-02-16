@@ -231,7 +231,7 @@ export const InviteCard = ({
                           </div>
                         ) : null}
                         <div className="flex items-center gap-2 pb-1 border-b border-border/40">
-                          {getServiceIcon(server.service_type, 'w-4 h-4 text-muted-foreground')}
+                          {getServiceIcon(server.service_type, 'w-4 h-4')}
                           <span className="text-sm font-semibold text-foreground">
                             {server.server_nickname || server.name || 'Unnamed server'}
                           </span>

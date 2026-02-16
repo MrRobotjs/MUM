@@ -25,6 +25,7 @@ class BulkOperation(BaseModel):
     action: str
     value: Optional[bool] = None
     library_ids: Optional[List[str]] = None
+    has_all_libraries: Optional[bool] = None
     days: Optional[int] = None
     expires_at: Optional[str] = None
 
@@ -133,6 +134,7 @@ def bulk_user_operations(body: BulkBody, current_user):
 
                     # Support either explicit final list (library_ids) or deltas (libraries_to_add / libraries_to_remove)
                     library_ids = getattr(operation, "library_ids", None)
+                    explicit_has_all_libraries = getattr(operation, "has_all_libraries", None)
                     libs_to_add = getattr(operation, "libraries_to_add", None)
                     libs_to_remove = getattr(operation, "libraries_to_remove", None)
                     if library_ids is not None:
@@ -163,7 +165,7 @@ def bulk_user_operations(body: BulkBody, current_user):
                         server = MediaServer.query.get(user.server_id)
                         service = MediaServiceFactory.create_service_from_db(server) if server else None
                         if service and hasattr(service, "update_user_access") and user.external_user_id:
-                            allowed_ids = user.allowed_library_ids or []
+                            allowed_ids = [str(v) for v in (user.allowed_library_ids or [])]
                             server_libraries = MediaLibrary.query.filter_by(server_id=user.server_id).all()
                             library_by_identifier = {}
                             for lib in server_libraries:
@@ -179,10 +181,35 @@ def bulk_user_operations(body: BulkBody, current_user):
                                     else str(lib_id)
                                     for lib_id in allowed_ids
                                 ]
+                            elif explicit_has_all_libraries is False:
+                                api_library_ids = []
                             else:
                                 api_library_ids = [lib.external_id for lib in server_libraries if lib.external_id]
                             try:
-                                service.update_user_access(user.external_user_id, api_library_ids)
+                                komga_shared_all = None
+                                if (
+                                    server is not None
+                                    and getattr(server, "service_type", None) is not None
+                                    and getattr(server.service_type, "value", str(server.service_type)).lower() == "komga"
+                                    and explicit_has_all_libraries is not None
+                                ):
+                                    komga_shared_all = bool(explicit_has_all_libraries)
+
+                                service.update_user_access(
+                                    user.external_user_id,
+                                    api_library_ids,
+                                    shared_all_libraries=komga_shared_all,
+                                )
+
+                                # Keep local raw_data in sync for immediate UI accuracy.
+                                if (
+                                    komga_shared_all is not None
+                                    and (isinstance(user.user_raw_data, dict) or user.user_raw_data is None)
+                                ):
+                                    raw_data = dict(user.user_raw_data or {})
+                                    raw_data["sharedAllLibraries"] = komga_shared_all
+                                    raw_data["sharedLibrariesIds"] = [] if komga_shared_all else [str(v) for v in api_library_ids]
+                                    user.user_raw_data = raw_data
                             except Exception as exc:
                                 current_app.logger.error(
                                     f"Bulk update: Failed to sync libraries to {server.server_nickname if server else 'server'} "

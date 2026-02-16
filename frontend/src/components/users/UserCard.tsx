@@ -217,7 +217,13 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
         method: 'POST',
         body: JSON.stringify({
           user_uuids: [user.uuid],
-          operations: [{ action: 'update_libraries', library_ids: nextAllowedIds }],
+          operations: [
+            {
+              action: 'update_libraries',
+              library_ids: nextAllowedIds,
+              has_all_libraries: false,
+            },
+          ],
         }),
       });
 

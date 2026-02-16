@@ -705,7 +705,13 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
                 method: 'POST',
                 body: JSON.stringify({
                   user_uuids: selection.users.map((serviceUser) => serviceUser.uuid),
-                  operations: [{ action: 'update_libraries', library_ids: selectedLibraryIds }],
+                  operations: [
+                    {
+                      action: 'update_libraries',
+                      library_ids: selectedLibraryIds,
+                      has_all_libraries: selection.grantAllLibraries,
+                    },
+                  ],
                 }),
               });
             })

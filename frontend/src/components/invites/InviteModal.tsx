@@ -73,6 +73,9 @@ type Server = {
   is_active: boolean;
   plugin_enabled?: boolean;
   effective_active?: boolean;
+  invite_capabilities?: {
+    supports_library_scoped_grants?: boolean;
+  };
   libraries?: Library[];
   loadingLibraries?: boolean;
   librariesUnavailable?: boolean;
@@ -114,6 +117,9 @@ const defaultValues: InviteFormValues = {
 };
 
 const LIBRARY_TOKEN_SEPARATOR = '::';
+
+const supportsPerLibraryAccess = (server?: Server | null): boolean =>
+  server?.invite_capabilities?.supports_library_scoped_grants !== false;
 
 const getLibraryId = (library: Library): string | null => {
   const id = library.id || library.external_id || library.internal_id;
@@ -158,8 +164,22 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
       (server) => isServerEffectivelyActive(server) || selectedServerIds.has(server.id)
     );
   }, [editingMode, servers, selectedServerIds, visibleServers]);
+  const serverById = useMemo(() => {
+    const byId = new Map<number, Server>();
+    servers.forEach((server) => byId.set(server.id, server));
+    return byId;
+  }, [servers]);
   const selectedServerCount = selectedServerIds.size;
-  const selectedLibraryCount = selectedLibraries.size;
+  const selectedLibraryCount = useMemo(
+    () =>
+      Array.from(selectedLibraries).filter((token) => {
+        const parsed = parseScopedLibraryToken(token);
+        if (!parsed) return false;
+        const server = serverById.get(parsed.serverId);
+        return !server || supportsPerLibraryAccess(server);
+      }).length,
+    [selectedLibraries, serverById]
+  );
   const expiresLabel = form.expires_at ? new Date(form.expires_at).toLocaleDateString() : 'Never';
   const maxUsesLabel = form.max_uses || form.max_uses === 0 ? form.max_uses : 'Unlimited';
 
@@ -210,7 +230,7 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
     if (!open || loadingServers || selectedServerIds.size === 0) return;
     selectedServerIds.forEach((serverId) => {
       const server = servers.find((s) => s.id === serverId);
-      if (server && !server.libraries && !server.loadingLibraries) {
+      if (server && supportsPerLibraryAccess(server) && !server.libraries && !server.loadingLibraries) {
         if (!isServerEffectivelyActive(server)) {
           setServers((prev) =>
             prev.map((s) =>
@@ -225,6 +245,22 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
       }
     });
   }, [open, loadingServers, selectedServerIds, servers]);
+
+  const clearSelectedLibrariesForServer = (serverId: number) => {
+    setSelectedLibraries((prev) => {
+      let changed = false;
+      const next = new Set<string>();
+      prev.forEach((token) => {
+        const parsed = parseScopedLibraryToken(token);
+        if (parsed?.serverId === serverId) {
+          changed = true;
+          return;
+        }
+        next.add(token);
+      });
+      return changed ? next : prev;
+    });
+  };
 
   const loadServers = async () => {
     setLoadingServers(true);
@@ -244,6 +280,10 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
     autoSelectLibraries = true
   ) => {
     const targetServer = servers.find((s) => s.id === serverId);
+    if (targetServer && !supportsPerLibraryAccess(targetServer)) {
+      clearSelectedLibrariesForServer(serverId);
+      return;
+    }
     if (!isServerEffectivelyActive(targetServer)) {
       setServers((prev) =>
         prev.map((s) =>
@@ -307,18 +347,7 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
 
     if (next.has(serverId)) {
       next.delete(serverId);
-      const server = servers.find((s) => s.id === serverId);
-      if (server?.libraries) {
-        const libIds = server.libraries.map((lib) => getLibraryId(lib));
-        setSelectedLibraries((prev) => {
-          const updated = new Set(prev);
-          libIds.forEach((id) => {
-            if (!id) return;
-            updated.delete(getScopedLibraryToken(serverId, id));
-          });
-          return updated;
-        });
-      }
+      clearSelectedLibrariesForServer(serverId);
       setServerFeatures((prev) => {
         const updated = { ...prev };
         delete updated[serverId];
@@ -327,7 +356,9 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
     } else {
       next.add(serverId);
       const server = servers.find((s) => s.id === serverId);
-      if (server && !server.libraries) {
+      if (server && !supportsPerLibraryAccess(server)) {
+        clearSelectedLibrariesForServer(serverId);
+      } else if (server && !server.libraries) {
         if (!isServerEffectivelyActive(server)) {
           setServerError('Libraries are unavailable because this server or its plugin is disabled.');
           setServers((prev) =>
@@ -368,6 +399,10 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
   };
 
   const toggleLibrary = (serverId: number, libraryId: string) => {
+    const server = servers.find((s) => s.id === serverId);
+    if (server && !supportsPerLibraryAccess(server)) {
+      return;
+    }
     const scopedToken = getScopedLibraryToken(serverId, libraryId);
     setSelectedLibraries((prev) => {
       const next = new Set(prev);
@@ -382,6 +417,9 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
 
   const selectAllLibraries = (serverId: number) => {
     const server = servers.find((s) => s.id === serverId);
+    if (server && !supportsPerLibraryAccess(server)) {
+      return;
+    }
     if (server?.libraries) {
       const libIds = server.libraries.map((lib) => getLibraryId(lib));
       setSelectedLibraries((prev) => {
@@ -396,6 +434,10 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
 
   const deselectAllLibraries = (serverId: number) => {
     const server = servers.find((s) => s.id === serverId);
+    if (server && !supportsPerLibraryAccess(server)) {
+      clearSelectedLibrariesForServer(serverId);
+      return;
+    }
     if (server?.libraries) {
       const libIds = server.libraries.map((lib) => getLibraryId(lib));
       setSelectedLibraries((prev) => {
@@ -474,9 +516,12 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
     const allow4kAny = serverFeaturePayload.some((f) => f.allow_4k_transcode ?? true);
     const requireDiscordGuild = form.require_discord_guild_membership ?? false;
     const requireDiscordAuth = (form.require_discord_auth ?? false) || requireDiscordGuild;
-    const normalizedLibraryTokens = Array.from(selectedLibraries).filter((token) =>
-      Boolean(parseScopedLibraryToken(token))
-    );
+    const normalizedLibraryTokens = Array.from(selectedLibraries).filter((token) => {
+      const parsed = parseScopedLibraryToken(token);
+      if (!parsed) return false;
+      const tokenServer = serverById.get(parsed.serverId);
+      return !tokenServer || supportsPerLibraryAccess(tokenServer);
+    });
 
     const submitData = {
       custom_path: form.custom_path?.trim() || undefined,
@@ -666,16 +711,19 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
                       {serviceServers.map((server) => {
                         const isSelected = selectedServerIds.has(server.id);
                         const isAvailable = isServerEffectivelyActive(server);
+                        const supportsLibraryAccess = supportsPerLibraryAccess(server);
                         const librariesUnavailable = server.librariesUnavailable || !isAvailable;
                         const searchTerm = (librarySearch[server.id] || '').toLowerCase().trim();
                         const allLibraries = server.libraries || [];
                         const filteredLibraries = searchTerm
                           ? allLibraries.filter((lib) => (lib.name || '').toLowerCase().includes(searchTerm))
                           : allLibraries;
-                        const selectedCountForServer = allLibraries.reduce((acc, lib) => {
-                          const id = getLibraryId(lib);
-                          return id && isLibrarySelectedForServer(server.id, id) ? acc + 1 : acc;
-                        }, 0);
+                        const selectedCountForServer = supportsLibraryAccess
+                          ? allLibraries.reduce((acc, lib) => {
+                              const id = getLibraryId(lib);
+                              return id && isLibrarySelectedForServer(server.id, id) ? acc + 1 : acc;
+                            }, 0)
+                          : 0;
                         const featureState = getServerFeature(server.id);
 
                         return (
@@ -698,7 +746,7 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
                                 </div>
                               </div>
                               <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                <span>{selectedCountForServer} libraries</span>
+                                <span>{supportsLibraryAccess ? `${selectedCountForServer} libraries` : 'No library controls'}</span>
                                 {isSelected ? (
                                   <FontAwesomeIcon icon={faCheck} className="text-primary" />
                                 ) : (
@@ -709,85 +757,93 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
 
                             {isSelected ? (
                               <div className="space-y-3 border-t px-4 py-3 bg-background/80">
-                                <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                                  <span>Library Access</span>
-                                  <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-1 text-[11px]">
-                                    {selectedCountForServer}/{allLibraries.length || 0} selected
-                                  </span>
-                                </div>
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <div className="flex items-center gap-1 text-xs">
-                                    <Button
-                                      type="button"
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() => selectAllLibraries(server.id)}
-                                    >
-                                      All
-                                    </Button>
-                                    <Button
-                                      type="button"
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() => deselectAllLibraries(server.id)}
-                                    >
-                                      None
-                                    </Button>
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() => loadLibrariesForServer(server.id, true)}
-                                      disabled={!isAvailable}
-                                      title={
-                                        isAvailable
-                                          ? 'Refresh libraries from server'
-                                          : 'Libraries are unavailable while this server or plugin is disabled'
-                                      }
-                                    >
-                                      <FontAwesomeIcon icon={faRotate} />
-                                    </Button>
+                                {supportsLibraryAccess ? (
+                                  <>
+                                    <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                                      <span>Library Access</span>
+                                      <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-1 text-[11px]">
+                                        {selectedCountForServer}/{allLibraries.length || 0} selected
+                                      </span>
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      <div className="flex items-center gap-1 text-xs">
+                                        <Button
+                                          type="button"
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() => selectAllLibraries(server.id)}
+                                        >
+                                          All
+                                        </Button>
+                                        <Button
+                                          type="button"
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() => deselectAllLibraries(server.id)}
+                                        >
+                                          None
+                                        </Button>
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="sm"
+                                          onClick={() => loadLibrariesForServer(server.id, true)}
+                                          disabled={!isAvailable}
+                                          title={
+                                            isAvailable
+                                              ? 'Refresh libraries from server'
+                                              : 'Libraries are unavailable while this server or plugin is disabled'
+                                          }
+                                        >
+                                          <FontAwesomeIcon icon={faRotate} />
+                                        </Button>
+                                      </div>
+                                      <Input
+                                        className="h-9 w-full md:w-64"
+                                        placeholder="Search libraries..."
+                                        value={librarySearch[server.id] || ''}
+                                        onChange={(e) => handleLibrarySearchChange(server.id, e.target.value)}
+                                      />
+                                    </div>
+                                    <div className="max-h-44 overflow-y-auto rounded-md border bg-background/60 p-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                      {server.loadingLibraries ? (
+                                        <div className="col-span-2 flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                                          <Spinner className="h-4 w-4 text-primary" />
+                                          Loading libraries...
+                                        </div>
+                                      ) : librariesUnavailable ? (
+                                        <div className="col-span-2 text-center text-xs text-muted-foreground">
+                                          Libraries are unavailable while this server or plugin is disabled.
+                                        </div>
+                                      ) : filteredLibraries.length === 0 ? (
+                                        <div className="col-span-2 text-center text-xs text-muted-foreground">
+                                          {allLibraries.length === 0 ? 'No libraries found' : 'No matches'}
+                                        </div>
+                                      ) : (
+                                        filteredLibraries.map((library) => {
+                                          const libId = getLibraryId(library);
+                                          return (
+                                            <label key={libId || `${server.id}-${library.name}`} className="flex items-center gap-2 rounded-md border px-2 py-1 text-sm hover:border-primary/50 cursor-pointer">
+                                              <Checkbox
+                                                checked={Boolean(libId && isLibrarySelectedForServer(server.id, libId))}
+                                                onCheckedChange={() => {
+                                                  if (libId) toggleLibrary(server.id, libId);
+                                                }}
+                                              />
+                                              <span className="truncate" title={library.name}>
+                                                {library.name}
+                                              </span>
+                                            </label>
+                                          );
+                                        })
+                                      )}
+                                    </div>
+                                  </>
+                                ) : (
+                                  <div className="rounded-md border border-dashed bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+                                    This service does not support per-user library access management. This invite grants server access only.
                                   </div>
-                                  <Input
-                                    className="h-9 w-full md:w-64"
-                                    placeholder="Search libraries..."
-                                    value={librarySearch[server.id] || ''}
-                                    onChange={(e) => handleLibrarySearchChange(server.id, e.target.value)}
-                                  />
-                                </div>
-                                <div className="max-h-44 overflow-y-auto rounded-md border bg-background/60 p-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                  {server.loadingLibraries ? (
-                                    <div className="col-span-2 flex items-center justify-center gap-2 text-sm text-muted-foreground">
-                                      <Spinner className="h-4 w-4 text-primary" />
-                                      Loading libraries...
-                                    </div>
-                                  ) : librariesUnavailable ? (
-                                    <div className="col-span-2 text-center text-xs text-muted-foreground">
-                                      Libraries are unavailable while this server or plugin is disabled.
-                                    </div>
-                                  ) : filteredLibraries.length === 0 ? (
-                                    <div className="col-span-2 text-center text-xs text-muted-foreground">
-                                      {allLibraries.length === 0 ? 'No libraries found' : 'No matches'}
-                                    </div>
-                                  ) : (
-                                    filteredLibraries.map((library) => {
-                                      const libId = getLibraryId(library);
-                                      return (
-                                        <label key={libId || `${server.id}-${library.name}`} className="flex items-center gap-2 rounded-md border px-2 py-1 text-sm hover:border-primary/50 cursor-pointer">
-                                          <Checkbox
-                                            checked={Boolean(libId && isLibrarySelectedForServer(server.id, libId))}
-                                            onCheckedChange={() => {
-                                              if (libId) toggleLibrary(server.id, libId);
-                                            }}
-                                          />
-                                          <span className="truncate" title={library.name}>
-                                            {library.name}
-                                          </span>
-                                        </label>
-                                      );
-                                    })
-                                  )}
-                                </div>
+                                )}
 
                                 <div className="space-y-3">
                                     <div className="rounded-md border bg-background px-3 py-2">

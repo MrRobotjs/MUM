@@ -14,6 +14,7 @@ import {
 import { Calendar } from '../ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { type Library } from '../../hooks/useLibraries';
+import { useAdminApi } from '../../hooks/useAdminApi';
 import { useServerOptions } from '../../hooks/useServerOptions';
 import { useAlerts } from '../../contexts/AlertContext';
 import { requestJson } from '../../util/apiClient';
@@ -77,6 +78,7 @@ interface SelectedServiceLibraryUser {
   serverId: number;
   serverNickname: string;
   serviceType: string;
+  supportsLibraryScopedGrants: boolean;
   allowedLibraryIds: string[];
   hasAllLibraries: boolean;
 }
@@ -92,6 +94,15 @@ interface LibraryServerSelection {
   error?: string | null;
 }
 
+type PluginMetaResponse = {
+  data: Record<
+    string,
+    {
+      supports_library_scoped_grants?: boolean;
+    }
+  >;
+};
+
 export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplete }: MassEditUsersModalProps) => {
   const [action, setAction] = useState<string>('');
   const [submitting, setSubmitting] = useState(false);
@@ -101,6 +112,7 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
   const [librarySelectionsByServer, setLibrarySelectionsByServer] = useState<Record<string, LibraryServerSelection>>({});
   const [loadingLibrarySelections, setLoadingLibrarySelections] = useState(false);
   const [librarySelectionsError, setLibrarySelectionsError] = useState<string | null>(null);
+  const [unsupportedLibraryServiceUsers, setUnsupportedLibraryServiceUsers] = useState<SelectedServiceLibraryUser[]>([]);
 
   // Extend Access state
   const [extendDays, setExtendDays] = useState<number>(30);
@@ -128,12 +140,14 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
   const [serviceUserSearch, setServiceUserSearch] = useState('');
 
   const { servers } = useServerOptions();
+  const { data: pluginMetaData } = useAdminApi<PluginMetaResponse>('/plugins/metadata', true);
 
   useEffect(() => {
     // Reset state when action changes
     if (action === 'modify_libraries') {
       setLibrarySelectionsByServer({});
       setLibrarySelectionsError(null);
+      setUnsupportedLibraryServiceUsers([]);
     } else if (action === 'manage_expiration') {
       setExpirationMode('set');
       setExpirationDate(undefined);
@@ -152,6 +166,14 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
       setServiceOptionsError(null);
     }
   }, [action]);
+
+  const libraryScopedSupportByService = useMemo(() => {
+    const metadata = pluginMetaData?.data ?? {};
+    return Object.entries(metadata).reduce<Record<string, boolean>>((acc, [serviceType, value]) => {
+      acc[String(serviceType).toLowerCase()] = value.supports_library_scoped_grants !== false;
+      return acc;
+    }, {});
+  }, [pluginMetaData]);
 
   const getDisplayName = (data: {
     display_name?: string | null;
@@ -203,6 +225,7 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
         const selectedUuids = Array.from(selectedUserIds);
         if (selectedUuids.length === 0) {
           setLibrarySelectionsByServer({});
+          setUnsupportedLibraryServiceUsers([]);
           return;
         }
 
@@ -229,6 +252,19 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
           .map((detail) => {
             const serverId = Number(detail.server_id);
             const fallbackServer = serverMap.get(String(serverId));
+            const resolvedServiceType =
+              detail.service_type ??
+              fallbackServer?.service_type ??
+              'service';
+            const serverCapability =
+              fallbackServer?.invite_capabilities?.supports_library_scoped_grants;
+            const metadataCapability = libraryScopedSupportByService[String(resolvedServiceType).toLowerCase()];
+            const supportsLibraryScopedGrants =
+              serverCapability === false
+                ? false
+                : metadataCapability !== undefined
+                  ? metadataCapability
+                  : true;
             return {
               uuid: detail.uuid,
               displayName: getDisplayName(detail),
@@ -237,22 +273,29 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
                 detail.server_nickname ??
                 fallbackServer?.server_nickname ??
                 `Server ${serverId}`,
-              serviceType:
-                detail.service_type ??
-                fallbackServer?.service_type ??
-                'service',
+              serviceType: resolvedServiceType,
+              supportsLibraryScopedGrants,
               allowedLibraryIds: (detail.allowed_library_ids ?? []).map((id) => String(id)),
               hasAllLibraries: Boolean(detail.has_all_libraries),
             };
           });
 
-        if (selectedServiceUsers.length === 0) {
+        const unsupportedUsers = selectedServiceUsers.filter(
+          (serviceUser) => !serviceUser.supportsLibraryScopedGrants
+        );
+        setUnsupportedLibraryServiceUsers(unsupportedUsers);
+
+        const manageableServiceUsers = selectedServiceUsers.filter(
+          (serviceUser) => serviceUser.supportsLibraryScopedGrants
+        );
+
+        if (manageableServiceUsers.length === 0) {
           setLibrarySelectionsByServer({});
           return;
         }
 
         const usersByServer = new Map<string, SelectedServiceLibraryUser[]>();
-        selectedServiceUsers.forEach((serviceUser) => {
+        manageableServiceUsers.forEach((serviceUser) => {
           const key = String(serviceUser.serverId);
           const existing = usersByServer.get(key);
           if (existing) {
@@ -327,6 +370,7 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
       } catch (err) {
         if (!cancelled) {
           setLibrarySelectionsByServer({});
+          setUnsupportedLibraryServiceUsers([]);
           setLibrarySelectionsError(
             err instanceof Error ? err.message : 'Failed to load selected users for library editing.'
           );
@@ -343,7 +387,7 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
     return () => {
       cancelled = true;
     };
-  }, [action, isOpen, selectedUserIds, servers]);
+  }, [action, isOpen, selectedUserIds, servers, libraryScopedSupportByService]);
 
   useEffect(() => {
     if (!isOpen || action !== 'manage_local_link' || localLinkMode !== 'link') return;
@@ -624,6 +668,28 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
     });
   }, [serviceLinkOptions, serviceUserSearch]);
 
+  const unsupportedLibraryServiceSummary = useMemo(() => {
+    if (unsupportedLibraryServiceUsers.length === 0) return '';
+
+    const counts = unsupportedLibraryServiceUsers.reduce<Record<string, number>>((acc, serviceUser) => {
+      const rawService = String(serviceUser.serviceType || 'Unknown').trim();
+      const normalized = rawService.toLowerCase();
+      const label =
+        normalized === 'romm'
+          ? 'RomM'
+          : rawService
+            ? rawService.charAt(0).toUpperCase() + rawService.slice(1)
+            : 'Unknown';
+      acc[label] = (acc[label] ?? 0) + 1;
+      return acc;
+    }, {});
+
+    return Object.entries(counts)
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([service, count]) => `${service} (${count})`)
+      .join(', ');
+  }, [unsupportedLibraryServiceUsers]);
+
   const getLibraryIdentifier = (library: Library, serviceTypeHint?: string): string => {
     const serviceType = (serviceTypeHint ?? library.server?.service_type ?? '').toLowerCase();
     if (serviceType === 'kavita' && library.internal_id) return String(library.internal_id);
@@ -720,8 +786,13 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
           const uniqueServiceUserCount = new Set(
             serverSelections.flatMap((selection) => selection.users.map((serviceUser) => serviceUser.uuid))
           ).size;
+          const skippedUnsupportedCount = unsupportedLibraryServiceUsers.length;
+          const skippedSuffix =
+            skippedUnsupportedCount > 0
+              ? ` (${skippedUnsupportedCount} user${skippedUnsupportedCount !== 1 ? 's' : ''} skipped: ${unsupportedLibraryServiceSummary})`
+              : '';
           success(
-            `Updated library access for ${uniqueServiceUserCount} service user${uniqueServiceUserCount !== 1 ? 's' : ''} across ${serverSelections.length} server${serverSelections.length !== 1 ? 's' : ''}`
+            `Updated library access for ${uniqueServiceUserCount} service user${uniqueServiceUserCount !== 1 ? 's' : ''} across ${serverSelections.length} server${serverSelections.length !== 1 ? 's' : ''}${skippedSuffix}`
           );
           break;
         }
@@ -864,13 +935,26 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
               </Alert>
             )}
 
+            {unsupportedLibraryServiceUsers.length > 0 && (
+              <Alert variant="warning">
+                <FontAwesomeIcon icon={faTriangleExclamation} className="h-4 w-4" />
+                <AlertTitle>Some Services Do Not Support Library Management</AlertTitle>
+                <AlertDescription>
+                  {unsupportedLibraryServiceUsers.length} selected service user{unsupportedLibraryServiceUsers.length !== 1 ? 's' : ''} {unsupportedLibraryServiceUsers.length === 1 ? 'belongs' : 'belong'} to services without per-user library controls and will be skipped.
+                  {' '}Unsupported services: {unsupportedLibraryServiceSummary}.
+                </AlertDescription>
+              </Alert>
+            )}
+
             {loadingLibrarySelections ? (
               <div className="flex items-center justify-center py-6">
                 <Spinner className="size-4" />
               </div>
             ) : libraryServerSelections.length === 0 ? (
               <div className="rounded-lg border border-border bg-muted/30 p-4 text-sm text-muted-foreground">
-                Select at least one service user to modify library access.
+                {unsupportedLibraryServiceUsers.length > 0
+                  ? 'None of the selected service users are on services that support library management.'
+                  : 'Select at least one service user to modify library access.'}
               </div>
             ) : (
               <div className="space-y-4">

@@ -13,6 +13,7 @@ from app.routes.api.v2 import api_v2
 from app.extensions import db
 from app.models import User, UserType, EventType, InviteUsage
 from app.models_media_services import MediaLibrary, MediaServer
+from app.configuration.plugin_metadata import supports_library_scoped_grants
 from app.services.media_service_factory import MediaServiceFactory
 from app.utils.helpers import log_event
 # JWT permission checking handled by jwt_permission_required, log_event
@@ -130,6 +131,22 @@ def bulk_user_operations(body: BulkBody, current_user):
                     if user.userType != UserType.SERVICE:
                         stats["skipped"] += 1
                         results.append(_status_entry(user, action, "skipped", "Libraries can only be set for service accounts."))
+                        continue
+                    service_type = (
+                        getattr(getattr(user, "server", None), "service_type", None)
+                        or getattr(user, "service_type", None)
+                    )
+                    service_type_value = str(getattr(service_type, "value", service_type) or "").lower()
+                    if service_type_value and not supports_library_scoped_grants(service_type_value):
+                        stats["skipped"] += 1
+                        results.append(
+                            _status_entry(
+                                user,
+                                action,
+                                "skipped",
+                                f"Library management is not supported for {service_type_value} service users.",
+                            )
+                        )
                         continue
 
                     # Support either explicit final list (library_ids) or deltas (libraries_to_add / libraries_to_remove)

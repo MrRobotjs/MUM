@@ -156,6 +156,7 @@ def get_plugin_metadata_endpoint(current_user):
             'supports_websocket': meta.supports_websocket,
             'config_schema': meta.config_schema,
             'invite_features': meta.invite_features,
+            'supports_library_scoped_grants': meta.supports_library_scoped_grants,
         }
 
     return jsonify({'data': data, 'meta': {'request_id': request_id}})

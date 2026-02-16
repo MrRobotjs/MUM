@@ -23,6 +23,7 @@ class PluginMetadata:
     icon_class: Optional[str] = None  # FontAwesome class for small badges/icons
     config_schema: Dict[str, Any] = field(default_factory=dict)
     invite_features: List[str] = field(default_factory=list)  # Feature flags exposed in invite flows
+    supports_library_scoped_grants: bool = True  # Whether invites can scope access per library
 
 
 # Plugin metadata registry
@@ -133,6 +134,7 @@ PLUGIN_METADATA: Dict[str, PluginMetadata] = {
         requires_api_key=True,
         supports_websocket=False,
         invite_features=['allow_downloads'],
+        supports_library_scoped_grants=False,
     ),
 }
 
@@ -145,3 +147,11 @@ def get_plugin_metadata(plugin_id: str) -> Optional[PluginMetadata]:
 def get_all_plugin_metadata() -> Dict[str, PluginMetadata]:
     """Get all plugin metadata."""
     return PLUGIN_METADATA.copy()
+
+
+def supports_library_scoped_grants(plugin_id: str) -> bool:
+    """Return whether invite library-scoped grants are supported for a plugin."""
+    metadata = get_plugin_metadata(plugin_id)
+    if not metadata:
+        return True
+    return bool(getattr(metadata, "supports_library_scoped_grants", True))

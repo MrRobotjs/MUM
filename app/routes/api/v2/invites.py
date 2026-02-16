@@ -12,6 +12,7 @@ from app.routes.api.v2 import api_v2
 from app.extensions import db
 from app.models import Invite, InviteUsage, InviteServerFeature, Setting
 from app.models_media_services import MediaServer, MediaLibrary
+from app.configuration.plugin_metadata import supports_library_scoped_grants
 from app.services.media_service_manager import MediaServiceManager
 from sqlalchemy import or_ as sa_or
 
@@ -28,6 +29,14 @@ def _is_scoped_library_token(token: str) -> bool:
     server_part = raw_token[:separator_index]
     library_part = raw_token[separator_index + len(LIBRARY_TOKEN_SEPARATOR):]
     return bool(server_part.isdigit() and library_part)
+
+
+def _normalize_service_type(service_type) -> str:
+    return str(getattr(service_type, "value", service_type) or "").lower()
+
+
+def _supports_scoped_library_access(service_type) -> bool:
+    return supports_library_scoped_grants(_normalize_service_type(service_type))
 
 
 class InvitesQuery(BaseModel):
@@ -293,6 +302,68 @@ def _split_scoped_library_token(token: str) -> tuple[Optional[int], str]:
     return int(server_part), library_part
 
 
+def _validate_scoped_library_tokens_supported(
+    tokens: list[str] | None,
+    request_id: Optional[str] = None,
+):
+    scoped_tokens = [str(token) for token in (tokens or []) if token is not None]
+    if not scoped_tokens:
+        return None
+
+    server_ids: set[int] = set()
+    for token in scoped_tokens:
+        server_id, _ = _split_scoped_library_token(token)
+        if server_id is not None:
+            server_ids.add(server_id)
+
+    if not server_ids:
+        return None
+
+    servers = MediaServer.query.filter(MediaServer.id.in_(server_ids)).all()
+    servers_by_id = {server.id: server for server in servers}
+    invalid_tokens: list[str] = []
+    unsupported_servers: dict[int, MediaServer] = {}
+
+    for token in scoped_tokens:
+        server_id, _ = _split_scoped_library_token(token)
+        if server_id is None:
+            continue
+        server = servers_by_id.get(server_id)
+        if server and not _supports_scoped_library_access(server.service_type):
+            invalid_tokens.append(token)
+            unsupported_servers[server.id] = server
+
+    if not invalid_tokens:
+        return None
+
+    rid = request_id or __import__("uuid").uuid4().hex
+    server_labels = sorted(
+        {
+            f"{_normalize_service_type(server.service_type).upper()}:{server.server_nickname}"
+            for server in unsupported_servers.values()
+        }
+    )
+    return (
+        jsonify(
+            {
+                "error": {
+                    "code": "UNSUPPORTED_LIBRARY_SCOPE",
+                    "message": (
+                        "Library-scoped grants are not supported for one or more selected servers. "
+                        "Remove grant_library_ids entries for those servers."
+                    ),
+                    "details": {
+                        "unsupported_servers": server_labels,
+                        "invalid_tokens": invalid_tokens,
+                    },
+                },
+                "meta": {"request_id": rid},
+            }
+        ),
+        422,
+    )
+
+
 def _library_identifier_for_server(server: MediaServer, library: MediaLibrary) -> str | None:
     service_type = server.service_type.value if hasattr(server.service_type, "value") else str(server.service_type)
     if service_type == "kavita":
@@ -493,6 +564,7 @@ def list_invites(query: InvitesQuery, current_user):
 )
 @jwt_required_with_user()
 def create_invite(body: CreateInviteBody, current_user):
+    request_id = __import__("uuid").uuid4().hex
     # Unique custom_path if provided
     if body.custom_path:
         exists = Invite.query.filter_by(custom_path=body.custom_path).first()
@@ -501,11 +573,18 @@ def create_invite(body: CreateInviteBody, current_user):
                 jsonify(
                     {
                         "error": {"code": "CUSTOM_PATH_EXISTS", "message": "custom_path already exists"},
-                        "meta": {"request_id": __import__("uuid").uuid4().hex},
+                        "meta": {"request_id": request_id},
                     }
                 ),
                 409,
             )
+
+    unsupported_scope_error = _validate_scoped_library_tokens_supported(
+        body.grant_library_ids,
+        request_id=request_id,
+    )
+    if unsupported_scope_error:
+        return unsupported_scope_error
 
     require_discord_auth = body.require_discord_auth
     require_discord_guild = body.require_discord_guild_membership
@@ -618,6 +697,12 @@ def update_invite(path: InvitePath, body: UpdateInviteBody, current_user):
     if "max_uses" in data:
         inv.max_uses = data["max_uses"]
     if "grant_library_ids" in data:
+        unsupported_scope_error = _validate_scoped_library_tokens_supported(
+            data["grant_library_ids"],
+            request_id=request_id,
+        )
+        if unsupported_scope_error:
+            return unsupported_scope_error
         inv.grant_library_ids = data["grant_library_ids"]
     if "allow_downloads" in data:
         inv.allow_downloads = bool(data["allow_downloads"])

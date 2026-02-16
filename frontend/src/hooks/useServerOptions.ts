@@ -5,6 +5,9 @@ type ServerOption = {
   id: number;
   server_nickname: string;
   service_type: string;
+  invite_capabilities?: {
+    supports_library_scoped_grants?: boolean;
+  };
 };
 
 type ServersResponse = {

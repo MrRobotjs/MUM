@@ -8,6 +8,7 @@ from .plugin_metadata import (
     PLUGIN_METADATA,
     get_plugin_metadata,
     get_all_plugin_metadata,
+    supports_library_scoped_grants,
 )
 
 __all__ = [
@@ -15,4 +16,5 @@ __all__ = [
     'PLUGIN_METADATA',
     'get_plugin_metadata',
     'get_all_plugin_metadata',
+    'supports_library_scoped_grants',
 ]

@@ -15,6 +15,7 @@ from app.models_media_services import MediaServer, ServiceType
 from app.services.media_service_manager import MediaServiceManager
 from app.services.media_service_factory import MediaServiceFactory
 from app.models import Notification, NotificationType
+from app.configuration.plugin_metadata import supports_library_scoped_grants
 from app.utils.timezone_utils import utcnow
 from app.routes.api.v2.sync_status import get_sync_status, start_sync, update_sync_progress, end_sync
 from app.utils.logging_scope import build_operation_banner, build_operation_source_label, build_service_scope
@@ -39,6 +40,7 @@ class ServerItem(BaseModel):
     plugin_enabled: Optional[bool] = None
     effective_active: Optional[bool] = None
     websocket_refresh_interval: Optional[int] = None
+    invite_capabilities: Optional[dict] = None
     status: Optional[dict] = None
 
 
@@ -108,6 +110,10 @@ def _to_item(
     )
     effective_active = bool(getattr(server, "is_active", False) and plugin_enabled)
     websocket_refresh_interval = None
+    service_type_value = (
+        server.service_type.value if hasattr(server.service_type, "value") else str(server.service_type)
+    )
+    supports_scoped_grants = supports_library_scoped_grants(service_type_value)
     if server.service_type == ServiceType.PLEX:
         try:
             websocket_refresh_interval = int(config.get("websocket_refresh_interval", 30))
@@ -118,7 +124,7 @@ def _to_item(
         "id": server.id,
         "server_nickname": getattr(server, "server_nickname", None) or getattr(server, "name", None),
         "server_name": getattr(server, "server_name", None),
-        "service_type": (server.service_type.value if hasattr(server.service_type, "value") else str(server.service_type)),
+        "service_type": service_type_value,
         "url": getattr(server, "url", None),
         "public_url": getattr(server, "public_url", None),
         "jellyfin_owner_user_id": config.get("jellyfin_owner_user_id"),
@@ -132,6 +138,9 @@ def _to_item(
         "plugin_enabled": plugin_enabled,
         "effective_active": effective_active,
         "websocket_refresh_interval": websocket_refresh_interval,
+        "invite_capabilities": {
+            "supports_library_scoped_grants": supports_scoped_grants,
+        },
     }
 
 

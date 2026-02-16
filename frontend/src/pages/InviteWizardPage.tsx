@@ -278,6 +278,9 @@ const renderStepIcon = (step: WizardStep): JSX.Element => {
   return <FontAwesomeIcon icon={faServer} className="text-xs" />;
 };
 
+const isServerAccessStepId = (stepId: string | null | undefined): boolean =>
+  Boolean(stepId && (stepId === 'plex' || stepId.startsWith('server_access_')));
+
 type ServerAccessDetailsProps = {
   server: WizardServer;
   invite: WizardState['invite'];
@@ -844,21 +847,104 @@ export const InviteWizardPage = () => {
 
   const currentStepId = selectedStepId ?? activeStepId;
 
-  const activeStepIndex = useMemo(() => {
-    if (!state?.steps) return -1;
-    if (currentStepId) {
-      const idx = state.steps.findIndex((step) => step.id === currentStepId);
-      if (idx >= 0) return idx;
-    }
-    return -1;
-  }, [state, currentStepId]);
-
   const activeServerId = useMemo(() => {
     if (!currentStepId?.startsWith('server_access_')) return null;
     const idPart = currentStepId.replace('server_access_', '');
     const parsedId = Number.parseInt(idPart, 10);
     return Number.isNaN(parsedId) ? null : parsedId;
   }, [currentStepId]);
+
+  const accountStep = useMemo(
+    () => state?.steps.find((step) => step.id === 'user_account') ?? null,
+    [state]
+  );
+  const discordStep = useMemo(
+    () => state?.steps.find((step) => step.id === 'discord') ?? null,
+    [state]
+  );
+  const serverAccessSteps = useMemo(
+    () =>
+      state?.steps.filter(
+        (step) => step.id === 'plex' || step.id.startsWith('server_access_')
+      ) ?? [],
+    [state]
+  );
+  const plexServer = useMemo(
+    () => state?.servers.find((server) => server.service_type === 'PLEX') ?? null,
+    [state]
+  );
+  const plexServerName = plexServer?.name ?? 'Plex';
+  const serverAccessCompletedCount = useMemo(
+    () => serverAccessSteps.filter((step) => step.completed).length,
+    [serverAccessSteps]
+  );
+  const serverAccessTargetStepId = useMemo(() => {
+    if (isServerAccessStepId(currentStepId)) return currentStepId;
+    if (isServerAccessStepId(activeStepId)) return activeStepId;
+    return serverAccessSteps.find((step) => step.completed)?.id ?? null;
+  }, [currentStepId, activeStepId, serverAccessSteps]);
+  const groupedProgressSteps = useMemo(() => {
+    const steps: Array<{
+      id: string;
+      name: string;
+      required: boolean;
+      completed: boolean;
+      isActive: boolean;
+      canSelect: boolean;
+      targetStepId: string | null;
+      meta?: string;
+      icon: JSX.Element;
+    }> = [];
+
+    if (accountStep) {
+      steps.push({
+        id: 'user_account',
+        name: 'Account',
+        required: accountStep.required,
+        completed: accountStep.completed,
+        isActive: currentStepId === accountStep.id,
+        canSelect: accountStep.completed || accountStep.id === activeStepId,
+        targetStepId: accountStep.id,
+        icon: <FontAwesomeIcon icon={faUserPlus} className="text-xs" />,
+      });
+    }
+
+    if (discordStep) {
+      steps.push({
+        id: 'discord',
+        name: 'Discord',
+        required: discordStep.required,
+        completed: discordStep.completed,
+        isActive: currentStepId === discordStep.id,
+        canSelect: discordStep.completed || discordStep.id === activeStepId,
+        targetStepId: discordStep.id,
+        icon: <FontAwesomeIcon icon={faDiscord} className="text-xs" />,
+      });
+    }
+
+    if (serverAccessSteps.length > 0) {
+      steps.push({
+        id: 'server_access',
+        name: `Server Access (${serverAccessCompletedCount}/${serverAccessSteps.length})`,
+        required: serverAccessSteps.some((step) => step.required),
+        completed: serverAccessSteps.every((step) => step.completed),
+        isActive: isServerAccessStepId(currentStepId),
+        canSelect: Boolean(serverAccessTargetStepId),
+        targetStepId: serverAccessTargetStepId,
+        icon: <FontAwesomeIcon icon={faServer} className="text-xs" />,
+      });
+    }
+
+    return steps;
+  }, [
+    accountStep,
+    discordStep,
+    currentStepId,
+    activeStepId,
+    serverAccessSteps,
+    serverAccessTargetStepId,
+    serverAccessCompletedCount,
+  ]);
 
   const navigableStepIds = useMemo(() => {
     if (!state?.steps) return [];
@@ -1168,26 +1254,25 @@ export const InviteWizardPage = () => {
                       {completedCount} of {state.steps.length} completed
                     </span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    {state.steps.map((step, index) => {
-                      const isActive = index === activeStepIndex;
-                      const canSelectStep = step.completed || step.id === activeStepId;
+                  <div className="flex flex-col gap-3">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                    {groupedProgressSteps.map((step, index) => {
                       return (
-                        <div key={step.id} className="flex items-center flex-1">
+                        <div key={step.id} className="flex items-center w-full sm:flex-1">
                           <button
                             type="button"
                             onClick={() => {
-                              if (canSelectStep) {
-                                selectStep(step.id);
+                              if (step.canSelect && step.targetStepId) {
+                                selectStep(step.targetStepId);
                               }
                             }}
-                          disabled={!canSelectStep}
+                          disabled={!step.canSelect}
                           className={cn(
                             'flex items-center gap-2 p-3 rounded-lg transition-colors flex-1',
                             'disabled:cursor-not-allowed disabled:opacity-60',
                             step.completed
                               ? 'bg-primary/10 border border-primary/20'
-                              : isActive
+                              : step.isActive
                               ? 'bg-amber-50 dark:bg-amber-400/10 border border-amber-200 dark:border-amber-500/20'
                               : 'bg-muted/50 border'
                           )}
@@ -1197,7 +1282,7 @@ export const InviteWizardPage = () => {
                               'w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0',
                               step.completed
                                 ? 'bg-primary text-primary-content'
-                                : isActive
+                                : step.isActive
                                 ? 'bg-amber-100 text-amber-600 dark:text-amber-400-content'
                                 : 'bg-muted text-muted-foreground'
                             )}
@@ -1205,7 +1290,7 @@ export const InviteWizardPage = () => {
                             {step.completed ? (
                               <FontAwesomeIcon icon={faCheck} className="text-xs" />
                             ) : (
-                              renderStepIcon(step)
+                              step.icon
                             )}
                           </div>
                             <div className="flex-1 min-w-0">
@@ -1215,7 +1300,7 @@ export const InviteWizardPage = () => {
                                     'text-xs font-medium truncate',
                                     step.completed
                                       ? 'text-primary'
-                                      : isActive
+                                      : step.isActive
                                       ? 'text-amber-600 dark:text-amber-400'
                                       : 'text-muted-foreground'
                                   )}
@@ -1228,12 +1313,15 @@ export const InviteWizardPage = () => {
                                   </span>
                                 )}
                               </div>
+                              {step.meta ? (
+                                <p className="text-[10px] text-muted-foreground mt-0.5">{step.meta}</p>
+                              ) : null}
                             </div>
                         </button>
-                        {index < state.steps.length - 1 && (
+                        {index < groupedProgressSteps.length - 1 && (
                           <div
                             className={cn(
-                              'w-3 h-0.5 mx-1',
+                              'hidden sm:block w-3 h-0.5 mx-1',
                               step.completed ? 'bg-primary' : 'bg-muted'
                             )}
                           />
@@ -1241,6 +1329,80 @@ export const InviteWizardPage = () => {
                       </div>
                     );
                   })}
+                    </div>
+                    {serverAccessSteps.length > 0 ? (
+                      <div className="rounded-lg border bg-muted/30 p-3">
+                        <div className="flex items-center justify-between gap-2 mb-2">
+                          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                            Server Access Steps
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            {serverAccessCompletedCount}/{serverAccessSteps.length} completed
+                          </span>
+                        </div>
+                        <div className="max-h-48 overflow-y-auto pr-1">
+                          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                            {serverAccessSteps.map((step) => {
+                              const canSelectStep = step.completed || step.id === activeStepId;
+                              const isActiveServerStep = step.id === currentStepId;
+                              return (
+                                <button
+                                  key={step.id}
+                                  type="button"
+                                  onClick={() => {
+                                    if (canSelectStep) selectStep(step.id);
+                                  }}
+                                  disabled={!canSelectStep}
+                                  className={cn(
+                                    'flex items-center justify-between rounded-md border px-3 py-2 text-left transition-colors',
+                                    'disabled:cursor-not-allowed disabled:opacity-60',
+                                    step.completed
+                                      ? 'bg-primary/10 border-primary/20'
+                                      : isActiveServerStep
+                                      ? 'bg-amber-50 dark:bg-amber-400/10 border-amber-200 dark:border-amber-500/20'
+                                      : 'bg-background/60 border-border'
+                                  )}
+                                >
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <div
+                                      className={cn(
+                                        'w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0',
+                                        step.completed
+                                          ? 'bg-primary text-primary-content'
+                                          : isActiveServerStep
+                                          ? 'bg-amber-100 text-amber-600 dark:text-amber-400-content'
+                                          : 'bg-muted text-muted-foreground'
+                                      )}
+                                    >
+                                      {step.completed ? (
+                                        <FontAwesomeIcon icon={faCheck} className="text-[10px]" />
+                                      ) : (
+                                        renderStepIcon(step)
+                                      )}
+                                    </div>
+                                    <span className="text-xs font-medium truncate">
+                                      {step.server_name ?? step.name}
+                                    </span>
+                                  </div>
+                                  <span
+                                    className={cn(
+                                      'text-[10px] font-medium ml-2 shrink-0',
+                                      step.completed
+                                        ? 'text-primary'
+                                        : isActiveServerStep
+                                        ? 'text-amber-600 dark:text-amber-400'
+                                        : 'text-muted-foreground'
+                                    )}
+                                  >
+                                    {step.completed ? 'Done' : isActiveServerStep ? 'Current' : 'Pending'}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    ) : null}
                 </div>
               </div>
             )}
@@ -1531,7 +1693,7 @@ export const InviteWizardPage = () => {
                         </svg>
                       </div>
                       <div>
-                        <h2 className="text-xl font-semibold text-foreground mb-1">Plex Connected</h2>
+                        <h2 className="text-xl font-semibold text-foreground mb-1">{plexServerName} Connected</h2>
                         <p className="text-sm text-muted-foreground">
                           {state.plex.user?.username ? (
                             <>
@@ -1552,9 +1714,9 @@ export const InviteWizardPage = () => {
                           </svg>
                         </div>
                         <div>
-                          <h2 className="text-xl font-semibold text-foreground mb-1">Plex Authentication</h2>
+                          <h2 className="text-xl font-semibold text-foreground mb-1">{plexServerName} Authentication</h2>
                           <p className="text-sm text-muted-foreground">
-                            Sign in with Plex to get access to shared libraries
+                            Sign in with {plexServerName} to get access to shared libraries
                           </p>
                         </div>
                       </div>
@@ -1612,7 +1774,7 @@ export const InviteWizardPage = () => {
                             <svg className="w-4 h-4 mr-2" viewBox="0 0 192 192" xmlns="http://www.w3.org/2000/svg" fill="currentColor">
                               <path d="M22 25.5h48L116 94l-46 68.5H22L68.5 94Zm109.8 56L108 46l14-20.5h48zm-.3 23.5c10.979 17.625 25.52 38.875 38.5 49.5-11.149 13.635-34.323 32.278-62.5-14z" />
                             </svg>
-                            Continue with Plex
+                            Continue with {plexServerName}
                           </>
                         )}
                       </Button>
@@ -1620,17 +1782,13 @@ export const InviteWizardPage = () => {
                   )}
 
                   {/* Plex Server Access Details */}
-                  {(() => {
-                    const plexServer = state.servers.find(s => s.service_type === 'PLEX');
-                    if (!plexServer) return null;
-                    return (
-                      <ServerAccessDetails
-                        server={plexServer}
-                        invite={state.invite}
-                        grantLibraryIds={state.invite.grant_library_ids}
-                      />
-                    );
-                  })()}
+                  {plexServer ? (
+                    <ServerAccessDetails
+                      server={plexServer}
+                      invite={state.invite}
+                      grantLibraryIds={state.invite.grant_library_ids}
+                    />
+                  ) : null}
                 </div>
               )}
 

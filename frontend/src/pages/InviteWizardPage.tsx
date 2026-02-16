@@ -46,6 +46,7 @@ import {
 import { faClock } from '@fortawesome/free-regular-svg-icons';
 import { faDiscord } from '@fortawesome/free-brands-svg-icons';
 import { Spinner } from '@/components/ui/spinner'
+import { ServiceIcon } from '@/components/services/ServiceIcon'
 
 type WizardStep = {
   id: string;
@@ -251,6 +252,30 @@ const defaultAccountFormState: AccountFormState = {
   use_same_username: true,
   use_same_email: true,
   use_same_password: true
+};
+
+const renderStepIcon = (step: WizardStep): JSX.Element => {
+  if (step.id === 'plex') {
+    return <ServiceIcon serviceType="plex" className="h-3 w-3" />;
+  }
+
+  if (step.id.startsWith('server_access_')) {
+    return <ServiceIcon serviceType={step.server_type ?? ''} className="h-3 w-3" />;
+  }
+
+  if (step.icon.includes('discord')) {
+    return <FontAwesomeIcon icon={faDiscord} className="text-xs" />;
+  }
+
+  if (step.icon.includes('user-plus')) {
+    return <FontAwesomeIcon icon={faUserPlus} className="text-xs" />;
+  }
+
+  if (step.icon.includes('right-to-bracket')) {
+    return <FontAwesomeIcon icon={faRightToBracket} className="text-xs" />;
+  }
+
+  return <FontAwesomeIcon icon={faServer} className="text-xs" />;
 };
 
 type ServerAccessDetailsProps = {
@@ -1180,7 +1205,7 @@ export const InviteWizardPage = () => {
                             {step.completed ? (
                               <FontAwesomeIcon icon={faCheck} className="text-xs" />
                             ) : (
-                              <i className={`${step.icon} text-xs`} />
+                              renderStepIcon(step)
                             )}
                           </div>
                             <div className="flex-1 min-w-0">

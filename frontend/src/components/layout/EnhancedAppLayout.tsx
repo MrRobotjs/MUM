@@ -158,7 +158,7 @@ export const EnhancedAppLayout = ({
     <SidebarProvider
       style={
         {
-          "--sidebar-width": "18rem",
+          "--sidebar-width": "14rem",
           "--header-height": "4rem",
         } as React.CSSProperties
       }

@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { ServiceIcon } from '@/components/services/ServiceIcon';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import type { ActiveSession } from '@/types/streaming';
 import { CircleMarker, MapContainer, Popup, TileLayer, useMap } from 'react-leaflet';
-import { faLocationDot, faMinus, faPlus } from '@fortawesome/free-solid-svg-icons';
+import { faCompress, faExpand, faLocationDot, faMinus, faPlus } from '@fortawesome/free-solid-svg-icons';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 
 type StreamingSessionsMapProps = {
@@ -60,11 +60,28 @@ const AutoFit = ({ points, signature }: { points: [number, number][]; signature:
   return null;
 };
 
-const CustomZoomControl = () => {
+type CustomZoomControlProps = {
+  isFullscreen: boolean;
+  onToggleFullscreen: () => void;
+};
+
+const CustomZoomControl = ({ isFullscreen, onToggleFullscreen }: CustomZoomControlProps) => {
   const map = useMap();
+
+  useEffect(() => {
+    map.invalidateSize({ animate: false });
+  }, [isFullscreen, map]);
 
   return (
     <div className="absolute right-3 top-3 z-[500] flex flex-col gap-2">
+      <button
+        type="button"
+        onClick={onToggleFullscreen}
+        className="flex h-8 w-8 items-center justify-center rounded-md border border-border/60 bg-card text-primary shadow-sm hover:bg-primary hover:text-primary-foreground transition-colors"
+        aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+      >
+        <FontAwesomeIcon icon={isFullscreen ? faCompress : faExpand} className="h-3 w-3" />
+      </button>
       <button
         type="button"
         onClick={() => map.zoomIn()}
@@ -132,6 +149,8 @@ const clusterSessions = (sessions: PositionedSession[]): SessionCluster[] => {
 
 export const StreamingSessionsMap = ({ sessions }: StreamingSessionsMapProps) => {
   const [enableClustering, setEnableClustering] = useState(true);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const mapFrameRef = useRef<HTMLDivElement | null>(null);
 
   const validSessions = useMemo<PositionedSession[]>(() => {
     return sessions
@@ -174,6 +193,47 @@ export const StreamingSessionsMap = ({ sessions }: StreamingSessionsMapProps) =>
   const center = points[0] ?? DEFAULT_CENTER;
   const locationCount = visibleSessions.length;
   const clusterCount = enableClustering ? clusters.filter((cluster) => cluster.sessions.length > 1).length : 0;
+
+  const isMapFullscreen = useCallback(() => {
+    const host = mapFrameRef.current;
+    const fullscreenElement = document.fullscreenElement;
+    if (!host || !fullscreenElement) return false;
+    return fullscreenElement === host || host.contains(fullscreenElement);
+  }, []);
+
+  const handleToggleFullscreen = useCallback(async () => {
+    const host = mapFrameRef.current;
+    if (!host) return;
+
+    try {
+      if (isMapFullscreen()) {
+        await document.exitFullscreen();
+      } else {
+        await host.requestFullscreen();
+      }
+    } catch {
+      // No-op: browser may reject fullscreen outside direct gesture.
+    }
+  }, [isMapFullscreen]);
+
+  useEffect(() => {
+    const onFullscreenChange = () => {
+      setIsFullscreen(isMapFullscreen());
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      if (!isMapFullscreen()) return;
+      document.exitFullscreen().catch(() => undefined);
+    };
+
+    document.addEventListener('fullscreenchange', onFullscreenChange);
+    document.addEventListener('keydown', onKeyDown);
+    onFullscreenChange();
+    return () => {
+      document.removeEventListener('fullscreenchange', onFullscreenChange);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [isMapFullscreen]);
 
   return (
     <Card className="pt-0 gap-0 overflow-hidden border border-border/60 shadow-md">
@@ -219,7 +279,7 @@ export const StreamingSessionsMap = ({ sessions }: StreamingSessionsMapProps) =>
             </div>
           </div>
         ) : (
-          <div className="overflow-hidden rounded-xl border border-border/60">
+          <div ref={mapFrameRef} className="overflow-hidden rounded-xl border border-border/60">
             <div className="h-[280px] w-full sm:h-[320px]">
               <MapContainer
                 center={center}
@@ -232,7 +292,10 @@ export const StreamingSessionsMap = ({ sessions }: StreamingSessionsMapProps) =>
                 attributionControl={false}
               >
                 <AutoFit points={points} signature={pointsSignature} />
-                <CustomZoomControl />
+                <CustomZoomControl
+                  isFullscreen={isFullscreen}
+                  onToggleFullscreen={handleToggleFullscreen}
+                />
                 <TileLayer
                   url={TILE_URL}
                   attribution="&copy; OpenStreetMap &copy; CARTO"

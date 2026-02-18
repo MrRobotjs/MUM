@@ -12,6 +12,10 @@ from app.models_media_services import ServiceType
 from app.utils.helpers import log_event
 from app.services.media_service_manager import MediaServiceManager
 from app.services.media_service_factory import MediaServiceFactory
+from app.services.session_geoip_service import (
+    enrich_formatted_sessions_with_geo,
+    get_first_available_plex_token,
+)
 from app.extensions import db
 
 
@@ -129,6 +133,7 @@ def get_active_sessions(current_user):
     request_id = uuid4().hex
     try:
         all_servers = MediaServiceManager.get_effective_servers(active_only=True)
+        plex_fallback_token = get_first_available_plex_token(all_servers)
         http_only = str(request.args.get('http_only', '')).lower() in {'1', 'true', 'yes'}
         if http_only:
             websocket_services = {ServiceType.PLEX, ServiceType.EMBY, ServiceType.JELLYFIN}
@@ -145,6 +150,12 @@ def get_active_sessions(current_user):
                 try:
                     server_nickname = server.server_nickname
                     formatted_sessions = service.get_formatted_sessions()
+                    enrich_formatted_sessions_with_geo(
+                        formatted_sessions,
+                        session_service_type=server.service_type.value,
+                        plex_primary_token=server.api_key if server.service_type == ServiceType.PLEX else None,
+                        plex_fallback_token=plex_fallback_token,
+                    )
                     sessions.extend(formatted_sessions)
 
                     if formatted_sessions:

@@ -43,6 +43,8 @@ export type ActiveSession = {
   // Location
   location_detail: string;
   location_ip?: string;
+  latitude?: number;
+  longitude?: number;
   is_public_ip?: boolean;
   bandwidth_detail?: string;
 

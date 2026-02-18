@@ -6,6 +6,10 @@ from app.models_media_services import MediaServer, MediaStreamHistory, ServiceTy
 from app.utils.helpers import log_event
 from . import user_service  # user_service is needed for deleting users
 from app.services.media_service_manager import MediaServiceManager
+from app.services.session_geoip_service import (
+    enrich_formatted_sessions_with_geo,
+    get_first_available_plex_token,
+)
 from datetime import datetime, timezone, timedelta
 from app.extensions import db
 from typing import Any, Dict, Iterable, Optional, Set, Union
@@ -152,6 +156,7 @@ def _run_media_session_monitor(
 
     try:
         target_service_types = {server.service_type for server in target_servers}
+        plex_fallback_token = get_first_available_plex_token(all_servers)
         live_services_payload = (
             sorted(service.value for service in live_service_filter)
             if live_service_filter
@@ -818,6 +823,12 @@ def _run_media_session_monitor(
                         try:
                             formatted = service.get_formatted_sessions()
                             if formatted:
+                                enrich_formatted_sessions_with_geo(
+                                    formatted,
+                                    session_service_type=server.service_type.value,
+                                    plex_primary_token=server.api_key if server.service_type == ServiceType.PLEX else None,
+                                    plex_fallback_token=plex_fallback_token,
+                                )
                                 for session in formatted:
                                     session.setdefault('server_id', server.id)
                                     session.setdefault('service_type', server.service_type.value)

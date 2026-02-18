@@ -4,6 +4,7 @@ import { useLocation } from '@tanstack/react-router';
 import { StreamingSummaryCard, StreamingSettingsModal } from '../components/dashboard';
 import {
   ActiveStreamsCard,
+  StreamingSessionsMap,
   StreamingHistoricalData,
   StreamingHistoryFilters,
   TerminateSessionModal
@@ -165,6 +166,14 @@ const mapUnifiedSessionToActiveSession = (session: UnifiedSession): ActiveSessio
     transcode_reason: quality.transcode_reason || '',
     location_detail: locationDetail,
     location_ip: network.ip ?? undefined,
+    latitude:
+      typeof network.latitude === 'number' && Number.isFinite(network.latitude)
+        ? network.latitude
+        : undefined,
+    longitude:
+      typeof network.longitude === 'number' && Number.isFinite(network.longitude)
+        ? network.longitude
+        : undefined,
     is_public_ip: network.is_public_ip ?? undefined,
     bandwidth_detail: network.bandwidth ?? undefined,
     raw_data_json: rawPayload,
@@ -1100,10 +1109,8 @@ export const StreamingPage = () => {
         />
       </div>
 
-      {/* Historical Data Section - EXISTING */}
-      <div className="divider text-muted-foreground">
-        <FontAwesomeIcon icon={faHistory} className="mr-2" />
-        Historical Streaming Data
+      <div className="space-y-4">
+        <StreamingSessionsMap sessions={sessionsData?.sessions ?? []} />
       </div>
 
       <StreamingSummaryCard />

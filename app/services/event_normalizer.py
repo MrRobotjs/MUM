@@ -61,6 +61,19 @@ def _parse_seconds(value: Any) -> Optional[float]:
     return None
 
 
+def _parse_float(value: Any) -> Optional[float]:
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        try:
+            return float(value.strip())
+        except ValueError:
+            return None
+    return None
+
+
 def _resolve_user_uuid(session: Dict[str, Any], cache: Dict[Any, Optional[str]]) -> Optional[str]:
     """Extract or resolve a user UUID from a formatted session dict."""
     for key in ("user_uuid", "linked_user_uuid", "mum_user_uuid"):
@@ -161,6 +174,8 @@ def normalize_session(
         "ip": session.get("location_ip"),
         "is_public_ip": session.get("is_public_ip"),
         "bandwidth": session.get("bandwidth_detail"),
+        "latitude": _parse_float(session.get("latitude") or session.get("location_latitude")),
+        "longitude": _parse_float(session.get("longitude") or session.get("location_longitude")),
     }
 
     media = {

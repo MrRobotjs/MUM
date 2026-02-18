@@ -73,6 +73,8 @@ export interface UnifiedSession {
     ip?: string | null;
     is_public_ip?: boolean | null;
     bandwidth?: string | null;
+    latitude?: number | null;
+    longitude?: number | null;
   };
   media?: {
     path?: string | null;

@@ -5,6 +5,8 @@ import { Badge } from '@/components/ui/badge';
 import { ServiceIcon } from '@/components/services/ServiceIcon';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
+import { useTheme } from '@/contexts/ThemeContext';
+import { useMediaQuery } from '@/store/mediaQueryStore';
 import type { ActiveSession } from '@/types/streaming';
 import { getStreamingSessionStats } from './sessionStats';
 import { MapContainer, Marker, Popup, TileLayer, useMap } from 'react-leaflet';
@@ -21,7 +23,8 @@ type PositionedSession = ActiveSession & {
 };
 
 const DEFAULT_CENTER: [number, number] = [20, 0];
-const TILE_URL = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+const DARK_TILE_URL = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+const LIGHT_TILE_URL = 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
 
 const SERVICE_COLORS: Record<string, string> = {
   plex: 'var(--color-plex)',
@@ -172,10 +175,14 @@ const withJitter = (lat: number, lon: number, index: number): [number, number] =
 };
 
 export const StreamingSessionsMap = ({ sessions }: StreamingSessionsMapProps) => {
+  const { theme } = useTheme();
+  const prefersDark = useMediaQuery('(prefers-color-scheme: dark)');
   const [enableClustering, setEnableClustering] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isPseudoFullscreen, setIsPseudoFullscreen] = useState(false);
   const mapFrameRef = useRef<HTMLDivElement | null>(null);
+  const resolvedTheme = theme === 'system' ? (prefersDark ? 'dark' : 'light') : theme;
+  const tileUrl = resolvedTheme === 'dark' ? DARK_TILE_URL : LIGHT_TILE_URL;
 
   const validSessions = useMemo<PositionedSession[]>(() => {
     return sessions
@@ -383,7 +390,8 @@ export const StreamingSessionsMap = ({ sessions }: StreamingSessionsMapProps) =>
                   <AutoFit points={points} signature={pointsSignature} />
                   <CustomZoomControl isFullscreen={isMapExpanded} onToggleFullscreen={handleToggleFullscreen} />
                   <TileLayer
-                    url={TILE_URL}
+                    key={resolvedTheme}
+                    url={tileUrl}
                     attribution="&copy; OpenStreetMap &copy; CARTO"
                     subdomains={['a', 'b', 'c', 'd']}
                   />

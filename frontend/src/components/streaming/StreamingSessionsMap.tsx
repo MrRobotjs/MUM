@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import L from 'leaflet';
+import MarkerClusterGroup from 'react-leaflet-cluster';
 import { Badge } from '@/components/ui/badge';
 import { ServiceIcon } from '@/components/services/ServiceIcon';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import type { ActiveSession } from '@/types/streaming';
-import { CircleMarker, MapContainer, Popup, TileLayer, useMap } from 'react-leaflet';
+import { getStreamingSessionStats } from './sessionStats';
+import { MapContainer, Marker, Popup, TileLayer, useMap } from 'react-leaflet';
 import { faCompress, faExpand, faLocationDot, faMinus, faPlus } from '@fortawesome/free-solid-svg-icons';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 
@@ -17,16 +20,8 @@ type PositionedSession = ActiveSession & {
   mapLon: number;
 };
 
-type SessionCluster = {
-  sessions: PositionedSession[];
-  mapLat: number;
-  mapLon: number;
-};
-
 const DEFAULT_CENTER: [number, number] = [20, 0];
 const TILE_URL = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
-const CLUSTER_DISTANCE_DEGREES = 0.18;
-const MAX_CLUSTER_ITEMS = 6;
 
 const SERVICE_COLORS: Record<string, string> = {
   plex: 'var(--color-plex)',
@@ -38,8 +33,77 @@ const SERVICE_COLORS: Record<string, string> = {
   romm: 'var(--color-romm)',
 };
 
+const markerIconCache = new Map<string, L.DivIcon>();
+
 const getMarkerColor = (serviceType: string) =>
   SERVICE_COLORS[(serviceType || '').toLowerCase()] ?? 'var(--color-primary)';
+
+const getSessionMarkerIcon = (serviceType: string) => {
+  const color = getMarkerColor(serviceType);
+  const cached = markerIconCache.get(color);
+  if (cached) return cached;
+
+  const icon = L.divIcon({
+    className: 'mum-map-session-icon',
+    html: `
+      <div class="mum-map-dot">
+        <span class="mum-map-dot-pulse" style="background:${color};"></span>
+        <span class="mum-map-dot-glow" style="background:${color};"></span>
+        <span class="mum-map-dot-core" style="background:${color}; box-shadow:0 0 10px ${color};"></span>
+      </div>
+    `,
+    iconSize: [20, 20],
+    iconAnchor: [10, 10],
+  });
+
+  markerIconCache.set(color, icon);
+  return icon;
+};
+
+const getClusterServiceColor = (cluster: any) => {
+  const markers: Array<{ options?: { title?: string } }> = cluster.getAllChildMarkers?.() ?? [];
+  if (!markers.length) return 'var(--color-primary)';
+
+  const counts = new Map<string, number>();
+  markers.forEach((marker) => {
+    const serviceType = String(marker.options?.title ?? '').toLowerCase();
+    if (!serviceType) return;
+    counts.set(serviceType, (counts.get(serviceType) ?? 0) + 1);
+  });
+
+  let dominantService = '';
+  let dominantCount = 0;
+  counts.forEach((count, serviceType) => {
+    if (count > dominantCount) {
+      dominantService = serviceType;
+      dominantCount = count;
+    }
+  });
+
+  return dominantService ? getMarkerColor(dominantService) : 'var(--color-primary)';
+};
+
+const createClusterCustomIcon = (cluster: any) => {
+  const count = cluster.getChildCount?.() ?? 1;
+  const color = getClusterServiceColor(cluster);
+  const size = count > 50 ? 46 : count > 10 ? 40 : 34;
+  const fontSize = count > 50 ? 15 : count > 10 ? 13 : 12;
+
+  return L.divIcon({
+    className: 'mum-map-cluster-icon',
+    html: `
+      <div class="mum-map-cluster-wrap">
+        <span class="mum-map-cluster-pulse" style="background:${color};"></span>
+        <span class="mum-map-cluster-ring" style="background:${color};"></span>
+        <div class="mum-map-cluster-core" style="width:${size}px; height:${size}px; border-color:${color}; color:${color}; box-shadow:0 0 18px ${color};">
+          <span style="font-size:${fontSize}px;">${count}</span>
+        </div>
+      </div>
+    `,
+    iconSize: L.point(size, size, true),
+    iconAnchor: [size / 2, size / 2],
+  });
+};
 
 const AutoFit = ({ points, signature }: { points: [number, number][]; signature: string }) => {
   const map = useMap();
@@ -103,53 +167,14 @@ const CustomZoomControl = ({ isFullscreen, onToggleFullscreen }: CustomZoomContr
 };
 
 const withJitter = (lat: number, lon: number, index: number): [number, number] => {
-  const amount = 0.00012 * ((index % 5) - 2);
+  const amount = 0.0001 * ((index % 5) - 2);
   return [lat + amount, lon - amount];
-};
-
-const distanceDegrees = (aLat: number, aLon: number, bLat: number, bLon: number) => {
-  const meanLat = ((aLat + bLat) / 2) * (Math.PI / 180);
-  const latDiff = aLat - bLat;
-  const lonDiff = (aLon - bLon) * Math.cos(meanLat);
-  return Math.sqrt(latDiff * latDiff + lonDiff * lonDiff);
-};
-
-const clusterSessions = (sessions: PositionedSession[]): SessionCluster[] => {
-  const clusters: SessionCluster[] = [];
-
-  sessions.forEach((session) => {
-    let matchedCluster: SessionCluster | null = null;
-    for (const cluster of clusters) {
-      if (
-        distanceDegrees(session.mapLat, session.mapLon, cluster.mapLat, cluster.mapLon) <=
-        CLUSTER_DISTANCE_DEGREES
-      ) {
-        matchedCluster = cluster;
-        break;
-      }
-    }
-
-    if (!matchedCluster) {
-      clusters.push({
-        sessions: [session],
-        mapLat: session.mapLat,
-        mapLon: session.mapLon,
-      });
-      return;
-    }
-
-    matchedCluster.sessions.push(session);
-    const count = matchedCluster.sessions.length;
-    matchedCluster.mapLat = ((matchedCluster.mapLat * (count - 1)) + session.mapLat) / count;
-    matchedCluster.mapLon = ((matchedCluster.mapLon * (count - 1)) + session.mapLon) / count;
-  });
-
-  return clusters;
 };
 
 export const StreamingSessionsMap = ({ sessions }: StreamingSessionsMapProps) => {
   const [enableClustering, setEnableClustering] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isPseudoFullscreen, setIsPseudoFullscreen] = useState(false);
   const mapFrameRef = useRef<HTMLDivElement | null>(null);
 
   const validSessions = useMemo<PositionedSession[]>(() => {
@@ -167,19 +192,10 @@ export const StreamingSessionsMap = ({ sessions }: StreamingSessionsMapProps) =>
       .filter((session): session is PositionedSession => Boolean(session));
   }, [sessions]);
 
-  const visibleSessions = validSessions;
-
-  const clusters = useMemo(
-    () => (enableClustering ? clusterSessions(visibleSessions) : []),
-    [enableClustering, visibleSessions]
+  const points = useMemo(
+    () => validSessions.map((session) => [session.mapLat, session.mapLon] as [number, number]),
+    [validSessions]
   );
-
-  const points = useMemo(() => {
-    if (enableClustering) {
-      return clusters.map((cluster) => [cluster.mapLat, cluster.mapLon] as [number, number]);
-    }
-    return visibleSessions.map((session) => [session.mapLat, session.mapLon] as [number, number]);
-  }, [clusters, enableClustering, visibleSessions]);
 
   const pointsSignature = useMemo(
     () =>
@@ -191,8 +207,8 @@ export const StreamingSessionsMap = ({ sessions }: StreamingSessionsMapProps) =>
   );
 
   const center = points[0] ?? DEFAULT_CENTER;
-  const locationCount = visibleSessions.length;
-  const clusterCount = enableClustering ? clusters.filter((cluster) => cluster.sessions.length > 1).length : 0;
+  const locationCount = validSessions.length;
+  const streamStats = useMemo(() => getStreamingSessionStats(sessions), [sessions]);
 
   const isMapFullscreen = useCallback(() => {
     const host = mapFrameRef.current;
@@ -201,20 +217,36 @@ export const StreamingSessionsMap = ({ sessions }: StreamingSessionsMapProps) =>
     return fullscreenElement === host || host.contains(fullscreenElement);
   }, []);
 
+  const isMapExpanded = isFullscreen || isPseudoFullscreen;
+
+  const exitFullscreen = useCallback(async () => {
+    if (isMapFullscreen()) {
+      await document.exitFullscreen().catch(() => undefined);
+      return;
+    }
+    setIsPseudoFullscreen(false);
+  }, [isMapFullscreen]);
+
   const handleToggleFullscreen = useCallback(async () => {
     const host = mapFrameRef.current;
     if (!host) return;
 
+    if (isMapExpanded) {
+      await exitFullscreen();
+      return;
+    }
+
     try {
-      if (isMapFullscreen()) {
-        await document.exitFullscreen();
-      } else {
+      if (typeof host.requestFullscreen === 'function') {
         await host.requestFullscreen();
+        return;
       }
     } catch {
-      // No-op: browser may reject fullscreen outside direct gesture.
+      // Fallback below handles browsers like iOS Safari with restricted fullscreen support.
     }
-  }, [isMapFullscreen]);
+
+    setIsPseudoFullscreen(true);
+  }, [exitFullscreen, isMapExpanded]);
 
   useEffect(() => {
     const onFullscreenChange = () => {
@@ -222,8 +254,8 @@ export const StreamingSessionsMap = ({ sessions }: StreamingSessionsMapProps) =>
     };
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
-      if (!isMapFullscreen()) return;
-      document.exitFullscreen().catch(() => undefined);
+      if (!isMapExpanded) return;
+      exitFullscreen().catch(() => undefined);
     };
 
     document.addEventListener('fullscreenchange', onFullscreenChange);
@@ -233,7 +265,16 @@ export const StreamingSessionsMap = ({ sessions }: StreamingSessionsMapProps) =>
       document.removeEventListener('fullscreenchange', onFullscreenChange);
       document.removeEventListener('keydown', onKeyDown);
     };
-  }, [isMapFullscreen]);
+  }, [exitFullscreen, isMapExpanded, isMapFullscreen]);
+
+  useEffect(() => {
+    if (!isPseudoFullscreen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isPseudoFullscreen]);
 
   return (
     <Card className="pt-0 gap-0 overflow-hidden border border-border/60 shadow-md">
@@ -250,21 +291,7 @@ export const StreamingSessionsMap = ({ sessions }: StreamingSessionsMapProps) =>
               </CardTitle>
               <CardDescription className="text-sm text-muted-foreground space-y-1">
                 <p>Approximate stream locations based on active session IP geolocation.</p>
-                {enableClustering && clusterCount > 0 ? (
-                  <p className="font-mono text-xs text-primary/80">
-                    Clusters active: {clusterCount}
-                  </p>
-                ) : null}
               </CardDescription>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="rounded-md border border-border/60 bg-background/70 px-3 py-1.5">
-              <div className="flex items-center gap-2 text-xs">
-                <span className="text-muted-foreground">Cluster markers</span>
-                <Switch checked={enableClustering} onCheckedChange={setEnableClustering} />
-              </div>
             </div>
           </div>
         </div>
@@ -279,105 +306,102 @@ export const StreamingSessionsMap = ({ sessions }: StreamingSessionsMapProps) =>
             </div>
           </div>
         ) : (
-          <div ref={mapFrameRef} className="overflow-hidden rounded-xl border border-border/60">
-            <div className="h-[280px] w-full sm:h-[320px]">
-              <MapContainer
-                center={center}
-                zoom={3}
-                minZoom={2}
-                maxZoom={12}
-                scrollWheelZoom
-                style={{ height: '100%', width: '100%', background: 'hsl(var(--card))' }}
-                zoomControl={false}
-                attributionControl={false}
-              >
-                <AutoFit points={points} signature={pointsSignature} />
-                <CustomZoomControl
-                  isFullscreen={isFullscreen}
-                  onToggleFullscreen={handleToggleFullscreen}
-                />
-                <TileLayer
-                  url={TILE_URL}
-                  attribution="&copy; OpenStreetMap &copy; CARTO"
-                  subdomains={['a', 'b', 'c', 'd']}
-                />
+          <div
+            ref={mapFrameRef}
+            className={isPseudoFullscreen ? 'fixed inset-0 z-[1200] bg-background/95 backdrop-blur-sm' : ''}
+            style={
+              isPseudoFullscreen
+                ? {
+                    paddingTop: 'max(0.75rem, env(safe-area-inset-top))',
+                    paddingRight: 'max(0.75rem, env(safe-area-inset-right))',
+                    paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))',
+                    paddingLeft: 'max(0.75rem, env(safe-area-inset-left))',
+                  }
+                : undefined
+            }
+          >
+            <div
+              className={`relative overflow-hidden border border-border/60 ${
+                isMapExpanded ? 'h-full rounded-xl bg-card shadow-lg' : 'rounded-xl'
+              }`}
+            >
+              {isMapExpanded ? (
+                <div className="pointer-events-none absolute left-3 top-3 z-[550] flex items-center gap-2">
+                  <div className="rounded-md border border-border/60 bg-card/95 px-3 py-1.5 shadow-sm backdrop-blur">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      Active Streams
+                    </p>
+                    <p className="text-sm font-bold text-foreground">{streamStats.totalSessions}</p>
+                  </div>
+                  <div className="rounded-md border border-border/60 bg-card/95 px-3 py-1.5 shadow-sm backdrop-blur">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      Bandwidth
+                    </p>
+                    <p className="text-sm font-bold text-foreground">
+                      {streamStats.totalBandwidthMbps.toFixed(1)} Mbps
+                    </p>
+                  </div>
+                </div>
+              ) : null}
 
-                {enableClustering
-                  ? clusters.map((cluster, index) => {
-                      const count = cluster.sessions.length;
-                      const primary = cluster.sessions[0];
-                      const color =
-                        count > 1 ? 'var(--color-primary)' : getMarkerColor(primary.service_type);
-                      const radius = count > 1 ? Math.min(18, 8 + Math.log2(count + 1) * 3) : 8;
+              {isMapExpanded ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    exitFullscreen().catch(() => undefined);
+                  }}
+                  className="absolute bottom-3 right-3 z-[550] flex h-8 items-center gap-2 rounded-md border border-border/60 bg-card px-3 text-xs font-medium text-primary shadow-sm hover:bg-primary hover:text-primary-foreground transition-colors"
+                  aria-label="Exit fullscreen"
+                >
+                  <FontAwesomeIcon icon={faCompress} className="h-3 w-3" />
+                  <span>Exit</span>
+                </button>
+              ) : null}
 
-                      return (
-                        <CircleMarker
-                          key={`cluster:${index}:${cluster.mapLat}:${cluster.mapLon}`}
-                          center={[cluster.mapLat, cluster.mapLon]}
-                          radius={radius}
-                          pathOptions={{
-                            color,
-                            fillColor: color,
-                            fillOpacity: count > 1 ? 0.6 : 0.72,
-                            weight: 2,
-                          }}
-                        >
-                          <Popup>
-                            {count === 1 ? (
-                              <div className="min-w-[180px] space-y-1 text-sm">
-                                <div className="flex items-center gap-2 font-semibold">
-                                  <ServiceIcon serviceType={primary.service_type} className="h-3.5 w-3.5" />
-                                  <span>{primary.user}</span>
-                                </div>
-                                <div className="text-xs text-muted-foreground">{primary.media_title}</div>
-                                <div className="text-xs text-muted-foreground">
-                                  {primary.server_name} · {primary.service_type.toUpperCase()}
-                                </div>
-                                <div className="text-xs text-muted-foreground">
-                                  {primary.location_ip ?? 'IP unavailable'}
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="min-w-[220px] space-y-2 text-sm">
-                                <div className="font-semibold">{count} nearby sessions</div>
-                                <div className="space-y-1">
-                                  {cluster.sessions.slice(0, MAX_CLUSTER_ITEMS).map((session) => (
-                                    <div
-                                      key={`${session.session_key}:${session.service_type}:${session.server_name}`}
-                                      className="flex items-center gap-2 text-xs"
-                                    >
-                                      <ServiceIcon serviceType={session.service_type} className="h-3.5 w-3.5" />
-                                      <span className="truncate">
-                                        {session.user} · {session.media_title}
-                                      </span>
-                                    </div>
-                                  ))}
-                                  {count > MAX_CLUSTER_ITEMS ? (
-                                    <div className="text-xs text-muted-foreground">
-                                      +{count - MAX_CLUSTER_ITEMS} more
-                                    </div>
-                                  ) : null}
-                                </div>
-                              </div>
-                            )}
-                          </Popup>
-                        </CircleMarker>
-                      );
-                    })
-                  : visibleSessions.map((session, index) => {
-                      const [lat, lon] = withJitter(session.mapLat, session.mapLon, index);
-                      const color = getMarkerColor(session.service_type);
-                      return (
-                        <CircleMarker
-                          key={`${session.session_key}:${session.service_type}:${session.server_name}:${index}`}
-                          center={[lat, lon]}
-                          radius={8}
-                          pathOptions={{
-                            color,
-                            fillColor: color,
-                            fillOpacity: 0.72,
-                            weight: 2,
-                          }}
+              <div className="absolute bottom-3 left-3 z-[550] rounded-md border border-border/60 bg-card/95 px-3 py-1.5 shadow-sm backdrop-blur">
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="font-medium text-muted-foreground">Group</span>
+                  <Switch
+                    checked={enableClustering}
+                    onCheckedChange={setEnableClustering}
+                    aria-label="Toggle grouped map markers"
+                  />
+                </div>
+              </div>
+
+              <div className={isMapExpanded ? 'h-full w-full' : 'h-[280px] w-full sm:h-[320px]'}>
+                <MapContainer
+                  center={center}
+                  zoom={3}
+                  minZoom={2}
+                  maxZoom={12}
+                  scrollWheelZoom
+                  style={{ height: '100%', width: '100%', background: 'hsl(var(--card))' }}
+                  zoomControl={false}
+                  attributionControl={false}
+                >
+                  <AutoFit points={points} signature={pointsSignature} />
+                  <CustomZoomControl isFullscreen={isMapExpanded} onToggleFullscreen={handleToggleFullscreen} />
+                  <TileLayer
+                    url={TILE_URL}
+                    attribution="&copy; OpenStreetMap &copy; CARTO"
+                    subdomains={['a', 'b', 'c', 'd']}
+                  />
+
+                  {enableClustering ? (
+                    <MarkerClusterGroup
+                      chunkedLoading
+                      iconCreateFunction={createClusterCustomIcon}
+                      maxClusterRadius={35}
+                      spiderfyOnMaxZoom
+                      showCoverageOnHover={false}
+                    >
+                      {validSessions.map((session) => (
+                        <Marker
+                          key={`${session.session_key}:${session.service_type}:${session.server_name}`}
+                          position={[session.mapLat, session.mapLon]}
+                          icon={getSessionMarkerIcon(session.service_type)}
+                          title={(session.service_type || '').toLowerCase()}
                         >
                           <Popup>
                             <div className="min-w-[180px] space-y-1 text-sm">
@@ -394,10 +418,137 @@ export const StreamingSessionsMap = ({ sessions }: StreamingSessionsMapProps) =>
                               </div>
                             </div>
                           </Popup>
-                        </CircleMarker>
+                        </Marker>
+                      ))}
+                    </MarkerClusterGroup>
+                  ) : (
+                    validSessions.map((session, index) => {
+                      const [lat, lon] = withJitter(session.mapLat, session.mapLon, index);
+                      return (
+                        <Marker
+                          key={`${session.session_key}:${session.service_type}:${session.server_name}:${index}`}
+                          position={[lat, lon]}
+                          icon={getSessionMarkerIcon(session.service_type)}
+                          title={(session.service_type || '').toLowerCase()}
+                        >
+                          <Popup>
+                            <div className="min-w-[180px] space-y-1 text-sm">
+                              <div className="flex items-center gap-2 font-semibold">
+                                <ServiceIcon serviceType={session.service_type} className="h-3.5 w-3.5" />
+                                <span>{session.user}</span>
+                              </div>
+                              <div className="text-xs text-muted-foreground">{session.media_title}</div>
+                              <div className="text-xs text-muted-foreground">
+                                {session.server_name} · {session.service_type.toUpperCase()}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {session.location_ip ?? 'IP unavailable'}
+                              </div>
+                            </div>
+                          </Popup>
+                        </Marker>
                       );
-                    })}
-              </MapContainer>
+                    })
+                  )}
+
+                  <style>{`
+                    @keyframes mum-map-dot-pulse {
+                      0% { transform: scale(0.85); opacity: 0.5; }
+                      70% { transform: scale(1.6); opacity: 0; }
+                      100% { transform: scale(1.6); opacity: 0; }
+                    }
+
+                    @keyframes mum-map-cluster-pulse {
+                      0% { transform: scale(0.95); opacity: 0.35; }
+                      70% { transform: scale(1.2); opacity: 0; }
+                      100% { transform: scale(1.2); opacity: 0; }
+                    }
+
+                    .mum-map-dot {
+                      position: relative;
+                      width: 20px;
+                      height: 20px;
+                      display: flex;
+                      align-items: center;
+                      justify-content: center;
+                    }
+
+                    .mum-map-dot-pulse {
+                      position: absolute;
+                      width: 100%;
+                      height: 100%;
+                      border-radius: 9999px;
+                      animation: mum-map-dot-pulse 2.1s ease-out infinite;
+                    }
+
+                    .mum-map-dot-glow {
+                      position: absolute;
+                      width: 10px;
+                      height: 10px;
+                      border-radius: 9999px;
+                      opacity: 0.45;
+                      filter: blur(1.5px);
+                    }
+
+                    .mum-map-dot-core {
+                      position: relative;
+                      width: 7px;
+                      height: 7px;
+                      border-radius: 9999px;
+                      border: 1px solid rgba(255, 255, 255, 0.45);
+                    }
+
+                    .mum-map-cluster-wrap {
+                      position: relative;
+                      width: 100%;
+                      height: 100%;
+                      display: flex;
+                      align-items: center;
+                      justify-content: center;
+                    }
+
+                    .mum-map-cluster-pulse {
+                      position: absolute;
+                      width: 100%;
+                      height: 100%;
+                      border-radius: 9999px;
+                      opacity: 0.24;
+                      animation: mum-map-cluster-pulse 2.2s ease-out infinite;
+                    }
+
+                    .mum-map-cluster-ring {
+                      position: absolute;
+                      width: 112%;
+                      height: 112%;
+                      border-radius: 9999px;
+                      opacity: 0.14;
+                    }
+
+                    .mum-map-cluster-core {
+                      position: relative;
+                      border-radius: 9999px;
+                      background: color-mix(in hsl, hsl(var(--card)) 82%, black 18%);
+                      border: 2px solid;
+                      display: flex;
+                      align-items: center;
+                      justify-content: center;
+                      font-weight: 700;
+                      line-height: 1;
+                      backdrop-filter: blur(4px);
+                      transition: transform 160ms ease;
+                    }
+
+                    .mum-map-cluster-wrap:hover .mum-map-cluster-core {
+                      transform: scale(1.06);
+                    }
+
+                    .leaflet-marker-icon.mum-map-cluster-icon {
+                      background: transparent;
+                      border: none;
+                    }
+                  `}</style>
+                </MapContainer>
+              </div>
             </div>
           </div>
         )}

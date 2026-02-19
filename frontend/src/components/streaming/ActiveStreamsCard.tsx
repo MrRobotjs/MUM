@@ -6,6 +6,7 @@ import { StreamingSessionCard } from './StreamingSessionCard';
 import { StreamingSourceInfoDialog } from './StreamingSourceInfoDialog';
 import { useAdminApi } from '@/hooks/useAdminApi';
 import type { ActiveSession, ActiveSessionsResponse, PluginMetaResponse, ViewMode } from '@/types/streaming';
+import { getStreamingSessionStats } from './sessionStats';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faCirclePause, faCogs, faServer, faTowerBroadcast } from '@fortawesome/free-solid-svg-icons';
 import { Spinner } from '@/components/ui/spinner'
@@ -128,54 +129,14 @@ export const ActiveStreamsCard = ({
               <CardDescription className="text-sm text-muted-foreground space-y-1">
                 <p>Live playback across connected media servers.</p>
                 {sessionsData && sessionsData.total_count > 0 && (() => {
-                  const sessions = sessionsData.sessions;
-                  const transcodeCount = sessions.filter(s => s.is_transcode_calc || s.transcode_reason || s.stream_detail.toLowerCase().includes('transcode')).length;
-                  const directPlayCount = sessionsData.total_count - transcodeCount;
-
-                  // Bandwidth summation:
-                  // Prefer per-session bandwidth_detail values (Kbps/Mbps/Gbps) and avoid bitrate fallbacks.
-                  const getSessionBandwidthMbps = (session: ActiveSession) => {
-                    const detail = session.bandwidth_detail ?? '';
-                    const gbps = detail.match(/(\d+(\.\d+)?)\s*Gbps/i);
-                    if (gbps) return parseFloat(gbps[1]) * 1000;
-                    const mbps = detail.match(/(\d+(\.\d+)?)\s*Mbps/i);
-                    if (mbps) return parseFloat(mbps[1]);
-                    const kbps = detail.match(/(\d+(\.\d+)?)\s*Kbps/i);
-                    if (kbps) return parseFloat(kbps[1]) / 1000;
-                    return 0;
-                  };
-
-                  const isLanSession = (session: ActiveSession) => {
-                    const locationType = String(session.location_type_calc ?? '').trim().toLowerCase();
-                    if (locationType === 'lan') return true;
-                    if (locationType === 'wan') return false;
-                    if (locationType.includes('lan')) return true;
-                    if (locationType.includes('wan')) return false;
-                    if (typeof session.is_public_ip === 'boolean') return !session.is_public_ip;
-                    const detail = String(session.location_detail ?? '').toLowerCase();
-                    if (detail.includes('remote')) return false;
-                    if (detail.includes('wan')) return false;
-                    if (detail.includes('lan')) return true;
-                    return true;
-                  };
-
-                  const totalBandwidthValue = sessions.reduce((acc, s) => acc + getSessionBandwidthMbps(s), 0);
-                  const lanBandwidthValue = sessions.reduce(
-                    (acc, s) => (isLanSession(s) ? acc + getSessionBandwidthMbps(s) : acc),
-                    0
-                  );
-                  const wanBandwidthValue = sessions.reduce(
-                    (acc, s) => (!isLanSession(s) ? acc + getSessionBandwidthMbps(s) : acc),
-                    0
-                  );
-
-                  const totalBandwidth = totalBandwidthValue.toFixed(1);
-                  const lanBandwidth = lanBandwidthValue.toFixed(1);
-                  const wanBandwidth = wanBandwidthValue.toFixed(1);
+                  const stats = getStreamingSessionStats(sessionsData.sessions);
+                  const totalBandwidth = stats.totalBandwidthMbps.toFixed(1);
+                  const lanBandwidth = stats.lanBandwidthMbps.toFixed(1);
+                  const wanBandwidth = stats.wanBandwidthMbps.toFixed(1);
 
                   return (
                     <p className="font-mono text-xs text-primary/80">
-                      Activity: Sessions: {sessionsData.total_count} stream ({directPlayCount} direct play, {transcodeCount} transcode) | Bandwidth: {totalBandwidth} Mbps (LAN: {lanBandwidth} Mbps, WAN: {wanBandwidth} Mbps)
+                      Activity: Sessions: {stats.totalSessions} stream ({stats.directPlayCount} direct play, {stats.transcodeCount} transcode) | Bandwidth: {totalBandwidth} Mbps (LAN: {lanBandwidth} Mbps, WAN: {wanBandwidth} Mbps)
                     </p>
                   )
                 })()}

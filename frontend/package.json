@@ -45,6 +45,7 @@
     "react-day-picker": "^9.11.1",
     "react-dom": "^19.2.0",
     "react-leaflet": "5.0.0",
+    "react-leaflet-cluster": "^4.0.0",
     "recharts": "^2.15.4",
     "socket.io-client": "^4.8.1",
     "sonner": "^2.0.7",

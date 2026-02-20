@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { ServiceIcon } from '@/components/services/ServiceIcon';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
+import { getServiceMeta } from '@/config/pluginMetadata';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useMediaQuery } from '@/store/mediaQueryStore';
 import type { ActiveSession } from '@/types/streaming';
@@ -48,6 +49,9 @@ const isSameMapSession = (left: ActiveSession, right: ActiveSession) => {
     (left.server_name ?? '') === (right.server_name ?? '') &&
     (left.user ?? '') === (right.user ?? '') &&
     (left.media_title ?? '') === (right.media_title ?? '') &&
+    (left.grandparent_title ?? '') === (right.grandparent_title ?? '') &&
+    (left.parent_title ?? '') === (right.parent_title ?? '') &&
+    (left.user_avatar_url ?? '') === (right.user_avatar_url ?? '') &&
     (left.location_ip ?? '') === (right.location_ip ?? '') &&
     isSameCoordinate(Number(left.latitude), Number(right.latitude)) &&
     isSameCoordinate(Number(left.longitude), Number(right.longitude))
@@ -131,6 +135,63 @@ const createClusterCustomIcon = (cluster: any) => {
     iconSize: L.point(size, size, true),
     iconAnchor: [size / 2, size / 2],
   });
+};
+
+const tryGetSeasonLabel = (parentTitle?: string) => {
+  if (!parentTitle) return undefined;
+
+  const seasonMatch = parentTitle.match(/season\s*(\d{1,3})/i);
+  if (seasonMatch) return `Season ${Number(seasonMatch[1])}`;
+
+  const compactMatch = parentTitle.match(/\bS(\d{1,3})(?:E\d{1,3})?\b/i);
+  if (compactMatch) return `Season ${Number(compactMatch[1])}`;
+
+  return undefined;
+};
+
+const SessionPopupContent = ({ session }: { session: ActiveSession }) => {
+  const serviceMeta = getServiceMeta(session.service_type);
+  const avatarBgClass = serviceMeta.palette?.avatar ?? 'bg-muted-foreground/20';
+  const avatarTextClass = serviceMeta.palette?.avatar ? 'text-white' : 'text-muted-foreground';
+  const seasonLabel = tryGetSeasonLabel(session.parent_title);
+  const showLine = session.grandparent_title
+    ? seasonLabel
+      ? `${session.grandparent_title} - ${seasonLabel}`
+      : session.grandparent_title
+    : null;
+
+  return (
+    <div className="min-w-[220px] rounded-lg border border-border/70 bg-card p-3 text-card-foreground shadow-xl">
+      <div className="flex items-start gap-2">
+        <div className="relative h-8 w-8 shrink-0 overflow-hidden rounded-full">
+          {session.user_avatar_url ? (
+            <img src={session.user_avatar_url} alt={session.user} className="h-full w-full object-cover" />
+          ) : (
+            <div className={`flex h-full w-full items-center justify-center font-bold ${avatarBgClass} ${avatarTextClass}`}>
+              {session.user?.[0]?.toUpperCase() ?? 'U'}
+            </div>
+          )}
+        </div>
+        <div className="min-w-0">
+          <div className="truncate text-sm font-semibold">{session.user || 'Unknown User'}</div>
+          <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+            <ServiceIcon serviceType={session.service_type} className="h-3.5 w-3.5" />
+            <span className="truncate">{session.server_name || 'Unknown Server'}</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-2 line-clamp-2 text-sm">{session.media_title || 'Unknown Title'}</div>
+
+      {showLine ? (
+        <div className="mt-1 truncate text-xs text-muted-foreground" title={showLine}>
+          {showLine}
+        </div>
+      ) : null}
+
+      <div className="mt-1 text-xs text-muted-foreground">{session.location_ip ?? 'IP unavailable'}</div>
+    </div>
+  );
 };
 
 const AutoFit = ({ points, signature }: { points: [number, number][]; signature: string }) => {
@@ -437,19 +498,7 @@ const StreamingSessionsMapComponent = ({ sessions }: StreamingSessionsMapProps) 
                           alt={(session.service_type || '').toLowerCase()}
                         >
                           <Popup className="mum-map-popup">
-                            <div className="min-w-[180px] rounded-lg border border-border/70 bg-card p-3 text-sm text-card-foreground shadow-xl">
-                              <div className="flex items-center gap-2 font-semibold">
-                                <ServiceIcon serviceType={session.service_type} className="h-3.5 w-3.5" />
-                                <span>{session.user}</span>
-                              </div>
-                              <div className="mt-1 text-xs text-muted-foreground">{session.media_title}</div>
-                              <div className="text-xs text-muted-foreground">
-                                {session.server_name} · {session.service_type.toUpperCase()}
-                              </div>
-                              <div className="text-xs text-muted-foreground">
-                                {session.location_ip ?? 'IP unavailable'}
-                              </div>
-                            </div>
+                            <SessionPopupContent session={session} />
                           </Popup>
                         </Marker>
                       ))}
@@ -465,19 +514,7 @@ const StreamingSessionsMapComponent = ({ sessions }: StreamingSessionsMapProps) 
                           alt={(session.service_type || '').toLowerCase()}
                         >
                           <Popup className="mum-map-popup">
-                            <div className="min-w-[180px] rounded-lg border border-border/70 bg-card p-3 text-sm text-card-foreground shadow-xl">
-                              <div className="flex items-center gap-2 font-semibold">
-                                <ServiceIcon serviceType={session.service_type} className="h-3.5 w-3.5" />
-                                <span>{session.user}</span>
-                              </div>
-                              <div className="mt-1 text-xs text-muted-foreground">{session.media_title}</div>
-                              <div className="text-xs text-muted-foreground">
-                                {session.server_name} · {session.service_type.toUpperCase()}
-                              </div>
-                              <div className="text-xs text-muted-foreground">
-                                {session.location_ip ?? 'IP unavailable'}
-                              </div>
-                            </div>
+                            <SessionPopupContent session={session} />
                           </Popup>
                         </Marker>
                       );

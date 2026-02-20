@@ -19,7 +19,7 @@ import { getServiceMeta } from '@/config/pluginMetadata';
 import { Badge } from '@/components/ui/badge';
 import { useNavigate } from '@tanstack/react-router';
 import { buildUserProfilePath } from '@/util/routes';
-import type { ActiveSession, PluginMetaResponse } from '@/types/streaming';
+import type { ActiveSession, PluginMetaResponse, StreamCardStyle } from '@/types/streaming';
 import { ServiceIcon } from '@/components/services/ServiceIcon';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
@@ -153,6 +153,7 @@ const PayloadDialog = ({
 
 interface StreamingSessionCardProps {
   session: ActiveSession;
+  cardStyle?: StreamCardStyle;
   onTerminate: (session: ActiveSession) => void;
   pluginFeaturesByService?: PluginMetaResponse['data'] | null;
 }
@@ -277,7 +278,43 @@ const tryExtractAudiobookshelfAuthor = (rawDataJson?: string) => {
   }
 };
 
-export const StreamingSessionCard = ({ session, onTerminate, pluginFeaturesByService }: StreamingSessionCardProps) => {
+const parseTimestampToSeconds = (value?: string) => {
+  if (!value) return 0;
+  const parts = value
+    .split(':')
+    .map((part) => Number(part.trim()))
+    .filter((part) => !Number.isNaN(part));
+  if (parts.length === 3) {
+    const [hours, minutes, seconds] = parts;
+    return hours * 3600 + minutes * 60 + seconds;
+  }
+  if (parts.length === 2) {
+    const [minutes, seconds] = parts;
+    return minutes * 60 + seconds;
+  }
+  if (parts.length === 1) {
+    return parts[0];
+  }
+  return 0;
+};
+
+const formatRemainingTime = (seconds: number) => {
+  if (!Number.isFinite(seconds) || seconds <= 0) return '';
+  const totalMinutes = Math.ceil(seconds / 60);
+  if (totalMinutes >= 60) {
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    return minutes > 0 ? `${hours}h ${minutes}m left` : `${hours}h left`;
+  }
+  return `${totalMinutes}m left`;
+};
+
+export const StreamingSessionCard = ({
+  session,
+  cardStyle = 'detailed',
+  onTerminate,
+  pluginFeaturesByService
+}: StreamingSessionCardProps) => {
   const [showStreamInfo, setShowStreamInfo] = useState(false);
   const [showSendMessage, setShowSendMessage] = useState(false);
   const [showSourceInfo, setShowSourceInfo] = useState(false);
@@ -333,6 +370,21 @@ export const StreamingSessionCard = ({ session, onTerminate, pluginFeaturesBySer
     normalizedServiceType === 'plex'
       ? (session.product || session.player_platform)
       : session.player_platform;
+  const isEpisode = (session.media_type ?? '').toLowerCase() === 'episode';
+  const mediaTypeLabel =
+    session.media_type?.toLowerCase() === 'musicvideo' ? 'Music Video' : session.media_type;
+  const compactPrimaryTitle = session.media_title || 'Unknown Title';
+  const compactSecondaryTitle = isEpisode
+    ? [session.grandparent_title, session.parent_title].filter(Boolean).join(' - ')
+    : [session.grandparent_title, session.parent_title, session.year, mediaTypeLabel]
+      .filter(Boolean)
+      .join(' • ');
+  const compactCurrentSeconds = parseTimestampToSeconds(session.current_time);
+  const compactDurationSeconds = parseTimestampToSeconds(session.duration);
+  const compactRemainingTime = formatRemainingTime(
+    Math.max(0, compactDurationSeconds - compactCurrentSeconds)
+  );
+  const progressPercent = Number.isFinite(session.progress) ? Math.max(0, Math.min(100, session.progress)) : 0;
 
   const handleUserProfileClick = async (e: MouseEvent<HTMLAnchorElement>) => {
     e.preventDefault();
@@ -424,12 +476,254 @@ export const StreamingSessionCard = ({ session, onTerminate, pluginFeaturesBySer
     }
   };
 
-  // Format remaining time if possible, otherwise use duration
-  // Simple heuristic: if we have current_time and duration as strings like "0:05", it's hard to calc remaining without parsing.
-  // For now, we'll display the progress text as is or clean it up.
-  // The image shows "16 min left". We don't have that pre-calculated in props,
-  // but we can show "X% completed" or just the state.
-  // Let's stick to what we have in data or simple display.
+  if (cardStyle === 'compact') {
+    return (
+      <div className="group relative overflow-hidden rounded-xl border border-border/50 bg-card shadow-md transition-all duration-300 hover:shadow-lg">
+        <StreamingSourceInfoDialog open={showSourceInfo} onOpenChange={setShowSourceInfo} />
+        <div className={`absolute inset-0 ${serviceMeta.streamingGradient ?? 'bg-gradient-to-r from-muted/40 via-card to-card'} opacity-35 pointer-events-none`} />
+
+        <div className="relative z-10 flex min-h-[108px] items-center gap-3 p-2.5">
+          <div className="relative h-[92px] w-[62px] shrink-0 overflow-hidden rounded-md bg-muted ring-1 ring-border/60 shadow-sm">
+            {session.thumb_url ? (
+              <img
+                src={session.thumb_url}
+                alt={session.media_title}
+                className="h-full w-full object-cover"
+                onError={(e) => { e.currentTarget.style.display = 'none'; }}
+              />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center text-muted-foreground">
+                <FontAwesomeIcon icon={faImage} />
+              </div>
+            )}
+            {normalizedState === 'paused' && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+                <FontAwesomeIcon icon={faPause} className="text-sm text-white/90" />
+              </div>
+            )}
+          </div>
+
+          <div className="min-w-0 flex-1 pr-16">
+            <h3 className="truncate text-sm font-semibold leading-tight text-card-foreground" title={compactPrimaryTitle}>
+              {compactPrimaryTitle}
+            </h3>
+            <div className="truncate text-[11px] text-muted-foreground" title={compactSecondaryTitle || undefined}>
+              {compactSecondaryTitle || [session.year, mediaTypeLabel].filter(Boolean).join(' • ') || '\u00A0'}
+            </div>
+
+            <div className="mt-0.5 flex items-center gap-1 truncate text-[10px] text-muted-foreground/80">
+              <ServiceIcon serviceType={session.service_type} className="h-3 w-3 shrink-0" />
+              <span className="truncate font-medium">{session.server_name || serviceMeta.label}</span>
+              <span className="text-muted-foreground/50">•</span>
+              {canNavigateToUserProfile ? (
+                <a
+                  href={buildUserProfilePath({
+                    uuid: session.mum_user_uuid,
+                    username: session.user,
+                    server_nickname: session.server_name,
+                  })}
+                  onClick={(e) => void handleUserProfileClick(e)}
+                  className="truncate text-primary hover:underline"
+                  title="Open user profile"
+                >
+                  {session.user}
+                </a>
+              ) : (
+                <span className="truncate">{session.user}</span>
+              )}
+            </div>
+
+            <div className="mt-1 flex items-center gap-2 text-[10px]">
+              <span className={`${stateColor.split(' ')[0]} font-semibold uppercase tracking-wide`}>
+                {normalizedState === 'playing' || normalizedState === 'active' ? <FontAwesomeIcon icon={faPlay} className="mr-1 text-[9px]" /> : null}
+                {normalizedState === 'paused' ? <FontAwesomeIcon icon={faPause} className="mr-1 text-[9px]" /> : null}
+                {normalizedState === 'buffering' ? <FontAwesomeIcon icon={faCircleNotch} spin className="mr-1 text-[9px]" /> : null}
+                {session.state || 'Unknown'}
+              </span>
+              <span className="truncate text-muted-foreground">
+                {isTranscoding ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowStreamInfo(true)}
+                    className="cursor-pointer text-amber-500 hover:text-amber-400"
+                    title="View stream details"
+                  >
+                    Transcode
+                  </button>
+                ) : (
+                  <span className="text-emerald-600">{directMethodLabel}</span>
+                )}
+              </span>
+            </div>
+
+            <div className="mt-1 flex items-center justify-between gap-2 text-[10px] text-muted-foreground">
+              <span className="truncate">
+                {session.player_title || 'Unknown Player'}
+                {playerPlatformLabel ? ` • ${playerPlatformLabel}` : ''}
+              </span>
+              <span className="shrink-0 font-mono">{session.current_time} / {session.duration}</span>
+            </div>
+
+            <div className="mt-0.5 flex items-center justify-between gap-2 text-[10px]">
+              <span className="truncate text-muted-foreground">{session.bandwidth_detail || session.quality_detail || 'Unknown quality'}</span>
+              <span className="shrink-0 font-semibold text-foreground/90">{compactRemainingTime || `${progressPercent.toFixed(0)}%`}</span>
+            </div>
+          </div>
+
+          <div className="absolute right-2 top-2 z-10 flex items-center gap-1">
+            <Badge
+              asChild
+              variant="outline"
+              className={`h-6 cursor-pointer px-1.5 text-[10px] ${sourceBadgeClass} ${sourceBadgeHoverClass}`}
+            >
+              <button
+                type="button"
+                onClick={() => setShowSourceInfo(true)}
+                aria-label="Explain WS and HTTP stream badges"
+              >
+                {sessionSource === 'ws' ? 'WS' : 'HTTP'}
+              </button>
+            </Badge>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+                >
+                  <FontAwesomeIcon icon={faEllipsisVertical} />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuLabel>Session Controls</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {supportsSessionMessage && (
+                  <DropdownMenuItem
+                    onClick={() => {
+                      setSendMessageText('');
+                      setSendMessageHeader('MUM');
+                      setSendMessageTimeoutSeconds('');
+                      setShowSendMessage(true);
+                    }}
+                  >
+                    <FontAwesomeIcon icon={faMessage} className="mr-2" />
+                    Send Message
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem onClick={() => setShowMediaDetails(true)}>
+                  <FontAwesomeIcon icon={faCircleInfo} className="mr-2" />
+                  Details
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setShowPayload(true)}>
+                  <FontAwesomeIcon icon={faCode} className="mr-2" />
+                  Payload
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => onTerminate(session)}
+                  className="text-red-600 focus:text-red-600 focus:bg-red-100 dark:focus:bg-red-900/20"
+                >
+                  <FontAwesomeIcon icon={faBan} className="mr-2" />
+                  Terminate Stream
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </div>
+
+        <div className="h-1 w-full bg-muted/70">
+          <div
+            className={`h-full transition-all duration-500 ease-out ${stateColor.split(' ')[1]}`}
+            style={{ width: `${progressPercent}%` }}
+          />
+        </div>
+
+        <ResponsiveDialog
+          open={showSendMessage}
+          onOpenChange={(value) => {
+            if (!value) setShowSendMessage(false);
+          }}
+          title="Send Message"
+          description={`Send a message to ${session.user}'s player.`}
+          contentClassName="max-w-lg"
+          footer={[
+            <Button
+              key="cancel"
+              variant="outline"
+              onClick={() => setShowSendMessage(false)}
+              disabled={sendingMessage}
+            >
+              Cancel
+            </Button>,
+            <Button
+              key="send"
+              onClick={handleSendMessage}
+              disabled={sendingMessage || !sendMessageText.trim()}
+              className="gap-2"
+            >
+              <FontAwesomeIcon icon={faPaperPlane} />
+              Send
+            </Button>,
+          ]}
+        >
+          <div className="space-y-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="space-y-1">
+                <label className="text-sm font-medium text-foreground">Header</label>
+                <Input
+                  value={sendMessageHeader}
+                  onChange={(e) => setSendMessageHeader(e.target.value)}
+                  placeholder="MUM"
+                  disabled={sendingMessage}
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-sm font-medium text-foreground">Timeout (seconds)</label>
+                <Input
+                  type="number"
+                  min={1}
+                  step={0.1}
+                  value={sendMessageTimeoutSeconds}
+                  onChange={(e) => setSendMessageTimeoutSeconds(e.target.value)}
+                  placeholder="e.g. 5"
+                  disabled={sendingMessage}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-sm font-medium text-foreground">
+                Message <span className="text-destructive">*</span>
+              </label>
+              <Textarea
+                rows={4}
+                placeholder="Type your message…"
+                value={sendMessageText}
+                onChange={(e) => setSendMessageText(e.target.value)}
+                className="resize-none"
+                required
+              />
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Supported for Jellyfin/Emby sessions.
+            </p>
+          </div>
+        </ResponsiveDialog>
+
+        <StreamInfoDialog open={showStreamInfo} onOpenChange={setShowStreamInfo} />
+        <PayloadDialog
+          open={showPayload}
+          onOpenChange={setShowPayload}
+          payload={session.raw_data_json}
+          onCopy={handleCopyRawPayload}
+        />
+        <MediaDetailsDialog
+          open={showMediaDetails}
+          onOpenChange={setShowMediaDetails}
+          session={session}
+        />
+      </div>
+    );
+  }
 
   return (
     <div

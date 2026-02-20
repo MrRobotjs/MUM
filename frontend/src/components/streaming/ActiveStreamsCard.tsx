@@ -9,20 +9,40 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuPortal,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useAdminApi } from '@/hooks/useAdminApi';
-import type { ActiveSession, ActiveSessionsResponse, PluginMetaResponse, ViewMode } from '@/types/streaming';
+import type {
+  ActiveSession,
+  ActiveSessionsResponse,
+  PluginMetaResponse,
+  StreamCardStyle,
+  ViewMode
+} from '@/types/streaming';
 import { getStreamingSessionStats } from './sessionStats';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faCirclePause, faCogs, faGears, faLayerGroup, faRotate, faServer, faTowerBroadcast } from '@fortawesome/free-solid-svg-icons';
+import {
+  faCirclePause,
+  faCogs,
+  faGears,
+  faLayerGroup,
+  faList,
+  faRotate,
+  faServer,
+  faTableCellsLarge,
+  faTowerBroadcast
+} from '@fortawesome/free-solid-svg-icons';
 import { Spinner } from '@/components/ui/spinner'
 
 interface ActiveStreamsCardProps {
   sessionsData: ActiveSessionsResponse | null;
   viewMode: ViewMode;
   onViewModeChange: (mode: ViewMode) => void;
+  streamCardStyle: StreamCardStyle;
+  onStreamCardStyleChange: (style: StreamCardStyle) => void;
   onManualRefresh: () => void;
   manualRefreshLoading: boolean;
   loading: boolean;
@@ -40,6 +60,8 @@ export const ActiveStreamsCard = ({
   sessionsData,
   viewMode,
   onViewModeChange,
+  streamCardStyle,
+  onStreamCardStyleChange,
   onManualRefresh,
   manualRefreshLoading,
   loading,
@@ -54,11 +76,16 @@ export const ActiveStreamsCard = ({
   const [showSourceInfo, setShowSourceInfo] = useState(false);
   const { data: pluginMetaData } = useAdminApi<PluginMetaResponse>('/plugins/metadata', true);
   const pluginFeaturesByService = pluginMetaData?.data ?? null;
+  const isCompact = streamCardStyle === 'compact';
+  const sessionGridClass = isCompact
+    ? 'grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3'
+    : 'grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3';
 
   const renderSessionCard = (session: ActiveSession) => (
     <StreamingSessionCard
       key={session.session_key}
       session={session}
+      cardStyle={streamCardStyle}
       onTerminate={onTerminateSession}
       pluginFeaturesByService={pluginFeaturesByService}
     />
@@ -69,7 +96,7 @@ export const ActiveStreamsCard = ({
 
     if (viewMode === 'merged') {
       return (
-        <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+        <div className={sessionGridClass}>
           {sessionsData.sessions.map(renderSessionCard)}
         </div>
       );
@@ -85,7 +112,7 @@ export const ActiveStreamsCard = ({
                 {serverName}
                 <Badge variant="secondary" className="ml-2">{sessions.length}</Badge>
               </h3>
-              <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+              <div className={sessionGridClass}>
                 {sessions.map(renderSessionCard)}
               </div>
             </div>
@@ -104,7 +131,7 @@ export const ActiveStreamsCard = ({
                 {serviceType.toUpperCase()}
                 <Badge variant="secondary" className="ml-2">{sessions.length}</Badge>
               </h3>
-              <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+              <div className={sessionGridClass}>
                 {sessions.map(renderSessionCard)}
               </div>
             </div>
@@ -130,26 +157,43 @@ export const ActiveStreamsCard = ({
   const renderViewModeDropdown = (buttonClassName = 'h-7 px-2 text-xs') => (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" type="button" className={buttonClassName} title="Active streams view mode">
+        <Button variant="outline" size="sm" type="button" className={buttonClassName} title="Active streams view options">
           <FontAwesomeIcon icon={faGears} className="mr-1.5 h-3 w-3" />
           View
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuPortal>
         <DropdownMenuContent
-          className="w-56 rounded-lg"
+          className="w-64 rounded-lg"
           align="end"
           side="bottom"
           sideOffset={8}
           collisionPadding={8}
         >
+          <DropdownMenuLabel>Card Style</DropdownMenuLabel>
+          <DropdownMenuItem
+            onSelect={() => onStreamCardStyleChange('detailed')}
+            className={streamCardStyle === 'detailed' ? 'bg-accent text-accent-foreground' : ''}
+          >
+            <FontAwesomeIcon icon={faTableCellsLarge} fixedWidth className="mr-2" />
+            <span className="flex-1">Detailed</span>
+            <Badge variant="secondary" className="text-xs bg-primary">Default</Badge>
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onSelect={() => onStreamCardStyleChange('compact')}
+            className={streamCardStyle === 'compact' ? 'bg-accent text-accent-foreground' : ''}
+          >
+            <FontAwesomeIcon icon={faList} fixedWidth className="mr-2" />
+            <span className="flex-1">Compact</span>
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuLabel>Grouping</DropdownMenuLabel>
           <DropdownMenuItem
             onSelect={() => onViewModeChange('merged')}
             className={viewMode === 'merged' ? 'bg-accent text-accent-foreground' : ''}
           >
             <FontAwesomeIcon icon={faLayerGroup} fixedWidth className="mr-2" />
             <span className="flex-1">Merged</span>
-            <Badge variant="secondary" className="text-xs bg-primary">Default</Badge>
           </DropdownMenuItem>
           <DropdownMenuItem
             onSelect={() => onViewModeChange('categorized')}

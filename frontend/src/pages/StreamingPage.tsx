@@ -20,7 +20,7 @@ import { useAlerts } from '../contexts/AlertContext';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faGear, faHistory } from '@fortawesome/free-solid-svg-icons';
 import type { UnifiedSession } from '../types/realtime';
-import type { ActiveSession, ActiveSessionsResponse, ViewMode } from '../types/streaming';
+import type { ActiveSession, ActiveSessionsResponse, StreamCardStyle, ViewMode } from '../types/streaming';
 
 const parseDurationToSeconds = (value?: string) => {
   if (!value) return 0;
@@ -353,6 +353,7 @@ export const StreamingPage = () => {
   const [lastHttpUpdateAt, setLastHttpUpdateAt] = useState<Date | null>(null);
   const [tick, forceTick] = useState(0);
   const [viewMode, setViewMode] = useState<ViewMode>('merged');
+  const [streamCardStyle, setStreamCardStyle] = useState<StreamCardStyle>('detailed');
   const [loading, setLoading] = useState(false);
   const [showTerminateModal, setShowTerminateModal] = useState(false);
   const [selectedSession, setSelectedSession] = useState<ActiveSession | null>(null);
@@ -1034,6 +1035,8 @@ export const StreamingPage = () => {
           sessionsData={sessionsData}
           viewMode={viewMode}
           onViewModeChange={setViewMode}
+          streamCardStyle={streamCardStyle}
+          onStreamCardStyleChange={setStreamCardStyle}
           onManualRefresh={handleManualRefresh}
           manualRefreshLoading={manualRefreshLoading}
           loading={loading}

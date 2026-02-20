@@ -102,6 +102,7 @@ export type ActiveSessionsResponse = {
 };
 
 export type ViewMode = 'merged' | 'categorized' | 'service';
+export type StreamCardStyle = 'detailed' | 'compact';
 
 export type PluginMetaResponse = {
   data: Record<

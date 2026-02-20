@@ -103,6 +103,10 @@ export type ActiveSessionsResponse = {
 
 export type ViewMode = 'merged' | 'categorized' | 'service';
 export type StreamCardStyle = 'detailed' | 'compact';
+export type StreamDisplaySettings = {
+  default_card_style: StreamCardStyle;
+  default_grouping: ViewMode;
+};
 
 export type PluginMetaResponse = {
   data: Record<

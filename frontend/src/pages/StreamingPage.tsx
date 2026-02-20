@@ -20,7 +20,13 @@ import { useAlerts } from '../contexts/AlertContext';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faGear, faHistory } from '@fortawesome/free-solid-svg-icons';
 import type { UnifiedSession } from '../types/realtime';
-import type { ActiveSession, ActiveSessionsResponse, StreamCardStyle, ViewMode } from '../types/streaming';
+import type {
+  ActiveSession,
+  ActiveSessionsResponse,
+  StreamCardStyle,
+  StreamDisplaySettings,
+  ViewMode
+} from '../types/streaming';
 
 const parseDurationToSeconds = (value?: string) => {
   if (!value) return 0;
@@ -60,6 +66,45 @@ const calculateProgress = (currentSeconds: number, duration?: string) => {
   const totalSeconds = parseDurationToSeconds(duration);
   if (totalSeconds <= 0) return 0;
   return Math.min(100, Math.max(0, (currentSeconds / totalSeconds) * 100));
+};
+
+const STREAM_DISPLAY_SETTINGS_KEY = 'streamDisplaySettings';
+const DEFAULT_STREAM_DISPLAY_SETTINGS: StreamDisplaySettings = {
+  default_card_style: 'detailed',
+  default_grouping: 'merged',
+};
+
+const isViewMode = (value: unknown): value is ViewMode =>
+  value === 'merged' || value === 'categorized' || value === 'service';
+
+const isStreamCardStyle = (value: unknown): value is StreamCardStyle =>
+  value === 'detailed' || value === 'compact';
+
+const getInitialStreamDisplaySettings = (): StreamDisplaySettings => {
+  if (typeof window === 'undefined') {
+    return DEFAULT_STREAM_DISPLAY_SETTINGS;
+  }
+
+  try {
+    const raw = localStorage.getItem(STREAM_DISPLAY_SETTINGS_KEY);
+    if (!raw) {
+      return DEFAULT_STREAM_DISPLAY_SETTINGS;
+    }
+    const parsed = JSON.parse(raw) as Partial<StreamDisplaySettings>;
+    const defaultGrouping = isViewMode(parsed.default_grouping)
+      ? parsed.default_grouping
+      : DEFAULT_STREAM_DISPLAY_SETTINGS.default_grouping;
+    const defaultCardStyle = isStreamCardStyle(parsed.default_card_style)
+      ? parsed.default_card_style
+      : DEFAULT_STREAM_DISPLAY_SETTINGS.default_card_style;
+
+    return {
+      default_grouping: defaultGrouping,
+      default_card_style: defaultCardStyle,
+    };
+  } catch {
+    return DEFAULT_STREAM_DISPLAY_SETTINGS;
+  }
 };
 
 
@@ -269,6 +314,7 @@ const buildSessionKey = (session: ActiveSession) =>
   `${session.service_type ?? 'unknown'}:${session.server_name ?? 'unknown'}:${session.session_key}`;
 
 export const StreamingPage = () => {
+  const initialDisplaySettings = useMemo(getInitialStreamDisplaySettings, []);
   const [page, setPage] = useState(1);
   const [serviceType, setServiceType] = useState('all');
   const [status, setStatus] = useState('all');
@@ -352,8 +398,9 @@ export const StreamingPage = () => {
   const [lastWsUpdateAt, setLastWsUpdateAt] = useState<Date | null>(null);
   const [lastHttpUpdateAt, setLastHttpUpdateAt] = useState<Date | null>(null);
   const [tick, forceTick] = useState(0);
-  const [viewMode, setViewMode] = useState<ViewMode>('merged');
-  const [streamCardStyle, setStreamCardStyle] = useState<StreamCardStyle>('detailed');
+  const [displayDefaults, setDisplayDefaults] = useState<StreamDisplaySettings>(initialDisplaySettings);
+  const [viewMode, setViewMode] = useState<ViewMode>(initialDisplaySettings.default_grouping);
+  const [streamCardStyle, setStreamCardStyle] = useState<StreamCardStyle>(initialDisplaySettings.default_card_style);
   const [loading, setLoading] = useState(false);
   const [showTerminateModal, setShowTerminateModal] = useState(false);
   const [selectedSession, setSelectedSession] = useState<ActiveSession | null>(null);
@@ -1000,6 +1047,23 @@ export const StreamingPage = () => {
     setShowTerminateModal(true);
   };
 
+  const handleSaveDisplaySettings = useCallback((settings: StreamDisplaySettings) => {
+    setDisplayDefaults(settings);
+    setViewMode(settings.default_grouping);
+    setStreamCardStyle(settings.default_card_style);
+
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(STREAM_DISPLAY_SETTINGS_KEY, JSON.stringify(settings));
+      } catch (error) {
+        showError('Failed to save stream display defaults: ' + String(error));
+        return;
+      }
+    }
+
+    success('Stream display defaults saved.');
+  }, [showError, success]);
+
   const handleClearFilters = () => {
     setServiceType('all');
     setStatus('all');
@@ -1037,6 +1101,9 @@ export const StreamingPage = () => {
           onViewModeChange={setViewMode}
           streamCardStyle={streamCardStyle}
           onStreamCardStyleChange={setStreamCardStyle}
+          defaultViewMode={displayDefaults.default_grouping}
+          defaultStreamCardStyle={displayDefaults.default_card_style}
+          onSaveDisplayDefaults={handleSaveDisplaySettings}
           onManualRefresh={handleManualRefresh}
           manualRefreshLoading={manualRefreshLoading}
           loading={loading}

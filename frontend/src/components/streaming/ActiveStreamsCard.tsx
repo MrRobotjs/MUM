@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
 import { StreamingSessionCard } from './StreamingSessionCard';
 import { StreamingSourceInfoDialog } from './StreamingSourceInfoDialog';
+import { ResponsiveDialog } from '@/components/ui/responsive-dialog';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -14,17 +15,26 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { useAdminApi } from '@/hooks/useAdminApi';
 import type {
   ActiveSession,
   ActiveSessionsResponse,
   PluginMetaResponse,
   StreamCardStyle,
+  StreamDisplaySettings,
   ViewMode
 } from '@/types/streaming';
 import { getStreamingSessionStats } from './sessionStats';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
+  faGear,
   faCirclePause,
   faCogs,
   faGears,
@@ -43,6 +53,9 @@ interface ActiveStreamsCardProps {
   onViewModeChange: (mode: ViewMode) => void;
   streamCardStyle: StreamCardStyle;
   onStreamCardStyleChange: (style: StreamCardStyle) => void;
+  defaultViewMode: ViewMode;
+  defaultStreamCardStyle: StreamCardStyle;
+  onSaveDisplayDefaults: (settings: StreamDisplaySettings) => void;
   onManualRefresh: () => void;
   manualRefreshLoading: boolean;
   loading: boolean;
@@ -62,6 +75,9 @@ export const ActiveStreamsCard = ({
   onViewModeChange,
   streamCardStyle,
   onStreamCardStyleChange,
+  defaultViewMode,
+  defaultStreamCardStyle,
+  onSaveDisplayDefaults,
   onManualRefresh,
   manualRefreshLoading,
   loading,
@@ -74,12 +90,23 @@ export const ActiveStreamsCard = ({
   onTerminateSession
 }: ActiveStreamsCardProps) => {
   const [showSourceInfo, setShowSourceInfo] = useState(false);
+  const [showDisplaySettings, setShowDisplaySettings] = useState(false);
+  const [defaultViewModeDraft, setDefaultViewModeDraft] = useState<ViewMode>(defaultViewMode);
+  const [defaultStreamCardStyleDraft, setDefaultStreamCardStyleDraft] = useState<StreamCardStyle>(defaultStreamCardStyle);
   const { data: pluginMetaData } = useAdminApi<PluginMetaResponse>('/plugins/metadata', true);
   const pluginFeaturesByService = pluginMetaData?.data ?? null;
   const isCompact = streamCardStyle === 'compact';
   const sessionGridClass = isCompact
     ? 'grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3'
     : 'grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3';
+
+  useEffect(() => {
+    if (!showDisplaySettings) {
+      return;
+    }
+    setDefaultViewModeDraft(defaultViewMode);
+    setDefaultStreamCardStyleDraft(defaultStreamCardStyle);
+  }, [defaultStreamCardStyle, defaultViewMode, showDisplaySettings]);
 
   const renderSessionCard = (session: ActiveSession) => (
     <StreamingSessionCard
@@ -143,6 +170,14 @@ export const ActiveStreamsCard = ({
     return null;
   };
 
+  const handleSaveDisplaySettings = () => {
+    onSaveDisplayDefaults({
+      default_card_style: defaultStreamCardStyleDraft,
+      default_grouping: defaultViewModeDraft,
+    });
+    setShowDisplaySettings(false);
+  };
+
   const httpIntervalSeconds =
     typeof sessionMonitoringInterval === 'number' && sessionMonitoringInterval > 0
       ? sessionMonitoringInterval
@@ -170,6 +205,11 @@ export const ActiveStreamsCard = ({
           sideOffset={8}
           collisionPadding={8}
         >
+          <DropdownMenuItem onSelect={() => setShowDisplaySettings(true)}>
+            <FontAwesomeIcon icon={faGear} fixedWidth className="mr-2" />
+            <span className="flex-1">Display Settings</span>
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
           <DropdownMenuLabel>Card Style</DropdownMenuLabel>
           <DropdownMenuItem
             onSelect={() => onStreamCardStyleChange('detailed')}
@@ -177,7 +217,9 @@ export const ActiveStreamsCard = ({
           >
             <FontAwesomeIcon icon={faTableCellsLarge} fixedWidth className="mr-2" />
             <span className="flex-1">Detailed</span>
-            <Badge variant="secondary" className="text-xs bg-primary">Default</Badge>
+            {defaultStreamCardStyle === 'detailed' && (
+              <Badge variant="secondary" className="text-xs bg-primary">Default</Badge>
+            )}
           </DropdownMenuItem>
           <DropdownMenuItem
             onSelect={() => onStreamCardStyleChange('compact')}
@@ -185,6 +227,9 @@ export const ActiveStreamsCard = ({
           >
             <FontAwesomeIcon icon={faList} fixedWidth className="mr-2" />
             <span className="flex-1">Compact</span>
+            {defaultStreamCardStyle === 'compact' && (
+              <Badge variant="secondary" className="text-xs bg-primary">Default</Badge>
+            )}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuLabel>Grouping</DropdownMenuLabel>
@@ -194,6 +239,9 @@ export const ActiveStreamsCard = ({
           >
             <FontAwesomeIcon icon={faLayerGroup} fixedWidth className="mr-2" />
             <span className="flex-1">Merged</span>
+            {defaultViewMode === 'merged' && (
+              <Badge variant="secondary" className="text-xs bg-primary">Default</Badge>
+            )}
           </DropdownMenuItem>
           <DropdownMenuItem
             onSelect={() => onViewModeChange('categorized')}
@@ -201,6 +249,9 @@ export const ActiveStreamsCard = ({
           >
             <FontAwesomeIcon icon={faServer} fixedWidth className="mr-2" />
             <span className="flex-1">Categorized by Server</span>
+            {defaultViewMode === 'categorized' && (
+              <Badge variant="secondary" className="text-xs bg-primary">Default</Badge>
+            )}
           </DropdownMenuItem>
           <DropdownMenuItem
             onSelect={() => onViewModeChange('service')}
@@ -208,6 +259,9 @@ export const ActiveStreamsCard = ({
           >
             <FontAwesomeIcon icon={faCogs} fixedWidth className="mr-2" />
             <span className="flex-1">Categorized by Service</span>
+            {defaultViewMode === 'service' && (
+              <Badge variant="secondary" className="text-xs bg-primary">Default</Badge>
+            )}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenuPortal>
@@ -239,6 +293,65 @@ export const ActiveStreamsCard = ({
   return (
     <Card className="pt-0 gap-0 overflow-hidden border border-border/60 shadow-md">
       <StreamingSourceInfoDialog open={showSourceInfo} onOpenChange={setShowSourceInfo} />
+      <ResponsiveDialog
+        open={showDisplaySettings}
+        onOpenChange={setShowDisplaySettings}
+        title="Stream Display Settings"
+        description="Choose which options should be the defaults when opening Active Streams."
+        contentClassName="max-w-lg"
+        footer={[
+          <Button
+            key="cancel"
+            type="button"
+            variant="outline"
+            onClick={() => setShowDisplaySettings(false)}
+          >
+            Cancel
+          </Button>,
+          <Button
+            key="save"
+            type="button"
+            onClick={handleSaveDisplaySettings}
+          >
+            Save Defaults
+          </Button>,
+        ]}
+      >
+        <div className="space-y-4">
+          <div className="rounded-lg border border-border/60 bg-muted/30 p-4">
+            <div className="mb-2 text-sm font-medium text-foreground">Default Card Style</div>
+            <Select
+              value={defaultStreamCardStyleDraft}
+              onValueChange={(value) => setDefaultStreamCardStyleDraft(value as StreamCardStyle)}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select card style" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="detailed">Detailed</SelectItem>
+                <SelectItem value="compact">Compact</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="rounded-lg border border-border/60 bg-muted/30 p-4">
+            <div className="mb-2 text-sm font-medium text-foreground">Default Grouping</div>
+            <Select
+              value={defaultViewModeDraft}
+              onValueChange={(value) => setDefaultViewModeDraft(value as ViewMode)}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select grouping" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="merged">Merged</SelectItem>
+                <SelectItem value="categorized">Categorized by Server</SelectItem>
+                <SelectItem value="service">Categorized by Service</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      </ResponsiveDialog>
       <CardHeader className="pt-6 border-b border-border/60 bg-gradient-to-r from-primary/5 via-transparent to-transparent pb-4">
         <div className="flex flex-col gap-3">
           <div className="flex w-full items-start gap-3">

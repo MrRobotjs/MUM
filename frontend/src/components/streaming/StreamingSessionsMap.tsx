@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import L from 'leaflet';
 import MarkerClusterGroup from 'react-leaflet-cluster';
 import { Badge } from '@/components/ui/badge';
@@ -38,6 +38,31 @@ const SERVICE_COLORS: Record<string, string> = {
 
 const markerIconCache = new Map<string, L.DivIcon>();
 
+const isSameCoordinate = (left: number, right: number) =>
+  left === right || (Number.isNaN(left) && Number.isNaN(right));
+
+const isSameMapSession = (left: ActiveSession, right: ActiveSession) => {
+  return (
+    left.session_key === right.session_key &&
+    (left.service_type ?? '') === (right.service_type ?? '') &&
+    (left.server_name ?? '') === (right.server_name ?? '') &&
+    (left.user ?? '') === (right.user ?? '') &&
+    (left.media_title ?? '') === (right.media_title ?? '') &&
+    (left.location_ip ?? '') === (right.location_ip ?? '') &&
+    isSameCoordinate(Number(left.latitude), Number(right.latitude)) &&
+    isSameCoordinate(Number(left.longitude), Number(right.longitude))
+  );
+};
+
+const areMapSessionsEqual = (previous: ActiveSession[], next: ActiveSession[]) => {
+  if (previous === next) return true;
+  if (previous.length !== next.length) return false;
+  for (let index = 0; index < previous.length; index += 1) {
+    if (!isSameMapSession(previous[index], next[index])) return false;
+  }
+  return true;
+};
+
 const getMarkerColor = (serviceType: string) =>
   SERVICE_COLORS[(serviceType || '').toLowerCase()] ?? 'var(--color-primary)';
 
@@ -64,12 +89,12 @@ const getSessionMarkerIcon = (serviceType: string) => {
 };
 
 const getClusterServiceColor = (cluster: any) => {
-  const markers: Array<{ options?: { title?: string } }> = cluster.getAllChildMarkers?.() ?? [];
+  const markers: Array<{ options?: { alt?: string } }> = cluster.getAllChildMarkers?.() ?? [];
   if (!markers.length) return 'var(--color-primary)';
 
   const counts = new Map<string, number>();
   markers.forEach((marker) => {
-    const serviceType = String(marker.options?.title ?? '').toLowerCase();
+    const serviceType = String(marker.options?.alt ?? '').toLowerCase();
     if (!serviceType) return;
     counts.set(serviceType, (counts.get(serviceType) ?? 0) + 1);
   });
@@ -174,7 +199,7 @@ const withJitter = (lat: number, lon: number, index: number): [number, number] =
   return [lat + amount, lon - amount];
 };
 
-export const StreamingSessionsMap = ({ sessions }: StreamingSessionsMapProps) => {
+const StreamingSessionsMapComponent = ({ sessions }: StreamingSessionsMapProps) => {
   const { theme } = useTheme();
   const prefersDark = useMediaQuery('(prefers-color-scheme: dark)');
   const [enableClustering, setEnableClustering] = useState(true);
@@ -383,7 +408,7 @@ export const StreamingSessionsMap = ({ sessions }: StreamingSessionsMapProps) =>
                   minZoom={2}
                   maxZoom={12}
                   scrollWheelZoom
-                  style={{ height: '100%', width: '100%', background: 'hsl(var(--card))' }}
+                  style={{ height: '100%', width: '100%', background: 'var(--card)' }}
                   zoomControl={false}
                   attributionControl={false}
                 >
@@ -409,7 +434,7 @@ export const StreamingSessionsMap = ({ sessions }: StreamingSessionsMapProps) =>
                           key={`${session.session_key}:${session.service_type}:${session.server_name}`}
                           position={[session.mapLat, session.mapLon]}
                           icon={getSessionMarkerIcon(session.service_type)}
-                          title={(session.service_type || '').toLowerCase()}
+                          alt={(session.service_type || '').toLowerCase()}
                         >
                           <Popup>
                             <div className="min-w-[180px] space-y-1 text-sm">
@@ -437,7 +462,7 @@ export const StreamingSessionsMap = ({ sessions }: StreamingSessionsMapProps) =>
                           key={`${session.session_key}:${session.service_type}:${session.server_name}:${index}`}
                           position={[lat, lon]}
                           icon={getSessionMarkerIcon(session.service_type)}
-                          title={(session.service_type || '').toLowerCase()}
+                          alt={(session.service_type || '').toLowerCase()}
                         >
                           <Popup>
                             <div className="min-w-[180px] space-y-1 text-sm">
@@ -564,3 +589,11 @@ export const StreamingSessionsMap = ({ sessions }: StreamingSessionsMapProps) =>
     </Card>
   );
 };
+
+const areStreamingSessionsMapPropsEqual = (
+  previousProps: StreamingSessionsMapProps,
+  nextProps: StreamingSessionsMapProps
+) => areMapSessionsEqual(previousProps.sessions, nextProps.sessions);
+
+export const StreamingSessionsMap = memo(StreamingSessionsMapComponent, areStreamingSessionsMapPropsEqual);
+StreamingSessionsMap.displayName = 'StreamingSessionsMap';

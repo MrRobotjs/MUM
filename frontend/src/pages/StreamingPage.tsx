@@ -933,6 +933,8 @@ export const StreamingPage = () => {
     };
   }, [baseSessionsData, sessionOrder]);
 
+  const mapSessions = useMemo(() => activeSessions?.sessions ?? [], [activeSessions]);
+
 
 
   // Debug: log ticking and interpolation context every 5 seconds
@@ -1110,7 +1112,7 @@ export const StreamingPage = () => {
       </div>
 
       <div className="space-y-4">
-        <StreamingSessionsMap sessions={sessionsData?.sessions ?? []} />
+        <StreamingSessionsMap sessions={mapSessions} />
       </div>
 
       <StreamingSummaryCard />

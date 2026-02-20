@@ -19,7 +19,7 @@ import { faDiscord } from '@fortawesome/free-brands-svg-icons';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import type { InviteRow, InviteServer, InviteServerFeature } from './InvitesTable';
+import type { InviteRow, InviteServerFeature } from './InvitesTable';
 
 type FeatureKey = 'allow_downloads' | 'invite_to_plex_home' | 'allow_live_tv' | 'allow_4k_transcode';
 

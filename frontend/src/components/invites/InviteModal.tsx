@@ -13,7 +13,6 @@ import {
   faCalendarDays,
   faCheck,
   faChevronDown,
-  faCircleExclamation,
   faClock,
   faCog,
   faDownload,

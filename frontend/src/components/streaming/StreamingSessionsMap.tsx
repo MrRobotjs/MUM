@@ -436,13 +436,13 @@ const StreamingSessionsMapComponent = ({ sessions }: StreamingSessionsMapProps) 
                           icon={getSessionMarkerIcon(session.service_type)}
                           alt={(session.service_type || '').toLowerCase()}
                         >
-                          <Popup>
-                            <div className="min-w-[180px] space-y-1 text-sm">
+                          <Popup className="mum-map-popup">
+                            <div className="min-w-[180px] rounded-lg border border-border/70 bg-card p-3 text-sm text-card-foreground shadow-xl">
                               <div className="flex items-center gap-2 font-semibold">
                                 <ServiceIcon serviceType={session.service_type} className="h-3.5 w-3.5" />
                                 <span>{session.user}</span>
                               </div>
-                              <div className="text-xs text-muted-foreground">{session.media_title}</div>
+                              <div className="mt-1 text-xs text-muted-foreground">{session.media_title}</div>
                               <div className="text-xs text-muted-foreground">
                                 {session.server_name} · {session.service_type.toUpperCase()}
                               </div>
@@ -464,13 +464,13 @@ const StreamingSessionsMapComponent = ({ sessions }: StreamingSessionsMapProps) 
                           icon={getSessionMarkerIcon(session.service_type)}
                           alt={(session.service_type || '').toLowerCase()}
                         >
-                          <Popup>
-                            <div className="min-w-[180px] space-y-1 text-sm">
+                          <Popup className="mum-map-popup">
+                            <div className="min-w-[180px] rounded-lg border border-border/70 bg-card p-3 text-sm text-card-foreground shadow-xl">
                               <div className="flex items-center gap-2 font-semibold">
                                 <ServiceIcon serviceType={session.service_type} className="h-3.5 w-3.5" />
                                 <span>{session.user}</span>
                               </div>
-                              <div className="text-xs text-muted-foreground">{session.media_title}</div>
+                              <div className="mt-1 text-xs text-muted-foreground">{session.media_title}</div>
                               <div className="text-xs text-muted-foreground">
                                 {session.server_name} · {session.service_type.toUpperCase()}
                               </div>
@@ -578,6 +578,17 @@ const StreamingSessionsMapComponent = ({ sessions }: StreamingSessionsMapProps) 
                     .leaflet-marker-icon.mum-map-cluster-icon {
                       background: transparent;
                       border: none;
+                    }
+
+                    .leaflet-popup.mum-map-popup .leaflet-popup-content-wrapper,
+                    .leaflet-popup.mum-map-popup .leaflet-popup-tip {
+                      background: transparent;
+                      box-shadow: none;
+                      padding: 0;
+                    }
+
+                    .leaflet-popup.mum-map-popup .leaflet-popup-content {
+                      margin: 0;
                     }
                   `}</style>
                 </MapContainer>

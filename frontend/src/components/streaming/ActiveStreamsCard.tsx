@@ -16,13 +16,15 @@ import { useAdminApi } from '@/hooks/useAdminApi';
 import type { ActiveSession, ActiveSessionsResponse, PluginMetaResponse, ViewMode } from '@/types/streaming';
 import { getStreamingSessionStats } from './sessionStats';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faCirclePause, faCogs, faGears, faLayerGroup, faServer, faTowerBroadcast } from '@fortawesome/free-solid-svg-icons';
+import { faCirclePause, faCogs, faGears, faLayerGroup, faRotate, faServer, faTowerBroadcast } from '@fortawesome/free-solid-svg-icons';
 import { Spinner } from '@/components/ui/spinner'
 
 interface ActiveStreamsCardProps {
   sessionsData: ActiveSessionsResponse | null;
   viewMode: ViewMode;
   onViewModeChange: (mode: ViewMode) => void;
+  onManualRefresh: () => void;
+  manualRefreshLoading: boolean;
   loading: boolean;
   bootstrapping: boolean;
   wsTruthActive: boolean;
@@ -38,9 +40,12 @@ export const ActiveStreamsCard = ({
   sessionsData,
   viewMode,
   onViewModeChange,
+  onManualRefresh,
+  manualRefreshLoading,
   loading,
   bootstrapping,
   wsTruthActive,
+  isConnected,
   lastUpdateAt,
   lastHttpUpdateAt,
   sessionMonitoringInterval,
@@ -165,6 +170,28 @@ export const ActiveStreamsCard = ({
     </DropdownMenu>
   );
 
+  const renderManualRefreshButton = (buttonClassName = 'h-7 w-7 p-0') => (
+    <Button
+      variant="outline"
+      size="sm"
+      type="button"
+      className={buttonClassName}
+      onClick={onManualRefresh}
+      disabled={manualRefreshLoading || !isConnected}
+      title={isConnected ? 'Refresh HTTP-only services' : 'Realtime streaming updates are disconnected'}
+      aria-label={isConnected ? 'Refresh HTTP-only services' : 'Realtime streaming updates are disconnected'}
+    >
+      <FontAwesomeIcon icon={faRotate} className={`h-3 w-3 ${manualRefreshLoading ? 'animate-spin' : ''}`} />
+    </Button>
+  );
+
+  const renderViewControls = () => (
+    <div className="flex items-center gap-2">
+      {renderManualRefreshButton()}
+      {renderViewModeDropdown()}
+    </div>
+  );
+
   return (
     <Card className="pt-0 gap-0 overflow-hidden border border-border/60 shadow-md">
       <StreamingSourceInfoDialog open={showSourceInfo} onOpenChange={setShowSourceInfo} />
@@ -181,7 +208,7 @@ export const ActiveStreamsCard = ({
                   {sessionsData && <Badge variant="secondary">{sessionsData.total_count}</Badge>}
                 </CardTitle>
                 <div className="hidden sm:flex shrink-0">
-                  {renderViewModeDropdown()}
+                  {renderViewControls()}
                 </div>
               </div>
               <CardDescription className="text-sm text-muted-foreground space-y-1">
@@ -219,7 +246,7 @@ export const ActiveStreamsCard = ({
                           </Badge>
                         )}
                         <div className="sm:hidden">
-                          {renderViewModeDropdown()}
+                          {renderViewControls()}
                         </div>
                       </div>
                     </>
@@ -227,7 +254,7 @@ export const ActiveStreamsCard = ({
                 })()}
                 {(!sessionsData || sessionsData.total_count === 0) && (
                   <div className="mt-2 flex justify-end sm:hidden">
-                    {renderViewModeDropdown()}
+                    {renderViewControls()}
                   </div>
                 )}
               </CardDescription>

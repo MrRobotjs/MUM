@@ -18,7 +18,7 @@ import { Button } from '@/components/ui/button';
 import { requestJson } from '../util/apiClient';
 import { useAlerts } from '../contexts/AlertContext';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faGear, faHistory, faRotate } from '@fortawesome/free-solid-svg-icons';
+import { faGear, faHistory } from '@fortawesome/free-solid-svg-icons';
 import type { UnifiedSession } from '../types/realtime';
 import type { ActiveSession, ActiveSessionsResponse, ViewMode } from '../types/streaming';
 
@@ -1014,18 +1014,6 @@ export const StreamingPage = () => {
 
   const headerActions = (
     <div className="flex items-center gap-2">
-      <Button
-        variant="outline"
-        size="sm"
-        type="button"
-        onClick={handleManualRefresh}
-        disabled={manualRefreshLoading || !isConnected}
-        title={isConnected ? 'Refresh HTTP-only services' : 'Realtime streaming updates are disconnected'}
-      >
-        <FontAwesomeIcon icon={faRotate} className={`h-4 w-4 ${manualRefreshLoading ? 'animate-spin' : ''}`} />
-        <span className="ml-2">Refresh HTTP</span>
-      </Button>
-
       <Button variant="ghost" size="sm" type="button" title="Streaming settings" onClick={() => setSettingsOpen(true)}>
         <FontAwesomeIcon icon={faGear} className="h-4 w-4" />
       </Button>
@@ -1046,6 +1034,8 @@ export const StreamingPage = () => {
           sessionsData={sessionsData}
           viewMode={viewMode}
           onViewModeChange={setViewMode}
+          onManualRefresh={handleManualRefresh}
+          manualRefreshLoading={manualRefreshLoading}
           loading={loading}
           bootstrapping={bootstrapping}
           wsTruthActive={wsTruthActive}

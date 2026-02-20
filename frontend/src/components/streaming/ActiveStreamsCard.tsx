@@ -4,16 +4,25 @@ import { Badge } from '@/components/ui/badge';
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
 import { StreamingSessionCard } from './StreamingSessionCard';
 import { StreamingSourceInfoDialog } from './StreamingSourceInfoDialog';
+import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuPortal,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { useAdminApi } from '@/hooks/useAdminApi';
 import type { ActiveSession, ActiveSessionsResponse, PluginMetaResponse, ViewMode } from '@/types/streaming';
 import { getStreamingSessionStats } from './sessionStats';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faCirclePause, faCogs, faServer, faTowerBroadcast } from '@fortawesome/free-solid-svg-icons';
+import { faCirclePause, faCogs, faGears, faLayerGroup, faServer, faTowerBroadcast } from '@fortawesome/free-solid-svg-icons';
 import { Spinner } from '@/components/ui/spinner'
 
 interface ActiveStreamsCardProps {
   sessionsData: ActiveSessionsResponse | null;
   viewMode: ViewMode;
+  onViewModeChange: (mode: ViewMode) => void;
   loading: boolean;
   bootstrapping: boolean;
   wsTruthActive: boolean;
@@ -28,6 +37,7 @@ interface ActiveStreamsCardProps {
 export const ActiveStreamsCard = ({
   sessionsData,
   viewMode,
+  onViewModeChange,
   loading,
   bootstrapping,
   wsTruthActive,
@@ -112,20 +122,68 @@ export const ActiveStreamsCard = ({
     return `${remaining}s`;
   })();
 
+  const renderViewModeDropdown = (buttonClassName = 'h-7 px-2 text-xs') => (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline" size="sm" type="button" className={buttonClassName} title="Active streams view mode">
+          <FontAwesomeIcon icon={faGears} className="mr-1.5 h-3 w-3" />
+          View
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuPortal>
+        <DropdownMenuContent
+          className="w-56 rounded-lg"
+          align="end"
+          side="bottom"
+          sideOffset={8}
+          collisionPadding={8}
+        >
+          <DropdownMenuItem
+            onSelect={() => onViewModeChange('merged')}
+            className={viewMode === 'merged' ? 'bg-accent text-accent-foreground' : ''}
+          >
+            <FontAwesomeIcon icon={faLayerGroup} fixedWidth className="mr-2" />
+            <span className="flex-1">Merged</span>
+            <Badge variant="secondary" className="text-xs bg-primary">Default</Badge>
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onSelect={() => onViewModeChange('categorized')}
+            className={viewMode === 'categorized' ? 'bg-accent text-accent-foreground' : ''}
+          >
+            <FontAwesomeIcon icon={faServer} fixedWidth className="mr-2" />
+            <span className="flex-1">Categorized by Server</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onSelect={() => onViewModeChange('service')}
+            className={viewMode === 'service' ? 'bg-accent text-accent-foreground' : ''}
+          >
+            <FontAwesomeIcon icon={faCogs} fixedWidth className="mr-2" />
+            <span className="flex-1">Categorized by Service</span>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenuPortal>
+    </DropdownMenu>
+  );
+
   return (
     <Card className="pt-0 gap-0 overflow-hidden border border-border/60 shadow-md">
       <StreamingSourceInfoDialog open={showSourceInfo} onOpenChange={setShowSourceInfo} />
       <CardHeader className="pt-6 border-b border-border/60 bg-gradient-to-r from-primary/5 via-transparent to-transparent pb-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-start gap-3">
+        <div className="flex flex-col gap-3">
+          <div className="flex w-full items-start gap-3">
             <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary shadow-inner">
               <FontAwesomeIcon icon={faTowerBroadcast} className="text-lg" />
             </div>
-            <div className="space-y-1">
-              <CardTitle className="flex items-center gap-2 text-2xl text-foreground">
-                Active Streams
-                {sessionsData && <Badge variant="secondary">{sessionsData.total_count}</Badge>}
-              </CardTitle>
+            <div className="min-w-0 flex-1 space-y-1">
+              <div className="flex items-start justify-between gap-2">
+                <CardTitle className="flex items-center gap-2 text-2xl text-foreground">
+                  Active Streams
+                  {sessionsData && <Badge variant="secondary">{sessionsData.total_count}</Badge>}
+                </CardTitle>
+                <div className="hidden sm:flex shrink-0">
+                  {renderViewModeDropdown()}
+                </div>
+              </div>
               <CardDescription className="text-sm text-muted-foreground space-y-1">
                 <p>Live playback across connected media servers.</p>
                 {sessionsData && sessionsData.total_count > 0 && (() => {
@@ -135,36 +193,45 @@ export const ActiveStreamsCard = ({
                   const wanBandwidth = stats.wanBandwidthMbps.toFixed(1);
 
                   return (
-                    <p className="font-mono text-xs text-primary/80">
-                      Activity: Sessions: {stats.totalSessions} stream ({stats.directPlayCount} direct play, {stats.transcodeCount} transcode) | Bandwidth: {totalBandwidth} Mbps (LAN: {lanBandwidth} Mbps, WAN: {wanBandwidth} Mbps)
-                    </p>
+                    <>
+                      <p className="font-mono text-xs text-primary/80">
+                        Activity: Sessions: {stats.totalSessions} stream ({stats.directPlayCount} direct play, {stats.transcodeCount} transcode) | Bandwidth: {totalBandwidth} Mbps (LAN: {lanBandwidth} Mbps, WAN: {wanBandwidth} Mbps)
+                      </p>
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        {httpCountdown && (
+                          <Badge
+                            asChild
+                            variant="outline"
+                            className="text-xs border-sky-500/40 text-sky-600 cursor-pointer hover:bg-sky-500/10"
+                          >
+                            <button
+                              type="button"
+                              onClick={() => setShowSourceInfo(true)}
+                              aria-label="Explain WS and HTTP stream badges"
+                            >
+                              HTTP next {httpCountdown}
+                            </button>
+                          </Badge>
+                        )}
+                        {lastUpdateAt && (
+                          <Badge variant="secondary" className="text-xs">
+                            Updated {lastUpdateAt.toLocaleTimeString()}
+                          </Badge>
+                        )}
+                        <div className="sm:hidden">
+                          {renderViewModeDropdown()}
+                        </div>
+                      </div>
+                    </>
                   )
                 })()}
+                {(!sessionsData || sessionsData.total_count === 0) && (
+                  <div className="mt-2 flex justify-end sm:hidden">
+                    {renderViewModeDropdown()}
+                  </div>
+                )}
               </CardDescription>
             </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            {httpCountdown && (
-              <Badge
-                asChild
-                variant="outline"
-                className="text-xs border-sky-500/40 text-sky-600 cursor-pointer hover:bg-sky-500/10"
-              >
-                <button
-                  type="button"
-                  onClick={() => setShowSourceInfo(true)}
-                  aria-label="Explain WS and HTTP stream badges"
-                >
-                  HTTP next {httpCountdown}
-                </button>
-              </Badge>
-            )}
-            {lastUpdateAt && (
-              <Badge variant="secondary" className="text-xs">
-                Updated {lastUpdateAt.toLocaleTimeString()}
-              </Badge>
-            )}
           </div>
         </div>
       </CardHeader>

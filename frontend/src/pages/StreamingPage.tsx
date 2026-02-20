@@ -17,18 +17,8 @@ import { PageHeader } from '../components';
 import { Button } from '@/components/ui/button';
 import { requestJson } from '../util/apiClient';
 import { useAlerts } from '../contexts/AlertContext';
-import { Badge } from '@/components/ui/badge';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuPortal,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faGear, faLayerGroup, faServer, faGears, faHistory, faEllipsis, faRotate } from '@fortawesome/free-solid-svg-icons';
+import { faGear, faHistory, faRotate } from '@fortawesome/free-solid-svg-icons';
 import type { UnifiedSession } from '../types/realtime';
 import type { ActiveSession, ActiveSessionsResponse, ViewMode } from '../types/streaming';
 
@@ -1036,53 +1026,9 @@ export const StreamingPage = () => {
         <span className="ml-2">Refresh HTTP</span>
       </Button>
 
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="sm" type="button" title="More options">
-            <FontAwesomeIcon icon={faEllipsis} className="h-4 w-4" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuPortal>
-          <DropdownMenuContent
-            className="w-56 rounded-lg"
-            align="end"
-            side="bottom"
-            sideOffset={8}
-            collisionPadding={8}
-          >
-            <DropdownMenuItem onSelect={() => setSettingsOpen(true)}>
-              <FontAwesomeIcon icon={faGear} fixedWidth className="mr-2" />
-              Settings
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuLabel>View mode</DropdownMenuLabel>
-            <DropdownMenuItem
-              onSelect={() => setViewMode('merged')}
-              className={viewMode === 'merged' ? 'bg-accent text-accent-foreground' : ''}
-            >
-              <FontAwesomeIcon icon={faLayerGroup} fixedWidth className="mr-2" />
-              <span className="flex-1">Merged</span>
-              <div className="flex items-center gap-2">
-                <Badge variant="secondary" className="text-xs bg-primary">Default</Badge>
-              </div>
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onSelect={() => setViewMode('categorized')}
-              className={viewMode === 'categorized' ? 'bg-accent text-accent-foreground' : ''}
-            >
-              <FontAwesomeIcon icon={faServer} fixedWidth className="mr-2" />
-              <span className="flex-1">Categorized by Server</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onSelect={() => setViewMode('service')}
-              className={viewMode === 'service' ? 'bg-accent text-accent-foreground' : ''}
-            >
-              <FontAwesomeIcon icon={faGears} fixedWidth className="mr-2" />
-              <span className="flex-1">Categorized by Service</span>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenuPortal>
-      </DropdownMenu>
+      <Button variant="ghost" size="sm" type="button" title="Streaming settings" onClick={() => setSettingsOpen(true)}>
+        <FontAwesomeIcon icon={faGear} className="h-4 w-4" />
+      </Button>
     </div>
   );
 
@@ -1099,6 +1045,7 @@ export const StreamingPage = () => {
         <ActiveStreamsCard
           sessionsData={sessionsData}
           viewMode={viewMode}
+          onViewModeChange={setViewMode}
           loading={loading}
           bootstrapping={bootstrapping}
           wsTruthActive={wsTruthActive}

@@ -617,7 +617,7 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
                   )}
                 </div>
                 {showAllLibraries && displayLibraries.length > 0 && (
-                  <div className="mt-2 flex flex-wrap gap-1.5 pl-1">
+                  <div className="mt-2 flex flex-wrap gap-1.5">
                     {displayLibraries.map((library, index) =>
                       renderRemovableLibraryBadge(library, `all-${index}-${library}`)
                     )}

@@ -213,7 +213,7 @@ export const ActiveStreamsCard = ({
           <DropdownMenuLabel>Card Style</DropdownMenuLabel>
           <DropdownMenuItem
             onSelect={() => onStreamCardStyleChange('detailed')}
-            className={streamCardStyle === 'detailed' ? 'bg-accent text-accent-foreground' : ''}
+            className={streamCardStyle === 'detailed' ? 'mb-0.5 bg-accent text-accent-foreground' : 'mb-0.5'}
           >
             <FontAwesomeIcon icon={faTableCellsLarge} fixedWidth className="mr-2" />
             <span className="flex-1">Detailed</span>
@@ -235,7 +235,7 @@ export const ActiveStreamsCard = ({
           <DropdownMenuLabel>Grouping</DropdownMenuLabel>
           <DropdownMenuItem
             onSelect={() => onViewModeChange('merged')}
-            className={viewMode === 'merged' ? 'bg-accent text-accent-foreground' : ''}
+            className={viewMode === 'merged' ? 'mb-0.5 bg-accent text-accent-foreground' : 'mb-0.5'}
           >
             <FontAwesomeIcon icon={faLayerGroup} fixedWidth className="mr-2" />
             <span className="flex-1">Merged</span>
@@ -245,7 +245,7 @@ export const ActiveStreamsCard = ({
           </DropdownMenuItem>
           <DropdownMenuItem
             onSelect={() => onViewModeChange('categorized')}
-            className={viewMode === 'categorized' ? 'bg-accent text-accent-foreground' : ''}
+            className={viewMode === 'categorized' ? 'mb-0.5 bg-accent text-accent-foreground' : 'mb-0.5'}
           >
             <FontAwesomeIcon icon={faServer} fixedWidth className="mr-2" />
             <span className="flex-1">Categorized by Server</span>

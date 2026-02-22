@@ -6,6 +6,7 @@ from typing import Optional
 from flask import jsonify, current_app, request
 from app.utils.jwt_decorators import jwt_required_with_user, jwt_permission_required
 from pydantic import BaseModel, Field, ConfigDict
+from sqlalchemy.exc import IntegrityError
 
 from app.extensions import db
 from app.routes.api.v2 import api_v2
@@ -341,7 +342,7 @@ def get_server(path: ServerPath, current_user):
     "/servers/<server_id>",
     tags=[servers_tag],
     summary="Update server",
-    responses={200: ServerItem, 404: ErrorResponse},
+    responses={200: ServerItem, 404: ErrorResponse, 409: ErrorResponse},
 )
 @jwt_required_with_user()
 def update_server(path: ServerPath, body: UpdateServerBody, current_user):
@@ -351,6 +352,20 @@ def update_server(path: ServerPath, body: UpdateServerBody, current_user):
 
     data = body.model_dump(exclude_none=True)
     jellyfin_owner_user_id = data.pop("jellyfin_owner_user_id", None)
+
+    # Uniqueness on server_nickname (when changing nickname)
+    if "server_nickname" in data and data["server_nickname"] != server.server_nickname:
+        existing = (
+            MediaServer.query.filter(
+                MediaServer.server_nickname == data["server_nickname"],
+                MediaServer.id != server.id,
+            ).first()
+        )
+        if existing:
+            return (
+                jsonify({"error": {"code": "NICKNAME_EXISTS", "message": "Server nickname already exists"}}),
+                409,
+            )
 
     # Map and set fields if present
     for k, v in data.items():
@@ -366,7 +381,24 @@ def update_server(path: ServerPath, body: UpdateServerBody, current_user):
         server.config = config
 
     db.session.add(server)
-    db.session.commit()
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        # Guard against race conditions where another request claims the nickname after the pre-check.
+        if "server_nickname" in data:
+            existing = (
+                MediaServer.query.filter(
+                    MediaServer.server_nickname == data["server_nickname"],
+                    MediaServer.id != server.id,
+                ).first()
+            )
+            if existing:
+                return (
+                    jsonify({"error": {"code": "NICKNAME_EXISTS", "message": "Server nickname already exists"}}),
+                    409,
+                )
+        raise
     try:
         from app.services.websocket_monitor_manager import get_websocket_monitor_manager
 

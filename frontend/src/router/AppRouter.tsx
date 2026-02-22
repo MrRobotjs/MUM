@@ -144,7 +144,7 @@ const adminUserByUuid = createRoute({
 })
 const adminInvites = createRoute({ getParentRoute: () => adminRoute, path: 'invites', component: InvitesPage })
 const adminLibraries = createRoute({ getParentRoute: () => adminRoute, path: 'libraries', component: LibrariesPage })
-const serverTabs = ['overview'] as const
+const serverTabs = ['overview', 'users', 'libraries'] as const
 type ServerTab = typeof serverTabs[number]
 const adminServerDetail = createRoute({
   getParentRoute: () => adminRoute,

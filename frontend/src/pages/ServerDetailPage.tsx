@@ -20,6 +20,7 @@ import { requestJson } from '../util/apiClient';
 import { useAlerts } from '../contexts';
 import { useLibraries } from '../hooks/useLibraries';
 import { useServerDetail } from '../hooks/useServers';
+import { useUsersPaginated } from '../hooks/useUsersPaginated';
 import { getServiceMeta } from '@/config/pluginMetadata';
 import { ServiceIcon } from '../components';
 import { Button } from '../components/ui/button';
@@ -30,7 +31,7 @@ import { Skeleton } from '../components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 
-type ServerTab = 'overview';
+type ServerTab = 'overview' | 'users' | 'libraries';
 
 type ServerStatusPayload = {
   online?: boolean;
@@ -59,6 +60,26 @@ type ServerDetail = {
   overseerr_enabled?: boolean | null;
   overseerr_url?: string | null;
   status?: ServerStatusPayload;
+};
+
+type ServerUser = {
+  uuid: string;
+  username?: string;
+  display_name?: string;
+  email?: string;
+  user_type: string;
+  is_active: boolean;
+  server_nickname?: string;
+  last_login_at?: string;
+  last_streamed_at?: string | null;
+  linked_local_user?: {
+    uuid: string;
+    username?: string | null;
+    display_name?: string | null;
+  } | null;
+  libraries?: string[];
+  has_all_libraries?: boolean;
+  access_expires_at?: string | null;
 };
 
 type ActionResult = {
@@ -104,6 +125,24 @@ export const ServerDetailPage = () => {
     error: librariesError,
     refresh: refreshLibraries,
   } = useLibraries({ serverId: numericServerId, includeServer: true });
+  const {
+    users,
+    pagination: usersPagination,
+    loading: usersLoading,
+    error: usersError,
+    mutate: refreshUsers,
+  } = useUsersPaginated({
+    serverId: numericServerId ? String(numericServerId) : undefined,
+    userType: 'service',
+    page: 1,
+    pageSize: 100,
+  }) as {
+    users: ServerUser[];
+    pagination?: { total_items?: number; page?: number; total_pages?: number };
+    loading: boolean;
+    error: unknown;
+    mutate: () => Promise<unknown>;
+  };
 
   const [testingConnection, setTestingConnection] = useState(false);
   const [syncingLibraries, setSyncingLibraries] = useState(false);
@@ -120,6 +159,7 @@ export const ServerDetailPage = () => {
     () => libraries.reduce((sum, lib) => sum + (lib.item_count ?? 0), 0),
     [libraries]
   );
+  const userCount = usersPagination?.total_items ?? users.length;
 
   const setTab = (tab: ServerTab) => {
     navigate({
@@ -129,7 +169,7 @@ export const ServerDetailPage = () => {
   };
 
   const refreshAll = async () => {
-    await Promise.all([refresh(), refreshLibraries()]);
+    await Promise.all([refresh(), refreshLibraries(), refreshUsers()]);
   };
 
   const handleTestConnection = async () => {
@@ -271,6 +311,14 @@ export const ServerDetailPage = () => {
           <TabsTrigger value="overview">
             <FontAwesomeIcon icon={faCircleInfo} className="mr-2 h-4 w-4" />
             Overview
+          </TabsTrigger>
+          <TabsTrigger value="users">
+            <FontAwesomeIcon icon={faUsers} className="mr-2 h-4 w-4" />
+            Users
+          </TabsTrigger>
+          <TabsTrigger value="libraries">
+            <FontAwesomeIcon icon={faDatabase} className="mr-2 h-4 w-4" />
+            Libraries
           </TabsTrigger>
         </TabsList>
 
@@ -437,6 +485,126 @@ export const ServerDetailPage = () => {
             </Card>
           </div>
 
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Card>
+              <CardContent className="p-4">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">Users</p>
+                <p className="mt-1 text-2xl font-semibold">{userCount.toLocaleString()}</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">Libraries</p>
+                <p className="mt-1 text-2xl font-semibold">
+                  {libraries.length.toLocaleString()}
+                  <span className="ml-2 text-sm font-normal text-muted-foreground">
+                    ({totalItems.toLocaleString()} items)
+                  </span>
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <FontAwesomeIcon icon={faClock} className="h-4 w-4" />
+            Use the sync actions above to refresh server health, users, and libraries.
+          </div>
+        </TabsContent>
+
+        <TabsContent value="users" className="space-y-6">
+          <Card>
+            <CardContent className="p-6 space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-lg font-semibold flex items-center">
+                    <FontAwesomeIcon icon={faUsers} className="mr-2 h-5 w-5 text-indigo-500" />
+                    Users
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    Service users linked to this server ({userCount.toLocaleString()})
+                  </p>
+                </div>
+                <Button variant="ghost" size="sm" onClick={() => void refreshUsers()}>
+                  <FontAwesomeIcon icon={faRotate} className="mr-2 h-4 w-4" />
+                  Refresh
+                </Button>
+              </div>
+
+              {usersError ? (
+                <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+                  Failed to load users for this server.
+                </div>
+              ) : usersLoading ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Spinner className="h-4 w-4" />
+                  Loading users...
+                </div>
+              ) : users.length > 0 ? (
+                <div className="overflow-hidden rounded-xl border shadow-sm">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>User</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Libraries</TableHead>
+                        <TableHead>Last Activity</TableHead>
+                        <TableHead>Access Expires</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {users.map((user) => (
+                        <TableRow key={user.uuid}>
+                          <TableCell>
+                            <div className="space-y-1">
+                              <Link
+                                to={`/admin/users/${user.uuid}?tab=profile`}
+                                className="font-semibold text-primary hover:underline"
+                              >
+                                {user.display_name || user.username || 'Unnamed User'}
+                              </Link>
+                              <div className="text-xs text-muted-foreground">
+                                {user.username || 'No username'}
+                                {user.linked_local_user
+                                  ? ` • Linked to ${user.linked_local_user.display_name || user.linked_local_user.username || 'Local User'}`
+                                  : ''}
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={user.is_active ? 'default' : 'secondary'}>
+                              {user.is_active ? 'Active' : 'Inactive'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            {user.has_all_libraries
+                              ? 'All libraries'
+                              : `${user.libraries?.length ?? 0} selected`}
+                          </TableCell>
+                          <TableCell>
+                            <div className="text-sm">
+                              {user.last_streamed_at
+                                ? `Streamed ${formatDateTime(user.last_streamed_at)}`
+                                : user.last_login_at
+                                  ? `Login ${formatDateTime(user.last_login_at)}`
+                                  : 'No recent activity'}
+                            </div>
+                          </TableCell>
+                          <TableCell>{formatDateTime(user.access_expires_at)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              ) : (
+                <div className="rounded-lg border bg-muted/20 p-6 text-center text-sm text-muted-foreground">
+                  No service users found for this server.
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="libraries" className="space-y-6">
           <Card>
             <CardContent className="p-6 space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -503,11 +671,6 @@ export const ServerDetailPage = () => {
               )}
             </CardContent>
           </Card>
-
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <FontAwesomeIcon icon={faClock} className="h-4 w-4" />
-            Use the sync actions above to refresh server health, users, and libraries.
-          </div>
         </TabsContent>
       </Tabs>
     </div>

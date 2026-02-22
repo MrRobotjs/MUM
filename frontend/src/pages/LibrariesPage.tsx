@@ -105,20 +105,6 @@ export const LibrariesPage = () => {
     return servers;
   }, [servers, serverId]);
 
-  const summaryStats = useMemo(() => {
-    const lastSyncedAt = servers.reduce<string | null>((latest, server) => {
-      if (!server.last_sync_at) return latest;
-      if (!latest) return server.last_sync_at;
-      return new Date(server.last_sync_at) > new Date(latest) ? server.last_sync_at : latest;
-    }, null);
-
-    return {
-      lastSyncedAt
-    };
-  }, [libraries, servers]);
-
-  const lastSyncDisplay = summaryStats.lastSyncedAt ? formatDateTime(summaryStats.lastSyncedAt) : 'Not available';
-
   const groups = useMemo<LibraryGroup[]>(() => {
     const grouped = new Map<string, LibraryGroup>();
 
@@ -294,19 +280,6 @@ export const LibrariesPage = () => {
         </div>
       )}
 
-
-      <div className="grid gap-4">
-        <Card>
-          <CardContent className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Most Recent Sync</p>
-            <div className="text-xl font-semibold leading-tight">{lastSyncDisplay}</div>
-            <p className="text-sm text-muted-foreground">
-              Keep your data current by syncing libraries regularly.
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
       <Card className="border shadow-sm">
         <CardContent className="space-y-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -394,7 +367,6 @@ export const LibrariesPage = () => {
       ) : (
 
         groups.map((group) => {
-          const totalGroupLibraries = group.servers.reduce((acc, item) => acc + item.libraries.length, 0);
           return (
             <Card
               key={group.serviceType}
@@ -408,22 +380,12 @@ export const LibrariesPage = () => {
                     />
                   </div>
                   <div className="space-y-1">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground/80">Service</p>
                     <h2 className="text-xl font-semibold">{group.label}</h2>
-                    <Badge className={cn('w-fit text-[11px] font-medium ring-1 ring-inset', group.badgeClass)}>
-                      {totalGroupLibraries} libraries
-                    </Badge>
                   </div>
                 </div>
               </div>
               <CardContent className="space-y-6 bg-muted/20 p-6">
                 {group.servers.map(({ server, libraries: serverLibraries }) => {
-                  const serverItemCount = serverLibraries.reduce((acc, library) => acc + (library.item_count ?? 0), 0);
-                  const lastLibraryScan = serverLibraries.reduce<string | null>((latest, library) => {
-                    if (!library.last_scanned) return latest;
-                    if (!latest) return library.last_scanned;
-                    return new Date(library.last_scanned) > new Date(latest) ? library.last_scanned : latest;
-                  }, null);
                   const isServerOnline = server.last_status === true;
                   return (
                     <div
@@ -434,11 +396,6 @@ export const LibrariesPage = () => {
                         <div className="space-y-1">
                           <div className="flex flex-wrap items-center gap-2">
                             <h3 className="text-lg font-semibold">{server.server_nickname}</h3>
-                            {server.id !== -1 && (
-                              <Badge variant="secondary" className="capitalize">
-                                {server.service_type || 'Unknown'}
-                              </Badge>
-                            )}
                           </div>
                           <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                             <span>{server.server_name || server.server_nickname}</span>
@@ -489,22 +446,6 @@ export const LibrariesPage = () => {
                         )}
                       </div>
                       <Separator />
-                      <div className="grid gap-3 px-4 py-4 sm:grid-cols-3">
-                        <div className="rounded-lg border bg-muted/40 p-3">
-                          <p className="text-xs uppercase text-muted-foreground">Libraries</p>
-                          <p className="text-lg font-semibold">{serverLibraries.length}</p>
-                        </div>
-                        <div className="rounded-lg border bg-muted/40 p-3">
-                          <p className="text-xs uppercase text-muted-foreground">Items</p>
-                          <p className="text-lg font-semibold">{formatCount(serverItemCount)}</p>
-                        </div>
-                        <div className="rounded-lg border bg-muted/40 p-3">
-                          <p className="text-xs uppercase text-muted-foreground">Latest Scan</p>
-                          <p className="text-sm font-medium">
-                            {lastLibraryScan ? formatDateTime(lastLibraryScan) : 'Not available'}
-                          </p>
-                        </div>
-                      </div>
                       {serverLibraries.length > 0 ? (
                         <div className="overflow-x-auto">
                           <Table>

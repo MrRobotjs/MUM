@@ -21,6 +21,7 @@ import LoginPage from '../pages/LoginPage';
 import UserLoginPage from '../pages/UserLoginPage';
 import LibrariesPage from '../pages/LibrariesPage';
 import LibraryDetailPage from '../pages/LibraryDetailPage';
+import ServerDetailPage from '../pages/ServerDetailPage';
 import MediaDetailPage from '../pages/MediaDetailPage';
 import AdminSettingsAdminRolesPage from '../pages/AdminSettingsAdminRolesPage';
 import AdminSettingsAdminRolesEditPage from '../pages/AdminSettingsAdminRolesEditPage';
@@ -143,6 +144,19 @@ const adminUserByUuid = createRoute({
 })
 const adminInvites = createRoute({ getParentRoute: () => adminRoute, path: 'invites', component: InvitesPage })
 const adminLibraries = createRoute({ getParentRoute: () => adminRoute, path: 'libraries', component: LibrariesPage })
+const serverTabs = ['overview'] as const
+type ServerTab = typeof serverTabs[number]
+const adminServerDetail = createRoute({
+  getParentRoute: () => adminRoute,
+  path: 'servers/$serverId',
+  component: ServerDetailPage,
+  validateSearch: (search) => {
+    const tabVal = typeof search.tab === 'string' && (serverTabs as readonly string[]).includes(search.tab)
+      ? (search.tab as ServerTab)
+      : undefined
+    return { tab: tabVal }
+  },
+})
 const adminLibraryDetail = createRoute({
   getParentRoute: () => adminRoute,
   path: 'libraries/$libraryId',
@@ -279,6 +293,7 @@ const routeTree = rootRoute.addChildren([
     adminUserByUuid,
     adminInvites,
     adminLibraries,
+    adminServerDetail,
     adminLibraryDetail,
     adminMediaDetail,
     adminSettings,

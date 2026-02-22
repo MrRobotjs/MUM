@@ -395,7 +395,16 @@ export const LibrariesPage = () => {
                       <div className="flex flex-wrap items-center justify-between gap-4 px-4 py-4">
                         <div className="space-y-1">
                           <div className="flex flex-wrap items-center gap-2">
-                            <h3 className="text-lg font-semibold">{server.server_nickname}</h3>
+                            {server.id !== -1 ? (
+                              <Link
+                                to={`/admin/servers/${server.id}?tab=overview`}
+                                className="text-lg font-semibold text-primary hover:underline"
+                              >
+                                {server.server_nickname}
+                              </Link>
+                            ) : (
+                              <h3 className="text-lg font-semibold">{server.server_nickname}</h3>
+                            )}
                           </div>
                           <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                             <span>{server.server_name || server.server_nickname}</span>

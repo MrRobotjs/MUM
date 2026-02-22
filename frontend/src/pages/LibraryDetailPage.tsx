@@ -619,10 +619,10 @@ export const LibraryDetailPage = () => {
             <span className="text-destructive">{error || 'Library not found'}</span>
           </CardContent>
         </Card>
-        <Link to="/admin/libraries">
+        <Link to="/admin/servers">
           <Button>
             <FontAwesomeIcon icon={faArrowLeft} className="mr-2 h-4 w-4" />
-            Back to Libraries
+            Back to Servers
           </Button>
         </Link>
       </div>

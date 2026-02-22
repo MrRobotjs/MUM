@@ -143,7 +143,12 @@ const adminUserByUuid = createRoute({
   },
 })
 const adminInvites = createRoute({ getParentRoute: () => adminRoute, path: 'invites', component: InvitesPage })
-const adminLibraries = createRoute({ getParentRoute: () => adminRoute, path: 'libraries', component: LibrariesPage })
+const adminServersList = createRoute({ getParentRoute: () => adminRoute, path: 'servers', component: LibrariesPage })
+const adminLibrariesListLegacyRedirect = createRoute({
+  getParentRoute: () => adminRoute,
+  path: 'libraries',
+  component: () => <Navigate to="/admin/servers" replace />,
+})
 const serverTabs = ['overview', 'users', 'libraries'] as const
 type ServerTab = typeof serverTabs[number]
 const adminServerDetail = createRoute({
@@ -292,7 +297,8 @@ const routeTree = rootRoute.addChildren([
     adminUserByNick,
     adminUserByUuid,
     adminInvites,
-    adminLibraries,
+    adminServersList,
+    adminLibrariesListLegacyRedirect,
     adminServerDetail,
     adminLibraryDetail,
     adminMediaDetail,

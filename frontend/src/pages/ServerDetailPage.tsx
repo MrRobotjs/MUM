@@ -229,10 +229,10 @@ export const ServerDetailPage = () => {
             <span className="text-destructive">Invalid server ID.</span>
           </CardContent>
         </Card>
-        <Link to="/admin/libraries">
+        <Link to="/admin/servers">
           <Button>
             <FontAwesomeIcon icon={faArrowLeft} className="mr-2 h-4 w-4" />
-            Back to Libraries
+            Back to Servers
           </Button>
         </Link>
       </div>
@@ -263,10 +263,10 @@ export const ServerDetailPage = () => {
             <span className="text-destructive">{message}</span>
           </CardContent>
         </Card>
-        <Link to="/admin/libraries">
+        <Link to="/admin/servers">
           <Button>
             <FontAwesomeIcon icon={faArrowLeft} className="mr-2 h-4 w-4" />
-            Back to Libraries
+            Back to Servers
           </Button>
         </Link>
       </div>

@@ -247,8 +247,8 @@ export const LibrariesPage = () => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="All Libraries"
-        description="Review libraries synced from your media servers"
+        title="Servers"
+        description="Review media servers and their synced libraries"
         actions={
           <Button
             variant="default"

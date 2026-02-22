@@ -163,8 +163,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     // For Users page, also match user detail pages
     if (url === '/admin/users' && location.pathname.startsWith('/admin/users/')) return true
 
-    // For Libraries page, also match library and media detail pages
-    if (url === '/admin/libraries' && location.pathname.startsWith('/admin/libraries/')) return true
+    // For Servers page, also match server detail, library detail, and media detail pages
+    if (
+      url === '/admin/servers' &&
+      (
+        location.pathname.startsWith('/admin/servers/')
+        || location.pathname.startsWith('/admin/libraries/')
+      )
+    ) return true
 
     return false
   }
@@ -213,10 +219,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 isActive: isNavItemActive('/admin/invites'),
               },
               {
-                title: 'Libraries',
-                url: '/admin/libraries',
+                title: 'Servers',
+                url: '/admin/servers',
                 icon: faLayerGroup,
-                isActive: isNavItemActive('/admin/libraries'),
+                isActive: isNavItemActive('/admin/servers'),
               },
               {
                 title: 'Streaming',

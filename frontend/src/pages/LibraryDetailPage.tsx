@@ -1305,10 +1305,10 @@ export const LibraryDetailPage = () => {
                         </div>
                       </div>
                     </CardHeader>
-                    <CardContent className="p-6">
+                    <CardContent className="px-3 pt-5 pb-6 sm:px-4">
                       <div className="relative h-[320px]">
                         <ResponsiveContainer width="100%" height="100%">
-                          <AreaChart data={chartData} margin={{ top: 8, right: 18, left: 8, bottom: 0 }}>
+                          <AreaChart data={chartData} margin={{ top: 8, right: 6, left: 4, bottom: 0 }}>
                             <defs>
                               <linearGradient id="library-stats-plays-area" x1="0" y1="0" x2="0" y2="1">
                                 <stop offset="5%" stopColor="var(--primary)" stopOpacity={0.55} />

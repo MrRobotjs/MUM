@@ -406,6 +406,7 @@ export const GraphsPage = () => {
     [isMobileViewport]
   );
   const isSeparatedModeActive = Boolean(isAllServersSeparated && separatedData?.enabled);
+  const separatedServerLabelMaxChars = isMobileViewport ? 12 : 18;
 
   const separatedServerColorMap = useMemo(() => {
     const map: Record<string, string> = {};
@@ -472,6 +473,25 @@ export const GraphsPage = () => {
       return flattened;
     });
   }, [separatedData?.playback_health]);
+
+  const separatedServerAxisWidth = useMemo(() => {
+    const rows = [
+      ...(separatedData?.device_preferences?.rows ?? []),
+      ...(separatedData?.playback_health?.rows ?? []),
+    ];
+    const maxVisibleChars = rows.reduce((max, row) => {
+      const name = String(row.server_name || '');
+      return Math.max(max, Math.min(name.length, separatedServerLabelMaxChars));
+    }, 0);
+
+    const perChar = isMobileViewport ? 6.2 : 7.0;
+    const basePadding = isMobileViewport ? 14 : 18;
+    const minWidth = isMobileViewport ? 58 : 72;
+    const maxWidth = isMobileViewport ? 84 : 110;
+    const estimated = Math.ceil(maxVisibleChars * perChar + basePadding);
+
+    return Math.max(minWidth, Math.min(maxWidth, estimated));
+  }, [isMobileViewport, separatedData?.device_preferences?.rows, separatedData?.playback_health?.rows, separatedServerLabelMaxChars]);
 
   const [activeDeviceIndex, setActiveDeviceIndex] = useState(0);
   useEffect(() => {
@@ -942,7 +962,7 @@ export const GraphsPage = () => {
                   <BarChart
                     data={separatedDeviceChartData}
                     layout="vertical"
-                    margin={{ top: 8, right: 12, left: 0, bottom: 18 }}
+                    margin={{ top: 8, right: 4, left: 0, bottom: 18 }}
                     barCategoryGap={8}
                   >
                     <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--border)" opacity={0.25} />
@@ -957,14 +977,14 @@ export const GraphsPage = () => {
                     <YAxis
                       type="category"
                       dataKey="server_name"
-                      width={isMobileViewport ? 84 : 120}
+                      width={separatedServerAxisWidth}
                       tickLine={false}
                       axisLine={false}
                       tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
                       tickFormatter={(value) => {
                         const text = String(value || '');
-                        return text.length > (isMobileViewport ? 12 : 18)
-                          ? `${text.slice(0, isMobileViewport ? 11 : 17)}…`
+                        return text.length > separatedServerLabelMaxChars
+                          ? `${text.slice(0, Math.max(1, separatedServerLabelMaxChars - 1))}…`
                           : text;
                       }}
                     />
@@ -1036,7 +1056,7 @@ export const GraphsPage = () => {
                   <BarChart
                     data={separatedPlaybackChartData}
                     layout="vertical"
-                    margin={{ top: 8, right: 12, left: 0, bottom: 18 }}
+                    margin={{ top: 8, right: 4, left: 0, bottom: 18 }}
                     barCategoryGap={8}
                   >
                     <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--border)" opacity={0.25} />
@@ -1051,14 +1071,14 @@ export const GraphsPage = () => {
                     <YAxis
                       type="category"
                       dataKey="server_name"
-                      width={isMobileViewport ? 84 : 120}
+                      width={separatedServerAxisWidth}
                       tickLine={false}
                       axisLine={false}
                       tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
                       tickFormatter={(value) => {
                         const text = String(value || '');
-                        return text.length > (isMobileViewport ? 12 : 18)
-                          ? `${text.slice(0, isMobileViewport ? 11 : 17)}…`
+                        return text.length > separatedServerLabelMaxChars
+                          ? `${text.slice(0, Math.max(1, separatedServerLabelMaxChars - 1))}…`
                           : text;
                       }}
                     />

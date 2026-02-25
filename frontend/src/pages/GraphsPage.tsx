@@ -90,6 +90,10 @@ export const GraphsPage = () => {
       return 'all';
     }
   });
+  const [isMobileViewport, setIsMobileViewport] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return window.innerWidth < 640;
+  });
 
   const { servers } = useServers({ activeOnly: true });
 
@@ -110,6 +114,13 @@ export const GraphsPage = () => {
     setDaysInput(String(days));
   }, [days]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const onResize = () => setIsMobileViewport(window.innerWidth < 640);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
   const analyticsPath = useMemo(
     () => `/graphs/analytics?days=${days}&server_id=${encodeURIComponent(serverId || 'all')}`,
     [days, serverId]
@@ -129,6 +140,10 @@ export const GraphsPage = () => {
   const generatedAtLabel = formatGeneratedAt(data?.meta?.generated_at);
   const playbackNote =
     data?.meta?.notes?.find((note) => note.toLowerCase().includes('playback health')) ?? null;
+  const hourlyXAxisTicks = useMemo(
+    () => (isMobileViewport ? ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00'] : undefined),
+    [isMobileViewport]
+  );
 
   const [activeDeviceIndex, setActiveDeviceIndex] = useState(0);
   useEffect(() => {
@@ -306,16 +321,38 @@ export const GraphsPage = () => {
             faChartLine,
             <div className="h-[300px] w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={hourlyChartData} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
+                <AreaChart
+                  data={hourlyChartData}
+                  margin={{ top: 10, right: isMobileViewport ? 8 : 16, left: isMobileViewport ? 8 : 4, bottom: 0 }}
+                >
                   <defs>
                     <linearGradient id="graphs-hourly-gradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.8} />
-                      <stop offset="95%" stopColor="#06b6d4" stopOpacity={0.05} />
+                      <stop offset="5%" stopColor="var(--chart-1)" stopOpacity={0.8} />
+                      <stop offset="95%" stopColor="var(--chart-1)" stopOpacity={0.05} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" opacity={0.35} />
-                  <XAxis dataKey="hour" tickLine={false} axisLine={false} interval={3} />
-                  <YAxis tickLine={false} axisLine={false} allowDecimals={false} />
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" opacity={0.35} />
+                  <XAxis
+                    dataKey="hour"
+                    ticks={hourlyXAxisTicks}
+                    tickLine={false}
+                    axisLine={false}
+                    interval={0}
+                    minTickGap={isMobileViewport ? 14 : 12}
+                    tickMargin={8}
+                    tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
+                    tickFormatter={(value) =>
+                      isMobileViewport ? String(value ?? '').replace(':00', '') : String(value ?? '')
+                    }
+                  />
+                  <YAxis
+                    tickLine={false}
+                    axisLine={false}
+                    allowDecimals={false}
+                    width={isMobileViewport ? 36 : 44}
+                    tickMargin={6}
+                    tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
+                  />
                   <Tooltip
                     contentStyle={chartTooltipStyle}
                     labelStyle={chartTooltipLabelStyle}
@@ -325,7 +362,7 @@ export const GraphsPage = () => {
                   <Area
                     type="monotone"
                     dataKey="value"
-                    stroke="#06b6d4"
+                    stroke="var(--chart-1)"
                     strokeWidth={2}
                     fill="url(#graphs-hourly-gradient)"
                   />

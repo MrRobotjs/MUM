@@ -2,9 +2,13 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   Area,
   AreaChart,
+  Bar,
+  BarChart,
   CartesianGrid,
   Cell,
   Legend,
+  Line,
+  LineChart,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -31,23 +35,59 @@ import { ServiceIcon } from '@/components/services/ServiceIcon';
 type HourlyActivityItem = { hour: number; plays: number };
 type DevicePreferenceItem = { name: string; value: number };
 type PlaybackHealthItem = { name: string; value: number; color?: string };
+type SeparatedServer = { id: number; key: string; name: string; service_type: string };
+type SeparatedHourlyItem = { hour: number; label: string; values: Record<string, number> };
+type SeparatedStackCategory = { key: string; label: string; color?: string };
+type SeparatedStackRow = {
+  server_id: number;
+  server_key: string;
+  server_name: string;
+  service_type: string;
+  total: number;
+  values: Record<string, number>;
+  counts: Record<string, number>;
+};
+type SeparatedStackDataset = {
+  categories: SeparatedStackCategory[];
+  rows: SeparatedStackRow[];
+};
+type SeparatedGraphsData = {
+  enabled: boolean;
+  servers: SeparatedServer[];
+  hourly_activity: SeparatedHourlyItem[];
+  device_preferences: SeparatedStackDataset;
+  playback_health: SeparatedStackDataset;
+  excluded_service_types?: string[];
+  playback_health_meta?: Record<string, number>;
+};
 
 type GraphsAnalyticsResponse = {
   data: {
     hourly_activity: HourlyActivityItem[];
     device_preferences: DevicePreferenceItem[];
     playback_health: PlaybackHealthItem[];
+    separated?: SeparatedGraphsData;
   };
   meta?: {
     generated_at?: string;
     notes?: string[];
     sources?: Record<string, string>;
+    filters?: Record<string, unknown>;
   };
 };
 
 const STORAGE_KEY = 'mum_graphs_filters';
 const DEVICE_COLORS = ['#06b6d4', '#3b82f6', '#8b5cf6', '#64748b', '#f59e0b', '#ec4899'];
 const PLAYBACK_HEALTH_UNSUPPORTED_SERVICES = new Set(['kavita', 'komga', 'romm']);
+const SERVICE_LINE_COLORS: Record<string, string> = {
+  plex: 'var(--color-plex)',
+  jellyfin: 'var(--color-jellyfin)',
+  emby: 'var(--color-emby)',
+  kavita: 'var(--color-kavita)',
+  audiobookshelf: 'var(--color-audiobookshelf)',
+  komga: 'var(--color-komga)',
+  romm: 'var(--color-romm)',
+};
 
 const formatGeneratedAt = (value?: string) => {
   if (!value) return null;
@@ -128,6 +168,69 @@ const renderPieMetricTooltip = ({
   ]);
 };
 
+const renderSeparatedHourlyTooltip = ({
+  active,
+  payload,
+  label,
+}: {
+  active?: boolean;
+  payload?: Array<any>;
+  label?: string;
+}) => {
+  if (!active || !payload?.length) return null;
+  const rows = [...payload]
+    .map((entry) => ({
+      key: String(entry?.dataKey || entry?.name || Math.random()),
+      label: String(entry?.name || 'Server'),
+      value: String(Math.round(Number(entry?.value || 0))),
+      dotColor: String(entry?.color || 'var(--chart-1)'),
+      sortValue: Number(entry?.value || 0),
+    }))
+    .sort((a, b) => b.sortValue - a.sortValue)
+    .map(({ sortValue: _sortValue, ...rest }) => rest);
+  return renderGraphsTooltipCard(String(label || 'Hour'), rows);
+};
+
+const renderSeparatedStackedTooltip = ({
+  active,
+  payload,
+  label,
+}: {
+  active?: boolean;
+  payload?: Array<any>;
+  label?: string;
+}) => {
+  if (!active || !payload?.length) return null;
+  const firstRow = payload[0]?.payload as Record<string, unknown> | undefined;
+  const counts = (firstRow?._counts as Record<string, number> | undefined) ?? {};
+
+  const rows = payload
+    .filter((entry) => Number(entry?.value || 0) > 0)
+    .map((entry) => {
+      const seriesName = String(entry?.name || entry?.dataKey || 'Value');
+      const pct = Math.round(Number(entry?.value || 0));
+      const rawCount = Number(counts[seriesName] || 0);
+      const value = rawCount > 0 ? `${pct}% (${rawCount})` : `${pct}%`;
+      return {
+        key: String(entry?.dataKey || seriesName),
+        label: seriesName,
+        value,
+        dotColor: String(entry?.color || entry?.fill || DEVICE_COLORS[0]),
+      };
+    });
+
+  if (!rows.length) {
+    rows.push({
+      key: 'no-data',
+      label: 'No data',
+      value: '0%',
+      dotClass: 'bg-muted-foreground',
+    });
+  }
+
+  return renderGraphsTooltipCard(String(label || firstRow?.server_name || 'Server'), rows);
+};
+
 export const GraphsPage = () => {
   const [days, setDays] = useState<number>(() => {
     try {
@@ -156,9 +259,12 @@ export const GraphsPage = () => {
   });
 
   const { servers } = useServers({ activeOnly: true });
+  const isAllServersSeparated = serverId === 'all-separated';
+  const effectiveServerIdFilter = isAllServersSeparated ? 'all' : serverId;
+  const serverMode = isAllServersSeparated ? 'separated' : 'combined';
 
   useEffect(() => {
-    if (serverId === 'all') return;
+    if (serverId === 'all' || serverId === 'all-separated') return;
     const selected = servers.find((server) => String(server.id) === serverId);
     if (!selected) return;
     if (PLAYBACK_HEALTH_UNSUPPORTED_SERVICES.has(String(selected.service_type || '').toLowerCase())) {
@@ -182,8 +288,9 @@ export const GraphsPage = () => {
   }, []);
 
   const analyticsPath = useMemo(
-    () => `/graphs/analytics?days=${days}&server_id=${encodeURIComponent(serverId || 'all')}`,
-    [days, serverId]
+    () =>
+      `/graphs/analytics?days=${days}&server_id=${encodeURIComponent(effectiveServerIdFilter || 'all')}&server_mode=${serverMode}`,
+    [days, effectiveServerIdFilter, serverMode]
   );
   const { data, loading, error, mutate } = useAdminApi<GraphsAnalyticsResponse>(analyticsPath);
 
@@ -197,6 +304,7 @@ export const GraphsPage = () => {
   );
   const deviceChartData = data?.data.device_preferences ?? [];
   const playbackChartData = data?.data.playback_health ?? [];
+  const separatedData = data?.data.separated;
   const generatedAtLabel = formatGeneratedAt(data?.meta?.generated_at);
   const playbackNote =
     data?.meta?.notes?.find((note) => note.toLowerCase().includes('playback health')) ?? null;
@@ -204,6 +312,61 @@ export const GraphsPage = () => {
     () => (isMobileViewport ? ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00'] : undefined),
     [isMobileViewport]
   );
+  const isSeparatedModeActive = Boolean(isAllServersSeparated && separatedData?.enabled);
+
+  const separatedServerColorMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    (separatedData?.servers ?? []).forEach((server) => {
+      const serviceType = String(server.service_type || '').toLowerCase();
+      map[server.key] = SERVICE_LINE_COLORS[serviceType] || 'var(--chart-1)';
+    });
+    return map;
+  }, [separatedData?.servers]);
+
+  const separatedHourlyChartData = useMemo(() => {
+    if (!separatedData?.hourly_activity) return [];
+    return separatedData.hourly_activity.map((point) => {
+      const flattened: Record<string, number | string> = {
+        hour: point.label || `${String(point.hour).padStart(2, '0')}:00`,
+      };
+      for (const [seriesKey, value] of Object.entries(point.values || {})) {
+        flattened[seriesKey] = Number(value || 0);
+      }
+      return flattened;
+    });
+  }, [separatedData?.hourly_activity]);
+
+  const separatedDeviceChartData = useMemo(() => {
+    const categories = separatedData?.device_preferences?.categories ?? [];
+    const rows = separatedData?.device_preferences?.rows ?? [];
+    return rows.map((row) => {
+      const flattened: Record<string, unknown> = {
+        server_name: row.server_name,
+        _counts: row.counts,
+        _total: row.total,
+      };
+      categories.forEach((category) => {
+        flattened[category.key] = Number(row.values?.[category.key] || 0);
+      });
+      return flattened;
+    });
+  }, [separatedData?.device_preferences]);
+
+  const separatedPlaybackChartData = useMemo(() => {
+    const categories = separatedData?.playback_health?.categories ?? [];
+    const rows = separatedData?.playback_health?.rows ?? [];
+    return rows.map((row) => {
+      const flattened: Record<string, unknown> = {
+        server_name: row.server_name,
+        _counts: row.counts,
+        _total: row.total,
+      };
+      categories.forEach((category) => {
+        flattened[category.key] = Number(row.values?.[category.key] || 0);
+      });
+      return flattened;
+    });
+  }, [separatedData?.playback_health]);
 
   const [activeDeviceIndex, setActiveDeviceIndex] = useState(0);
   useEffect(() => {
@@ -220,6 +383,14 @@ export const GraphsPage = () => {
   };
 
   const totalPlaybackSessions = playbackChartData.reduce((sum, item) => sum + (item.value || 0), 0);
+  const separatedPlaybackTotal = useMemo(
+    () =>
+      (separatedData?.playback_health?.rows ?? []).reduce(
+        (sum, row) => sum + Number(row.total || 0),
+        0
+      ),
+    [separatedData?.playback_health?.rows]
+  );
 
   const renderActiveDeviceShape = (props: any) => {
     const { cx, cy, innerRadius, outerRadius, startAngle, endAngle, fill, value } = props;
@@ -332,10 +503,11 @@ export const GraphsPage = () => {
               <Label htmlFor="graphs-server">Server</Label>
               <Select value={serverId} onValueChange={setServerId}>
                 <SelectTrigger id="graphs-server">
-                  <SelectValue placeholder="All servers" />
+                  <SelectValue placeholder="All Servers (Combined)" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Servers</SelectItem>
+                  <SelectItem value="all">All Servers (Combined)</SelectItem>
+                  <SelectItem value="all-separated">All Servers (Separated)</SelectItem>
                   {servers.map((server) => (
                     <SelectItem
                       key={server.id}
@@ -380,52 +552,107 @@ export const GraphsPage = () => {
             'Play counts grouped by hour across the selected stream history window.',
             faChartLine,
             <div className="h-[300px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart
-                  data={hourlyChartData}
-                  margin={{ top: 10, right: isMobileViewport ? 8 : 16, left: isMobileViewport ? 8 : 4, bottom: 0 }}
-                >
-                  <defs>
-                    <linearGradient id="graphs-hourly-gradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="var(--chart-1)" stopOpacity={0.8} />
-                      <stop offset="95%" stopColor="var(--chart-1)" stopOpacity={0.05} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" opacity={0.35} />
-                  <XAxis
-                    dataKey="hour"
-                    ticks={hourlyXAxisTicks}
-                    tickLine={false}
-                    axisLine={false}
-                    interval={0}
-                    minTickGap={isMobileViewport ? 14 : 12}
-                    tickMargin={8}
-                    tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
-                    tickFormatter={(value) =>
-                      isMobileViewport ? String(value ?? '').replace(':00', '') : String(value ?? '')
-                    }
-                  />
-                  <YAxis
-                    tickLine={false}
-                    axisLine={false}
-                    allowDecimals={false}
-                    width={isMobileViewport ? 36 : 44}
-                    tickMargin={6}
-                    tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
-                  />
-                  <Tooltip
-                    content={renderHourlyActivityTooltip}
-                    cursor={{ stroke: 'var(--border)', strokeWidth: 1, strokeDasharray: '3 3' }}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="value"
-                    stroke="var(--chart-1)"
-                    strokeWidth={2}
-                    fill="url(#graphs-hourly-gradient)"
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
+              {isSeparatedModeActive ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart
+                    data={separatedHourlyChartData}
+                    margin={{ top: 10, right: isMobileViewport ? 8 : 16, left: isMobileViewport ? 8 : 4, bottom: 0 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" opacity={0.35} />
+                    <XAxis
+                      dataKey="hour"
+                      ticks={hourlyXAxisTicks}
+                      tickLine={false}
+                      axisLine={false}
+                      interval={0}
+                      minTickGap={isMobileViewport ? 14 : 12}
+                      tickMargin={8}
+                      tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
+                      tickFormatter={(value) =>
+                        isMobileViewport ? String(value ?? '').replace(':00', '') : String(value ?? '')
+                      }
+                    />
+                    <YAxis
+                      tickLine={false}
+                      axisLine={false}
+                      allowDecimals={false}
+                      width={isMobileViewport ? 36 : 44}
+                      tickMargin={6}
+                      tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
+                    />
+                    <Tooltip
+                      content={renderSeparatedHourlyTooltip}
+                      cursor={{ stroke: 'var(--border)', strokeWidth: 1, strokeDasharray: '3 3' }}
+                    />
+                    <Legend verticalAlign="bottom" iconType="circle" />
+                    {(separatedData?.servers ?? []).map((server) => (
+                      <Line
+                        key={server.key}
+                        type="monotone"
+                        dataKey={server.key}
+                        name={server.name}
+                        stroke={separatedServerColorMap[server.key] || 'var(--chart-1)'}
+                        strokeWidth={2}
+                        dot={false}
+                        activeDot={{ r: 4, stroke: 'var(--background)', strokeWidth: 2 }}
+                        connectNulls
+                      />
+                    ))}
+                  </LineChart>
+                </ResponsiveContainer>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart
+                    data={hourlyChartData}
+                    margin={{ top: 10, right: isMobileViewport ? 8 : 16, left: isMobileViewport ? 8 : 4, bottom: 0 }}
+                  >
+                    <defs>
+                      <linearGradient id="graphs-hourly-gradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="var(--chart-1)" stopOpacity={0.8} />
+                        <stop offset="95%" stopColor="var(--chart-1)" stopOpacity={0.05} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" opacity={0.35} />
+                    <XAxis
+                      dataKey="hour"
+                      ticks={hourlyXAxisTicks}
+                      tickLine={false}
+                      axisLine={false}
+                      interval={0}
+                      minTickGap={isMobileViewport ? 14 : 12}
+                      tickMargin={8}
+                      tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
+                      tickFormatter={(value) =>
+                        isMobileViewport ? String(value ?? '').replace(':00', '') : String(value ?? '')
+                      }
+                    />
+                    <YAxis
+                      tickLine={false}
+                      axisLine={false}
+                      allowDecimals={false}
+                      width={isMobileViewport ? 36 : 44}
+                      tickMargin={6}
+                      tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
+                    />
+                    <Tooltip
+                      content={renderHourlyActivityTooltip}
+                      cursor={{ stroke: 'var(--border)', strokeWidth: 1, strokeDasharray: '3 3' }}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="value"
+                      stroke="var(--chart-1)"
+                      strokeWidth={2}
+                      fill="url(#graphs-hourly-gradient)"
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              )}
+              {!loading && isSeparatedModeActive && (separatedData?.servers?.length ?? 0) === 0 ? (
+                <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
+                  No supported servers available for separated analytics.
+                </div>
+              ) : null}
             </div>
           )}
         </div>
@@ -435,32 +662,87 @@ export const GraphsPage = () => {
             'Client Device Mix',
             'Distribution of playback sessions by detected client device category.',
             faCircleNodes,
-            <div className="h-[300px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={deviceChartData}
-                    dataKey="value"
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={80}
-                    activeIndex={activeDeviceIndex}
-                    activeShape={renderActiveDeviceShape}
-                    onMouseEnter={(_, index) => setActiveDeviceIndex(index)}
-                    stroke="none"
+            <div
+              className="w-full"
+              style={{
+                height: isSeparatedModeActive
+                  ? Math.max(300, (separatedData?.device_preferences?.rows?.length ?? 0) * 44 + 90)
+                  : 300,
+              }}
+            >
+              {isSeparatedModeActive ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={separatedDeviceChartData}
+                    layout="vertical"
+                    margin={{ top: 8, right: 12, left: 0, bottom: 18 }}
+                    barCategoryGap={8}
                   >
-                    {deviceChartData.map((_, index) => (
-                      <Cell key={`device-cell-${index}`} fill={DEVICE_COLORS[index % DEVICE_COLORS.length]} />
+                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--border)" opacity={0.25} />
+                    <XAxis
+                      type="number"
+                      domain={[0, 100]}
+                      tickFormatter={(value) => `${Math.round(Number(value || 0))}%`}
+                      tickLine={false}
+                      axisLine={false}
+                      tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
+                    />
+                    <YAxis
+                      type="category"
+                      dataKey="server_name"
+                      width={isMobileViewport ? 84 : 120}
+                      tickLine={false}
+                      axisLine={false}
+                      tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
+                      tickFormatter={(value) => {
+                        const text = String(value || '');
+                        return text.length > (isMobileViewport ? 12 : 18)
+                          ? `${text.slice(0, isMobileViewport ? 11 : 17)}…`
+                          : text;
+                      }}
+                    />
+                    <Tooltip content={renderSeparatedStackedTooltip} cursor={false} />
+                    <Legend verticalAlign="bottom" iconType="circle" />
+                    {(separatedData?.device_preferences?.categories ?? []).map((category) => (
+                      <Bar
+                        key={category.key}
+                        dataKey={category.key}
+                        name={category.label}
+                        stackId="device-mix"
+                        fill={category.color || DEVICE_COLORS[0]}
+                        radius={[0, 0, 0, 0]}
+                      />
                     ))}
-                  </Pie>
-                  <Tooltip
-                    content={renderPieMetricTooltip}
-                  />
-                  <Legend verticalAlign="bottom" iconType="circle" />
-                </PieChart>
-              </ResponsiveContainer>
-              {!loading && deviceChartData.length === 0 ? (
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={deviceChartData}
+                      dataKey="value"
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={60}
+                      outerRadius={80}
+                      activeIndex={activeDeviceIndex}
+                      activeShape={renderActiveDeviceShape}
+                      onMouseEnter={(_, index) => setActiveDeviceIndex(index)}
+                      stroke="none"
+                    >
+                      {deviceChartData.map((_, index) => (
+                        <Cell key={`device-cell-${index}`} fill={DEVICE_COLORS[index % DEVICE_COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip content={renderPieMetricTooltip} />
+                    <Legend verticalAlign="bottom" iconType="circle" />
+                  </PieChart>
+                </ResponsiveContainer>
+              )}
+              {!loading &&
+              ((isSeparatedModeActive &&
+                (separatedData?.device_preferences?.rows ?? []).every((row) => Number(row.total || 0) === 0)) ||
+                (!isSeparatedModeActive && deviceChartData.length === 0)) ? (
                 <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
                   No stream history found for this time range.
                 </div>
@@ -474,30 +756,84 @@ export const GraphsPage = () => {
             'Playback Delivery Modes',
             'Historical split of direct play, direct stream, and transcode sessions.',
             faHeartPulse,
-            <div className="h-[300px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={playbackChartData}
-                    dataKey="value"
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={90}
-                    paddingAngle={5}
-                    stroke="none"
+            <div
+              className="w-full"
+              style={{
+                height: isSeparatedModeActive
+                  ? Math.max(300, (separatedData?.playback_health?.rows?.length ?? 0) * 44 + 90)
+                  : 300,
+              }}
+            >
+              {isSeparatedModeActive ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={separatedPlaybackChartData}
+                    layout="vertical"
+                    margin={{ top: 8, right: 12, left: 0, bottom: 18 }}
+                    barCategoryGap={8}
                   >
-                    {playbackChartData.map((entry, index) => (
-                      <Cell key={`playback-cell-${index}`} fill={entry.color || DEVICE_COLORS[index % DEVICE_COLORS.length]} />
+                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--border)" opacity={0.25} />
+                    <XAxis
+                      type="number"
+                      domain={[0, 100]}
+                      tickFormatter={(value) => `${Math.round(Number(value || 0))}%`}
+                      tickLine={false}
+                      axisLine={false}
+                      tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
+                    />
+                    <YAxis
+                      type="category"
+                      dataKey="server_name"
+                      width={isMobileViewport ? 84 : 120}
+                      tickLine={false}
+                      axisLine={false}
+                      tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
+                      tickFormatter={(value) => {
+                        const text = String(value || '');
+                        return text.length > (isMobileViewport ? 12 : 18)
+                          ? `${text.slice(0, isMobileViewport ? 11 : 17)}…`
+                          : text;
+                      }}
+                    />
+                    <Tooltip content={renderSeparatedStackedTooltip} cursor={false} />
+                    <Legend verticalAlign="bottom" iconType="circle" />
+                    {(separatedData?.playback_health?.categories ?? []).map((category) => (
+                      <Bar
+                        key={category.key}
+                        dataKey={category.key}
+                        name={category.label}
+                        stackId="playback-health"
+                        fill={category.color || DEVICE_COLORS[0]}
+                        radius={[0, 0, 0, 0]}
+                      />
                     ))}
-                  </Pie>
-                  <Tooltip
-                    content={renderPieMetricTooltip}
-                  />
-                  <Legend verticalAlign="bottom" iconType="circle" />
-                </PieChart>
-              </ResponsiveContainer>
-              {!loading && totalPlaybackSessions === 0 ? (
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={playbackChartData}
+                      dataKey="value"
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={60}
+                      outerRadius={90}
+                      paddingAngle={5}
+                      stroke="none"
+                    >
+                      {playbackChartData.map((entry, index) => (
+                        <Cell key={`playback-cell-${index}`} fill={entry.color || DEVICE_COLORS[index % DEVICE_COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip content={renderPieMetricTooltip} />
+                    <Legend verticalAlign="bottom" iconType="circle" />
+                  </PieChart>
+                </ResponsiveContainer>
+              )}
+              {!loading &&
+              ((isSeparatedModeActive && separatedPlaybackTotal === 0) ||
+                (!isSeparatedModeActive && totalPlaybackSessions === 0)) ? (
                 <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
                   No playback history found for this time range.
                 </div>

@@ -31,10 +31,12 @@ import { Spinner } from '@/components/ui/spinner';
 import { ServiceIcon } from '@/components/services/ServiceIcon';
 
 type HourlyActivityItem = { hour: number; plays: number };
+type WatchTimeActivityItem = { date: string; label: string; minutes: number };
 type DevicePreferenceItem = { name: string; value: number };
 type PlaybackHealthItem = { name: string; value: number; color?: string };
 type SeparatedServer = { id: number; key: string; name: string; service_type: string };
 type SeparatedHourlyItem = { hour: number; label: string; values: Record<string, number> };
+type SeparatedWatchTimeItem = { date: string; label: string; values: Record<string, number> };
 type SeparatedStackCategory = { key: string; label: string; color?: string };
 type SeparatedStackRow = {
   server_id: number;
@@ -53,6 +55,7 @@ type SeparatedGraphsData = {
   enabled: boolean;
   servers: SeparatedServer[];
   hourly_activity: SeparatedHourlyItem[];
+  watch_time_activity?: SeparatedWatchTimeItem[];
   device_preferences: SeparatedStackDataset;
   playback_health: SeparatedStackDataset;
   excluded_service_types?: string[];
@@ -62,6 +65,7 @@ type SeparatedGraphsData = {
 type GraphsAnalyticsResponse = {
   data: {
     hourly_activity: HourlyActivityItem[];
+    watch_time_activity?: WatchTimeActivityItem[];
     device_preferences: DevicePreferenceItem[];
     playback_health: PlaybackHealthItem[];
     separated?: SeparatedGraphsData;
@@ -92,6 +96,37 @@ const formatGeneratedAt = (value?: string) => {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleString();
+};
+
+const formatMinutesCompact = (rawMinutes: number) => {
+  const minutes = Math.max(0, Math.round(rawMinutes || 0));
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+  return hours > 0 ? `${hours}h ${remainingMinutes}m` : `${minutes}m`;
+};
+
+const parseIsoDateOnly = (value: string): Date | null => {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || '').trim());
+  if (!match) return null;
+  const parsed = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+const formatChartDateShort = (value: string) => {
+  const parsed = parseIsoDateOnly(value);
+  if (!parsed) return value;
+  return parsed.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+};
+
+const formatChartDateFull = (value: string) => {
+  const parsed = parseIsoDateOnly(value);
+  if (!parsed) return value;
+  return parsed.toLocaleDateString(undefined, {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
 };
 
 const renderGraphsTooltipCard = (
@@ -229,6 +264,51 @@ const renderSeparatedStackedTooltip = ({
   return renderGraphsTooltipCard(String(label || firstRow?.server_name || 'Server'), rows);
 };
 
+const renderWatchTimeTooltip = ({
+  active,
+  payload,
+  label,
+}: {
+  active?: boolean;
+  payload?: Array<any>;
+  label?: string;
+}) => {
+  if (!active || !payload?.length) return null;
+  const entry = payload[0];
+  const minutes = Number(entry?.value || 0);
+  return renderGraphsTooltipCard(formatChartDateFull(String(label || '')), [
+    {
+      key: 'watch-time',
+      label: 'Watch Time',
+      value: formatMinutesCompact(minutes),
+      dotColor: String(entry?.color || '#22c55e'),
+    },
+  ]);
+};
+
+const renderSeparatedWatchTimeTooltip = ({
+  active,
+  payload,
+  label,
+}: {
+  active?: boolean;
+  payload?: Array<any>;
+  label?: string;
+}) => {
+  if (!active || !payload?.length) return null;
+  const rows = [...payload]
+    .map((entry) => ({
+      key: String(entry?.dataKey || entry?.name || Math.random()),
+      label: String(entry?.name || 'Server'),
+      value: formatMinutesCompact(Number(entry?.value || 0)),
+      dotColor: String(entry?.color || 'var(--chart-1)'),
+      sortValue: Number(entry?.value || 0),
+    }))
+    .sort((a, b) => b.sortValue - a.sortValue)
+    .map(({ sortValue: _sortValue, ...rest }) => rest);
+  return renderGraphsTooltipCard(formatChartDateFull(String(label || '')), rows);
+};
+
 export const GraphsPage = () => {
   const [days, setDays] = useState<number>(() => {
     try {
@@ -300,6 +380,14 @@ export const GraphsPage = () => {
       })),
     [data]
   );
+  const watchTimeActivityChartData = useMemo(
+    () =>
+      (data?.data.watch_time_activity ?? []).map((item) => ({
+        date: item.date || item.label,
+        value: Number(item.minutes || 0),
+      })),
+    [data]
+  );
   const deviceChartData = data?.data.device_preferences ?? [];
   const playbackChartData = data?.data.playback_health ?? [];
   const separatedData = data?.data.separated;
@@ -333,6 +421,18 @@ export const GraphsPage = () => {
       return flattened;
     });
   }, [separatedData?.hourly_activity]);
+  const separatedWatchTimeChartData = useMemo(() => {
+    if (!separatedData?.watch_time_activity) return [];
+    return separatedData.watch_time_activity.map((point) => {
+      const flattened: Record<string, number | string> = {
+        date: point.date || point.label,
+      };
+      for (const [seriesKey, value] of Object.entries(point.values || {})) {
+        flattened[seriesKey] = Number(value || 0);
+      }
+      return flattened;
+    });
+  }, [separatedData?.watch_time_activity]);
 
   const separatedDeviceChartData = useMemo(() => {
     const categories = separatedData?.device_preferences?.categories ?? [];
@@ -381,6 +481,7 @@ export const GraphsPage = () => {
   };
 
   const totalPlaybackSessions = playbackChartData.reduce((sum, item) => sum + (item.value || 0), 0);
+  const totalWatchTimeMinutes = watchTimeActivityChartData.reduce((sum, item) => sum + (item.value || 0), 0);
   const separatedPlaybackTotal = useMemo(
     () =>
       (separatedData?.playback_health?.rows ?? []).reduce(
@@ -677,6 +778,135 @@ export const GraphsPage = () => {
           )}
         </div>
 
+        <div className="md:col-span-2">
+          {renderChartCard(
+            'Watch Time Activity',
+            'Watch time trend across all libraries for the selected server scope.',
+            faChartLine,
+            <div className="h-[300px] w-full">
+              {isSeparatedModeActive ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart
+                    data={separatedWatchTimeChartData}
+                    margin={{ top: 10, right: isMobileViewport ? 8 : 16, left: isMobileViewport ? 8 : 4, bottom: 0 }}
+                  >
+                    <defs>
+                      {(separatedData?.servers ?? []).map((server) => {
+                        const color = separatedServerColorMap[server.key] || 'var(--chart-1)';
+                        return (
+                          <linearGradient
+                            key={`watchtime-grad-${server.key}`}
+                            id={`graphs-watchtime-${server.key}-gradient`}
+                            x1="0"
+                            y1="0"
+                            x2="0"
+                            y2="1"
+                          >
+                            <stop offset="5%" stopColor={color} stopOpacity={0.28} />
+                            <stop offset="95%" stopColor={color} stopOpacity={0.02} />
+                          </linearGradient>
+                        );
+                      })}
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" opacity={0.35} />
+                    <XAxis
+                      dataKey="date"
+                      tickLine={false}
+                      axisLine={false}
+                      interval="preserveStartEnd"
+                      minTickGap={isMobileViewport ? 22 : 14}
+                      tickMargin={8}
+                      tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
+                      tickFormatter={(value) => formatChartDateShort(String(value || ''))}
+                    />
+                    <YAxis
+                      tickLine={false}
+                      axisLine={false}
+                      width={isMobileViewport ? 46 : 58}
+                      tickMargin={6}
+                      tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
+                      tickFormatter={(value) => formatMinutesCompact(Number(value || 0))}
+                    />
+                    <Tooltip
+                      content={renderSeparatedWatchTimeTooltip}
+                      cursor={{ stroke: 'var(--border)', strokeWidth: 1, strokeDasharray: '3 3' }}
+                    />
+                    <Legend verticalAlign="bottom" {...legendProps} />
+                    {(separatedData?.servers ?? []).map((server) => (
+                      <Area
+                        key={`watchtime-${server.key}`}
+                        type="monotone"
+                        dataKey={server.key}
+                        name={server.name}
+                        stroke={separatedServerColorMap[server.key] || 'var(--chart-1)'}
+                        strokeWidth={2}
+                        fill={`url(#graphs-watchtime-${server.key}-gradient)`}
+                        dot={false}
+                        activeDot={{ r: 4, stroke: 'var(--background)', strokeWidth: 2 }}
+                        connectNulls
+                      />
+                    ))}
+                  </AreaChart>
+                </ResponsiveContainer>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart
+                    data={watchTimeActivityChartData}
+                    margin={{ top: 10, right: isMobileViewport ? 8 : 16, left: isMobileViewport ? 8 : 4, bottom: 0 }}
+                  >
+                    <defs>
+                      <linearGradient id="graphs-watchtime-gradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#22c55e" stopOpacity={0.45} />
+                        <stop offset="95%" stopColor="#22c55e" stopOpacity={0.04} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" opacity={0.35} />
+                    <XAxis
+                      dataKey="date"
+                      tickLine={false}
+                      axisLine={false}
+                      interval="preserveStartEnd"
+                      minTickGap={isMobileViewport ? 22 : 14}
+                      tickMargin={8}
+                      tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
+                      tickFormatter={(value) => formatChartDateShort(String(value || ''))}
+                    />
+                    <YAxis
+                      tickLine={false}
+                      axisLine={false}
+                      width={isMobileViewport ? 46 : 58}
+                      tickMargin={6}
+                      tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
+                      tickFormatter={(value) => formatMinutesCompact(Number(value || 0))}
+                    />
+                    <Tooltip
+                      content={renderWatchTimeTooltip}
+                      cursor={{ stroke: 'var(--border)', strokeWidth: 1, strokeDasharray: '3 3' }}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="value"
+                      stroke="#22c55e"
+                      strokeWidth={2}
+                      fill="url(#graphs-watchtime-gradient)"
+                      dot={false}
+                      activeDot={{ r: 4, stroke: 'var(--background)', strokeWidth: 2 }}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              )}
+              {!loading &&
+              ((isSeparatedModeActive &&
+                ((separatedData?.servers?.length ?? 0) === 0 || separatedWatchTimeChartData.length === 0)) ||
+                (!isSeparatedModeActive && totalWatchTimeMinutes === 0)) ? (
+                <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
+                  No watch-time history found for this time range.
+                </div>
+              ) : null}
+            </div>
+          )}
+        </div>
+
         <div>
           {renderChartCard(
             'Client Device Mix',
@@ -816,7 +1046,7 @@ export const GraphsPage = () => {
                       }}
                     />
                     <Tooltip content={renderSeparatedStackedTooltip} cursor={false} />
-                    <Legend verticalAlign="bottom" iconType="circle" />
+                    <Legend verticalAlign="bottom" {...legendProps} />
                     {(separatedData?.playback_health?.categories ?? []).map((category) => (
                       <Bar
                         key={category.key}
@@ -847,7 +1077,7 @@ export const GraphsPage = () => {
                       ))}
                     </Pie>
                     <Tooltip content={renderPieMetricTooltip} />
-                    <Legend verticalAlign="bottom" iconType="circle" />
+                    <Legend verticalAlign="bottom" {...legendProps} />
                   </PieChart>
                 </ResponsiveContainer>
               )}

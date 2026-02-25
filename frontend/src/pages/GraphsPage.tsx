@@ -105,6 +105,13 @@ const formatMinutesCompact = (rawMinutes: number) => {
   return hours > 0 ? `${hours}h ${remainingMinutes}m` : `${minutes}m`;
 };
 
+const formatMinutesAxisCompact = (rawMinutes: number) => {
+  const minutes = Math.max(0, Math.round(rawMinutes || 0));
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+  return hours > 0 ? `${hours}h${remainingMinutes}m` : `${minutes}m`;
+};
+
 const parseIsoDateOnly = (value: string): Date | null => {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || '').trim());
   if (!match) return null;
@@ -169,7 +176,7 @@ const renderHourlyActivityTooltip = ({
     {
       key: 'plays',
       label: 'Plays',
-      value: String(Math.round(value)),
+      value: `${Math.round(value)} Plays`,
       dotColor: String(entry?.color || 'var(--chart-1)'),
     },
   ]);
@@ -215,7 +222,7 @@ const renderSeparatedHourlyTooltip = ({
     .map((entry) => ({
       key: String(entry?.dataKey || entry?.name || Math.random()),
       label: String(entry?.name || 'Server'),
-      value: String(Math.round(Number(entry?.value || 0))),
+      value: `${Math.round(Number(entry?.value || 0))} Plays`,
       dotColor: String(entry?.color || 'var(--chart-1)'),
       sortValue: Number(entry?.value || 0),
     }))
@@ -551,7 +558,7 @@ export const GraphsPage = () => {
           </div>
         </div>
       </CardHeader>
-      <CardContent className="pt-5 pb-6">
+      <CardContent className="px-3 pt-5 pb-6">
         <div className="relative min-h-[300px]">
           {loading ? (
             <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-background/70 backdrop-blur-sm">
@@ -614,8 +621,18 @@ export const GraphsPage = () => {
                   <SelectValue placeholder="All Servers (Combined)" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Servers (Combined)</SelectItem>
-                  <SelectItem value="all-separated">All Servers (Separated)</SelectItem>
+                  <SelectItem value="all">
+                    <span className="flex items-center gap-2">
+                      <FontAwesomeIcon icon={faCircleNodes} className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      <span>All Servers (Combined)</span>
+                    </span>
+                  </SelectItem>
+                  <SelectItem value="all-separated">
+                    <span className="flex items-center gap-2">
+                      <FontAwesomeIcon icon={faChartLine} className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      <span>All Servers (Separated)</span>
+                    </span>
+                  </SelectItem>
                   {servers.map((server) => (
                     <SelectItem
                       key={server.id}
@@ -664,7 +681,7 @@ export const GraphsPage = () => {
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart
                     data={separatedHourlyChartData}
-                    margin={{ top: 10, right: isMobileViewport ? 8 : 16, left: isMobileViewport ? 8 : 4, bottom: 0 }}
+                    margin={{ top: 10, right: isMobileViewport ? 2 : 6, left: isMobileViewport ? 2 : 4, bottom: 0 }}
                   >
                     <defs>
                       {(separatedData?.servers ?? []).map((server) => {
@@ -725,7 +742,7 @@ export const GraphsPage = () => {
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart
                     data={hourlyChartData}
-                    margin={{ top: 10, right: isMobileViewport ? 8 : 16, left: isMobileViewport ? 8 : 4, bottom: 0 }}
+                    margin={{ top: 10, right: isMobileViewport ? 2 : 6, left: isMobileViewport ? 2 : 4, bottom: 0 }}
                   >
                     <defs>
                       <linearGradient id="graphs-hourly-gradient" x1="0" y1="0" x2="0" y2="1">
@@ -788,7 +805,7 @@ export const GraphsPage = () => {
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart
                     data={separatedWatchTimeChartData}
-                    margin={{ top: 10, right: isMobileViewport ? 8 : 16, left: isMobileViewport ? 8 : 4, bottom: 0 }}
+                    margin={{ top: 10, right: isMobileViewport ? 2 : 6, left: isMobileViewport ? 2 : 4, bottom: 0 }}
                   >
                     <defs>
                       {(separatedData?.servers ?? []).map((server) => {
@@ -822,10 +839,10 @@ export const GraphsPage = () => {
                     <YAxis
                       tickLine={false}
                       axisLine={false}
-                      width={isMobileViewport ? 46 : 58}
+                      width={isMobileViewport ? 54 : 66}
                       tickMargin={6}
                       tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
-                      tickFormatter={(value) => formatMinutesCompact(Number(value || 0))}
+                      tickFormatter={(value) => formatMinutesAxisCompact(Number(value || 0))}
                     />
                     <Tooltip
                       content={renderSeparatedWatchTimeTooltip}
@@ -852,7 +869,7 @@ export const GraphsPage = () => {
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart
                     data={watchTimeActivityChartData}
-                    margin={{ top: 10, right: isMobileViewport ? 8 : 16, left: isMobileViewport ? 8 : 4, bottom: 0 }}
+                    margin={{ top: 10, right: isMobileViewport ? 2 : 6, left: isMobileViewport ? 2 : 4, bottom: 0 }}
                   >
                     <defs>
                       <linearGradient id="graphs-watchtime-gradient" x1="0" y1="0" x2="0" y2="1">
@@ -874,10 +891,10 @@ export const GraphsPage = () => {
                     <YAxis
                       tickLine={false}
                       axisLine={false}
-                      width={isMobileViewport ? 46 : 58}
+                      width={isMobileViewport ? 54 : 66}
                       tickMargin={6}
                       tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
-                      tickFormatter={(value) => formatMinutesCompact(Number(value || 0))}
+                      tickFormatter={(value) => formatMinutesAxisCompact(Number(value || 0))}
                     />
                     <Tooltip
                       content={renderWatchTimeTooltip}

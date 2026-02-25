@@ -947,7 +947,7 @@ export const GraphsPage = () => {
         <div>
           {renderChartCard(
             'Client Device Mix',
-            'Distribution of playback sessions by detected client device category.',
+            'Distribution of playback sessions by detected client device/app name.',
             faCircleNodes,
             <div
               className="w-full"

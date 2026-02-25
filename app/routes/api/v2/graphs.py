@@ -48,45 +48,74 @@ def _normalize_server_mode(server_mode_raw: str | None) -> str:
 
 
 def _classify_device(platform: str | None, product: str | None, player: str | None) -> str:
-    parts = [platform or "", product or "", player or ""]
-    raw = " ".join(p.strip() for p in parts if p).strip()
-    text = raw.lower()
+    def _clean(value: str | None) -> str:
+        return " ".join(str(value or "").strip().split())
+
+    def _trim(value: str, max_len: int = 36) -> str:
+        return value if len(value) <= max_len else value[: max_len - 3] + "..."
+
+    platform_clean = _clean(platform)
+    product_clean = _clean(product)
+    player_clean = _clean(player)
+    combined = " ".join(v for v in [product_clean, player_clean, platform_clean] if v)
+    text = combined.lower()
 
     if not text:
         return "Unknown"
 
-    tv_markers = [
-        "android tv",
-        "apple tv",
-        "chromecast",
-        "roku",
-        "fire tv",
-        "smart tv",
-        "samsung",
-        "lg ",
-        "webos",
-        "tizen",
-        "shield",
-        "tv",
+    # Prefer specific device/app labels over broad buckets.
+    specific_patterns: list[tuple[list[str], str]] = [
+        (["nvidia shield", "shield android tv", "shield tv"], "NVIDIA Shield"),
+        (["apple tv"], "Apple TV"),
+        (["roku"], "Roku"),
+        (["chromecast", "google tv"], "Chromecast / Google TV"),
+        (["fire tv", "firestick", "fire stick"], "Fire TV"),
+        (["webos", "lg webos"], "LG webOS TV"),
+        (["tizen", "samsung tizen"], "Samsung Tizen TV"),
+        (["android tv"], "Android TV"),
+        (["xbox"], "Xbox"),
+        (["playstation", "ps5", "ps4"], "PlayStation"),
+        (["nintendo switch", "switch"], "Nintendo Switch"),
+        (["iphone"], "iPhone"),
+        (["ipad"], "iPad"),
+        (["android tablet", "tablet"], "Android Tablet"),
+        (["android mobile", "android phone"], "Android Phone"),
+        (["plex htpc", "htpc"], "Plex HTPC"),
+        (["plexamp"], "Plexamp"),
+        (["plex web"], "Plex Web"),
+        (["jellyfin media player"], "Jellyfin Media Player"),
+        (["jellyfin web"], "Jellyfin Web"),
+        (["infuse"], "Infuse"),
+        (["chrome"], "Chrome"),
+        (["edge"], "Edge"),
+        (["firefox"], "Firefox"),
+        (["safari"], "Safari"),
     ]
-    mobile_markers = ["iphone", "ipad", "ios", "android", "mobile", "phone", "tablet"]
-    web_markers = ["web", "browser", "chrome", "firefox", "safari", "edge"]
-    console_markers = ["xbox", "playstation", "ps4", "ps5", "nintendo", "switch"]
-    desktop_markers = ["windows", "mac", "macos", "linux", "desktop", "htpc"]
+    for markers, label in specific_patterns:
+        if any(marker in text for marker in markers):
+            return label
 
-    if any(marker in text for marker in tv_markers):
-        return "TV / Streaming Device"
-    if any(marker in text for marker in mobile_markers):
-        return "Mobile"
-    if any(marker in text for marker in web_markers):
-        return "Web Browser"
-    if any(marker in text for marker in console_markers):
-        return "Console"
-    if any(marker in text for marker in desktop_markers):
-        return "Desktop App"
+    # Platform-driven mobile labels after TV markers are handled.
+    if "iphone" in text:
+        return "iPhone"
+    if "ipad" in text:
+        return "iPad"
+    if "ios" in text:
+        return "iOS"
+    if "android" in text and not any(
+        marker in text for marker in ["android tv", "shield", "chromecast", "google tv", "fire tv"]
+    ):
+        if "tablet" in text:
+            return "Android Tablet"
+        if "phone" in text or "mobile" in text:
+            return "Android Phone"
+        return "Android"
 
-    # Fall back to a readable source name.
-    return raw if len(raw) <= 32 else raw[:29] + "..."
+    # Fallback to the most specific available field first.
+    for candidate in (product_clean, player_clean, platform_clean):
+        if candidate:
+            return _trim(candidate)
+    return _trim(combined)
 
 
 def _normalize_playback_mode(value: str | None) -> str | None:

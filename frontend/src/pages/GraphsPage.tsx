@@ -7,8 +7,6 @@ import {
   CartesianGrid,
   Cell,
   Legend,
-  Line,
-  LineChart,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -421,6 +419,15 @@ export const GraphsPage = () => {
     );
   };
 
+  const legendProps = {
+    iconType: 'circle' as const,
+    iconSize: isMobileViewport ? 8 : 10,
+    wrapperStyle: {
+      fontSize: isMobileViewport ? '11px' : '12px',
+      lineHeight: isMobileViewport ? '16px' : '18px',
+    },
+  };
+
   const renderChartCard = (
     title: string,
     description: string,
@@ -554,10 +561,21 @@ export const GraphsPage = () => {
             <div className="h-[300px] w-full">
               {isSeparatedModeActive ? (
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart
+                  <AreaChart
                     data={separatedHourlyChartData}
                     margin={{ top: 10, right: isMobileViewport ? 8 : 16, left: isMobileViewport ? 8 : 4, bottom: 0 }}
                   >
+                    <defs>
+                      {(separatedData?.servers ?? []).map((server) => {
+                        const color = separatedServerColorMap[server.key] || 'var(--chart-1)';
+                        return (
+                          <linearGradient key={`grad-${server.key}`} id={`graphs-hourly-${server.key}-gradient`} x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor={color} stopOpacity={0.28} />
+                            <stop offset="95%" stopColor={color} stopOpacity={0.02} />
+                          </linearGradient>
+                        );
+                      })}
+                    </defs>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" opacity={0.35} />
                     <XAxis
                       dataKey="hour"
@@ -584,21 +602,23 @@ export const GraphsPage = () => {
                       content={renderSeparatedHourlyTooltip}
                       cursor={{ stroke: 'var(--border)', strokeWidth: 1, strokeDasharray: '3 3' }}
                     />
-                    <Legend verticalAlign="bottom" iconType="circle" />
+                    <Legend verticalAlign="bottom" {...legendProps} />
                     {(separatedData?.servers ?? []).map((server) => (
-                      <Line
+                      <Area
                         key={server.key}
                         type="monotone"
                         dataKey={server.key}
                         name={server.name}
                         stroke={separatedServerColorMap[server.key] || 'var(--chart-1)'}
                         strokeWidth={2}
+                        fill={`url(#graphs-hourly-${server.key}-gradient)`}
                         dot={false}
                         activeDot={{ r: 4, stroke: 'var(--background)', strokeWidth: 2 }}
                         connectNulls
+                        fillOpacity={1}
                       />
                     ))}
-                  </LineChart>
+                  </AreaChart>
                 </ResponsiveContainer>
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
@@ -702,7 +722,7 @@ export const GraphsPage = () => {
                       }}
                     />
                     <Tooltip content={renderSeparatedStackedTooltip} cursor={false} />
-                    <Legend verticalAlign="bottom" iconType="circle" />
+                    <Legend verticalAlign="bottom" {...legendProps} />
                     {(separatedData?.device_preferences?.categories ?? []).map((category) => (
                       <Bar
                         key={category.key}
@@ -735,7 +755,7 @@ export const GraphsPage = () => {
                       ))}
                     </Pie>
                     <Tooltip content={renderPieMetricTooltip} />
-                    <Legend verticalAlign="bottom" iconType="circle" />
+                    <Legend verticalAlign="bottom" {...legendProps} />
                   </PieChart>
                 </ResponsiveContainer>
               )}

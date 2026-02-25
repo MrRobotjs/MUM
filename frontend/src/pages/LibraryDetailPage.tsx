@@ -103,21 +103,6 @@ type PurgeApi = { success?: boolean; deleted_count?: number };
 
 type TabType = 'overview' | 'media' | 'collections' | 'stats' | 'activity';
 
-const libraryStatsChartTooltipStyle = {
-  borderRadius: '10px',
-  border: '1px solid var(--border)',
-  backgroundColor: 'var(--popover)',
-  color: 'var(--popover-foreground)',
-};
-
-const libraryStatsChartTooltipLabelStyle = {
-  color: 'var(--popover-foreground)',
-};
-
-const libraryStatsChartTooltipItemStyle = {
-  color: 'var(--popover-foreground)',
-};
-
 const formatMinutesCompact = (rawMinutes: number) => {
   const minutes = Math.max(0, Math.round(rawMinutes || 0));
   const hours = Math.floor(minutes / 60);
@@ -151,6 +136,50 @@ const formatLibraryStatsChartDateFull = (value: string) => {
     day: 'numeric',
     year: 'numeric',
   });
+};
+
+const renderLibraryStatsAreaTooltip = ({
+  active,
+  payload,
+  label,
+}: {
+  active?: boolean;
+  payload?: Array<any>;
+  label?: string;
+}) => {
+  if (!active || !payload || payload.length === 0) return null;
+
+  const rows = payload
+    .filter((entry) => entry && typeof entry.value !== 'undefined')
+    .map((entry) => {
+      const dataKey = String(entry.dataKey || '').toLowerCase();
+      const rawValue = Number(entry.value || 0);
+      const isWatchTime = dataKey === 'time' || String(entry.name || '').toLowerCase().includes('watch');
+      return {
+        key: `${entry.dataKey}-${entry.name}`,
+        label: isWatchTime ? 'Watch Time' : 'Total Plays',
+        value: isWatchTime ? formatMinutesCompact(rawValue) : String(Math.round(rawValue)),
+        dotClass: isWatchTime ? 'bg-emerald-500' : 'bg-primary',
+      };
+    });
+
+  return (
+    <div className="min-w-[220px] rounded-xl border border-border/60 bg-popover/95 px-4 py-3 text-popover-foreground shadow-2xl backdrop-blur">
+      <div className="text-sm font-semibold">{formatLibraryStatsChartDateFull(String(label || ''))}</div>
+      <div className="my-3 h-px bg-border/60" />
+      <div className="space-y-2">
+        {rows.map((row) => (
+          <div key={row.key} className="flex items-center justify-between gap-4 text-sm">
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <span className={`h-2.5 w-2.5 rounded-full ${row.dotClass}`} />
+              <span>{row.label}</span>
+            </div>
+            <span className="font-semibold text-popover-foreground">{row.value}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 };
 
 // Component for individual media poster with loading state
@@ -1330,18 +1359,8 @@ export const LibraryDetailPage = () => {
                               }}
                             />
                             <Tooltip
-                              contentStyle={libraryStatsChartTooltipStyle}
-                              labelStyle={libraryStatsChartTooltipLabelStyle}
-                              itemStyle={libraryStatsChartTooltipItemStyle}
+                              content={renderLibraryStatsAreaTooltip}
                               cursor={{ stroke: 'var(--border)', strokeWidth: 1, strokeDasharray: '3 3' }}
-                              labelFormatter={(label) => formatLibraryStatsChartDateFull(String(label || ''))}
-                              formatter={(value: number | string, name: string) => {
-                                const numeric = Number(value || 0);
-                                if (String(name).toLowerCase().includes('watch')) {
-                                  return [formatMinutesCompact(numeric), 'Watch Time'];
-                                }
-                                return [Math.round(numeric), 'Total Plays'];
-                              }}
                             />
                             <Area
                               yAxisId="plays"

@@ -5,7 +5,7 @@ import { useAlerts } from '../contexts/AlertContext';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { Card, CardContent } from '../components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Skeleton } from '../components/ui/skeleton';
@@ -15,28 +15,16 @@ import { Progress } from '../components/ui/progress';
 import { ResponsiveDialog } from '../components/ui/responsive-dialog';
 import { Spinner } from '@/components/ui/spinner'
 import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  Title,
+  Area,
+  AreaChart,
+  CartesianGrid,
+  ResponsiveContainer,
   Tooltip,
-  Legend,
-  ChartOptions,
-} from 'chart.js';
-import { Bar } from 'react-chartjs-2';
+  XAxis,
+  YAxis,
+} from 'recharts';
 import { getServicePalette, getServiceMeta } from '@/config/pluginMetadata';
 // Images are authenticated via HttpOnly access cookie; no token param needed
-
-// Register Chart.js components
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  Title,
-  Tooltip,
-  Legend
-);
 import { useLibrarySyncStatus } from '../hooks/useLibrarySyncStatus';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
@@ -114,6 +102,56 @@ type SyncApi = { success?: boolean; result?: { added?: number; updated?: number;
 type PurgeApi = { success?: boolean; deleted_count?: number };
 
 type TabType = 'overview' | 'media' | 'collections' | 'stats' | 'activity';
+
+const libraryStatsChartTooltipStyle = {
+  borderRadius: '10px',
+  border: '1px solid var(--border)',
+  backgroundColor: 'var(--popover)',
+  color: 'var(--popover-foreground)',
+};
+
+const libraryStatsChartTooltipLabelStyle = {
+  color: 'var(--popover-foreground)',
+};
+
+const libraryStatsChartTooltipItemStyle = {
+  color: 'var(--popover-foreground)',
+};
+
+const formatMinutesCompact = (rawMinutes: number) => {
+  const minutes = Math.max(0, Math.round(rawMinutes || 0));
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+  return hours > 0 ? `${hours}h ${remainingMinutes}m` : `${minutes}m`;
+};
+
+const parseIsoDateOnly = (value: string): Date | null => {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || '').trim());
+  if (!match) return null;
+  const year = Number(match[1]);
+  const monthIndex = Number(match[2]) - 1;
+  const day = Number(match[3]);
+  const parsed = new Date(year, monthIndex, day);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed;
+};
+
+const formatLibraryStatsChartDateShort = (value: string) => {
+  const parsed = parseIsoDateOnly(value);
+  if (!parsed) return value;
+  return parsed.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+};
+
+const formatLibraryStatsChartDateFull = (value: string) => {
+  const parsed = parseIsoDateOnly(value);
+  if (!parsed) return value;
+  return parsed.toLocaleDateString(undefined, {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+};
 
 // Component for individual media poster with loading state
 const MediaPosterCard = ({ item, libraryId }: { item: MediaItem; libraryId: string }) => {
@@ -1213,178 +1251,122 @@ export const LibraryDetailPage = () => {
 
               {/* Activity Chart */}
               {statsData.chart_data && statsData.chart_data.length > 0 && (() => {
-                // Get CSS variables for colors
-                const primaryColor = getComputedStyle(document.documentElement).getPropertyValue('--primary').trim();
-                const secondaryColor = getComputedStyle(document.documentElement).getPropertyValue('--secondary').trim();
-
-                // Convert HSL to RGB for Chart.js
-                const hslToRgb = (h: number, s: number, l: number) => {
-                  s /= 100;
-                  l /= 100;
-                  const k = (n: number) => (n + h / 30) % 12;
-                  const a = s * Math.min(l, 1 - l);
-                  const f = (n: number) => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
-                  return [Math.round(255 * f(0)), Math.round(255 * f(8)), Math.round(255 * f(4))];
-                };
-
-                const parseHsl = (hslString: string) => {
-                  const match = hslString.match(/(\d+\.?\d*)\s+(\d+\.?\d*)%\s+(\d+\.?\d*)%/);
-                  if (match) {
-                    return hslToRgb(parseFloat(match[1]), parseFloat(match[2]), parseFloat(match[3]));
-                  }
-                  return [59, 130, 246]; // fallback blue
-                };
-
-                const primaryRgb = parseHsl(primaryColor);
-                const secondaryRgb = parseHsl(secondaryColor);
-                const primaryColorStr = `rgb(${primaryRgb[0]}, ${primaryRgb[1]}, ${primaryRgb[2]})`;
-                const primaryColorAlpha = `rgba(${primaryRgb[0]}, ${primaryRgb[1]}, ${primaryRgb[2]}, 0.8)`;
-                const secondaryColorStr = `rgb(${secondaryRgb[0]}, ${secondaryRgb[1]}, ${secondaryRgb[2]})`;
-                const secondaryColorAlpha = `rgba(${secondaryRgb[0]}, ${secondaryRgb[1]}, ${secondaryRgb[2]}, 0.8)`;
-
-                const chartData = {
-                  labels: statsData.chart_data.map((day: any) => day.label),
-                  datasets: [
-                    {
-                      label: 'Total Plays',
-                      data: statsData.chart_data.map((day: any) => day.plays || 0),
-                      backgroundColor: primaryColorAlpha,
-                      borderColor: primaryColorStr,
-                      borderWidth: 1,
-                      borderRadius: 4,
-                      yAxisID: 'y',
-                    },
-                    {
-                      label: 'Watch Time (minutes)',
-                      data: statsData.chart_data.map((day: any) => day.time || 0),
-                      backgroundColor: secondaryColorAlpha,
-                      borderColor: secondaryColorStr,
-                      borderWidth: 1,
-                      borderRadius: 4,
-                      yAxisID: 'y1',
-                    },
-                  ],
-                };
-
-                const options: ChartOptions<'bar'> = {
-                  responsive: true,
-                  maintainAspectRatio: false,
-                  interaction: {
-                    mode: 'index',
-                    intersect: false,
-                  },
-                  plugins: {
-                    legend: {
-                      display: false,
-                    },
-                    tooltip: {
-                      backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                      titleColor: 'white',
-                      bodyColor: 'white',
-                      borderColor: 'rgba(255, 255, 255, 0.1)',
-                      borderWidth: 1,
-                      cornerRadius: 8,
-                      displayColors: true,
-                      callbacks: {
-                        label: function(context) {
-                          if (context.dataset.label === 'Total Plays') {
-                            return `${context.dataset.label}: ${context.parsed.y}`;
-                          } else {
-                            const minutes = Math.round(context.parsed.y);
-                            const hours = Math.floor(minutes / 60);
-                            const remainingMinutes = minutes % 60;
-
-                            let timeStr;
-                            if (hours > 0) {
-                              timeStr = `${hours}h ${remainingMinutes}m`;
-                            } else {
-                              timeStr = `${minutes}m`;
-                            }
-
-                            return `${context.dataset.label}: ${timeStr}`;
-                          }
-                        }
-                      }
-                    }
-                  },
-                  scales: {
-                    x: {
-                      grid: {
-                        display: false,
-                      },
-                      ticks: {
-                        color: 'rgba(156, 163, 175, 0.8)',
-                        font: {
-                          size: 11,
-                        },
-                      },
-                    },
-                    y: {
-                      type: 'linear',
-                      display: true,
-                      position: 'left',
-                      beginAtZero: true,
-                      grid: {
-                        color: 'rgba(156, 163, 175, 0.1)',
-                      },
-                      ticks: {
-                        color: 'rgba(156, 163, 175, 0.8)',
-                        font: {
-                          size: 11,
-                        },
-                        callback: function(value) {
-                          return Math.round(value as number);
-                        }
-                      },
-                      title: {
-                        display: true,
-                        text: 'Total Plays',
-                        color: 'rgba(156, 163, 175, 0.8)',
-                      },
-                    },
-                    y1: {
-                      type: 'linear',
-                      display: true,
-                      position: 'right',
-                      beginAtZero: true,
-                      grid: {
-                        drawOnChartArea: false,
-                      },
-                      ticks: {
-                        color: 'rgba(156, 163, 175, 0.8)',
-                        font: {
-                          size: 11,
-                        },
-                        callback: function(value) {
-                          const numValue = value as number;
-                          const hours = Math.floor(numValue / 60);
-                          const minutes = numValue % 60;
-
-                          if (hours > 0) {
-                            return `${hours}h ${minutes}m`;
-                          } else {
-                            return `${Math.round(numValue)}m`;
-                          }
-                        }
-                      },
-                      title: {
-                        display: true,
-                        text: 'Watch Time (minutes)',
-                        color: 'rgba(156, 163, 175, 0.8)',
-                      },
-                    },
-                  },
-                };
+                const chartData = statsData.chart_data.map((day: any) => ({
+                  label: day.label,
+                  plays: Number(day.plays || 0),
+                  time: Number(day.time || 0),
+                }));
 
                 return (
-                  <Card>
+                  <Card className="pt-0 gap-0 overflow-hidden border border-border/60 shadow-md">
+                    <CardHeader className="pt-6 border-b border-border/60 bg-gradient-to-r from-primary/5 via-transparent to-transparent pb-4">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex items-start gap-3">
+                          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary shadow-inner">
+                            <FontAwesomeIcon icon={faChartBar} className="text-lg" />
+                          </div>
+                          <div className="space-y-1">
+                            <CardTitle className="flex items-center gap-2 text-2xl text-foreground">
+                              Watch Time Activity
+                            </CardTitle>
+                            <CardDescription className="text-sm text-muted-foreground space-y-1">
+                              <p>Playback trends for this library across the selected time range.</p>
+                            </CardDescription>
+                          </div>
+                        </div>
+                      </div>
+                    </CardHeader>
                     <CardContent className="p-6">
-                      <h3 className="text-lg font-semibold mb-4 flex items-center">
-                        <FontAwesomeIcon icon={faChartBar} className="mr-2 h-5 w-5" />
-                        Watch Time Activity
-                      </h3>
-                      <div className="relative h-[300px]">
-                        <Bar data={chartData} options={options} />
+                      <div className="relative h-[320px]">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <AreaChart data={chartData} margin={{ top: 8, right: 18, left: 8, bottom: 0 }}>
+                            <defs>
+                              <linearGradient id="library-stats-plays-area" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="var(--primary)" stopOpacity={0.55} />
+                                <stop offset="95%" stopColor="var(--primary)" stopOpacity={0.06} />
+                              </linearGradient>
+                              <linearGradient id="library-stats-time-area" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#22c55e" stopOpacity={0.45} />
+                                <stop offset="95%" stopColor="#22c55e" stopOpacity={0.04} />
+                              </linearGradient>
+                            </defs>
+                            <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="var(--border)" opacity={0.35} />
+                            <XAxis
+                              dataKey="label"
+                              tickFormatter={formatLibraryStatsChartDateShort}
+                              tickLine={false}
+                              axisLine={false}
+                              tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
+                              minTickGap={12}
+                            />
+                            <YAxis
+                              yAxisId="plays"
+                              orientation="left"
+                              allowDecimals={false}
+                              tickLine={false}
+                              axisLine={false}
+                              tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
+                              label={{
+                                value: 'Total Plays',
+                                angle: -90,
+                                position: 'insideLeft',
+                                fill: 'var(--muted-foreground)',
+                                style: { fontSize: 11 },
+                              }}
+                            />
+                            <YAxis
+                              yAxisId="time"
+                              orientation="right"
+                              tickLine={false}
+                              axisLine={false}
+                              tickFormatter={(value) => formatMinutesCompact(Number(value))}
+                              tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
+                              label={{
+                                value: 'Watch Time',
+                                angle: 90,
+                                position: 'insideRight',
+                                fill: 'var(--muted-foreground)',
+                                style: { fontSize: 11 },
+                              }}
+                            />
+                            <Tooltip
+                              contentStyle={libraryStatsChartTooltipStyle}
+                              labelStyle={libraryStatsChartTooltipLabelStyle}
+                              itemStyle={libraryStatsChartTooltipItemStyle}
+                              cursor={{ stroke: 'var(--border)', strokeWidth: 1, strokeDasharray: '3 3' }}
+                              labelFormatter={(label) => formatLibraryStatsChartDateFull(String(label || ''))}
+                              formatter={(value: number | string, name: string) => {
+                                const numeric = Number(value || 0);
+                                if (String(name).toLowerCase().includes('watch')) {
+                                  return [formatMinutesCompact(numeric), 'Watch Time'];
+                                }
+                                return [Math.round(numeric), 'Total Plays'];
+                              }}
+                            />
+                            <Area
+                              yAxisId="plays"
+                              dataKey="plays"
+                              name="Total Plays"
+                              type="monotone"
+                              stroke="var(--primary)"
+                              strokeWidth={2}
+                              fill="url(#library-stats-plays-area)"
+                              dot={false}
+                              activeDot={{ r: 4, stroke: 'var(--background)', strokeWidth: 2 }}
+                            />
+                            <Area
+                              yAxisId="time"
+                              dataKey="time"
+                              name="Watch Time"
+                              type="monotone"
+                              stroke="#22c55e"
+                              strokeWidth={2}
+                              fill="url(#library-stats-time-area)"
+                              dot={false}
+                              activeDot={{ r: 4, stroke: 'var(--background)', strokeWidth: 2 }}
+                            />
+                          </AreaChart>
+                        </ResponsiveContainer>
                       </div>
 
                       {/* Custom Legend */}
@@ -1394,7 +1376,7 @@ export const LibraryDetailPage = () => {
                           <span className="text-sm text-muted-foreground">Total Plays</span>
                         </div>
                         <div className="flex items-center gap-2">
-                          <div className="w-4 h-4 rounded bg-secondary"></div>
+                          <div className="w-4 h-4 rounded bg-emerald-500"></div>
                           <span className="text-sm text-muted-foreground">Watch Time (minutes)</span>
                         </div>
                       </div>

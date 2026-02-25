@@ -48,24 +48,84 @@ type GraphsAnalyticsResponse = {
 const STORAGE_KEY = 'mum_graphs_filters';
 const DEVICE_COLORS = ['#06b6d4', '#3b82f6', '#8b5cf6', '#64748b', '#f59e0b', '#ec4899'];
 const PLAYBACK_HEALTH_UNSUPPORTED_SERVICES = new Set(['kavita', 'komga', 'romm']);
-const chartTooltipStyle = {
-  borderRadius: '10px',
-  border: '1px solid var(--border)',
-  backgroundColor: 'var(--popover)',
-  color: 'var(--popover-foreground)',
-};
-const chartTooltipLabelStyle = {
-  color: 'var(--popover-foreground)',
-};
-const chartTooltipItemStyle = {
-  color: 'var(--popover-foreground)',
-};
 
 const formatGeneratedAt = (value?: string) => {
   if (!value) return null;
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleString();
+};
+
+const renderGraphsTooltipCard = (
+  title: string,
+  rows: Array<{ key: string; label: string; value: string; dotClass?: string; dotColor?: string }>
+) => (
+  <div className="min-w-[220px] rounded-xl border border-border/60 bg-popover/95 px-4 py-3 text-popover-foreground shadow-2xl backdrop-blur">
+    <div className="text-sm font-semibold">{title}</div>
+    <div className="my-3 h-px bg-border/60" />
+    <div className="space-y-2">
+      {rows.map((row) => (
+        <div key={row.key} className="flex items-center justify-between gap-4 text-sm">
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <span
+              className={`h-2.5 w-2.5 rounded-full ${row.dotClass ?? ''}`}
+              style={row.dotColor ? { backgroundColor: row.dotColor } : undefined}
+            />
+            <span>{row.label}</span>
+          </div>
+          <span className="font-semibold text-popover-foreground">{row.value}</span>
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
+const renderHourlyActivityTooltip = ({
+  active,
+  payload,
+  label,
+}: {
+  active?: boolean;
+  payload?: Array<any>;
+  label?: string;
+}) => {
+  if (!active || !payload?.length) return null;
+  const entry = payload[0];
+  const value = Number(entry?.value || 0);
+  return renderGraphsTooltipCard(String(label || 'Hour'), [
+    {
+      key: 'plays',
+      label: 'Plays',
+      value: String(Math.round(value)),
+      dotColor: String(entry?.color || 'var(--chart-1)'),
+    },
+  ]);
+};
+
+const renderPieMetricTooltip = ({
+  active,
+  payload,
+}: {
+  active?: boolean;
+  payload?: Array<any>;
+}) => {
+  if (!active || !payload?.length) return null;
+  const entry = payload[0];
+  const name = String(entry?.name || entry?.payload?.name || 'Value');
+  const rawValue = Number(entry?.value || 0);
+  const isPercent = name !== 'Direct Play' && name !== 'Direct Stream' && name !== 'Transcode';
+  const metricLabel = isPercent ? 'Share' : 'Sessions';
+  const formattedValue = isPercent ? `${Math.round(rawValue)}%` : String(Math.round(rawValue));
+  const dotColor = String(entry?.color || entry?.payload?.color || DEVICE_COLORS[0]);
+
+  return renderGraphsTooltipCard(name, [
+    {
+      key: `${name}-${metricLabel}`,
+      label: metricLabel,
+      value: formattedValue,
+      dotColor,
+    },
+  ]);
 };
 
 export const GraphsPage = () => {
@@ -354,10 +414,8 @@ export const GraphsPage = () => {
                     tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
                   />
                   <Tooltip
-                    contentStyle={chartTooltipStyle}
-                    labelStyle={chartTooltipLabelStyle}
-                    itemStyle={chartTooltipItemStyle}
-                    formatter={(value) => [value, 'Plays']}
+                    content={renderHourlyActivityTooltip}
+                    cursor={{ stroke: 'var(--border)', strokeWidth: 1, strokeDasharray: '3 3' }}
                   />
                   <Area
                     type="monotone"
@@ -397,10 +455,7 @@ export const GraphsPage = () => {
                     ))}
                   </Pie>
                   <Tooltip
-                    contentStyle={chartTooltipStyle}
-                    labelStyle={chartTooltipLabelStyle}
-                    itemStyle={chartTooltipItemStyle}
-                    formatter={(value) => [`${value}%`, 'Share']}
+                    content={renderPieMetricTooltip}
                   />
                   <Legend verticalAlign="bottom" iconType="circle" />
                 </PieChart>
@@ -437,10 +492,7 @@ export const GraphsPage = () => {
                     ))}
                   </Pie>
                   <Tooltip
-                    contentStyle={chartTooltipStyle}
-                    labelStyle={chartTooltipLabelStyle}
-                    itemStyle={chartTooltipItemStyle}
-                    formatter={(value) => [value, 'Sessions']}
+                    content={renderPieMetricTooltip}
                   />
                   <Legend verticalAlign="bottom" iconType="circle" />
                 </PieChart>

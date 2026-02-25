@@ -1396,7 +1396,7 @@ export const LibraryDetailPage = () => {
                         </div>
                         <div className="flex items-center gap-2">
                           <div className="w-4 h-4 rounded bg-emerald-500"></div>
-                          <span className="text-sm text-muted-foreground">Watch Time (minutes)</span>
+                          <span className="text-sm text-muted-foreground">Watch Time</span>
                         </div>
                       </div>
                     </CardContent>

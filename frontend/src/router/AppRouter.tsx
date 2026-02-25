@@ -11,6 +11,7 @@ import { Spinner } from '@/components/ui/spinner'
 import AdminShell from './AdminShell';
 import AdminGuard from './AdminGuard';
 import DashboardPage from '../pages/DashboardPage';
+import GraphsPage from '../pages/GraphsPage';
 import UsersListPage from '../pages/UsersListPage';
 import UserDetailPage from '../pages/UserDetailPage';
 import StreamingPage from '../pages/StreamingPage';
@@ -101,6 +102,7 @@ const adminIndexRedirect = createRoute({
   component: () => <Navigate to="/admin/dashboard" replace />,
 })
 const adminDashboard = createRoute({ getParentRoute: () => adminRoute, path: 'dashboard', component: DashboardPage })
+const adminGraphs = createRoute({ getParentRoute: () => adminRoute, path: 'graphs', component: GraphsPage })
 const adminNotifications = createRoute({ getParentRoute: () => adminRoute, path: 'notifications', component: AdminNotificationsPage })
 const adminAccountTabs = ['overview', 'credentials', 'preferences'] as const
 type AdminAccountTab = typeof adminAccountTabs[number]
@@ -285,6 +287,7 @@ const routeTree = rootRoute.addChildren([
   adminRoute.addChildren([
     adminIndexRedirect,
     adminDashboard,
+    adminGraphs,
     adminNotifications,
     adminAccount,
     adminStreaming,

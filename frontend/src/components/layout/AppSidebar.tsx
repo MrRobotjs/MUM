@@ -197,6 +197,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 isActive: isNavItemActive('/admin/dashboard'),
               },
               {
+                title: 'Graphs',
+                url: '/admin/graphs',
+                icon: faChartLine,
+                isActive: isNavItemActive('/admin/graphs'),
+              },
+              {
                 title: 'Users',
                 url: '/admin/users',
                 icon: faUsers,

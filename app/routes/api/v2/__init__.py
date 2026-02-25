@@ -50,6 +50,7 @@ from . import admins  # noqa: E402,F401
 from . import admin_roles  # noqa: E402,F401
 from . import user_roles  # noqa: E402,F401
 from . import metrics  # noqa: E402,F401
+from . import graphs  # noqa: E402,F401
 from . import setup  # noqa: E402,F401
 from . import dashboard  # noqa: E402,F401
 from . import streams  # noqa: E402,F401

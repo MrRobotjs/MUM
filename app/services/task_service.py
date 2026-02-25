@@ -46,6 +46,135 @@ def _normalize_service_type_set(
 def _get_total_tracked_session_count() -> int:
     return len(_active_stream_sessions)
 
+
+def _normalize_playback_mode_label(mode: Optional[str]) -> Optional[str]:
+    if not mode:
+        return None
+    value = str(mode).strip().lower().replace("-", "_").replace(" ", "_")
+    if value in {"transcode", "transcoding"}:
+        return "transcode"
+    if value in {"direct_stream", "directstream"}:
+        return "direct_stream"
+    if value in {"direct_play", "directplay", "direct"}:
+        return "direct_play"
+    return None
+
+
+def _extract_playback_history_metadata(session: Any, service_type: ServiceType) -> Dict[str, Any]:
+    """Extract a normalized playback mode for historical playback-health analytics."""
+    stream_detail: Optional[str] = None
+    is_transcode_calc: Optional[bool] = None
+    playback_mode: Optional[str] = None
+
+    # Plex raw session objects (plexapi)
+    if hasattr(session, "player"):
+        transcode_session = getattr(session, "transcodeSession", None)
+        if transcode_session:
+            video_decision = str(getattr(transcode_session, "videoDecision", "") or "").lower()
+            audio_decision = str(getattr(transcode_session, "audioDecision", "") or "").lower()
+
+            if video_decision == "transcode" or audio_decision == "transcode":
+                playback_mode = "transcode"
+                is_transcode_calc = True
+                stream_detail = "Transcode"
+            elif video_decision == "copy" or audio_decision == "copy":
+                playback_mode = "direct_stream"
+                is_transcode_calc = False
+                stream_detail = "Direct Stream"
+            elif video_decision or audio_decision:
+                playback_mode = "direct_play"
+                is_transcode_calc = False
+                stream_detail = "Direct Play"
+
+        if playback_mode is None:
+            try:
+                media_items = getattr(session, "media", None) or []
+                part_decisions = []
+                for media in media_items:
+                    for part in (getattr(media, "parts", None) or []):
+                        decision = str(getattr(part, "decision", "") or "").lower()
+                        if decision:
+                            part_decisions.append(decision)
+
+                if any(d == "transcode" for d in part_decisions):
+                    playback_mode = "transcode"
+                    is_transcode_calc = True
+                    stream_detail = "Transcode"
+                elif any(d == "copy" for d in part_decisions):
+                    playback_mode = "direct_stream"
+                    is_transcode_calc = False
+                    stream_detail = "Direct Stream"
+                elif part_decisions:
+                    playback_mode = "direct_play"
+                    is_transcode_calc = False
+                    stream_detail = "Direct Play"
+            except Exception:
+                pass
+
+    elif isinstance(session, dict):
+        raw_stream_detail = session.get("stream_detail")
+        stream_detail = str(raw_stream_detail).strip() if raw_stream_detail else None
+        if "is_transcode_calc" in session:
+            is_transcode_calc = bool(session.get("is_transcode_calc"))
+
+        if service_type == ServiceType.JELLYFIN:
+            play_method_raw = ((session.get("PlayState") or {}).get("PlayMethod")) if isinstance(session.get("PlayState"), dict) else None
+            play_method = _normalize_playback_mode_label(play_method_raw)
+            if play_method:
+                playback_mode = play_method
+                if is_transcode_calc is None:
+                    is_transcode_calc = play_method == "transcode"
+                if not stream_detail:
+                    stream_detail = (
+                        "Transcode" if play_method == "transcode"
+                        else "Direct Stream" if play_method == "direct_stream"
+                        else "Direct Play"
+                    )
+            elif session.get("TranscodingInfo"):
+                playback_mode = "transcode"
+                is_transcode_calc = True
+                if not stream_detail:
+                    stream_detail = "Transcode"
+
+        elif service_type == ServiceType.AUDIOBOOKSHELF:
+            # Audiobookshelf streams original audio files in current integration.
+            playback_mode = "direct_stream"
+            if is_transcode_calc is None:
+                is_transcode_calc = False
+            if not stream_detail:
+                stream_detail = "Direct Stream"
+
+        if playback_mode is None and is_transcode_calc is not None:
+            playback_mode = "transcode" if is_transcode_calc else None
+
+        if playback_mode is None and stream_detail:
+            stream_text = stream_detail.lower()
+            if "transcode" in stream_text:
+                playback_mode = "transcode"
+                if is_transcode_calc is None:
+                    is_transcode_calc = True
+            elif "direct stream" in stream_text:
+                playback_mode = "direct_stream"
+                if is_transcode_calc is None:
+                    is_transcode_calc = False
+            elif "direct play" in stream_text:
+                playback_mode = "direct_play"
+                if is_transcode_calc is None:
+                    is_transcode_calc = False
+
+    playback_mode = _normalize_playback_mode_label(playback_mode)
+
+    metadata: Dict[str, Any] = {
+        "service_type": service_type.value,
+    }
+    if playback_mode:
+        metadata["playback_mode"] = playback_mode
+    if stream_detail:
+        metadata["stream_detail"] = stream_detail
+    if is_transcode_calc is not None:
+        metadata["is_transcode_calc"] = bool(is_transcode_calc)
+    return metadata
+
 # --- Scheduled Tasks ---
 
 def monitor_media_sessions_task():
@@ -716,6 +845,8 @@ def _run_media_session_monitor(
                     current_app.logger.debug(f"Server: {current_server.server_nickname} (ID: {current_server.id})")
                     current_app.logger.debug(f"Media: {media_title} ({media_type})")
                     current_app.logger.debug(f"Platform: {platform}, Player: {player_title}")
+
+                    playback_history_data = _extract_playback_history_metadata(session, service_type_enum)
                     
                     new_history_record = MediaStreamHistory(
                         user_uuid=user_media_access.uuid,  # Use unified user_uuid field
@@ -736,7 +867,8 @@ def _run_media_session_monitor(
                         library_name=library_name,
                         thumb_url=thumb_url,
                         media_duration_seconds=media_duration_s,
-                        view_offset_at_end_seconds=view_offset_s
+                        view_offset_at_end_seconds=view_offset_s,
+                        service_data=playback_history_data,
                     )
                     
                     current_app.logger.debug(f"About to add MediaStreamHistory record to database...")
@@ -784,6 +916,9 @@ def _run_media_session_monitor(
                             
                             current_app.logger.debug(f"Updating progress from {history_record.view_offset_at_end_seconds}s to {current_offset_s}s")
                             history_record.view_offset_at_end_seconds = current_offset_s
+                            updated_service_data = dict(history_record.service_data or {})
+                            updated_service_data.update(_extract_playback_history_metadata(session, service_type_enum))
+                            history_record.service_data = updated_service_data
                             current_app.logger.debug(f"Successfully updated existing MediaStreamHistory record (ID: {history_record_id})")
                         else:
                             current_app.logger.debug(f"Could not find existing MediaStreamHistory record with ID {history_record_id} for ongoing session {session_key}.")

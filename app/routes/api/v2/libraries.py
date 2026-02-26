@@ -740,9 +740,16 @@ def get_library_stats(path: LibraryPath, current_user):
         ).all()
     )
 
+    def _effective_watch_seconds(stream: MediaStreamHistory) -> int:
+        duration = int(getattr(stream, "duration_seconds", 0) or 0)
+        if duration > 0:
+            return duration
+        # Fallback for rows where stop finalization was missed but progress was tracked.
+        return int(getattr(stream, "view_offset_at_end_seconds", 0) or 0)
+
     total_streams = len(streams)
     unique_users = len({s.user_uuid for s in streams if s.user_uuid})
-    total_duration = sum(s.duration_seconds or 0 for s in streams)
+    total_duration = sum(_effective_watch_seconds(s) for s in streams)
     average_session_length = (total_duration / total_streams) if total_streams else 0
 
     # Peak hours (top 5 by count).
@@ -790,7 +797,7 @@ def get_library_stats(path: LibraryPath, current_user):
             },
         )
         entry["session_count"] += 1
-        entry["total_watch_time"] += int(s.duration_seconds or 0)
+        entry["total_watch_time"] += _effective_watch_seconds(s)
         if s.media_title:
             entry["unique_content"].add(s.media_title)
         if s.started_at and (
@@ -832,7 +839,7 @@ def get_library_stats(path: LibraryPath, current_user):
         if key not in per_day:
             continue
         per_day[key]["plays"] += 1
-        per_day[key]["seconds"] += float(s.duration_seconds or 0)
+        per_day[key]["seconds"] += float(_effective_watch_seconds(s))
 
     chart_data = [
         {

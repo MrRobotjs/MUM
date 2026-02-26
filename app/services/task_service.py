@@ -866,6 +866,9 @@ def _run_media_session_monitor(
                         parent_title=parent_title,
                         library_name=library_name,
                         thumb_url=thumb_url,
+                        # Persist a running duration immediately so stats remain usable
+                        # even if a stop event is missed (e.g., websocket reconnect/process restart).
+                        duration_seconds=view_offset_s if view_offset_s and view_offset_s > 0 else 0,
                         media_duration_seconds=media_duration_s,
                         view_offset_at_end_seconds=view_offset_s,
                         service_data=playback_history_data,
@@ -916,6 +919,12 @@ def _run_media_session_monitor(
                             
                             current_app.logger.debug(f"Updating progress from {history_record.view_offset_at_end_seconds}s to {current_offset_s}s")
                             history_record.view_offset_at_end_seconds = current_offset_s
+                            if current_offset_s and current_offset_s > 0:
+                                # Keep a best-effort running duration for analytics when stop finalization is missed.
+                                history_record.duration_seconds = max(
+                                    int(history_record.duration_seconds or 0),
+                                    int(current_offset_s),
+                                )
                             updated_service_data = dict(history_record.service_data or {})
                             updated_service_data.update(_extract_playback_history_metadata(session, service_type_enum))
                             history_record.service_data = updated_service_data

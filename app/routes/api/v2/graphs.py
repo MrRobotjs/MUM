@@ -47,6 +47,19 @@ def _normalize_server_mode(server_mode_raw: str | None) -> str:
     return "separated" if value == "separated" else "combined"
 
 
+def _watch_seconds_expr():
+    """Best-effort watch time for historical rows.
+
+    Prefer finalized duration_seconds, but fall back to the latest tracked progress offset when
+    stop finalization was missed.
+    """
+    return func.coalesce(
+        func.nullif(MediaStreamHistory.duration_seconds, 0),
+        func.nullif(MediaStreamHistory.view_offset_at_end_seconds, 0),
+        0,
+    )
+
+
 def _classify_device(platform: str | None, product: str | None, player: str | None) -> str:
     def _clean(value: str | None) -> str:
         return " ".join(str(value or "").strip().split())
@@ -394,7 +407,7 @@ def _build_watch_time_activity(base_q, start_day, days: int) -> list[dict]:
     rows = (
         base_q.with_entities(
             func.date(MediaStreamHistory.started_at).label("day"),
-            func.coalesce(func.sum(MediaStreamHistory.duration_seconds), 0).label("seconds"),
+            func.coalesce(func.sum(_watch_seconds_expr()), 0).label("seconds"),
         )
         .group_by("day")
         .all()
@@ -437,7 +450,7 @@ def _build_watch_time_activity_separated(base_q, server_meta: list[dict], start_
         base_q.with_entities(
             MediaStreamHistory.server_id.label("server_id"),
             func.date(MediaStreamHistory.started_at).label("day"),
-            func.coalesce(func.sum(MediaStreamHistory.duration_seconds), 0).label("seconds"),
+            func.coalesce(func.sum(_watch_seconds_expr()), 0).label("seconds"),
         )
         .group_by(MediaStreamHistory.server_id, "day")
         .all()
@@ -642,12 +655,13 @@ def get_graph_analytics(query: GraphAnalyticsQuery, current_user):
         },
         "sources": {
             "hourly_activity": "media_stream_history",
-            "watch_time_activity": "media_stream_history.duration_seconds",
+            "watch_time_activity": "media_stream_history.duration_seconds (fallback: view_offset_at_end_seconds when duration is missing)",
             "device_preferences": "media_stream_history",
             "playback_health": "media_stream_history.service_data",
         },
         "notes": [
             "Playback Health is calculated from historical stream records (media_stream_history.service_data.playback_mode). Older rows recorded before playback mode persistence may not appear in this chart.",
+            "Watch Time Activity prefers finalized duration_seconds and falls back to view_offset_at_end_seconds for rows where stop finalization was missed.",
         ],
         "playback_health": playback_health_meta,
     }

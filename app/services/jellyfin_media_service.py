@@ -90,6 +90,213 @@ class JellyfinMediaService(BaseMediaService):
             self.log_error(f"Error processing libraries: {e}")
             return []
 
+    def _get_items_payload(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Fetch Jellyfin items using the generic /Items endpoint."""
+        if not self._authenticated and not self._authenticate():
+            return {"Items": [], "TotalRecordCount": 0, "error": "Authentication failed"}
+        try:
+            resp = self.session.get(
+                f"{self.url.rstrip('/')}/Items",
+                params=params,
+                timeout=get_api_timeout_with_fallback(30),
+            )
+            resp.raise_for_status()
+            payload = resp.json() or {}
+            if isinstance(payload, dict):
+                return payload
+            if isinstance(payload, list):
+                return {"Items": payload, "TotalRecordCount": len(payload)}
+            return {"Items": [], "TotalRecordCount": 0}
+        except Exception as e:
+            self.log_error(f"Error fetching Jellyfin items: {e}")
+            return {"Items": [], "TotalRecordCount": 0, "error": str(e)}
+
+    def _map_jellyfin_item(self, item: Dict[str, Any]) -> Dict[str, Any]:
+        item_id = str(item.get("Id") or "")
+        raw_type = str(item.get("Type") or "unknown")
+        item_type = raw_type.lower()
+
+        image_tags = item.get("ImageTags") or {}
+        primary_tag = item.get("PrimaryImageTag") or (image_tags.get("Primary") if isinstance(image_tags, dict) else None)
+        thumb_url = None
+        if item_id:
+            thumb_url = f"/api/v2/media/jellyfin/images/proxy?item_id={item_id}&image_type=Primary"
+            if primary_tag:
+                thumb_url += f"&image_tag={primary_tag}"
+
+        runtime_ticks = item.get("RunTimeTicks")
+        duration_ms = None
+        try:
+            if runtime_ticks:
+                duration_ms = int(int(runtime_ticks) / 10000)  # 100ns ticks -> ms
+        except Exception:
+            duration_ms = None
+
+        year = item.get("ProductionYear")
+        if not year:
+            premiere_date = item.get("PremiereDate")
+            if isinstance(premiere_date, str) and len(premiere_date) >= 4:
+                try:
+                    year = int(premiere_date[:4])
+                except Exception:
+                    year = None
+
+        parent_id = None
+        if item_type == "episode":
+            parent_id = str(item.get("SeriesId") or item.get("ParentId") or "") or None
+
+        return {
+            "id": item_id,
+            "parent_id": parent_id,
+            "title": item.get("Name", "Unknown Title"),
+            "sort_title": item.get("SortName") or item.get("Name") or "Unknown Title",
+            "year": year,
+            "thumb": thumb_url,
+            "type": item_type,
+            "summary": item.get("Overview") or item.get("ShortOverview") or "",
+            "rating": item.get("CommunityRating") or item.get("CriticRating"),
+            "duration": duration_ms,
+            "added_at": item.get("DateCreated"),
+            "raw_data": {
+                "ratingKey": item_id,  # Keep parity with sync service expectations.
+                "Id": item.get("Id"),
+                "Type": item.get("Type"),
+                "SeriesId": item.get("SeriesId"),
+                "ParentId": item.get("ParentId"),
+                "ParentIndexNumber": item.get("ParentIndexNumber"),
+                "IndexNumber": item.get("IndexNumber"),
+                "RunTimeTicks": item.get("RunTimeTicks"),
+                "DateCreated": item.get("DateCreated"),
+                "ProductionYear": item.get("ProductionYear"),
+            },
+        }
+
+    def get_library_content(self, library_key: str, page: int = 1, per_page: int = 50) -> Dict[str, Any]:
+        """Get top-level content for a Jellyfin library (folder)."""
+        try:
+            page = max(int(page or 1), 1)
+            per_page = max(int(per_page or 50), 1)
+            start_index = (page - 1) * per_page
+
+            payload = self._get_items_payload(
+                {
+                    "parentId": str(library_key),
+                    "recursive": "false",  # Top-level items only (e.g., series, movies)
+                    "startIndex": start_index,
+                    "limit": per_page,
+                    "fields": "Overview,DateCreated,ParentId,SortName",
+                    "sortBy": "SortName",
+                    "sortOrder": "Ascending",
+                }
+            )
+            if payload.get("error"):
+                return {
+                    "items": [],
+                    "total": 0,
+                    "page": page,
+                    "per_page": per_page,
+                    "pages": 0,
+                    "has_prev": page > 1,
+                    "has_next": False,
+                    "error": payload.get("error"),
+                }
+
+            raw_items = payload.get("Items") or []
+            if not isinstance(raw_items, list):
+                raw_items = []
+
+            items = [self._map_jellyfin_item(item) for item in raw_items if isinstance(item, dict)]
+            total_items = int(payload.get("TotalRecordCount") or len(items) or 0)
+            total_pages = (total_items + per_page - 1) // per_page if total_items else 0
+
+            return {
+                "items": items,
+                "total": total_items,
+                "page": page,
+                "per_page": per_page,
+                "pages": total_pages,
+                "has_prev": page > 1,
+                "has_next": page < total_pages if total_pages else False,
+            }
+        except Exception as e:
+            self.log_error(f"Error getting Jellyfin library content: {e}")
+            return {
+                "items": [],
+                "total": 0,
+                "page": page,
+                "per_page": per_page,
+                "pages": 0,
+                "has_prev": False,
+                "has_next": False,
+                "error": str(e),
+            }
+
+    def get_show_episodes(self, show_id: str, page: int = 1, per_page: int = 1000, search_query: str = "") -> Dict[str, Any]:
+        """Get episodes for a Jellyfin series."""
+        try:
+            page = max(int(page or 1), 1)
+            per_page = max(int(per_page or 1000), 1)
+            start_index = (page - 1) * per_page
+
+            payload = self._get_items_payload(
+                {
+                    "parentId": str(show_id),
+                    "recursive": "true",
+                    "includeItemTypes": "Episode",
+                    "startIndex": start_index,
+                    "limit": per_page,
+                    "fields": "Overview,DateCreated,ParentId,SortName",
+                    "sortBy": "ParentIndexNumber,IndexNumber,SortName",
+                    "sortOrder": "Ascending",
+                }
+            )
+            if payload.get("error"):
+                return {
+                    "items": [],
+                    "total": 0,
+                    "page": page,
+                    "per_page": per_page,
+                    "pages": 0,
+                    "has_prev": page > 1,
+                    "has_next": False,
+                    "error": payload.get("error"),
+                }
+
+            raw_items = payload.get("Items") or []
+            if not isinstance(raw_items, list):
+                raw_items = []
+
+            mapped_items = [self._map_jellyfin_item(item) for item in raw_items if isinstance(item, dict)]
+            if search_query:
+                needle = search_query.strip().lower()
+                if needle:
+                    mapped_items = [ep for ep in mapped_items if needle in str(ep.get("title") or "").lower()]
+
+            total_items = int(payload.get("TotalRecordCount") or len(mapped_items) or 0)
+            total_pages = (total_items + per_page - 1) // per_page if total_items else 0
+
+            return {
+                "items": mapped_items,
+                "total": total_items,
+                "page": page,
+                "per_page": per_page,
+                "pages": total_pages,
+                "has_prev": page > 1,
+                "has_next": page < total_pages if total_pages else False,
+            }
+        except Exception as e:
+            self.log_error(f"Error getting Jellyfin show episodes for {show_id}: {e}")
+            return {
+                "items": [],
+                "total": 0,
+                "page": page,
+                "per_page": per_page,
+                "pages": 0,
+                "has_prev": False,
+                "has_next": False,
+                "error": str(e),
+            }
+
     def get_users(self) -> List[Dict[str, Any]]:
         try:
             if not self._authenticated and not self._authenticate():

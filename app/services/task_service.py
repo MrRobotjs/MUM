@@ -2,7 +2,7 @@
 from flask import current_app
 from app.extensions import scheduler
 from app.models import Setting, EventType, User, UserType
-from app.models_media_services import MediaServer, MediaStreamHistory, ServiceType
+from app.models_media_services import MediaServer, MediaStreamHistory, MediaItem, ServiceType
 from app.utils.helpers import log_event
 from . import user_service  # user_service is needed for deleting users
 from app.services.media_service_manager import MediaServiceManager
@@ -17,6 +17,40 @@ from app.utils.logging_scope import build_operation_banner, build_service_scope
 
 # session_key -> {'history_id': int, 'service_type': str, 'server_id': Optional[int]}
 _active_stream_sessions: Dict[str, Dict[str, Any]] = {}
+
+
+def _resolve_library_name_from_cached_media(server_id: Optional[int], candidate_ids: Iterable[Any]) -> Optional[str]:
+    """Resolve library name from locally synced MediaItem cache using known external IDs."""
+    if not server_id:
+        return None
+    normalized_ids = []
+    seen = set()
+    for value in candidate_ids or []:
+        if value in (None, ""):
+            continue
+        text = str(value).strip()
+        if not text or text in seen:
+            continue
+        seen.add(text)
+        normalized_ids.append(text)
+    if not normalized_ids:
+        return None
+
+    try:
+        matches = (
+            MediaItem.query.filter(
+                MediaItem.server_id == int(server_id),
+                MediaItem.external_id.in_(normalized_ids),
+            ).all()
+        )
+        by_external_id = {str(item.external_id): item for item in matches if getattr(item, "external_id", None)}
+        for cid in normalized_ids:
+            item = by_external_id.get(cid)
+            if item and getattr(item, "library", None) and getattr(item.library, "name", None):
+                return str(item.library.name)
+    except Exception as e:
+        current_app.logger.debug("Library name resolution from cache failed for server %s: %s", server_id, e)
+    return None
 
 def _normalize_service_type_set(
     types: Optional[Iterable[Union[ServiceType, str]]]
@@ -812,11 +846,21 @@ def _run_media_session_monitor(
                         view_offset_s = int(position_ticks / 10000000) if position_ticks else 0  # Convert ticks to seconds
 
                         # Extract library name from Jellyfin session
-                        # For Jellyfin, we might need to look up the library name by ParentId or LibraryId
-                        library_name = now_playing.get('ParentName', None)  # This might contain library info
+                        # For Jellyfin, ParentName is often a season/show name (not the top-level library).
+                        library_name = now_playing.get('ParentName', None)
                         if not library_name:
                             # Try alternative fields that might contain library information
                             library_name = now_playing.get('ChannelName', None) or now_playing.get('CollectionType', None)
+                        resolved_library_name = _resolve_library_name_from_cached_media(
+                            current_server.id if current_server else None,
+                            [
+                                now_playing.get('Id'),
+                                now_playing.get('SeriesId'),
+                                now_playing.get('ParentId'),
+                            ],
+                        )
+                        if resolved_library_name:
+                            library_name = resolved_library_name
 
                         # Extract thumb for poster from Jellyfin
                         # Jellyfin uses ImageTags with the Primary tag for posters
@@ -925,6 +969,18 @@ def _run_media_session_monitor(
                                     int(history_record.duration_seconds or 0),
                                     int(current_offset_s),
                                 )
+                            if service_type_enum == ServiceType.JELLYFIN and isinstance(session, dict):
+                                now_playing = session.get('NowPlayingItem', {}) or {}
+                                resolved_library_name = _resolve_library_name_from_cached_media(
+                                    current_server.id if current_server else None,
+                                    [
+                                        now_playing.get('Id'),
+                                        now_playing.get('SeriesId'),
+                                        now_playing.get('ParentId'),
+                                    ],
+                                )
+                                if resolved_library_name and history_record.library_name != resolved_library_name:
+                                    history_record.library_name = resolved_library_name
                             updated_service_data = dict(history_record.service_data or {})
                             updated_service_data.update(_extract_playback_history_metadata(session, service_type_enum))
                             history_record.service_data = updated_service_data

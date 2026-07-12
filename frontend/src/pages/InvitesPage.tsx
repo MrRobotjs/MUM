@@ -5,6 +5,7 @@ import { useAdminApi } from '../hooks/useAdminApi';
 import { useDiscordSettings } from '../hooks/useSettings';
 import { InvitesTable, InviteRow, InviteModal, InviteFormValues, InviteDetailDrawer, InviteCard, FeatureMeta, InvitesKpiStrip } from '../components/invites';
 import { resolveScopedLibraryTokens } from '../lib/inviteLibraryTokens';
+import { copyInviteShareUrl } from '../lib/inviteLinks';
 import { requestJson } from '../util/apiClient';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Input } from '../components/ui/input';
@@ -384,11 +385,13 @@ export const InvitesPage = () => {
     setPage(clamped);
   };
 
-  const handleCopyLink = (invite: InviteRow) => {
-    const invitePath = invite.custom_path || invite.token;
-    const fullUrl = `${window.location.origin}/invite/${invitePath}`;
-    navigator.clipboard.writeText(fullUrl);
-    success('Invite link copied!');
+  const handleCopyLink = async (invite: InviteRow) => {
+    try {
+      await copyInviteShareUrl(invite.token, invite.custom_path);
+      success('Invite link copied!');
+    } catch (err) {
+      showError('Copy failed: ' + String(err));
+    }
   };
 
   const headerActions = (
@@ -562,6 +565,7 @@ export const InvitesPage = () => {
           loading={loading}
           onEdit={openEditModal}
           onViewDetail={openDetailDrawer}
+          onCopyLink={handleCopyLink}
         />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">

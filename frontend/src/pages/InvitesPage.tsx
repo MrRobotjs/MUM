@@ -2,9 +2,9 @@ import { useState, useMemo, useEffect, type FormEvent } from 'react';
 import { useAlerts } from '../contexts/AlertContext';
 import { useInvites } from '../hooks/useInvites';
 import { useAdminApi } from '../hooks/useAdminApi';
-import { useInviteSummary } from '../hooks/useInviteSummary';
 import { useDiscordSettings } from '../hooks/useSettings';
-import { InvitesTable, InviteRow, InviteModal, InviteFormValues, InviteDetailDrawer, InviteCard, FeatureMeta } from '../components/invites';
+import { InvitesTable, InviteRow, InviteModal, InviteFormValues, InviteDetailDrawer, InviteCard, FeatureMeta, InvitesKpiStrip } from '../components/invites';
+import { resolveScopedLibraryTokens } from '../lib/inviteLibraryTokens';
 import { requestJson } from '../util/apiClient';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Input } from '../components/ui/input';
@@ -44,7 +44,7 @@ import {
   faTrash,
   faTv,
 } from '@fortawesome/free-solid-svg-icons';
-import type { InviteLibrary, InviteServer } from '../components/invites/InvitesTable';
+import type { InviteServer } from '../components/invites/InvitesTable';
 import { getServiceBadgeClass as getServiceBadgeMeta, getServiceIcon } from '../config/pluginMetadata';
 import { Spinner } from '@/components/ui/spinner'
 
@@ -139,10 +139,11 @@ const buildFeatureMeta = (inviteFeatureSupport: Record<string, string[]>): Featu
 
 const mapInviteToForm = (invite: InviteRow): InviteFormValues => {
   const serverIds = (invite.servers ?? []).map((s: InviteServer) => s.id);
-  const libraryIds =
-    invite.grant_library_ids && invite.grant_library_ids.length > 0
-      ? invite.grant_library_ids
-      : (invite.libraries ?? []).map((l: InviteLibrary) => l.id);
+  const libraryIds = resolveScopedLibraryTokens(
+    invite.grant_library_ids,
+    invite.libraries,
+    invite.servers,
+  );
 
   return {
     custom_path: invite.custom_path ?? '',
@@ -187,7 +188,6 @@ export const InvitesPage = () => {
   const [inviteSettingsSaving, setInviteSettingsSaving] = useState(false);
   const { data: serversData } = useAdminApi<{ data: { id: number; server_nickname: string }[] }>('/servers', true);
   const { data: pluginMetaData } = useAdminApi<PluginMetaResponse>('/plugins/metadata', true);
-  const { summary } = useInviteSummary();
   const { settings: discordSettings, refresh: refreshDiscordSettings } = useDiscordSettings();
   const { invites, pagination, loading, error, refresh } = useInvites({
     status: statusFilter === 'all' ? undefined : statusFilter,
@@ -441,6 +441,8 @@ export const InvitesPage = () => {
         description="Create and manage shareable access to your media servers."
         actions={headerActions}
       />
+
+      <InvitesKpiStrip />
 
       {/* Filter Section */}
       <form method="GET" className="mb-6 p-4 rounded-lg border shadow-sm bg-card" onSubmit={handleSearchSubmit}>

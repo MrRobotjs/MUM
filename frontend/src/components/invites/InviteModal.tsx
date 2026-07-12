@@ -32,6 +32,10 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 import { faDiscord } from '@fortawesome/free-brands-svg-icons';
 import { Spinner } from '@/components/ui/spinner'
+import {
+  getScopedLibraryToken,
+  parseScopedLibraryToken,
+} from '../../lib/inviteLibraryTokens';
 
 export type InviteFormValues = {
   custom_path?: string;
@@ -115,28 +119,12 @@ const defaultValues: InviteFormValues = {
   server_features: []
 };
 
-const LIBRARY_TOKEN_SEPARATOR = '::';
-
 const supportsPerLibraryAccess = (server?: Server | null): boolean =>
   server?.invite_capabilities?.supports_library_scoped_grants !== false;
 
 const getLibraryId = (library: Library): string | null => {
   const id = library.id || library.external_id || library.internal_id;
   return id ? String(id) : null;
-};
-
-const getScopedLibraryToken = (serverId: number, libraryId: string): string =>
-  `${serverId}${LIBRARY_TOKEN_SEPARATOR}${libraryId}`;
-
-const parseScopedLibraryToken = (token: string): { serverId: number; libraryId: string } | null => {
-  const separatorIndex = token.indexOf(LIBRARY_TOKEN_SEPARATOR);
-  if (separatorIndex <= 0) return null;
-
-  const serverPart = token.slice(0, separatorIndex);
-  const libraryPart = token.slice(separatorIndex + LIBRARY_TOKEN_SEPARATOR.length);
-  if (!serverPart || !libraryPart || !/^\d+$/.test(serverPart)) return null;
-
-  return { serverId: Number(serverPart), libraryId: libraryPart };
 };
 
 export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing, loading }: InviteModalProps) => {

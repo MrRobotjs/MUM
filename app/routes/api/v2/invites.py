@@ -753,6 +753,132 @@ def delete_invite(path: InvitePath, current_user):
     return jsonify(item), 200
 
 
+class InviteUsagesQuery(BaseModel):
+    page: int = Field(1, ge=1)
+    page_size: int = Field(10, ge=1, le=100)
+
+
+class InviteUsageItem(BaseModel):
+    id: int
+    invite_id: int
+    used_at: Optional[str] = None
+    ip_address: Optional[str] = None
+    plex_username: Optional[str] = None
+    plex_email: Optional[str] = None
+    discord_username: Optional[str] = None
+    discord_user_id: Optional[str] = None
+    accepted_invite: bool
+    status_message: Optional[str] = None
+    user_uuid: Optional[str] = None
+    plex_auth_successful: bool
+    discord_auth_successful: bool
+
+
+class InviteUsageSummary(BaseModel):
+    total: int
+    accepted: int
+    pending: int
+    plex_auth_successful: int
+    discord_auth_successful: int
+    last_used_at: Optional[str] = None
+
+
+class InviteUsagesData(BaseModel):
+    items: list[InviteUsageItem]
+    summary: InviteUsageSummary
+
+
+class InviteUsagesResponse(BaseModel):
+    data: InviteUsagesData
+    meta: MetaModel
+
+
+def _serialize_invite_usage(usage: InviteUsage) -> dict:
+    return {
+        "id": usage.id,
+        "invite_id": usage.invite_id,
+        "used_at": usage.used_at.isoformat() + "Z" if usage.used_at else None,
+        "ip_address": usage.ip_address,
+        "plex_username": usage.plex_username,
+        "plex_email": usage.plex_email,
+        "discord_username": usage.discord_username,
+        "discord_user_id": usage.discord_user_id,
+        "accepted_invite": bool(usage.accepted_invite),
+        "status_message": usage.status_message,
+        "user_uuid": usage.userId,
+        "plex_auth_successful": bool(usage.plex_auth_successful),
+        "discord_auth_successful": bool(usage.discord_auth_successful),
+    }
+
+
+def _invite_usage_summary(invite_id: int) -> dict:
+    base_query = InviteUsage.query.filter(InviteUsage.invite_id == invite_id)
+    total = base_query.count()
+    accepted = base_query.filter(InviteUsage.accepted_invite.is_(True)).count()
+    plex_success = base_query.filter(InviteUsage.plex_auth_successful.is_(True)).count()
+    discord_success = base_query.filter(InviteUsage.discord_auth_successful.is_(True)).count()
+    last_usage = base_query.order_by(InviteUsage.used_at.desc()).first()
+    return {
+        "total": total,
+        "accepted": accepted,
+        "pending": max(total - accepted, 0),
+        "plex_auth_successful": plex_success,
+        "discord_auth_successful": discord_success,
+        "last_used_at": last_usage.used_at.isoformat() + "Z" if last_usage and last_usage.used_at else None,
+    }
+
+
+@api_v2.get(
+    "/invites/<invite_id>/usages",
+    tags=[invites_tag],
+    summary="List invite usage history",
+    responses={200: InviteUsagesResponse, 404: ErrorResponse},
+)
+@jwt_required_with_user()
+def get_invite_usages(path: InvitePath, query: InviteUsagesQuery, current_user):
+    request_id = __import__("uuid").uuid4().hex
+    inv = Invite.query.get(path.invite_id)
+    if not inv:
+        return (
+            jsonify(
+                {
+                    "error": {"code": "NOT_FOUND", "message": "Invite not found"},
+                    "meta": {"request_id": request_id},
+                }
+            ),
+            404,
+        )
+
+    usages_query = (
+        InviteUsage.query.filter(InviteUsage.invite_id == inv.id)
+        .order_by(InviteUsage.used_at.desc())
+    )
+    pagination = usages_query.paginate(page=query.page, per_page=query.page_size, error_out=False)
+    total_pages = pagination.pages or 1
+
+    return (
+        jsonify(
+            {
+                "data": {
+                    "items": [_serialize_invite_usage(usage) for usage in pagination.items],
+                    "summary": _invite_usage_summary(inv.id),
+                },
+                "meta": {
+                    "request_id": request_id,
+                    "generated_at": datetime.utcnow().isoformat() + "Z",
+                    "pagination": {
+                        "page": pagination.page,
+                        "page_size": pagination.per_page,
+                        "total_items": pagination.total,
+                        "total_pages": total_pages,
+                    },
+                },
+            }
+        ),
+        200,
+    )
+
+
 class SummaryCounts(BaseModel):
     total: int
     active: int

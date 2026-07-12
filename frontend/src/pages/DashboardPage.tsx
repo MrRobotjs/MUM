@@ -1,5 +1,15 @@
 import { useState } from 'react';
-import { DashboardLayout, ActiveStreamsCard, WatchStatsCard, HistoryCard, ServersModal, InvitesSummaryCard, StreamingSummaryCard, ServerStatusCard } from '../components/dashboard';
+import { DashboardLayout } from '../components/dashboard/DashboardLayout';
+import { ServersModal } from '../components/dashboard/ServersModal';
+import {
+  KpiStrip,
+  LiveStreamsWidget,
+  PluginStatusWidget,
+  UsersInvitesWidget,
+  StreamingOverviewWidget,
+  HistoryWidget,
+  WatchStatsWidget,
+} from '../components/dashboard/widgets';
 
 export const DashboardPage = () => {
   const [serversModalOpen, setServersModalOpen] = useState(false);
@@ -7,19 +17,18 @@ export const DashboardPage = () => {
   return (
     <>
       <DashboardLayout>
-        <div className="space-y-6">
-          <ServerStatusCard onViewAll={() => setServersModalOpen(true)} />
-          <WatchStatsCard />
-          <div className="grid gap-6 md:grid-cols-2">
-            <InvitesSummaryCard />
-            <StreamingSummaryCard />
-          </div>
-          <div className="grid gap-6 md:grid-cols-2">
-            <ActiveStreamsCard />
-            <HistoryCard />
-          </div>
-        </div>
+        <KpiStrip />
+
+        <LiveStreamsWidget />
+        <PluginStatusWidget onViewAll={() => setServersModalOpen(true)} />
+        <UsersInvitesWidget />
+
+        <StreamingOverviewWidget />
+        <HistoryWidget />
+
+        <WatchStatsWidget />
       </DashboardLayout>
+
       <ServersModal open={serversModalOpen} onClose={() => setServersModalOpen(false)} />
     </>
   );

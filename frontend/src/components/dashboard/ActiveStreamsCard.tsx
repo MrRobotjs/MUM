@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { useAdminApi } from '../../hooks/useAdminApi';
-import { DashboardCard } from './DashboardLayout';
+import { DashboardCard } from './legacy/DashboardCard';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faRotate } from '@fortawesome/free-solid-svg-icons';
 import { Spinner } from '@/components/ui/spinner'

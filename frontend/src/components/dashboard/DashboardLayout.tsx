@@ -1,19 +1,20 @@
 import type { ReactNode } from 'react';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { PageHeader } from '@/components/common/PageHeader';
+import { BentoGrid } from './bento';
 
-export const DashboardLayout = ({ children }: { children: ReactNode }) => (
+type DashboardLayoutProps = {
+  children: ReactNode;
+};
+
+export const DashboardLayout = ({ children }: DashboardLayoutProps) => (
   <div className="space-y-6">
-    {children}
+    <PageHeader
+      title="Dashboard"
+      description="Overview of streaming activity, users, invites, and connected media services."
+    />
+    <BentoGrid>{children}</BentoGrid>
   </div>
 );
 
-export const DashboardCard = ({ title, children, className }: { title: string; children: ReactNode; className?: string }) => (
-  <Card className={className}>
-    <CardHeader className="pb-3">
-      <CardTitle>{title}</CardTitle>
-    </CardHeader>
-    <CardContent className="space-y-4">
-      {children}
-    </CardContent>
-  </Card>
-);
+/** @deprecated Prefer BentoTile — kept for legacy cards during migration. */
+export { DashboardCard } from './legacy/DashboardCard';

@@ -1,3 +1,4 @@
+export { InvitesKpiStrip } from './InvitesKpiStrip';
 export { InvitesTable } from './InvitesTable';
 export type { InviteRow } from './InvitesTable';
 export { InviteModal } from './InviteModal';

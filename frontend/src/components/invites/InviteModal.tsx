@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { cn } from '@/lib/utils';
 import { requestJson } from '../../util/apiClient';
 import { Input } from '../ui/input';
 import { Checkbox } from '../ui/checkbox';
@@ -32,6 +33,11 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 import { faDiscord } from '@fortawesome/free-brands-svg-icons';
 import { Spinner } from '@/components/ui/spinner'
+import { useDiscordSettings } from '../../hooks/useSettings';
+import {
+  getScopedLibraryToken,
+  parseScopedLibraryToken,
+} from '../../lib/inviteLibraryTokens';
 
 export type InviteFormValues = {
   custom_path?: string;
@@ -115,8 +121,6 @@ const defaultValues: InviteFormValues = {
   server_features: []
 };
 
-const LIBRARY_TOKEN_SEPARATOR = '::';
-
 const supportsPerLibraryAccess = (server?: Server | null): boolean =>
   server?.invite_capabilities?.supports_library_scoped_grants !== false;
 
@@ -125,21 +129,9 @@ const getLibraryId = (library: Library): string | null => {
   return id ? String(id) : null;
 };
 
-const getScopedLibraryToken = (serverId: number, libraryId: string): string =>
-  `${serverId}${LIBRARY_TOKEN_SEPARATOR}${libraryId}`;
-
-const parseScopedLibraryToken = (token: string): { serverId: number; libraryId: string } | null => {
-  const separatorIndex = token.indexOf(LIBRARY_TOKEN_SEPARATOR);
-  if (separatorIndex <= 0) return null;
-
-  const serverPart = token.slice(0, separatorIndex);
-  const libraryPart = token.slice(separatorIndex + LIBRARY_TOKEN_SEPARATOR.length);
-  if (!serverPart || !libraryPart || !/^\d+$/.test(serverPart)) return null;
-
-  return { serverId: Number(serverPart), libraryId: libraryPart };
-};
-
 export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing, loading }: InviteModalProps) => {
+  const { settings: discordSettings, loading: discordSettingsLoading } = useDiscordSettings();
+  const discordOAuthEnabled = discordSettings?.enable_oauth ?? false;
   const [form, setForm] = useState<InviteFormValues>(defaultValues);
   const [servers, setServers] = useState<Server[]>([]);
   const [selectedServerIds, setSelectedServerIds] = useState<Set<number>>(new Set());
@@ -513,8 +505,12 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
     const invitePlexAny = serverFeaturePayload.some((f) => f.invite_to_plex_home);
     const allowLiveTvAny = serverFeaturePayload.some((f) => f.allow_live_tv);
     const allow4kAny = serverFeaturePayload.some((f) => f.allow_4k_transcode ?? true);
-    const requireDiscordGuild = form.require_discord_guild_membership ?? false;
-    const requireDiscordAuth = (form.require_discord_auth ?? false) || requireDiscordGuild;
+    const requireDiscordGuild = discordOAuthEnabled
+      ? (form.require_discord_guild_membership ?? false)
+      : false;
+    const requireDiscordAuth = discordOAuthEnabled
+      ? (form.require_discord_auth ?? false) || requireDiscordGuild
+      : false;
     const normalizedLibraryTokens = Array.from(selectedLibraries).filter((token) => {
       const parsed = parseScopedLibraryToken(token);
       if (!parsed) return false;
@@ -983,8 +979,14 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
                   <h5 className="font-medium text-base">Discord Requirements</h5>
                   <span className="text-xs text-muted-foreground">Identity & membership</span>
                 </div>
+                {!discordOAuthEnabled && !discordSettingsLoading ? (
+                  <p className="rounded-lg border border-dashed border-border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+                    Discord OAuth is disabled in server settings. Enable it under Admin → Settings → Discord
+                    before requiring Discord authentication on invites.
+                  </p>
+                ) : null}
                         <div className="space-y-3">
-                          <div className="rounded-lg p-4 border bg-background">
+                          <div className={cn('rounded-lg border bg-background p-4', !discordOAuthEnabled && 'opacity-60')}>
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-2">
                                 <FontAwesomeIcon icon={faDiscord} className="text-blue-400 text-sm" />
@@ -995,12 +997,13 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
                               </div>
                               <Switch
                                 checked={form.require_discord_auth ?? false}
+                                disabled={!discordOAuthEnabled || discordSettingsLoading}
                                 onCheckedChange={(checked) => handleDiscordRequirementToggle('require_discord_auth', checked)}
                               />
                             </div>
                           </div>
 
-                          <div className="rounded-lg p-4 border bg-background">
+                          <div className={cn('rounded-lg border bg-background p-4', !discordOAuthEnabled && 'opacity-60')}>
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-2">
                                 <FontAwesomeIcon icon={faUsers} className="text-yellow-400 text-sm" />
@@ -1011,6 +1014,7 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
                               </div>
                               <Switch
                                 checked={form.require_discord_guild_membership ?? false}
+                                disabled={!discordOAuthEnabled || discordSettingsLoading}
                                 onCheckedChange={(checked) => handleDiscordRequirementToggle('require_discord_guild_membership', checked)}
                               />
                             </div>

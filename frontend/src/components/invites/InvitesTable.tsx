@@ -73,6 +73,7 @@ type InvitesTableProps = {
   loading?: boolean;
   onEdit?: (invite: InviteRow) => void;
   onViewDetail?: (invite: InviteRow) => void;
+  onCopyLink?: (invite: InviteRow) => void;
 };
 
 export const InvitesTable = ({
@@ -82,7 +83,8 @@ export const InvitesTable = ({
   onSelectAll,
   loading,
   onEdit,
-  onViewDetail
+  onViewDetail,
+  onCopyLink,
 }: InvitesTableProps) => {
   const getStatusLabel = (invite: InviteRow) => {
     const isExpired =
@@ -126,7 +128,15 @@ export const InvitesTable = ({
               />
             </TableCell>
             <TableCell>
-              <div className="font-medium break-words">{invite.custom_path || invite.token}</div>
+              <button
+                type="button"
+                className="block text-left font-medium break-words text-primary underline-offset-4 hover:underline"
+                title="Click to copy invite link"
+                onClick={() => onCopyLink?.(invite)}
+                disabled={!onCopyLink}
+              >
+                {invite.custom_path || invite.token}
+              </button>
               <div className="text-xs text-muted-foreground break-all">{invite.token}</div>
             </TableCell>
             <TableCell className="text-muted-foreground">
@@ -143,6 +153,11 @@ export const InvitesTable = ({
             </TableCell>
             <TableCell className="text-right">
               <div className="flex justify-end gap-2">
+                {onCopyLink ? (
+                  <Button variant="ghost" size="sm" onClick={() => onCopyLink(invite)}>
+                    Copy
+                  </Button>
+                ) : null}
                 <Button
                   variant="ghost"
                   size="sm"

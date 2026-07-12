@@ -1,32 +1,24 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import {
+  IconBrandDiscord,
+  IconChevronLeft,
+  IconChevronRight,
+  IconClock,
+  IconUser,
+} from '@tabler/icons-react';
 import { cn } from '@/lib/utils';
+import { formatTimeAgo } from '@/lib/timeFormat';
+import { buildInviteShareUrl, copyInviteShareUrl } from '@/lib/inviteLinks';
 import { Button } from '../ui/button';
 import { useAlerts } from '../../contexts/AlertContext';
 import { requestJson } from '../../util/apiClient';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
+import { useInviteUsages } from '../../hooks/useInviteUsages';
 
-type InviteUsageEntry = {
-  id: number;
-  used_at: string | null;
-  ip_address?: string | null;
-  plex_username?: string | null;
-  plex_email?: string | null;
-  discord_username?: string | null;
-  discord_user_id?: string | null;
-  accepted_invite: boolean;
-  status_message?: string | null;
-  user_uuid?: string | null;
-  plex_auth_successful: boolean;
-  discord_auth_successful: boolean;
-};
-
-type InviteServerLibrary = {
+type InviteLibrary = {
   id: string;
   name: string;
-  library_type?: string | null;
-  selected: boolean;
-  external_id?: string | null;
-  internal_id?: string | null;
+  server_name?: string | null;
+  service_type?: string | null;
 };
 
 type InviteServer = {
@@ -34,12 +26,9 @@ type InviteServer = {
   server_nickname?: string | null;
   name?: string | null;
   service_type: string;
-  url?: string | null;
-  public_url?: string | null;
-  is_active: boolean;
+  is_active?: boolean;
   plugin_enabled?: boolean;
   effective_active?: boolean;
-  libraries: InviteServerLibrary[];
 };
 
 type InviteDetail = {
@@ -56,28 +45,17 @@ type InviteDetail = {
   expires_at?: string | null;
   max_uses?: number | null;
   current_uses: number;
-  remaining_uses?: number | null;
   allow_downloads: boolean;
-  invite_to_plex_home?: boolean;
-  allow_live_tv?: boolean;
   require_discord_auth?: boolean;
   require_discord_guild_membership?: boolean;
   membership_duration_days?: number | null;
-  library_selection_mode: 'all' | 'custom';
+  grants_all_libraries?: boolean;
   grant_library_ids?: string[] | null;
+  libraries?: InviteLibrary[];
   servers: InviteServer[];
   disabled_servers?: InviteServer[];
   effective_server_count?: number;
   disabled_server_count?: number;
-  usage: InviteUsageEntry[];
-  usage_summary: {
-    total: number;
-    accepted: number;
-    pending: number;
-    plex_auth_successful: number;
-    discord_auth_successful: number;
-    last_used_at?: string | null;
-  };
 };
 
 type InviteDetailDrawerProps = {
@@ -89,11 +67,31 @@ type ApiResponse = {
   data?: InviteDetail;
 } | InviteDetail;
 
+const usageDisplayName = (usage: {
+  plex_username?: string | null;
+  discord_username?: string | null;
+  plex_email?: string | null;
+}): string =>
+  usage.plex_username || usage.discord_username || usage.plex_email || 'Unknown user';
+
 export const InviteDetailDrawer = ({ inviteId, onClose }: InviteDetailDrawerProps) => {
   const { success, error: showError } = useAlerts();
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [detail, setDetail] = useState<InviteDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const {
+    usages,
+    summary,
+    pagination,
+    loading: usagesLoading,
+    error: usagesError,
+  } = useInviteUsages(inviteId, page, 5);
+
+  useEffect(() => {
+    setPage(1);
+  }, [inviteId]);
 
   useEffect(() => {
     const load = async () => {
@@ -105,19 +103,12 @@ export const InviteDetailDrawer = ({ inviteId, onClose }: InviteDetailDrawerProp
       setError(null);
       try {
         const json = await requestJson<ApiResponse>(`/api/v2/invites/${inviteId}`);
-        const payload = (json as any)?.data ?? (json as any);
+        const payload = ((json as ApiResponse)?.data ?? json) as InviteDetail;
         const normalized: InviteDetail = {
-          ...(payload as InviteDetail),
-          servers: (payload as any)?.servers ?? [],
-          usage: (payload as any)?.usage ?? [],
-          usage_summary: (payload as any)?.usage_summary ?? {
-            total: 0,
-            accepted: 0,
-            pending: 0,
-            plex_auth_successful: 0,
-            discord_auth_successful: 0,
-            last_used_at: null
-          }
+          ...payload,
+          servers: payload.servers ?? [],
+          libraries: payload.libraries ?? [],
+          share_url: buildInviteShareUrl(payload.token, payload.custom_path),
         };
         setDetail(normalized);
       } catch (err) {
@@ -130,13 +121,28 @@ export const InviteDetailDrawer = ({ inviteId, onClose }: InviteDetailDrawerProp
     };
 
     void load();
-  }, [inviteId]);
+  }, [inviteId, showError]);
+
+  const librariesByServer = useMemo(() => {
+    const map = new Map<number, InviteLibrary[]>();
+    if (!detail) return map;
+
+    for (const server of detail.servers ?? []) {
+      const matched = (detail.libraries ?? []).filter(
+        (library) =>
+          library.server_name === server.server_nickname ||
+          library.server_name === server.name,
+      );
+      map.set(server.id, matched);
+    }
+    return map;
+  }, [detail]);
 
   const handleCopyShareUrl = async () => {
-    if (!detail?.share_url) return;
+    if (!detail) return;
     try {
-      await navigator.clipboard.writeText(detail.share_url);
-      success('Link copied');
+      await copyInviteShareUrl(detail.token, detail.custom_path);
+      success('Invite link copied');
     } catch (err) {
       showError('Copy failed: ' + String(err));
     }
@@ -151,7 +157,7 @@ export const InviteDetailDrawer = ({ inviteId, onClose }: InviteDetailDrawerProp
   const statusLabel = detail
     ? detail.is_paused
       ? 'Paused'
-      : detail.is_usable
+      : detail.is_effectively_usable ?? detail.is_usable
         ? 'Usable'
         : detail.is_expired
           ? 'Expired'
@@ -162,11 +168,15 @@ export const InviteDetailDrawer = ({ inviteId, onClose }: InviteDetailDrawerProp
               : 'Disabled'
     : '';
 
+  const librarySelectionLabel = detail?.grants_all_libraries
+    ? 'All libraries granted'
+    : 'Custom selection';
+
   return (
     <div
       className={cn(
         'fixed inset-0 z-40 flex justify-end bg-background/60 backdrop-blur transition-opacity',
-        inviteId ? 'opacity-100 visible' : 'opacity-0 invisible'
+        inviteId ? 'visible opacity-100' : 'invisible opacity-0',
       )}
       onClick={onClose}
     >
@@ -183,12 +193,12 @@ export const InviteDetailDrawer = ({ inviteId, onClose }: InviteDetailDrawerProp
               </p>
             ) : null}
           </div>
-          <Button variant='ghost' onClick={onClose}>
+          <Button variant="ghost" onClick={onClose}>
             Close
           </Button>
         </div>
 
-        <div className="h-full overflow-y-auto px-6 py-4 space-y-6">
+        <div className="h-full space-y-6 overflow-y-auto px-6 py-4">
           {loading ? (
             <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
               Loading invite...
@@ -209,24 +219,57 @@ export const InviteDetailDrawer = ({ inviteId, onClose }: InviteDetailDrawerProp
 
           {detail ? (
             <>
-              <section className="rounded-xl border p-4 shadow-sm space-y-4">
+              <section className="space-y-4 rounded-xl border p-4 shadow-sm">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className={cn('inline-flex items-center rounded-md px-2 py-1 text-xs font-medium uppercase', detail.is_paused ? 'bg-slate-500/10 text-slate-500 border border-slate-500/20' : detail.is_usable ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20')}>
+                  <span
+                    className={cn(
+                      'inline-flex items-center rounded-md border px-2 py-1 text-xs font-medium uppercase',
+                      detail.is_paused
+                        ? 'border-slate-500/20 bg-slate-500/10 text-slate-500'
+                        : detail.is_usable
+                          ? 'border-green-500/20 bg-green-500/10 text-green-400'
+                          : 'border-yellow-500/20 bg-yellow-500/10 text-yellow-400',
+                    )}
+                  >
                     {statusLabel}
                   </span>
-                  <span className="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium bg-blue-500/10 text-blue-400 border border-blue-500/20">{detail.is_active ? 'Active' : 'Disabled'}</span>
-                  {detail.require_discord_auth ? <span className="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium border">Discord required</span> : null}
-                  {detail.allow_downloads ? <span className="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium border">Downloads</span> : null}
+                  <span className="inline-flex items-center rounded-md border border-blue-500/20 bg-blue-500/10 px-2 py-1 text-xs font-medium text-blue-400">
+                    {detail.is_active ? 'Active' : 'Disabled'}
+                  </span>
+                  {detail.require_discord_auth ? (
+                    <span className="inline-flex items-center rounded-md border px-2 py-1 text-xs font-medium">
+                      Discord required
+                    </span>
+                  ) : null}
+                  {detail.allow_downloads ? (
+                    <span className="inline-flex items-center rounded-md border px-2 py-1 text-xs font-medium">
+                      Downloads
+                    </span>
+                  ) : null}
                 </div>
                 <div className="space-y-2 text-sm">
                   <div>
                     <span className="font-medium">Token:</span>{' '}
-                    <span className="font-mono text-muted-foreground break-all">{detail.token}</span>
+                    <button
+                      type="button"
+                      className="break-all font-mono text-primary underline-offset-4 hover:underline"
+                      title="Click to copy invite link"
+                      onClick={() => void handleCopyShareUrl()}
+                    >
+                      {detail.token}
+                    </button>
                   </div>
                   {detail.custom_path ? (
                     <div>
                       <span className="font-medium">Custom path:</span>{' '}
-                      <span className="font-mono text-muted-foreground break-all">{detail.custom_path}</span>
+                      <button
+                        type="button"
+                        className="break-all font-mono text-primary underline-offset-4 hover:underline"
+                        title="Click to copy invite link"
+                        onClick={() => void handleCopyShareUrl()}
+                      >
+                        {detail.custom_path}
+                      </button>
                     </div>
                   ) : null}
                   <div>
@@ -234,26 +277,23 @@ export const InviteDetailDrawer = ({ inviteId, onClose }: InviteDetailDrawerProp
                     {detail.expires_at ? new Date(detail.expires_at).toLocaleString() : 'Never'}
                   </div>
                   <div>
-                    <span className="font-medium">Usage:</span>{' '}
-                    {detail.current_uses} / {detail.max_uses ?? '∞'}
-                    {detail.remaining_uses !== null ? ` (${detail.remaining_uses} remaining)` : null}
+                    <span className="font-medium">Usage:</span> {detail.current_uses} /{' '}
+                    {detail.max_uses ?? '∞'}
                   </div>
-                  {detail.share_url ? (
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-medium">Share link:</span>
-                      <a
-                        className="text-primary underline-offset-4 hover:underline break-all"
-                        href={detail.share_url}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        {detail.share_url}
-                      </a>
-                      <Button variant="ghost" size="sm" onClick={handleCopyShareUrl}>
-                        Copy
-                      </Button>
-                    </div>
-                  ) : null}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-medium">Share link:</span>
+                    <a
+                      className="break-all text-primary underline-offset-4 hover:underline"
+                      href={detail.share_url ?? '#'}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      {detail.share_url}
+                    </a>
+                    <Button variant="ghost" size="sm" onClick={handleCopyShareUrl}>
+                      Copy
+                    </Button>
+                  </div>
                   <div className="flex flex-wrap gap-2">
                     <Button size="sm" variant="ghost" onClick={openInvite}>
                       Open Public Wizard
@@ -265,9 +305,7 @@ export const InviteDetailDrawer = ({ inviteId, onClose }: InviteDetailDrawerProp
               <section className="space-y-3">
                 <header className="flex items-center justify-between">
                   <h3 className="text-lg font-semibold">Servers & Libraries</h3>
-                  <span className="text-xs uppercase text-muted-foreground">
-                    {detail.library_selection_mode === 'all' ? 'All libraries granted' : 'Custom selection'}
-                  </span>
+                  <span className="text-xs uppercase text-muted-foreground">{librarySelectionLabel}</span>
                 </header>
                 <div className="space-y-3">
                   {(detail.servers?.length ?? 0) === 0 ? (
@@ -275,135 +313,170 @@ export const InviteDetailDrawer = ({ inviteId, onClose }: InviteDetailDrawerProp
                       No servers are linked to this invite yet.
                     </div>
                   ) : null}
-                  {detail.servers?.map((server) => (
-                    <div key={server.id} className="rounded-lg border p-4">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div>
-                          <div className="font-semibold">{server.server_nickname || server.name || 'Server'}</div>
-                          <div className="text-xs text-muted-foreground uppercase">
-                            {server.service_type}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className={cn('inline-flex items-center rounded-md border px-2 py-1 text-xs font-medium', server.effective_active === false ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' : server.is_active ? 'bg-green-500/10 text-green-400 border-green-500/20' : 'bg-gray-500/10 text-gray-400 border-gray-500/20')}>
-                            {server.effective_active === false ? 'Unavailable' : server.is_active ? 'Active' : 'Inactive'}
-                          </span>
-                          {server.effective_active === false ? (
-                            <span className="text-xs text-muted-foreground">
-                              {server.is_active === false ? 'Server disabled' : server.plugin_enabled === false ? 'Plugin disabled' : 'Unavailable'}
-                            </span>
-                          ) : null}
-                          {server.public_url ? (
-                            <a className="text-sm text-primary underline-offset-4 hover:underline" href={server.public_url} target="_blank" rel="noreferrer">
-                              Public URL
-                            </a>
-                          ) : null}
-                        </div>
-                      </div>
-                      <ul className="mt-3 grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
-                        {(server.libraries || []).map((lib) => (
-                          <li key={lib.id} className="rounded-md border px-3 py-2">
-                            <div className="font-medium">{lib.name}</div>
-                            <div className="text-xs text-muted-foreground">
-                              {lib.library_type ?? 'Library'} • {lib.selected ? 'Granted' : 'Not granted'}
+                  {detail.servers?.map((server) => {
+                    const serverLibraries = librariesByServer.get(server.id) ?? [];
+                    return (
+                      <div key={server.id} className="rounded-lg border p-4">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div>
+                            <div className="font-semibold">
+                              {server.server_nickname || server.name || 'Server'}
                             </div>
-                          </li>
-                        ))}
-                        {(server.libraries || []).length === 0 ? (
-                          <li className="text-xs text-muted-foreground">No libraries synced.</li>
-                        ) : null}
-                      </ul>
-                    </div>
-                  ))}
+                            <div className="text-xs uppercase text-muted-foreground">
+                              {server.service_type}
+                            </div>
+                          </div>
+                          <span
+                            className={cn(
+                              'inline-flex items-center rounded-md border px-2 py-1 text-xs font-medium',
+                              server.effective_active === false
+                                ? 'border-amber-500/20 bg-amber-500/10 text-amber-500'
+                                : server.is_active
+                                  ? 'border-green-500/20 bg-green-500/10 text-green-400'
+                                  : 'border-gray-500/20 bg-gray-500/10 text-gray-400',
+                            )}
+                          >
+                            {server.effective_active === false
+                              ? 'Unavailable'
+                              : server.is_active
+                                ? 'Active'
+                                : 'Inactive'}
+                          </span>
+                        </div>
+                        <ul className="mt-3 grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
+                          {serverLibraries.map((library) => (
+                            <li key={`${server.id}-${library.id}`} className="rounded-md border px-3 py-2">
+                              <div className="font-medium">{library.name}</div>
+                              <div className="text-xs text-muted-foreground">Granted</div>
+                            </li>
+                          ))}
+                          {serverLibraries.length === 0 ? (
+                            <li className="text-xs text-muted-foreground">
+                              {detail.grants_all_libraries
+                                ? 'All libraries on this server.'
+                                : 'No specific libraries selected.'}
+                            </li>
+                          ) : null}
+                        </ul>
+                      </div>
+                    );
+                  })}
                 </div>
               </section>
 
               <section className="space-y-3">
-                <header className="flex items-center justify-between">
-                  <h3 className="text-lg font-semibold">Usage</h3>
-                  {(detail.usage_summary?.total ?? 0) > 0 ? (
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <span>{detail.usage_summary?.total ?? 0} total</span>
-                      <span>{detail.usage_summary?.accepted ?? 0} accepted</span>
-                      <span>{detail.usage_summary?.pending ?? 0} pending</span>
+                {summary ? (
+                  <div className="grid grid-cols-2 gap-2 border-b border-border pb-4">
+                    <div className="border border-border bg-muted/30 p-3">
+                      <span className="block text-xs font-medium uppercase text-muted-foreground">
+                        Claims
+                      </span>
+                      <span className="text-xl font-bold tabular-nums text-foreground">
+                        {summary.accepted}{' '}
+                        <span className="text-xs font-normal text-muted-foreground">
+                          / {summary.total}
+                        </span>
+                      </span>
                     </div>
-                  ) : (
-                    <span className="text-xs text-muted-foreground">No usage yet</span>
-                  )}
-                </header>
-                <div className="rounded-xl border">
-                  <div className="overflow-hidden">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Date</TableHead>
-                          <TableHead>Plex</TableHead>
-                          <TableHead>Discord</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead>User</TableHead>
-                          <TableHead>IP</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {detail.usage?.map((usage) => (
-                          <TableRow key={usage.id}>
-                            <TableCell className="whitespace-nowrap">
-                              {usage.used_at ? new Date(usage.used_at).toLocaleString() : '-'}
-                            </TableCell>
-                            <TableCell>
-                              {usage.plex_username ? (
-                                <div className="flex flex-col">
-                                  <span>{usage.plex_username}</span>
-                                  <span className="text-xs text-muted-foreground">{usage.plex_email ?? '-'}</span>
-                                </div>
-                              ) : (
-                                <span className="text-xs text-muted-foreground">
-                                  {usage.plex_auth_successful ? 'Success' : 'Pending'}
-                                </span>
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              {usage.discord_username ? (
-                                <div className="flex flex-col">
-                                  <span>{usage.discord_username}</span>
-                                  <span className="text-xs text-muted-foreground">{usage.discord_user_id ?? '-'}</span>
-                                </div>
-                              ) : (
-                                <span className="text-xs text-muted-foreground">
-                                  {usage.discord_auth_successful ? 'Success' : 'Pending'}
-                                </span>
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              <span
-                                className={cn(
-                                  'inline-flex items-center rounded-md px-2 py-1 text-xs font-medium',
-                                  usage.accepted_invite ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 'bg-gray-500/10 text-gray-400 border border-gray-500/20'
-                                )}
-                              >
-                                {usage.accepted_invite ? 'Accepted' : 'Pending'}
-                              </span>
-                              {usage.status_message ? (
-                                <div className="text-xs text-muted-foreground">{usage.status_message}</div>
-                              ) : null}
-                            </TableCell>
-                            <TableCell className="text-xs text-muted-foreground break-all">
-                              {usage.user_uuid ?? '-'}
-                            </TableCell>
-                            <TableCell className="text-xs text-muted-foreground">{usage.ip_address ?? '-'}</TableCell>
-                          </TableRow>
-                        ))}
-                        {(detail.usage?.length ?? 0) === 0 ? (
-                          <TableRow>
-                            <TableCell colSpan={6} className="py-6 text-center text-xs text-muted-foreground">
-                              No usage records yet.
-                            </TableCell>
-                          </TableRow>
-                        ) : null}
-                      </TableBody>
-                    </Table>
+                    <div className="border border-border bg-muted/30 p-3">
+                      <span className="block text-xs font-medium uppercase text-muted-foreground">
+                        Discord linked
+                      </span>
+                      <span className="text-xl font-bold tabular-nums text-foreground">
+                        {summary.discord_auth_successful}
+                      </span>
+                    </div>
                   </div>
-                </div>
+                ) : null}
+
+                <h4 className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  <IconClock className="h-3.5 w-3.5" />
+                  Recent usage history
+                </h4>
+
+                {usagesLoading ? (
+                  <div className="space-y-2">
+                    {[...Array(3)].map((_, index) => (
+                      <div
+                        key={index}
+                        className="h-16 w-full animate-pulse border border-border bg-muted"
+                      />
+                    ))}
+                  </div>
+                ) : null}
+
+                {usagesError ? (
+                  <p className="text-xs font-medium text-destructive">Failed to load log history.</p>
+                ) : null}
+
+                {!usagesLoading && !usagesError && usages.length === 0 ? (
+                  <p className="border border-dashed border-border bg-muted/10 p-4 text-center text-xs text-muted-foreground/60">
+                    This invite link hasn&apos;t been claimed yet.
+                  </p>
+                ) : null}
+
+                {!usagesLoading && usages.length > 0 ? (
+                  <div className="divide-y divide-border border border-border bg-card">
+                    {usages.map((usage) => (
+                      <div
+                        key={usage.id}
+                        className="space-y-1 p-3 text-xs transition-colors hover:bg-muted/20"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-1.5 font-medium text-foreground">
+                            <IconUser className="h-3.5 w-3.5 text-muted-foreground" />
+                            {usageDisplayName(usage)}
+                          </div>
+                          <span className="text-[11px] tabular-nums text-muted-foreground">
+                            {formatTimeAgo(usage.used_at)}
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap items-center justify-between pt-0.5 text-[11px] text-muted-foreground">
+                          <span className="tabular-nums">{usage.ip_address ?? '—'}</span>
+                          {usage.discord_username ? (
+                            <span className="flex items-center gap-1 text-primary/80">
+                              <IconBrandDiscord className="h-3 w-3" />
+                              {usage.discord_username}
+                            </span>
+                          ) : null}
+                        </div>
+                        {usage.status_message ? (
+                          <p className="text-[11px] text-muted-foreground">{usage.status_message}</p>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+
+                {pagination && pagination.total_pages > 1 ? (
+                  <div className="flex items-center justify-between pt-2">
+                    <span className="text-[11px] tabular-nums text-muted-foreground">
+                      Page {pagination.page} of {pagination.total_pages}
+                    </span>
+                    <div className="flex gap-1">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8"
+                        disabled={page <= 1 || usagesLoading}
+                        onClick={() => setPage((current) => current - 1)}
+                      >
+                        <IconChevronLeft className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8"
+                        disabled={page >= pagination.total_pages || usagesLoading}
+                        onClick={() => setPage((current) => current + 1)}
+                      >
+                        <IconChevronRight className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
               </section>
             </>
           ) : null}

@@ -1,13 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
+import {loadFrontend} from './frontendLoader.mjs';
 
 const directory = fileURLToPath(new URL('../frontend/', import.meta.url));
-const { build } = createRequire(new URL('../frontend/package.json', import.meta.url))('esbuild');
 async function loadAdapters() {
-  const result = await build({ stdin: { contents: "export * from './src/lib/invitations';", resolveDir: directory }, bundle: true, write: false, format: 'esm', platform: 'browser' });
-  return import(`data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString('base64')}#${Math.random()}`);
+  
+  return loadFrontend("export * from './src/lib/invitations';");
 }
 const server = { id: 9, server_nickname: 'Media', service_type: 'jellyfin', is_active: true, provider_enabled: true, effective_active: true };
 const library = { id: 70, server_id: 9, external_id: 'movies', name: 'Movies', library_type: 'movie' };

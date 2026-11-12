@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';import test from 'node:test';import {createRequire} from 'node:module';import {fileURLToPath} from 'node:url';
-const directory=fileURLToPath(new URL('../frontend/',import.meta.url));const {build}=createRequire(new URL('../frontend/package.json',import.meta.url))('esbuild');
-async function load(){const r=await build({stdin:{contents:"export * from './src/lib/activityHistory';export {setAccessToken} from './src/store/authStore';",resolveDir:directory},bundle:true,write:false,format:'esm',platform:'browser'});return import(`data:text/javascript;base64,${Buffer.from(r.outputFiles[0].text).toString('base64')}#${Math.random()}`)}
+import {loadFrontend} from './frontendLoader.mjs';
+const directory=fileURLToPath(new URL('../frontend/',import.meta.url));
+async function load(){return loadFrontend("export * from './src/lib/activityHistory';export {setAccessToken} from './src/store/authStore';")}
 const actor='12345678-1234-1234-1234-123456789abc',service='12345678-1234-1234-1234-123456789def',at='2026-11-06T12:00:00Z';
 const row=(o={})=>({id:'7',server_id:'1',service_uuid:service,item_id:'501',media_type:'Audio',title:"We Don't Talk Anymore",first_observed_at:at,last_observed_at:at,ended_observation_at:at,end_reason:'not_observed',paused:false,position_ticks:'600000000',duration_ticks:'2170000000',parent_title:'Nine Track Mind',library_name:'Music',client:'Plexamp',play_method:'direct_play',...o});
 const page=(scope,items)=>({actor_uuid:actor,scope,read_at:at,items,servers:[{server_id:'1',provider:'plex',observed_at:at,age_seconds:0,freshness:'fresh',pending:'none',last_result:'fresh'}],next_before:null});

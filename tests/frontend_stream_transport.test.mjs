@@ -1,12 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {createRequire} from 'node:module';
 import {fileURLToPath} from 'node:url';
-const {build}=createRequire(new URL('../frontend/package.json',import.meta.url))('esbuild');
+import {loadFrontend} from './frontendLoader.mjs';
 async function load(){
- const result=await build({stdin:{contents:"export {useLiveStreams} from './src/hooks/useLiveStreams';export {StreamingPage} from './src/pages/StreamingPage';",resolveDir:fileURLToPath(new URL('../frontend/',import.meta.url))},bundle:true,write:false,platform:'browser',format:'esm',jsx:'automatic',plugins:[{name:'transport-boundaries',setup(b){
- b.onResolve({filter:/^(react(?:\/jsx-runtime)?|swr)$|contexts\/AuthContext$|store\/authStore$|lib\/(realtimeSocket|activityRealtime|liveStreams)$|hooks\/usePlaybackClock$|components\/(dashboard|streaming|ui)\/|^\.\.\/components$/},a=>({path:a.path,namespace:'mock'}));
- b.onLoad({filter:/.*/,namespace:'mock'},a=>{
+ return loadFrontend("export {useLiveStreams} from './src/hooks/useLiveStreams';export {StreamingPage} from './src/pages/StreamingPage';",{mock:{filter:/^(react(?:\/jsx-runtime)?|swr)$|contexts\/AuthContext$|store\/authStore$|lib\/(realtimeSocket|activityRealtime|liveStreams)$|hooks\/usePlaybackClock$|components\/(dashboard|streaming|ui)\/|^\.\.\/components$/,module:path=>(a=>{
   const p=a.path;if(p==='react/jsx-runtime')return{contents:'export const jsx=(type,props,key)=>({type,props,key});export const jsxs=jsx;'};
   if(p==='react')return{contents:'export const useState=v=>[typeof v==="function"?v():v,()=>{}];export const useSyncExternalStore=(s,r)=>r();export const useEffect=f=>f();'};
   if(p==='swr')return{contents:'export default (key,fetcher,options)=>{globalThis.streamTransport.options=options;return globalThis.streamTransport.swr;};'};
@@ -17,7 +14,7 @@ async function load(){
   if(p.endsWith('usePlaybackClock'))return{contents:'export const usePlaybackClock=data=>data;'};
   if(p.endsWith('liveStreams'))return{contents:'export const fetchLiveStreams=async()=>globalThis.streamTransport.data;export const readStreamDisplayDefaults=()=>({default_card_style:"detailed",default_grouping:"merged"});'};
   const names=p.endsWith('/card')?['Card','CardContent','CardDescription','CardHeader','CardTitle']:p==='../components'?['PageHeader']:p.endsWith('/button')?['Button']:[p.split('/').at(-1)];return{contents:names.map(n=>`export const ${n}=${JSON.stringify(n)};`).join('')};
- });}}]});return import('data:text/javascript;base64,'+Buffer.from(result.outputFiles[0].text).toString('base64'));
+ })({path}).contents}});
 }
 function walk(n){return [n,...(Array.isArray(n?.props?.children)?n.props.children:[n?.props?.children]).filter(Boolean).flatMap(walk)];}
 test('live stream browser polling and countdown follow realtime availability',async t=>{

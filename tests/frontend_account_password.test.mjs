@@ -1,10 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {createRequire} from 'node:module';
 import {fileURLToPath} from 'node:url';
+import {loadFrontend} from './frontendLoader.mjs';
 const directory=fileURLToPath(new URL('../frontend/',import.meta.url));
-const {build}=createRequire(new URL('../frontend/package.json',import.meta.url))('esbuild');
-async function load(){const r=await build({stdin:{contents:"export * from './src/lib/accountPassword';export {setAccessToken,getAccessToken} from './src/store/authStore';",resolveDir:directory},bundle:true,write:false,format:'esm',platform:'browser'});return import(`data:text/javascript;base64,${Buffer.from(r.outputFiles[0].text).toString('base64')}#${Math.random()}`);}
+async function load(){return loadFrontend("export * from './src/lib/accountPassword';export {setAccessToken,getAccessToken} from './src/store/authStore';");}
 const user='12345678-1234-1234-1234-123456789abc';
 const profile={uuid:user,username:'owner',email:null,user_type:'owner',has_password:true,force_password_change:false,last_login_at:null,plex_authorization_enabled:false,profile_changes_available:false,password_change_available:true,email_change_available:true,profile_revision:1,email_verified:false};
 const input=()=>({current_password:'old-private-password',new_password:'new-private-password',confirm_password:'new-private-password',acknowledge_revoke_sessions:true});

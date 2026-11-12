@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';import test from 'node:test';import{createRequire}from'node:module';import{fileURLToPath}from'node:url';
-const directory=fileURLToPath(new URL('../frontend/',import.meta.url));const{build}=createRequire(new URL('../frontend/package.json',import.meta.url))('esbuild');
-async function load(){const r=await build({stdin:{contents:"export * from './src/lib/humanExpiry';export {setAccessToken,getAccessToken} from './src/store/authStore';",resolveDir:directory},bundle:true,write:false,format:'esm',platform:'browser'});return import(`data:text/javascript;base64,${Buffer.from(r.outputFiles[0].text).toString('base64')}#${Math.random()}`)}
+import {loadFrontend} from './frontendLoader.mjs';
+const directory=fileURLToPath(new URL('../frontend/',import.meta.url));
+async function load(){return loadFrontend("export * from './src/lib/humanExpiry';export {setAccessToken,getAccessToken} from './src/store/authStore';")}
 const actor='12345678-1234-1234-1234-123456789abc',target='12345678-1234-1234-1234-123456789def';
 const future='2099-01-01T12:30:00Z';
 const dto=(expires=null,revision='9007199254740993',committed=false)=>({actor_uuid:actor,user_uuid:target,user_type:'local',username:'Fixture',is_active:true,access_expires_at:expires,expiry_revision:revision,profile_revision:revision,activation_revision:'1',role_revision:'1',can_edit:true,availability:'available',sessions_revoked:committed});

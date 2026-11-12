@@ -1,12 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
+import {loadFrontend} from './frontendLoader.mjs';
 const directory = fileURLToPath(new URL('../frontend/', import.meta.url));
-const { build } = createRequire(new URL('../frontend/package.json', import.meta.url))('esbuild');
 async function loadModule() {
-  const result = await build({ stdin: { contents: "export * from './src/lib/provisioningReview'; export {setAccessToken,getAccessToken} from './src/store/authStore';", resolveDir: directory }, bundle: true, write: false, format: 'esm', platform: 'browser' });
-  return import(`data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString('base64')}#${Math.random()}`);
+  
+  return loadFrontend("export * from './src/lib/provisioningReview'; export {setAccessToken,getAccessToken} from './src/store/authStore';");
 }
 const job = (overrides = {}) => ({ id: 'job-reference', status: 'failed', revision: 3, invite_id: 1, reservation_held: true, review_in_progress: false, resume_available: true, steps: [{ server_id: 9, password_ascii_only: false, password_max_bytes: 1024, status: 'failed', stage: 'enabling', remote_id: 'recorded-id', remote_username: 'Recipient', cleanup_state: 'pending', cleanup_scope: 'account', resume_state: 'pending', manual_resolution_required: false, manual_resolution_allowed: false }], ...overrides });
 const decision = (overrides = {}) => ({ reason: 'Reviewed the upstream account and settled requests', acknowledge_in_flight_risk: true, release_username: false, manual_resolutions: [], ...overrides });

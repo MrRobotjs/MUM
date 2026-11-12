@@ -1,20 +1,17 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {createRequire} from 'node:module';
 import {fileURLToPath} from 'node:url';
-const {build}=createRequire(new URL('../frontend/package.json',import.meta.url))('esbuild');
+import {loadFrontend} from './frontendLoader.mjs';
 async function load(){
- const r=await build({stdin:{contents:"export {NavServerDetail} from './src/components/layout/NavServerDetail';",resolveDir:fileURLToPath(new URL('../frontend/',import.meta.url))},bundle:true,write:false,format:'esm',platform:'browser',jsx:'automatic',plugins:[{name:'sidebar-boundaries',setup(b){
-  b.onResolve({filter:/^react\/jsx-runtime$|^@tanstack\/react-router$|^@fortawesome\/|components\/ui\/sidebar$|hooks\/useServers$/},a=>({path:a.path,namespace:'mock'}));
-  b.onLoad({filter:/.*/,namespace:'mock'},a=>{const p=a.path;
+ 
+ return loadFrontend("export {NavServerDetail} from './src/components/layout/NavServerDetail';",{mock:{filter:/^react\/jsx-runtime$|^@tanstack\/react-router$|^@fortawesome\/|components\/ui\/sidebar$|hooks\/useServers$/,module:path=>(a=>{const p=a.path;
    if(p==='react/jsx-runtime')return{contents:'export const jsx=(type,props,key)=>({type,props,key});export const jsxs=jsx;'};
    if(p==='@tanstack/react-router')return{contents:'export const Link="Link";export const useLocation=()=>({pathname:globalThis.serverSidebar.path});'};
    if(p.startsWith('@fortawesome/react'))return{contents:'export const FontAwesomeIcon="Icon";'};
    if(p.startsWith('@fortawesome/'))return{contents:'export const faCircleInfo="info",faDatabase="database",faUsers="users";'};
    if(p.endsWith('useServers'))return{contents:'export const useServerDetail=id=>{globalThis.serverSidebar.requested=id;return{server:globalThis.serverSidebar.server};};'};
    return{contents:['SidebarGroup','SidebarGroupLabel','SidebarMenu','SidebarMenuButton','SidebarMenuItem'].map(n=>`export const ${n}=${JSON.stringify(n)};`).join('')+'export const useSidebar=()=>({isMobile:false,setOpenMobile(){}});'};
-  });}}]});
- return import('data:text/javascript;base64,'+Buffer.from(r.outputFiles[0].text).toString('base64')+'#'+Math.random());
+  })({path}).contents}});
 }
 const walk=n=>n&&typeof n==='object'?[n,...[n.props?.children].flat().flatMap(walk)]:[];
 const text=n=>typeof n==='string'?n:[n?.props?.children].flat().filter(Boolean).map(text).join('');

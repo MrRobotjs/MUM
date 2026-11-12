@@ -1,10 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {createRequire} from 'node:module';
 import {fileURLToPath} from 'node:url';
+import {loadFrontend} from './frontendLoader.mjs';
 const directory=fileURLToPath(new URL('../frontend/',import.meta.url));
-const {build}=createRequire(new URL('../frontend/package.json',import.meta.url))('esbuild');
-async function load(){const r=await build({stdin:{contents:"export * from './src/lib/adminRoleMemberships';export * from './src/lib/adminRoleChanges';export {setAccessToken,getAccessToken} from './src/store/authStore';",resolveDir:directory},bundle:true,write:false,format:'esm',platform:'browser'});return import(`data:text/javascript;base64,${Buffer.from(r.outputFiles[0].text).toString('base64')}#${Math.random()}`);}
+async function load(){return loadFrontend("export * from './src/lib/adminRoleMemberships';export * from './src/lib/adminRoleChanges';export {setAccessToken,getAccessToken} from './src/store/authStore';");}
 const actor='12345678-1234-1234-1234-123456789abc';
 const id=n=>`00000000-0000-0000-0000-${String(n).padStart(12,'0')}`;
 const member=n=>({uuid:id(n),username:`local-${n}`,email:null,user_type:'local',is_active:true,profile_revision:n,can_assign:true,can_remove:false});

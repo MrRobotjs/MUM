@@ -1,10 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {createRequire} from 'node:module';
 import {fileURLToPath} from 'node:url';
-const {build}=createRequire(new URL('../frontend/package.json',import.meta.url))('esbuild');
+import {loadFrontend} from './frontendLoader.mjs';
 const provider=(extra={})=>({id:'jellyfin',enabled:true,capabilities:['libraries.read','libraries.sync','users.provision'],...extra});
-async function load(){const r=await build({stdin:{contents:"export * from './src/lib/providerFeatures';export {setAccessToken} from './src/store/authStore';",resolveDir:fileURLToPath(new URL('../frontend/',import.meta.url))},bundle:true,write:false,format:'esm',platform:'browser'});return import(`data:text/javascript;base64,${Buffer.from(r.outputFiles[0].text).toString('base64')}#${Math.random()}`);}
+async function load(){return loadFrontend("export * from './src/lib/providerFeatures';export {setAccessToken} from './src/store/authStore';");}
 test('current provider features',async t=>{
  const old={fetch:globalThis.fetch,window:globalThis.window};t.after(()=>Object.assign(globalThis,old));globalThis.window={location:{origin:'http://mum.test'}};
  await t.test('current read/provisioning metadata never grants session-message or bulk-edit support',async()=>{

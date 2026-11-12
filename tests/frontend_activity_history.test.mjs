@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';import test from 'node:test';import {createRequire} from 'node:module';import {fileURLToPath} from 'node:url';
-const directory=fileURLToPath(new URL('../frontend/',import.meta.url));const {build}=createRequire(new URL('../frontend/package.json',import.meta.url))('esbuild');
-async function load(){const r=await build({stdin:{contents:"export * from './src/lib/activityHistory';export {setAccessToken,getAccessToken} from './src/store/authStore';",resolveDir:directory},bundle:true,write:false,format:'esm',platform:'browser'});return import(`data:text/javascript;base64,${Buffer.from(r.outputFiles[0].text).toString('base64')}#${Math.random()}`)}
+import {loadFrontend} from './frontendLoader.mjs';
+const directory=fileURLToPath(new URL('../frontend/',import.meta.url));
+async function load(){return loadFrontend("export * from './src/lib/activityHistory';export {setAccessToken,getAccessToken} from './src/store/authStore';")}
 const actor='12345678-1234-1234-1234-123456789abc',service='12345678-1234-1234-1234-123456789def',at='2026-11-03T12:00:00Z';
 const row=()=>({id:'9007199254740993',server_id:'1',service_uuid:service,item_id:'item',media_type:'Movie',title:'Fixture title',first_observed_at:at,last_observed_at:at,ended_observation_at:null,end_reason:null,paused:false,position_ticks:'9007199254740993',duration_ticks:'9007199254740994'});
 const page=()=>({actor_uuid:actor,scope:'own',read_at:at,items:[row()],servers:[{server_id:'1',provider:'jellyfin',observed_at:at,age_seconds:0,freshness:'fresh',pending:'none',last_result:'fresh'}],next_before:null});

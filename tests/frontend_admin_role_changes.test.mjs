@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';import test from 'node:test';import{createRequire}from'node:module';import{fileURLToPath}from'node:url';
-const directory=fileURLToPath(new URL('../frontend/',import.meta.url));const{build}=createRequire(new URL('../frontend/package.json',import.meta.url))('esbuild');
-async function load(){const r=await build({stdin:{contents:"export * from './src/lib/adminRoleChanges';export * from './src/lib/adminRoleReads';export {setAccessToken,getAccessToken} from './src/store/authStore';",resolveDir:directory},bundle:true,write:false,format:'esm',platform:'browser'});return import(`data:text/javascript;base64,${Buffer.from(r.outputFiles[0].text).toString('base64')}#${Math.random()}`);}
+import {loadFrontend} from './frontendLoader.mjs';
+const directory=fileURLToPath(new URL('../frontend/',import.meta.url));
+async function load(){return loadFrontend("export * from './src/lib/adminRoleChanges';export * from './src/lib/adminRoleReads';export {setAccessToken,getAccessToken} from './src/store/authStore';");}
 const actor='12345678-1234-1234-1234-123456789abc',other='87654321-1234-1234-1234-123456789abc';
 const rawRole=(id='first',position=10)=>({id,name:id,description:null,position,color:null,icon:null,badge_style:'default',is_auto_managed:false,is_protected:false,can_reorder:true,reorder_max_position:1000000,can_update:true,can_delete:true,member_changes_available:true,member_assignment_available:true,permissions:[],user_count:0});
 const catalog=(revision=10)=>({actor_uuid:actor,snapshot_revision:revision,mutations_available:true,reorder_available:true,creation:{available:true,max_position:1000000},roles:[rawRole(),rawRole('second',20)]});

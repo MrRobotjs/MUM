@@ -1,13 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
+import {loadFrontend} from './frontendLoader.mjs';
 
 const directory = fileURLToPath(new URL('../frontend/', import.meta.url));
-const { build } = createRequire(new URL('../frontend/package.json', import.meta.url))('esbuild');
 async function loadModule() {
-  const result = await build({ stdin: { contents: "export * from './src/lib/invitationWizard'", resolveDir: directory }, bundle: true, write: false, format: 'esm', platform: 'browser' });
-  return import(`data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString('base64')}#${Math.random()}`);
+  
+  return loadFrontend("export * from './src/lib/invitationWizard'");
 }
 const token = 'a'.repeat(43);
 const proofID = '12345678-1234-1234-1234-123456789abc';

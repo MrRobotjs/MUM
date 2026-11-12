@@ -1,10 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {readFile} from 'node:fs/promises';
-import {createRequire} from 'node:module';
 import {fileURLToPath} from 'node:url';
+import {loadFrontend} from './frontendLoader.mjs';
 const directory=fileURLToPath(new URL('../frontend/',import.meta.url));
-const {build}=createRequire(new URL('../frontend/package.json',import.meta.url))('esbuild');
 const deferred=()=>{let resolve;const promise=new Promise(r=>{resolve=r});return {promise,resolve}};
 const flush=async()=>{for(let n=0;n<12;n++)await new Promise(r=>setImmediate(r));};
 const actor='12345678-1234-1234-1234-123456789abc';
@@ -30,15 +29,13 @@ async function load(h){
    stubs.set(path,[...new Set([...(stubs.get(path)??[]),...match[1].split(',').map(v=>v.trim()).filter(Boolean)])]);
   }
  }
- const out=await build({stdin:{contents:"export {LibraryDetailPage} from './src/pages/LibraryDetailPage';export {MediaDetailPage} from './src/pages/MediaDetailPage';export {setAccessToken} from './src/store/authStore';export {useLibrarySyncStatus} from './src/hooks/useLibrarySyncStatus';",resolveDir:directory},bundle:true,write:false,platform:'browser',format:'esm',jsx:'automatic',plugins:[{name:'page-boundaries',setup(b){
- b.onResolve({filter:/.*/},a=>a.path==='react'||a.path==='react/jsx-runtime'||stubs.has(a.path)||a.path.endsWith('/AuthContext')?{path:a.path,namespace:'stub'}:undefined);
- b.onLoad({filter:/.*/,namespace:'stub'},a=>{
+ 
+ const m=await loadFrontend("export {LibraryDetailPage} from './src/pages/LibraryDetailPage';export {MediaDetailPage} from './src/pages/MediaDetailPage';export {setAccessToken} from './src/store/authStore';export {useLibrarySyncStatus} from './src/hooks/useLibrarySyncStatus';",{mock:{filter:p=>p==='react'||p==='react/jsx-runtime'||stubs.has(p)||p.endsWith('/AuthContext'),module:path=>(a=>{
   if(a.path==='react/jsx-runtime')return {contents:'export const jsx=(type,props,key)=>({type,props,key});export const jsxs=jsx;export const Fragment="fragment";'};
   if(a.path==='react')return {contents:'export const useState=v=>globalThis.catalogueView.useState(v);export const useRef=v=>globalThis.catalogueView.useRef(v);export const useEffect=(f,d)=>globalThis.catalogueView.useEffect(f,d);export const useMemo=(f,d)=>f();export const useSyncExternalStore=(s,r)=>r();'};
   const special={useParams:'()=>globalThis.catalogueView.params',useSearch:'()=>({tab:globalThis.catalogueView.tab})',useNavigate:'()=>()=>{}',useAuth:'()=>globalThis.catalogueView.auth',useAccountDisplay:'()=>({formatTimestamp:v=>v})',useAlerts:'()=>Object.fromEntries(["success","error","info"].map(k=>[k,v=>globalThis.catalogueView.alerts.push([k,v])]))',useLibrarySyncStatus:'()=>({status:{is_syncing:false},refetch:async()=>{}})',getServicePalette:'()=>({})',getServiceMeta:'()=>({label:"Jellyfin"})',formatCalendarDate:'v=>v'};
   return {contents:(stubs.get(a.path)??['useAuth']).map(n=>`export const ${n}=${special[n]??JSON.stringify(n)};`).join('')};
- });}}]});
- const m=await import(`data:text/javascript;base64,${Buffer.from(out.outputFiles[0].text).toString('base64')}#${Math.random()}`);m.setAccessToken('session-a');return m;
+ })({path}).contents}});m.setAccessToken('session-a');return m;
 }
 const nodes=node=>[node,...(Array.isArray(node?.props?.children)?node.props.children:[node?.props?.children]).filter(Boolean).flatMap(nodes)];
 const button=(node,label)=>nodes(node).find(n=>n?.type==='Button'&&text(n).trim()===label);

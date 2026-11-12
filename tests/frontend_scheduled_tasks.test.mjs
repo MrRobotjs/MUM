@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';import test from 'node:test';import{createRequire}from'node:module';import{fileURLToPath}from'node:url';
-const directory=fileURLToPath(new URL('../frontend/',import.meta.url));const{build}=createRequire(new URL('../frontend/package.json',import.meta.url))('esbuild');
-async function load(){const r=await build({stdin:{contents:"export * from './src/lib/scheduledTasks';export {setAccessToken,getAccessToken} from './src/store/authStore';",resolveDir:directory},bundle:true,write:false,format:'esm',platform:'browser'});return import(`data:text/javascript;base64,${Buffer.from(r.outputFiles[0].text).toString('base64')}#${Math.random()}`)}
+import {loadFrontend} from './frontendLoader.mjs';
+const directory=fileURLToPath(new URL('../frontend/',import.meta.url));
+async function load(){return loadFrontend("export * from './src/lib/scheduledTasks';export {setAccessToken,getAccessToken} from './src/store/authStore';")}
 const actor='12345678-1234-1234-1234-123456789abc';const task=()=>({server_id:1,server_name:'Fixture',revision:1,server_revision:0,enabled:false,interval_seconds:3600,state:'disabled',next_run_time:null,started_at:null,finished_at:null,last_code:'NEVER_RUN',attempts:0});const snapshot=()=>({actor_uuid:actor,configuration_available:true,runtime_available:true,checkpoint_error:false,generated_at:'2026-11-03T12:00:00Z',tasks:[task()]});
 test('current durable schedule adapters',async t=>{
  const oldFetch=globalThis.fetch,oldWindow=globalThis.window;t.after(()=>{globalThis.fetch=oldFetch;globalThis.window=oldWindow});const setup=async()=>{globalThis.window={location:{origin:'http://mum.test'}};const a=await load();a.setAccessToken('session');return a};

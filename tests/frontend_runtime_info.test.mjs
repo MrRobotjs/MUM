@@ -1,11 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-const { build } = createRequire(new URL('../frontend/package.json', import.meta.url))('esbuild');
+import {loadFrontend} from './frontendLoader.mjs';
 const actor = '12345678-1234-1234-1234-123456789abc';
 const info = () => ({actor_uuid:actor,go_version:'go1.27.3',platform:'windows/amd64',timezone:'MST',timezone_offset_seconds:-25200,database_type:'SQLite',database_version:'3.50.4',database_file:null,data_directory:null,log_storage:'SQLite log_entries; process output',build_revision:null,build_modified:null});
-async function load(){const r=await build({stdin:{contents:"export * from './src/lib/runtimeInfo';export {setAccessToken} from './src/store/authStore';",resolveDir:fileURLToPath(new URL('../frontend/',import.meta.url))},bundle:true,write:false,format:'esm',platform:'browser'});return import(`data:text/javascript;base64,${Buffer.from(r.outputFiles[0].text).toString('base64')}#${Math.random()}`);}
+async function load(){return loadFrontend("export * from './src/lib/runtimeInfo';export {setAccessToken} from './src/store/authStore';");}
 test('runtime information adapter',async t=>{
  const previous={fetch:globalThis.fetch,window:globalThis.window};t.after(()=>Object.assign(globalThis,previous));globalThis.window={location:{origin:'http://mum.test'}};
  await t.test('strict actor-bound projection drops extra secrets and supports missing build metadata',async()=>{

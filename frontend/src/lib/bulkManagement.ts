@@ -3,6 +3,20 @@ import {getAccessToken} from '../store/authStore';
 export type BulkAction = 'update_libraries'|'extend_access'|'set_expiration'|'clear_expiration'|'link_local'|'unlink_local'|'delete_users';
 export type BulkIntent = {action:BulkAction;days?:number;expires_at?:string;library_ids?:string[];has_all_libraries?:boolean;target_local_user_uuid?:string};
 export type BulkReceipt = {id:string;revision:string;state:'prepared'|'running'|'completed'|'needs_review';action:BulkAction;results:{uuid:string;outcome:string;reason:string}[];summary:Record<'updated'|'deleted'|'unchanged'|'skipped'|'failed'|'unknown'|'pending',number>;warnings:string[];effects:string[]};
+// The library edit dialog keys its checkboxes by MUM's library row ID, but the
+// server, like every other grant, expects the media server's own library ID.
+// The two can be equal numbers for different libraries (Plex section keys are
+// small integers), so each checked row is translated, never passed through.
+export function bulkLibraryExternalIds(libraries:{id:string|number;external_id?:string|null}[],checks:Record<string,boolean>):string[]{
+ const byRow=new Map(libraries.map(library=>[String(library.id),library]));
+ return Object.keys(checks).filter(id=>checks[id]).map(id=>{
+  const library=byRow.get(id);
+  if(!library)throw Error('A selected library is no longer available. Reopen the dialog.');
+  const external=String(library.external_id??'').trim();
+  if(!external)throw Error('A selected library has no server ID. Sync the server and try again.');
+  return external;
+ });
+}
 export const bulkSummary=(r:BulkReceipt)=>Object.entries(r.summary).map(([key,count])=>`${count} ${key}`).join(', ');
 export class BulkManagementClient {
  private preparedSessions=new Map<string,string|null>();

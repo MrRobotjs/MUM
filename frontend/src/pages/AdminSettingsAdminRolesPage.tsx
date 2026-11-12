@@ -2,17 +2,9 @@ import {getAccessToken} from '../store/authStore'
 import { changeAdminRole, roleOrderPositions, type RoleChangeBase } from '../lib/adminRoleChanges'
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
-import {
-  DndContext,
-  MouseSensor,
-  TouchSensor,
-  closestCenter,
-  type DragEndEvent,
-  useSensor,
-  useSensors,
-} from '@dnd-kit/core'
-import { SortableContext, arrayMove, rectSortingStrategy, useSortable } from '@dnd-kit/sortable'
-import { CSS } from '@dnd-kit/utilities'
+import { DragDropProvider, type DragEndEvent } from '@dnd-kit/react'
+import { isSortable, useSortable } from '@dnd-kit/react/sortable'
+import { PointerActivationConstraints, PointerSensor } from '@dnd-kit/dom'
 
 import {
   useAdminPermissions,
@@ -127,19 +119,6 @@ export const AdminSettingsAdminRolesPage = () => {
     setSortedRoles([...roles].sort((a, b) => a.position - b.position))
   }, [roles, actor])
 
-  const sensors = useSensors(
-    useSensor(MouseSensor, {
-      activationConstraint: {
-        distance: 8,
-      },
-    }),
-    useSensor(TouchSensor, {
-      activationConstraint: {
-        delay: 100,
-        tolerance: 8,
-      },
-    })
-  )
 
   const nextPosition = useMemo(() => {
     if (!sortedRoles.length) return 1
@@ -292,15 +271,13 @@ export const AdminSettingsAdminRolesPage = () => {
   }
 
   const handleDragEnd = async (event: DragEndEvent) => {
-    if (!reorderAvailable) return
-    const { active, over } = event
-    if (!over || active.id === over.id) {
-      return
-    }
-
-    const oldIndex = sortedRoles.findIndex((role) => role.id.toString() === String(active.id))
-    const newIndex = sortedRoles.findIndex((role) => role.id.toString() === String(over.id))
-    if (oldIndex === -1 || newIndex === -1) {
+    if (!reorderAvailable || event.canceled) return
+    // The sortable source reports where the drag started and where it dropped.
+    const { source } = event.operation
+    if (!isSortable(source)) return
+    const oldIndex = source.initialIndex
+    const newIndex = source.index
+    if (oldIndex === newIndex || sortedRoles[oldIndex]?.id.toString() !== String(source.id) || !sortedRoles[newIndex]) {
       return
     }
 
@@ -312,7 +289,8 @@ export const AdminSettingsAdminRolesPage = () => {
 
     const originalPositions = new Map(sortedRoles.map((role) => [role.id, role.position]))
     const movable=sortedRoles.filter(role=>role.can_reorder)
-    const reorderedMovable=arrayMove(movable,movable.findIndex(role=>role.id===sourceRole.id),movable.findIndex(role=>role.id===targetRole.id))
+    const reorderedMovable=[...movable]
+    reorderedMovable.splice(movable.findIndex(role=>role.id===targetRole.id),0,...reorderedMovable.splice(movable.findIndex(role=>role.id===sourceRole.id),1))
     let movableIndex=0
     const moved=sortedRoles.map(role=>role.can_reorder?reorderedMovable[movableIndex++]:role)
     let positions: {id:string;position:number}[]
@@ -416,28 +394,27 @@ export const AdminSettingsAdminRolesPage = () => {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    <DndContext
-                      sensors={sensors}
-                      collisionDetection={closestCenter}
-                      onDragEnd={handleDragEnd}
-                      autoScroll={{ enabled: true }}
+                    <DragDropProvider
+                      // The default sensors stay (keyboard included); pointer drags
+                      // start after 8px with a mouse or pen, or a 100ms hold on touch.
+                      sensors={(defaults) => [
+                        ...defaults.filter((sensor) => sensor !== PointerSensor),
+                        rolePointerSensor,
+                      ]}
+                      onDragEnd={(event) => void handleDragEnd(event)}
                     >
-                      <SortableContext
-                        items={sortedRoles.map((role) => role.id.toString())}
-                        strategy={rectSortingStrategy}
-                      >
-                        {sortedRoles.map((role) => (
-                          <SortableRoleRow
-                            key={role.id}
-                            role={role}
-                            themePrimaryHex={themePrimaryHex}
-                            disabled={!reorderAvailable || !role.can_reorder || reordering}
-                            onEdit={handleEdit}
-                            onDelete={handleDelete}
-                          />
-                        ))}
-                      </SortableContext>
-                    </DndContext>
+                      {sortedRoles.map((role, index) => (
+                        <SortableRoleRow
+                          key={role.id}
+                          role={role}
+                          index={index}
+                          themePrimaryHex={themePrimaryHex}
+                          disabled={!reorderAvailable || !role.can_reorder || reordering}
+                          onEdit={handleEdit}
+                          onDelete={handleDelete}
+                        />
+                      ))}
+                    </DragDropProvider>
                   )}
                 </TableBody>
               </Table>
@@ -808,31 +785,32 @@ export const AdminSettingsAdminRolesPage = () => {
   )
 }
 
+const rolePointerSensor = PointerSensor.configure({
+  activationConstraints: (event) =>
+    event.pointerType === 'touch'
+      ? [new PointerActivationConstraints.Delay({ value: 100, tolerance: 8 })]
+      : [new PointerActivationConstraints.Distance({ value: 8 })],
+})
+
 interface SortableRoleRowProps {
   role: AdminRole
+  index: number
   disabled: boolean
   themePrimaryHex: string
   onEdit: (role: AdminRole) => void
   onDelete: (role: AdminRole) => void
 }
 
-const SortableRoleRow = ({ role, disabled, onEdit, onDelete, themePrimaryHex }: SortableRoleRowProps) => {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    setActivatorNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({
+const SortableRoleRow = ({ role, index, disabled, onEdit, onDelete, themePrimaryHex }: SortableRoleRowProps) => {
+  // The row is the sortable element; dragging starts only from the grip button.
+  // dnd-kit moves and animates the row itself while it is dragged.
+  const { ref, handleRef, isDragging } = useSortable({
     id: role.id.toString(),
+    index,
     disabled,
   })
 
   const style: React.CSSProperties = {
-    transform: CSS.Transform.toString(transform),
-    transition,
     userSelect: disabled ? undefined : 'none',
     WebkitUserSelect: disabled ? undefined : 'none',
     position: 'relative',
@@ -844,7 +822,7 @@ const SortableRoleRow = ({ role, disabled, onEdit, onDelete, themePrimaryHex }: 
 
   return (
     <TableRow
-      ref={setNodeRef}
+      ref={ref}
       style={style}
       className={cn('relative', isDragging && 'bg-primary/5 shadow-lg')}
     >
@@ -855,8 +833,7 @@ const SortableRoleRow = ({ role, disabled, onEdit, onDelete, themePrimaryHex }: 
             'flex items-center justify-center text-muted-foreground',
             disabled ? 'cursor-default opacity-40' : 'cursor-grab active:cursor-grabbing touch-none'
           )}
-          ref={setActivatorNodeRef}
-          {...(!disabled ? { ...listeners, ...attributes } : {})}
+          ref={handleRef}
           aria-label={`Reorder ${role.name}`}
         >
           <FontAwesomeIcon icon={faGripVertical} className="size-5" />

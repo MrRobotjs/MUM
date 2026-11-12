@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';import test from 'node:test';import{createRequire}from'node:module';import{fileURLToPath}from'node:url';
-const directory=fileURLToPath(new URL('../frontend/',import.meta.url));const{build}=createRequire(new URL('../frontend/package.json',import.meta.url))('esbuild');
-async function load(){const r=await build({stdin:{contents:"export * from './src/lib/humanUserRoles';export {setAccessToken,getAccessToken} from './src/store/authStore';",resolveDir:directory},bundle:true,write:false,format:'esm',platform:'browser'});return import(`data:text/javascript;base64,${Buffer.from(r.outputFiles[0].text).toString('base64')}#${Math.random()}`)}
+import {loadFrontend} from './frontendLoader.mjs';
+const directory=fileURLToPath(new URL('../frontend/',import.meta.url));
+async function load(){return loadFrontend("export * from './src/lib/humanUserRoles';export {setAccessToken,getAccessToken} from './src/store/authStore';")}
 const actor='12345678-1234-1234-1234-123456789abc',target='12345678-1234-1234-1234-123456789def',createdID='12345678-1234-1234-1234-123456789eee';
 const dto=()=>({actor_uuid:actor,user_uuid:target,user_type:'local',username:'Fixture',catalog_revision:'9007199254740993',profile_revision:'1',role_revision:'1',can_edit:true,can_create:true,availability:'available',roles:[{id:'automatic',name:'Automatic',is_auto_managed:true,assigned:true},{id:'manual-a',name:'Family',is_auto_managed:false,assigned:false},{id:'manual-b',name:'Friend',is_auto_managed:false,assigned:false}]});
 const committed=(ids=['manual-a'])=>{const p=dto();p.catalog_revision=String(BigInt(p.catalog_revision)+BigInt(ids.length));p.profile_revision='2';p.role_revision='2';p.roles=p.roles.map(r=>({...r,assigned:r.is_auto_managed?r.assigned:ids.includes(r.id)}));return p};

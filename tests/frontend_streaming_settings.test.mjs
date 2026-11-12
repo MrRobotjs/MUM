@@ -1,15 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {createRequire} from 'node:module';
 import {fileURLToPath} from 'node:url';
-const {build}=createRequire(new URL('../frontend/package.json',import.meta.url))('esbuild');
+import {loadFrontend} from './frontendLoader.mjs';
 const directory=fileURLToPath(new URL('../frontend/',import.meta.url));
 const actor='12345678-1234-1234-1234-123456789abc';
 
 async function load(){
- const result=await build({stdin:{contents:"export {StreamingPage} from './src/pages/StreamingPage';export {StreamingSettingsModal} from './src/components/dashboard/StreamingSettingsModal';export * from './src/lib/accountPreferences';export * from './src/lib/activityMonitoring';export {setAccessToken} from './src/store/authStore';",resolveDir:directory},bundle:true,write:false,format:'esm',platform:'browser',jsx:'automatic',plugins:[{name:'streaming-view-boundaries',setup(b){
-  b.onResolve({filter:/^(react(?:\/jsx-runtime)?)$|contexts\/AuthContext$|components\/ui\/card$|\/ui\/(button|responsive-dialog)$|UserPreferencesCard$|ActivityMonitoringSettings$|StreamingMapSettings$|StreamingSummaryCard$|CurrentActivityObservations$|StreamingHistoryFilters$|ActiveStreamsCard$|StreamingSessionsMap$|useLiveStreams$|usePlaybackClock$|^\.\.\/components$/},args=>({path:args.path,namespace:'view-test'}));
-  b.onLoad({filter:/.*/,namespace:'view-test'},args=>{
+ 
+ return loadFrontend("export {StreamingPage} from './src/pages/StreamingPage';export {StreamingSettingsModal} from './src/components/dashboard/StreamingSettingsModal';export * from './src/lib/accountPreferences';export * from './src/lib/activityMonitoring';export {setAccessToken} from './src/store/authStore';",{mock:{filter:/^(react(?:\/jsx-runtime)?)$|contexts\/AuthContext$|components\/ui\/card$|\/ui\/(button|responsive-dialog)$|UserPreferencesCard$|ActivityMonitoringSettings$|StreamingMapSettings$|StreamingSummaryCard$|CurrentActivityObservations$|StreamingHistoryFilters$|ActiveStreamsCard$|StreamingSessionsMap$|useLiveStreams$|usePlaybackClock$|^\.\.\/components$/,module:path=>(args=>{
    const p=args.path;
    if(p==='react/jsx-runtime')return{contents:'export const jsx=(type,props,key)=>({type,props,key});export const jsxs=jsx;export const Fragment="fragment";'};
    if(p==='react')return{contents:'export const useSyncExternalStore=(subscribe,read)=>read();export const useState=()=>[globalThis.streamingView.open,value=>{globalThis.streamingView.open=value}];'};
@@ -18,9 +16,7 @@ async function load(){
    if(p.endsWith('AuthContext'))return{contents:'export const useAuth=()=>globalThis.streamingView.auth;'};
    const names=p.endsWith('/card')?['Card','CardContent','CardDescription','CardHeader','CardTitle']:p.endsWith('/button')?['Button']:p.endsWith('/responsive-dialog')?['ResponsiveDialog']:p==='../components'?['PageHeader']:[p.split('/').at(-1)];
    return{contents:names.map(name=>`export const ${name}=${JSON.stringify(name)};`).join('')};
-  });
- }}]});
- return import(`data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString('base64')}#${Math.random()}`);
+  })({path}).contents}});
 }
 function children(node){return [node,...(Array.isArray(node?.props?.children)?node.props.children:[node?.props?.children]).filter(Boolean).flatMap(child=>children(child))];}
 

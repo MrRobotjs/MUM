@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict';import test from 'node:test';import{createRequire}from'node:module';import{fileURLToPath}from'node:url';
-const directory=fileURLToPath(new URL('../frontend/',import.meta.url));const{build}=createRequire(new URL('../frontend/package.json',import.meta.url))('esbuild');
+import {loadFrontend} from './frontendLoader.mjs';
+const directory=fileURLToPath(new URL('../frontend/',import.meta.url));
 const actor='12345678-1234-1234-1234-123456789abc',target='22345678-1234-1234-1234-123456789abc',owner='32345678-1234-1234-1234-123456789abc';
 const record=(extra={})=>{const r={actor_uuid:actor,service_uuid:target,server_id:'4',service_type:'jellyfin',username:'Remote user',owner_uuid:owner,is_active:true,access_expires_at:null,operation_revision:'5',link_revision:'7',server_revision:'2',state:'none',error_code:null,checked_at:null,cleanup_scope:'account',availability:'available',can_disable:true,...extra};
  if(!('enable_availability' in extra))r.enable_availability=r.availability;if(!('can_enable' in extra))r.can_enable=r.enable_availability==='available';
  if(!('delete_availability' in extra))r.delete_availability=r.availability==='available'&&r.state!=='disabled'?'disable_first':r.availability;if(!('can_delete' in extra))r.can_delete=r.delete_availability==='available';return r};
 const done=(extra={})=>record({operation_revision:'7',state:'disabled',is_active:false,checked_at:'2026-11-04T12:00:00.000000000Z',availability:'available',...extra});
-async function load(){const r=await build({stdin:{contents:"export * from './src/lib/serviceRemoteAccess';export {setAccessToken,getAccessToken} from './src/store/authStore';",resolveDir:directory},bundle:true,write:false,format:'esm',platform:'browser'});const a=await import(`data:text/javascript;base64,${Buffer.from(r.outputFiles[0].text).toString('base64')}#${Math.random()}`);a.setAccessToken('session');return a;}
+async function load(){const a=await loadFrontend("export * from './src/lib/serviceRemoteAccess';export {setAccessToken,getAccessToken} from './src/store/authStore';");a.setAccessToken('session');return a;}
 const reason='Access expired for this account';
 test('owner remote access adapters',async t=>{
  const oldFetch=globalThis.fetch,oldWindow=globalThis.window;t.after(()=>{globalThis.fetch=oldFetch;globalThis.window=oldWindow});globalThis.window={location:{origin:'http://mum.test'}};

@@ -17,7 +17,7 @@ import { type Library } from '../../hooks/useLibraries';
 import { useProviderFeatures } from '../../hooks/useProviderFeatures';
 import { useServerOptions } from '../../hooks/useServerOptions';
 import { requestJson } from '../../util/apiClient';
-import { BulkManagementClient, runBulkOperation, bulkOutcomeMessage, type BulkIntent, type BulkReceipt } from '../../lib/bulkManagement';
+import { BulkManagementClient, runBulkOperation, bulkOutcomeMessage, bulkLibraryExternalIds, type BulkIntent, type BulkReceipt } from '../../lib/bulkManagement';
 import { useAlerts } from '../../contexts/AlertContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { getAuthSnapshot, subscribeToAuthStore } from '../../store/authStore';
@@ -764,7 +764,14 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
       for (const group of Object.values(librarySelectionsByServer)) {
         if (group.error) { error(group.error); return; }
         if (!group.users.length) continue;
-        requests.push({ ids: group.users.map(u => u.uuid), intent: { action: 'update_libraries', has_all_libraries: group.grantAllLibraries, library_ids: group.grantAllLibraries ? [] : Object.keys(group.libraryChecks).filter(id => group.libraryChecks[id]) } });
+        let libraryIds: string[] = [];
+        try {
+          libraryIds = group.grantAllLibraries ? [] : bulkLibraryExternalIds(group.libraries, group.libraryChecks);
+        } catch (err) {
+          error(err instanceof Error ? err.message : 'Library details are not loaded yet.');
+          return;
+        }
+        requests.push({ ids: group.users.map(u => u.uuid), intent: { action: 'update_libraries', has_all_libraries: group.grantAllLibraries, library_ids: libraryIds } });
       }
       if (!requests.length) { error('No service users selected for library updates.'); return; }
       const count = new Set(requests.flatMap(r => r.ids)).size;
@@ -1037,7 +1044,7 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
                       selected={expirationDate}
                       onSelect={setExpirationDate}
                       disabled={(date) => date < new Date()}
-                      initialFocus
+                      autoFocus
                     />
                   </PopoverContent>
                 </Popover>

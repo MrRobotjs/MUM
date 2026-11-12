@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';import test from 'node:test';import{createRequire}from'node:module';import{fileURLToPath}from'node:url';
-const directory=fileURLToPath(new URL('../frontend/',import.meta.url));const{build}=createRequire(new URL('../frontend/package.json',import.meta.url))('esbuild');
+import {loadFrontend} from './frontendLoader.mjs';
+const directory=fileURLToPath(new URL('../frontend/',import.meta.url));
 const actor='12345678-1234-1234-1234-123456789abc',target='22345678-1234-1234-1234-123456789abc';
 const record=()=>({actor_uuid:actor,service_uuid:target,username:'Service user',server_id:'1',owner_uuid:null,is_active:true,access_expires_at:null,expiry_revision:'3',link_revision:'7',server_revision:'0',can_edit:true,availability:'available',local_only:true});
-async function load(){const r=await build({stdin:{contents:"export * from './src/lib/serviceExpiry';export {setAccessToken,getAccessToken} from './src/store/authStore';",resolveDir:directory},bundle:true,write:false,format:'esm',platform:'browser'});const a=await import(`data:text/javascript;base64,${Buffer.from(r.outputFiles[0].text).toString('base64')}#${Math.random()}`);a.setAccessToken('session');return a;}
+async function load(){const a=await loadFrontend("export * from './src/lib/serviceExpiry';export {setAccessToken,getAccessToken} from './src/store/authStore';");a.setAccessToken('session');return a;}
 test('guarded local service expiry adapters',async t=>{
  const oldFetch=globalThis.fetch,oldWindow=globalThis.window;t.after(()=>{globalThis.fetch=oldFetch;globalThis.window=oldWindow});globalThis.window={location:{origin:'http://mum.test'}};
  await t.test('strict current projection drops secrets and rejects malformed policies',async()=>{const a=await load();globalThis.fetch=async()=>Response.json({data:{...record(),api_key:'private'}});const p=await a.readServiceExpiry(actor,target);assert.equal('api_key' in p,false);for(const field of ['actor_uuid','owner_uuid','expiry_revision','local_only']){globalThis.fetch=async()=>Response.json({data:{...record(),[field]:'bad'}});await assert.rejects(a.readServiceExpiry(actor,target))}});

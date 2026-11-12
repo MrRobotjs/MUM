@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';import test from 'node:test';import{createRequire}from'node:module';import{fileURLToPath}from'node:url';
-const directory=fileURLToPath(new URL('../frontend/',import.meta.url));const{build}=createRequire(new URL('../frontend/package.json',import.meta.url))('esbuild');
-async function load(){const r=await build({stdin:{contents:"export * from './src/lib/activityHistory';export * from './src/lib/activitySummary';export {setAccessToken,getAccessToken} from './src/store/authStore';",resolveDir:directory},bundle:true,write:false,format:'esm',platform:'browser'});return import(`data:text/javascript;base64,${Buffer.from(r.outputFiles[0].text).toString('base64')}#${Math.random()}`)}
+import {loadFrontend} from './frontendLoader.mjs';
+const directory=fileURLToPath(new URL('../frontend/',import.meta.url));
+async function load(){return loadFrontend("export * from './src/lib/activityHistory';export * from './src/lib/activitySummary';export {setAccessToken,getAccessToken} from './src/store/authStore';")}
 const actor='12345678-1234-1234-1234-123456789abc',target='12345678-1234-1234-1234-123456789def',at='2026-11-03T12:00:00Z';
 const source=()=>({server_id:'1',provider:'jellyfin',observed_at:at,age_seconds:0,freshness:'fresh',pending:'none',last_result:'fresh'});
 const current=()=>({actor_uuid:actor,target_uuid:target,scope:'own',read_at:at,servers:[source()],next_before:null,items:[{id:'1',server_id:'1',service_uuid:target,item_id:'item',media_type:'Movie',title:'Fixture',first_observed_at:at,last_observed_at:at,ended_observation_at:null,end_reason:null,paused:false,position_ticks:null,duration_ticks:null}]});

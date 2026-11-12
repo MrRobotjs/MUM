@@ -1,9 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {createRequire} from 'node:module';
 import {fileURLToPath} from 'node:url';
-const {build}=createRequire(new URL('../frontend/package.json',import.meta.url))('esbuild');
-async function load(){const r=await build({stdin:{contents:"export * from './src/lib/bulkManagement';export {setAccessToken} from './src/store/authStore';",resolveDir:fileURLToPath(new URL('../frontend/',import.meta.url))},bundle:true,write:false,format:'esm',platform:'browser'});return import(`data:text/javascript;base64,${Buffer.from(r.outputFiles[0].text).toString('base64')}#${Math.random()}`);}
+import {loadFrontend} from './frontendLoader.mjs';
+async function load(){return loadFrontend("export * from './src/lib/bulkManagement';export {setAccessToken} from './src/store/authStore';");}
 const receipt={id:'opaque',revision:'1',state:'prepared',action:'delete_users',results:[],summary:{updated:1,deleted:0,unchanged:0,skipped:2,failed:1,unknown:1,pending:0},warnings:[],effects:[]};
 test('bulk requests never retry writes; duplicate dispatch shares one request and mixed results remain truthful',async t=>{const old={fetch:globalThis.fetch,window:globalThis.window};t.after(()=>Object.assign(globalThis,old));globalThis.window={location:{origin:'http://mum.test'}};const m=await load();m.setAccessToken('one');let calls=0;globalThis.fetch=async()=>{calls++;return Response.json({data:receipt});};const client=new m.BulkManagementClient();assert.deepEqual(await client.prepare(['u'],{action:'delete_users'}),receipt);await Promise.all([client.execute(receipt),client.execute(receipt)]);assert.equal(calls,2);assert.match(m.bulkSummary(receipt),/1 unknown/);globalThis.fetch=async()=>{calls++;return Response.json({error:{message:'Denied'}},{status:401});};await assert.rejects(client.reconcile(receipt));assert.equal(calls,3);});
 test('late responses after session replacement are rejected',async()=>{globalThis.window={location:{origin:'http://mum.test'}};const m=await load();m.setAccessToken('one');let finish;globalThis.fetch=()=>new Promise(r=>{finish=r});const pending=new m.BulkManagementClient().read('opaque');m.setAccessToken('two');finish(Response.json({data:receipt}));await assert.rejects(pending,/Session changed/);});
@@ -21,4 +20,15 @@ test('mixed group review can discard never-executed preparations after definitiv
  const notStarted={...done,id:'not-started',state:'prepared',summary:{...done.summary,updated:0,pending:1},results:[{uuid:'second',outcome:'pending',reason:''}]};
  assert.equal(m.canFinishBulkReview([done,notStarted]),true);
  assert.equal(m.canFinishBulkReview([done,{...notStarted,state:'running'}]),false);
+});
+
+test("library edits send each checked library's server ID, never MUM's row number",async()=>{
+ const m=await load();
+ // Plex section keys are small numbers: row 2 is the library Plex calls 7, and
+ // row 7 is a different library Plex calls 2.
+ const libraries=[{id:2,external_id:'7',internal_id:null,name:'Movies'},{id:7,external_id:'2',internal_id:null,name:'Shows'},{id:9,external_id:'4',internal_id:null,name:'Music'}];
+ assert.deepEqual(m.bulkLibraryExternalIds(libraries,{'2':true,'7':false,'9':true}),['7','4']);
+ assert.deepEqual(m.bulkLibraryExternalIds(libraries,{'2':false,'7':false,'9':false}),[]);
+ assert.throws(()=>m.bulkLibraryExternalIds(libraries,{'5':true}),/no longer available/);
+ assert.throws(()=>m.bulkLibraryExternalIds([{id:3,external_id:'',internal_id:null,name:'Broken'}],{'3':true}),/server ID/);
 });

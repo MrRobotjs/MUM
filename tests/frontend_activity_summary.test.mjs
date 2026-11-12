@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';import test from 'node:test';import{createRequire}from'node:module';import{fileURLToPath}from'node:url';
-const directory=fileURLToPath(new URL('../frontend/',import.meta.url));const{build}=createRequire(new URL('../frontend/package.json',import.meta.url))('esbuild');
-async function load(){const r=await build({stdin:{contents:"export * from './src/lib/activitySummary';export {setAccessToken,getAccessToken} from './src/store/authStore';",resolveDir:directory},bundle:true,write:false,format:'esm',platform:'browser'});return import(`data:text/javascript;base64,${Buffer.from(r.outputFiles[0].text).toString('base64')}#${Math.random()}`)}
+import {loadFrontend} from './frontendLoader.mjs';
+const directory=fileURLToPath(new URL('../frontend/',import.meta.url));
+async function load(){return loadFrontend("export * from './src/lib/activitySummary';export {setAccessToken,getAccessToken} from './src/store/authStore';")}
 const actor='12345678-1234-1234-1234-123456789abc';
 const counts=()=>({recorded_observations:'9007199254740993',ended_observations:'9007199254740992',retained_current_observations:'1',fresh_current_observations:'1'});
 const page=()=>({...counts(),actor_uuid:actor,scope:'own',read_at:'2026-11-03T12:00:00Z',servers:[{...counts(),server_id:'1',provider:'jellyfin',observed_at:'2026-11-03T12:00:00Z',age_seconds:0,freshness:'fresh',pending:'none',last_result:'fresh'}]});

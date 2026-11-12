@@ -1,10 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {createRequire} from 'node:module';
 import {fileURLToPath} from 'node:url';
+import {loadFrontend} from './frontendLoader.mjs';
 const directory=fileURLToPath(new URL('../frontend/',import.meta.url));
-const {build}=createRequire(new URL('../frontend/package.json',import.meta.url))('esbuild');
-async function load(){const r=await build({stdin:{contents:"export * from './src/lib/publicPlexReceipt';",resolveDir:directory},bundle:true,write:false,format:'esm',platform:'browser'});return import(`data:text/javascript;base64,${Buffer.from(r.outputFiles[0].text).toString('base64')}#${Math.random()}`);}
+async function load(){return loadFrontend("export * from './src/lib/publicPlexReceipt';");}
 const job='12345678-1234-1234-1234-123456789abc',token='x'.repeat(43),server=9;
 const credentials=()=>({request_id:'abcdefab-1234-1234-1234-123456789abc',username:'local-reader',password:'local-private-password'});
 function receipt(state='prepared',status='running'){

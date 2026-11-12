@@ -1,9 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {createRequire} from 'node:module';
 import {fileURLToPath} from 'node:url';
-const {build}=createRequire(new URL('../frontend/package.json',import.meta.url))('esbuild');
-async function load(){const r=await build({stdin:{contents:"export * from './src/lib/serverSync';export {setAccessToken} from './src/store/authStore';",resolveDir:fileURLToPath(new URL('../frontend/',import.meta.url))},bundle:true,write:false,format:'esm',platform:'browser'});return import(`data:text/javascript;base64,${Buffer.from(r.outputFiles[0].text).toString('base64')}#${Math.random()}`);}
+import {loadFrontend} from './frontendLoader.mjs';
+async function load(){return loadFrontend("export * from './src/lib/serverSync';export {setAccessToken} from './src/store/authStore';");}
 const receipt=(scope,extra={})=>({server_id:1,source_revision:3,revision:4,scope,libraries:scope==='libraries'?2:0,users:scope==='users'?3:0,added:scope==='users'?1:0,updated:scope==='users'?2:0,removed:0,...extra});
 test('current server synchronization receipts',async t=>{
  const old={window:globalThis.window,fetch:globalThis.fetch};t.after(()=>Object.assign(globalThis,old));globalThis.window={location:{origin:'http://mum.test'}};

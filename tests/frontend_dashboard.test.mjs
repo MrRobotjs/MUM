@@ -1,27 +1,23 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
+import {loadFrontend} from './frontendLoader.mjs';
 
 const directory = fileURLToPath(new URL('../frontend/', import.meta.url));
-const { build } = createRequire(new URL('../frontend/package.json', import.meta.url))('esbuild');
 async function load() {
-  const r = await build({ stdin: { contents: "export * from './src/lib/dashboard';export {setAccessToken} from './src/store/authStore';", resolveDir: directory }, bundle: true, write: false, format: 'esm', platform: 'browser' });
-  const m = await import(`data:text/javascript;base64,${Buffer.from(r.outputFiles[0].text).toString('base64')}#${Math.random()}`);
+  
+  const m = await loadFrontend("export * from './src/lib/dashboard';export {setAccessToken} from './src/store/authStore';");
   m.setAccessToken('session');
   return m;
 }
 
 async function loadHook() {
-  const result = await build({ stdin: { contents: "export * from './src/lib/dashboard';export {setAccessToken} from './src/store/authStore';", resolveDir: directory }, bundle: true, write: false, format: 'esm', platform: 'browser', plugins: [{ name: 'dashboard-hook-environment', setup(b) {
-    b.onResolve({ filter: /^(react|swr)$|contexts\/AuthContext$/ }, args => ({ path: args.path, namespace: 'hook-test' }));
-    b.onLoad({ filter: /.*/, namespace: 'hook-test' }, args => ({ contents: args.path === 'react'
+  
+  return loadFrontend("export * from './src/lib/dashboard';export {setAccessToken} from './src/store/authStore';",{mock:{filter:/^(react|swr)$|contexts\/AuthContext$/,module:path=>(args => ({ contents: args.path === 'react'
       ? 'export const useSyncExternalStore = (subscribe, read) => read();'
       : args.path === 'swr'
         ? 'export default function useSWR(key, fetcher) { globalThis.dashboardHook.key=key;globalThis.dashboardHook.fetcher=fetcher;return {data:globalThis.dashboardHook.cache.get(JSON.stringify(key)),error:globalThis.dashboardHook.error,isLoading:false,mutate:()=>{}}; }'
-        : 'export const useAuth = () => globalThis.dashboardHook.auth;' }));
-  } }] });
-  return import(`data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString('base64')}#${Math.random()}`);
+        : 'export const useAuth = () => globalThis.dashboardHook.auth;' }))({path}).contents}});
 }
 const actor = '12345678-1234-1234-1234-123456789abc';
 const server = (id, extra = {}) => ({ id, server_nickname: `Server ${id}`, service_type: 'jellyfin', effective_active: true, last_status: true, last_version: '10.9', last_status_check: '2026-11-05T00:00:00Z', api_key: 'never-shown', ...extra });

@@ -351,6 +351,8 @@ func (a *App) prepareBulk(w http.ResponseWriter, r *http.Request) {
 			snapshot, e = provider.prepareBulkUser(r.Context(), request)
 		}
 		if e != nil {
+			// Module and transport errors never carry credentials or upstream text.
+			a.logger.Warn("Bulk operation could not read the account on its server", "server_id", target.ServerID, "provider", source.Type, "action", stored.Action, "error", e.Error())
 			stored.Results[i].Outcome = "skipped"
 			stored.Results[i].Reason = "provider_inspection_failed"
 			if errors.Is(e, errBulkPlexDynamicAll) {

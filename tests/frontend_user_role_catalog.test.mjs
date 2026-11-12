@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';import test from 'node:test';import{createRequire}from'node:module';import{fileURLToPath}from'node:url';
-const directory=fileURLToPath(new URL('../frontend/',import.meta.url));const{build}=createRequire(new URL('../frontend/package.json',import.meta.url))('esbuild');
-async function load(){const r=await build({stdin:{contents:"export * from './src/lib/userRoleCatalog';export {setAccessToken,getAccessToken} from './src/store/authStore';",resolveDir:directory},bundle:true,write:false,format:'esm',platform:'browser'});return import(`data:text/javascript;base64,${Buffer.from(r.outputFiles[0].text).toString('base64')}#${Math.random()}`)}
+import {loadFrontend} from './frontendLoader.mjs';
+const directory=fileURLToPath(new URL('../frontend/',import.meta.url));
+async function load(){return loadFrontend("export * from './src/lib/userRoleCatalog';export {setAccessToken,getAccessToken} from './src/store/authStore';")}
 const actor='12345678-1234-1234-1234-123456789abc',created='12345678-1234-1234-1234-123456789eee';
 const values={name:'Family edited',description:'One\nTwo',color:'#123abc',icon:'fa-solid fa-tag',badge_style:'outline'};
 const dto=()=>({actor_uuid:actor,catalog_revision:'9007199254740993',role_revision:'2',link_revision:'3',can_create:true,can_reorder:true,roles:[{id:'role-a',name:'Family',description:null,color:'#808080',icon:null,badge_style:'default',position:0,is_auto_managed:false,user_count:0,can_update:true,can_delete:true},{id:'role-b',name:'Friend',description:null,color:null,icon:null,badge_style:'fill',position:1,is_auto_managed:false,user_count:0,can_update:true,can_delete:true}]});

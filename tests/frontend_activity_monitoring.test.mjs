@@ -1,10 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {createRequire} from 'node:module';
 import {fileURLToPath} from 'node:url';
+import {loadFrontend} from './frontendLoader.mjs';
 const directory=fileURLToPath(new URL('../frontend/',import.meta.url));
-const {build}=createRequire(new URL('../frontend/package.json',import.meta.url))('esbuild');
-async function load(){const r=await build({stdin:{contents:"export * from './src/lib/activityMonitoring';export {setAccessToken,getAccessToken} from './src/store/authStore';",resolveDir:directory},bundle:true,write:false,format:'esm',platform:'browser'});return import(`data:text/javascript;base64,${Buffer.from(r.outputFiles[0].text).toString('base64')}#${Math.random()}`)}
+async function load(){return loadFrontend("export * from './src/lib/activityMonitoring';export {setAccessToken,getAccessToken} from './src/store/authStore';")}
 const actor='12345678-1234-1234-1234-123456789abc';
 const task=()=>({server_id:'9007199254740993',server_name:'Fixture server',provider:'jellyfin',revision:1,server_revision:0,enabled:false,socket_enabled:false,socket_state:'disabled',socket_error:'',interval_seconds:30,state:'disabled',next_run_at:null,started_at:null,finished_at:null,last_code:'NEVER_RUN',attempts:0});
 const snapshot=()=>({actor_uuid:actor,configuration_available:true,runtime_available:true,checkpoint_error:false,tasks:[task()]});

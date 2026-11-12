@@ -1,9 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {createRequire} from 'node:module';
 import {fileURLToPath} from 'node:url';
+import {loadFrontend} from './frontendLoader.mjs';
 const directory=fileURLToPath(new URL('../frontend/',import.meta.url));
-const {build}=createRequire(new URL('../frontend/package.json',import.meta.url))('esbuild');
 const actor='12345678-1234-1234-1234-123456789abc';
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 async function setup(t){
@@ -19,8 +18,8 @@ async function setup(t){
  }
  globalThis.window={location:{href:'http://mum.test/dashboard',origin:'http://mum.test',protocol:'http:'}};
  globalThis.WebSocket=Socket;
- const r=await build({stdin:{contents:"export * from './src/lib/notificationRealtime';export {setAccessToken} from './src/store/authStore';export {disconnectRealtimeSocket} from './src/lib/realtimeSocket';",resolveDir:directory},bundle:true,write:false,format:'esm',platform:'browser'});
- const api=await import(`data:text/javascript;base64,${Buffer.from(r.outputFiles[0].text).toString('base64')}#${Math.random()}`);
+ 
+ const api=await loadFrontend("export * from './src/lib/notificationRealtime';export {setAccessToken} from './src/store/authStore';export {disconnectRealtimeSocket} from './src/lib/realtimeSocket';");
  api.setAccessToken('first-session');
  t.after(()=>{api.disconnectRealtimeSocket();globalThis.window=oldWindow;globalThis.WebSocket=oldSocket});
  return {api,sockets,event:(owner=actor)=>({type:'event',event:{channel:`notifications.${owner}`,type:'NotificationInvalidated',payload:{actor_uuid:owner}}})};

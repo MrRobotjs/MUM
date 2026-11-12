@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';import test from 'node:test';import{createRequire}from'node:module';import{fileURLToPath}from'node:url';
-const directory=fileURLToPath(new URL('../frontend/',import.meta.url));const{build}=createRequire(new URL('../frontend/package.json',import.meta.url))('esbuild');
-async function load(){const r=await build({stdin:{contents:"export * from './src/lib/userRoleMembers';export {setAccessToken,getAccessToken} from './src/store/authStore';",resolveDir:directory},bundle:true,write:false,format:'esm',platform:'browser'});return import(`data:text/javascript;base64,${Buffer.from(r.outputFiles[0].text).toString('base64')}#${Math.random()}`)}
+import {loadFrontend} from './frontendLoader.mjs';
+const directory=fileURLToPath(new URL('../frontend/',import.meta.url));
+async function load(){return loadFrontend("export * from './src/lib/userRoleMembers';export {setAccessToken,getAccessToken} from './src/store/authStore';")}
 const id=n=>`12345678-1234-1234-1234-${String(n).padStart(12,'0')}`,actor=id(1),human=id(2),service=id(3),unlinked=id(4);
 const row=(uuid,type='service',owner=null)=>({uuid,user_type:type,username:'Fixture',service_type:type==='service'?'jellyfin':'',server_nickname:type==='service'?'Server':'',primary_owner_uuid:owner,is_member:false,can_change:type!=='owner',availability:type==='owner'?'protected_owner':'available'});
 const dto=()=>({actor_uuid:actor,role_id:'manual',role_name:'Family',is_auto_managed:false,catalog_revision:'9007199254740993',role_revision:'4',link_revision:'3',selector_revision:'6',complete:true,mutations_available:true,items:[row(actor,'owner'),row(human,'local'),row(service,'service',human),row(unlinked)]});

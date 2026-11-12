@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';import test from 'node:test';import{createRequire}from'node:module';import{fileURLToPath}from'node:url';
-const directory=fileURLToPath(new URL('../frontend/',import.meta.url));const{build}=createRequire(new URL('../frontend/package.json',import.meta.url))('esbuild');
-async function load(){const r=await build({stdin:{contents:"export * from './src/lib/humanCredentials';export {setAccessToken} from './src/store/authStore';",resolveDir:directory},bundle:true,write:false,format:'esm',platform:'browser'});return import(`data:text/javascript;base64,${Buffer.from(r.outputFiles[0].text).toString('base64')}#${Math.random()}`)}
+import {loadFrontend} from './frontendLoader.mjs';
+const directory=fileURLToPath(new URL('../frontend/',import.meta.url));
+async function load(){return loadFrontend("export * from './src/lib/humanCredentials';export {setAccessToken} from './src/store/authStore';")}
 const actor='12345678-1234-1234-1234-123456789abc',target='12345678-1234-1234-1234-123456789def';
 const dto=(has=true,revision='9007199254740993',committed=false)=>({actor_uuid:actor,user_uuid:target,username:'Fixture',is_active:true,has_password:has,credential_revision:revision,profile_revision:revision,activation_revision:'1',role_revision:committed?'2':'1',can_set_username:false,can_set_initial:!has,can_reset:has,availability:'available',sessions_revoked:committed});
 const draft=()=>({new_username:'',current_owner_password:'owner-private-password',new_password:'target-private-password',confirm_password:'target-private-password',acknowledge_revoke_sessions:true,acknowledge_local_only:true});

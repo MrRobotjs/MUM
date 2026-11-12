@@ -1,13 +1,13 @@
 # syntax=docker/dockerfile:1
 # MUM (Go/SQLite) container image. Build from the repository root:
 #   docker compose -f deploy/docker/docker-compose.yml up -d --build
-# The Flask image in the repository root is separate and unchanged.
+# The Dockerfile in the repository root builds the same image.
 
-FROM node:22-alpine AS frontend
+FROM node:26-alpine AS frontend
 WORKDIR /src/frontend
 COPY frontend/package.json frontend/package-lock.json ./
-# The lockfile is maintained with npm 11; npm 10 (bundled with node:22)
-# rejects its nested peer entries, so pin the same npm before npm ci.
+# Node 26 is the current LTS. The lockfile is maintained with npm 11.7.0;
+# pin the same npm before npm ci so the install matches it.
 RUN npm install -g npm@11.7.0 --no-audit --no-fund \
  && npm ci --no-audit --no-fund
 COPY frontend/ ./

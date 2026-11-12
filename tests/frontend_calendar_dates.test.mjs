@@ -1,13 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createRequire } from 'node:module';
-import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
-const directory = fileURLToPath(new URL('../frontend/', import.meta.url));
-const { build } = createRequire(new URL('../frontend/package.json', import.meta.url))('esbuild');
+import { bundleFrontend } from './frontendLoader.mjs';
 async function bundle(contents) {
-  const result = await build({ stdin: { contents, resolveDir: directory }, bundle: true, write: false, format: 'esm', platform: 'browser' });
-  return `data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString('base64')}`;
+  return `data:text/javascript;base64,${Buffer.from(await bundleFrontend(contents)).toString('base64')}`;
 }
 async function load() { return import(`${await bundle("export * from './src/util/calendarDates';export * from './src/lib/accountDisplay';export * from './src/lib/invitations';export {setAccessToken,getAccessToken} from './src/store/authStore';")}#${Math.random()}`); }
 const named = { mode: 'named', time_format: '24', time_zone: 'America/Denver' };

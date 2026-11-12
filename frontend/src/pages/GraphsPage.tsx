@@ -17,6 +17,7 @@ import {
   Tooltip,
   XAxis,
   YAxis,
+  type PieSectorShapeProps,
 } from 'recharts';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faChartLine, faCircleNodes, faHeartPulse, faRotate } from '@fortawesome/free-solid-svg-icons';
@@ -144,8 +145,8 @@ const renderHourlyActivityTooltip = ({
   label,
 }: {
   active?: boolean;
-  payload?: Array<any>;
-  label?: string;
+  payload?: ReadonlyArray<any>;
+  label?: string | number;
 }) => {
   if (!active || !payload?.length) return null;
   const entry = payload[0];
@@ -165,7 +166,7 @@ const renderPieMetricTooltip = ({
   payload,
 }: {
   active?: boolean;
-  payload?: Array<any>;
+  payload?: ReadonlyArray<any>;
 }) => {
   if (!active || !payload?.length) return null;
   const entry = payload[0];
@@ -192,8 +193,8 @@ const renderSeparatedHourlyTooltip = ({
   label,
 }: {
   active?: boolean;
-  payload?: Array<any>;
-  label?: string;
+  payload?: ReadonlyArray<any>;
+  label?: string | number;
 }) => {
   if (!active || !payload?.length) return null;
   const rows = [...payload]
@@ -215,8 +216,8 @@ const renderSeparatedStackedTooltip = ({
   label,
 }: {
   active?: boolean;
-  payload?: Array<any>;
-  label?: string;
+  payload?: ReadonlyArray<any>;
+  label?: string | number;
 }) => {
   if (!active || !payload?.length) return null;
   const firstRow = payload[0]?.payload as Record<string, unknown> | undefined;
@@ -255,8 +256,8 @@ const renderWatchTimeTooltip = ({
   label,
 }: {
   active?: boolean;
-  payload?: Array<any>;
-  label?: string;
+  payload?: ReadonlyArray<any>;
+  label?: string | number;
 }) => {
   if (!active || !payload?.length) return null;
   const entry = payload[0];
@@ -277,8 +278,8 @@ const renderSeparatedWatchTimeTooltip = ({
   label,
 }: {
   active?: boolean;
-  payload?: Array<any>;
-  label?: string;
+  payload?: ReadonlyArray<any>;
+  label?: string | number;
 }) => {
   if (!active || !payload?.length) return null;
   const rows = [...payload]
@@ -528,6 +529,8 @@ export const GraphsPage = () => {
   };
 
   const legendProps = {
+    // Keep entries in data order (largest first); Recharts 3 sorts by name by default.
+    itemSorter: null,
     iconType: 'circle' as const,
     iconSize: isMobileViewport ? 8 : 10,
     wrapperStyle: {
@@ -997,8 +1000,11 @@ export const GraphsPage = () => {
                       cy="50%"
                       innerRadius={60}
                       outerRadius={80}
-                      activeIndex={activeDeviceIndex}
-                      activeShape={renderActiveDeviceShape}
+                      // The hovered slice stays highlighted (first slice until
+                      // hovered); Recharts 3 draws each slice through `shape`.
+                      shape={(sector: PieSectorShapeProps) =>
+                        sector.index === activeDeviceIndex ? renderActiveDeviceShape(sector) : <Sector {...sector} />
+                      }
                       onMouseEnter={(_, index) => setActiveDeviceIndex(index)}
                       stroke="none"
                     >

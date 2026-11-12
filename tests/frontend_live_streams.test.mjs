@@ -1,10 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {createRequire} from 'node:module';
 import {fileURLToPath} from 'node:url';
-const {build}=createRequire(new URL('../frontend/package.json',import.meta.url))('esbuild');
+import {loadFrontend} from './frontendLoader.mjs';
 const actor='12345678-1234-1234-1234-123456789abc';
-async function load(){const r=await build({stdin:{contents:"export * from './src/lib/liveStreams';export {getStreamingSessionStats} from './src/components/streaming/sessionStats';export {setAccessToken} from './src/store/authStore';",resolveDir:fileURLToPath(new URL('../frontend/',import.meta.url))},bundle:true,write:false,format:'esm',platform:'browser'});return import('data:text/javascript;base64,'+Buffer.from(r.outputFiles[0].text).toString('base64')+'#'+Math.random());}
+async function load(){return loadFrontend("export * from './src/lib/liveStreams';export {getStreamingSessionStats} from './src/components/streaming/sessionStats';export {setAccessToken} from './src/store/authStore';");}
 const page=()=>({actor_uuid:actor,scope:'all',read_at:'2026-11-05T12:00:00Z',servers:[{server_id:'7',provider:'plex',observed_at:'2026-11-05T12:00:00Z',age_seconds:0,freshness:'fresh',pending:'none',last_result:'fresh'}],items:[{id:'10',server_id:'7',service_uuid:actor,service_username:'Viewer',item_id:'123',media_type:'Movie',title:'Film',first_observed_at:'2026-11-05T11:59:00Z',last_observed_at:'2026-11-05T12:00:00Z',ended_observation_at:null,end_reason:null,paused:false,position_ticks:'20000000',duration_ticks:'100000000'}],next_before:null});
 test('current streams feed original presentation',async t=>{
  const old={window:globalThis.window,fetch:globalThis.fetch};t.after(()=>Object.assign(globalThis,old));globalThis.window={location:{origin:'http://mum.test'}};

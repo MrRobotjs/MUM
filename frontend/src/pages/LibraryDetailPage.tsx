@@ -150,8 +150,8 @@ const renderLibraryStatsAreaTooltip = ({
   label,
 }: {
   active?: boolean;
-  payload?: Array<any>;
-  label?: string;
+  payload?: ReadonlyArray<any>;
+  label?: string | number;
 }) => {
   if (!active || !payload || payload.length === 0) return null;
 

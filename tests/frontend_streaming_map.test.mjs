@@ -1,13 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {createRequire} from 'node:module';
 import {fileURLToPath} from 'node:url';
-const {build}=createRequire(new URL('../frontend/package.json',import.meta.url))('esbuild');
+import {loadFrontend} from './frontendLoader.mjs';
 const directory=fileURLToPath(new URL('../frontend/',import.meta.url));
 async function load(){
- const built=await build({stdin:{contents:"export * from './src/components/settings/StreamingMapSettings';",resolveDir:directory},bundle:true,write:false,format:'esm',platform:'browser',jsx:'automatic',plugins:[{name:'map-boundaries',setup(b){
- b.onResolve({filter:/^(react(?:\/jsx-runtime)?|swr)$|contexts\/AuthContext$|store\/authStore$|util\/apiClient$|\/ui\//},a=>({path:a.path,namespace:'mock'}));
- b.onLoad({filter:/.*/,namespace:'mock'},a=>{
+ 
+ return loadFrontend("export * from './src/components/settings/StreamingMapSettings';",{mock:{filter:/^(react(?:\/jsx-runtime)?|swr)$|contexts\/AuthContext$|store\/authStore$|util\/apiClient$|\/ui\//,module:path=>(a=>{
  const p=a.path;
  if(p==='react/jsx-runtime')return{contents:'export const jsx=(type,props,key)=>({type,props,key});export const jsxs=jsx;'};
  if(p==='react')return{contents:`export const useState=initial=>{const i=globalThis.mapTest.cursor++;if(!(i in globalThis.mapTest.states))globalThis.mapTest.states[i]=initial;return [globalThis.mapTest.states[i],v=>globalThis.mapTest.states[i]=v]};export const useRef=initial=>{const i=globalThis.mapTest.cursor++;return globalThis.mapTest.states[i]??=( {current:initial})};export const useEffect=()=>{};export const useSyncExternalStore=(s,r)=>r();`};
@@ -17,8 +15,7 @@ async function load(){
  if(p.endsWith('apiClient'))return{contents:'export const requestJson=(...args)=>globalThis.mapTest.request(...args);'};
  const names=p.endsWith('/card')?['Card','CardContent','CardHeader','CardTitle']:p.endsWith('/responsive-dialog')?['ResponsiveDialog']:[p.split('/').at(-1).replace(/^./,v=>v.toUpperCase())];
  return{contents:names.map(n=>`export const ${n}=${JSON.stringify(n)};`).join('')};
- });}}]});
- return import(`data:text/javascript;base64,${Buffer.from(built.outputFiles[0].text).toString('base64')}#${Math.random()}`);
+ })({path}).contents}});
 }
 function walk(n){return [n,...(Array.isArray(n?.props?.children)?n.props.children:[n?.props?.children]).filter(Boolean).flatMap(walk)];}
 test('map key setup saves once, handles uncertain results and shares the responsive dialog',async t=>{

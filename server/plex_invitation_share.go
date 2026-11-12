@@ -5,8 +5,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"net/http"
-	"net/url"
 	"strconv"
 	"time"
 )
@@ -98,7 +96,7 @@ type plexSharingSettings struct {
 // reports whether the account has already accepted a share of this server. A
 // lost invitation response is resolved by reading plex.tv's sent invitations;
 // it is never sent a second time.
-func (p *jsonProvider) sharePlexInvitation(ctx context.Context, account, username string, grant InvitationGrant, checkpoint func(stage, remoteID string) error) (bool, error) {
+func (p *serverConnection) sharePlexInvitation(ctx context.Context, account, username string, grant InvitationGrant, checkpoint func(stage, remoteID string) error) (bool, error) {
 	if p.config.Type != "plex" || !plexNumericID(account) || username == "" {
 		return false, errPlexShare
 	}
@@ -114,7 +112,6 @@ func (p *jsonProvider) sharePlexInvitation(ctx context.Context, account, usernam
 		}
 		sections = append(sections, id)
 	}
-	target := "https://plex.tv/api/servers/" + url.PathEscape(plan.Machine) + "/shared_servers"
 	var body plexInviteBody
 	body.Server = plan.Machine
 	body.Share.Libraries = sections
@@ -124,7 +121,7 @@ func (p *jsonProvider) sharePlexInvitation(ctx context.Context, account, usernam
 		if err := checkpoint("plex_share_update", account); err != nil {
 			return false, err
 		}
-		if _, err := p.fetch(ctx, http.MethodPut, target+"/"+url.PathEscape(plan.ShareID), body); err != nil {
+		if err := p.plexServer().UpdateShare(ctx, plan.Machine, plan.ShareID, body); err != nil {
 			return false, plexShareFailure(err)
 		}
 		return plan.State == "accepted", checkpoint("remote_completed", account)
@@ -138,7 +135,7 @@ func (p *jsonProvider) sharePlexInvitation(ctx context.Context, account, usernam
 		}
 		id, _ := strconv.ParseInt(account, 10, 64)
 		friendBody := map[string]any{"server_id": plan.Machine, "shared_server": map[string]any{"library_section_ids": sections, "invited_id": id}}
-		if _, sendErr := p.fetch(ctx, http.MethodPost, target, friendBody); sendErr != nil {
+		if sendErr := p.plexServer().CreateShare(ctx, plan.Machine, friendBody); sendErr != nil {
 			// A lost response is resolved by reading the share, never by resending.
 			after, err := p.inspectPlexShare(ctx, account, grant)
 			if err != nil || after.ShareID == "" {
@@ -176,7 +173,7 @@ func (p *jsonProvider) sharePlexInvitation(ctx context.Context, account, usernam
 	}
 	body.Share.Invited = username
 	body.Settings = &plexSharingSettings{AllowSync: allow, AllowCameraUpload: "0", AllowChannels: "0"}
-	if _, sendErr := p.fetch(ctx, http.MethodPost, target, body); sendErr != nil {
+	if sendErr := p.plexServer().CreateShare(ctx, plan.Machine, body); sendErr != nil {
 		sent, err := p.plexSentInvitations(ctx)
 		if err != nil || !hasPlexSentInviteForServer(sent, account, plan.Machine) {
 			return false, plexShareFailure(sendErr)

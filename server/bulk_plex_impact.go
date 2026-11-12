@@ -123,9 +123,9 @@ func (a *App) prepareBulkPlexImpacts(ctx context.Context, b *bulkStored, access 
 				if err != nil {
 					return err
 				}
-				provider, err := newMediaProvider(ProviderConfig{source.Type, source.URL, source.apiKey}, a.ProviderHTTP)
+				provider, err := newServerConnection(ProviderConfig{source.Type, source.URL, source.apiKey}, a.ProviderHTTP)
 				if err == nil {
-					p := provider.(*jsonProvider)
+					p := provider
 					p.bulkAuthority = func(ctx context.Context) error { return a.bulkPreparedAuthority(ctx, b.Actor, access, b.Role, impact) }
 					var snapshot bulkProviderSnapshot
 					snapshot, err = p.prepareBulkUser(ctx, bulkProviderRequest{Action: "delete_users", ID: impact.RemoteID, Name: impact.Name})

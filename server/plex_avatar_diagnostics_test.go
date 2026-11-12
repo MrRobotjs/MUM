@@ -25,7 +25,7 @@ func TestPlexAvatarRedirectDiagnosticsExcludeUntrustedDetails(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			calls := 0
-			p, err := newMediaProvider(ProviderConfig{"plex", "http://fixture.test", "fixture-secret"}, &http.Client{Transport: providerTransport(func(r *http.Request) (*http.Response, error) {
+			p, err := newServerConnection(ProviderConfig{"plex", "http://fixture.test", "fixture-secret"}, &http.Client{Transport: providerTransport(func(r *http.Request) (*http.Response, error) {
 				calls++
 				if r.URL.Scheme != "https" || r.URL.Host != "plex.tv" || r.URL.User != nil || r.Header.Get("X-Plex-Token") != "" {
 					t.Fatal("unsafe redirect reached transport")
@@ -35,7 +35,7 @@ func TestPlexAvatarRedirectDiagnosticsExcludeUntrustedDetails(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			_, _, err = p.(*jsonProvider).plexActivityAvatar(t.Context(), "https://plex.tv/users/fixture-user/avatar")
+			_, _, err = p.activityAvatar(t.Context(), "https://plex.tv/users/fixture-user/avatar")
 			var classified *plexAvatarError
 			if !errors.As(err, &classified) || classified.Code != tc.code || classified.Status != 0 || calls != tc.wantCalls {
 				t.Fatalf("unexpected safe rejection: %v, calls=%d", err, calls)
@@ -51,7 +51,7 @@ func TestPlexAvatarFollowsAssetsRedirectWithoutSourceCredentials(t *testing.T) {
 	for _, avatar := range []string{"https://plex.tv/users/fixture-user/avatar", "/accounts/42/thumb"} {
 		t.Run(avatar, func(t *testing.T) {
 			calls := 0
-			p, err := newMediaProvider(ProviderConfig{"plex", "http://fixture.test", "fixture-secret"}, &http.Client{Transport: providerTransport(func(r *http.Request) (*http.Response, error) {
+			p, err := newServerConnection(ProviderConfig{"plex", "http://fixture.test", "fixture-secret"}, &http.Client{Transport: providerTransport(func(r *http.Request) (*http.Response, error) {
 				calls++
 				if calls == 1 {
 					return &http.Response{StatusCode: 302, Header: http.Header{"Location": {"https://assets.plex.tv/users/fixture-avatar.png"}}, Body: io.NopCloser(strings.NewReader("")), Request: r}, nil
@@ -64,7 +64,7 @@ func TestPlexAvatarFollowsAssetsRedirectWithoutSourceCredentials(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			kind, body, err := p.(*jsonProvider).plexActivityAvatar(t.Context(), avatar)
+			kind, body, err := p.activityAvatar(t.Context(), avatar)
 			if err != nil || kind != "image/png" || string(body) != "fixture PNG" || calls != 2 {
 				t.Fatalf("Plex assets redirect failed: %v, calls=%d", err, calls)
 			}

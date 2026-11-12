@@ -1,32 +1,6 @@
 package main
 
-import (
-	"bytes"
-	"encoding/json"
-	"strings"
-)
-
-// Provider play methods (Jellyfin/Emby PlayerStateInfo.PlayMethod) mapped to
-// stored values. Unrecognised methods are recorded as unknown.
-var activityPlayMethods = map[string]string{"DirectPlay": "direct_play", "DirectStream": "direct_stream", "Transcode": "transcode"}
-
-// optionalActivityLabel reads an optional provider string. Absent, null,
-// blank, oversized or control-character values are unknown (""); a value of
-// another JSON type makes the snapshot malformed.
-func optionalActivityLabel(raw json.RawMessage, maximum int) (string, error) {
-	if raw == nil || bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
-		return "", nil
-	}
-	var value string
-	if err := json.Unmarshal(raw, &value); err != nil {
-		return "", errActivitySnapshot
-	}
-	value = strings.Join(strings.Fields(value), " ")
-	if !activityText(value, maximum) {
-		return "", nil
-	}
-	return value, nil
-}
+import "strings"
 
 var activityDeviceLabels = []struct {
 	markers []string

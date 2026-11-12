@@ -154,21 +154,16 @@ func (a *App) runOneActivityMonitor(parent context.Context) error {
 	}
 	if err == nil {
 		stage = "provider_read"
-		var provider MediaProvider
-		provider, err = newMediaProvider(ProviderConfig{server.Type, server.URL, server.apiKey}, a.ProviderHTTP)
+		var provider *serverConnection
+		provider, err = newServerConnection(ProviderConfig{server.Type, server.URL, server.apiKey}, a.ProviderHTTP)
 		if err == nil {
-			concrete, ok := provider.(*jsonProvider)
-			if !ok {
-				err = errActivitySnapshot
-			} else {
-				var snapshot activitySnapshot
-				concrete.geoCache = &a.plexGeoCache
-				snapshot, err = concrete.readActivitySnapshot(ctx)
-				if err == nil {
-					observed = len(snapshot.Sessions)
-					stage = "persist_snapshot"
-					applied, err = a.store.applyActivitySnapshot(ctx, *c, snapshot)
-				}
+			var snapshot activitySnapshot
+			provider.locations = &a.locationCache
+			snapshot, err = provider.readActivitySnapshot(ctx)
+			if err == nil {
+				observed = len(snapshot.Sessions)
+				stage = "persist_snapshot"
+				applied, err = a.store.applyActivitySnapshot(ctx, *c, snapshot)
 			}
 		}
 	}

@@ -1,6 +1,8 @@
 package main
 
 import (
+	"app/server/providers/mediabrowser"
+	"app/server/providers/plex"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -118,11 +120,11 @@ func TestActivityProviderBoundedAuthenticatedTransport(t *testing.T) {
 				_ = json.NewEncoder(w).Encode([]any{activityFixtureRow()})
 			}))
 			defer upstream.Close()
-			provider, err := newMediaProvider(ProviderConfig{kind, upstream.URL + "/root", "fixture-key"}, nil)
+			provider, err := newServerConnection(ProviderConfig{kind, upstream.URL + "/root", "fixture-key"}, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
-			snapshot, err := provider.(*jsonProvider).readActivitySnapshot(t.Context())
+			snapshot, err := provider.readActivitySnapshot(t.Context())
 			if err != nil || len(snapshot.Sessions) != 1 {
 				t.Fatal(err)
 			}
@@ -133,16 +135,16 @@ func TestActivityProviderBoundedAuthenticatedTransport(t *testing.T) {
 	defer destination.Close()
 	redirect := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { http.Redirect(w, r, destination.URL, 302) }))
 	defer redirect.Close()
-	provider, _ := newMediaProvider(ProviderConfig{"jellyfin", redirect.URL, "fixture-key"}, nil)
-	if _, err := provider.(*jsonProvider).readActivitySnapshot(t.Context()); err == nil || stolen.Load() != 0 {
+	provider, _ := newServerConnection(ProviderConfig{"jellyfin", redirect.URL, "fixture-key"}, nil)
+	if _, err := provider.readActivitySnapshot(t.Context()); err == nil || stolen.Load() != 0 {
 		t.Fatal("redirect followed with provider credentials")
 	}
 	for _, status := range []int{204, 206, 401, 500} {
 		t.Run(http.StatusText(status), func(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(status); _, _ = w.Write([]byte(`[]`)) }))
 			defer server.Close()
-			p, _ := newMediaProvider(ProviderConfig{"jellyfin", server.URL, "fixture-key"}, nil)
-			if _, err := p.(*jsonProvider).readActivitySnapshot(t.Context()); err == nil {
+			p, _ := newServerConnection(ProviderConfig{"jellyfin", server.URL, "fixture-key"}, nil)
+			if _, err := p.readActivitySnapshot(t.Context()); err == nil {
 				t.Fatal("non-complete status accepted")
 			}
 		})
@@ -150,4 +152,13 @@ func TestActivityProviderBoundedAuthenticatedTransport(t *testing.T) {
 	if _, err := parseActivitySnapshot("plex", []byte(`[]`)); err == nil {
 		t.Fatal("unsupported provider acquired activity support")
 	}
+}
+
+// parseActivitySnapshot parses a sessions reply the way the service's module
+// does after reading it.
+func parseActivitySnapshot(kind string, body []byte) (activitySnapshot, error) {
+	if kind == "plex" {
+		return plex.ParseActivity(body)
+	}
+	return mediabrowser.ParseSessions(kind, body)
 }

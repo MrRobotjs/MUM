@@ -32,7 +32,6 @@ import AdminSettingsGeneralPage from '../pages/AdminSettingsGeneralPage';
 import AdminSettingsUserGeneralPage from '../pages/AdminSettingsUserGeneralPage';
 import AdminSettingsAdminManagementPage from '../pages/AdminSettingsAdminManagementPage';
 import AdminSettingsPluginsPage from '../pages/AdminSettingsPluginsPage';
-import AdminSettingsPluginsV2Page from '../pages/AdminSettingsPluginsV2Page';
 import AdminSettingsPluginsDetailPage from '../pages/AdminSettingsPluginsDetailPage';
 import { AdminSettingsPluginsServerAddPage } from '../pages/AdminSettingsPluginsServerAddPage';
 import { AdminSettingsPluginsServerEditPage } from '../pages/AdminSettingsPluginsServerEditPage';
@@ -185,11 +184,10 @@ const adminAdminRoles = createRoute({ getParentRoute: () => adminRoute, path: 's
 const adminAdminRoleEdit = createRoute({ getParentRoute: () => adminRoute, path: 'settings/admin-roles/$roleId/edit', component: AdminSettingsAdminRolesEditPage })
 const adminUserRoles = createRoute({ getParentRoute: () => adminRoute, path: 'settings/user-roles', component: AdminSettingsUserRolesPage })
 const adminUserRoleEdit = createRoute({ getParentRoute: () => adminRoute, path: 'settings/user-roles/$roleId/edit', component: AdminSettingsUserRolesEditPage })
-const adminPlugins = createRoute({ getParentRoute: () => adminRoute, path: 'settings/plugins', component: AdminSettingsPluginsPage })
-const adminPluginsV2 = createRoute({ getParentRoute: () => adminRoute, path: 'settings/plugins-v2', component: AdminSettingsPluginsV2Page })
-const adminPluginDetail = createRoute({ getParentRoute: () => adminRoute, path: 'settings/plugins/$pluginId', component: AdminSettingsPluginsDetailPage })
-const adminServerAdd = createRoute({ getParentRoute: () => adminRoute, path: 'settings/plugins/$pluginId/servers/add', component: AdminSettingsPluginsServerAddPage })
-const adminServerEdit = createRoute({ getParentRoute: () => adminRoute, path: 'settings/plugins/$pluginId/servers/$serverId', component: AdminSettingsPluginsServerEditPage })
+const adminPlugins = createRoute({ getParentRoute: () => adminRoute, path: 'settings/media-servers', component: AdminSettingsPluginsPage })
+const adminPluginDetail = createRoute({ getParentRoute: () => adminRoute, path: 'settings/media-servers/$pluginId', component: AdminSettingsPluginsDetailPage })
+const adminServerAdd = createRoute({ getParentRoute: () => adminRoute, path: 'settings/media-servers/$pluginId/servers/add', component: AdminSettingsPluginsServerAddPage })
+const adminServerEdit = createRoute({ getParentRoute: () => adminRoute, path: 'settings/media-servers/$pluginId/servers/$serverId', component: AdminSettingsPluginsServerEditPage })
 const adminDiscord = createRoute({ getParentRoute: () => adminRoute, path: 'settings/discord', component: AdminSettingsDiscordPage })
 const adminAdvanced = createRoute({ getParentRoute: () => adminRoute, path: 'settings/advanced', component: AdminSettingsAdvancedPage })
 const adminApiDebug = createRoute({ getParentRoute: () => adminRoute, path: 'settings/api-debug', component: AdminSettingsApiDebugPage })
@@ -263,9 +261,9 @@ const userDashboard = createRoute({
 const setupRoute = createRoute({ getParentRoute: () => rootRoute, path: 'setup' })
 const setupAccount = createRoute({ getParentRoute: () => setupRoute, path: 'account', component: SetupAccountPage })
 const setupApp = createRoute({ getParentRoute: () => setupRoute, path: 'app', component: SetupAppConfigPage })
-const setupPlugins = createRoute({ getParentRoute: () => setupRoute, path: 'plugins', component: SetupPluginsPage })
-const setupPluginConfig = createRoute({ getParentRoute: () => setupRoute, path: 'plugins/$pluginId', component: SetupPluginConfigPage })
-const setupServerAdd = createRoute({ getParentRoute: () => setupRoute, path: 'plugins/$pluginId/servers/add', component: SetupServerAddPage })
+const setupPlugins = createRoute({ getParentRoute: () => setupRoute, path: 'media-servers', component: SetupPluginsPage })
+const setupPluginConfig = createRoute({ getParentRoute: () => setupRoute, path: 'media-servers/$pluginId', component: SetupPluginConfigPage })
+const setupServerAdd = createRoute({ getParentRoute: () => setupRoute, path: 'media-servers/$pluginId/servers/add', component: SetupServerAddPage })
 const setupFinish = createRoute({ getParentRoute: () => setupRoute, path: 'finish', component: SetupFinishPage })
 const setupRootRedirect = createRoute({ getParentRoute: () => setupRoute, path: '/', component: () => <Navigate to="/setup/account" replace /> })
 const setupWildcardRedirect = createRoute({ getParentRoute: () => setupRoute, path: '*', component: () => <Navigate to="/setup/account" replace /> })
@@ -301,7 +299,6 @@ const routeTree = rootRoute.addChildren([
     adminUserRoles,
     adminUserRoleEdit,
     adminPlugins,
-    adminPluginsV2,
     adminPluginDetail,
     adminServerAdd,
     adminServerEdit,

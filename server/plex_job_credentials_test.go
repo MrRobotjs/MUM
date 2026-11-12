@@ -1,6 +1,7 @@
 package main
 
 import (
+	"app/server/providers/plex"
 	"database/sql"
 	"encoding/json"
 	"io"
@@ -154,12 +155,12 @@ func TestPlexRecipientResourcesUseDistinctTokenAndExactConfiguredLibraries(t *te
 				}
 				return original.RoundTrip(r)
 			})}
-			device, err := newPlexDeviceAuth(client)
+			device, err := plex.NewDevice(client)
 			if err != nil {
 				t.Fatal(err)
 			}
-			expectedClientID = device.clientID
-			secret := plexStoredCredential{ClientID: device.clientID, KeyID: device.keyID, PrivateKey: device.privateKey, AccountID: "2", Token: plexFixtureToken, Expires: time.Now().Add(time.Minute)}
+			expectedClientID = device.ClientID
+			secret := plexStoredCredential{ClientID: device.ClientID, KeyID: device.KeyID, PrivateKey: device.PrivateKey, AccountID: "2", Token: plexFixtureToken, Expires: time.Now().Add(time.Minute)}
 			observed := checkpointPlan()
 			observed.State = "accepted"
 			observed.ShareID = "700"

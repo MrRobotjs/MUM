@@ -1,6 +1,7 @@
 package main
 
 import (
+	"app/server/providers/plex"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -11,7 +12,7 @@ func TestPlexRawPayloadCapturesOnlyThisSessionTechnicalXML(t *testing.T) {
 	first = strings.Replace(first, `<Player `, `<Unknown secret="unknown-secret">hidden-text<Media container="nested-secret"/></Unknown><Player token="token-secret" url="https://private/?key=url-secret" `, 1)
 	first = strings.Replace(first, `<Stream streamType="1" codec="hevc"`, `<Stream profile="https://private/?key=known-field-secret" streamType="1" codec="hevc"`, 1)
 	second := `<Track sessionKey="11" ratingKey="124" type="track" title="Other viewer"><User id="99" title="other-user-secret"/><Player state="paused"/><Media bitrate="123"/></Track>`
-	snap, err := parsePlexActivity([]byte(`<MediaContainer size="2">` + first + second + `</MediaContainer>`))
+	snap, err := plex.ParseActivity([]byte(`<MediaContainer size="2">` + first + second + `</MediaContainer>`))
 	if err != nil || len(snap.Sessions) != 2 {
 		t.Fatal(err)
 	}
@@ -36,7 +37,7 @@ func TestPlexRawPayloadCapturesOnlyThisSessionTechnicalXML(t *testing.T) {
 func TestPlexRawPayloadBudgetDoesNotRejectPlayback(t *testing.T) {
 	extra := strings.Repeat(`<Stream streamType="1" codec="hevc" width="1920" height="1080"/>`, 600)
 	body := strings.Replace(plexRichPlaying, `</Part>`, extra+`</Part>`, 1)
-	snap, err := parsePlexActivity([]byte(body))
+	snap, err := plex.ParseActivity([]byte(body))
 	if err != nil || len(snap.Sessions) != 1 {
 		t.Fatal("diagnostic overflow rejected playback", err)
 	}
@@ -75,7 +76,7 @@ func TestPlexRawPayloadAggregateOverflowPreservesPlaybackAndCaller(t *testing.T)
 	var d *activityDisplay
 	for count := 1; count <= 100; count++ {
 		streams := strings.Repeat(`<Stream codec="`+strings.Repeat("h", 64)+`" profile="`+strings.Repeat("m", 64)+`"/>`, count)
-		parsed, err := parsePlexDisplays([]byte(`<MediaContainer><Video><Media><Part>` + streams + `</Part></Media></Video></MediaContainer>`))
+		parsed, err := plex.ParseDisplays([]byte(`<MediaContainer><Video><Media><Part>` + streams + `</Part></Media></Video></MediaContainer>`))
 		if err != nil {
 			t.Fatal(err)
 		}

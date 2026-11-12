@@ -1,20 +1,17 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
-	"io"
 	"net/http"
-	"net/url"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"app/server/providers/provider"
+
 	"github.com/coder/websocket"
-	"github.com/coder/websocket/wsjson"
 )
 
 type providerSocketTarget struct {
@@ -49,92 +46,18 @@ func (w *providerSocketWorker) status(state, code string) {
 	w.mu.Unlock()
 }
 
-func providerSocketURL(server ManagedServer, device string) (string, error) {
-	u, err := url.Parse(server.URL)
-	if err != nil || u.Host == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || server.apiKey == "" {
-		return "", ErrConflict
-	}
-	switch u.Scheme {
-	case "http":
-		u.Scheme = "ws"
-	case "https":
-		u.Scheme = "wss"
-	default:
-		return "", ErrConflict
-	}
-	if server.Type == "jellyfin" {
-		u.Path = strings.TrimRight(u.Path, "/") + "/socket"
-	} else if server.Type == "plex" {
-		u.Path = strings.TrimRight(u.Path, "/") + "/:/websockets/notifications"
-	} else if server.Type != "emby" {
-		return "", ErrConflict
-	}
-	u.RawPath = ""
-	q := url.Values{}
-	if server.Type != "plex" {
-		q.Set("api_key", server.apiKey)
-		q.Set("deviceId", device)
-	}
-	u.RawQuery = q.Encode()
-	return u.String(), nil
-}
-
-// Validate envelope JSON, discard Data entirely, and persist only this allowlisted type.
-func providerSocketHint(data []byte) (string, error) {
-	frame, err := decodeProviderSocketFrame(data)
-	if err != nil {
-		return "", err
-	}
-	var message string
-	if raw, ok := frame["MessageType"]; !ok || json.Unmarshal(raw, &message) != nil || message == "" {
-		return "", errActivitySnapshot
-	}
-	switch message {
-	case "Sessions", "SessionStart", "SessionEnded", "PlaybackStart", "PlaybackStopped", "PlaybackProgress", "ForceKeepAlive":
-		return message, nil
-	}
-	return "", nil
-}
-
-func decodeProviderSocketFrame(data []byte) (map[string]json.RawMessage, error) {
-	if len(data) > 64*1024 || !json.Valid(data) {
-		return nil, errActivitySnapshot
-	}
-	d := json.NewDecoder(bytes.NewReader(data))
-	if err := activityJSONValue(d, 0); err != nil {
-		return nil, err
-	}
-	if _, err := d.Token(); !errors.Is(err, io.EOF) {
-		return nil, errActivitySnapshot
-	}
-	var frame map[string]json.RawMessage
-	if err := json.Unmarshal(data, &frame); err != nil {
-		return nil, errActivitySnapshot
-	}
-	return frame, nil
-}
-
-func plexSocketHint(data []byte) (string, error) {
-	frame, err := decodeProviderSocketFrame(data)
-	if err != nil {
-		return "", err
-	}
-	var notification struct {
-		Type string `json:"type"`
-	}
-	if raw, ok := frame["NotificationContainer"]; !ok || json.Unmarshal(raw, &notification) != nil || notification.Type == "" {
-		return "", errActivitySnapshot
-	}
-	switch notification.Type {
-	case "playing", "timeline", "activity", "transcodeSession.start", "transcodeSession.end":
-		return notification.Type, nil
-	}
-	return "", nil
-}
-
 func (a *App) runProviderSocket(ctx context.Context, w *providerSocketWorker, server ManagedServer) {
 	defer close(w.done)
-	endpoint, err := providerSocketURL(server, "mum-"+a.scheduler.runner)
+	// The service's module describes its socket and reads its frames; this
+	// loop owns dialing, retries, the queue and status.
+	var live liveConnector
+	var spec provider.LiveConnection
+	err := errActivitySnapshot
+	if m, ok := findMediaModule(server.Type); ok {
+		if live, ok = m.New(provider.Config{URL: server.URL, APIKey: server.apiKey}).(liveConnector); ok {
+			spec, err = live.LiveConnection("mum-" + a.scheduler.runner)
+		}
+	}
 	if err != nil {
 		w.status("failed", "INVALID_SOURCE")
 		return
@@ -150,26 +73,23 @@ func (a *App) runProviderSocket(ctx context.Context, w *providerSocketWorker, se
 		w.status("connecting", "")
 		a.logger.Debug("Provider socket connecting", "server_id", server.ID, "provider", server.Type)
 		dial, cancel := context.WithTimeout(ctx, 5*time.Second)
-		headers := make(http.Header)
-		if server.Type == "plex" {
-			headers.Set("X-Plex-Token", server.apiKey)
-			headers.Set("X-Plex-Client-Identifier", "mum-"+a.scheduler.runner)
-		}
-		conn, response, err := websocket.Dial(dial, endpoint, &websocket.DialOptions{HTTPClient: &clone, HTTPHeader: headers})
+		conn, response, err := websocket.Dial(dial, spec.URL, &websocket.DialOptions{HTTPClient: &clone, HTTPHeader: spec.Header.Clone()})
 		cancel()
 		if response != nil && response.Body != nil {
 			response.Body.Close()
 		}
 		if err == nil {
-			conn.SetReadLimit(64 * 1024)
+			conn.SetReadLimit(provider.MaxLiveFrameBytes)
 			heartbeatCtx, stopHeartbeat := context.WithCancel(ctx)
 			heartbeatDone := make(chan struct{})
-			if server.Type == "plex" {
-				go plexSocketHeartbeat(heartbeatCtx, conn, heartbeatDone)
+			if spec.PingInterval > 0 {
+				go providerSocketHeartbeat(heartbeatCtx, conn, spec.PingInterval, heartbeatDone)
 			} else {
 				close(heartbeatDone)
+			}
+			if len(spec.Start) > 0 {
 				write, stop := context.WithTimeout(ctx, 2*time.Second)
-				err = wsjson.Write(write, conn, map[string]string{"MessageType": "SessionsStart", "Data": "0,5000"})
+				err = conn.Write(write, websocket.MessageText, spec.Start)
 				stop()
 			}
 			if err == nil {
@@ -179,8 +99,8 @@ func (a *App) runProviderSocket(ctx context.Context, w *providerSocketWorker, se
 			}
 			for err == nil && ctx.Err() == nil {
 				read, stop := ctx, func() {}
-				if server.Type != "plex" {
-					read, stop = context.WithTimeout(ctx, 45*time.Second)
+				if spec.ReadTimeout > 0 {
+					read, stop = context.WithTimeout(ctx, spec.ReadTimeout)
 				}
 				var kind websocket.MessageType
 				var data []byte
@@ -189,26 +109,21 @@ func (a *App) runProviderSocket(ctx context.Context, w *providerSocketWorker, se
 				if err != nil {
 					break
 				}
-				if kind != websocket.MessageText && !(server.Type == "plex" && kind == websocket.MessageBinary) {
+				if kind != websocket.MessageText && !(spec.Binary && kind == websocket.MessageBinary) {
 					err = errActivitySnapshot
 					break
 				}
-				var hint string
-				if server.Type == "plex" {
-					hint, err = plexSocketHint(data)
-				} else {
-					hint, err = providerSocketHint(data)
-				}
-				if err != nil {
+				hint, reply, eventErr := live.LiveEvent(data)
+				if err = eventErr; err != nil {
 					break
 				}
-				if hint == "" {
+				if len(reply) > 0 {
+					write, stop := context.WithTimeout(ctx, 2*time.Second)
+					err = conn.Write(write, websocket.MessageText, reply)
+					stop()
 					continue
 				}
-				if hint == "ForceKeepAlive" {
-					write, stop := context.WithTimeout(ctx, 2*time.Second)
-					err = wsjson.Write(write, conn, map[string]string{"MessageType": "KeepAlive"})
-					stop()
+				if hint == "" {
 					continue
 				}
 				payload, _ := json.Marshal(struct {
@@ -249,9 +164,11 @@ func (a *App) runProviderSocket(ctx context.Context, w *providerSocketWorker, se
 	a.logger.Info("Provider socket stopped", "server_id", server.ID, "provider", server.Type)
 }
 
-func plexSocketHeartbeat(ctx context.Context, conn *websocket.Conn, done chan struct{}) {
+// providerSocketHeartbeat pings the connection every interval and closes it
+// when a ping fails.
+func providerSocketHeartbeat(ctx context.Context, conn *websocket.Conn, interval time.Duration, done chan struct{}) {
 	defer close(done)
-	ticker := time.NewTicker(20 * time.Second)
+	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for {
 		select {

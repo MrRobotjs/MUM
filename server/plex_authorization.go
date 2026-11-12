@@ -1,6 +1,7 @@
 package main
 
 import (
+	"app/server/providers/plex"
 	"context"
 	"crypto/ed25519"
 	"database/sql"
@@ -96,7 +97,7 @@ func (a *App) startPlexAuthorization(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer done()
-	device, err := newPlexDeviceAuth(a.ProviderHTTP)
+	device, err := plex.NewDevice(a.ProviderHTTP)
 	if err != nil {
 		plexAuthorizationError(w, err)
 		return
@@ -146,13 +147,13 @@ func (a *App) startPlexAuthorization(w http.ResponseWriter, r *http.Request) {
 			})
 		}
 	}()
-	pin, err := device.beginPIN(ctx)
+	pin, err := device.BeginPIN(ctx)
 	if err != nil {
 		plexAuthorizationError(w, err)
 		return
 	}
-	secret := plexStoredCredential{ClientID: device.clientID, KeyID: device.keyID, PrivateKey: []byte(device.privateKey), PINID: pin.id, PINCode: pin.code, Expires: pin.expires}
-	row.Expires = utcTimestamp(pin.expires)
+	secret := plexStoredCredential{ClientID: device.ClientID, KeyID: device.KeyID, PrivateKey: []byte(device.PrivateKey), PINID: pin.ID, PINCode: pin.Code, Expires: pin.Expires}
+	row.Expires = utcTimestamp(pin.Expires)
 	encoded, err := a.store.sealPlexCredential(ctx, plexAuthorizationPurpose(row), secret)
 	if err != nil {
 		plexAuthorizationError(w, err)
@@ -182,9 +183,9 @@ func (a *App) startPlexAuthorization(w http.ResponseWriter, r *http.Request) {
 	committed = true
 	row.Status = "pending"
 	row.Revision++
-	a.plexCookie(w, row.ID, browser, int(time.Until(pin.expires).Seconds()))
+	a.plexCookie(w, row.ID, browser, int(time.Until(pin.Expires).Seconds()))
 	view := plexAuthorizationView(row)
-	view["authorization_url"] = pin.authorizationURL
+	view["authorization_url"] = pin.AuthorizationURL
 	respond(w, 201, view)
 }
 func (a *App) pollPlexAuthorization(w http.ResponseWriter, r *http.Request) {
@@ -270,15 +271,15 @@ func (a *App) pollPlexAuthorization(w http.ResponseWriter, r *http.Request) {
 		plexAuthorizationError(w, err)
 		return
 	}
-	device, err := newPlexDeviceAuth(a.ProviderHTTP)
+	device, err := plex.NewDevice(a.ProviderHTTP)
 	if err != nil {
 		plexAuthorizationError(w, err)
 		return
 	}
-	device.clientID = secret.ClientID
-	device.keyID = secret.KeyID
-	device.privateKey = ed25519.PrivateKey(secret.PrivateKey)
-	result, err := device.pollPIN(ctx, plexPIN{secret.PINID, secret.PINCode, secret.Expires, secret.ClientID, ""})
+	device.ClientID = secret.ClientID
+	device.KeyID = secret.KeyID
+	device.PrivateKey = ed25519.PrivateKey(secret.PrivateKey)
+	result, err := device.PollPIN(ctx, plex.PIN{ID: secret.PINID, Code: secret.PINCode, Expires: secret.Expires, ClientID: secret.ClientID})
 	if err != nil {
 		plexAuthorizationError(w, err)
 		return
@@ -289,7 +290,7 @@ func (a *App) pollPlexAuthorization(w http.ResponseWriter, r *http.Request) {
 			plexAuthorizationError(w, errPlexAuthentication)
 			return
 		}
-		secret.Token = result.authToken
+		secret.Token = result.AuthToken
 		secret.AccountID = result.Account.ID
 		// PIN proof is no longer reusable as a new cloud assertion after verification.
 		secret.PINCode = ""
@@ -368,7 +369,7 @@ func (a *App) confirmPlexAuthorization(w http.ResponseWriter, r *http.Request) {
 		plexAuthorizationError(w, err)
 		return
 	}
-	if !secret.Expires.After(time.Now()) || secret.AccountID != row.AccountID || !plexJWTShape(secret.Token) {
+	if !secret.Expires.After(time.Now()) || secret.AccountID != row.AccountID || !plex.JWTShape(secret.Token) {
 		plexAuthorizationError(w, errPlexAuthentication)
 		return
 	}

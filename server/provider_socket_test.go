@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -15,46 +14,6 @@ import (
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
 )
-
-func TestProviderSocketEnvelopeAndURLBoundaries(t *testing.T) {
-	for _, tc := range []struct {
-		name, input, want string
-		invalid           bool
-	}{
-		{"session", `{"MessageType":"Sessions","Data":[]}`, "Sessions", false},
-		{"incremental", `{"MessageType":"PlaybackProgress","Data":{"private":"never logged"}}`, "PlaybackProgress", false},
-		{"unknown", `{"MessageType":"Other","Data":"private"}`, "", false},
-		{"keepalive", `{"MessageType":"ForceKeepAlive"}`, "ForceKeepAlive", false},
-		{"duplicate", `{"MessageType":"Sessions","MessageType":"Other"}`, "", true},
-		{"lowercase", `{"messagetype":"Sessions"}`, "", true},
-		{"null", `null`, "", true}, {"oversized", strings.Repeat(" ", 65537), "", true},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			got, err := providerSocketHint([]byte(tc.input))
-			if (err != nil) != tc.invalid || got != tc.want {
-				t.Fatal(got, err)
-			}
-		})
-	}
-	for _, provider := range []string{"jellyfin", "emby"} {
-		s := ManagedServer{Type: provider, URL: "https://media.example/base", apiKey: "private +&?"}
-		endpoint, err := providerSocketURL(s, "device")
-		if err != nil {
-			t.Fatal(err)
-		}
-		u, _ := url.Parse(endpoint)
-		want := "/base"
-		if provider == "jellyfin" {
-			want += "/socket"
-		}
-		if u.Scheme != "wss" || u.Path != want || u.Query().Get("api_key") != s.apiKey {
-			t.Fatal("incorrect endpoint")
-		}
-	}
-	if _, err := providerSocketURL(ManagedServer{Type: "jellyfin", URL: "http://user:pass@example.test", apiKey: "key"}, "device"); err == nil {
-		t.Fatal("accepted userinfo")
-	}
-}
 
 func waitProviderSocket(t *testing.T, predicate func() bool) {
 	t.Helper()

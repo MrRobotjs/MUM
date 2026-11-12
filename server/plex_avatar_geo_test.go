@@ -1,18 +1,17 @@
 package main
 
 import (
+	"app/server/providers/plex"
+	"app/server/providers/provider"
 	"io"
 	"net/http"
-	"net/netip"
-	"strconv"
 	"strings"
 	"testing"
-	"time"
 )
 
 func TestPlexAvatarFollowsApprovedImageRedirectWithoutCredentials(t *testing.T) {
 	var calls int
-	p, _ := newMediaProvider(ProviderConfig{"plex", "http://127.0.0.1", "private-key"}, &http.Client{Transport: providerTransport(func(r *http.Request) (*http.Response, error) {
+	p, _ := newServerConnection(ProviderConfig{"plex", "http://127.0.0.1", "private-key"}, &http.Client{Transport: providerTransport(func(r *http.Request) (*http.Response, error) {
 		calls++
 		if r.URL.Host != "plex.tv" || r.Header.Get("X-Plex-Token") != "" || r.Header.Get("Authorization") != "" || r.Header.Get("Cookie") != "" {
 			t.Fatal("avatar credentials/origin escaped")
@@ -22,7 +21,7 @@ func TestPlexAvatarFollowsApprovedImageRedirectWithoutCredentials(t *testing.T) 
 		}
 		return &http.Response{StatusCode: 200, Header: http.Header{"Content-Type": {"image/png"}}, Body: io.NopCloser(strings.NewReader("PNG avatar")), Request: r}, nil
 	})})
-	_, body, err := p.(*jsonProvider).plexActivityAvatar(t.Context(), "https://plex.tv/users/fixture-user/avatar")
+	_, body, err := p.activityAvatar(t.Context(), "https://plex.tv/users/fixture-user/avatar")
 	if err != nil || string(body) != "PNG avatar" || calls != 2 {
 		t.Fatal("normal Plex image redirect refused", err, calls)
 	}
@@ -30,7 +29,7 @@ func TestPlexAvatarFollowsApprovedImageRedirectWithoutCredentials(t *testing.T) 
 
 func TestPlexLocalAvatarRedirectStripsProviderKeyAtCloudBoundary(t *testing.T) {
 	calls := 0
-	p, _ := newMediaProvider(ProviderConfig{"plex", "http://fixture.test/proxy", "private-key"}, &http.Client{Transport: providerTransport(func(r *http.Request) (*http.Response, error) {
+	p, _ := newServerConnection(ProviderConfig{"plex", "http://fixture.test/proxy", "private-key"}, &http.Client{Transport: providerTransport(func(r *http.Request) (*http.Response, error) {
 		calls++
 		if calls == 1 {
 			if r.URL.Host != "fixture.test" || r.Header.Get("X-Plex-Token") != "private-key" {
@@ -43,7 +42,7 @@ func TestPlexLocalAvatarRedirectStripsProviderKeyAtCloudBoundary(t *testing.T) {
 		}
 		return &http.Response{StatusCode: 200, Header: http.Header{"Content-Type": {"image/png"}}, Body: io.NopCloser(strings.NewReader("PNG avatar")), Request: r}, nil
 	})})
-	_, _, err := p.(*jsonProvider).plexActivityAvatar(t.Context(), "/accounts/42/thumb")
+	_, _, err := p.activityAvatar(t.Context(), "/accounts/42/thumb")
 	if err != nil || calls != 2 {
 		t.Fatal("local-to-cloud avatar redirect failed", err, calls)
 	}
@@ -52,11 +51,11 @@ func TestPlexLocalAvatarRedirectStripsProviderKeyAtCloudBoundary(t *testing.T) {
 func TestPlexAvatarRejectsRedirectLoopsAndDowngrades(t *testing.T) {
 	for _, destination := range []string{"http://plex.tv/avatars/test", "https://plex.tv.evil.test/avatar", "https://plex.tv:444/avatars/test", "https://plex.tv/users/fixture-user/avatar"} {
 		calls := 0
-		p, _ := newMediaProvider(ProviderConfig{"plex", "http://fixture.test", "private-key"}, &http.Client{Transport: providerTransport(func(r *http.Request) (*http.Response, error) {
+		p, _ := newServerConnection(ProviderConfig{"plex", "http://fixture.test", "private-key"}, &http.Client{Transport: providerTransport(func(r *http.Request) (*http.Response, error) {
 			calls++
 			return &http.Response{StatusCode: 302, Header: http.Header{"Location": {destination}}, Body: io.NopCloser(strings.NewReader("")), Request: r}, nil
 		})})
-		if _, _, err := p.(*jsonProvider).plexActivityAvatar(t.Context(), "https://plex.tv/users/fixture-user/avatar"); err == nil || calls > 4 {
+		if _, _, err := p.activityAvatar(t.Context(), "https://plex.tv/users/fixture-user/avatar"); err == nil || calls > 4 {
 			t.Fatal("unbounded/unsafe avatar redirect", err, calls)
 		}
 	}
@@ -65,7 +64,7 @@ func TestPlexAvatarRejectsRedirectLoopsAndDowngrades(t *testing.T) {
 func TestPlexGeoFailureDoesNotLoseSessionsAndIsCached(t *testing.T) {
 	geoCalls := 0
 	body := strings.Replace(strings.Replace(plexRichPlaying, `address="127.0.0.1" local="1"`, `address="8.8.8.8" local="0"`, 1), `location="lan"`, `location="wan"`, 1)
-	p, _ := newMediaProvider(ProviderConfig{"plex", "http://fixture.test", "fixture-secret"}, &http.Client{Transport: providerTransport(func(r *http.Request) (*http.Response, error) {
+	p, _ := newServerConnection(ProviderConfig{"plex", "http://fixture.test", "fixture-secret"}, &http.Client{Transport: providerTransport(func(r *http.Request) (*http.Response, error) {
 		text := body
 		status := 200
 		if r.URL.Host == "plex.tv" {
@@ -77,8 +76,8 @@ func TestPlexGeoFailureDoesNotLoseSessionsAndIsCached(t *testing.T) {
 		}
 		return &http.Response{StatusCode: status, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(text)), Request: r}, nil
 	})})
-	c := p.(*jsonProvider)
-	c.geoCache = &plexGeoCache{}
+	c := p
+	c.locations = &provider.LocationCache{}
 	for i := 0; i < 2; i++ {
 		s, err := c.readActivitySnapshot(t.Context())
 		if err != nil || len(s.Sessions) != 1 || s.Sessions[0].Display.Latitude != nil {
@@ -90,39 +89,11 @@ func TestPlexGeoFailureDoesNotLoseSessionsAndIsCached(t *testing.T) {
 	}
 }
 
-func TestPlexGeoCacheCapacityExpiryAndLookupLimit(t *testing.T) {
-	cache := &plexGeoCache{}
-	for i := 0; i < 300; i++ {
-		cache.set(plexGeoKey{Scope: strconv.Itoa(i), IP: netip.MustParseAddr("8.8.8.8")}, &plexGeoPoint{Latitude: 1, Longitude: 2})
-	}
-	if len(cache.entries) != 256 {
-		t.Fatal("unbounded GeoIP cache", len(cache.entries))
-	}
-	key := plexGeoKey{Scope: "expired", IP: netip.MustParseAddr("8.8.8.8")}
-	cache.entries[key] = plexGeoEntry{Until: time.Now().Add(-time.Second)}
-	if _, known := cache.get(key); known {
-		t.Fatal("expired geolocation reused")
-	}
-	calls := 0
-	p, _ := newMediaProvider(ProviderConfig{"plex", "http://fixture.test", "fixture-secret"}, &http.Client{Transport: providerTransport(func(r *http.Request) (*http.Response, error) {
-		calls++
-		return &http.Response{StatusCode: 200, Header: http.Header{"Content-Type": {"application/json"}}, Body: io.NopCloser(strings.NewReader(`{"coordinates":"1,2"}`)), Request: r}, nil
-	})})
-	s := activitySnapshot{}
-	for i := 1; i <= 40; i++ {
-		s.Sessions = append(s.Sessions, activitySession{Display: &activityDisplay{IP: "8.8.4." + strconv.Itoa(i), LocationType: "WAN"}})
-	}
-	p.(*jsonProvider).enrichPlexGeo(t.Context(), &s)
-	if calls != 16 || len(s.Sessions) != 40 {
-		t.Fatal("GeoIP lookup budget exceeded", calls)
-	}
-}
-
 func TestPlexWANCoordinatesSkipLANAndUseBoundedCache(t *testing.T) {
 	var geoCalls int
 	body := strings.Replace(plexRichPlaying, `address="127.0.0.1" local="1"`, `address="8.8.8.8" local="0"`, 1)
 	body = strings.Replace(body, `location="lan"`, `location="wan"`, 1)
-	p, _ := newMediaProvider(ProviderConfig{"plex", "http://fixture.test", "fixture-secret"}, &http.Client{Transport: providerTransport(func(r *http.Request) (*http.Response, error) {
+	p, _ := newServerConnection(ProviderConfig{"plex", "http://fixture.test", "fixture-secret"}, &http.Client{Transport: providerTransport(func(r *http.Request) (*http.Response, error) {
 		text := body
 		kind := "application/xml"
 		if r.URL.Host == "plex.tv" {
@@ -137,8 +108,8 @@ func TestPlexWANCoordinatesSkipLANAndUseBoundedCache(t *testing.T) {
 		}
 		return &http.Response{StatusCode: 200, Header: http.Header{"Content-Type": {kind}}, Body: io.NopCloser(strings.NewReader(text)), Request: r}, nil
 	})})
-	concrete := p.(*jsonProvider)
-	concrete.geoCache = &plexGeoCache{}
+	concrete := p
+	concrete.locations = &provider.LocationCache{}
 	for i := 0; i < 2; i++ {
 		s, err := concrete.readActivitySnapshot(t.Context())
 		if err != nil || len(s.Sessions) != 1 {
@@ -161,20 +132,20 @@ func TestPlexWANCoordinatesSkipLANAndUseBoundedCache(t *testing.T) {
 
 func TestPlexGeoCoordinatesRejectInvalidValuesAndPrivateIPs(t *testing.T) {
 	for _, ip := range []string{"127.0.0.1", "192.168.1.2", "10.0.0.2", "172.16.1.2", "100.64.0.2", "169.254.1.1", "192.0.2.1", "198.51.100.1", "203.0.113.1", "::1", "fe80::1", "fd00::1", "2001:db8::1", "224.0.0.1", "not an address"} {
-		if publicSessionAddress(ip).IsValid() {
+		if plex.PublicSessionAddress(ip).IsValid() {
 			t.Fatal("non-public address admitted", ip)
 		}
 	}
 	for _, body := range []string{`{"coordinates":"NaN,0"}`, `{"coordinates":"91,0"}`, `{"coordinates":"0,181"}`, `{"coordinates":"0"}`, `{"coordinates":"1,2","coordinates":"3,4"}`} {
-		if _, err := parsePlexGeo([]byte(body), "application/json"); err == nil {
+		if _, err := plex.ParseGeo([]byte(body), "application/json"); err == nil {
 			t.Fatal("invalid coordinates accepted", body)
 		}
 	}
-	point, err := parsePlexGeo([]byte(`<location coordinates="-33.9, 151.2"/>`), "application/xml")
+	point, err := plex.ParseGeo([]byte(`<location coordinates="-33.9, 151.2"/>`), "application/xml")
 	if err != nil || point.Latitude != -33.9 || point.Longitude != 151.2 {
 		t.Fatal(point, err)
 	}
-	if !publicSessionAddress("::ffff:8.8.8.8").Is4() || !publicSessionAddress("[2606:4700:4700::1111]:443").Is6() {
+	if !plex.PublicSessionAddress("::ffff:8.8.8.8").Is4() || !plex.PublicSessionAddress("[2606:4700:4700::1111]:443").Is6() {
 		t.Fatal("public address normalization failed")
 	}
 }

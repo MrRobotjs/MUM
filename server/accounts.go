@@ -1,6 +1,7 @@
 package main
 
 import (
+	"app/server/providers/provider"
 	"context"
 	"crypto/rand"
 	"database/sql"
@@ -12,8 +13,9 @@ import (
 
 var (
 	ErrForbidden = errors.New("insufficient permission")
-	ErrConflict  = errors.New("resource conflict")
-	ErrNotFound  = errors.New("resource not found")
+	// Shared with media service modules, so errors.Is matches either side.
+	ErrConflict = provider.ErrConflict
+	ErrNotFound = errors.New("resource not found")
 )
 
 func newUUID() string {

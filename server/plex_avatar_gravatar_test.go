@@ -13,7 +13,7 @@ func TestPlexAvatarFollowsGravatarRedirectWithoutCredentials(t *testing.T) {
 	for _, avatar := range []string{"https://plex.tv/users/fixture-user/avatar?c=1", "/accounts/42/thumb"} {
 		t.Run(avatar, func(t *testing.T) {
 			calls := 0
-			p, err := newMediaProvider(ProviderConfig{"plex", "http://fixture.test", "fixture-secret"}, &http.Client{Transport: providerTransport(func(r *http.Request) (*http.Response, error) {
+			p, err := newServerConnection(ProviderConfig{"plex", "http://fixture.test", "fixture-secret"}, &http.Client{Transport: providerTransport(func(r *http.Request) (*http.Response, error) {
 				calls++
 				if calls == 1 {
 					return &http.Response{StatusCode: 302, Header: http.Header{"Location": {"https://secure.gravatar.com/avatar/0123456789abcdef?d=https%3A%2F%2Fplex.tv%2Favatars%2Fdefault.png"}}, Body: io.NopCloser(strings.NewReader("")), Request: r}, nil
@@ -26,7 +26,7 @@ func TestPlexAvatarFollowsGravatarRedirectWithoutCredentials(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			kind, body, err := p.(*jsonProvider).plexActivityAvatar(t.Context(), avatar)
+			kind, body, err := p.activityAvatar(t.Context(), avatar)
 			if err != nil || kind != "image/jpeg" || string(body) != "jpeg" || calls != 2 {
 				t.Fatalf("Gravatar avatar not served: %v %q %d", err, kind, calls)
 			}
@@ -43,7 +43,7 @@ func TestPlexAvatarRejectsGravatarLookalikesAndRecordsOnlyTheDomain(t *testing.T
 		{"https://10.0.0.5/photo", "AVATAR_REDIRECT_UNAPPROVED_HOST", "ip-address"},
 	} {
 		t.Run(tc.target, func(t *testing.T) {
-			p, err := newMediaProvider(ProviderConfig{"plex", "http://fixture.test", "fixture-secret"}, &http.Client{Transport: providerTransport(func(r *http.Request) (*http.Response, error) {
+			p, err := newServerConnection(ProviderConfig{"plex", "http://fixture.test", "fixture-secret"}, &http.Client{Transport: providerTransport(func(r *http.Request) (*http.Response, error) {
 				if r.URL.Host != "plex.tv" {
 					t.Fatal("rejected redirect reached transport")
 				}
@@ -52,7 +52,7 @@ func TestPlexAvatarRejectsGravatarLookalikesAndRecordsOnlyTheDomain(t *testing.T
 			if err != nil {
 				t.Fatal(err)
 			}
-			_, _, err = p.(*jsonProvider).plexActivityAvatar(t.Context(), "https://plex.tv/users/fixture-user/avatar")
+			_, _, err = p.activityAvatar(t.Context(), "https://plex.tv/users/fixture-user/avatar")
 			var classified *plexAvatarError
 			if !errors.As(err, &classified) || classified.Code != tc.code || classified.Domain != tc.domain {
 				t.Fatalf("got %+v", classified)
@@ -66,13 +66,13 @@ func TestPlexAvatarRejectsGravatarLookalikesAndRecordsOnlyTheDomain(t *testing.T
 }
 
 func TestPlexAvatarRecordsRejectedContentType(t *testing.T) {
-	p, err := newMediaProvider(ProviderConfig{"plex", "http://fixture.test", "fixture-secret"}, &http.Client{Transport: providerTransport(func(r *http.Request) (*http.Response, error) {
+	p, err := newServerConnection(ProviderConfig{"plex", "http://fixture.test", "fixture-secret"}, &http.Client{Transport: providerTransport(func(r *http.Request) (*http.Response, error) {
 		return &http.Response{StatusCode: 200, Header: http.Header{"Content-Type": {"text/html; charset=utf-8"}}, Body: io.NopCloser(strings.NewReader("<html>")), Request: r}, nil
 	})})
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, _, err = p.(*jsonProvider).plexActivityAvatar(t.Context(), "https://plex.tv/users/fixture-user/avatar")
+	_, _, err = p.activityAvatar(t.Context(), "https://plex.tv/users/fixture-user/avatar")
 	var classified *plexAvatarError
 	if !errors.As(err, &classified) || classified.Code != "AVATAR_RESPONSE_INVALID" || classified.ContentType != "text/html" {
 		t.Fatalf("got %+v", classified)
@@ -84,7 +84,7 @@ func TestPlexAvatarRecordsRejectedContentType(t *testing.T) {
 func TestPlexAvatarFollowsGravatarFallbackThroughWordPressCDN(t *testing.T) {
 	hops := []string{"https://secure.gravatar.com/avatar/0123456789abcdef?d=https%3A%2F%2Fplex.tv%2Favatars%2Fdefault.png", "https://i0.wp.com/plex.tv/avatars/default.png"}
 	calls := 0
-	p, err := newMediaProvider(ProviderConfig{"plex", "http://fixture.test", "fixture-secret"}, &http.Client{Transport: providerTransport(func(r *http.Request) (*http.Response, error) {
+	p, err := newServerConnection(ProviderConfig{"plex", "http://fixture.test", "fixture-secret"}, &http.Client{Transport: providerTransport(func(r *http.Request) (*http.Response, error) {
 		calls++
 		if calls > 1 && (len(r.Header) != 1 || r.Header.Get("Accept") != "image/*") {
 			t.Fatal("credentials or unrelated headers reached a CDN hop", r.URL.Host)
@@ -100,7 +100,7 @@ func TestPlexAvatarFollowsGravatarFallbackThroughWordPressCDN(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	kind, _, err := p.(*jsonProvider).plexActivityAvatar(t.Context(), "https://plex.tv/users/fixture-user/avatar?c=1")
+	kind, _, err := p.activityAvatar(t.Context(), "https://plex.tv/users/fixture-user/avatar?c=1")
 	if err != nil || kind != "image/png" || calls != 3 {
 		t.Fatalf("fallback avatar not served: %v %q %d", err, kind, calls)
 	}
@@ -108,7 +108,7 @@ func TestPlexAvatarFollowsGravatarFallbackThroughWordPressCDN(t *testing.T) {
 
 func TestPlexAvatarRejectsWordPressCDNLookalikes(t *testing.T) {
 	for _, target := range []string{"https://i0.wp.com.untrusted.example/x", "https://evil.wp.com/x", "http://i0.wp.com/x", "https://i0.wp.com:444/x"} {
-		p, err := newMediaProvider(ProviderConfig{"plex", "http://fixture.test", "fixture-secret"}, &http.Client{Transport: providerTransport(func(r *http.Request) (*http.Response, error) {
+		p, err := newServerConnection(ProviderConfig{"plex", "http://fixture.test", "fixture-secret"}, &http.Client{Transport: providerTransport(func(r *http.Request) (*http.Response, error) {
 			if r.URL.Host != "plex.tv" {
 				t.Fatal("rejected redirect reached transport", target)
 			}
@@ -117,7 +117,7 @@ func TestPlexAvatarRejectsWordPressCDNLookalikes(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, _, err := p.(*jsonProvider).plexActivityAvatar(t.Context(), "https://plex.tv/users/fixture-user/avatar"); err == nil {
+		if _, _, err := p.activityAvatar(t.Context(), "https://plex.tv/users/fixture-user/avatar"); err == nil {
 			t.Fatal("lookalike accepted", target)
 		}
 	}
@@ -131,13 +131,13 @@ func TestPlexAvatarSniffsMissingContentType(t *testing.T) {
 		body, kind string
 		ok         bool
 	}{{png, "image/png", true}, {"<html><body>not an image</body></html>", "", false}} {
-		p, err := newMediaProvider(ProviderConfig{"plex", "http://fixture.test", "fixture-secret"}, &http.Client{Transport: providerTransport(func(r *http.Request) (*http.Response, error) {
+		p, err := newServerConnection(ProviderConfig{"plex", "http://fixture.test", "fixture-secret"}, &http.Client{Transport: providerTransport(func(r *http.Request) (*http.Response, error) {
 			return &http.Response{StatusCode: 200, Header: http.Header{}, Body: io.NopCloser(strings.NewReader(tc.body)), Request: r}, nil
 		})})
 		if err != nil {
 			t.Fatal(err)
 		}
-		kind, body, err := p.(*jsonProvider).plexActivityAvatar(t.Context(), "https://plex.tv/users/fixture-user/avatar")
+		kind, body, err := p.activityAvatar(t.Context(), "https://plex.tv/users/fixture-user/avatar")
 		if tc.ok && (err != nil || kind != tc.kind || string(body) != tc.body) || !tc.ok && err == nil {
 			t.Fatalf("body %q: kind=%q err=%v", tc.body[:4], kind, err)
 		}
@@ -152,13 +152,13 @@ func TestPlexAvatarSizeLimitsAndCodes(t *testing.T) {
 		name, body, code string
 	}{{"two-megabytes", big, ""}, {"empty", "", "AVATAR_RESPONSE_EMPTY"}, {"over-cap", strings.Repeat("x", (5<<20)+1), "AVATAR_RESPONSE_TOO_LARGE"}} {
 		t.Run(tc.name, func(t *testing.T) {
-			p, err := newMediaProvider(ProviderConfig{"plex", "http://fixture.test", "fixture-secret"}, &http.Client{Transport: providerTransport(func(r *http.Request) (*http.Response, error) {
+			p, err := newServerConnection(ProviderConfig{"plex", "http://fixture.test", "fixture-secret"}, &http.Client{Transport: providerTransport(func(r *http.Request) (*http.Response, error) {
 				return &http.Response{StatusCode: 200, Header: http.Header{"Content-Type": {"image/jpeg"}}, Body: io.NopCloser(strings.NewReader(tc.body)), Request: r}, nil
 			})})
 			if err != nil {
 				t.Fatal(err)
 			}
-			_, body, err := p.(*jsonProvider).plexActivityAvatar(t.Context(), "https://plex.tv/users/fixture-user/avatar")
+			_, body, err := p.activityAvatar(t.Context(), "https://plex.tv/users/fixture-user/avatar")
 			var classified *plexAvatarError
 			if tc.code == "" {
 				if err != nil || len(body) != len(tc.body) {

@@ -54,7 +54,7 @@ export const PluginConfiguration = ({
       navigate({ to: addServerPath as any, params: { pluginId } as any });
     } else {
       navigate({
-        to: '/admin/settings/plugins/$pluginId/servers/add',
+        to: '/admin/settings/media-servers/$pluginId/servers/add',
         params: { pluginId }
       });
     }
@@ -78,7 +78,7 @@ export const PluginConfiguration = ({
   }
 
   const handleDeleteServer = async (server: Server) => {
-    if (!confirm(`Remove server "${server.server_nickname}" from ${plugin?.name || 'plugin'}?`)) {
+    if (!confirm(`Remove server "${server.server_nickname}" from ${plugin?.name || 'this media service'}?`)) {
       return
     }
 
@@ -97,7 +97,7 @@ export const PluginConfiguration = ({
     <div className="space-y-6">
       <Card>
         <CardHeader className="space-y-1">
-          <CardTitle>Plugin details</CardTitle>
+          <CardTitle>Media service details</CardTitle>
           <CardDescription>
             {plugin.description || 'No description provided.'}
           </CardDescription>
@@ -157,7 +157,7 @@ export const PluginConfiguration = ({
           {plugin.lastError ? (
             <Alert variant="destructive">
               <FontAwesomeIcon icon={faCircleExclamation} className="h-4 w-4" />
-              <AlertTitle>Plugin warning</AlertTitle>
+              <AlertTitle>Media service warning</AlertTitle>
               <AlertDescription>{plugin.lastError}</AlertDescription>
             </Alert>
           ) : null}
@@ -168,7 +168,7 @@ export const PluginConfiguration = ({
         <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <CardTitle>Configured servers</CardTitle>
-            <CardDescription>Servers currently linked to this plugin.</CardDescription>
+            <CardDescription>Servers currently linked to this media service.</CardDescription>
           </div>
           <div className="flex gap-2">
             <Button size="sm" variant="outline" onClick={() => refreshServers()}>
@@ -301,7 +301,7 @@ export const PluginConfiguration = ({
                             variant="outline"
                             onClick={() =>
                               navigate({
-                                to: '/admin/settings/plugins/$pluginId/servers/$serverId',
+                                to: '/admin/settings/media-servers/$pluginId/servers/$serverId',
                                 params: { pluginId, serverId: String(server.id) }
                               })
                             }

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"app/server/providers/romm"
 	"context"
 	"encoding/json"
 	"errors"
@@ -17,17 +18,17 @@ type rommProvisionFixture struct {
 	beforePolicy                                func()
 	mode                                        string
 	created, enabled                            bool
-	overrides                                   []rommOverride
+	overrides                                   []romm.Override
 	creates, forms, passwords, permissionWrites int
 	policyReads                                 int
 	lastPassword                                string
-	hidden                                      []rommHidden
+	hidden                                      []romm.Hidden
 	age                                         *int
 }
 
 func newRomMProvisionFixture(t *testing.T, mode string) *rommProvisionFixture {
 	t.Helper()
-	f := &rommProvisionFixture{mode: mode, hidden: []rommHidden{}}
+	f := &rommProvisionFixture{mode: mode, hidden: []romm.Hidden{}}
 	f.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		f.mu.Lock()
 		defer f.mu.Unlock()
@@ -67,16 +68,16 @@ func newRomMProvisionFixture(t *testing.T, mode string) *rommProvisionFixture {
 			}
 			json.NewEncoder(w).Encode(rows)
 		case "GET /proxy/api/permissions/catalog":
-			entities := rommPermissionEntities
+			entities := romm.PermissionEntities
 			if f.mode == "catalog" {
 				entities = []string{"unknown"}
 			}
-			json.NewEncoder(w).Encode(map[string]any{"entities": entities, "actions": rommPermissionActions, "ownable_entities": rommOwnableEntities})
+			json.NewEncoder(w).Encode(map[string]any{"entities": entities, "actions": romm.PermissionActions, "ownable_entities": romm.OwnableEntities})
 		case "GET /proxy/api/permissions/groups":
-			hidden := []rommHidden{}
+			hidden := []romm.Hidden{}
 			if f.mode == "restricted-default" {
 				id := int64(7)
-				hidden = []rommHidden{{"platforms", &id}}
+				hidden = []romm.Hidden{{Entity: "platforms", ID: &id}}
 			}
 			// Include a dangerous inherited write grant to prove the full override mask
 			// removes unrelated rights before the recipient password can be used.
@@ -89,11 +90,11 @@ func newRomMProvisionFixture(t *testing.T, mode string) *rommProvisionFixture {
 			hidden := f.hidden
 			if f.mode == "late-policy" && f.policyReads == 2 {
 				id := int64(7)
-				hidden = []rommHidden{{"users", &id}}
+				hidden = []romm.Hidden{{Entity: "users", ID: &id}}
 			}
 			ovs := f.overrides
 			if ovs == nil {
-				ovs = []rommOverride{}
+				ovs = []romm.Override{}
 			}
 			json.NewEncoder(w).Encode(map[string]any{"user_id": 2, "permission_group_id": nil, "overrides": ovs, "hidden": hidden, "age_limit": f.age, "hide_unrated_roms": nil})
 		case "POST /proxy/api/users":
@@ -128,7 +129,7 @@ func newRomMProvisionFixture(t *testing.T, mode string) *rommProvisionFixture {
 					return
 				}
 			} else if pw := r.PostForm.Get("password"); pw != "" {
-				if f.enabled || !rommOverridesMatch(f.overrides, false) {
+				if f.enabled || !romm.OverridesMatch(f.overrides, false) {
 					t.Error("password was written before verified restriction")
 				}
 				f.passwords++
@@ -143,7 +144,7 @@ func newRomMProvisionFixture(t *testing.T, mode string) *rommProvisionFixture {
 			json.NewEncoder(w).Encode(user())
 		case "PUT /proxy/api/permissions/users/2":
 			var body struct {
-				Overrides []rommOverride `json:"overrides"`
+				Overrides []romm.Override `json:"overrides"`
 			}
 			if json.NewDecoder(r.Body).Decode(&body) != nil || len(body.Overrides) != 36 || f.enabled {
 				t.Error("unsafe permission mutation")
@@ -166,19 +167,19 @@ func newRomMProvisionFixture(t *testing.T, mode string) *rommProvisionFixture {
 	t.Cleanup(f.server.Close)
 	return f
 }
-func rommTestProvider(t *testing.T, f *rommProvisionFixture) *jsonProvider {
+func rommTestProvider(t *testing.T, f *rommProvisionFixture) *serverConnection {
 	t.Helper()
-	p, err := newMediaProvider(ProviderConfig{"romm", f.server.URL + "/proxy", "fixture-secret"}, f.server.Client())
+	p, err := newServerConnection(ProviderConfig{"romm", f.server.URL + "/proxy", "fixture-secret"}, f.server.Client())
 	if err != nil {
 		t.Fatal(err)
 	}
-	return p.(*jsonProvider)
+	return p
 }
 func TestRomMProvisionAdapter(t *testing.T) {
 	f := newRomMProvisionFixture(t, "")
 	p := rommTestProvider(t, f)
 	stages := []string{}
-	if err := p.provisionRomMUser(t.Context(), "reader", "recipient-password", InvitationGrant{AllLibraries: true, LibraryIDs: []string{}, AllowDownloads: true}, func(stage, id string) error {
+	if err := p.provisionUser(t.Context(), "reader", "recipient-password", InvitationGrant{AllLibraries: true, LibraryIDs: []string{}, AllowDownloads: true}, func(stage, id string) error {
 		stages = append(stages, stage)
 		if stage != "creating" && id != "2" {
 			t.Error("checkpoint lost recorded ID")
@@ -187,11 +188,11 @@ func TestRomMProvisionAdapter(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	user, err := p.inspectRomMUser(t.Context(), "2", "reader")
+	user, err := p.inspectProvisionedUser(t.Context(), "2", "reader")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !rommWriteMatches(user, true, true, user.RomM) || f.creates != 1 || f.passwords != 1 || f.permissionWrites != 2 || f.lastPassword != "recipient-password" || stages[len(stages)-1] != "remote_completed" {
+	if !romm.WriteMatches(user, true, true, rommObserved(user)) || f.creates != 1 || f.passwords != 1 || f.permissionWrites != 2 || f.lastPassword != "recipient-password" || stages[len(stages)-1] != "remote_completed" {
 		t.Fatal("incorrect provisioned outcome", stages)
 	}
 	if !supportsProvisioning("romm") || !supportsRecordedRecovery("romm") {
@@ -204,7 +205,7 @@ func TestRomMProvisionFailuresDoNotReplay(t *testing.T) {
 			f := newRomMProvisionFixture(t, mode)
 			p := rommTestProvider(t, f)
 			last, recorded := "", ""
-			err := p.provisionRomMUser(t.Context(), "reader", "recipient-password", InvitationGrant{AllLibraries: true, AllowDownloads: true}, func(stage, id string) error { last = stage; recorded = id; return nil })
+			err := p.provisionUser(t.Context(), "reader", "recipient-password", InvitationGrant{AllLibraries: true, AllowDownloads: true}, func(stage, id string) error { last = stage; recorded = id; return nil })
 			if err == nil || strings.Contains(err.Error(), "private-upstream-secret") || last == "remote_completed" {
 				t.Fatal(err, last)
 			}
@@ -238,13 +239,13 @@ func TestRomMProvisionRejectsUnsupportedInputsBeforeRequests(t *testing.T) {
 		{"reader", "password-é-extra", InvitationGrant{AllLibraries: true, AllowDownloads: true}},
 	} {
 		t.Run(tc.name+tc.password, func(t *testing.T) {
-			p := &jsonProvider{config: ProviderConfig{Type: "romm"}}
-			if err := p.provisionRomMUser(t.Context(), tc.name, tc.password, tc.grant, func(string, string) error { t.Fatal("invalid input checkpointed"); return nil }); err == nil {
+			p := &serverConnection{config: ProviderConfig{Type: "romm"}}
+			if err := p.provisionUser(t.Context(), tc.name, tc.password, tc.grant, func(string, string) error { t.Fatal("invalid input checkpointed"); return nil }); err == nil {
 				t.Fatal("unsupported input accepted")
 			}
 		})
 	}
-	if !validRomMCredentials("reader_1-", strings.Repeat("a", 72)) || validRomMCredentials("ab", "recipient-password") {
+	if !romm.ValidCredentials("reader_1-", strings.Repeat("a", 72)) || romm.ValidCredentials("ab", "recipient-password") {
 		t.Fatal("credential boundaries")
 	}
 }
@@ -255,27 +256,27 @@ func TestRomMConfigurePreservesContentAndIdentity(t *testing.T) {
 	age := 12
 	f.age = &age
 	id := int64(19)
-	f.hidden = []rommHidden{{"roms", &id}}
+	f.hidden = []romm.Hidden{{Entity: "roms", ID: &id}}
 	p := rommTestProvider(t, f)
-	user, err := p.inspectRomMUser(t.Context(), "2", "reader")
+	user, err := p.inspectProvisionedUser(t.Context(), "2", "reader")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := p.configureRomMUser(t.Context(), user, "new+remote&password=with%spaces ", func(string) error { return nil }); err != nil {
+	if err := p.resumeRecordedUser(t.Context(), resumeTarget{Step: redemptionStep{RemoteID: user.ID, RemoteName: user.Name}, Grant: InvitationGrant{AllLibraries: true, AllowDownloads: true}, Password: "new+remote&password=with%spaces "}, func(string) error { return nil }); err != nil {
 		t.Fatal(err)
 	}
 	if f.lastPassword != "new+remote&password=with%spaces " {
 		t.Fatal("form encoding changed password bytes")
 	}
-	after, err := p.inspectRomMUser(t.Context(), "2", "reader")
-	if err != nil || !rommContentEqual(after.RomM, user.RomM) || f.creates != 0 {
+	after, err := p.inspectProvisionedUser(t.Context(), "2", "reader")
+	if err != nil || !romm.ContentEqual(rommObserved(after), rommObserved(user)) || f.creates != 0 {
 		t.Fatal("content/identity lost", err)
 	}
-	if err := p.disableRomMUser(t.Context(), after); err != nil {
+	if err := p.disableProvisionedUser(t.Context(), after); err != nil {
 		t.Fatal(err)
 	}
-	disabled, err := p.inspectRomMUser(t.Context(), "2", "reader")
-	if err != nil || !disabled.Disabled || !rommContentEqual(disabled.RomM, user.RomM) {
+	disabled, err := p.inspectProvisionedUser(t.Context(), "2", "reader")
+	if err != nil || !disabled.Disabled || !romm.ContentEqual(rommObserved(disabled), rommObserved(user)) {
 		t.Fatal(err)
 	}
 }
@@ -285,7 +286,7 @@ func TestRomMCheckpointFailureStopsRemoteEffects(t *testing.T) {
 			f := newRomMProvisionFixture(t, "")
 			p := rommTestProvider(t, f)
 			sentinel := errors.New("authority changed")
-			err := p.provisionRomMUser(t.Context(), "reader", "recipient-password", InvitationGrant{AllLibraries: true, AllowDownloads: true}, func(stage, id string) error {
+			err := p.provisionUser(t.Context(), "reader", "recipient-password", InvitationGrant{AllLibraries: true, AllowDownloads: true}, func(stage, id string) error {
 				if stage == stop {
 					return sentinel
 				}
@@ -307,7 +308,7 @@ func TestRomMRecordedIdentityAndAbsence(t *testing.T) {
 			f := newRomMProvisionFixture(t, mode)
 			f.created = true
 			p := rommTestProvider(t, f)
-			observed, err := p.inspectRomMUser(t.Context(), "2", "reader")
+			observed, err := p.inspectProvisionedUser(t.Context(), "2", "reader")
 			if mode == "absent" {
 				if err != nil || !observed.Absent {
 					t.Fatal("complete absence not recognized", err)
@@ -326,16 +327,22 @@ func TestRomMExistingNameAndCancellationDoNotCreate(t *testing.T) {
 	f.created = true
 	p := rommTestProvider(t, f)
 	grant := InvitationGrant{AllLibraries: true, AllowDownloads: true}
-	if err := p.provisionRomMUser(t.Context(), "reader", "recipient-password", grant, func(string, string) error { t.Fatal("existing name was adopted"); return nil }); err == nil {
+	if err := p.provisionUser(t.Context(), "reader", "recipient-password", grant, func(string, string) error { t.Fatal("existing name was adopted"); return nil }); err == nil {
 		t.Fatal("existing name accepted")
 	}
 	f.created = false
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	if err := p.provisionRomMUser(ctx, "reader", "recipient-password", grant, func(string, string) error { t.Fatal("canceled work checkpointed"); return nil }); err == nil {
+	if err := p.provisionUser(ctx, "reader", "recipient-password", grant, func(string, string) error { t.Fatal("canceled work checkpointed"); return nil }); err == nil {
 		t.Fatal("canceled work accepted")
 	}
 	if f.creates != 0 || f.forms != 0 {
 		t.Fatal("existing/canceled work caused writes")
 	}
+}
+
+// rommObserved returns the RomM module's observed state of an inspected account.
+func rommObserved(u remoteReview) *romm.Observed {
+	o, _ := u.Detail.(*romm.Observed)
+	return o
 }

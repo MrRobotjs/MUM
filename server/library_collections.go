@@ -13,7 +13,8 @@ import (
 // catalogue_revision. Membership is not stored.
 
 func collectionsSupported(provider, kind, external string) bool {
-	return provider == "plex" && catalogueLibrarySupported(provider, kind, external)
+	_, ok := moduleRules(provider).(collectionReader)
+	return ok && catalogueLibrarySupported(provider, kind, external)
 }
 
 // replaceCatalogueCollections writes one validated collection snapshot,
@@ -173,7 +174,7 @@ func (a *App) readCollectionImageSource(ctx context.Context, session string, col
 }
 
 func (a *App) collectionImageProxy(w http.ResponseWriter, r *http.Request) {
-	a.serveSignedImage(w, r, "collection", collectionImagePurpose, a.readCollectionImageSource, func(ctx context.Context, p *jsonProvider, s catalogueImageSource) (string, []byte, error) {
-		return p.plexCollectionImage(ctx, s.External, s.Tag)
+	a.serveSignedImage(w, r, "collection", collectionImagePurpose, a.readCollectionImageSource, func(ctx context.Context, p *serverConnection, s catalogueImageSource) (string, []byte, error) {
+		return p.collectionImage(ctx, s.External, s.Tag)
 	})
 }

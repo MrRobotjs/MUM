@@ -1,6 +1,7 @@
 package main
 
 import (
+	"app/server/providers/plex"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -12,7 +13,7 @@ import (
 const plexRichPlaying = `<MediaContainer size="1"><Video sessionKey="10" ratingKey="123" type="movie" title="Fixture movie" year="2026" editionTitle="Web-DL" librarySectionTitle="Movies" thumb="/library/metadata/123/thumb/7" duration="10000" viewOffset="2000"><User id="42" title="Viewer"/><Player state="playing" product="Plex Web" title="Chrome" platform="Chrome" address="127.0.0.1" local="1"/><Session bandwidth="12400" location="lan"/><Media selected="1" container="mkv" bitrate="6900" videoCodec="hevc" videoResolution="1080" height="1080" audioCodec="eac3" audioChannels="6"><Part selected="1"><Stream streamType="1" codec="hevc" height="1080"/><Stream streamType="2" codec="eac3" displayTitle="English (EAC3 5.1)" selected="1"/></Part></Media><TranscodeSession videoDecision="copy" audioDecision="transcode" videoCodec="hevc" audioCodec="mp3" audioChannels="2" container="mpegts" throttled="1" speed="2.5"/></Video></MediaContainer>`
 
 func TestPlexDisplayUsesReportedTranscodeAndBandwidth(t *testing.T) {
-	s, err := parsePlexActivity([]byte(plexRichPlaying))
+	s, err := plex.ParseActivity([]byte(plexRichPlaying))
 	if err != nil || len(s.Sessions) != 1 {
 		t.Fatal(err)
 	}
@@ -21,7 +22,7 @@ func TestPlexDisplayUsesReportedTranscodeAndBandwidth(t *testing.T) {
 		t.Fatalf("incorrect rich session: %+v", d)
 	}
 	// Paths, tokens, upstream JSON and media file names are not presentation data.
-	unsafe, err := parsePlexActivity([]byte(strings.Replace(plexRichPlaying, `/library/metadata/123/thumb/7`, `https://untrusted.test/?token=secret`, 1)))
+	unsafe, err := plex.ParseActivity([]byte(strings.Replace(plexRichPlaying, `/library/metadata/123/thumb/7`, `https://untrusted.test/?token=secret`, 1)))
 	if err != nil || len(unsafe.Sessions) != 1 || unsafe.Sessions[0].Display.PosterPath != "" {
 		t.Fatal("unusable artwork must be omitted without hiding valid playback", err)
 	}
@@ -30,7 +31,7 @@ func TestPlexDisplayUsesReportedTranscodeAndBandwidth(t *testing.T) {
 func TestPlexAlbumArtworkDoesNotHideConcurrentMovie(t *testing.T) {
 	movie := strings.TrimSuffix(strings.TrimPrefix(plexRichPlaying, `<MediaContainer size="1">`), `</MediaContainer>`)
 	track := `<Track sessionKey="11" ratingKey="782" parentRatingKey="781" parentTitle="Album" type="track" title="Song" thumb="/library/metadata/781/thumb/1396406871"><User id="43" title="Listener"/><Player state="playing"/></Track>`
-	s, err := parsePlexActivity([]byte(`<MediaContainer size="2">` + movie + track + `</MediaContainer>`))
+	s, err := plex.ParseActivity([]byte(`<MediaContainer size="2">` + movie + track + `</MediaContainer>`))
 	if err != nil || len(s.Sessions) != 2 || s.Sessions[1].Display.PosterItem != "781" || s.Sessions[1].Display.PosterPath != "/library/metadata/781/thumb/1396406871" {
 		t.Fatal("album artwork suppressed concurrent playback", s, err)
 	}

@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/xml"
 	"errors"
-	"net/http"
-	"net/url"
 	"strconv"
 )
 
@@ -16,36 +14,20 @@ type bulkPlexState struct {
 	Attributes       []xml.Attr
 }
 
-func (p *jsonProvider) prepareBulkPlex(ctx context.Context, r bulkProviderRequest) (bulkProviderSnapshot, error) {
+func (p *serverConnection) prepareBulkPlex(ctx context.Context, r bulkProviderRequest) (bulkProviderSnapshot, error) {
 	s := bulkProviderSnapshot{}
 	if !plexNumericID(r.ID) || r.ID == plexOwnerAccountID {
 		return s, ErrConflict
 	}
-	var owner struct {
-		XMLName xml.Name `xml:"user"`
-		ID      string   `xml:"id,attr"`
-	}
-	if err := p.plexXML(ctx, "https://plex.tv/users/account", &owner); err != nil {
+	owner, err := p.plexServer().Account(ctx)
+	if err != nil {
 		return s, err
 	}
 	if !plexNumericID(owner.ID) || owner.ID == r.ID {
 		return s, ErrConflict
 	}
-	var users struct {
-		XMLName xml.Name `xml:"MediaContainer"`
-		Size    string   `xml:"size,attr"`
-		Offset  string   `xml:"offset,attr"`
-		Total   string   `xml:"totalSize,attr"`
-		Users   []struct {
-			ID         string     `xml:"id,attr"`
-			Name       string     `xml:"username,attr"`
-			Title      string     `xml:"title,attr"`
-			Restricted string     `xml:"restricted,attr"`
-			Home       string     `xml:"home,attr"`
-			Attrs      []xml.Attr `xml:",any,attr"`
-		} `xml:"User"`
-	}
-	if err := p.plexXML(ctx, "https://plex.tv/api/users/", &users); err != nil {
+	users, err := p.plexServer().Friends(ctx)
+	if err != nil {
 		return s, err
 	}
 	if !completePlexList(users.Size, users.Offset, users.Total, len(users.Users)) {
@@ -54,41 +36,33 @@ func (p *jsonProvider) prepareBulkPlex(ctx context.Context, r bulkProviderReques
 	state := bulkPlexState{Owner: owner.ID, Recipient: r.ID}
 	seen := map[string]bool{}
 	for _, u := range users.Users {
-		if !plexNumericID(u.ID) || seen[u.ID] {
+		if !plexNumericID(u.Attr("id")) || seen[u.Attr("id")] {
 			return s, ErrConflict
 		}
-		seen[u.ID] = true
-		if u.ID != r.ID {
+		seen[u.Attr("id")] = true
+		if u.Attr("id") != r.ID {
 			continue
 		}
-		if u.Name != r.Name && u.Title != r.Name {
+		if u.Attr("username") != r.Name && u.Attr("title") != r.Name {
 			return s, ErrConflict
 		}
-		if u.Restricted != "" && u.Restricted != "0" && u.Restricted != "false" {
+		if restricted := u.Attr("restricted"); restricted != "" && restricted != "0" && restricted != "false" {
 			return s, ErrConflict
 		}
-		if u.Home != "" && u.Home != "0" && u.Home != "false" {
+		if home := u.Attr("home"); home != "" && home != "0" && home != "false" {
 			return s, ErrConflict
 		}
 		state.Friend = true
-		state.Attributes = u.Attrs
+		// The protection hash covers every attribute except those checked above.
+		state.Attributes = u.AttrsExcept("id", "username", "title", "restricted", "home")
 	}
 	if r.Action == "delete_users" && !state.Friend {
 		identity, err := p.plexIdentity(ctx)
 		if err != nil {
 			return s, err
 		}
-		var shares struct {
-			XMLName xml.Name `xml:"MediaContainer"`
-			Size    string   `xml:"size,attr"`
-			Offset  string   `xml:"offset,attr"`
-			Total   string   `xml:"totalSize,attr"`
-			Shares  []struct {
-				ID   string `xml:"id,attr"`
-				User string `xml:"userID,attr"`
-			} `xml:"SharedServer"`
-		}
-		if err := p.plexXML(ctx, "https://plex.tv/api/servers/"+url.PathEscape(identity.Machine)+"/shared_servers", &shares); err != nil {
+		shares, err := p.plexServer().SharedServers(ctx, identity.Machine)
+		if err != nil {
 			return s, err
 		}
 		if !completePlexList(shares.Size, shares.Offset, shares.Total, len(shares.Shares)) {
@@ -96,7 +70,7 @@ func (p *jsonProvider) prepareBulkPlex(ctx context.Context, r bulkProviderReques
 		}
 		ids := map[string]bool{}
 		for _, share := range shares.Shares {
-			if !plexNumericID(share.ID) || !plexNumericID(share.User) || ids[share.ID] || share.User == r.ID {
+			if !plexNumericID(share.ID) || !plexNumericID(share.UserID) || ids[share.ID] || share.UserID == r.ID {
 				return s, ErrConflict
 			}
 			ids[share.ID] = true
@@ -135,7 +109,7 @@ func (p *jsonProvider) prepareBulkPlex(ctx context.Context, r bulkProviderReques
 	s.Revision = bulkHash(state)
 	return s, nil
 }
-func (p *jsonProvider) reconcileBulkPlex(r bulkProviderRequest, s bulkProviderSnapshot) bulkProviderResult {
+func (p *serverConnection) reconcileBulkPlex(r bulkProviderRequest, s bulkProviderSnapshot) bulkProviderResult {
 	if r.Action == "delete_users" && s.Absent {
 		return bulkProviderResult{"deleted", "PLEX_FRIEND_ABSENT"}
 	}
@@ -144,7 +118,7 @@ func (p *jsonProvider) reconcileBulkPlex(r bulkProviderRequest, s bulkProviderSn
 	}
 	return bulkProviderResult{"unknown", "REMOTE_UNVERIFIED"}
 }
-func (p *jsonProvider) executeBulkPlex(ctx context.Context, r bulkProviderRequest, s bulkProviderSnapshot, checkpoint func(string) error) (bulkProviderResult, error) {
+func (p *serverConnection) executeBulkPlex(ctx context.Context, r bulkProviderRequest, s bulkProviderSnapshot, checkpoint func(string) error) (bulkProviderResult, error) {
 	match := p.reconcileBulkPlex(r, s)
 	if match.Outcome == "deleted" {
 		return match, nil
@@ -164,7 +138,7 @@ func (p *jsonProvider) executeBulkPlex(ctx context.Context, r bulkProviderReques
 	}
 	var writeErr error
 	if r.Action == "delete_users" {
-		_, writeErr = p.fetch(ctx, http.MethodDelete, "https://plex.tv/api/v2/sharings/"+url.PathEscape(r.ID), nil)
+		writeErr = p.plexServer().RemoveFriend(ctx, r.ID)
 	} else {
 		plan := s.plex.Plan
 		ids := []int64{}
@@ -176,7 +150,7 @@ func (p *jsonProvider) executeBulkPlex(ctx context.Context, r bulkProviderReques
 			ids = append(ids, n)
 		}
 		body := map[string]any{"server_id": plan.Machine, "shared_server": map[string]any{"library_section_ids": ids}}
-		_, writeErr = p.fetch(ctx, http.MethodPut, "https://plex.tv/api/servers/"+url.PathEscape(plan.Machine)+"/shared_servers/"+url.PathEscape(plan.ShareID), body)
+		writeErr = p.plexServer().UpdateShare(ctx, plan.Machine, plan.ShareID, body)
 	}
 	after, err := p.prepareBulkPlex(ctx, r)
 	if err != nil {

@@ -124,6 +124,7 @@ go test ./...                                                       # Go tests
 
 - `npm run dev` in `frontend/` starts the Vite dev server (port `FRONTEND_PORT`, default 5173) and proxies `/api` and `/ws` to a running MUM on `MUM_PORT` (default 5699).
 - `go run ./tools/release -version vX.Y.Z` builds the Windows, Linux and macOS release files with checksums and licences (nothing is published).
+- Each media service is a compiled module under `server/providers/`; [server/providers/README.md](server/providers/README.md) explains how modules work and how to add a service.
 - Project layout: `server/` Go application and SQL migrations, `frontend/` React SPA, `deploy/` Docker files and the end-user guide, `tools/release/` release builder, `tests/` frontend adapter tests, `migration-documentation/` migration records.
 
 ## Contributing

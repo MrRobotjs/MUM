@@ -3,9 +3,6 @@ package main
 import (
 	"context"
 	"database/sql"
-	"encoding/xml"
-	"net/http"
-	"net/url"
 	"strconv"
 	"time"
 )
@@ -22,7 +19,7 @@ func completePlexList(size, offset, total string, count int) bool {
 
 // Complete owner-side cloud lists plus sent invitations are required. A missing
 // user reference, empty body, 404 or absent share ID alone is never evidence.
-func (p *jsonProvider) inspectPlexShareAbsence(ctx context.Context, claim plexShareCheckpoint) (plexShareAbsence, error) {
+func (p *serverConnection) inspectPlexShareAbsence(ctx context.Context, claim plexShareCheckpoint) (plexShareAbsence, error) {
 	result := plexShareAbsence{machine: claim.Machine, account: claim.Account, share: claim.Share}
 	if p.config.Type != "plex" || !validProvisionedID(claim.Machine) || !plexNumericID(claim.Account) || !plexNumericID(claim.Share) {
 		return result, ErrConflict
@@ -31,60 +28,40 @@ func (p *jsonProvider) inspectPlexShareAbsence(ctx context.Context, claim plexSh
 	if err != nil || identity.Machine != claim.Machine {
 		return result, errPlexShare
 	}
-	var users struct {
-		XMLName xml.Name `xml:"MediaContainer"`
-		Size    string   `xml:"size,attr"`
-		Offset  string   `xml:"offset,attr"`
-		Total   string   `xml:"totalSize,attr"`
-		Users   []struct {
-			ID      string `xml:"id,attr"`
-			Servers []struct {
-				Machine string `xml:"machineIdentifier,attr"`
-			} `xml:"Server"`
-		} `xml:"User"`
-	}
-	if err := p.plexXML(ctx, "https://plex.tv/api/users/", &users); err != nil || !completePlexList(users.Size, users.Offset, users.Total, len(users.Users)) {
+	users, err := p.plexServer().Friends(ctx)
+	if err != nil || !completePlexList(users.Size, users.Offset, users.Total, len(users.Users)) {
 		return result, errPlexShare
 	}
 	seen := map[string]bool{}
 	for _, user := range users.Users {
-		if !plexNumericID(user.ID) || seen[user.ID] {
+		if !plexNumericID(user.Attr("id")) || seen[user.Attr("id")] {
 			return result, errPlexShare
 		}
-		seen[user.ID] = true
+		seen[user.Attr("id")] = true
 		machines := map[string]bool{}
 		for _, server := range user.Servers {
 			if !validProvisionedID(server.Machine) || machines[server.Machine] {
 				return result, errPlexShare
 			}
 			machines[server.Machine] = true
-			if user.ID == claim.Account && server.Machine == claim.Machine {
+			if user.Attr("id") == claim.Account && server.Machine == claim.Machine {
 				return result, ErrConflict
 			}
 		}
 	}
-	var shares struct {
-		XMLName xml.Name `xml:"MediaContainer"`
-		Size    string   `xml:"size,attr"`
-		Offset  string   `xml:"offset,attr"`
-		Total   string   `xml:"totalSize,attr"`
-		Shares  []struct {
-			ID   string `xml:"id,attr"`
-			User string `xml:"userID,attr"`
-		} `xml:"SharedServer"`
-	}
-	if err := p.plexXML(ctx, "https://plex.tv/api/servers/"+url.PathEscape(claim.Machine)+"/shared_servers", &shares); err != nil || !completePlexList(shares.Size, shares.Offset, shares.Total, len(shares.Shares)) {
+	shares, err := p.plexServer().SharedServers(ctx, claim.Machine)
+	if err != nil || !completePlexList(shares.Size, shares.Offset, shares.Total, len(shares.Shares)) {
 		return result, errPlexShare
 	}
 	ids := map[string]bool{}
 	accounts := map[string]bool{}
 	for _, share := range shares.Shares {
-		if !plexNumericID(share.ID) || !plexNumericID(share.User) || ids[share.ID] || accounts[share.User] {
+		if !plexNumericID(share.ID) || !plexNumericID(share.UserID) || ids[share.ID] || accounts[share.UserID] {
 			return result, errPlexShare
 		}
 		ids[share.ID] = true
-		accounts[share.User] = true
-		if share.ID == claim.Share || share.User == claim.Account {
+		accounts[share.UserID] = true
+		if share.ID == claim.Share || share.UserID == claim.Account {
 			return result, ErrConflict
 		}
 	}
@@ -151,7 +128,7 @@ func bindPlexPendingShare(claim plexShareCheckpoint, current plexSharePreflight,
 	}
 	return proof, nil
 }
-func (p *jsonProvider) removePlexSelectedSections(ctx context.Context, claim plexShareCheckpoint, current plexSharePreflight, pending plexPendingShareProof) error {
+func (p *serverConnection) removePlexSelectedSections(ctx context.Context, claim plexShareCheckpoint, current plexSharePreflight, pending plexPendingShareProof) error {
 	if p.config.Type != "plex" || !validProvisionedID(claim.Machine) || !plexNumericID(claim.Account) || claim.State != "cancel_uncertain" || claim.operation != "cancel" || claim.token == "" || claim.expires <= utcTimestamp(time.Now()) || claim.grant.AllLibraries || !plexNumericID(claim.Share) || current.Account != claim.Account || current.Machine != claim.Machine || current.ShareID != claim.Share || !plexRemovalObservationMatches(claim, current) {
 		return ErrConflict
 	}
@@ -176,13 +153,13 @@ func (p *jsonProvider) removePlexSelectedSections(ctx context.Context, claim ple
 		} `json:"shared_server"`
 	}{Server: claim.Machine}
 	body.Share.Libraries = ids
-	_, err := p.fetch(ctx, http.MethodDelete, "https://plex.tv/api/servers/"+url.PathEscape(claim.Machine)+"/shared_servers/"+url.PathEscape(claim.Share), body)
+	err := p.plexServer().DeleteShare(ctx, claim.Machine, claim.Share, body)
 	if err != nil {
 		return errPlexShare
 	}
 	return nil
 }
-func (a *App) plexCancellationProvider(ctx context.Context, claim plexShareCheckpoint) (*jsonProvider, error) {
+func (a *App) plexCancellationProvider(ctx context.Context, claim plexShareCheckpoint) (*serverConnection, error) {
 	var config ProviderConfig
 	err := a.store.write(ctx, func(tx *sql.Tx) error {
 		p, err := loadPlexShareCheckpoint(ctx, tx, claim.Job, claim.Server)
@@ -211,11 +188,11 @@ func (a *App) plexCancellationProvider(ctx context.Context, claim plexShareCheck
 	if err != nil {
 		return nil, err
 	}
-	provider, err := newMediaProvider(config, a.ProviderHTTP)
+	provider, err := newServerConnection(config, a.ProviderHTTP)
 	if err != nil {
 		return nil, err
 	}
-	return provider.(*jsonProvider), nil
+	return provider, nil
 }
 func (s *Store) recordPlexShareAbsence(ctx context.Context, claim plexShareCheckpoint, proof plexShareAbsence) error {
 	if !proof.verified || proof.machine != claim.Machine || proof.account != claim.Account || proof.share != claim.Share {
@@ -317,11 +294,11 @@ func (a *App) cancelPlexSelectedShare(ctx context.Context, job string, server, r
 	}
 	alreadyAbsent := false
 	if !reconcile {
-		provider, err := newMediaProvider(config, a.ProviderHTTP)
+		provider, err := newServerConnection(config, a.ProviderHTTP)
 		if err != nil {
 			return err
 		}
-		owner := provider.(*jsonProvider)
+		owner := provider
 		current, err := owner.inspectPlexShare(ctx, row.Account, row.grant)
 		if err != nil {
 			return err

@@ -5,10 +5,8 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
 )
@@ -21,73 +19,16 @@ func providerFingerprint(s ManagedServer) string {
 	return fmt.Sprintf("%x", sha256.Sum256(encoded))
 }
 
-type providerHTTPError struct{ StatusCode int }
-
-func (e *providerHTTPError) Error() string {
-	return fmt.Sprintf("provider returned HTTP %d", e.StatusCode)
-}
-
-type remoteReview struct {
-	ID, Name         string
-	Policy           map[string]any
-	Kavita           *kavitaReviewUser
-	ABS              *absReviewUser
-	Komga            *komgaReviewUser
-	RomM             *rommReviewUser
-	Absent, Disabled bool
-}
-
-func (p *jsonProvider) inspectProvisionedUser(ctx context.Context, id, name string) (remoteReview, error) {
-	if p.config.Type == "romm" {
-		return p.inspectRomMUser(ctx, id, name)
-	}
+func (p *serverConnection) inspectProvisionedUser(ctx context.Context, id, name string) (remoteReview, error) {
 	var user remoteReview
-	if p.config.Type == "komga" {
-		return p.inspectKomgaUser(ctx, id, name)
-	}
-	if p.config.Type == "audiobookshelf" {
-		return p.inspectABSUser(ctx, id, name)
-	}
-	if p.config.Type == "kavita" {
-		return p.inspectKavitaProvisionedUser(ctx, id, name)
-	}
-	if !supportsRecordedRecovery(p.config.Type) || !validProvisionedID(id) || name == "" {
-		return user, ErrConflict
-	}
-	// A missing-user response is evidence only after validating the configured
-	// authenticated API. A broken reverse-proxy prefix must not prove absence.
-	if _, err := p.Test(ctx); err != nil {
-		return user, err
-	}
-	var response struct {
-		ID     string `json:"Id"`
-		Name   string
-		Policy map[string]any
-	}
-	err := p.mediaUserRequest(ctx, http.MethodGet, "/Users/"+url.PathEscape(id), nil, &response)
-	var status *providerHTTPError
-	if errors.As(err, &status) && status.StatusCode == 404 {
-		return remoteReview{ID: id, Name: name, Absent: true}, nil
-	}
-	if err != nil {
-		return user, err
-	}
-	if response.ID != id || response.Name != name || response.Policy == nil {
-		return user, ErrConflict
-	}
-	admin, adminOK := response.Policy["IsAdministrator"].(bool)
-	disabled, disabledOK := response.Policy["IsDisabled"].(bool)
-	if !adminOK || admin || !disabledOK {
-		return user, ErrConflict
-	}
-	if p.config.Type == "jellyfin" {
-		for _, key := range []string{"AuthenticationProviderId", "PasswordResetProviderId"} {
-			if value, ok := response.Policy[key].(string); !ok || value == "" {
-				return user, ErrConflict
-			}
+	if m, ok := p.module().(accountInspector); ok {
+		account, err := m.InspectAccount(ctx, id, name)
+		if err != nil {
+			return remoteReview{}, err
 		}
+		return account, nil
 	}
-	return remoteReview{ID: id, Name: name, Policy: response.Policy, Disabled: disabled}, nil
+	return user, ErrConflict
 }
 
 type reviewInput struct {
@@ -191,16 +132,15 @@ func (a *App) populateReviewFlags(ctx context.Context, job *redemptionJob) error
 	}
 	for index, target := range targets {
 		job.Steps[index].PasswordMaxBytes = 1024
-		if target.Server.Type == "kavita" {
-			job.Steps[index].PasswordMaxBytes = 256
+		if limit, ok := moduleRules(target.Server.Type).(passwordLimit); ok {
+			job.Steps[index].PasswordMaxBytes = limit.PasswordMaxBytes()
 		}
-		if target.Server.Type == "audiobookshelf" || target.Server.Type == "komga" || target.Server.Type == "romm" {
-			job.Steps[index].PasswordMaxBytes = 72
+		if rule, ok := moduleRules(target.Server.Type).(passwordASCIIRule); ok {
+			job.Steps[index].PasswordASCIIOnly = rule.PasswordASCIIOnly()
 		}
-		job.Steps[index].PasswordASCIIOnly = target.Server.Type == "romm"
 		job.Steps[index].CleanupScope = "account"
-		if target.Server.Type == "komga" {
-			job.Steps[index].CleanupScope = "media"
+		if scope, ok := moduleRules(target.Server.Type).(cleanupScoper); ok {
+			job.Steps[index].CleanupScope = scope.CleanupScope()
 		}
 		job.Steps[index].ManualRequired = target.Manual
 		job.Steps[index].ManualAllowed = target.Manual || target.Step.Cleanup == "failed" || target.Step.Cleanup == "unknown"
@@ -242,15 +182,8 @@ func (a *App) reviewTargets(ctx context.Context, job redemptionJob) ([]reviewTar
 			return nil, err
 		}
 		knownID := validProvisionedID(step.RemoteID)
-		if s.Type == "kavita" {
-			_, idErr := kavitaRecordedID(step.RemoteID)
-			knownID = idErr == nil && !strings.Contains(step.RemoteName, "@")
-		}
-		if s.Type == "romm" {
-			knownID = rommRecordedID(step.RemoteID) && validRomMUsername(step.RemoteName)
-		}
-		if s.Type == "komga" {
-			knownID = knownID && validKomgaEmail(step.RemoteName)
+		if m := moduleRules(s.Type); m != nil {
+			knownID = moduleIdentityValid(m, step.RemoteID, step.RemoteName)
 		}
 		manual := step.Stage != "pending" && (!knownID || step.RemoteName == "" || fingerprint == "" || fingerprint != providerFingerprint(s) || !s.EffectiveActive || !supportsRecordedRecovery(s.Type))
 		targets = append(targets, reviewTarget{s, step, fingerprint, manual})
@@ -414,12 +347,12 @@ func (a *App) reviewProvisioningJob(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				break
 			}
-			provider, newErr := newMediaProvider(ProviderConfig{target.Server.Type, target.Server.URL, target.Server.apiKey}, a.ProviderHTTP)
+			provider, newErr := newServerConnection(ProviderConfig{target.Server.Type, target.Server.URL, target.Server.apiKey}, a.ProviderHTTP)
 			if newErr != nil {
 				err = newErr
 				break
 			}
-			client := provider.(*jsonProvider)
+			client := provider
 			client.reviewAuthority = &reviewRequestAuthority{a.store, p.UUID, jobID, token}
 			user, remoteErr := client.inspectProvisionedUser(ctx, target.Step.RemoteID, target.Step.RemoteName)
 			if remoteErr == nil && !user.Absent && !user.Disabled && !cancelJob {
@@ -540,19 +473,9 @@ func (a *App) cancelReviewedJob(ctx context.Context, actor string, job redemptio
 	})
 }
 
-func (p *jsonProvider) disableProvisionedUser(ctx context.Context, user remoteReview) error {
-	if p.config.Type == "romm" {
-		return p.disableRomMUser(ctx, user)
+func (p *serverConnection) disableProvisionedUser(ctx context.Context, user remoteReview) error {
+	if m, ok := p.module().(accountDisabler); ok {
+		return m.DisableAccount(ctx, user)
 	}
-	if p.config.Type == "komga" {
-		return p.disableKomgaUser(ctx, user)
-	}
-	if p.config.Type == "audiobookshelf" {
-		return p.disableABSUser(ctx, user)
-	}
-	if p.config.Type == "kavita" {
-		return p.disableKavitaUser(ctx, user)
-	}
-	user.Policy["IsDisabled"] = true
-	return p.mediaUserRequest(ctx, http.MethodPost, "/Users/"+url.PathEscape(user.ID)+"/Policy", user.Policy, nil)
+	return ErrConflict
 }

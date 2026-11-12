@@ -133,13 +133,8 @@ func validateInvitationGrant(ctx context.Context, tx *sql.Tx, g InvitationGrant)
 	if err != nil {
 		return s, err
 	}
-	if s.Type == "romm" && !validRomMInvitationGrant(g) {
+	if rule, ok := moduleRules(s.Type).(grantRule); ok && !rule.ValidGrant(g) {
 		return s, ErrConflict
-	}
-	if s.Type == "kavita" {
-		if _, err := kavitaLibraryIDs(g); err != nil {
-			return s, err
-		}
 	}
 	if !s.EffectiveActive || !supportsProvisioning(s.Type) || len(g.LibraryIDs) > 10000 || g.AllLibraries && len(g.LibraryIDs) != 0 || !g.AllLibraries && len(g.LibraryIDs) == 0 {
 		return s, ErrConflict
@@ -707,33 +702,6 @@ func (a *App) redeemInvitation(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				return err
 			}
-			if s.Type == "kavita" {
-				c := credentials[s.ID]
-				if c.Username == "" {
-					c = redemptionCredentials{ServerID: s.ID, Username: input.Username, Password: input.Password}
-				}
-				if strings.Contains(c.Username, "@") || len(c.Password) > 256 {
-					return errKavitaCredentials
-				}
-			}
-			if s.Type == "audiobookshelf" {
-				c := credentials[s.ID]
-				if c.Username == "" {
-					c = redemptionCredentials{ServerID: s.ID, Username: input.Username, Password: input.Password}
-				}
-				if len(c.Password) > 72 {
-					return errABSCredentials
-				}
-			}
-			if s.Type == "romm" {
-				c := credentials[s.ID]
-				if c.Username == "" {
-					c = redemptionCredentials{ServerID: s.ID, Username: input.Username, Password: input.Password}
-				}
-				if !validRomMCredentials(c.Username, c.Password) {
-					return errRomMCredentials
-				}
-			}
 			if s.Type == "plex" {
 				if _, typed := credentials[s.ID]; typed {
 					return ErrConflict
@@ -742,13 +710,13 @@ func (a *App) redeemInvitation(w http.ResponseWriter, r *http.Request) {
 					return errPlexAuthRequired
 				}
 			}
-			if s.Type == "komga" {
+			if checker, ok := moduleRules(s.Type).(credentialChecker); ok {
 				c := credentials[s.ID]
 				if c.Username == "" {
 					c = redemptionCredentials{ServerID: s.ID, Username: input.Username, Password: input.Password}
 				}
-				if !validKomgaEmail(c.Username) || len(c.Password) > 72 {
-					return errKomgaCredentials
+				if err := checker.CheckCredentials(c.Username, c.Password); err != nil {
+					return err
 				}
 			}
 			servers[s.ID] = s
@@ -807,20 +775,7 @@ func (a *App) redeemInvitation(w http.ResponseWriter, r *http.Request) {
 		return auditAction(ctx, tx, "", "invitation.reserve")
 	})
 	if err != nil {
-		if errors.Is(err, errRomMCredentials) {
-			fail(w, 400, "INVALID_ROMM_CREDENTIALS", errRomMCredentials.Error())
-			return
-		}
-		if errors.Is(err, errKomgaCredentials) {
-			fail(w, 400, "INVALID_KOMGA_CREDENTIALS", errKomgaCredentials.Error())
-			return
-		}
-		if errors.Is(err, errABSCredentials) {
-			fail(w, 400, "INVALID_AUDIOBOOKSHELF_CREDENTIALS", errABSCredentials.Error())
-			return
-		}
-		if errors.Is(err, errKavitaCredentials) {
-			fail(w, 400, "INVALID_KAVITA_CREDENTIALS", errKavitaCredentials.Error())
+		if credentialsFailure(w, err) {
 			return
 		}
 		if errors.Is(err, errInviteUsernameUnavailable) {
@@ -852,14 +807,14 @@ func (a *App) redeemInvitation(w http.ResponseWriter, r *http.Request) {
 		if !custom {
 			c = redemptionCredentials{ServerID: s.ID, Username: input.Username, Password: input.Password}
 		}
-		provider, providerErr := newMediaProvider(ProviderConfig{s.Type, s.URL, s.apiKey}, a.ProviderHTTP)
+		provider, providerErr := newServerConnection(ProviderConfig{s.Type, s.URL, s.apiKey}, a.ProviderHTTP)
 		if providerErr != nil {
 			err = providerErr
 			break
 		}
 		if s.Type == "plex" {
 			var accepted bool
-			accepted, err = provider.(*jsonProvider).sharePlexInvitation(ctx, plexAccount, plexUsername, g, func(stage, remoteID string) error {
+			accepted, err = provider.sharePlexInvitation(ctx, plexAccount, plexUsername, g, func(stage, remoteID string) error {
 				return a.provisionCheckpoint(ctx, jobID, inviteID, s, stage, remoteID)
 			})
 			if err != nil {
@@ -870,7 +825,7 @@ func (a *App) redeemInvitation(w http.ResponseWriter, r *http.Request) {
 			}
 			continue
 		}
-		err = provider.(*jsonProvider).provisionUser(ctx, c.Username, c.Password, g, func(stage, remoteID string) error {
+		err = provider.provisionUser(ctx, c.Username, c.Password, g, func(stage, remoteID string) error {
 			return a.provisionCheckpoint(ctx, jobID, inviteID, s, stage, remoteID)
 		})
 		if err != nil {

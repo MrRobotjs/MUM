@@ -1,6 +1,7 @@
 package main
 
 import (
+	"app/server/providers/plex"
 	"encoding/xml"
 	"strings"
 	"testing"
@@ -15,20 +16,20 @@ func TestPlexQualityUsesSelectedLiveBitrateForAnyTranscode(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var live struct {
-				Rows []plexDisplayRow `xml:",any"`
+				Rows []plex.DisplayRow `xml:",any"`
 			}
 			if err := xml.Unmarshal([]byte(tc.body), &live); err != nil {
 				t.Fatal(err)
 			}
-			display, err := parsePlexDisplays([]byte(tc.body))
+			display, err := plex.ParseDisplays([]byte(tc.body))
 			if err != nil {
 				t.Fatal(err)
 			}
-			source := decodePlexSourceDisplay([]byte(tc.source), "123", "movie")
+			source := plex.DecodeSourceDisplay([]byte(tc.source), "123", "movie")
 			if source == nil {
 				t.Fatal("source fixture")
 			}
-			applyPlexSourceDisplay(display[0], live.Rows[0], *source)
+			plex.ApplySourceDisplay(display[0], live.Rows[0], *source)
 			if display[0].Quality != tc.want {
 				t.Fatalf("got %q want %q", display[0].Quality, tc.want)
 			}

@@ -15,30 +15,6 @@ import (
 	"github.com/coder/websocket/wsjson"
 )
 
-func TestPlexSocketURLAndNotificationBoundaries(t *testing.T) {
-	endpoint, err := providerSocketURL(ManagedServer{Type: "plex", URL: "https://media.example/base", apiKey: "private-token"}, "device")
-	if err != nil || endpoint != "wss://media.example/base/:/websockets/notifications" {
-		t.Fatal("wrong Plex endpoint", endpoint, err)
-	}
-	for _, tc := range []struct {
-		body, want string
-		invalid    bool
-	}{
-		{`{"NotificationContainer":{"type":"playing","private":"never persist"}}`, "playing", false},
-		{`{"NotificationContainer":{"type":"timeline"}}`, "timeline", false},
-		{`{"NotificationContainer":{"type":"transcodeSession.end"}}`, "transcodeSession.end", false},
-		{`{"NotificationContainer":{"type":"other"}}`, "", false},
-		{`{"NotificationContainer":{"type":"playing","type":"other"}}`, "", true},
-		{`{"NotificationContainer":null}`, "", true},
-		{`{"NotificationContainer":{"type":"playing","a":{"x":1,"x":2}}}`, "", true},
-	} {
-		got, err := plexSocketHint([]byte(tc.body))
-		if got != tc.want || (err != nil) != tc.invalid {
-			t.Fatal(got, err)
-		}
-	}
-}
-
 func TestPlexSocketTriggersCompleteSnapshotsWithoutLeakingFrames(t *testing.T) {
 	a, s := testApp(t)
 	token, _ := bootstrapOwner(t, a)

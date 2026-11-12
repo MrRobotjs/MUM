@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faCircleExclamation, faCircleInfo, faUpload } from '@fortawesome/free-solid-svg-icons'
+import { faCircleExclamation, faCircleInfo } from '@fortawesome/free-solid-svg-icons'
 
 import { usePlugins, type Plugin } from '../hooks/usePlugins'
 import { useServers } from '../hooks/useServers'
@@ -11,9 +11,6 @@ import { requestPluginMutation } from '../util/pluginMutations'
 import { PluginCard, PluginCardActions } from '../components/plugins'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 
 const getPluginKey = (plugin: Plugin) => plugin.pluginId || plugin.id
@@ -63,7 +60,7 @@ export const AdminSettingsPluginsPage = () => {
   ) => {
     const pluginId = getPluginKey(plugin)
     if (!pluginId) {
-      showError('Plugin identifier missing; cannot perform action.')
+      showError('Media service identifier missing; cannot perform action.')
       return
     }
 
@@ -94,13 +91,10 @@ export const AdminSettingsPluginsPage = () => {
     showError(`"${plugin.name}" is compiled into MUM and cannot be uninstalled. Disable it instead.`)
   }
 
-  const handleInstall = async () => {
-    showError('Plugin installation is not available. Media providers are compiled into MUM.')
-  }
 
   const handleConfigure = (pluginKey: string) => {
     navigate({
-      to: '/admin/settings/plugins/$pluginId',
+      to: '/admin/settings/media-servers/$pluginId',
       params: { pluginId: pluginKey } as any
     })
   }
@@ -137,44 +131,26 @@ export const AdminSettingsPluginsPage = () => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Media Service Plugins"
-        description="Manage built-in media service plugins for MUM."
+        title="Media Servers"
+        description="Enable media services and manage their servers."
       />
 
       {error ? (
         <Alert variant="destructive">
           <FontAwesomeIcon icon={faCircleExclamation} className="h-4 w-4" />
-          <AlertTitle>Failed to load plugins</AlertTitle>
+          <AlertTitle>Failed to load media services</AlertTitle>
           <AlertDescription>{(error as Error).message}</AlertDescription>
         </Alert>
       ) : (
         <Alert variant="info">
           <FontAwesomeIcon icon={faCircleInfo} className="h-4 w-4" />
-          <AlertTitle>Built-in Plugins</AlertTitle>
+          <AlertTitle>Supported Media Services</AlertTitle>
           <AlertDescription>
-            Enable and configure built-in media service plugins to connect to your servers.
-            All plugins are developed and maintained in-house by the MUM team.
+            Enable a media service, then add and configure your servers for it.
+            Every supported service is built into MUM.
           </AlertDescription>
         </Alert>
       )}
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Install Community Plugin</CardTitle>
-          <CardDescription>Plugin installation is not available. Media providers are compiled into MUM; enable and configure them below.</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <Input
-            type="file"
-            accept=".zip,.tar,.tar.gz,.tgz,.tar.bz2,.tbz2,.tar.xz,.txz"
-            disabled
-          />
-          <Button onClick={handleInstall} disabled className="gap-2">
-            <FontAwesomeIcon icon={faUpload} />
-            Install
-          </Button>
-        </CardContent>
-      </Card>
 
       <div>
         <div className="space-y-8">
@@ -186,7 +162,7 @@ export const AdminSettingsPluginsPage = () => {
             </div>
           ) : plugins.length === 0 ? (
             <div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-              No plugins found.
+              No media services found.
             </div>
           ) : (
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">

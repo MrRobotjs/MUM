@@ -1,6 +1,7 @@
 package main
 
 import (
+	"app/server/providers/plex"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -41,7 +42,7 @@ func (s *Store) beginActivityRead(ctx context.Context, actor, access string, ser
 		if err := tx.QueryRowContext(ctx, `SELECT s.service_type,s.revision,(s.is_active=1 AND p.enabled=1) FROM media_servers s JOIN provider_settings p ON p.provider_id=s.service_type WHERE s.id=?`, server).Scan(&claim.Provider, &claim.ServerRevision, &active); err != nil {
 			return err
 		}
-		if !active || claim.Provider != "jellyfin" && claim.Provider != "emby" && claim.Provider != "plex" {
+		if !active || !activitySupported(claim.Provider) {
 			return ErrConflict
 		}
 		if err := tx.QueryRowContext(ctx, `SELECT generation+1,mapping_revision FROM media_activity_state WHERE server_id=?`, server).Scan(&claim.Generation, &claim.MappingRevision); err != nil {
@@ -149,7 +150,7 @@ func commitActivitySnapshot(ctx context.Context, tx *sql.Tx, c activityReadClaim
 			// owner never appears in the cloud user list). It only fills an empty
 			// avatar, so a cloud profile from user sync is never overwritten, and it
 			// commits or rolls back with the rest of this validated snapshot.
-			if session.Display != nil && session.Display.AvatarPath != "" && safePlexUserAvatar(session.Display.AvatarPath) == session.Display.AvatarPath {
+			if session.Display != nil && session.Display.AvatarPath != "" && plex.UserAvatar(session.Display.AvatarPath) == session.Display.AvatarPath {
 				if _, err := tx.ExecContext(ctx, `UPDATE service_accounts SET external_avatar_url=? WHERE server_id=? AND external_user_id=? AND coalesce(external_avatar_url,'')=''`, session.Display.AvatarPath, c.Server, session.User); err != nil {
 					return result, err
 				}
@@ -336,16 +337,11 @@ func (a *App) captureProviderActivity(ctx context.Context, actor, access string,
 		err = ErrConflict
 	}
 	if err == nil {
-		var provider MediaProvider
-		provider, err = newMediaProvider(ProviderConfig{server.Type, server.URL, server.apiKey}, a.ProviderHTTP)
+		var provider *serverConnection
+		provider, err = newServerConnection(ProviderConfig{server.Type, server.URL, server.apiKey}, a.ProviderHTTP)
 		if err == nil {
-			concrete, ok := provider.(*jsonProvider)
-			if !ok {
-				err = errActivitySnapshot
-			} else {
-				concrete.geoCache = &a.plexGeoCache
-				snapshot, err = concrete.readActivitySnapshot(ctx)
-			}
+			provider.locations = &a.locationCache
+			snapshot, err = provider.readActivitySnapshot(ctx)
 		}
 	}
 	var result activityApplyResult

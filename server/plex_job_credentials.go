@@ -1,6 +1,7 @@
 package main
 
 import (
+	"app/server/providers/plex"
 	"context"
 	"crypto/ed25519"
 	"database/sql"
@@ -77,18 +78,18 @@ func (a *App) refreshPlexJobCredentialAs(ctx context.Context, claim plexShareChe
 	if secret.AccountID != claim.Account {
 		return plexStoredCredential{}, errPlexAuthentication
 	}
-	device, err := newPlexDeviceAuth(a.ProviderHTTP)
+	device, err := plex.NewDevice(a.ProviderHTTP)
 	if err != nil {
 		return plexStoredCredential{}, err
 	}
-	device.clientID = secret.ClientID
-	device.keyID = secret.KeyID
-	device.privateKey = ed25519.PrivateKey(secret.PrivateKey)
-	result, err := device.refreshAccount(ctx, claim.Account)
+	device.ClientID = secret.ClientID
+	device.KeyID = secret.KeyID
+	device.PrivateKey = ed25519.PrivateKey(secret.PrivateKey)
+	result, err := device.RefreshAccount(ctx, claim.Account)
 	if err != nil {
 		return plexStoredCredential{}, err
 	}
-	secret.Token = result.authToken
+	secret.Token = result.AuthToken
 	secret.PINID = 0
 	secret.PINCode = ""
 	// A conservative local verification window, not a claim about cloud JWT TTL.
@@ -170,11 +171,11 @@ func (a *App) inspectPlexRecipient(ctx context.Context, claim plexShareCheckpoin
 	if err != nil {
 		return err
 	}
-	owner, err := newMediaProvider(config, a.ProviderHTTP)
+	owner, err := newServerConnection(config, a.ProviderHTTP)
 	if err != nil {
 		return err
 	}
-	observation, err := owner.(*jsonProvider).inspectPlexShare(ctx, claim.Account, claim.grant)
+	observation, err := owner.inspectPlexShare(ctx, claim.Account, claim.grant)
 	if err != nil {
 		return err
 	}
@@ -192,14 +193,14 @@ func verifyPlexRecipientLibraries(ctx context.Context, client *http.Client, secr
 	if !secret.Expires.After(time.Now()) || secret.AccountID != observation.Account || !plexShareMatches(observation, grant) {
 		return errPlexShare
 	}
-	device, err := newPlexDeviceAuth(client)
+	device, err := plex.NewDevice(client)
 	if err != nil {
 		return errPlexShare
 	}
-	device.clientID = secret.ClientID
-	device.keyID = secret.KeyID
-	device.privateKey = ed25519.PrivateKey(secret.PrivateKey)
-	if _, err := device.verifyAccount(ctx, secret.Token, secret.AccountID); err != nil {
+	device.ClientID = secret.ClientID
+	device.KeyID = secret.KeyID
+	device.PrivateKey = ed25519.PrivateKey(secret.PrivateKey)
+	if _, err := device.VerifyAccount(ctx, secret.Token, secret.AccountID); err != nil {
 		return errPlexShare
 	}
 	var resources []struct {
@@ -208,7 +209,7 @@ func verifyPlexRecipientLibraries(ctx context.Context, client *http.Client, secr
 		Provides    string `json:"provides"`
 		AccessToken string `json:"accessToken"`
 	}
-	if err := device.request(ctx, http.MethodGet, "https://clients.plex.tv/api/v2/resources?includeHttps=1&includeRelay=1&includeIPv6=1", secret.Token, nil, &resources); err != nil || resources == nil {
+	if err := device.Request(ctx, http.MethodGet, "https://clients.plex.tv/api/v2/resources?includeHttps=1&includeRelay=1&includeIPv6=1", secret.Token, nil, &resources); err != nil || resources == nil {
 		return errPlexShare
 	}
 	token := ""
@@ -224,17 +225,17 @@ func verifyPlexRecipientLibraries(ctx context.Context, client *http.Client, secr
 	if token == "" {
 		return errPlexShare
 	}
-	provider, err := newMediaProvider(ProviderConfig{Type: "plex", URL: serverURL, APIKey: token}, client)
+	provider, err := newServerConnection(ProviderConfig{Type: "plex", URL: serverURL, APIKey: token}, client)
 	if err != nil {
 		return errPlexShare
 	}
-	recipient := provider.(*jsonProvider)
+	recipient := provider
 	recipient.plexClientID = secret.ClientID
 	identity, err := recipient.plexIdentity(ctx)
 	if err != nil || identity.Machine != observation.Machine {
 		return errPlexShare
 	}
-	libraries, err := recipient.extendedLibraries(ctx)
+	libraries, err := recipient.plexLibraries(ctx)
 	if err != nil {
 		return errPlexShare
 	}

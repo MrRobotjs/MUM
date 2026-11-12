@@ -97,12 +97,12 @@ export const AdminSettingsPage = () => {
           href="/admin/settings/admins"
         />
 
-        {/* Plugins & Servers */}
+        {/* Media Servers */}
         <SettingsCategory
-          title="Plugins & Servers"
+          title="Media Servers"
           description="Connect and configure media servers (Plex, Jellyfin, Emby, etc.)"
           icon={<FontAwesomeIcon icon={faPuzzlePiece} className="size-6" />}
-          href="/admin/settings/plugins"
+          href="/admin/settings/media-servers"
         />
 
         {/* Discord Integration */}

@@ -1,4 +1,5 @@
 import {requestJson,ApiError} from '../util/apiClient';
+import {isServiceType} from '../config/serviceTypes';
 import {getAccessToken} from '../store/authStore';
 import {validUserRoleName} from './humanUserRoles';
 export type UserRoleIdentity=Readonly<{uuid:string;user_type:'owner'|'local'|'service';username:string;service_type:string;server_nickname:string;primary_owner_uuid:string|null;is_member:boolean;can_change:boolean;availability:'available'|'automatic'|'protected_owner'|'pending_work'}>;
@@ -13,7 +14,7 @@ function project(p:UserRoleMembers,actor:string,role:string):UserRoleMembers{
  const ids=new Set<string>();let owners=0;
  const items=p.items.map(r=>{
   if(!r||!uuid(r.uuid)||ids.has(r.uuid)||typeof r.user_type!=='string'||!['owner','local','service'].includes(r.user_type)||!text(r.username)||!text(r.service_type)||!text(r.server_nickname)||r.primary_owner_uuid!==null&&!uuid(r.primary_owner_uuid)||typeof r.is_member!=='boolean'||typeof r.can_change!=='boolean'||typeof r.availability!=='string'||!['available','automatic','protected_owner','pending_work'].includes(r.availability)||r.can_change!==(r.availability==='available')||!p.mutations_available&&r.can_change||p.is_auto_managed!==(r.availability==='automatic'))throw Error('Invalid role-member identity or capabilities');
-  if(r.user_type==='service'){if(!['plex','jellyfin','emby','kavita','audiobookshelf','komga','romm'].includes(r.service_type)||r.primary_owner_uuid===actor&&r.can_change)throw Error('Invalid service ownership selection');}
+  if(r.user_type==='service'){if(!isServiceType(r.service_type)||r.primary_owner_uuid===actor&&r.can_change)throw Error('Invalid service ownership selection');}
   else if(r.service_type!==''||r.server_nickname!==''||r.primary_owner_uuid!==null)throw Error('Invalid human ownership selection');
   if(r.user_type==='owner'){owners++;if(r.uuid!==actor||r.can_change)throw Error('Invalid protected owner selection');}
   ids.add(r.uuid);return Object.freeze({uuid:r.uuid,user_type:r.user_type,username:r.username,service_type:r.service_type,server_nickname:r.server_nickname,primary_owner_uuid:r.primary_owner_uuid,is_member:r.is_member,can_change:r.can_change,availability:r.availability});

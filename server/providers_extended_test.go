@@ -212,7 +212,7 @@ func TestRemainingProviderCancellationAndRedirects(t *testing.T) {
 				requests.Add(1)
 				return &http.Response{StatusCode: 302, Header: http.Header{"Location": {"https://unexpected.invalid/"}}, Body: io.NopCloser(strings.NewReader("private-response")), Request: r}, nil
 			})}
-			p, err := newMediaProvider(ProviderConfig{kind, "https://fixture.invalid", "fixture-secret"}, client)
+			p, err := newServerConnection(ProviderConfig{kind, "https://fixture.invalid", "fixture-secret"}, client)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -223,7 +223,7 @@ func TestRemainingProviderCancellationAndRedirects(t *testing.T) {
 				t.Fatal("redirect followed")
 			}
 			upstream, httpClient, _ := extendedProviderFixture(t, kind)
-			p, _ = newMediaProvider(ProviderConfig{kind, upstream.URL + "/proxy", "fixture-secret"}, httpClient)
+			p, _ = newServerConnection(ProviderConfig{kind, upstream.URL + "/proxy", "fixture-secret"}, httpClient)
 			ctx, cancel := context.WithCancel(t.Context())
 			cancel()
 			if _, err := p.Users(ctx); err == nil {

@@ -1,4 +1,5 @@
 import {validSavedExpiry} from './humanExpiry';
+import {isServiceType} from '../config/serviceTypes';
 import {requestJson} from '../util/apiClient';
 import {getAccessToken} from '../store/authStore';
 export type ProfileCapabilities={resetPassword:false;editSettings:false;resync:false;manageLinks:false;overseerr:boolean};
@@ -85,7 +86,7 @@ export async function fetchProfileMetadata(actor:string,target:string,signal?:Ab
   const service=p.user_type==='service';
   // Human rows carry local account expiry; service rows carry their own service expiry.
   if(!validSavedExpiry(p.access_expires_at))throw Error('Invalid account expiry');
-  if(service?(!positive(p.server_id)||!['jellyfin','emby','plex','kavita','audiobookshelf','komga','romm'].includes(p.service_type)):p.server_id!==null||p.service_type!=='')throw Error('Invalid profile service identity');
+  if(service?(!positive(p.server_id)||!isServiceType(p.service_type)):p.server_id!==null||p.service_type!=='')throw Error('Invalid profile service identity');
   const seen=new Set<string>();const roles:UserRoleDetail[]=p.user_roles.map(raw=>{
    const r=raw as Record<string,unknown>;
    if(!r||!text(r.name,255)||!r.name||seen.has(r.name)||(r.color!==null&&!text(r.color,128))||(r.icon!==null&&!text(r.icon,128))||(typeof r.badge_style!=='string'||!['default','fill','outline'].includes(r.badge_style)))throw Error('Invalid role visuals');

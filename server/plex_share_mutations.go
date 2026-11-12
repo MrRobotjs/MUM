@@ -1,11 +1,9 @@
 package main
 
 import (
+	"app/server/providers/plex"
 	"context"
 	"database/sql"
-	"encoding/xml"
-	"net/http"
-	"net/url"
 	"strconv"
 	"time"
 )
@@ -24,29 +22,12 @@ type plexSentInvitation struct {
 
 // Account IDs are taken only from the invitation's numeric id. Email-only
 // invitations cannot be adopted as the verified recipient's account.
-func (p *jsonProvider) plexSentInvitations(ctx context.Context) ([]plexSentInvitation, error) {
+func (p *serverConnection) plexSentInvitations(ctx context.Context) ([]plexSentInvitation, error) {
 	if p.config.Type != "plex" {
 		return nil, plexShareInvalid("SENT_INPUT")
 	}
-	var response struct {
-		XMLName xml.Name `xml:"MediaContainer"`
-		Size    string   `xml:"size,attr"`
-		Offset  string   `xml:"offset,attr"`
-		Total   string   `xml:"totalSize,attr"`
-		Invites []struct {
-			ID      string `xml:"id,attr"`
-			Friend  string `xml:"friend,attr"`
-			Home    string `xml:"home,attr"`
-			Server  string `xml:"server,attr"`
-			Servers []struct {
-				Machine string `xml:"machineIdentifier,attr"`
-				ID      string `xml:"id,attr"`
-				Pending string `xml:"pending,attr"`
-				Owned   string `xml:"owned,attr"`
-			} `xml:"Server"`
-		} `xml:"Invite"`
-	}
-	if err := p.plexXML(ctx, "https://plex.tv/api/invites/requested", &response); err != nil {
+	response, err := p.plexServer().SentInvitations(ctx)
+	if err != nil {
 		return nil, plexShareInvalid("SENT_READ")
 	}
 	count, err := strconv.Atoi(response.Size)
@@ -66,9 +47,9 @@ func (p *jsonProvider) plexSentInvitations(ctx context.Context) ([]plexSentInvit
 			return nil, plexShareInvalid("SENT_INVITE_ID_DUPLICATE")
 		}
 		seen[invite.ID] = true
-		friend, fok := plexExplicitBool(invite.Friend)
-		home, hok := plexExplicitBool(invite.Home)
-		server, sok := plexExplicitBool(invite.Server)
+		friend, fok := plex.ExplicitBool(invite.Friend)
+		home, hok := plex.ExplicitBool(invite.Home)
+		server, sok := plex.ExplicitBool(invite.Server)
 		if !fok || !hok || !sok {
 			return nil, plexShareInvalid("SENT_INVITE_FLAGS")
 		}
@@ -81,8 +62,8 @@ func (p *jsonProvider) plexSentInvitations(ctx context.Context) ([]plexSentInvit
 			}
 			machines[s.Machine] = true
 			item.Machines = append(item.Machines, s.Machine)
-			pending, pKnown := plexExplicitBool(s.Pending)
-			owned, oKnown := plexExplicitBool(s.Owned)
+			pending, pKnown := plex.ExplicitBool(s.Pending)
+			owned, oKnown := plex.ExplicitBool(s.Owned)
 			if s.ID != "" && (!plexNumericID(s.ID) || shareIDs[s.ID]) || s.Pending != "" && !pKnown || s.Owned != "" && !oKnown {
 				return nil, plexShareInvalid("SENT_SHARE_FIELDS")
 			}
@@ -129,7 +110,7 @@ func hasPlexSentInviteForServer(invites []plexSentInvitation, account, machine s
 
 // This intentionally supports selected libraries for existing friends only.
 // Omitting sharing_settings preserves account-level downloads, Home and filters.
-func (p *jsonProvider) createPlexSelectedShare(ctx context.Context, claim plexShareCheckpoint, plan plexSharePreflight) error {
+func (p *serverConnection) createPlexSelectedShare(ctx context.Context, claim plexShareCheckpoint, plan plexSharePreflight) error {
 	if !plexNumericID(claim.Account) || p.config.Type != "plex" || claim.State != "send_uncertain" || claim.operation != "send" || claim.token == "" || claim.expires <= utcTimestamp(time.Now()) || claim.grant.AllLibraries || !validPlexSharePlan(plan, claim.Account, claim.grant) || !plan.DownloadsKnown || plan.AllowDownloads != claim.grant.AllowDownloads || plan.Machine != claim.Machine || !samePlexSections(plan.Sections, claim.Sections) {
 		return ErrConflict
 	}
@@ -154,7 +135,7 @@ func (p *jsonProvider) createPlexSelectedShare(ctx context.Context, claim plexSh
 	}{Server: claim.Machine}
 	body.Share.Libraries = ids
 	body.Share.Account = account
-	_, err = p.fetch(ctx, http.MethodPost, "https://plex.tv/api/servers/"+url.PathEscape(claim.Machine)+"/shared_servers", body)
+	err = p.plexServer().CreateShare(ctx, claim.Machine, body)
 	if err != nil {
 		return errPlexShare
 	}
@@ -182,7 +163,7 @@ func samePlexSections(a, b []plexShareSection) bool {
 
 // The configuration is reread immediately before the future side effect; an
 // authorization/lease/provider change during preflight or refresh blocks it.
-func (a *App) plexSendProvider(ctx context.Context, claim plexShareCheckpoint) (*jsonProvider, error) {
+func (a *App) plexSendProvider(ctx context.Context, claim plexShareCheckpoint) (*serverConnection, error) {
 	var config ProviderConfig
 	err := a.store.write(ctx, func(tx *sql.Tx) error {
 		current, err := loadPlexShareCheckpoint(ctx, tx, claim.Job, claim.Server)
@@ -222,11 +203,11 @@ func (a *App) plexSendProvider(ctx context.Context, claim plexShareCheckpoint) (
 	if err != nil {
 		return nil, err
 	}
-	provider, err := newMediaProvider(config, a.ProviderHTTP)
+	provider, err := newServerConnection(config, a.ProviderHTTP)
 	if err != nil {
 		return nil, err
 	}
-	return provider.(*jsonProvider), nil
+	return provider, nil
 }
 
 // Private send worker: called explicitly, never on startup or uncertain retry.
@@ -277,11 +258,11 @@ func (a *App) sendPlexSelectedShare(ctx context.Context, job string, server, rev
 	if err != nil {
 		return err
 	}
-	provider, err := newMediaProvider(config, a.ProviderHTTP)
+	provider, err := newServerConnection(config, a.ProviderHTTP)
 	if err != nil {
 		return err
 	}
-	owner := provider.(*jsonProvider)
+	owner := provider
 	plan, err := owner.inspectPlexShare(ctx, row.Account, row.grant)
 	if err != nil {
 		return err

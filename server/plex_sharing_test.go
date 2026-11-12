@@ -10,7 +10,7 @@ import (
 )
 
 // Every URL, including fixed cloud hosts, is intercepted. No real service is used.
-func plexShareFixture(t *testing.T, mutate func(map[string]string)) (*jsonProvider, *int) {
+func plexShareFixture(t *testing.T, mutate func(map[string]string)) (*serverConnection, *int) {
 	t.Helper()
 	responses := map[string]string{
 		"http://fixture.invalid/":                              `<MediaContainer machineIdentifier="machine-A"/>`,
@@ -44,11 +44,11 @@ func plexShareFixture(t *testing.T, mutate func(map[string]string)) (*jsonProvid
 		}
 		return &http.Response{StatusCode: status, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(body)), Request: r}, nil
 	})}
-	provider, err := newMediaProvider(ProviderConfig{Type: "plex", URL: "http://fixture.invalid", APIKey: "fixture-secret"}, client)
+	provider, err := newServerConnection(ProviderConfig{Type: "plex", URL: "http://fixture.invalid", APIKey: "fixture-secret"}, client)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return provider.(*jsonProvider), &count
+	return provider, &count
 }
 func TestPlexSharePreflightMapsCloudIDsAndExactAcceptedAccess(t *testing.T) {
 	p, count := plexShareFixture(t, nil)
@@ -213,13 +213,13 @@ func TestPlexSyncRejectsUnknownAcceptanceAndAmbiguousLibraryPolicy(t *testing.T)
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			p, _ := plexShareFixture(t, func(m map[string]string) { m[tc.target] = strings.ReplaceAll(m[tc.target], tc.old, tc.new) })
-			if _, err := p.plexUsers(t.Context()); err == nil {
+			if _, err := p.plexServer().Users(t.Context()); err == nil {
 				t.Fatal("sync accepted incomplete access snapshot")
 			}
 		})
 	}
 	p, _ := plexShareFixture(t, nil)
-	users, err := p.plexUsers(t.Context())
+	users, err := p.plexServer().Users(t.Context())
 	// The server owner comes first as local account 1 with every library.
 	if err != nil || len(users) != 2 || users[0].ID != "1" || !users[0].AllLibraries || users[0].Name != "ServerOwner" || users[1].ID != "42" || !users[1].Active {
 		t.Fatal(users, err)

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"app/server/providers/plex"
 	"bytes"
 	"context"
 	"crypto/ed25519"
@@ -50,17 +51,17 @@ func (a *App) preparePlexCompletionAs(ctx context.Context, job string, server, r
 	if err != nil {
 		return p, err
 	}
-	if secret.AccountID != p.account || !secret.Expires.After(time.Now()) || !plexJWTShape(secret.Token) {
+	if secret.AccountID != p.account || !secret.Expires.After(time.Now()) || !plex.JWTShape(secret.Token) {
 		return p, errPlexAuthentication
 	}
-	device, err := newPlexDeviceAuth(a.ProviderHTTP)
+	device, err := plex.NewDevice(a.ProviderHTTP)
 	if err != nil {
 		return p, err
 	}
-	device.clientID = secret.ClientID
-	device.keyID = secret.KeyID
-	device.privateKey = ed25519.PrivateKey(secret.PrivateKey)
-	result, err := device.verifyAccount(ctx, secret.Token, p.account)
+	device.ClientID = secret.ClientID
+	device.KeyID = secret.KeyID
+	device.PrivateKey = ed25519.PrivateKey(secret.PrivateKey)
+	result, err := device.VerifyAccount(ctx, secret.Token, p.account)
 	if err != nil {
 		return p, err
 	}

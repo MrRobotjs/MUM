@@ -1,10 +1,9 @@
 package main
 
 import (
+	"app/server/providers/plex"
 	"context"
-	"encoding/xml"
 	"errors"
-	"net/url"
 	"slices"
 	"strconv"
 	"strings"
@@ -37,21 +36,11 @@ func plexNumericID(value string) bool {
 	n, err := strconv.ParseInt(value, 10, 64)
 	return err == nil && n > 0 && strconv.FormatInt(n, 10) == value
 }
-func plexExplicitBool(value string) (bool, bool) {
-	switch value {
-	case "0", "false":
-		return false, true
-	case "1", "true":
-		return true, true
-	default:
-		return false, false
-	}
-}
 
 // Read-only preflight; no capability is enabled and no remote request is replayed.
 // A server/user reference and detailed share must agree before accepted access is
 // reported. Sent invitations not represented here remain unobserved, not absent.
-func (p *jsonProvider) inspectPlexShare(ctx context.Context, account string, grant InvitationGrant) (plexSharePreflight, error) {
+func (p *serverConnection) inspectPlexShare(ctx context.Context, account string, grant InvitationGrant) (plexSharePreflight, error) {
 	result := plexSharePreflight{Account: account, State: "unobserved", Sections: []plexShareSection{}, LibraryIDs: []string{}}
 	if p.config.Type != "plex" || !plexNumericID(account) || grant.AllLibraries == (len(grant.LibraryIDs) > 0) || len(grant.LibraryIDs) > 10000 {
 		return result, plexShareInvalid("INPUT")
@@ -61,7 +50,7 @@ func (p *jsonProvider) inspectPlexShare(ctx context.Context, account string, gra
 		return result, plexShareInvalid("SERVER_IDENTITY")
 	}
 	result.Machine = identity.Machine
-	local, err := p.extendedLibraries(ctx)
+	local, err := p.plexLibraries(ctx)
 	if err != nil {
 		return result, plexShareInvalid("LOCAL_LIBRARIES")
 	}
@@ -72,18 +61,8 @@ func (p *jsonProvider) inspectPlexShare(ctx context.Context, account string, gra
 		}
 		localKeys[library.ID] = true
 	}
-	var cloud struct {
-		XMLName xml.Name `xml:"MediaContainer"`
-		Servers []struct {
-			Machine  string `xml:"machineIdentifier,attr"`
-			Sections []struct {
-				ID  string `xml:"id,attr"`
-				Key string `xml:"key,attr"`
-			} `xml:"Section"`
-		} `xml:"Server"`
-	}
-	target := "https://plex.tv/api/servers/" + url.PathEscape(identity.Machine)
-	if p.plexXML(ctx, target, &cloud) != nil || len(cloud.Servers) != 1 || cloud.Servers[0].Machine != identity.Machine {
+	cloud, cloudErr := p.plexServer().CloudServer(ctx, identity.Machine)
+	if cloudErr != nil || len(cloud.Servers) != 1 || cloud.Servers[0].Machine != identity.Machine {
 		return result, plexShareInvalid("CLOUD_SERVER")
 	}
 	mapping := map[string]string{}
@@ -114,26 +93,14 @@ func (p *jsonProvider) inspectPlexShare(ctx context.Context, account string, gra
 	if len(result.Sections) == 0 {
 		return result, plexShareInvalid("NO_SECTIONS")
 	}
-	var users struct {
-		XMLName xml.Name `xml:"MediaContainer"`
-		Users   []struct {
-			ID        string `xml:"id,attr"`
-			AllowSync string `xml:"allowSync,attr"`
-			Servers   []struct {
-				ID      string `xml:"id,attr"`
-				Machine string `xml:"machineIdentifier,attr"`
-				Pending string `xml:"pending,attr"`
-				Owned   string `xml:"owned,attr"`
-			} `xml:"Server"`
-		} `xml:"User"`
-	}
-	if p.plexXML(ctx, "https://plex.tv/api/users/", &users) != nil {
+	users, usersErr := p.plexServer().Friends(ctx)
+	if usersErr != nil {
 		return result, plexShareInvalid("USERS_READ")
 	}
 	foundUser, foundReference := false, false
 	referenceID := ""
 	for _, user := range users.Users {
-		if user.ID != account {
+		if user.Attr("id") != account {
 			continue
 		}
 		if foundUser {
@@ -141,7 +108,7 @@ func (p *jsonProvider) inspectPlexShare(ctx context.Context, account string, gra
 		}
 		foundUser = true
 		result.Friend = true
-		result.AllowDownloads, result.DownloadsKnown = plexExplicitBool(user.AllowSync)
+		result.AllowDownloads, result.DownloadsKnown = plex.ExplicitBool(user.Attr("allowSync"))
 		for _, server := range user.Servers {
 			if server.Machine != identity.Machine {
 				continue
@@ -150,8 +117,8 @@ func (p *jsonProvider) inspectPlexShare(ctx context.Context, account string, gra
 				return result, plexShareInvalid("USER_SERVER_ENTRY")
 			}
 			foundReference = true
-			pending, known := plexExplicitBool(server.Pending)
-			owned, ownedKnown := plexExplicitBool(server.Owned)
+			pending, known := plex.ExplicitBool(server.Pending)
+			owned, ownedKnown := plex.ExplicitBool(server.Owned)
 			if !known || !ownedKnown || owned || !plexNumericID(server.ID) {
 				return result, plexShareInvalid("USER_SERVER_FLAGS")
 			}
@@ -163,37 +130,26 @@ func (p *jsonProvider) inspectPlexShare(ctx context.Context, account string, gra
 			}
 		}
 	}
-	var shares struct {
-		XMLName xml.Name `xml:"MediaContainer"`
-		Shares  []struct {
-			ID       string `xml:"id,attr"`
-			User     string `xml:"userID,attr"`
-			All      string `xml:"allLibraries,attr"`
-			Sections []struct {
-				Key    string `xml:"key,attr"`
-				Shared string `xml:"shared,attr"`
-			} `xml:"Section"`
-		} `xml:"SharedServer"`
-	}
-	if p.plexXML(ctx, target+"/shared_servers", &shares) != nil {
+	shares, sharesErr := p.plexServer().SharedServers(ctx, identity.Machine)
+	if sharesErr != nil {
 		return result, plexShareInvalid("SHARES_READ")
 	}
 	for _, share := range shares.Shares {
-		if share.User != account {
+		if share.UserID != account {
 			continue
 		}
 		if result.ShareID != "" || !plexNumericID(share.ID) || !foundReference || referenceID != share.ID {
 			return result, plexShareInvalid("SHARE_REFERENCE")
 		}
 		result.ShareID = share.ID
-		all, known := plexExplicitBool(share.All)
+		all, known := plex.ExplicitBool(share.All)
 		if !known {
 			return result, plexShareInvalid("SHARE_ALL_FLAG")
 		}
 		result.AllLibraries = all
 		seen := map[string]bool{}
 		for _, section := range share.Sections {
-			shared, known := plexExplicitBool(section.Shared)
+			shared, known := plex.ExplicitBool(section.Shared)
 			if !known || !localKeys[section.Key] || mapping[section.Key] == "" || seen[section.Key] {
 				return result, plexShareInvalid("SHARE_SECTION")
 			}

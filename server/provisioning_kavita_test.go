@@ -1,6 +1,7 @@
 package main
 
 import (
+	"app/server/providers/kavita"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -18,7 +19,7 @@ type kavitaProvisionFixture struct {
 	mode, name                      string
 	invites, confirmations, updates int
 	confirmed                       bool
-	age                             kavitaAgeRestriction
+	age                             kavita.AgeRestriction
 	resets                          int
 	lastPassword                    string
 	absent                          bool
@@ -89,7 +90,7 @@ func newKavitaProvisionFixture(t *testing.T, mode string) *kavitaProvisionFixtur
 				Email          string
 				Roles          []string
 				Libraries      []int64
-				AgeRestriction kavitaAgeRestriction
+				AgeRestriction kavita.AgeRestriction
 			}
 			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 				t.Error(err)
@@ -136,7 +137,7 @@ func newKavitaProvisionFixture(t *testing.T, mode string) *kavitaProvisionFixtur
 				Roles            []string
 				Libraries        []int64
 				IdentityProvider int
-				AgeRestriction   kavitaAgeRestriction
+				AgeRestriction   kavita.AgeRestriction
 			}
 			_ = json.NewDecoder(r.Body).Decode(&body)
 			if body.UserID != 17 || body.Username != f.name || body.IdentityProvider != 0 || slices.Contains(body.Roles, "Pleb") || slices.Contains(body.Roles, "Admin") {
@@ -292,7 +293,7 @@ func TestKavitaSyncRespectsLoginRoleAndExternalCancellation(t *testing.T) {
 	f.mu.Lock()
 	f.roles = []string{"Pleb", "Change Password"}
 	f.mu.Unlock()
-	provider, err := newMediaProvider(ProviderConfig{"kavita", f.server.URL, "fixture-secret"}, nil)
+	provider, err := newServerConnection(ProviderConfig{"kavita", f.server.URL, "fixture-secret"}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -310,4 +311,10 @@ func TestKavitaSyncRespectsLoginRoleAndExternalCancellation(t *testing.T) {
 	if err := s.reader.QueryRow("SELECT current_uses FROM invites WHERE id=?", job.InviteID).Scan(&uses); err != nil || uses != 0 {
 		t.Fatal(uses, err)
 	}
+}
+
+// kavitaObserved returns the Kavita module's observed state of an inspected account.
+func kavitaObserved(u remoteReview) *kavita.Observed {
+	o, _ := u.Detail.(*kavita.Observed)
+	return o
 }

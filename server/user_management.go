@@ -1,6 +1,7 @@
 package main
 
 import (
+	"app/server/providers/plex"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -198,7 +199,7 @@ func (a *App) listUsers(w http.ResponseWriter, r *http.Request) {
 		}
 		// The raw provider image address stays server-side; only a signed,
 		// session-bound proxy link (rechecked on every fetch) is returned.
-		if avatarServed && avatarTag != "" && safePlexUserAvatar(avatarTag) == avatarTag {
+		if avatarServed && avatarTag != "" && plex.UserAvatar(avatarTag) == avatarTag {
 			avatarRows = append(avatarRows, item)
 		}
 	}

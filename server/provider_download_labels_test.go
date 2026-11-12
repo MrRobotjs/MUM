@@ -168,7 +168,7 @@ func TestProviderDownloadPolicyKnownUnknownAndMalformed(t *testing.T) {
 	for _, provider := range []string{"jellyfin", "emby", "kavita", "audiobookshelf", "komga"} {
 		t.Run(provider, func(t *testing.T) {
 			f := newDownloadPolicyFixture(t, provider)
-			p, err := newMediaProvider(ProviderConfig{provider, f.server.URL, "fixture-secret"}, f.server.Client())
+			p, err := newServerConnection(ProviderConfig{provider, f.server.URL, "fixture-secret"}, f.server.Client())
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -316,7 +316,7 @@ func TestProviderDownloadLabelsShareRegistryWithoutSharingIdentity(t *testing.T)
 
 func TestKavitaDownloadRolesUseExactCompleteFacts(t *testing.T) {
 	f := newDownloadPolicyFixture(t, "kavita")
-	p, err := newMediaProvider(ProviderConfig{"kavita", f.server.URL, "fixture-secret"}, f.server.Client())
+	p, err := newServerConnection(ProviderConfig{"kavita", f.server.URL, "fixture-secret"}, f.server.Client())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -338,7 +338,7 @@ func TestKavitaDownloadRolesUseExactCompleteFacts(t *testing.T) {
 
 func TestKomgaDownloadRoleRequiresExactFileDownloadFact(t *testing.T) {
 	f := newDownloadPolicyFixture(t, "komga")
-	p, err := newMediaProvider(ProviderConfig{"komga", f.server.URL, "fixture-secret"}, f.server.Client())
+	p, err := newServerConnection(ProviderConfig{"komga", f.server.URL, "fixture-secret"}, f.server.Client())
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"app/server/providers/plex"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -156,7 +157,7 @@ func (a *App) preparePlexInvitationProof(ctx context.Context, token, id, browser
 	if err != nil {
 		return prepared, err
 	}
-	if !secret.Expires.After(time.Now()) || secret.AccountID != prepared.row.AccountID || !plexJWTShape(secret.Token) {
+	if !secret.Expires.After(time.Now()) || secret.AccountID != prepared.row.AccountID || !plex.JWTShape(secret.Token) {
 		return prepared, errPlexAuthentication
 	}
 	prepared.job = job

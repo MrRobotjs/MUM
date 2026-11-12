@@ -45,14 +45,20 @@ type serviceRemoteRecord struct {
 	fingerprint string
 }
 
-// Only providers whose verified inspect/disable adapters already exist. Komga
-// has no account-disable flag; its cleanup removes media access only.
+// Only providers whose verified inspect/disable adapters already exist. A
+// module without an account-disable flag (Komga) reports "media": its
+// cleanup removes media access only.
 func serviceRemoteScope(kind string) string {
-	switch kind {
-	case "jellyfin", "emby", "kavita", "audiobookshelf", "romm":
+	if m := moduleRules(kind); m != nil {
+		_, inspects := m.(accountInspector)
+		_, disables := m.(accountDisabler)
+		if !inspects || !disables {
+			return ""
+		}
+		if scope, ok := m.(cleanupScoper); ok {
+			return scope.CleanupScope()
+		}
 		return "account"
-	case "komga":
-		return "media"
 	}
 	return ""
 }
@@ -60,14 +66,8 @@ func serviceRemoteScope(kind string) string {
 // The recorded identity must satisfy the same adapter contract recovery uses.
 // Nothing is looked up or adopted by username.
 func serviceRemoteIdentity(kind, id, name string) bool {
-	switch kind {
-	case "kavita":
-		_, err := kavitaRecordedID(id)
-		return err == nil && name != "" && !strings.Contains(name, "@")
-	case "romm":
-		return rommRecordedID(id) && validRomMUsername(name)
-	case "komga":
-		return validProvisionedID(id) && validKomgaEmail(name)
+	if m := moduleRules(kind); m != nil {
+		return moduleIdentityValid(m, id, name)
 	}
 	return validProvisionedID(id) && name != ""
 }
@@ -422,11 +422,11 @@ func (a *App) runServiceRemoteOperation(ctx context.Context, actor string, claim
 	if err != nil || providerFingerprint(server) != claimed.fingerprint {
 		return "failed", "SERVER_CHANGED", false
 	}
-	provider, err := newMediaProvider(ProviderConfig{server.Type, server.URL, server.apiKey}, a.ProviderHTTP)
+	provider, err := newServerConnection(ProviderConfig{server.Type, server.URL, server.apiKey}, a.ProviderHTTP)
 	if err != nil {
 		return "failed", "PROVIDER_UNAVAILABLE", false
 	}
-	client := provider.(*jsonProvider)
+	client := provider
 	client.serviceAuthority = &serviceRemoteAuthority{a.store, actor, claimed.Target, token}
 	user, err := client.inspectProvisionedUser(ctx, claimed.externalID, claimed.Username)
 	if err != nil {

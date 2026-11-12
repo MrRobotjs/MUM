@@ -6,7 +6,7 @@ import { usePlugins } from '../hooks/usePlugins';
 import { useServers } from '../hooks/useServers';
 
 export const AdminSettingsPluginsServerAddPage = () => {
-  const { pluginId } = useParams({ from: '/admin/settings/plugins/$pluginId/servers/add' });
+  const { pluginId } = useParams({ from: '/admin/settings/media-servers/$pluginId/servers/add' });
   const navigate = useNavigate();
   const { plugins } = usePlugins();
   const { refresh: refreshServers } = useServers({ serviceType: pluginId || undefined });
@@ -15,11 +15,11 @@ export const AdminSettingsPluginsServerAddPage = () => {
 
   const handleSuccess = async () => {
     await refreshServers();
-    navigate({ to: '/admin/settings/plugins/$pluginId', params: { pluginId } });
+    navigate({ to: '/admin/settings/media-servers/$pluginId', params: { pluginId } });
   };
 
   const handleCancel = () => {
-    navigate({ to: '/admin/settings/plugins/$pluginId', params: { pluginId } });
+    navigate({ to: '/admin/settings/media-servers/$pluginId', params: { pluginId } });
   };
 
   return (

@@ -1,4 +1,5 @@
 import {requestJson} from '../util/apiClient';
+import {isServiceType} from '../config/serviceTypes';
 import {getAccessToken} from '../store/authStore';
 
 export type ProfileServiceAccount = {uuid: string; external_username: string; external_email: string; service_type: string; server_name: string};
@@ -20,7 +21,7 @@ export async function fetchProfileAccountLinks(actor: string, user: string): Pro
     const seen = new Set<string>();
     const project = (accounts: ProfileServiceAccount[]) => accounts.map(a => {
       if (!a || !uuid(a.uuid) || seen.has(a.uuid) || !text(a.external_username,255) || !text(a.external_email,320) || !text(a.server_name,255) ||
-        typeof a.service_type !== 'string' || !['plex','jellyfin','emby','kavita','audiobookshelf','komga','romm'].includes(a.service_type)) throw Error('Invalid service account selection.');
+        typeof a.service_type !== 'string' || !isServiceType(a.service_type)) throw Error('Invalid service account selection.');
       seen.add(a.uuid);
       return {uuid:a.uuid,external_username:a.external_username,external_email:a.external_email,service_type:a.service_type,server_name:a.server_name};
     });

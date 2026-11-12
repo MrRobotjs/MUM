@@ -934,7 +934,7 @@ export const InviteWizardPage = () => {
                             <div className="text-xs text-muted-foreground uppercase">{server.service_type}</div>
                           </div>
                           <span className="text-xs text-amber-600">
-                            {server.is_active === false ? 'Server disabled' : server.plugin_enabled === false ? 'Plugin disabled' : 'Unavailable'}
+                            {server.is_active === false ? 'Server disabled' : server.plugin_enabled === false ? 'Service disabled' : 'Unavailable'}
                           </span>
                         </div>
                       ))}
@@ -960,7 +960,7 @@ export const InviteWizardPage = () => {
                             <div key={server.id} className="flex items-center justify-between text-xs text-muted-foreground">
                               <span>{server.name} ({server.service_type})</span>
                               <span className="text-amber-600">
-                                {server.is_active === false ? 'Server disabled' : server.plugin_enabled === false ? 'Plugin disabled' : 'Unavailable'}
+                                {server.is_active === false ? 'Server disabled' : server.plugin_enabled === false ? 'Service disabled' : 'Unavailable'}
                               </span>
                             </div>
                           ))}

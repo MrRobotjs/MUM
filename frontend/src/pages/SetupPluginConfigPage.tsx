@@ -11,7 +11,7 @@ import { faCircleExclamation } from '@fortawesome/free-solid-svg-icons'
 import { Spinner } from '@/components/ui/spinner'
 
 function SetupPluginConfigContent() {
-  const { pluginId } = useParams({ from: '/setup/plugins/$pluginId' })
+  const { pluginId } = useParams({ from: '/setup/media-servers/$pluginId' })
   const resolvedPluginId = pluginId ?? ''
   const navigate = useNavigate()
   const { plugins, loading: pluginsLoading, error: pluginsError } = usePlugins()
@@ -23,7 +23,7 @@ function SetupPluginConfigContent() {
   // Handle authentication errors by redirecting to login
   useEffect(() => {
     if (pluginsError && pluginsError instanceof ApiError && pluginsError.status === 401) {
-      window.location.href = `/admin/login?next=/setup/plugins/${resolvedPluginId}`
+      window.location.href = `/admin/login?next=/setup/media-servers/${resolvedPluginId}`
     }
   }, [pluginsError, resolvedPluginId])
 
@@ -31,7 +31,7 @@ function SetupPluginConfigContent() {
     return (
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <Spinner className="size-4 text-muted-foreground" />
-        Loading plugin details…
+        Loading media service details…
       </div>
     )
   }
@@ -40,7 +40,7 @@ function SetupPluginConfigContent() {
     return (
       <Alert variant="destructive">
         <FontAwesomeIcon icon={faCircleExclamation} className="h-4 w-4" />
-        <AlertTitle>Failed to load plugins</AlertTitle>
+        <AlertTitle>Failed to load media services</AlertTitle>
         <AlertDescription>{(pluginsError as Error).message}</AlertDescription>
       </Alert>
     )
@@ -49,13 +49,13 @@ function SetupPluginConfigContent() {
   if (!plugin) {
     return (
       <div className="space-y-4">
-        <Button variant="ghost" onClick={() => navigate({ to: '/setup/plugins' })}>
-          Back to Plugins
+        <Button variant="ghost" onClick={() => navigate({ to: '/setup/media-servers' })}>
+          Back to Media Servers
         </Button>
         <Alert variant="destructive">
           <FontAwesomeIcon icon={faCircleExclamation} className="h-4 w-4" />
-          <AlertTitle>Plugin not found</AlertTitle>
-          <AlertDescription>Plugin "{resolvedPluginId}" could not be located.</AlertDescription>
+          <AlertTitle>Media service not found</AlertTitle>
+          <AlertDescription>Media service "{resolvedPluginId}" could not be located.</AlertDescription>
         </Alert>
       </div>
     )
@@ -67,12 +67,12 @@ function SetupPluginConfigContent() {
         plugin={plugin}
         pluginId={resolvedPluginId}
         showEditButton={false}
-        addServerPath="/setup/plugins/$pluginId/servers/add"
+        addServerPath="/setup/media-servers/$pluginId/servers/add"
       />
 
       <div className="flex justify-between">
-        <Button variant="outline" onClick={() => navigate({ to: '/setup/plugins' })}>
-          Back to Plugins
+        <Button variant="outline" onClick={() => navigate({ to: '/setup/media-servers' })}>
+          Back to Media Servers
         </Button>
         <Button onClick={() => navigate({ to: '/setup/app', replace: true })}>
           Continue to App Config
@@ -83,7 +83,7 @@ function SetupPluginConfigContent() {
 }
 
 export default function SetupPluginConfigPage() {
-  const { pluginId } = useParams({ from: '/setup/plugins/$pluginId' })
+  const { pluginId } = useParams({ from: '/setup/media-servers/$pluginId' })
   const { plugins } = usePlugins()
   const plugin = useMemo(
     () => plugins.find((item) => item.pluginId === pluginId),

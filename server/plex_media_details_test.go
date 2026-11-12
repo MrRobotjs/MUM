@@ -1,6 +1,8 @@
 package main
 
 import (
+	"app/server/providers/plex"
+	"app/server/providers/provider"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -8,18 +10,18 @@ import (
 
 func TestPlexMediaDetailsSelectedOutputAndSourcePath(t *testing.T) {
 	body := `<MediaContainer size="1"><Video ratingKey="123" type="movie" duration="6554000"><Media id="wrong" container="avi"/><Media id="7" selected="1" duration="6554720" bitrate="7400" width="1920" height="804" aspectRatio="2.39" audioChannels="6" audioCodec="eac3" videoCodec="hevc" videoResolution="1080" videoFrameRate="24p" hasVoiceActivity="0"><Part id="wrong" file="/wrong.mkv"/><Part id="8" selected="1" container="mpegts"><Stream streamType="1" codec="hevc" profile="main 10"/><Stream streamType="2" codec="eac3" channels="6"/></Part></Media></Video></MediaContainer>`
-	displays, err := parsePlexDisplays([]byte(body))
+	displays, err := plex.ParseDisplays([]byte(body))
 	if err != nil || len(displays) != 1 {
 		t.Fatal(err)
 	}
-	source := decodePlexSourceDisplay([]byte(`<MediaContainer size="1"><Video ratingKey="123" type="movie"><Media id="7"><Part id="8" file="/media/Fixture Film.mkv"/></Media></Video></MediaContainer>`), "123", "movie")
+	source := plex.DecodeSourceDisplay([]byte(`<MediaContainer size="1"><Video ratingKey="123" type="movie"><Media id="7"><Part id="8" file="/media/Fixture Film.mkv"/></Media></Video></MediaContainer>`), "123", "movie")
 	if source == nil {
 		t.Fatal("source fixture rejected")
 	}
-	var live plexDisplayRow
+	var live plex.DisplayRow
 	live.Item = "123"
-	live.Media = []plexDisplayMedia{{ID: "7", Parts: []plexDisplayPart{{ID: "8"}}}}
-	applyPlexSourceDisplay(displays[0], live, *source)
+	live.Media = []plex.DisplayMedia{{ID: "7", Parts: []plex.DisplayPart{{ID: "8"}}}}
+	plex.ApplySourceDisplay(displays[0], live, *source)
 	raw, _ := json.Marshal(displays[0])
 	var got map[string]any
 	json.Unmarshal(raw, &got)
@@ -35,22 +37,22 @@ func TestPlexMediaDetailsSelectedOutputAndSourcePath(t *testing.T) {
 
 func TestPlexMediaDetailsSourceVersionAndPathValidation(t *testing.T) {
 	for _, value := range []string{`C:\Media\Fixture.mkv`, `\\nas\Media\Fixture.mkv`, "/media/Fixture.mkv"} {
-		if safeMediaFilePath(value) != value {
+		if provider.SafeMediaFilePath(value) != value {
 			t.Fatal("valid local path rejected")
 		}
 	}
 	for _, value := range []string{"relative.mkv", "https://fixture.invalid/file", "/media/fixture?token=private", strings.Repeat("x", 1025)} {
-		if safeMediaFilePath(value) != "" {
+		if provider.SafeMediaFilePath(value) != "" {
 			t.Fatal("invalid local path admitted")
 		}
 	}
-	original := decodePlexSourceDisplay([]byte(`<MediaContainer size="1"><Video ratingKey="123" type="movie"><Media id="7"><Part id="8" file="/media/Fixture.mkv"/></Media></Video></MediaContainer>`), "123", "movie")
+	original := plex.DecodeSourceDisplay([]byte(`<MediaContainer size="1"><Video ratingKey="123" type="movie"><Media id="7"><Part id="8" file="/media/Fixture.mkv"/></Media></Video></MediaContainer>`), "123", "movie")
 	if original == nil {
 		t.Fatal("source fixture rejected")
 	}
-	for _, media := range []plexDisplayMedia{{ID: "other", Parts: []plexDisplayPart{{ID: "8"}}}, {ID: "7", Parts: []plexDisplayPart{{ID: "other"}}}} {
+	for _, media := range []plex.DisplayMedia{{ID: "other", Parts: []plex.DisplayPart{{ID: "8"}}}, {ID: "7", Parts: []plex.DisplayPart{{ID: "other"}}}} {
 		display := &activityDisplay{}
-		applyPlexSourceDisplay(display, plexDisplayRow{Media: []plexDisplayMedia{media}}, *original)
+		plex.ApplySourceDisplay(display, plex.DisplayRow{Media: []plex.DisplayMedia{media}}, *original)
 		if display.MediaPath != "" {
 			t.Fatal("wrong source version path exposed")
 		}
@@ -75,7 +77,7 @@ func TestPlexMediaDetailsCurrentAdminOnly(t *testing.T) {
 
 func TestPlexMediaDetailsUnknownAndUntrustedPath(t *testing.T) {
 	for _, file := range []string{"https://example.invalid/file?token=secret", "/media/test&#10;secret.mkv"} {
-		displays, err := parsePlexDisplays([]byte(`<MediaContainer><Video><Media><Part file="` + file + `"/></Media></Video></MediaContainer>`))
+		displays, err := plex.ParseDisplays([]byte(`<MediaContainer><Video><Media><Part file="` + file + `"/></Media></Video></MediaContainer>`))
 		if err != nil {
 			t.Fatal(err)
 		}

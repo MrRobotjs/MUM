@@ -1,6 +1,7 @@
 package main
 
 import (
+	"app/server/providers/plex"
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
@@ -43,8 +44,8 @@ func TestPlexSourceLookupFailureAndDeduplicationPreserveSessions(t *testing.T) {
 				fmt.Fprint(w, plexOriginalSource)
 			}
 		}))
-		p, _ := newMediaProvider(ProviderConfig{"plex", upstream.URL, "fixture-secret"}, nil)
-		s, err := p.(*jsonProvider).readActivitySnapshot(t.Context())
+		p, _ := newServerConnection(ProviderConfig{"plex", upstream.URL, "fixture-secret"}, nil)
+		s, err := p.readActivitySnapshot(t.Context())
 		upstream.Close()
 		if err != nil || len(s.Sessions) != 2 || metadataReads.Load() != 1 {
 			t.Fatal("optional metadata changed session membership or was not deduplicated", err, metadataReads.Load())
@@ -53,7 +54,7 @@ func TestPlexSourceLookupFailureAndDeduplicationPreserveSessions(t *testing.T) {
 }
 
 func TestPlexSourceLookupCapAndIdentityChecks(t *testing.T) {
-	if decodePlexSourceDisplay([]byte(strings.Replace(plexOriginalSource, `ratingKey="123"`, `ratingKey="999"`, 1)), "123", "movie") != nil {
+	if plex.DecodeSourceDisplay([]byte(strings.Replace(plexOriginalSource, `ratingKey="123"`, `ratingKey="999"`, 1)), "123", "movie") != nil {
 		t.Fatal("wrong source identity accepted")
 	}
 	var requests atomic.Int64
@@ -75,8 +76,8 @@ func TestPlexSourceLookupCapAndIdentityChecks(t *testing.T) {
 		w.WriteHeader(404)
 	}))
 	defer upstream.Close()
-	p, _ := newMediaProvider(ProviderConfig{"plex", upstream.URL, "fixture-secret"}, nil)
-	s, err := p.(*jsonProvider).readActivitySnapshot(t.Context())
+	p, _ := newServerConnection(ProviderConfig{"plex", upstream.URL, "fixture-secret"}, nil)
+	s, err := p.readActivitySnapshot(t.Context())
 	if err != nil || len(s.Sessions) != 40 || requests.Load() != 32 {
 		t.Fatal("source lookup budget not bounded", err, requests.Load())
 	}
@@ -143,11 +144,11 @@ func TestPlexActivityAvatarProxyRechecksAuthorizationAndRedactsSecrets(t *testin
 
 func TestPlexCloudAvatarRejectsRedirects(t *testing.T) {
 	var calls int
-	p, _ := newMediaProvider(ProviderConfig{"plex", "http://127.0.0.1", "private-key"}, &http.Client{Transport: providerTransport(func(r *http.Request) (*http.Response, error) {
+	p, _ := newServerConnection(ProviderConfig{"plex", "http://127.0.0.1", "private-key"}, &http.Client{Transport: providerTransport(func(r *http.Request) (*http.Response, error) {
 		calls++
 		return &http.Response{StatusCode: 302, Header: http.Header{"Location": {"https://evil.test/avatar"}}, Body: io.NopCloser(strings.NewReader("")), Request: r}, nil
 	})})
-	if _, _, err := p.(*jsonProvider).plexActivityAvatar(t.Context(), "https://plex.tv/users/fixture-user/avatar"); err == nil || calls != 1 {
+	if _, _, err := p.activityAvatar(t.Context(), "https://plex.tv/users/fixture-user/avatar"); err == nil || calls != 1 {
 		t.Fatal("avatar redirect was followed", err, calls)
 	}
 }
@@ -161,9 +162,9 @@ func TestPlexSourceLookupDeadlineKeepsValidSessions(t *testing.T) {
 		<-r.Context().Done()
 	}))
 	defer upstream.Close()
-	p, _ := newMediaProvider(ProviderConfig{"plex", upstream.URL, "fixture-secret"}, nil)
+	p, _ := newServerConnection(ProviderConfig{"plex", upstream.URL, "fixture-secret"}, nil)
 	started := time.Now()
-	s, err := p.(*jsonProvider).readActivitySnapshot(t.Context())
+	s, err := p.readActivitySnapshot(t.Context())
 	if err != nil || len(s.Sessions) != 1 || time.Since(started) > 6*time.Second {
 		t.Fatal("optional source deadline lost sessions or exceeded budget", err)
 	}
@@ -171,16 +172,16 @@ func TestPlexSourceLookupDeadlineKeepsValidSessions(t *testing.T) {
 
 func TestPlexSourceSelectionDoesNotGuessOrEraseKnownVideo(t *testing.T) {
 	var live struct {
-		Rows []plexDisplayRow `xml:",any"`
+		Rows []plex.DisplayRow `xml:",any"`
 	}
 	if err := xml.Unmarshal([]byte(plexOutputPlaying()), &live); err != nil {
 		t.Fatal(err)
 	}
-	source := decodePlexSourceDisplay([]byte(plexOriginalSource), "123", "movie")
+	source := plex.DecodeSourceDisplay([]byte(plexOriginalSource), "123", "movie")
 	if source == nil {
 		t.Fatal("source fixture invalid")
 	}
-	displays, err := parsePlexDisplays([]byte(plexOutputPlaying()))
+	displays, err := plex.ParseDisplays([]byte(plexOutputPlaying()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -188,14 +189,14 @@ func TestPlexSourceSelectionDoesNotGuessOrEraseKnownVideo(t *testing.T) {
 	before := d.Video
 	beforeContainer := d.Container
 	wrong := live.Rows[0]
-	wrong.Media = append([]plexDisplayMedia(nil), wrong.Media...)
+	wrong.Media = append([]plex.DisplayMedia(nil), wrong.Media...)
 	wrong.Media[0].ID = "999"
-	applyPlexSourceDisplay(&d, wrong, *source)
+	plex.ApplySourceDisplay(&d, wrong, *source)
 	if d.Video != before || d.Container != beforeContainer {
 		t.Fatal("another version was guessed", d)
 	}
-	sparse := decodePlexSourceDisplay([]byte(`<MediaContainer size="1"><Video ratingKey="123" type="movie"><Media id="7"><Part id="8"/></Media></Video></MediaContainer>`), "123", "movie")
-	applyPlexSourceDisplay(&d, live.Rows[0], *sparse)
+	sparse := plex.DecodeSourceDisplay([]byte(`<MediaContainer size="1"><Video ratingKey="123" type="movie"><Media id="7"><Part id="8"/></Media></Video></MediaContainer>`), "123", "movie")
+	plex.ApplySourceDisplay(&d, live.Rows[0], *sparse)
 	if d.Video != before {
 		t.Fatal("sparse metadata erased reported video", d)
 	}
@@ -210,8 +211,8 @@ func TestPlexLocalAvatarUsesOnlyConfiguredProvider(t *testing.T) {
 		fmt.Fprint(w, "PNG avatar")
 	}))
 	defer upstream.Close()
-	p, _ := newMediaProvider(ProviderConfig{"plex", upstream.URL + "/proxy", "fixture-secret"}, nil)
-	if _, _, err := p.(*jsonProvider).plexActivityAvatar(t.Context(), "/accounts/42/thumb"); err != nil {
+	p, _ := newServerConnection(ProviderConfig{"plex", upstream.URL + "/proxy", "fixture-secret"}, nil)
+	if _, _, err := p.activityAvatar(t.Context(), "/accounts/42/thumb"); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -222,17 +223,17 @@ func TestPlexSourceTranscodeUsesSourceAndOutputResolutions(t *testing.T) {
 	body = strings.Replace(body, `height="804"`, `height="720"`, 1)
 	body = strings.Replace(body, `<TranscodeSession videoDecision="transcode" audioDecision="transcode" videoCodec="hevc"`, `<TranscodeSession transcodeHwDecoding="1" transcodeHwEncoding="1" videoDecision="transcode" audioDecision="transcode" videoCodec="h264"`, 1)
 	var live struct {
-		Rows []plexDisplayRow `xml:",any"`
+		Rows []plex.DisplayRow `xml:",any"`
 	}
 	if err := xml.Unmarshal([]byte(body), &live); err != nil {
 		t.Fatal(err)
 	}
-	displays, err := parsePlexDisplays([]byte(body))
+	displays, err := plex.ParseDisplays([]byte(body))
 	if err != nil {
 		t.Fatal(err)
 	}
-	source := decodePlexSourceDisplay([]byte(plexOriginalSource), "123", "movie")
-	applyPlexSourceDisplay(displays[0], live.Rows[0], *source)
+	source := plex.DecodeSourceDisplay([]byte(plexOriginalSource), "123", "movie")
+	plex.ApplySourceDisplay(displays[0], live.Rows[0], *source)
 	if displays[0].Video != "Transcode (HEVC (HW) 1080p → H264 (HW) 720p)" {
 		t.Fatal("source/output resolutions mixed", displays[0].Video)
 	}
@@ -256,11 +257,11 @@ func TestPlexSourceMetadataSeparatesSourceFromPlaybackOutput(t *testing.T) {
 		}
 	}))
 	defer upstream.Close()
-	provider, err := newMediaProvider(ProviderConfig{"plex", upstream.URL, "fixture-secret"}, nil)
+	provider, err := newServerConnection(ProviderConfig{"plex", upstream.URL, "fixture-secret"}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	s, err := provider.(*jsonProvider).readActivitySnapshot(t.Context())
+	s, err := provider.readActivitySnapshot(t.Context())
 	if err != nil || len(s.Sessions) != 1 {
 		t.Fatal(err)
 	}
@@ -271,12 +272,12 @@ func TestPlexSourceMetadataSeparatesSourceFromPlaybackOutput(t *testing.T) {
 }
 
 func TestPlexAvatarPathsRemoveSecretsAndRejectUntrustedOrigins(t *testing.T) {
-	got := safePlexActivityAvatar("https://plex.tv/users/fixture-user/avatar?c=123&X-Plex-Token=secret")
+	got := plex.ActivityAvatar("https://plex.tv/users/fixture-user/avatar?c=123&X-Plex-Token=secret")
 	if got != "https://plex.tv/users/fixture-user/avatar?c=123" {
 		t.Fatal("unsafe avatar canonicalization", got)
 	}
 	for _, bad := range []string{"https://evil.test/avatar", "https://plex.tv.evil.test/users/id/avatar", "https://user:secret@plex.tv/users/id/avatar", "https://plex.tv:123/users/id/avatar", "/library/metadata/1/thumb", "//evil.test/avatar"} {
-		if safePlexActivityAvatar(bad) != "" {
+		if plex.ActivityAvatar(bad) != "" {
 			t.Fatal("untrusted avatar accepted", bad)
 		}
 	}

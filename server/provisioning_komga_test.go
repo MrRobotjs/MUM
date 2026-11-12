@@ -1,6 +1,7 @@
 package main
 
 import (
+	"app/server/providers/komga"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -19,7 +20,7 @@ type komgaProvisionFixture struct {
 	mode, email                      string
 	created, absent, all             bool
 	roles, libraries, allow, exclude []string
-	age                              *komgaAgeRestriction
+	age                              *komga.AgeRestriction
 	creates, passwords, patches      int
 	lastPassword                     string
 	beforeInspect                    func()
@@ -90,12 +91,12 @@ func newKomgaProvisionFixture(t *testing.T, mode string) *komgaProvisionFixture 
 			var body struct {
 				Email, Password string
 				Roles           []string
-				SharedLibraries komgaLibraryGrant
+				SharedLibraries komga.LibraryGrant
 			}
 			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 				t.Error(err)
 			}
-			if !validKomgaEmail(body.Email) || len(body.Password) < 32 || len(body.Password) > 72 || body.Password == invitationPassword || len(body.Roles) != 0 || body.SharedLibraries.All || len(body.SharedLibraries.IDs) != 0 {
+			if !komga.ValidEmail(body.Email) || len(body.Password) < 32 || len(body.Password) > 72 || body.Password == invitationPassword || len(body.Roles) != 0 || body.SharedLibraries.All || len(body.SharedLibraries.IDs) != 0 {
 				t.Error("unsafe create")
 			}
 			f.created = true
@@ -112,7 +113,7 @@ func newKomgaProvisionFixture(t *testing.T, mode string) *komgaProvisionFixture 
 		case "PATCH /proxy/api/v2/users/komga-user":
 			var body struct {
 				Roles           []string
-				SharedLibraries komgaLibraryGrant
+				SharedLibraries komga.LibraryGrant
 			}
 			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 				t.Error(err)
@@ -255,7 +256,7 @@ func TestKomgaRevocationScopeAndResumePreserveContentRestrictions(t *testing.T) 
 	f.mu.Lock()
 	f.mode = ""
 	f.roles = append(f.roles, "FILE_DOWNLOAD", "KOBO_SYNC")
-	f.age = &komgaAgeRestriction{12, "ALLOW_ONLY"}
+	f.age = &komga.AgeRestriction{Age: 12, Restriction: "ALLOW_ONLY"}
 	f.allow = []string{"kids"}
 	f.exclude = []string{"private"}
 	f.mu.Unlock()

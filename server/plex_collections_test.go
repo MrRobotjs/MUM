@@ -20,7 +20,7 @@ func TestPlexCollectionsAdapterCompleteSnapshot(t *testing.T) {
 		}
 		fmt.Fprint(w, `<MediaContainer offset="2" size="1" totalSize="3"><Directory ratingKey="52" type="collection" title="Odd poster" thumb="https://evil.example/x.png"/></MediaContainer>`)
 	})
-	got, err := p.plexCatalogueCollections(context.Background(), "7", "movie")
+	got, err := p.catalogueCollections(context.Background(), "7", "movie")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,7 +64,7 @@ func TestPlexCollectionsAdapterRejectsIncompleteSnapshots(t *testing.T) {
 				}
 				fmt.Fprint(w, body)
 			})
-			if got, err := p.plexCatalogueCollections(context.Background(), "7", "movie"); err == nil {
+			if got, err := p.catalogueCollections(context.Background(), "7", "movie"); err == nil {
 				t.Fatal("incomplete snapshot accepted", got)
 			}
 		})
@@ -75,12 +75,12 @@ func TestPlexCollectionsAdapterRefusesUnsupportedBeforeHTTP(t *testing.T) {
 	calls := 0
 	p := plexCatalogueFixture(t, func(http.ResponseWriter, *http.Request) { calls++ })
 	for _, tc := range [][2]string{{"7", "artist"}, {"x", "movie"}, {"07", "show"}} {
-		if _, err := p.plexCatalogueCollections(context.Background(), tc[0], tc[1]); err == nil {
+		if _, err := p.catalogueCollections(context.Background(), tc[0], tc[1]); err == nil {
 			t.Fatal("unsupported section admitted", tc)
 		}
 	}
 	for _, tc := range [][2]string{{"50", "/library/collections/51/composite/1"}, {"50", "/library/metadata/50/art/1"}, {"50", "/library/collections/50/composite/1?x=1"}, {"x", "/library/collections/x/composite/1"}} {
-		if _, _, err := p.plexCollectionImage(context.Background(), tc[0], tc[1]); err == nil {
+		if _, _, err := p.collectionImage(context.Background(), tc[0], tc[1]); err == nil {
 			t.Fatal("unbound poster admitted", tc)
 		}
 	}
@@ -97,7 +97,7 @@ func TestPlexCollectionImageFetchesBoundComposite(t *testing.T) {
 		w.Header().Set("Content-Type", "image/jpeg")
 		fmt.Fprint(w, "composite")
 	})
-	kind, body, err := p.plexCollectionImage(context.Background(), "50", "/library/collections/50/composite/7")
+	kind, body, err := p.collectionImage(context.Background(), "50", "/library/collections/50/composite/7")
 	if err != nil || kind != "image/jpeg" || string(body) != "composite" {
 		t.Fatal(kind, string(body), err)
 	}

@@ -10,15 +10,15 @@ import (
 	"testing"
 )
 
-func plexCatalogueFixture(t *testing.T, handler http.HandlerFunc) *jsonProvider {
+func plexCatalogueFixture(t *testing.T, handler http.HandlerFunc) *serverConnection {
 	t.Helper()
 	server := httptest.NewServer(handler)
 	t.Cleanup(server.Close)
-	provider, err := newMediaProvider(ProviderConfig{"plex", server.URL + "/proxy", "fixture-secret"}, server.Client())
+	provider, err := newServerConnection(ProviderConfig{"plex", server.URL + "/proxy", "fixture-secret"}, server.Client())
 	if err != nil {
 		t.Fatal(err)
 	}
-	return provider.(*jsonProvider)
+	return provider
 }
 
 func TestPlexCatalogueAdapterCompleteSnapshots(t *testing.T) {
@@ -47,7 +47,7 @@ func TestPlexCatalogueAdapterCompleteSnapshots(t *testing.T) {
 				fmt.Fprint(w, `</MediaContainer>`)
 			})
 			progress := 0
-			items, err := p.plexCatalogueItems(t.Context(), "7", kind, func(fetched, total int) {
+			items, err := p.catalogueItems(t.Context(), "7", kind, func(fetched, total int) {
 				if total != 201 || fetched <= progress {
 					t.Error("invalid progress", fetched, total)
 				}
@@ -89,7 +89,7 @@ func TestPlexCatalogueAdapterRefusesIncompleteAndAmbiguousSnapshots(t *testing.T
 	for name, body := range cases {
 		t.Run(name, func(t *testing.T) {
 			p := plexCatalogueFixture(t, func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, body) })
-			if items, err := p.plexCatalogueItems(t.Context(), "7", "movie", nil); err == nil || items != nil {
+			if items, err := p.catalogueItems(t.Context(), "7", "movie", nil); err == nil || items != nil {
 				t.Fatal("incomplete snapshot accepted", items, err)
 			}
 		})
@@ -102,7 +102,7 @@ func TestPlexCatalogueAdapterRefusesIncompleteAndAmbiguousSnapshots(t *testing.T
 				fmt.Fprint(w, `<MediaContainer totalSize="1" size="0" offset="1"/>`)
 			}
 		})
-		if items, err := p.plexCatalogueItems(t.Context(), "7", "movie", nil); err == nil || items != nil {
+		if items, err := p.catalogueItems(t.Context(), "7", "movie", nil); err == nil || items != nil {
 			t.Fatal(items, err)
 		}
 	})
@@ -111,7 +111,7 @@ func TestPlexCatalogueAdapterRefusesIncompleteAndAmbiguousSnapshots(t *testing.T
 			start := r.Header.Get("X-Plex-Container-Start")
 			fmt.Fprintf(w, `<MediaContainer totalSize="2" size="1" offset="%s">%s</MediaContainer>`, start, good)
 		})
-		if items, err := p.plexCatalogueItems(t.Context(), "7", "movie", nil); err == nil || items != nil {
+		if items, err := p.catalogueItems(t.Context(), "7", "movie", nil); err == nil || items != nil {
 			t.Fatal(items, err)
 		}
 	})
@@ -122,21 +122,21 @@ func TestPlexCatalogueAdapterRefusesIncompleteAndAmbiguousSnapshots(t *testing.T
 			calls++
 			fmt.Fprint(w, `<MediaContainer totalSize="0" size="0" offset="0"/>`)
 		})
-		items, err := p.plexCatalogueItems(t.Context(), "7", "movie", nil)
+		items, err := p.catalogueItems(t.Context(), "7", "movie", nil)
 		if err != nil || items == nil || len(items) != 0 {
 			t.Fatal(items, err)
 		}
 		for _, section := range []string{"../7", "01", "0", "-1", "7?token=secret"} {
-			if _, err := p.plexCatalogueItems(t.Context(), section, "movie", nil); err == nil {
+			if _, err := p.catalogueItems(t.Context(), section, "movie", nil); err == nil {
 				t.Fatal(section)
 			}
 		}
-		if _, err := p.plexCatalogueItems(t.Context(), "7", "artist", nil); err == nil {
+		if _, err := p.catalogueItems(t.Context(), "7", "artist", nil); err == nil {
 			t.Fatal("unsupported kind accepted")
 		}
 		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
-		if _, err := p.plexCatalogueItems(ctx, "7", "movie", nil); err == nil {
+		if _, err := p.catalogueItems(ctx, "7", "movie", nil); err == nil {
 			t.Fatal("cancelled snapshot succeeded")
 		}
 		if calls != 1 {
@@ -157,7 +157,7 @@ func TestPlexCatalogueAdapterImages(t *testing.T) {
 				w.Header().Set("Content-Type", kind)
 				fmt.Fprint(w, "fixture-image")
 			})
-			mime, body, err := p.plexCatalogueImage(t.Context(), "1", "/library/metadata/1/thumb/123")
+			mime, body, err := p.catalogueImage(t.Context(), "1", "/library/metadata/1/thumb/123")
 			if kind == "image/png" {
 				if err != nil || mime != kind || string(body) != "fixture-image" {
 					t.Fatal(mime, string(body), err)
@@ -166,7 +166,7 @@ func TestPlexCatalogueAdapterImages(t *testing.T) {
 				t.Fatal("active image type accepted")
 			}
 			for _, bad := range []string{"https://example.invalid/", "/library/metadata/2/thumb/123", "/library/metadata/1/thumb/../x", "/library/metadata/1/thumb/123?X-Plex-Token=secret", "//example.invalid/path", "/library/metadata/1/thumb/%31"} {
-				if _, _, err := p.plexCatalogueImage(t.Context(), "1", bad); err == nil {
+				if _, _, err := p.catalogueImage(t.Context(), "1", bad); err == nil {
 					t.Fatal(bad)
 				}
 			}
@@ -180,7 +180,7 @@ func TestPlexCatalogueAdapterImages(t *testing.T) {
 		target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { hits++ }))
 		defer target.Close()
 		p := plexCatalogueFixture(t, func(w http.ResponseWriter, r *http.Request) { http.Redirect(w, r, target.URL, 302) })
-		if _, _, err := p.plexCatalogueImage(t.Context(), "1", "/library/metadata/1/thumb"); err == nil || hits != 0 {
+		if _, _, err := p.catalogueImage(t.Context(), "1", "/library/metadata/1/thumb"); err == nil || hits != 0 {
 			t.Fatal("followed image redirect", hits, err)
 		}
 	})
@@ -189,12 +189,12 @@ func TestPlexCatalogueAdapterImages(t *testing.T) {
 			w.Header().Set("Content-Type", "image/png")
 			fmt.Fprint(w, strings.Repeat("x", catalogueImageMax+1))
 		})
-		if _, body, err := p.plexCatalogueImage(t.Context(), "1", "/library/metadata/1/thumb"); err == nil || body != nil || strings.Contains(err.Error(), "fixture-secret") {
+		if _, body, err := p.catalogueImage(t.Context(), "1", "/library/metadata/1/thumb"); err == nil || body != nil || strings.Contains(err.Error(), "fixture-secret") {
 			t.Fatal(len(body), err)
 		}
 		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
-		if _, _, err := p.plexCatalogueImage(ctx, "1", "/library/metadata/1/thumb"); err == nil {
+		if _, _, err := p.catalogueImage(ctx, "1", "/library/metadata/1/thumb"); err == nil {
 			t.Fatal("cancelled request succeeded")
 		}
 	})

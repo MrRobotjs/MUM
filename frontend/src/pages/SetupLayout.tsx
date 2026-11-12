@@ -20,7 +20,7 @@ type StepDefinition = {
 
 const steps: StepDefinition[] = [
   { id: 'account', label: 'Owner Account', description: 'Create administrator credentials', href: '/setup/account', icon: <FontAwesomeIcon icon={faShield} className="h-4 w-4" /> },
-  { id: 'plugins', label: 'Media Services', description: 'Enable Plex, Jellyfin, Emby…', href: '/setup/plugins', icon: <FontAwesomeIcon icon={faServer} className="h-4 w-4" /> },
+  { id: 'plugins', label: 'Media Servers', description: 'Enable Plex, Jellyfin, Emby…', href: '/setup/media-servers', icon: <FontAwesomeIcon icon={faServer} className="h-4 w-4" /> },
   { id: 'app', label: 'App Config', description: 'Branding & base URL', href: '/setup/app', icon: <FontAwesomeIcon icon={faGear} className="h-4 w-4" /> },
   { id: 'finish', label: 'Finish', description: 'You are all set', icon: <FontAwesomeIcon icon={faCheck} className="h-4 w-4" /> },
 ]

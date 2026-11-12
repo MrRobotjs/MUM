@@ -86,7 +86,7 @@ const normalizeServerPayload = (
 };
 
 export const AdminSettingsPluginsServerEditPage = () => {
-  const { pluginId, serverId } = useParams({ from: '/admin/settings/plugins/$pluginId/servers/$serverId' });
+  const { pluginId, serverId } = useParams({ from: '/admin/settings/media-servers/$pluginId/servers/$serverId' });
   const navigate = useNavigate();
   const { success, error: showError } = useAlerts();
   const { hasCapability } = usePluginCapabilities();
@@ -253,7 +253,7 @@ export const AdminSettingsPluginsServerEditPage = () => {
       });
       success(`Server "${values.server_nickname}" updated`);
       await refreshServers();
-      navigate({ to: '/admin/settings/plugins/$pluginId', params: { pluginId } } as any);
+      navigate({ to: '/admin/settings/media-servers/$pluginId', params: { pluginId } } as any);
     } catch (err) {
       setError((err as Error).message || 'Failed to save server');
       showError(`Failed to save server: ${(err as Error).message}`);
@@ -288,7 +288,7 @@ export const AdminSettingsPluginsServerEditPage = () => {
   };
 
   const handleCancel = () => {
-    navigate({ to: '/admin/settings/plugins/$pluginId', params: { pluginId } } as any);
+    navigate({ to: '/admin/settings/media-servers/$pluginId', params: { pluginId } } as any);
   };
 
   if (serverLoading) {
@@ -522,7 +522,7 @@ export const AdminSettingsPluginsServerEditPage = () => {
                       </div>
                       {!isPluginEnabled ? (
                         <p className="text-xs text-muted-foreground">
-                          Enable the plugin to change server status.
+                          Enable this media service to change server status.
                         </p>
                       ) : null}
                     </div>

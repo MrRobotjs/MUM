@@ -1,6 +1,7 @@
 package main
 
 import (
+	"app/server/providers/plex"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -96,11 +97,11 @@ func TestNonProfileProviderSyncPreservesStoredPresentation(t *testing.T) {
 
 func TestPlexShareJoinDateUsesOnlyAcceptedUnixSeconds(t *testing.T) {
 	for _, value := range []string{"", "0", "-1", "+1700000000", "1700000000.0", "2023-11-14T22:13:20Z", "253402300800", "999999999999999999999", " 1700000000"} {
-		if got := plexShareJoinDate(value); got != "" {
+		if got := plex.ShareJoinDate(value); got != "" {
 			t.Fatalf("invalid acceptedAt %q yielded %q", value, got)
 		}
 	}
-	if got := plexShareJoinDate("1700000000"); got != "2023-11-14T22:13:20Z" {
+	if got := plex.ShareJoinDate("1700000000"); got != "2023-11-14T22:13:20Z" {
 		t.Fatal(got)
 	}
 }

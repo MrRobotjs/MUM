@@ -1,6 +1,9 @@
 package main
 
 import (
+	"app/server/providers/kavita"
+	"app/server/providers/komga"
+	"app/server/providers/mediabrowser"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -45,7 +48,7 @@ func TestBulkProviderPreservesPolicyAndLostDeleteResponse(t *testing.T) {
 		}
 	}))
 	defer s.Close()
-	p := &jsonProvider{config: ProviderConfig{Type: "jellyfin", URL: s.URL, APIKey: "fixture"}, client: s.Client()}
+	p := &serverConnection{config: ProviderConfig{Type: "jellyfin", URL: s.URL, APIKey: "fixture"}, client: s.Client()}
 	req := bulkProviderRequest{Action: "update_libraries", ID: "u", Name: "Reader", LibraryIDs: []string{"books"}}
 	snap, err := p.prepareBulkUser(context.Background(), req)
 	if err != nil {
@@ -72,8 +75,8 @@ func TestBulkProviderAuthorityStopsRoundtrip(t *testing.T) {
 	calls := 0
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { calls++; w.Write([]byte(`{}`)) }))
 	defer s.Close()
-	p := &jsonProvider{config: ProviderConfig{Type: "jellyfin", URL: s.URL, APIKey: "fixture"}, client: s.Client(), bulkAuthority: func(context.Context) error { return ErrConflict }}
-	if _, err := p.fetch(t.Context(), "GET", s.URL, nil); err == nil || calls != 0 {
+	p := &serverConnection{config: ProviderConfig{Type: "jellyfin", URL: s.URL, APIKey: "fixture"}, client: s.Client(), bulkAuthority: func(context.Context) error { return ErrConflict }}
+	if _, err := guardedRequest(t, p, "GET", s.URL, nil); err == nil || calls != 0 {
 		t.Fatalf("authority bypass %v %d", err, calls)
 	}
 	checks := 0
@@ -84,25 +87,26 @@ func TestBulkProviderAuthorityStopsRoundtrip(t *testing.T) {
 		}
 		return nil
 	}
-	if _, err := p.fetch(t.Context(), "GET", s.URL, nil); err == nil || calls != 1 {
+	if _, err := guardedRequest(t, p, "GET", s.URL, nil); err == nil || calls != 1 {
 		t.Fatalf("post authority bypass %v %d", err, calls)
 	}
 }
 func TestBulkProviderGrantMatchingDistinguishesNoneAllAndSubset(t *testing.T) {
-	p := &jsonProvider{config: ProviderConfig{Type: "jellyfin"}}
-	u := remoteReview{Policy: map[string]any{"EnableAllFolders": false, "EnabledFolders": []string{}}}
+	p := &serverConnection{config: ProviderConfig{Type: "jellyfin"}}
+	u := remoteReview{Detail: &mediabrowser.Observed{Policy: map[string]any{"EnableAllFolders": false, "EnabledFolders": []string{}}}}
 	if !p.bulkGrantMatches(t.Context(), bulkProviderRequest{}, u) || p.bulkGrantMatches(t.Context(), bulkProviderRequest{AllLibraries: true}, u) || p.bulkGrantMatches(t.Context(), bulkProviderRequest{LibraryIDs: []string{"a"}}, u) {
 		t.Fatal("zero libraries broadened")
 	}
 }
 func TestBulkProviderSnapshotBindsUnrelatedRestrictions(t *testing.T) {
-	a := remoteReview{ID: "id", Name: "reader", Policy: map[string]any{"EnableAllFolders": false, "EnabledFolders": []string{"a"}, "BlockedTags": []string{"restricted"}}}
-	b := remoteReview{ID: "id", Name: "reader", Policy: map[string]any{"EnableAllFolders": true, "EnabledFolders": []string{}, "BlockedTags": []string{"restricted"}}}
-	if bulkHash(a) == bulkHash(b) || bulkGrantProtection(a) != bulkGrantProtection(b) {
+	p := &serverConnection{config: ProviderConfig{Type: "jellyfin"}}
+	a := remoteReview{ID: "id", Name: "reader", Detail: &mediabrowser.Observed{Policy: map[string]any{"EnableAllFolders": false, "EnabledFolders": []string{"a"}, "BlockedTags": []string{"restricted"}}}}
+	b := remoteReview{ID: "id", Name: "reader", Detail: &mediabrowser.Observed{Policy: map[string]any{"EnableAllFolders": true, "EnabledFolders": []string{}, "BlockedTags": []string{"restricted"}}}}
+	if bulkHash(a) == bulkHash(b) || p.bulkGrantProtection(a) != p.bulkGrantProtection(b) {
 		t.Fatal("grant boundary incorrect")
 	}
-	b.Policy["BlockedTags"] = []string{}
-	if bulkGrantProtection(a) == bulkGrantProtection(b) {
+	b.Detail.(*mediabrowser.Observed).Policy["BlockedTags"] = []string{}
+	if p.bulkGrantProtection(a) == p.bulkGrantProtection(b) {
 		t.Fatal("restriction change ignored")
 	}
 }
@@ -209,8 +213,8 @@ func TestBulkProviderKomgaPreservesRolesAndRestrictions(t *testing.T) {
 	f.libraries = []string{"old"}
 	f.allow = []string{"allowed"}
 	f.exclude = []string{"blocked"}
-	f.age = &komgaAgeRestriction{Age: 16, Restriction: "EXCLUDE"}
-	p := &jsonProvider{config: ProviderConfig{Type: "komga", URL: f.server.URL + "/proxy", APIKey: "fixture-secret"}, client: f.server.Client()}
+	f.age = &komga.AgeRestriction{Age: 16, Restriction: "EXCLUDE"}
+	p := &serverConnection{config: ProviderConfig{Type: "komga", URL: f.server.URL + "/proxy", APIKey: "fixture-secret"}, client: f.server.Client()}
 	req := bulkProviderRequest{Action: "update_libraries", ID: "komga-user", Name: f.email, LibraryIDs: []string{"komga-shelf"}}
 	snap, err := p.prepareBulkUser(t.Context(), req)
 	if err != nil {
@@ -239,7 +243,7 @@ func TestBulkProviderABSAndKavitaPreserveRestrictions(t *testing.T) {
 		f.permissions = map[string]bool{"download": true, "update": true, "delete": false, "upload": false, "createEreader": false, "accessAllLibraries": true, "accessAllTags": false, "accessExplicitContent": true, "selectedTagsNotAccessible": true}
 		f.libraries = []string{}
 		f.tags = []string{"restricted"}
-		p := &jsonProvider{config: ProviderConfig{Type: "audiobookshelf", URL: f.server.URL + "/proxy", APIKey: "fixture-secret"}, client: f.server.Client()}
+		p := &serverConnection{config: ProviderConfig{Type: "audiobookshelf", URL: f.server.URL + "/proxy", APIKey: "fixture-secret"}, client: f.server.Client()}
 		req := bulkProviderRequest{Action: "update_libraries", ID: "abs-user", Name: "Reader", LibraryIDs: []string{"abs-books"}}
 		snap, err := p.prepareBulkUser(t.Context(), req)
 		if err != nil {
@@ -256,8 +260,8 @@ func TestBulkProviderABSAndKavitaPreserveRestrictions(t *testing.T) {
 		f.name = "Reader"
 		f.roles = []string{"Pleb", "Login", "Download", "Bookmark"}
 		f.libraries = []int64{}
-		f.age = kavitaAgeRestriction{AgeRating: 12, IncludeUnknowns: false}
-		p := &jsonProvider{config: ProviderConfig{Type: "kavita", URL: f.server.URL, APIKey: "fixture-secret"}, client: f.server.Client()}
+		f.age = kavita.AgeRestriction{AgeRating: 12, IncludeUnknowns: false}
+		p := &serverConnection{config: ProviderConfig{Type: "kavita", URL: f.server.URL, APIKey: "fixture-secret"}, client: f.server.Client()}
 		req := bulkProviderRequest{Action: "update_libraries", ID: "17", Name: "Reader", LibraryIDs: []string{"2"}}
 		snap, err := p.prepareBulkUser(t.Context(), req)
 		if err != nil {
@@ -272,7 +276,7 @@ func TestBulkProviderABSAndKavitaPreserveRestrictions(t *testing.T) {
 func TestBulkProviderRecordedDeletionFixtures(t *testing.T) {
 	for _, kind := range []string{"audiobookshelf", "komga", "kavita", "romm"} {
 		t.Run(kind, func(t *testing.T) {
-			var p *jsonProvider
+			var p *serverConnection
 			var gone func()
 			var id, name, path string
 			switch kind {
@@ -283,7 +287,7 @@ func TestBulkProviderRecordedDeletionFixtures(t *testing.T) {
 				f.permissions = map[string]bool{"download": false, "update": false, "delete": false, "upload": false, "createEreader": false, "accessAllLibraries": false, "accessAllTags": true, "accessExplicitContent": false, "selectedTagsNotAccessible": false}
 				f.libraries = []string{}
 				f.tags = []string{}
-				p = &jsonProvider{config: ProviderConfig{Type: kind, URL: f.server.URL + "/proxy", APIKey: "fixture-secret"}, client: f.server.Client()}
+				p = &serverConnection{config: ProviderConfig{Type: kind, URL: f.server.URL + "/proxy", APIKey: "fixture-secret"}, client: f.server.Client()}
 				gone = func() { f.absent = true }
 				id = "abs-user"
 				name = "Reader"
@@ -294,7 +298,7 @@ func TestBulkProviderRecordedDeletionFixtures(t *testing.T) {
 				f.email = "reader@example.invalid"
 				f.roles = []string{"USER"}
 				f.libraries = []string{}
-				p = &jsonProvider{config: ProviderConfig{Type: kind, URL: f.server.URL + "/proxy", APIKey: "fixture-secret"}, client: f.server.Client()}
+				p = &serverConnection{config: ProviderConfig{Type: kind, URL: f.server.URL + "/proxy", APIKey: "fixture-secret"}, client: f.server.Client()}
 				gone = func() { f.absent = true }
 				id = "komga-user"
 				name = f.email
@@ -305,8 +309,8 @@ func TestBulkProviderRecordedDeletionFixtures(t *testing.T) {
 				f.name = "Reader"
 				f.roles = []string{"Pleb"}
 				f.libraries = []int64{}
-				f.age = kavitaAgeRestriction{AgeRating: -1, IncludeUnknowns: true}
-				p = &jsonProvider{config: ProviderConfig{Type: kind, URL: f.server.URL, APIKey: "fixture-secret"}, client: f.server.Client()}
+				f.age = kavita.AgeRestriction{AgeRating: -1, IncludeUnknowns: true}
+				p = &serverConnection{config: ProviderConfig{Type: kind, URL: f.server.URL, APIKey: "fixture-secret"}, client: f.server.Client()}
 				gone = func() { f.absent = true }
 				id = "17"
 				name = "Reader"
@@ -370,14 +374,16 @@ func TestBulkProviderKavitaRejectsDuplicateNameInFinalObservation(t *testing.T) 
 	f.name = "Reader"
 	f.roles = []string{"Pleb"}
 	f.libraries = []int64{}
-	f.age = kavitaAgeRestriction{AgeRating: -1, IncludeUnknowns: true}
-	p := &jsonProvider{config: ProviderConfig{Type: "kavita", URL: f.server.URL, APIKey: "fixture-secret"}, client: f.server.Client()}
+	f.age = kavita.AgeRestriction{AgeRating: -1, IncludeUnknowns: true}
+	p := &serverConnection{config: ProviderConfig{Type: "kavita", URL: f.server.URL, APIKey: "fixture-secret"}, client: f.server.Client()}
 	base := http.DefaultTransport
 	reads := 0
 	p.client.Transport = providerTransport(func(r *http.Request) (*http.Response, error) {
 		if r.URL.Path == "/api/Users" {
 			reads++
-			if reads == 2 {
+			// Bulk prepare reads the member list once, in the inspection that
+			// decides the outcome; that observation carries the duplicate name.
+			if reads == 1 {
 				body := `[{"id":17,"username":"Reader","isPending":false,"identityProvider":0,"roles":["Pleb"],"libraries":[],"ageRestriction":{"ageRating":-1,"includeUnknowns":true}},{"id":18,"username":"reader"}]`
 				return &http.Response{StatusCode: 200, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(body)), Request: r}, nil
 			}

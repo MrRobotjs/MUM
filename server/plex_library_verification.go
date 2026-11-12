@@ -152,11 +152,11 @@ func (a *App) verifyPlexLibraryCompletionAs(ctx context.Context, job string, ser
 	if err != nil {
 		return err
 	}
-	provider, err := newMediaProvider(config, a.ProviderHTTP)
+	provider, err := newServerConnection(config, a.ProviderHTTP)
 	if err != nil {
 		return err
 	}
-	observation, err := provider.(*jsonProvider).inspectPlexShare(ctx, claim.Account, claim.grant)
+	observation, err := provider.inspectPlexShare(ctx, claim.Account, claim.grant)
 	if err != nil {
 		return err
 	}

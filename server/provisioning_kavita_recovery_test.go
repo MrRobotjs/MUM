@@ -1,6 +1,7 @@
 package main
 
 import (
+	"app/server/providers/kavita"
 	"database/sql"
 	"fmt"
 	"slices"
@@ -38,7 +39,7 @@ func TestKavitaDisablePreservesAccessMetadataAndResumeCompletesOriginalIdentity(
 	}
 	f.mu.Lock()
 	f.mode = ""
-	f.age = kavitaAgeRestriction{12, false}
+	f.age = kavita.AgeRestriction{AgeRating: 12, IncludeUnknowns: false}
 	f.roles = append(f.roles, "Bookmark", "Download")
 	f.libraries = []int64{2, 3}
 	f.mu.Unlock()
@@ -52,7 +53,7 @@ func TestKavitaDisablePreservesAccessMetadataAndResumeCompletesOriginalIdentity(
 		t.Fatal(job)
 	}
 	f.mu.Lock()
-	preserved := slices.Contains(f.roles, "Bookmark") && slices.Contains(f.roles, "Download") && !slices.Contains(f.roles, "Login") && slices.Equal(f.libraries, []int64{2, 3}) && f.age == (kavitaAgeRestriction{12, false})
+	preserved := slices.Contains(f.roles, "Bookmark") && slices.Contains(f.roles, "Download") && !slices.Contains(f.roles, "Login") && slices.Equal(f.libraries, []int64{2, 3}) && f.age == (kavita.AgeRestriction{AgeRating: 12, IncludeUnknowns: false})
 	f.mu.Unlock()
 	if !preserved {
 		t.Fatal("disable changed unrelated access metadata")
@@ -77,7 +78,7 @@ func TestKavitaDisablePreservesAccessMetadataAndResumeCompletesOriginalIdentity(
 		t.Fatal(links, err)
 	}
 	f.mu.Lock()
-	verified := f.invites == 1 && f.confirmations == 1 && f.resets == 1 && f.lastPassword == fmt.Sprintf("new-server-password-%d", id) && !slices.Contains(f.roles, "Bookmark") && !slices.Contains(f.roles, "Download") && slices.Contains(f.roles, "Login") && slices.Equal(f.libraries, []int64{2}) && f.age == (kavitaAgeRestriction{12, false})
+	verified := f.invites == 1 && f.confirmations == 1 && f.resets == 1 && f.lastPassword == fmt.Sprintf("new-server-password-%d", id) && !slices.Contains(f.roles, "Bookmark") && !slices.Contains(f.roles, "Download") && slices.Contains(f.roles, "Login") && slices.Equal(f.libraries, []int64{2}) && f.age == (kavita.AgeRestriction{AgeRating: 12, IncludeUnknowns: false})
 	f.mu.Unlock()
 	if !verified {
 		t.Fatal("resume failed to restore frozen grants or recreated the account")

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"app/server/providers/plex"
 	"context"
 	"crypto/ed25519"
 	"encoding/base64"
@@ -232,24 +233,24 @@ func newPlexAuthFixture(t *testing.T, mode string) *plexAuthFixture {
 }
 func TestPlexDevicePINAndBoundRefresh(t *testing.T) {
 	f := newPlexAuthFixture(t, "")
-	p, err := newPlexDeviceAuth(f.client)
+	p, err := plex.NewDevice(f.client)
 	if err != nil {
 		t.Fatal(err)
 	}
-	pin, err := p.beginPIN(t.Context())
+	pin, err := p.BeginPIN(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.HasPrefix(pin.authorizationURL, "https://app.plex.tv/auth#?") || strings.Contains(pin.authorizationURL, "forwardUrl") || !strings.Contains(pin.authorizationURL, "code="+plexFixtureCode) {
+	if !strings.HasPrefix(pin.AuthorizationURL, "https://app.plex.tv/auth#?") || strings.Contains(pin.AuthorizationURL, "forwardUrl") || !strings.Contains(pin.AuthorizationURL, "code="+plexFixtureCode) {
 		t.Fatal("unsafe authorization destination")
 	}
-	result, err := p.pollPIN(t.Context(), pin)
-	if err != nil || result.Pending || result.Account == nil || result.Account.ID != "2" || result.authToken != plexFixtureToken {
+	result, err := p.PollPIN(t.Context(), pin)
+	if err != nil || result.Pending || result.Account == nil || result.Account.ID != "2" || result.AuthToken != plexFixtureToken {
 		t.Fatal(result, err)
 	}
 	// The token fixture claims a different subject; identity comes from the
 	// authenticated account endpoint rather than an unverified JWT payload.
-	refreshed, err := p.refreshAccount(t.Context(), "2")
+	refreshed, err := p.RefreshAccount(t.Context(), "2")
 	if err != nil || refreshed.Account.ID != "2" {
 		t.Fatal(refreshed, err)
 	}
@@ -258,7 +259,7 @@ func TestPlexDevicePINAndBoundRefresh(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		for _, secret := range []string{plexFixtureToken, plexFixtureCode, string(p.privateKey), "never-serialize-cloud-secret"} {
+		for _, secret := range []string{plexFixtureToken, plexFixtureCode, string(p.PrivateKey), "never-serialize-cloud-secret"} {
 			if strings.Contains(string(data), secret) {
 				t.Fatal("private protocol material serialized")
 			}
@@ -277,13 +278,13 @@ func TestPlexDevicePINAndBoundRefresh(t *testing.T) {
 }
 func TestPlexPINPendingIsNotAccountProof(t *testing.T) {
 	f := newPlexAuthFixture(t, "pending")
-	p, _ := newPlexDeviceAuth(f.client)
-	pin, err := p.beginPIN(t.Context())
+	p, _ := plex.NewDevice(f.client)
+	pin, err := p.BeginPIN(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
-	result, err := p.pollPIN(t.Context(), pin)
-	if err != nil || !result.Pending || result.Account != nil || result.authToken != "" {
+	result, err := p.PollPIN(t.Context(), pin)
+	if err != nil || !result.Pending || result.Account != nil || result.AuthToken != "" {
 		t.Fatal(result, err)
 	}
 	f.mu.Lock()
@@ -296,10 +297,10 @@ func TestPlexAuthRejectsUnsafeResponsesWithoutReplay(t *testing.T) {
 	for _, mode := range []string{"short-code", "expired-create", "create-error", "wrong-pin", "wrong-code", "missing-token", "token-number", "static-token", "poll-error", "account-error", "restricted", "anonymous", "missing-restriction", "missing-username", "bad-id", "wrong-client"} {
 		t.Run(mode, func(t *testing.T) {
 			f := newPlexAuthFixture(t, mode)
-			p, _ := newPlexDeviceAuth(f.client)
-			pin, err := p.beginPIN(t.Context())
+			p, _ := plex.NewDevice(f.client)
+			pin, err := p.BeginPIN(t.Context())
 			if err == nil {
-				_, err = p.pollPIN(t.Context(), pin)
+				_, err = p.PollPIN(t.Context(), pin)
 			}
 			if err == nil || strings.Contains(err.Error(), "private-cloud-error") {
 				t.Fatal("unsafe/unsanitized outcome", err)
@@ -316,14 +317,14 @@ func TestPlexRefreshCannotSwitchIdentity(t *testing.T) {
 	for _, mode := range []string{"account-mismatch", "bad-nonce", "refresh-error"} {
 		t.Run(mode, func(t *testing.T) {
 			f := newPlexAuthFixture(t, "")
-			p, _ := newPlexDeviceAuth(f.client)
-			if _, err := p.beginPIN(t.Context()); err != nil {
+			p, _ := plex.NewDevice(f.client)
+			if _, err := p.BeginPIN(t.Context()); err != nil {
 				t.Fatal(err)
 			}
 			f.mu.Lock()
 			f.mode = mode
 			f.mu.Unlock()
-			if _, err := p.refreshAccount(t.Context(), "2"); err == nil || strings.Contains(err.Error(), "private-cloud-error") {
+			if _, err := p.RefreshAccount(t.Context(), "2"); err == nil || strings.Contains(err.Error(), "private-cloud-error") {
 				t.Fatal(err)
 			}
 			f.mu.Lock()
@@ -336,26 +337,26 @@ func TestPlexRefreshCannotSwitchIdentity(t *testing.T) {
 }
 func TestPlexAuthExpiryBindingCancellationAndRedirects(t *testing.T) {
 	f := newPlexAuthFixture(t, "")
-	p, _ := newPlexDeviceAuth(f.client)
-	pin, err := p.beginPIN(t.Context())
+	p, _ := plex.NewDevice(f.client)
+	pin, err := p.BeginPIN(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
-	other, _ := newPlexDeviceAuth(f.client)
-	if _, err := other.pollPIN(t.Context(), pin); err == nil {
+	other, _ := plex.NewDevice(f.client)
+	if _, err := other.PollPIN(t.Context(), pin); err == nil {
 		t.Fatal("PIN accepted by a different device")
 	}
 	expired := pin
-	expired.expires = time.Now().Add(-time.Second)
-	if _, err := p.pollPIN(t.Context(), expired); err == nil {
+	expired.Expires = time.Now().Add(-time.Second)
+	if _, err := p.PollPIN(t.Context(), expired); err == nil {
 		t.Fatal("expired local PIN accepted")
 	}
-	if _, err := p.refreshAccount(t.Context(), "02"); err == nil {
+	if _, err := p.RefreshAccount(t.Context(), "02"); err == nil {
 		t.Fatal("noncanonical account accepted")
 	}
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	if _, err := p.pollPIN(ctx, pin); err == nil {
+	if _, err := p.PollPIN(ctx, pin); err == nil {
 		t.Fatal("canceled request accepted")
 	}
 	f.mu.Lock()
@@ -367,19 +368,19 @@ func TestPlexAuthExpiryBindingCancellationAndRedirects(t *testing.T) {
 	f.mu.Lock()
 	f.mode = "redirect"
 	f.mu.Unlock()
-	if _, err := p.beginPIN(t.Context()); err == nil || strings.Contains(err.Error(), "forbidden.invalid") {
+	if _, err := p.BeginPIN(t.Context()); err == nil || strings.Contains(err.Error(), "forbidden.invalid") {
 		t.Fatal("redirect followed or leaked", err)
 	}
 }
 func TestPlexDeviceAssertionURLNeverLeaksThroughTransportError(t *testing.T) {
-	p, err := newPlexDeviceAuth(&http.Client{Transport: providerTransport(func(r *http.Request) (*http.Response, error) {
+	p, err := plex.NewDevice(&http.Client{Transport: providerTransport(func(r *http.Request) (*http.Response, error) {
 		return nil, fmt.Errorf("private transport URL: %s", r.URL.String())
 	})})
 	if err != nil {
 		t.Fatal(err)
 	}
-	pin := plexPIN{42, plexFixtureCode, time.Now().Add(time.Minute), p.clientID, ""}
-	_, err = p.pollPIN(t.Context(), pin)
+	pin := plex.PIN{ID: 42, Code: plexFixtureCode, Expires: time.Now().Add(time.Minute), ClientID: p.ClientID}
+	_, err = p.PollPIN(t.Context(), pin)
 	if err == nil || strings.Contains(err.Error(), "deviceJWT") || strings.Contains(err.Error(), "private") {
 		t.Fatal("transport assertion URL leaked", err)
 	}
@@ -389,23 +390,17 @@ func TestPlexAuthResponseBoundsAndDeviceLifetime(t *testing.T) {
 	for _, mode := range []string{"malformed-json", "oversized-response"} {
 		t.Run(mode, func(t *testing.T) {
 			f := newPlexAuthFixture(t, mode)
-			p, _ := newPlexDeviceAuth(f.client)
-			if _, err := p.beginPIN(t.Context()); err == nil {
+			p, _ := plex.NewDevice(f.client)
+			if _, err := p.BeginPIN(t.Context()); err == nil {
 				t.Fatal("unbounded or invalid JSON accepted")
 			}
 		})
 	}
-	p, err := newPlexDeviceAuth(&http.Client{Timeout: time.Hour})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if p.client.Timeout != 15*time.Second {
-		t.Fatal("unbounded client timeout")
-	}
+	// The device's client timeout bound is tested in package plex.
 	// Token syntax alone cannot supply a valid account proof; cloud verification
 	// remains mandatory, and static opaque tokens have no fallback here.
 	for _, token := range []string{"opaque-token", "a.b.c", "a..b", strings.Repeat("x", 16385)} {
-		if plexJWTShape(token) {
+		if plex.JWTShape(token) {
 			t.Fatal("invalid JWT envelope accepted")
 		}
 	}

@@ -300,7 +300,7 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
             : s
         )
       );
-      setServerError('Libraries are unavailable because this server or its plugin is disabled.');
+      setServerError('Libraries are unavailable because this server or its media service is disabled.');
       return;
     }
     setServers((prev) =>
@@ -357,7 +357,7 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
         clearSelectedLibrariesForServer(serverId);
       } else if (server && !server.libraries) {
         if (!isServerEffectivelyActive(server)) {
-          setServerError('Libraries are unavailable because this server or its plugin is disabled.');
+          setServerError('Libraries are unavailable because this server or its media service is disabled.');
           setServers((prev) =>
             prev.map((s) =>
               s.id === serverId
@@ -807,7 +807,7 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
                                           title={
                                             isAvailable
                                               ? 'Refresh libraries from server'
-                                              : 'Libraries are unavailable while this server or plugin is disabled'
+                                              : 'Libraries are unavailable while this server or its media service is disabled'
                                           }
                                         >
                                           <FontAwesomeIcon icon={faRotate} />
@@ -828,7 +828,7 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
                                         </div>
                                       ) : librariesUnavailable ? (
                                         <div className="col-span-2 text-center text-xs text-muted-foreground">
-                                          Libraries are unavailable while this server or plugin is disabled.
+                                          Libraries are unavailable while this server or its media service is disabled.
                                         </div>
                                       ) : filteredLibraries.length === 0 ? (
                                         <div className="col-span-2 text-center text-xs text-muted-foreground">

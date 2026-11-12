@@ -101,10 +101,10 @@ func TestPlexSentInvitationIDFailureReasonsAreSpecific(t *testing.T) {
 			if tc.name == "duplicate" {
 				size = "2"
 			}
-			p, _ := newMediaProvider(ProviderConfig{"plex", "http://fixture.invalid", "fixture-secret"}, &http.Client{Transport: providerTransport(func(r *http.Request) (*http.Response, error) {
+			p, _ := newServerConnection(ProviderConfig{"plex", "http://fixture.invalid", "fixture-secret"}, &http.Client{Transport: providerTransport(func(r *http.Request) (*http.Response, error) {
 				return &http.Response{StatusCode: 200, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(`<MediaContainer size="` + size + `">` + tc.xml + `</MediaContainer>`)), Request: r}, nil
 			})})
-			_, err := p.(*jsonProvider).plexSentInvitations(t.Context())
+			_, err := p.plexSentInvitations(t.Context())
 			code, _ := invitationFailureLog(err)
 			if code != "PLEX_SHARE_CHECK_"+tc.reason {
 				t.Fatalf("got %q want classified failure %s", code, tc.reason)

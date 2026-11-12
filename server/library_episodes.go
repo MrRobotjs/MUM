@@ -133,14 +133,14 @@ func (a *App) syncEpisodeCatalogue(w http.ResponseWriter, r *http.Request) {
 		delete(a.episodeRuns, itemID)
 		a.catalogueMu.Unlock()
 	}()
-	provider, err := newMediaProvider(ProviderConfig{library.Provider, baseURL, apiKey}, a.ProviderHTTP)
+	provider, err := newServerConnection(ProviderConfig{library.Provider, baseURL, apiKey}, a.ProviderHTTP)
 	if err != nil {
 		domainError(w, ErrConflict)
 		return
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), time.Minute)
 	defer cancel()
-	episodes, err := provider.(*jsonProvider).catalogueItems(ctx, show.External, true, nil)
+	episodes, err := provider.catalogueEpisodes(ctx, show.External)
 	if err != nil {
 		fail(w, 502, "EPISODE_SYNC_FAILED", "Provider episode synchronization failed; previous episodes retained")
 		return

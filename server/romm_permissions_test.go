@@ -185,7 +185,7 @@ func TestRomMEffectivePermissions(t *testing.T) {
 	} {
 		t.Run("policy-"+tc.name, func(t *testing.T) {
 			f := newRomMPermissionFixture(t, tc.name)
-			p, err := newMediaProvider(ProviderConfig{"romm", f.server.URL + "/proxy", "fixture-secret"}, f.server.Client())
+			p, err := newServerConnection(ProviderConfig{"romm", f.server.URL + "/proxy", "fixture-secret"}, f.server.Client())
 			if err != nil {
 				t.Fatal(err)
 			}

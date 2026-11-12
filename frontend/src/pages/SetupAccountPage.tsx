@@ -56,7 +56,7 @@ function SetupAccountContent() {
         setAccessToken(token)
       }
       refresh()
-      navigate({ to: '/setup/plugins', replace: true })
+      navigate({ to: '/setup/media-servers', replace: true })
     } catch (err: any) {
       setError(err?.message || 'Request failed')
     } finally {
@@ -100,7 +100,7 @@ function SetupAccountContent() {
                 )}
                 {plexLoading ? 'Starting Plex...' : 'Link Plex Account'}
               </Button>
-              <Button onClick={() => navigate({ to: '/setup/plugins', replace: true })}>Continue to Plugins</Button>
+              <Button onClick={() => navigate({ to: '/setup/media-servers', replace: true })}>Continue to Media Servers</Button>
             </div>
           </CardContent>
         </Card>

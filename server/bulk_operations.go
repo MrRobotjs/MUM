@@ -335,13 +335,13 @@ func (a *App) prepareBulk(w http.ResponseWriter, r *http.Request) {
 			stored.Results[i].Reason = "server_unavailable"
 			continue
 		}
-		client, e := newMediaProvider(ProviderConfig{source.Type, source.URL, source.apiKey}, a.ProviderHTTP)
+		client, e := newServerConnection(ProviderConfig{source.Type, source.URL, source.apiKey}, a.ProviderHTTP)
 		if e != nil {
 			stored.Results[i].Outcome = "skipped"
 			stored.Results[i].Reason = "unsupported"
 			continue
 		}
-		provider := client.(*jsonProvider)
+		provider := client
 		provider.bulkAuthority = func(ctx context.Context) error {
 			return a.bulkPreparedAuthority(ctx, stored.Actor, bearer(r), stored.Role, *target)
 		}

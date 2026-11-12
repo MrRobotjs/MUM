@@ -1,11 +1,11 @@
 package main
 
 import (
+	"app/server/providers/provider"
 	"context"
 	"database/sql"
 	"encoding/json"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
 )
@@ -42,78 +42,11 @@ func resumeProfileSafe(ctx context.Context, tx *sql.Tx, job redemptionJob) error
 	return nil
 }
 
-func (p *jsonProvider) resumeRecordedUser(ctx context.Context, target resumeTarget, checkpoint func(string) error) error {
-	if p.config.Type == "romm" {
-		if !validRomMInvitationGrant(target.Grant) || !rommRecordedID(target.Step.RemoteID) || !validRomMCredentials(target.Step.RemoteName, target.Password) {
-			return ErrConflict
-		}
-		user, err := p.inspectRomMUser(ctx, target.Step.RemoteID, target.Step.RemoteName)
-		if err != nil {
-			return err
-		}
-		if user.Absent {
-			return ErrConflict
-		}
-		return p.configureRomMUser(ctx, user, target.Password, checkpoint)
+func (p *serverConnection) resumeRecordedUser(ctx context.Context, target resumeTarget, checkpoint func(string) error) error {
+	if m, ok := p.module().(accountResumer); ok {
+		return m.ResumeAccount(ctx, provider.Resume{RemoteID: target.Step.RemoteID, RemoteName: target.Step.RemoteName, Grant: target.Grant, Password: target.Password}, checkpoint)
 	}
-	if p.config.Type == "komga" {
-		return p.resumeKomgaUser(ctx, target, checkpoint)
-	}
-	if p.config.Type == "audiobookshelf" {
-		return p.resumeABSUser(ctx, target, checkpoint)
-	}
-	if p.config.Type == "kavita" {
-		return p.resumeKavitaUser(ctx, target, checkpoint)
-	}
-	user, err := p.inspectProvisionedUser(ctx, target.Step.RemoteID, target.Step.RemoteName)
-	if err != nil {
-		return err
-	}
-	if user.Absent {
-		return ErrConflict
-	}
-	if err := checkpoint("configuring"); err != nil {
-		return err
-	}
-	policy := user.Policy
-	applyMediaUserGrant(policy, target.Grant)
-	if p.config.Type == "emby" {
-		applyEmbyRestrictions(policy)
-	}
-	endpoint := "/Users/" + url.PathEscape(user.ID)
-	if err := p.mediaUserRequest(ctx, http.MethodPost, endpoint+"/Policy", policy, nil); err != nil {
-		return err
-	}
-	if p.config.Type == "emby" {
-		disabled, err := p.inspectProvisionedUser(ctx, user.ID, target.Step.RemoteName)
-		if err != nil {
-			return err
-		}
-		if disabled.Absent || !mediaUserGrantMatches(disabled.Policy, target.Grant, true) || !embyRestrictionsMatch(disabled.Policy) {
-			return ErrConflict
-		}
-	}
-	if err := checkpoint("password"); err != nil {
-		return err
-	}
-	if err := p.setRecordedPassword(ctx, user.ID, target.Password); err != nil {
-		return err
-	}
-	if err := checkpoint("enabling"); err != nil {
-		return err
-	}
-	policy["IsDisabled"] = false
-	if err := p.mediaUserRequest(ctx, http.MethodPost, endpoint+"/Policy", policy, nil); err != nil {
-		return err
-	}
-	verified, err := p.inspectProvisionedUser(ctx, user.ID, target.Step.RemoteName)
-	if err != nil {
-		return err
-	}
-	if verified.Absent || !mediaUserGrantMatches(verified.Policy, target.Grant, false) || p.config.Type == "emby" && !embyRestrictionsMatch(verified.Policy) {
-		return ErrConflict
-	}
-	return checkpoint("verified")
+	return ErrConflict
 }
 
 func resumeAuthority(ctx context.Context, tx *sql.Tx, actor string, job redemptionJob, token string, target resumeTarget) error {
@@ -184,27 +117,18 @@ func (a *App) prepareResume(ctx context.Context, actor string, job redemptionJob
 			if !supportsRecordedRecovery(server.Type) || fingerprint == "" || fingerprint != providerFingerprint(server) {
 				return ErrConflict
 			}
-			if server.Type == "kavita" {
-				if _, err := kavitaRecordedID(step.RemoteID); err != nil {
-					return err
-				}
-				if strings.Contains(step.RemoteName, "@") || len(passwords[step.ServerID]) > 256 {
-					return errKavitaCredentials
-				}
-			}
-			if server.Type == "audiobookshelf" && len(passwords[step.ServerID]) > 72 {
-				return errABSCredentials
-			}
-			if server.Type == "romm" {
-				if !rommRecordedID(step.RemoteID) || !validRomMInvitationGrant(grant) {
+			if m := moduleRules(server.Type); m != nil {
+				if rule, ok := m.(grantRule); ok && !rule.ValidGrant(grant) {
 					return ErrConflict
 				}
-				if !validRomMCredentials(step.RemoteName, passwords[step.ServerID]) {
-					return errRomMCredentials
+				if rule, ok := m.(recordedIDRule); ok && !rule.ValidRecordedID(step.RemoteID) {
+					return ErrConflict
 				}
 			}
-			if server.Type == "komga" && (!validKomgaEmail(step.RemoteName) || len(passwords[step.ServerID]) > 72) {
-				return errKomgaCredentials
+			if checker, ok := moduleRules(server.Type).(credentialChecker); ok {
+				if err := checker.CheckCredentials(step.RemoteName, passwords[step.ServerID]); err != nil {
+					return err
+				}
 			}
 			target := resumeTarget{server, step, grant, passwords[step.ServerID], fingerprint}
 			if err := resumeAuthority(ctx, tx, actor, job, token, target); err != nil {
@@ -340,13 +264,13 @@ func (a *App) resumeProvisioningJob(w http.ResponseWriter, r *http.Request) {
 	// and absent accounts never fall back to create or username-based adoption.
 	if err == nil {
 		for _, target := range targets {
-			provider, newErr := newMediaProvider(ProviderConfig{target.Server.Type, target.Server.URL, target.Server.apiKey}, a.ProviderHTTP)
+			provider, newErr := newServerConnection(ProviderConfig{target.Server.Type, target.Server.URL, target.Server.apiKey}, a.ProviderHTTP)
 			if newErr != nil {
 				err = newErr
 				break
 			}
-			provider.(*jsonProvider).reviewAuthority = &reviewRequestAuthority{a.store, p.UUID, jobID, token}
-			user, inspectErr := provider.(*jsonProvider).inspectProvisionedUser(ctx, target.Step.RemoteID, target.Step.RemoteName)
+			provider.reviewAuthority = &reviewRequestAuthority{a.store, p.UUID, jobID, token}
+			user, inspectErr := provider.inspectProvisionedUser(ctx, target.Step.RemoteID, target.Step.RemoteName)
 			if inspectErr != nil {
 				err = inspectErr
 				break
@@ -360,13 +284,13 @@ func (a *App) resumeProvisioningJob(w http.ResponseWriter, r *http.Request) {
 	if err == nil {
 		for index := range targets {
 			target := &targets[index]
-			provider, newErr := newMediaProvider(ProviderConfig{target.Server.Type, target.Server.URL, target.Server.apiKey}, a.ProviderHTTP)
+			provider, newErr := newServerConnection(ProviderConfig{target.Server.Type, target.Server.URL, target.Server.apiKey}, a.ProviderHTTP)
 			if newErr != nil {
 				err = newErr
 				break
 			}
-			provider.(*jsonProvider).reviewAuthority = &reviewRequestAuthority{a.store, p.UUID, jobID, token}
-			err = provider.(*jsonProvider).resumeRecordedUser(ctx, *target, func(stage string) error { return a.resumeCheckpoint(ctx, p.UUID, job, token, target, stage) })
+			provider.reviewAuthority = &reviewRequestAuthority{a.store, p.UUID, jobID, token}
+			err = provider.resumeRecordedUser(ctx, *target, func(stage string) error { return a.resumeCheckpoint(ctx, p.UUID, job, token, target, stage) })
 			if err != nil {
 				break
 			}
@@ -387,14 +311,8 @@ func (a *App) resumeProvisioningJob(w http.ResponseWriter, r *http.Request) {
 	}
 	finished = true
 	if err != nil {
-		if err == errRomMCredentials {
-			fail(w, 400, "INVALID_ROMM_CREDENTIALS", errRomMCredentials.Error())
-		} else if err == errKomgaCredentials {
-			fail(w, 400, "INVALID_KOMGA_CREDENTIALS", errKomgaCredentials.Error())
-		} else if err == errABSCredentials {
-			fail(w, 400, "INVALID_AUDIOBOOKSHELF_CREDENTIALS", errABSCredentials.Error())
-		} else if err == errKavitaCredentials {
-			fail(w, 400, "INVALID_KAVITA_CREDENTIALS", errKavitaCredentials.Error())
+		if credentialsFailure(w, err) {
+			// A module's credentials error; credentialsFailure wrote the response.
 		} else if err == ErrConflict || err == ErrForbidden {
 			domainError(w, err)
 		} else {

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"app/server/providers/plex"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -93,9 +94,7 @@ func (a *App) providers(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		capabilities := []string{"auth.api_key", "server.test", "libraries.read", "libraries.sync", "users.read", "users.sync"}
-		if def.ID != "romm" {
-			capabilities = append(capabilities, "users.libraries.update")
-		}
+		capabilities = append(capabilities, "users.libraries.update")
 		if catalogueSupported(def.ID) {
 			capabilities = append(capabilities, "libraries.items.sync")
 		}
@@ -107,6 +106,9 @@ func (a *App) providers(w http.ResponseWriter, r *http.Request) {
 		}
 		if def.ID == "plex" {
 			capabilities = append(capabilities, "integrations.overseerr")
+		}
+		if m, ok := findMediaModule(def.ID); ok {
+			capabilities = moduleCapabilities(m)
 		}
 		items = append(items, map[string]any{"id": def.ID, "name": def.Name, "description": def.Description, "enabled": enabled, "server_count": count, "capabilities": capabilities, "plugin_type": "core"})
 	}
@@ -344,7 +346,7 @@ func (a *App) saveServer(w http.ResponseWriter, r *http.Request) {
 			// Owner-added supported sources monitor by default (user policy).
 			// Persist the current owner's authority and exact configuration in the
 			// creation transaction; delegated additions still require owner review.
-			if s.Active && (s.Type == "plex" || s.Type == "jellyfin" || s.Type == "emby") {
+			if s.Active && activitySupported(s.Type) {
 				if err := notificationAuthority(r.Context(), tx, p.UUID, bearer(r)); err != nil {
 					return err
 				}
@@ -458,7 +460,7 @@ func (a *App) testProviderConnection(w http.ResponseWriter, r *http.Request) {
 	if !decodeBody(w, r, &input) {
 		return
 	}
-	provider, err := newMediaProvider(ProviderConfig{r.PathValue("provider"), strings.TrimRight(input.URL, "/"), input.APIKey}, a.ProviderHTTP)
+	provider, err := newServerConnection(ProviderConfig{r.PathValue("provider"), strings.TrimRight(input.URL, "/"), input.APIKey}, a.ProviderHTTP)
 	if err != nil {
 		fail(w, 400, "INVALID_SERVER", err.Error())
 		return
@@ -514,7 +516,7 @@ func (a *App) testSavedServer(w http.ResponseWriter, r *http.Request) {
 		domainError(w, ErrConflict)
 		return
 	}
-	provider, err := newMediaProvider(ProviderConfig{s.Type, s.URL, s.apiKey}, a.ProviderHTTP)
+	provider, err := newServerConnection(ProviderConfig{s.Type, s.URL, s.apiKey}, a.ProviderHTTP)
 	if err != nil {
 		fail(w, 400, "INVALID_SERVER", err.Error())
 		return
@@ -607,7 +609,7 @@ func (a *App) syncServerClaimed(ctx context.Context, actor, access string, s Man
 	if err != nil {
 		return nil, err
 	}
-	provider, err := newMediaProvider(ProviderConfig{s.Type, s.URL, s.apiKey}, a.ProviderHTTP)
+	provider, err := newServerConnection(ProviderConfig{s.Type, s.URL, s.apiKey}, a.ProviderHTTP)
 	if err != nil {
 		return nil, err
 	}
@@ -621,8 +623,15 @@ func (a *App) syncServerClaimed(ctx context.Context, actor, access string, s Man
 		}
 	}
 	if users {
-		if s.Type == "romm" && libraries {
-			accounts, err = provider.(*jsonProvider).resolveRomMUsers(ctx, libs)
+		var reader libraryAwareUserReader
+		if libraries {
+			reader, _ = provider.module().(libraryAwareUserReader)
+		}
+		if reader != nil {
+			rows, readErr := reader.UsersWithLibraries(ctx, libs)
+			if accounts, err = nil, readErr; err == nil {
+				accounts, err = validateUsers(rows)
+			}
 		} else {
 			accounts, err = provider.Users(ctx)
 		}
@@ -720,12 +729,12 @@ func (a *App) syncServerClaimed(ctx context.Context, actor, access string, s Man
 					removed--
 				}
 				allowed, _ := json.Marshal(account.LibraryIDs)
-				policy := map[string]bool{"all_libraries": account.AllLibraries, "library_policy_known": s.Type != "romm"}
+				policy := map[string]bool{"all_libraries": account.AllLibraries, "library_policy_known": true}
 				knownDownloads, allowDownloads := false, false
 				if account.Access != nil {
 					policy["library_policy_known"] = account.Access.LibrariesKnown
 					policy["download_policy_known"] = account.Access.DownloadsKnown
-					if s.Type == "romm" {
+					if reporter, ok := moduleRules(s.Type).(contentRestrictionReporter); ok && reporter.ContentRestrictionsReported() {
 						policy["content_restrictions_present"] = account.Access.ContentRestricted
 					}
 					knownDownloads = account.Access.DownloadsKnown
@@ -734,7 +743,7 @@ func (a *App) syncServerClaimed(ctx context.Context, actor, access string, s Man
 				settings, _ := json.Marshal(policy)
 				avatar, joined := "", ""
 				if account.Profile != nil && s.Type == "plex" {
-					avatar = safePlexUserAvatar(account.Profile.AvatarURL)
+					avatar = plex.UserAvatar(account.Profile.AvatarURL)
 					if value, err := time.Parse(time.RFC3339, account.Profile.JoinDate); err == nil {
 						joined = value.UTC().Format(time.RFC3339)
 					}

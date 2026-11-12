@@ -1,4 +1,5 @@
 import { invitationCredentialError } from './invitationConstraints';
+import { isServiceType } from '../config/serviceTypes';
 import type { WizardState } from './invitationWizardTypes';
 
 export type PublicInvitation = {
@@ -61,7 +62,7 @@ function publicSnapshot(value: unknown): PublicInvitation {
   }
   const seen = new Set<number>();
   const servers = v.servers.map(s => {
-    if (!Number.isSafeInteger(s.id) || s.id < 1 || seen.has(s.id) || typeof s.name !== 'string' || !['jellyfin', 'emby', 'kavita', 'audiobookshelf', 'komga', 'romm', 'plex'].includes(s.provider) || !Array.isArray(s.libraries)) throw new Error('Unsupported invitation server');
+    if (!Number.isSafeInteger(s.id) || s.id < 1 || seen.has(s.id) || typeof s.name !== 'string' || !isServiceType(s.provider) || !Array.isArray(s.libraries)) throw new Error('Unsupported invitation server');
     seen.add(s.id);
     let access_url = '';
     if (s.access_url) {

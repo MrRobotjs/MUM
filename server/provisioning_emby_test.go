@@ -1,6 +1,7 @@
 package main
 
 import (
+	"app/server/providers/emby"
 	"encoding/json"
 	"fmt"
 	"slices"
@@ -34,7 +35,7 @@ func TestEmbyProvisioningPreservesPolicyAndSupportsBothBaseURLs(t *testing.T) {
 				t.Fatal(w.Code, w.Body.String())
 			}
 			f.mu.Lock()
-			if f.creates != 1 || f.passwordWrites != 1 || f.lastPassword != invitationPassword || f.policy["CustomPolicyField"] != "preserve-me" || !embyRestrictionsMatch(f.policy) {
+			if f.creates != 1 || f.passwordWrites != 1 || f.lastPassword != invitationPassword || f.policy["CustomPolicyField"] != "preserve-me" || !emby.RestrictionsMatch(f.policy) {
 				t.Fatal("incorrect Emby outcome", f.creates, f.passwordWrites, f.policy)
 			}
 			f.mu.Unlock()
@@ -66,12 +67,12 @@ func TestEmbyProvisioningPreservesPolicyAndSupportsBothBaseURLs(t *testing.T) {
 
 func TestEmbyExplicitAllLibraryAndDownloadPolicy(t *testing.T) {
 	f := newReviewFixtureFor(t, "emby", false)
-	provider, err := newMediaProvider(ProviderConfig{"emby", f.server.URL, "fixture-secret"}, nil)
+	provider, err := newServerConnection(ProviderConfig{"emby", f.server.URL, "fixture-secret"}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	stages := []string{}
-	err = provider.(*jsonProvider).provisionUser(t.Context(), "All Libraries", invitationPassword, InvitationGrant{AllLibraries: true, LibraryIDs: []string{}, AllowDownloads: true}, func(stage, id string) error { stages = append(stages, stage); return nil })
+	err = provider.provisionUser(t.Context(), "All Libraries", invitationPassword, InvitationGrant{AllLibraries: true, LibraryIDs: []string{}, AllowDownloads: true}, func(stage, id string) error { stages = append(stages, stage); return nil })
 	if err != nil {
 		t.Fatal(err)
 	}

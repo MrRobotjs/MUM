@@ -1,4 +1,4 @@
-package main
+package plex
 
 import (
 	"context"
@@ -6,21 +6,23 @@ import (
 	"log/slog"
 	"strings"
 	"time"
+
+	"app/server/providers/provider"
 )
 
 // Source metadata is optional presentation enrichment. It never supplies session
 // membership, identity, progress or playback state. Bound all lookups together,
 // deduplicate within this snapshot only and never retain stale cross-poll data.
-func (p *jsonProvider) enrichPlexSourceDisplay(ctx context.Context, body []byte, snapshot *activitySnapshot) {
+func (s *Server) enrichSourceDisplay(ctx context.Context, body []byte, snapshot *provider.ActivitySnapshot) {
 	var page struct {
-		Rows []plexDisplayRow `xml:",any"`
+		Rows []DisplayRow `xml:",any"`
 	}
 	if xml.Unmarshal(body, &page) != nil || len(page.Rows) != len(snapshot.Sessions) {
 		return
 	}
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
-	cache := map[string]*plexDisplayRow{}
+	cache := map[string]*DisplayRow{}
 	failures := 0
 	for index, row := range page.Rows {
 		if len(row.Media) == 0 || snapshot.Sessions[index].Display == nil {
@@ -31,9 +33,9 @@ func (p *jsonProvider) enrichPlexSourceDisplay(ctx context.Context, body []byte,
 			if len(cache) >= 32 || ctx.Err() != nil {
 				continue
 			}
-			_, raw, err := p.plexCatalogueGet(ctx, "/library/metadata/"+row.Item, "application/xml", -1, 2<<20)
+			raw, err := s.Read(ctx, "/library/metadata/"+row.Item, 2<<20)
 			if err == nil {
-				source = decodePlexSourceDisplay(raw, row.Item, row.Kind)
+				source = DecodeSourceDisplay(raw, row.Item, row.Kind)
 			}
 			cache[row.Item] = source
 			if source == nil {
@@ -41,7 +43,7 @@ func (p *jsonProvider) enrichPlexSourceDisplay(ctx context.Context, body []byte,
 			}
 		}
 		if source != nil {
-			applyPlexSourceDisplay(snapshot.Sessions[index].Display, row, *source)
+			ApplySourceDisplay(snapshot.Sessions[index].Display, row, *source)
 		}
 	}
 	if failures > 0 {
@@ -49,13 +51,15 @@ func (p *jsonProvider) enrichPlexSourceDisplay(ctx context.Context, body []byte,
 	}
 }
 
-func decodePlexSourceDisplay(body []byte, item, kind string) *plexDisplayRow {
-	page, err := decodePlexCataloguePage(body)
+// DecodeSourceDisplay reads one item's library metadata, or nil when the reply
+// is not exactly that item.
+func DecodeSourceDisplay(body []byte, item, kind string) *DisplayRow {
+	page, err := DecodeCataloguePage(body)
 	if err != nil || page.Size == nil || *page.Size != 1 || len(page.Items) != 1 || page.Items[0].ID != item || page.Items[0].Kind != kind || page.Total != nil && *page.Total != 1 || page.Offset != nil && *page.Offset != 0 {
 		return nil
 	}
 	var source struct {
-		Rows []plexDisplayRow `xml:",any"`
+		Rows []DisplayRow `xml:",any"`
 	}
 	if xml.Unmarshal(body, &source) != nil || len(source.Rows) != 1 || source.Rows[0].Item != item {
 		return nil
@@ -63,9 +67,9 @@ func decodePlexSourceDisplay(body []byte, item, kind string) *plexDisplayRow {
 	return &source.Rows[0]
 }
 
-func selectedPlexMedia(rows []plexDisplayMedia) plexDisplayMedia {
+func selectedMedia(rows []DisplayMedia) DisplayMedia {
 	if len(rows) == 0 {
-		return plexDisplayMedia{}
+		return DisplayMedia{}
 	}
 	for _, v := range rows {
 		if v.Selected == "1" {
@@ -74,9 +78,9 @@ func selectedPlexMedia(rows []plexDisplayMedia) plexDisplayMedia {
 	}
 	return rows[0]
 }
-func selectedPlexPart(rows []plexDisplayPart) plexDisplayPart {
+func selectedPart(rows []DisplayPart) DisplayPart {
 	if len(rows) == 0 {
-		return plexDisplayPart{}
+		return DisplayPart{}
 	}
 	for _, v := range rows {
 		if v.Selected == "1" {
@@ -86,9 +90,11 @@ func selectedPlexPart(rows []plexDisplayPart) plexDisplayPart {
 	return rows[0]
 }
 
-func applyPlexSourceDisplay(d *activityDisplay, live, original plexDisplayRow) {
-	liveMedia := selectedPlexMedia(live.Media)
-	media := selectedPlexMedia(original.Media)
+// ApplySourceDisplay fills the source side of a display from the item's
+// library metadata, using only the media version and part being played.
+func ApplySourceDisplay(d *provider.ActivityDisplay, live, original DisplayRow) {
+	liveMedia := selectedMedia(live.Media)
+	media := selectedMedia(original.Media)
 	if liveMedia.ID == "" && len(original.Media) > 1 {
 		selected := 0
 		for _, m := range original.Media {
@@ -117,8 +123,8 @@ func applyPlexSourceDisplay(d *activityDisplay, live, original plexDisplayRow) {
 	if len(original.Media) == 0 {
 		return
 	}
-	livePart := selectedPlexPart(liveMedia.Parts)
-	part := selectedPlexPart(media.Parts)
+	livePart := selectedPart(liveMedia.Parts)
+	part := selectedPart(media.Parts)
 	if livePart.ID == "" && len(media.Parts) > 1 {
 		selected := 0
 		for _, v := range media.Parts {
@@ -146,7 +152,7 @@ func applyPlexSourceDisplay(d *activityDisplay, live, original plexDisplayRow) {
 	}
 	videoCodec := displayText(media.VideoCodec)
 	if d.MediaPath == "" {
-		d.MediaPath = safeMediaFilePath(part.File)
+		d.MediaPath = provider.SafeMediaFilePath(part.File)
 	}
 	videoHeight := media.Height
 	audioID := ""
@@ -156,7 +162,7 @@ func applyPlexSourceDisplay(d *activityDisplay, live, original plexDisplayRow) {
 			break
 		}
 	}
-	var audio plexDisplayStream
+	var audio DisplayStream
 	for _, v := range part.Streams {
 		if v.Type == 1 {
 			if videoCodec == "" {
@@ -171,7 +177,7 @@ func applyPlexSourceDisplay(d *activityDisplay, live, original plexDisplayRow) {
 		}
 	}
 	if audioID != "" {
-		audio = plexDisplayStream{}
+		audio = DisplayStream{}
 		for _, v := range part.Streams {
 			if v.Type == 2 && v.ID == audioID {
 				audio = v
@@ -179,7 +185,7 @@ func applyPlexSourceDisplay(d *activityDisplay, live, original plexDisplayRow) {
 			}
 		}
 	}
-	resolution := plexResolution(media.Resolution, videoHeight)
+	resolution := resolutionLabel(media.Resolution, videoHeight)
 	hasVideoSource := videoCodec != "" || resolution != "Unknown"
 	if videoCodec == "" {
 		videoCodec = "Unknown"
@@ -187,13 +193,13 @@ func applyPlexSourceDisplay(d *activityDisplay, live, original plexDisplayRow) {
 	videoLabel := strings.TrimSpace(strings.ToUpper(videoCodec) + " " + resolution)
 	audioLabel := displayText(audio.Title)
 	if audioLabel == "" && audio.Type != 0 {
-		audioLabel = plexAudioOutput(audio.Codec, audio.Channels)
+		audioLabel = audioOutput(audio.Codec, audio.Channels)
 	}
 	container := strings.ToUpper(displayText(media.Container))
 	if container == "" {
 		container = strings.ToUpper(displayText(part.Container))
 	}
-	d.Quality = plexQualityDetail(live, media.Bitrate)
+	d.Quality = qualityDetail(live, media.Bitrate)
 	if ts := live.Transcode; ts != nil {
 		targetHeight := ts.Height
 		if targetHeight <= 0 {
@@ -207,22 +213,22 @@ func applyPlexSourceDisplay(d *activityDisplay, live, original plexDisplayRow) {
 		if sourceContainer == "" {
 			sourceContainer = liveMedia.Container
 		}
-		d.Container = plexContainerDetail(sourceContainer, output, ts.VideoDecision == "transcode" || ts.AudioDecision == "transcode")
+		d.Container = containerDetail(sourceContainer, output, ts.VideoDecision == "transcode" || ts.AudioDecision == "transcode")
 		if hasVideoSource && ts.VideoDecision == "transcode" {
 			sourceLabel := videoLabel
 			if ts.HWDecode == "1" {
-				sourceLabel = strings.TrimSpace(strings.ToUpper(videoCodec) + " (HW) " + plexResolution(media.Resolution, videoHeight))
+				sourceLabel = strings.TrimSpace(strings.ToUpper(videoCodec) + " (HW) " + resolutionLabel(media.Resolution, videoHeight))
 			}
 			target := strings.ToUpper(displayText(ts.VideoCodec))
 			if ts.HWEncode == "1" {
 				target += " (HW)"
 			}
-			d.Video = plexDecisionDetail("transcode", sourceLabel, strings.TrimSpace(target+" "+plexResolution(liveMedia.Resolution, targetHeight)))
+			d.Video = decisionDetail("transcode", sourceLabel, strings.TrimSpace(target+" "+resolutionLabel(liveMedia.Resolution, targetHeight)))
 		} else if hasVideoSource {
-			d.Video = plexDecisionDetail(ts.VideoDecision, videoLabel, "")
+			d.Video = decisionDetail(ts.VideoDecision, videoLabel, "")
 		}
 		if audioLabel != "" {
-			d.Audio = plexDecisionDetail(ts.AudioDecision, audioLabel, plexAudioOutput(ts.AudioCodec, ts.AudioChannels))
+			d.Audio = decisionDetail(ts.AudioDecision, audioLabel, audioOutput(ts.AudioCodec, ts.AudioChannels))
 		}
 	} else {
 		if container != "" {

@@ -328,15 +328,7 @@ export const getServicePalette = (pluginId?: string): ThemePalette => {
 /**
  * Service types constant - used for select dropdowns and service type mappings
  */
-export const SERVICE_TYPES = [
-  { value: 'plex', label: 'Plex' },
-  { value: 'jellyfin', label: 'Jellyfin' },
-  { value: 'emby', label: 'Emby' },
-  { value: 'kavita', label: 'Kavita' },
-  { value: 'audiobookshelf', label: 'AudioBookshelf' },
-  { value: 'komga', label: 'Komga' },
-  { value: 'romm', label: 'RomM' },
-] as const;
+export { SERVICE_TYPES } from './serviceTypes';
 
 // Export the ThemePalette type for use in other components
 export type { ThemePalette }

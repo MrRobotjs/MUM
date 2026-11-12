@@ -1,6 +1,7 @@
 package main
 
 import (
+	"app/server/providers/plex"
 	"encoding/json"
 	"encoding/xml"
 	"strings"
@@ -10,7 +11,7 @@ import (
 func TestPlexCurrentDisplayPreservesBufferingState(t *testing.T) {
 	for _, state := range []string{"playing", "paused", "buffering"} {
 		body := strings.Replace(plexRichPlaying, `state="playing"`, `state="`+state+`"`, 1)
-		snapshot, err := parsePlexActivity([]byte(body))
+		snapshot, err := plex.ParseActivity([]byte(body))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -33,7 +34,7 @@ func TestPlexSameContainerTranscodingAndCopyOnlyDisplay(t *testing.T) {
 		{"copy_only_different_format", strings.Replace(plexRichPlaying, `audioDecision="transcode"`, `audioDecision="copy"`, 1), "MKV"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			display, err := parsePlexDisplays([]byte(tc.body))
+			display, err := plex.ParseDisplays([]byte(tc.body))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -41,16 +42,16 @@ func TestPlexSameContainerTranscodingAndCopyOnlyDisplay(t *testing.T) {
 				t.Errorf("initial got %q want %q", display[0].Container, tc.want)
 			}
 			var live struct {
-				Rows []plexDisplayRow `xml:",any"`
+				Rows []plex.DisplayRow `xml:",any"`
 			}
 			if err = xml.Unmarshal([]byte(tc.body), &live); err != nil {
 				t.Fatal(err)
 			}
-			source := decodePlexSourceDisplay([]byte(plexSingleOriginalSource), "123", "movie")
+			source := plex.DecodeSourceDisplay([]byte(plexSingleOriginalSource), "123", "movie")
 			if source == nil {
 				t.Fatal("source fixture")
 			}
-			applyPlexSourceDisplay(display[0], live.Rows[0], *source)
+			plex.ApplySourceDisplay(display[0], live.Rows[0], *source)
 			if display[0].Container != tc.want {
 				t.Errorf("enriched got %q want %q", display[0].Container, tc.want)
 			}

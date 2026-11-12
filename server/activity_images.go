@@ -1,6 +1,7 @@
 package main
 
 import (
+	"app/server/providers/plex"
 	"context"
 	"database/sql"
 	"errors"
@@ -43,7 +44,7 @@ func (a *App) readActivityPictureSource(ctx context.Context, session string, ite
 	AND julianday(a.observed_at)>julianday('now','-60 seconds')`, item).Scan(&source.Provider, &source.URL, &source.APIKey, &source.External, &source.Tag, &source.Server, &source.ConfigRevision, &source.ActivityMappingRevision)
 	valid := validPlexCataloguePoster(source.External, source.Tag)
 	if avatar {
-		valid = source.Tag != "" && safePlexActivityAvatar(source.Tag) == source.Tag
+		valid = source.Tag != "" && plex.ActivityAvatar(source.Tag) == source.Tag
 	}
 	if errors.Is(err, sql.ErrNoRows) || err == nil && !valid {
 		return source, ErrNotFound
@@ -51,14 +52,14 @@ func (a *App) readActivityPictureSource(ctx context.Context, session string, ite
 	return source, err
 }
 func (a *App) activityImageProxy(w http.ResponseWriter, r *http.Request) {
-	a.serveSignedImage(w, r, "item", "activity-poster", a.readActivityImageSource, func(ctx context.Context, p *jsonProvider, s catalogueImageSource) (string, []byte, error) {
-		return p.plexCatalogueImage(ctx, s.External, s.Tag)
+	a.serveSignedImage(w, r, "item", "activity-poster", a.readActivityImageSource, func(ctx context.Context, p *serverConnection, s catalogueImageSource) (string, []byte, error) {
+		return p.catalogueImage(ctx, s.External, s.Tag)
 	})
 }
 
 func (a *App) activityAvatarProxy(w http.ResponseWriter, r *http.Request) {
-	a.serveSignedImage(w, r, "item", "activity-avatar", a.readActivityAvatarSource, func(ctx context.Context, p *jsonProvider, s catalogueImageSource) (string, []byte, error) {
-		return p.plexActivityAvatar(ctx, s.Tag)
+	a.serveSignedImage(w, r, "item", "activity-avatar", a.readActivityAvatarSource, func(ctx context.Context, p *serverConnection, s catalogueImageSource) (string, []byte, error) {
+		return p.activityAvatar(ctx, s.Tag)
 	})
 }
 
@@ -94,7 +95,7 @@ func (a *App) readActivityHistoryImageSource(ctx context.Context, session string
 }
 
 func (a *App) activityHistoryImageProxy(w http.ResponseWriter, r *http.Request) {
-	a.serveSignedImage(w, r, "item", activityHistoryPosterPurpose, a.readActivityHistoryImageSource, func(ctx context.Context, p *jsonProvider, s catalogueImageSource) (string, []byte, error) {
-		return p.plexCatalogueImage(ctx, s.External, s.Tag)
+	a.serveSignedImage(w, r, "item", activityHistoryPosterPurpose, a.readActivityHistoryImageSource, func(ctx context.Context, p *serverConnection, s catalogueImageSource) (string, []byte, error) {
+		return p.catalogueImage(ctx, s.External, s.Tag)
 	})
 }

@@ -10,7 +10,7 @@ import { faCircleExclamation } from '@fortawesome/free-solid-svg-icons';
 import { Spinner } from '@/components/ui/spinner'
 
 export const AdminSettingsPluginsDetailPage = () => {
-  const { pluginId } = useParams({ from: '/admin/settings/plugins/$pluginId' });
+  const { pluginId } = useParams({ from: '/admin/settings/media-servers/$pluginId' });
   const resolvedPluginId = pluginId ?? '';
   const navigate = useNavigate();
   const { plugins, loading: pluginsLoading, error: pluginsError, refresh: refreshPlugins } = usePlugins();
@@ -29,7 +29,7 @@ export const AdminSettingsPluginsDetailPage = () => {
     return (
       <Alert variant="destructive">
         <FontAwesomeIcon icon={faCircleExclamation} className="h-4 w-4" />
-        <AlertTitle>Failed to load plugins</AlertTitle>
+        <AlertTitle>Failed to load media services</AlertTitle>
         <AlertDescription>{(pluginsError as Error).message}</AlertDescription>
       </Alert>
     );
@@ -38,13 +38,13 @@ export const AdminSettingsPluginsDetailPage = () => {
   if (!plugin) {
     return (
       <div className="space-y-4">
-        <Button variant="ghost" onClick={() => navigate({ to: '/admin/settings/plugins' })}>
+        <Button variant="ghost" onClick={() => navigate({ to: '/admin/settings/media-servers' })}>
           ← Back to Plugins
         </Button>
         <Alert variant="destructive">
           <FontAwesomeIcon icon={faCircleExclamation} className="h-4 w-4" />
-          <AlertTitle>Plugin not found</AlertTitle>
-          <AlertDescription>Plugin "{resolvedPluginId}" could not be located.</AlertDescription>
+          <AlertTitle>Media service not found</AlertTitle>
+          <AlertDescription>Media service "{resolvedPluginId}" could not be located.</AlertDescription>
         </Alert>
       </div>
     );

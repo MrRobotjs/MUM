@@ -66,7 +66,7 @@ export function NavSettings() {
     // Exact match
     if (location.pathname === url) return true
 
-    // For settings pages with sub-routes (e.g., /admin/settings/plugins/[pluginId])
+    // For settings pages with sub-routes (e.g., /admin/settings/media-servers/[pluginId])
     if (location.pathname.startsWith(url + '/')) return true
 
     return false
@@ -120,14 +120,8 @@ export function NavSettings() {
       ],
     },
     {
-      title: 'Plugins',
-      url: '/admin/settings/plugins',
-      icon: faPuzzlePiece,
-      permission: 'manage_plugins',
-    },
-    {
-      title: 'Plugins V2',
-      url: '/admin/settings/plugins-v2',
+      title: 'Media Servers',
+      url: '/admin/settings/media-servers',
       icon: faPuzzlePiece,
       permission: 'manage_plugins',
     },

@@ -123,7 +123,7 @@ const ServerNavItem = ({ server, pathname, onNavigate }: ServerNavItemProps) => 
           aria-label={`Edit ${server.server_nickname} settings`}
         >
           <Link
-            to="/admin/settings/plugins/$pluginId/servers/$serverId"
+            to="/admin/settings/media-servers/$pluginId/servers/$serverId"
             params={{ pluginId, serverId: String(server.id) }}
             onClick={onNavigate}
           >

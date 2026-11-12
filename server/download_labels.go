@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"math"
-	"strconv"
 )
 
 var errAutomaticRoleOwnership = errors.New("automatic Downloads role ownership conflict")
@@ -71,11 +70,8 @@ func reconcileDownloadLabel(ctx context.Context, tx *sql.Tx, server ManagedServe
 	if !supportsDownloadLabels(server.Type) || account.ID == "" || server.Revision < 0 || server.Revision == math.MaxInt64 {
 		return nil, ErrConflict
 	}
-	if server.Type == "romm" || server.Type == "kavita" {
-		id, err := strconv.ParseInt(account.ID, 10, 64)
-		if err != nil || id < 1 || strconv.FormatInt(id, 10) != account.ID {
-			return nil, ErrConflict
-		}
+	if rule, ok := moduleRules(server.Type).(recordedIDRule); ok && !rule.ValidRecordedID(account.ID) {
+		return nil, ErrConflict
 	}
 	var valid, member bool
 	if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM service_accounts a JOIN media_servers s ON s.id=a.server_id JOIN download_role d ON d.singleton=1 AND d.role_id=?
@@ -119,5 +115,6 @@ func reconcileDownloadLabel(ctx context.Context, tx *sql.Tx, server ManagedServe
 }
 
 func supportsDownloadLabels(provider string) bool {
-	return provider == "romm" || provider == "jellyfin" || provider == "emby" || provider == "kavita" || provider == "audiobookshelf" || provider == "komga"
+	m, ok := findMediaModule(provider)
+	return ok && m.Definition.DownloadLabels
 }

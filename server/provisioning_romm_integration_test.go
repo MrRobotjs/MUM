@@ -1,6 +1,7 @@
 package main
 
 import (
+	"app/server/providers/romm"
 	"fmt"
 	"strings"
 	"testing"
@@ -80,7 +81,7 @@ func TestRomMIntegratedRecoveryPreservesIdentityAndContent(t *testing.T) {
 	age := 12
 	f.age = &age
 	rom := int64(19)
-	f.hidden = []rommHidden{{"roms", &rom}}
+	f.hidden = []romm.Hidden{{Entity: "roms", ID: &rom}}
 	f.mu.Unlock()
 	reviewPath := "/api/provisioning-jobs/" + job.ID
 	if w := apiRequest(a, "POST", reviewPath+"/disable-accounts", admin, reviewBody(job), nil); w.Code != 200 {
@@ -109,7 +110,7 @@ func TestRomMIntegratedRecoveryPreservesIdentityAndContent(t *testing.T) {
 		t.Fatal("identity or local credentials changed")
 	}
 	f.mu.Lock()
-	correct := f.creates == 1 && f.passwords == 2 && f.enabled && f.age != nil && *f.age == 12 && len(f.hidden) == 1 && rommOverridesMatch(f.overrides, true)
+	correct := f.creates == 1 && f.passwords == 2 && f.enabled && f.age != nil && *f.age == 12 && len(f.hidden) == 1 && romm.OverridesMatch(f.overrides, true)
 	f.mu.Unlock()
 	if !correct {
 		t.Fatal("remote content/identity changed")

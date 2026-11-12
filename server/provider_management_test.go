@@ -222,7 +222,7 @@ func TestProviderRedirectCancellationAndInvalidSnapshot(t *testing.T) {
 	defer destination.Close()
 	redirect := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { http.Redirect(w, r, destination.URL, 302) }))
 	defer redirect.Close()
-	p, err := newMediaProvider(ProviderConfig{"jellyfin", redirect.URL, "fixture-secret"}, nil)
+	p, err := newServerConnection(ProviderConfig{"jellyfin", redirect.URL, "fixture-secret"}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -236,7 +236,7 @@ func TestProviderRedirectCancellationAndInvalidSnapshot(t *testing.T) {
 	}
 	upstream, mode := providerFixture(t, "jellyfin")
 	mode.Store(3)
-	p, err = newMediaProvider(ProviderConfig{"jellyfin", upstream.URL, "fixture-secret"}, nil)
+	p, err = newServerConnection(ProviderConfig{"jellyfin", upstream.URL, "fixture-secret"}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

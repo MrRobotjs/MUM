@@ -1,6 +1,7 @@
 package main
 
 import (
+	"app/server/providers/provider"
 	"context"
 	"crypto/rand"
 	"database/sql"
@@ -24,7 +25,7 @@ type attemptWindow struct {
 	count int
 }
 type App struct {
-	plexGeoCache     plexGeoCache
+	locationCache    provider.LocationCache
 	logger           *slog.Logger
 	scheduler        *syncScheduler
 	providerSockets  *providerSocketRuntime

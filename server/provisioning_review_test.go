@@ -591,7 +591,7 @@ func TestKnownAbsentAccountAllowsCancellationWithoutMutation(t *testing.T) {
 }
 
 func TestCleanupIdentityRejectsPathSegmentsBeforeNetwork(t *testing.T) {
-	p := &jsonProvider{config: ProviderConfig{Type: "jellyfin", URL: "http://fixture.invalid"}, client: &http.Client{Transport: providerTransport(func(*http.Request) (*http.Response, error) {
+	p := &serverConnection{config: ProviderConfig{Type: "jellyfin", URL: "http://fixture.invalid"}, client: &http.Client{Transport: providerTransport(func(*http.Request) (*http.Response, error) {
 		t.Fatal("invalid identity reached the network")
 		return nil, nil
 	})}}

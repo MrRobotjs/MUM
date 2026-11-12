@@ -152,21 +152,21 @@ func TestReviewAuthorityPreventsDispatchAndRejectsLostAuthorityAfterMutation(t *
 				w.WriteHeader(204)
 			}))
 			defer server.Close()
-			provider, err := newMediaProvider(ProviderConfig{"jellyfin", server.URL, "fixture-key"}, nil)
+			provider, err := newServerConnection(ProviderConfig{"jellyfin", server.URL, "fixture-key"}, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
-			client := provider.(*jsonProvider)
+			client := provider
 			client.reviewAuthority = &reviewRequestAuthority{s, actor.UUID, job, token}
 			if phase == "before" {
 				if _, err = s.writer.Exec("DELETE FROM app_sessions WHERE user_uuid=?", actor.UUID); err != nil {
 					t.Fatal(err)
 				}
 			}
-			if _, err = client.fetch(t.Context(), http.MethodPost, server.URL, nil); !errors.Is(err, ErrForbidden) {
+			if _, err = guardedRequest(t, client, http.MethodPost, server.URL, nil); !errors.Is(err, ErrForbidden) {
 				t.Fatal("lost authority accepted", err)
 			}
-			if _, err = client.fetch(t.Context(), http.MethodPost, server.URL, nil); !errors.Is(err, ErrForbidden) {
+			if _, err = guardedRequest(t, client, http.MethodPost, server.URL, nil); !errors.Is(err, ErrForbidden) {
 				t.Fatal("revoked request replayed", err)
 			}
 			want := int64(0)
@@ -326,13 +326,13 @@ func TestReviewAuthorityRejectsRevocationWhileReadingResponseBody(t *testing.T) 
 	access, _ := bootstrapOwner(t, a)
 	actor, _ := s.Authenticate(t.Context(), access)
 	job, token := reviewAuthorityJob(t, a, s, actor.UUID, access)
-	provider, err := newMediaProvider(ProviderConfig{"jellyfin", "http://fixture.invalid", "fixture-key"}, &http.Client{Transport: &reviewBodyTransport{s, actor.UUID}})
+	provider, err := newServerConnection(ProviderConfig{"jellyfin", "http://fixture.invalid", "fixture-key"}, &http.Client{Transport: &reviewBodyTransport{s, actor.UUID}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	client := provider.(*jsonProvider)
+	client := provider
 	client.reviewAuthority = &reviewRequestAuthority{s, actor.UUID, job, token}
-	if _, err = client.fetch(t.Context(), http.MethodGet, "http://fixture.invalid/response", nil); !errors.Is(err, ErrForbidden) {
+	if _, err = guardedRequest(t, client, http.MethodGet, "http://fixture.invalid/response", nil); !errors.Is(err, ErrForbidden) {
 		t.Fatal("body accepted after revocation", err)
 	}
 }

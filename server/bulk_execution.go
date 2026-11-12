@@ -246,12 +246,12 @@ func (a *App) runBulk(stored bulkStored, access string, reconcile bool) {
 			a.recordBulkResult(&stored, i, bulkPreDispatchOutcome(target), "server_unavailable", false)
 			continue
 		}
-		provider, err := newMediaProvider(ProviderConfig{source.Type, source.URL, source.apiKey}, a.ProviderHTTP)
+		provider, err := newServerConnection(ProviderConfig{source.Type, source.URL, source.apiKey}, a.ProviderHTTP)
 		if err != nil {
 			a.recordBulkResult(&stored, i, bulkPreDispatchOutcome(target), "provider_unavailable", false)
 			continue
 		}
-		client := provider.(*jsonProvider)
+		client := provider
 		client.bulkAuthority = func(check context.Context) error { return a.bulkRunningAuthority(check, stored, access, target) }
 		request, err := a.bulkProviderRequest(ctx, stored.Operation, target)
 		var result bulkProviderResult

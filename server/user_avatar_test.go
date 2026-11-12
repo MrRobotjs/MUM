@@ -1,6 +1,7 @@
 package main
 
 import (
+	"app/server/providers/plex"
 	"io"
 	"net/http"
 	"strings"
@@ -95,16 +96,16 @@ func TestUserAvatarRejectsUnauthenticatedAndRevokedLinksBeforeIO(t *testing.T) {
 }
 
 func TestSafePlexUserAvatar(t *testing.T) {
-	if got := safePlexUserAvatar("https://plex.tv/users/fixture/avatar?c=12&X-Plex-Token=secret"); got != "https://plex.tv/users/fixture/avatar?c=12" {
+	if got := plex.UserAvatar("https://plex.tv/users/fixture/avatar?c=12&X-Plex-Token=secret"); got != "https://plex.tv/users/fixture/avatar?c=12" {
 		t.Fatal(got)
 	}
 	for _, valid := range []string{"https://plex.tv/avatars/EB9F9F/31/3/80", "https://assets.plex.tv/users/fixture-avatar.png"} {
-		if got := safePlexUserAvatar(valid + "?X-Plex-Token=secret"); got != valid {
+		if got := plex.UserAvatar(valid + "?X-Plex-Token=secret"); got != valid {
 			t.Fatal("missing known public image", got)
 		}
 	}
 	for _, bad := range []string{"https://evil.test/users/a/avatar", "https://plex.tv:444/users/a/avatar", "https://user:secret@plex.tv/users/a/avatar", "//plex.tv/users/a/avatar", "https://plex.tv/library/metadata/1/thumb", "https://plex.tv/users/%2e%2e/avatar"} {
-		if safePlexUserAvatar(bad) != "" {
+		if plex.UserAvatar(bad) != "" {
 			t.Fatal("unsafe avatar accepted", bad)
 		}
 	}
@@ -120,11 +121,11 @@ func TestPlexUserAvatarKnownImageTransportStripsCredentials(t *testing.T) {
 			}
 			return &http.Response{StatusCode: 200, Header: http.Header{"Content-Type": {"image/png"}}, Body: io.NopCloser(strings.NewReader("PNG user avatar")), Request: r}, nil
 		})}
-		p, err := newMediaProvider(ProviderConfig{"plex", "https://source.invalid", "private-source-key"}, client)
+		p, err := newServerConnection(ProviderConfig{"plex", "https://source.invalid", "private-source-key"}, client)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, body, err := p.(*jsonProvider).plexUserAvatar(t.Context(), avatar); err != nil || string(body) != "PNG user avatar" || calls != 1 {
+		if _, body, err := p.userAvatar(t.Context(), avatar); err != nil || string(body) != "PNG user avatar" || calls != 1 {
 			t.Fatal("public avatar missing", err, calls)
 		}
 	}

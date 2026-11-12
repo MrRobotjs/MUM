@@ -30,7 +30,7 @@ function SetupPluginsContent() {
     if (error && error instanceof ApiError && error.status === 401) {
       // User is not authenticated, redirect to login with return path
       // Use window.location to ensure clean redirect without state issues
-      window.location.href = '/admin/login?next=/setup/plugins'
+      window.location.href = '/admin/login?next=/setup/media-servers'
     }
   }, [error])
 
@@ -50,7 +50,7 @@ function SetupPluginsContent() {
   ) => {
     const pluginId = getPluginKey(plugin)
     if (!pluginId) {
-      showError('Plugin identifier missing; cannot perform action.')
+      showError('Media service identifier missing; cannot perform action.')
       return
     }
 
@@ -77,7 +77,7 @@ function SetupPluginsContent() {
 
   const handleConfigure = (pluginKey: string) => {
     navigate({
-      to: '/setup/plugins/$pluginId',
+      to: '/setup/media-servers/$pluginId',
       params: { pluginId: pluginKey } as any
     })
   }
@@ -115,24 +115,24 @@ function SetupPluginsContent() {
       {error && !(error instanceof ApiError && error.status === 401) ? (
         <Alert variant="destructive">
           <FontAwesomeIcon icon={faCircleExclamation} className="h-4 w-4" />
-          <AlertTitle>Error Loading Plugins</AlertTitle>
+          <AlertTitle>Error Loading Media Services</AlertTitle>
           <AlertDescription>
-            {error instanceof Error ? error.message : 'Failed to load plugins. Please try again.'}
+            {error instanceof Error ? error.message : 'Failed to load media services. Please try again.'}
           </AlertDescription>
         </Alert>
       ) : (
         <Alert variant="info">
           <FontAwesomeIcon icon={faCircleInfo} className="h-4 w-4" />
-          <AlertTitle>Plugin Setup</AlertTitle>
+          <AlertTitle>Media Server Setup</AlertTitle>
           <AlertDescription>
-            Review the available plugins below. Click "Configure" on a plugin to enable it and add your servers.
+            Review the supported media services below. Click "Configure" on a service to enable it and add your servers.
           </AlertDescription>
         </Alert>
       )}
 
       {loading ? (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Spinner className="size-4" /> Loading plugins…
+          <Spinner className="size-4" /> Loading media services…
         </div>
       ) : error ? (
         // Don't show plugins if there's an error
@@ -140,7 +140,7 @@ function SetupPluginsContent() {
       ) : plugins.length === 0 ? (
         <Card>
           <CardContent className="p-6 text-center text-sm text-muted-foreground">
-            No plugins found.
+            No media services found.
           </CardContent>
         </Card>
       ) : (
@@ -154,8 +154,8 @@ function SetupPluginsContent() {
           <CardTitle>Continue Setup</CardTitle>
         </CardHeader>
         <CardContent className="flex gap-3">
-          <Button variant="outline" onClick={() => navigate({ to: '/admin/settings/plugins' })}>
-            Open Full Plugin Settings
+          <Button variant="outline" onClick={() => navigate({ to: '/admin/settings/media-servers' })}>
+            Open Full Media Server Settings
           </Button>
           <Button onClick={() => navigate({ to: '/setup/app', replace: true })}>
             Continue to App Config
@@ -170,8 +170,8 @@ export default function SetupPluginsPage() {
   return (
     <SetupLayout
       stepId="plugins"
-      title="Media Service Plugins"
-      subtitle="Enable and configure your media service plugins, then add servers."
+      title="Media Servers"
+      subtitle="Enable and configure your media services, then add servers."
     >
       <SetupPluginsContent />
     </SetupLayout>

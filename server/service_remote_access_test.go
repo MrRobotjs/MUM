@@ -1,6 +1,7 @@
 package main
 
 import (
+	"app/server/providers/romm"
 	"context"
 	"crypto/sha256"
 	"database/sql"
@@ -540,7 +541,7 @@ func TestServiceRemoteEnableUncertainAndUnsupported(t *testing.T) {
 	if p := f.read(t); p["cleanup_scope"] != "media" || p["enable_availability"] != "unsupported" || p["can_enable"] != false {
 		t.Fatal(p)
 	}
-	if err := (&jsonProvider{config: ProviderConfig{Type: "komga"}}).enableRecordedUser(t.Context(), remoteReview{}); !errors.Is(err, ErrConflict) {
+	if err := (&serverConnection{config: ProviderConfig{Type: "komga"}}).enableRecordedUser(t.Context(), remoteReview{}); !errors.Is(err, ErrConflict) {
 		t.Fatal("komga enable accepted", err)
 	}
 }
@@ -550,11 +551,11 @@ func TestRecordedEnableAdaptersPreserveAccess(t *testing.T) {
 		for _, mode := range []string{"", "ignored_enable"} {
 			f := newKavitaProvisionFixture(t, mode)
 			f.confirmed, f.name, f.roles, f.libraries = true, "Reader", []string{"Pleb", "Change Password"}, []int64{2}
-			provider, err := newMediaProvider(ProviderConfig{"kavita", f.server.URL, "fixture-secret"}, f.server.Client())
+			provider, err := newServerConnection(ProviderConfig{"kavita", f.server.URL, "fixture-secret"}, f.server.Client())
 			if err != nil {
 				t.Fatal(err)
 			}
-			p := provider.(*jsonProvider)
+			p := provider
 			user, err := p.inspectProvisionedUser(t.Context(), "17", "Reader")
 			if err != nil || !user.Disabled {
 				t.Fatal(user, err)
@@ -567,8 +568,8 @@ func TestRecordedEnableAdaptersPreserveAccess(t *testing.T) {
 				continue
 			}
 			after, inspectErr := p.inspectProvisionedUser(t.Context(), "17", "Reader")
-			if err != nil || inspectErr != nil || after.Disabled || !slices.Contains(after.Kavita.Roles, "Change Password") || !slices.Equal(after.Kavita.Libraries, []int64{2}) {
-				t.Fatal(err, inspectErr, after.Kavita)
+			if err != nil || inspectErr != nil || after.Disabled || !slices.Contains(kavitaObserved(after).Roles, "Change Password") || !slices.Equal(kavitaObserved(after).Libraries, []int64{2}) {
+				t.Fatal(err, inspectErr, kavitaObserved(after))
 			}
 		}
 	})
@@ -577,11 +578,11 @@ func TestRecordedEnableAdaptersPreserveAccess(t *testing.T) {
 		f.created, f.name, f.active = true, "Reader", false
 		f.permissions = map[string]bool{"download": true, "update": false, "delete": false, "upload": false, "createEreader": false, "accessAllLibraries": false, "accessAllTags": true, "accessExplicitContent": false, "selectedTagsNotAccessible": false}
 		f.libraries, f.tags = []string{"lib-b", "lib-a"}, []string{}
-		provider, err := newMediaProvider(ProviderConfig{"audiobookshelf", f.server.URL + "/proxy", "fixture-secret"}, f.server.Client())
+		provider, err := newServerConnection(ProviderConfig{"audiobookshelf", f.server.URL + "/proxy", "fixture-secret"}, f.server.Client())
 		if err != nil {
 			t.Fatal(err)
 		}
-		p := provider.(*jsonProvider)
+		p := provider
 		user, err := p.inspectProvisionedUser(t.Context(), "abs-user", "Reader")
 		if err != nil || !user.Disabled {
 			t.Fatal(user, err)
@@ -602,7 +603,7 @@ func TestRecordedEnableAdaptersPreserveAccess(t *testing.T) {
 			t.Fatal(err)
 		}
 		after, err := p.inspectProvisionedUser(t.Context(), "2", "reader")
-		if err != nil || after.Disabled || !rommContentEqual(after.RomM, user.RomM) {
+		if err != nil || after.Disabled || !romm.ContentEqual(rommObserved(after), rommObserved(user)) {
 			t.Fatal(err)
 		}
 	})
@@ -821,7 +822,7 @@ func TestRecordedDeleteAdaptersUseRecordedIDs(t *testing.T) {
 			got = r.Method + " " + r.URL.Path
 			return jsonResponse(r, 204, ``), nil
 		})}
-		provider, err := newMediaProvider(ProviderConfig{kind, "http://fixture.invalid", "fixture-secret"}, client)
+		provider, err := newServerConnection(ProviderConfig{kind, "http://fixture.invalid", "fixture-secret"}, client)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -829,7 +830,7 @@ func TestRecordedDeleteAdaptersUseRecordedIDs(t *testing.T) {
 		if kind == "romm" {
 			id = "7"
 		}
-		p := provider.(*jsonProvider)
+		p := provider
 		if err := p.deleteRecordedUser(t.Context(), remoteReview{ID: id, Disabled: true}); err != nil || got != "DELETE "+want {
 			t.Fatal(kind, got, err)
 		}
@@ -838,7 +839,7 @@ func TestRecordedDeleteAdaptersUseRecordedIDs(t *testing.T) {
 		}
 	}
 	for _, kind := range []string{"kavita", "plex"} {
-		if serviceRemoteDeletable(kind) || (&jsonProvider{config: ProviderConfig{Type: kind}}).deleteRecordedUser(t.Context(), remoteReview{ID: "1", Disabled: true}) == nil {
+		if serviceRemoteDeletable(kind) || (&serverConnection{config: ProviderConfig{Type: kind}}).deleteRecordedUser(t.Context(), remoteReview{ID: "1", Disabled: true}) == nil {
 			t.Fatal(kind, "delete allowed")
 		}
 	}

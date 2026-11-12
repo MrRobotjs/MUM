@@ -215,7 +215,7 @@ export const InviteCard = ({
                     const overlayLabel = !serverIsActive
                       ? 'Server Disabled'
                       : !pluginEnabled
-                        ? 'Plugin Disabled'
+                        ? 'Service Disabled'
                         : null;
                     const showOverlay = serverUnavailable && overlayLabel;
 

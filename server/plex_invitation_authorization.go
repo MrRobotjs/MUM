@@ -1,6 +1,7 @@
 package main
 
 import (
+	"app/server/providers/plex"
 	"context"
 	"crypto/ed25519"
 	"database/sql"
@@ -63,7 +64,7 @@ func (a *App) startInvitationPlexAuthorization(w http.ResponseWriter, r *http.Re
 		plexInvitationAuthorizationError(w, err)
 		return
 	}
-	device, err := newPlexDeviceAuth(a.ProviderHTTP)
+	device, err := plex.NewDevice(a.ProviderHTTP)
 	if err != nil {
 		plexInvitationAuthorizationError(w, err)
 		return
@@ -110,7 +111,7 @@ func (a *App) startInvitationPlexAuthorization(w http.ResponseWriter, r *http.Re
 			})
 		}
 	}()
-	pin, err := device.beginPIN(ctx)
+	pin, err := device.BeginPIN(ctx)
 	if err != nil {
 		plexInvitationAuthorizationError(w, err)
 		return
@@ -123,12 +124,12 @@ func (a *App) startInvitationPlexAuthorization(w http.ResponseWriter, r *http.Re
 			plexInvitationAuthorizationError(w, err)
 			return
 		}
-		if pin.expires.After(inviteExpires) {
-			pin.expires = inviteExpires
+		if pin.Expires.After(inviteExpires) {
+			pin.Expires = inviteExpires
 		}
 	}
-	p.Expires = utcTimestamp(pin.expires)
-	secret := plexStoredCredential{ClientID: device.clientID, KeyID: device.keyID, PrivateKey: []byte(device.privateKey), PINID: pin.id, PINCode: pin.code, Expires: pin.expires}
+	p.Expires = utcTimestamp(pin.Expires)
+	secret := plexStoredCredential{ClientID: device.ClientID, KeyID: device.KeyID, PrivateKey: []byte(device.PrivateKey), PINID: pin.ID, PINCode: pin.Code, Expires: pin.Expires}
 	encoded, err := a.store.sealPlexCredential(ctx, plexInvitationPurpose(p), secret)
 	if err != nil {
 		plexInvitationAuthorizationError(w, err)
@@ -155,9 +156,9 @@ func (a *App) startInvitationPlexAuthorization(w http.ResponseWriter, r *http.Re
 	committed = true
 	p.Status = "pending"
 	p.Revision++
-	a.setPlexInvitationCookie(w, r, p.ID, browser, int(time.Until(pin.expires).Seconds()))
+	a.setPlexInvitationCookie(w, r, p.ID, browser, int(time.Until(pin.Expires).Seconds()))
 	view := plexInvitationView(p)
-	view["authorization_url"] = pin.authorizationURL
+	view["authorization_url"] = pin.AuthorizationURL
 	respond(w, 201, view)
 }
 func (a *App) pollInvitationPlexAuthorization(w http.ResponseWriter, r *http.Request) {
@@ -232,15 +233,15 @@ func (a *App) pollInvitationPlexAuthorization(w http.ResponseWriter, r *http.Req
 		plexInvitationAuthorizationError(w, err)
 		return
 	}
-	device, err := newPlexDeviceAuth(a.ProviderHTTP)
+	device, err := plex.NewDevice(a.ProviderHTTP)
 	if err != nil {
 		plexInvitationAuthorizationError(w, err)
 		return
 	}
-	device.clientID = secret.ClientID
-	device.keyID = secret.KeyID
-	device.privateKey = ed25519.PrivateKey(secret.PrivateKey)
-	result, err := device.pollPIN(ctx, plexPIN{secret.PINID, secret.PINCode, secret.Expires, secret.ClientID, ""})
+	device.ClientID = secret.ClientID
+	device.KeyID = secret.KeyID
+	device.PrivateKey = ed25519.PrivateKey(secret.PrivateKey)
+	result, err := device.PollPIN(ctx, plex.PIN{ID: secret.PINID, Code: secret.PINCode, Expires: secret.Expires, ClientID: secret.ClientID})
 	if err != nil {
 		plexInvitationAuthorizationError(w, err)
 		return
@@ -252,7 +253,7 @@ func (a *App) pollInvitationPlexAuthorization(w http.ResponseWriter, r *http.Req
 			return
 		}
 		secret.AccountID = result.Account.ID
-		secret.Token = result.authToken
+		secret.Token = result.AuthToken
 		secret.PINCode = ""
 		secret.PINID = 0
 		encoded, err = a.store.sealPlexCredential(ctx, plexInvitationPurpose(p), secret)
@@ -318,7 +319,7 @@ func (a *App) confirmInvitationPlexAuthorization(w http.ResponseWriter, r *http.
 		return
 	}
 	secret, err := a.store.openPlexCredential(r.Context(), plexInvitationPurpose(p), p.Secret)
-	if err != nil || !secret.Expires.After(time.Now()) || secret.AccountID != p.AccountID || !plexJWTShape(secret.Token) {
+	if err != nil || !secret.Expires.After(time.Now()) || secret.AccountID != p.AccountID || !plex.JWTShape(secret.Token) {
 		plexInvitationAuthorizationError(w, errPlexAuthentication)
 		return
 	}

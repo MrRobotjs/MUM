@@ -1,6 +1,7 @@
 package main
 
 import (
+	"app/server/providers/provider"
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
@@ -9,12 +10,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"math"
 	"net/http"
 	"net/url"
 	"strconv"
-	"strings"
 	"time"
 	"unicode/utf8"
 )
@@ -26,201 +24,79 @@ import (
 // against the catalogue revision and server configuration it started from.
 
 const (
-	catalogueMaxItems = 50000
+	catalogueMaxItems = provider.CatalogueMaxItems
 	// One series is capped well below a library.
-	catalogueMaxEpisodes = 10000
-	cataloguePageSize    = 200
+	catalogueMaxEpisodes = provider.CatalogueMaxEpisodes
+	cataloguePageSize    = provider.CataloguePageSize
 	catalogueImageTTL    = 10 * time.Minute
-	catalogueImageMax    = 8 << 20
+	catalogueImageMax    = provider.CatalogueImageMax
 )
 
-var errCatalogueUnsupported = errors.New("item catalogue is not implemented for this provider")
+var errCatalogueUnsupported = provider.ErrCatalogueUnsupported
 
-var catalogueKinds = map[string]string{"Movie": "movie", "Series": "show", "MusicAlbum": "album", "Book": "book", "AudioBook": "audiobook", "MusicVideo": "music_video", "Video": "video"}
-
-func catalogueSupported(provider string) bool {
-	return episodeCatalogueSupported(provider) || provider == "plex"
+// Catalogue support comes from what each service's module implements.
+func catalogueSupported(kind string) bool {
+	_, ok := moduleRules(kind).(catalogueReader)
+	return ok
 }
-func episodeCatalogueSupported(provider string) bool {
-	return provider == "jellyfin" || provider == "emby"
+func episodeCatalogueSupported(kind string) bool {
+	_, ok := moduleRules(kind).(episodeReader)
+	return ok
 }
-func catalogueLibrarySupported(provider, kind, external string) bool {
-	return episodeCatalogueSupported(provider) || provider == "plex" && validPlexCatalogueID(external) && (kind == "movie" || kind == "show")
-}
-
-// Provider item and image identifiers are interpolated into provider paths, so
-// they are restricted to the characters Jellyfin/Emby actually use.
-func validProviderToken(v string) bool {
-	if v == "" || len(v) > 64 {
-		return false
+func catalogueLibrarySupported(kind, libraryKind, external string) bool {
+	if rule, ok := moduleRules(kind).(catalogueLibraryRule); ok {
+		return rule.CatalogueLibrarySupported(libraryKind, external)
 	}
-	for _, c := range v {
-		if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '-') {
-			return false
-		}
-	}
-	return true
+	return catalogueSupported(kind)
 }
 
-func truncateRunes(v string, max int) string {
-	v = strings.TrimSpace(v)
-	if utf8.RuneCountInString(v) <= max {
-		return v
-	}
-	return string([]rune(v)[:max])
-}
+func truncateRunes(v string, max int) string { return provider.TruncateRunes(v, max) }
 
-type catalogueItem struct {
-	ID, Title, SortTitle, Type, Summary, AddedAt, ImageTag string
-	Year                                                   *int64
-	Rating                                                 *float64
-	DurationMS                                             *int64
-	// Season and Episode are set only for episodes.
-	Season, Episode *int64
-}
+// The catalogue reads below dispatch to the server's module.
 
-// catalogueItems pages through one library's top-level items, or through one
-// series' episodes when episodes is true. The provider has no snapshot
-// isolation, so a changed total, a duplicate or a short final count rejects the
-// whole snapshot instead of committing a partial catalogue.
-func (p *jsonProvider) catalogueItems(ctx context.Context, parent string, episodes bool, progress func(fetched, total int)) ([]catalogueItem, error) {
-	if !episodeCatalogueSupported(p.config.Type) {
+// catalogueItems reads one library's complete item snapshot.
+func (p *serverConnection) catalogueItems(ctx context.Context, library, kind string, progress func(fetched, total int)) ([]catalogueItem, error) {
+	m, ok := p.module().(catalogueReader)
+	if !ok {
 		return nil, errCatalogueUnsupported
 	}
-	if !validProviderToken(parent) {
-		return nil, errors.New("invalid provider parent identifier")
+	return m.CatalogueItems(ctx, library, kind, progress)
+}
+
+// catalogueEpisodes reads one series' complete episode snapshot.
+func (p *serverConnection) catalogueEpisodes(ctx context.Context, show string) ([]catalogueItem, error) {
+	m, ok := p.module().(episodeReader)
+	if !ok {
+		return nil, errCatalogueUnsupported
 	}
-	kinds, types, limit := catalogueKinds, "Movie,Series,MusicAlbum,Book,AudioBook,MusicVideo,Video", catalogueMaxItems
-	if episodes {
-		kinds, types, limit = map[string]string{"Episode": "episode"}, "Episode", catalogueMaxEpisodes
+	return m.CatalogueEpisodes(ctx, show)
+}
+
+// catalogueCollections reads one library's complete collection snapshot.
+func (p *serverConnection) catalogueCollections(ctx context.Context, library, kind string) ([]catalogueCollection, error) {
+	m, ok := p.module().(collectionReader)
+	if !ok {
+		return nil, errCatalogueUnsupported
 	}
-	items := []catalogueItem{}
-	seen := map[string]bool{}
-	total := -1
-	for start := 0; ; start += cataloguePageSize {
-		query := url.Values{
-			"ParentId": {parent}, "Recursive": {"true"},
-			"IncludeItemTypes": {types},
-			"Fields":           {"SortName,Overview,DateCreated"}, "SortBy": {"SortName"}, "SortOrder": {"Ascending"},
-			"EnableImageTypes": {"Primary"}, "ImageTypeLimit": {"1"}, "EnableUserData": {"false"},
-			"StartIndex": {strconv.Itoa(start)}, "Limit": {strconv.Itoa(cataloguePageSize)},
-		}
-		var page struct {
-			Items *[]struct {
-				ID              string `json:"Id"`
-				Name            string
-				SortName        string
-				Type            string
-				Overview        string
-				DateCreated     string
-				ProductionYear  *int64
-				CommunityRating *float64
-				RunTimeTicks    *int64
-				ImageTags       map[string]string
-				SeriesID        string `json:"SeriesId"`
-				IndexNumber     *int64
-				ParentIndex     *int64 `json:"ParentIndexNumber"`
-			}
-			TotalRecordCount *int64
-		}
-		if err := p.get(ctx, "/Items?"+query.Encode(), &page); err != nil {
-			return nil, err
-		}
-		if page.Items == nil || page.TotalRecordCount == nil || *page.TotalRecordCount < 0 || *page.TotalRecordCount > int64(limit) {
-			return nil, errors.New("provider returned an invalid or oversized item page")
-		}
-		if total >= 0 && int(*page.TotalRecordCount) != total {
-			return nil, errors.New("library changed during synchronization")
-		}
-		total = int(*page.TotalRecordCount)
-		for _, row := range *page.Items {
-			kind, ok := kinds[row.Type]
-			title := truncateRunes(row.Name, 512)
-			if !ok || !validProviderToken(row.ID) || seen[row.ID] || title == "" || episodes && row.SeriesID != parent {
-				return nil, errors.New("provider returned an invalid or duplicate item")
-			}
-			seen[row.ID] = true
-			item := catalogueItem{ID: row.ID, Title: title, SortTitle: truncateRunes(row.SortName, 512), Type: kind, Summary: truncateRunes(row.Overview, 8000)}
-			if item.SortTitle == "" {
-				item.SortTitle = title
-			}
-			if row.ProductionYear != nil && *row.ProductionYear > 0 && *row.ProductionYear < 10000 {
-				item.Year = row.ProductionYear
-			}
-			if row.CommunityRating != nil && !math.IsNaN(*row.CommunityRating) && *row.CommunityRating >= 0 && *row.CommunityRating <= 10 {
-				item.Rating = row.CommunityRating
-			}
-			if row.RunTimeTicks != nil && *row.RunTimeTicks >= 0 {
-				ms := *row.RunTimeTicks / 10000
-				item.DurationMS = &ms
-			}
-			if added, err := time.Parse(time.RFC3339Nano, row.DateCreated); err == nil {
-				item.AddedAt = utcTimestamp(added)
-			}
-			if tag := row.ImageTags["Primary"]; validProviderToken(tag) {
-				item.ImageTag = tag
-			}
-			if episodes {
-				if row.ParentIndex != nil && *row.ParentIndex >= 0 && *row.ParentIndex <= 100000 {
-					item.Season = row.ParentIndex
-				}
-				if row.IndexNumber != nil && *row.IndexNumber >= 0 && *row.IndexNumber <= 100000 {
-					item.Episode = row.IndexNumber
-				}
-			}
-			items = append(items, item)
-		}
-		if progress != nil {
-			progress(len(items), total)
-		}
-		if len(items) > total {
-			return nil, errors.New("provider returned more items than its reported total")
-		}
-		if len(items) == total {
-			return items, nil
-		}
-		if len(*page.Items) == 0 {
-			return nil, errors.New("provider item pages ended before the reported total")
-		}
-	}
+	return m.CatalogueCollections(ctx, library, kind)
 }
 
 // catalogueImage fetches one bounded item poster.
-func (p *jsonProvider) catalogueImage(ctx context.Context, item, tag string) (string, []byte, error) {
-	if p.config.Type == "plex" {
-		return p.plexCatalogueImage(ctx, item, tag)
-	}
-	if !catalogueSupported(p.config.Type) || !validProviderToken(item) || !validProviderToken(tag) {
+func (p *serverConnection) catalogueImage(ctx context.Context, item, tag string) (string, []byte, error) {
+	m, ok := p.module().(catalogueImageReader)
+	if !ok {
 		return "", nil, errCatalogueUnsupported
 	}
-	base := strings.TrimRight(p.config.URL, "/")
-	if p.config.Type == "emby" && !strings.HasSuffix(base, "/emby") {
-		base += "/emby"
+	return m.CatalogueImage(ctx, item, tag)
+}
+
+// collectionImage fetches one bounded collection poster.
+func (p *serverConnection) collectionImage(ctx context.Context, collection, poster string) (string, []byte, error) {
+	m, ok := p.module().(collectionImageReader)
+	if !ok {
+		return "", nil, errCatalogueUnsupported
 	}
-	target := base + "/Items/" + item + "/Images/Primary?" + url.Values{"maxWidth": {"400"}, "quality": {"90"}, "tag": {tag}}.Encode()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
-	if err != nil {
-		return "", nil, errors.New("invalid provider request")
-	}
-	req.Header.Set("Accept", "image/*")
-	req.Header.Set("X-Emby-Token", p.config.APIKey)
-	response, err := p.client.Do(req)
-	if err != nil {
-		return "", nil, errors.New("provider request failed or timed out")
-	}
-	defer response.Body.Close()
-	if response.StatusCode != http.StatusOK {
-		return "", nil, &providerHTTPError{StatusCode: response.StatusCode}
-	}
-	kind := strings.ToLower(strings.TrimSpace(strings.Split(response.Header.Get("Content-Type"), ";")[0]))
-	if kind != "image/jpeg" && kind != "image/png" && kind != "image/webp" && kind != "image/gif" {
-		return "", nil, errors.New("provider returned an unsupported image type")
-	}
-	body, err := io.ReadAll(io.LimitReader(response.Body, catalogueImageMax+1))
-	if err != nil || len(body) > catalogueImageMax || len(body) == 0 {
-		return "", nil, errors.New("provider image exceeds size limit or could not be read")
-	}
-	return kind, body, nil
+	return m.CollectionImage(ctx, collection, poster)
 }
 
 // Image URLs are signed for one session and item with a short expiry and a
@@ -361,7 +237,7 @@ func (a *App) syncLibraryCatalogue(w http.ResponseWriter, r *http.Request) {
 		delete(a.catalogueRuns, id)
 		a.catalogueMu.Unlock()
 	}()
-	provider, err := newMediaProvider(ProviderConfig{library.Provider, baseURL, apiKey}, a.ProviderHTTP)
+	provider, err := newServerConnection(ProviderConfig{library.Provider, baseURL, apiKey}, a.ProviderHTTP)
 	if err != nil {
 		domainError(w, ErrConflict)
 		return
@@ -374,15 +250,11 @@ func (a *App) syncLibraryCatalogue(w http.ResponseWriter, r *http.Request) {
 	}
 	var items []catalogueItem
 	var collections []catalogueCollection
-	if library.Provider == "plex" {
-		items, err = provider.(*jsonProvider).plexCatalogueItems(ctx, library.External, library.Kind, progress)
-		if err == nil && collectionsSupported(library.Provider, library.Kind, library.External) {
-			// Collections are part of the same complete snapshot: if they
-			// cannot be read, neither list is saved.
-			collections, err = provider.(*jsonProvider).plexCatalogueCollections(ctx, library.External, library.Kind)
-		}
-	} else {
-		items, err = provider.(*jsonProvider).catalogueItems(ctx, library.External, false, progress)
+	items, err = provider.catalogueItems(ctx, library.External, library.Kind, progress)
+	if err == nil && collectionsSupported(library.Provider, library.Kind, library.External) {
+		// Collections are part of the same complete snapshot: if they cannot
+		// be read, neither list is saved.
+		collections, err = provider.catalogueCollections(ctx, library.External, library.Kind)
 	}
 	if err != nil {
 		fail(w, 502, "CATALOGUE_SYNC_FAILED", "Provider catalogue synchronization failed; previous catalogue retained")
@@ -792,7 +664,7 @@ func (a *App) readCatalogueImageSource(ctx context.Context, session string, item
 
 // catalogueImageProxy serves a signed item poster URL.
 func (a *App) catalogueImageProxy(w http.ResponseWriter, r *http.Request) {
-	a.serveSignedImage(w, r, "item", itemImagePurpose, a.readCatalogueImageSource, func(ctx context.Context, p *jsonProvider, s catalogueImageSource) (string, []byte, error) {
+	a.serveSignedImage(w, r, "item", itemImagePurpose, a.readCatalogueImageSource, func(ctx context.Context, p *serverConnection, s catalogueImageSource) (string, []byte, error) {
 		return p.catalogueImage(ctx, s.External, s.Tag)
 	})
 }
@@ -803,7 +675,7 @@ func (a *App) catalogueImageProxy(w http.ResponseWriter, r *http.Request) {
 // on every fetch before the provider is contacted, and again before delivery.
 func (a *App) serveSignedImage(w http.ResponseWriter, r *http.Request, param, purpose string,
 	read func(context.Context, string, int64) (catalogueImageSource, error),
-	fetch func(context.Context, *jsonProvider, catalogueImageSource) (string, []byte, error)) {
+	fetch func(context.Context, *serverConnection, catalogueImageSource) (string, []byte, error)) {
 	// A cached success would bypass authorization on subsequent image fetches.
 	w.Header().Set("Cache-Control", "private, no-store")
 	itemID, err := strconv.ParseInt(r.PathValue(param), 10, 64)
@@ -833,14 +705,14 @@ func (a *App) serveSignedImage(w http.ResponseWriter, r *http.Request, param, pu
 		fail(w, 503, "IMAGE_PROXY_BUSY", "Too many image requests are in progress")
 		return
 	}
-	client, err := newMediaProvider(ProviderConfig{source.Provider, source.URL, source.APIKey}, a.ProviderHTTP)
+	client, err := newServerConnection(ProviderConfig{source.Provider, source.URL, source.APIKey}, a.ProviderHTTP)
 	if err != nil {
 		domainError(w, ErrConflict)
 		return
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
-	kind, body, err := fetch(ctx, client.(*jsonProvider), source)
+	kind, body, err := fetch(ctx, client, source)
 	if err != nil {
 		var avatarError *plexAvatarError
 		if errors.As(err, &avatarError) {

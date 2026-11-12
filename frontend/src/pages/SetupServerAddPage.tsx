@@ -6,17 +6,17 @@ import { useServers } from '../hooks/useServers';
 import { SetupLayout } from './SetupLayout';
 
 function SetupServerAddContent() {
-  const { pluginId } = useParams({ from: '/setup/plugins/$pluginId/servers/add' });
+  const { pluginId } = useParams({ from: '/setup/media-servers/$pluginId/servers/add' });
   const navigate = useNavigate();
   const { refresh: refreshServers } = useServers({ serviceType: pluginId || undefined });
 
   const handleSuccess = async () => {
     await refreshServers();
-    navigate({ to: '/setup/plugins/$pluginId', params: { pluginId } });
+    navigate({ to: '/setup/media-servers/$pluginId', params: { pluginId } });
   };
 
   const handleCancel = () => {
-    navigate({ to: '/setup/plugins/$pluginId', params: { pluginId } });
+    navigate({ to: '/setup/media-servers/$pluginId', params: { pluginId } });
   };
 
   const submitEndpoint = pluginId
@@ -36,7 +36,7 @@ function SetupServerAddContent() {
 }
 
 export default function SetupServerAddPage() {
-  const { pluginId } = useParams({ from: '/setup/plugins/$pluginId/servers/add' });
+  const { pluginId } = useParams({ from: '/setup/media-servers/$pluginId/servers/add' });
   const { plugins } = usePlugins();
   const plugin = useMemo(
     () => plugins.find((item) => item.pluginId === pluginId),

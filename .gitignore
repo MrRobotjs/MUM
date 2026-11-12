@@ -8,7 +8,7 @@ venv/
 
 *.sqlite
 *.sqlite3
-*.db
+*.db*
 flask_session/
 __pycache__/
 *.pyc
@@ -17,7 +17,16 @@ __pycache__/
 .Python
 *.egg-info/
 build/
-*.log
-MUM/
+*.log*
 node_modules/*
 node_modules
+
+db
+=*
+
+#app/static/dist/
+
+# Embedded Go frontend build output (run the frontend build before go build).
+/server/dist/
+# Local release builds (go run ./tools/release)
+/release/

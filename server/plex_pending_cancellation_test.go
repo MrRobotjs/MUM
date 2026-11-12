@@ -61,7 +61,7 @@ func TestPlexPendingSelectedCancellationRequiresExactSentShareProof(t *testing.T
 				case "plex.tv/api/servers/fixture-machine":
 					body = `<MediaContainer><Server machineIdentifier="fixture-machine"><Section id="1001" key="1"/></Server></MediaContainer>`
 				case "plex.tv/api/users/":
-					target := `<Server id="700" machineIdentifier="fixture-machine" pending="1" owned="0"/>`
+					target := `<Server id="700" machineIdentifier="fixture-machine" pending="1" owned="1"/>`
 					if removed {
 						target = ""
 					}
@@ -72,14 +72,14 @@ func TestPlexPendingSelectedCancellationRequiresExactSentShareProof(t *testing.T
 						body = `<MediaContainer size="0"/>`
 					}
 				case "plex.tv/api/invites/requested":
-					target := `<Server id="700" machineIdentifier="fixture-machine" pending="1" owned="0"/>`
+					target := `<Server id="700" machineIdentifier="fixture-machine" pending="1" owned="1"/>`
 					switch mode {
 					case "missing-id":
 						target = strings.ReplaceAll(target, `id="700"`, ``)
 					case "wrong-id":
 						target = strings.ReplaceAll(target, `id="700"`, `id="702"`)
 					case "owned":
-						target = strings.ReplaceAll(target, `owned="0"`, `owned="1"`)
+						target = strings.ReplaceAll(target, `owned="1"`, `owned="0"`)
 					case "not-pending":
 						target = strings.ReplaceAll(target, `pending="1"`, `pending="0"`)
 					case "missing-flag":

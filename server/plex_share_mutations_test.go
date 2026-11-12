@@ -110,7 +110,7 @@ func TestPlexSelectedSendWorkerUsesDurableIntentAndPreservesSettings(t *testing.
 				case "plex.tv/api/users/":
 					body = `<MediaContainer><User id="2" allowSync="0"><Server id="701" machineIdentifier="unrelated-server" pending="0" owned="0"/>`
 					if posts > 0 && mode != "sent-only" {
-						body += `<Server id="700" machineIdentifier="fixture-machine" pending="1" owned="0"/>`
+						body += `<Server id="700" machineIdentifier="fixture-machine" pending="1" owned="1"/>`
 					}
 					body += `</User></MediaContainer>`
 					if mode == "downloads-mismatch" {

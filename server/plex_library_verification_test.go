@@ -38,7 +38,7 @@ func plexVerificationFixture(t *testing.T, change func(*Store, string, int64)) (
 		case "plex.tv/api/servers/fixture-machine":
 			body = `<MediaContainer><Server machineIdentifier="fixture-machine"><Section id="1001" key="1"/></Server></MediaContainer>`
 		case "plex.tv/api/users/":
-			body = `<MediaContainer><User id="2" allowSync="0"><Server id="700" machineIdentifier="fixture-machine" pending="0" owned="0"/></User></MediaContainer>`
+			body = `<MediaContainer><User id="2" allowSync="0"><Server id="700" machineIdentifier="fixture-machine" pending="0" owned="1"/></User></MediaContainer>`
 		case "plex.tv/api/servers/fixture-machine/shared_servers":
 			body = `<MediaContainer><SharedServer id="700" userID="2" allLibraries="0"><Section key="1" shared="1"/></SharedServer></MediaContainer>`
 		case "clients.plex.tv/api/v2/resources":

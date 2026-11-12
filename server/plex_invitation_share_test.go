@@ -68,9 +68,9 @@ func (f *plexInviteFixture) client(t *testing.T) *http.Client {
 		case "plex.tv/api/users/":
 			switch f.mode {
 			case "accepted":
-				return respond(`<MediaContainer><User id="2" allowSync="0"><Server id="700" machineIdentifier="fixture-machine" pending="0" owned="0"/></User></MediaContainer>`)
+				return respond(`<MediaContainer><User id="2" allowSync="0"><Server id="700" machineIdentifier="fixture-machine" pending="0" owned="1"/></User></MediaContainer>`)
 			case "pending":
-				return respond(`<MediaContainer><User id="2" allowSync="0"><Server id="700" machineIdentifier="fixture-machine" pending="1" owned="0"/></User></MediaContainer>`)
+				return respond(`<MediaContainer><User id="2" allowSync="0"><Server id="700" machineIdentifier="fixture-machine" pending="1" owned="1"/></User></MediaContainer>`)
 			case "friend":
 				// Still a friend after leaving this server; shares another one.
 				return respond(`<MediaContainer><User id="2" allowSync="0"><Server id="900" machineIdentifier="other-machine" pending="0" owned="0"/></User></MediaContainer>`)

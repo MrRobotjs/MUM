@@ -117,7 +117,7 @@ func TestBulkProviderPlexUsesCloudMapping(t *testing.T) {
 			p, _ := plexShareFixture(t, func(m map[string]string) {
 				responses = m
 				m["http://fixture.invalid/library/sections"] = `<MediaContainer><Directory key="1" title="One"/><Directory key="2" title="Two"/></MediaContainer>`
-				m["https://plex.tv/api/users/"] = `<MediaContainer size="1"><User id="42" username="Reader" allowSync="0" filterMovies="restricted"><Server id="700" machineIdentifier="machine-A" pending="0" owned="0"/></User></MediaContainer>`
+				m["https://plex.tv/api/users/"] = `<MediaContainer size="1"><User id="42" username="Reader" allowSync="0" filterMovies="restricted"><Server id="700" machineIdentifier="machine-A" pending="0" owned="1"/></User></MediaContainer>`
 			})
 			original := p.client.Transport
 			writes := 0
@@ -228,7 +228,7 @@ func TestBulkProviderKomgaPreservesRolesAndRestrictions(t *testing.T) {
 func TestBulkProviderPlexRejectsUnprovedDynamicAll(t *testing.T) {
 	p, _ := plexShareFixture(t, func(m map[string]string) {
 		m["http://fixture.invalid/library/sections"] = `<MediaContainer><Directory key="1" title="One"/><Directory key="2" title="Two"/></MediaContainer>`
-		m["https://plex.tv/api/users/"] = `<MediaContainer size="1"><User id="42" username="Reader" allowSync="0"><Server id="700" machineIdentifier="machine-A" pending="0" owned="0"/></User></MediaContainer>`
+		m["https://plex.tv/api/users/"] = `<MediaContainer size="1"><User id="42" username="Reader" allowSync="0"><Server id="700" machineIdentifier="machine-A" pending="0" owned="1"/></User></MediaContainer>`
 	})
 	if _, err := p.prepareBulkUser(t.Context(), bulkProviderRequest{Action: "update_libraries", ID: "42", Name: "Reader", AllLibraries: true}); err == nil {
 		t.Fatal("unproved dynamic-all mutation admitted")
@@ -355,7 +355,7 @@ func TestBulkProviderRecordedDeletionFixtures(t *testing.T) {
 func TestBulkProviderPlexExistingDynamicAllIsUnchanged(t *testing.T) {
 	p, _ := plexShareFixture(t, func(m map[string]string) {
 		m["http://fixture.invalid/library/sections"] = `<MediaContainer><Directory key="1" title="One"/><Directory key="2" title="Two"/></MediaContainer>`
-		m["https://plex.tv/api/users/"] = `<MediaContainer size="1"><User id="42" username="Reader" allowSync="0"><Server id="700" machineIdentifier="machine-A" pending="0" owned="0"/></User></MediaContainer>`
+		m["https://plex.tv/api/users/"] = `<MediaContainer size="1"><User id="42" username="Reader" allowSync="0"><Server id="700" machineIdentifier="machine-A" pending="0" owned="1"/></User></MediaContainer>`
 		m["https://plex.tv/api/servers/machine-A/shared_servers"] = `<MediaContainer><SharedServer id="700" userID="42" allLibraries="1"><Section key="1" shared="1"/><Section key="2" shared="1"/></SharedServer></MediaContainer>`
 	})
 	req := bulkProviderRequest{Action: "update_libraries", ID: "42", Name: "Reader", AllLibraries: true}

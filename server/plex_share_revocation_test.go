@@ -81,7 +81,7 @@ func TestPlexSelectedRevocationUsesRecordedShareAndCompleteAbsence(t *testing.T)
 				case "plex.tv/api/users/":
 					body = `<MediaContainer size="2"><User id="2" allowSync="0"><Server id="701" machineIdentifier="unrelated-server" pending="0" owned="0"/>`
 					if !deleted || mode == "ghost-user" {
-						body += `<Server id="700" machineIdentifier="fixture-machine" pending="0" owned="0"/>`
+						body += `<Server id="700" machineIdentifier="fixture-machine" pending="0" owned="1"/>`
 					}
 					body += `</User><User id="9"/></MediaContainer>`
 					if deleted && mode == "truncated-users" {

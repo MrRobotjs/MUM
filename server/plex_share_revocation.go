@@ -117,7 +117,8 @@ func bindPlexPendingShare(claim plexShareCheckpoint, current plexSharePreflight,
 			if share.Machine != claim.Machine {
 				continue
 			}
-			if !share.Known || share.ID != claim.Share || !share.Pending || share.Owned {
+			// The owner's own server is reported as owned (see inspectPlexShare).
+			if !share.Known || share.ID != claim.Share || !share.Pending || !share.Owned {
 				return proof, ErrConflict
 			}
 			proof = plexPendingShareProof{claim.Account, claim.Machine, claim.Share, true}

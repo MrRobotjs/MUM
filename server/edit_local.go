@@ -122,6 +122,15 @@ func prepareEditLocal(ctx context.Context, tx *sql.Tx, actor, access, target str
 		if err != nil {
 			return out, err
 		}
+		// Extending or clearing applies only to users with an expiration date.
+		// A user without one keeps unlimited access: extending must not give
+		// them a deadline.
+		if before == nil && (op.Action == "extend_access" || op.Action == "clear_expiration") {
+			out.ExpiresAt = nil
+			if out.Outcome != "skipped" {
+				out.Reason = "no_expiration"
+			}
+		}
 		if out.Outcome != "skipped" && sameHumanExpiry(before, out.ExpiresAt) {
 			out.Outcome = "unchanged"
 		}

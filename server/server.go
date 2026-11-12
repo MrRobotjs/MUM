@@ -233,6 +233,7 @@ func NewApp(store *Store, queue *LogQueue, assets fs.FS) (*App, error) {
 	handle("POST /api/users/sync-all", a.syncAllUsers)
 	handle("POST /api/users/edit", a.editUsers)
 	handle("POST /api/users/edit/prepare", a.prepareEdit)
+	handle("POST /api/users/edit/expiry", a.editExpiry)
 	handle("POST /api/edit-operations/{operation}/execute", a.executeEdit)
 	handle("GET /api/edit-operations/{operation}", a.readEditReceipt)
 	handle("POST /api/edit-operations/{operation}/reconcile", a.reconcileEdit)

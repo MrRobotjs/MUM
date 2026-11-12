@@ -17,7 +17,7 @@ import { type Library } from '../../hooks/useLibraries';
 import { useProviderFeatures } from '../../hooks/useProviderFeatures';
 import { useServerOptions } from '../../hooks/useServerOptions';
 import { requestJson } from '../../util/apiClient';
-import { EditOperationsClient, runEditOperation, editOutcomeMessage, editLibraryExternalIds, type EditIntent, type EditReceipt } from '../../lib/editOperations';
+import { EditOperationsClient, runEditOperation, editOutcomeMessage, editLibraryExternalIds, readEditExpiry, editExpiryNote, editExpiryOutcome, type EditExpiryOverview, type EditIntent, type EditReceipt } from '../../lib/editOperations';
 import { useAlerts } from '../../contexts/AlertContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { getAuthSnapshot, subscribeToAuthStore } from '../../store/authStore';
@@ -124,6 +124,11 @@ export const EditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplete, i
   // Set Expiration state
   const [expirationDate, setExpirationDate] = useState<Date | undefined>(undefined);
   const [expirationMode, setExpirationMode] = useState<'set' | 'extend' | 'clear'>('set');
+  // Which selected users have an expiration date; null until read.
+  const [expiryOverview, setExpiryOverview] = useState<EditExpiryOverview | null>(null);
+  const [expiryOverviewFailed, setExpiryOverviewFailed] = useState(false);
+  const noneDated = expiryOverview !== null && expiryOverview.dated === 0;
+  const expiryNote = editExpiryNote(expiryOverview);
 
   // Local link state
   const [targetLocalUserUuid, setTargetLocalUserUuid] = useState<string>('');
@@ -142,6 +147,24 @@ export const EditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplete, i
   const [multipleLocalUsersSelected, setMultipleLocalUsersSelected] = useState(false);
   const [localUserSearch, setLocalUserSearch] = useState('');
   const [serviceUserSearch, setServiceUserSearch] = useState('');
+
+  useEffect(() => {
+    if (!isOpen || action !== 'manage_expiration' || selectedUserIds.size === 0) return;
+    let current = true;
+    setExpiryOverview(null);
+    setExpiryOverviewFailed(false);
+    readEditExpiry([...selectedUserIds]).then(
+      (overview) => { if (current) setExpiryOverview(overview); },
+      () => { if (current) setExpiryOverviewFailed(true); },
+    );
+    return () => { current = false; };
+    // selectionKey stands for selectedUserIds.
+  }, [isOpen, action, selectionKey]);
+
+  // Extending or clearing does nothing when no selected user has a date.
+  useEffect(() => {
+    if (noneDated && expirationMode !== 'set') setExpirationMode('set');
+  }, [noneDated, expirationMode]);
 
   const { servers } = useServerOptions();
   const { data: providerFeatures } = useProviderFeatures();
@@ -781,14 +804,14 @@ export const EditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplete, i
       if (expirationMode === 'extend') {
         if (!Number.isInteger(extendDays) || extendDays < 1 || extendDays > 36500) { error('Enter 1 to 36500 days.'); return; }
         requests.push({ ids, intent: { action: 'extend_access', days: extendDays } });
-        successMessage = `Extended access by ${extendDays} days for ${plural(ids.length)}`;
+        successMessage = `Extended access by ${extendDays} days`;
       } else if (expirationMode === 'set') {
         if (!expirationDate) { error('Please select an expiration date'); return; }
         requests.push({ ids, intent: { action: 'set_expiration', expires_at: expirationDate.toISOString().replace(/\.\d{3}Z$/, 'Z') } });
         successMessage = `Set expiration date for ${plural(ids.length)}`;
       } else {
         requests.push({ ids, intent: { action: 'clear_expiration' } });
-        successMessage = `Cleared expiration date for ${plural(ids.length)}`;
+        successMessage = 'Cleared expiration date';
       }
     } else if (action === 'manage_local_link') {
       if (linkContextError || localUsersError || serviceOptionsError) { error('Account details could not be loaded. Close and try again.'); return; }
@@ -821,6 +844,7 @@ export const EditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplete, i
       }
       const problem = editOutcomeMessage(receipts);
       if (problem) error(problem);
+      else if (action === 'manage_expiration' && expirationMode !== 'set') success(editExpiryOutcome(successMessage, receipts));
       else success(successMessage);
       onComplete?.();
       onClose();
@@ -994,8 +1018,9 @@ export const EditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplete, i
                 {expirationMode === 'set'
                   ? 'Set a specific expiration date for all selected users. This will override any existing expiration dates.'
                   : expirationMode === 'extend'
-                    ? 'Add days to the current expiration date of selected users. If a user has no expiration date, it will be set to today + specified days.'
+                    ? 'Add days to the current expiration date of selected users. A date that has already passed is extended from today. Users without an expiration date keep unlimited access.'
                     : 'Remove expiration dates from all selected users. They will have indefinite access until a new expiration date is set.'}
+                {expirationMode !== 'set' && expiryNote && <p className="mt-1">{expiryNote}</p>}
               </AlertDescription>
             </Alert>
 
@@ -1013,16 +1038,26 @@ export const EditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplete, i
                     <FontAwesomeIcon icon={faCalendar} className="mr-2" />
                     Set expiration date
                   </SelectItem>
-                  <SelectItem value="extend">
+                  <SelectItem value="extend" disabled={noneDated}>
                     <FontAwesomeIcon icon={faCalendarPlus} className="mr-2" />
                     Extend access duration
                   </SelectItem>
-                  <SelectItem value="clear">
+                  <SelectItem value="clear" disabled={noneDated}>
                     <FontAwesomeIcon icon={faInfinity} className="mr-2" />
                     Clear expiration date
                   </SelectItem>
                 </SelectContent>
               </Select>
+              {noneDated && (
+                <p className="text-sm text-muted-foreground">
+                  {expiryOverview?.total === 1 ? 'The selected user has' : 'None of the selected users have'} an expiration date, so one can only be set.
+                </p>
+              )}
+              {expiryOverviewFailed && (
+                <p className="text-sm text-muted-foreground">
+                  Expiration dates could not be read. Apply still checks each user.
+                </p>
+              )}
             </div>
 
             {expirationMode === 'set' ? (

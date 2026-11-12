@@ -286,6 +286,10 @@ func TestEditPreparedExpiryReceiptAndRequestIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// An elapsed expiration date is extended from now.
+	if _, err := s.writer.Exec("UPDATE user_accounts SET access_expires_at='2000-01-01T00:00:00Z' WHERE uuid=?", target); err != nil {
+		t.Fatal(err)
+	}
 	body := map[string]any{"request_id": newUUID(), "user_uuids": []string{target}, "operation": map[string]any{"action": "extend_access", "days": 2}}
 	w := apiRequest(a, "POST", "/api/users/edit/prepare", token, body, nil)
 	if w.Code != 201 {
@@ -341,5 +345,106 @@ func TestEditPreparedExpiryReceiptAndRequestIdentity(t *testing.T) {
 	_ = s.reader.QueryRow("SELECT access_expires_at FROM user_accounts WHERE uuid=?", target).Scan(&after)
 	if after != expires {
 		t.Fatal("replayed extension")
+	}
+}
+
+// Extending or clearing applies only to users with an expiration date: a user
+// without one keeps unlimited access, and the dialog can tell beforehand.
+func TestEditExpiryLeavesUsersWithoutOne(t *testing.T) {
+	a, s := testApp(t)
+	token, _ := bootstrapOwner(t, a)
+	owner, _ := s.Authenticate(t.Context(), token)
+	dated, err := s.CreateAccount(t.Context(), owner.UUID, "dated-fixture", "fixture-hash", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	open, err := s.CreateAccount(t.Context(), owner.UUID, "open-fixture", "fixture-hash", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	future := time.Now().UTC().Add(10 * 24 * time.Hour).Format(time.RFC3339)
+	if _, err := s.writer.Exec("UPDATE user_accounts SET access_expires_at=? WHERE uuid=?", future, dated); err != nil {
+		t.Fatal(err)
+	}
+
+	w := apiRequest(a, "POST", "/api/users/edit/expiry", token, map[string]any{"user_uuids": []string{dated, open}}, nil)
+	var overview struct {
+		Data struct {
+			Users []struct {
+				UUID    string  `json:"uuid"`
+				Expires *string `json:"access_expires_at"`
+			} `json:"users"`
+		}
+	}
+	if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &overview) != nil || len(overview.Data.Users) != 2 {
+		t.Fatalf("expiry overview %d %s", w.Code, w.Body.String())
+	}
+	for _, user := range overview.Data.Users {
+		if (user.UUID == dated) != (user.Expires != nil) {
+			t.Fatalf("expiry overview %s", w.Body.String())
+		}
+	}
+	if w := apiRequest(a, "POST", "/api/users/edit/expiry", token, map[string]any{"user_uuids": []string{dated, dated}}, nil); w.Code != 400 {
+		t.Fatalf("duplicate selection accepted %d", w.Code)
+	}
+
+	run := func(operation map[string]any) editReceipt {
+		t.Helper()
+		w := apiRequest(a, "POST", "/api/users/edit/prepare", token, map[string]any{"request_id": newUUID(), "user_uuids": []string{dated, open}, "operation": operation}, nil)
+		var prepared struct{ Data editReceipt }
+		if w.Code != 201 || json.Unmarshal(w.Body.Bytes(), &prepared) != nil {
+			t.Fatalf("prepare %d %s", w.Code, w.Body.String())
+		}
+		w = apiRequest(a, "POST", "/api/edit-operations/"+prepared.Data.ID+"/execute", token, map[string]any{"revision": prepared.Data.Revision, "acknowledge_effects": true}, nil)
+		if w.Code != 202 {
+			t.Fatalf("execute %d %s", w.Code, w.Body.String())
+		}
+		deadline := time.Now().Add(5 * time.Second)
+		for {
+			var receipt struct{ Data editReceipt }
+			w = apiRequest(a, "GET", "/api/edit-operations/"+prepared.Data.ID, token, nil, nil)
+			_ = json.Unmarshal(w.Body.Bytes(), &receipt)
+			if receipt.Data.State == "completed" {
+				return receipt.Data
+			}
+			if time.Now().After(deadline) {
+				t.Fatalf("unfinished %s", w.Body.String())
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+	expiry := func(id string) *string {
+		t.Helper()
+		var value sql.NullString
+		if err := s.reader.QueryRow("SELECT access_expires_at FROM user_accounts WHERE uuid=?", id).Scan(&value); err != nil {
+			t.Fatal(err)
+		}
+		if !value.Valid {
+			return nil
+		}
+		return &value.String
+	}
+	check := func(receipt editReceipt, action string) {
+		t.Helper()
+		if receipt.Summary["updated"] != 1 || receipt.Summary["unchanged"] != 1 {
+			t.Fatalf("%s summary %+v", action, receipt.Summary)
+		}
+		for _, row := range receipt.Results {
+			if row.UUID == open && (row.Outcome != "unchanged" || row.Reason != "no_expiration") {
+				t.Fatalf("%s result for user without expiry %+v", action, row)
+			}
+		}
+		if expiry(open) != nil {
+			t.Fatalf("%s gave a user without expiry a deadline", action)
+		}
+	}
+
+	check(run(map[string]any{"action": "extend_access", "days": 5}), "extend")
+	if got := expiry(dated); got == nil || *got <= future {
+		t.Fatal("dated user not extended", got)
+	}
+	check(run(map[string]any{"action": "clear_expiration"}), "clear")
+	if expiry(dated) != nil {
+		t.Fatal("dated user not cleared")
 	}
 }

@@ -60,7 +60,7 @@ const reasonLabels:Record<string,string>={
  not_primary_owner:'not linked to that local account',link_unavailable:'linking is not possible',provider_rejected:'the server refused the change',
  provider_inspection_failed:'the server could not be read',provider_not_verified:'the server did not confirm the change',remote_outcome_uncertain:'the server result is uncertain',
  interrupted_before_dispatch:'interrupted before it was sent',plex_dynamic_all_unsupported:'Plex cannot switch this user to all libraries',
- plex_impact_too_large:'too many Plex shares are affected',plex_impact_unavailable:'Plex shares could not be read',protected_plex_impact:'it would remove Plex access of the owner or an administrator',
+ no_expiration:'no expiration date',plex_impact_too_large:'too many Plex shares are affected',plex_impact_unavailable:'Plex shares could not be read',protected_plex_impact:'it would remove Plex access of the owner or an administrator',
 };
 // Returns null when every selected user changed as asked, otherwise a short
 // summary for an error toast (counts plus plain-language reasons).
@@ -99,4 +99,33 @@ export function canFinishEditReview(receipts:EditReceipt[],missingIds:string[]=[
  if(!receipts.length||missingIds.length||recovering||statusError)return false;
  const definitive=new Set(['updated','deleted','unchanged','skipped','failed']);
  return receipts.every(r=>r.state==='prepared' ? r.summary.unknown===0&&r.results.every(row=>row.outcome==='pending'||definitive.has(row.outcome)) : (r.state==='completed'||r.state==='needs_review')&&r.summary.unknown===0&&r.summary.pending===0&&r.results.every(row=>definitive.has(row.outcome)));
+}
+
+// Extending or clearing applies only to users with an expiration date; the
+// others keep unlimited access. The dialog reads the dates of every selected
+// user (the selection can span pages) to say so before anything is applied.
+export type EditExpiryOverview = {total:number;dated:number};
+
+export async function readEditExpiry(ids:string[]):Promise<EditExpiryOverview>{
+ const response=await requestJson<{data:{users:{uuid:string;access_expires_at:string|null}[]}}>('/api/users/edit/expiry',{method:'POST',body:JSON.stringify({user_uuids:ids})});
+ const users=response.data.users;
+ return {total:users.length,dated:users.filter(user=>user.access_expires_at!==null).length};
+}
+
+// Shown before Apply when only some selected users have an expiration date.
+export function editExpiryNote(overview:EditExpiryOverview|null):string|null{
+ if(!overview||overview.dated===0||overview.dated===overview.total)return null;
+ const others=overview.total-overview.dated;
+ return `Applies to ${overview.dated} of ${overview.total} selected users. The other ${others} ${others===1?'has':'have'} no expiration date and will be left as they are.`;
+}
+
+// The result once Apply finishes, counting users left alone for having no date.
+export function editExpiryOutcome(done:string,receipts:EditReceipt[]):string{
+ const plural=(count:number)=>`${count} user${count!==1?'s':''}`;
+ let changed=0,undated=0;
+ for(const r of receipts)for(const row of r.results){
+  if(row.reason==='no_expiration')undated++;
+  else if(row.outcome==='updated'||row.outcome==='unchanged')changed++;
+ }
+ return `${done} for ${plural(changed)}${undated?`; ${undated} skipped (no expiration date)`:''}`;
 }

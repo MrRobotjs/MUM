@@ -13,8 +13,8 @@ export async function fetchProviderFeatures():Promise<ProviderFeatures>{
   const result:ProviderFeatures={};
   for(const p of data){
    if(!p||!known.has(p.id)||Object.prototype.hasOwnProperty.call(result,p.id)||typeof p.enabled!=='boolean'||!Array.isArray(p.capabilities)||p.capabilities.length>64||p.capabilities.some((v:unknown)=>typeof v!=='string'||!/^[a-z][a-z0-9_.]{0,127}$/.test(v))||new Set(p.capabilities).size!==p.capabilities.length)throw Error('Invalid provider metadata.');
-   // Provisioning grants and read/sync are not existing-user bulk grant editing.
-   // The Go runtime has no session-message or legacy bulk-library endpoint.
+   // Provisioning grants and read/sync are not existing-user Edit grant changes.
+   // The Go runtime has no session-message or legacy library-edit endpoint.
    result[p.id]={capabilities:p.enabled?[...p.capabilities]:[],features:[],supports_library_scoped_grants:p.enabled && p.capabilities.includes('users.libraries.update')};
   }
   return result;

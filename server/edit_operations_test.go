@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-func TestBulkPreparationHonorsProviderAdmission(t *testing.T) {
+func TestEditPreparationHonorsProviderAdmission(t *testing.T) {
 	a, s := testApp(t)
 	token, _ := bootstrapOwner(t, a)
 	owner, _ := s.Authenticate(t.Context(), token)
@@ -21,37 +21,37 @@ func TestBulkPreparationHonorsProviderAdmission(t *testing.T) {
 	a.provisionSlots <- struct{}{}
 	a.provisionSlots <- struct{}{}
 	defer func() { <-a.provisionSlots; <-a.provisionSlots }()
-	w := apiRequest(a, "POST", "/api/users/bulk/prepare", token, map[string]any{"request_id": newUUID(), "user_uuids": []string{target}, "operation": map[string]any{"action": "extend_access", "days": 1}}, nil)
+	w := apiRequest(a, "POST", "/api/users/edit/prepare", token, map[string]any{"request_id": newUUID(), "user_uuids": []string{target}, "operation": map[string]any{"action": "extend_access", "days": 1}}, nil)
 	if w.Code != 503 {
 		t.Fatalf("unbounded preparation %d %s", w.Code, w.Body.String())
 	}
 }
 
-func TestBulkDispatchedUncertaintySurvivesAuthorityLoss(t *testing.T) {
+func TestEditDispatchedUncertaintySurvivesAuthorityLoss(t *testing.T) {
 	a, s := testApp(t)
 	token, _ := bootstrapOwner(t, a)
 	owner, _ := s.Authenticate(t.Context(), token)
 	server := seedServer(t, s)
 	id := seedService(t, s, server)
-	var b bulkStored
+	var b editStored
 	err := s.write(t.Context(), func(tx *sql.Tx) error {
-		target, err := bulkServiceTarget(t.Context(), tx, id)
+		target, err := editServiceTarget(t.Context(), tx, id)
 		if err != nil {
 			return err
 		}
 		target.Stage = "deleting"
-		b = bulkStored{bulkReceipt: bulkReceipt{ID: newUUID(), Revision: "1", Action: "delete_users", State: "prepared", Results: []bulkUserResult{{UUID: id, Outcome: "unknown"}}, Warnings: []string{}, Effects: []string{}}, Actor: owner.UUID, AccessHash: tokenHash(token), Operation: bulkOperationInput{Action: "delete_users"}, Targets: []bulkTarget{target}}
+		b = editStored{editReceipt: editReceipt{ID: newUUID(), Revision: "1", Action: "delete_users", State: "prepared", Results: []editUserResult{{UUID: id, Outcome: "unknown"}}, Warnings: []string{}, Effects: []string{}}, Actor: owner.UUID, AccessHash: tokenHash(token), Operation: editOperationInput{Action: "delete_users"}, Targets: []editTarget{target}}
 		if err := tx.QueryRow("SELECT revision FROM admin_role_state WHERE singleton=1").Scan(&b.Role); err != nil {
 			return err
 		}
-		if err := insertBulk(t.Context(), tx, &b, newUUID(), "fixture-hash"); err != nil {
+		if err := insertEdit(t.Context(), tx, &b, newUUID(), "fixture-hash"); err != nil {
 			return err
 		}
 		b.Token = newUUID()
-		if _, err := tx.Exec("UPDATE bulk_operations SET state='running',operation_token=? WHERE id=?", b.Token, b.ID); err != nil {
+		if _, err := tx.Exec("UPDATE edit_operations SET state='running',operation_token=? WHERE id=?", b.Token, b.ID); err != nil {
 			return err
 		}
-		if _, err := tx.Exec("INSERT INTO bulk_source_locks(server_id,operation_id,operation_token) VALUES(?,?,?)", server, b.ID, b.Token); err != nil {
+		if _, err := tx.Exec("INSERT INTO edit_source_locks(server_id,operation_id,operation_token) VALUES(?,?,?)", server, b.ID, b.Token); err != nil {
 			return err
 		}
 		b.State = "running"
@@ -60,28 +60,28 @@ func TestBulkDispatchedUncertaintySurvivesAuthorityLoss(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	a.runBulk(b, "expired-access-fixture", true)
+	a.runEdit(b, "expired-access-fixture", true)
 	tx, _ := s.reader.BeginTx(context.Background(), &sql.TxOptions{ReadOnly: true})
 	defer tx.Rollback()
-	saved, err := loadBulk(t.Context(), tx, b.ID)
+	saved, err := loadEdit(t.Context(), tx, b.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	var locks int
-	_ = tx.QueryRow("SELECT count(*) FROM bulk_source_locks WHERE operation_id=?", b.ID).Scan(&locks)
+	_ = tx.QueryRow("SELECT count(*) FROM edit_source_locks WHERE operation_id=?", b.ID).Scan(&locks)
 	if saved.Summary["unknown"] != 1 || locks != 1 {
-		t.Fatalf("lost uncertain evidence %+v locks%d", saved.bulkReceipt, locks)
+		t.Fatalf("lost uncertain evidence %+v locks%d", saved.editReceipt, locks)
 	}
 }
 
-func TestBulkPlexImpactMembershipChangeRequiresNewPreparation(t *testing.T) {
+func TestEditPlexImpactMembershipChangeRequiresNewPreparation(t *testing.T) {
 	_, s := testApp(t)
 	server := seedServer(t, s)
 	activityExec(t, s, "UPDATE media_servers SET service_type='plex' WHERE id=?", server)
 	first := seedService(t, s, server)
 	activityExec(t, s, "UPDATE service_accounts SET external_user_id='42' WHERE uuid=?", first)
 	tx, _ := s.reader.BeginTx(t.Context(), &sql.TxOptions{ReadOnly: true})
-	frozen, err := bulkPlexCatalogue(t.Context(), tx, "42")
+	frozen, err := editPlexCatalogue(t.Context(), tx, "42")
 	tx.Rollback()
 	if err != nil {
 		t.Fatal(err)
@@ -93,18 +93,18 @@ func TestBulkPlexImpactMembershipChangeRequiresNewPreparation(t *testing.T) {
 	activityExec(t, s, "UPDATE service_accounts SET external_user_id='42' WHERE uuid=?", second)
 	tx, _ = s.reader.BeginTx(t.Context(), &sql.TxOptions{ReadOnly: true})
 	defer tx.Rollback()
-	target := bulkTarget{RemoteID: "42", ImpactCatalogue: frozen}
-	if err := checkBulkImpacts(t.Context(), tx, bulkStored{}, target); err == nil {
+	target := editTarget{RemoteID: "42", ImpactCatalogue: frozen}
+	if err := checkEditImpacts(t.Context(), tx, editStored{}, target); err == nil {
 		t.Fatal("new impact escaped frozen preview")
 	}
 }
 
-func waitBulk(t *testing.T, a *App, token, id string) bulkReceipt {
+func waitEdit(t *testing.T, a *App, token, id string) editReceipt {
 	t.Helper()
 	deadline := time.Now().Add(10 * time.Second)
 	for {
-		w := apiRequest(a, "GET", "/api/bulk-operations/"+id, token, nil, nil)
-		var out struct{ Data bulkReceipt }
+		w := apiRequest(a, "GET", "/api/edit-operations/"+id, token, nil, nil)
+		var out struct{ Data editReceipt }
 		_ = json.Unmarshal(w.Body.Bytes(), &out)
 		if w.Code != 200 {
 			t.Fatalf("read %d %s", w.Code, w.Body.String())
@@ -113,13 +113,13 @@ func waitBulk(t *testing.T, a *App, token, id string) bulkReceipt {
 			return out.Data
 		}
 		if time.Now().After(deadline) {
-			t.Fatal("bulk timed out")
+			t.Fatal("edit timed out")
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
 }
 
-func TestBulkRemoteDeletionUnknownReconcilesWithoutReplay(t *testing.T) {
+func TestEditRemoteDeletionUnknownReconcilesWithoutReplay(t *testing.T) {
 	var mu sync.Mutex
 	absent := map[string]bool{}
 	disabled := map[string]bool{}
@@ -173,17 +173,17 @@ func TestBulkRemoteDeletionUnknownReconcilesWithoutReplay(t *testing.T) {
 	activityExec(t, s, "UPDATE media_servers SET url=?,api_key='fixture' WHERE id=?", fixture.URL, server)
 	activityExec(t, s, "UPDATE service_accounts SET external_username='Reader' WHERE server_id=?", server)
 	body := map[string]any{"request_id": newUUID(), "user_uuids": []string{first, second}, "operation": map[string]any{"action": "delete_users"}}
-	w := apiRequest(a, "POST", "/api/users/bulk/prepare", token, body, nil)
-	var prepared struct{ Data bulkReceipt }
+	w := apiRequest(a, "POST", "/api/users/edit/prepare", token, body, nil)
+	var prepared struct{ Data editReceipt }
 	_ = json.Unmarshal(w.Body.Bytes(), &prepared)
 	if w.Code != 201 || prepared.Data.Summary["pending"] != 2 {
 		t.Fatalf("prepare %d %s", w.Code, w.Body.String())
 	}
-	w = apiRequest(a, "POST", "/api/bulk-operations/"+prepared.Data.ID+"/execute", token, map[string]any{"revision": prepared.Data.Revision, "acknowledge_effects": true}, nil)
+	w = apiRequest(a, "POST", "/api/edit-operations/"+prepared.Data.ID+"/execute", token, map[string]any{"revision": prepared.Data.Revision, "acknowledge_effects": true}, nil)
 	if w.Code != 202 {
 		t.Fatalf("execute %d %s", w.Code, w.Body.String())
 	}
-	result := waitBulk(t, a, token, prepared.Data.ID)
+	result := waitEdit(t, a, token, prepared.Data.ID)
 	if result.State != "needs_review" || result.Summary["unknown"] < 1 {
 		t.Fatalf("not uncertain %+v", result)
 	}
@@ -196,7 +196,7 @@ func TestBulkRemoteDeletionUnknownReconcilesWithoutReplay(t *testing.T) {
 	failReads = false
 	before := deletes
 	mu.Unlock()
-	w = apiRequest(a, "POST", "/api/bulk-operations/"+result.ID+"/reconcile", token, map[string]any{"revision": result.Revision}, nil)
+	w = apiRequest(a, "POST", "/api/edit-operations/"+result.ID+"/reconcile", token, map[string]any{"revision": result.Revision}, nil)
 	if w.Code != 200 {
 		t.Fatalf("reconcile %d %s", w.Code, w.Body.String())
 	}
@@ -206,14 +206,14 @@ func TestBulkRemoteDeletionUnknownReconcilesWithoutReplay(t *testing.T) {
 	if after != before {
 		t.Fatal("reconciliation replayed delete")
 	}
-	var out struct{ Data bulkReceipt }
+	var out struct{ Data editReceipt }
 	_ = json.Unmarshal(w.Body.Bytes(), &out)
 	if out.Data.Summary["deleted"] < 1 {
 		t.Fatal("absence did not reconcile", fmt.Sprint(out.Data))
 	}
 }
 
-func TestBulkPlexFriendshipGroupsSelectedServersAndPreservesUnselectedRecords(t *testing.T) {
+func TestEditPlexFriendshipGroupsSelectedServersAndPreservesUnselectedRecords(t *testing.T) {
 	var responses map[string]string
 	provider, _ := plexShareFixture(t, func(m map[string]string) {
 		responses = m
@@ -254,17 +254,17 @@ func TestBulkPlexFriendshipGroupsSelectedServersAndPreservesUnselectedRecords(t 
 	if err := s.LinkServiceAccounts(t.Context(), owner.UUID, local, services); err != nil {
 		t.Fatal(err)
 	}
-	w := apiRequest(a, "POST", "/api/users/bulk/prepare", token, map[string]any{"request_id": newUUID(), "user_uuids": []string{local, services[0], services[1]}, "operation": map[string]any{"action": "delete_users"}}, nil)
-	var prepared struct{ Data bulkReceipt }
+	w := apiRequest(a, "POST", "/api/users/edit/prepare", token, map[string]any{"request_id": newUUID(), "user_uuids": []string{local, services[0], services[1]}, "operation": map[string]any{"action": "delete_users"}}, nil)
+	var prepared struct{ Data editReceipt }
 	_ = json.Unmarshal(w.Body.Bytes(), &prepared)
 	if w.Code != 201 || prepared.Data.Summary["pending"] != 3 {
 		t.Fatalf("prepare %d %s", w.Code, w.Body.String())
 	}
-	w = apiRequest(a, "POST", "/api/bulk-operations/"+prepared.Data.ID+"/execute", token, map[string]any{"revision": prepared.Data.Revision, "acknowledge_effects": true}, nil)
+	w = apiRequest(a, "POST", "/api/edit-operations/"+prepared.Data.ID+"/execute", token, map[string]any{"revision": prepared.Data.Revision, "acknowledge_effects": true}, nil)
 	if w.Code != 202 {
 		t.Fatalf("execute %d %s", w.Code, w.Body.String())
 	}
-	receipt := waitBulk(t, a, token, prepared.Data.ID)
+	receipt := waitEdit(t, a, token, prepared.Data.ID)
 	if receipt.State != "completed" || receipt.Summary["deleted"] != 3 || writes != 1 {
 		t.Fatalf("grouped outcome %+v writes%d", receipt, writes)
 	}
@@ -278,40 +278,40 @@ func TestBulkPlexFriendshipGroupsSelectedServersAndPreservesUnselectedRecords(t 
 	}
 }
 
-func TestBulkPreparedExpiryReceiptAndRequestIdentity(t *testing.T) {
+func TestEditPreparedExpiryReceiptAndRequestIdentity(t *testing.T) {
 	a, s := testApp(t)
 	token, _ := bootstrapOwner(t, a)
 	owner, _ := s.Authenticate(t.Context(), token)
-	target, err := s.CreateAccount(t.Context(), owner.UUID, "bulk-expiry-fixture", "fixture-hash", false)
+	target, err := s.CreateAccount(t.Context(), owner.UUID, "edit-expiry-fixture", "fixture-hash", false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	body := map[string]any{"request_id": newUUID(), "user_uuids": []string{target}, "operation": map[string]any{"action": "extend_access", "days": 2}}
-	w := apiRequest(a, "POST", "/api/users/bulk/prepare", token, body, nil)
+	w := apiRequest(a, "POST", "/api/users/edit/prepare", token, body, nil)
 	if w.Code != 201 {
 		t.Fatalf("prepare: %d %s", w.Code, w.Body.String())
 	}
-	var prepared struct{ Data bulkReceipt }
+	var prepared struct{ Data editReceipt }
 	if err := json.Unmarshal(w.Body.Bytes(), &prepared); err != nil {
 		t.Fatal(err)
 	}
-	duplicate := apiRequest(a, "POST", "/api/users/bulk/prepare", token, body, nil)
+	duplicate := apiRequest(a, "POST", "/api/users/edit/prepare", token, body, nil)
 	if duplicate.Code != 200 {
 		t.Fatalf("idempotent prepare %d %s", duplicate.Code, duplicate.Body.String())
 	}
 	changed := map[string]any{"request_id": body["request_id"], "user_uuids": []string{target}, "operation": map[string]any{"action": "extend_access", "days": 3}}
-	if w := apiRequest(a, "POST", "/api/users/bulk/prepare", token, changed, nil); w.Code != 409 {
+	if w := apiRequest(a, "POST", "/api/users/edit/prepare", token, changed, nil); w.Code != 409 {
 		t.Fatalf("changed request reuse: %d", w.Code)
 	}
 	execute := map[string]any{"revision": prepared.Data.Revision, "acknowledge_effects": true}
-	w = apiRequest(a, "POST", "/api/bulk-operations/"+prepared.Data.ID+"/execute", token, execute, nil)
+	w = apiRequest(a, "POST", "/api/edit-operations/"+prepared.Data.ID+"/execute", token, execute, nil)
 	if w.Code != 202 {
 		t.Fatalf("execute: %d %s", w.Code, w.Body.String())
 	}
 	deadline := time.Now().Add(5 * time.Second)
 	for {
-		w = apiRequest(a, "GET", "/api/bulk-operations/"+prepared.Data.ID, token, nil, nil)
-		var receipt struct{ Data bulkReceipt }
+		w = apiRequest(a, "GET", "/api/edit-operations/"+prepared.Data.ID, token, nil, nil)
+		var receipt struct{ Data editReceipt }
 		_ = json.Unmarshal(w.Body.Bytes(), &receipt)
 		if receipt.Data.State == "completed" {
 			if receipt.Data.Summary["updated"] != 1 {
@@ -333,7 +333,7 @@ func TestBulkPreparedExpiryReceiptAndRequestIdentity(t *testing.T) {
 		t.Fatal("expiry", expires, err)
 	}
 	// Re-execution returns the existing receipt and cannot extend twice.
-	w = apiRequest(a, "POST", "/api/bulk-operations/"+prepared.Data.ID+"/execute", token, execute, nil)
+	w = apiRequest(a, "POST", "/api/edit-operations/"+prepared.Data.ID+"/execute", token, execute, nil)
 	if w.Code != 200 {
 		t.Fatalf("receipt replay %d %s", w.Code, w.Body.String())
 	}

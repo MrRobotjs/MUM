@@ -21,7 +21,7 @@ Implement only what the service supports. A read-only module needs just `Librari
 | Sync | `Libraries`, `Users` (or `UsersWithLibraries`) | library and user sync |
 | Invitations and recovery | `ProvisionAccount`, `InspectAccount`, `ResumeAccount`, `DisableAccount` (all four) | `users.provision`, `invitations.redeem`, interrupted-job recovery |
 | Remote access | `EnableAccount`, `DeleteAccount` | enabling and deleting recorded accounts |
-| Library access edits | `LibraryAccess`, `WriteLibraryAccess`, `StateWithoutLibraryAccess` | `users.libraries.update`, Mass Edit |
+| Library access edits | `LibraryAccess`, `WriteLibraryAccess`, `StateWithoutLibraryAccess` | `users.libraries.update`, the Users page Edit |
 | Catalogue | `CatalogueItems` (plus `CatalogueEpisodes`, `CatalogueCollections`, `CatalogueImage`, `CollectionImage`) | `libraries.items.sync`, library pages and posters |
 | Activity | `ActivitySnapshot` (plus `LiveConnection` and `LiveEvent` for instant updates) | stream monitoring |
 | Account rules | `ValidRemoteName`, `ValidRecordedID`, `ValidGrant`, `PasswordMaxBytes`, `PasswordASCIIOnly`, `CheckCredentials`, `CleanupScope`, `ContentRestrictionsReported` | validation before and during provisioning |

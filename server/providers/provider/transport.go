@@ -17,7 +17,7 @@ const MaxResponseBytes = 16 << 20
 // Transport sends a module's HTTP requests. MUM's core builds it: Client never
 // follows redirects (credentials must not reach another endpoint), and Guard
 // rechecks the authority behind the current operation (review, remote access
-// or bulk edit) before each request, after the response arrives and after the
+// or Edit operation) before each request, after the response arrives and after the
 // body is read. A module cannot skip either.
 type Transport struct {
 	Client *http.Client

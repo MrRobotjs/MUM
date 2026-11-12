@@ -649,7 +649,7 @@ func (a *App) redeemInvitation(w http.ResponseWriter, r *http.Request) {
 	var plexAccount, plexUsername string
 	servers := map[int64]ManagedServer{}
 	err = a.store.write(ctx, func(tx *sql.Tx) error {
-		if busy, err := bulkSourceBusy(ctx, tx, 0, ""); err != nil {
+		if busy, err := editSourceBusy(ctx, tx, 0, ""); err != nil {
 			return err
 		} else if busy {
 			return ErrConflict

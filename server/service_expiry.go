@@ -68,7 +68,7 @@ func readServiceExpiry(ctx context.Context, tx *sql.Tx, actor, access, target st
 // Service-account policy changes wait for provisioning, review/resume, Plex
 // share/credential work and remote access operations that could race them.
 func servicePendingWork(ctx context.Context, tx *sql.Tx, server int64) (bool, error) {
-	busy, err := bulkSourceBusy(ctx, tx, server, "")
+	busy, err := editSourceBusy(ctx, tx, server, "")
 	if err != nil || busy {
 		return busy, err
 	}

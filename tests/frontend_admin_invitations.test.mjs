@@ -92,10 +92,11 @@ test('current admin invitation adapters', async t => {
     assert.equal(calls[0].path, '/api/invitations/20');
     assert.equal(calls[0].method, 'PATCH');
     assert.equal(calls[0].body.revision, 3);
-    await api.bulkInvitationAction([20], 'delete');
+    await api.applyInvitationAction([20], 'delete');
+    assert.equal(calls[1].path, '/api/invitations/actions');
     assert.equal(calls[1].body.action, 'archive');
     // Permanent deletion of archived invites is a separate, explicit action.
-    await api.bulkInvitationAction([20], 'purge');
+    await api.applyInvitationAction([20], 'purge');
     assert.deepEqual(calls[2].body, { ids: [20], action: 'purge' });
   });
 

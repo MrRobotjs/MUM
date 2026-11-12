@@ -87,7 +87,7 @@ func endActivity(ctx context.Context, tx *sql.Tx, server int64, id string, curre
 	return err
 }
 func commitActivitySnapshot(ctx context.Context, tx *sql.Tx, c activityReadClaim, snapshot activitySnapshot) (activityApplyResult, error) {
-	if busy, err := bulkSourceBusy(ctx, tx, c.Server, ""); err != nil {
+	if busy, err := editSourceBusy(ctx, tx, c.Server, ""); err != nil {
 		return activityApplyResult{}, err
 	} else if busy {
 		return activityApplyResult{}, ErrConflict
@@ -125,7 +125,7 @@ func commitActivitySnapshot(ctx context.Context, tx *sql.Tx, c activityReadClaim
 			}
 			if !exists {
 				var removed bool
-				if err := tx.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM bulk_removed_identities WHERE server_id=? AND external_user_id=?)", c.Server, session.User).Scan(&removed); err != nil {
+				if err := tx.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM edit_removed_identities WHERE server_id=? AND external_user_id=?)", c.Server, session.User).Scan(&removed); err != nil {
 					return result, err
 				}
 				if removed {

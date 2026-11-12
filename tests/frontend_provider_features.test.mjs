@@ -6,7 +6,7 @@ const provider=(extra={})=>({id:'jellyfin',enabled:true,capabilities:['libraries
 async function load(){return loadFrontend("export * from './src/lib/providerFeatures';export {setAccessToken} from './src/store/authStore';");}
 test('current provider features',async t=>{
  const old={fetch:globalThis.fetch,window:globalThis.window};t.after(()=>Object.assign(globalThis,old));globalThis.window={location:{origin:'http://mum.test'}};
- await t.test('current read/provisioning metadata never grants session-message or bulk-edit support',async()=>{
+ await t.test('current read/provisioning metadata never grants session-message or Edit support',async()=>{
   const m=await load();m.setAccessToken('session');globalThis.fetch=async r=>{assert.equal(new URL(r.url).pathname,'/api/providers');assert.equal(r.method,'GET');return Response.json({data:[provider({api_key:'private',supports_library_scoped_grants:true,features:['session_message']})]});};
   assert.deepEqual(await m.fetchProviderFeatures(),{jellyfin:{capabilities:provider().capabilities,features:[],supports_library_scoped_grants:false}});
   globalThis.fetch=async()=>Response.json({data:[provider({enabled:false})]});assert.deepEqual((await m.fetchProviderFeatures()).jellyfin.capabilities,[]);

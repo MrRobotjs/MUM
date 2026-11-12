@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-type bulkTarget struct {
+type editTarget struct {
 	UUID            string
 	Kind            string
 	ServerID        int64
@@ -25,30 +25,30 @@ type bulkTarget struct {
 	PlexRecipient   string
 	RemoteID        string
 	Name            string
-	Local           bulkLocalSelection
+	Local           editLocalSelection
 	Stage           string
-	Impacts         []bulkTarget
+	Impacts         []editTarget
 	ImpactCatalogue string
 }
 
-type bulkStored struct {
+type editStored struct {
 	liveAccess string
-	bulkReceipt
+	editReceipt
 	Actor      string
 	AccessHash string
 	Role       int64
 	Token      string
-	Operation  bulkOperationInput
-	Targets    []bulkTarget
+	Operation  editOperationInput
+	Targets    []editTarget
 }
 
-func bulkDigest(value any) string {
+func editDigest(value any) string {
 	encoded, _ := json.Marshal(value)
 	hash := sha256.Sum256(encoded)
 	return hex.EncodeToString(hash[:])
 }
 
-func validBulkInput(op bulkOperationInput) bool {
+func validEditInput(op editOperationInput) bool {
 	switch op.Action {
 	case "delete_users", "unlink_local", "clear_expiration":
 		return op.Days == 0 && op.ExpiresAt == nil && len(op.LibraryIDs) == 0 && !op.HasAllLibraries && op.TargetLocalUserUUID == ""
@@ -78,15 +78,15 @@ func validBulkInput(op bulkOperationInput) bool {
 	return false
 }
 
-func bulkAuthorityTx(ctx context.Context, tx *sql.Tx, actor, access string) error {
+func editAuthorityTx(ctx context.Context, tx *sql.Tx, actor, access string) error {
 	if err := accountPreferenceAuthority(ctx, tx, actor, access); err != nil {
 		return err
 	}
 	return requirePermission(ctx, tx, actor, "administrator")
 }
 
-func bulkServiceTarget(ctx context.Context, tx *sql.Tx, id string) (bulkTarget, error) {
-	target := bulkTarget{UUID: id, Kind: "service"}
+func editServiceTarget(ctx context.Context, tx *sql.Tx, id string) (editTarget, error) {
+	target := editTarget{UUID: id, Kind: "service"}
 	var owner sql.NullString
 	var active bool
 	var updated, settings, libraries string
@@ -99,21 +99,21 @@ func bulkServiceTarget(ctx context.Context, tx *sql.Tx, id string) (bulkTarget, 
 		return target, err
 	}
 	target.SourceRevision = source.Revision
-	target.Fingerprint = bulkDigest([]any{target.ServerID, target.RemoteID, target.Name, active, updated, libraries, settings, owner, providerFingerprint(source), source.ConfigRevision})
+	target.Fingerprint = editDigest([]any{target.ServerID, target.RemoteID, target.Name, active, updated, libraries, settings, owner, providerFingerprint(source), source.ConfigRevision})
 	return target, nil
 }
 
-func bulkSourceBusy(ctx context.Context, tx *sql.Tx, server int64, except string) (bool, error) {
+func editSourceBusy(ctx context.Context, tx *sql.Tx, server int64, except string) (bool, error) {
 	var busy bool
-	err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM bulk_source_locks WHERE (?=0 OR server_id=?) AND operation_id<>?)`, server, server, except).Scan(&busy)
+	err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM edit_source_locks WHERE (?=0 OR server_id=?) AND operation_id<>?)`, server, server, except).Scan(&busy)
 	return busy, err
 }
 
-func loadBulk(ctx context.Context, tx *sql.Tx, id string) (bulkStored, error) {
-	var out bulkStored
+func loadEdit(ctx context.Context, tx *sql.Tx, id string) (editStored, error) {
+	var out editStored
 	var revision int64
 	var payload, targets, results, warnings, effects string
-	err := tx.QueryRowContext(ctx, `SELECT id,actor_uuid,access_hash,action,state,revision,role_revision,coalesce(operation_token,''),payload,targets,results,warnings,effects FROM bulk_operations WHERE id=?`, id).Scan(&out.ID, &out.Actor, &out.AccessHash, &out.Action, &out.State, &revision, &out.Role, &out.Token, &payload, &targets, &results, &warnings, &effects)
+	err := tx.QueryRowContext(ctx, `SELECT id,actor_uuid,access_hash,action,state,revision,role_revision,coalesce(operation_token,''),payload,targets,results,warnings,effects FROM edit_operations WHERE id=?`, id).Scan(&out.ID, &out.Actor, &out.AccessHash, &out.Action, &out.State, &revision, &out.Role, &out.Token, &payload, &targets, &results, &warnings, &effects)
 	if errors.Is(err, sql.ErrNoRows) {
 		return out, ErrNotFound
 	}
@@ -133,17 +133,17 @@ func loadBulk(ctx context.Context, tx *sql.Tx, id string) (bulkStored, error) {
 	return out, nil
 }
 
-func (b *bulkStored) count() {
+func (b *editStored) count() {
 	b.Summary = map[string]int{"updated": 0, "deleted": 0, "unchanged": 0, "skipped": 0, "failed": 0, "unknown": 0, "pending": 0}
 	for _, item := range b.Results {
 		b.Summary[item.Outcome]++
 	}
 }
 
-func saveBulk(ctx context.Context, tx *sql.Tx, b *bulkStored) error {
+func saveEdit(ctx context.Context, tx *sql.Tx, b *editStored) error {
 	results, _ := json.Marshal(b.Results)
 	targets, _ := json.Marshal(b.Targets)
-	result, err := tx.ExecContext(ctx, `UPDATE bulk_operations SET results=?,targets=?,state=?,revision=revision+1,updated_at=? WHERE id=? AND revision=? AND coalesce(operation_token,'')=?`, string(results), string(targets), b.State, utcTimestamp(time.Now()), b.ID, b.Revision, b.Token)
+	result, err := tx.ExecContext(ctx, `UPDATE edit_operations SET results=?,targets=?,state=?,revision=revision+1,updated_at=? WHERE id=? AND revision=? AND coalesce(operation_token,'')=?`, string(results), string(targets), b.State, utcTimestamp(time.Now()), b.ID, b.Revision, b.Token)
 	if err != nil {
 		return err
 	}
@@ -156,7 +156,7 @@ func saveBulk(ctx context.Context, tx *sql.Tx, b *bulkStored) error {
 	return nil
 }
 
-func (a *App) readBulkReceipt(w http.ResponseWriter, r *http.Request) {
+func (a *App) readEditReceipt(w http.ResponseWriter, r *http.Request) {
 	actor, ok := a.principal(w, r, true)
 	if !ok {
 		return
@@ -167,10 +167,10 @@ func (a *App) readBulkReceipt(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer tx.Rollback()
-	err = bulkAuthorityTx(r.Context(), tx, actor.UUID, bearer(r))
-	var stored bulkStored
+	err = editAuthorityTx(r.Context(), tx, actor.UUID, bearer(r))
+	var stored editStored
 	if err == nil {
-		stored, err = loadBulk(r.Context(), tx, r.PathValue("operation"))
+		stored, err = loadEdit(r.Context(), tx, r.PathValue("operation"))
 	}
 	if err == nil && stored.Actor != actor.UUID {
 		err = ErrForbidden
@@ -179,10 +179,10 @@ func (a *App) readBulkReceipt(w http.ResponseWriter, r *http.Request) {
 		domainError(w, err)
 		return
 	}
-	respond(w, 200, stored.bulkReceipt)
+	respond(w, 200, stored.editReceipt)
 }
 
-func (a *App) prepareBulk(w http.ResponseWriter, r *http.Request) {
+func (a *App) prepareEdit(w http.ResponseWriter, r *http.Request) {
 	ctx, done, admitted := a.startReviewOperation(w, r)
 	if !admitted {
 		return
@@ -197,13 +197,13 @@ func (a *App) prepareBulk(w http.ResponseWriter, r *http.Request) {
 	var input struct {
 		RequestID string             `json:"request_id"`
 		UUIDs     []string           `json:"user_uuids"`
-		Operation bulkOperationInput `json:"operation"`
+		Operation editOperationInput `json:"operation"`
 	}
 	if !decodeStrictBody(w, r, &input) {
 		return
 	}
-	if !validAdminMemberCursor(input.RequestID) || len(input.UUIDs) == 0 || len(input.UUIDs) > 500 || !validBulkInput(input.Operation) {
-		fail(w, 400, "INVALID_BULK_OPERATION", "Choose a valid action, request identifier and 1–500 distinct users")
+	if !validAdminMemberCursor(input.RequestID) || len(input.UUIDs) == 0 || len(input.UUIDs) > 500 || !validEditInput(input.Operation) {
+		fail(w, 400, "INVALID_EDIT_OPERATION", "Choose a valid action, request identifier and 1–500 distinct users")
 		return
 	}
 	seen := map[string]bool{}
@@ -216,43 +216,43 @@ func (a *App) prepareBulk(w http.ResponseWriter, r *http.Request) {
 	}
 	slices.Sort(input.UUIDs)
 	slices.Sort(input.Operation.LibraryIDs)
-	hash := bulkDigest(input)
+	hash := editDigest(input)
 	tx, err := a.store.reader.BeginTx(r.Context(), &sql.TxOptions{ReadOnly: true})
 	if err != nil {
 		domainError(w, err)
 		return
 	}
 	defer tx.Rollback()
-	if err = bulkAuthorityTx(r.Context(), tx, actor.UUID, bearer(r)); err != nil {
+	if err = editAuthorityTx(r.Context(), tx, actor.UUID, bearer(r)); err != nil {
 		domainError(w, err)
 		return
 	}
 	var existing, previous string
-	err = tx.QueryRowContext(r.Context(), "SELECT id,request_hash FROM bulk_operations WHERE actor_uuid=? AND request_id=?", actor.UUID, input.RequestID).Scan(&existing, &previous)
+	err = tx.QueryRowContext(r.Context(), "SELECT id,request_hash FROM edit_operations WHERE actor_uuid=? AND request_id=?", actor.UUID, input.RequestID).Scan(&existing, &previous)
 	if err == nil {
 		if previous != hash {
 			domainError(w, ErrConflict)
 			return
 		}
-		stored, e := loadBulk(r.Context(), tx, existing)
+		stored, e := loadEdit(r.Context(), tx, existing)
 		if e != nil {
 			domainError(w, e)
 			return
 		}
-		respond(w, 200, stored.bulkReceipt)
+		respond(w, 200, stored.editReceipt)
 		return
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
 		domainError(w, err)
 		return
 	}
-	stored := bulkStored{Actor: actor.UUID, AccessHash: tokenHash(bearer(r)), Operation: input.Operation}
+	stored := editStored{Actor: actor.UUID, AccessHash: tokenHash(bearer(r)), Operation: input.Operation}
 	stored.ID = newUUID()
 	stored.Action = input.Operation.Action
 	stored.State = "prepared"
 	stored.Revision = "1"
-	stored.Results = []bulkUserResult{}
-	stored.Targets = []bulkTarget{}
+	stored.Results = []editUserResult{}
+	stored.Targets = []editTarget{}
 	stored.Warnings = []string{}
 	stored.Effects = []string{}
 	if err = tx.QueryRowContext(r.Context(), "SELECT revision FROM admin_role_state WHERE singleton=1").Scan(&stored.Role); err != nil {
@@ -260,8 +260,8 @@ func (a *App) prepareBulk(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	for _, id := range input.UUIDs {
-		result := bulkUserResult{UUID: id, Outcome: "pending"}
-		target := bulkTarget{UUID: id}
+		result := editUserResult{UUID: id, Outcome: "pending"}
+		target := editTarget{UUID: id}
 		err = tx.QueryRowContext(r.Context(), "SELECT kind FROM identities WHERE uuid=?", id).Scan(&target.Kind)
 		if errors.Is(err, sql.ErrNoRows) {
 			result.Outcome = "skipped"
@@ -276,7 +276,7 @@ func (a *App) prepareBulk(w http.ResponseWriter, r *http.Request) {
 					result.Outcome = "skipped"
 					result.Reason = "owner_only"
 				} else {
-					target, err = bulkServiceTarget(r.Context(), tx, id)
+					target, err = editServiceTarget(r.Context(), tx, id)
 					if err != nil {
 						domainError(w, err)
 						return
@@ -306,7 +306,7 @@ func (a *App) prepareBulk(w http.ResponseWriter, r *http.Request) {
 				result.Outcome = "skipped"
 				result.Reason = "service_only"
 			} else {
-				target.Local, err = prepareBulkLocal(r.Context(), tx, actor.UUID, bearer(r), id, stored.Operation)
+				target.Local, err = prepareEditLocal(r.Context(), tx, actor.UUID, bearer(r), id, stored.Operation)
 				if err != nil {
 					result.Outcome = "skipped"
 					result.Reason = "unavailable"
@@ -342,22 +342,22 @@ func (a *App) prepareBulk(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		provider := client
-		provider.bulkAuthority = func(ctx context.Context) error {
-			return a.bulkPreparedAuthority(ctx, stored.Actor, bearer(r), stored.Role, *target)
+		provider.editAuthority = func(ctx context.Context) error {
+			return a.editPreparedAuthority(ctx, stored.Actor, bearer(r), stored.Role, *target)
 		}
-		request, e := a.bulkProviderRequest(r.Context(), stored.Operation, *target)
-		var snapshot bulkProviderSnapshot
+		request, e := a.editProviderRequest(r.Context(), stored.Operation, *target)
+		var snapshot editProviderSnapshot
 		if e == nil {
-			snapshot, e = provider.prepareBulkUser(r.Context(), request)
+			snapshot, e = provider.prepareEditUser(r.Context(), request)
 		}
 		if e != nil {
 			// Module and transport errors never carry credentials or upstream text;
 			// Plex share checks also name the check that failed.
 			code, status := invitationFailureLog(e)
-			a.logger.Warn("Bulk operation could not read the account on its server", "server_id", target.ServerID, "provider", source.Type, "action", stored.Action, "error", e.Error(), "code", code, "upstream_status", status)
+			a.logger.Warn("Edit operation could not read the account on its server", "server_id", target.ServerID, "provider", source.Type, "action", stored.Action, "error", e.Error(), "code", code, "upstream_status", status)
 			stored.Results[i].Outcome = "skipped"
 			stored.Results[i].Reason = "provider_inspection_failed"
-			if errors.Is(e, errBulkPlexDynamicAll) {
+			if errors.Is(e, errEditPlexDynamicAll) {
 				stored.Results[i].Reason = "plex_dynamic_all_unsupported"
 			}
 			continue
@@ -370,7 +370,7 @@ func (a *App) prepareBulk(w http.ResponseWriter, r *http.Request) {
 			stored.Warnings = append(stored.Warnings, "Plex deletion removes the friendship and can revoke shares on other configured or unconfigured servers. The Plex login is not deleted.")
 		}
 	}
-	if err := a.prepareBulkPlexImpacts(r.Context(), &stored, bearer(r)); err != nil {
+	if err := a.prepareEditPlexImpacts(r.Context(), &stored, bearer(r)); err != nil {
 		domainError(w, err)
 		return
 	}
@@ -384,7 +384,7 @@ func (a *App) prepareBulk(w http.ResponseWriter, r *http.Request) {
 		stored.Effects = append(stored.Effects, "Expiry is MUM policy. Changing a local account's expiry signs out its MUM sessions; it does not delete provider accounts.")
 	}
 	err = a.store.write(r.Context(), func(tx *sql.Tx) error {
-		if err := bulkAuthorityTx(r.Context(), tx, stored.Actor, bearer(r)); err != nil {
+		if err := editAuthorityTx(r.Context(), tx, stored.Actor, bearer(r)); err != nil {
 			return err
 		}
 		var current int64
@@ -397,34 +397,34 @@ func (a *App) prepareBulk(w http.ResponseWriter, r *http.Request) {
 		// Do not permit a stale preparation to freeze an already changed identity.
 		for i, target := range stored.Targets {
 			if stored.Results[i].Outcome == "pending" {
-				if err := checkBulkTarget(r.Context(), tx, stored.Actor, bearer(r), stored.Operation, target); err != nil {
+				if err := checkEditTarget(r.Context(), tx, stored.Actor, bearer(r), stored.Operation, target); err != nil {
 					return err
 				}
 			}
 		}
-		return insertBulk(r.Context(), tx, &stored, input.RequestID, hash)
+		return insertEdit(r.Context(), tx, &stored, input.RequestID, hash)
 	})
 	if err != nil {
 		domainError(w, err)
 		return
 	}
 	stored.count()
-	respond(w, 201, stored.bulkReceipt)
+	respond(w, 201, stored.editReceipt)
 }
 
-func insertBulk(ctx context.Context, tx *sql.Tx, b *bulkStored, request, hash string) error {
+func insertEdit(ctx context.Context, tx *sql.Tx, b *editStored, request, hash string) error {
 	payload, _ := json.Marshal(b.Operation)
 	targets, _ := json.Marshal(b.Targets)
 	results, _ := json.Marshal(b.Results)
 	warnings, _ := json.Marshal(b.Warnings)
 	effects, _ := json.Marshal(b.Effects)
-	_, err := tx.ExecContext(ctx, `INSERT INTO bulk_operations(id,actor_uuid,access_hash,request_id,request_hash,action,payload,targets,results,warnings,effects,state,role_revision,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,'prepared',?,?,?)`, b.ID, b.Actor, b.AccessHash, request, hash, b.Action, string(payload), string(targets), string(results), string(warnings), string(effects), b.Role, utcTimestamp(time.Now()), utcTimestamp(time.Now()))
+	_, err := tx.ExecContext(ctx, `INSERT INTO edit_operations(id,actor_uuid,access_hash,request_id,request_hash,action,payload,targets,results,warnings,effects,state,role_revision,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,'prepared',?,?,?)`, b.ID, b.Actor, b.AccessHash, request, hash, b.Action, string(payload), string(targets), string(results), string(warnings), string(effects), b.Role, utcTimestamp(time.Now()), utcTimestamp(time.Now()))
 	return err
 }
 
-func checkBulkTarget(ctx context.Context, tx *sql.Tx, actor, access string, op bulkOperationInput, target bulkTarget) error {
+func checkEditTarget(ctx context.Context, tx *sql.Tx, actor, access string, op editOperationInput, target editTarget) error {
 	if target.ServerID != 0 {
-		current, err := bulkServiceTarget(ctx, tx, target.UUID)
+		current, err := editServiceTarget(ctx, tx, target.UUID)
 		if err != nil {
 			return err
 		}
@@ -432,7 +432,7 @@ func checkBulkTarget(ctx context.Context, tx *sql.Tx, actor, access string, op b
 			return ErrConflict
 		}
 		if target.ImpactCatalogue != "" {
-			catalogue, err := bulkPlexCatalogue(ctx, tx, target.RemoteID)
+			catalogue, err := editPlexCatalogue(ctx, tx, target.RemoteID)
 			if err != nil {
 				return err
 			}
@@ -441,13 +441,13 @@ func checkBulkTarget(ctx context.Context, tx *sql.Tx, actor, access string, op b
 			}
 		}
 		for _, impact := range target.Impacts {
-			if err := checkBulkTarget(ctx, tx, actor, access, op, impact); err != nil {
+			if err := checkEditTarget(ctx, tx, actor, access, op, impact); err != nil {
 				return err
 			}
 		}
 		return nil
 	}
-	current, err := prepareBulkLocal(ctx, tx, actor, access, target.UUID, op)
+	current, err := prepareEditLocal(ctx, tx, actor, access, target.UUID, op)
 	if err != nil {
 		return err
 	}
@@ -457,13 +457,13 @@ func checkBulkTarget(ctx context.Context, tx *sql.Tx, actor, access string, op b
 	return nil
 }
 
-func (a *App) bulkPreparedAuthority(ctx context.Context, actor, access string, role int64, target bulkTarget) error {
+func (a *App) editPreparedAuthority(ctx context.Context, actor, access string, role int64, target editTarget) error {
 	tx, err := a.store.reader.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
-	if err := bulkAuthorityTx(ctx, tx, actor, access); err != nil {
+	if err := editAuthorityTx(ctx, tx, actor, access); err != nil {
 		return err
 	}
 	var current int64
@@ -473,11 +473,11 @@ func (a *App) bulkPreparedAuthority(ctx context.Context, actor, access string, r
 	if current != role {
 		return ErrForbidden
 	}
-	return checkBulkTarget(ctx, tx, actor, access, bulkOperationInput{}, target)
+	return checkEditTarget(ctx, tx, actor, access, editOperationInput{}, target)
 }
 
-func (a *App) bulkProviderRequest(ctx context.Context, op bulkOperationInput, target bulkTarget) (bulkProviderRequest, error) {
-	out := bulkProviderRequest{Action: op.Action, ID: target.RemoteID, Name: target.Name, AllLibraries: op.HasAllLibraries, LibraryIDs: []string{}}
+func (a *App) editProviderRequest(ctx context.Context, op editOperationInput, target editTarget) (editProviderRequest, error) {
+	out := editProviderRequest{Action: op.Action, ID: target.RemoteID, Name: target.Name, AllLibraries: op.HasAllLibraries, LibraryIDs: []string{}}
 	if op.Action != "update_libraries" {
 		return out, nil
 	}
@@ -486,7 +486,7 @@ func (a *App) bulkProviderRequest(ctx context.Context, op bulkOperationInput, ta
 		return out, err
 	}
 	defer tx.Rollback()
-	out.LibraryIDs, err = resolveBulkLibraryIDs(ctx, tx, target.ServerID, op.LibraryIDs)
+	out.LibraryIDs, err = resolveEditLibraryIDs(ctx, tx, target.ServerID, op.LibraryIDs)
 	if err != nil {
 		return out, err
 	}
@@ -494,7 +494,7 @@ func (a *App) bulkProviderRequest(ctx context.Context, op bulkOperationInput, ta
 	return out, nil
 }
 
-func resolveBulkLibraryIDs(ctx context.Context, tx *sql.Tx, server int64, ids []string) ([]string, error) {
+func resolveEditLibraryIDs(ctx context.Context, tx *sql.Tx, server int64, ids []string) ([]string, error) {
 	out := []string{}
 	for _, id := range ids {
 		rows, err := tx.QueryContext(ctx, `SELECT external_id FROM media_libraries WHERE server_id=? AND is_available=1 AND (external_id=? OR internal_id=?) LIMIT 2`, server, id, id)

@@ -1,7 +1,7 @@
 // Package kavita is MUM's Kavita module: library and user reads,
 // username-only provisioning with selected libraries, recorded-account
 // recovery and role-based disable and enable. Kavita deletes accounts by
-// username, so MUM only deletes them in bulk, right after re-verifying the
+// username, so MUM only deletes them through Edit, right after re-verifying the
 // recorded ID still has that name.
 package kavita
 
@@ -529,13 +529,13 @@ func (s *Server) ResumeAccount(ctx context.Context, target provider.Resume, chec
 }
 
 // DeleteVerifiedByName deletes by username, the only way Kavita offers. MUM
-// calls it only in a bulk delete, right after re-inspecting the recorded ID
+// calls it only in an Edit delete, right after re-inspecting the recorded ID
 // as present, disabled and still holding this name.
 func (s *Server) DeleteVerifiedByName(ctx context.Context, user provider.Account) error {
 	return s.api(ctx, http.MethodDelete, "/Users/delete-user?username="+url.QueryEscape(user.Name), nil, nil)
 }
 
-// Library access for bulk edits. Kavita grants are explicit lists, so "all
+// Library access for Edit operations. Kavita grants are explicit lists, so "all
 // libraries" means every library on the server now.
 
 func (s *Server) LibraryAccess(user provider.Account) (all bool, ids []string, ok bool) {

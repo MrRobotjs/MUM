@@ -8,15 +8,15 @@ import (
 	"time"
 )
 
-func bulkDelete(t *testing.T, a *App, token string, uuids ...string) (int, map[string]any) {
+func editDelete(t *testing.T, a *App, token string, uuids ...string) (int, map[string]any) {
 	t.Helper()
-	w := apiRequest(a, "POST", "/api/users/bulk", token, map[string]any{"user_uuids": uuids, "operations": []map[string]any{{"action": "delete_users"}}}, nil)
+	w := apiRequest(a, "POST", "/api/users/edit", token, map[string]any{"user_uuids": uuids, "operations": []map[string]any{{"action": "delete_users"}}}, nil)
 	var body map[string]any
 	_ = json.Unmarshal(w.Body.Bytes(), &body)
 	return w.Code, body
 }
 
-func bulkOutcomes(t *testing.T, body map[string]any) map[string]string {
+func editOutcomes(t *testing.T, body map[string]any) map[string]string {
 	t.Helper()
 	data := body["data"].(map[string]any)
 	out := map[string]string{}
@@ -32,7 +32,7 @@ func bulkOutcomes(t *testing.T, body map[string]any) map[string]string {
 // stay; a service account is deleted with its history and links, even while
 // playing. Failed invitation jobs are closed; only an invitation being
 // processed right now, the owner and administrators are skipped.
-func TestBulkDeleteRetiresLocalAndDeletesServiceAccounts(t *testing.T) {
+func TestEditDeleteRetiresLocalAndDeletesServiceAccounts(t *testing.T) {
 	a, s := testApp(t)
 	token, _ := bootstrapOwner(t, a)
 	owner, err := s.Authenticate(t.Context(), token)
@@ -61,30 +61,30 @@ func TestBulkDeleteRetiresLocalAndDeletesServiceAccounts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	activityExec(t, s, "INSERT INTO admin_roles(id,name,position) VALUES('bulk-admin','Bulk admin',5)")
-	if err := s.AssignAdminRole(t.Context(), owner.UUID, admin, "bulk-admin"); err != nil {
+	activityExec(t, s, "INSERT INTO admin_roles(id,name,position) VALUES('edit-admin','Edit admin',5)")
+	if err := s.AssignAdminRole(t.Context(), owner.UUID, admin, "edit-admin"); err != nil {
 		t.Fatal(err)
 	}
 	pending, err := s.CreateAccount(t.Context(), owner.UUID, "pending-job", "fixture-hash", false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	activityExec(t, s, `INSERT INTO invites(token,expires_at,max_uses,is_active,created_at,updated_at) VALUES('bulk-invite',?,1,1,?,?)`, utcTimestamp(time.Now().Add(time.Hour)), utcTimestamp(time.Now()), utcTimestamp(time.Now()))
-	activityExec(t, s, `INSERT INTO provisioning_jobs(id,invite_id,user_uuid,status,created_at,updated_at,request_hash,reservation_held,requested_username) SELECT 'bulk-job',id,?,'failed',?,?,'hash',1,'pending-job' FROM invites WHERE token='bulk-invite'`, pending, utcTimestamp(time.Now()), utcTimestamp(time.Now()))
+	activityExec(t, s, `INSERT INTO invites(token,expires_at,max_uses,is_active,created_at,updated_at) VALUES('edit-invite',?,1,1,?,?)`, utcTimestamp(time.Now().Add(time.Hour)), utcTimestamp(time.Now()), utcTimestamp(time.Now()))
+	activityExec(t, s, `INSERT INTO provisioning_jobs(id,invite_id,user_uuid,status,created_at,updated_at,request_hash,reservation_held,requested_username) SELECT 'edit-job',id,?,'failed',?,?,'hash',1,'pending-job' FROM invites WHERE token='edit-invite'`, pending, utcTimestamp(time.Now()), utcTimestamp(time.Now()))
 
 	busy, err := s.CreateAccount(t.Context(), owner.UUID, "busy-job", "fixture-hash", false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	activityExec(t, s, `INSERT INTO provisioning_jobs(id,invite_id,user_uuid,status,created_at,updated_at,request_hash,reservation_held,requested_username) SELECT 'busy-job',id,?,'running',?,?,'hash2',1,'busy-job' FROM invites WHERE token='bulk-invite'`, busy, utcTimestamp(time.Now()), utcTimestamp(time.Now()))
+	activityExec(t, s, `INSERT INTO provisioning_jobs(id,invite_id,user_uuid,status,created_at,updated_at,request_hash,reservation_held,requested_username) SELECT 'busy-job',id,?,'running',?,?,'hash2',1,'busy-job' FROM invites WHERE token='edit-invite'`, busy, utcTimestamp(time.Now()), utcTimestamp(time.Now()))
 
 	// This test pins the transactional cleanup primitive, not the public
-	// provider-backed operation (covered by bulk_operations tests).
+	// provider-backed operation (covered by edit_operations tests).
 	var results []any
 	err = s.write(t.Context(), func(tx *sql.Tx) error {
 		request, _ := http.NewRequestWithContext(t.Context(), "POST", "/", nil)
 		for _, id := range []string{local, service, owner.UUID, admin, pending, playing, busy} {
-			result, e := bulkDeleteOne(request, tx, owner.UUID, id, now)
+			result, e := editDeleteOne(request, tx, owner.UUID, id, now)
 			if e != nil {
 				return e
 			}
@@ -99,7 +99,7 @@ func TestBulkDeleteRetiresLocalAndDeletesServiceAccounts(t *testing.T) {
 	if code != 200 {
 		t.Fatal(code, body)
 	}
-	got := bulkOutcomes(t, body)
+	got := editOutcomes(t, body)
 	want := map[string]string{local: "deleted:", service: "deleted:", owner.UUID: "skipped:protected_owner", admin: "skipped:administrator", pending: "deleted:", playing: "deleted:", busy: "skipped:invite_in_progress"}
 	for id, outcome := range want {
 		if got[id] != outcome {
@@ -129,7 +129,7 @@ func TestBulkDeleteRetiresLocalAndDeletesServiceAccounts(t *testing.T) {
 	var playingLeft, current, held int
 	s.reader.QueryRow("SELECT count(*) FROM service_accounts WHERE uuid=?", playing).Scan(&playingLeft)
 	s.reader.QueryRow("SELECT count(*) FROM media_activity_current").Scan(&current)
-	s.reader.QueryRow("SELECT count(*) FROM provisioning_jobs WHERE id='bulk-job' AND (resolution IS NOT 'cancelled' OR reservation_held=1)").Scan(&held)
+	s.reader.QueryRow("SELECT count(*) FROM provisioning_jobs WHERE id='edit-job' AND (resolution IS NOT 'cancelled' OR reservation_held=1)").Scan(&held)
 	if playingLeft != 0 || current != 0 || held != 0 {
 		t.Fatal("playing/failed-job state", playingLeft, current, held)
 	}
@@ -161,7 +161,7 @@ func TestBulkDeleteRetiresLocalAndDeletesServiceAccounts(t *testing.T) {
 	}
 }
 
-func TestBulkDeleteRequiresAdministratorAndKnownAction(t *testing.T) {
+func TestEditDeleteRequiresAdministratorAndKnownAction(t *testing.T) {
 	a, s := testApp(t)
 	token, _ := bootstrapOwner(t, a)
 	owner, _ := s.Authenticate(t.Context(), token)
@@ -173,14 +173,14 @@ func TestBulkDeleteRequiresAdministratorAndKnownAction(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if code, _ := bulkDelete(t, a, session.Access, local); code != 403 {
+	if code, _ := editDelete(t, a, session.Access, local); code != 403 {
 		t.Fatal("non-administrator allowed", code)
 	}
-	w := apiRequest(a, "POST", "/api/users/bulk", token, map[string]any{"user_uuids": []string{local}, "operations": []map[string]any{{"action": "set_expiry"}}}, nil)
+	w := apiRequest(a, "POST", "/api/users/edit", token, map[string]any{"user_uuids": []string{local}, "operations": []map[string]any{{"action": "set_expiry"}}}, nil)
 	if w.Code != 400 {
-		t.Fatal("unsupported bulk action accepted", w.Code, w.Body.String())
+		t.Fatal("unsupported edit action accepted", w.Code, w.Body.String())
 	}
-	if code, _ := bulkDelete(t, a, token); code != 400 {
+	if code, _ := editDelete(t, a, token); code != 400 {
 		t.Fatal("empty selection accepted", code)
 	}
 }

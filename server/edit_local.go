@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-type bulkLocalSelection struct {
+type editLocalSelection struct {
 	Fingerprint string
 	Outcome     string
 	Reason      string
@@ -20,7 +20,7 @@ type bulkLocalSelection struct {
 	ExpiresAt   *string
 }
 
-func bulkLocalExpiry(op bulkOperationInput, before *string, now time.Time) (*string, error) {
+func editLocalExpiry(op editOperationInput, before *string, now time.Time) (*string, error) {
 	switch op.Action {
 	case "clear_expiration":
 		return nil, nil
@@ -58,8 +58,8 @@ func bulkLocalExpiry(op bulkOperationInput, before *string, now time.Time) (*str
 	return nil, ErrConflict
 }
 
-func prepareBulkLocal(ctx context.Context, tx *sql.Tx, actor, access, target string, op bulkOperationInput) (bulkLocalSelection, error) {
-	out := bulkLocalSelection{Outcome: "updated"}
+func prepareEditLocal(ctx context.Context, tx *sql.Tx, actor, access, target string, op editOperationInput) (editLocalSelection, error) {
+	out := editLocalSelection{Outcome: "updated"}
 	if err := accountPreferenceAuthority(ctx, tx, actor, access); err != nil {
 		return out, err
 	}
@@ -76,14 +76,14 @@ func prepareBulkLocal(ctx context.Context, tx *sql.Tx, actor, access, target str
 	out.Local = kind != "service"
 	if op.Action == "link_local" || op.Action == "unlink_local" || op.Action == "delete_users" {
 		var busy bool
-		err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM bulk_source_locks b JOIN service_accounts a ON a.server_id=b.server_id WHERE b.operation_id<>? AND (a.uuid=? OR EXISTS(SELECT 1 FROM service_links l WHERE l.service_uuid=a.uuid AND l.user_uuid=?)))`, bulkContextOperation(ctx), target, target).Scan(&busy)
+		err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM edit_source_locks b JOIN service_accounts a ON a.server_id=b.server_id WHERE b.operation_id<>? AND (a.uuid=? OR EXISTS(SELECT 1 FROM service_links l WHERE l.service_uuid=a.uuid AND l.user_uuid=?)))`, editContextOperation(ctx), target, target).Scan(&busy)
 		if err != nil {
 			return out, err
 		}
 		if busy {
 			out.Outcome = "skipped"
 			out.Reason = "pending_work"
-			out.Fingerprint = bulkHash([]string{target, op.Action, "pending_work"})
+			out.Fingerprint = editHash([]string{target, op.Action, "pending_work"})
 			return out, nil
 		}
 	}
@@ -118,7 +118,7 @@ func prepareBulkLocal(ctx context.Context, tx *sql.Tx, actor, access, target str
 				out.Reason = current.Reason
 			}
 		}
-		out.ExpiresAt, err = bulkLocalExpiry(op, before, time.Now())
+		out.ExpiresAt, err = editLocalExpiry(op, before, time.Now())
 		if err != nil {
 			return out, err
 		}
@@ -215,7 +215,7 @@ func prepareBulkLocal(ctx context.Context, tx *sql.Tx, actor, access, target str
 	}
 	data, err := json.Marshal(struct {
 		Target          string
-		Operation       bulkOperationInput
+		Operation       editOperationInput
 		State           any
 		Outcome, Reason string
 	}{target, op, snapshot, out.Outcome, out.Reason})
@@ -230,12 +230,12 @@ func prepareBulkLocal(ctx context.Context, tx *sql.Tx, actor, access, target str
 // The coordinator compares every frozen fingerprint before starting the group.
 // Re-reading live guards here deliberately ignores global revision increments
 // produced by preceding members of that same short transaction.
-func applyBulkLocal(ctx context.Context, tx *sql.Tx, actor, access, target string, op bulkOperationInput, prepared bulkLocalSelection) (bulkUserResult, error) {
-	current, err := prepareBulkLocal(ctx, tx, actor, access, target, op)
+func applyEditLocal(ctx context.Context, tx *sql.Tx, actor, access, target string, op editOperationInput, prepared editLocalSelection) (editUserResult, error) {
+	current, err := prepareEditLocal(ctx, tx, actor, access, target, op)
 	if err != nil {
-		return bulkUserResult{}, err
+		return editUserResult{}, err
 	}
-	result := bulkUserResult{UUID: target, Outcome: current.Outcome, Reason: current.Reason, local: current.Local}
+	result := editUserResult{UUID: target, Outcome: current.Outcome, Reason: current.Reason, local: current.Local}
 	if prepared.Outcome == "skipped" || prepared.Outcome == "unchanged" {
 		result.Outcome = prepared.Outcome
 		result.Reason = prepared.Reason
@@ -251,7 +251,7 @@ func applyBulkLocal(ctx context.Context, tx *sql.Tx, actor, access, target strin
 			return result, ErrForbidden
 		}
 		request, _ := http.NewRequestWithContext(ctx, http.MethodPost, "/", nil)
-		return bulkDeleteOne(request, tx, actor, target, now)
+		return editDeleteOne(request, tx, actor, target, now)
 	case "link_local", "unlink_local":
 		if current.Outcome == "unchanged" {
 			return result, nil
@@ -283,7 +283,7 @@ func applyBulkLocal(ctx context.Context, tx *sql.Tx, actor, access, target strin
 			_, err = tx.ExecContext(ctx, "UPDATE service_accounts SET access_expires_at=?,updated_at=? WHERE uuid=?", after, now, target)
 		}
 		if err == nil {
-			err = auditAction(ctx, tx, actor, "bulk."+op.Action)
+			err = auditAction(ctx, tx, actor, "edit."+op.Action)
 		}
 	}
 	return result, err

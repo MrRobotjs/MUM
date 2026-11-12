@@ -141,7 +141,7 @@ func (a *App) changeAccountLink(w http.ResponseWriter, r *http.Request) {
 		if err := tx.QueryRowContext(r.Context(), "SELECT server_id FROM service_accounts WHERE uuid=?", r.PathValue("service")).Scan(&server); err != nil {
 			return err
 		}
-		if busy, err := bulkSourceBusy(r.Context(), tx, server, ""); err != nil {
+		if busy, err := editSourceBusy(r.Context(), tx, server, ""); err != nil {
 			return err
 		} else if busy {
 			return ErrConflict

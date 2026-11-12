@@ -216,7 +216,7 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
       const removalSet = new Set(idsForClickedLibrary);
       const nextAllowedIds = currentAllowedIds.filter((id) => !removalSet.has(String(id)));
 
-      await requestJson('/api/users/bulk', {
+      await requestJson('/api/users/edit', {
         method: 'POST',
         body: JSON.stringify({
           user_uuids: [user.uuid],

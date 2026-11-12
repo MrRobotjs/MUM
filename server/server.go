@@ -81,7 +81,7 @@ func NewApp(store *Store, queue *LogQueue, assets fs.FS) (*App, error) {
 	if err := a.recoverProvisioning(context.Background()); err != nil {
 		return nil, err
 	}
-	if err := a.recoverBulk(context.Background()); err != nil {
+	if err := a.recoverEdit(context.Background()); err != nil {
 		return nil, err
 	}
 	a.hub = newRealtimeHub(store)
@@ -231,11 +231,11 @@ func NewApp(store *Store, queue *LogQueue, assets fs.FS) (*App, error) {
 	handle("GET /api/user-role-catalog/{role}/members", a.userRoleMembers)
 	handle("POST /api/user-role-catalog/{role}/members", a.userRoleMembers)
 	handle("POST /api/users/sync-all", a.syncAllUsers)
-	handle("POST /api/users/bulk", a.bulkUsers)
-	handle("POST /api/users/bulk/prepare", a.prepareBulk)
-	handle("POST /api/bulk-operations/{operation}/execute", a.executeBulk)
-	handle("GET /api/bulk-operations/{operation}", a.readBulkReceipt)
-	handle("POST /api/bulk-operations/{operation}/reconcile", a.reconcileBulk)
+	handle("POST /api/users/edit", a.editUsers)
+	handle("POST /api/users/edit/prepare", a.prepareEdit)
+	handle("POST /api/edit-operations/{operation}/execute", a.executeEdit)
+	handle("GET /api/edit-operations/{operation}", a.readEditReceipt)
+	handle("POST /api/edit-operations/{operation}/reconcile", a.reconcileEdit)
 	handle("GET /api/account-links/{user}/{service}", a.accountLinkCapabilities)
 	handle("GET /api/account-links/{user}/accounts", a.accountLinkAccounts)
 	handle("PUT /api/account-links/{user}/{service}", a.changeAccountLink)
@@ -245,7 +245,7 @@ func NewApp(store *Store, queue *LogQueue, assets fs.FS) (*App, error) {
 	handle("GET /api/invitations/{invitation}", a.getInvitation)
 	handle("PATCH /api/invitations/{invitation}", a.updateInvitation)
 	handle("GET /api/invitations/{invitation}/share-link", a.invitationShareLink)
-	handle("POST /api/invitations/bulk-action", a.invitationBulkAction)
+	handle("POST /api/invitations/actions", a.invitationActions)
 	handle("DELETE /api/invitations/{invitation}", a.revokeInvitation)
 	handle("GET /api/public/invitations/{token}", a.publicInvitation)
 	handle("GET /api/public/invitation-paths/{path}", a.resolveInvitationPath)

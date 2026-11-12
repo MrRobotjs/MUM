@@ -7,7 +7,7 @@ import { usePlugins } from '../hooks/usePlugins';
 import { useInviteSummary } from '../hooks/useInviteSummary';
 import type { DiscordSettings } from '../hooks/useSettings';
 import { InvitesTable, InviteRow, InviteModal, InviteFormValues, InviteDetailDrawer, InviteCard, FeatureMeta } from '../components/invites';
-import { saveInvitation, bulkInvitationAction, invitationShareURL, openInvitation, membershipDateFromDays } from '../lib/invitations';
+import { saveInvitation, applyInvitationAction, invitationShareURL, openInvitation, membershipDateFromDays } from '../lib/invitations';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Input } from '../components/ui/input';
 import { Switch } from '../components/ui/switch';
@@ -244,22 +244,22 @@ export const InvitesPage = () => {
     setSelectedIds(select ? new Set(invites.map((invite) => invite.id)) : new Set());
   };
 
-  const handleBulkAction = async (action: 'enable' | 'disable' | 'delete' | 'purge') => {
+  const handleInvitationAction = async (action: 'enable' | 'disable' | 'delete' | 'purge') => {
     if (selectedIds.size === 0) return;
     try {
-      await bulkInvitationAction(Array.from(selectedIds), action);
+      await applyInvitationAction(Array.from(selectedIds), action);
       success(action === 'purge' ? `Permanently deleted ${selectedIds.size} invite(s)` : action === 'delete' ? 'Invites archived; history retained' : `Invites ${action}d successfully`);
       setSelectedIds(new Set());
       await refresh();
     } catch (err) {
-      showError('Bulk action failed: ' + String(err));
+      showError('Could not update the invitations: ' + String(err));
     }
   };
 
   const handleConfirmPurge = async () => {
     setPurging(true);
     try {
-      await handleBulkAction('purge');
+      await handleInvitationAction('purge');
     } finally {
       setPurging(false);
       setPurgeConfirmOpen(false);
@@ -489,7 +489,7 @@ export const InvitesPage = () => {
                 <Button
                   type="button"
                   variant="destructive"
-                  onClick={() => handleBulkAction('delete')}
+                  onClick={() => handleInvitationAction('delete')}
                 >
                   <FontAwesomeIcon icon={faTrash} className="mr-0 sm:mr-2" />
                   <span className="hidden sm:inline-block">Delete ({selectedIds.size} selected)</span>
@@ -498,7 +498,7 @@ export const InvitesPage = () => {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => handleBulkAction('disable')}
+                  onClick={() => handleInvitationAction('disable')}
                 >
                   <FontAwesomeIcon icon={faBan} className="mr-0 sm:mr-2" />
                   <span className="hidden sm:inline-block">Disable Selected</span>
@@ -506,7 +506,7 @@ export const InvitesPage = () => {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => handleBulkAction('enable')}
+                  onClick={() => handleInvitationAction('enable')}
                 >
                   <FontAwesomeIcon icon={faCheck} className="mr-0 sm:mr-2" />
                   <span className="hidden sm:inline-block">Enable Selected</span>

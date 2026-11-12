@@ -17,7 +17,7 @@ import { type Library } from '../../hooks/useLibraries';
 import { useProviderFeatures } from '../../hooks/useProviderFeatures';
 import { useServerOptions } from '../../hooks/useServerOptions';
 import { requestJson } from '../../util/apiClient';
-import { BulkManagementClient, runBulkOperation, bulkOutcomeMessage, bulkLibraryExternalIds, type BulkIntent, type BulkReceipt } from '../../lib/bulkManagement';
+import { EditOperationsClient, runEditOperation, editOutcomeMessage, editLibraryExternalIds, type EditIntent, type EditReceipt } from '../../lib/editOperations';
 import { useAlerts } from '../../contexts/AlertContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { getAuthSnapshot, subscribeToAuthStore } from '../../store/authStore';
@@ -43,7 +43,7 @@ import {
   faUsersGear,
 } from '@fortawesome/free-solid-svg-icons';
 
-interface MassEditUsersModalProps {
+interface EditUsersModalProps {
   isOpen: boolean;
   onClose: () => void;
   selectedUserIds: Set<string>;
@@ -98,13 +98,13 @@ interface LibraryServerSelection {
   error?: string | null;
 }
 
-export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplete, initialAction = '' }: MassEditUsersModalProps) => {
+export const EditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplete, initialAction = '' }: EditUsersModalProps) => {
   const [action, setAction] = useState<string>(initialAction);
   const { user } = useAuth();
   const actor = user?.uuid ?? '';
   const auth = useSyncExternalStore(subscribeToAuthStore, getAuthSnapshot);
   const { success, error } = useAlerts();
-  const client = useRef(new BulkManagementClient());
+  const client = useRef(new EditOperationsClient());
   const busy = useRef(false);
   const selectionKey = [...selectedUserIds].sort().join(',');
   const [submitting, setSubmitting] = useState(false);
@@ -201,7 +201,7 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
   useEffect(() => {
     if (!isOpen || action !== 'modify_libraries') return;
     if (!Object.values(libraryScopedSupportByService).some(Boolean)) {
-      setLibrarySelectionsError('Bulk library grant editing is unavailable in the current runtime.');
+      setLibrarySelectionsError('Library access editing is unavailable in the current runtime.');
       setLoadingLibrarySelections(false);
       return;
     }
@@ -757,7 +757,7 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
     if (!action || busy.current) return;
     const ids = [...selectedUserIds];
     const plural = (count: number) => `${count} user${count !== 1 ? 's' : ''}`;
-    const requests: { ids: string[]; intent: BulkIntent }[] = [];
+    const requests: { ids: string[]; intent: EditIntent }[] = [];
     let successMessage = '';
     if (action === 'modify_libraries') {
       if (librarySelectionsError || loadingLibrarySelections) { error('Library details are not loaded yet.'); return; }
@@ -766,7 +766,7 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
         if (!group.users.length) continue;
         let libraryIds: string[] = [];
         try {
-          libraryIds = group.grantAllLibraries ? [] : bulkLibraryExternalIds(group.libraries, group.libraryChecks);
+          libraryIds = group.grantAllLibraries ? [] : editLibraryExternalIds(group.libraries, group.libraryChecks);
         } catch (err) {
           error(err instanceof Error ? err.message : 'Library details are not loaded yet.');
           return;
@@ -815,11 +815,11 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
     busy.current = true;
     setSubmitting(true);
     try {
-      const receipts: BulkReceipt[] = [];
+      const receipts: EditReceipt[] = [];
       for (const request of requests) {
-        receipts.push(await runBulkOperation(client.current, request.ids, request.intent));
+        receipts.push(await runEditOperation(client.current, request.ids, request.intent));
       }
-      const problem = bulkOutcomeMessage(receipts);
+      const problem = editOutcomeMessage(receipts);
       if (problem) error(problem);
       else success(successMessage);
       onComplete?.();
@@ -1352,7 +1352,7 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
     <div className="space-y-6 py-4">
       <Alert variant="info">
         <FontAwesomeIcon icon={faCircleInfo} className="h-4 w-4" />
-        <AlertTitle>Mass Edit Operations</AlertTitle>
+        <AlertTitle>Edit Operations</AlertTitle>
         <AlertDescription>
           Apply one operation to all selected users at once. Review the action settings carefully before submitting.
         </AlertDescription>
@@ -1466,7 +1466,7 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
           <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
             <FontAwesomeIcon icon={faUsersGear} className="text-primary text-lg" />
           </div>
-          <span>Mass Edit Users</span>
+          <span>Edit Users</span>
         </div>
       }
       description={`Apply changes to ${selectedUserIds.size} selected user${selectedUserIds.size !== 1 ? 's' : ''} at once`}

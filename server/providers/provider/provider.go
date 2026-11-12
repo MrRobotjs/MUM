@@ -77,7 +77,7 @@ type UserProfile struct {
 	JoinDate  string
 }
 
-// Grant is the library access an invitation or bulk edit gives one server.
+// Grant is the library access an invitation or Edit operation gives one server.
 type Grant struct {
 	ServerID       int64    `json:"server_id"`
 	AllLibraries   bool     `json:"all_libraries"`

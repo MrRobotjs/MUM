@@ -73,7 +73,7 @@ func (p *serverConnection) transport() provider.Transport {
 }
 
 // guard rechecks the authority attached to this provider for the current
-// operation: provisioning review, owner remote access or a bulk edit.
+// operation: provisioning review, owner remote access or an Edit operation.
 func (p *serverConnection) guard(ctx context.Context) error {
 	if err := p.reviewAuthority.check(ctx); err != nil {
 		return err
@@ -81,8 +81,8 @@ func (p *serverConnection) guard(ctx context.Context) error {
 	if err := p.serviceAuthority.check(ctx); err != nil {
 		return err
 	}
-	if p.bulkAuthority != nil {
-		return p.bulkAuthority(ctx)
+	if p.editAuthority != nil {
+		return p.editAuthority(ctx)
 	}
 	return nil
 }
@@ -133,7 +133,7 @@ type (
 	libraryGrantMatcher interface {
 		LibraryGrantMatches(ctx context.Context, user provider.Account, all bool, ids []string) bool
 	}
-	// nameDeleter deletes by username. The core uses it only in a bulk delete,
+	// nameDeleter deletes by username. The core uses it only in an Edit delete,
 	// right after re-inspecting the recorded ID as present, disabled and named.
 	nameDeleter interface {
 		DeleteVerifiedByName(context.Context, provider.Account) error
@@ -239,7 +239,7 @@ func moduleCapabilities(m mediaModule) []string {
 	if _, ok := instance.(userReader); ok {
 		capabilities = append(capabilities, "users.read", "users.sync")
 	}
-	// Plex sharing (bulk share edits, provisioning by sharing and the Overseerr
+	// Plex sharing (Edit share changes, provisioning by sharing and the Overseerr
 	// integration) is still implemented by the core's sharing workflow.
 	plexSharing := m.Definition.ID == "plex"
 	if _, ok := instance.(libraryAccessEditor); ok || plexSharing {

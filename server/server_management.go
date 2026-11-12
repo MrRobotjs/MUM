@@ -552,7 +552,7 @@ func (a *App) testSavedServer(w http.ResponseWriter, r *http.Request) {
 }
 
 func checkServerSyncAuthority(ctx context.Context, tx *sql.Tx, actor, access string, claim *scheduledSyncClaim) error {
-	if busy, err := bulkSourceBusy(ctx, tx, 0, ""); err != nil {
+	if busy, err := editSourceBusy(ctx, tx, 0, ""); err != nil {
 		return err
 	} else if busy {
 		return ErrConflict
@@ -708,7 +708,7 @@ func (a *App) syncServerClaimed(ctx context.Context, actor, access string, s Man
 				return err
 			}
 			for _, account := range accounts {
-				if _, err := tx.ExecContext(ctx, "DELETE FROM bulk_removed_identities WHERE server_id=? AND external_user_id=?", s.ID, account.ID); err != nil {
+				if _, err := tx.ExecContext(ctx, "DELETE FROM edit_removed_identities WHERE server_id=? AND external_user_id=?", s.ID, account.ID); err != nil {
 					return err
 				}
 				var uuid string

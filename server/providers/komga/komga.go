@@ -458,7 +458,7 @@ func (s *Server) DeleteAccount(ctx context.Context, user provider.Account) error
 	return s.users(ctx, http.MethodDelete, "/"+url.PathEscape(user.ID), nil, nil)
 }
 
-// Library access for bulk edits.
+// Library access for Edit operations.
 
 func (s *Server) LibraryAccess(user provider.Account) (all bool, ids []string, ok bool) {
 	o := observed(user)
@@ -478,7 +478,7 @@ func (s *Server) WriteLibraryAccess(ctx context.Context, user provider.Account, 
 }
 
 // StateWithoutLibraryAccess is the observed state minus the library grant, so
-// MUM can check that a bulk library edit changed nothing else.
+// MUM can check that a library Edit changed nothing else.
 func (s *Server) StateWithoutLibraryAccess(user provider.Account) any {
 	o := observed(user)
 	if o == nil {

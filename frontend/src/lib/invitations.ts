@@ -170,8 +170,8 @@ export async function openInvitation(id: number) {
 }
 
 // 'delete' archives (history kept); 'purge' permanently deletes archived invitations and their history.
-export async function bulkInvitationAction(ids: number[], action: 'enable' | 'disable' | 'delete' | 'purge') {
-  return requestJson('/api/invitations/bulk-action', { method: 'POST', body: JSON.stringify({ ids, action: action === 'delete' ? 'archive' : action }) });
+export async function applyInvitationAction(ids: number[], action: 'enable' | 'disable' | 'delete' | 'purge') {
+  return requestJson('/api/invitations/actions', { method: 'POST', body: JSON.stringify({ ids, action: action === 'delete' ? 'archive' : action }) });
 }
 
 export async function invitationDetail(id: number) {

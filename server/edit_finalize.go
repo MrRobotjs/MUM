@@ -9,9 +9,9 @@ import (
 	"time"
 )
 
-func finalizeBulkProvider(ctx context.Context, tx *sql.Tx, b *bulkStored, index int, outcome, reason string) error {
+func finalizeEditProvider(ctx context.Context, tx *sql.Tx, b *editStored, index int, outcome, reason string) error {
 	target := b.Targets[index]
-	if err := checkBulkImpacts(ctx, tx, *b, target); err != nil {
+	if err := checkEditImpacts(ctx, tx, *b, target); err != nil {
 		return err
 	}
 	indices := []int{index}
@@ -24,7 +24,7 @@ func finalizeBulkProvider(ctx context.Context, tx *sql.Tx, b *bulkStored, index 
 		}
 	}
 	for _, i := range indices {
-		if err := checkBulkTarget(ctx, tx, b.Actor, "", b.Operation, b.Targets[i]); err != nil {
+		if err := checkEditTarget(ctx, tx, b.Actor, "", b.Operation, b.Targets[i]); err != nil {
 			return err
 		}
 	}
@@ -39,15 +39,15 @@ func finalizeBulkProvider(ctx context.Context, tx *sql.Tx, b *bulkStored, index 
 			if outcome != "deleted" {
 				return ErrConflict
 			}
-			if _, err := tx.ExecContext(ctx, `INSERT INTO bulk_removed_identities(server_id,external_user_id,operation_id,removed_at) VALUES(?,?,?,?) ON CONFLICT(server_id,external_user_id) DO UPDATE SET operation_id=excluded.operation_id,removed_at=excluded.removed_at`, t.ServerID, t.RemoteID, b.ID, utcTimestamp(time.Now())); err != nil {
+			if _, err := tx.ExecContext(ctx, `INSERT INTO edit_removed_identities(server_id,external_user_id,operation_id,removed_at) VALUES(?,?,?,?) ON CONFLICT(server_id,external_user_id) DO UPDATE SET operation_id=excluded.operation_id,removed_at=excluded.removed_at`, t.ServerID, t.RemoteID, b.ID, utcTimestamp(time.Now())); err != nil {
 				return err
 			}
 			request, _ := http.NewRequestWithContext(ctx, http.MethodPost, "/", nil)
-			if _, err := bulkDeleteService(request, tx, b.Actor, t.UUID); err != nil {
+			if _, err := editDeleteService(request, tx, b.Actor, t.UUID); err != nil {
 				return err
 			}
 		case "update_libraries":
-			resolved, err := resolveBulkLibraryIDs(ctx, tx, t.ServerID, b.Operation.LibraryIDs)
+			resolved, err := resolveEditLibraryIDs(ctx, tx, t.ServerID, b.Operation.LibraryIDs)
 			if err != nil {
 				return err
 			}
@@ -56,7 +56,7 @@ func finalizeBulkProvider(ctx context.Context, tx *sql.Tx, b *bulkStored, index 
 				return err
 			}
 		}
-		b.Results[i] = bulkUserResult{UUID: t.UUID, Outcome: outcome, Reason: reason}
+		b.Results[i] = editUserResult{UUID: t.UUID, Outcome: outcome, Reason: reason}
 	}
 	for _, impact := range target.Impacts {
 		touched[impact.ServerID] = true

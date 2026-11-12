@@ -68,7 +68,7 @@ type serverConnection struct {
 	reviewAuthority *reviewRequestAuthority
 	// Attached only to owner-initiated service remote access operations.
 	serviceAuthority *serviceRemoteAuthority
-	bulkAuthority    func(context.Context) error
+	editAuthority    func(context.Context) error
 }
 
 func validateProviderConfig(c ProviderConfig) error {

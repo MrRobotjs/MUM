@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { UsersTable, UserCardsGrid, PurgeUsersModal, PageHeader } from '../components';
 import { UserDisplaySettingsModal } from '../components/users/UserDisplaySettingsModal';
-import { MassEditUsersModal } from '../components/users/MassEditUsersModal';
-import { BulkManagementClient, bulkOutcomeMessage, runBulkOperation } from '../lib/bulkManagement';
+import { EditUsersModal } from '../components/users/EditUsersModal';
+import { EditOperationsClient, editOutcomeMessage, runEditOperation } from '../lib/editOperations';
 import { useUsersPaginated } from '../hooks/useUsersPaginated';
 import { useServerOptions } from '../hooks/useServerOptions';
 import { useAdminRoles } from '../hooks/useAdminRoles';
@@ -103,7 +103,7 @@ export const UsersListPage = () => {
   const [view, setView] = useState<'table' | 'cards'>(preferredView);
   const [showPurgeModal, setShowPurgeModal] = useState(false);
   const [showDisplaySettingsModal, setShowDisplaySettingsModal] = useState(false);
-  const [showMassEditModal, setShowMassEditModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [showFilterDrawer, setShowFilterDrawer] = useState(false);
   const [syncingServerId, setSyncingServerId] = useState<number | null>(null);
   const [selectionAnchorUserId, setSelectionAnchorUserId] = useState<string | null>(null);
@@ -378,8 +378,8 @@ export const UsersListPage = () => {
       return;
     }
     try {
-      const receipt = await runBulkOperation(new BulkManagementClient(), Array.from(selectedUserIds), { action: 'delete_users' });
-      const problem = bulkOutcomeMessage([receipt]);
+      const receipt = await runEditOperation(new EditOperationsClient(), Array.from(selectedUserIds), { action: 'delete_users' });
+      const problem = editOutcomeMessage([receipt]);
       if (problem) {
         error(`Delete completed with issues: ${problem}`);
       } else {
@@ -415,7 +415,7 @@ export const UsersListPage = () => {
           </DropdownMenuItem>
 
           <DropdownMenuSeparator />
-          <DropdownMenuLabel>Bulk Actions</DropdownMenuLabel>
+          <DropdownMenuLabel>Maintenance</DropdownMenuLabel>
           {hasPermission('administrator') && (
             hasMultipleEnabledServers ? (
               <DropdownMenuSub>
@@ -876,13 +876,13 @@ export const UsersListPage = () => {
         </CardContent>
       </Card>
 
-      {/* Mass Edit Bar - Shows below search, not fixed at bottom */}
+      {/* Edit bar - Shows below search, not fixed at bottom */}
       {selectedUserIds.size > 0 && (
         <Card className="mb-4 sticky top-0 z-1">
           <CardContent className="flex items-center gap-2">
-            <Button variant="default" onClick={() => setShowMassEditModal(true)}>
+            <Button variant="default" onClick={() => setShowEditModal(true)}>
               <FontAwesomeIcon icon={faPenToSquare} className="mr-0 sm:mr-2" />
-              <span className="hidden sm:inline">Mass Edit ({selectedUserIds.size} selected)</span>
+              <span className="hidden sm:inline">Edit ({selectedUserIds.size} selected)</span>
               <span className="inline sm:hidden">({selectedUserIds.size})</span>
             </Button>
             <Button variant="destructive" onClick={() => {
@@ -960,9 +960,9 @@ export const UsersListPage = () => {
         onClose={() => setShowDisplaySettingsModal(false)}
       />
 
-      <MassEditUsersModal
-        isOpen={showMassEditModal}
-        onClose={() => setShowMassEditModal(false)}
+      <EditUsersModal
+        isOpen={showEditModal}
+        onClose={() => setShowEditModal(false)}
         selectedUserIds={selectedUserIds}
         onComplete={() => {
           mutate();

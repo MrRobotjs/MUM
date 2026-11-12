@@ -73,7 +73,7 @@ func (a *App) startReviewOperation(w http.ResponseWriter, r *http.Request) (cont
 func (a *App) claimReview(ctx context.Context, actor, access, jobID string, revision int64) (string, error) {
 	token := newUUID()
 	err := a.store.write(ctx, func(tx *sql.Tx) error {
-		if busy, err := bulkSourceBusy(ctx, tx, 0, ""); err != nil {
+		if busy, err := editSourceBusy(ctx, tx, 0, ""); err != nil {
 			return err
 		} else if busy {
 			return ErrConflict

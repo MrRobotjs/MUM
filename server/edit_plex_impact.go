@@ -6,7 +6,7 @@ import (
 	"fmt"
 )
 
-func bulkPlexCatalogue(ctx context.Context, tx *sql.Tx, recipient string) (string, error) {
+func editPlexCatalogue(ctx context.Context, tx *sql.Tx, recipient string) (string, error) {
 	sources, err := tx.QueryContext(ctx, "SELECT id,config_revision FROM media_servers WHERE service_type='plex' ORDER BY id")
 	if err != nil {
 		return "", err
@@ -43,16 +43,16 @@ func bulkPlexCatalogue(ctx context.Context, tx *sql.Tx, recipient string) (strin
 	if err != nil {
 		return "", err
 	}
-	return bulkDigest(state), nil
+	return editDigest(state), nil
 }
 
 // Friendship removal is wider than one PMS. Resolve all known same-recipient
 // rows using their own administrator credentials; never equate tokens by name.
-func (a *App) prepareBulkPlexImpacts(ctx context.Context, b *bulkStored, access string) error {
+func (a *App) prepareEditPlexImpacts(ctx context.Context, b *editStored, access string) error {
 	if b.Action != "delete_users" {
 		return nil
 	}
-	known := map[string][]bulkTarget{}
+	known := map[string][]editTarget{}
 	reasons := map[string]string{}
 	for i := range b.Targets {
 		target := &b.Targets[i]
@@ -64,7 +64,7 @@ func (a *App) prepareBulkPlexImpacts(ctx context.Context, b *bulkStored, access 
 		if e != nil {
 			return e
 		}
-		target.ImpactCatalogue, e = bulkPlexCatalogue(ctx, catalogueTx, target.RemoteID)
+		target.ImpactCatalogue, e = editPlexCatalogue(ctx, catalogueTx, target.RemoteID)
 		catalogueTx.Rollback()
 		if e != nil {
 			return e
@@ -75,7 +75,7 @@ func (a *App) prepareBulkPlexImpacts(ctx context.Context, b *bulkStored, access 
 			continue
 		}
 		if impacts, ok := known[target.Group]; ok {
-			target.Impacts = append([]bulkTarget{}, impacts...)
+			target.Impacts = append([]editTarget{}, impacts...)
 			continue
 		}
 		rows, err := a.store.reader.QueryContext(ctx, `SELECT a.uuid FROM service_accounts a JOIN media_servers s ON s.id=a.server_id WHERE s.service_type='plex' AND a.external_user_id=? ORDER BY a.uuid LIMIT 501`, target.RemoteID)
@@ -106,7 +106,7 @@ func (a *App) prepareBulkPlexImpacts(ctx context.Context, b *bulkStored, access 
 			if err != nil {
 				return err
 			}
-			impact, err := bulkServiceTarget(ctx, tx, id)
+			impact, err := editServiceTarget(ctx, tx, id)
 			protected := false
 			if err == nil {
 				err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM service_links l JOIN user_accounts u ON u.uuid=l.user_uuid WHERE l.service_uuid=? AND (u.kind='owner' OR u.uuid=? OR EXISTS(SELECT 1 FROM admin_privileges WHERE user_uuid=u.uuid)))`, id, b.Actor).Scan(&protected)
@@ -126,9 +126,9 @@ func (a *App) prepareBulkPlexImpacts(ctx context.Context, b *bulkStored, access 
 				provider, err := newServerConnection(ProviderConfig{source.Type, source.URL, source.apiKey}, a.ProviderHTTP)
 				if err == nil {
 					p := provider
-					p.bulkAuthority = func(ctx context.Context) error { return a.bulkPreparedAuthority(ctx, b.Actor, access, b.Role, impact) }
-					var snapshot bulkProviderSnapshot
-					snapshot, err = p.prepareBulkUser(ctx, bulkProviderRequest{Action: "delete_users", ID: impact.RemoteID, Name: impact.Name})
+					p.editAuthority = func(ctx context.Context) error { return a.editPreparedAuthority(ctx, b.Actor, access, b.Role, impact) }
+					var snapshot editProviderSnapshot
+					snapshot, err = p.prepareEditUser(ctx, editProviderRequest{Action: "delete_users", ID: impact.RemoteID, Name: impact.Name})
 					group = snapshot.Group
 				}
 				if err != nil {
@@ -171,9 +171,9 @@ func (a *App) prepareBulkPlexImpacts(ctx context.Context, b *bulkStored, access 
 	return nil
 }
 
-func checkBulkImpacts(ctx context.Context, tx *sql.Tx, b bulkStored, target bulkTarget) error {
+func checkEditImpacts(ctx context.Context, tx *sql.Tx, b editStored, target editTarget) error {
 	if target.ImpactCatalogue != "" {
-		current, err := bulkPlexCatalogue(ctx, tx, target.RemoteID)
+		current, err := editPlexCatalogue(ctx, tx, target.RemoteID)
 		if err != nil {
 			return err
 		}
@@ -183,7 +183,7 @@ func checkBulkImpacts(ctx context.Context, tx *sql.Tx, b bulkStored, target bulk
 	}
 
 	for _, impact := range target.Impacts {
-		if err := checkBulkTarget(ctx, tx, b.Actor, "", b.Operation, impact); err != nil {
+		if err := checkEditTarget(ctx, tx, b.Actor, "", b.Operation, impact); err != nil {
 			return err
 		}
 		var protected bool

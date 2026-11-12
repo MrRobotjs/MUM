@@ -59,8 +59,8 @@ func TestArchivedInvitationReleasesCustomPathAndPurgesHistory(t *testing.T) {
 		data := responseData(t, w)
 		return int64(data["id"].(float64)), data["token"].(string)
 	}
-	bulk := func(action string, ids ...int64) (int, string) {
-		w := apiRequest(a, "POST", "/api/invitations/bulk-action", admin, map[string]any{"ids": ids, "action": action}, nil)
+	act := func(action string, ids ...int64) (int, string) {
+		w := apiRequest(a, "POST", "/api/invitations/actions", admin, map[string]any{"ids": ids, "action": action}, nil)
 		return w.Code, w.Body.String()
 	}
 
@@ -72,10 +72,10 @@ func TestArchivedInvitationReleasesCustomPathAndPurgesHistory(t *testing.T) {
 	if err := s.reader.QueryRow("SELECT uuid FROM user_accounts WHERE used_invite_id=?", old).Scan(&user); err != nil {
 		t.Fatal(err)
 	}
-	if code, body := bulk("purge", old); code != 409 || !strings.Contains(body, "INVITATION_NOT_ARCHIVED") {
+	if code, body := act("purge", old); code != 409 || !strings.Contains(body, "INVITATION_NOT_ARCHIVED") {
 		t.Fatal("purged an invitation that was not archived", code, body)
 	}
-	if code, body := bulk("archive", old); code != 200 {
+	if code, body := act("archive", old); code != 200 {
 		t.Fatal(code, body)
 	}
 
@@ -87,11 +87,11 @@ func TestArchivedInvitationReleasesCustomPathAndPurgesHistory(t *testing.T) {
 	if w := apiRequest(a, "GET", "/api/public/invitation-paths/family", "", nil, nil); w.Code != 200 {
 		t.Fatal(w.Code, w.Body.String())
 	}
-	if code, body := bulk("purge", old, current); code != 409 {
+	if code, body := act("purge", old, current); code != 409 {
 		t.Fatal("mixed purge accepted", code, body)
 	}
 
-	if code, body := bulk("purge", old); code != 200 {
+	if code, body := act("purge", old); code != 200 {
 		t.Fatal(code, body)
 	}
 	for _, query := range []string{"SELECT count(*) FROM invites WHERE id=?", "SELECT count(*) FROM provisioning_jobs WHERE invite_id=?", "SELECT count(*) FROM invitation_secrets WHERE invite_id=?", "SELECT count(*) FROM invitation_grants WHERE invite_id=?", "SELECT count(*) FROM user_accounts WHERE used_invite_id=?", "SELECT count(*) FROM service_accounts WHERE used_invite_id=?"} {
@@ -118,10 +118,10 @@ func TestPurgeRefusesInvitationWaitingForReview(t *testing.T) {
 	if w := apiRequest(a, "POST", "/api/public/invitations/"+token+"/redeem", "", redeemBody("Review Recipient", newUUID()), nil); w.Code != 201 || responseData(t, w)["status"] != "failed" {
 		t.Fatal(w.Code, w.Body.String())
 	}
-	if w := apiRequest(a, "POST", "/api/invitations/bulk-action", admin, map[string]any{"ids": []int64{id}, "action": "archive"}, nil); w.Code != 200 {
+	if w := apiRequest(a, "POST", "/api/invitations/actions", admin, map[string]any{"ids": []int64{id}, "action": "archive"}, nil); w.Code != 200 {
 		t.Fatal(w.Code, w.Body.String())
 	}
-	w := apiRequest(a, "POST", "/api/invitations/bulk-action", admin, map[string]any{"ids": []int64{id}, "action": "purge"}, nil)
+	w := apiRequest(a, "POST", "/api/invitations/actions", admin, map[string]any{"ids": []int64{id}, "action": "purge"}, nil)
 	if w.Code != 409 || !strings.Contains(w.Body.String(), "INVITATION_IN_USE") {
 		t.Fatal(w.Code, w.Body.String())
 	}

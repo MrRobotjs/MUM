@@ -249,7 +249,7 @@ func (s *Server) DeleteAccount(ctx context.Context, user provider.Account) error
 	return s.Request(ctx, http.MethodDelete, "/Users/"+url.PathEscape(user.ID), nil, nil)
 }
 
-// Library access for bulk edits.
+// Library access for Edit operations.
 
 func (s *Server) LibraryAccess(user provider.Account) (all bool, ids []string, ok bool) {
 	policy := PolicyOf(user)

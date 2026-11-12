@@ -6,17 +6,17 @@ import (
 	"time"
 )
 
-func TestBulkLocalOwnershipChangesRespectRemoteSourceLocks(t *testing.T) {
+func TestEditLocalOwnershipChangesRespectRemoteSourceLocks(t *testing.T) {
 	a, s := testApp(t)
 	token, _ := bootstrapOwner(t, a)
 	owner, _ := s.Authenticate(t.Context(), token)
 	local, _ := s.CreateAccount(t.Context(), owner.UUID, "locked-links", "fixture-hash", false)
 	server := seedServer(t, s)
 	service := seedService(t, s, server)
-	activityExec(t, s, "INSERT INTO bulk_operations(id,actor_uuid,access_hash,request_id,request_hash,action,payload,targets,results,warnings,effects,state,role_revision,created_at,updated_at) VALUES('lock-fixture',?,?,'lock-request','fixture','delete_users','{}','[]','[]','[]','[]','needs_review',1,?,?)", owner.UUID, tokenHash(token), utcTimestamp(time.Now()), utcTimestamp(time.Now()))
-	activityExec(t, s, "INSERT INTO bulk_source_locks(server_id,operation_id,operation_token) VALUES(?,'lock-fixture','fixture-token')", server)
+	activityExec(t, s, "INSERT INTO edit_operations(id,actor_uuid,access_hash,request_id,request_hash,action,payload,targets,results,warnings,effects,state,role_revision,created_at,updated_at) VALUES('lock-fixture',?,?,'lock-request','fixture','delete_users','{}','[]','[]','[]','[]','needs_review',1,?,?)", owner.UUID, tokenHash(token), utcTimestamp(time.Now()), utcTimestamp(time.Now()))
+	activityExec(t, s, "INSERT INTO edit_source_locks(server_id,operation_id,operation_token) VALUES(?,'lock-fixture','fixture-token')", server)
 	err := s.write(t.Context(), func(tx *sql.Tx) error {
-		prepared, e := prepareBulkLocal(t.Context(), tx, owner.UUID, token, service, bulkOperationInput{Action: "link_local", TargetLocalUserUUID: local})
+		prepared, e := prepareEditLocal(t.Context(), tx, owner.UUID, token, service, editOperationInput{Action: "link_local", TargetLocalUserUUID: local})
 		if e == nil && prepared.Outcome != "skipped" {
 			t.Fatal("link ignored unresolved provider work")
 		}
@@ -27,35 +27,35 @@ func TestBulkLocalOwnershipChangesRespectRemoteSourceLocks(t *testing.T) {
 	}
 }
 
-func TestBulkLocalExpiryBoundsAndElapsedExtension(t *testing.T) {
+func TestEditLocalExpiryBoundsAndElapsedExtension(t *testing.T) {
 	now := time.Date(2026, 11, 7, 12, 0, 0, 0, time.UTC)
 	elapsed := "2000-01-01T00:00:00Z"
-	next, err := bulkLocalExpiry(bulkOperationInput{Action: "extend_access", Days: 2}, &elapsed, now)
+	next, err := editLocalExpiry(editOperationInput{Action: "extend_access", Days: 2}, &elapsed, now)
 	if err != nil || next == nil || *next != "2026-11-09T12:00:00Z" {
 		t.Fatalf("%v %v", next, err)
 	}
 	for _, days := range []int{0, -1, 36501} {
-		if _, err := bulkLocalExpiry(bulkOperationInput{Action: "extend_access", Days: days}, nil, now); err == nil {
+		if _, err := editLocalExpiry(editOperationInput{Action: "extend_access", Days: days}, nil, now); err == nil {
 			t.Fatalf("accepted %d", days)
 		}
 	}
 	future := "9999-12-31T00:00:00Z"
-	if _, err := bulkLocalExpiry(bulkOperationInput{Action: "extend_access", Days: 2}, &future, now); err == nil {
+	if _, err := editLocalExpiry(editOperationInput{Action: "extend_access", Days: 2}, &future, now); err == nil {
 		t.Fatal("accepted overflow")
 	}
 	offset := "2099-01-01T01:00:00+01:00"
-	if _, err := bulkLocalExpiry(bulkOperationInput{Action: "set_expiration", ExpiresAt: &offset}, nil, now); err == nil {
+	if _, err := editLocalExpiry(editOperationInput{Action: "set_expiration", ExpiresAt: &offset}, nil, now); err == nil {
 		t.Fatal("accepted noncanonical UTC")
 	}
 }
 
-func TestBulkLocalExpiryRevokesSessionsAndPreservesService(t *testing.T) {
+func TestEditLocalExpiryRevokesSessionsAndPreservesService(t *testing.T) {
 	_, s, access, _, _ := roleReadFixture(t)
 	actor, err := s.Authenticate(t.Context(), access)
 	if err != nil {
 		t.Fatal(err)
 	}
-	target, err := s.CreateAccount(t.Context(), actor.UUID, "bulk-expiry", "fixture-hash", false)
+	target, err := s.CreateAccount(t.Context(), actor.UUID, "edit-expiry", "fixture-hash", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -68,16 +68,16 @@ func TestBulkLocalExpiryRevokesSessionsAndPreservesService(t *testing.T) {
 		t.Fatal(err)
 	}
 	after := "2099-01-01T00:00:00Z"
-	op := bulkOperationInput{Action: "set_expiration", ExpiresAt: &after}
+	op := editOperationInput{Action: "set_expiration", ExpiresAt: &after}
 	err = s.write(t.Context(), func(tx *sql.Tx) error {
-		prepared, e := prepareBulkLocal(t.Context(), tx, actor.UUID, access, target, op)
+		prepared, e := prepareEditLocal(t.Context(), tx, actor.UUID, access, target, op)
 		if e != nil {
 			return e
 		}
 		if prepared.Outcome != "updated" || prepared.Fingerprint == "" {
 			t.Fatalf("%+v", prepared)
 		}
-		result, e := applyBulkLocal(t.Context(), tx, actor.UUID, access, target, op, prepared)
+		result, e := applyEditLocal(t.Context(), tx, actor.UUID, access, target, op, prepared)
 		if result.Outcome != "updated" {
 			t.Fatalf("%+v", result)
 		}
@@ -95,32 +95,32 @@ func TestBulkLocalExpiryRevokesSessionsAndPreservesService(t *testing.T) {
 	}
 }
 
-func TestBulkLocalLinkGroupAndRetirementPreserveServices(t *testing.T) {
+func TestEditLocalLinkGroupAndRetirementPreserveServices(t *testing.T) {
 	_, s, access, _, _ := roleReadFixture(t)
 	actor, err := s.Authenticate(t.Context(), access)
 	if err != nil {
 		t.Fatal(err)
 	}
-	target, err := s.CreateAccount(t.Context(), actor.UUID, "bulk-link", "fixture-hash", false)
+	target, err := s.CreateAccount(t.Context(), actor.UUID, "edit-link", "fixture-hash", false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	server := seedServer(t, s)
 	first := seedService(t, s, server)
 	second := seedService(t, s, server)
-	op := bulkOperationInput{Action: "link_local", TargetLocalUserUUID: target}
+	op := editOperationInput{Action: "link_local", TargetLocalUserUUID: target}
 	err = s.write(t.Context(), func(tx *sql.Tx) error {
-		a, e := prepareBulkLocal(t.Context(), tx, actor.UUID, access, first, op)
+		a, e := prepareEditLocal(t.Context(), tx, actor.UUID, access, first, op)
 		if e != nil {
 			return e
 		}
-		b, e := prepareBulkLocal(t.Context(), tx, actor.UUID, access, second, op)
+		b, e := prepareEditLocal(t.Context(), tx, actor.UUID, access, second, op)
 		if e != nil {
 			return e
 		}
-		for i, p := range []bulkLocalSelection{a, b} {
+		for i, p := range []editLocalSelection{a, b} {
 			id := []string{first, second}[i]
-			result, e := applyBulkLocal(t.Context(), tx, actor.UUID, access, id, op, p)
+			result, e := applyEditLocal(t.Context(), tx, actor.UUID, access, id, op, p)
 			if e != nil {
 				return e
 			}
@@ -133,13 +133,13 @@ func TestBulkLocalLinkGroupAndRetirementPreserveServices(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	deletion := bulkOperationInput{Action: "delete_users"}
+	deletion := editOperationInput{Action: "delete_users"}
 	err = s.write(t.Context(), func(tx *sql.Tx) error {
-		prepared, e := prepareBulkLocal(t.Context(), tx, actor.UUID, access, target, deletion)
+		prepared, e := prepareEditLocal(t.Context(), tx, actor.UUID, access, target, deletion)
 		if e != nil {
 			return e
 		}
-		result, e := applyBulkLocal(t.Context(), tx, actor.UUID, access, target, deletion, prepared)
+		result, e := applyEditLocal(t.Context(), tx, actor.UUID, access, target, deletion, prepared)
 		if result.Outcome != "deleted" {
 			t.Fatalf("%+v", result)
 		}
@@ -156,7 +156,7 @@ func TestBulkLocalLinkGroupAndRetirementPreserveServices(t *testing.T) {
 		t.Fatalf("services %d links %d error %v", services, links, err)
 	}
 	err = s.write(t.Context(), func(tx *sql.Tx) error {
-		prepared, e := prepareBulkLocal(t.Context(), tx, actor.UUID, access, first, op)
+		prepared, e := prepareEditLocal(t.Context(), tx, actor.UUID, access, first, op)
 		if e == nil && prepared.Outcome != "skipped" {
 			t.Fatalf("retired destination accepted: %+v", prepared)
 		}
@@ -167,17 +167,17 @@ func TestBulkLocalLinkGroupAndRetirementPreserveServices(t *testing.T) {
 	}
 }
 
-func TestBulkLocalProtectsOwnerAndExistingPrimary(t *testing.T) {
+func TestEditLocalProtectsOwnerAndExistingPrimary(t *testing.T) {
 	_, s, access, _, _ := roleReadFixture(t)
 	actor, err := s.Authenticate(t.Context(), access)
 	if err != nil {
 		t.Fatal(err)
 	}
-	firstOwner, err := s.CreateAccount(t.Context(), actor.UUID, "bulk-first-owner", "fixture-hash", false)
+	firstOwner, err := s.CreateAccount(t.Context(), actor.UUID, "edit-first-owner", "fixture-hash", false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	other, err := s.CreateAccount(t.Context(), actor.UUID, "bulk-other-owner", "fixture-hash", false)
+	other, err := s.CreateAccount(t.Context(), actor.UUID, "edit-other-owner", "fixture-hash", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -187,7 +187,7 @@ func TestBulkLocalProtectsOwnerAndExistingPrimary(t *testing.T) {
 	}
 	err = s.write(t.Context(), func(tx *sql.Tx) error {
 		for _, action := range []string{"delete_users", "clear_expiration"} {
-			p, e := prepareBulkLocal(t.Context(), tx, actor.UUID, access, actor.UUID, bulkOperationInput{Action: action})
+			p, e := prepareEditLocal(t.Context(), tx, actor.UUID, access, actor.UUID, editOperationInput{Action: action})
 			if e != nil {
 				return e
 			}
@@ -195,21 +195,21 @@ func TestBulkLocalProtectsOwnerAndExistingPrimary(t *testing.T) {
 				t.Fatalf("owner protection: %+v", p)
 			}
 		}
-		p, e := prepareBulkLocal(t.Context(), tx, actor.UUID, access, service, bulkOperationInput{Action: "link_local", TargetLocalUserUUID: other})
+		p, e := prepareEditLocal(t.Context(), tx, actor.UUID, access, service, editOperationInput{Action: "link_local", TargetLocalUserUUID: other})
 		if e != nil {
 			return e
 		}
 		if p.Outcome != "skipped" {
 			t.Fatalf("stole primary: %+v", p)
 		}
-		p, e = prepareBulkLocal(t.Context(), tx, actor.UUID, access, service, bulkOperationInput{Action: "unlink_local", TargetLocalUserUUID: other})
+		p, e = prepareEditLocal(t.Context(), tx, actor.UUID, access, service, editOperationInput{Action: "unlink_local", TargetLocalUserUUID: other})
 		if e != nil {
 			return e
 		}
 		if p.Outcome != "skipped" {
 			t.Fatalf("unlinked other primary: %+v", p)
 		}
-		p, e = prepareBulkLocal(t.Context(), tx, actor.UUID, access, service, bulkOperationInput{Action: "link_local", TargetLocalUserUUID: firstOwner})
+		p, e = prepareEditLocal(t.Context(), tx, actor.UUID, access, service, editOperationInput{Action: "link_local", TargetLocalUserUUID: firstOwner})
 		if e != nil {
 			return e
 		}

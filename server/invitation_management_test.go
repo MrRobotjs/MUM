@@ -85,7 +85,7 @@ func TestInvitationShareLinkEncryptionAuthorizationAndMissingKey(t *testing.T) {
 	}
 }
 
-func TestInvitationRevisionEditsAndAtomicBulkActions(t *testing.T) {
+func TestInvitationRevisionEditsAndAtomicActions(t *testing.T) {
 	a, s := testApp(t)
 	admin, _ := bootstrapOwner(t, a)
 	f := newProvisioningFixture(t, "")
@@ -101,16 +101,16 @@ func TestInvitationRevisionEditsAndAtomicBulkActions(t *testing.T) {
 	if w := apiRequest(a, "GET", path, admin, nil, nil); w.Code != 200 || responseData(t, w)["max_uses"] != float64(2) {
 		t.Fatal(w.Code, w.Body.String())
 	}
-	if w := apiRequest(a, "POST", "/api/invitations/bulk-action", admin, map[string]any{"ids": []int64{id, 999999}, "action": "disable"}, nil); w.Code != 404 {
+	if w := apiRequest(a, "POST", "/api/invitations/actions", admin, map[string]any{"ids": []int64{id, 999999}, "action": "disable"}, nil); w.Code != 404 {
 		t.Fatal(w.Code, w.Body.String())
 	}
 	var active bool
 	var revision int64
 	if err := s.reader.QueryRow("SELECT is_active,revision FROM invites WHERE id=?", id).Scan(&active, &revision); err != nil || !active || revision != 2 {
-		t.Fatal("failed bulk action partially committed", active, revision, err)
+		t.Fatal("failed action partially committed", active, revision, err)
 	}
 	for _, action := range []string{"disable", "enable", "archive"} {
-		w := apiRequest(a, "POST", "/api/invitations/bulk-action", admin, map[string]any{"ids": []int64{id}, "action": action}, nil)
+		w := apiRequest(a, "POST", "/api/invitations/actions", admin, map[string]any{"ids": []int64{id}, "action": action}, nil)
 		if w.Code != 200 {
 			t.Fatal(w.Code, w.Body.String())
 		}
@@ -146,7 +146,7 @@ func TestUnresolvedProvisioningBlocksEditsAndReenableButRetainsArchivedHistory(t
 		t.Fatal("edited grant with unresolved reservation", w.Code, w.Body.String())
 	}
 	for _, action := range []string{"disable", "enable", "archive"} {
-		w := apiRequest(a, "POST", "/api/invitations/bulk-action", admin, map[string]any{"ids": []int64{id}, "action": action}, nil)
+		w := apiRequest(a, "POST", "/api/invitations/actions", admin, map[string]any{"ids": []int64{id}, "action": action}, nil)
 		want := 200
 		if action == "enable" {
 			want = 409

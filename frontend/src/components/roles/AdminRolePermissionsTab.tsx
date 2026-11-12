@@ -54,9 +54,9 @@ const PERMISSIONS_STRUCTURE: Record<
         description: 'Can permanently remove users from MUM and the Plex server.',
       },
       purge_users: { label: 'Purge Users', description: 'Can use the inactivity purge feature.' },
-      mass_edit_users: {
-        label: 'Mass Edit Users',
-        description: 'Can perform bulk actions like assigning libraries or whitelisting.',
+      edit_users: {
+        label: 'Edit Users',
+        description: 'Can edit selected users at once, such as library access and expiry.',
       },
     },
   },

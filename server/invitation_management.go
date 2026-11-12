@@ -199,7 +199,7 @@ func (a *App) updateInvitation(w http.ResponseWriter, r *http.Request) {
 	respond(w, 200, map[string]any{"id": id, "revision": input.Revision + 1})
 }
 
-func (a *App) invitationBulkAction(w http.ResponseWriter, r *http.Request) {
+func (a *App) invitationActions(w http.ResponseWriter, r *http.Request) {
 	p, ok := a.principal(w, r, true)
 	if !ok {
 		return

@@ -72,7 +72,7 @@ func conformanceModule(t *testing.T, m mediaModule, status int, body string, gua
 	if err != nil {
 		t.Fatal(m.Definition.ID, err)
 	}
-	connection.bulkAuthority = guard
+	connection.editAuthority = guard
 	return connection.module(), &requests
 }
 

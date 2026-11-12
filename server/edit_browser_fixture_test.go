@@ -11,8 +11,8 @@ import (
 
 // Opt-in disposable browser fixture. It has no configured external providers;
 // fixed test credentials and its database live only for this test process.
-func TestBulkBrowserFixture(t *testing.T) {
-	file := os.Getenv("MUM_BULK_BROWSER_FIXTURE")
+func TestEditBrowserFixture(t *testing.T) {
+	file := os.Getenv("MUM_EDIT_BROWSER_FIXTURE")
 	if file == "" {
 		t.Skip("opt-in browser fixture")
 	}
@@ -36,7 +36,7 @@ func TestBulkBrowserFixture(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if w := apiRequest(a, "POST", "/api/setup/app", token, map[string]string{"app_name": "Disposable bulk fixture", "app_base_url": "http://localhost"}, nil); w.Code != 200 {
+	if w := apiRequest(a, "POST", "/api/setup/app", token, map[string]string{"app_name": "Disposable edit fixture", "app_base_url": "http://localhost"}, nil); w.Code != 200 {
 		t.Fatalf("setup %d %s", w.Code, w.Body.String())
 	}
 	if w := apiRequest(a, "POST", "/api/setup/complete", token, map[string]any{}, nil); w.Code != 200 {

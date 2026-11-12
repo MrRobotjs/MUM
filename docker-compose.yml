@@ -1,62 +1,37 @@
+# MUM (Go/SQLite) with Docker Compose. From the repository root:
+#   docker compose up -d --build
+# Then open http://localhost:5699 and complete the setup wizard.
+
+# Keep the existing Go Compose volume: mum-go_mum-data.
+name: mum-go
+
 services:
-  mum: # Service name (Multimedia User Manager)
-    container_name: mum
+  mum:
     build:
-      context: . # The build context is the current directory
-      dockerfile: Dockerfile # Specifies the Dockerfile to use
-      # BuildKit is enabled by default in newer Docker versions, but explicit config helps
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VERSION: dev
+    image: mum:local
     restart: unless-stopped
-    depends_on:
-      - postgres
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     ports:
-      - "5699:5000" # Host port → React/Flask entrypoint
+      - "5699:5699"   # host:container; change the left side to use another host port
     volumes:
-      # Mounts the ./MUM directory on the host to /app/instance in the container.
-      # This is used for persistent app data (logs, uploads, etc.).
-      - ./multimediausermanager:/app/instance
+      - mum-data:/data   # SQLite database, keys and mum-config.json; back this up
     environment:
-      # Set the timezone for the container.
-      # It's good practice for logging and scheduled tasks.
-      # Users should change this to their local timezone.
-      - TZ=America/Denver
+      TZ: America/Denver   # your time zone
+      MUM_LOG_LEVEL: info   # debug, info, warn or error
+      # Behind a reverse proxy (Caddy, nginx, Traefik...) that terminates HTTPS,
+      # trust it so the real client address and https scheme are used:
+      # MUM_TRUSTED_PROXIES: "172.16.0.0/12"
+      # Force Secure cookies even when HTTPS is not detected:
+      # MUM_SECURE_COOKIES: "true"
+    stop_grace_period: 30s   # lets MUM drain queued logs to SQLite on shutdown
 
-      - PUID=1000 # REQUIRED: User ID on your host (e.g., run `id -u` on Linux)
-      - PGID=1000 # REQUIRED: Group ID on your host (e.g., run `id -g` on Linux)
-
-      # DEBUG: For fine-grained information, typically of interest only when diagnosing problems.
-      # INFO: For general operational information (startup, successful operations, etc.).
-      - FLASK_LOG_LEVEL=INFO
-
-      # SocketIO async mode: eventlet for Gunicorn production, threading for Flask dev server
-      - SOCKETIO_ASYNC_MODE=eventlet
-
-      # PostgreSQL connection (overrides SQLite when set)
-      - DATABASE_URL=postgresql+psycopg://mum:mum_pass@postgres:5432/mum
-
-      # Add any other environment variables your app might need at runtime
-      # For example, if you decide to pass some secrets or configurations this way:
-      # - FLASK_ENV=production # Handled by .flaskenv or run.py for production
-      # - SECRET_KEY=your_very_secret_key # Will be handled via .env and app config
-      - FLASK_PORT=5000 # Internal Flask API port (mirrors gunicorn bind)
-      - FRONTEND_PORT=5000 # Port exposed for the React frontend - vite development (defaults to Flask port)
-
-  postgres:
-    container_name: mum_postgres
-    image: postgres:18.1
-    restart: unless-stopped
-    user: "${PUID:-1000}:${PGID:-1000}"
-    ports:
-      - "5432:5432"
-    environment:
-      - POSTGRES_USER=mum
-      - POSTGRES_PASSWORD=mum_pass
-      - POSTGRES_DB=mum
-      - PGDATA=/var/lib/postgresql/18/docker
-    volumes:
-      - ./multimediausermanager/db:/var/lib/postgresql
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U mum -d mum"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
+volumes:
+  mum-data:

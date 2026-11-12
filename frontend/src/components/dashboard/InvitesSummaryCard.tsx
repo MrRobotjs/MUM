@@ -1,3 +1,4 @@
+import { useAccountDisplay } from '../../hooks/useAccountDisplay';
 import { cn } from '@/lib/utils';
 import { useInviteSummary } from '../../hooks/useInviteSummary';
 import { Button } from '@/components/ui/button';
@@ -16,6 +17,7 @@ const metricClassNames: Record<string, string> = {
 };
 
 export const InvitesSummaryCard = () => {
+  const { formatTimestamp } = useAccountDisplay();
   const { summary, loading, error } = useInviteSummary();
 
   const counts = summary?.counts;
@@ -88,7 +90,7 @@ export const InvitesSummaryCard = () => {
                         </p>
                         <p className="text-xs text-muted-foreground">
                           Created{' '}
-                          {invite.created_at ? new Date(invite.created_at).toLocaleString() : 'Unknown'} • Uses{' '}
+                          {invite.created_at ? formatTimestamp(invite.created_at) : 'Unknown'} • Uses{' '}
                           {invite.current_uses}/{invite.max_uses ?? '∞'}
                         </p>
                       </div>
@@ -115,10 +117,12 @@ export const InvitesSummaryCard = () => {
               <div>
                 <h3 className="text-sm font-semibold text-foreground/80">Recent Usage</h3>
                 <ul className="mt-3 space-y-2 text-sm">
-                  {summary.recent_usages.length === 0 ? (
+                  {summary.recent_usages === null ? (
+                    <li className="text-muted-foreground">Recent invite usage is not available yet.</li>
+                  ) : summary.recent_usages.length === 0 ? (
                     <li className="text-muted-foreground">No recent invite usage.</li>
                   ) : null}
-                  {summary.recent_usages.map((usage) => (
+                  {(summary.recent_usages ?? []).map((usage) => (
                     <li key={usage.id} className="rounded-lg border bg-muted/50 px-3 py-2">
                       <div className="flex items-center justify-between">
                         <p className="font-medium">
@@ -129,7 +133,7 @@ export const InvitesSummaryCard = () => {
                         </Badge>
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        {usage.used_at ? new Date(usage.used_at).toLocaleString() : 'Unknown time'}
+                        {usage.used_at ? formatTimestamp(usage.used_at) : 'Unknown time'}
                       </p>
                       {usage.status_message ? (
                         <p className="text-xs text-muted-foreground">{usage.status_message}</p>

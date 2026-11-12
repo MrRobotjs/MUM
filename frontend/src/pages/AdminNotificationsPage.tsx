@@ -1,3 +1,4 @@
+import { useAccountDisplay } from '../hooks/useAccountDisplay';
 import { useState, useMemo } from 'react';
 import { PageHeader } from '../components';
 import { Button } from '../components/ui/button';
@@ -21,7 +22,8 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 
 export const AdminNotificationsPage = () => {
-  const { notifications, unreadCount, markAsRead, markAllAsRead, deleteNotification } = useNotifications({ limit: 100 });
+  const { formatRelative: formatTimestamp } = useAccountDisplay();
+  const { notifications, unreadCount, loading, pending, error, refresh, markAsRead, markAllAsRead, dismissNotification } = useNotifications({ limit: 100 });
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -64,25 +66,12 @@ export const AdminNotificationsPage = () => {
     }
   };
 
-  const formatTimestamp = (timestamp: string) => {
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
 
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins} min${diffMins !== 1 ? 's' : ''} ago`;
-    if (diffHours < 24) return `${diffHours} hour${diffHours !== 1 ? 's' : ''} ago`;
-    if (diffDays < 7) return `${diffDays} day${diffDays !== 1 ? 's' : ''} ago`;
-    return date.toLocaleDateString();
-  };
 
   const headerActions = (
     <div className="flex gap-2">
       {unreadCount > 0 && (
-        <Button variant="outline" size="sm" onClick={markAllAsRead}>
+        <Button variant="outline" size="sm" disabled={pending||Boolean(error)||loading} onClick={markAllAsRead}>
           <FontAwesomeIcon icon={faCheckDouble} className="mr-2" />
           Mark all as read
         </Button>
@@ -150,6 +139,8 @@ export const AdminNotificationsPage = () => {
                   <SelectItem value="all">All Types</SelectItem>
                   <SelectItem value="USER_LIMIT_WARNING">User Limit Warning</SelectItem>
                   <SelectItem value="SERVER_NOT_SYNCED">Server Not Synced</SelectItem>
+                  <SelectItem value="ACCOUNT_EXPIRED">Local Account Expired</SelectItem>
+                  <SelectItem value="SERVICE_EXPIRED">Service Account Expired</SelectItem>
                   <SelectItem value="SERVER_CONNECTION_FAILED">Server Connection Failed</SelectItem>
                   <SelectItem value="USER_ACCEPTED_INVITE">User Accepted Invite</SelectItem>
                 </SelectContent>
@@ -161,7 +152,7 @@ export const AdminNotificationsPage = () => {
 
       {/* Notifications List */}
       <div className="space-y-3">
-        {filteredNotifications.length === 0 ? (
+        {error || loading ? <Card><CardContent className="p-8 text-center text-muted-foreground"><p>{loading?'Loading notifications…':'Notifications are unavailable or a change is unconfirmed. Refresh and inspect the inbox.'}</p><Button variant="outline" onClick={() => void refresh().catch(()=>{})} disabled={loading}>Refresh</Button></CardContent></Card> : filteredNotifications.length === 0 ? (
           <Card>
             <CardContent className="p-8 text-center text-muted-foreground">
               <FontAwesomeIcon icon={faBellSlash} className="text-4xl mb-4 block" />
@@ -206,7 +197,7 @@ export const AdminNotificationsPage = () => {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => markAsRead(notification.id)}
+                          disabled={pending||Boolean(error)} onClick={() => markAsRead(notification.id)}
                           title="Mark as read"
                         >
                           <FontAwesomeIcon icon={faCheck} />
@@ -215,8 +206,8 @@ export const AdminNotificationsPage = () => {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => deleteNotification(notification.id)}
-                        title="Delete notification"
+                        disabled={pending||Boolean(error)} onClick={() => dismissNotification(notification.id)}
+                        title="Dismiss notification"
                       >
                         <FontAwesomeIcon icon={faTrash} className="text-destructive" />
                       </Button>

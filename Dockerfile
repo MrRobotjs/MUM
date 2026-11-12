@@ -1,51 +1,44 @@
-# File: Dockerfile
-# syntax=docker/dockerfile:1.4
+# syntax=docker/dockerfile:1
+# MUM (Go/SQLite) container image. Build from the repository root:
+#   docker compose up -d --build
+# Builds the frontend and Go runtime; no host Go or Node.js installation needed.
 
-FROM python:3.11-alpine
+FROM node:22-alpine AS frontend
+WORKDIR /src/frontend
+COPY frontend/package.json frontend/package-lock.json ./
+# The lockfile is maintained with npm 11; npm 10 (bundled with node:22)
+# rejects its nested peer entries, so pin the same npm before npm ci.
+RUN npm install -g npm@11.7.0 --no-audit --no-fund \
+ && npm ci --no-audit --no-fund
+COPY frontend/ ./
+# Vite writes the production bundle to server/dist/ (/src/server/dist).
+RUN node node_modules/vite/bin/vite.js build
 
-# Set default environment variables for user/group IDs
-ENV PUID=1000
-ENV PGID=1000
+FROM golang:1.27-alpine AS build
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+COPY server/ ./server/
+COPY --from=frontend /src/server/dist ./server/dist
+ARG VERSION=dev
+RUN CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=${VERSION}" -o /out/mum ./server \
+ && /out/mum --version
 
-# Install necessary system packages FIRST to maximize pip cache hits
-# ONLY install what's strictly necessary before pip.
-# This step is critical for Alpine images if Python packages need compilation.
-RUN apk add --no-cache curl tzdata su-exec dos2unix \
-    # Add build tools for Python packages (if needed).
-    # You'll need these if your Python packages are compiled from source.
-    # Check your pip install logs for "Building wheel for X" or "Failed building wheel for X".
-    build-base \
-    python3-dev
-
-# Set up the working directory for our code.
-WORKDIR /app
-
-# --- CACHE LAYER OPTIMIZATION STARTS HERE ---
-# 1. Copy *only* requirements.txt
-COPY requirements.txt .
-
-# 2. Install Python dependencies with BuildKit cache mount for pip cache
-# This layer will be cached unless requirements.txt changes or a layer above it changes.
-# Using cache mount significantly speeds up pip install on subsequent builds
-RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --no-cache-dir -r requirements.txt
-# --- CACHE LAYER OPTIMIZATION ENDS HERE ---
-
-# Copy entrypoint script first and make it executable
-COPY entrypoint.sh /usr/local/bin/entrypoint.sh
-RUN chmod +x /usr/local/bin/entrypoint.sh && \
-    dos2unix /usr/local/bin/entrypoint.sh || true
-
-# Copy the rest of the application code
-# This step invalidates cache AFTER pip install, which is good.
-COPY . .
-
-# Create necessary directories (user creation moved to entrypoint.sh)
-RUN mkdir -p /app/instance /.cache
-
-# Healthcheck and expose (already good)
-HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-  CMD sh -c "curl -fs http://localhost:${FLASK_PORT:-5000}/health || exit 1"
-EXPOSE 5000
-ENTRYPOINT ["/bin/sh", "/usr/local/bin/entrypoint.sh"]
-CMD ["sh", "-c", "gunicorn --worker-class eventlet -w 1 --bind 0.0.0.0:${FLASK_PORT:-5000} --forwarded-allow-ips='*' run:app"]
+FROM alpine:3.22
+# CA certificates for HTTPS to media services and plex.tv; tzdata for TZ.
+RUN apk add --no-cache ca-certificates tzdata \
+ && adduser -D -H -u 1000 mum \
+ && mkdir /data && chown mum:mum /data
+COPY --from=build /out/mum /usr/local/bin/mum
+COPY LICENSE /usr/share/licenses/mum/LICENSE
+LABEL org.opencontainers.image.title="MUM" \
+      org.opencontainers.image.source="https://github.com/MrRobotjs/MUM" \
+      org.opencontainers.image.licenses="AGPL-3.0-only"
+ENV MUM_DATA_DIR=/data \
+    MUM_LISTEN=0.0.0.0:5699
+VOLUME /data
+EXPOSE 5699
+USER mum
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD wget -qO- http://127.0.0.1:5699/api/health >/dev/null || exit 1
+ENTRYPOINT ["/usr/local/bin/mum"]

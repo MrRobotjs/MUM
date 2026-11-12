@@ -6,20 +6,20 @@ import path from 'path';
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
-  const flaskPort = Number(env.FLASK_PORT || env.VITE_FLASK_PORT || 5000);
+  const backendPort = Number(env.MUM_PORT || env.VITE_MUM_PORT || 5699);
   const frontendPort = Number(env.FRONTEND_PORT || env.VITE_FRONTEND_PORT || 5173);
 
   const isAnalyze = mode === 'analyze';
   const analyzePlugins = isAnalyze
     ? [
         visualizer({
-          filename: path.resolve(__dirname, '../app/static/dist/bundle-stats.html'),
+          filename: path.resolve(__dirname, '../release/bundle-stats.html'),
           gzipSize: true,
           brotliSize: true,
           open: false,
         }),
         visualizer({
-          filename: path.resolve(__dirname, '../app/static/dist/bundle-stats.json'),
+          filename: path.resolve(__dirname, '../release/bundle-stats.json'),
           template: 'raw-data',
           gzipSize: true,
           brotliSize: true,
@@ -39,15 +39,15 @@ export default defineConfig(({ mode }) => {
       host: '0.0.0.0',
       port: frontendPort,
       proxy: {
-        '/admin': {
-          target: `http://localhost:${flaskPort}`,
+        '/api': {
+          target: `http://127.0.0.1:${backendPort}`,
           changeOrigin: true,
           secure: false
         },
-        '/api': {
-          target: `http://localhost:${flaskPort}`,
-          changeOrigin: true,
-          secure: false
+        '/ws': {
+          target: `http://127.0.0.1:${backendPort}`,
+          ws: true,
+          changeOrigin: true
         }
       }
     },
@@ -56,9 +56,10 @@ export default defineConfig(({ mode }) => {
       host: '0.0.0.0'
     },
     build: {
-      outDir: path.resolve(__dirname, '../app/static/dist'),
+      // Embedded into the Go binary by server/main.go (//go:embed dist/*).
+      outDir: path.resolve(__dirname, '../server/dist'),
       emptyOutDir: true,
-      sourcemap: true,
+      sourcemap: false,
       chunkSizeWarningLimit: 3000,
       rollupOptions: {
         output: {
@@ -72,6 +73,6 @@ export default defineConfig(({ mode }) => {
         }
       }
     },
-    base: '/static/dist/' // Assets will be served from /static/dist/assets/...
+    base: '/'
   };
 });

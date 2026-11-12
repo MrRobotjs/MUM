@@ -22,12 +22,12 @@ export const StreamingSourceInfoDialog = ({
       </div>
       <div className="space-y-1">
         <p className="font-semibold text-foreground">HTTP badge</p>
-        <p>Updates fetched via HTTP (bootstrap or polling) for services without realtime sockets.</p>
+        <p>Complete snapshots triggered by bootstrap or periodic polling, including recovery when a provider socket is unavailable.</p>
         <p>
-          The "HTTP next" badge counts down using the server's session monitoring interval.
+          The "HTTP next" badge counts down to the next dashboard refresh. Provider polling follows its saved monitoring interval.
         </p>
         <p>
-          These come from <code className="font-mono text-xs">/api/v2/streaming/active</code>.
+          These come from <code className="font-mono text-xs">/api/activity/current</code>.
         </p>
       </div>
       <div className="rounded-lg border border-border/60 bg-muted/40 p-3 text-foreground/80">

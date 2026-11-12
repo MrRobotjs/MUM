@@ -1,0 +1,9 @@
+# Build context for deploy/docker/Dockerfile.
+*
+!go.mod
+!go.sum
+!server/
+server/dist/
+!LICENSE
+!frontend/
+frontend/node_modules/

@@ -1,113 +1,58 @@
 export type AuthStatus = 'bootstrapping' | 'authenticated' | 'anonymous';
-
-export type AuthSnapshot = {
-  status: AuthStatus;
-  accessToken: string | null;
-};
-
-type Listener = () => void;
-
+export type AuthSnapshot = { status: AuthStatus; accessToken: string | null };
 let accessToken: string | null = null;
 let bootstrapped = false;
+let authRevision = 0;
 let bootstrapPromise: Promise<void> | null = null;
-
-const listeners = new Set<Listener>();
-
-let snapshot: AuthSnapshot = {
-  status: accessToken ? 'authenticated' : 'bootstrapping',
-  accessToken,
+let refreshPromise: Promise<string | null> | null = null;
+const listeners = new Set<() => void>();
+let snapshot: AuthSnapshot = { status: 'bootstrapping', accessToken: null };
+const update = (status: AuthStatus) => {
+  if (snapshot.status === status && snapshot.accessToken === accessToken) return;
+  snapshot = { status, accessToken };
+  listeners.forEach(listener => listener());
 };
-
-const emitChange = () => {
-  listeners.forEach((listener) => {
-    try {
-      listener();
-    } catch (err) {
-      console.error('[authStore] listener error', err);
-    }
-  });
-};
-
-const setSnapshot = (next: AuthSnapshot) => {
-  if (snapshot.status === next.status && snapshot.accessToken === next.accessToken) return;
-  snapshot = next;
-  emitChange();
-};
-
-export const getAuthSnapshot = (): AuthSnapshot => snapshot;
-
-export const subscribeToAuthStore = (listener: Listener) => {
+export const getAuthSnapshot = () => snapshot;
+export const subscribeToAuthStore = (listener: () => void) => {
   listeners.add(listener);
-  return () => listeners.delete(listener);
+  return () => { listeners.delete(listener); };
 };
-
-export const getAccessToken = (): string | null => accessToken;
-
+export const getAccessToken = () => accessToken;
 export const setAccessToken = (token: string | null) => {
+  authRevision++;
   accessToken = token || null;
-  setSnapshot({
-    status: accessToken ? 'authenticated' : 'anonymous',
-    accessToken,
-  });
+  update(accessToken ? 'authenticated' : 'anonymous');
 };
-
 export const clearAccessToken = () => setAccessToken(null);
 
-export const bootstrapAuth = async (opts?: { force?: boolean }) => {
-  const force = opts?.force === true;
-
-  if (accessToken) {
-    bootstrapped = true;
-    setSnapshot({ status: 'authenticated', accessToken });
-    return;
-  }
-
-  if (bootstrapped && !force) {
-    setSnapshot({ status: 'anonymous', accessToken: null });
-    return;
-  }
-
-  if (bootstrapPromise && !force) {
-    return bootstrapPromise;
-  }
-
-  setSnapshot({ status: 'bootstrapping', accessToken: null });
-
-  bootstrapPromise = (async () => {
+// All callers share one rotation request; simultaneous 401s cannot replay a refresh cookie.
+export const refreshAccessToken = (): Promise<string | null> => {
+  if (refreshPromise) return refreshPromise;
+  const revision = authRevision;
+  refreshPromise = (async () => {
     try {
-      const resp = await fetch('/api/v2/auth/jwt/refresh', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { Accept: 'application/json' },
-      });
+      const response = await fetch('/api/auth/refresh', { method: 'POST', credentials: 'include', headers: { Accept: 'application/json' } });
+      if (revision !== authRevision) return getAccessToken();
+      if (!response.ok) { clearAccessToken(); return null; }
+      const json = await response.json();
+      if (revision !== authRevision) return getAccessToken();
+      const token = typeof json?.data?.access_token === 'string' ? json.data.access_token : null;
+      setAccessToken(token);
+      return token;
+    } catch { if (revision === authRevision) clearAccessToken(); return null; }
+  })().finally(() => { refreshPromise = null; });
+  return refreshPromise;
+};
 
-      if (!resp.ok) {
-        bootstrapped = true;
-        setSnapshot({ status: 'anonymous', accessToken: null });
-        return;
-      }
-
-      const json = await resp.json().catch(() => null);
-      const newToken =
-        json && typeof json === 'object' && 'data' in json
-          ? ((json.data as any)?.access_token as string | undefined)
-          : undefined;
-
-      if (newToken) {
-        bootstrapped = true;
-        setAccessToken(newToken);
-        return;
-      }
-
-      bootstrapped = true;
-      setSnapshot({ status: 'anonymous', accessToken: null });
-    } catch {
-      bootstrapped = true;
-      setSnapshot({ status: 'anonymous', accessToken: null });
-    }
-  })().finally(() => {
-    bootstrapPromise = null;
-  });
-
+export const bootstrapAuth = async (options?: { force?: boolean }) => {
+  if (accessToken) { bootstrapped = true; update('authenticated'); return; }
+  if (bootstrapped && !options?.force) { update('anonymous'); return; }
+  if (bootstrapPromise) return bootstrapPromise;
+  update('bootstrapping');
+  bootstrapPromise = (async () => {
+    await refreshAccessToken();
+    bootstrapped = true;
+    update(accessToken ? 'authenticated' : 'anonymous');
+  })().finally(() => { bootstrapPromise = null; });
   return bootstrapPromise;
 };

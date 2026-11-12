@@ -16,6 +16,7 @@ import { useLocation } from "@tanstack/react-router"
 
 import { NavMain } from "@/components/layout/NavMain"
 import { NavServers } from "@/components/layout/NavServers"
+import { NavServerDetail } from "@/components/layout/NavServerDetail"
 import { NavSettings } from "@/components/layout/NavSettings"
 import { NavUser } from "@/components/layout/NavUser"
 import {
@@ -31,10 +32,9 @@ import {
 import { useAuth } from "@/contexts/AuthContext"
 import { useAlerts } from "@/contexts/AlertContext"
 import { requestJson } from "@/util/apiClient"
-import { PREFERENCE_EVENT, type PreferenceChangeDetail } from "@/util/preferences"
 import { useSyncStatus } from "@/hooks/useSyncStatus"
 import { useUserPreferences } from "@/hooks/useUserPreferences"
-import { useStreamingWebSocket } from "@/hooks/useStreamingWebSocket"
+import { useStreamingSummary } from "@/hooks/useStreamingSummary"
 import { Badge } from "@/components/ui/badge"
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
@@ -44,10 +44,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { syncStatus } = useSyncStatus()
   const { getPreference, dbPreferences, syncEnabled } = useUserPreferences()
   const [streamBadgeEnabled, setStreamBadgeEnabled] = React.useState(() =>
-    getPreference<boolean>('stream_counter', false)
+    getPreference('stream_counter', false)
   )
-  // Streaming socket connection is managed globally; this hook only reads the shared state.
-  const { activeCount } = useStreamingWebSocket({ autoConnect: false })
+  // A badge is a complete fresh supported-source observation count, not live playback.
+  const { summary: observationSummary } = useStreamingSummary('all', streamBadgeEnabled && isAdministrator)
+  const observedCount = observationSummary?.servers.length && observationSummary.servers.every(s => s.freshness === 'fresh') ? observationSummary.fresh_current_observations : null
   const [isStartingSync, setIsStartingSync] = React.useState(false)
   const [showSyncComplete, setShowSyncComplete] = React.useState(false)
   const previousSyncingRef = React.useRef(syncStatus.is_syncing)
@@ -64,7 +65,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
     setIsStartingSync(true)
     try {
-      await requestJson('/api/v2/users/sync-all', {
+      await requestJson('/api/users/sync-all', {
         method: 'POST',
       })
 
@@ -86,21 +87,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   }, [syncStatus.is_syncing])
 
   React.useEffect(() => {
-    setStreamBadgeEnabled(getPreference<boolean>('stream_counter', false))
+    setStreamBadgeEnabled(getPreference('stream_counter', false))
   }, [getPreference, dbPreferences, syncEnabled])
 
-  React.useEffect(() => {
-    const handlePreferenceChange = (event: Event) => {
-      const customEvent = event as CustomEvent<PreferenceChangeDetail>
-      if (customEvent.detail?.key !== 'stream_counter') return
-      setStreamBadgeEnabled(Boolean(customEvent.detail.value))
-    }
-
-    window.addEventListener(PREFERENCE_EVENT, handlePreferenceChange)
-    return () => {
-      window.removeEventListener(PREFERENCE_EVENT, handlePreferenceChange)
-    }
-  }, [])
 
   React.useEffect(() => {
     const wasSyncing = previousSyncingRef.current
@@ -147,10 +136,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     : null
 
   // Stream badge indicator - show when enabled and there are active streams
-  const streamBadgeIndicator = streamBadgeEnabled && activeCount > 0
+  const streamBadgeIndicator = streamBadgeEnabled && observedCount !== null && BigInt(observedCount) > 0n
     ? (
-        <Badge variant="default" className="h-5 min-w-5 px-1.5 text-[10px] font-semibold">
-          {activeCount}
+        <Badge variant="default" className="h-5 min-w-5 px-1.5 text-[10px] font-semibold" title="Fresh Jellyfin/Emby observations; not a live playback total">
+          {observedCount}
         </Badge>
       )
     : null
@@ -176,11 +165,15 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   }
 
   const isSettingsRoute = location.pathname.startsWith('/admin/settings')
+  // A server's page (/admin/servers/<id>) gets its own sidebar, like settings.
+  const serverRouteMatch = /^\/admin\/servers\/([1-9]\d*)(?:\/(?:users|libraries))?\/?$/.exec(location.pathname)
+  const serverRouteId = serverRouteMatch ? Number(serverRouteMatch[1]) : null
+  const isFocusedRoute = isSettingsRoute || (serverRouteId !== null && Number.isSafeInteger(serverRouteId))
 
   // All nav items are visible to administrators (owner or users with admin roles)
   const navMainItems = isAdministrator
     ? (
-        isSettingsRoute
+        isFocusedRoute
           ? [
               {
                 title: 'Dashboard',
@@ -272,8 +265,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </SidebarHeader>
       <SidebarContent>
         <NavMain items={navMainItems} />
-        {!isSettingsRoute ? <NavServers /> : null}
+        {!isFocusedRoute ? <NavServers /> : null}
         {isSettingsRoute ? <NavSettings /> : null}
+        {!isSettingsRoute && isFocusedRoute && serverRouteId !== null ? <NavServerDetail serverId={serverRouteId} /> : null}
       </SidebarContent>
       <SidebarFooter>
         <NavUser user={user} />

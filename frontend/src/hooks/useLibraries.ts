@@ -1,3 +1,6 @@
+import {useSyncExternalStore} from 'react';
+import {useAuth} from '../contexts/AuthContext';
+import {getAccessToken,getAuthSnapshot,subscribeToAuthStore} from '../store/authStore';
 import useSWR from 'swr';
 import { requestJson } from '../util/apiClient';
 
@@ -42,28 +45,30 @@ export const useLibraries = (options: UseLibrariesOptions = {}) => {
   if (options.search) params.append('search', options.search);
   if (options.includeServer !== false) params.append('include_server', 'true');
 
-  const url = `/api/v2/libraries${params.toString() ? `?${params.toString()}` : ''}`;
+  const url = `/api/libraries${params.toString() ? `?${params.toString()}` : ''}`;
 
-  const { data, error, isLoading, mutate } = useSWR<LibrariesResponse>(
-    url,
-    (url: string) => requestJson(url)
-  );
-
-  return {
-    libraries: data?.data ?? [],
-    loading: isLoading,
-    error,
-    refresh: mutate,
-  };
+  const {user,isAdministrator}=useAuth();
+  const session=useSyncExternalStore(subscribeToAuthStore,getAuthSnapshot),token=session.accessToken;
+  const actor=isAdministrator&&token?user?.uuid:undefined;
+  const state=useSWR(actor?[url,actor,token]:null,async()=>{
+    if(token!==getAccessToken())throw Error('Session changed. Refresh libraries.');
+    const abort=new AbortController(),timer=setTimeout(()=>abort.abort(),15000);
+    try{
+      const result=await requestJson<LibrariesResponse>(url,{signal:abort.signal,retryAuthentication:false});
+      if(token!==getAccessToken()||!Array.isArray(result?.data)||result.data.some(lib=>!lib||!Number.isSafeInteger(lib.id)||lib.id<1||options.serverId!==undefined&&lib.server_id!==options.serverId))throw Error('Invalid library selection. Refresh.');
+      return result;
+    }finally{clearTimeout(timer);}
+  },{keepPreviousData:false,shouldRetryOnError:false});
+  return {libraries:actor&&!state.error?state.data?.data??[]:[],loading:state.isLoading,error:state.error,refresh:state.mutate};
 };
 
 export const useLibraryDetail = (libraryId?: number) => {
   const url = libraryId
-    ? `/api/v2/libraries/${libraryId}?include_server=true&include_items_count=true`
+    ? `/api/libraries/${libraryId}?include_server=true&include_items_count=true`
     : null;
 
   const { data, error, isLoading, mutate } = useSWR(url, (url: string) =>
-    requestJson(url)
+    requestJson<{ data: any }>(url)
   );
 
   return {

@@ -1,38 +1,17 @@
 import useSWR from 'swr';
-import { requestJson } from '../util/apiClient';
-
-export interface SystemConfig {
-  git_branch: string;
-  git_commit: string;
-  database_file: string;
-  database_type?: string;
-  database_version?: string;
-  log_directory: string;
-  instance_directory: string;
-  platform: string;
-  system_timezone: string;
-  python_version: string;
-  sqlite_version: string;
-}
-
-interface SystemConfigResponse {
-  data: SystemConfig;
-  meta: {
-    request_id: string;
-    generated_at: string;
-  };
-}
+import { useSyncExternalStore } from 'react';
+import { useAuth } from '../contexts/AuthContext';
+import { getAccessToken, getAuthSnapshot, subscribeToAuthStore } from '../store/authStore';
+import { fetchRuntimeInfo } from '../lib/runtimeInfo';
 
 export const useSystemConfig = () => {
-  const { data, error, isLoading, mutate } = useSWR<SystemConfigResponse>(
-    '/api/v2/settings/system-config',
-    (url: string) => requestJson<SystemConfigResponse>(url)
-  );
-
-  return {
-    config: data?.data || null,
-    loading: isLoading,
-    error,
-    refresh: mutate
-  };
+  const { user, isAdministrator } = useAuth();
+  const session = useSyncExternalStore(subscribeToAuthStore, getAuthSnapshot);
+  const token = session.accessToken, actor = isAdministrator && token ? user?.uuid : undefined;
+  const state = useSWR(actor ? ['/api/settings/runtime-info', actor, token] : null, async () => {
+    if (token !== getAccessToken()) throw Error('Session changed. Refresh.');
+    return fetchRuntimeInfo(actor!);
+  }, { keepPreviousData: false, revalidateOnFocus: false, shouldRetryOnError: false });
+  const config = actor && !state.error && state.data?.actor_uuid === actor ? state.data : null;
+  return { config, loading: state.isLoading, error: state.error, refresh: state.mutate };
 };

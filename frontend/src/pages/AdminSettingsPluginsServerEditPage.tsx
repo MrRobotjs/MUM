@@ -6,7 +6,7 @@ import { PageHeader } from '../components';
 import { FormField } from '../components';
 import { useServers, useServerDetail } from '../hooks/useServers';
 import { usePlugins } from '../hooks/usePlugins';
-import { useAlerts } from '../contexts';
+import { useAlerts, usePluginCapabilities } from '../contexts';
 import { requestJson } from '../util/apiClient';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -20,6 +20,11 @@ import { SERVICE_TYPES } from '@/config/pluginMetadata';
 import { Spinner } from '@/components/ui/spinner'
 
 type ConnectionTestStatus = 'idle' | 'testing' | 'success' | 'error';
+
+type ServerCapabilityFlags = {
+  supportsWebsocketRefreshInterval: boolean;
+  supportsOwnerUserContext: boolean;
+};
 
 type ServerFormValues = {
   server_nickname: string;
@@ -37,12 +42,16 @@ type ServerFormValues = {
   websocket_refresh_interval?: number;
 };
 
-const normalizeServerPayload = (values: ServerFormValues, pluginId: string) => {
+const normalizeServerPayload = (
+  values: ServerFormValues,
+  pluginId: string,
+  capabilityFlags: ServerCapabilityFlags
+) => {
   const payload: Record<string, unknown> = {
     server_nickname: values.server_nickname,
     service_type: pluginId,
     url: values.url,
-    public_url: values.public_url || null,
+    public_url: values.public_url || '',
     is_active: values.is_active,
     overseerr_enabled: values.overseerr_enabled ?? false,
     overseerr_url: values.overseerr_url || null
@@ -64,11 +73,11 @@ const normalizeServerPayload = (values: ServerFormValues, pluginId: string) => {
     payload.overseerr_api_key = values.overseerr_api_key;
   }
 
-  if (pluginId === 'plex') {
+  if (capabilityFlags.supportsWebsocketRefreshInterval) {
     payload.websocket_refresh_interval = values.websocket_refresh_interval ?? 30;
   }
 
-  if (pluginId === 'jellyfin') {
+  if (capabilityFlags.supportsOwnerUserContext) {
     const ownerId = values.jellyfin_owner_user_id?.trim();
     payload.jellyfin_owner_user_id = ownerId || '';
   }
@@ -80,12 +89,17 @@ export const AdminSettingsPluginsServerEditPage = () => {
   const { pluginId, serverId } = useParams({ from: '/admin/settings/plugins/$pluginId/servers/$serverId' });
   const navigate = useNavigate();
   const { success, error: showError } = useAlerts();
+  const { hasCapability } = usePluginCapabilities();
   const { plugins } = usePlugins();
   const { refresh: refreshServers } = useServers({ serviceType: pluginId || undefined });
   const { server, loading: serverLoading, error: serverError } = useServerDetail(serverId ? Number(serverId) : undefined);
 
   const plugin = useMemo(() => plugins.find((item) => item.pluginId === pluginId), [plugins, pluginId]);
   const isPluginEnabled = plugin?.enabledByUser ?? server?.plugin_enabled ?? true;
+  const requiresUsernamePasswordAuth = hasCapability(pluginId, 'auth.username_password');
+  const supportsWebsocketRefreshInterval = hasCapability(pluginId, 'sessions.websocket.refresh_interval');
+  const supportsOwnerUserContext = hasCapability(pluginId, 'auth.owner_user_context');
+  const supportsOverseerr = hasCapability(pluginId, 'integrations.overseerr');
 
   const [values, setValues] = useState<ServerFormValues>({
     server_nickname: '',
@@ -124,22 +138,21 @@ export const AdminSettingsPluginsServerEditPage = () => {
         overseerr_enabled: server.overseerr_enabled ?? false,
         is_active: server.is_active,
         websocket_refresh_interval:
-          server.service_type === 'plex'
+          supportsWebsocketRefreshInterval
             ? server.websocket_refresh_interval ?? 30
             : undefined,
       });
     }
-  }, [server]);
+  }, [server, supportsWebsocketRefreshInterval]);
 
   const handleTestConnection = async () => {
     setConnectionTestStatus('testing');
     setError(null);
 
     try {
-      const isRomm = values.service_type === 'romm';
-      if (isRomm && (!values.username?.trim() || !values.password)) {
+      if (requiresUsernamePasswordAuth && (!values.username?.trim() || !values.password)) {
         setConnectionTestStatus('error');
-        showError('RomM requires a username and password.');
+        showError('This provider requires both username and password.');
         return;
       }
 
@@ -167,7 +180,7 @@ export const AdminSettingsPluginsServerEditPage = () => {
         testData.overseerr_api_key = values.overseerr_api_key || '';
       }
 
-        const response = await requestJson(`/api/v2/setup/plugins/${values.service_type}/test-connection`, {
+        const response = await requestJson<any>(`/api/providers/${values.service_type}/test-connection`, {
           method: 'POST',
           body: JSON.stringify(testData),
         });
@@ -210,17 +223,16 @@ export const AdminSettingsPluginsServerEditPage = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const isRomm = values.service_type === 'romm';
-    if (isRomm) {
+    if (requiresUsernamePasswordAuth) {
       const hasUsername = Boolean(values.username?.trim());
       const hasPassword = Boolean(values.password);
       if (hasUsername !== hasPassword) {
-        showError('Provide both RomM username and password, or leave both blank to keep existing credentials.');
+        showError('Provide both username and password, or leave both blank to keep existing credentials.');
         return;
       }
     }
 
-    if (values.service_type === 'plex') {
+    if (supportsWebsocketRefreshInterval) {
       const interval = values.websocket_refresh_interval ?? 30;
       if (!Number.isFinite(interval) || interval < 2 || interval > 300) {
         showError('WebSocket refresh interval must be between 2 and 300 seconds.');
@@ -228,11 +240,14 @@ export const AdminSettingsPluginsServerEditPage = () => {
       }
     }
 
-    const payload = normalizeServerPayload(values, pluginId);
+    const payload = normalizeServerPayload(values, pluginId, {
+      supportsWebsocketRefreshInterval,
+      supportsOwnerUserContext,
+    });
 
     try {
       setSubmitting(true);
-      await requestJson(`/api/v2/servers/${serverId}`, {
+      await requestJson(`/api/servers/${serverId}`, {
         method: 'PATCH',
         body: JSON.stringify(payload)
       });
@@ -252,10 +267,10 @@ export const AdminSettingsPluginsServerEditPage = () => {
       const updated: ServerFormValues = { ...prev, [field]: value };
 
       if (field === 'service_type') {
-        if (value === 'romm') {
+        if (hasCapability(String(value), 'auth.username_password')) {
           updated.api_key = '';
         }
-        if (value === 'plex') {
+        if (hasCapability(String(value), 'sessions.websocket.refresh_interval')) {
           if (!updated.websocket_refresh_interval || updated.websocket_refresh_interval < 2) {
             updated.websocket_refresh_interval = 30;
           }
@@ -341,8 +356,6 @@ export const AdminSettingsPluginsServerEditPage = () => {
     );
   };
 
-  const isRomm = values.service_type === 'romm';
-
   return (
     <div className="space-y-6">
       <PageHeader
@@ -362,7 +375,7 @@ export const AdminSettingsPluginsServerEditPage = () => {
         <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'details' | 'overseerr')}>
           <TabsList className="w-full justify-start">
             <TabsTrigger value="details">Details</TabsTrigger>
-            {values.service_type === 'plex' && (
+            {supportsOverseerr && (
               <TabsTrigger value="overseerr">Overseerr</TabsTrigger>
             )}
           </TabsList>
@@ -405,7 +418,7 @@ export const AdminSettingsPluginsServerEditPage = () => {
                     />
                   </FormField>
 
-                  {isRomm ? (
+                  {requiresUsernamePasswordAuth ? (
                     <>
                       <FormField id="username" label="Username">
                         <Input
@@ -413,7 +426,7 @@ export const AdminSettingsPluginsServerEditPage = () => {
                           type="text"
                           value={values.username ?? ''}
                           onChange={(e) => handleFieldChange('username', e.target.value)}
-                          placeholder="RomM username"
+                          placeholder="Enter username"
                         />
                       </FormField>
                       <FormField id="password" label="Password">
@@ -444,7 +457,7 @@ export const AdminSettingsPluginsServerEditPage = () => {
                     </FormField>
                   )}
 
-                  {values.service_type === 'jellyfin' ? (
+                  {supportsOwnerUserContext ? (
                     <FormField
                       id="jellyfin_owner_user_id"
                       label="Owner ID (Optional)"
@@ -470,7 +483,7 @@ export const AdminSettingsPluginsServerEditPage = () => {
                     />
                   </FormField>
 
-                  {values.service_type === 'plex' ? (
+                  {supportsWebsocketRefreshInterval ? (
                     <div className="rounded-lg border border-border bg-muted/40 p-4 space-y-2">
                       <FormField
                         id="websocket_refresh_interval"
@@ -519,7 +532,7 @@ export const AdminSettingsPluginsServerEditPage = () => {
             </Card>
           </TabsContent>
 
-          {values.service_type === 'plex' && (
+          {supportsOverseerr && (
             <TabsContent value="overseerr" className="mt-6">
               <Card>
                 <CardContent>
@@ -532,11 +545,11 @@ export const AdminSettingsPluginsServerEditPage = () => {
                           onCheckedChange={(checked) => setValues({ ...values, overseerr_enabled: checked })}
                         />
                         <Label htmlFor="overseerr_enabled" className="cursor-pointer">
-                          Enable Plex Overseerr integration
+                          Enable Overseerr integration
                         </Label>
                       </div>
                       <p className="text-xs text-muted-foreground mt-1">
-                        Link this Plex server to Overseerr for request management
+                        Link this server to Overseerr for request management
                       </p>
                     </FormField>
 
@@ -558,7 +571,7 @@ export const AdminSettingsPluginsServerEditPage = () => {
                             type="password"
                             value={values.overseerr_api_key}
                             onChange={(e) => setValues({ ...values, overseerr_api_key: e.target.value })}
-                            placeholder={server?.overseerr_api_key ? '••••••••' : 'Overseerr API key'}
+                            placeholder={server?.has_overseerr_api_key ? '••••••••' : 'Overseerr API key'}
                           />
                           <p className="text-xs text-muted-foreground mt-1">
                             Leave blank to keep existing key

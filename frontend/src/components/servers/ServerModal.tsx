@@ -156,7 +156,7 @@ export const ServerModal = ({
         testData.overseerr_api_key = values.overseerr_api_key || '';
       }
 
-      const response = await requestJson(`/api/v2/setup/plugins/${values.service_type}/test-connection`, {
+      const response = await requestJson<any>(`/api/providers/${values.service_type}/test-connection`, {
         method: 'POST',
         body: JSON.stringify(testData),
       });
@@ -518,7 +518,7 @@ export const ServerModal = ({
             type="password"
             value={values.overseerr_api_key}
             onChange={(e) => setValues({ ...values, overseerr_api_key: e.target.value })}
-            placeholder={initialValues && initialValues.overseerr_api_key ? '••••••••' : 'Overseerr API key'}
+            placeholder={initialValues && initialValues.has_overseerr_api_key ? '••••••••' : 'Overseerr API key'}
           />
         </FormField>
 

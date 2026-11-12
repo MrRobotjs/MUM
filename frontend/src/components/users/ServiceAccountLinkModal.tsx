@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { ResponsiveDialog } from '../ui/responsive-dialog';
 import { Spinner } from '@/components/ui/spinner'
@@ -31,9 +31,12 @@ export const ServiceAccountLinkModal = ({
 }: ServiceAccountLinkModalProps) => {
   const [selected, setSelected] = useState<string>('');
   const [submitting, setSubmitting] = useState(false);
+  useEffect(() => {
+    if (!open || !accounts.some(account => account.uuid === selected)) setSelected('');
+  }, [open, accounts, selected]);
 
   const handleSubmit = async () => {
-    if (!selected) return;
+    if (submitting || loading || error || !accounts.some(account => account.uuid === selected)) return;
     setSubmitting(true);
     try {
       await onSubmit(selected);
@@ -44,7 +47,7 @@ export const ServiceAccountLinkModal = ({
   };
 
   const handleOpenChange = (value: boolean) => {
-    if (!value) {
+    if (!value && !submitting) {
       onClose();
     }
   };
@@ -53,7 +56,7 @@ export const ServiceAccountLinkModal = ({
     <Button key="cancel" variant="outline" onClick={onClose} disabled={submitting}>
       Cancel
     </Button>,
-    <Button key="submit" onClick={handleSubmit} disabled={!selected || submitting}>
+    <Button key="submit" onClick={handleSubmit} disabled={!accounts.some(account => account.uuid === selected) || submitting || loading || !!error}>
       {submitting ? 'Linking…' : 'Link Account'}
     </Button>,
   ];
@@ -87,6 +90,7 @@ export const ServiceAccountLinkModal = ({
             name="service-account"
             className="radio radio-primary"
             checked={selected === account.uuid}
+            disabled={submitting}
             onChange={() => setSelected(account.uuid)}
           />
         </label>

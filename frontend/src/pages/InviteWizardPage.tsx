@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import { formatDisplayTimestamp } from '../lib/accountDisplay';
+import { invitationServerLimits } from '../lib/invitationConstraints';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactElement } from 'react';
 import { useParams } from '@tanstack/react-router';
 import { cn } from '@/lib/utils';
 import { buildDiscordAvatarUrl } from '@/lib/discord';
@@ -48,184 +50,8 @@ import { faDiscord } from '@fortawesome/free-brands-svg-icons';
 import { Spinner } from '@/components/ui/spinner'
 import { ServiceIcon } from '@/components/services/ServiceIcon'
 
-type WizardStep = {
-  id: string;
-  name: string;
-  icon: string;
-  required: boolean;
-  completed: boolean;
-  server_id?: number;
-  server_name?: string;
-  server_type?: string;
-  username_conflict?: boolean;
-};
-
-type PlexUser = {
-  username?: string;
-  email?: string;
-  uuid?: string;
-  thumb?: string;
-};
-
-type PlexConflict = {
-  type?: 'can_link' | 'already_linked' | 'already_exists_no_linking' | string;
-  plex_username?: string;
-  plex_email?: string;
-  message?: string;
-};
-
-type WizardServerCredentials = {
-  username?: string;
-  email?: string;
-  password?: string;
-};
-
-type ServerFeatures = {
-  allow_downloads: boolean;
-  invite_to_plex_home: boolean;
-  allow_live_tv: boolean;
-  allow_4k_transcode: boolean;
-};
-
-type WizardServer = {
-  id: number;
-  name: string;
-  service_type: string;
-  completed: boolean;
-  credentials: WizardServerCredentials | null;
-  libraries: { id: string; name: string }[];
-  username_conflict?: boolean;
-  access_url?: string | null;
-  features?: ServerFeatures;
-};
-
-type DisabledServer = {
-  id: number;
-  name: string;
-  service_type: string;
-  is_active: boolean;
-  plugin_enabled: boolean;
-  effective_active: boolean;
-  reason?: string | null;
-};
-
-type WizardAccount = {
-  allowed: boolean;
-  completed: boolean;
-  data: {
-    username?: string | null;
-    email?: string | null;
-    password?: string | null;
-  } | null;
-  preferences: {
-    use_same_username: boolean;
-    use_same_email: boolean;
-    use_same_password: boolean;
-  };
-};
-
-type WizardState = {
-  invite: {
-    id: number;
-    token: string;
-    custom_path: string | null;
-    expires_at: string | null;
-    max_uses: number | null;
-    current_uses: number;
-    is_active: boolean;
-    is_paused: boolean;
-    allow_downloads: boolean;
-    invite_to_plex_home: boolean;
-    allow_live_tv: boolean;
-    allow_4k_transcode: boolean;
-    membership_duration_days: number | null;
-    grant_library_ids: string[] | null;
-    require_discord_auth: boolean;
-    require_discord_guild_membership: boolean;
-    server_count: number;
-    effective_server_count: number;
-    disabled_server_count: number;
-  };
-  steps: WizardStep[];
-  next_step_id: string | null;
-  plex: {
-    has_plex_servers: boolean;
-    authenticated: boolean;
-    user: PlexUser | null;
-    conflict: PlexConflict | null;
-  };
-  discord: {
-    oauth_enabled: boolean;
-    requires_auth: boolean;
-    requires_guild: boolean;
-    authenticated: boolean;
-    user: {
-      username?: string;
-      email?: string;
-      id?: string;
-      discriminator?: string;
-      avatar?: string | null;
-    } | null;
-    guild_id?: string | null;
-    invite_url?: string | null;
-    guild_verified?: boolean | null;
-    guild_error?: string | null;
-  };
-  account: WizardAccount;
-  servers: WizardServer[];
-  disabled_servers?: DisabledServer[];
-  meta: {
-    server_label: string;
-    has_multiple_servers: boolean;
-  };
-};
-
-type WizardResponse = {
-  data: WizardState;
-};
-
-type CompletionResponse = {
-  data: {
-    username: string;
-    servers: {
-      name: string;
-      service_type: string;
-      access_url?: string | null;
-    }[];
-    state: WizardState;
-  };
-};
-
-type ApiError = Error & {
-  details?: Record<string, string[]>;
-};
-
-const fetchJson = async <T = unknown>(endpoint: string, init?: RequestInit): Promise<T> => {
-  const response = await fetch(endpoint, {
-    credentials: 'include',
-    headers: {
-      Accept: 'application/json',
-      ...(init?.headers ?? {})
-    },
-    ...init
-  });
-
-  const contentType = response.headers.get('Content-Type') || '';
-  const isJson = contentType.includes('application/json');
-  const data = (isJson ? await response.json() : null) as T | { error?: { message?: string; details?: Record<string, string[]> } };
-
-  if (!response.ok) {
-    const errorMessage =
-      (data && typeof data === 'object' && 'error' in data && data.error?.message) || response.statusText || 'Request failed';
-    const error = new Error(errorMessage) as ApiError;
-    if (data && typeof data === 'object' && 'error' in data && data.error?.details) {
-      error.details = data.error.details;
-    }
-    throw error;
-  }
-
-  return data as T;
-};
+import { InvitationDraft, loadPublicInvitation } from '../lib/invitationWizard';
+import type { WizardStep, WizardServer, WizardState, CompletionResponse } from '../lib/invitationWizardTypes';
 
 type AccountFormState = {
   username: string;
@@ -254,7 +80,7 @@ const defaultAccountFormState: AccountFormState = {
   use_same_password: true
 };
 
-const renderStepIcon = (step: WizardStep): JSX.Element => {
+const renderStepIcon = (step: WizardStep): ReactElement => {
   if (step.id === 'plex') {
     return <ServiceIcon serviceType="plex" className="h-3 w-3" />;
   }
@@ -305,13 +131,12 @@ const ServerAccessDetails = ({ server, invite, grantLibraryIds }: ServerAccessDe
 
   // Get libraries that match grant_library_ids for this server
   const matchingLibraries = useMemo(() => {
-    if (!grantLibraryIds || grantLibraryIds.length === 0) {
-      return null; // All libraries
-    }
+    if (server.all_libraries) return null;
+    if (!grantLibraryIds || grantLibraryIds.length === 0) return [];
     return server.libraries.filter((lib) =>
       isGrantLibrarySelectedForServer(grantLibraryIds, server.id, lib.id)
     );
-  }, [server.id, server.libraries, grantLibraryIds]);
+  }, [server.id, server.libraries, server.all_libraries, grantLibraryIds]);
 
   const features = server.features ?? {
     allow_downloads: invite.allow_downloads,
@@ -320,20 +145,8 @@ const ServerAccessDetails = ({ server, invite, grantLibraryIds }: ServerAccessDe
     allow_4k_transcode: invite.allow_4k_transcode,
   };
 
-  const formatExpiry = (expiresAt: string | null) => {
-    if (!expiresAt) return 'Never';
-    try {
-      return new Date(expiresAt).toLocaleDateString(undefined, {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      });
-    } catch {
-      return expiresAt;
-    }
-  };
+  // Public expiry metadata uses this device's zone without reading private account settings.
+  const formatExpiry = (expiresAt: string | null) => expiresAt ? formatDisplayTimestamp(expiresAt, { mode: 'device', time_format: '12', time_zone: null }) : 'Never';
 
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen} className="mt-6">
@@ -440,7 +253,7 @@ const ServerAccessDetails = ({ server, invite, grantLibraryIds }: ServerAccessDe
                           <span>4K Transcoding: <strong>{features.allow_4k_transcode ? 'Enabled' : 'Disabled'}</strong></span>
                         </div>
                       </>
-                    ) : server.service_type === 'JELLYFIN' ? (
+                    ) : (server.service_type === 'JELLYFIN' || server.service_type === 'KAVITA' || server.service_type === 'AUDIOBOOKSHELF' || server.service_type === 'KOMGA' || server.service_type === 'ROMM') ? (
                       <>
                         <div className="flex items-center gap-2">
                           <FontAwesomeIcon icon={faUser} className="w-4 text-green-500" />
@@ -448,11 +261,11 @@ const ServerAccessDetails = ({ server, invite, grantLibraryIds }: ServerAccessDe
                         </div>
                         <div className="flex items-center gap-2">
                           <FontAwesomeIcon icon={faKey} className="w-4 text-green-500" />
-                          <span>Authentication: <strong>Username and password (required)</strong></span>
+                          <span>Authentication: <strong>{server.service_type === 'ROMM' ? 'Lowercase ASCII username; printable ASCII password of 12–72 bytes' : server.service_type === 'KAVITA' ? 'Username without @; password of 12–256 bytes' : server.service_type === 'KOMGA' ? 'Email and password (12–72 bytes)' : server.service_type === 'AUDIOBOOKSHELF' ? 'Username and password (12–72 bytes)' : 'Username and password (required)'}</strong></span>
                         </div>
                         <div className="flex items-center gap-2">
                           <FontAwesomeIcon icon={faDownload} className="w-4 text-green-500" />
-                          <span>Downloads: <strong>Available through Jellyfin apps</strong></span>
+                          <span>Downloads: <strong>{features.allow_downloads ? 'Enabled' : 'Disabled'}</strong></span>
                         </div>
                       </>
                     ) : server.service_type === 'EMBY' ? (
@@ -464,21 +277,6 @@ const ServerAccessDetails = ({ server, invite, grantLibraryIds }: ServerAccessDe
                         <div className="flex items-center gap-2">
                           <FontAwesomeIcon icon={faKey} className="w-4 text-green-500" />
                           <span>Authentication: <strong>Username and password</strong></span>
-                        </div>
-                      </>
-                    ) : server.service_type === 'ROMM' ? (
-                      <>
-                        <div className="flex items-center gap-2">
-                          <FontAwesomeIcon icon={faUser} className="w-4 text-green-500" />
-                          <span>Account Type: <strong>New user account will be created</strong></span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <FontAwesomeIcon icon={faKey} className="w-4 text-green-500" />
-                          <span>Authentication: <strong>Username and password (required)</strong></span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <FontAwesomeIcon icon={faEnvelopeOpenText} className="w-4 text-green-500" />
-                          <span>Email: <strong>Optional</strong></span>
                         </div>
                       </>
                     ) : (
@@ -546,6 +344,8 @@ export const InviteWizardPage = () => {
   const { token = '' } = useParams({ from: '/invite/$token' as const });
   const { success, error: showError } = useAlerts();
 
+  const draft = useRef<InvitationDraft | null>(null);
+  const loadRevision = useRef(0);
   const [state, setState] = useState<WizardState | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -555,6 +355,7 @@ export const InviteWizardPage = () => {
   const [savingAccount, setSavingAccount] = useState(false);
   const [savingServerId, setSavingServerId] = useState<number | null>(null);
   const [startingPlex, setStartingPlex] = useState(false);
+  const plexAttempt = useRef(0);
   const [startingDiscord, setStartingDiscord] = useState(false);
   const [completing, setCompleting] = useState(false);
   const [completion, setCompletion] = useState<CompletionResponse['data'] | null>(null);
@@ -570,22 +371,29 @@ export const InviteWizardPage = () => {
   const hasDisabledServers = disabledServers.length > 0;
 
   const loadState = useCallback(async () => {
+    const revision = ++loadRevision.current;
+    draft.current = null;
+    setCompletion(null);
     if (!token) return;
     setLoading(true);
     setError(null);
     try {
-      const response = await fetchJson<WizardResponse>(`/api/v2/invite/${encodeURIComponent(token)}/wizard`);
-      setState(response.data);
+      const next = await loadPublicInvitation(token);
+      if (revision !== loadRevision.current) return;
+      draft.current = next;
+      setState(next.view());
     } catch (err) {
+      if (revision !== loadRevision.current) return;
       setError((err as Error).message || 'Failed to load invite');
       setState(null);
     } finally {
-      setLoading(false);
+      if (revision === loadRevision.current) setLoading(false);
     }
   }, [token]);
 
   useEffect(() => {
     void loadState();
+    return () => { ++loadRevision.current; draft.current = null; };
   }, [loadState]);
 
   useEffect(() => {
@@ -602,17 +410,9 @@ export const InviteWizardPage = () => {
     setAccountForm(nextAccount);
 
     const nextServerForms: Record<number, ServerFormState> = {};
-    state.servers.forEach((server) => {
-      const isEmailIdentityServer = server.service_type === 'KOMGA';
-      const savedUsername = server.credentials?.username ?? '';
-      const savedEmail = server.credentials?.email ?? '';
-      const resolvedEmail = savedEmail || (isEmailIdentityServer ? savedUsername : '');
-      const resolvedUsername = isEmailIdentityServer ? (resolvedEmail || savedUsername) : savedUsername;
-      nextServerForms[server.id] = {
-        username: resolvedUsername,
-        email: resolvedEmail,
-        password: server.credentials?.password ?? '',
-        password_confirm: ''
+    state.servers.forEach(server => {
+      nextServerForms[server.id] = draft.current?.formFor(server.id) ?? {
+        username: '', email: '', password: '', password_confirm: ''
       };
     });
     setServerForms(nextServerForms);
@@ -620,119 +420,82 @@ export const InviteWizardPage = () => {
 
   const handleAccountSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!state) return;
-    if (state.invite.is_paused) {
-      showError('This invite is temporarily unavailable because all servers are disabled.');
-      return;
-    }
-
+    if (!draft.current) return;
     if (accountForm.password !== accountForm.confirm_password) {
       setAccountErrors({ confirm_password: ['Passwords do not match'] });
       return;
     }
-
     setSavingAccount(true);
     setAccountErrors({});
     try {
-      const payload = {
-        username: accountForm.username,
-        email: accountForm.email,
-        password: accountForm.password,
-        confirm_password: accountForm.confirm_password,
-        use_same_username: accountForm.use_same_username,
-        use_same_email: accountForm.use_same_email,
-        use_same_password: accountForm.use_same_password
-      };
-      const response = await fetchJson<WizardResponse>(`/api/v2/invite/${encodeURIComponent(token)}/account`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      setState(response.data);
-      success('Account details saved');
+      draft.current.saveAccount(accountForm);
+      setState(draft.current.view());
+      success('Details saved in this tab. Accounts are created when you finish.');
     } catch (err) {
-      const apiError = err as ApiError;
-      if (apiError.details) {
-        setAccountErrors(apiError.details);
-      }
-      showError('Failed to save account: ' + apiError.message);
+      showError('Failed to save account: ' + (err as Error).message);
     } finally {
       setSavingAccount(false);
     }
   };
 
+  // Plex sign-in opens in a separate window (typed details stay in this tab) and
+  // is checked every 2 seconds until the invitee approves it in Plex.
   const handleStartPlex = async () => {
-    if (!state) return;
-    if (state.invite.is_paused) {
+    if (!draft.current || startingPlex) return;
+    if (state?.invite.is_paused) {
       showError('This invite is temporarily unavailable because all servers are disabled.');
       return;
     }
+    const attempt = ++plexAttempt.current;
+    // Opened during the click so the browser does not block it.
+    const popup = window.open('', 'mum-plex-sign-in', 'width=600,height=750');
     setStartingPlex(true);
     try {
-      const response = await fetchJson<{ data: { redirect_url?: string; state: WizardState } }>(
-        `/api/v2/invite/${encodeURIComponent(token)}/plex/start`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ return_path: `/invite/${token}` })
-        }
-      );
-      if (response.data.state) {
-        setState(response.data.state);
+      const url = await draft.current.startPlex();
+      if (popup && !popup.closed) {
+        popup.opener = null;
+        popup.location.href = url;
+      } else {
+        window.open(url, '_blank', 'noopener');
       }
-      const redirect = response.data.redirect_url;
-      if (redirect) {
-        window.location.href = redirect;
+      const deadline = Date.now() + 15 * 60 * 1000;
+      while (Date.now() < deadline && attempt === plexAttempt.current && draft.current) {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        if (attempt !== plexAttempt.current || !draft.current) return;
+        let status: 'pending' | 'confirmed';
+        try {
+          status = await draft.current.pollPlex();
+        } catch (err) {
+          // Polling too fast is answered with 429; wait and check again.
+          if ((err as { status?: number }).status === 429) continue;
+          throw err;
+        }
+        setState(draft.current.view());
+        if (status === 'confirmed') {
+          if (popup && !popup.closed) popup.close();
+          success('Plex account connected');
+          return;
+        }
+        if (popup && popup.closed) {
+          showError('Plex sign-in was closed before it finished. Try again.');
+          return;
+        }
       }
     } catch (err) {
+      if (popup && !popup.closed) popup.close();
       showError('Plex login failed: ' + (err as Error).message);
     } finally {
-      setStartingPlex(false);
+      if (attempt === plexAttempt.current) setStartingPlex(false);
     }
   };
-
-  const handleResolvePlex = async (action: 'link_existing' | 'use_different') => {
-    try {
-      const response = await fetchJson<WizardResponse>(`/api/v2/invite/${encodeURIComponent(token)}/plex/resolve`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action })
-      });
-      setState(response.data);
-      success('Plex account updated');
-    } catch (err) {
-      showError('Unable to update Plex account: ' + (err as Error).message);
-    }
-  };
-
+  useEffect(() => () => { ++plexAttempt.current; }, []);
+  const handleResolvePlex = async (_action: 'link_existing' | 'use_different') => showError('Plex invitation authentication is not available yet.');
+  // The browser leaves for Discord and returns to this page; nothing typed is lost because this step comes first.
   const handleStartDiscord = async () => {
-    if (!state) return;
-    if (state.invite.is_paused) {
-      showError('This invite is temporarily unavailable because all servers are disabled.');
-      return;
-    }
+    if (!draft.current || startingDiscord) return;
     setStartingDiscord(true);
-    try {
-      const response = await fetchJson<{ data: { redirect_url?: string; state: WizardState } }>(
-        `/api/v2/invite/${encodeURIComponent(token)}/discord/start`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ return_path: `/invite/${token}` })
-        }
-      );
-      if (response.data.state) {
-        setState(response.data.state);
-      }
-      const redirect = response.data.redirect_url;
-      if (redirect) {
-        window.location.href = redirect;
-      }
-    } catch (err) {
-      showError('Discord login failed: ' + (err as Error).message);
-    } finally {
-      setStartingDiscord(false);
-    }
+    try { window.location.assign(await draft.current.startDiscord()); }
+    catch (err) { showError((err as Error).message || 'Discord sign-in could not start'); setStartingDiscord(false); }
   };
 
   const updateServerForm = (serverId: number, field: keyof ServerFormState, value: string) => {
@@ -747,54 +510,12 @@ export const InviteWizardPage = () => {
 
   const handleSaveServer = async (serverId: number) => {
     const form = serverForms[serverId];
-    if (!form) return;
-    if (state?.invite.is_paused) {
-      showError('This invite is temporarily unavailable because all servers are disabled.');
-      return;
-    }
-
-    const targetServer = state?.servers.find((server) => server.id === serverId);
-    const usesEmailIdentity = targetServer?.service_type === 'KOMGA';
-    const normalizedEmail = form.email.trim();
-    const normalizedUsername = usesEmailIdentity ? normalizedEmail : form.username.trim();
-
-    if (!normalizedUsername) {
-      showError(usesEmailIdentity ? 'Email is required' : 'Username is required');
-      return;
-    }
-
-    if (usesEmailIdentity && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
-      showError('A valid email is required');
-      return;
-    }
-
-    if (!form.password) {
-      showError('Password is required');
-      return;
-    }
-
-    if (form.password !== form.password_confirm) {
-      showError('Passwords do not match');
-      return;
-    }
-
+    if (!draft.current || !form) return;
     setSavingServerId(serverId);
     try {
-      const response = await fetchJson<WizardResponse>(
-        `/api/v2/invite/${encodeURIComponent(token)}/server/${serverId}/credentials`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            username: normalizedUsername,
-            email: usesEmailIdentity ? normalizedEmail : form.email,
-            password: form.password,
-            completed: true
-          })
-        }
-      );
-      setState(response.data);
-      success('Server saved');
+      draft.current.saveServer(serverId, form);
+      setState(draft.current.view());
+      success('Server details saved in this tab.');
     } catch (err) {
       showError('Failed to save server: ' + (err as Error).message);
     } finally {
@@ -803,35 +524,39 @@ export const InviteWizardPage = () => {
   };
 
   const handleComplete = async () => {
-    if (state?.invite.is_paused) {
-      showError('This invite is temporarily unavailable because all servers are disabled.');
-      return;
-    }
+    const current = draft.current;
+    if (!current) return;
+    const revision = loadRevision.current;
     setCompleting(true);
     try {
-      const response = await fetchJson<CompletionResponse>(`/api/v2/invite/${encodeURIComponent(token)}/complete`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      });
-      setState(response.data.state);
-      setCompletion(response.data);
+      const receipt = await current.redeem();
+      if (revision !== loadRevision.current) return;
+      if (receipt.status === 'failed') throw new Error(`Provisioning requires administrator review. Reference: ${receipt.id}. Completed upstream accounts may already have access.`);
+      if (receipt.status === 'cancelled') throw new Error(`This provisioning job was cancelled by an administrator. Reference: ${receipt.id}. Contact the administrator before starting again.`);
+      if (receipt.status !== 'completed') throw new Error(`Provisioning is in progress. Check again using this tab. Reference: ${receipt.id}.`);
+      const finalState = current.view();
+      setState(finalState);
+      setCompletion({ username: finalState.account.data?.username ?? '', servers: finalState.servers, state: finalState });
+      draft.current = null;
+      setAccountForm(defaultAccountFormState);
+      setServerForms({});
     } catch (err) {
-      showError('Invite not ready: ' + (err as Error).message);
+      if (revision === loadRevision.current) showError('Invite not ready: ' + (err as Error).message);
     } finally {
-      setCompleting(false);
+      if (revision === loadRevision.current) setCompleting(false);
     }
   };
 
   const activeStepId = useMemo(() => {
     if (!state?.steps?.length) return null;
 
+    // Discord sign-in leaves the page, and typed credentials are kept only in
+    // memory, so a required Discord step comes before account details.
+    const discordStepVisible = state.discord.oauth_enabled && !state.discord.authenticated;
+    if (discordStepVisible) return 'discord';
+
     const accountStepVisible = state.account.allowed && !state.account.completed;
     if (accountStepVisible) return 'user_account';
-
-    const discordStepVisible = state.discord.oauth_enabled
-      && !state.discord.authenticated
-      && (!state.account.allowed || state.account.completed);
-    if (discordStepVisible) return 'discord';
 
     const plexStepVisible = state.plex.has_plex_servers
       && !state.plex.authenticated
@@ -893,7 +618,7 @@ export const InviteWizardPage = () => {
       canSelect: boolean;
       targetStepId: string | null;
       meta?: string;
-      icon: JSX.Element;
+      icon: ReactElement;
     }> = [];
 
     if (accountStep) {
@@ -1419,7 +1144,7 @@ export const InviteWizardPage = () => {
                     <div>
                       <h2 className="text-xl font-semibold text-foreground mb-1">Set Up Your Account</h2>
                       <p className="text-sm text-muted-foreground">
-                        Configure your account details - your account will be created when you complete all steps
+                        {draft.current?.recovering ? 'Re-enter the original local account details to recover your provisioning receipt.' : 'Configure your account details - your account will be created when you complete all steps'}
                       </p>
                     </div>
                   </div>
@@ -1486,6 +1211,9 @@ export const InviteWizardPage = () => {
                       </div>
                     </div>
 
+                    {/* Shared credentials only apply to servers where an account is created
+                        for the invitee; Plex access comes from their own Plex sign-in. */}
+                    {state.servers.some((server) => server.service_type !== 'PLEX') && (
                     <div className="bg-blue-50 dark:bg-blue-400/10 border border-blue-200 dark:border-blue-500/20 rounded-lg p-4 mt-6">
                       <div className="flex items-start gap-3 mb-4">
                         <div className="w-6 h-6 rounded-full bg-blue-100/20 flex items-center justify-center flex-shrink-0 mt-0.5">
@@ -1540,12 +1268,13 @@ export const InviteWizardPage = () => {
                           <div>
                             <span className="text-sm font-medium">Use same password across servers</span>
                             <p className="text-xs text-muted-foreground">
-                              Your local account password will be used for all media servers
+                              Your local account password will be used for all media servers{state.servers.some(server => server.service_type === 'AUDIOBOOKSHELF' || server.service_type === 'KOMGA' || server.service_type === 'ROMM') ? '. Audiobookshelf and Komga need 12–72 bytes; RomM needs 12–72 printable ASCII bytes. You can set a separate server password.' : state.servers.some(server => server.service_type === 'KAVITA') ? '. Kavita needs 12–256 bytes; you can set a separate server password.' : ''}
                             </p>
                           </div>
                         </label>
                       </div>
                     </div>
+                    )}
 
                     <div className="pt-4">
                       <Button type="submit" className="w-full h-12" disabled={savingAccount}>
@@ -1801,6 +1530,7 @@ export const InviteWizardPage = () => {
                 const usesEmailIdentity = activeServer?.service_type === 'KOMGA';
 
                 if (!activeServer) return null;
+                const limits = invitationServerLimits(activeServer.service_type);
 
                 return (
                 <div key={activeServer.id} className="bg-muted/50 border rounded-lg p-6">
@@ -1813,7 +1543,7 @@ export const InviteWizardPage = () => {
                         {activeServer.name}
                       </h2>
                       <p className="text-sm text-muted-foreground">
-                        Setting up access to {activeServer.name || activeServer.service_type}
+                        Setting up access to {activeServer.name || activeServer.service_type}{limits.asciiOnly ? '. Use an ASCII username of 3–255 characters using a–z, digits, underscores or hyphens and a printable ASCII password of 12–72 bytes.' : limits.usernameWithoutAt ? '. Username-only account; your local email is not sent to Kavita.' : ''}
                       </p>
                     </div>
                   </div>
@@ -1839,7 +1569,7 @@ export const InviteWizardPage = () => {
                   <div className="space-y-4">
                     <div className="space-y-2">
                       <Label htmlFor={`server-${activeServer.id}-${usesEmailIdentity ? 'identity-email' : 'username'}`}>
-                        {usesEmailIdentity ? 'Email' : 'Username'}
+                        {usesEmailIdentity ? 'Email' : limits.usernameWithoutAt ? 'Username (without @)' : 'Username'}
                       </Label>
                       <Input
                         id={`server-${activeServer.id}-${usesEmailIdentity ? 'identity-email' : 'username'}`}
@@ -1850,23 +1580,8 @@ export const InviteWizardPage = () => {
                       />
                     </div>
 
-                    {(activeServer.service_type === 'KAVITA' || activeServer.service_type === 'ROMM') && (
-                      <div className="space-y-2">
-                        <Label htmlFor={`server-${activeServer.id}-email`}>
-                          {activeServer.service_type === 'ROMM' ? 'Email (Optional)' : 'Email'}
-                        </Label>
-                        <Input
-                          id={`server-${activeServer.id}-email`}
-                          type="email"
-                          value={serverForms[activeServer.id]?.email ?? ''}
-                          onChange={(e) => updateServerForm(activeServer.id, 'email', e.target.value)}
-                          required={activeServer.service_type === 'KAVITA'}
-                        />
-                      </div>
-                    )}
-
                     <div className="space-y-2">
-                      <Label htmlFor={`server-${activeServer.id}-password`}>Password</Label>
+                      <Label htmlFor={`server-${activeServer.id}-password`}>Password (12–{limits.passwordMaxBytes} bytes)</Label>
                       <Input
                         id={`server-${activeServer.id}-password`}
                         type="password"

@@ -1,0 +1,5 @@
+{
+  "license": "MIT",
+  "source": "https://github.com/bgrcs/neverpanic/blob/46d970d194d1/LICENSE",
+  "note": "neverpanic 0.0.5 (npm, published 2025-11-11 from commit 5dd16b45143e) shipped no licence file or field. The author added this MIT licence to the repository on 2026-03-23 (commit 46d970d194d1, 'feat(license): add MIT license (#7)') and published 0.0.6 with it. Text downloaded 2026-11-05, sha256 d653353747e9370b5a28e6e949763930bec86849fbd8baa20d4b416539403cdd. Pulled in by @scalar/agent-chat."
+}

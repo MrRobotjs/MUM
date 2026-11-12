@@ -1,5 +1,10 @@
-import { useState, useEffect, useMemo } from 'react';
+import { formatCalendarDate } from '../util/calendarDates';
+import { useAccountDisplay } from '../hooks/useAccountDisplay';
+import { useState, useEffect, useSyncExternalStore, useMemo } from 'react';
 import { useNavigate, Link, useParams, useSearch } from '@tanstack/react-router';
+import { useAuth } from '../contexts/AuthContext';
+import { getAuthSnapshot, subscribeToAuthStore } from '../store/authStore';
+import { useCatalogueView } from '../lib/catalogueView';
 import { requestJson } from '../util/apiClient';
 import { useAlerts } from '../contexts/AlertContext';
 import { Button } from '../components/ui/button';
@@ -24,8 +29,9 @@ import {
   YAxis,
 } from 'recharts';
 import { getServicePalette, getServiceMeta } from '@/config/pluginMetadata';
-// Images are authenticated via HttpOnly access cookie; no token param needed
+// Catalogue posters use signed session-bound URLs.
 import { useLibrarySyncStatus } from '../hooks/useLibrarySyncStatus';
+import { purgeLibraryCatalogue, syncLibraryCatalogue } from '../lib/libraryCatalogue';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faStar,
@@ -66,6 +72,13 @@ interface Library {
     server_name: string;
     service_type: ServiceType;
   };
+  catalogue?: {
+    supported: boolean;
+    collections_supported?: boolean;
+    revision: number;
+    synced_at: string | null;
+    item_count: number | null;
+  };
 }
 
 interface MediaItem {
@@ -93,13 +106,31 @@ interface LibraryStats {
 }
 
 // API response types for stronger typing
-type CollectionsApi = { data?: { collections?: any[] } };
+interface LibraryCollection {
+  id: number;
+  title: string;
+  child_count: number | null;
+  smart: boolean;
+  thumb: string | null;
+  added_at: string | null;
+}
+
+type CollectionsApi = { data?: { collections?: unknown } };
+
+// Accept only the current collection DTO; posters must be this server's signed links.
+const readCollections = (value: unknown): LibraryCollection[] | null => {
+  if (!Array.isArray(value)) return null;
+  const valid = value.every((c) => c && typeof c === 'object'
+    && Number.isSafeInteger(c.id) && c.id > 0 && typeof c.title === 'string'
+    && (c.child_count === null || Number.isSafeInteger(c.child_count)) && typeof c.smart === 'boolean'
+    && (c.thumb === null || (typeof c.thumb === 'string' && c.thumb.startsWith('/api/media/collections/images/')))
+    && (c.added_at === null || typeof c.added_at === 'string'));
+  return valid ? (value as LibraryCollection[]) : null;
+};
 type StatsApi = { data?: any };
 type ActivityApi = { data?: any[]; meta?: { pagination?: { total_pages?: number } } };
 type LibraryApi = { data?: Library };
 type MediaListApi = { data?: MediaItem[]; meta?: { pagination?: { total_pages?: number; total_items?: number } } };
-type SyncApi = { success?: boolean; result?: { added?: number; updated?: number; removed?: number }; message?: string };
-type PurgeApi = { success?: boolean; deleted_count?: number };
 
 type TabType = 'overview' | 'media' | 'collections' | 'stats' | 'activity';
 
@@ -110,33 +141,8 @@ const formatMinutesCompact = (rawMinutes: number) => {
   return hours > 0 ? `${hours}h ${remainingMinutes}m` : `${minutes}m`;
 };
 
-const parseIsoDateOnly = (value: string): Date | null => {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || '').trim());
-  if (!match) return null;
-  const year = Number(match[1]);
-  const monthIndex = Number(match[2]) - 1;
-  const day = Number(match[3]);
-  const parsed = new Date(year, monthIndex, day);
-  if (Number.isNaN(parsed.getTime())) return null;
-  return parsed;
-};
-
-const formatLibraryStatsChartDateShort = (value: string) => {
-  const parsed = parseIsoDateOnly(value);
-  if (!parsed) return value;
-  return parsed.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-};
-
-const formatLibraryStatsChartDateFull = (value: string) => {
-  const parsed = parseIsoDateOnly(value);
-  if (!parsed) return value;
-  return parsed.toLocaleDateString(undefined, {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
-};
+const formatLibraryStatsChartDateShort = (value: string) => formatCalendarDate(value, 'short');
+const formatLibraryStatsChartDateFull = (value: string) => formatCalendarDate(value, 'full');
 
 const renderLibraryStatsAreaTooltip = ({
   active,
@@ -188,7 +194,7 @@ const MediaPosterCard = ({ item, libraryId }: { item: MediaItem; libraryId: stri
   const [imageError, setImageError] = useState(false);
 
   return (
-    <Link to={`/admin/libraries/${libraryId}/${item.id}`} className="group cursor-pointer">
+    <Link to="/admin/libraries/$libraryId/$mediaId" params={{ libraryId: String(libraryId), mediaId: String(item.id) }} className="group cursor-pointer">
       <div className="relative aspect-[2/3] bg-accent rounded-lg overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 group-hover:scale-105">
         {item.thumb && !imageError ? (
           <>
@@ -251,7 +257,8 @@ const MediaPosterCard = ({ item, libraryId }: { item: MediaItem; libraryId: stri
 };
 
 // Component for individual collection card with loading state
-const CollectionCard = ({ collection }: { collection: any }) => {
+const CollectionCard = ({ collection }: { collection: LibraryCollection }) => {
+  const { formatTimestamp } = useAccountDisplay();
   const [imageLoading, setImageLoading] = useState(true);
   const [imageError, setImageError] = useState(false);
 
@@ -264,7 +271,7 @@ const CollectionCard = ({ collection }: { collection: any }) => {
               <Skeleton className="absolute inset-0 rounded-lg" />
             )}
             <img
-              src={`/api/v2/media/plex/images/proxy?path=${encodeURIComponent(collection.thumb.replace(/^\//, ''))}`}
+              src={collection.thumb}
               alt={collection.title}
               className={`w-full h-full object-cover ${imageLoading ? 'opacity-0' : 'opacity-100'} transition-opacity duration-200`}
               loading="lazy"
@@ -288,9 +295,9 @@ const CollectionCard = ({ collection }: { collection: any }) => {
           </div>
         </div>
 
-        {collection.childCount && (
+        {collection.child_count !== null && collection.child_count > 0 && (
           <div className="absolute top-2 left-2 bg-primary/80 text-primary-foreground text-xs px-2 py-1 rounded-full">
-            {collection.childCount} item{collection.childCount === 1 ? '' : 's'}
+            {collection.child_count} item{collection.child_count === 1 ? '' : 's'}
           </div>
         )}
 
@@ -305,9 +312,9 @@ const CollectionCard = ({ collection }: { collection: any }) => {
         <h4 className="font-medium text-sm line-clamp-2 group-hover:text-primary transition-colors" title={collection.title}>
           {collection.title}
         </h4>
-        {collection.addedAt && (
+        {collection.added_at && (
           <p className="text-xs text-muted-foreground mt-1">
-            Added {new Date(collection.addedAt).toLocaleDateString()}
+            Added {formatTimestamp(collection.added_at, 'date')}
           </p>
         )}
       </div>
@@ -316,6 +323,15 @@ const CollectionCard = ({ collection }: { collection: any }) => {
 };
 
 export const LibraryDetailPage = () => {
+  const { libraryId } = useParams({ from: '/admin/libraries/$libraryId' });
+  const { user, isAdministrator } = useAuth();
+  const auth = useSyncExternalStore(subscribeToAuthStore, getAuthSnapshot, getAuthSnapshot);
+  if (!user || !isAdministrator || !auth.accessToken) return null;
+  return <LibraryDetailPageView key={JSON.stringify([user.uuid, auth.accessToken, libraryId])} />;
+};
+
+const LibraryDetailPageView = () => {
+  const { formatTimestamp } = useAccountDisplay();
   // Use TanStack Router APIs for params and search
   const { libraryId } = useParams({ from: '/admin/libraries/$libraryId' });
   const search = useSearch({ strict: false }) as { tab?: TabType };
@@ -355,7 +371,7 @@ export const LibraryDetailPage = () => {
   const [pollMs, setPollMs] = useState(2000);
   const { status: libSyncStatus, refetch: refetchLibSync } = useLibrarySyncStatus(libraryId, pollMs);
   const [showSyncDialog, setShowSyncDialog] = useState(false);
-  const [collections, setCollections] = useState<any[]>([]);
+  const [collections, setCollections] = useState<LibraryCollection[]>([]);
   const [collectionsLoading, setCollectionsLoading] = useState(false);
   const [statsData, setStatsData] = useState<any>(null);
   const [statsLoading, setStatsLoading] = useState(false);
@@ -365,6 +381,16 @@ export const LibraryDetailPage = () => {
   const [activityDays, setActivityDays] = useState(30);
   const [activityPage, setActivityPage] = useState(1);
   const [activityTotalPages, setActivityTotalPages] = useState(1);
+  const [needsInspection, setNeedsInspection] = useState(false);
+  const queries = {
+    library: String(libraryId),
+    media: JSON.stringify([libraryId, activeTab, currentPage, pageSize, sortBy, searchQuery]),
+    collections: JSON.stringify([libraryId, activeTab]),
+    stats: JSON.stringify([libraryId, activeTab, statsDays]),
+    activity: JSON.stringify([libraryId, activeTab, activityDays, activityPage]),
+  };
+  const view = useCatalogueView(queries);
+
 
   useEffect(() => {
     loadLibraryData();
@@ -375,14 +401,14 @@ export const LibraryDetailPage = () => {
   useEffect(() => {
     if (activeTab === 'media') {
       loadMediaItems();
-    } else if (activeTab === 'collections' && library?.server?.service_type === 'plex') {
+    } else if (activeTab === 'collections' && library?.catalogue?.collections_supported === true) {
       loadCollections();
     } else if (activeTab === 'stats') {
       loadStats();
     } else if (activeTab === 'activity') {
       loadActivity();
     }
-  }, [activeTab, currentPage, pageSize, sortBy, searchQuery, statsDays, activityDays, activityPage, library?.server?.service_type]);
+  }, [libraryId, activeTab, currentPage, pageSize, sortBy, searchQuery, statsDays, activityDays, activityPage, library?.server?.service_type, library?.catalogue?.collections_supported]);
 
   // Adapt polling interval for snappy updates during active sync
   useEffect(() => {
@@ -391,49 +417,87 @@ export const LibraryDetailPage = () => {
   }, [syncing, libSyncStatus?.is_syncing]);
 
   const loadCollections = async () => {
-    if (!library || library.server?.service_type !== 'plex') return;
+    if (library?.catalogue?.collections_supported !== true) return;
 
+    if (!view.current()) return false;
+    const read = view.begin('collections', queries.collections);
+    if (!read.current()) return false;
     try {
       setCollectionsLoading(true);
-      const response = await requestJson<CollectionsApi>(`/api/v2/libraries/${libraryId}/collections`);
-      setCollections(response.data?.collections || []);
+      const response = await requestJson<CollectionsApi>(`/api/libraries/${libraryId}/collections`, { signal: read.signal, retryAuthentication: false });
+      if (!read.current()) return false;
+      const saved = readCollections(response.data?.collections);
+      if (!saved) throw new Error('Unexpected collections response');
+      setCollections(saved);
+      return true;
     } catch (err) {
+      if (!read.current()) return false;
+      // Keep this view's saved list rather than implying the library has none.
       console.error('Failed to load collections:', err);
-      setCollections([]);
+      return false;
     } finally {
-      setCollectionsLoading(false);
+      read.finish();
+      if (read.current()) setCollectionsLoading(false);
     }
   };
 
   const loadStats = async () => {
     if (!libraryId) return;
 
+    if (!view.current()) return false;
+    const read = view.begin('stats', queries.stats);
+    if (!read.current()) return false;
     try {
       setStatsLoading(true);
-      const response = await requestJson<StatsApi>(`/api/v2/libraries/${libraryId}/stats?days=${statsDays}`);
+      const response = await requestJson<StatsApi>(`/api/libraries/${libraryId}/stats?days=${statsDays}`, { signal: read.signal, retryAuthentication: false });
+      if (!read.current()) return false;
       setStatsData(response.data);
+      return true;
     } catch (err) {
+      if (!read.current()) return false;
       console.error('Failed to load stats:', err);
       setStatsData(null);
+      return false;
     } finally {
-      setStatsLoading(false);
+      read.finish();
+      if (read.current()) setStatsLoading(false);
     }
   };
 
   const loadActivity = async () => {
     if (!libraryId) return;
 
+    if (!view.current()) return false;
+    const read = view.begin('activity', queries.activity);
+    if (!read.current()) return false;
     try {
       setActivityLoading(true);
-      const response = await requestJson<ActivityApi>(`/api/v2/libraries/${libraryId}/activity?days=${activityDays}&page=${activityPage}&page_size=20`);
+      const response = await requestJson<ActivityApi>(`/api/libraries/${libraryId}/activity?days=${activityDays}&page=${activityPage}&page_size=20`, { signal: read.signal, retryAuthentication: false });
+      if (!read.current()) return false;
       setActivityData(response.data || []);
       setActivityTotalPages(response.meta?.pagination?.total_pages || 1);
+      return true;
     } catch (err) {
+      if (!read.current()) return false;
       console.error('Failed to load activity:', err);
       setActivityData([]);
+      return false;
     } finally {
-      setActivityLoading(false);
+      read.finish();
+      if (read.current()) setActivityLoading(false);
     }
+  };
+
+  const refreshSavedState = async () => {
+    if (!view.current()) return;
+    const inspection = view.inspectionRevision();
+    const detail = await loadLibraryData();
+    if (!view.current()) return;
+    const items = await loadMediaItems();
+    if (!view.current()) return;
+    if (activeTab === 'collections' && library?.catalogue?.collections_supported === true) await loadCollections();
+    if (!view.current()) return;
+    if (detail && items && view.inspected(inspection)) setNeedsInspection(false);
   };
 
   const handleSyncLibrary = async (syncEpisodes: boolean | null = null) => {
@@ -449,6 +513,15 @@ export const LibraryDetailPage = () => {
       return;
     }
 
+    const catalogue = library?.catalogue;
+    if (!catalogue?.supported || syncEpisodes) {
+      showError(syncEpisodes ? 'Episode catalogues are not implemented yet.' : 'Item catalogues are not available for this library.');
+      setShowSyncDialog(false);
+      return;
+    }
+
+    const mutation = view.beginMutation();
+    if (!mutation) return;
     try {
       setSyncing(true);
       setShowSyncDialog(false);
@@ -456,16 +529,22 @@ export const LibraryDetailPage = () => {
       refetchLibSync();
       // Backend publishes real progress; no local timer
       // Sync library content (all media items within this library)
-      const response = await requestJson<SyncApi>(`/api/v2/libraries/${libraryId}/sync${syncEpisodes ? '?sync_episodes=true' : ''}`, {
-        method: 'POST'
-      });
+      const outcome = await syncLibraryCatalogue(Number(libraryId), catalogue.revision);
+      if (!mutation.current()) return;
+      view.requireInspection();
+      setNeedsInspection(true);
+      if (outcome.kind !== 'committed') {
+        showError(outcome.message);
+        await refreshSavedState();
+        return;
+      }
 
       // Show success toast with sync results
-      if (response.success) {
-        const result = response.result;
-        const added = result.added || 0;
-        const updated = result.updated || 0;
-        const removed = result.removed || 0;
+      {
+        const result = outcome.receipt;
+        const added = result.added;
+        const updated = result.updated;
+        const removed = result.removed;
 
         // For TV show libraries, library sync only handles shows (not episodes)
         // Episodes are synced from individual show detail pages
@@ -486,20 +565,19 @@ export const LibraryDetailPage = () => {
 
           success(message);
         } else {
-          info(response.message || 'No changes detected');
+          info(result.message || 'No changes detected');
         }
 
         // Reload library data after sync
-        await loadLibraryData();
-        if (activeTab === 'media') {
-          await loadMediaItems();
-        }
+        await refreshSavedState();
       }
     } catch (err) {
+      if (!mutation.current()) return;
       console.error('Failed to sync library content:', err);
       showError(err instanceof Error ? err.message : 'Failed to sync library content');
     } finally {
-      setSyncing(false);
+      if (mutation.current()) setSyncing(false);
+      mutation.finish();
     }
   };
 
@@ -521,70 +599,99 @@ export const LibraryDetailPage = () => {
       return;
     }
 
+    const catalogue = library?.catalogue;
+    if (!catalogue?.supported) return;
+
+    const mutation = view.beginMutation();
+    if (!mutation) return;
     try {
       setPurging(true);
-      const response = await requestJson<PurgeApi>(`/api/v2/libraries/${libraryId}/purge`, {
-        method: 'POST'
-      });
+      const outcome = await purgeLibraryCatalogue(Number(libraryId), catalogue.revision);
+      if (!mutation.current()) return;
+      view.requireInspection();
+      setNeedsInspection(true);
+      if (outcome.kind !== 'committed') {
+        showError(outcome.message);
+        await refreshSavedState();
+        return;
+      }
 
-      if (response.success) {
-        const deletedCount = response.deleted_count || 0;
+      {
+        const deletedCount = outcome.receipt.deleted;
         success(`Purged ${deletedCount} item${deletedCount === 1 ? '' : 's'} from library`);
 
         // Reload library data after purge
-        await loadLibraryData();
-        if (activeTab === 'media') {
-          await loadMediaItems();
-        }
+        await refreshSavedState();
       }
     } catch (err) {
+      if (!mutation.current()) return;
       console.error('Failed to purge library:', err);
       showError(err instanceof Error ? err.message : 'Failed to purge library');
     } finally {
-      setPurging(false);
+      if (mutation.current()) setPurging(false);
+      mutation.finish();
     }
   };
 
   const loadLibraryData = async () => {
     if (!libraryId) return;
 
+    if (!view.current()) return false;
+    const read = view.begin('library', queries.library);
+    if (!read.current()) return false;
     try {
       setLoading(true);
-      const response = await requestJson<LibraryApi>(`/api/v2/libraries/${libraryId}?include_server=true`);
+      const response = await requestJson<LibraryApi>(`/api/libraries/${libraryId}?include_server=true`, { signal: read.signal, retryAuthentication: false });
+      if (!read.current()) return false;
 
+      if (response.data?.id !== Number(libraryId)) throw new Error('Library detail does not match this route');
       if (response.data) {
         setLibrary(response.data);
+        setError(null);
         // Load mock stats (in real app, would come from API)
         setLibraryStats({
           library_type: response.data.library_type || 'Mixed',
           popular_content: []
         });
       }
+      return true;
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load library');
+      if (!read.current()) return false;
+      if (!library) setError(err instanceof Error ? err.message : 'Failed to load library');
+      return false;
     } finally {
-      setLoading(false);
+      read.finish();
+      if (read.current()) setLoading(false);
     }
   };
 
   const loadMediaItems = async () => {
     if (!libraryId) return;
 
+    if (!view.current()) return false;
+    const read = view.begin('media', queries.media);
+    if (!read.current()) return false;
     try {
       setMediaLoading(true);
       const response = await requestJson<MediaListApi>(
-        `/api/v2/libraries/${libraryId}/media?page=${currentPage}&page_size=${pageSize}&sort_by=${sortBy}${searchQuery ? `&search=${encodeURIComponent(searchQuery)}` : ''}`
-      );
+        `/api/libraries/${libraryId}/media?page=${currentPage}&page_size=${pageSize}&sort_by=${sortBy}${searchQuery ? `&search=${encodeURIComponent(searchQuery)}` : ''}`,
+        { signal: read.signal, retryAuthentication: false });
+      if (!read.current()) return false;
 
+      if (!Array.isArray(response.data) || !response.meta?.pagination) throw new Error('Invalid library item list');
       if (response.data && response.meta) {
         setMediaItems(response.data);
         setTotalPages(response.meta.pagination?.total_pages || 1);
         setTotalItems(response.meta.pagination?.total_items || 0);
       }
+      return true;
     } catch (err) {
+      if (!read.current()) return false;
       console.error('Failed to load media items:', err);
+      return false;
     } finally {
-      setMediaLoading(false);
+      read.finish();
+      if (read.current()) setMediaLoading(false);
     }
   };
 
@@ -647,7 +754,7 @@ export const LibraryDetailPage = () => {
       }
     }
 
-    const pages = [];
+    const pages: number[] = [];
     for (let page = start; page <= end; page += 1) {
       pages.push(page);
     }
@@ -830,7 +937,7 @@ export const LibraryDetailPage = () => {
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Last Scanned:</span>
                       <span className="font-medium">
-                        {new Date(library.last_scanned).toLocaleString()}
+                        {formatTimestamp(library.last_scanned)}
                       </span>
                     </div>
                   )}
@@ -910,11 +1017,11 @@ export const LibraryDetailPage = () => {
           )}
 
           {/* Action Buttons */}
-          <div className="flex justify-end gap-2">
+          <div className="flex flex-wrap justify-end gap-2">
             <Button
               variant="destructive"
               onClick={handlePurgeLibrary}
-              disabled={purging || syncing}
+              disabled={purging || syncing || needsInspection || !library?.catalogue?.supported}
               title="Delete all cached items for this library from database"
             >
               {purging ? (
@@ -929,7 +1036,9 @@ export const LibraryDetailPage = () => {
                 </>
               )}
             </Button>
-            <Button onClick={handleSyncClick} disabled={syncing || purging}>
+            <Button onClick={refreshSavedState} disabled={syncing || purging} variant="outline">Refresh saved state</Button>
+            {needsInspection && <span>Inspect saved state before another action.</span>}
+            <Button onClick={handleSyncClick} disabled={syncing || purging || needsInspection || !library?.catalogue?.supported}>
               {syncing ? (
                 <>
                   <FontAwesomeIcon icon={faRotate} className="mr-2 h-4 w-4 animate-spin" />
@@ -976,8 +1085,8 @@ export const LibraryDetailPage = () => {
                       <SelectItem value="title_desc">Title (Z-A)</SelectItem>
                       <SelectItem value="year_desc">Year (Newest)</SelectItem>
                       <SelectItem value="year_asc">Year (Oldest)</SelectItem>
-                      <SelectItem value="total_streams_desc">Streams (Most)</SelectItem>
-                      <SelectItem value="total_streams_asc">Streams (Least)</SelectItem>
+                      <SelectItem value="total_streams_desc" disabled>Streams (Most)</SelectItem>
+                      <SelectItem value="total_streams_asc" disabled>Streams (Least)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -1140,14 +1249,14 @@ export const LibraryDetailPage = () => {
         </TabsContent>
 
         <TabsContent value="collections" className="space-y-6">
-          {library?.server?.service_type !== 'plex' ? (
+          {library?.catalogue?.collections_supported !== true ? (
             <Card>
               <CardContent className="p-12 text-center">
                 <div className="w-16 h-16 rounded-full bg-accent flex items-center justify-center mx-auto mb-4">
                   <FontAwesomeIcon icon={faLayerGroup} className="h-8 w-8 text-muted-foreground" />
                 </div>
                 <h3 className="text-lg font-medium mb-2">Collections Not Available</h3>
-                <p className="text-muted-foreground">Collections are only available for Plex libraries.</p>
+                <p className="text-muted-foreground">Collection browsing is not implemented for this library.</p>
               </CardContent>
             </Card>
           ) : collectionsLoading ? (
@@ -1176,8 +1285,8 @@ export const LibraryDetailPage = () => {
               </div>
 
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4">
-                {collections.map((collection: any, idx: number) => (
-                  <CollectionCard key={idx} collection={collection} />
+                {collections.map((collection) => (
+                  <CollectionCard key={collection.id} collection={collection} />
                 ))}
               </div>
             </>
@@ -1518,15 +1627,8 @@ export const LibraryDetailPage = () => {
                       return `${minutes}m`;
                     };
 
-                    const formatDate = (dateStr: string) => {
-                      const date = new Date(dateStr);
-                      return date.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
-                    };
-
-                    const formatTime = (dateStr: string) => {
-                      const date = new Date(dateStr);
-                      return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
-                    };
+                    const formatDate = (dateStr: string) => formatTimestamp(dateStr, 'date');
+                    const formatTime = (dateStr: string) => formatTimestamp(dateStr, 'time');
 
                     return (
                       <TableRow key={stream.id} className="hover:bg-accent/50">
@@ -1682,6 +1784,8 @@ export const LibraryDetailPage = () => {
             </Button>
             <Button
               onClick={() => handleSyncLibrary(true)}
+              disabled
+              title="Synchronize episodes from each show's page"
             >
               TV Shows + Episodes
             </Button>

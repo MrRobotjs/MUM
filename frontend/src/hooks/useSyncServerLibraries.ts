@@ -15,7 +15,7 @@ export const useSyncServerLibraries = (serverId: number, options: SyncOptions = 
     if (isSyncing) return
     setIsSyncing(true)
     try {
-      await requestJson(`/api/v2/servers/${serverId}/sync-libraries`, {
+      await requestJson(`/api/servers/${serverId}/sync-libraries`, {
         method: "POST",
       })
       onSuccess?.()

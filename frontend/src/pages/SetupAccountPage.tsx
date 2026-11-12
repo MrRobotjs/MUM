@@ -22,7 +22,7 @@ function SetupAccountContent() {
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [submitting, setSubmitting] = useState(false)
-  const [plexLoading, setPlexLoading] = useState(false)
+  const [plexLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const onSubmit = async (e: FormEvent) => {
@@ -42,7 +42,7 @@ function SetupAccountContent() {
     try {
       const response = await requestJson<{
         data?: { access_token?: string }
-      }>('/api/v2/setup/account', {
+      }>('/api/setup/account', {
         method: 'POST',
         body: JSON.stringify({
           username,
@@ -56,7 +56,7 @@ function SetupAccountContent() {
         setAccessToken(token)
       }
       refresh()
-      navigate('/setup/plugins', { replace: true })
+      navigate({ to: '/setup/plugins', replace: true })
     } catch (err: any) {
       setError(err?.message || 'Request failed')
     } finally {
@@ -64,27 +64,10 @@ function SetupAccountContent() {
     }
   }
 
+  // Plex single sign-on is not implemented in the Go runtime yet, so these
+  // controls are disabled and never send a request.
   const startPlexSSO = async () => {
-    setPlexLoading(true)
-    setError(null)
-    try {
-      const response = await requestJson<{
-        data?: { redirect_url?: string }
-      }>('/api/v2/auth/plex/start', {
-        method: 'POST',
-        body: JSON.stringify({ next: '/setup/account' }),
-      })
-      const redirect = response?.data?.redirect_url
-      if (redirect) {
-        window.location.href = redirect
-      } else {
-        setError('Failed to start Plex authentication.')
-      }
-    } catch (err: any) {
-      setError(err?.message || 'Failed to start Plex authentication.')
-    } finally {
-      setPlexLoading(false)
-    }
+    setError(PLEX_SSO_UNAVAILABLE)
   }
 
   return (
@@ -106,10 +89,10 @@ function SetupAccountContent() {
           </CardHeader>
           <CardContent className="space-y-4 text-center">
             <p className="text-sm text-muted-foreground">
-              Optionally link Plex for single sign-on, or continue to the Plugins step.
+              Plex single sign-on is not available yet. Continue to the Plugins step.
             </p>
             <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
-              <Button variant="secondary" onClick={startPlexSSO} disabled={plexLoading}>
+              <Button variant="secondary" onClick={startPlexSSO} disabled title={PLEX_SSO_UNAVAILABLE}>
                 {plexLoading ? (
                   <Spinner className="mr-2 h-4 w-4" />
                 ) : (
@@ -203,9 +186,9 @@ function SetupAccountContent() {
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                You can link Plex now or later via account settings. We will redirect you to Plex to approve access.
+                Plex single sign-on is not available yet. You can connect a Plex account later from account settings.
               </p>
-              <Button variant="outline" className="w-full" onClick={startPlexSSO} disabled={plexLoading}>
+              <Button variant="outline" className="w-full" onClick={startPlexSSO} disabled title={PLEX_SSO_UNAVAILABLE}>
                 {plexLoading ? (
                   <>
                     <Spinner className="mr-2 h-4 w-4" />
@@ -225,6 +208,8 @@ function SetupAccountContent() {
     </>
   )
 }
+
+const PLEX_SSO_UNAVAILABLE = 'Plex single sign-on is not available yet. Use your MUM username and password.'
 
 export default function SetupAccountPage() {
   return (

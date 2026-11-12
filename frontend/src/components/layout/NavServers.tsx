@@ -4,10 +4,12 @@ import * as React from "react"
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome"
 import {
   faChevronRight,
+  faCircleInfo,
   faGear,
   faLayerGroup,
   faRotate,
   faServer,
+  faUsers,
 } from "@fortawesome/free-solid-svg-icons"
 import { Link, useLocation } from "@tanstack/react-router"
 
@@ -138,6 +140,23 @@ const ServerNavItem = ({ server, pathname, onNavigate }: ServerNavItemProps) => 
         </SidebarMenuAction>
         <CollapsibleContent>
           <SidebarMenuSub>
+            {/* The server's own pages; Libraries below expands its library list. */}
+            <SidebarMenuSubItem>
+              <SidebarMenuSubButton asChild isActive={pathname === `/admin/servers/${server.id}`}>
+                <Link to="/admin/servers/$serverId" params={{ serverId: String(server.id) }} onClick={onNavigate}>
+                  <FontAwesomeIcon icon={faCircleInfo} className="h-4 w-4" />
+                  <span>Overview</span>
+                </Link>
+              </SidebarMenuSubButton>
+            </SidebarMenuSubItem>
+            <SidebarMenuSubItem>
+              <SidebarMenuSubButton asChild isActive={pathname === `/admin/servers/${server.id}/users`}>
+                <Link to="/admin/servers/$serverId/users" params={{ serverId: String(server.id) }} onClick={onNavigate}>
+                  <FontAwesomeIcon icon={faUsers} className="h-4 w-4" />
+                  <span>Users</span>
+                </Link>
+              </SidebarMenuSubButton>
+            </SidebarMenuSubItem>
             <Collapsible
               asChild
               onOpenChange={(open) => {

@@ -1,3 +1,4 @@
+import { useAccountDisplay } from '../../hooks/useAccountDisplay';
 import { useNavigate } from '@tanstack/react-router';
 import { Button } from '@/components/ui/button';
 import {
@@ -22,8 +23,9 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 
 export const NotificationDropdown = () => {
+  const { formatRelative: formatTimestamp } = useAccountDisplay();
   const navigate = useNavigate();
-  const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications({ limit: 5 });
+  const { notifications, unreadCount, loading, pending, error, refresh, markAsRead, markAllAsRead } = useNotifications({ limit: 5 });
 
   const handleOpenNotifications = () => {
     navigate({ to: '/admin/notifications' });
@@ -43,20 +45,7 @@ export const NotificationDropdown = () => {
     }
   };
 
-  const formatTimestamp = (timestamp: string) => {
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
 
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins} min${diffMins !== 1 ? 's' : ''} ago`;
-    if (diffHours < 24) return `${diffHours} hour${diffHours !== 1 ? 's' : ''} ago`;
-    if (diffDays < 7) return `${diffDays} day${diffDays !== 1 ? 's' : ''} ago`;
-    return date.toLocaleDateString();
-  };
 
   return (
     <DropdownMenu>
@@ -88,7 +77,7 @@ export const NotificationDropdown = () => {
                 Open Notifications
               </DropdownMenuItem>
               {unreadCount > 0 && (
-                <DropdownMenuItem onClick={markAllAsRead}>
+                <DropdownMenuItem disabled={pending||Boolean(error)||loading} onClick={markAllAsRead}>
                   <FontAwesomeIcon icon={faCheckDouble} className="mr-2" />
                   Mark all as read
                 </DropdownMenuItem>
@@ -97,7 +86,7 @@ export const NotificationDropdown = () => {
           </DropdownMenu>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        {notifications.length === 0 ? (
+        {error || loading ? <div className="p-4 text-center text-sm text-muted-foreground"><p>{loading?'Loading notifications…':'Notifications unavailable. Refresh and inspect.'}</p><Button variant="outline" onClick={() => void refresh().catch(()=>{})} disabled={loading}>Refresh</Button></div> : notifications.length === 0 ? (
           <div className="p-4 text-center text-sm text-muted-foreground">
             No notifications
           </div>
@@ -106,6 +95,7 @@ export const NotificationDropdown = () => {
             {notifications.map((notification) => (
               <DropdownMenuItem
                 key={notification.id}
+                disabled={pending||Boolean(error)}
                 className="flex cursor-pointer flex-col items-start gap-1 p-3"
                 onClick={() => !notification.read && markAsRead(notification.id)}
               >

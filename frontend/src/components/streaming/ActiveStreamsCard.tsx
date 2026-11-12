@@ -1,3 +1,4 @@
+import { useAccountDisplay } from '../../hooks/useAccountDisplay';
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -22,11 +23,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { useAdminApi } from '@/hooks/useAdminApi';
+import { useProviderFeatures } from '@/hooks/useProviderFeatures';
 import type {
   ActiveSession,
   ActiveSessionsResponse,
-  PluginMetaResponse,
   StreamCardStyle,
   StreamDisplaySettings,
   ViewMode
@@ -89,12 +89,12 @@ export const ActiveStreamsCard = ({
   sessionMonitoringInterval,
   onTerminateSession
 }: ActiveStreamsCardProps) => {
+  const { formatTimestamp } = useAccountDisplay();
   const [showSourceInfo, setShowSourceInfo] = useState(false);
   const [showDisplaySettings, setShowDisplaySettings] = useState(false);
   const [defaultViewModeDraft, setDefaultViewModeDraft] = useState<ViewMode>(defaultViewMode);
   const [defaultStreamCardStyleDraft, setDefaultStreamCardStyleDraft] = useState<StreamCardStyle>(defaultStreamCardStyle);
-  const { data: pluginMetaData } = useAdminApi<PluginMetaResponse>('/plugins/metadata', true);
-  const pluginFeaturesByService = pluginMetaData?.data ?? null;
+  const { data: pluginFeaturesByService } = useProviderFeatures();
   const isCompact = streamCardStyle === 'compact';
   const sessionGridClass = isCompact
     ? 'grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3'
@@ -275,9 +275,9 @@ export const ActiveStreamsCard = ({
       type="button"
       className={buttonClassName}
       onClick={onManualRefresh}
-      disabled={manualRefreshLoading || !isConnected}
-      title={isConnected ? 'Refresh HTTP-only services' : 'Realtime streaming updates are disconnected'}
-      aria-label={isConnected ? 'Refresh HTTP-only services' : 'Realtime streaming updates are disconnected'}
+      disabled={manualRefreshLoading}
+      title="Refresh streams"
+      aria-label="Refresh streams"
     >
       <FontAwesomeIcon icon={faRotate} className={`h-3 w-3 ${manualRefreshLoading ? 'animate-spin' : ''}`} />
     </Button>
@@ -399,7 +399,7 @@ export const ActiveStreamsCard = ({
                         )}
                         {lastUpdateAt && (
                           <Badge variant="secondary" className="text-xs">
-                            Updated {lastUpdateAt.toLocaleTimeString()}
+                            Updated {formatTimestamp(lastUpdateAt.toISOString(), 'time')}
                           </Badge>
                         )}
                         <div className="sm:hidden">

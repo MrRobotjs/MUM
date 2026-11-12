@@ -1,3 +1,4 @@
+import { useAccountDisplay } from '../../hooks/useAccountDisplay';
 import { useMemo } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { type Plugin } from '../../hooks/usePlugins'
@@ -30,6 +31,7 @@ export const PluginConfiguration = ({
   showEditButton = true,
   addServerPath
 }: PluginConfigurationProps) => {
+  const { formatTimestamp } = useAccountDisplay();
   const navigate = useNavigate()
   const {
     servers,
@@ -49,7 +51,7 @@ export const PluginConfiguration = ({
 
   const handleAddServer = () => {
     if (addServerPath) {
-      navigate({ to: addServerPath as any, params: { pluginId } });
+      navigate({ to: addServerPath as any, params: { pluginId } as any });
     } else {
       navigate({
         to: '/admin/settings/plugins/$pluginId/servers/add',
@@ -64,7 +66,7 @@ export const PluginConfiguration = ({
     }
     const newStatus = !server.is_active
     try {
-      await requestJson(`/api/v2/servers/${server.id}`, {
+      await requestJson(`/api/servers/${server.id}`, {
         method: 'PATCH',
         body: JSON.stringify({ is_active: newStatus })
       })
@@ -81,7 +83,7 @@ export const PluginConfiguration = ({
     }
 
     try {
-      await requestJson(`/api/v2/servers/${server.id}`, {
+      await requestJson(`/api/servers/${server.id}`, {
         method: 'DELETE'
       })
       success(`Server "${server.server_nickname}" removed`)
@@ -250,7 +252,7 @@ export const PluginConfiguration = ({
                     {server.last_sync_at ? (
                       <div>
                         <span className="font-medium text-foreground">Last Sync:</span>{' '}
-                        {new Date(server.last_sync_at).toLocaleString()}
+                        {formatTimestamp(server.last_sync_at)}
                       </div>
                     ) : null}
                     {server.overseerr_enabled ? (

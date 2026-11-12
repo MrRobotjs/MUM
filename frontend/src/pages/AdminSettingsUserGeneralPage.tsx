@@ -25,7 +25,7 @@ const UserAccountSettingsForm = ({ initialValue, refresh }: UserAccountSettingsF
   const handleSave = async () => {
     try {
       setSaving(true)
-      await requestJson('/api/v2/settings/user-accounts', {
+      await requestJson('/api/settings/user-accounts', {
         method: 'PATCH',
         body: JSON.stringify({ allow_user_accounts: allowUserAccounts })
       })
@@ -71,10 +71,15 @@ const UserAccountSettingsForm = ({ initialValue, refresh }: UserAccountSettingsF
               </div>
               <Switch
                 id="allow-user-accounts"
-                checked={allowUserAccounts}
+                checked={false}
+                disabled
                 onCheckedChange={setAllowUserAccounts}
               />
             </div>
+
+            <p className="text-xs text-muted-foreground">
+              Self-service account creation is not available in this version of MUM. People join through invitations, and the user sign-in page stays available.
+            </p>
 
             <Alert variant="info">
               <FontAwesomeIcon icon={faCircleInfo} className="h-4 w-4" />
@@ -84,7 +89,7 @@ const UserAccountSettingsForm = ({ initialValue, refresh }: UserAccountSettingsF
             </Alert>
 
             <div className="flex justify-end">
-              <Button size="sm" onClick={handleSave} disabled={saving}>
+              <Button size="sm" onClick={handleSave} disabled>
                 {saving ? (
                   <Spinner className="mr-2 size-4 text-background" />
                 ) : (

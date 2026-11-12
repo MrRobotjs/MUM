@@ -130,7 +130,7 @@ function Calendar({
             />
           )
         },
-        Chevron: ({ className, orientation, ...props }) => {
+        Chevron: ({ className, orientation, size: _size, disabled: _disabled, ...props }) => {
           if (orientation === "left") {
             return (
               <FontAwesomeIcon icon={faChevronLeft} className={cn("size-4", className)} {...props} />

@@ -1,160 +1,27 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { StreamingTable } from '../dashboard';
+import {useState} from 'react';
+import {useAuth} from '../../contexts/AuthContext';
+import {activityID,type ActivityScope} from '../../lib/activityHistory';
+import {Card,CardContent,CardDescription,CardHeader,CardTitle} from '@/components/ui/card';
+import {Select,SelectContent,SelectItem,SelectTrigger,SelectValue} from '@/components/ui/select';
+import {Input} from '@/components/ui/input';
+import {Button} from '@/components/ui/button';
+import {StreamingTable} from '../dashboard';
 
-interface StreamingHistoryFiltersProps {
-  serviceType: string;
-  setServiceType: (value: string) => void;
-  status: string;
-  setStatus: (value: string) => void;
-  userName: string;
-  setUserName: (value: string) => void;
-  startDate: string;
-  setStartDate: (value: string) => void;
-  endDate: string;
-  setEndDate: (value: string) => void;
-  page: number;
-  onFilterChange: () => void;
-  onClearFilters: () => void;
-  onPageChange: (page: number) => void;
+function HistoryFiltersForm({isAdministrator}:{isAdministrator:boolean}){
+  const [scope,setScope]=useState<ActivityScope>('own'),[draft,setDraft]=useState(''),[server,setServer]=useState<string|undefined>();
+  const selectedScope=scope==='all'&&isAdministrator?'all':'own';
+  return <Card className="gap-3.5"><CardHeader><div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between"><div><CardTitle className="text-xl">Streaming Sessions History</CardTitle><CardDescription>Review scoped observations and their source freshness.</CardDescription></div></div></CardHeader>
+    <CardContent className="space-y-4"><div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+      <div className="space-y-1"><span className="text-sm text-muted-foreground">Scope</span><Select value={selectedScope} onValueChange={value=>setScope(value as ActivityScope)}><SelectTrigger className="h-9 w-full"><SelectValue/></SelectTrigger><SelectContent><SelectItem value="own">My linked activity</SelectItem>{isAdministrator&&<SelectItem value="all">All authorized activity</SelectItem>}</SelectContent></Select></div>
+      <div className="space-y-1"><span className="text-sm text-muted-foreground">Server ID</span><Input className="h-9" value={draft} placeholder="All visible servers" onChange={event=>setDraft(event.target.value)}/></div>
+      <div className="space-y-1"><span className="text-sm text-muted-foreground">Service filter</span><Input className="h-9" disabled value="Not available"/></div>
+      <div className="space-y-1"><span className="text-sm text-muted-foreground">Start date filter</span><Input className="h-9" disabled value="Not available"/></div>
+      <div className="space-y-1"><span className="text-sm text-muted-foreground">End date filter</span><Input className="h-9" disabled value="Not available"/></div>
+    </div><div className="flex items-center gap-2"><Button size="sm" disabled={draft!==''&&!activityID(draft)} onClick={()=>setServer(draft||undefined)}>Apply</Button><Button variant="ghost" size="sm" onClick={()=>{setDraft('');setServer(undefined);setScope('own');}}>Clear</Button></div>
+    <StreamingTable scope={selectedScope} server={server}/></CardContent></Card>;
 }
 
-export const StreamingHistoryFilters = ({
-  serviceType,
-  setServiceType,
-  status,
-  setStatus,
-  userName,
-  setUserName,
-  startDate,
-  setStartDate,
-  endDate,
-  setEndDate,
-  page,
-  onFilterChange,
-  onClearFilters,
-  onPageChange
-}: StreamingHistoryFiltersProps) => {
-  return (
-    <Card className='gap-3.5'>
-      <CardHeader>
-        <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
-          <div>
-            <CardTitle className="text-xl">Streaming Sessions History</CardTitle>
-            <CardDescription>Filter and review recent streaming sessions.</CardDescription>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-          <div className="space-y-1">
-            <span className="text-sm text-muted-foreground">Service</span>
-            <Select
-              value={serviceType}
-              onValueChange={(value) => {
-                setServiceType(value);
-                onFilterChange();
-              }}
-            >
-              <SelectTrigger className="h-9 w-full">
-                <SelectValue placeholder="All Services" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Services</SelectItem>
-                <SelectItem value="plex">Plex</SelectItem>
-                <SelectItem value="jellyfin">Jellyfin</SelectItem>
-                <SelectItem value="emby">Emby</SelectItem>
-                <SelectItem value="kavita">Kavita</SelectItem>
-                <SelectItem value="audiobookshelf">Audiobookshelf</SelectItem>
-                <SelectItem value="komga">Komga</SelectItem>
-                <SelectItem value="romm">RomM</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-1">
-            <span className="text-sm text-muted-foreground">Status</span>
-            <Select
-              value={status}
-              onValueChange={(value) => {
-                setStatus(value);
-                onFilterChange();
-              }}
-            >
-              <SelectTrigger className="h-9 w-full">
-                <SelectValue placeholder="All Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="completed">Completed</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-1">
-            <span className="text-sm text-muted-foreground">Username</span>
-            <Input
-              type="text"
-              placeholder="Search by username"
-              value={userName}
-              onChange={(event) => setUserName(event.target.value)}
-              className="h-9"
-            />
-          </div>
-
-          <div className="space-y-1">
-            <span className="text-sm text-muted-foreground">Start date</span>
-            <Input
-              type="date"
-              value={startDate}
-              onChange={(event) => setStartDate(event.target.value)}
-              className="h-9"
-            />
-          </div>
-
-          <div className="space-y-1">
-            <span className="text-sm text-muted-foreground">End date</span>
-            <Input
-              type="date"
-              value={endDate}
-              onChange={(event) => setEndDate(event.target.value)}
-              className="h-9"
-            />
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            variant="default"
-            size="sm"
-            onClick={() => {
-              onFilterChange();
-            }}
-          >
-            Apply
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onClearFilters}
-          >
-            Clear
-          </Button>
-        </div>
-
-        <StreamingTable
-          page={page}
-          serviceType={serviceType === 'all' ? undefined : serviceType}
-          status={status === 'all' ? undefined : status}
-          userName={userName || undefined}
-          startDate={startDate || undefined}
-          endDate={endDate || undefined}
-          onPageChange={onPageChange}
-        />
-      </CardContent>
-    </Card>
-  );
-};
+export function StreamingHistoryFilters(){
+  const {user,isAdministrator}=useAuth();
+  return <HistoryFiltersForm key={user?.uuid??'anonymous'} isAdministrator={isAdministrator}/>;
+}

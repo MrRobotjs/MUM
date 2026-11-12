@@ -39,7 +39,7 @@ export const getStreamingSessionStats = (sessions: ActiveSession[]): StreamingSe
   const transcodeCount = sessions.filter(
     (s) => s.is_transcode_calc || s.transcode_reason || s.stream_detail.toLowerCase().includes('transcode')
   ).length;
-  const directPlayCount = totalSessions - transcodeCount;
+  const directPlayCount = sessions.filter(s => s.is_transcode_calc === false || /^direct (play|stream)/i.test(s.stream_detail)).length;
 
   const totalBandwidthMbps = sessions.reduce((acc, s) => acc + getSessionBandwidthMbps(s), 0);
   const lanBandwidthMbps = sessions.reduce(

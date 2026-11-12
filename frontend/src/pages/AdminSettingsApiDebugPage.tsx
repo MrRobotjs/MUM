@@ -60,14 +60,6 @@ type ApiResponse = {
   error?: string;
 };
 
-type DebugLoggingSettings = {
-  plex_http_log_enabled: boolean;
-  plex_ws_log_enabled: boolean;
-  jellyfin_ws_log_enabled: boolean;
-  emby_ws_log_enabled: boolean;
-  audiobookshelf_http_log_enabled: boolean;
-};
-
 type ExampleEndpoint = {
   method: string;
   endpoint: string;
@@ -95,12 +87,8 @@ const AdminSettingsApiDebugPage = () => {
   }, [servers]);
   const [protocol, setProtocol] = useState<'http' | 'https'>('https');
   const previousServerRef = useRef<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [loggingSettings, setLoggingSettings] = useState<DebugLoggingSettings | null>(null);
-  const [loggingLoading, setLoggingLoading] = useState(false);
-  const [loggingSaving, setLoggingSaving] = useState(false);
-  const [loggingDirty, setLoggingDirty] = useState(false);
-  const [response, setResponse] = useState<ApiResponse | null>(null);
+  const loading = false;
+  const [response] = useState<ApiResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'formatted' | 'raw' | 'headers' | 'curl'>('formatted');
   const [scrollAnchor, setScrollAnchor] = useState<'top' | 'bottom'>('top');
@@ -112,7 +100,6 @@ const AdminSettingsApiDebugPage = () => {
 
   useEffect(() => {
     fetchServers();
-    fetchLoggingSettings();
   }, []);
 
   useEffect(() => {
@@ -143,52 +130,10 @@ const AdminSettingsApiDebugPage = () => {
 
   const fetchServers = async () => {
     try {
-      const response = await requestJson<{ data: Server[] }>('/api/v2/servers');
+      const response = await requestJson<{ data: Server[] }>('/api/servers');
       setServers(response.data || []);
     } catch (error) {
       showError('Failed to load servers: ' + String(error));
-    }
-  };
-
-  const fetchLoggingSettings = async () => {
-    setLoggingLoading(true);
-    try {
-      const response = await requestJson<{ data: DebugLoggingSettings }>('/api/v2/settings/debug-logging');
-      setLoggingSettings(response.data);
-      setLoggingDirty(false);
-    } catch (err) {
-      showError('Failed to load debug logging settings: ' + String(err));
-    } finally {
-      setLoggingLoading(false);
-    }
-  };
-
-  const handleLoggingToggle = (key: keyof DebugLoggingSettings, value: boolean) => {
-    if (!loggingSettings) {
-      return;
-    }
-
-    setLoggingSettings((prev) => (prev ? { ...prev, [key]: value } : prev));
-    setLoggingDirty(true);
-  };
-
-  const handleLoggingSave = async () => {
-    if (!loggingSettings || !loggingDirty) {
-      return;
-    }
-
-    setLoggingSaving(true);
-    try {
-      await requestJson('/api/v2/settings/debug-logging', {
-        method: 'PATCH',
-        body: JSON.stringify(loggingSettings),
-      });
-      success('Debug logging settings updated');
-      setLoggingDirty(false);
-    } catch (err) {
-      showError('Failed to update debug logging settings: ' + String(err));
-    } finally {
-      setLoggingSaving(false);
     }
   };
 
@@ -225,40 +170,8 @@ const AdminSettingsApiDebugPage = () => {
     return baseUrl + endpoint + queryString;
   };
 
-  const executeRequest = async () => {
-    if (!selectedServer || !apiEndpoint) {
-      showError('Please select a server and enter an endpoint');
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-    setResponse(null);
-    setActiveTab('formatted');
-
-    try {
-      const result = await requestJson<ApiResponse>('/api/v2/tools/api-debug/execute', {
-        method: 'POST',
-        body: JSON.stringify({
-          method: httpMethod,
-          endpoint: apiEndpoint,
-          response_format: responseFormat,
-          parameters: parameters.filter((p) => p.key && p.value),
-          server_id: selectedServer,
-          protocol,
-        })
-      });
-
-      if (result.success) {
-        setResponse(result);
-      } else {
-        setError(result.error || 'Request failed');
-      }
-    } catch (err) {
-      setError(String(err));
-    } finally {
-      setLoading(false);
-    }
+  const executeRequest = () => {
+    setError('Arbitrary provider API requests are unavailable. Use the server connection and synchronization controls.');
   };
 
   const loadExample = (example: ExampleEndpoint) => {
@@ -604,10 +517,11 @@ const AdminSettingsApiDebugPage = () => {
           </div>
 
           {/* Execute Button */}
+          <p className="text-sm text-muted-foreground">Arbitrary provider requests are unavailable. Use server connection and synchronization controls.</p>
           <div className="flex gap-2 items-center">
             <Button
               onClick={executeRequest}
-              disabled={loading || !selectedServer || !apiEndpoint}
+              disabled
             >
               {loading ? (
                 <>
@@ -926,105 +840,84 @@ const AdminSettingsApiDebugPage = () => {
             </div>
             <div>
               <CardTitle>Debug Logging</CardTitle>
-              <CardDescription>Enable payload logging for troubleshooting integrations</CardDescription>
+              <CardDescription>Raw provider payload logging is unavailable</CardDescription>
             </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
           <Alert variant="warning">
             <FontAwesomeIcon icon={faTriangleExclamation} className="h-4 w-4" />
-            <AlertTitle>Performance Warning</AlertTitle>
+            <AlertTitle>Logging availability</AlertTitle>
             <AlertDescription>
-              Enabling any of these logs writes raw payloads to disk and can impact performance. Logs are written under
-              <span className="font-mono"> multimediausermanager/logs</span> while enabled.
+              Jellyfin and Emby monitoring records bounded, redacted socket metadata in SQLite. Raw HTTP and WebSocket payload logging is unavailable.
             </AlertDescription>
           </Alert>
 
-          {loggingLoading ? (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Spinner className="h-4 w-4" />
-              Loading debug logging settings...
-            </div>
-          ) : (
             <div className="space-y-3">
               <div className="flex items-center justify-between rounded-lg border border-border/70 bg-muted/40 p-3">
                 <div>
                   <p className="text-sm font-medium">Plex HTTP logging</p>
-                  <p className="text-xs text-muted-foreground">Logs Plex HTTP session payloads fetched after WS events.</p>
+                  <p className="text-xs text-muted-foreground">Raw Plex HTTP logging is unavailable.</p>
                 </div>
                 <Switch
-                  checked={loggingSettings?.plex_http_log_enabled ?? false}
-                  onCheckedChange={(checked) => handleLoggingToggle('plex_http_log_enabled', checked)}
-                  disabled={!loggingSettings || loggingSaving}
+                  checked={false}
+                  disabled
                 />
               </div>
 
               <div className="flex items-center justify-between rounded-lg border border-border/70 bg-muted/40 p-3">
                 <div>
                   <p className="text-sm font-medium">Plex WebSocket logging</p>
-                  <p className="text-xs text-muted-foreground">Logs raw Plex WebSocket messages.</p>
+                  <p className="text-xs text-muted-foreground">Raw Plex socket logging is unavailable.</p>
                 </div>
                 <Switch
-                  checked={loggingSettings?.plex_ws_log_enabled ?? false}
-                  onCheckedChange={(checked) => handleLoggingToggle('plex_ws_log_enabled', checked)}
-                  disabled={!loggingSettings || loggingSaving}
+                  checked={false}
+                  disabled
                 />
               </div>
 
               <div className="flex items-center justify-between rounded-lg border border-border/70 bg-muted/40 p-3">
                 <div>
                   <p className="text-sm font-medium">Jellyfin WebSocket logging</p>
-                  <p className="text-xs text-muted-foreground">Logs raw Jellyfin WebSocket session payloads.</p>
+                  <p className="text-xs text-muted-foreground">Redacted monitoring metadata is recorded; raw payload logging is unavailable.</p>
                 </div>
                 <Switch
-                  checked={loggingSettings?.jellyfin_ws_log_enabled ?? false}
-                  onCheckedChange={(checked) => handleLoggingToggle('jellyfin_ws_log_enabled', checked)}
-                  disabled={!loggingSettings || loggingSaving}
+                  checked={false}
+                  disabled
                 />
               </div>
 
               <div className="flex items-center justify-between rounded-lg border border-border/70 bg-muted/40 p-3">
                 <div>
                   <p className="text-sm font-medium">Emby WebSocket logging</p>
-                  <p className="text-xs text-muted-foreground">Logs raw Emby WebSocket session payloads.</p>
+                  <p className="text-xs text-muted-foreground">Redacted monitoring metadata is recorded; raw payload logging is unavailable.</p>
                 </div>
                 <Switch
-                  checked={loggingSettings?.emby_ws_log_enabled ?? false}
-                  onCheckedChange={(checked) => handleLoggingToggle('emby_ws_log_enabled', checked)}
-                  disabled={!loggingSettings || loggingSaving}
+                  checked={false}
+                  disabled
                 />
               </div>
 
               <div className="flex items-center justify-between rounded-lg border border-border/70 bg-muted/40 p-3">
                 <div>
                   <p className="text-sm font-medium">AudiobookShelf HTTP logging</p>
-                  <p className="text-xs text-muted-foreground">Logs AudiobookShelf HTTP session payloads.</p>
+                  <p className="text-xs text-muted-foreground">Raw Audiobookshelf HTTP logging is unavailable.</p>
                 </div>
                 <Switch
-                  checked={loggingSettings?.audiobookshelf_http_log_enabled ?? false}
-                  onCheckedChange={(checked) => handleLoggingToggle('audiobookshelf_http_log_enabled', checked)}
-                  disabled={!loggingSettings || loggingSaving}
+                  checked={false}
+                  disabled
                 />
               </div>
 
               <div className="flex items-center justify-end gap-3">
                 <Button
                   type="button"
-                  onClick={handleLoggingSave}
-                  disabled={!loggingDirty || loggingSaving || loggingLoading}
+                  disabled
                 >
-                  {loggingSaving ? (
-                    <>
-                      <Spinner className="mr-2 h-4 w-4 text-muted-foreground" />
-                      Saving...
-                    </>
-                  ) : (
-                    'Save Changes'
-                  )}
+                  Save Changes
                 </Button>
               </div>
             </div>
-          )}
         </CardContent>
       </Card>
     </div>

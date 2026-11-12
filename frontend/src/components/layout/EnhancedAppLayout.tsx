@@ -4,9 +4,6 @@ import { AppSidebar } from './AppSidebar';
 import { ModeToggle } from './ModeToggle';
 import { NotificationDropdown } from './NotificationDropdown';
 import { useAuth } from '../../contexts/AuthContext';
-import { useAlerts } from '../../contexts/AlertContext';
-import { useServers } from '../../hooks/useServers';
-import { useStreamingWebSocket } from '../../hooks/useStreamingWebSocket';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { Separator } from '@/components/ui/separator';
@@ -46,38 +43,6 @@ const generateBreadcrumbs = (pathname: string) => {
   });
 
   return breadcrumbs;
-};
-
-const StreamingWebSocketBootstrap = () => {
-  const { hasAdminAccess } = useAuth();
-  const { servers: mediaServers } = useServers({ activeOnly: true });
-  const { warning, info } = useAlerts();
-  const hasConnectedOnce = useRef(false);
-  const hasDisconnectedOnce = useRef(false);
-  const lastConnected = useRef(false);
-
-  const { isConnected } = useStreamingWebSocket({
-    autoConnect: hasAdminAccess,
-    servers: mediaServers,
-  });
-
-  useEffect(() => {
-    if (!hasAdminAccess) return;
-    if (isConnected) {
-      if (!hasConnectedOnce.current) {
-        hasConnectedOnce.current = true;
-      }
-      if (hasDisconnectedOnce.current && !lastConnected.current) {
-        info('Connection restored: WebSocket reconnected.');
-      }
-    } else if (hasConnectedOnce.current && lastConnected.current) {
-      warning('Lost connection: WebSocket disconnected.');
-      hasDisconnectedOnce.current = true;
-    }
-    lastConnected.current = isConnected;
-  }, [hasAdminAccess, isConnected, info, warning]);
-
-  return null;
 };
 
 export const EnhancedAppLayout = ({
@@ -163,7 +128,6 @@ export const EnhancedAppLayout = ({
         } as React.CSSProperties
       }
     >
-      <StreamingWebSocketBootstrap />
       <AppSidebar variant="inset" collapsible="icon" />
       <SidebarInset>
         {/* Header/Navbar */}

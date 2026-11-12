@@ -1,4 +1,4 @@
-import type { ReactNode } from "react"
+import { useLayoutEffect, useRef, type ReactNode } from "react"
 
 import { cn } from "@/lib/utils"
 import { useIsMobile } from "@/hooks/use-mobile"
@@ -52,6 +52,27 @@ export function ResponsiveDialog({
 }: ResponsiveDialogProps) {
   const isMobile = useIsMobile()
 
+  const returnFocus = useRef<HTMLElement | null>(null)
+
+  // These dialogs are opened from state rather than a Radix trigger, so Radix
+  // has no trigger to restore focus to on close. Remember the element that was
+  // focused when the dialog opened (before Radix moves focus inside it).
+  useLayoutEffect(() => {
+    if (!open) return
+    const active = document.activeElement
+    returnFocus.current =
+      active instanceof HTMLElement && active !== document.body ? active : null
+  }, [open])
+
+  const handleCloseAutoFocus = (event: Event) => {
+    const target = returnFocus.current
+    returnFocus.current = null
+    if (target?.isConnected) {
+      event.preventDefault()
+      target.focus()
+    }
+  }
+
   const handleOpenChange = (value: boolean) => {
     onOpenChange(value)
   }
@@ -60,6 +81,7 @@ export function ResponsiveDialog({
     return (
       <Sheet open={open} onOpenChange={handleOpenChange}>
         <SheetContent
+          onCloseAutoFocus={handleCloseAutoFocus}
           side={sheetSide}
           className={cn(
             "flex h-auto max-h-[85vh] flex-col rounded-t-xl",
@@ -97,7 +119,10 @@ export function ResponsiveDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className={contentClassName}>
+      <DialogContent
+        className={contentClassName}
+        onCloseAutoFocus={handleCloseAutoFocus}
+      >
         {(title || description) && (
           <DialogHeader className={headerClassName}>
             {title ? <DialogTitle>{title}</DialogTitle> : null}

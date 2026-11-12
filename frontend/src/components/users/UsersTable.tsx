@@ -1,3 +1,4 @@
+import { useAccountDisplay } from '../../hooks/useAccountDisplay';
 import { useState } from 'react';
 import { Pagination } from '../common/Pagination';
 import { useNavigate } from '@tanstack/react-router';
@@ -47,6 +48,7 @@ export type UserRow = {
     badge_style?: string | null;
   }>;
   linked_service_count: number;
+  server_id?: number | null;
   server_nickname?: string;
   service_type?: string;
   libraries?: string[];
@@ -123,6 +125,7 @@ export const UsersTable = ({
   onToggleSelectAll,
   selectAllState = 'none'
 }: UsersTableProps) => {
+  const { formatTimestamp } = useAccountDisplay();
   const navigate = useNavigate();
   const [debugUserUuid, setDebugUserUuid] = useState<string | null>(null);
   const [expandedLibraryUsers, setExpandedLibraryUsers] = useState<Set<string>>(new Set());
@@ -130,7 +133,7 @@ export const UsersTable = ({
     if (user.admin_roles_detail && user.admin_roles_detail.length > 0) {
       return user.admin_roles_detail;
     }
-    return user.admin_roles.map((role) => ({ name: role }));
+    return user.admin_roles.map((role): { name: string; color?: string | null; icon?: string | null; badge_style?: string | null; description?: string | null } => ({ name: role }));
   };
 
   const toggleLibraryExpansion = (userId: string) => {
@@ -177,10 +180,10 @@ export const UsersTable = ({
   };
 
   const formatDate = (value?: string | null) =>
-    value ? new Date(value).toLocaleDateString() : '-';
+    formatTimestamp(value, 'date', '-');
 
   const formatDateTime = (value?: string | null) =>
-    value ? new Date(value).toLocaleString() : '-';
+    formatTimestamp(value, 'datetime', '-');
 
   const formatTextValue = (value?: string | null) =>
     value && value.trim() ? value : '-';
@@ -246,7 +249,7 @@ export const UsersTable = ({
                   checked={selectAllState === 'all'}
                   ref={(input) => {
                     if (input) {
-                      input.indeterminate = selectAllState === 'some';
+                      (input as unknown as HTMLInputElement).indeterminate = selectAllState === 'some';
                     }
                   }}
                   onCheckedChange={onToggleSelectAll}
@@ -498,7 +501,7 @@ export const UsersTable = ({
                     {columns.lastPlayed ? (
                       <TableCell
                         className="text-xs text-muted-foreground"
-                        title={user.last_played?.started_at ? new Date(user.last_played.started_at).toLocaleString() : undefined}
+                        title={user.last_played?.started_at ? formatTimestamp(user.last_played.started_at) : undefined}
                       >
                         {user.last_played?.media_title ?? 'Never'}
                       </TableCell>
@@ -516,7 +519,7 @@ export const UsersTable = ({
                     {columns.linked ? <TableCell className="text-muted-foreground">{user.linked_service_count}</TableCell> : null}
                     {columns.lastLogin ? (
                       <TableCell className="text-xs text-muted-foreground">
-                        {user.last_login_at ? new Date(user.last_login_at).toLocaleString() : '-'}
+                        {user.last_login_at ? formatTimestamp(user.last_login_at) : '-'}
                       </TableCell>
                     ) : null}
                     {columns.actions ? (

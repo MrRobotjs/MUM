@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useCatalogueView } from '../lib/catalogueView';
 import { requestJson, ApiError } from '../util/apiClient';
 
 interface LibrarySyncProgress {
@@ -47,49 +48,38 @@ export const useLibrarySyncStatus = (libraryId: string | number, pollInterval = 
   });
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    let intervalId: NodeJS.Timeout | null = null;
-    let stopped = false;
-
-    const fetchStatus = async () => {
+  const view = useCatalogueView({status: String(libraryId)});
+  const inFlight = useRef<Promise<void> | null>(null);
+  const denied = useRef(false);
+  const refetch = () => {
+    if (!view.current() || denied.current) return Promise.resolve();
+    if (inFlight.current) return inFlight.current;
+    const read = view.begin('status');
+    inFlight.current = (async () => {
       try {
-        const resp = await requestJson<LibrarySyncStatusResponse>(`/api/v2/libraries/${libraryId}/sync-status`);
-        setStatus(resp.data);
-        setLoading(false);
+        const resp = await requestJson<LibrarySyncStatusResponse>(`/api/libraries/${libraryId}/sync-status`, {signal: read.signal, retryAuthentication: false});
+        if (read.current() && resp.data?.library_id === Number(libraryId)) setStatus(resp.data);
       } catch (err) {
-        const e = err as ApiError;
-        if (e && typeof e.status === 'number' && e.status === 401) {
-          if (intervalId) clearInterval(intervalId);
-          intervalId = null;
-          stopped = true;
-          setLoading(false);
-          return;
-        }
-        if (!stopped) {
-          // Avoid noisy logs; keep UI going
-          setLoading(false);
-        }
+        if (read.current() && err instanceof ApiError && err.status === 401) denied.current = true;
+      } finally {
+        read.finish();
+        if (read.current()) setLoading(false);
+        inFlight.current = null;
       }
-    };
-
-    fetchStatus();
-    intervalId = setInterval(fetchStatus, pollInterval);
-
-    return () => {
-      if (intervalId) clearInterval(intervalId);
-    };
-  }, [libraryId, pollInterval]);
-
-  // Expose a manual refetch to allow immediate updates when starting sync
-  const refetch = async () => {
-    try {
-      const resp = await requestJson<LibrarySyncStatusResponse>(`/api/v2/libraries/${libraryId}/sync-status`);
-      setStatus(resp.data);
-      setLoading(false);
-    } catch {
-      // ignore
-    }
+    })();
+    return inFlight.current;
   };
+
+  useEffect(() => {
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const tick = async () => {
+      await refetch();
+      if (!stopped && !denied.current && view.current()) timer = setTimeout(tick, pollInterval);
+    };
+    void tick();
+    return () => { stopped = true; clearTimeout(timer); };
+  }, [libraryId, pollInterval]);
 
   return { status, loading, refetch };
 };

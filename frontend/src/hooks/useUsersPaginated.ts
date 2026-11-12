@@ -1,3 +1,7 @@
+import {useSyncExternalStore} from 'react';
+import {useAuth} from '../contexts/AuthContext';
+import {getAccessToken,getAuthSnapshot,subscribeToAuthStore} from '../store/authStore';
+import {userListRoleFilter} from '../lib/userRoleCatalog';
 import useSWR from 'swr';
 import { requestJson } from '../util/apiClient';
 
@@ -18,6 +22,7 @@ type UsersFilters = {
 type UsersResponse = {
   data: Array<{
     uuid: string;
+    server_id?: number;
     username?: string;
     email?: string;
     external_email?: string;
@@ -86,7 +91,8 @@ export const useUsersPaginated = (filters: UsersFilters = {}) => {
 
   if (filters.search) params.set('search', filters.search);
   if (filters.userType) params.set('user_type', filters.userType);
-  if (filters.role) params.set('role', filters.role);
+  const roleFilter=userListRoleFilter(filters.role??'');
+  if(roleFilter)params.set(roleFilter.parameter,roleFilter.id);
   // Include extended filters supported by our v2 implementation
   if (filters.serverId && filters.serverId !== 'all') params.set('server_id', filters.serverId);
   if (filters.filterType) params.set('filter_type', filters.filterType);
@@ -95,19 +101,18 @@ export const useUsersPaginated = (filters: UsersFilters = {}) => {
   if (filters.searchNotes) params.set('search_notes', filters.searchNotes);
   if (filters.sort) params.set('sort', filters.sort);
 
-  const { data, error, isLoading, mutate } = useSWR<UsersResponse>(
-    `/api/v2/users?${params.toString()}`,
-    (url: string) => requestJson<UsersResponse>(url),
-    {
-      revalidateOnFocus: false
-    }
-  );
-
-  return {
-    users: data?.data || [],
-    pagination: data?.meta.pagination,
-    error,
-    loading: isLoading,
-    mutate
-  };
+  const url=`/api/users?${params.toString()}`;
+  const {user,isAdministrator}=useAuth();
+  const session=useSyncExternalStore(subscribeToAuthStore,getAuthSnapshot),token=session.accessToken;
+  const actor=isAdministrator&&token?user?.uuid:undefined;
+  const state=useSWR(actor?[url,actor,token]:null,async()=>{
+    if(token!==getAccessToken())throw Error('Session changed. Refresh users.');
+    const abort=new AbortController(),timer=setTimeout(()=>abort.abort(),15000);
+    try{
+      const result=await requestJson<UsersResponse>(url,{signal:abort.signal,retryAuthentication:false});
+      if(token!==getAccessToken()||!Array.isArray(result?.data)||result.data.some(u=>!u||typeof u.uuid!=='string'||filters.serverId&&filters.serverId!=='all'&&String(u.server_id)!==filters.serverId)||!result.meta?.pagination)throw Error('Invalid user selection. Refresh.');
+      return result;
+    }finally{clearTimeout(timer);}
+  },{revalidateOnFocus:false,keepPreviousData:false,shouldRetryOnError:false});
+  return {users:actor&&!state.error?state.data?.data??[]:[],pagination:actor&&!state.error?state.data?.meta.pagination:undefined,error:state.error,loading:state.isLoading,mutate:state.mutate};
 };

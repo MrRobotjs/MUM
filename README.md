@@ -47,68 +47,38 @@ MUM (Multimedia User Management) is a comprehensive, self-hosted web application
     *   Automated membership expiration handling
     *   Service-specific cleanup and maintenance routines
 
-## Docker Deployment
+## Installation
 
-The easiest way to deploy MUM is with Docker.
+MUM is a single program file with everything built in: no Python, Node.js, database server or Docker needed. Download the file for your system from the releases page, start it, and open `http://localhost:5699` to run the setup wizard. [deploy/GETTING_STARTED.md](deploy/GETTING_STARTED.md) covers every step, including backups, updates, opening MUM to other people (port forwarding or a reverse proxy with HTTPS) and first-launch warnings for unsigned programs.
 
 ### Docker Compose
 
-1.  **Create a `docker-compose.yml` file:**
-    ```yaml
-    services:
-      mum:
-        image: ghcr.io/mrrobotjs/mum:latest # Highly encouraged to check github releases and use the latest version instead of using ‘latest’
-        container_name: mum
-        restart: unless-stopped
-        depends_on:
-          - postgres
-        ports:
-          - "5699:5000" # Host port → React/Flask entrypoint
-        volumes:
-          - ./multimediausermanager:/app/instance
-        environment:
-          - TZ=America/New_York # REQUIRED: Set your local timezone
-          - PUID=1000 # REQUIRED: User ID for file permissions
-          - PGID=1000 # REQUIRED: Group ID for file permissions
-          - FLASK_LOG_LEVEL=INFO # Change to DEBUG for developer debugging
-          - SOCKETIO_ASYNC_MODE=eventlet # SocketIO async mode: eventlet for Gunicorn production, threading for Flask dev server
-          - DATABASE_URL=postgresql+psycopg://mum:mum_pass@postgres:5432/mum
-          - FLASK_PORT=5000 # Internal Flask API port (mirrors gunicorn bind)
-          - FRONTEND_PORT=5000 # Port exposed for the React frontend - vite development (defaults to Flask port)
-      postgres:
-        image: postgres:18.1
-        container_name: mum_postgres
-        restart: unless-stopped
-        ports:
-          - "5432:5432"
-        environment:
-          - POSTGRES_USER=mum
-          - POSTGRES_PASSWORD=mum_pass
-          - POSTGRES_DB=mum
-          - PGDATA=/var/lib/postgresql/18/docker
-        volumes:
-          - ./multimediausermanager/db:/var/lib/postgresql
-    ```
+Docker is optional. A minimal `docker-compose.yml`:
 
-2.  **Prepare Host Directory:**
-    Create the directory on your host machine that you specified in the `volumes` section.
-    ```bash
-    mkdir ./multimediausermanager
-    ```
-    This directory will store application data and logs.
-    The PostgreSQL data directory will be stored in `./multimediausermanager/db`.
+```yaml
+services:
+  mum:
+    image: ghcr.io/mrrobotjs/mum:latest # consider pinning a release tag instead of latest
+    restart: unless-stopped
+    ports:
+      - "5699:5699" # host:container; change the left side to use another host port
+    volumes:
+      - mum-data:/data # SQLite database, keys and mum-config.json; back this up
+    environment:
+      TZ: America/New_York # your time zone
+      # Behind a reverse proxy, trust it for the real client address and HTTPS:
+      # MUM_TRUSTED_PROXIES: "172.16.0.0/12"
+    stop_grace_period: 30s
 
-3.  **Customize and Run:**
-    *   Adjust the port mapping (`5699:5000`) if the host port is in use.
-    *   Set the `TZ` environment variable to your local timezone (e.g., `Europe/London`).
-    *   Run the application:
-        ```bash
-        docker-compose up -d
-        ```
+volumes:
+  mum-data:
+```
 
-4.  **Initial Setup:**
-    *   Access MUM in your browser at `http://<your_host_ip>:<host_port>` (e.g., `http://localhost:5699`).
-    *   Follow the on-screen setup wizard to create an admin account, configure your media servers, and set the application's base URL.
+Run `docker compose up -d`, then open `http://<your host>:5699` and follow the setup wizard. To build the image from source instead, use [deploy/docker/docker-compose.yml](deploy/docker/docker-compose.yml).
+
+### Coming from the Flask/PostgreSQL version
+
+The current MUM is a fresh Go/SQLite application. It does not read the old PostgreSQL database or `/app/instance` folder, and it listens on port 5699 inside the container (the old image used 5000). Replace your old compose file with the one above, start with a new data volume, and set MUM up again through the wizard. Keep the old data folder if you may want to look something up later.
 
 ## Configuration
 
@@ -142,15 +112,30 @@ MUM provides comprehensive configuration management through an intuitive web int
     *   Raw configuration editor for advanced users
     *   System diagnostics and health monitoring
 
-## Frontend Development
+## Development
 
-The admin experience is being migrated to a React SPA that lives in `frontend/`.
+MUM is a Go application (`server/`) with an embedded React frontend (`frontend/`). Development needs Go and Node.js; end users need neither.
 
-- Install dependencies: `npm install` inside `frontend/`.
-- Local development: `npm run dev` (honors `FRONTEND_PORT`, defaults to 5173) and proxies API calls to the Flask backend specified by `FLASK_PORT`.
-- Production build: `npm run build` emits assets into `app/static/dist`, which Flask serves alongside existing Jinja templates during the transition.
-- Docker users can change the host port by editing the left side of the `ports` mapping (e.g., `5699:5000`). Only change `FLASK_PORT` if you also change the container-side port (right side).
+```sh
+cd frontend && npm ci && node node_modules/vite/bin/vite.js build   # builds into server/dist
+cd .. && go build -o mum ./server                                  # one executable with the frontend embedded
+go test ./...                                                       # Go tests
+```
+
+- `npm run dev` in `frontend/` starts the Vite dev server (port `FRONTEND_PORT`, default 5173) and proxies `/api` and `/ws` to a running MUM on `MUM_PORT` (default 5699).
+- `go run ./tools/release -version vX.Y.Z` builds the Windows, Linux and macOS release files with checksums and licences (nothing is published).
+- Project layout: `server/` Go application and SQL migrations, `frontend/` React SPA, `deploy/` Docker files and the end-user guide, `tools/release/` release builder, `tests/` frontend adapter tests, `migration-documentation/` migration records.
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request or open an Issue.
+Contributions are welcome! Please feel free to submit a Pull Request or open an Issue. By contributing, you agree that your contributions are licensed under the same licence as the project (AGPL-3.0).
+
+## License
+
+Copyright (C) 2025-2026 Christopher (MrRobotjs) and MUM contributors.
+
+MUM is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public License, version 3, as published by the Free Software Foundation. See [LICENSE](LICENSE) for the full text.
+
+In short: anyone may use, study, change and share MUM, including commercially. If you distribute a modified version, or let people use a modified version over a network, you must make its complete source code available to them under the same licence.
+
+MUM is distributed WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. Third-party components keep their own licences; release builds include them in `licenses/` and `THIRD_PARTY_LICENSES.md`.

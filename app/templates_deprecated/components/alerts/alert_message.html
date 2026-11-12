@@ -1,9 +1,0 @@
-<!-- File: app/templates/partials/_alert_message.html -->
-{% set alert_class = 'alert-info' %}
-{% if category == 'success' %}{% set alert_class = 'alert-success' %}
-{% elif category == 'warning' %}{% set alert_class = 'alert-warning' %}
-{% elif category == 'error' %}{% set alert_class = 'alert-error' %}{% endif %}
-
-<div class="alert {{ alert_class }} shadow-md text-sm p-3 my-2">
-    <span>{{ message }}</span>
-</div>

@@ -1,10 +1,10 @@
-import { useState, useEffect, useMemo } from 'react';
-import { useAdvancedSettings, type AdvancedSettings } from '../hooks/useSettings';
+import {ScheduledSyncControls} from '../components/settings/ScheduledSyncControls';
+import {ActivityMonitoringSettings} from '../components/settings/ActivityMonitoringSettings';
+import { useAccountDisplay } from '../hooks/useAccountDisplay';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useScheduledTasks } from '../hooks/useScheduledTasks';
 import { useSystemConfig } from '../hooks/useSystemConfig';
 import { PageHeader } from '../components';
-import { requestJson } from '../util/apiClient';
-import { useAlerts } from '../contexts';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -29,7 +29,6 @@ import {
   faCircle,
   faServer,
   faDesktop,
-  faTriangleExclamation,
   faShieldHalved,
   faShield,
   faClock,
@@ -83,7 +82,7 @@ const useCountdown = (nextRunTime: string | null) => {
 };
 
 // Function to get detailed task information
-const getTaskDetails = (task: any) => {
+const getTaskDetails = (task: any, formatTimestamp: (value: string) => string) => {
   const details: { label: string; value: string; description?: string }[] = [];
 
   // Basic info
@@ -92,13 +91,13 @@ const getTaskDetails = (task: any) => {
   details.push({ label: 'Type', value: task.type });
   details.push({ label: 'State', value: task.state });
   details.push({ label: 'Side', value: task.side });
+  if(String(task.id).startsWith('provider-sync-')){details.push({label:'Last outcome',value:({NEVER_RUN:'Never run',SUCCEEDED:'Succeeded',FAILED:'Failed',CANCELLED:'Cancelled',INTERRUPTED:'Interrupted'} as Record<string,string>)[task.last_code]??'Unknown'});details.push({label:'Attempts',value:String(task.attempts)});if(task.started_at)details.push({label:'Last started',value:formatTimestamp(task.started_at)});if(task.finished_at)details.push({label:'Last finished',value:formatTimestamp(task.finished_at)});}
 
   // Execution details
   if (task.next_run_time) {
-    const nextRun = new Date(task.next_run_time);
     details.push({
       label: 'Next Execution',
-      value: nextRun.toLocaleString(),
+      value: formatTimestamp(task.next_run_time),
       description: 'The scheduled time for the next task execution'
     });
   }
@@ -156,6 +155,7 @@ const getTaskDetails = (task: any) => {
 
 // Function to get task description based on task type and name
 const getTaskDescription = (task: any): string => {
+ if(String(task.id).startsWith('provider-sync-'))return 'Synchronizes provider users and libraries. Disabled by default; the owner can configure each server schedule. Missed runs are coalesced and interrupted attempts are recorded.';
   // WebSocket tasks
   if (task.type === 'WebSocket') {
     if (task.side === 'Server' && task.name.includes('Plex WebSocket')) {
@@ -216,6 +216,7 @@ const ScheduledTaskRow = ({ task, onClick }: ScheduledTaskRowProps) => {
 
   // Determine badge color based on state
   const getStateBadge = () => {
+    if(task.type==='Synchronization')return <span className="text-xs text-muted-foreground">{task.state}</span>;
     if (task.type === 'WebSocket') {
       if (task.state === 'Connected') {
         return (
@@ -287,116 +288,53 @@ const ScheduledTaskRow = ({ task, onClick }: ScheduledTaskRowProps) => {
   );
 };
 
-const buildAdvancedFormValues = (values: AdvancedSettings | null): AdvancedSettings => ({
-  api_timeout_seconds: 3,
-  ...(values ?? {}),
-});
-
-type AdvancedSettingsFormProps = {
-  initialValues: AdvancedSettings;
-  refresh: () => Promise<unknown>;
-};
-
-const AdvancedSettingsForm = ({ initialValues, refresh }: AdvancedSettingsFormProps) => {
-  const { success, error: showError } = useAlerts();
-  const [formValues, setFormValues] = useState<AdvancedSettings>(initialValues);
-  const [submitting, setSubmitting] = useState(false);
-  const [hasChanges, setHasChanges] = useState(false);
-
-  const handleChange = (field: keyof AdvancedSettings, value: number) => {
-    setFormValues((prev) => ({ ...prev, [field]: value }));
-    setHasChanges(true);
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSubmitting(true);
-
-    try {
-      await requestJson('/api/v2/settings/advanced', {
-        method: 'PATCH',
-        body: JSON.stringify(formValues),
-      });
-      success('Advanced settings saved successfully');
-      setHasChanges(false);
-      await refresh();
-    } catch (err) {
-      showError(`Failed to save settings: ${(err as Error).message}`);
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleReset = () => {
-    setFormValues(initialValues);
-    setHasChanges(false);
-  };
-
-  return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      <Card>
-        <CardHeader>
-          <div className="flex items-center gap-3">
-            <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/20">
-              <FontAwesomeIcon icon={faShield} className="size-5 text-primary" />
-            </div>
-            <div>
-              <CardTitle className="mb-1 text-xl font-semibold">API Requests</CardTitle>
-              <CardDescription>Configure timeout for external service connections</CardDescription>
-            </div>
+const AdvancedSettingsForm = () => (
+  <form className="space-y-6" onSubmit={e => e.preventDefault()}>
+    <Card>
+      <CardHeader>
+        <div className="flex items-center gap-3">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/20">
+            <FontAwesomeIcon icon={faShield} className="size-5 text-primary" />
           </div>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          <Label htmlFor="api_timeout_seconds">
-            API Timeout (seconds) <span className="text-destructive">*</span>
-          </Label>
-          <Input
-            id="api_timeout_seconds"
-            type="number"
-            value={formValues.api_timeout_seconds}
-            onChange={(e) => handleChange('api_timeout_seconds', Number(e.target.value))}
-            required
-            min="3"
-            max="30"
-          />
-          <p className="text-xs text-muted-foreground">
-            Timeout for API requests to external services like Plex, Jellyfin, etc. (3-30 seconds, default: 3)
-          </p>
-        </CardContent>
-      </Card>
-
-      <div className="flex items-center justify-end gap-3">
-        <Button
-          type="button"
-          variant="ghost"
-          onClick={handleReset}
-          disabled={!hasChanges || submitting}
-        >
-          Reset
-        </Button>
-        <Button type="submit" variant="default" disabled={!hasChanges || submitting}>
-          {submitting ? 'Saving...' : 'Save Changes'}
-        </Button>
-      </div>
-    </form>
-  );
-};
+          <div>
+            <CardTitle className="mb-1 text-xl font-semibold">API Requests</CardTitle>
+            <CardDescription>External service connection timeouts</CardDescription>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        <Label htmlFor="api_timeout_seconds">API Timeout</Label>
+        <Input id="api_timeout_seconds" value="Provider-specific" disabled readOnly />
+        <p className="text-xs text-muted-foreground">Each provider uses a bounded timeout. Global timeout editing is unavailable.</p>
+      </CardContent>
+    </Card>
+    <div className="flex items-center justify-end gap-3">
+      <Button type="button" variant="ghost" disabled>Reset</Button>
+      <Button type="submit" variant="default" disabled>Save Changes</Button>
+    </div>
+  </form>
+);
 
 export const AdminSettingsAdvancedPage = () => {
-  const { settings, loading, error, refresh } = useAdvancedSettings();
-  const { tasks, loading: tasksLoading } = useScheduledTasks();
-  const { config, loading: configLoading } = useSystemConfig();
+  const { formatTimestamp } = useAccountDisplay();
+  const { actor:taskActor,tasks,loading:tasksLoading,error:tasksError,runtimeAvailable,checkpointError,refresh:refreshTasks } = useScheduledTasks();
+  const { config, loading: configLoading, error: configError } = useSystemConfig();
   const [selectedTask, setSelectedTask] = useState<any | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const taskModalEpoch=useRef(0);
+  const liveSelectedTask=selectedTask?.actor_uuid===taskActor?tasks.find(t=>t.server_id===selectedTask.server_id):undefined;
 
+  useEffect(()=>{taskModalEpoch.current++;setSelectedTask(null);setIsModalOpen(false)},[taskActor]);
   const handleTaskClick = (task: any) => {
+    taskModalEpoch.current++;
     setSelectedTask(task);
     setIsModalOpen(true);
   };
 
   const handleCloseModal = () => {
     setIsModalOpen(false);
-    setTimeout(() => setSelectedTask(null), 200); // Clear after animation
+    const epoch=taskModalEpoch.current;
+    setTimeout(() => {if(taskModalEpoch.current===epoch)setSelectedTask(null)}, 200); // Clear after animation
   };
 
   return (
@@ -406,36 +344,15 @@ export const AdminSettingsAdvancedPage = () => {
         description="Configure security and session settings"
       />
 
-      {error && (
-        <Alert variant="destructive">
-          <FontAwesomeIcon icon={faTriangleExclamation} className="h-4 w-4" />
-          <AlertTitle>Failed to load advanced settings</AlertTitle>
-          <AlertDescription>{(error as Error).message}</AlertDescription>
-        </Alert>
-      )}
-
       <Alert variant="default">
         <FontAwesomeIcon icon={faShieldHalved} className="h-4 w-4" />
         <AlertTitle>Performance & Monitoring</AlertTitle>
         <AlertDescription>
-          Configure timeouts and monitoring intervals for optimal performance. Changes take effect immediately.
+          Monitoring consent and intervals are configured per server below. Global timeout editing is unavailable.
         </AlertDescription>
       </Alert>
 
-      {loading ? (
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Spinner className="size-4 text-muted-foreground" />
-          Loading advanced settings...
-        </div>
-      ) : (
-        !error && (
-          <AdvancedSettingsForm
-            key={settings ? JSON.stringify(settings) : 'empty'}
-            initialValues={buildAdvancedFormValues(settings)}
-            refresh={refresh}
-          />
-        )
-      )}
+      <AdvancedSettingsForm />
 
       {/* MUM Configuration Section */}
       <Card>
@@ -457,32 +374,32 @@ export const AdminSettingsAdvancedPage = () => {
               Loading configuration...
             </div>
           ) : !config ? (
-            <div className="text-sm text-muted-foreground">Configuration not available</div>
+            <div className="text-sm text-muted-foreground">{configError ? 'Could not load runtime information. Refresh the page.' : 'Configuration not available'}</div>
           ) : (
             <div className="grid grid-cols-1 gap-3 text-sm md:grid-cols-2">
               <div className="flex flex-col gap-1">
-                <span className="font-medium text-muted-foreground">Git Branch</span>
-                <span className="font-mono">{config.git_branch}</span>
+                <span className="font-medium text-muted-foreground">Build Status</span>
+                <span className="font-mono">{config.build_modified === null ? 'Not recorded' : config.build_modified ? 'Modified workspace build' : 'Clean workspace build'}</span>
               </div>
               <div className="flex flex-col gap-1">
-                <span className="font-medium text-muted-foreground">Git Commit Hash</span>
-                <span className="font-mono">{config.git_commit}</span>
+                <span className="font-medium text-muted-foreground">Build Revision</span>
+                <span className="font-mono">{config.build_revision ?? 'Not recorded'}</span>
               </div>
               <div className="flex flex-col gap-1">
                 <span className="font-medium text-muted-foreground">Database Location</span>
-                <span className="font-mono break-all">{config.database_file}</span>
+                <span className="font-mono break-all">{config.database_file ?? 'Owner only'}</span>
               </div>
               <div className="flex flex-col gap-1">
                 <span className="font-medium text-muted-foreground">Database Type</span>
                 <span className="font-mono">{config.database_type ?? 'Unknown'}</span>
               </div>
               <div className="flex flex-col gap-1">
-                <span className="font-medium text-muted-foreground">Log Directory</span>
-                <span className="font-mono break-all">{config.log_directory}</span>
+                <span className="font-medium text-muted-foreground">Log Storage</span>
+                <span className="font-mono break-all">{config.log_storage}</span>
               </div>
               <div className="flex flex-col gap-1">
-                <span className="font-medium text-muted-foreground">Instance Directory</span>
-                <span className="font-mono break-all">{config.instance_directory}</span>
+                <span className="font-medium text-muted-foreground">Application Data Directory</span>
+                <span className="font-mono break-all">{config.data_directory ?? 'Owner only'}</span>
               </div>
               <div className="flex flex-col gap-1">
                 <span className="font-medium text-muted-foreground">Platform</span>
@@ -490,15 +407,15 @@ export const AdminSettingsAdvancedPage = () => {
               </div>
               <div className="flex flex-col gap-1">
                 <span className="font-medium text-muted-foreground">System Timezone</span>
-                <span className="font-mono">{config.system_timezone}</span>
+                <span className="font-mono">{config.timezone} (UTC offset {config.timezone_offset_seconds / 3600}h)</span>
               </div>
               <div className="flex flex-col gap-1">
-                <span className="font-medium text-muted-foreground">Python Version</span>
-                <span className="font-mono">{config.python_version}</span>
+                <span className="font-medium text-muted-foreground">Go Version</span>
+                <span className="font-mono">{config.go_version}</span>
               </div>
               <div className="flex flex-col gap-1">
                 <span className="font-medium text-muted-foreground">Database Version</span>
-                <span className="font-mono">{config.database_version ?? config.sqlite_version}</span>
+                <span className="font-mono">{config.database_version}</span>
               </div>
             </div>
           )}
@@ -506,6 +423,7 @@ export const AdminSettingsAdvancedPage = () => {
       </Card>
 
       {/* Scheduled Tasks Section */}
+      <ActivityMonitoringSettings />
       <Card>
         <CardHeader>
           <div className="flex items-center gap-3">
@@ -514,12 +432,12 @@ export const AdminSettingsAdvancedPage = () => {
             </div>
             <div>
               <CardTitle className="mb-1 text-xl font-semibold">Scheduled Tasks</CardTitle>
-              <CardDescription>Background tasks running on the server</CardDescription>
+              <CardDescription>{checkpointError?'A scheduler checkpoint failed. Refresh and inspect task status.':runtimeAvailable?'Scheduled synchronization tasks on the server':'Scheduler is stopped; saved configuration applies when it starts.'}</CardDescription>
             </div>
           </div>
         </CardHeader>
         <CardContent>
-          {tasksLoading ? (
+          {tasksError ? <div className="text-sm text-muted-foreground">Scheduled tasks are unavailable. <Button variant="outline" onClick={()=>void refreshTasks().catch(()=>{})}>Refresh tasks</Button></div> : tasksLoading ? (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Spinner className="size-4 text-muted-foreground" />
               Loading scheduled tasks...
@@ -568,8 +486,9 @@ export const AdminSettingsAdvancedPage = () => {
           </Button>
         }
       >
-        {selectedTask && (
+        {selectedTask && selectedTask.actor_uuid===taskActor && (
           <div className="space-y-6">
+            <ScheduledSyncControls key={`${selectedTask.actor_uuid}-${selectedTask.id}-${selectedTask.revision}`} task={selectedTask} onSaved={async()=>{handleCloseModal();await refreshTasks()}}/>
             {/* Task Description */}
             <div className="rounded-lg border bg-muted/30 p-4">
               <h3 className="mb-2 font-semibold text-sm uppercase tracking-wide text-muted-foreground">
@@ -630,7 +549,7 @@ export const AdminSettingsAdvancedPage = () => {
                 Task Information
               </h3>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                {getTaskDetails(selectedTask).map((detail, index) => (
+                {getTaskDetails(liveSelectedTask??selectedTask, formatTimestamp).map((detail, index) => (
                   <div
                     key={index}
                     className="rounded-lg border bg-card p-3 space-y-1"
@@ -671,7 +590,7 @@ export const AdminSettingsAdvancedPage = () => {
                     )
                   ) : (
                     <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-100 px-2.5 py-1 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
-                      <FontAwesomeIcon icon={faCircle} className="text-[6px]" /> Active
+                      <FontAwesomeIcon icon={faCircle} className="text-[6px]" /> {tasksError?'Unavailable':liveSelectedTask?.state??'Removed'}
                     </span>
                   )}
                 </div>

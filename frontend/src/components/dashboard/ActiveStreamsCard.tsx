@@ -1,5 +1,6 @@
 import { Button } from '@/components/ui/button';
-import { useAdminApi } from '../../hooks/useAdminApi';
+import { useDashboardData, fetchActiveStreams } from '../../lib/dashboard';
+import { useAuth } from '../../contexts/AuthContext';
 import { DashboardCard } from './DashboardLayout';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faRotate } from '@fortawesome/free-solid-svg-icons';
@@ -25,7 +26,9 @@ type ActiveStreamsResponse = {
 };
 
 export const ActiveStreamsCard = () => {
-  const { data, loading, error, mutate } = useAdminApi<ActiveStreamsResponse>('/streams/active');
+  const { user } = useAuth();
+  const actor = user?.uuid;
+  const { data, loading, error, mutate } = useDashboardData<ActiveStreamsResponse>(actor ? `dashboard:active-streams:${actor}` : null, () => fetchActiveStreams(actor!));
 
   return (
     <DashboardCard title="Active Streams">

@@ -1,3 +1,4 @@
+import {userListRoleFilter} from '../lib/userRoleCatalog';
 import useSWRInfinite from 'swr/infinite';
 import { requestJson } from '../util/apiClient';
 
@@ -64,10 +65,11 @@ export const useUsers = (filters: UsersFilters = {}) => {
     const params = new URLSearchParams({ page: String(page) });
     if (filters.search) params.set('search', filters.search);
     if (filters.userType) params.set('user_type', filters.userType);
-    if (filters.role) params.set('role', filters.role);
+    const roleFilter=userListRoleFilter(filters.role??'');
+  if(roleFilter)params.set(roleFilter.parameter,roleFilter.id);
     if (filters.sort) params.set('sort', filters.sort);
 
-    return `/api/v2/users?${params.toString()}`;
+    return `/api/users?${params.toString()}`;
   };
 
   const { data, error, size, setSize, isLoading, mutate } = useSWRInfinite<UsersResponse>(

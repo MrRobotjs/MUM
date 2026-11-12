@@ -1,7 +1,7 @@
 import useSWR from 'swr';
 import { ApiError, requestJson } from '../util/apiClient';
 
-const ADMIN_PREFIX = '/api/v2';
+const ADMIN_PREFIX = '/api';
 
 export function useAdminApi<T = unknown>(path: string, enabled = true) {
   const endpoint = `${ADMIN_PREFIX}${path}`;

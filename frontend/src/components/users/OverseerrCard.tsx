@@ -1,3 +1,4 @@
+import { useAccountDisplay } from '../../hooks/useAccountDisplay';
 import { useEffect, useState } from 'react';
 import { requestJson } from '../../util/apiClient';
 import { useAlerts } from '../../contexts/AlertContext';
@@ -25,6 +26,7 @@ type OverseerrCardProps = {
 };
 
 export const OverseerrCard = ({ links, loading, error }: OverseerrCardProps) => {
+  const { formatTimestamp } = useAccountDisplay();
   const { success, error: showError } = useAlerts();
   const [localLinks, setLocalLinks] = useState<OverseerrLink[]>(links);
   const [updatingId, setUpdatingId] = useState<number | null>(null);
@@ -36,9 +38,10 @@ export const OverseerrCard = ({ links, loading, error }: OverseerrCardProps) => 
   const handleUpdateStatus = async (serverId: number, requestId: number, status: 'approve' | 'decline') => {
     try {
       setUpdatingId(requestId);
-      await requestJson('/overseerr-request-update', {
+      // One attempt; a lost response is reported, never retried.
+      await requestJson(`/api/servers/${serverId}/overseerr/requests/${requestId}/${status}`, {
         method: 'POST',
-        body: JSON.stringify({ server_id: serverId, request_id: requestId, status }),
+        retryAuthentication: false,
       });
 
       const newStatus = status === 'approve' ? 2 : 4; // map to approved/declined for display
@@ -94,7 +97,7 @@ export const OverseerrCard = ({ links, loading, error }: OverseerrCardProps) => 
 
                 {link.last_sync_at ? (
                   <div className="mt-1 text-xs text-foreground/50">
-                    Last sync: {new Date(link.last_sync_at).toLocaleString()}
+                    Last sync: {formatTimestamp(link.last_sync_at)}
                   </div>
                 ) : null}
 

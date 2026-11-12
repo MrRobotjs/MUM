@@ -10,6 +10,7 @@ export interface PluginCardActionsProps {
   isLoading: boolean
   onToggle: (plugin: Plugin, action: 'enable' | 'disable') => void
   onConfigure: (pluginKey: string) => void
+  onUninstall?: (plugin: Plugin) => void
 }
 
 export const PluginCardActions = ({
@@ -18,8 +19,11 @@ export const PluginCardActions = ({
   hasServers,
   isLoading,
   onToggle,
-  onConfigure
+  onConfigure,
+  onUninstall
 }: PluginCardActionsProps) => {
+  const canUninstall = plugin.pluginType !== 'core'
+
   return (
     <>
       <Button
@@ -42,6 +46,16 @@ export const PluginCardActions = ({
       >
         Configure
       </Button>
+      {canUninstall && onUninstall ? (
+        <Button
+          size="sm"
+          variant="destructive"
+          onClick={() => onUninstall(plugin)}
+          disabled={isLoading}
+        >
+          Uninstall
+        </Button>
+      ) : null}
       {plugin.repository_url ? (
         <Button
           asChild

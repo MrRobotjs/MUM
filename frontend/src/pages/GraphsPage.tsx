@@ -1,3 +1,6 @@
+import { formatCalendarDate } from '../util/calendarDates';
+import { useAccountDisplay } from '../hooks/useAccountDisplay';
+import { graphEmptyMessage, graphUnavailable } from '../lib/graphs';
 import { useEffect, useMemo, useState } from 'react';
 import {
   Area,
@@ -73,6 +76,7 @@ type GraphsAnalyticsResponse = {
   meta?: {
     generated_at?: string;
     notes?: string[];
+    unavailable?: string[];
     sources?: Record<string, string>;
     filters?: Record<string, unknown>;
   };
@@ -91,12 +95,7 @@ const SERVICE_LINE_COLORS: Record<string, string> = {
   romm: 'var(--color-romm)',
 };
 
-const formatGeneratedAt = (value?: string) => {
-  if (!value) return null;
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString();
-};
+
 
 const formatMinutesCompact = (rawMinutes: number) => {
   const minutes = Math.max(0, Math.round(rawMinutes || 0));
@@ -112,29 +111,8 @@ const formatMinutesAxisCompact = (rawMinutes: number) => {
   return hours > 0 ? `${hours}h${remainingMinutes}m` : `${minutes}m`;
 };
 
-const parseIsoDateOnly = (value: string): Date | null => {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || '').trim());
-  if (!match) return null;
-  const parsed = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
-};
-
-const formatChartDateShort = (value: string) => {
-  const parsed = parseIsoDateOnly(value);
-  if (!parsed) return value;
-  return parsed.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-};
-
-const formatChartDateFull = (value: string) => {
-  const parsed = parseIsoDateOnly(value);
-  if (!parsed) return value;
-  return parsed.toLocaleDateString(undefined, {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
-};
+const formatChartDateShort = (value: string) => formatCalendarDate(value, 'short');
+const formatChartDateFull = (value: string) => formatCalendarDate(value, 'full');
 
 const renderGraphsTooltipCard = (
   title: string,
@@ -244,7 +222,7 @@ const renderSeparatedStackedTooltip = ({
   const firstRow = payload[0]?.payload as Record<string, unknown> | undefined;
   const counts = (firstRow?._counts as Record<string, number> | undefined) ?? {};
 
-  const rows = payload
+  const rows: Array<{ key: string; label: string; value: string; dotClass?: string; dotColor?: string }> = payload
     .filter((entry) => Number(entry?.value || 0) > 0)
     .map((entry) => {
       const seriesName = String(entry?.name || entry?.dataKey || 'Value');
@@ -317,6 +295,8 @@ const renderSeparatedWatchTimeTooltip = ({
 };
 
 export const GraphsPage = () => {
+  const { formatTimestamp } = useAccountDisplay();
+  const formatGeneratedAt = (value?: string) => value ? formatTimestamp(value) : null;
   const [days, setDays] = useState<number>(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
@@ -811,6 +791,11 @@ export const GraphsPage = () => {
                   No supported servers available for separated analytics.
                 </div>
               ) : null}
+              {!loading && !isSeparatedModeActive && graphUnavailable(data?.meta, 'hourly_activity') ? (
+                <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
+                  {graphEmptyMessage(data?.meta, 'hourly_activity', '')}
+                </div>
+              ) : null}
             </div>
           )}
         </div>
@@ -937,7 +922,7 @@ export const GraphsPage = () => {
                 ((separatedData?.servers?.length ?? 0) === 0 || separatedWatchTimeChartData.length === 0)) ||
                 (!isSeparatedModeActive && totalWatchTimeMinutes === 0)) ? (
                 <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
-                  No watch-time history found for this time range.
+                  {graphEmptyMessage(data?.meta, 'watch_time_activity', 'No watch-time history found for this time range.')}
                 </div>
               ) : null}
             </div>
@@ -1031,7 +1016,7 @@ export const GraphsPage = () => {
                 (separatedData?.device_preferences?.rows ?? []).every((row) => Number(row.total || 0) === 0)) ||
                 (!isSeparatedModeActive && deviceChartData.length === 0)) ? (
                 <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
-                  No stream history found for this time range.
+                  {graphEmptyMessage(data?.meta, 'device_preferences', 'No stream history found for this time range.')}
                 </div>
               ) : null}
             </div>
@@ -1122,7 +1107,7 @@ export const GraphsPage = () => {
               ((isSeparatedModeActive && separatedPlaybackTotal === 0) ||
                 (!isSeparatedModeActive && totalPlaybackSessions === 0)) ? (
                 <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
-                  No playback history found for this time range.
+                  {graphEmptyMessage(data?.meta, 'playback_health', 'No playback history found for this time range.')}
                 </div>
               ) : null}
             </div>

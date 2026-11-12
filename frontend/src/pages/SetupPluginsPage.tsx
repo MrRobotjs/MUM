@@ -7,7 +7,8 @@ import { usePlugins, type Plugin } from '../hooks/usePlugins'
 import { useServers } from '../hooks/useServers'
 import { PluginCard, PluginCardActions } from '../components/plugins'
 import { SetupLayout } from './SetupLayout'
-import { ApiError, requestJson } from '../util/apiClient'
+import { ApiError } from '../util/apiClient'
+import { requestPluginMutation } from '../util/pluginMutations'
 import { useAlerts } from '../contexts'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -19,7 +20,7 @@ const getPluginKey = (plugin: Plugin) => plugin.pluginId || plugin.id
 
 function SetupPluginsContent() {
   const navigate = useNavigate()
-  const { plugins, loading, error, refresh } = usePlugins()
+  const { plugins, loading, error } = usePlugins()
   const { servers } = useServers({ activeOnly: true })
   const { success, error: showError } = useAlerts()
   const [actionLoading, setActionLoading] = useState<string | null>(null)
@@ -54,18 +55,17 @@ function SetupPluginsContent() {
     }
 
     const endpoint = action === 'enable'
-      ? `/api/v2/plugins/${pluginId}/enable`
-      : `/api/v2/plugins/${pluginId}/disable`
+      ? `/api/providers/${pluginId}/enable`
+      : `/api/providers/${pluginId}/disable`
 
     setActionLoading(pluginId)
     try {
-      await requestJson(endpoint, { method: 'POST' })
+      await requestPluginMutation(endpoint, { method: 'POST' })
       const pastTense = {
         enable: 'enabled',
         disable: 'disabled',
       }[action]
       success(`Plugin "${plugin.name}" ${pastTense}.`)
-      await refresh()
     } catch (err) {
       showError(
         `Failed to ${action} plugin: ${(err as Error).message}`

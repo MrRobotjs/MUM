@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { useAdminApi } from '../../hooks/useAdminApi';
+import { useDashboardData, fetchWatchStats } from '../../lib/dashboard';
 import { DashboardCard } from './DashboardLayout';
 // Images use cookie-based auth; no token param needed
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -115,7 +115,7 @@ const PlatformList = ({ items }: { items: Array<{ name: string; plays: number; d
 );
 
 export const WatchStatsCard = () => {
-  const { data, loading, error, mutate } = useAdminApi<WatchStatsResponse>('/statistics/watch?days=7');
+  const { data, loading, error, mutate } = useDashboardData<WatchStatsResponse>('dashboard:watch-stats:7', () => fetchWatchStats(7));
 
   return (
     <DashboardCard title="Watch Statistics (7 days)">

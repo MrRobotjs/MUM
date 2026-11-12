@@ -1,3 +1,4 @@
+import { useAccountDisplay } from '../../hooks/useAccountDisplay';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '../ui/checkbox';
 import { Badge } from '../ui/badge';
@@ -25,6 +26,7 @@ export type InviteServerFeature = {
 };
 
 export type InviteLibrary = {
+  server_id?: number;
   id: string;
   name: string;
   server_name: string;
@@ -32,6 +34,9 @@ export type InviteLibrary = {
 };
 
 export type InviteRow = {
+	revision?: number;
+	reserved_uses?: number;
+	all_library_server_ids?: number[];
   id: number;
   token: string;
   custom_path?: string;
@@ -45,6 +50,8 @@ export type InviteRow = {
   is_usable?: boolean;
   is_effectively_usable?: boolean;
   is_paused?: boolean;
+  is_archived?: boolean;
+  archived_at?: string | null;
   effective_server_count?: number;
   disabled_server_count?: number;
   status?: string; // Status computed on frontend: 'active' | 'inactive' | 'expired' | 'maxed'
@@ -73,6 +80,7 @@ type InvitesTableProps = {
   loading?: boolean;
   onEdit?: (invite: InviteRow) => void;
   onViewDetail?: (invite: InviteRow) => void;
+	onOpen?: (invite: InviteRow) => void;
 };
 
 export const InvitesTable = ({
@@ -82,8 +90,9 @@ export const InvitesTable = ({
   onSelectAll,
   loading,
   onEdit,
-  onViewDetail
+  onViewDetail, onOpen
 }: InvitesTableProps) => {
+  const { formatTimestamp } = useAccountDisplay();
   const getStatusLabel = (invite: InviteRow) => {
     const isExpired =
       invite.is_expired ?? (invite.expires_at ? new Date(invite.expires_at).getTime() < Date.now() : false);
@@ -91,6 +100,7 @@ export const InvitesTable = ({
     const maxUses = invite.max_uses ?? null;
     const isMaxed =
       invite.has_reached_max_uses ?? (typeof maxUses === 'number' && maxUses > 0 ? uses >= maxUses : false);
+    if (invite.is_archived) return { label: 'Archived', variant: 'secondary' as const };
     if (isExpired) return { label: 'Expired', variant: 'destructive' as const };
     if (isMaxed) return { label: 'Maxed', variant: 'outline' as const };
     if (invite.is_active === false) return { label: 'Disabled', variant: 'secondary' as const };
@@ -130,10 +140,10 @@ export const InvitesTable = ({
               <div className="text-xs text-muted-foreground break-all">{invite.token}</div>
             </TableCell>
             <TableCell className="text-muted-foreground">
-              {invite.expires_at ? new Date(invite.expires_at).toLocaleString() : 'Never'}
+              {invite.expires_at ? formatTimestamp(invite.expires_at) : 'Never'}
             </TableCell>
             <TableCell className="text-muted-foreground">
-              {invite.current_uses} / {invite.max_uses ?? '∞'}
+              {invite.current_uses} / {invite.max_uses ?? '∞'}{invite.reserved_uses ? ` (+${invite.reserved_uses} reserved)` : ''}
             </TableCell>
             <TableCell>
               {(() => {
@@ -146,10 +156,7 @@ export const InvitesTable = ({
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => {
-                    const publicPath = encodeURIComponent(invite.custom_path || invite.token);
-                    window.open(`/invite/${publicPath}`, '_blank', 'noopener');
-                  }}
+                  onClick={() => onOpen?.(invite)}
                 >
                   Open
                 </Button>
@@ -159,7 +166,7 @@ export const InvitesTable = ({
                   </Button>
                 ) : null}
                 {onEdit ? (
-                  <Button variant="ghost" size="sm" onClick={() => onEdit(invite)}>
+                  <Button variant="ghost" size="sm" disabled={invite.is_archived} title={invite.is_archived ? 'Archived invites cannot be edited' : undefined} onClick={() => onEdit(invite)}>
                     Edit
                   </Button>
                 ) : null}

@@ -62,7 +62,7 @@ export const PurgeUsersModal = ({ onClose, onPurgeComplete }: PurgeUsersModalPro
           users: EligibleUser[];
           criteria: PurgeCriteria;
         };
-      }>(`/api/v2/users/eligible-for-purge?inactive_days=${inactiveDays}&exclude_sharers=${excludeSharers}&exclude_whitelisted=${excludeWhitelisted}&ignore_creation_date=${ignoreCreationDate}`);
+      }>(`/api/users/eligible-for-purge?inactive_days=${inactiveDays}&exclude_sharers=${excludeSharers}&exclude_whitelisted=${excludeWhitelisted}&ignore_creation_date=${ignoreCreationDate}`);
 
       const users = result.data.users;
       setEligibleUsers(users);
@@ -116,7 +116,7 @@ export const PurgeUsersModal = ({ onClose, onPurgeComplete }: PurgeUsersModalPro
           failed: number;
           message: string;
         };
-      }>('/api/v2/users/purge', {
+      }>('/api/users/purge', {
         method: 'POST',
         body: JSON.stringify({
           user_uuids: Array.from(selectedUserUuids),
@@ -174,7 +174,7 @@ export const PurgeUsersModal = ({ onClose, onPurgeComplete }: PurgeUsersModalPro
           <Checkbox
             id="exclude-sharers"
             checked={excludeSharers}
-            onCheckedChange={setExcludeSharers}
+            onCheckedChange={(checked) => setExcludeSharers(checked === true)}
           />
           <Label htmlFor="exclude-sharers" className="cursor-pointer">
             Exclude users who share back
@@ -185,7 +185,7 @@ export const PurgeUsersModal = ({ onClose, onPurgeComplete }: PurgeUsersModalPro
           <Checkbox
             id="exclude-whitelisted"
             checked={excludeWhitelisted}
-            onCheckedChange={setExcludeWhitelisted}
+            onCheckedChange={(checked) => setExcludeWhitelisted(checked === true)}
           />
           <Label htmlFor="exclude-whitelisted" className="cursor-pointer">
             Exclude whitelisted users
@@ -196,7 +196,7 @@ export const PurgeUsersModal = ({ onClose, onPurgeComplete }: PurgeUsersModalPro
           <Checkbox
             id="ignore-creation-date"
             checked={ignoreCreationDate}
-            onCheckedChange={setIgnoreCreationDate}
+            onCheckedChange={(checked) => setIgnoreCreationDate(checked === true)}
           />
           <Label htmlFor="ignore-creation-date" className="cursor-pointer">
             Ignore creation date for users who never streamed

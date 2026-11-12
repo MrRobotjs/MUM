@@ -3,7 +3,8 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faCog, faPalette, faFloppyDisk, faCircleInfo, faXmark, faPaintbrush, faGrip, faCheck } from '@fortawesome/free-solid-svg-icons'
 import { UserRole } from '../../hooks/useUserRoles'
 import { useAlerts, useTheme } from '../../contexts'
-import { requestJson } from '../../util/apiClient'
+import {changeUserRoleCatalog,type UserRoleCatalog} from '../../lib/userRoleCatalog'
+import {getAccessToken} from '../../store/authStore'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -23,12 +24,14 @@ import { Spinner } from '@/components/ui/spinner'
 const FontAwesomeIconBrowser = lazy(() => import('@/components/icons/FontAwesomeIconBrowser'))
 
 interface UserRoleDisplayTabProps {
+  catalog: UserRoleCatalog
   role: UserRole
   onUpdate: () => Promise<void>
 }
 
-export const UserRoleDisplayTab = ({ role, onUpdate }: UserRoleDisplayTabProps) => {
+export const UserRoleDisplayTab = ({ role, catalog, onUpdate }: UserRoleDisplayTabProps) => {
   const { success, error: showError } = useAlerts()
+  const [draftBase]=useState(catalog)
   const { theme } = useTheme()
   const iconInputRef = useRef<HTMLInputElement | null>(null)
   const isMobile = useIsMobile()
@@ -60,7 +63,7 @@ export const UserRoleDisplayTab = ({ role, onUpdate }: UserRoleDisplayTabProps) 
       icon: role.icon || '',
       badge_style: role.badge_style || 'default',
     })
-  }, [role, themePrimaryHex])
+  }, [role.id, themePrimaryHex])
 
   const handleBrowseOpenChange = (nextOpen: boolean) => {
     setIconBrowseOpen(nextOpen);
@@ -76,18 +79,14 @@ export const UserRoleDisplayTab = ({ role, onUpdate }: UserRoleDisplayTabProps) 
     e.preventDefault()
     setSubmitting(true)
 
+    const token=getAccessToken()
     try {
-      await requestJson(`/api/v2/user-roles/${role.id}`, {
-        method: 'PATCH',
-        body: JSON.stringify(formValues),
-      })
+      await changeUserRoleCatalog(draftBase,'update',role.id,{...formValues,badge_style:formValues.badge_style as 'default'|'fill'|'outline'})
+      if(token!==getAccessToken())return
       success('Role updated successfully')
-      await onUpdate()
-    } catch (err) {
-      showError(`Failed to update role: ${(err as Error).message}`)
-    } finally {
-      setSubmitting(false)
-    }
+      try{await onUpdate()}catch{showError('Role updated. Read saved roles to refresh its display.')}
+    } catch (err) {if(token===getAccessToken())showError(String(err instanceof Error?err.message:err))}
+    finally {if(token===getAccessToken())setSubmitting(false)}
   }
 
   return (
@@ -394,7 +393,7 @@ export const UserRoleDisplayTab = ({ role, onUpdate }: UserRoleDisplayTabProps) 
 
         {/* Save Button */}
         <div className="flex items-center justify-end gap-3">
-          <Button type="submit" disabled={submitting}>
+          <Button type="submit" disabled={submitting||!role.can_update}>
             {submitting ? (
               <>
                 <Spinner className="mr-2 size-4 text-background" />

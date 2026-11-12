@@ -20,8 +20,8 @@ function SetupServerAddContent() {
   };
 
   const submitEndpoint = pluginId
-    ? `/api/v2/setup/plugins/${pluginId}/servers`
-    : '/api/v2/servers';
+    ? `/api/providers/${pluginId}/servers`
+    : '/api/servers';
 
   return (
     <div className="space-y-6">

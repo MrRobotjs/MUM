@@ -2,7 +2,7 @@
   "compilerOptions": {
     "target": "ES2020",
     "useDefineForClassFields": true,
-    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "lib": ["ES2020", "ES2021.String", "DOM", "DOM.Iterable"],
     "module": "ESNext",
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
@@ -12,7 +12,9 @@
     "noEmit": true,
     "skipLibCheck": true,
     "jsx": "react-jsx",
-    "baseUrl": ".",
+    "strict": false,
+    "strictNullChecks": true,
+    "types": ["node"],
     "paths": {
       "@/*": ["./src/*"]
     }

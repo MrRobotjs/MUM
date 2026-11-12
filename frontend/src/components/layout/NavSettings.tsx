@@ -126,6 +126,12 @@ export function NavSettings() {
       permission: 'manage_plugins',
     },
     {
+      title: 'Plugins V2',
+      url: '/admin/settings/plugins-v2',
+      icon: faPuzzlePiece,
+      permission: 'manage_plugins',
+    },
+    {
       title: 'Discord',
       url: '/admin/settings/discord',
       icon: faDiscord,

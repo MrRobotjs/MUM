@@ -1,8 +1,9 @@
-import { useState } from 'react'
-import useSWR from 'swr'
+import {useEffect,useMemo,useRef,useState,useSyncExternalStore} from 'react'
 import { UserRole } from '../../hooks/useUserRoles'
 import { useAlerts } from '../../contexts'
-import { requestJson } from '../../util/apiClient'
+import {UserRoleMembersController} from '../../lib/userRoleMembers'
+import {useAuth} from '../../contexts/AuthContext'
+import {getAuthSnapshot,subscribeToAuthStore} from '../../store/authStore'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -22,144 +23,35 @@ import {
   faUsersSlash
 } from '@fortawesome/free-solid-svg-icons'
 
-interface UserRoleMembersTabProps {
-  role: UserRole
-  onUpdate: () => Promise<void>
-}
-
-interface RoleMember {
-  uuid: string
-  username: string
-  user_type: string
-  email: string
-}
-
-interface AppUser {
-  id: number
-  uuid: string
-  username: string
-  display_name: string
-  email: string | null
-  user_type: string
-  user_roles: string[]
-}
-
-export const UserRoleMembersTab = ({ role, onUpdate }: UserRoleMembersTabProps) => {
-  const { success, error: showError } = useAlerts()
-  const [searchQuery, setSearchQuery] = useState('')
-  const [addModalOpen, setAddModalOpen] = useState(false)
-  const [selectedUsers, setSelectedUsers] = useState<string[]>([])
-  const [submitting, setSubmitting] = useState(false)
-  const isAutoManagedRole = Boolean(role.is_auto_managed)
-
-  // Fetch role members
-  const {
-    data: membersData,
-    mutate: refreshMembers,
-    isLoading: membersLoading,
-  } = useSWR<{ data: RoleMember[] }>(`/api/v2/user-roles/${role.id}/users`, requestJson)
-
-  // Fetch all eligible users (local + service) for adding new members
-  const { data: localUsersData } = useSWR<{ data: AppUser[] }>(
-    '/api/v2/users?user_type=local&page_size=100',
-    requestJson
-  )
-  const { data: serviceUsersData } = useSWR<{ data: AppUser[] }>(
-    '/api/v2/users?user_type=service&page_size=100',
-    requestJson
-  )
-
-  const members = membersData?.data || []
-  const localUsers = localUsersData?.data || []
-  const serviceUsers = serviceUsersData?.data || []
-  const allUsers = [...localUsers, ...serviceUsers].reduce<AppUser[]>((acc, user) => {
-    if (!acc.some((existing) => existing.uuid === user.uuid)) {
-      acc.push(user)
-    }
-    return acc
-  }, [])
-  const hasEligibleUsers = allUsers.length > 0
-
-  // Filter members by search query
-  const filteredMembers = members.filter((member) =>
-    member.username.toLowerCase().includes(searchQuery.toLowerCase())
-  )
-
-  // Get local users not already in this role
-  const memberUuids = new Set(members.map((m) => m.uuid))
-  const availableUsers = allUsers.filter((user) => !memberUuids.has(user.uuid))
-
-  const handleAddMembers = async () => {
-    if (isAutoManagedRole) {
-      showError(`Members for the ${role.name} role are managed automatically.`)
-      return
-    }
-    if (selectedUsers.length === 0) {
-      showError('Please select at least one user to add')
-      return
-    }
-
-    setSubmitting(true)
-    try {
-      await Promise.all(
-        selectedUsers.map((userUuid) =>
-          requestJson(`/api/v2/user-roles/${role.id}/users`, {
-            method: 'POST',
-            body: JSON.stringify({ user_uuid: userUuid }),
-          })
-        )
-      )
-
-      success(`Added ${selectedUsers.length} user(s) to role '${role.name}'`)
-      setAddModalOpen(false)
-      setSelectedUsers([])
-      await refreshMembers()
-      await onUpdate()
-    } catch (err) {
-      showError(`Failed to add members: ${(err as Error).message}`)
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  const handleRemoveMember = async (memberUuid: string, username: string) => {
-    if (isAutoManagedRole) {
-      showError(`Members for the ${role.name} role are managed automatically.`)
-      return
-    }
-    if (!window.confirm(`Remove ${username} from this role?`)) {
-      return
-    }
-
-    try {
-      await requestJson(`/api/v2/user-roles/${role.id}/users/${memberUuid}`, {
-        method: 'DELETE',
-      })
-
-      success(`Removed ${username} from role '${role.name}'`)
-      await refreshMembers()
-      await onUpdate()
-    } catch (err) {
-      showError(`Failed to remove member: ${(err as Error).message}`)
-    }
-  }
-
-  const toggleUserSelection = (userUuid: string) => {
-    setSelectedUsers((prev) =>
-      prev.includes(userUuid) ? prev.filter((id) => id !== userUuid) : [...prev, userUuid]
-    )
-  }
-
-  const handleOpenAddModal = () => {
-    if (isAutoManagedRole) {
-      showError(`Members for the ${role.name} role are managed automatically.`)
-      return
-    }
-    setAddModalOpen(true)
-  }
-
+type UserRoleMembersTabProps={role:UserRole;onUpdate:()=>Promise<void>}
+export const UserRoleMembersTab=({role,onUpdate}:UserRoleMembersTabProps)=>{
+ const {user,isOwner}=useAuth(),session=useSyncExternalStore(subscribeToAuthStore,getAuthSnapshot),actor=isOwner&&session.accessToken?user?.uuid:undefined;
+ const {success,error:showError}=useAlerts(),visible=useRef<UserRoleMembersController|null>(null);
+ const controller=useMemo(()=>{const value:UserRoleMembersController=new UserRoleMembersController(actor??'',role.id,()=>visible.current===value);return value;},[actor,role.id,session.accessToken]);visible.current=controller;
+ const [,redraw]=useState(0),[searchQuery,setSearchQuery]=useState(''),[addModalOpen,setAddModalOpen]=useState(false),[selectedUsers,setSelectedUsers]=useState<string[]>([]),[notice,setNotice]=useState<{controller:UserRoleMembersController;text:string}|null>(null);
+ const update=()=>{if(controller.current())redraw(x=>x+1)};
+ useEffect(()=>{visible.current=controller;if(actor&&!controller.busy)void controller.load().then(update).catch(error=>{if(controller.current()){setNotice({controller,text:String(error.message)});update();}});update();return()=>{if(visible.current===controller)visible.current=null}},[actor,controller]);
+ const read=async()=>{if(controller.busy||!controller.current())return;setAddModalOpen(false);setSelectedUsers([]);const pending=controller.load();update();try{await pending;if(controller.current())setNotice({controller,text:'Saved members read. No change was retried.'})}catch(error){if(controller.current())setNotice({controller,text:String(error instanceof Error?error.message:error)})}finally{update()}};
+ const page=controller.current()?controller.base:null,submitting=controller.busy,membersLoading=controller.busy&&!page;
+ const allUsers=page?.items.map(row=>({...row,username:row.username||row.uuid,display_name:row.username||row.uuid,detail:[row.user_type,row.service_type,row.server_nickname,row.uuid].filter(Boolean).join(' · ')}))??[];
+ const members=allUsers.filter(row=>row.is_member),filteredMembers=members.filter(row=>row.username.toLowerCase().includes(searchQuery.toLowerCase())||row.uuid.includes(searchQuery.toLowerCase()));
+ const availableUsers=allUsers.filter(row=>!row.is_member&&row.can_change),hasEligibleUsers=allUsers.some(row=>row.can_change),isAutoManagedRole=page?.is_auto_managed??role.is_auto_managed;
+ const canAdd=!!page?.mutations_available&&availableUsers.length>0&&!controller.busy&&!controller.needsRead;
+ const write=async(operation:'add'|'remove',ids:string[])=>{
+  if(controller.busy||!controller.current())return;
+  const pending=controller.change(operation,ids,(p,chosen)=>window.confirm(`${operation==='add'?'Add':'Remove'} ${chosen.map(row=>`${row.username||'Account'} (${row.user_type}, ${row.uuid})`).join(', ')} ${operation==='add'?'to':'from'} visual role “${p.role_name}”? Other labels, account links, administrator permissions and media policies are unchanged.`));update();
+  try{const result=await pending;if(!result||!controller.current())return;setAddModalOpen(false);setSelectedUsers([]);success('Role membership saved');try{await onUpdate()}catch{if(controller.current())showError('Role membership saved. Read saved members to refresh its display.')}}
+  catch(error){if(controller.current()){setAddModalOpen(false);setNotice({controller,text:String(error instanceof Error?error.message:error)})}}finally{update()}
+ };
+ const handleAddMembers=()=>write('add',[...selectedUsers]);
+ const handleRemoveMember=(id:string,_username:string)=>write('remove',[id]);
+ const toggleUserSelection=(id:string)=>setSelectedUsers(previous=>previous.includes(id)?previous.filter(value=>value!==id):previous.length<100?[...previous,id]:previous);
+ const handleOpenAddModal=()=>{if(!canAdd)return;setSelectedUsers([]);setAddModalOpen(true)};
   return (
     <div className="space-y-6">
+      {!actor&&<Alert variant="info"><AlertTitle>Owner access required</AlertTitle><AlertDescription>Role-member browsing and service-label changes are available to the owner. Delegated administrators can manage lower human accounts from their profiles.</AlertDescription></Alert>}
+      {notice?.controller===controller&&<Alert variant="info"><AlertDescription>{notice.text}</AlertDescription></Alert>}
+      <Button variant="outline" disabled={!actor||controller.busy} onClick={()=>void read()}>Read saved members</Button>
       {/* Members Overview Section */}
       <div className="space-y-4 rounded-lg border border-border bg-card p-6">
         <div className="flex items-center justify-between">
@@ -174,8 +66,8 @@ export const UserRoleMembersTab = ({ role, onUpdate }: UserRoleMembersTabProps) 
               </p>
             </div>
           </div>
-          {!isAutoManagedRole && (
-            <Button onClick={handleOpenAddModal}>
+          {!!page?.mutations_available && (
+            <Button disabled={!canAdd} onClick={handleOpenAddModal}>
               <FontAwesomeIcon icon={faUserPlus} className="mr-2 size-4" />
               Add User
             </Button>
@@ -187,7 +79,7 @@ export const UserRoleMembersTab = ({ role, onUpdate }: UserRoleMembersTabProps) 
           <FontAwesomeIcon icon={faCircleInfo} />
           <AlertTitle>Current Members</AlertTitle>
           <AlertDescription>
-            {members.length} user{members.length !== 1 ? 's' : ''} assigned to this role
+            {page?members.length:'Unknown'} user{members.length !== 1 ? 's' : ''} assigned to this role
           </AlertDescription>
         </Alert>
         {isAutoManagedRole && (
@@ -195,7 +87,7 @@ export const UserRoleMembersTab = ({ role, onUpdate }: UserRoleMembersTabProps) 
             <FontAwesomeIcon icon={faCircleInfo} />
             <AlertTitle>Auto-managed role</AlertTitle>
             <AlertDescription>
-              Membership is synced from service permissions and cannot be edited manually.
+              Automatic role membership cannot be edited here.
             </AlertDescription>
           </Alert>
         )}
@@ -234,7 +126,7 @@ export const UserRoleMembersTab = ({ role, onUpdate }: UserRoleMembersTabProps) 
               <Spinner className="size-4 text-muted-foreground" />
               Loading members...
             </div>
-          ) : filteredMembers.length === 0 ? (
+          ) : !page ? <p className="text-sm text-muted-foreground">Saved members are unavailable. Read saved members before selecting accounts.</p> : filteredMembers.length === 0 ? (
             <div className="py-12 text-center">
               <FontAwesomeIcon icon={faUsersSlash} className="mb-4 text-4xl text-muted-foreground/30" />
               <h4 className="mb-2 text-lg font-semibold">No Members</h4>
@@ -243,8 +135,8 @@ export const UserRoleMembersTab = ({ role, onUpdate }: UserRoleMembersTabProps) 
                   ? 'No members match your search.'
                   : "This role doesn't have any members assigned yet."}
               </p>
-              {!searchQuery && !isAutoManagedRole && (
-                <Button size="sm" onClick={handleOpenAddModal}>
+              {!searchQuery && page.mutations_available && (
+                <Button size="sm" disabled={!canAdd} onClick={handleOpenAddModal}>
                   <FontAwesomeIcon icon={faUserPlus} className="mr-2 size-4" />
                   Add First Member
                 </Button>
@@ -266,18 +158,19 @@ export const UserRoleMembersTab = ({ role, onUpdate }: UserRoleMembersTabProps) 
                     </Avatar>
                     <div>
                       <div className="font-semibold">{member.username}</div>
-                      {member.email && (
-                        <div className="text-sm text-muted-foreground">{member.email}</div>
+                      {member.detail && (
+                        <div className="text-sm text-muted-foreground">{member.detail}</div>
                       )}
                     </div>
                   </div>
-                  {!isAutoManagedRole && (
+                  {member.can_change && !!page?.mutations_available && (
                     <div className="flex items-center gap-2">
                     <Button
                       size="sm"
                       variant="ghost"
                       className="text-destructive hover:bg-destructive/10"
-                      onClick={() => handleRemoveMember(member.uuid, member.username)}
+                      disabled={controller.busy||controller.needsRead}
+                      onClick={() => void handleRemoveMember(member.uuid, member.username)}
                     >
                       <FontAwesomeIcon icon={faUserMinus} className="mr-1 size-4" />
                       Remove
@@ -305,7 +198,7 @@ export const UserRoleMembersTab = ({ role, onUpdate }: UserRoleMembersTabProps) 
           >
             Cancel
           </Button>,
-          <Button key="add" onClick={handleAddMembers} disabled={submitting}>
+          <Button key="add" onClick={()=>void handleAddMembers()} disabled={submitting||controller.needsRead||!page||selectedUsers.length===0}>
             {submitting ? 'Adding...' : `Add ${selectedUsers.length} User(s)`}
           </Button>,
         ]}
@@ -317,13 +210,13 @@ export const UserRoleMembersTab = ({ role, onUpdate }: UserRoleMembersTabProps) 
               <AlertDescription>
                 {hasEligibleUsers
                   ? 'All eligible users are already members of this role.'
-                  : 'No eligible users found. Sync or create users before assigning roles.'}
+                  : 'No editable candidates are available. Protected accounts and pending work cannot be changed here.'}
               </AlertDescription>
             </Alert>
           ) : (
             <>
               <p className="text-sm text-muted-foreground">
-                Select users to add to this role. This is a cosmetic badge and does not grant permissions.
+                Select up to 100 identities from this complete saved selection. Visual labels do not grant permissions.
               </p>
 
               <div className="max-h-96 space-y-2 overflow-y-auto">
@@ -339,6 +232,7 @@ export const UserRoleMembersTab = ({ role, onUpdate }: UserRoleMembersTabProps) 
                       <Checkbox
                         id={checkboxId}
                         checked={isSelected}
+                        disabled={controller.busy||controller.needsRead||selectedUsers.length>=100&&!isSelected}
                         onCheckedChange={() => toggleUserSelection(user.uuid)}
                       />
                       <Label htmlFor={checkboxId} className="flex flex-1 cursor-pointer items-center gap-3">
@@ -350,8 +244,8 @@ export const UserRoleMembersTab = ({ role, onUpdate }: UserRoleMembersTabProps) 
                         </Avatar>
                         <div className="flex-1">
                           <div className="font-medium">{user.display_name}</div>
-                          {user.email && (
-                            <div className="text-xs text-muted-foreground">{user.email}</div>
+                          {user.detail && (
+                            <div className="text-xs text-muted-foreground">{user.detail}</div>
                           )}
                         </div>
                       </Label>

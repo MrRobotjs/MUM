@@ -1,200 +1,50 @@
-import { useState, useEffect, useCallback } from 'react';
-import { requestJson } from '../util/apiClient';
-import { emitPreferenceChange, getPreference, setPreference } from '../util/preferences';
+import {useState,useEffect,useCallback,useRef} from 'react';import useSWR from 'swr';
+import {getAccessToken} from '../store/authStore';
+import {useAuth} from '../contexts/AuthContext';
+import {fetchOwnPreferences,saveDevicePreference,saveOwnPreferences} from '../lib/accountPreferences';
+import {PREFERENCE_EVENT,localPreferenceKey,readLocalCounter,writeLocalCounter,emitPreferenceChange,type PreferenceChangeDetail} from '../util/preferences';
 
-interface UserPreferencesData {
-  preferences: Record<string, any>;
-  sync_enabled: boolean;
-}
-
-interface UseUserPreferencesOptions {
-  /**
-   * Whether to automatically fetch preferences from the server on mount
-   * Default: true
-   */
-  autoFetch?: boolean;
-}
-
-/**
- * Hook for managing user preferences with localStorage and optional DB sync
- *
- * Priority: DB (if sync enabled) > localStorage > default value
- *
- * Example usage:
- *   const { getPreference, setPreference, syncEnabled, toggleSync } = useUserPreferences();
- *   const streamCounter = getPreference('stream_counter', false);
- *   setPreference('stream_counter', true);
- */
-export function useUserPreferences(options: UseUserPreferencesOptions = {}) {
-  const { autoFetch = true } = options;
-
-  const [dbPreferences, setDbPreferences] = useState<Record<string, any> | null>(null);
-  const [syncEnabled, setSyncEnabled] = useState<boolean>(false);
-  const [loading, setLoading] = useState<boolean>(false);
-  const [error, setError] = useState<Error | null>(null);
-
-  /**
-   * Fetch preferences from the server
-   */
-  const fetchPreferences = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-
-    try {
-      const response = await requestJson<UserPreferencesData>('/api/v2/account/preferences');
-      setDbPreferences(response.preferences);
-      setSyncEnabled(response.sync_enabled);
-    } catch (err) {
-      console.error('Failed to fetch user preferences:', err);
-      setError(err instanceof Error ? err : new Error('Failed to fetch preferences'));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  /**
-   * Get a preference value
-   * Priority: DB (if sync enabled) > localStorage > default
-   */
-  const getUserPreference = useCallback(<T = any>(key: string, defaultValue?: T): T => {
-    // If sync is enabled and we have DB preferences, use those
-    if (syncEnabled && dbPreferences && key in dbPreferences) {
-      return dbPreferences[key] as T;
-    }
-
-    // Otherwise, try localStorage
-    const localValue = getPreference<T>(key);
-    if (localValue !== null) {
-      return localValue;
-    }
-
-    // Fall back to default value
-    return defaultValue as T;
-  }, [syncEnabled, dbPreferences]);
-
-  /**
-   * Set a preference value
-   * Saves to localStorage and optionally to DB if sync is enabled
-   */
-  const setUserPreference = useCallback(async <T = any>(key: string, value: T): Promise<void> => {
-    // Always save to localStorage first
-    setPreference(key, value);
-    let synced = false;
-
-    // If sync is enabled, also save to DB
-    if (syncEnabled) {
-      try {
-        const updatedPreferences = {
-          ...dbPreferences,
-          [key]: value,
-        };
-
-        await requestJson('/api/v2/account/preferences', {
-          method: 'PATCH',
-          body: JSON.stringify({ preferences: updatedPreferences }),
-        });
-
-        setDbPreferences(updatedPreferences);
-        synced = true;
-      } catch (err) {
-        console.error('Failed to sync preference to DB:', err);
-        // Don't throw - localStorage save succeeded
-      }
-    }
-
-    if (!syncEnabled || synced) {
-      emitPreferenceChange(key, value);
-    }
-  }, [syncEnabled, dbPreferences]);
-
-  /**
-   * Toggle sync preferences on/off
-   * When enabling: migrates localStorage to DB
-   * When disabling: preferences stay in DB but won't be used (localStorage takes priority)
-   */
-  const toggleSync = useCallback(async (enabled: boolean): Promise<void> => {
-    setLoading(true);
-    setError(null);
-
-    try {
-      // If enabling sync, migrate localStorage preferences to DB first
-      if (enabled) {
-        const localPrefs = {
-          stream_counter: getPreference('stream_counter', false),
-        };
-
-        // Update preferences in DB
-        await requestJson('/api/v2/account/preferences', {
-          method: 'PATCH',
-          body: JSON.stringify({ preferences: localPrefs }),
-        });
-
-        setDbPreferences(localPrefs);
-      }
-
-      // Toggle sync setting
-      const response = await requestJson<UserPreferencesData>('/api/v2/account/preferences/sync', {
-        method: 'PATCH',
-        body: JSON.stringify({ sync_enabled: enabled }),
-      });
-
-      setSyncEnabled(response.sync_enabled);
-      setDbPreferences(response.preferences);
-    } catch (err) {
-      console.error('Failed to toggle sync preferences:', err);
-      setError(err instanceof Error ? err : new Error('Failed to toggle sync'));
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  // Auto-fetch on mount if enabled
-  useEffect(() => {
-    if (autoFetch) {
-      fetchPreferences();
-    }
-  }, [autoFetch, fetchPreferences]);
-
-  return {
-    /**
-     * Get a preference value with optional default
-     */
-    getPreference: getUserPreference,
-
-    /**
-     * Set a preference value (saves to localStorage and optionally DB)
-     */
-    setPreference: setUserPreference,
-
-    /**
-     * Whether sync is enabled
-     */
-    syncEnabled,
-
-    /**
-     * Toggle sync on/off
-     */
-    toggleSync,
-
-    /**
-     * Manually refresh preferences from server
-     */
-    refresh: fetchPreferences,
-
-    /**
-     * Loading state
-     */
-    loading,
-
-    /**
-     * Error state
-     */
-    error,
-
-    /**
-     * Raw DB preferences object
-     */
-    dbPreferences,
-  };
+// Actor-keyed SWR shares server snapshots across sidebar, modal and account card.
+// Device values are scoped too; old browser-global keys are never imported.
+export function useUserPreferences(){
+ const {user}=useAuth();const owner=user?.uuid??null;
+ const generation=useRef(0),activeOwner=useRef(owner);activeOwner.current=owner;
+ const {data,error,isLoading,mutate}=useSWR(owner?['/api/account/preferences',owner]:null,([,id]:[string,string])=>fetchOwnPreferences(id),{keepPreviousData:false});
+ const [local,setLocal]=useState<{owner:string|null;value:boolean}>({owner:null,value:false});
+ const [saving,setSaving]=useState(false),[actionError,setActionError]=useState<Error|null>(null);
+ useEffect(()=>{
+  generation.current++;
+  setActionError(null);setSaving(false);setLocal({owner,value:owner?readLocalCounter(owner):false});
+  const changed=(event:Event)=>{const detail=(event as CustomEvent<PreferenceChangeDetail>).detail;if(owner && detail?.user_uuid===owner && detail.key==='stream_counter' && typeof detail.value==='boolean')setLocal({owner,value:detail.value});};
+  const stored=(event:StorageEvent)=>{if(owner && (event.key===null || event.key===localPreferenceKey(owner)))setLocal({owner,value:readLocalCounter(owner)});};
+  window.addEventListener(PREFERENCE_EVENT,changed);window.addEventListener('storage',stored);
+  return()=>{generation.current++;window.removeEventListener(PREFERENCE_EVENT,changed);window.removeEventListener('storage',stored);};
+ },[owner]);
+ const current=data?.user_uuid===owner?data:undefined;
+ const getPreference=useCallback((key:'stream_counter',fallback=false):boolean=>{if(key!=='stream_counter' || !owner || !current || error)return fallback;return current.sync_enabled?current.preferences.stream_counter:local.owner===owner?local.value:readLocalCounter(owner);},[owner,current,error,local]);
+ const refresh=useCallback(async()=>{const run=generation.current;setActionError(null);try{await mutate();if(owner && run===generation.current && activeOwner.current===owner)setLocal({owner,value:readLocalCounter(owner)});}catch(e){if(run===generation.current && activeOwner.current===owner)setActionError(e as Error);}},[mutate,owner]);
+ const setPreference=useCallback(async(key:'stream_counter',value:boolean)=>{
+  if(key!=='stream_counter' || typeof value!=='boolean' || !owner || !current || error || saving)throw Error('Refresh the current preferences before saving.');
+  const run=generation.current,token=getAccessToken();const scoped=()=>run===generation.current && activeOwner.current===owner;const valid=()=>scoped() && token===getAccessToken();
+  setSaving(true);setActionError(null);
+  try{
+   if(current.sync_enabled){const result=await saveOwnPreferences(current,true,value);await mutate(result,false);if(!valid())throw Error('Session changed');try{writeLocalCounter(owner,value);}catch{/* Server is authoritative when synchronized. */}}
+   else{await saveDevicePreference(current,value);if(!valid())throw Error('Session changed');}
+   setLocal({owner,value});emitPreferenceChange(owner,value);
+  }catch(e){if(scoped()){setActionError(e as Error);try{await mutate();}catch{/* Keep the original action error visible. */}}throw e;}finally{if(scoped())setSaving(false);}
+ },[owner,current,error,saving,mutate]);
+ const toggleSync=useCallback(async(enabled:boolean)=>{
+  if(!owner || !current || error || saving || typeof enabled!=='boolean')throw Error('Refresh the current preferences before saving.');
+  const run=generation.current,token=getAccessToken();const scoped=()=>run===generation.current && activeOwner.current===owner;const valid=()=>scoped() && token===getAccessToken();
+  setSaving(true);setActionError(null);
+  const value=current.sync_enabled?current.preferences.stream_counter:local.owner===owner?local.value:readLocalCounter(owner);
+  try{
+   const result=await saveOwnPreferences(current,enabled,value);await mutate(result,false);
+   if(!valid())throw Error('Session changed');
+   if(!enabled){try{writeLocalCounter(owner,value);}catch{throw Error('Sync setting was saved, but device storage failed. Refresh the profile before continuing.');}}
+   else try{writeLocalCounter(owner,value);}catch{/* Optional local backup; synchronized snapshot is durable. */}
+   setLocal({owner,value});emitPreferenceChange(owner,value);
+  }catch(e){if(scoped()){setActionError(e as Error);try{await mutate();}catch{/* Keep the original action error visible. */}}throw e;}finally{if(scoped())setSaving(false);}
+ },[owner,current,error,saving,local,mutate]);
+ return{revision:current?.profile_revision,getPreference,setPreference,syncEnabled:current?.sync_enabled,toggleSync,refresh,loading:isLoading||saving||Boolean(owner&&!current&&!error),error:actionError??error,dbPreferences:current?.preferences??null};
 }

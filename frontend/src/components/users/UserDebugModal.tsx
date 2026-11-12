@@ -77,7 +77,7 @@ export const UserDebugModal = ({ open, onClose, userUuid }: UserDebugModalProps)
       setLoading(true);
       setError(null);
       try {
-        const response = await requestJson<DebugResponse>(`/api/v2/users/${userUuid}/debug`);
+        const response = await requestJson<DebugResponse>(`/api/users/${userUuid}/debug`);
         console.log('Debug API Response:', response);
         setDebugData(response.data);
       } catch (err) {
@@ -150,7 +150,7 @@ export const UserDebugModal = ({ open, onClose, userUuid }: UserDebugModalProps)
                     {debugData.user_info.external_user_id && (
                       <div>
                         <span className="text-muted-foreground">
-                          {debugData.user_info.service_type?.charAt(0).toUpperCase() + debugData.user_info.service_type?.slice(1)} User ID:
+                          {debugData.user_info.service_type ? debugData.user_info.service_type.charAt(0).toUpperCase() + debugData.user_info.service_type.slice(1) : ''} User ID:
                         </span>{' '}
                         <span className="font-mono">{debugData.user_info.external_user_id}</span>
                       </div>

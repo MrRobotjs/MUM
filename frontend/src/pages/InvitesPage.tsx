@@ -1,11 +1,13 @@
-import { useState, useMemo, useEffect, type FormEvent } from 'react';
+import { invitationExpiryFields } from '../util/calendarDates';
+import { useState, useMemo, useEffect, type FormEvent, type ReactElement } from 'react';
 import { useAlerts } from '../contexts/AlertContext';
 import { useInvites } from '../hooks/useInvites';
 import { useAdminApi } from '../hooks/useAdminApi';
+import { usePlugins } from '../hooks/usePlugins';
 import { useInviteSummary } from '../hooks/useInviteSummary';
-import { useDiscordSettings } from '../hooks/useSettings';
+import type { DiscordSettings } from '../hooks/useSettings';
 import { InvitesTable, InviteRow, InviteModal, InviteFormValues, InviteDetailDrawer, InviteCard, FeatureMeta } from '../components/invites';
-import { requestJson } from '../util/apiClient';
+import { saveInvitation, bulkInvitationAction, invitationShareURL, openInvitation, membershipDateFromDays } from '../lib/invitations';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Input } from '../components/ui/input';
 import { Switch } from '../components/ui/switch';
@@ -55,7 +57,7 @@ const getServiceBadgeClass = (serviceType: string): string => {
   return getServiceBadgeMeta(serviceType) || fallback;
 };
 
-const renderServiceIcon = (serviceType: string, className?: string): JSX.Element => {
+const renderServiceIcon = (serviceType: string, className?: string): ReactElement => {
   return getServiceIcon(serviceType, className);
 };
 
@@ -124,7 +126,7 @@ const buildFeatureMeta = (inviteFeatureSupport: Record<string, string[]>): Featu
     return fallbackIcon || faServer;
   };
 
-  return FEATURE_META_CONFIG.map((cfg) => {
+  return FEATURE_META_CONFIG.filter(cfg => servicesSupportingFeature(cfg.key).length > 0).map((cfg) => {
     const onlyServices = servicesSupportingFeature(cfg.key);
     return {
       key: cfg.key,
@@ -145,8 +147,9 @@ const mapInviteToForm = (invite: InviteRow): InviteFormValues => {
       : (invite.libraries ?? []).map((l: InviteLibrary) => l.id);
 
   return {
+    all_library_server_ids: invite.all_library_server_ids,
     custom_path: invite.custom_path ?? '',
-    expires_at: invite.expires_at ?? null,
+    ...invitationExpiryFields(invite.expires_at),
     max_uses: invite.max_uses ?? null,
     allow_downloads: invite.allow_downloads ?? false,
     is_active: invite.is_active ?? true,
@@ -157,9 +160,9 @@ const mapInviteToForm = (invite: InviteRow): InviteFormValues => {
     allow_4k_transcode: invite.allow_4k_transcode ?? true,
     require_discord_auth: invite.require_discord_auth ?? false,
     require_discord_guild_membership: invite.require_discord_guild_membership ?? false,
-    grant_purge_whitelist: invite.grant_purge_whitelist ?? false,
-    grant_bot_whitelist: invite.grant_bot_whitelist ?? false,
-    membership_expires_at: null,
+    grant_purge_whitelist: false,
+    grant_bot_whitelist: false,
+    membership_expires_at: membershipDateFromDays(invite.membership_duration_days),
     server_features: invite.server_features ?? []
   };
 };
@@ -179,6 +182,9 @@ export const InvitesPage = () => {
   const [saving, setSaving] = useState(false);
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [purgeConfirmOpen, setPurgeConfirmOpen] = useState(false);
+  const [purging, setPurging] = useState(false);
+  const viewingArchived = statusFilter === 'archived';
   const [inviteSettings, setInviteSettings] = useState({
     default_require_discord_auth: false,
     default_require_discord_guild_membership: false,
@@ -186,9 +192,10 @@ export const InvitesPage = () => {
   const [inviteSettingsDirty, setInviteSettingsDirty] = useState(false);
   const [inviteSettingsSaving, setInviteSettingsSaving] = useState(false);
   const { data: serversData } = useAdminApi<{ data: { id: number; server_nickname: string }[] }>('/servers', true);
-  const { data: pluginMetaData } = useAdminApi<PluginMetaResponse>('/plugins/metadata', true);
+  // Shares the reshaped /api/providers cache; a raw read of the same key would get whichever shape loaded first.
+  const { plugins: providerPlugins } = usePlugins();
   const { summary } = useInviteSummary();
-  const { settings: discordSettings, refresh: refreshDiscordSettings } = useDiscordSettings();
+  const [discordSettings] = useState<DiscordSettings | null>(null);
   const { invites, pagination, loading, error, refresh } = useInvites({
     status: statusFilter === 'all' ? undefined : statusFilter,
     page,
@@ -213,12 +220,11 @@ export const InvitesPage = () => {
   }, [settingsOpen, discordSettings]);
 
   const inviteFeatureSupport = useMemo(() => {
-    const meta = pluginMetaData?.data ?? {};
-    return Object.entries(meta).reduce<Record<string, string[]>>((acc, [pluginId, value]) => {
-      acc[pluginId.toLowerCase()] = value.invite_features ?? [];
+    return providerPlugins.reduce<Record<string, string[]>>((acc, provider) => {
+      acc[provider.id] = provider.capabilities.includes('invitations.redeem') ? ['allow_downloads'] : [];
       return acc;
     }, {});
-  }, [pluginMetaData]);
+  }, [providerPlugins]);
 
   const featureMeta = useMemo(() => buildFeatureMeta(inviteFeatureSupport), [inviteFeatureSupport]);
 
@@ -238,18 +244,25 @@ export const InvitesPage = () => {
     setSelectedIds(select ? new Set(invites.map((invite) => invite.id)) : new Set());
   };
 
-  const handleBulkAction = async (action: 'enable' | 'disable' | 'delete') => {
+  const handleBulkAction = async (action: 'enable' | 'disable' | 'delete' | 'purge') => {
     if (selectedIds.size === 0) return;
     try {
-      await requestJson('/api/v2/invites/bulk', {
-        method: 'POST',
-        body: JSON.stringify({ ids: Array.from(selectedIds), action })
-      });
-      success(`Invites ${action}d successfully`);
+      await bulkInvitationAction(Array.from(selectedIds), action);
+      success(action === 'purge' ? `Permanently deleted ${selectedIds.size} invite(s)` : action === 'delete' ? 'Invites archived; history retained' : `Invites ${action}d successfully`);
       setSelectedIds(new Set());
       await refresh();
     } catch (err) {
       showError('Bulk action failed: ' + String(err));
+    }
+  };
+
+  const handleConfirmPurge = async () => {
+    setPurging(true);
+    try {
+      await handleBulkAction('purge');
+    } finally {
+      setPurging(false);
+      setPurgeConfirmOpen(false);
     }
   };
 
@@ -288,19 +301,13 @@ export const InvitesPage = () => {
   const handleSaveInvite = async (values: InviteFormValues) => {
     setSaving(true);
     try {
-      const endpoint = editingInvite ? `/api/v2/invites/${editingInvite.id}` : '/api/v2/invites';
-      const method = editingInvite ? 'PATCH' : 'POST';
-      await requestJson(endpoint, {
-        method,
-        body: JSON.stringify(values)
-      });
+      await saveInvitation(values, editingInvite ? { id: editingInvite.id, revision: editingInvite.revision ?? 0 } : undefined);
       success(editingInvite ? 'Invite updated' : 'Invite created');
       setModalOpen(false);
       setEditingInvite(null);
       await refresh();
     } catch (err) {
       showError('Failed to save invite: ' + String(err));
-      throw err;
     } finally {
       setSaving(false);
     }
@@ -323,45 +330,7 @@ export const InvitesPage = () => {
     setInviteSettingsDirty(true);
   };
 
-  const handleSaveInviteSettings = async () => {
-    if (!discordSettings) {
-      showError('Discord settings are not loaded yet.');
-      return;
-    }
-    setInviteSettingsSaving(true);
-    try {
-      await requestJson('/api/v2/settings/discord', {
-        method: 'PATCH',
-        body: JSON.stringify({
-          enable_oauth: discordSettings.enable_oauth,
-          enable_bot: discordSettings.enable_bot,
-          enable_membership_requirement: discordSettings.enable_membership_requirement,
-          default_require_discord_auth: inviteSettings.default_require_discord_auth,
-          default_require_discord_guild_membership: inviteSettings.default_require_discord_guild_membership,
-          client_id: discordSettings.client_id ?? '',
-          client_secret: '',
-          oauth_auth_url: discordSettings.oauth_auth_url ?? '',
-          redirect_uri_invite: discordSettings.redirect_uri_invite ?? '',
-          redirect_uri_admin: discordSettings.redirect_uri_admin ?? '',
-          guild_id: discordSettings.guild_id ?? '',
-          server_invite_url: discordSettings.server_invite_url ?? '',
-          bot_token: '',
-          monitored_role_id: discordSettings.monitored_role_id ?? '',
-          thread_channel_id: discordSettings.thread_channel_id ?? '',
-          bot_log_channel_id: discordSettings.bot_log_channel_id ?? '',
-          whitelist_sharers: discordSettings.whitelist_sharers,
-        })
-      });
-      success('Invite settings saved');
-      setInviteSettingsDirty(false);
-      setSettingsOpen(false);
-      await refreshDiscordSettings();
-    } catch (err) {
-      showError('Failed to save invite settings: ' + String(err));
-    } finally {
-      setInviteSettingsSaving(false);
-    }
-  };
+  const handleSaveInviteSettings = async () => showError('Discord invitation defaults are not available yet.');
 
   const statusOptions = useMemo(
     () => [
@@ -371,7 +340,8 @@ export const InvitesPage = () => {
       { label: 'Active', value: 'active' },
       { label: 'Inactive', value: 'inactive' },
       { label: 'Expired', value: 'expired' },
-      { label: 'Maxed', value: 'maxed' }
+      { label: 'Maxed', value: 'maxed' },
+      { label: 'Archived', value: 'archived' }
     ],
     []
   );
@@ -384,11 +354,14 @@ export const InvitesPage = () => {
     setPage(clamped);
   };
 
-  const handleCopyLink = (invite: InviteRow) => {
-    const invitePath = invite.custom_path || invite.token;
-    const fullUrl = `${window.location.origin}/invite/${invitePath}`;
-    navigator.clipboard.writeText(fullUrl);
-    success('Invite link copied!');
+  const handleCopyLink = async (invite: InviteRow) => {
+    try {
+      await navigator.clipboard.writeText(await invitationShareURL(invite.id));
+      success('Invite link copied!');
+    } catch (error) { showError('Unable to copy invite link: ' + String(error)); }
+  };
+  const handleOpenLink = async (invite: InviteRow) => {
+    try { await openInvitation(invite.id); } catch (error) { showError('Unable to open invite: ' + String(error)); }
   };
 
   const headerActions = (
@@ -501,31 +474,45 @@ export const InvitesPage = () => {
       {selectedIds.size > 0 && (
         <div className="mb-4 p-4 rounded-lg border shadow-sm">
           <div className="flex items-center flex-wrap gap-2">
-            <Button
-              type="button"
-              variant="destructive"
-              onClick={() => handleBulkAction('delete')}
-            >
-              <FontAwesomeIcon icon={faTrash} className="mr-0 sm:mr-2" />
-              <span className="hidden sm:inline-block">Delete ({selectedIds.size} selected)</span>
-              <span className="inline-block sm:hidden">({selectedIds.size})</span>
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => handleBulkAction('disable')}
-            >
-              <FontAwesomeIcon icon={faBan} className="mr-0 sm:mr-2" />
-              <span className="hidden sm:inline-block">Disable Selected</span>
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => handleBulkAction('enable')}
-            >
-              <FontAwesomeIcon icon={faCheck} className="mr-0 sm:mr-2" />
-              <span className="hidden sm:inline-block">Enable Selected</span>
-            </Button>
+            {viewingArchived ? (
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={() => setPurgeConfirmOpen(true)}
+              >
+                <FontAwesomeIcon icon={faTrash} className="mr-0 sm:mr-2" />
+                <span className="hidden sm:inline-block">Delete Permanently ({selectedIds.size} selected)</span>
+                <span className="inline-block sm:hidden">({selectedIds.size})</span>
+              </Button>
+            ) : (
+              <>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  onClick={() => handleBulkAction('delete')}
+                >
+                  <FontAwesomeIcon icon={faTrash} className="mr-0 sm:mr-2" />
+                  <span className="hidden sm:inline-block">Delete ({selectedIds.size} selected)</span>
+                  <span className="inline-block sm:hidden">({selectedIds.size})</span>
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => handleBulkAction('disable')}
+                >
+                  <FontAwesomeIcon icon={faBan} className="mr-0 sm:mr-2" />
+                  <span className="hidden sm:inline-block">Disable Selected</span>
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => handleBulkAction('enable')}
+                >
+                  <FontAwesomeIcon icon={faCheck} className="mr-0 sm:mr-2" />
+                  <span className="hidden sm:inline-block">Enable Selected</span>
+                </Button>
+              </>
+            )}
             <Button
               type="button"
               variant="outline"
@@ -560,6 +547,7 @@ export const InvitesPage = () => {
           loading={loading}
           onEdit={openEditModal}
           onViewDetail={openDetailDrawer}
+          onOpen={handleOpenLink}
         />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
@@ -582,6 +570,7 @@ export const InvitesPage = () => {
                 onToggleSelect={toggleSelect}
                 onEdit={openEditModal}
                 onViewDetail={openDetailDrawer}
+                onOpen={handleOpenLink}
                 onCopyLink={handleCopyLink}
                 featureMeta={featureMeta}
                 getServiceBadgeClass={getServiceBadgeClass}
@@ -635,6 +624,41 @@ export const InvitesPage = () => {
       <InviteDetailDrawer inviteId={detailInviteId} onClose={() => setDetailInviteId(null)} />
 
       <ResponsiveDialog
+        open={purgeConfirmOpen}
+        onOpenChange={(open) => { if (!purging) setPurgeConfirmOpen(open); }}
+        title={selectedIds.size === 1 ? 'Permanently delete this invite?' : `Permanently delete ${selectedIds.size} invites?`}
+        description="This cannot be undone."
+        footer={[
+          <Button key="cancel" variant="outline" onClick={() => setPurgeConfirmOpen(false)} disabled={purging}>
+            Cancel
+          </Button>,
+          <Button key="purge" variant="destructive" onClick={handleConfirmPurge} disabled={purging || selectedIds.size === 0}>
+            {purging ? (
+              <>
+                <Spinner className="mr-2 size-3" />
+                Deleting...
+              </>
+            ) : (
+              <>
+                <FontAwesomeIcon icon={faTrash} className="mr-2" />
+                Delete Permanently
+              </>
+            )}
+          </Button>,
+        ]}
+        contentClassName="max-w-lg"
+      >
+        <div className="space-y-3 text-sm">
+          <p>
+            Are you sure you want to permanently delete {selectedIds.size === 1 ? 'this archived invite' : `these ${selectedIds.size} archived invites`}?
+          </p>
+          <p className="text-muted-foreground">
+            The invite's history and data, including its usage list and sign-up records, will be deleted forever. Users who joined through it keep their accounts.
+          </p>
+        </div>
+      </ResponsiveDialog>
+
+      <ResponsiveDialog
         open={settingsOpen}
         onOpenChange={setSettingsOpen}
         title="Invite Settings"
@@ -665,8 +689,8 @@ export const InvitesPage = () => {
       >
         {!discordSettings ? (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Spinner className="size-4 text-muted-foreground" />
-            Loading Discord settings...
+            <FontAwesomeIcon icon={faBan} className="size-4 text-muted-foreground" />
+            Discord invitation settings are not available yet.
           </div>
         ) : (
           <div className="space-y-4 text-sm">

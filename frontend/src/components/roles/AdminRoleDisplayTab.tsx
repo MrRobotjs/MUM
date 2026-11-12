@@ -1,3 +1,6 @@
+import {getAccessToken} from '../../store/authStore'
+import {changeAdminRole, valuesFromRole} from '../../lib/adminRoleChanges'
+import {useAuth} from '../../contexts/AuthContext'
 import { useState, useEffect, useRef, useMemo, lazy, Suspense } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import {
@@ -80,6 +83,10 @@ const BADGE_STYLE_OPTIONS: Array<{ value: 'default' | 'fill' | 'outline'; label:
 
 export const AdminRoleDisplayTab = ({ role, onUpdate }: AdminRoleDisplayTabProps) => {
   const { success, error: showError } = useAlerts()
+  const {user} = useAuth()
+  const active = useRef(true)
+  useEffect(() => {active.current=true;return()=>{active.current=false}}, [])
+  const [baseRole, setBaseRole] = useState(role)
   const { theme } = useTheme()
   const iconInputRef = useRef<HTMLInputElement | null>(null)
   const isMobile = useIsMobile()
@@ -102,6 +109,7 @@ export const AdminRoleDisplayTab = ({ role, onUpdate }: AdminRoleDisplayTabProps
   const [iconBrowseOpen, setIconBrowseOpen] = useState(false)
 
   useEffect(() => {
+    setBaseRole(role)
     setFormValues({
       name: role.name,
       description: role.description || '',
@@ -125,25 +133,21 @@ export const AdminRoleDisplayTab = ({ role, onUpdate }: AdminRoleDisplayTabProps
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
+    if (!role.mutations_available) return
+    const token = getAccessToken()
     setSubmitting(true)
 
     try {
-      await requestJson(`/api/v2/admin-roles/${role.id}`, {
-        method: 'PATCH',
-        body: JSON.stringify({
-          name: formValues.name,
-          description: formValues.description || null,
-          color: formValues.color || null,
-          icon: formValues.icon || null,
-          badge_style: formValues.badge_style,
-        }),
-      })
+      if (!user) throw new Error('Sign in as the owner before saving.')
+      await changeAdminRole({actor_uuid:user.uuid,snapshot_revision:baseRole.snapshot_revision,mutations_available:baseRole.mutations_available}, 'update', baseRole, {...valuesFromRole(baseRole),name:formValues.name,description:formValues.description || null,color:formValues.color || null,icon:formValues.icon || null,badge_style:formValues.badge_style})
+      if (!active.current || token !== getAccessToken()) return
       success('Display settings saved successfully')
       await onUpdate()
     } catch (err) {
+      if (!active.current || token !== getAccessToken()) return
       showError(`Failed to save settings: ${(err as Error).message}`)
     } finally {
-      setSubmitting(false)
+      if (active.current) setSubmitting(false)
     }
   }
 

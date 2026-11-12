@@ -1,16 +1,19 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faCircleExclamation, faCircleInfo } from '@fortawesome/free-solid-svg-icons'
+import { faCircleExclamation, faCircleInfo, faUpload } from '@fortawesome/free-solid-svg-icons'
 
 import { usePlugins, type Plugin } from '../hooks/usePlugins'
 import { useServers } from '../hooks/useServers'
 import { PageHeader } from '../components'
 import { useAlerts } from '../contexts'
-import { requestJson } from '../util/apiClient'
+import { requestPluginMutation } from '../util/pluginMutations'
 import { PluginCard, PluginCardActions } from '../components/plugins'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 
 const getPluginKey = (plugin: Plugin) => plugin.pluginId || plugin.id
@@ -39,7 +42,7 @@ const PluginCardSkeleton = () => (
 
 export const AdminSettingsPluginsPage = () => {
   const navigate = useNavigate()
-  const { plugins, loading, error, refresh } = usePlugins()
+  const { plugins, loading, error } = usePlugins()
   const { success, error: showError } = useAlerts()
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const { servers } = useServers()
@@ -65,18 +68,17 @@ export const AdminSettingsPluginsPage = () => {
     }
 
     const endpoint = action === 'enable'
-      ? `/api/v2/plugins/${pluginId}/enable`
-      : `/api/v2/plugins/${pluginId}/disable`
+      ? `/api/providers/${pluginId}/enable`
+      : `/api/providers/${pluginId}/disable`
 
     setActionLoading(pluginId)
     try {
-      await requestJson(endpoint, { method: 'POST' })
+      await requestPluginMutation(endpoint, { method: 'POST' })
       const pastTense = {
         enable: 'enabled',
         disable: 'disabled',
       }[action]
       success(`Plugin "${plugin.name}" ${pastTense}`)
-      await refresh()
     } catch (err) {
       showError(
         `Failed to ${action} plugin: ${(err as Error).message ?? 'Unknown error'}`
@@ -84,6 +86,16 @@ export const AdminSettingsPluginsPage = () => {
     } finally {
       setActionLoading(null)
     }
+  }
+
+  // Media providers are compiled into MUM: there is nothing to install or
+  // uninstall at runtime, so these controls never send a request.
+  const handleUninstall = async (plugin: Plugin) => {
+    showError(`"${plugin.name}" is compiled into MUM and cannot be uninstalled. Disable it instead.`)
+  }
+
+  const handleInstall = async () => {
+    showError('Plugin installation is not available. Media providers are compiled into MUM.')
   }
 
   const handleConfigure = (pluginKey: string) => {
@@ -115,6 +127,7 @@ export const AdminSettingsPluginsPage = () => {
             isLoading={isLoading}
             onToggle={handleAction}
             onConfigure={handleConfigure}
+            onUninstall={handleUninstall}
           />
         }
       />
@@ -144,6 +157,24 @@ export const AdminSettingsPluginsPage = () => {
           </AlertDescription>
         </Alert>
       )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Install Community Plugin</CardTitle>
+          <CardDescription>Plugin installation is not available. Media providers are compiled into MUM; enable and configure them below.</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <Input
+            type="file"
+            accept=".zip,.tar,.tar.gz,.tgz,.tar.bz2,.tbz2,.tar.xz,.txz"
+            disabled
+          />
+          <Button onClick={handleInstall} disabled className="gap-2">
+            <FontAwesomeIcon icon={faUpload} />
+            Install
+          </Button>
+        </CardContent>
+      </Card>
 
       <div>
         <div className="space-y-8">

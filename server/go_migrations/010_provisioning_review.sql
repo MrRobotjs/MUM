@@ -1,0 +1,11 @@
+ALTER TABLE provisioning_jobs ADD COLUMN revision INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE provisioning_jobs ADD COLUMN requested_username TEXT;
+ALTER TABLE provisioning_jobs ADD COLUMN resolution TEXT CHECK(resolution IS NULL OR resolution='cancelled');
+ALTER TABLE provisioning_jobs ADD COLUMN review_token TEXT;
+ALTER TABLE provisioning_jobs ADD COLUMN review_error_code TEXT;
+UPDATE provisioning_jobs SET requested_username=(SELECT local_username FROM user_accounts WHERE uuid=provisioning_jobs.user_uuid);
+ALTER TABLE provisioning_steps ADD COLUMN remote_username TEXT;
+ALTER TABLE provisioning_steps ADD COLUMN provider_fingerprint TEXT;
+ALTER TABLE provisioning_steps ADD COLUMN cleanup_state TEXT NOT NULL DEFAULT 'pending' CHECK(cleanup_state IN ('pending','running','disabled','absent','not_started','manual','failed','unknown'));
+ALTER TABLE provisioning_steps ADD COLUMN cleanup_error_code TEXT;
+ALTER TABLE provisioning_steps ADD COLUMN cleanup_checked_at TEXT;

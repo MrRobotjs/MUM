@@ -125,7 +125,7 @@ const PayloadDialog = ({
       open={open}
       onOpenChange={onOpenChange}
       title="Raw Stream Payload"
-      description="Raw payload captured for this stream session"
+      description="Provider diagnostics captured for this session; sensitive and unsupported fields are omitted"
       contentClassName="max-w-3xl"
     >
       {formattedPayload ? (
@@ -324,6 +324,7 @@ export const StreamingSessionCard = ({
   const [sendMessageHeader, setSendMessageHeader] = useState('MUM');
   const [sendMessageTimeoutSeconds, setSendMessageTimeoutSeconds] = useState<string>('');
   const [sendingMessage, setSendingMessage] = useState(false);
+  const [failedAvatar,setFailedAvatar]=useState<string|null>(null);
   const navigate = useNavigate();
   const normalizedState = session.state?.toLowerCase();
   const stateColor = getStateColor(session.state);
@@ -333,7 +334,7 @@ export const StreamingSessionCard = ({
     ? 'Direct Play'
     : streamDetailLower.includes('direct stream')
       ? 'Direct Stream'
-      : 'Direct Play';
+      : 'Unknown';
   const isAudioOnlyVideo = (session.video_detail ?? '').toLowerCase() === 'audio only';
   const hideVideoStreamStatus =
     isAudioOnlyVideo || (session.media_type ?? '').toLowerCase() === 'track';
@@ -402,7 +403,7 @@ export const StreamingSessionCard = ({
     if (expectedExternalId) {
       try {
         const response = await requestJson<{ data?: { external_user_id?: string | null; external_user_alt_id?: string | null } }>(
-          `/api/v2/users/${uuid}`
+          `/api/users/${uuid}`
         );
         const externalUserId = response?.data?.external_user_id ? String(response.data.external_user_id) : null;
         const externalUserAltId = response?.data?.external_user_alt_id ? String(response.data.external_user_alt_id) : null;
@@ -453,7 +454,7 @@ export const StreamingSessionCard = ({
 
     try {
       setSendingMessage(true);
-      await requestJson('/api/v2/streaming/message', {
+      await requestJson('/api/streaming/message', {
         method: 'POST',
         body: JSON.stringify({
           session_key: session.session_key,
@@ -518,7 +519,7 @@ export const StreamingSessionCard = ({
               {canNavigateToUserProfile ? (
                 <a
                   href={buildUserProfilePath({
-                    uuid: session.mum_user_uuid,
+                    uuid: session.mum_user_uuid ?? '',
                     username: session.user,
                     server_nickname: session.server_name,
                   })}
@@ -1100,8 +1101,8 @@ export const StreamingSessionCard = ({
           <div className="flex items-center gap-3 overflow-hidden">
             {/* Avatar */}
             <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-full sm:h-12 sm:w-12">
-              {session.user_avatar_url ? (
-                <img src={session.user_avatar_url} alt={session.user} className="h-full w-full object-cover" />
+              {session.user_avatar_url && failedAvatar!==session.user_avatar_url ? (
+                <img onError={()=>setFailedAvatar(session.user_avatar_url??null)} src={session.user_avatar_url} alt={session.user} className="h-full w-full object-cover" />
               ) : (
                 <div className={`flex h-full w-full items-center justify-center ${avatarBgClass} font-bold ${avatarTextClass}`}>
                   {session.user?.[0]?.toUpperCase()}
@@ -1113,7 +1114,7 @@ export const StreamingSessionCard = ({
               {canNavigateToUserProfile ? (
                 <a
                   href={buildUserProfilePath({
-                    uuid: session.mum_user_uuid,
+                    uuid: session.mum_user_uuid ?? '',
                     username: session.user,
                     server_nickname: session.server_name,
                   })}

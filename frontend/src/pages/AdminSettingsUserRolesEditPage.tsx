@@ -6,20 +6,20 @@ import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { UserRoleDisplayTab } from '../components/roles/UserRoleDisplayTab'
-import { UserRoleMembersTab } from '../components/roles/UserRoleMembersTab'
+import {UserRoleMembersTab} from '../components/roles/UserRoleMembersTab'
 import { Spinner } from '@/components/ui/spinner'
 
 export const AdminSettingsUserRolesEditPage = () => {
   const { roleId } = useParams({ from: '/admin/settings/user-roles/$roleId/edit' })
   const navigate = useNavigate()
   const search = useSearch({ from: '/admin/settings/user-roles/$roleId/edit' })
-  const { roles, loading, refresh } = useUserRoles(false, true)
+  const { roles, loading, refresh, catalog, actor, sessionToken, readEpoch, busy, error } = useUserRoles()
 
   const activeTab = (search as any).tab || 'display'
   const role = roles.find((r) => r.id === roleId)
 
   const handleTabChange = (value: string) => {
-    navigate({ search: (prev: any) => ({ ...prev, tab: value }) })
+    navigate({ search: ((prev: any) => ({ ...prev, tab: value })) as any })
   }
 
   const handleBack = () => {
@@ -37,14 +37,15 @@ export const AdminSettingsUserRolesEditPage = () => {
     )
   }
 
-  if (!role) {
+  if (error || !catalog || !role) {
     return (
       <div className="space-y-6">
         <Alert variant="destructive">
           <FontAwesomeIcon icon={faCircleExclamation} className="h-4 w-4" />
-          <AlertTitle>Role not found</AlertTitle>
-          <AlertDescription>The requested role could not be found.</AlertDescription>
+          <AlertTitle>Role unavailable</AlertTitle>
+          <AlertDescription>Read saved roles to refresh the current role selection.</AlertDescription>
         </Alert>
+        <Button disabled={busy} onClick={()=>void refresh().catch(()=>{})} variant="outline">Read saved roles</Button>
         <Button onClick={handleBack} variant="outline">
           <FontAwesomeIcon icon={faArrowLeft} className="mr-2 size-4" />
           Back to Role List
@@ -63,6 +64,7 @@ export const AdminSettingsUserRolesEditPage = () => {
         </Button>
       </div>
 
+      <Button variant="outline" disabled={busy} onClick={()=>void refresh().catch(()=>{})}>Read saved roles</Button>
       {/* Header */}
       <div className="space-y-4">
         <div className="flex items-center gap-4">
@@ -94,11 +96,11 @@ export const AdminSettingsUserRolesEditPage = () => {
 
         <div className="mt-6 min-h-[400px]">
           <TabsContent value="display" className="mt-0">
-            <UserRoleDisplayTab role={role} onUpdate={refresh} />
+            <UserRoleDisplayTab key={`${actor}:${sessionToken}:${role.id}:${readEpoch}`} role={role} catalog={catalog} onUpdate={refresh} />
           </TabsContent>
 
           <TabsContent value="members" className="mt-0">
-            <UserRoleMembersTab role={role} onUpdate={refresh} />
+            <UserRoleMembersTab key={`${actor}:${sessionToken}:${role.id}:${readEpoch}`} role={role} onUpdate={refresh}/>
           </TabsContent>
         </div>
       </Tabs>

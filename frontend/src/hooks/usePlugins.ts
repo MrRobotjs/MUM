@@ -1,39 +1,12 @@
+import { useMemo } from 'react';
 import useSWR from 'swr';
-import { requestJson } from '../util/apiClient';
-
-type PluginApi = {
-  plugin_id: string;
-  name?: string | null;
-  description?: string | null;
-  status?: string | null;
-  enabled_by_user?: boolean | null;
-  author?: string | null;
-  repository?: string | null;
-  homepage?: string | null;
-  license?: string | null;
-  installed_at?: string | null;
-  last_updated?: string | null;
-  last_error?: string | null;
-  servers_count?: number;
-  supported_features?: string[] | null;
-  available?: {
-    plugin_id?: string;
-    name?: string;
-    description?: string;
-    author?: string;
-    repository?: string;
-    homepage?: string;
-    license?: string;
-    plugin_type?: string;
-  } | null;
-};
-
-type PluginsResponse = {
-  data: PluginApi[];
-  meta: {
-    request_id: string;
-  };
-};
+import {
+  PLUGINS_CACHE_KEY,
+  fetchPlugins,
+  type PluginApi,
+  type PluginsResponse,
+} from '../cache/pluginsCache';
+import { type CapabilityPayload } from '../lib/pluginCapabilities';
 
 export type Plugin = {
   id: string;
@@ -51,7 +24,9 @@ export type Plugin = {
   pluginType: string | null;
   serversCount: number;
   lastError: string | null;
+  capabilities: string[];
   supportedFeatures: string[];
+  capabilitiesRaw: CapabilityPayload;
   raw: PluginApi;
 };
 
@@ -69,8 +44,12 @@ const normalizePlugin = (item: PluginApi): Plugin => {
   const homepage = item.homepage ?? available?.homepage ?? null;
   const license = item.license ?? available?.license ?? null;
   const lastError = item.last_error ?? null;
-  const supportedFeatures = (item.supported_features ?? []) as string[];
-  const pluginType = (item as any).plugin_type ?? item.type ?? available?.plugin_type ?? null;
+  const policy = item.policy ?? {};
+  const integrations = item.integrations ?? {};
+  const capabilitiesRaw = { policy, integrations };
+  const capabilities = Array.isArray(item.capability_keys) ? item.capability_keys : [];
+  const supportedFeatures = capabilities;
+  const pluginType = (item as any).plugin_type ?? (item as { type?: string | null }).type ?? available?.plugin_type ?? null;
   const serversCount =
     item.servers_count ??
     (available as any)?.servers_count ??
@@ -92,18 +71,25 @@ const normalizePlugin = (item: PluginApi): Plugin => {
     pluginType,
     serversCount,
     lastError,
+    capabilities,
     supportedFeatures,
+    capabilitiesRaw,
     raw: item
   };
 };
 
-export const usePlugins = () => {
+type UsePluginsOptions = {
+  enabled?: boolean;
+};
+
+export const usePlugins = (options: UsePluginsOptions = {}) => {
+  const { enabled = true } = options;
   const { data, error, isLoading, mutate } = useSWR<PluginsResponse>(
-    '/api/v2/plugins',
-    (url: string) => requestJson<PluginsResponse>(url)
+    enabled ? PLUGINS_CACHE_KEY : null,
+    fetchPlugins
   );
 
-  const plugins = data?.data ? data.data.map(normalizePlugin) : [];
+  const plugins = useMemo(() => (data?.data ? data.data.map(normalizePlugin) : []), [data]);
 
   return {
     plugins,

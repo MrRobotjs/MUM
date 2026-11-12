@@ -1,3 +1,5 @@
+import { displayExpirationInfo } from '../../lib/accountDisplay';
+import { useAccountDisplay } from '../../hooks/useAccountDisplay';
 
 import { useState, useEffect } from 'react';
 import { useNavigate } from '@tanstack/react-router';
@@ -67,6 +69,7 @@ interface UserDisplaySettings {
 
 
 export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlaying, onLibraryChanged }: UserCardProps) => {
+  const { formatTimestamp, current: displaySettings } = useAccountDisplay();
   const navigate = useNavigate();
   const { success, error } = useAlerts();
   const serviceType = user.service_type?.toLowerCase();
@@ -174,7 +177,7 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
         }>;
       };
 
-      const userDetail = await requestJson<UserDetailResponse>(`/api/v2/users/${user.uuid}`);
+      const userDetail = await requestJson<UserDetailResponse>(`/api/users/${user.uuid}`);
       const detail = userDetail?.data;
       if (!detail || String(detail.user_type ?? '').toLowerCase() !== 'service') {
         throw new Error('Only service users support library removal.');
@@ -185,7 +188,7 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
       }
 
       const librariesResponse = await requestJson<LibrariesResponse>(
-        `/api/v2/libraries?server_id=${serverId}&include_server=true`
+        `/api/libraries?server_id=${serverId}&include_server=true`
       );
       const serverLibraries = librariesResponse?.data ?? [];
       const effectiveServiceType =
@@ -213,7 +216,7 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
       const removalSet = new Set(idsForClickedLibrary);
       const nextAllowedIds = currentAllowedIds.filter((id) => !removalSet.has(String(id)));
 
-      await requestJson('/api/v2/users/bulk', {
+      await requestJson('/api/users/bulk', {
         method: 'POST',
         body: JSON.stringify({
           user_uuids: [user.uuid],
@@ -332,37 +335,8 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
   const showLinkedSection = !isService || Boolean(user.linked_local_user);
   const adminRoleBadges = user.admin_roles_detail && user.admin_roles_detail.length > 0
     ? user.admin_roles_detail
-    : user.admin_roles.map((role) => ({ name: role }));
-  const getExpirationInfo = (expiresAt?: string | null) => {
-    if (!expiresAt) return null;
-    const expirationDate = new Date(expiresAt);
-    if (Number.isNaN(expirationDate.getTime())) return null;
-
-    const now = new Date();
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const startOfExpiration = new Date(
-      expirationDate.getFullYear(),
-      expirationDate.getMonth(),
-      expirationDate.getDate()
-    );
-    const dayDelta = Math.round((startOfExpiration.getTime() - startOfToday.getTime()) / 86400000);
-
-    let relativeLabel = 'expires today';
-    if (dayDelta > 1) {
-      relativeLabel = `${dayDelta} days left`;
-    } else if (dayDelta === 1) {
-      relativeLabel = '1 day left';
-    } else if (dayDelta < 0) {
-      relativeLabel = 'expired';
-    }
-
-    return {
-      formattedDate: expirationDate.toLocaleDateString(),
-      relativeLabel,
-      isExpired: dayDelta < 0,
-    };
-  };
-  const expirationInfo = getExpirationInfo(user.access_expires_at);
+    : user.admin_roles.map((role): { name: string; color?: string | null; icon?: string | null; badge_style?: string | null; description?: string | null } => ({ name: role }));
+  const expirationInfo = displayExpirationInfo(user.access_expires_at, new Date().toISOString(), displaySettings?.display);
 
   return (
     <Card
@@ -448,16 +422,16 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
               </div>
             )}
             {settings.show_added_section && (
-              <div className="flex items-center gap-1.5 overflow-hidden" title={`Added: ${user.created_at ? new Date(user.created_at).toLocaleString() : 'Unknown'}`}>
+              <div className="flex items-center gap-1.5 overflow-hidden" title={`Added: ${user.created_at ? formatTimestamp(user.created_at) : 'Unknown'}`}>
                 <FontAwesomeIcon icon={faCalendar} className="h-3 w-3 shrink-0 text-blue-400" />
                 <span className="text-[10px] font-semibold uppercase tracking-wider shrink-0">Added:</span>
-                <span className="truncate">{user.created_at ? new Date(user.created_at).toLocaleDateString() : '—'}</span>
+                <span className="truncate">{user.created_at ? formatTimestamp(user.created_at, 'date') : '—'}</span>
               </div>
             )}
             {expirationInfo && (
               <div
                 className="flex items-center gap-1.5 overflow-hidden"
-                title={`Access Expires: ${user.access_expires_at ? new Date(user.access_expires_at).toLocaleString() : 'Unknown'}`}
+                title={`Access Expires: ${user.access_expires_at ? formatTimestamp(user.access_expires_at) : 'Unknown'}`}
               >
                 <FontAwesomeIcon
                   icon={faCalendar}
@@ -478,17 +452,17 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
               </div>
             )}
             {user.service_join_date && (
-              <div className="flex items-center gap-1.5 overflow-hidden" title={`Service Join: ${new Date(user.service_join_date).toLocaleString()}`}>
+              <div className="flex items-center gap-1.5 overflow-hidden" title={`Service Join: ${formatTimestamp(user.service_join_date)}`}>
                 <FontAwesomeIcon icon={faServer} className="h-3 w-3 shrink-0 text-blue-400" />
                 <span className="text-[10px] font-semibold uppercase tracking-wider shrink-0">Joined:</span>
-                <span className="truncate">{new Date(user.service_join_date).toLocaleDateString()}</span>
+                <span className="truncate">{formatTimestamp(user.service_join_date, 'date')}</span>
               </div>
             )}
             {settings.show_streamed_section && (
-              <div className="flex items-center gap-1.5 overflow-hidden" title={`Last Streamed: ${user.last_streamed_at ? new Date(user.last_streamed_at).toLocaleString() : 'Never'}`}>
+              <div className="flex items-center gap-1.5 overflow-hidden" title={`Last Streamed: ${user.last_streamed_at ? formatTimestamp(user.last_streamed_at) : 'Never'}`}>
                 <FontAwesomeIcon icon={faClock} className={cn("h-3 w-3 shrink-0", user.last_streamed_at && "text-green-500")} />
                 <span className="text-[10px] font-semibold uppercase tracking-wider shrink-0">Seen:</span>
-                <span className="truncate">{user.last_streamed_at ? new Date(user.last_streamed_at).toLocaleDateString() : 'Never'}</span>
+                <span className="truncate">{user.last_streamed_at ? formatTimestamp(user.last_streamed_at, 'date') : 'Never'}</span>
               </div>
             )}
           </div>
@@ -527,7 +501,7 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
                 <FontAwesomeIcon icon={faLink} className="h-3 w-3 text-primary shrink-0" />
                 <div className="flex flex-col min-w-0">
                   <span className="text-[10px] font-medium leading-none text-muted-foreground mb-0.5">Linked to</span>
-                  <span className="text-xs font-semibold leading-none truncate text-primary" title={user.linked_local_user.display_name || user.linked_local_user.username}>
+                  <span className="text-xs font-semibold leading-none truncate text-primary" title={user.linked_local_user.display_name || user.linked_local_user.username || undefined}>
                     {user.linked_local_user.display_name || user.linked_local_user.username}
                   </span>
                 </div>

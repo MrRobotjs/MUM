@@ -1,5 +1,10 @@
-import { useMemo, useState } from 'react';
-import { Link, useNavigate, useParams, useSearch } from '@tanstack/react-router';
+import { useAccountDisplay } from '../hooks/useAccountDisplay';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import {useAuth} from '../contexts/AuthContext';
+import {getAccessToken,getAuthSnapshot,subscribeToAuthStore} from '../store/authStore';
+import {checkServerConnection} from '../lib/serverConnection';
+import {syncSelectedServer,type ServerSyncScope} from '../lib/serverSync';
+import { Link, useParams } from '@tanstack/react-router';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faArrowLeft,
@@ -16,7 +21,6 @@ import {
   faDatabase,
 } from '@fortawesome/free-solid-svg-icons';
 
-import { requestJson } from '../util/apiClient';
 import { useAlerts } from '../contexts';
 import { useLibraries } from '../hooks/useLibraries';
 import { useServerDetail } from '../hooks/useServers';
@@ -26,7 +30,6 @@ import { ServiceIcon } from '../components';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Card, CardContent } from '../components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Skeleton } from '../components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
@@ -42,13 +45,14 @@ type ServerStatusPayload = {
 
 type ServerDetail = {
   id: number;
+  revision: number;
   server_nickname?: string | null;
   server_name?: string | null;
   service_type?: string | null;
   url?: string | null;
   public_url?: string | null;
   is_active?: boolean | null;
-  plugin_enabled?: boolean | null;
+  provider_enabled?: boolean | null;
   effective_active?: boolean | null;
   last_status?: boolean | null;
   last_status_check?: string | null;
@@ -82,18 +86,6 @@ type ServerUser = {
   access_expires_at?: string | null;
 };
 
-type ActionResult = {
-  success?: boolean;
-  message?: string;
-};
-
-const formatDateTime = (value?: string | null) => {
-  if (!value) return 'Not available';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString();
-};
-
 const formatUrlHost = (value?: string | null) => {
   if (!value) return null;
   try {
@@ -103,15 +95,16 @@ const formatUrlHost = (value?: string | null) => {
   }
 };
 
-export const ServerDetailPage = () => {
-  const { serverId } = useParams({ from: '/admin/servers/$serverId' });
-  const search = useSearch({ strict: false }) as { tab?: ServerTab };
-  const activeTab: ServerTab = search.tab ?? 'overview';
-  const navigate = useNavigate({ from: '/admin/servers/$serverId' });
+// Overview, Users and Libraries are separate pages (/admin/servers/<id>,
+// /users, /libraries) sharing the server hero; the sidebar links between them.
+export const ServerDetailPage = ({ section = 'overview' }: { section?: ServerTab }) => {
+  const { formatTimestamp } = useAccountDisplay();
+  const formatDateTime = (value?: string | null) => formatTimestamp(value, 'datetime', 'Not available');
+  const { serverId } = useParams({ strict: false }) as { serverId: string };
   const { success, error: showError } = useAlerts();
 
   const parsedServerId = Number(serverId);
-  const numericServerId = Number.isFinite(parsedServerId) ? parsedServerId : undefined;
+  const numericServerId = Number.isSafeInteger(parsedServerId) && parsedServerId > 0 && String(parsedServerId) === serverId ? parsedServerId : undefined;
 
   const { server, loading, error, refresh } = useServerDetail(numericServerId) as {
     server: ServerDetail | null;
@@ -144,9 +137,23 @@ export const ServerDetailPage = () => {
     mutate: () => Promise<unknown>;
   };
 
-  const [testingConnection, setTestingConnection] = useState(false);
-  const [syncingLibraries, setSyncingLibraries] = useState(false);
-  const [syncingUsers, setSyncingUsers] = useState(false);
+  const {user:actor,isAdministrator}=useAuth();
+  const auth=useSyncExternalStore(subscribeToAuthStore,getAuthSnapshot);
+  const testKey=isAdministrator&&actor&&auth.accessToken&&server?`${actor.uuid}:${auth.accessToken}:${numericServerId}:${server.revision}`:'';
+  const liveTestKey=useRef(testKey);liveTestKey.current=testKey;
+  const testRun=useRef<{key:string;abort:AbortController}|null>(null);
+  const [testBusyKey,setTestBusyKey]=useState<string|null>(null);
+  const [testNeedsReadKey,setTestNeedsReadKey]=useState<string|null>(null);
+  const testingConnection=Boolean(testKey&&testBusyKey===testKey);
+  useEffect(()=>{liveTestKey.current=testKey;testRun.current?.abort.abort();testRun.current=null;setTestBusyKey(null);return()=>{liveTestKey.current='';testRun.current?.abort.abort();};},[testKey]);
+  const syncPageKey=isAdministrator&&actor&&auth.accessToken&&numericServerId?`${actor.uuid}:${auth.accessToken}:${numericServerId}`:'';
+  const liveSyncKey=useRef(syncPageKey);liveSyncKey.current=syncPageKey;
+  const syncRun=useRef<{key:string;abort:AbortController}|null>(null);
+  const [syncBusy,setSyncBusy]=useState<{key:string;scope:ServerSyncScope}|null>(null);
+  const [syncNeedsReadKey,setSyncNeedsReadKey]=useState<string|null>(null);
+  const syncingLibraries=syncBusy?.key===syncPageKey&&syncBusy.scope==='libraries';
+  const syncingUsers=syncBusy?.key===syncPageKey&&syncBusy.scope==='users';
+  useEffect(()=>{liveSyncKey.current=syncPageKey;syncRun.current?.abort.abort();syncRun.current=null;setSyncBusy(null);return()=>{liveSyncKey.current='';syncRun.current?.abort.abort();};},[syncPageKey]);
 
   const serviceType = server?.service_type || 'unknown';
   const serviceMeta = getServiceMeta(serviceType);
@@ -161,64 +168,47 @@ export const ServerDetailPage = () => {
   );
   const userCount = usersPagination?.total_items ?? users.length;
 
-  const setTab = (tab: ServerTab) => {
-    navigate({
-      search: (prev: { tab?: ServerTab }) => ({ ...prev, tab }),
-      replace: true,
-    });
-  };
-
   const refreshAll = async () => {
+    const key=testKey,page=syncPageKey;
     await Promise.all([refresh(), refreshLibraries(), refreshUsers()]);
+    if(liveTestKey.current===key)setTestNeedsReadKey(null);
+    if(liveSyncKey.current===page)setSyncNeedsReadKey(null);
   };
 
   const handleTestConnection = async () => {
-    if (!numericServerId || testingConnection) return;
-    setTestingConnection(true);
+    if (!numericServerId || !server || !testKey || testRun.current || syncRun.current || testNeedsReadKey===testKey || syncNeedsReadKey===syncPageKey) return;
+    const key=testKey, token=auth.accessToken, abort=new AbortController();
+    const current=()=>liveTestKey.current===key&&token===getAccessToken();
+    testRun.current={key,abort};setTestBusyKey(key);
     try {
-      const response = await requestJson<ActionResult>(`/api/v2/servers/${numericServerId}/test`, {
-        method: 'POST',
-      });
-      success(response.message || 'Connection test completed');
-      await refresh();
+      const receipt=await checkServerConnection(numericServerId,server.revision,current,abort.signal);
+      if(!current())return;
+      try { await refresh(); }
+      catch { if(current()){setTestNeedsReadKey(key);showError('Connection succeeded, but saved status could not be refreshed. Refresh the page.');}return; }
+      if(current())success(`Connection succeeded. Checked at ${formatDateTime(receipt.checked_at)}.`);
     } catch (err) {
-      showError(err instanceof Error ? err.message : 'Connection test failed');
+      if(current()){setTestNeedsReadKey(key);showError(err instanceof Error ? err.message : 'Connection test could not be confirmed. Refresh saved status.');}
     } finally {
-      setTestingConnection(false);
+      if(testRun.current?.key===key){testRun.current=null;if(current())setTestBusyKey(null);}
     }
   };
 
-  const handleSyncLibraries = async () => {
-    if (!numericServerId || syncingLibraries) return;
-    setSyncingLibraries(true);
-    try {
-      const response = await requestJson<ActionResult>(`/api/v2/servers/${numericServerId}/sync-libraries`, {
-        method: 'POST',
-      });
-      success(response.message || 'Library sync started');
-      await refreshAll();
-    } catch (err) {
-      showError(err instanceof Error ? err.message : 'Failed to sync libraries');
-    } finally {
-      setSyncingLibraries(false);
-    }
+  const handleSync = async (scope:ServerSyncScope) => {
+    if(!numericServerId||!server?.effective_active||!testKey||!syncPageKey||testRun.current||syncRun.current||syncNeedsReadKey===syncPageKey||testNeedsReadKey===testKey)return;
+    const key=syncPageKey,selection=testKey,token=auth.accessToken,abort=new AbortController();
+    const samePage=()=>liveSyncKey.current===key&&token===getAccessToken();
+    const current=()=>samePage()&&liveTestKey.current===selection;
+    syncRun.current={key,abort};setSyncBusy({key,scope});
+    try{
+      const receipt=await syncSelectedServer(numericServerId,server.revision,scope,current,abort.signal);
+      if(!samePage())return;
+      try{await Promise.all([refresh(),scope==='libraries'?refreshLibraries():refreshUsers()]);}
+      catch{if(samePage()){setSyncNeedsReadKey(key);showError('Synchronization committed, but the saved view could not refresh. Refresh and inspect before another attempt.');}return;}
+      if(samePage())success(scope==='libraries'?`Library sync completed: ${receipt.libraries} libraries observed.`:`User sync completed: ${receipt.users} users observed; ${receipt.added} added, ${receipt.updated} updated, ${receipt.removed} made inactive.`);
+    }catch(err){if(samePage()){setSyncNeedsReadKey(key);showError(err instanceof Error?err.message:'Synchronization could not be confirmed. Refresh saved data.');}}
+    finally{if(syncRun.current?.key===key){syncRun.current=null;if(samePage())setSyncBusy(null);}}
   };
-
-  const handleSyncUsers = async () => {
-    if (!numericServerId || syncingUsers) return;
-    setSyncingUsers(true);
-    try {
-      const response = await requestJson<ActionResult>(`/api/v2/servers/${numericServerId}/sync-users`, {
-        method: 'POST',
-      });
-      success(response.message || 'User sync started');
-      await refresh();
-    } catch (err) {
-      showError(err instanceof Error ? err.message : 'Failed to sync users');
-    } finally {
-      setSyncingUsers(false);
-    }
-  };
+  const syncUnavailable=!testKey||!server?.effective_active||testingConnection||syncingLibraries||syncingUsers||syncNeedsReadKey===syncPageKey||testNeedsReadKey===testKey;
 
   if (!serverId || !numericServerId) {
     return (
@@ -306,23 +296,7 @@ export const ServerDetailPage = () => {
         </CardContent>
       </Card>
 
-      <Tabs value={activeTab} onValueChange={(value) => setTab(value as ServerTab)}>
-        <TabsList className="w-full justify-start overflow-x-auto">
-          <TabsTrigger value="overview">
-            <FontAwesomeIcon icon={faCircleInfo} className="mr-2 h-4 w-4" />
-            Overview
-          </TabsTrigger>
-          <TabsTrigger value="users">
-            <FontAwesomeIcon icon={faUsers} className="mr-2 h-4 w-4" />
-            Users
-          </TabsTrigger>
-          <TabsTrigger value="libraries">
-            <FontAwesomeIcon icon={faDatabase} className="mr-2 h-4 w-4" />
-            Libraries
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="overview" className="space-y-6">
+        {section === 'overview' ? (<div className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <Card>
               <CardContent className="p-6 space-y-4">
@@ -387,10 +361,10 @@ export const ServerDetailPage = () => {
                 </h3>
                 <div className="space-y-3">
                   <div className="flex justify-between gap-4">
-                    <span className="text-muted-foreground">Plugin Enabled:</span>
+                    <span className="text-muted-foreground">Provider Enabled:</span>
                     <span className="font-medium text-right inline-flex items-center gap-1.5">
-                      <FontAwesomeIcon icon={server.plugin_enabled ? faCheckCircle : faXmarkCircle} className={server.plugin_enabled ? 'text-emerald-500' : 'text-destructive'} />
-                      {server.plugin_enabled ? 'Yes' : 'No'}
+                      <FontAwesomeIcon icon={server.provider_enabled ? faCheckCircle : faXmarkCircle} className={server.provider_enabled ? 'text-emerald-500' : 'text-destructive'} />
+                      {server.provider_enabled ? 'Yes' : 'No'}
                     </span>
                   </div>
                   <div className="flex justify-between gap-4">
@@ -432,7 +406,7 @@ export const ServerDetailPage = () => {
                   <Button
                     variant="outline"
                     onClick={handleTestConnection}
-                    disabled={testingConnection || syncingLibraries || syncingUsers}
+                    disabled={!testKey || testNeedsReadKey===testKey || syncNeedsReadKey===syncPageKey || testingConnection || syncingLibraries || syncingUsers}
                   >
                     {testingConnection ? (
                       <>
@@ -448,8 +422,8 @@ export const ServerDetailPage = () => {
                   </Button>
                   <Button
                     variant="outline"
-                    onClick={handleSyncLibraries}
-                    disabled={syncingLibraries || syncingUsers}
+                    onClick={()=>void handleSync('libraries')}
+                    disabled={syncUnavailable}
                   >
                     {syncingLibraries ? (
                       <>
@@ -465,8 +439,8 @@ export const ServerDetailPage = () => {
                   </Button>
                   <Button
                     variant="outline"
-                    onClick={handleSyncUsers}
-                    disabled={syncingUsers || syncingLibraries}
+                    onClick={()=>void handleSync('users')}
+                    disabled={syncUnavailable}
                   >
                     {syncingUsers ? (
                       <>
@@ -481,6 +455,11 @@ export const ServerDetailPage = () => {
                     )}
                   </Button>
                 </div>
+                {(testNeedsReadKey===testKey||syncNeedsReadKey===syncPageKey)&&<p className="text-sm text-muted-foreground">Inspect saved state before another action.</p>}
+                <Button variant="outline" className="w-full" disabled={testingConnection||syncingLibraries||syncingUsers} onClick={()=>void refreshAll().catch(()=>showError('Saved state could not be refreshed. Reload the page before another action.'))}>
+                  <FontAwesomeIcon icon={faRotate} className="mr-2 h-4 w-4" />
+                  Refresh saved state
+                </Button>
               </CardContent>
             </Card>
           </div>
@@ -509,9 +488,9 @@ export const ServerDetailPage = () => {
             <FontAwesomeIcon icon={faClock} className="h-4 w-4" />
             Use the sync actions above to refresh server health, users, and libraries.
           </div>
-        </TabsContent>
+        </div>) : null}
 
-        <TabsContent value="users" className="space-y-6">
+        {section === 'users' ? (<div className="space-y-6">
           <Card>
             <CardContent className="p-6 space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -557,7 +536,9 @@ export const ServerDetailPage = () => {
                           <TableCell>
                             <div className="space-y-1">
                               <Link
-                                to={`/admin/users/${user.uuid}?tab=profile`}
+                                to="/admin/users/$uuid"
+                                params={{ uuid: user.uuid }}
+                                search={{ tab: 'profile' }}
                                 className="font-semibold text-primary hover:underline"
                               >
                                 {user.display_name || user.username || 'Unnamed User'}
@@ -602,9 +583,9 @@ export const ServerDetailPage = () => {
               )}
             </CardContent>
           </Card>
-        </TabsContent>
+        </div>) : null}
 
-        <TabsContent value="libraries" className="space-y-6">
+        {section === 'libraries' ? (<div className="space-y-6">
           <Card>
             <CardContent className="p-6 space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -648,7 +629,9 @@ export const ServerDetailPage = () => {
                         <TableRow key={library.id}>
                           <TableCell>
                             <Link
-                              to={`/admin/libraries/${library.id}?tab=overview`}
+                              to="/admin/libraries/$libraryId"
+                              params={{ libraryId: String(library.id) }}
+                              search={{ tab: 'overview' }}
                               className="font-semibold text-primary hover:underline"
                             >
                               {library.name}
@@ -671,8 +654,7 @@ export const ServerDetailPage = () => {
               )}
             </CardContent>
           </Card>
-        </TabsContent>
-      </Tabs>
+        </div>) : null}
     </div>
   );
 };

@@ -1,4 +1,5 @@
-import { Suspense, lazy, useMemo, useRef, useState } from 'react';
+import { useAccountDisplay } from '../hooks/useAccountDisplay';
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 
 
@@ -30,7 +31,8 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
-import { requestJson } from '../util/apiClient';
+import {changeUserRoleCatalog,type UserRoleCatalog} from '../lib/userRoleCatalog';
+import {getAccessToken} from '../store/authStore';
 import { useAlerts, useTheme } from '../contexts';
 import { cn } from '@/lib/utils';
 import { ResponsiveDialog } from '@/components/ui/responsive-dialog';
@@ -41,6 +43,8 @@ import { useResolvedIconDefinition } from '@/hooks/useResolvedIconDefinition';
 import { Label } from '@/components/ui/label'
 import { PRESET_ROLE_COLORS, ROLE_BADGE_STYLE_OPTIONS, type RoleBadgeStyle } from '@/components/roles/roleFormConstants'
 import {
+  faArrowUp,
+  faArrowDown,
   faTag,
   faTags,
   faPenToSquare,
@@ -73,8 +77,11 @@ type RoleFormValues = {
 const isAutoManagedRole = (role: UserRole) => Boolean(role.is_auto_managed);
 
 export const AdminSettingsUserRolesPage = () => {
+  const { formatTimestamp } = useAccountDisplay();
   const navigate = useNavigate();
-  const { roles, loading, error, refresh } = useUserRoles(false, true);
+  const { roles, loading, error, refresh, actor, sessionToken, catalog, busy, needsRead } = useUserRoles();
+  const [draftBase,setDraftBase]=useState<UserRoleCatalog|null>(null);
+  useEffect(()=>{setModalOpen(false);setDraftBase(null)},[actor,sessionToken]);
   const { success, error: showError } = useAlerts();
   const { theme } = useTheme();
   const iconInputRef = useRef<HTMLInputElement | null>(null)
@@ -104,6 +111,8 @@ export const AdminSettingsUserRolesPage = () => {
   };
 
   const handleCreate = () => {
+    if(!catalog?.can_create||busy||needsRead)return;
+    setDraftBase(catalog);
     setEditingRole(null);
     setFormValues({
       name: '',
@@ -126,45 +135,30 @@ export const AdminSettingsUserRolesPage = () => {
     e.preventDefault();
     setSubmitting(true);
 
+    const token=getAccessToken();
     try {
-      const endpoint = editingRole
-        ? `/api/v2/user-roles/${editingRole.id}`
-        : '/api/v2/user-roles';
-      const method = editingRole ? 'PATCH' : 'POST';
-
-      await requestJson(endpoint, {
-        method,
-        body: JSON.stringify(formValues),
-      });
-
-      success(editingRole ? 'Role updated successfully' : 'Role created successfully');
-      setModalOpen(false);
-      await refresh();
-    } catch (err) {
-      showError(`Failed to save role: ${(err as Error).message}`);
-    } finally {
-      setSubmitting(false);
-    }
+      if(!draftBase)throw Error('Read saved roles and open a current creation form.');
+      await changeUserRoleCatalog(draftBase,'create',undefined,{...formValues,badge_style:formValues.badge_style});
+      if(token!==getAccessToken())return;
+      success('Role created successfully');setModalOpen(false);setDraftBase(null);
+      try{await refresh();}catch{showError('Role created. Read saved roles to refresh the list.');}
+    }catch(err){if(token===getAccessToken())showError(String(err instanceof Error?err.message:err));}
+    finally{if(token===getAccessToken())setSubmitting(false);}
   };
 
   const handleDelete = async (role: UserRole) => {
-    if (isAutoManagedRole(role)) {
-      showError(`Cannot delete the ${role.name} role`)
-      return
-    }
-    if (!confirm(`Are you sure you want to delete "${role.name}"?`)) {
-      return;
-    }
-
-    try {
-      await requestJson(`/api/v2/user-roles/${role.id}`, {
-        method: 'DELETE',
-      });
-      success('Role deleted successfully');
-      await refresh();
-    } catch (err) {
-      showError(`Failed to delete role: ${(err as Error).message}`);
-    }
+    if(!catalog||!role.can_delete||busy||needsRead||!confirm(`Delete empty manual role "${role.name}"?`))return;
+    const token=getAccessToken();setSubmitting(true);
+    try{await changeUserRoleCatalog(catalog,'delete',role.id);if(token!==getAccessToken())return;success('Role deleted successfully');try{await refresh();}catch{showError('Role deleted. Read saved roles to refresh the list.');}}
+    catch(err){if(token===getAccessToken())showError(String(err instanceof Error?err.message:err));}finally{if(token===getAccessToken())setSubmitting(false);}
+  };
+  const handleMove=async(index:number,offset:number)=>{
+    if(!catalog?.can_reorder||busy||needsRead||index+offset<0||index+offset>=roles.length)return;
+    const order=[...roles];[order[index],order[index+offset]]=[order[index+offset],order[index]];
+    if(!confirm(`Save visual role order: ${order.map(r=>r.name).join(', ')}?`))return;
+    const token=getAccessToken();setSubmitting(true);
+    try{await changeUserRoleCatalog(catalog,'reorder',undefined,undefined,order.map((r,i)=>({id:r.id,position:order.length-1-i})));if(token!==getAccessToken())return;success('Role order saved');try{await refresh();}catch{showError('Role order saved. Read saved roles to refresh the list.');}}
+    catch(err){if(token===getAccessToken())showError(String(err instanceof Error?err.message:err));}finally{if(token===getAccessToken())setSubmitting(false);}
   };
 
   const formId = 'user-role-form';
@@ -469,9 +463,9 @@ export const AdminSettingsUserRolesPage = () => {
         title="User Roles"
         description="Manage visual/cosmetic roles for users (badges, colors)"
         actions={
-          <Button size="sm" onClick={handleCreate}>
+          <div className="flex items-center gap-2"><Button size="sm" variant="outline" disabled={busy||submitting} onClick={()=>{void refresh().then(()=>{setModalOpen(false);setDraftBase(null)}).catch(err=>showError(String(err.message)));}}>Read saved roles</Button><Button size="sm" disabled={!catalog?.can_create||busy||needsRead||submitting} onClick={handleCreate}>
             Create Role
-          </Button>
+          </Button></div>
         }
       />
 
@@ -509,7 +503,7 @@ export const AdminSettingsUserRolesPage = () => {
             <div className="flex items-center justify-center py-12">
               <Spinner className="size-4 text-muted-foreground" />
             </div>
-          ) : (
+          ) : !catalog ? <p className="text-sm text-muted-foreground">Current roles are unavailable. Read saved roles to continue.</p> : (
             <div className="w-full min-w-0 rounded-lg border">
               <Table>
                 <TableHeader>
@@ -532,7 +526,7 @@ export const AdminSettingsUserRolesPage = () => {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    roles.map((role) => (
+                    roles.map((role,index) => (
                       <TableRow key={role.id}>
                         <TableCell>
                           <div className="flex items-center gap-3">
@@ -578,20 +572,22 @@ export const AdminSettingsUserRolesPage = () => {
                         </TableCell>
                         <TableCell>
                           <span className="text-sm text-muted-foreground">
-                            {new Date(role.created_at).toLocaleDateString()}
+                            {formatTimestamp(role.created_at, 'date')}
                           </span>
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-2">
-                            <Button variant="ghost" size="sm" onClick={() => handleEdit(role)}>
+                            <Button variant="ghost" size="sm" disabled={!catalog.can_reorder||busy||submitting||index===0} onClick={()=>void handleMove(index,-1)} aria-label={`Move ${role.name} up`}><FontAwesomeIcon icon={faArrowUp} className="mr-1 size-3"/></Button><Button variant="ghost" size="sm" disabled={!catalog.can_reorder||busy||submitting||index===roles.length-1} onClick={()=>void handleMove(index,1)} aria-label={`Move ${role.name} down`}><FontAwesomeIcon icon={faArrowDown} className="mr-1 size-3"/></Button>
+                            <Button variant="ghost" size="sm" disabled={!role.can_update||busy||submitting} onClick={() => handleEdit(role)}>
                               <FontAwesomeIcon icon={faPenToSquare} className="mr-1 size-3" />
                               <span className="hidden md:inline">Edit</span>
                             </Button>
-                            {!isAutoManagedRole(role) && (
+                            {role.can_delete && (
                               <Button
                                 variant="ghost"
                                 size="sm"
                                 className="text-destructive hover:bg-destructive/10"
+                                disabled={busy||submitting||needsRead}
                                 onClick={() => handleDelete(role)}
                               >
                                 <FontAwesomeIcon icon={faTrashCan} className="mr-1 size-3" />
@@ -625,7 +621,7 @@ export const AdminSettingsUserRolesPage = () => {
           >
             Cancel
           </Button>,
-          <Button key="save" type="submit" form={formId} disabled={submitting}>
+          <Button key="save" type="submit" form={formId} disabled={submitting||busy||needsRead||!draftBase}>
             {submitting ? 'Saving…' : editingRole ? 'Update Role' : 'Create Role'}
           </Button>,
         ]}

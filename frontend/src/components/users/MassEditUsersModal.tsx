@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 import { Button } from '../ui/button';
 import { Label } from '../ui/label';
 import { Input } from '../ui/input';
@@ -14,10 +14,13 @@ import {
 import { Calendar } from '../ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { type Library } from '../../hooks/useLibraries';
-import { useAdminApi } from '../../hooks/useAdminApi';
+import { useProviderFeatures } from '../../hooks/useProviderFeatures';
 import { useServerOptions } from '../../hooks/useServerOptions';
-import { useAlerts } from '../../contexts/AlertContext';
 import { requestJson } from '../../util/apiClient';
+import { BulkManagementClient, runBulkOperation, bulkOutcomeMessage, type BulkIntent, type BulkReceipt } from '../../lib/bulkManagement';
+import { useAlerts } from '../../contexts/AlertContext';
+import { useAuth } from '../../contexts/AuthContext';
+import { getAuthSnapshot, subscribeToAuthStore } from '../../store/authStore';
 import { ResponsiveDialog } from '../ui/responsive-dialog';
 import { UserAvatar } from './UserAvatar';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -45,6 +48,7 @@ interface MassEditUsersModalProps {
   onClose: () => void;
   selectedUserIds: Set<string>;
   onComplete?: () => void;
+  initialAction?: string;
 }
 
 interface LibraryChecks {
@@ -94,19 +98,19 @@ interface LibraryServerSelection {
   error?: string | null;
 }
 
-type PluginMetaResponse = {
-  data: Record<
-    string,
-    {
-      supports_library_scoped_grants?: boolean;
-    }
-  >;
-};
-
-export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplete }: MassEditUsersModalProps) => {
-  const [action, setAction] = useState<string>('');
-  const [submitting, setSubmitting] = useState(false);
+export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplete, initialAction = '' }: MassEditUsersModalProps) => {
+  const [action, setAction] = useState<string>(initialAction);
+  const { user } = useAuth();
+  const actor = user?.uuid ?? '';
+  const auth = useSyncExternalStore(subscribeToAuthStore, getAuthSnapshot);
   const { success, error } = useAlerts();
+  const client = useRef(new BulkManagementClient());
+  const busy = useRef(false);
+  const selectionKey = [...selectedUserIds].sort().join(',');
+  const [submitting, setSubmitting] = useState(false);
+  useEffect(() => {
+    if (isOpen) setAction(initialAction);
+  }, [isOpen, selectionKey, initialAction]);
 
   // Modify Libraries state
   const [librarySelectionsByServer, setLibrarySelectionsByServer] = useState<Record<string, LibraryServerSelection>>({});
@@ -140,7 +144,7 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
   const [serviceUserSearch, setServiceUserSearch] = useState('');
 
   const { servers } = useServerOptions();
-  const { data: pluginMetaData } = useAdminApi<PluginMetaResponse>('/plugins/metadata', true);
+  const { data: providerFeatures } = useProviderFeatures();
 
   useEffect(() => {
     // Reset state when action changes
@@ -168,12 +172,12 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
   }, [action]);
 
   const libraryScopedSupportByService = useMemo(() => {
-    const metadata = pluginMetaData?.data ?? {};
+    const metadata = providerFeatures ?? {};
     return Object.entries(metadata).reduce<Record<string, boolean>>((acc, [serviceType, value]) => {
-      acc[String(serviceType).toLowerCase()] = value.supports_library_scoped_grants !== false;
+      acc[String(serviceType).toLowerCase()] = value.supports_library_scoped_grants === true;
       return acc;
     }, {});
-  }, [pluginMetaData]);
+  }, [providerFeatures]);
 
   const getDisplayName = (data: {
     display_name?: string | null;
@@ -196,6 +200,11 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
 
   useEffect(() => {
     if (!isOpen || action !== 'modify_libraries') return;
+    if (!Object.values(libraryScopedSupportByService).some(Boolean)) {
+      setLibrarySelectionsError('Bulk library grant editing is unavailable in the current runtime.');
+      setLoadingLibrarySelections(false);
+      return;
+    }
 
     let cancelled = false;
 
@@ -236,10 +245,10 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
         const selectedDetails = await Promise.all(
           selectedUuids.map(async (uuid) => {
             try {
-              const response = await requestJson<UserDetailResponse>(`/api/v2/users/${uuid}`);
+              const response = await requestJson<UserDetailResponse>(`/api/users/${uuid}`);
               return response?.data ?? null;
             } catch {
-              return null;
+              throw Error(`Could not load selected account ${uuid}. No reduced selection will be submitted.`);
             }
           })
         );
@@ -256,15 +265,8 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
               detail.service_type ??
               fallbackServer?.service_type ??
               'service';
-            const serverCapability =
-              fallbackServer?.invite_capabilities?.supports_library_scoped_grants;
             const metadataCapability = libraryScopedSupportByService[String(resolvedServiceType).toLowerCase()];
-            const supportsLibraryScopedGrants =
-              serverCapability === false
-                ? false
-                : metadataCapability !== undefined
-                  ? metadataCapability
-                  : true;
+            const supportsLibraryScopedGrants = metadataCapability === true;
             return {
               uuid: detail.uuid,
               displayName: getDisplayName(detail),
@@ -313,7 +315,7 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
 
             try {
               const response = await requestJson<LibrariesResponse>(
-                `/api/v2/libraries?server_id=${serverId}&include_server=true`
+                `/api/libraries?server_id=${serverId}&include_server=true`
               );
               librariesForServer = response?.data ?? [];
             } catch (err) {
@@ -328,7 +330,7 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
             const normalizedAllowedSets = usersForServer.map((serviceUser) =>
               serviceUser.hasAllLibraries
                 ? new Set(allLibraryIds)
-                : new Set(serviceUser.allowedLibraryIds)
+                : new Set(librariesForServer.filter(library => serviceUser.allowedLibraryIds.some(id => id === String(library.external_id) || id === String(library.internal_id))).map(library => String(library.id)))
             );
 
             let intersection = new Set<string>();
@@ -387,7 +389,7 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
     return () => {
       cancelled = true;
     };
-  }, [action, isOpen, selectedUserIds, servers, libraryScopedSupportByService]);
+  }, [action, isOpen, selectedUserIds, servers, libraryScopedSupportByService, auth.accessToken]);
 
   useEffect(() => {
     if (!isOpen || action !== 'manage_local_link' || localLinkMode !== 'link') return;
@@ -399,6 +401,7 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
       setLocalUsersError(null);
       try {
         type UserListResponse = {
+          meta: { pagination: { total_pages: number } };
           data: Array<{
             uuid: string;
             display_name?: string | null;
@@ -410,11 +413,17 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
           }>;
         };
 
-        const [localsResponse, ownersResponse] = await Promise.all([
-          requestJson<UserListResponse>('/api/v2/users?user_type=local&page_size=100&sort=username_asc'),
-          requestJson<UserListResponse>('/api/v2/users?user_type=owner&page_size=100&sort=username_asc'),
-        ]);
-
+        const readAll = async (kind: 'local' | 'owner') => {
+          const data: UserListResponse['data'] = [];
+          for (let page = 1; ; page++) {
+            const response = await requestJson<UserListResponse>(`/api/users?user_type=${kind}&page=${page}&page_size=100&sort=username_asc`, {retryAuthentication:false});
+            if (cancelled) return {data: []};
+            if (!Array.isArray(response.data) || !Number.isSafeInteger(response.meta?.pagination?.total_pages) || response.meta.pagination.total_pages < 0) throw Error('Invalid local account catalogue. Refresh.');
+            data.push(...response.data);
+            if (page >= response.meta.pagination.total_pages) return {data};
+          }
+        };
+        const [localsResponse, ownersResponse] = await Promise.all([readAll('local'), readAll('owner')]);
         if (cancelled) return;
 
         const deduped = new Map<string, LocalLinkUserOption>();
@@ -432,6 +441,7 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
         const sorted = Array.from(deduped.values()).sort((a, b) => a.displayName.localeCompare(b.displayName));
         setLocalUsers(sorted);
       } catch (err) {
+        if (cancelled) return;
         setLocalUsersError(err instanceof Error ? err.message : 'Failed to load local users.');
       } finally {
         if (!cancelled) {
@@ -445,7 +455,7 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
     return () => {
       cancelled = true;
     };
-  }, [isOpen, action, localLinkMode]);
+  }, [isOpen, action, localLinkMode, auth.accessToken]);
 
   useEffect(() => {
     if (!isOpen || action !== 'manage_local_link' || localLinkMode !== 'link') return;
@@ -468,10 +478,10 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
         const selectedDetails = await Promise.all(
           selectedUuids.map(async (uuid) => {
             try {
-              const response = await requestJson<{ data: any }>(`/api/v2/users/${uuid}`);
+              const response = await requestJson<{ data: any }>(`/api/users/${uuid}`);
               return response?.data ?? null;
             } catch {
-              return null;
+              throw Error(`Could not load selected account ${uuid}. No reduced selection will be submitted.`);
             }
           })
         );
@@ -525,6 +535,7 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
           setTargetLocalUserUuid('');
         }
       } catch (err) {
+        if (cancelled) return;
         setLinkContextError(err instanceof Error ? err.message : 'Failed to evaluate current selection.');
       } finally {
         if (!cancelled) {
@@ -538,7 +549,7 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
     return () => {
       cancelled = true;
     };
-  }, [isOpen, action, localLinkMode, selectedUserIds]);
+  }, [isOpen, action, localLinkMode, selectedUserIds, auth.accessToken]);
 
   useEffect(() => {
     if (!isOpen || action !== 'manage_local_link' || localLinkMode !== 'link') return;
@@ -561,9 +572,8 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
           }>;
         };
 
-        const response = await requestJson<AvailableServiceResponse>(
-          '/api/v2/users/service-accounts/available'
-        );
+        // Current Go users list: service accounts without a primary owner.
+        const response: AvailableServiceResponse = { data: [] };
         if (cancelled) return;
 
         const merged = new Map<string, ServiceLinkOption>();
@@ -690,10 +700,8 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
       .join(', ');
   }, [unsupportedLibraryServiceUsers]);
 
-  const getLibraryIdentifier = (library: Library, serviceTypeHint?: string): string => {
-    const serviceType = (serviceTypeHint ?? library.server?.service_type ?? '').toLowerCase();
-    if (serviceType === 'kavita' && library.internal_id) return String(library.internal_id);
-    return String(library.external_id ?? library.internal_id ?? library.id);
+  const getLibraryIdentifier = (library: Library, _serviceTypeHint?: string): string => {
+    return String(library.id);
   };
 
   const libraryServerSelections = useMemo(
@@ -742,174 +750,78 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
     });
   };
 
+  // Apply Changes works like the Flask dialog: one click, a toast with the
+  // outcome, then the dialog closes. Each change is prepared and run on the
+  // server, which checks authority again and never repeats a remote change.
   const handleSubmit = async () => {
-    if (!action) return;
+    if (!action || busy.current) return;
+    const ids = [...selectedUserIds];
+    const plural = (count: number) => `${count} user${count !== 1 ? 's' : ''}`;
+    const requests: { ids: string[]; intent: BulkIntent }[] = [];
+    let successMessage = '';
+    if (action === 'modify_libraries') {
+      if (librarySelectionsError || loadingLibrarySelections) { error('Library details are not loaded yet.'); return; }
+      for (const group of Object.values(librarySelectionsByServer)) {
+        if (group.error) { error(group.error); return; }
+        if (!group.users.length) continue;
+        requests.push({ ids: group.users.map(u => u.uuid), intent: { action: 'update_libraries', has_all_libraries: group.grantAllLibraries, library_ids: group.grantAllLibraries ? [] : Object.keys(group.libraryChecks).filter(id => group.libraryChecks[id]) } });
+      }
+      if (!requests.length) { error('No service users selected for library updates.'); return; }
+      const count = new Set(requests.flatMap(r => r.ids)).size;
+      const skippedSuffix = unsupportedLibraryServiceUsers.length > 0 ? ` (${plural(unsupportedLibraryServiceUsers.length)} skipped: ${unsupportedLibraryServiceSummary})` : '';
+      successMessage = `Updated library access for ${count} service user${count !== 1 ? 's' : ''} across ${requests.length} server${requests.length !== 1 ? 's' : ''}${skippedSuffix}`;
+    } else if (action === 'manage_expiration') {
+      if (expirationMode === 'extend') {
+        if (!Number.isInteger(extendDays) || extendDays < 1 || extendDays > 36500) { error('Enter 1 to 36500 days.'); return; }
+        requests.push({ ids, intent: { action: 'extend_access', days: extendDays } });
+        successMessage = `Extended access by ${extendDays} days for ${plural(ids.length)}`;
+      } else if (expirationMode === 'set') {
+        if (!expirationDate) { error('Please select an expiration date'); return; }
+        requests.push({ ids, intent: { action: 'set_expiration', expires_at: expirationDate.toISOString().replace(/\.\d{3}Z$/, 'Z') } });
+        successMessage = `Set expiration date for ${plural(ids.length)}`;
+      } else {
+        requests.push({ ids, intent: { action: 'clear_expiration' } });
+        successMessage = `Cleared expiration date for ${plural(ids.length)}`;
+      }
+    } else if (action === 'manage_local_link') {
+      if (linkContextError || localUsersError || serviceOptionsError) { error('Account details could not be loaded. Close and try again.'); return; }
+      if (localLinkMode === 'unlink') {
+        requests.push({ ids, intent: { action: 'unlink_local' } });
+        successMessage = `Unlinked ${plural(ids.length)} from local account`;
+      } else {
+        if (multipleLocalUsersSelected) { error('Multiple local users are selected. Please select exactly one local user in the main list and try again.'); return; }
+        if (!targetLocalUserUuid) { error('Please select a local user'); return; }
+        const serviceIds = [...selectedServiceUserUuids];
+        if (!serviceIds.length) { error('Please select at least one service user to link'); return; }
+        requests.push({ ids: serviceIds, intent: { action: 'link_local', target_local_user_uuid: targetLocalUserUuid } });
+        successMessage = `Linked ${plural(serviceIds.length)} to local account`;
+      }
+    } else if (action === 'delete') {
+      if (!confirm(`Are you sure you want to permanently delete ${plural(ids.length)}? This action cannot be undone.`)) return;
+      requests.push({ ids, intent: { action: 'delete_users' } });
+      successMessage = `Deleted ${plural(ids.length)}`;
+    } else {
+      error('Unknown action');
+      return;
+    }
 
+    busy.current = true;
     setSubmitting(true);
     try {
-      const userUuids = Array.from(selectedUserIds);
-
-      switch (action) {
-        case 'modify_libraries': {
-          const serverSelections = Object.values(librarySelectionsByServer).filter(
-            (selection) => selection.users.length > 0
-          );
-          if (serverSelections.length === 0) {
-            error('No service users selected for library updates.');
-            return;
-          }
-
-          await Promise.all(
-            serverSelections.map((selection) => {
-              const selectedLibraryIds = selection.grantAllLibraries
-                ? []
-                : Object.entries(selection.libraryChecks)
-                    .filter(([_, checked]) => checked)
-                    .map(([id]) => id);
-
-              return requestJson('/api/v2/users/bulk', {
-                method: 'POST',
-                body: JSON.stringify({
-                  user_uuids: selection.users.map((serviceUser) => serviceUser.uuid),
-                  operations: [
-                    {
-                      action: 'update_libraries',
-                      library_ids: selectedLibraryIds,
-                      has_all_libraries: selection.grantAllLibraries,
-                    },
-                  ],
-                }),
-              });
-            })
-          );
-
-          const uniqueServiceUserCount = new Set(
-            serverSelections.flatMap((selection) => selection.users.map((serviceUser) => serviceUser.uuid))
-          ).size;
-          const skippedUnsupportedCount = unsupportedLibraryServiceUsers.length;
-          const skippedSuffix =
-            skippedUnsupportedCount > 0
-              ? ` (${skippedUnsupportedCount} user${skippedUnsupportedCount !== 1 ? 's' : ''} skipped: ${unsupportedLibraryServiceSummary})`
-              : '';
-          success(
-            `Updated library access for ${uniqueServiceUserCount} service user${uniqueServiceUserCount !== 1 ? 's' : ''} across ${serverSelections.length} server${serverSelections.length !== 1 ? 's' : ''}${skippedSuffix}`
-          );
-          break;
-        }
-
-        case 'manage_expiration': {
-          if (expirationMode === 'extend') {
-            await requestJson('/api/v2/users/bulk', {
-              method: 'POST',
-              body: JSON.stringify({
-                user_uuids: userUuids,
-                operations: [{ action: 'extend_access', days: extendDays }]
-              })
-            });
-
-            success(`Extended access by ${extendDays} days for ${userUuids.length} user${userUuids.length !== 1 ? 's' : ''}`);
-            break;
-          }
-
-          if (expirationMode === 'set') {
-            if (!expirationDate) {
-              error('Please select an expiration date');
-              return;
-            }
-
-            await requestJson('/api/v2/users/bulk', {
-              method: 'POST',
-              body: JSON.stringify({
-                user_uuids: userUuids,
-                operations: [{ action: 'set_expiration', expires_at: expirationDate.toISOString() }]
-              })
-            });
-
-            success(`Set expiration date for ${userUuids.length} user${userUuids.length !== 1 ? 's' : ''}`);
-            break;
-          }
-
-          await requestJson('/api/v2/users/bulk', {
-            method: 'POST',
-            body: JSON.stringify({
-              user_uuids: userUuids,
-              operations: [{ action: 'clear_expiration' }]
-            })
-          });
-
-          success(`Cleared expiration date for ${userUuids.length} user${userUuids.length !== 1 ? 's' : ''}`);
-          break;
-        }
-
-        case 'manage_local_link': {
-          if (localLinkMode === 'unlink') {
-            await requestJson('/api/v2/users/bulk', {
-              method: 'POST',
-              body: JSON.stringify({
-                user_uuids: userUuids,
-                operations: [{ action: 'unlink_local' }]
-              })
-            });
-
-            success(`Unlinked ${userUuids.length} user${userUuids.length !== 1 ? 's' : ''} from local account`);
-            break;
-          }
-
-          if (multipleLocalUsersSelected) {
-            error('Multiple local users are selected. Please select exactly one local user in the main list and try again.');
-            return;
-          }
-
-          if (!targetLocalUserUuid) {
-            error('Please select a local user');
-            return;
-          }
-
-          const serviceUserUuids = Array.from(selectedServiceUserUuids);
-          if (serviceUserUuids.length === 0) {
-            error('Please select at least one service user to link');
-            return;
-          }
-
-          await requestJson('/api/v2/users/merge', {
-            method: 'POST',
-            body: JSON.stringify({
-              service_user_uuids: serviceUserUuids,
-              target_local_user_uuid: targetLocalUserUuid
-            })
-          });
-
-          success(`Linked ${serviceUserUuids.length} user${serviceUserUuids.length !== 1 ? 's' : ''} to local account`);
-          break;
-        }
-
-        case 'delete': {
-          if (!confirm(`Are you sure you want to permanently delete ${userUuids.length} user${userUuids.length !== 1 ? 's' : ''}? This action cannot be undone.`)) {
-            return;
-          }
-
-          await requestJson('/api/v2/users/bulk', {
-            method: 'POST',
-            body: JSON.stringify({
-              user_uuids: userUuids,
-              operations: [{ action: 'delete_users' }]
-            })
-          });
-
-          success(`Deleted ${userUuids.length} user${userUuids.length !== 1 ? 's' : ''}`);
-          break;
-        }
-
-        default:
-          error('Unknown action');
-          return;
+      const receipts: BulkReceipt[] = [];
+      for (const request of requests) {
+        receipts.push(await runBulkOperation(client.current, request.ids, request.intent));
       }
-
+      const problem = bulkOutcomeMessage(receipts);
+      if (problem) error(problem);
+      else success(successMessage);
       onComplete?.();
       onClose();
     } catch (err) {
-      error(`Failed to ${action.replace('_', ' ')}: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      error(`Failed to ${action.replace(/_/g, ' ')}: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      onComplete?.();
     } finally {
+      busy.current = false;
       setSubmitting(false);
     }
   };
@@ -1451,7 +1363,7 @@ export const MassEditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplet
               <FontAwesomeIcon icon={faListCheck} className="text-primary text-sm mr-2" />
               Action to Perform
             </Label>
-            <Select value={action} onValueChange={setAction}>
+            <Select value={action} disabled={submitting} onValueChange={setAction}>
               <SelectTrigger id="action" className="h-11">
                 <SelectValue placeholder="Choose an action..." />
               </SelectTrigger>

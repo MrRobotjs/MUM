@@ -1,4 +1,8 @@
 export type MessageType =
+	| 'ActivityInvalidated'
+	| 'NotificationInvalidated'
+  | 'ChatMessage'
+  | 'OperationalEvent'
   | 'SessionStart'
   | 'SessionUpdate'
   | 'SessionStop'

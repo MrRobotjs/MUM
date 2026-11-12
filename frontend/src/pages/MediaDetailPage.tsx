@@ -1,7 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useAccountDisplay } from '../hooks/useAccountDisplay';
+import { useState, useEffect, useSyncExternalStore } from 'react';
 import { useParams, Link, useSearch, useNavigate } from '@tanstack/react-router';
+import { useAuth } from '../contexts/AuthContext';
+import { getAuthSnapshot, subscribeToAuthStore } from '../store/authStore';
+import { useCatalogueView } from '../lib/catalogueView';
 import { requestJson } from '../util/apiClient';
-// Images are authenticated via cookie; no token param needed
+import { useAlerts } from '../contexts/AlertContext';
+import { purgeEpisodeCatalogue, syncEpisodeCatalogue } from '../lib/libraryCatalogue';
+// Catalogue posters use signed session-bound URLs.
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -57,6 +63,9 @@ interface MediaItem {
   thumb?: string;
   added_at?: string;
   stream_count?: number;
+  catalogue_supported?: boolean;
+  episode_catalogue_supported?: boolean;
+  episode_revision?: number;
   library?: {
     id: number;
     name: string;
@@ -85,11 +94,21 @@ interface Episode {
 }
 
 export const MediaDetailPage = () => {
+  const { libraryId, mediaId } = useParams({ from: '/admin/libraries/$libraryId/$mediaId' });
+  const { user, isAdministrator } = useAuth();
+  const auth = useSyncExternalStore(subscribeToAuthStore, getAuthSnapshot, getAuthSnapshot);
+  if (!user || !isAdministrator || !auth.accessToken) return null;
+  return <MediaDetailPageView key={JSON.stringify([user.uuid, auth.accessToken, libraryId, mediaId])} />;
+};
+
+const MediaDetailPageView = () => {
+  const { formatTimestamp } = useAccountDisplay();
+  const { success, error: showError, info } = useAlerts();
   const { libraryId, mediaId } = useParams({ from: '/admin/libraries/$libraryId/$mediaId' }) as {
     libraryId: string
     mediaId: string
   };
-  const search = useSearch({ from: '/admin/libraries/$libraryId/$mediaId', strict: false }) as { tab?: TabType };
+  const search = useSearch({ strict: false }) as { tab?: TabType };
   const navigate = useNavigate();
 
   const [mediaItem, setMediaItem] = useState<MediaItem | null>(null);
@@ -109,6 +128,13 @@ export const MediaDetailPage = () => {
   const [purgingEpisodes, setPurgingEpisodes] = useState(false);
 
   const activeTab: TabType = search.tab ?? 'overview';
+  const [needsInspection, setNeedsInspection] = useState(false);
+  const queries = {
+    item: JSON.stringify([libraryId, mediaId]),
+    episodes: JSON.stringify([libraryId, mediaId, activeTab, episodesPage, episodesSearch, episodesSortBy, episodesPerPage]),
+  };
+  const view = useCatalogueView(queries);
+
   // Check if this is a TV show library (show, tv, series, tvshows)
   const libraryType = mediaItem?.library?.library_type?.toLowerCase() || '';
   const isTVShow = ['show', 'tv', 'series', 'tvshows'].includes(libraryType);
@@ -118,33 +144,46 @@ export const MediaDetailPage = () => {
   }, [libraryId, mediaId]);
 
   useEffect(() => {
-    if (isTVShow && activeTab === 'episodes') {
+    if (isTVShow && mediaItem?.episode_catalogue_supported === true && activeTab === 'episodes') {
       loadEpisodes();
     }
-  }, [activeTab, episodesPage, episodesSearch, episodesSortBy, episodesPerPage, isTVShow]);
+  }, [libraryId, mediaId, activeTab, episodesPage, episodesSearch, episodesSortBy, episodesPerPage, isTVShow, mediaItem?.episode_catalogue_supported]);
 
   const loadMediaItem = async () => {
     if (!libraryId || !mediaId) return;
 
+    if (!view.current()) return false;
+    const read = view.begin('item', queries.item);
+    if (!read.current()) return false;
     try {
       setLoading(true);
-      const response = await requestJson(
-        `/api/v2/libraries/${libraryId}/media/${mediaId}?include_library=true`
-      );
+      const response = await requestJson<{data?: MediaItem}>(
+        `/api/libraries/${libraryId}/media/${mediaId}?include_library=true`,
+        { signal: read.signal, retryAuthentication: false });
+      if (!read.current()) return false;
 
+      if (response.data?.id !== Number(mediaId) || response.data?.library?.id !== Number(libraryId)) throw new Error('Media detail does not match this route');
       if (response.data) {
         setMediaItem(response.data);
+        setError(null);
       }
+      return true;
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load media item');
+      if (!read.current()) return false;
+      if (!mediaItem) setError(err instanceof Error ? err.message : 'Failed to load media item');
+      return false;
     } finally {
-      setLoading(false);
+      read.finish();
+      if (read.current()) setLoading(false);
     }
   };
 
   const loadEpisodes = async () => {
-    if (!libraryId || !mediaId) return;
+    if (!libraryId || !mediaId || mediaItem?.episode_catalogue_supported !== true) return false;
 
+    if (!view.current()) return false;
+    const read = view.begin('episodes', queries.episodes);
+    if (!read.current()) return false;
     try {
       setEpisodesLoading(true);
       const params = new URLSearchParams({
@@ -156,45 +195,70 @@ export const MediaDetailPage = () => {
         params.append('search', episodesSearch);
       }
 
-      const response = await requestJson(
-        `/api/v2/libraries/${libraryId}/media/${mediaId}/episodes?${params}`
-      );
+      const response = await requestJson<{data?: {episodes?: Episode[]}; meta?: {pagination?: {total_pages?: number; total_items?: number}}}>(
+        `/api/libraries/${libraryId}/media/${mediaId}/episodes?${params}`,
+        { signal: read.signal, retryAuthentication: false });
+      if (!read.current()) return false;
 
+      if (!Array.isArray(response.data?.episodes) || !response.meta?.pagination) throw new Error('Invalid episode list');
       if (response.data) {
         setEpisodes(response.data.episodes || []);
         setEpisodesTotalPages(response.meta?.pagination?.total_pages || 1);
         setEpisodesTotalItems(response.meta?.pagination?.total_items || 0);
       }
+      return true;
     } catch (err) {
+      if (!read.current()) return false;
       console.error('Failed to load episodes:', err);
       setEpisodes([]);
+      return false;
     } finally {
-      setEpisodesLoading(false);
+      read.finish();
+      if (read.current()) setEpisodesLoading(false);
     }
   };
 
-  const handleSyncEpisodes = async () => {
-    if (!libraryId || !mediaId) return;
+  const refreshSavedState = async () => {
+    if (!view.current()) return;
+    const inspection = view.inspectionRevision();
+    const detail = await loadMediaItem();
+    if (!view.current()) return;
+    const items = await loadEpisodes();
+    if (!view.current()) return;
+    if (detail && items && view.inspected(inspection)) setNeedsInspection(false);
+  };
 
+  const handleSyncEpisodes = async () => {
+    if (!libraryId || !mediaId || !mediaItem?.episode_catalogue_supported || mediaItem.episode_revision == null) return;
+
+    const mutation = view.beginMutation();
+    if (!mutation) return;
     try {
       setSyncing(true);
-      const response = await requestJson(
-        `/api/v2/libraries/${libraryId}/media/${mediaId}/episodes/sync`,
-        { method: 'POST' }
-      );
-
-      if (response.success) {
-        await loadEpisodes();
+      const outcome = await syncEpisodeCatalogue(Number(libraryId), Number(mediaId), mediaItem.episode_revision);
+      if (!mutation.current()) return;
+      view.requireInspection();
+      setNeedsInspection(true);
+      if (outcome.kind !== 'committed') {
+        showError(outcome.message);
+      } else {
+        const { added, updated, removed } = outcome.receipt;
+        if (added + updated + removed > 0) {
+          success(outcome.receipt.message);
+        } else {
+          info(outcome.receipt.message || 'No changes detected');
+        }
       }
-    } catch (err) {
-      console.error('Failed to sync episodes:', err);
+      // Reload the saved state either way; a refused or unconfirmed outcome is never retried.
+      await refreshSavedState();
     } finally {
-      setSyncing(false);
+      if (mutation.current()) setSyncing(false);
+      mutation.finish();
     }
   };
 
   const handlePurgeEpisodes = async () => {
-    if (!libraryId || !mediaId) return;
+    if (!libraryId || !mediaId || !mediaItem?.episode_catalogue_supported || mediaItem.episode_revision == null) return;
     const confirmed = window.confirm(
       'Purge all cached episodes for this show? They will need to be re-synced from the server.'
     );
@@ -202,21 +266,25 @@ export const MediaDetailPage = () => {
       return;
     }
 
+    const mutation = view.beginMutation();
+    if (!mutation) return;
     try {
       setPurgingEpisodes(true);
-      const response = await requestJson(
-        `/api/v2/libraries/${libraryId}/media/${mediaId}/episodes/purge`,
-        { method: 'POST' }
-      );
-
-      if (response.success) {
+      const outcome = await purgeEpisodeCatalogue(Number(libraryId), Number(mediaId), mediaItem.episode_revision);
+      if (!mutation.current()) return;
+      view.requireInspection();
+      setNeedsInspection(true);
+      if (outcome.kind !== 'committed') {
+        showError(outcome.message);
+      } else {
+        const deleted = outcome.receipt.deleted;
+        success(`Purged ${deleted} episode${deleted === 1 ? '' : 's'}`);
         setEpisodesPage(1);
-        await loadEpisodes();
       }
-    } catch (err) {
-      console.error('Failed to purge episodes:', err);
+      await refreshSavedState();
     } finally {
-      setPurgingEpisodes(false);
+      if (mutation.current()) setPurgingEpisodes(false);
+      mutation.finish();
     }
   };
 
@@ -323,7 +391,7 @@ export const MediaDetailPage = () => {
             <span className="text-destructive">{error || 'Media item not found'}</span>
           </CardContent>
         </Card>
-        <Link to={`/admin/libraries/${libraryId}?tab=media`}>
+        <Link to="/admin/libraries/$libraryId" params={{ libraryId }} search={{ tab: 'media' }}>
           <Button>
             <FontAwesomeIcon icon={faArrowLeft} className="mr-2 h-4 w-4" />
             Back to Library
@@ -372,7 +440,7 @@ export const MediaDetailPage = () => {
                   {mediaItem.library?.server?.server_nickname}
                 </span>
 
-                <Link to={`/admin/libraries/${libraryId}`}>
+                <Link to="/admin/libraries/$libraryId" params={{ libraryId }}>
                   <span className="inline-flex items-center rounded-md bg-blue-50 dark:bg-blue-400/10 px-2 py-1 text-xs font-medium text-blue-700 dark:text-blue-400 ring-1 ring-inset ring-blue-600/20 dark:ring-blue-500/20 gap-1 hover:bg-blue-100 dark:hover:bg-blue-400/20 transition-colors cursor-pointer">
                     <FontAwesomeIcon icon={faFolder} className="w-3 h-3" />
                     {mediaItem.library?.name}
@@ -418,7 +486,7 @@ export const MediaDetailPage = () => {
                 {mediaItem.added_at && (
                   <div className="flex items-center gap-1">
                     <FontAwesomeIcon icon={faPlus} className="h-4 w-4" />
-                    <span>Added {new Date(mediaItem.added_at).toLocaleDateString()}</span>
+                    <span>Added {formatTimestamp(mediaItem.added_at, 'date')}</span>
                   </div>
                 )}
               </div>
@@ -504,7 +572,7 @@ export const MediaDetailPage = () => {
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Added:</span>
                       <span className="font-medium">
-                        {new Date(mediaItem.added_at).toLocaleString()}
+                        {formatTimestamp(mediaItem.added_at)}
                       </span>
                     </div>
                   )}
@@ -546,7 +614,7 @@ export const MediaDetailPage = () => {
                     variant="destructive"
                     size="sm"
                     onClick={handlePurgeEpisodes}
-                    disabled={purgingEpisodes || syncing}
+                    disabled={purgingEpisodes || syncing || needsInspection || !mediaItem?.episode_catalogue_supported}
                     title="Delete cached episodes for this show from the database"
                   >
                     {purgingEpisodes ? (
@@ -561,7 +629,9 @@ export const MediaDetailPage = () => {
                       </>
                     )}
                   </Button>
-                  <Button onClick={handleSyncEpisodes} disabled={syncing || purgingEpisodes} size="sm">
+                  <Button onClick={refreshSavedState} disabled={syncing || purgingEpisodes || !mediaItem?.episode_catalogue_supported} size="sm" variant="outline">Refresh saved state</Button>
+                  {needsInspection && <span>Inspect saved state before another action.</span>}
+                  <Button onClick={handleSyncEpisodes} disabled={syncing || purgingEpisodes || needsInspection || !mediaItem?.episode_catalogue_supported} size="sm">
                     {syncing ? (
                       <>
                         <FontAwesomeIcon icon={faRotate} className="mr-2 h-4 w-4 animate-spin" />
@@ -623,8 +693,8 @@ export const MediaDetailPage = () => {
                           <SelectItem value="year_asc">Year (Oldest First)</SelectItem>
                           <SelectItem value="added_at_desc">Date Added (Newest)</SelectItem>
                           <SelectItem value="added_at_asc">Date Added (Oldest)</SelectItem>
-                          <SelectItem value="total_streams_desc">Streams (Most)</SelectItem>
-                          <SelectItem value="total_streams_asc">Streams (Least)</SelectItem>
+                          <SelectItem value="total_streams_desc" disabled>Streams (Most)</SelectItem>
+                          <SelectItem value="total_streams_asc" disabled>Streams (Least)</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -822,9 +892,9 @@ export const MediaDetailPage = () => {
                     <div className="w-16 h-16 rounded-full bg-accent flex items-center justify-center mx-auto mb-4">
                       <FontAwesomeIcon icon={faList} className="h-8 w-8 text-muted-foreground" />
                     </div>
-                    <h3 className="text-lg font-medium mb-2">No Episodes Found</h3>
+                    <h3 className="text-lg font-medium mb-2">{mediaItem?.episode_catalogue_supported ? 'No Episodes Found' : 'Episodes unavailable'}</h3>
                     <p className="text-sm text-muted-foreground max-w-md mx-auto">
-                      No episodes are available for this show. Click the Sync button to fetch episodes.
+                      {mediaItem?.episode_catalogue_supported ? 'No episodes are available for this show. Click the Sync button to fetch episodes.' : 'Episode synchronization is unavailable for this provider.'}
                     </p>
                   </CardContent>
                 </Card>
@@ -847,7 +917,7 @@ export const MediaDetailPage = () => {
       </Tabs>
 
       {/* Back Button */}
-      <Link to={`/admin/libraries/${libraryId}?tab=media`}>
+      <Link to="/admin/libraries/$libraryId" params={{ libraryId }} search={{ tab: 'media' }}>
         <Button variant="ghost">
           <FontAwesomeIcon icon={faArrowLeft} className="mr-2 h-4 w-4" />
           Back to Library

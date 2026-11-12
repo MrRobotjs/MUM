@@ -1,3 +1,5 @@
+import {getAccessToken} from '../store/authStore'
+import { changeAdminRole, roleOrderPositions, type RoleChangeBase } from '../lib/adminRoleChanges'
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import {
@@ -76,12 +78,12 @@ type RoleFormValues = {
   color: string
   icon: string
   badge_style: 'default' | 'fill' | 'outline'
-  permission_ids: number[]
+  permission_ids: string[]
 }
 
 export const AdminSettingsAdminRolesPage = () => {
   const navigate = useNavigate()
-  const { roles, loading, error, refresh } = useAdminRoles(true, false, true)
+  const { roles, loading, error, refresh, reorderAvailable, creationAvailable, creationMaximum, actor, catalog } = useAdminRoles()
   const {
     permissions,
     loading: permissionsLoading,
@@ -97,10 +99,16 @@ export const AdminSettingsAdminRolesPage = () => {
   )
   const presetColors = PRESET_ROLE_COLORS
 
-  const [sortedRoles, setSortedRoles] = useState<AdminRole[]>([])
+  const [sortedSnapshot, setSortedSnapshot] = useState<{actor: string | undefined; roles: AdminRole[]}>({actor: undefined, roles: []})
+  const sortedRoles = sortedSnapshot.actor === actor && !error ? sortedSnapshot.roles : []
+  const setSortedRoles = (next: AdminRole[]) => setSortedSnapshot({actor, roles: next})
   const [reordering, setReordering] = useState(false)
 
   const [modalOpen, setModalOpen] = useState(false)
+  const [draftBase, setDraftBase] = useState<RoleChangeBase | null>(null)
+  const currentActor = useRef(actor)
+  currentActor.current = actor
+  useEffect(() => {setModalOpen(false);setDraftBase(null);setSubmitting(false);setReordering(false)}, [actor])
   const [editingRole, setEditingRole] = useState<AdminRole | null>(null)
   const [iconBrowseOpen, setIconBrowseOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -117,7 +125,7 @@ export const AdminSettingsAdminRolesPage = () => {
 
   useEffect(() => {
     setSortedRoles([...roles].sort((a, b) => a.position - b.position))
-  }, [roles])
+  }, [roles, actor])
 
   const sensors = useSensors(
     useSensor(MouseSensor, {
@@ -158,7 +166,7 @@ export const AdminSettingsAdminRolesPage = () => {
       setFormValues({
         name: '',
         description: '',
-        position: nextPosition,
+        position: Math.min(nextPosition,creationMaximum??0),
         color: themePrimaryHex,
         icon: '',
         badge_style: 'default',
@@ -168,6 +176,8 @@ export const AdminSettingsAdminRolesPage = () => {
   }
 
   const handleCreate = () => {
+    if (!creationAvailable || !catalog) return
+    setDraftBase(catalog)
     setEditingRole(null)
     initializeForm(null)
     setModalOpen(true)
@@ -175,12 +185,12 @@ export const AdminSettingsAdminRolesPage = () => {
 
   const handleEdit = (role: AdminRole) => {
     navigate({
-      to: '/admin/settings/admin-roles/$roleId/edit',
-      params: { roleId: String(role.id) },
+      href: `/admin/settings/admin-roles/${encodeURIComponent(role.id)}/edit`,
     })
   }
 
   const handleDelete = async (role: AdminRole) => {
+    if (!role.can_delete) return
     if (role.is_auto_managed) {
       showError('Cannot delete an auto-managed role')
       return
@@ -190,13 +200,15 @@ export const AdminSettingsAdminRolesPage = () => {
       return
     }
 
+    const runActor=actor, token=getAccessToken()
     try {
-      await requestJson(`/api/v2/admin-roles/${role.id}`, {
-        method: 'DELETE',
-      })
+      if (!catalog || !role.can_delete) return
+      await changeAdminRole(catalog, 'delete', role)
+      if (currentActor.current!==runActor || token!==getAccessToken()) return
       success('Role deleted successfully')
       await refresh()
     } catch (err) {
+      if (currentActor.current!==runActor || token!==getAccessToken()) return
       showError(`Failed to delete role: ${(err as Error).message}`)
     }
   }
@@ -211,7 +223,7 @@ export const AdminSettingsAdminRolesPage = () => {
     setIconBrowseOpen(false)
   }
 
-  const togglePermission = (permissionId: number) => {
+  const togglePermission = (permissionId: string) => {
     setFormValues((prev) => {
       const selected = prev.permission_ids.includes(permissionId)
       return {
@@ -225,6 +237,8 @@ export const AdminSettingsAdminRolesPage = () => {
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
+    if (!creationAvailable) return
+    const runActor=actor, token=getAccessToken()
     setSubmitting(true)
 
     try {
@@ -238,27 +252,18 @@ export const AdminSettingsAdminRolesPage = () => {
         permission_ids: formValues.permission_ids,
       }
 
-      if (editingRole) {
-        await requestJson(`/api/v2/admin-roles/${editingRole.id}`, {
-          method: 'PATCH',
-          body: JSON.stringify(payload),
-        })
-        success('Role updated successfully')
-      } else {
-        await requestJson('/api/v2/admin-roles', {
-          method: 'POST',
-          body: JSON.stringify(payload),
-        })
-        success('Role created successfully')
-      }
+      if (!draftBase || draftBase.actor_uuid !== actor) throw new Error('Refresh the current actor session before saving.')
+      await changeAdminRole(draftBase, editingRole ? 'update' : 'create', editingRole ?? undefined, payload)
+      if (currentActor.current!==runActor || token!==getAccessToken()) return
+      success(editingRole ? 'Role updated successfully' : 'Role created successfully')
 
       setModalOpen(false)
       await refresh()
     } catch (err) {
+      if (currentActor.current!==runActor || token!==getAccessToken()) return
       showError(`Failed to save role: ${(err as Error).message}`)
-      throw err
     } finally {
-      setSubmitting(false)
+      if (currentActor.current===runActor) setSubmitting(false)
     }
   }
 
@@ -270,28 +275,24 @@ export const AdminSettingsAdminRolesPage = () => {
     }
   }
 
-  const commitReorder = async (changedRoles: AdminRole[]) => {
+  const commitReorder = async (orderedRoles: AdminRole[]) => {
+    if (!reorderAvailable || !catalog) return
+    const runActor=actor, token=getAccessToken()
     setReordering(true)
     try {
-      await Promise.all(
-        changedRoles.map((role) =>
-          requestJson(`/api/v2/admin-roles/${role.id}`, {
-            method: 'PATCH',
-            body: JSON.stringify({ position: role.position }),
-          })
-        )
-      )
+      await changeAdminRole(catalog, 'reorder', undefined, undefined, orderedRoles.map(role => ({id: role.id, position: role.position})))
+      if (currentActor.current!==runActor || token!==getAccessToken()) return
       success('Role order updated')
       await refresh()
     } catch (err) {
+      if (currentActor.current!==runActor || token!==getAccessToken()) return
       showError(`Failed to reorder roles: ${(err as Error).message}`)
-      setSortedRoles([...roles].sort((a, b) => a.position - b.position))
-    } finally {
-      setReordering(false)
-    }
+      await refresh()
+    } finally { if (currentActor.current===runActor) setReordering(false) }
   }
 
   const handleDragEnd = async (event: DragEndEvent) => {
+    if (!reorderAvailable) return
     const { active, over } = event
     if (!over || active.id === over.id) {
       return
@@ -305,15 +306,19 @@ export const AdminSettingsAdminRolesPage = () => {
 
     const sourceRole = sortedRoles[oldIndex]
     const targetRole = sortedRoles[newIndex]
-    if (sourceRole.is_auto_managed || targetRole.is_auto_managed) {
+    if (!sourceRole.can_reorder || !targetRole.can_reorder) {
       return
     }
 
     const originalPositions = new Map(sortedRoles.map((role) => [role.id, role.position]))
-    const reordered = arrayMove(sortedRoles, oldIndex, newIndex).map((role, idx) => ({
-      ...role,
-      position: idx + 1,
-    }))
+    const movable=sortedRoles.filter(role=>role.can_reorder)
+    const reorderedMovable=arrayMove(movable,movable.findIndex(role=>role.id===sourceRole.id),movable.findIndex(role=>role.id===targetRole.id))
+    let movableIndex=0
+    const moved=sortedRoles.map(role=>role.can_reorder?reorderedMovable[movableIndex++]:role)
+    let positions: {id:string;position:number}[]
+    try { positions=roleOrderPositions(sortedRoles,moved.map(role=>role.id)) }
+    catch (error) { showError((error as Error).message); return }
+    const reordered = moved.map((role,idx) => ({...role,position:positions[idx].position}))
 
     setSortedRoles(reordered)
 
@@ -324,7 +329,7 @@ export const AdminSettingsAdminRolesPage = () => {
       return
     }
 
-    await commitReorder(changedRoles)
+    await commitReorder(reordered)
   }
 
   const footerButtons = useMemo(
@@ -350,7 +355,7 @@ export const AdminSettingsAdminRolesPage = () => {
       <PageHeader
         title="Admin Roles"
         description="Manage admin roles and their permissions"
-        actions={<Button onClick={handleCreate}>Create Role</Button>}
+        actions={<><Button variant="outline" onClick={() => void refresh()} disabled={loading}>Refresh Roles</Button><Button onClick={handleCreate} disabled={!creationAvailable}>Create Role</Button></>}
       />
 
       {error ? (
@@ -365,8 +370,7 @@ export const AdminSettingsAdminRolesPage = () => {
         <FontAwesomeIcon icon={faCircleInfo} className="h-4 w-4" />
         <AlertTitle>Role hierarchy</AlertTitle>
         <AlertDescription>
-          Drag roles using the handle to adjust their hierarchy. Higher positions have more
-          authority.
+          Higher positions have more authority. Creation, editing and membership changes follow your current hierarchy. Reordering keeps protected and unmanaged roles fixed.
         </AlertDescription>
       </Alert>
 
@@ -407,7 +411,7 @@ export const AdminSettingsAdminRolesPage = () => {
                       <TableCell colSpan={7} className="py-8 text-center">
                         <div className="text-muted-foreground">
                           <FontAwesomeIcon icon={faShieldHalved} className="mb-2 text-2xl text-muted-foreground/30" />
-                          <p className="text-sm">No admin roles found. Create roles to assign permissions to administrators.</p>
+                          <p className="text-sm">No explicit admin roles exist. The owner has implicit administrator access.</p>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -426,7 +430,8 @@ export const AdminSettingsAdminRolesPage = () => {
                           <SortableRoleRow
                             key={role.id}
                             role={role}
-                            disabled={role.is_auto_managed || reordering}
+                            themePrimaryHex={themePrimaryHex}
+                            disabled={!reorderAvailable || !role.can_reorder || reordering}
                             onEdit={handleEdit}
                             onDelete={handleDelete}
                           />
@@ -806,11 +811,12 @@ export const AdminSettingsAdminRolesPage = () => {
 interface SortableRoleRowProps {
   role: AdminRole
   disabled: boolean
+  themePrimaryHex: string
   onEdit: (role: AdminRole) => void
   onDelete: (role: AdminRole) => void
 }
 
-const SortableRoleRow = ({ role, disabled, onEdit, onDelete }: SortableRoleRowProps) => {
+const SortableRoleRow = ({ role, disabled, onEdit, onDelete, themePrimaryHex }: SortableRoleRowProps) => {
   const {
     attributes,
     listeners,
@@ -913,13 +919,14 @@ const SortableRoleRow = ({ role, disabled, onEdit, onDelete }: SortableRoleRowPr
         <div className="flex items-center justify-end gap-2">
           <Button variant="ghost" size="sm" onClick={() => onEdit(role)}>
             <FontAwesomeIcon icon={faPenToSquare} className="mr-1 size-3" />
-            <span className="hidden md:inline">Edit</span>
+            <span className="hidden md:inline">View</span>
           </Button>
           {!role.is_auto_managed && (
             <Button
               variant="ghost"
               size="sm"
               className="text-destructive hover:bg-destructive/10"
+              disabled={!role.can_delete}
               onClick={() => onDelete(role)}
             >
               <FontAwesomeIcon icon={faTrashCan} className="mr-1 size-3" />

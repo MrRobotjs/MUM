@@ -1,4 +1,7 @@
-import { useState, useEffect } from 'react'
+import {getAccessToken} from '../../store/authStore'
+import {changeAdminRole, valuesFromRole} from '../../lib/adminRoleChanges'
+import {useAuth} from '../../contexts/AuthContext'
+import { useState, useEffect, useRef } from 'react'
 import { AdminRole, AdminPermission } from '../../hooks/useAdminRoles'
 import { useAlerts } from '../../contexts'
 import { requestJson } from '../../util/apiClient'
@@ -146,11 +149,15 @@ const PERMISSION_ICON_MAP: Record<string, IconDefinition> = {
 
 export const AdminRolePermissionsTab = ({ role, permissions, onUpdate }: AdminRolePermissionsTabProps) => {
   const { success, error: showError } = useAlerts()
+  const {user} = useAuth()
+  const active = useRef(true)
+  useEffect(() => {active.current=true;return()=>{active.current=false}}, [])
+  const [baseRole,setBaseRole] = useState(role)
   const [submitting, setSubmitting] = useState(false)
 
-  // Resolve the single Administrator permission (case-insensitive)
+  // Resolve only the current implemented permission, without name aliases.
   const adminPermission = permissions.find(
-    (p) => (p.name || '').trim().toLowerCase() === 'administrator' || (p.name || '').trim().toLowerCase() === 'admin'
+    (p) => p.implemented && p.name === 'administrator'
   )
 
   // Track whether Administrator is enabled for this role
@@ -160,6 +167,7 @@ export const AdminRolePermissionsTab = ({ role, permissions, onUpdate }: AdminRo
   const [selectedPermissions, setSelectedPermissions] = useState<Set<string>>(new Set())
 
   useEffect(() => {
+    setBaseRole(role)
     const rolePermissionNames = new Set((role.permissions || []).map((p) => (p.name || '').toLowerCase()))
     setSelectedPermissions(rolePermissionNames)
     setIsAdministrator(rolePermissionNames.has('administrator'))
@@ -174,22 +182,24 @@ export const AdminRolePermissionsTab = ({ role, permissions, onUpdate }: AdminRo
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
+    if (!role.mutations_available) return
+    const token = getAccessToken()
     setSubmitting(true)
 
     try {
       // Only send the Administrator permission ID when enabled
       const permissionIds = isAdministrator && adminPermission ? [adminPermission.id] : []
 
-      await requestJson(`/api/v2/admin-roles/${role.id}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ permissions: permissionIds }),
-      })
+      if (!user) throw new Error('Sign in as the owner before saving.')
+      await changeAdminRole({actor_uuid:user.uuid,snapshot_revision:baseRole.snapshot_revision,mutations_available:baseRole.mutations_available}, 'update', baseRole, {...valuesFromRole(baseRole),permission_ids:permissionIds})
+      if (!active.current || token !== getAccessToken()) return
       success('Permissions saved successfully')
       await onUpdate()
     } catch (err) {
+      if (!active.current || token !== getAccessToken()) return
       showError(`Failed to save permissions: ${(err as Error).message}`)
     } finally {
-      setSubmitting(false)
+      if (active.current) setSubmitting(false)
     }
   }
 
@@ -263,7 +273,7 @@ export const AdminRolePermissionsTab = ({ role, permissions, onUpdate }: AdminRo
                     </div>
                     <div>
                       <h3 className="text-lg font-semibold">{data.label}</h3>
-                      <p className="text-xs text-muted-foreground">Deprecated — covered by Administrator</p>
+                      <p className="text-xs text-muted-foreground">Not implemented as a separate permission</p>
                     </div>
                   </div>
                 </Label>

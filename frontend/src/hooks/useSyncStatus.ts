@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { connectRealtimeSocket, subscribeToChannel } from '../lib/realtimeSocket';
 import type { UnifiedEvent } from '../types/realtime';
+import { requestJson } from '../util/apiClient';
 
 interface SyncProgress {
   current_server: number;
@@ -33,15 +34,22 @@ export const useSyncStatus = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let stopped = false;
+    let live = false;
+    void requestJson<{ data: SyncStatus }>('/api/sync/status').then(response => {
+      if (!stopped && !live) { setSyncStatus(response.data); setLoading(false); }
+    }).catch(() => { if (!stopped) setLoading(false); });
     connectRealtimeSocket();
     const unsubscribe = subscribeToChannel('system.sync_status', (envelope: UnifiedEvent) => {
       if (envelope.type === 'TaskProgress') {
+        live = true;
         setSyncStatus((envelope.payload as SyncStatus) ?? defaultStatus);
         setLoading(false);
       }
     });
 
     return () => {
+      stopped = true;
       unsubscribe();
     };
   }, []);

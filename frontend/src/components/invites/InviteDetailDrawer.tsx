@@ -1,12 +1,16 @@
-import { useEffect, useState } from 'react';
+import { useAccountDisplay } from '../../hooks/useAccountDisplay';
+import { useEffect, useRef, useState } from 'react';
+import { mutate as mutateSWR } from 'swr';
+import { ProvisioningReviewDialog } from './ProvisioningReviewDialog';
+import { INVITATIONS_CACHE_KEY } from '../../lib/invitations';
 import { cn } from '@/lib/utils';
 import { Button } from '../ui/button';
 import { useAlerts } from '../../contexts/AlertContext';
-import { requestJson } from '../../util/apiClient';
+import { invitationDetail, invitationShareURL, openInvitation } from '../../lib/invitations';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 
 type InviteUsageEntry = {
-  id: number;
+  id: string;
   used_at: string | null;
   ip_address?: string | null;
   plex_username?: string | null;
@@ -14,7 +18,9 @@ type InviteUsageEntry = {
   discord_username?: string | null;
   discord_user_id?: string | null;
   accepted_invite: boolean;
+  status?: string;
   status_message?: string | null;
+  plex_review_available?: boolean;
   user_uuid?: string | null;
   plex_auth_successful: boolean;
   discord_auth_successful: boolean;
@@ -53,11 +59,12 @@ type InviteDetail = {
   is_usable: boolean;
   is_effectively_usable?: boolean;
   is_paused?: boolean;
+  is_archived?: boolean;
   expires_at?: string | null;
   max_uses?: number | null;
   current_uses: number;
   remaining_uses?: number | null;
-  allow_downloads: boolean;
+  allow_downloads?: boolean;
   invite_to_plex_home?: boolean;
   allow_live_tv?: boolean;
   require_discord_auth?: boolean;
@@ -90,46 +97,46 @@ type ApiResponse = {
 } | InviteDetail;
 
 export const InviteDetailDrawer = ({ inviteId, onClose }: InviteDetailDrawerProps) => {
+  const { formatTimestamp } = useAccountDisplay();
   const { success, error: showError } = useAlerts();
+  const [reviewJobId, setReviewJobId] = useState<string | null>(null);
+  const activeInvite = useRef(inviteId);
+  activeInvite.current = inviteId;
   const [loading, setLoading] = useState(false);
   const [detail, setDetail] = useState<InviteDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let active = true;
+    setReviewJobId(null);
     const load = async () => {
       if (!inviteId) {
         setDetail(null);
         return;
       }
       setLoading(true);
+      setDetail(null);
       setError(null);
       try {
-        const json = await requestJson<ApiResponse>(`/api/v2/invites/${inviteId}`);
-        const payload = (json as any)?.data ?? (json as any);
-        const normalized: InviteDetail = {
-          ...(payload as InviteDetail),
-          servers: (payload as any)?.servers ?? [],
-          usage: (payload as any)?.usage ?? [],
-          usage_summary: (payload as any)?.usage_summary ?? {
-            total: 0,
-            accepted: 0,
-            pending: 0,
-            plex_auth_successful: 0,
-            discord_auth_successful: 0,
-            last_used_at: null
-          }
-        };
-        setDetail(normalized);
+        const payload = await invitationDetail(inviteId);
+        const normalized: InviteDetail = payload;
+        if (active) setDetail(normalized);
+        try {
+          const share_url = await invitationShareURL(inviteId);
+          if (active) setDetail({ ...normalized, share_url, token: new URL(share_url).pathname.split('/').pop() ?? normalized.token });
+        } catch { /* Details remain readable when the separate share key is unavailable. */ }
       } catch (err) {
         const message = (err as Error).message || 'Failed to load invite details';
+        if (!active) return;
         setError(message);
         showError('Invite detail failed: ' + message);
       } finally {
-        setLoading(false);
+        if (active) setLoading(false);
       }
     };
 
     void load();
+    return () => { active = false; };
   }, [inviteId]);
 
   const handleCopyShareUrl = async () => {
@@ -142,14 +149,15 @@ export const InviteDetailDrawer = ({ inviteId, onClose }: InviteDetailDrawerProp
     }
   };
 
-  const openInvite = () => {
-    if (!detail) return;
-    const path = encodeURIComponent(detail.custom_path || detail.token);
-    window.open(`/invite/${path}`, '_blank', 'noopener');
+  const openInvite = async () => {
+    if (!inviteId) return;
+    try { await openInvitation(inviteId); } catch (error) { showError('Open failed: ' + String(error)); }
   };
 
   const statusLabel = detail
-    ? detail.is_paused
+    ? detail.is_archived
+      ? 'Archived'
+      : detail.is_paused
       ? 'Paused'
       : detail.is_usable
         ? 'Usable'
@@ -163,6 +171,7 @@ export const InviteDetailDrawer = ({ inviteId, onClose }: InviteDetailDrawerProp
     : '';
 
   return (
+    <>
     <div
       className={cn(
         'fixed inset-0 z-40 flex justify-end bg-background/60 backdrop-blur transition-opacity',
@@ -171,7 +180,7 @@ export const InviteDetailDrawer = ({ inviteId, onClose }: InviteDetailDrawerProp
       onClick={onClose}
     >
       <aside
-        className="h-full w-full max-w-3xl transform bg-background shadow-2xl transition-transform duration-200 ease-out"
+        className="flex h-full w-full max-w-3xl flex-col transform bg-background shadow-2xl transition-transform duration-200 ease-out"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b px-6 py-4">
@@ -188,7 +197,7 @@ export const InviteDetailDrawer = ({ inviteId, onClose }: InviteDetailDrawerProp
           </Button>
         </div>
 
-        <div className="h-full overflow-y-auto px-6 py-4 space-y-6">
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4 space-y-6">
           {loading ? (
             <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
               Loading invite...
@@ -231,7 +240,7 @@ export const InviteDetailDrawer = ({ inviteId, onClose }: InviteDetailDrawerProp
                   ) : null}
                   <div>
                     <span className="font-medium">Expires at:</span>{' '}
-                    {detail.expires_at ? new Date(detail.expires_at).toLocaleString() : 'Never'}
+                    {detail.expires_at ? formatTimestamp(detail.expires_at) : 'Never'}
                   </div>
                   <div>
                     <span className="font-medium">Usage:</span>{' '}
@@ -348,7 +357,7 @@ export const InviteDetailDrawer = ({ inviteId, onClose }: InviteDetailDrawerProp
                         {detail.usage?.map((usage) => (
                           <TableRow key={usage.id}>
                             <TableCell className="whitespace-nowrap">
-                              {usage.used_at ? new Date(usage.used_at).toLocaleString() : '-'}
+                              {usage.used_at ? formatTimestamp(usage.used_at) : '-'}
                             </TableCell>
                             <TableCell>
                               {usage.plex_username ? (
@@ -358,7 +367,7 @@ export const InviteDetailDrawer = ({ inviteId, onClose }: InviteDetailDrawerProp
                                 </div>
                               ) : (
                                 <span className="text-xs text-muted-foreground">
-                                  {usage.plex_auth_successful ? 'Success' : 'Pending'}
+                                  {usage.plex_auth_successful ? 'Success' : 'Not used'}
                                 </span>
                               )}
                             </TableCell>
@@ -370,19 +379,22 @@ export const InviteDetailDrawer = ({ inviteId, onClose }: InviteDetailDrawerProp
                                 </div>
                               ) : (
                                 <span className="text-xs text-muted-foreground">
-                                  {usage.discord_auth_successful ? 'Success' : 'Pending'}
+                                  {usage.discord_auth_successful ? 'Success' : 'Not used'}
                                 </span>
                               )}
                             </TableCell>
                             <TableCell>
-                              <span
+                              <button
+                                type="button"
+                                disabled={!usage.plex_review_available && usage.status !== 'failed' && usage.status !== 'cancelled'}
+                                onClick={() => setReviewJobId(usage.id)}
                                 className={cn(
                                   'inline-flex items-center rounded-md px-2 py-1 text-xs font-medium',
                                   usage.accepted_invite ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 'bg-gray-500/10 text-gray-400 border border-gray-500/20'
                                 )}
                               >
-                                {usage.accepted_invite ? 'Accepted' : 'Pending'}
-                              </span>
+                                {usage.accepted_invite ? 'Accepted' : usage.status === 'failed' ? 'Requires review' : usage.status === 'cancelled' ? 'Cancelled' : 'Pending'}
+                              </button>
                               {usage.status_message ? (
                                 <div className="text-xs text-muted-foreground">{usage.status_message}</div>
                               ) : null}
@@ -410,6 +422,14 @@ export const InviteDetailDrawer = ({ inviteId, onClose }: InviteDetailDrawerProp
         </div>
       </aside>
     </div>
+    <ProvisioningReviewDialog jobId={reviewJobId} onClose={() => setReviewJobId(null)} onChanged={async () => {
+      const id = activeInvite.current;
+      await mutateSWR(INVITATIONS_CACHE_KEY);
+      if (!id) return;
+      const next = await invitationDetail(id);
+      if (activeInvite.current === id) setDetail(previous => ({ ...next, token: previous?.token ?? next.token, share_url: previous?.share_url }));
+    }} />
+    </>
   );
 };
 

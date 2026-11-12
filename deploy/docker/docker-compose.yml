@@ -1,0 +1,41 @@
+# MUM (Go/SQLite) with Docker Compose. From the repository root:
+#   docker compose -f deploy/docker/docker-compose.yml up -d --build
+# Then open http://localhost:5699 and complete the setup wizard.
+
+# Explicit project name: the data volume is "mum-go_mum-data", and this stack
+# never shares a project with an existing Flask MUM compose stack (commonly
+# project "mum" with a service named "mum", which Compose would replace).
+name: mum-go
+
+services:
+  mum:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile
+      args:
+        VERSION: dev
+    image: mum:local
+    # No fixed container_name: the existing Flask image commonly runs as "mum",
+    # and Compose's default name avoids a clash.
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    ports:
+      - "5699:5699"   # host:container; change the left side to use another host port
+    volumes:
+      - mum-data:/data   # SQLite database, keys and mum-config.json; back this up
+    environment:
+      TZ: America/Denver   # your time zone
+      MUM_LOG_LEVEL: info   # debug, info, warn or error
+      # Behind a reverse proxy (Caddy, nginx, Traefik...) that terminates HTTPS,
+      # trust it so the real client address and https scheme are used:
+      # MUM_TRUSTED_PROXIES: "172.16.0.0/12"
+      # Force Secure cookies even when HTTPS is not detected:
+      # MUM_SECURE_COOKIES: "true"
+    stop_grace_period: 30s   # lets MUM drain queued logs to SQLite on shutdown
+
+volumes:
+  mum-data:

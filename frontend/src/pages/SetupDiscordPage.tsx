@@ -17,7 +17,7 @@ function SetupDiscordContent() {
   const handleSkip = async () => {
     setSubmitting(true)
     try {
-      await requestJson('/api/v2/setup/complete', {
+      await requestJson('/api/setup/complete', {
         method: 'POST',
         body: JSON.stringify({ disable_discord: true })
       })

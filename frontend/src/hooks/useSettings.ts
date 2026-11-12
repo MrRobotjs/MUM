@@ -9,6 +9,8 @@ export type GeneralSettings = {
   session_monitoring_interval: number;
   api_timeout_seconds: number;
   jwt_cookie_secure: boolean;
+  jwt_access_token_expires_minutes?: number;
+  jwt_refresh_token_expires_days?: number;
   // Legacy fields (deprecated but still sent by backend for compatibility)
   app_url?: string;
   require_email?: boolean;
@@ -16,6 +18,7 @@ export type GeneralSettings = {
 };
 
 export type DiscordSettings = {
+  revision: number;
   enable_oauth: boolean;
   client_id: string | null;
   client_secret_set: boolean;
@@ -58,7 +61,7 @@ type SettingsResponse<T> = {
 
 export const useGeneralSettings = () => {
   const { data, error, isLoading, mutate } = useSWR<SettingsResponse<GeneralSettings>>(
-    '/api/v2/settings/general',
+    '/api/settings/general',
     (url: string) => requestJson<SettingsResponse<GeneralSettings>>(url)
   );
 
@@ -72,7 +75,7 @@ export const useGeneralSettings = () => {
 
 export const useDiscordSettings = () => {
   const { data, error, isLoading, mutate } = useSWR<SettingsResponse<DiscordSettings>>(
-    '/api/v2/settings/discord',
+    '/api/settings/discord',
     (url: string) => requestJson<SettingsResponse<DiscordSettings>>(url)
   );
 
@@ -86,7 +89,7 @@ export const useDiscordSettings = () => {
 
 export const useAdvancedSettings = () => {
   const { data, error, isLoading, mutate } = useSWR<SettingsResponse<AdvancedSettings>>(
-    '/api/v2/settings/advanced',
+    '/api/settings/advanced',
     (url: string) => requestJson<SettingsResponse<AdvancedSettings>>(url)
   );
 
@@ -100,7 +103,7 @@ export const useAdvancedSettings = () => {
 
 export const useUserAccountSettings = () => {
   const { data, error, isLoading, mutate } = useSWR<SettingsResponse<UserAccountSettings>>(
-    '/api/v2/settings/user-accounts',
+    '/api/settings/user-accounts',
     (url: string) => requestJson<SettingsResponse<UserAccountSettings>>(url)
   );
 

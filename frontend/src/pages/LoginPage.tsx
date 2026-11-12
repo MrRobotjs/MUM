@@ -29,6 +29,8 @@ type LocationState = {
   from?: string;
 };
 
+const PLEX_SIGN_IN_UNAVAILABLE = 'Plex sign-in is not available yet. Sign in with your MUM username and password.';
+
 const LoginPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -36,14 +38,14 @@ const LoginPage = () => {
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [plexLoading, setPlexLoading] = useState(false);
+  const [plexLoading] = useState(false);
   const [logoutNotice, setLogoutNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [allowUserAccounts, setAllowUserAccounts] = useState(false);
   const [showInactivityInfo, setShowInactivityInfo] = useState(false);
 
   // Prefer ?next= query, then location.state.from, else dashboard
-  const search = useSearch({ from: '/admin/login', strict: false }) as { next?: string; error?: string };
+  const search = useSearch({ strict: false }) as { next?: string; error?: string };
   const nextParam = search.next;
   const errorParam = search.error;
   const locationStateFrom = (location.state as LocationState | undefined)?.from;
@@ -55,7 +57,7 @@ const LoginPage = () => {
   useEffect(() => {
     const checkUserAccounts = async () => {
       try {
-        const response = await requestJson<{ data: { allow_user_accounts: boolean } }>('/api/v2/settings/user-accounts');
+        const response = await requestJson<{ data: { allow_user_accounts: boolean } }>('/api/settings/user-accounts');
         setAllowUserAccounts(response.data?.allow_user_accounts || false);
       } catch {
         // If check fails, default to false
@@ -110,7 +112,7 @@ const LoginPage = () => {
           user?: unknown;
         };
       }>(
-        '/api/v2/auth/jwt/login',
+        '/api/auth/login',
         {
           method: 'POST',
           body: JSON.stringify({
@@ -137,37 +139,10 @@ const LoginPage = () => {
     }
   };
 
+  // Plex administrator sign-in is not implemented in the Go runtime yet, so
+  // this control is disabled and never sends a request.
   const handlePlexSSO = async () => {
-    setPlexLoading(true);
-    setError(null);
-
-    try {
-      const response = await requestJson<{
-        data?: {
-          redirect_url?: string;
-        };
-      }>(
-        '/api/v2/auth/plex/start',
-        {
-          method: 'POST',
-          body: JSON.stringify({
-            next: fromPath
-          })
-        }
-      );
-
-      const redirectUrl = response?.data?.redirect_url;
-      if (redirectUrl) {
-        window.location.href = redirectUrl;
-      } else {
-        setError('Failed to initiate Plex login');
-        setPlexLoading(false);
-      }
-    } catch (err) {
-      const apiError = err as ApiError;
-      setError(apiError.message || 'Plex login failed');
-      setPlexLoading(false);
-    }
+    setError(PLEX_SIGN_IN_UNAVAILABLE);
   };
 
   return (
@@ -370,8 +345,9 @@ const LoginPage = () => {
                   type="button"
                   variant="outline"
                   onClick={handlePlexSSO}
+                  title={PLEX_SIGN_IN_UNAVAILABLE}
                   className="w-full text-lg h-12 hover:-translate-y-0.5 hover:shadow-lg transition-all duration-200 ease-in-out border-orange-600 text-orange-700 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-950 hover:border-orange-600"
-                  disabled={plexLoading}
+                  disabled
                 >
                   {plexLoading ? (
                     <>
@@ -387,6 +363,7 @@ const LoginPage = () => {
                     </>
                   )}
                 </Button>
+                <p className="text-xs text-muted-foreground text-center">{PLEX_SIGN_IN_UNAVAILABLE}</p>
 
                 {/* Additional Info */}
                 <div className="pt-6">

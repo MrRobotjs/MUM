@@ -62,6 +62,7 @@ type Admin = {
   email?: string | null
   last_login_at?: string | null
   admin_roles: AdminRole[]
+  profile_revision?: number
 }
 
 type AdminRoleOption = {
@@ -75,6 +76,7 @@ const AdminSettingsAdminManagementPage = () => {
   const [admins, setAdmins] = useState<Admin[]>([])
   const [filteredAdmins, setFilteredAdmins] = useState<Admin[]>([])
   const [roles, setRoles] = useState<AdminRoleOption[]>([])
+  const [snapshotRevision, setSnapshotRevision] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [showCreateModal, setShowCreateModal] = useState(false)
@@ -110,8 +112,10 @@ const AdminSettingsAdminManagementPage = () => {
   const fetchAdmins = async () => {
     try {
       setLoading(true)
-      const response = await requestJson<{ data: Admin[] }>('/api/v2/admins')
+      const response = await requestJson<{ data: Admin[]; meta?: { snapshot_revision?: number } }>('/api/admins')
       setAdmins(response.data || [])
+      // Role changes are guarded by the role snapshot read with the list.
+      setSnapshotRevision(response.meta?.snapshot_revision ?? null)
     } catch (error) {
       showError(`Failed to load admins: ${error}`)
     } finally {
@@ -121,8 +125,9 @@ const AdminSettingsAdminManagementPage = () => {
 
   const fetchRoles = async () => {
     try {
-      const response = await requestJson<{ data: AdminRoleOption[] }>('/api/v2/admin-roles')
-      setRoles(response.data || [])
+      // The current role catalogue returns { roles, snapshot_revision, ... } rather than a bare list.
+      const response = await requestJson<{ data: { roles?: AdminRoleOption[] } }>('/api/admin-roles')
+      setRoles(Array.isArray(response.data?.roles) ? response.data.roles : [])
     } catch (error) {
       console.error('Failed to load roles:', error)
     }
@@ -156,12 +161,14 @@ const AdminSettingsAdminManagementPage = () => {
 
     try {
       setSubmitting(true)
-      await requestJson('/api/v2/admins', {
+      await requestJson('/api/admins', {
         method: 'POST',
+        retryAuthentication: false,
         body: JSON.stringify({
           username: createUsername,
           password: createPassword,
-          role_ids: createRoleIds
+          role_ids: createRoleIds,
+          snapshot_revision: snapshotRevision
         })
       })
 
@@ -186,10 +193,13 @@ const AdminSettingsAdminManagementPage = () => {
 
     try {
       setSubmitting(true)
-      await requestJson(`/api/v2/admins/${selectedAdmin.id}`, {
+      await requestJson(`/api/admins/${selectedAdmin.id}`, {
         method: 'PATCH',
+        retryAuthentication: false,
         body: JSON.stringify({
-          role_ids: editRoleIds
+          role_ids: editRoleIds,
+          snapshot_revision: snapshotRevision,
+          profile_revision: selectedAdmin.profile_revision
         })
       })
 
@@ -217,7 +227,7 @@ const AdminSettingsAdminManagementPage = () => {
 
     try {
       setSubmitting(true)
-      await requestJson(`/api/v2/admins/${selectedAdmin.id}/reset-password`, {
+      await requestJson(`/api/admins/${selectedAdmin.id}/reset-password`, {
         method: 'POST',
         body: JSON.stringify({
           password: resetPassword
@@ -243,7 +253,7 @@ const AdminSettingsAdminManagementPage = () => {
     }
 
     try {
-      await requestJson(`/api/v2/admins/${admin.id}`, {
+      await requestJson(`/api/admins/${admin.id}`, {
         method: 'DELETE'
       })
 

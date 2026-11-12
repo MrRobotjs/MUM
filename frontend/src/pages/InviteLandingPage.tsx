@@ -1,4 +1,5 @@
 import { FormEvent, useState } from 'react';
+import { loadPublicInvitation } from '../lib/invitationWizard';
 import { useNavigate } from '@tanstack/react-router';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -49,20 +50,8 @@ const InviteLandingPage = () => {
 
     setSubmitting(true);
     try {
-      // Validate invite via v2 public endpoint before redirecting
-      const res = await fetch(`/api/v2/invite/${encodeURIComponent(token)}`, {
-        headers: { Accept: 'application/json' },
-        credentials: 'include',
-      });
-      if (!res.ok) {
-        throw new Error('Invite not found or expired');
-      }
-      const payload = await res.json();
-      if (payload?.data?.is_paused) {
-        setError('This invite is temporarily unavailable because all servers are disabled.');
-        return;
-      }
-      navigate(`/invite/${encodeURIComponent(token)}`);
+      await loadPublicInvitation(token);
+      navigate({ to: `/invite/${encodeURIComponent(token)}` });
     } catch (err) {
       setError((err as Error).message || 'Unable to validate invite');
     } finally {
@@ -100,7 +89,7 @@ const InviteLandingPage = () => {
         </form>
 
         <div className="mt-6 text-xs text-muted-foreground">
-          If you were given a custom invite path, include it after <code>/invite/</code>.
+          Invite links include a secure code after <code>/invite/</code>.
         </div>
       </div>
     </div>

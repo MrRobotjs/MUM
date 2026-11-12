@@ -32,6 +32,7 @@ import AdminSettingsGeneralPage from '../pages/AdminSettingsGeneralPage';
 import AdminSettingsUserGeneralPage from '../pages/AdminSettingsUserGeneralPage';
 import AdminSettingsAdminManagementPage from '../pages/AdminSettingsAdminManagementPage';
 import AdminSettingsPluginsPage from '../pages/AdminSettingsPluginsPage';
+import AdminSettingsPluginsV2Page from '../pages/AdminSettingsPluginsV2Page';
 import AdminSettingsPluginsDetailPage from '../pages/AdminSettingsPluginsDetailPage';
 import { AdminSettingsPluginsServerAddPage } from '../pages/AdminSettingsPluginsServerAddPage';
 import { AdminSettingsPluginsServerEditPage } from '../pages/AdminSettingsPluginsServerEditPage';
@@ -62,7 +63,7 @@ const userLoginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: 'login',
   component: UserLoginPage,
-  validateSearch: (search) => {
+  validateSearch: (search): { next?: string } => {
     return { next: typeof search.next === 'string' ? (search.next as string) : undefined }
   },
 })
@@ -72,7 +73,7 @@ const adminLoginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: 'admin/login',
   component: LoginPage,
-  validateSearch: (search) => {
+  validateSearch: (search): { next?: string; error?: string } => {
     return {
       next: typeof search.next === 'string' ? (search.next as string) : undefined,
       error: typeof search.error === 'string' ? (search.error as string) : undefined,
@@ -110,7 +111,7 @@ const adminAccount = createRoute({
   getParentRoute: () => adminRoute,
   path: 'account',
   component: AdminAccountPage,
-  validateSearch: (search) => {
+  validateSearch: (search): { tab?: AdminAccountTab } => {
     const tabVal = typeof search.tab === 'string' && (adminAccountTabs as readonly string[]).includes(search.tab)
       ? (search.tab as AdminAccountTab)
       : undefined
@@ -126,7 +127,7 @@ const adminUserByNick = createRoute({
   getParentRoute: () => adminRoute,
   path: 'users/$serverNickname/$username',
   component: UserDetailPage,
-  validateSearch: (search) => {
+  validateSearch: (search): { tab?: UserTab } => {
     const tabVal = typeof search.tab === 'string' && (userTabs as readonly string[]).includes(search.tab)
       ? (search.tab as UserTab)
       : undefined
@@ -137,7 +138,7 @@ const adminUserByUuid = createRoute({
   getParentRoute: () => adminRoute,
   path: 'users/$uuid',
   component: UserDetailPage,
-  validateSearch: (search) => {
+  validateSearch: (search): { tab?: UserTab } => {
     const tabVal = typeof search.tab === 'string' && (userTabs as readonly string[]).includes(search.tab)
       ? (search.tab as UserTab)
       : undefined
@@ -146,25 +147,16 @@ const adminUserByUuid = createRoute({
 })
 const adminInvites = createRoute({ getParentRoute: () => adminRoute, path: 'invites', component: InvitesPage })
 const adminServersList = createRoute({ getParentRoute: () => adminRoute, path: 'servers', component: LibrariesPage })
-const serverTabs = ['overview', 'users', 'libraries'] as const
-type ServerTab = typeof serverTabs[number]
-const adminServerDetail = createRoute({
-  getParentRoute: () => adminRoute,
-  path: 'servers/$serverId',
-  component: ServerDetailPage,
-  validateSearch: (search) => {
-    const tabVal = typeof search.tab === 'string' && (serverTabs as readonly string[]).includes(search.tab)
-      ? (search.tab as ServerTab)
-      : undefined
-    return { tab: tabVal }
-  },
-})
+// A server's Overview, Users and Libraries are separate pages sharing the hero.
+const adminServerDetail = createRoute({ getParentRoute: () => adminRoute, path: 'servers/$serverId', component: () => <ServerDetailPage section="overview" /> })
+const adminServerUsers = createRoute({ getParentRoute: () => adminRoute, path: 'servers/$serverId/users', component: () => <ServerDetailPage section="users" /> })
+const adminServerLibraries = createRoute({ getParentRoute: () => adminRoute, path: 'servers/$serverId/libraries', component: () => <ServerDetailPage section="libraries" /> })
 const adminLibraryDetail = createRoute({
   getParentRoute: () => adminRoute,
   path: 'libraries/$libraryId',
   component: LibraryDetailPage,
   // Validate search param "tab" for stronger typing
-  validateSearch: (search) => {
+  validateSearch: (search): { tab?: 'overview' | 'media' | 'collections' | 'stats' | 'activity' } => {
     const allowed = ['overview', 'media', 'collections', 'stats', 'activity'] as const
     const tabVal = typeof search.tab === 'string' && allowed.includes(search.tab as any) ? (search.tab as typeof allowed[number]) : undefined
     return { tab: tabVal }
@@ -176,7 +168,7 @@ const adminMediaDetail = createRoute({
   getParentRoute: () => adminRoute,
   path: 'libraries/$libraryId/$mediaId',
   component: MediaDetailPage,
-  validateSearch: (search) => {
+  validateSearch: (search): { tab?: MediaTab } => {
     const tabVal = typeof search.tab === 'string' && (mediaTabs as readonly string[]).includes(search.tab)
       ? (search.tab as MediaTab)
       : undefined
@@ -194,6 +186,7 @@ const adminAdminRoleEdit = createRoute({ getParentRoute: () => adminRoute, path:
 const adminUserRoles = createRoute({ getParentRoute: () => adminRoute, path: 'settings/user-roles', component: AdminSettingsUserRolesPage })
 const adminUserRoleEdit = createRoute({ getParentRoute: () => adminRoute, path: 'settings/user-roles/$roleId/edit', component: AdminSettingsUserRolesEditPage })
 const adminPlugins = createRoute({ getParentRoute: () => adminRoute, path: 'settings/plugins', component: AdminSettingsPluginsPage })
+const adminPluginsV2 = createRoute({ getParentRoute: () => adminRoute, path: 'settings/plugins-v2', component: AdminSettingsPluginsV2Page })
 const adminPluginDetail = createRoute({ getParentRoute: () => adminRoute, path: 'settings/plugins/$pluginId', component: AdminSettingsPluginsDetailPage })
 const adminServerAdd = createRoute({ getParentRoute: () => adminRoute, path: 'settings/plugins/$pluginId/servers/add', component: AdminSettingsPluginsServerAddPage })
 const adminServerEdit = createRoute({ getParentRoute: () => adminRoute, path: 'settings/plugins/$pluginId/servers/$serverId', component: AdminSettingsPluginsServerEditPage })
@@ -257,13 +250,13 @@ const userIndex = createRoute({
   getParentRoute: () => userRoute,
   path: '/',
   component: UserDashboardPage,
-  validateSearch: (search) => ({ next: typeof search.next === 'string' ? (search.next as string) : undefined }),
+  validateSearch: (search): { next?: string } => ({ next: typeof search.next === 'string' ? (search.next as string) : undefined }),
 })
 const userDashboard = createRoute({
   getParentRoute: () => userRoute,
   path: 'dashboard',
   component: UserDashboardPage,
-  validateSearch: (search) => ({ next: typeof search.next === 'string' ? (search.next as string) : undefined }),
+  validateSearch: (search): { next?: string } => ({ next: typeof search.next === 'string' ? (search.next as string) : undefined }),
 })
 
 // Setup UI
@@ -297,6 +290,8 @@ const routeTree = rootRoute.addChildren([
     adminInvites,
     adminServersList,
     adminServerDetail,
+    adminServerUsers,
+    adminServerLibraries,
     adminLibraryDetail,
     adminMediaDetail,
     adminSettings,
@@ -306,6 +301,7 @@ const routeTree = rootRoute.addChildren([
     adminUserRoles,
     adminUserRoleEdit,
     adminPlugins,
+    adminPluginsV2,
     adminPluginDetail,
     adminServerAdd,
     adminServerEdit,
@@ -333,6 +329,10 @@ const router = createRouter({
 declare module '@tanstack/react-router' {
   interface Register {
     router: typeof router
+  }
+  interface HistoryState {
+    from?: string
+    userUuid?: string
   }
 }
 

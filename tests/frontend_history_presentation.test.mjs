@@ -1,0 +1,16 @@
+import assert from 'node:assert/strict';import test from 'node:test';import {createRequire} from 'node:module';import {fileURLToPath} from 'node:url';
+const directory=fileURLToPath(new URL('../frontend/',import.meta.url));const {build}=createRequire(new URL('../frontend/package.json',import.meta.url))('esbuild');
+async function load(){const r=await build({stdin:{contents:"export * from './src/lib/activityHistory';export {setAccessToken} from './src/store/authStore';",resolveDir:directory},bundle:true,write:false,format:'esm',platform:'browser'});return import(`data:text/javascript;base64,${Buffer.from(r.outputFiles[0].text).toString('base64')}#${Math.random()}`)}
+const actor='12345678-1234-1234-1234-123456789abc',service='12345678-1234-1234-1234-123456789def',at='2026-11-06T12:00:00Z';
+const row=(o={})=>({id:'7',server_id:'1',service_uuid:service,item_id:'501',media_type:'Audio',title:"We Don't Talk Anymore",first_observed_at:at,last_observed_at:at,ended_observation_at:at,end_reason:'not_observed',paused:false,position_ticks:'600000000',duration_ticks:'2170000000',parent_title:'Nine Track Mind',library_name:'Music',client:'Plexamp',play_method:'direct_play',...o});
+const page=(scope,items)=>({actor_uuid:actor,scope,read_at:at,items,servers:[{server_id:'1',provider:'plex',observed_at:at,age_seconds:0,freshness:'fresh',pending:'none',last_result:'fresh'}],next_before:null});
+const poster='/api/activity/history-images/7?s=session&e=1&g=signature';
+test('history rows carry presentation kept with each play',async t=>{
+ const before={fetch:globalThis.fetch,window:globalThis.window};t.after(()=>{globalThis.fetch=before.fetch;globalThis.window=before.window});globalThis.window={location:{origin:'http://mum.test'}};
+ const read=async(kind,scope,items)=>{const a=await load();a.setAccessToken('session');globalThis.fetch=async()=>Response.json({data:page(scope,items)});return kind==='history'?a.fetchActivityHistory(actor,scope):a.fetchActivityCurrent(actor,scope)};
+ await t.test('administrator history keeps poster, album, library, player and delivery',async()=>{const p=await read('history','all',[row({poster_url:poster})]);const r=p.items[0];assert.equal(r.poster_url,poster);assert.equal(r.parent_title,'Nine Track Mind');assert.equal(r.library_name,'Music');assert.equal(r.client,'Plexamp');assert.equal(r.play_method,'direct_play')});
+ await t.test('own history keeps presentation but never a poster link',async()=>{const p=await read('history','own',[row()]);assert.equal(p.items[0].client,'Plexamp');await assert.rejects(read('history','own',[row({poster_url:poster})]))});
+ await t.test('poster links must be signed links to the same row',async()=>{for(const bad of ['/api/activity/history-images/8?s=x','https://evil.example/x.jpg','/api/media/images/7?s=x','/api/activity/history-images/7?s=a b'])await assert.rejects(read('history','all',[row({poster_url:bad})]))});
+ await t.test('invalid presentation values fail closed',async()=>{for(const bad of [{play_method:'teleport'},{client:''},{library_name:' padded'},{parent_title:5}])await assert.rejects(read('history','all',[row(bad)]))});
+ await t.test('live rows never accept history presentation',async()=>{const live=row({ended_observation_at:null,end_reason:null});await assert.rejects(read('current','all',[live]))});
+});

@@ -11,6 +11,11 @@ type Props = {
 const AdminGuard = ({ children }: Props) => {
   const location = useLocation();
   const { session, loading, error, hasAdminAccess } = useAuth();
+  // The guard can render again after navigation to the login page has begun;
+  // redirecting then would replace the remembered page with the login page.
+  const toLogin = location.pathname === '/admin/login'
+    ? null
+    : <Navigate to="/admin/login" replace state={{ from: location.href }} />;
 
   // Show loading while session is being fetched
   if (loading) {
@@ -22,7 +27,7 @@ const AdminGuard = ({ children }: Props) => {
   }
 
   if (error && (error as ApiError).status === 401) {
-    return <Navigate to="/admin/login" replace state={{ from: location.pathname }} />;
+    return toLogin;
   }
 
   if (error) {
@@ -37,7 +42,7 @@ const AdminGuard = ({ children }: Props) => {
   }
 
   if (!hasAdminAccess) {
-    return <Navigate to="/admin/login" replace state={{ from: location.pathname }} />;
+    return toLogin;
   }
 
   // If children are provided, render them, otherwise fall back to an Outlet

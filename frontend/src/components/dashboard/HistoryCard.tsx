@@ -1,5 +1,6 @@
+import { useAccountDisplay } from '../../hooks/useAccountDisplay';
 import { Button } from '@/components/ui/button';
-import { useAdminApi } from '../../hooks/useAdminApi';
+import { useDashboardData, fetchRecentEvents } from '../../lib/dashboard';
 import { DashboardCard } from './DashboardLayout';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faRotate } from '@fortawesome/free-solid-svg-icons';
@@ -17,9 +18,8 @@ type HistoryResponse = {
 };
 
 export const HistoryCard = () => {
-  const { data, loading, error, mutate } = useAdminApi<HistoryResponse>(
-    '/history/recent?page=1&page_size=5'
-  );
+  const { formatTimestamp } = useAccountDisplay();
+  const { data, loading, error, mutate } = useDashboardData<HistoryResponse>('dashboard:recent-events', () => fetchRecentEvents(5));
 
   return (
     <DashboardCard title="Recent Activity">
@@ -42,7 +42,7 @@ export const HistoryCard = () => {
               <p className="text-foreground">{entry.message}</p>
               {entry.timestamp ? (
                 <p className="text-xs text-muted-foreground">
-                  {new Date(entry.timestamp).toLocaleString()}
+                  {formatTimestamp(entry.timestamp)}
                 </p>
               ) : null}
             </li>

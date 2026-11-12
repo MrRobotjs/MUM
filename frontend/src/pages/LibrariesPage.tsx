@@ -1,3 +1,4 @@
+import { useAccountDisplay } from '../hooks/useAccountDisplay';
 import { useMemo, useState } from 'react';
 import { Link } from '@tanstack/react-router';
 import { cn } from '@/lib/utils';
@@ -39,21 +40,14 @@ type LibraryGroup = {
   }>;
 };
 
-const formatDateTime = (value?: string | null) => {
-  if (!value) return '-';
-  try {
-    return new Date(value).toLocaleString();
-  } catch (err) {
-    return value;
-  }
-};
-
 const formatCount = (value?: number | null) => {
   if (value === null || value === undefined) return 'N/A';
   return value.toLocaleString();
 };
 
 export const LibrariesPage = () => {
+  const { formatTimestamp } = useAccountDisplay();
+  const formatDateTime = (value?: string | null) => formatTimestamp(value, 'datetime', '-');
   const [serverId, setServerId] = useState<number | undefined>();
   const [libraryType, setLibraryType] = useState<string>('');
   const [search, setSearch] = useState<string>('');
@@ -169,7 +163,7 @@ export const LibrariesPage = () => {
   const handleSyncServer = async (serverId: number) => {
     setSyncingServerId(serverId);
     try {
-      await requestJson(`/api/v2/servers/${serverId}/sync-libraries`, {
+      await requestJson(`/api/servers/${serverId}/sync-libraries`, {
         method: 'POST'
       });
       success('Library sync started');
@@ -189,7 +183,7 @@ export const LibrariesPage = () => {
     setSyncingAll(true);
     try {
       for (const server of servers) {
-        await requestJson(`/api/v2/servers/${server.id}/sync-libraries`, {
+        await requestJson(`/api/servers/${server.id}/sync-libraries`, {
           method: 'POST'
         });
       }
@@ -209,7 +203,7 @@ export const LibrariesPage = () => {
     setRawLoading(true);
     try {
       const result = await requestJson<{ data: Record<string, unknown> }>(
-        `/api/v2/libraries/${library.id}?include_server=true`
+        `/api/libraries/${library.id}?include_server=true`
       );
       setRawData(result.data);
     } catch (err) {
@@ -397,7 +391,8 @@ export const LibrariesPage = () => {
                           <div className="flex flex-wrap items-center gap-2">
                             {server.id !== -1 ? (
                               <Link
-                                to={`/admin/servers/${server.id}?tab=overview`}
+                                to="/admin/servers/$serverId"
+                                params={{ serverId: String(server.id) }}
                                 className="text-lg font-semibold text-primary hover:underline"
                               >
                                 {server.server_nickname}
@@ -473,7 +468,9 @@ export const LibrariesPage = () => {
                                   <TableCell>
                                     <div className="space-y-1">
                                       <Link
-                                        to={`/admin/libraries/${library.id}?tab=overview`}
+                                        to="/admin/libraries/$libraryId"
+                                        params={{ libraryId: String(library.id) }}
+                                        search={{ tab: 'overview' }}
                                         className="font-semibold text-primary hover:underline"
                                       >
                                         {library.name}

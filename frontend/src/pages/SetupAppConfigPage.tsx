@@ -1,5 +1,5 @@
 import { FormEvent, useState } from 'react'
-import { ensureCsrfToken, requestJson } from '../util/apiClient'
+import { requestJson } from '../util/apiClient'
 import { useNavigate } from '@tanstack/react-router'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
@@ -33,15 +33,11 @@ function SetupAppContent() {
 
     setSubmitting(true)
     try {
-      await ensureCsrfToken('/api/v2/auth/csrf-token')
-      const form = new FormData()
-      form.set('app_name', appName)
-      form.set('app_base_url', appBaseUrl)
-      if (appLocalUrl) form.set('app_local_url', appLocalUrl)
+      const settings = { app_name: appName, app_base_url: appBaseUrl, app_local_url: appLocalUrl }
 
-      await requestJson('/api/v2/setup/app', {
+      await requestJson('/api/setup/app', {
         method: 'POST',
-        body: form
+        body: JSON.stringify(settings)
       })
       try {
         await refresh()

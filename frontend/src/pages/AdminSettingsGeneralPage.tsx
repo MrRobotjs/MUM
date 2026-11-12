@@ -5,13 +5,13 @@ import { faGear, faShieldHalved } from '@fortawesome/free-solid-svg-icons';
 import { useGeneralSettings, type GeneralSettings } from '../hooks/useSettings';
 import { PageHeader } from '../components';
 import { requestJson } from '../util/apiClient';
+import { generalSettingsPayload } from '../lib/generalSettings';
 import { useAlerts } from '../contexts';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Switch } from '../components/ui/switch';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
-import { Alert, AlertDescription } from '../components/ui/alert';
 import { Spinner } from '@/components/ui/spinner'
 
 const buildGeneralFormValues = (settings: GeneralSettings | null): GeneralSettings => ({
@@ -48,9 +48,9 @@ const GeneralSettingsForm = ({ initialValues, refresh }: GeneralSettingsFormProp
     setSubmitting(true);
 
     try {
-      await requestJson('/api/v2/settings/general', {
+      await requestJson('/api/settings/general', {
         method: 'PATCH',
-        body: JSON.stringify(formValues),
+        body: JSON.stringify(generalSettingsPayload(formValues)),
       });
       success('Settings saved successfully');
       setHasChanges(false);
@@ -66,8 +66,6 @@ const GeneralSettingsForm = ({ initialValues, refresh }: GeneralSettingsFormProp
     setFormValues(initialValues);
     setHasChanges(false);
   };
-
-  const isHttps = window.location.protocol === 'https:';
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
@@ -150,14 +148,9 @@ const GeneralSettingsForm = ({ initialValues, refresh }: GeneralSettingsFormProp
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          {isHttps && !formValues.jwt_cookie_secure && (
-            <Alert variant="destructive">
-              <AlertDescription>
-                <strong>Warning:</strong> You are accessing this application over HTTPS but the Secure Cookie flag is disabled.
-                This will cause authentication issues on page refresh. Enable the setting below to fix this.
-              </AlertDescription>
-            </Alert>
-          )}
+          <p className="text-xs text-muted-foreground">
+            These session settings are fixed by this MUM build and cannot be changed here: access tokens last 15 minutes and sign-in sessions 14 days. The Secure cookie flag is set automatically over direct HTTPS; behind an HTTPS reverse proxy, start MUM with --secure-cookies.
+          </p>
 
           <div className="space-y-2">
             <Label htmlFor="jwt_cookie_secure">JWT Refresh Cookie Security</Label>
@@ -165,23 +158,13 @@ const GeneralSettingsForm = ({ initialValues, refresh }: GeneralSettingsFormProp
               <Switch
                 id="jwt_cookie_secure"
                 checked={formValues.jwt_cookie_secure}
+                disabled
                 onCheckedChange={(checked) => handleChange('jwt_cookie_secure', checked)}
               />
               <Label htmlFor="jwt_cookie_secure" className="font-normal cursor-pointer">
                 Enable Secure flag for refresh tokens (required for HTTPS)
               </Label>
             </div>
-            <p className="text-xs text-muted-foreground">
-              {isHttps ? (
-                <span className="text-warning">
-                  <strong>Recommended:</strong> Your site uses HTTPS. Enable this to prevent authentication errors on page refresh.
-                </span>
-              ) : (
-                <span>
-                  Enable this only if accessing the application over HTTPS. Leave disabled for local HTTP development.
-                </span>
-              )}
-            </p>
           </div>
 
           <div className="grid gap-4 md:grid-cols-2">
@@ -193,6 +176,7 @@ const GeneralSettingsForm = ({ initialValues, refresh }: GeneralSettingsFormProp
                 min={1}
                 max={1440}
                 value={formValues.jwt_access_token_expires_minutes}
+                disabled
                 onChange={(e) => handleChange('jwt_access_token_expires_minutes', Number(e.target.value))}
               />
               <p className="text-xs text-muted-foreground">
@@ -208,6 +192,7 @@ const GeneralSettingsForm = ({ initialValues, refresh }: GeneralSettingsFormProp
                 min={1}
                 max={365}
                 value={formValues.jwt_refresh_token_expires_days}
+                disabled
                 onChange={(e) => handleChange('jwt_refresh_token_expires_days', Number(e.target.value))}
               />
               <p className="text-xs text-muted-foreground">

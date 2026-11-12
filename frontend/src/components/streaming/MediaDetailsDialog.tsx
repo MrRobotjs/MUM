@@ -26,7 +26,7 @@ const DetailCard = ({ label, value }: MediaDetailItem) => (
 export function MediaDetailsDialog({ open, onOpenChange, session }: MediaDetailsDialogProps) {
     const { success, error: showError } = useAlerts();
 
-    const details: Record<string, string | number | null | undefined> = {
+    const details = {
         path: session.media_path,
         duration: session.media_duration,
         bitrate: session.media_bitrate,
@@ -82,7 +82,7 @@ export function MediaDetailsDialog({ open, onOpenChange, session }: MediaDetails
         }
     };
 
-    const hasVoiceActivity =
+    const hasVoiceActivity = details.hasVoiceActivity == null ? undefined :
         details.hasVoiceActivity === 1 ||
         details.hasVoiceActivity === '1' ||
         details.hasVoiceActivity === true;
@@ -116,7 +116,7 @@ export function MediaDetailsDialog({ open, onOpenChange, session }: MediaDetails
         { label: 'CONTAINER', value: details.container ? String(details.container).toUpperCase() : 'N/A' },
         { label: 'VIDEO FRAME RATE', value: details.videoFrameRate, },
         { label: 'VIDEO PROFILE', value: details.videoProfile ? String(details.videoProfile).toUpperCase() : 'N/A' },
-        { label: 'HAS VOICE ACTIVITY', value: hasVoiceActivity ? 'Yes' : hasVoiceActivity === false ? 'No' : 'N/A' },
+        { label: 'HAS VOICE ACTIVITY', value: hasVoiceActivity ? 'Yes' : hasVoiceActivity === false ? 'No' : undefined },
         { label: 'AUTHOR', value: details.author },
         { label: 'SERIES', value: details.series },
         { label: 'PUBLISHER', value: details.publisher },

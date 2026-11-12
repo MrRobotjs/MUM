@@ -1,3 +1,4 @@
+import { useAccountDisplay } from '../../hooks/useAccountDisplay';
 import { type ReactNode } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import type { IconDefinition } from '@fortawesome/fontawesome-svg-core';
@@ -39,6 +40,7 @@ type InviteCardProps = {
   onEdit: (invite: InviteRow) => void;
   onViewDetail: (invite: InviteRow) => void;
   onCopyLink: (invite: InviteRow) => void;
+  onOpen: (invite: InviteRow) => void;
   featureMeta: FeatureMeta[];
   getServiceBadgeClass: (serviceType: string) => string;
   getServiceIcon: (serviceType: string, className?: string) => ReactNode;
@@ -52,6 +54,9 @@ const getInviteStatusMeta = (invite: InviteRow) => {
     invite.has_reached_max_uses ?? (typeof maxUses === 'number' && maxUses > 0 ? uses >= maxUses : false);
   const isPaused = invite.is_paused ?? false;
 
+  if (invite.is_archived) {
+    return { label: 'Archived', className: 'bg-muted text-muted-foreground border-border' };
+  }
   if (isExpired) {
     return { label: 'Expired', className: 'bg-destructive/10 text-destructive border-destructive/20' };
   }
@@ -93,11 +98,12 @@ export const InviteCard = ({
   onToggleSelect,
   onEdit,
   onViewDetail,
-  onCopyLink,
+  onCopyLink, onOpen,
   featureMeta,
   getServiceBadgeClass,
   getServiceIcon
 }: InviteCardProps) => {
+  const { formatTimestamp } = useAccountDisplay();
   const perServerFeatures = resolveServerFeatures(invite);
   const hasMembershipDuration = Boolean(invite.membership_duration_days);
   const statusMeta = getInviteStatusMeta(invite);
@@ -130,15 +136,15 @@ export const InviteCard = ({
                 onCopyLink(invite);
               }}
             >
-              {invite.custom_path || invite.token.substring(0, 12)}
+              {invite.custom_path || invite.token}
             </button>
             <a
-              href={`/invite/${invite.custom_path || invite.token}`}
+              href="#"
               target="_blank"
               rel="noopener noreferrer"
               className="text-muted-foreground hover:text-foreground p-0"
               title="Open link in new tab"
-              onClick={(e) => e.stopPropagation()}
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); onOpen(invite); }}
             >
               <FontAwesomeIcon icon={faArrowUpRightFromSquare} className="h-2 w-2" />
             </a>
@@ -157,11 +163,11 @@ export const InviteCard = ({
         <div className="space-y-2 text-xs text-muted-foreground">
           <div>
             <FontAwesomeIcon icon={faCalendarPlus} className="mr-1 h-3 w-3" />
-            {invite.created_at ? new Date(invite.created_at).toLocaleDateString() : 'Created: N/A'}
+            {invite.created_at ? formatTimestamp(invite.created_at, 'date') : 'Created: N/A'}
           </div>
           <div className={invite.status === 'expired' ? 'text-destructive' : ''}>
             <FontAwesomeIcon icon={faClock} className="mr-1 h-3 w-3" />
-            {invite.expires_at ? new Date(invite.expires_at).toLocaleDateString() : 'Never expires'}
+            {invite.expires_at ? formatTimestamp(invite.expires_at, 'date') : 'Never expires'}
           </div>
           <div className="flex items-center gap-2 font-semibold bg-muted/40 border border-border px-2 py-1 rounded-full w-fit">
             <FontAwesomeIcon icon={faUsers} className="h-3 w-3" />
@@ -182,14 +188,7 @@ export const InviteCard = ({
                   .slice()
                   .sort((a, b) => (a.server_nickname || a.name || '').localeCompare(b.server_nickname || b.name || ''))
                   .map((server) => {
-                    const libs =
-                      invite.grants_all_libraries ||
-                      invite.servers?.length === 1 && invite.libraries?.length
-                        ? invite.libraries ?? []
-                        : (invite.libraries ?? []).filter((lib) => {
-                            const serverName = (server.server_nickname || server.name || '').toLowerCase();
-                            return lib.server_name?.toLowerCase() === serverName || lib.service_type.toLowerCase() === server.service_type.toLowerCase();
-                          });
+                    const libs = (invite.libraries ?? []).filter(lib => lib.server_id === server.id);
 
                     const serverFeatures = perServerFeatures.find((sf) => sf.server_id === server.id);
 
@@ -325,7 +324,8 @@ export const InviteCard = ({
           <Button
             variant="ghost"
             size="sm"
-            title="Edit Invite"
+            title={invite.is_archived ? 'Archived invites cannot be edited' : 'Edit Invite'}
+            disabled={invite.is_archived}
             onClick={(e) => {
               e.stopPropagation();
               onEdit(invite);

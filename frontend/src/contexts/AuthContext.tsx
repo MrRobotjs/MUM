@@ -1,5 +1,6 @@
-import { createContext, useContext, ReactNode } from 'react';
+import { createContext, useContext, ReactNode, useEffect, useRef } from 'react';
 import { useSession } from '../hooks/useSession';
+import { prefetchPluginConfigCache } from '../cache/pluginsCache';
 
 export type Permission = string;
 
@@ -18,7 +19,6 @@ export type User = {
 export type SessionData = {
   user: User;
   permissions: Permission[];
-  csrf_token: string;
   setup_complete: boolean;
   feature_flags?: Record<string, boolean>;
   app_name?: string;
@@ -53,12 +53,32 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   // Check if user has administrator access (owner or user with admin roles)
   const hasAdminAccess = user?.has_admin_access ?? false;
-  const isAdministrator = isOwner || hasAdminAccess;
+  const isAdministrator = isOwner || permissions.includes('administrator');
+  const prefetchedForUserRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (loading) {
+      return;
+    }
+
+    // /api/providers is administrator-only; ordinary sessions would only get 403s.
+    if (!isAuthenticated || !user || !hasAdminAccess) {
+      prefetchedForUserRef.current = null;
+      return;
+    }
+
+    if (prefetchedForUserRef.current === user.id) {
+      return;
+    }
+
+    prefetchedForUserRef.current = user.id;
+    void prefetchPluginConfigCache();
+  }, [loading, isAuthenticated, user, hasAdminAccess]);
 
   const hasPermission = (permission: Permission): boolean => {
     // Owner and administrators have all permissions
     if (isAdministrator) return true;
-    // For backwards compatibility, check permissions array (contains role names)
+    // The Go API returns effective permission keys.
     return permissions.includes(permission);
   };
 
@@ -85,7 +105,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     isOwner,
     isAdministrator,
     hasAdminAccess,
-    refresh,
+    refresh: async () => {
+      await refresh();
+    },
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

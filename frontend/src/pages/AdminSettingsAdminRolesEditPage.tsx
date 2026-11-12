@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useParams, useSearch } from '@tanstack/react-router'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faArrowLeft, faPalette, faKey, faUsers, faPen, faCircleExclamation, faCircleInfo } from '@fortawesome/free-solid-svg-icons'
-import { useAdminRoles, useAdminPermissions } from '../hooks/useAdminRoles'
+import { useAdminRoleDetail, useAdminPermissions } from '../hooks/useAdminRoles'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -15,14 +15,13 @@ export const AdminSettingsAdminRolesEditPage = () => {
   const { roleId } = useParams({ from: '/admin/settings/admin-roles/$roleId/edit' })
   const navigate = useNavigate()
   const search = useSearch({ from: '/admin/settings/admin-roles/$roleId/edit' })
-  const { roles, loading, refresh } = useAdminRoles(true, false, true)
+  const { role, loading, error, refresh, actor } = useAdminRoleDetail(roleId)
   const { permissions } = useAdminPermissions()
 
   const activeTab = (search as any).tab || 'display'
-  const role = roles.find((r) => r.id === roleId)
 
   const handleTabChange = (value: string) => {
-    navigate({ search: (prev: any) => ({ ...prev, tab: value }) })
+    navigate({ href: `/admin/settings/admin-roles/${encodeURIComponent(roleId)}/edit?tab=${encodeURIComponent(value)}` })
   }
 
   const handleBack = () => {
@@ -45,8 +44,8 @@ export const AdminSettingsAdminRolesEditPage = () => {
       <div className="space-y-6">
         <Alert variant="destructive">
           <FontAwesomeIcon icon={faCircleExclamation} className="h-4 w-4" />
-          <AlertTitle>Role not found</AlertTitle>
-          <AlertDescription>The requested role could not be found.</AlertDescription>
+          <AlertTitle>{error ? 'Role unavailable' : 'Role not found'}</AlertTitle>
+          <AlertDescription>The requested role could not be read with your current session. Return to the role list and refresh.</AlertDescription>
         </Alert>
         <Button onClick={handleBack} variant="outline">
           <FontAwesomeIcon icon={faArrowLeft} className="mr-2 size-4" />
@@ -77,7 +76,7 @@ export const AdminSettingsAdminRolesEditPage = () => {
           <div>
             <h1 className="text-2xl font-bold">Edit Role</h1>
             <p className="text-sm text-muted-foreground">
-              Manage settings and permissions for <strong>{role.name}</strong>
+              Review settings and permissions for <strong>{role.name}</strong>. The owner can change unprotected roles. Delegated writes and member changes remain unavailable.
             </p>
           </div>
         </div>
@@ -88,9 +87,7 @@ export const AdminSettingsAdminRolesEditPage = () => {
             <FontAwesomeIcon icon={faCircleInfo} className="h-4 w-4" />
             <AlertTitle>Automatically Managed Role</AlertTitle>
             <AlertDescription>
-              This role is automatically managed by the system. It is assigned based on admin
-              role membership and does not grant additional permissions. You can customize its
-              appearance only.
+              This role is managed by the system. Effective access comes from its persisted permissions. Role and membership changes are unavailable here.
             </AlertDescription>
           </Alert>
         )}
@@ -103,12 +100,10 @@ export const AdminSettingsAdminRolesEditPage = () => {
             <FontAwesomeIcon icon={faPalette} className="mr-2 size-4" />
             Display Settings
           </TabsTrigger>
-          {!isAutoManaged && (
-            <TabsTrigger value="permissions">
+          <TabsTrigger value="permissions">
               <FontAwesomeIcon icon={faKey} className="mr-2 size-4" />
               Permissions
-            </TabsTrigger>
-          )}
+          </TabsTrigger>
           <TabsTrigger value="members">
             <FontAwesomeIcon icon={faUsers} className="mr-2 size-4" />
             Members ({role.user_count ?? 0})
@@ -117,21 +112,19 @@ export const AdminSettingsAdminRolesEditPage = () => {
 
         <div className="mt-6 min-h-[400px]">
           <TabsContent value="display" className="mt-0">
-            <AdminRoleDisplayTab role={role} onUpdate={refresh} />
+            <fieldset disabled={!role.mutations_available}><AdminRoleDisplayTab key={`${actor}-${role.id}`} role={role} onUpdate={refresh} /></fieldset>
           </TabsContent>
 
-          {!isAutoManaged && (
-            <TabsContent value="permissions" className="mt-0">
-              <AdminRolePermissionsTab
+          <TabsContent value="permissions" className="mt-0">
+              <fieldset disabled={!role.mutations_available}><AdminRolePermissionsTab key={`${actor}-${role.id}`}
                 role={role}
                 permissions={permissions}
                 onUpdate={refresh}
-              />
-            </TabsContent>
-          )}
+              /></fieldset>
+          </TabsContent>
 
           <TabsContent value="members" className="mt-0">
-            <AdminRoleMembersTab role={role} onUpdate={refresh} />
+            <AdminRoleMembersTab key={`${actor}-${role.id}`} role={role} onUpdate={refresh} />
           </TabsContent>
         </div>
       </Tabs>

@@ -1,3 +1,4 @@
+import { useAccountDisplay } from '../../hooks/useAccountDisplay';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/common/Badge';
@@ -28,8 +29,9 @@ type UserSummaryCardProps = {
 };
 
 export const UserSummaryCard = ({ user }: UserSummaryCardProps) => {
+  const { formatTimestamp } = useAccountDisplay();
   const statusVariant = user.is_active ? 'secondary' : 'outline';
-  const adminRoleBadges = user.admin_roles_detail && user.admin_roles_detail.length > 0
+  const adminRoleBadges: NonNullable<UserSummary['admin_roles_detail']> = user.admin_roles_detail && user.admin_roles_detail.length > 0
     ? user.admin_roles_detail
     : user.roles.admin_roles.map((role) => ({ name: role }));
 
@@ -56,13 +58,13 @@ export const UserSummaryCard = ({ user }: UserSummaryCardProps) => {
           <div>
             <div className="text-xs uppercase text-muted-foreground">Created</div>
             <div className="text-base">
-              {user.created_at ? new Date(user.created_at).toLocaleString() : '-'}
+              {user.created_at ? formatTimestamp(user.created_at) : '-'}
             </div>
           </div>
           <div>
             <div className="text-xs uppercase text-muted-foreground">Last Login</div>
             <div className="text-base">
-              {user.last_login_at ? new Date(user.last_login_at).toLocaleString() : '-'}
+              {user.last_login_at ? formatTimestamp(user.last_login_at) : '-'}
             </div>
           </div>
           <div>
@@ -74,7 +76,7 @@ export const UserSummaryCard = ({ user }: UserSummaryCardProps) => {
                   hexColor={role.color}
                   iconClass={role.icon}
                   roleKind="admin"
-                  badgeStyle={role.badge_style ?? undefined}
+                  badgeStyle={role.badge_style === 'fill' || role.badge_style === 'outline' || role.badge_style === 'default' ? role.badge_style : undefined}
                   className="text-xs font-medium"
                   title={role.description ?? undefined}
                   hover={false}

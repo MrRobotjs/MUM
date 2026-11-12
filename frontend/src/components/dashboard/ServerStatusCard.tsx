@@ -1,7 +1,8 @@
+import { useAccountDisplay } from '../../hooks/useAccountDisplay';
 import { useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { useAdminApi } from '../../hooks/useAdminApi';
+import { useDashboardData, fetchServerHealth } from '../../lib/dashboard';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faRotate, faEye, faServer, faClock } from '@fortawesome/free-solid-svg-icons';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -34,8 +35,9 @@ type ServerStatusCardProps = {
 };
 
 export const ServerStatusCard = ({ onViewAll }: ServerStatusCardProps = {}) => {
-  const { data, loading, error, mutate } = useAdminApi<ServerStatusResponse>('/server-status');
+  const { data, loading, error, mutate } = useDashboardData<ServerStatusResponse>('dashboard:server-health', () => fetchServerHealth());
   const { success, error: showError } = useAlerts();
+  const { formatTimestamp } = useAccountDisplay();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
 
@@ -51,21 +53,16 @@ export const ServerStatusCard = ({ onViewAll }: ServerStatusCardProps = {}) => {
 
   const lastUpdatedLabel = useMemo(() => {
     if (!lastUpdatedAt) return 'Not yet refreshed';
-    const date = new Date(lastUpdatedAt);
-    if (Number.isNaN(date.getTime())) return 'Unknown';
-    return date.toLocaleTimeString([], {
-      hour: 'numeric',
-      minute: '2-digit',
-      second: '2-digit',
-    });
-  }, [lastUpdatedAt]);
+    return formatTimestamp(lastUpdatedAt, 'time', 'Unknown');
+  }, [lastUpdatedAt, formatTimestamp]);
 
   const handleRefresh = async () => {
     if (isRefreshing) return;
     const startedAt = performance.now();
     setIsRefreshing(true);
     try {
-      const refreshed = await mutate();
+      // An explicit refresh probes each active server before re-reading stored status.
+      const refreshed = await mutate(fetchServerHealth(true), { revalidate: false });
       const refreshedGeneratedAt =
         (refreshed as ServerStatusResponse | undefined)?.meta?.generated_at ??
         generatedAt;

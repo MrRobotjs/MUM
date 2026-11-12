@@ -1,3 +1,5 @@
+import { formatCalendarDate } from '../../util/calendarDates';
+import { invitationPayload } from '../../lib/invitations';
 import { useEffect, useMemo, useState } from 'react';
 import { requestJson } from '../../util/apiClient';
 import { Input } from '../ui/input';
@@ -34,10 +36,13 @@ import { faDiscord } from '@fortawesome/free-brands-svg-icons';
 import { Spinner } from '@/components/ui/spinner'
 
 export type InviteFormValues = {
+	all_library_server_ids?: number[];
   custom_path?: string;
   expires_at?: string | null;
+  original_expires_at?: string | null;
   max_uses?: number | null;
   membership_expires_at?: string | null;
+	membership_duration_days?: number | null;
   allow_downloads?: boolean;
   is_active?: boolean;
   server_ids?: number[];
@@ -179,7 +184,7 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
       }).length,
     [selectedLibraries, serverById]
   );
-  const expiresLabel = form.expires_at ? new Date(form.expires_at).toLocaleDateString() : 'Never';
+  const expiresLabel = form.expires_at ? formatCalendarDate(form.expires_at) : 'Never';
   const maxUsesLabel = form.max_uses || form.max_uses === 0 ? form.max_uses : 'Unlimited';
 
   const isLibrarySelectedForServer = (serverId: number, libraryId: string): boolean => {
@@ -264,8 +269,12 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
   const loadServers = async () => {
     setLoadingServers(true);
     try {
-      const response = await requestJson('/api/v2/servers', { method: 'GET' });
-      setServers(response.data || []);
+      const [response, providers] = await Promise.all([
+        requestJson<{ data: Server[] }>('/api/servers'),
+        requestJson<{ data: { id: string; capabilities: string[] }[] }>('/api/providers'),
+      ]);
+      const supported = new Set(providers.data.filter(p => p.capabilities.includes('invitations.redeem')).map(p => p.id));
+      setServers(response.data.filter(s => supported.has(s.service_type.toLowerCase())));
     } catch (error) {
       console.error('Failed to load servers:', error);
     } finally {
@@ -299,24 +308,13 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
     );
 
     try {
-      const endpoint = forceRefresh
-        ? `/api/v2/servers/${serverId}/libraries/refresh`
-        : `/api/v2/servers/${serverId}/libraries`;
-      const method = forceRefresh ? 'POST' : 'GET';
-
-      const response = await requestJson(endpoint, { method });
-
-      if (response.success && response.libraries) {
-        setServers((prev) =>
-          prev.map((s) =>
-            s.id === serverId
-              ? { ...s, libraries: response.libraries, loadingLibraries: false }
-              : s
-          )
-        );
-
+      if (forceRefresh) await requestJson(`/api/servers/${serverId}/sync-libraries`, { method: 'POST' });
+      const response = await requestJson<{ data: { external_id: string; name: string }[] }>(`/api/libraries?server_id=${serverId}`);
+      const libraries: Library[] = response.data.map(l => ({ id: l.external_id, external_id: l.external_id, name: l.name }));
+      if (Array.isArray(libraries)) {
+        setServers(prev => prev.map(s => s.id === serverId ? { ...s, libraries, loadingLibraries: false } : s));
         if (autoSelectLibraries) {
-          const libraryIds = response.libraries.map(
+          const libraryIds = libraries.map(
             (lib: Library) => getLibraryId(lib)
           );
           setSelectedLibraries((prev) => {
@@ -525,6 +523,7 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
     const submitData = {
       custom_path: form.custom_path?.trim() || undefined,
       expires_at,
+      original_expires_at: form.original_expires_at,
       max_uses: form.max_uses ?? null,
       allow_downloads: allowDownloadsAny,
       is_active: form.is_active ?? true,
@@ -546,10 +545,14 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
       grant_purge_whitelist: form.grant_purge_whitelist ?? false,
       grant_bot_whitelist: false, // WIP / disabled
       server_ids: Array.from(selectedServerIds),
+      all_library_server_ids: Array.from(selectedServerIds).filter(id => serverById.get(id)?.service_type.toLowerCase() === 'romm'
+        ? Boolean(form.all_library_server_ids?.includes(id) && getServerFeature(id).allow_downloads)
+        : Boolean(initialValues?.all_library_server_ids?.includes(id) && serverById.get(id)?.service_type.toLowerCase() !== 'kavita' && (serverById.get(id)?.libraries ?? []).every(l => selectedLibraries.has(getScopedLibraryToken(id, String(l.id)))))),
       grant_library_ids: normalizedLibraryTokens,
       server_features: serverFeaturePayload
     };
 
+    try { invitationPayload(submitData, servers); } catch (error) { setServerError((error as Error).message); return; }
     await onSubmit(submitData);
   };
 
@@ -645,6 +648,8 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
                 </div>
                 <Input
                   type="text"
+                  disabled={editingMode}
+                  title={editingMode ? 'The custom path cannot be changed after the invite is created' : undefined}
                   value={form.custom_path ?? ''}
                   onChange={handleChange('custom_path')}
                   placeholder="e.g., besties or vip_access"
@@ -756,10 +761,21 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
 
                             {isSelected ? (
                               <div className="space-y-3 border-t px-4 py-3 bg-background/80">
-                                {supportsLibraryAccess ? (
+                                {server.service_type.toLowerCase() === 'romm' ? (
+                                  <div className="rounded-md border bg-background px-3 py-2">
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-sm font-medium">Grant all current and future platforms, including downloads</span>
+                                      <Switch checked={Boolean(form.all_library_server_ids?.includes(server.id) && featureState.allow_downloads)} onCheckedChange={checked => {
+                                        setForm(prev => ({ ...prev, all_library_server_ids: checked ? [...(prev.all_library_server_ids ?? []).filter(id => id !== server.id), server.id] : (prev.all_library_server_ids ?? []).filter(id => id !== server.id) }));
+                                        updateServerFeature(server.id, { allow_downloads: checked });
+                                      }} />
+                                    </div>
+                                    <p className="text-[11px] text-muted-foreground mt-1">RomM couples reading with downloads. New accounts start enabled in the default group before restriction; existing sessions may remain after disable.</p>
+                                  </div>
+                                ) : supportsLibraryAccess ? (
                                   <>
                                     <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                                      <span>Library Access</span>
+                                      <span>{server.service_type.toLowerCase() === 'kavita' ? 'Selected libraries only; future libraries are not included' : 'Library Access'}</span>
                                       <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-1 text-[11px]">
                                         {selectedCountForServer}/{allLibraries.length || 0} selected
                                       </span>
@@ -786,7 +802,7 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
                                           type="button"
                                           variant="ghost"
                                           size="sm"
-                                          onClick={() => loadLibrariesForServer(server.id, true)}
+                                          onClick={() => loadLibrariesForServer(server.id, true, initialValues?.all_library_server_ids?.includes(server.id) ?? false)}
                                           disabled={!isAvailable}
                                           title={
                                             isAvailable
@@ -852,6 +868,7 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
                                           Allow Downloads
                                         </div>
                                         <Switch
+                                          disabled={server.service_type.toLowerCase() === 'romm'}
                                           checked={featureState.allow_downloads ?? false}
                                           onCheckedChange={(checked) => {
                                             updateServerFeature(server.id, { allow_downloads: checked });
@@ -994,6 +1011,8 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
                                 </div>
                               </div>
                               <Switch
+                                disabled
+                                title="This invitation feature is not available yet"
                                 checked={form.require_discord_auth ?? false}
                                 onCheckedChange={(checked) => handleDiscordRequirementToggle('require_discord_auth', checked)}
                               />
@@ -1010,6 +1029,8 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
                                 </div>
                               </div>
                               <Switch
+                                disabled
+                                title="This invitation feature is not available yet"
                                 checked={form.require_discord_guild_membership ?? false}
                                 onCheckedChange={(checked) => handleDiscordRequirementToggle('require_discord_guild_membership', checked)}
                               />
@@ -1034,7 +1055,9 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
                         </div>
                       </div>
                       <Switch
-                        checked={form.grant_purge_whitelist ?? false}
+                        disabled
+                                title="This invitation feature is not available yet"
+                                checked={form.grant_purge_whitelist ?? false}
                         onCheckedChange={(checked) => setForm((prev) => ({ ...prev, grant_purge_whitelist: checked }))}
                       />
                     </div>

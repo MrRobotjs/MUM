@@ -1,29 +1,33 @@
+import { useAccountDisplay } from '../hooks/useAccountDisplay';
 import { useMemo, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { useLocation, useNavigate, useParams, useSearch } from '@tanstack/react-router';
 import { useAlerts } from '../contexts/AlertContext';
-import { useUserDetail, UserDetail, UserHistoryEntry } from '../hooks/useUserDetail';
-import { useUserHistoryPaginated } from '../hooks/useUserHistoryPaginated';
-import { useServiceAccounts } from '../hooks/useServiceAccounts';
-import { useAvailableServiceAccounts } from '../hooks/useAvailableServiceAccounts';
+import { useUserDetail, UserDetail } from '../hooks/useUserDetail';
+import {useIdentityHistory,useIdentityCurrent} from '../hooks/useIdentityHistory';
+import {observationPosition,observationProgress} from '../lib/activityHistory';
 import { useOverseerr } from '../hooks/useOverseerr';
 import { useServers } from '../hooks/useServers';
-import { useUserSettings } from '../hooks/useUserSettings';
 import { useUserUuidBySlug } from '../hooks/useUserUuidBySlug';
-import { useStreamingWebSocket } from '../hooks/useStreamingWebSocket';
+import {useIdentitySummary} from '../hooks/useIdentitySummary';
 import { requestJson } from '../util/apiClient';
 import {
-  ServiceAccountsCard,
-  ServiceAccountLinkModal,
-  OverseerrCard,
-  UserSettingsCard
+  OverseerrCard
 } from '../components/users';
-import type { ServiceAccount } from '../components/users/ServiceAccountsCard';
-import type { UserSettings } from '../components/users/UserSettingsCard';
+import {ProfileAccountLinks} from '../components/users/ProfileAccountLinks';
+import {useProfileAccountSnapshot} from '../hooks/useProfileAccountSnapshot';
+import {ProfileNotesCard} from '../components/users/ProfileNotesCard';
+import {HumanActivationCard} from '../components/users/HumanActivationCard';
+import {HumanCredentialsCard} from '../components/users/HumanCredentialsCard';
+import {ServiceExpiryCard} from '../components/users/ServiceExpiryCard';
+import {ServiceRemoteAccessCard} from '../components/users/ServiceRemoteAccessCard';
+import {ProfileRemoteAccessCard} from '../components/users/ProfileRemoteAccessCard';
+import {HumanExpiryCard} from '../components/users/HumanExpiryCard';
+import {HumanUserRolesCard} from '../components/users/HumanUserRolesCard';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import {Button} from '@/components/ui/button';
 import { Badge } from '@/components/common/Badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Pagination } from '@/components/common/Pagination';
 import { getServiceMeta } from '@/config/pluginMetadata';
 import type { UnifiedSession } from '@/types/realtime';
 import type { UserNowPlaying } from '@/components/users/UserCard';
@@ -67,12 +71,6 @@ import { Spinner } from '@/components/ui/spinner'
 
 type TabKey = 'profile' | 'history' | 'settings' | 'overseerr' | 'security';
 
-const formatDateTime = (value?: string | null, withTime = true) => {
-  if (!value) return '—';
-  const date = new Date(value);
-  return date.toLocaleString(undefined, withTime ? undefined : { dateStyle: 'medium' });
-};
-
 const formatDuration = (value?: string | null) => value || '0m';
 const formatNumber = (value?: number | null) => (typeof value === 'number' ? value.toLocaleString() : '0');
 
@@ -94,47 +92,36 @@ const getPlaybackInfo = (state?: string) => {
   return { icon: faWaveSquare, color: 'text-muted-foreground', bg: 'bg-secondary/50', border: 'border-border/50', animate: false };
 };
 
-const ProfileTab = ({ user }: { user: UserDetail }) => {
+// Retain existing player theme utilities while telemetry is unavailable: w-11 dark:border-border/70 dark:bg-muted/20
+const ProfileTab = ({ user,target }: { user: UserDetail;target:string }) => {
+  const { formatTimestamp } = useAccountDisplay();
+  const formatDateTime = (value?: string | null, withTime = true) => formatTimestamp(value, withTime ? 'datetime' : 'date');
   const theme = getServiceMeta(user.service_type ?? user.service_types?.[0]);
-  const { lastSessionData } = useStreamingWebSocket({ autoConnect: false });
-  const globalStats = user.stream_stats?.global ?? {};
-  const playerStats = user.stream_stats?.players ?? [];
+  const current=useIdentityCurrent(target);
+  const summaryState=useIdentitySummary(target);
+  const summary=summaryState.summary;
   const isServiceUser = user.user_type.toLowerCase() === 'service';
   const roleBadges = user.user_roles_detail;
   const adminRoleBadges = user.admin_roles_detail && user.admin_roles_detail.length > 0
     ? user.admin_roles_detail
-    : user.roles.admin_roles.map((role) => ({ name: role }));
-  const nowPlaying = useMemo<UserNowPlaying | null>(() => {
-    const sessions = (lastSessionData?.sessions ?? []) as UnifiedSession[];
-    if (!sessions.length) return null;
-    const userSessions = sessions.filter(
-      (session) => session.user?.uuid && String(session.user.uuid) === String(user.uuid)
-    );
-    if (!userSessions.length) return null;
-    const sorted = [...userSessions].sort(
-      (left, right) => getSessionPriority(right.state) - getSessionPriority(left.state)
-    );
-    const primary = sorted[0];
-    if (!primary) return null;
-    return {
-      state: primary.state ?? 'unknown',
-      mediaTitle: primary.item?.title ?? 'Unknown Title',
-      serviceType: primary.server?.service ?? null,
-      serverName: primary.server?.name ?? null,
-      sessionCount: userSessions.length,
-    };
-  }, [lastSessionData?.sessions, user.uuid]);
-  const playbackInfo = nowPlaying ? getPlaybackInfo(nowPlaying.state) : null;
+    : user.roles.admin_roles.map((role): { name: string; color?: string | null; icon?: string | null; badge_style?: string | null; description?: string | null } => ({ name: role }));
+  const nowPlaying = useMemo<UserNowPlaying | null>(()=>{
+    const page=current.page,row=page?.items[0];if(!row||page?.target_uuid!==target)return null;
+    const source=page.servers.find(s=>s.server_id===row.server_id);
+    return {state:`Last observed ${row.paused?'paused':'playing'} · ${source?.freshness??'unknown'}`,mediaTitle:row.title,serviceType:source?.provider??null,serverName:`${source?.provider??'Unknown'} · Server ${row.server_id}`};
+  },[current.page,target]);
+  const playbackInfo=nowPlaying?getPlaybackInfo('unknown'):null;
   const PlaybackIcon = playbackInfo?.icon as IconDefinition | undefined;
 
+  if(user.uuid!==target)return <p className="text-sm text-muted-foreground">Profile identity is unavailable. Refresh before inspecting activity.</p>;
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
       <div className="space-y-6">
         {nowPlaying && playbackInfo && PlaybackIcon ? (
           <Card>
             <CardHeader>
-              <CardTitle>Now Playing</CardTitle>
-              <CardDescription>Live session status for this user.</CardDescription>
+              <CardTitle>Retained Observation</CardTitle>
+              <CardDescription>One retained row on this target page; present playback is unverified.</CardDescription>
             </CardHeader>
             <CardContent>
               <div className={cn(
@@ -188,9 +175,11 @@ const ProfileTab = ({ user }: { user: UserDetail }) => {
                   )}
                 </div>
               </div>
+              <p className="text-xs text-muted-foreground">Read at {formatTimestamp(current.page?.read_at)}. Last observed {formatTimestamp(current.page?.items[0]?.last_observed_at)}. Position {observationPosition(current.page?.items[0]?.position_ticks??null)} / Duration {observationPosition(current.page?.items[0]?.duration_ticks??null)}. No playback extrapolation.</p>
+              <Button variant="outline" onClick={()=>void current.refresh().catch(()=>{})}>Refresh observation</Button>
             </CardContent>
           </Card>
-        ) : null}
+        ) : <Card><CardHeader><CardTitle>Retained Observation</CardTitle><CardDescription>Current observation coverage is limited to supported sources.</CardDescription></CardHeader><CardContent><p className="text-sm text-muted-foreground">{current.error?'Current observations are unavailable.':current.loading?'Loading observations...':'No retained observation is available in this authorized page.'}</p><Button variant="outline" onClick={()=>void current.refresh().catch(()=>{})}>Refresh observation</Button></CardContent></Card>}
 
         <Card>
           <CardHeader>
@@ -353,9 +342,9 @@ const ProfileTab = ({ user }: { user: UserDetail }) => {
               <div className="border-t border-border pt-4">
                 <div className="text-sm font-semibold text-foreground">Library Access</div>
                 {user.has_all_libraries ? (
-                  <p className="mt-2 text-sm text-muted-foreground">Has access to all libraries on this server.</p>
+                  <p className="mt-2 text-sm text-muted-foreground">This profile reports all-library access.</p>
                 ) : user.libraries.length === 0 ? (
-                  <p className="mt-2 text-sm text-muted-foreground">No specific libraries assigned.</p>
+                  <p className="mt-2 text-sm text-muted-foreground">No specific library IDs are returned by this profile.</p>
                 ) : (
                   <div className="mt-3 flex flex-wrap gap-2">
                     {user.libraries.map((library) => (
@@ -439,48 +428,24 @@ const ProfileTab = ({ user }: { user: UserDetail }) => {
       <div className="space-y-6 lg:col-span-2">
         <Card>
           <CardHeader>
-            <CardTitle>Global Streaming Stats</CardTitle>
+            <CardTitle>Recorded Observation Totals</CardTitle>
             <CardDescription>
-              Aggregated playback history compiled across all connected services.
+              Complete target-bound counts across authorized recorded observations; these are not plays or watched duration.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {Object.keys(globalStats).length === 0 ? (
+            {!summary ? (
               <div className="flex flex-col items-center gap-3 py-8 text-muted-foreground/60">
                 <FontAwesomeIcon icon={faChartSimple} className="text-3xl" />
-                <p className="text-sm">No streaming activity has been recorded for this user yet.</p>
+                <p className="text-sm">{summaryState.error?'Observation totals are unavailable.':'Loading observation totals...'}</p>
               </div>
             ) : (
               <div className="grid gap-4 md:grid-cols-2">
                 {[
-                  {
-                    title: 'Last 24 Hours',
-                    plays: globalStats.plays_24h ?? 0,
-                    duration: globalStats.duration_24h,
-                    gradient: 'from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20',
-                    icon: <FontAwesomeIcon icon={faClock} className="text-blue-600 dark:text-blue-300" />
-                  },
-                  {
-                    title: 'Last 7 Days',
-                    plays: globalStats.plays_7d ?? 0,
-                    duration: globalStats.duration_7d,
-                    gradient: 'from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20',
-                    icon: <FontAwesomeIcon icon={faCalendarWeek} className="text-green-600 dark:text-green-300" />
-                  },
-                  {
-                    title: 'Last 30 Days',
-                    plays: globalStats.plays_30d ?? 0,
-                    duration: globalStats.duration_30d,
-                    gradient: 'from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20',
-                    icon: <FontAwesomeIcon icon={faCalendarDays} className="text-purple-600 dark:text-purple-300" />
-                  },
-                  {
-                    title: 'All Time',
-                    plays: globalStats.all_time_plays ?? 0,
-                    duration: globalStats.all_time_duration,
-                    gradient: 'from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20',
-                    icon: <FontAwesomeIcon icon={faInfinity} className="text-orange-600 dark:text-orange-300" />
-                  }
+                  {title:'Recorded',count:summary.recorded_observations,gradient:'from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20',icon:<FontAwesomeIcon icon={faClock} className="text-blue-600 dark:text-blue-300"/>},
+                  {title:'Ended observations',count:summary.ended_observations,gradient:'from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20',icon:<FontAwesomeIcon icon={faCalendarWeek} className="text-green-600 dark:text-green-300"/>},
+                  {title:'Retained current',count:summary.retained_current_observations,gradient:'from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20',icon:<FontAwesomeIcon icon={faCalendarDays} className="text-purple-600 dark:text-purple-300"/>},
+                  {title:'Fresh current observations',count:summary.fresh_current_observations,gradient:'from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20',icon:<FontAwesomeIcon icon={faInfinity} className="text-orange-600 dark:text-orange-300"/>}
                 ].map((stat) => (
                   <div
                     key={stat.title}
@@ -494,11 +459,11 @@ const ProfileTab = ({ user }: { user: UserDetail }) => {
                       {stat.title}
                     </div>
                     <div className="mt-3 flex items-baseline gap-2">
-                      <span className="text-3xl font-bold text-foreground">{formatNumber(stat.plays)}</span>
-                      <span className="text-xs uppercase tracking-wide text-muted-foreground/60">plays</span>
+                      <span className="text-3xl font-bold text-foreground">{stat.count}</span>
+                      <span className="text-xs uppercase tracking-wide text-muted-foreground/60">observations</span>
                     </div>
                     <div className="mt-2 text-xs text-muted-foreground">
-                      Watch time: {formatDuration(stat.duration)}
+                      Watched duration unavailable
                     </div>
                   </div>
                 ))}
@@ -507,322 +472,133 @@ const ProfileTab = ({ user }: { user: UserDetail }) => {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0">
-            <div>
-              <CardTitle>Preferred Players</CardTitle>
-              <CardDescription>Top devices or apps used to play content.</CardDescription>
-            </div>
-            {playerStats.length > 0 ? (
-              <span className="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium bg-muted text-muted-foreground">
-                <FontAwesomeIcon icon={faLayerGroup} className="mr-1" />
-                {playerStats.length} unique players
-              </span>
-            ) : null}
-          </CardHeader>
-          <CardContent>
-            {playerStats.length === 0 ? (
-              <div className="flex flex-col items-center gap-3 py-8 text-muted-foreground/60">
-                <FontAwesomeIcon icon={faTv} className="text-3xl" />
-                <p className="text-sm">No player telemetry has been captured yet.</p>
-              </div>
-            ) : (
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {playerStats.map((player) => (
-                  <div
-                    key={player?.name ?? 'unknown'}
-                    className="rounded-xl border border-border bg-muted/40 p-4 text-center shadow-sm transition-shadow hover:shadow-md dark:border-border/70 dark:bg-muted/20"
-                  >
-                    <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                      <FontAwesomeIcon icon={faPlay} className="text-xl" />
-                    </div>
-                    <div className="mb-3 text-sm font-semibold text-foreground" title={player?.name ?? 'Unknown'}>
-                      {player?.name ?? 'Unknown Player'}
-                    </div>
-                    <div className="flex items-baseline justify-center gap-1">
-                      <span className="text-2xl font-bold text-primary">
-                        {formatNumber(player?.plays ?? 0)}
-                      </span>
-                      <span className="text-xs text-muted-foreground">plays</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        <Card><CardHeader className="flex flex-row items-center justify-between space-y-0"><div><CardTitle>Preferred Players</CardTitle><CardDescription>Player and device telemetry is unavailable for these observations.</CardDescription></div></CardHeader><CardContent><div className="flex flex-col items-center gap-3 py-8 text-muted-foreground/60"><FontAwesomeIcon icon={faTv} className="text-3xl"/><p className="text-sm">Player rankings, daily plays and watched duration cannot be inferred.</p></div></CardContent></Card>
       </div>
     </div>
   );
 };
 
-type HistoryTabProps = {
-  entries: UserHistoryEntry[];
-  loading: boolean;
-  error?: Error | null;
-  currentPage: number;
-  totalPages: number;
-  onPageChange: (page: number) => void;
-};
-
-const HistoryTab = ({ entries, loading, error, currentPage, totalPages, onPageChange }: HistoryTabProps) => {
-  const formatDuration = (seconds?: number | null) => {
-    if (!seconds) return '0m';
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    if (mins > 0) {
-      return secs > 0 ? `${mins}m ${secs}s` : `${mins}m`;
-    }
-    return `${secs}s`;
-  };
-
-  const formatProgress = (viewOffset?: number | null, totalDuration?: number | null) => {
-    if (!viewOffset || !totalDuration || totalDuration === 0) return 0;
-    return Math.min(Math.round((viewOffset / totalDuration) * 100), 100);
-  };
-
+// Poster cell: a signed history image when the play kept one, otherwise the
+// play icon (also when the image fails to load).
+const HistoryPoster = ({ url, title }: { url?: string; title: string }) => {
+  const [failed, setFailed] = useState(false);
   return (
-    <section className="space-y-4">
-      {loading && entries.length === 0 ? (
-        <div className="flex items-center gap-3 rounded border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
-          <Spinner className="size-4" />
-          Fetching recent history…
-        </div>
-      ) : null}
-      {error ? (
-        <div className="rounded border border-red-500/40 bg-red-50 dark:bg-red-400/10 px-4 py-3 text-sm text-red-600 dark:text-red-400">
-          Failed to load history: {error.message}
-        </div>
-      ) : null}
-
-      {entries.length === 0 && !loading ? (
-        <div className="flex flex-col items-center gap-3 py-10 text-muted-foreground/60">
-          <FontAwesomeIcon icon={faClockRotateLeft} className="text-3xl" />
-          <p className="text-sm">No streaming history to display yet.</p>
-        </div>
+    <div className="w-12 h-18 rounded bg-muted/30 flex items-center justify-center overflow-hidden">
+      {url && !failed ? (
+        <img src={url} alt={title || 'Media poster'} className="w-full h-full object-cover" onError={() => setFailed(true)} />
       ) : (
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent Activity</CardTitle>
-            <CardDescription>Streaming history and playback sessions</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-border">
-                    <th className="w-20 py-3 px-4 text-sm font-medium text-muted-foreground">Poster</th>
-                    <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Media Title</th>
-                    <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Player / Platform</th>
-                    <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Started</th>
-                    <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Duration</th>
-                    <th className="text-center py-3 px-4 text-sm font-medium text-muted-foreground">Progress</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {entries.map((entry) => {
-                    const details = entry.details || {};
-                    const progress = formatProgress(
-                      details.view_offset_at_end_seconds as number,
-                      details.duration_seconds as number
-                    );
-
-                    return (
-                      <tr key={entry.id} className="border-b border-border/50 hover:bg-muted/50 transition-colors">
-                        <td className="py-3 px-4">
-                          <div className="w-12 h-18 rounded bg-muted/30 flex items-center justify-center overflow-hidden">
-                            {details.poster_url ? (
-                              <img
-                                src={details.poster_url as string}
-                                alt={details.media_title as string || 'Media poster'}
-                                className="w-full h-full object-cover"
-                                onError={(e) => {
-                                  (e.target as HTMLImageElement).style.display = 'none';
-                                  (e.target as HTMLImageElement).parentElement!.innerHTML = '<span class="text-muted-foreground/40 text-sm">▶</span>';
-                                }}
-                              />
-                            ) : (
-                              <FontAwesomeIcon icon={faPlay} className="text-muted-foreground/40 text-sm" />
-                            )}
-                          </div>
-                        </td>
-                        <td className="py-3 px-4">
-                          <div className="font-medium">{details.media_title as string || 'Unknown Title'}</div>
-                          {details.grandparent_title && (
-                            <div className="text-xs text-muted-foreground">{details.grandparent_title as string}</div>
-                          )}
-                          {details.library_name && (
-                            <div className="text-xs text-muted-foreground/60">
-                              <FontAwesomeIcon icon={faFolder} className="mr-1 h-3 w-3" />
-                              {details.library_name as string}
-                            </div>
-                          )}
-                        </td>
-                        <td className="py-3 px-4">
-                          <div className="font-medium text-sm">{details.player as string || 'Unknown Player'}</div>
-                          <div className="text-xs text-muted-foreground">
-                            {details.platform as string || details.product as string || 'Unknown Platform'}
-                          </div>
-                        </td>
-                        <td className="py-3 px-4">
-                          <div className="text-sm">{entry.timestamp ? formatDateTime(entry.timestamp, false) : 'N/A'}</div>
-                          {entry.timestamp && (
-                            <div className="text-xs text-muted-foreground">
-                              {new Date(entry.timestamp).toLocaleTimeString(undefined, {
-                                hour: '2-digit',
-                                minute: '2-digit'
-                              })}
-                            </div>
-                          )}
-                        </td>
-                        <td className="py-3 px-4">
-                          <div className="text-sm font-medium">
-                            {formatDuration(details.view_offset_at_end_seconds as number)}
-                          </div>
-                          {details.duration_seconds && (
-                            <div className="text-xs text-muted-foreground">
-                              of {formatDuration(details.duration_seconds as number)}
-                            </div>
-                          )}
-                        </td>
-                        <td className="py-3 px-4 text-center">
-                          <div className="inline-flex items-center justify-center">
-                            <div className="relative size-12">
-                              <svg className="size-12 transform -rotate-90">
-                                <circle
-                                  cx="24"
-                                  cy="24"
-                                  r="20"
-                                  stroke="currentColor"
-                                  strokeWidth="4"
-                                  fill="none"
-                                  className="text-muted/30"
-                                />
-                                <circle
-                                  cx="24"
-                                  cy="24"
-                                  r="20"
-                                  stroke="currentColor"
-                                  strokeWidth="4"
-                                  fill="none"
-                                  strokeDasharray={`${2 * Math.PI * 20}`}
-                                  strokeDashoffset={`${2 * Math.PI * 20 * (1 - progress / 100)}`}
-                                  className="text-primary transition-all"
-                                />
-                              </svg>
-                              <div className="absolute inset-0 flex items-center justify-center">
-                                <span className="text-xs font-mono font-semibold">{progress}%</span>
-                              </div>
-                            </div>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            <Pagination
-              currentPage={currentPage}
-              totalPages={totalPages}
-              onPageChange={onPageChange}
-              loading={loading}
-            />
-          </CardContent>
-        </Card>
+        <FontAwesomeIcon icon={faPlay} className="text-muted-foreground/40 text-sm" />
       )}
-    </section>
-  );
-};
-
-type SettingsTabProps = {
-  user: UserDetail;
-  settings: UserSettings | null;
-  settingsLoading: boolean;
-  settingsError?: Error | null;
-  onSaveSettings: (payload: Partial<UserSettings>) => Promise<void>;
-  serviceAccounts: ServiceAccount[];
-  serviceAccountsLoading: boolean;
-  serviceAccountsError?: Error | null;
-  onLinkAccount?: () => void;
-  onUnlinkAccount: (serviceUuid: string) => Promise<void>;
-  onUnlinkServiceUser?: () => Promise<void>;
-  unlinkingServiceUser?: boolean;
-  allowLinking: boolean;
-};
-
-const SettingsTab = ({
-  user,
-  settings,
-  settingsLoading,
-  settingsError,
-  onSaveSettings,
-  serviceAccounts,
-  serviceAccountsLoading,
-  serviceAccountsError,
-  onLinkAccount,
-  onUnlinkAccount,
-  onUnlinkServiceUser,
-  unlinkingServiceUser,
-  allowLinking
-}: SettingsTabProps) => {
-  const isServiceUser = user.user_type?.toLowerCase() === 'service';
-  const linkedLocal = user.linked_local_user;
-
-  return (
-    <div className="space-y-6">
-      <UserSettingsCard settings={settings} loading={settingsLoading} error={settingsError ?? undefined} onSave={onSaveSettings} />
-      {isServiceUser && linkedLocal ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>Linked Local Account</CardTitle>
-            <CardDescription>
-              This service user is currently linked to a local MUM account.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="rounded-lg border border-border bg-muted/30 p-4">
-              <div className="text-sm text-muted-foreground">Linked to</div>
-              <div className="text-base font-semibold text-foreground">
-                {linkedLocal.display_name ?? linkedLocal.username ?? 'Local account'}
-              </div>
-              {linkedLocal.email ? (
-                <div className="text-xs text-muted-foreground">{linkedLocal.email}</div>
-              ) : null}
-            </div>
-            <button
-              type="button"
-              className="inline-flex items-center justify-center rounded-md text-sm font-medium border border-destructive/50 text-destructive hover:bg-destructive/10 h-9 px-4 py-2"
-              onClick={onUnlinkServiceUser}
-              disabled={unlinkingServiceUser}
-            >
-              <FontAwesomeIcon icon={faLink} className="mr-2" />
-              {unlinkingServiceUser ? 'Unlinking…' : 'Unlink account'}
-            </button>
-          </CardContent>
-        </Card>
-      ) : null}
-      {allowLinking ? (
-        <ServiceAccountsCard
-          accounts={serviceAccounts}
-          loading={serviceAccountsLoading}
-          error={serviceAccountsError ?? undefined}
-          onLink={onLinkAccount}
-          onUnlink={onUnlinkAccount}
-        />
-      ) : null}
     </div>
   );
 };
 
-type SecurityTabProps = {
-  user: UserDetail;
-  onResetPassword: () => Promise<void>;
-  resetting: boolean;
+const playMethodLabels: Record<string, string> = { direct_play: 'Direct Play', direct_stream: 'Direct Stream', transcode: 'Transcode' };
+
+// Provider positions are in 100 ns ticks; shown as Flask did ("12m 5s").
+const formatTicks = (ticks: string | null) => {
+  if (ticks === null) return '0m';
+  const seconds = Number(BigInt(ticks) / 10000000n);
+  const mins = Math.floor(seconds / 60), secs = seconds % 60;
+  if (mins > 0) return secs > 0 ? `${mins}m ${secs}s` : `${mins}m`;
+  return `${secs}s`;
 };
 
-const SecurityTab = ({ user, onResetPassword, resetting }: SecurityTabProps) => (
+const HistoryTab=({history,target}:{history:ReturnType<typeof useIdentityHistory>;target:string})=>{
+  const {formatTimestamp}=useAccountDisplay();
+  const {page,loading,error,refresh,hasPrevious,previous,next}=history;
+  if(error)return <section className="space-y-4"><div className="rounded border border-red-500/40 bg-red-50 dark:bg-red-400/10 px-4 py-3 text-sm text-red-600 dark:text-red-400">Failed to load history: {error.message} <Button variant="outline" onClick={()=>void refresh().catch(()=>{})}>Refresh history</Button></div></section>;
+  if(loading||!page||page.target_uuid!==target)return <section className="space-y-4"><div className="flex items-center gap-3 rounded border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground"><Spinner className="size-4"/>Fetching recent history…</div></section>;
+  if(page.items.length===0&&!hasPrevious)return <section className="space-y-4"><div className="flex flex-col items-center gap-3 py-10 text-muted-foreground/60"><FontAwesomeIcon icon={faClockRotateLeft} className="text-3xl"/><p className="text-sm">No streaming history to display yet.</p></div></section>;
+  return (
+    <section className="space-y-4">
+      <Card>
+        <CardHeader>
+          <CardTitle>Recent Activity</CardTitle>
+          <CardDescription>Streaming history and playback sessions</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-border">
+                  <th className="w-20 py-3 px-4 text-sm font-medium text-muted-foreground">Poster</th>
+                  <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Media Title</th>
+                  <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Player / Platform</th>
+                  <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground" title="When MUM first observed this playback">Started</th>
+                  <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground" title="Last observed position of the total length">Duration</th>
+                  <th className="text-center py-3 px-4 text-sm font-medium text-muted-foreground">Progress</th>
+                </tr>
+              </thead>
+              <tbody>
+                {page.items.map(row=>{
+                  const progress=observationProgress(row.position_ticks,row.duration_ticks)??0;
+                  const percent=Math.min(Math.round(progress),100);
+                  return (
+                    <tr key={row.id} className="border-b border-border/50 hover:bg-muted/50 transition-colors">
+                      <td className="py-3 px-4"><HistoryPoster url={row.poster_url} title={row.title}/></td>
+                      <td className="py-3 px-4">
+                        <div className="font-medium">{row.title||'Unknown Title'}</div>
+                        {row.parent_title&&<div className="text-xs text-muted-foreground">{row.parent_title}</div>}
+                        {row.library_name&&<div className="text-xs text-muted-foreground/60"><FontAwesomeIcon icon={faFolder} className="mr-1 h-3 w-3"/>{row.library_name}</div>}
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="font-medium text-sm">{row.client||'Unknown Player'}</div>
+                        <div className="text-xs text-muted-foreground">{row.play_method?playMethodLabels[row.play_method]:'Unknown Platform'}</div>
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="text-sm">{formatTimestamp(row.first_observed_at,'date')}</div>
+                        <div className="text-xs text-muted-foreground">{formatTimestamp(row.first_observed_at,'time')}</div>
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="text-sm font-medium">{formatTicks(row.position_ticks)}</div>
+                        {row.duration_ticks!==null&&<div className="text-xs text-muted-foreground">of {formatTicks(row.duration_ticks)}</div>}
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        <div className="inline-flex items-center justify-center">
+                          <div className="relative size-12">
+                            <svg className="size-12 transform -rotate-90">
+                              <circle cx="24" cy="24" r="20" stroke="currentColor" strokeWidth="4" fill="none" className="text-muted/30"/>
+                              <circle cx="24" cy="24" r="20" stroke="currentColor" strokeWidth="4" fill="none" strokeDasharray={`${2*Math.PI*20}`} strokeDashoffset={`${2*Math.PI*20*(1-percent/100)}`} className="text-primary transition-all"/>
+                            </svg>
+                            <div className="absolute inset-0 flex items-center justify-center"><span className="text-xs font-mono font-semibold">{percent}%</span></div>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          {(hasPrevious||page.next_before)&&<div className="flex items-center justify-between gap-3 pt-4"><Button variant="outline" disabled={!hasPrevious} onClick={previous}>Newer</Button><Button variant="outline" disabled={!page.next_before} onClick={next}>Older</Button></div>}
+        </CardContent>
+      </Card>
+    </section>
+  );
+};
+
+const SettingsTab = ({user,refreshUser}:{user:UserDetail;refreshUser:()=>Promise<unknown>}) => (
+  <div className="space-y-6">
+    <ProfileNotesCard target={user.uuid} refreshUser={refreshUser}/>
+    {user.user_type!=='service'&&<HumanActivationCard target={user.uuid} refreshUser={refreshUser}/>}
+    {user.user_type==='service'&&<ServiceExpiryCard target={user.uuid} refreshUser={refreshUser}/>}
+    {user.user_type==='service'&&<ServiceRemoteAccessCard target={user.uuid} refreshUser={refreshUser}/>}
+    {user.user_type!=='service'&&<HumanExpiryCard target={user.uuid} refreshUser={refreshUser}/>}
+    {user.user_type!=='service'&&<ProfileRemoteAccessCard target={user.uuid} refreshUser={refreshUser}/>}
+    {user.user_type!=='service'&&<HumanCredentialsCard target={user.uuid} refreshUser={refreshUser}/>}
+    {user.user_type!=='service'&&<HumanUserRolesCard target={user.uuid} refreshUser={refreshUser}/>}
+    <ProfileAccountLinks user={user} refreshUser={refreshUser}/>
+  </div>
+);
+
+type SecurityTabProps = {
+  user: UserDetail;
+};
+
+const SecurityTab = ({ user }: SecurityTabProps) => {
+  const { formatTimestamp: formatDateTime } = useAccountDisplay();
+  return (
   <div className="space-y-6">
     <section className="rounded-lg border border-border bg-background shadow-sm">
       <div className="p-6 space-y-4">
@@ -853,7 +629,7 @@ const SecurityTab = ({ user, onResetPassword, resetting }: SecurityTabProps) => 
           <div className="rounded-lg border border-border bg-muted/40 p-4">
             <div className="text-xs uppercase text-muted-foreground/60">Access Expires</div>
             <div className="mt-1 text-lg font-semibold text-foreground">
-              {user.access_expires_at ? formatDateTime(user.access_expires_at) : 'Never'}
+              {user.access_expires_at ? formatDateTime(user.access_expires_at) : user.user_type==='service'?'Unknown':'No local expiry'}
             </div>
           </div>
         </div>
@@ -867,7 +643,7 @@ const SecurityTab = ({ user, onResetPassword, resetting }: SecurityTabProps) => 
             <h3 className="text-lg font-semibold">Password & Account Security</h3>
             <p className="text-sm text-muted-foreground">Enforce password resets and review security posture.</p>
           </div>
-          {user.has_password ? (
+          {user.has_password===null?<span className="text-sm text-muted-foreground">Password state unknown</span>:user.has_password ? (
             <span className="inline-flex items-center rounded-md px-2.5 py-0.5 text-xs font-semibold bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-300 gap-2">
               <FontAwesomeIcon icon={faLock} />
               Password Protected
@@ -885,17 +661,16 @@ const SecurityTab = ({ user, onResetPassword, resetting }: SecurityTabProps) => 
             <div>
               <div className="font-semibold text-foreground">Force Password Change</div>
               <p className="text-sm text-muted-foreground">
-                Trigger a password reset flow for the next login session.
+                Forced-change sign-in is unavailable. Supported owner password replacement is in Settings.
               </p>
             </div>
             <button
               type="button"
               className="inline-flex items-center justify-center rounded-md text-sm font-medium border border-amber-300 bg-transparent text-amber-700 hover:bg-amber-50 h-9 px-4 py-2 dark:border-amber-700 dark:text-amber-300 dark:hover:bg-amber-900/20"
-              onClick={onResetPassword}
-              disabled={resetting}
+              disabled
             >
               <FontAwesomeIcon icon={faKey} className="mr-2" />
-              {resetting ? 'Resetting…' : 'Reset Password'}
+              Unavailable
             </button>
           </div>
         </div>
@@ -904,23 +679,24 @@ const SecurityTab = ({ user, onResetPassword, resetting }: SecurityTabProps) => 
           <div className="rounded border border-border bg-muted/30 p-4 text-sm">
             <div className="text-muted-foreground">Invite Usage</div>
             <div className="mt-1 text-base font-semibold text-foreground">
-              {user.used_invite ? 'Linked to invite code' : 'No invite usage recorded'}
+              {user.used_invite===null?'Unknown':user.used_invite?'Linked to invite code':'No invite usage recorded'}
             </div>
           </div>
           <div className="rounded border border-border bg-muted/30 p-4 text-sm">
             <div className="text-muted-foreground">Download Permissions</div>
             <div className="mt-1 text-base font-semibold text-foreground">
-              {user.allow_downloads ? 'Downloads enabled' : 'Downloads disabled'}
+              {user.allow_downloads===null?'Download policy unknown':user.allow_downloads?'Downloads enabled':'Downloads disabled'}
             </div>
             <div className="text-xs text-muted-foreground/60">
-              4K transcode {user.allow_4k_transcode ? 'permitted' : 'blocked'}.
+              4K transcode {user.allow_4k_transcode===null?'policy unknown':user.allow_4k_transcode?'permitted':'blocked'}.
             </div>
           </div>
         </div>
       </div>
     </section>
   </div>
-);
+  );
+};
 
 export const UserDetailPage = () => {
   const location = useLocation();
@@ -945,54 +721,21 @@ export const UserDetailPage = () => {
 
   const search = useSearch({ strict: false }) as { tab?: TabKey; page?: number };
   const activeTab: TabKey = search.tab ?? 'profile';
-  const historyPage = search.page ?? 1;
-  const [linkModalOpen, setLinkModalOpen] = useState(false);
   const [resyncing, setResyncing] = useState(false);
-  const [resettingPassword, setResettingPassword] = useState(false);
-  const [unlinkingServiceUser, setUnlinkingServiceUser] = useState(false);
 
   const { success, error: showError } = useAlerts();
   const { user, loading, error, refresh: refreshUser } = useUserDetail(effectiveUuid);
-  const userType = user?.user_type?.toLowerCase();
-  const canManageServiceAccounts = Boolean(effectiveUuid) && Boolean(userType) && userType !== 'service';
-  const {
-    entries: historyEntries,
-    loading: historyLoading,
-    error: historyError,
-    currentPage,
-    totalPages
-  } = useUserHistoryPaginated(effectiveUuid, historyPage, 10);
-  const {
-    accounts: serviceAccounts,
-    loading: accountsLoading,
-    error: accountsError,
-    refresh: refreshAccounts
-  } = useServiceAccounts(effectiveUuid, canManageServiceAccounts);
-  const {
-    accounts: availableAccounts,
-    loading: availableLoading,
-    error: availableError,
-    refresh: refreshAvailable
-  } = useAvailableServiceAccounts(effectiveUuid, canManageServiceAccounts);
+  const links=useProfileAccountSnapshot(user?.user_type!=='service'?user?.uuid:undefined,Boolean(user)&&user?.user_type!=='service');
+  const history=useIdentityHistory(effectiveUuid,activeTab==='history');
   const {
     overseerrLinks,
     loading: overseerrLoading,
     error: overseerrError
-  } = useOverseerr(effectiveUuid);
+  } = useOverseerr(effectiveUuid,Boolean(user?.capabilities.overseerr));
   const { servers: plexServers } = useServers({ serviceType: 'plex', activeOnly: true });
-  const {
-    settings,
-    loading: settingsLoading,
-    error: settingsError,
-    refresh: refreshSettings
-  } = useUserSettings(effectiveUuid);
 
-  const handlePageChange = (page: number) => {
-    navigate({
-      // @ts-expect-error - TanStack Router types are complex
-      search: (prev: any) => ({ ...prev, page })
-    });
-  };
+
+
 
   if (!effectiveUuid) {
     if (slugLoading) {
@@ -1059,7 +802,7 @@ export const UserDetailPage = () => {
         plexServerNicknames.has(server.server_name?.toLowerCase() ?? ''))
   );
   const showOverseerrTab = isPlexUser && Boolean(plexServerWithOverseerr);
-  const showSecurityTab = !isServiceUser && user.has_password && user.used_invite;
+  const showSecurityTab = !isServiceUser;
 
   const heroTheme = getServiceMeta(user.service_type ?? user.service_types?.[0]);
   const effectiveAvatar = user.avatar_url ?? user.discord_avatar_url;
@@ -1069,82 +812,19 @@ export const UserDetailPage = () => {
     { key: 'profile', label: 'Profile' },
     { key: 'history', label: 'History' },
     { key: 'settings', label: 'Settings' },
-    { key: 'overseerr', label: 'Overseerr', hidden: !showOverseerrTab },
+    { key: 'overseerr', label: 'Overseerr', hidden: !user.capabilities.overseerr||!showOverseerrTab },
     { key: 'security', label: 'Security', hidden: !showSecurityTab }
   ];
 
-  const handleResetPassword = async () => {
-    if (resettingPassword) return;
-    setResettingPassword(true);
-    try {
-      await requestJson(`/api/v2/users/${user.uuid}/reset-password`, {
-        method: 'POST'
-      });
-      success('User will be prompted to set a new password on next login.');
-    } catch (err) {
-      showError('Password reset failed: ' + String(err));
-    } finally {
-      setResettingPassword(false);
-    }
-  };
-
-  const handleUnlink = async (serviceUuid: string) => {
-    try {
-      await requestJson(`/api/v2/users/${user.uuid}/service-accounts/${serviceUuid}`, {
-        method: 'DELETE'
-      });
-      await refreshAccounts();
-      success('Service account unlinked');
-    } catch (err) {
-      showError('Unlink failed: ' + String(err));
-    }
-  };
-
-  const handleUnlinkServiceUser = async () => {
-    if (!user?.linked_local_user) return;
-    if (unlinkingServiceUser) return;
-    const confirmed = window.confirm('Unlink this service account from the local user?');
-    if (!confirmed) return;
-    setUnlinkingServiceUser(true);
-    try {
-      await requestJson(`/api/v2/users/${user.linked_local_user.uuid}/service-accounts/${user.uuid}`, {
-        method: 'DELETE'
-      });
-      await refreshUser();
-      success('Service account unlinked');
-    } catch (err) {
-      showError('Unlink failed: ' + String(err));
-    } finally {
-      setUnlinkingServiceUser(false);
-    }
-  };
-
-  const handleLink = async (serviceUuid: string) => {
-    await requestJson(`/api/v2/users/${user.uuid}/service-accounts`, {
-      method: 'POST',
-      body: JSON.stringify({ service_uuid: serviceUuid })
-    });
-    await Promise.all([refreshAccounts(), refreshAvailable()]);
-    success('Service account linked');
-  };
-
-  const handleSaveSettings = async (payload: Partial<UserSettings>) => {
-    await requestJson(`/api/v2/users/${user.uuid}/settings`, {
-      method: 'PATCH',
-      body: JSON.stringify(payload)
-    });
-    await refreshSettings();
-    success('Settings saved');
-  };
-
   const handleResync = async () => {
+    if(!user.capabilities.resync)throw Error('This profile action is unavailable.');
     if (resyncing) return;
     setResyncing(true);
     try {
-      await requestJson(`/api/v2/users/${user.uuid}/sync`, {
+      await requestJson(`/api/users/${user.uuid}/sync`, {
         method: 'POST'
       });
-      await Promise.all([refreshAccounts(), refreshAvailable()]);
+      await refreshUser();
       success('Linked service accounts are being refreshed.');
     } catch (err) {
       showError('Sync failed: ' + String(err));
@@ -1196,7 +876,7 @@ export const UserDetailPage = () => {
                     </Badge>
 
                     {/* Show badges for linked service accounts */}
-                    {serviceAccounts.map((serviceAccount) => {
+                    {links.page?.linked_accounts.map((serviceAccount) => {
                       const serviceTheme = getServiceMeta(serviceAccount.service_type);
                       return (
                         <Badge
@@ -1206,7 +886,7 @@ export const UserDetailPage = () => {
                           hover={false}
                         >
                           {serviceTheme.icon}
-                          {serviceAccount.display_name ?? serviceAccount.username}
+                          {serviceAccount.external_username || 'Service Account'}
                         </Badge>
                       );
                     })}
@@ -1252,77 +932,32 @@ export const UserDetailPage = () => {
           </TabsList>
 
           <TabsContent value="profile" className="pt-5">
-            <ProfileTab user={user} />
+            <ProfileTab user={user} target={effectiveUuid}/>
           </TabsContent>
 
           <TabsContent value="history" className="pt-5">
-            <HistoryTab
-              entries={historyEntries}
-              loading={historyLoading}
-              error={(historyError as Error) ?? undefined}
-              currentPage={currentPage}
-              totalPages={totalPages}
-              onPageChange={handlePageChange}
-            />
+            <HistoryTab history={history} target={effectiveUuid}/>
           </TabsContent>
 
           <TabsContent value="settings" className="pt-5">
-            <SettingsTab
-              user={user}
-              settings={settings}
-              settingsLoading={settingsLoading}
-              settingsError={(settingsError as Error) ?? undefined}
-              onSaveSettings={async (payload) => {
-                await handleSaveSettings(payload);
-              }}
-              serviceAccounts={serviceAccounts}
-              serviceAccountsLoading={accountsLoading}
-              serviceAccountsError={(accountsError as Error) ?? undefined}
-              onLinkAccount={
-                !isServiceUser
-                  ? () => {
-                      refreshAvailable();
-                      setLinkModalOpen(true);
-                    }
-                  : undefined
-              }
-              onUnlinkAccount={handleUnlink}
-              onUnlinkServiceUser={isServiceUser ? handleUnlinkServiceUser : undefined}
-              unlinkingServiceUser={unlinkingServiceUser}
-              allowLinking={!isServiceUser}
-            />
+            <SettingsTab user={user} refreshUser={refreshUser}/>
           </TabsContent>
 
           <TabsContent value="overseerr" className="pt-5">
-            <OverseerrCard
+            {user.capabilities.overseerr?<OverseerrCard
               links={overseerrLinks}
               loading={overseerrLoading}
               error={(overseerrError as Error) ?? undefined}
-            />
+            />:<p className="text-sm text-muted-foreground">Overseerr is unavailable in this profile view.</p>}
           </TabsContent>
 
           <TabsContent value="security" className="pt-5">
-            <SecurityTab user={user} onResetPassword={handleResetPassword} resetting={resettingPassword} />
+            <SecurityTab user={user} />
           </TabsContent>
         </Tabs>
       </section>
 
-      <ServiceAccountLinkModal
-        open={linkModalOpen}
-        onClose={() => setLinkModalOpen(false)}
-        accounts={availableAccounts}
-        loading={availableLoading}
-        error={(availableError as Error) ?? undefined}
-        onSubmit={async (serviceUuid) => {
-          try {
-            await handleLink(serviceUuid);
-            setLinkModalOpen(false);
-          } catch (err) {
-            showError('Link failed: ' + String(err));
-            throw err;
-          }
-        }}
-      />
+
     </div>
   );
 };

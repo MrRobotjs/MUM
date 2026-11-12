@@ -40,6 +40,6 @@ export function useApi<T>(endpoint: string, deps: unknown[] = []) {
 }
 
 export function useAdminApi<T>(path: string, deps: unknown[] = []) {
-  const endpoint = `/api/v2${path}`;
+  const endpoint = `/api${path}`;
   return useApi<T>(endpoint, deps);
 }

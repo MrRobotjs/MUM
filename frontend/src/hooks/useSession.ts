@@ -5,11 +5,11 @@ import { bootstrapAuth, getAuthSnapshot, subscribeToAuthStore } from '../store/a
 
 export const useSession = () => {
   const auth = useSyncExternalStore(subscribeToAuthStore, getAuthSnapshot, getAuthSnapshot);
-  const sessionKey = auth.status === 'authenticated' ? '/api/v2/auth/session' : null;
+  const sessionKey = auth.status === 'authenticated' ? '/api/auth/session' : null;
 
   const { data, error, isLoading, mutate } = useSWR(
     sessionKey,
-    sessionKey ? (url: string) => requestJson(url) : null,
+    sessionKey ? (url: string) => requestJson<{ data: any }>(url) : null,
     {
       revalidateOnFocus: false,
     }
@@ -21,7 +21,7 @@ export const useSession = () => {
 
   useEffect(() => {
     if (auth.status !== 'authenticated') {
-      mutate(null, false); // Clear cache without revalidation
+      mutate(undefined, false); // Clear cache without revalidation
     }
   }, [auth.status, mutate]);
 

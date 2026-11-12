@@ -30,6 +30,10 @@ export type ActiveSession = {
   progress: number;
   current_time: string;
   duration: string;
+  // Playback clock for advancing playing sessions between updates (not displayed).
+  position_seconds?: number;
+  duration_seconds?: number;
+  observed_age_ms?: number;
 
   // Quality and streaming details
   quality_detail: string;

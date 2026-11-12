@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { UsersTable, UserCardsGrid, PurgeUsersModal, PageHeader } from '../components';
 import { UserDisplaySettingsModal } from '../components/users/UserDisplaySettingsModal';
 import { MassEditUsersModal } from '../components/users/MassEditUsersModal';
+import { BulkManagementClient, bulkOutcomeMessage, runBulkOperation } from '../lib/bulkManagement';
 import { useUsersPaginated } from '../hooks/useUsersPaginated';
 import { useServerOptions } from '../hooks/useServerOptions';
 import { useAdminRoles } from '../hooks/useAdminRoles';
@@ -148,8 +149,8 @@ export const UsersListPage = () => {
 
   const { users, loading, error: fetchError, pagination, mutate } = useUsersPaginated(filters);
   const { servers } = useServerOptions();
-  const { roles: adminRoles } = useAdminRoles(false, false);
-  const { roles: userRoles } = useUserRoles(false);
+  const { roles: adminRoles } = useAdminRoles();
+  const { roles: userRoles } = useUserRoles();
   const [columns, setColumns] = useState<UserColumns>({
     name: true,
     email: true,
@@ -274,7 +275,7 @@ export const UsersListPage = () => {
             total_removed: number;
           };
         };
-      }>('/api/v2/users/sync-all', {
+      }>('/api/users/sync-all', {
         method: 'POST'
       });
 
@@ -331,7 +332,7 @@ export const UsersListPage = () => {
         removed?: number;
         library_sync_failed?: boolean;
         library_sync_message?: string;
-      }>(`/api/v2/servers/${targetServerId}/sync-users`, {
+      }>(`/api/servers/${targetServerId}/sync-users`, {
         method: 'POST',
       });
 
@@ -368,48 +369,28 @@ export const UsersListPage = () => {
   const isAnySyncing = syncStatus.is_syncing || syncingServerId !== null;
   const hasMultipleEnabledServers = servers.length > 1;
 
+  // As in Flask: confirm, delete, report. The server prepares and runs the
+  // delete once and reports skipped users with a reason.
   const handleDeleteSelected = async () => {
     if (selectedUserIds.size === 0) return;
     const count = selectedUserIds.size;
     if (!confirm(`Are you sure you want to delete ${count} user(s)? This action cannot be undone.`)) {
       return;
     }
-
     try {
-      const result = await requestJson<{
-        data?: {
-          summary?: {
-            updated: number;
-            deleted: number;
-            skipped: number;
-            errors: number;
-          };
-        };
-      }>('/api/v2/users/bulk', {
-        method: 'POST',
-        body: JSON.stringify({
-          user_uuids: Array.from(selectedUserIds),
-          operations: [{ action: 'delete_users' }],
-        }),
-      });
-
-      const summary = result?.data?.summary;
-      const deleted = summary?.deleted ?? 0;
-      const skipped = summary?.skipped ?? 0;
-      const errorsCount = summary?.errors ?? 0;
-
-      if (errorsCount > 0) {
-        error(
-          `Delete completed with issues: ${deleted} deleted, ${skipped} skipped, ${errorsCount} errors.`
-        );
+      const receipt = await runBulkOperation(new BulkManagementClient(), Array.from(selectedUserIds), { action: 'delete_users' });
+      const problem = bulkOutcomeMessage([receipt]);
+      if (problem) {
+        error(`Delete completed with issues: ${problem}`);
       } else {
+        const deleted = receipt.summary.deleted;
         success(`Deleted ${deleted} user${deleted !== 1 ? 's' : ''}.`);
       }
-
       setSelectedUserIds(new Set());
-      mutate();
     } catch (err) {
       error(`Failed to delete users: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      mutate();
     }
   };
 
@@ -844,7 +825,7 @@ export const UsersListPage = () => {
                       <SelectGroup>
                         <SelectLabel>Admin Roles</SelectLabel>
                         {adminRoles.map((r) => (
-                          <SelectItem key={`admin-${r.id}`} value={r.name}>
+                          <SelectItem key={`admin-${r.id}`} value={`admin:${r.id}`}>
                             {r.name}
                           </SelectItem>
                         ))}
@@ -854,7 +835,7 @@ export const UsersListPage = () => {
                       <SelectGroup>
                         <SelectLabel>User Roles</SelectLabel>
                         {userRoles.map((r) => (
-                          <SelectItem key={`user-${r.id}`} value={r.name}>
+                          <SelectItem key={`user-${r.id}`} value={`user:${r.id}`}>
                             {r.name}
                           </SelectItem>
                         ))}
@@ -925,6 +906,9 @@ export const UsersListPage = () => {
                 {selectAllState === 'all' ? 'Deselect All' : 'Select All'}
               </span>
             </Button>
+            <p className="text-xs text-muted-foreground">
+              Prepare and review effects before applying changes.
+            </p>
           </CardContent>
         </Card>
       )}
@@ -982,7 +966,6 @@ export const UsersListPage = () => {
         selectedUserIds={selectedUserIds}
         onComplete={() => {
           mutate();
-          setSelectedUserIds(new Set());
         }}
       />
     </div>

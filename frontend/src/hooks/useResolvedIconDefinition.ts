@@ -82,7 +82,7 @@ const loadIconPack = async (prefix: IconSetType) => {
 
     const map = new Map<string, IconDefinition>();
     Object.keys(pack).forEach((key) => {
-      const value = (pack as Record<string, IconDefinition>)[key];
+      const value = (pack as unknown as Record<string, IconDefinition>)[key];
       if (value && (value as IconDefinition).iconName) {
         map.set(value.iconName, value);
         const aliasName = keyToAliasName(key);

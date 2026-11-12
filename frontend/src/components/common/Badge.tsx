@@ -14,7 +14,7 @@ export interface BadgeProps {
   hexColor?: string | null;
   /** Role styling shortcut for user/admin role badges. */
   roleKind?: 'user' | 'admin';
-  badgeStyle?: 'default' | 'fill' | 'outline';
+  badgeStyle?: string | null;
   icon?: ReactNode;
   iconClass?: string | null;
   className?: string;

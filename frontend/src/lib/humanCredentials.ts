@@ -1,0 +1,44 @@
+import {requestJson,ApiError} from '../util/apiClient';
+import {getAccessToken} from '../store/authStore';
+export type HumanCredentials=Readonly<{actor_uuid:string;user_uuid:string;username:string;is_active:boolean;has_password:boolean;credential_revision:string;profile_revision:string;activation_revision:string;role_revision:string;can_set_username:boolean;can_set_initial:boolean;can_reset:boolean;availability:'available'|'protected_owner'|'protected_self'|'protected_administrator'|'pending_work'|'username_unavailable';sessions_revoked:boolean}>;
+export type CredentialDraft={new_username:string;current_owner_password:string;new_password:string;confirm_password:string;acknowledge_revoke_sessions:boolean;acknowledge_local_only:boolean};
+const uuid=(v:unknown):v is string=>typeof v==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(v);
+const revision=(v:unknown):v is string=>typeof v==='string'&&/^[1-9][0-9]{0,18}$/.test(v)&&BigInt(v)<=9223372036854775807n;
+const tokens=new WeakMap<HumanCredentials,string>(),attempted=new WeakSet<HumanCredentials>();
+function project(p:HumanCredentials,actor:string,target:string,committed:boolean):HumanCredentials{
+ if(!p||p.actor_uuid!==actor||p.user_uuid!==target||typeof p.username!=='string'||p.username.length>255||Array.from(p.username).some(c=>c.charCodeAt(0)<32||c.charCodeAt(0)===127)||typeof p.is_active!=='boolean'||typeof p.has_password!=='boolean'||!revision(p.credential_revision)||!revision(p.profile_revision)||!revision(p.activation_revision)||!revision(p.role_revision)||typeof p.can_set_username!=='boolean'||p.can_set_username!==(p.availability==='available'&&p.username===''&&!p.has_password)||typeof p.can_set_initial!=='boolean'||typeof p.can_reset!=='boolean'||!['available','protected_owner','protected_self','protected_administrator','pending_work','username_unavailable'].includes(p.availability)||p.sessions_revoked!==committed||p.can_set_initial!==(p.availability==='available'&&!p.has_password)||p.can_reset!==(p.availability==='available'&&p.has_password)||p.availability==='available'&&(!p.username&&!p.can_set_username||p.username.trim()!==p.username||Array.from(p.username).some(c=>c.charCodeAt(0)>126)||actor===target)||actor===target&&!['protected_owner','protected_self'].includes(p.availability)||p.availability==='protected_self'&&actor!==target)throw Error('Local credential state is unavailable. Read saved state again.');
+ return Object.freeze({actor_uuid:actor,user_uuid:target,username:p.username,is_active:p.is_active,has_password:p.has_password,credential_revision:p.credential_revision,profile_revision:p.profile_revision,activation_revision:p.activation_revision,role_revision:p.role_revision,can_set_username:p.can_set_username,can_set_initial:p.can_set_initial,can_reset:p.can_reset,availability:p.availability,sessions_revoked:committed});
+}
+export function validInitialUsername(v:unknown):v is string{return typeof v==='string'&&v.length>=1&&v.length<=255&&v.trim()===v&&Array.from(v).every(c=>c.charCodeAt(0)>=32&&c.charCodeAt(0)<=126);}
+export function validCredentialDraft(p:CredentialDraft):boolean{
+ const password=(v:unknown)=>typeof v==='string'&&new TextEncoder().encode(v).length>=12&&new TextEncoder().encode(v).length<=1024&&Array.from(v).every(c=>{const n=c.codePointAt(0)!;return n<0xd800||n>0xdfff;});
+ return !!p&&typeof p.new_username==='string'&&(p.new_username===''||validInitialUsername(p.new_username))&&password(p.current_owner_password)&&password(p.new_password)&&p.confirm_password===p.new_password&&p.new_password!==p.current_owner_password&&p.acknowledge_revoke_sessions===true&&p.acknowledge_local_only===true;
+}
+export function validCredentialSelection(base:HumanCredentials,p:CredentialDraft):boolean{return validCredentialDraft(p)&&(base.can_set_username?validInitialUsername(p.new_username):p.new_username==='');}
+export class HumanCredentialsWriteError extends Error{constructor(public uncertain:boolean){super(uncertain?'The credential outcome is unknown. Read saved state before another attempt.':'The credential change was rejected. Read saved state before another attempt.');}}
+export async function readHumanCredentials(actor:string,target:string):Promise<HumanCredentials>{
+ const token=getAccessToken();if(!token||!uuid(actor)||!uuid(target))throw Error('Select a current local human profile.');
+ const abort=new AbortController(),timer=setTimeout(()=>abort.abort(),15000);
+ try{const {data}=await requestJson<{data:HumanCredentials}>(`/api/users/${target}/local-credentials`,{signal:abort.signal,retryAuthentication:false});if(abort.signal.aborted||getAccessToken()!==token)throw Error('The session changed.');const p=project(data,actor,target,false);tokens.set(p,token);return p;}finally{clearTimeout(timer);}
+}
+export async function commitHumanCredentials(base:HumanCredentials,draft:CredentialDraft):Promise<HumanCredentials>{
+ const token=tokens.get(base);if(!token||getAccessToken()!==token||attempted.has(base)||!validCredentialSelection(base,draft)||!(base.can_reset||base.can_set_initial))throw Error('Read current supported credential state and confirm the local password change.');
+ attempted.add(base);const abort=new AbortController(),timer=setTimeout(()=>abort.abort(),15000);
+ try{const {data}=await requestJson<{data:HumanCredentials}>(`/api/users/${base.user_uuid}/local-credentials`,{method:'PUT',signal:abort.signal,retryAuthentication:false,body:JSON.stringify({expected_actor_uuid:base.actor_uuid,expected_user_uuid:base.user_uuid,expected_username:base.username,expected_has_password:base.has_password,credential_revision:base.credential_revision,profile_revision:base.profile_revision,activation_revision:base.activation_revision,role_revision:base.role_revision,new_username:base.can_set_username?draft.new_username:'',operation:base.has_password?'reset':'set_initial',current_owner_password:draft.current_owner_password,new_password:draft.new_password,confirm_password:draft.confirm_password,acknowledge_revoke_sessions:true,acknowledge_local_only:true})});
+ if(abort.signal.aborted||getAccessToken()!==token)throw Error('The session changed after dispatch.');const p=project(data,base.actor_uuid,base.user_uuid,true);
+ if(!p.has_password||!p.can_reset||p.username!==(base.can_set_username?draft.new_username:base.username)||p.is_active!==base.is_active||p.activation_revision!==base.activation_revision||BigInt(p.role_revision)!==BigInt(base.role_revision)+1n||BigInt(p.credential_revision)!==BigInt(base.credential_revision)+1n||BigInt(p.profile_revision)!==BigInt(base.profile_revision)+1n)throw Error('Invalid committed credential receipt.');return p;
+ }catch(e){throw new HumanCredentialsWriteError(!(e instanceof ApiError&&[400,401,403,404,405,409,422].includes(e.status)));}finally{clearTimeout(timer);}
+}
+const same=(a:HumanCredentials,b:HumanCredentials)=>a.username===b.username&&a.is_active===b.is_active&&a.has_password===b.has_password&&a.credential_revision===b.credential_revision&&a.profile_revision===b.profile_revision&&a.activation_revision===b.activation_revision&&a.role_revision===b.role_revision&&a.availability===b.availability&&a.can_set_username===b.can_set_username;
+export class HumanCredentialsController{
+ base:HumanCredentials|null=null;busy=false;needsRead=false;uncertain=false;private token=getAccessToken();
+ constructor(readonly actor:string,readonly target:string,private visible:()=>boolean){}
+ current(){return this.visible()&&!!this.token&&getAccessToken()===this.token;}
+ async load(){if(!this.current()||this.busy)throw Error('A current owner session is required.');this.busy=true;this.base=null;try{const p=await readHumanCredentials(this.actor,this.target);if(!this.current())throw Error('The selected profile changed.');this.base=p;this.needsRead=false;this.uncertain=false;return p;}finally{this.busy=false;}}
+ async change(draft:CredentialDraft,confirm:(p:HumanCredentials)=>boolean){
+ if(!this.current()||this.busy||this.needsRead||!this.base||!validCredentialSelection(this.base,draft))throw Error('Read saved credential state and provide the acknowledged matching passwords.');
+ const original=this.base;this.busy=true;
+ try{const fresh=await readHumanCredentials(this.actor,this.target);if(!this.current()||!same(original,fresh))throw Error('Credential selection changed. Read saved state and enter the passwords again.');if(!(fresh.can_reset||fresh.can_set_initial))throw Error('This credential change is unavailable.');if(!confirm(fresh))return null;if(!this.current())throw Error('The selected profile changed.');const result=await commitHumanCredentials(fresh,draft);if(this.current()){this.base=result;this.needsRead=true;}return result;
+ }catch(e){this.base=null;this.needsRead=true;this.uncertain=e instanceof HumanCredentialsWriteError&&e.uncertain;throw e;}finally{this.busy=false;}
+ }
+}

@@ -132,7 +132,7 @@ export function SetupLayout({ stepId, title, subtitle, children }: SetupLayoutPr
                   return (
                     <div key={step.id} className="flex flex-1 flex-col gap-2 md:flex-row md:items-center">
                       {clickable && step.href && !isCurrent ? (
-                        <Link to={step.href} className={cn(wrapperClasses, 'cursor-pointer no-underline')} prefetch="intent">
+                        <Link to={step.href as '/setup/account'} className={cn(wrapperClasses, 'cursor-pointer no-underline')}>
                           {content}
                         </Link>
                       ) : (

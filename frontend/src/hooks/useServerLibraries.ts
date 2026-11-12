@@ -23,7 +23,7 @@ export const useServerLibraries = (
   const enabled = options.enabled ?? true
   const key =
     enabled && serverId
-      ? `/api/v2/libraries?server_id=${serverId}&include_server=false`
+      ? `/api/libraries?server_id=${serverId}&include_server=false`
       : null
 
   const { data, error, isLoading, mutate } = useSWR<ServerLibrariesResponse>(

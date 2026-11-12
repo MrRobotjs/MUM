@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react'
-import useSWR from 'swr'
-import { AdminRole } from '../../hooks/useAdminRoles'
+import {getAccessToken} from '../../store/authStore'
+import {changeAdminRoleMembership,membershipTargets,fetchAdminRoleCandidates,type CandidateSnapshot} from '../../lib/adminRoleMemberships'
+import { useState, useEffect, useRef } from 'react'
+import { AdminRole, useAdminRoleMembers, useAdminRoleCandidates } from '../../hooks/useAdminRoles'
 import { useAlerts } from '../../contexts'
-import { requestJson } from '../../util/apiClient'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -28,36 +28,6 @@ interface AdminRoleMembersTabProps {
   onUpdate: () => Promise<void>
 }
 
-interface RoleMember {
-  uuid: string
-  username: string
-  user_type: string
-  email: string
-  is_active: boolean
-}
-
-interface Admin {
-  id: number
-  uuid: string
-  username: string
-  display_name: string
-  user_type: string
-  admin_roles: Array<{
-    id: string
-    name: string
-  }>
-}
-
-interface LocalUser {
-  id: number
-  uuid: string
-  username: string
-  display_name: string
-  email: string | null
-  user_type: string
-  admin_roles: string[]
-}
-
 export const AdminRoleMembersTab = ({ role, onUpdate }: AdminRoleMembersTabProps) => {
   const { success, error: showError } = useAlerts()
   const [searchQuery, setSearchQuery] = useState('')
@@ -66,149 +36,61 @@ export const AdminRoleMembersTab = ({ role, onUpdate }: AdminRoleMembersTabProps
   const [submitting, setSubmitting] = useState(false)
   const isAutoManaged = role.is_auto_managed
 
-  // Fetch role members
-  const {
-    data: membersData,
-    mutate: refreshMembers,
-    isLoading: membersLoading,
-  } = useSWR<{ data: RoleMember[] }>(`/api/v2/admin-roles/${role.id}/users`, requestJson)
-
-  // Fetch all admins (for existing members)
-  const { data: adminsData } = useSWR<{ data: Admin[] }>('/api/v2/admins', requestJson)
-
-  // Fetch all local users (for adding new members)
-  const { data: localUsersData } = useSWR<{ data: LocalUser[] }>(
-    '/api/v2/users?user_type=local&page_size=100',
-    requestJson
-  )
-
-  const members = membersData?.data || []
-  const allAdmins = adminsData?.data || []
-  const localUsers = localUsersData?.data || []
-  const hasLocalUsers = localUsers.length > 0
-
-  // Filter members by search query
-  const filteredMembers = members.filter((member) =>
-    member.username.toLowerCase().includes(searchQuery.toLowerCase())
-  )
-
-  // Get local users not already in this role
-  const memberUuids = new Set(members.map((m) => m.uuid))
-  const availableUsers = localUsers.filter((user) => !memberUuids.has(user.uuid))
-
+  const {actor,snapshot: memberSnapshot,members, loading: membersLoading, error: membersError, refresh: refreshMembers} = useAdminRoleMembers(role.id)
+  const candidateRead=useAdminRoleCandidates(role.id,addModalOpen && role.member_assignment_available)
+  const [selectionSnapshot,setSelectionSnapshot]=useState<CandidateSnapshot|null>(null)
+  const active=useRef(true),pending=useRef(false),currentActor=useRef(actor),currentRole=useRef(role)
+  currentActor.current=actor;currentRole.current=role
+  useEffect(()=>{active.current=true;return()=>{active.current=false}},[])
+  useEffect(()=>{setAddModalOpen(false);setSelectionSnapshot(null);setSelectedUsers([])},[actor,role.id])
+  useEffect(()=>{if(addModalOpen && !selectionSnapshot && candidateRead.snapshot)setSelectionSnapshot(candidateRead.snapshot)},[addModalOpen,selectionSnapshot,candidateRead.snapshot])
+  const filteredMembers = members.filter(member => member.username.toLowerCase().includes(searchQuery.toLowerCase()))
+  const availableUsers=(selectionSnapshot?.candidates??[]).map(user=>({...user,display_name:user.username}))
+  const candidateStale=Boolean(selectionSnapshot && (selectionSnapshot.actor_uuid!==actor || selectionSnapshot.role_id!==role.id || selectionSnapshot.snapshot_revision!==role.snapshot_revision || candidateRead.snapshot && candidateRead.snapshot.snapshot_revision>selectionSnapshot.snapshot_revision))
+  const candidateUnavailable=Boolean(candidateRead.error)||candidateStale||!selectionSnapshot
+  const isOwner = (userType: string) => userType === 'owner'
+  const refreshCandidates=async()=>{
+    if(pending.current || !role.member_assignment_available)return
+    const owner=actor,token=getAccessToken();pending.current=true;setSubmitting(true);setSelectedUsers([])
+    try{const [snapshot]=await Promise.all([candidateRead.refresh(),onUpdate()]);if(active.current&&currentActor.current===owner&&currentRole.current.id===role.id&&token===getAccessToken())setSelectionSnapshot(snapshot??null)}
+    catch{if(active.current&&currentActor.current===owner&&currentRole.current.id===role.id&&token===getAccessToken())showError('Could not read complete current candidates. Try refreshing again.')}
+    finally{pending.current=false;if(active.current)setSubmitting(false)}
+  }
+  const handleOpenAddModal = async () => {
+    if (!actor || !role.member_assignment_available || pending.current) return
+    const owner=actor,token=getAccessToken();pending.current=true;setSubmitting(true);setSelectedUsers([])
+    try{const [snapshot]=await Promise.all([fetchAdminRoleCandidates(actor,role.id),onUpdate()]);if(active.current&&currentActor.current===owner&&currentRole.current.id===role.id&&token===getAccessToken()&&currentRole.current.member_assignment_available){setSelectionSnapshot(snapshot);setAddModalOpen(true)}}
+    catch{if(active.current&&currentActor.current===owner&&currentRole.current.id===role.id&&token===getAccessToken())showError('Could not read complete current candidates. Try refreshing again.')}
+    finally{pending.current=false;if(active.current)setSubmitting(false)}
+  }
   const handleAddMembers = async () => {
-    if (isAutoManaged) {
-      showError('Members for this role are managed automatically.')
-      return
-    }
-    if (selectedUsers.length === 0) {
-      showError('Please select at least one user to add')
-      return
-    }
-
-    setSubmitting(true)
-    try {
-      // Fetch all roles once to map role names to IDs
-      const allRolesResponse = await requestJson<{ data: AdminRole[] }>('/api/v2/admin-roles?include_permissions=false')
-      const allRoles = allRolesResponse.data
-
-      // Get the current role IDs for each selected user and add this role
-      const updates = await Promise.all(
-        selectedUsers.map(async (userUuid) => {
-          // Find the user in the local users list to get their ID
-          const user = localUsers.find((u) => u.uuid === userUuid)
-          if (!user) {
-            console.warn(`User not found: ${userUuid}`)
-            return null
-          }
-
-          // Map role names to IDs
-          const currentRoleIds = user.admin_roles
-            .map((roleName) => allRoles.find((r) => r.name === roleName)?.id)
-            .filter((id): id is string => id !== undefined)
-
-          // Add the new role if not already present
-          const newRoleIds = currentRoleIds.includes(role.id)
-            ? currentRoleIds
-            : [...currentRoleIds, role.id]
-
-          return requestJson(`/api/v2/admins/${user.id}`, {
-            method: 'PATCH',
-            body: JSON.stringify({ role_ids: newRoleIds }),
-          })
-        })
-      )
-
-      const successCount = updates.filter((u) => u !== null).length
-      const failedCount = selectedUsers.length - successCount
-
-      if (successCount > 0) {
-        success(`Added ${successCount} member(s) to role '${role.name}'${failedCount > 0 ? `. ${failedCount} user(s) could not be added.` : ''}`)
-      } else {
-        showError('No users were added.')
-      }
-
-      setAddModalOpen(false)
-      setSelectedUsers([])
-      await refreshMembers()
-      await onUpdate()
-    } catch (err) {
-      showError(`Failed to add members: ${(err as Error).message}`)
-    } finally {
-      setSubmitting(false)
-    }
+    if(!actor||!role.member_assignment_available||pending.current||candidateUnavailable||!selectionSnapshot)return
+    const owner=actor,token=getAccessToken();pending.current=true;setSubmitting(true)
+    try{
+      const targets=membershipTargets(selectionSnapshot.candidates,selectedUsers,'assign')
+      await changeAdminRoleMembership(selectionSnapshot,'assign',targets)
+      if(!active.current||currentActor.current!==owner||currentRole.current.id!==role.id||token!==getAccessToken())return
+      success(`Added ${targets.length} member(s) to role '${role.name}'`)
+      setAddModalOpen(false);setSelectedUsers([]);setSelectionSnapshot(null)
+      await Promise.all([refreshMembers(),onUpdate()])
+    }catch(error){if(active.current&&currentActor.current===owner&&currentRole.current.id===role.id&&token===getAccessToken())showError((error as Error).message)}
+    finally{pending.current=false;if(active.current)setSubmitting(false)}
   }
-
-  const handleRemoveMember = async (memberUuid: string, username: string) => {
-    if (isAutoManaged) {
-      showError('Members for this role are managed automatically.')
-      return
-    }
-    if (
-      !window.confirm(`Remove ${username} from this role? They will lose all permissions from this role.`)
-    ) {
-      return
-    }
-
-    try {
-      // Find the admin by UUID
-      const admin = allAdmins.find((a) => a.uuid === memberUuid)
-      if (!admin) {
-        showError('Admin not found')
-        return
-      }
-
-      // Remove this role from their roles
-      const currentRoleIds = admin.admin_roles.map((r) => r.id)
-      const newRoleIds = currentRoleIds.filter((id) => id !== role.id)
-
-      await requestJson(`/api/v2/admins/${admin.id}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ role_ids: newRoleIds }),
-      })
-
+  const handleRemoveMember = async (memberUuid:string,username:string) => {
+    if(!actor||!role.member_changes_available||pending.current||!memberSnapshot||membersError||memberSnapshot.snapshot_revision!==role.snapshot_revision)return
+    if(!window.confirm(`Remove ${username} from this role? Their other role assignments will stay.`))return
+    const owner=actor,token=getAccessToken();pending.current=true;setSubmitting(true)
+    try{
+      await changeAdminRoleMembership(memberSnapshot,'remove',membershipTargets(members,[memberUuid],'remove'))
+      if(!active.current||currentActor.current!==owner||currentRole.current.id!==role.id||token!==getAccessToken())return
       success(`Removed ${username} from role '${role.name}'`)
-      await refreshMembers()
-      await onUpdate()
-    } catch (err) {
-      showError(`Failed to remove member: ${(err as Error).message}`)
-    }
+      await Promise.all([refreshMembers(),onUpdate()])
+    }catch(error){if(active.current&&currentActor.current===owner&&currentRole.current.id===role.id&&token===getAccessToken())showError((error as Error).message)}
+    finally{pending.current=false;if(active.current)setSubmitting(false)}
   }
-
   const toggleUserSelection = (userUuid: string) => {
-    setSelectedUsers((prev) =>
-      prev.includes(userUuid) ? prev.filter((id) => id !== userUuid) : [...prev, userUuid]
-    )
-  }
-
-  const isOwner = (userType: string) => userType === 'OWNER'
-
-  const handleOpenAddModal = () => {
-    if (isAutoManaged) {
-      showError('Members for this role are managed automatically.')
-      return
-    }
-    setAddModalOpen(true)
+    if(submitting||candidateUnavailable)return
+    setSelectedUsers(previous=>previous.includes(userUuid)?previous.filter(id=>id!==userUuid):previous.length<100?[...previous,userUuid]:previous)
   }
 
   return (
@@ -223,14 +105,14 @@ export const AdminRoleMembersTab = ({ role, onUpdate }: AdminRoleMembersTabProps
             <div>
               <h2 className="mb-1 text-xl font-semibold">Role Members</h2>
               <p className="text-sm text-muted-foreground">
-                Manage administrators assigned to this role
+                Review explicit role assignments. Manage eligible local accounts within your current role hierarchy.
               </p>
             </div>
           </div>
           {!isAutoManaged && (
-            <Button onClick={handleOpenAddModal}>
+            <Button disabled={!role.member_assignment_available || submitting} onClick={handleOpenAddModal}>
               <FontAwesomeIcon icon={faUserPlus} className="mr-2 size-4" />
-              Add Admin
+              Add Member
             </Button>
           )}
         </div>
@@ -240,7 +122,7 @@ export const AdminRoleMembersTab = ({ role, onUpdate }: AdminRoleMembersTabProps
           <FontAwesomeIcon icon={faCircleInfo} />
           <AlertTitle>Current Members</AlertTitle>
           <AlertDescription>
-            {members.length} administrator{members.length !== 1 ? 's' : ''} assigned to this role
+            {membersError ? 'Membership unavailable' : membersLoading ? 'Loading membership…' : `${members.length} explicit assignment${members.length !== 1 ? 's' : ''} to this role`}
           </AlertDescription>
         </Alert>
 
@@ -249,8 +131,7 @@ export const AdminRoleMembersTab = ({ role, onUpdate }: AdminRoleMembersTabProps
             <FontAwesomeIcon icon={faCircleInfo} />
             <AlertTitle>Auto-managed membership</AlertTitle>
             <AlertDescription>
-              Members for this role are managed by the system. Add or remove admin roles to
-              adjust membership.
+              Assignments for this role are managed by the system. Membership changes are unavailable here.
             </AlertDescription>
           </Alert>
         )}
@@ -284,7 +165,7 @@ export const AdminRoleMembersTab = ({ role, onUpdate }: AdminRoleMembersTabProps
             </div>
           </div>
 
-          {membersLoading ? (
+          {membersError ? <Alert variant="destructive"><AlertDescription>Could not read the complete membership. Refresh before reviewing.</AlertDescription><Button variant="outline" onClick={() => void refreshMembers()}>Refresh Members</Button></Alert> : membersLoading ? (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Spinner className="size-4 text-muted-foreground" />
               Loading members...
@@ -299,7 +180,7 @@ export const AdminRoleMembersTab = ({ role, onUpdate }: AdminRoleMembersTabProps
                   : "This role doesn't have any members assigned yet."}
               </p>
               {!searchQuery && !isAutoManaged && (
-                <Button size="sm" onClick={handleOpenAddModal}>
+                <Button disabled={!role.member_assignment_available || submitting} size="sm" onClick={handleOpenAddModal}>
                   <FontAwesomeIcon icon={faUserPlus} className="mr-2 size-4" />
                   Add First Member
                 </Button>
@@ -319,13 +200,13 @@ export const AdminRoleMembersTab = ({ role, onUpdate }: AdminRoleMembersTabProps
                       <Avatar className="size-12">
                         <AvatarImage src="" alt={member.username} />
                         <AvatarFallback>
-                          {member.username.charAt(0).toUpperCase()}
+                          {(member.username || member.uuid).charAt(0).toUpperCase()}
                         </AvatarFallback>
                       </Avatar>
                       <div>
-                        <div className="font-semibold">{member.username}</div>
+                        <div className="font-semibold">{member.username || member.uuid}</div>
                         {memberIsOwner && <Badge className="mt-1">Owner</Badge>}
-                        {!memberIsOwner && <Badge variant="secondary" className="mt-1">Admin</Badge>}
+                        {!memberIsOwner && <Badge variant="secondary" className="mt-1">Assigned</Badge>}
                       </div>
                     </div>
                     {!memberIsOwner && !isAutoManaged && (
@@ -334,7 +215,8 @@ export const AdminRoleMembersTab = ({ role, onUpdate }: AdminRoleMembersTabProps
                           size="sm"
                           variant="ghost"
                           className="text-destructive hover:bg-destructive/10"
-                          onClick={() => handleRemoveMember(member.uuid, member.username)}
+                          disabled={!role.member_changes_available || !member.can_remove || submitting || membersLoading || Boolean(membersError) || memberSnapshot?.snapshot_revision!==role.snapshot_revision}
+                          onClick={() => handleRemoveMember(member.uuid, member.username || member.uuid)}
                         >
                           <FontAwesomeIcon icon={faUserMinus} className="mr-1 size-4" />
                           Remove
@@ -355,7 +237,7 @@ export const AdminRoleMembersTab = ({ role, onUpdate }: AdminRoleMembersTabProps
       {/* Add Member Modal */}
       <ResponsiveDialog
         open={addModalOpen}
-        onOpenChange={setAddModalOpen}
+        onOpenChange={open=>{if(!submitting)setAddModalOpen(open)}}
         title="Add Users to Role"
         footer={[
           <Button
@@ -366,33 +248,31 @@ export const AdminRoleMembersTab = ({ role, onUpdate }: AdminRoleMembersTabProps
           >
             Cancel
           </Button>,
-          <Button key="add" onClick={handleAddMembers} disabled={submitting}>
+          <Button key="refresh" variant="outline" onClick={()=>void refreshCandidates()} disabled={submitting}>Refresh Candidates</Button>,
+          <Button key="add" onClick={handleAddMembers} disabled={submitting || candidateUnavailable || !selectedUsers.length}>
             {submitting ? 'Adding...' : `Add ${selectedUsers.length} User(s)`}
           </Button>,
         ]}
       >
         <div className="space-y-4">
-          {availableUsers.length === 0 ? (
+          {candidateRead.loading && !selectionSnapshot ? <div className="flex items-center gap-2 text-sm text-muted-foreground"><Spinner className="size-4 text-muted-foreground" />Loading eligible accounts…</div> : candidateRead.error || candidateStale || !role.member_assignment_available ? <Alert variant="destructive"><AlertDescription>Role or candidate accounts changed or could not be read completely. Refresh candidates before selecting users.</AlertDescription></Alert> : availableUsers.length === 0 ? (
             <Alert variant="info">
               <FontAwesomeIcon icon={faCircleInfo} />
               <AlertDescription>
-                {hasLocalUsers
-                  ? 'All local users are already members of this role.'
-                  : 'No local users found. Create a local user before assigning admin roles.'}
+                No eligible unassigned local accounts were found. New grants require an active account with local credentials and unexpired access.
               </AlertDescription>
             </Alert>
           ) : (
             <>
               <p className="text-sm text-muted-foreground">
-                Select local users to add to this role. They will inherit all permissions from
-                this role and become administrators.
+                Select up to 100 local accounts to receive this role's permissions. Other role assignments remain unchanged.
               </p>
 
               <div className="max-h-96 space-y-2 overflow-y-auto">
                 {availableUsers.map((user) => {
                   const checkboxId = `user-${user.uuid}`
                   const isSelected = selectedUsers.includes(user.uuid)
-                  const isAdmin = user.admin_roles.length > 0
+
 
                   return (
                     <div
@@ -402,6 +282,7 @@ export const AdminRoleMembersTab = ({ role, onUpdate }: AdminRoleMembersTabProps
                       <Checkbox
                         id={checkboxId}
                         checked={isSelected}
+                        disabled={submitting || candidateUnavailable}
                         onCheckedChange={() => toggleUserSelection(user.uuid)}
                       />
                       <Label htmlFor={checkboxId} className="flex flex-1 cursor-pointer items-center gap-3">
@@ -414,17 +295,9 @@ export const AdminRoleMembersTab = ({ role, onUpdate }: AdminRoleMembersTabProps
                         <div className="flex-1">
                           <div className="flex items-center gap-2">
                             <div className="font-medium">{user.display_name}</div>
-                            {!isAdmin && (
-                              <Badge variant="outline" className="text-xs">
-                                Not an admin
-                              </Badge>
-                            )}
+                            <Badge variant="outline" className="text-xs">Eligible account</Badge>
                           </div>
-                          {isAdmin && (
-                            <div className="text-xs text-muted-foreground">
-                              Current roles: {user.admin_roles.join(', ')}
-                            </div>
-                          )}
+
                         </div>
                       </Label>
                     </div>

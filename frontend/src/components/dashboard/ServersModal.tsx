@@ -55,7 +55,7 @@ export const ServersModal = ({ open, onClose }: ServersModalProps) => {
         </div>
       ) : error ? (
         <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-          Failed to load server status: {(error as Error).message}
+          Failed to load server status: {error}
         </div>
       ) : (
         <ul className="space-y-2">

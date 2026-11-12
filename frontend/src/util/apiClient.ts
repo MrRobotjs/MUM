@@ -1,28 +1,8 @@
-const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS', 'TRACE']);
-import { getAccessToken, setAccessToken, clearAccessToken } from './tokenStore';
-
-const LOGOUT_REASON_KEY = 'auth_logout_reason';
-
-const setLogoutReason = (reason: string) => {
-  if (typeof window === 'undefined') return;
-  try {
-    window.sessionStorage.setItem(LOGOUT_REASON_KEY, reason);
-  } catch {
-    // Ignore storage errors
-  }
-};
-
-export type ApiFetchOptions = {
-  csrfUrl?: string;
-};
+import { getAccessToken, clearAccessToken, refreshAccessToken } from '../store/authStore';
 
 export type ParsedJson<T = unknown> = {
   data?: T;
-  error?: {
-    code?: string;
-    message?: string;
-    details?: Record<string, unknown>;
-  };
+  error?: { code?: string; message?: string; details?: Record<string, unknown> };
   meta?: Record<string, unknown>;
 } | T;
 
@@ -30,189 +10,53 @@ export class ApiError extends Error {
   status: number;
   details?: Record<string, unknown>;
   payload?: ParsedJson;
-
   constructor(message: string, status: number, payload?: ParsedJson) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.payload = payload;
-    if (payload && typeof payload === 'object' && 'error' in payload && payload.error?.details) {
-      this.details = payload.error.details;
+    if (payload && typeof payload === 'object' && 'error' in payload) {
+      this.details = (payload as { error?: { details?: Record<string, unknown> } }).error?.details;
     }
   }
 }
 
-// CSRF removed in JWT migration; no-ops retained for compatibility
-const csrfToken: string | null = null;
-export const setCsrfToken = (_token: string | null) => {};
-export const clearCsrfToken = () => {};
-export const ensureCsrfToken = async (_csrfUrl = '/api/v2/auth/csrf-token') => null;
-
-const getJson = async (response: Response): Promise<ParsedJson | null> => {
-  const text = await response.text();
-  if (!text) {
-    return null;
-  }
-  try {
-    return JSON.parse(text);
-  } catch {
-    return null;
-  }
-};
-
-export const apiFetch = async (
-  input: RequestInfo,
-  init: RequestInit = {},
-  options: ApiFetchOptions = {}
-): Promise<Response> => {
-  const method = (init.method ?? 'GET').toUpperCase();
-  const headers = new Headers(init.headers ?? {});
-
-  if (!headers.has('Accept')) {
-    headers.set('Accept', 'application/json');
-  }
-
-  const body = init.body;
-  if (body && !(body instanceof FormData) && !headers.has('Content-Type')) {
-    if (typeof body === 'string') {
-      headers.set('Content-Type', 'application/json');
-    }
-  }
-
-  // No CSRF header needed with JWT Authorization scheme
-  // Attach Authorization header if we have an access token
-  let token = getAccessToken();
-  if (token && !headers.has('Authorization')) {
-    headers.set('Authorization', `Bearer ${token}`);
-  }
-
-  const url = typeof input === 'string' ? input : input.url;
-  const isAuthEndpoint = url && url.includes('/auth/jwt/');
-
-  const hasRefreshCookie =
-    typeof document !== 'undefined' && document.cookie.includes('refresh_token_cookie=');
-
-  if (!token && !isAuthEndpoint && hasRefreshCookie) {
-    try {
-      const refreshResp = await fetch('/api/v2/auth/jwt/refresh', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { Accept: 'application/json' },
-      });
-      if (refreshResp.ok) {
-        const json = await getJson(refreshResp);
-        const newToken = (json && typeof json === 'object' && 'data' in json)
-          ? ((json.data as any)?.access_token as string | undefined)
-          : undefined;
-        if (newToken) {
-          setAccessToken(newToken);
-          token = newToken;
-          headers.set('Authorization', `Bearer ${newToken}`);
-        }
+export type ApiRequestInit = RequestInit & { retryAuthentication?: boolean };
+export const apiFetch = async (input: RequestInfo, init: ApiRequestInit = {}): Promise<Response> => {
+  const { retryAuthentication = true, ...requestInit } = init;
+  const rawUrl = typeof input === 'string' ? input : input.url;
+  const url = new URL(rawUrl, window.location.origin);
+  if (url.origin !== window.location.origin) throw new Error('API requests must use this origin');
+  const headers = new Headers(init.headers ?? (input instanceof Request ? input.headers : undefined));
+  headers.set('Accept', 'application/json');
+  if (typeof init.body === 'string' && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
+  const token = getAccessToken();
+  if (token) headers.set('Authorization', `Bearer ${token}`);
+  const original = new Request(typeof input === 'string' ? url.href : input, { ...requestInit, credentials: 'include', headers });
+  let response = await fetch(original.clone());
+  const isAuthentication = url.pathname.startsWith('/api/auth/') || url.pathname === '/api/setup/account';
+  if (response.status === 401 && !isAuthentication && retryAuthentication) {
+    const refreshed = await refreshAccessToken();
+    if (refreshed) {
+      const retryHeaders = new Headers(original.headers);
+      retryHeaders.set('Authorization', `Bearer ${refreshed}`);
+      response = await fetch(new Request(original, { headers: retryHeaders }));
+    } else {
+      if (token) {
+        try { window.sessionStorage.setItem('auth_logout_reason', 'inactivity'); } catch { /* optional notice */ }
       }
-    } catch {
-      // ignore bootstrap refresh errors
+      clearAccessToken();
     }
   }
-
-  let response: Response;
-  try {
-    response = await fetch(input, {
-      ...init,
-      method,
-      credentials: 'include',
-      headers
-    });
-  } catch (networkErr) {
-    // Network-level failure: attempt a refresh once, then retry original request
-    try {
-      const refreshResp = await fetch('/api/v2/auth/jwt/refresh', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { Accept: 'application/json' },
-      });
-      if (refreshResp.ok) {
-        const json = await getJson(refreshResp);
-        const newToken = (json && typeof json === 'object' && 'data' in json)
-          ? (json.data as any)?.access_token as string | undefined
-          : undefined;
-        if (newToken) {
-          setAccessToken(newToken);
-          headers.set('Authorization', `Bearer ${newToken}`);
-          response = await fetch(input, { ...init, method, credentials: 'include', headers });
-        } else {
-          throw networkErr;
-        }
-      } else {
-        throw networkErr;
-      }
-    } catch {
-      // Propagate original error so callers can handle/log
-      throw networkErr;
-    }
-  }
-
-  const hadAuthContext = Boolean(token) || hasRefreshCookie;
-
-  // On 401, attempt refresh flow once, then retry original request
-  if (response.status === 401) {
-    try {
-      const refreshResp = await fetch('/api/v2/auth/jwt/refresh', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { Accept: 'application/json' },
-      });
-      if (refreshResp.ok) {
-        const json = await getJson(refreshResp);
-        const newToken = (json && typeof json === 'object' && 'data' in json)
-          ? (json.data as any)?.access_token as string | undefined
-          : undefined;
-        if (newToken) {
-          // Persist new token for subsequent requests
-          setAccessToken(newToken);
-          // Update Authorization header and retry original request
-          headers.set('Authorization', `Bearer ${newToken}`);
-          response = await fetch(input, {
-            ...init,
-            method,
-            credentials: 'include',
-            headers,
-          });
-        }
-      } else {
-        // Refresh failed; clear any stale token
-        if (hadAuthContext && !isAuthEndpoint) {
-          setLogoutReason('inactivity');
-        }
-        clearAccessToken();
-      }
-    } catch (e) {
-      // fall through to return original 401
-    }
-  }
-  
   return response;
 };
 
-export const requestJson = async <T = ParsedJson>(
-  input: RequestInfo,
-  init: RequestInit = {},
-  options: ApiFetchOptions = {}
-): Promise<T> => {
-  const response = await apiFetch(input, init, options);
-  const json = await getJson(response);
-
-  if (!response.ok) {
-    const errorPayload = (json ?? undefined) as ParsedJson | undefined;
-    const message =
-      (typeof errorPayload === 'object' &&
-        errorPayload &&
-        'error' in errorPayload &&
-        errorPayload.error?.message) ||
-      response.statusText ||
-      'Request failed';
-    throw new ApiError(message, response.status, errorPayload);
-  }
-
-  return (json as T) ?? ({} as T);
+export const requestJson = async <T = ParsedJson>(input: RequestInfo, init: ApiRequestInit = {}): Promise<T> => {
+  const response = await apiFetch(input, init);
+  const text = await response.text();
+  let payload: any = null;
+  try { payload = text ? JSON.parse(text) : null; } catch { /* handled as invalid response below */ }
+  if (!response.ok) throw new ApiError(payload?.error?.message || response.statusText || 'Request failed', response.status, payload ?? undefined);
+  if (text && payload === null) throw new ApiError('Server returned invalid JSON', response.status);
+  return (payload ?? {}) as T;
 };

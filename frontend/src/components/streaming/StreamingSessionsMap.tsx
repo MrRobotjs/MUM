@@ -1,6 +1,20 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  createContext,
+  memo,
+  useCallback,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from 'react';
+import { createPortal } from 'react-dom';
 import L from 'leaflet';
-import MarkerClusterGroup from 'react-leaflet-cluster';
+// Registers L.markerClusterGroup on the Leaflet namespace imported above.
+import 'leaflet.markercluster';
 import { Badge } from '@/components/ui/badge';
 import { ServiceIcon } from '@/components/services/ServiceIcon';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,9 +24,12 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useMediaQuery } from '@/store/mediaQueryStore';
 import type { ActiveSession } from '@/types/streaming';
 import { getStreamingSessionStats } from './sessionStats';
-import { MapContainer, Marker, Popup, TileLayer, useMap } from 'react-leaflet';
 import { faCompress, faExpand, faLocationDot, faMinus, faPlus } from '@fortawesome/free-solid-svg-icons';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import {apiFetch} from '@/util/apiClient';
+import {getAccessToken} from '@/store/authStore';
+import {Button} from '@/components/ui/button';
+import {StreamingMapKeyDialog, useStreamingMapSettings} from '@/components/settings/StreamingMapSettings';
 
 type StreamingSessionsMapProps = {
   sessions: ActiveSession[];
@@ -24,8 +41,9 @@ type PositionedSession = ActiveSession & {
 };
 
 const DEFAULT_CENTER: [number, number] = [20, 0];
-const DARK_TILE_URL = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
-const LIGHT_TILE_URL = 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
+const DARK_TILE_URL = '/api/activity/map-tiles/dark/{z}/{x}/{y}';
+const LIGHT_TILE_URL = '/api/activity/map-tiles/light/{z}/{x}/{y}';
+const TILE_SUBDOMAINS = ['a', 'b', 'c', 'd'];
 
 const SERVICE_COLORS: Record<string, string> = {
   plex: 'var(--color-plex)',
@@ -92,7 +110,7 @@ const getSessionMarkerIcon = (serviceType: string) => {
   return icon;
 };
 
-const getClusterServiceColor = (cluster: any) => {
+const getClusterServiceColor = (cluster: L.MarkerCluster) => {
   const markers: Array<{ options?: { alt?: string } }> = cluster.getAllChildMarkers?.() ?? [];
   if (!markers.length) return 'var(--color-primary)';
 
@@ -115,7 +133,7 @@ const getClusterServiceColor = (cluster: any) => {
   return dominantService ? getMarkerColor(dominantService) : 'var(--color-primary)';
 };
 
-const createClusterCustomIcon = (cluster: any) => {
+const createClusterCustomIcon = (cluster: L.MarkerCluster) => {
   const count = cluster.getChildCount?.() ?? 1;
   const color = getClusterServiceColor(cluster);
   const size = count > 50 ? 46 : count > 10 ? 40 : 34;
@@ -150,6 +168,7 @@ const tryGetSeasonLabel = (parentTitle?: string) => {
 };
 
 const SessionPopupContent = ({ session }: { session: ActiveSession }) => {
+  const [failedAvatar,setFailedAvatar]=useState<string|null>(null);
   const serviceMeta = getServiceMeta(session.service_type);
   const avatarBgClass = serviceMeta.palette?.avatar ?? 'bg-muted-foreground/20';
   const avatarTextClass = serviceMeta.palette?.avatar ? 'text-white' : 'text-muted-foreground';
@@ -164,8 +183,8 @@ const SessionPopupContent = ({ session }: { session: ActiveSession }) => {
     <div className="min-w-[220px] rounded-lg border border-border/70 bg-card p-3 text-card-foreground shadow-xl">
       <div className="flex items-start gap-2">
         <div className="relative h-8 w-8 shrink-0 overflow-hidden rounded-full">
-          {session.user_avatar_url ? (
-            <img src={session.user_avatar_url} alt={session.user} className="h-full w-full object-cover" />
+          {session.user_avatar_url && failedAvatar!==session.user_avatar_url ? (
+            <img onError={()=>setFailedAvatar(session.user_avatar_url??null)} src={session.user_avatar_url} alt={session.user} className="h-full w-full object-cover" />
           ) : (
             <div className={`flex h-full w-full items-center justify-center font-bold ${avatarBgClass} ${avatarTextClass}`}>
               {session.user?.[0]?.toUpperCase() ?? 'U'}
@@ -192,6 +211,189 @@ const SessionPopupContent = ({ session }: { session: ActiveSession }) => {
       <div className="mt-1 text-xs text-muted-foreground">{session.location_ip ?? 'IP unavailable'}</div>
     </div>
   );
+};
+
+// Plain Leaflet bindings (Leaflet is BSD-2-Clause). They replace react-leaflet,
+// whose Hippocratic licence cannot be combined with MUM's AGPL-3.0 licence.
+const LeafletMapContext = createContext<L.Map | null>(null);
+
+const useMap = () => {
+  const map = useContext(LeafletMapContext);
+  if (!map) throw new Error('useMap must be used inside LeafletMap');
+  return map;
+};
+
+type LeafletMapProps = {
+  center: [number, number];
+  zoom: number;
+  minZoom: number;
+  maxZoom: number;
+  style: CSSProperties;
+  children: ReactNode;
+};
+
+// Like react-leaflet's MapContainer: the map is created once with the initial
+// view, and children render inside the map container once the map exists.
+const LeafletMap = ({ center, zoom, minZoom, maxZoom, style, children }: LeafletMapProps) => {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [map, setMap] = useState<L.Map | null>(null);
+  const initialViewRef = useRef({ center, zoom, minZoom, maxZoom });
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const view = initialViewRef.current;
+    const instance = L.map(container, {
+      center: view.center,
+      zoom: view.zoom,
+      minZoom: view.minZoom,
+      maxZoom: view.maxZoom,
+      scrollWheelZoom: true,
+      zoomControl: false,
+      attributionControl: false,
+    });
+    setMap(instance);
+    return () => {
+      instance.remove();
+      setMap(null);
+    };
+  }, []);
+
+  return (
+    <div ref={containerRef} style={style}>
+      {map ? <LeafletMapContext.Provider value={map}>{children}</LeafletMapContext.Provider> : null}
+    </div>
+  );
+};
+
+const MapTileLayer = ({ url, attribution, subdomains, onError }: { url: string; attribution: string; subdomains: string[]; onError: () => void }) => {
+  const map = useMap();
+
+  useEffect(() => {
+    const controllers = new Map<HTMLElement, AbortController>();
+    const blobs = new Map<HTMLElement, string>();
+    const token = getAccessToken();
+    class AuthenticatedTileLayer extends L.TileLayer {
+    createTile(coords: L.Coords, done: L.DoneCallback) {
+      const img = document.createElement('img');
+      img.alt = '';
+      const controller = new AbortController();
+      controllers.set(img, controller);
+      img.onload = () => done?.(undefined, img);
+      img.onerror = () => done?.(new Error('Map tile unavailable'), img);
+      const path = url.replace('{z}', String(coords.z)).replace('{x}', String(coords.x)).replace('{y}', String(coords.y));
+      void apiFetch(path, {signal: controller.signal, retryAuthentication: false}).then(async response => {
+        if (!response.ok) throw Error('Map tile unavailable');
+        const blob = await response.blob();
+        if (controller.signal.aborted || token !== getAccessToken()) return;
+        const source = URL.createObjectURL(blob);
+        blobs.set(img, source);
+        img.src = source;
+      }).catch(() => {if (!controller.signal.aborted) done?.(new Error('Map tile unavailable'), img);});
+      return img;
+    }
+    }
+    const layer = new AuthenticatedTileLayer(url, { attribution, subdomains });
+    layer.on('tileerror', onError);
+    layer.on('tileunload', event => {
+      controllers.get(event.tile)?.abort(); controllers.delete(event.tile);
+      const blob = blobs.get(event.tile); if (blob) URL.revokeObjectURL(blob); blobs.delete(event.tile);
+    });
+    layer.addTo(map);
+    return () => {
+      layer.remove();
+      controllers.forEach(controller => controller.abort());
+      blobs.forEach(blob => URL.revokeObjectURL(blob));
+    };
+  }, [attribution, map, subdomains, url, onError]);
+
+  return null;
+};
+
+type MapMarkerEntry = {
+  key: string;
+  session: PositionedSession;
+  position: [number, number];
+};
+
+type OpenPopup = { key: string; node: HTMLElement; popup: L.Popup };
+
+const SessionMarkers = ({ entries, clustered }: { entries: MapMarkerEntry[]; clustered: boolean }) => {
+  const map = useMap();
+  const groupRef = useRef<L.LayerGroup | null>(null);
+  const markersRef = useRef(new Map<string, { marker: L.Marker; position: [number, number]; serviceType: string }>());
+  const [openPopup, setOpenPopup] = useState<OpenPopup | null>(null);
+
+  // One layer per mode, matching the previous remount when grouping toggles.
+  useEffect(() => {
+    const group = clustered
+      ? L.markerClusterGroup({
+          chunkedLoading: true,
+          iconCreateFunction: createClusterCustomIcon,
+          maxClusterRadius: 35,
+          spiderfyOnMaxZoom: true,
+          showCoverageOnHover: false,
+        })
+      : L.layerGroup();
+    group.addTo(map);
+    groupRef.current = group;
+    const markers = markersRef.current;
+    return () => {
+      group.remove();
+      groupRef.current = null;
+      markers.clear();
+      setOpenPopup(null);
+    };
+  }, [clustered, map]);
+
+  // Keyed updates keep unchanged markers (and an open popup) across session refreshes.
+  useEffect(() => {
+    const group = groupRef.current;
+    if (!group) return;
+    const markers = markersRef.current;
+    const wanted = new Set(entries.map((entry) => entry.key));
+    markers.forEach((value, key) => {
+      if (!wanted.has(key)) {
+        group.removeLayer(value.marker);
+        markers.delete(key);
+      }
+    });
+    entries.forEach((entry) => {
+      const serviceType = (entry.session.service_type || '').toLowerCase();
+      const existing = markers.get(entry.key);
+      if (
+        existing &&
+        existing.serviceType === serviceType &&
+        existing.position[0] === entry.position[0] &&
+        existing.position[1] === entry.position[1]
+      ) {
+        return;
+      }
+      if (existing) group.removeLayer(existing.marker);
+      const marker = L.marker(entry.position, {
+        icon: getSessionMarkerIcon(entry.session.service_type),
+        alt: serviceType,
+      });
+      const node = document.createElement('div');
+      const popup = L.popup({ className: 'mum-map-popup' }).setContent(node);
+      marker.bindPopup(popup);
+      marker.on('popupopen', () => setOpenPopup({ key: entry.key, node, popup }));
+      marker.on('popupclose', () =>
+        setOpenPopup((current) => (current && current.popup === popup ? null : current))
+      );
+      group.addLayer(marker);
+      markers.set(entry.key, { marker, position: entry.position, serviceType });
+    });
+  }, [entries, clustered]);
+
+  const openSession = openPopup ? entries.find((entry) => entry.key === openPopup.key)?.session : undefined;
+
+  // Re-measure after React fills the popup, as react-leaflet's Popup did.
+  useLayoutEffect(() => {
+    openPopup?.popup.update();
+  }, [openPopup, openSession]);
+
+  return openPopup && openSession ? createPortal(<SessionPopupContent session={openSession} />, openPopup.node) : null;
 };
 
 const AutoFit = ({ points, signature }: { points: [number, number][]; signature: string }) => {
@@ -268,7 +470,12 @@ const StreamingSessionsMapComponent = ({ sessions }: StreamingSessionsMapProps) 
   const [isPseudoFullscreen, setIsPseudoFullscreen] = useState(false);
   const mapFrameRef = useRef<HTMLDivElement | null>(null);
   const resolvedTheme = theme === 'system' ? (prefersDark ? 'dark' : 'light') : theme;
-  const tileUrl = resolvedTheme === 'dark' ? DARK_TILE_URL : LIGHT_TILE_URL;
+  const mapSettings = useStreamingMapSettings();
+  const [keyDialogOpen, setKeyDialogOpen] = useState(false);
+  const [tileFailed, setTileFailed] = useState(false);
+  const onTileError = useCallback(() => setTileFailed(true), []);
+  useEffect(() => setTileFailed(false), [mapSettings.data?.revision, mapSettings.sessionToken]);
+  const tileUrl = (resolvedTheme === 'dark' ? DARK_TILE_URL : LIGHT_TILE_URL) + `?revision=${mapSettings.data?.revision ?? 0}`;
 
   const validSessions = useMemo<PositionedSession[]>(() => {
     return sessions
@@ -297,6 +504,26 @@ const StreamingSessionsMapComponent = ({ sessions }: StreamingSessionsMapProps) 
         .sort()
         .join('|'),
     [points]
+  );
+
+  const clusteredEntries = useMemo<MapMarkerEntry[]>(
+    () =>
+      validSessions.map((session) => ({
+        key: `${session.session_key}:${session.service_type}:${session.server_name}`,
+        session,
+        position: [session.mapLat, session.mapLon],
+      })),
+    [validSessions]
+  );
+
+  const spreadEntries = useMemo<MapMarkerEntry[]>(
+    () =>
+      validSessions.map((session, index) => ({
+        key: `${session.session_key}:${session.service_type}:${session.server_name}:${index}`,
+        session,
+        position: withJitter(session.mapLat, session.mapLon, index),
+      })),
+    [validSessions]
   );
 
   const center = points[0] ?? DEFAULT_CENTER;
@@ -391,7 +618,16 @@ const StreamingSessionsMapComponent = ({ sessions }: StreamingSessionsMapProps) 
       </CardHeader>
 
       <CardContent className="pt-5">
-        {locationCount === 0 ? (
+        {tileFailed && mapSettings.data?.configured && <div role="alert" className="mb-3 space-y-2 text-sm text-muted-foreground">Map tiles could not be loaded. Check your CARTO key, quota and server internet connection. <Button variant="outline" onClick={() => setKeyDialogOpen(true)}>Change map key</Button></div>}
+        {!mapSettings.data?.configured ? (
+          <div className="relative flex min-h-[280px] items-center justify-center rounded-xl border border-border/60 bg-muted/20 p-6 sm:min-h-[320px]">
+            <div className="space-y-3 text-center">
+              <p className="font-semibold">{mapSettings.error ? 'Map settings unavailable' : !mapSettings.canConfigure ? 'Live User Map requires administrator access' : !mapSettings.data ? 'Loading map settings...' : 'CARTO map key missing'}</p>
+              <p className="text-sm text-muted-foreground">Add a CARTO basemap key to display the map background. Public stream locations will appear when available.</p>
+              {mapSettings.canConfigure && <Button onClick={() => setKeyDialogOpen(true)}>Set up map key</Button>}
+            </div>
+          </div>
+        ) : locationCount === 0 ? (
           <div className="flex min-h-[220px] items-center justify-center rounded-xl border border-dashed border-border/60 bg-muted/20 p-6 text-sm text-muted-foreground">
             <div className="flex items-center gap-2">
               <FontAwesomeIcon icon={faLocationDot} className="text-primary" />
@@ -414,6 +650,8 @@ const StreamingSessionsMapComponent = ({ sessions }: StreamingSessionsMapProps) 
             }
           >
             <div
+              // Keep Leaflet panes/controls below portalled dialogs and sheets.
+              style={{ isolation: 'isolate' }}
               className={`relative overflow-hidden border border-border/60 ${
                 isMapExpanded ? 'h-full rounded-xl bg-card shadow-lg' : 'rounded-xl'
               }`}
@@ -463,63 +701,27 @@ const StreamingSessionsMapComponent = ({ sessions }: StreamingSessionsMapProps) 
               </div>
 
               <div className={isMapExpanded ? 'h-full w-full' : 'h-[280px] w-full sm:h-[320px]'}>
-                <MapContainer
+                <LeafletMap
                   center={center}
                   zoom={3}
                   minZoom={2}
                   maxZoom={12}
-                  scrollWheelZoom
                   style={{ height: '100%', width: '100%', background: 'var(--card)' }}
-                  zoomControl={false}
-                  attributionControl={false}
                 >
                   <AutoFit points={points} signature={pointsSignature} />
                   <CustomZoomControl isFullscreen={isMapExpanded} onToggleFullscreen={handleToggleFullscreen} />
-                  <TileLayer
-                    key={resolvedTheme}
+                  <MapTileLayer
+                    key={`${resolvedTheme}:${mapSettings.data.revision}:${mapSettings.sessionToken}`}
                     url={tileUrl}
                     attribution="&copy; OpenStreetMap &copy; CARTO"
-                    subdomains={['a', 'b', 'c', 'd']}
+                    subdomains={TILE_SUBDOMAINS}
+                    onError={onTileError}
                   />
 
-                  {enableClustering ? (
-                    <MarkerClusterGroup
-                      chunkedLoading
-                      iconCreateFunction={createClusterCustomIcon}
-                      maxClusterRadius={35}
-                      spiderfyOnMaxZoom
-                      showCoverageOnHover={false}
-                    >
-                      {validSessions.map((session) => (
-                        <Marker
-                          key={`${session.session_key}:${session.service_type}:${session.server_name}`}
-                          position={[session.mapLat, session.mapLon]}
-                          icon={getSessionMarkerIcon(session.service_type)}
-                          alt={(session.service_type || '').toLowerCase()}
-                        >
-                          <Popup className="mum-map-popup">
-                            <SessionPopupContent session={session} />
-                          </Popup>
-                        </Marker>
-                      ))}
-                    </MarkerClusterGroup>
-                  ) : (
-                    validSessions.map((session, index) => {
-                      const [lat, lon] = withJitter(session.mapLat, session.mapLon, index);
-                      return (
-                        <Marker
-                          key={`${session.session_key}:${session.service_type}:${session.server_name}:${index}`}
-                          position={[lat, lon]}
-                          icon={getSessionMarkerIcon(session.service_type)}
-                          alt={(session.service_type || '').toLowerCase()}
-                        >
-                          <Popup className="mum-map-popup">
-                            <SessionPopupContent session={session} />
-                          </Popup>
-                        </Marker>
-                      );
-                    })
-                  )}
+                  <SessionMarkers
+                    entries={enableClustering ? clusteredEntries : spreadEntries}
+                    clustered={enableClustering}
+                  />
 
                   <style>{`
                     @keyframes mum-map-dot-pulse {
@@ -628,12 +830,13 @@ const StreamingSessionsMapComponent = ({ sessions }: StreamingSessionsMapProps) 
                       margin: 0;
                     }
                   `}</style>
-                </MapContainer>
+                </LeafletMap>
               </div>
             </div>
           </div>
         )}
       </CardContent>
+      <StreamingMapKeyDialog open={keyDialogOpen} onClose={() => setKeyDialogOpen(false)} />
     </Card>
   );
 };

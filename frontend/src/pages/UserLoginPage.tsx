@@ -33,7 +33,7 @@ type LocationState = {
 const UserLoginPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const search = useSearch({ from: '/login', strict: false }) as { next?: string };
+  const search = useSearch({ strict: false }) as { next?: string };
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
@@ -82,7 +82,7 @@ const UserLoginPage = () => {
           user?: unknown;
         };
       }>(
-        '/api/v2/auth/jwt/login',
+        '/api/auth/login',
         {
           method: 'POST',
           body: JSON.stringify({

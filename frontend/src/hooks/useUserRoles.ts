@@ -1,42 +1,17 @@
 import useSWR from 'swr';
-import { requestJson } from '../util/apiClient';
-
-export type UserRole = {
-  id: number;
-  name: string;
-  description: string | null;
-  color: string | null;
-  icon: string | null;
-  badge_style?: string | null;
-  is_auto_managed?: boolean;
-  created_at: string;
-  updated_at: string;
-  user_count?: number;
-};
-
-type UserRolesResponse = {
-  data: UserRole[];
-  meta: {
-    request_id: string;
-  };
-};
-
-export const useUserRoles = (includeUsers = false, includeCounts = false) => {
-  const params = new URLSearchParams();
-  if (includeUsers) params.append('include_users', 'true');
-  if (includeCounts) params.append('include_counts', 'true');
-
-  const url = `/api/v2/user-roles${params.toString() ? `?${params.toString()}` : ''}`;
-
-  const { data, error, isLoading, mutate } = useSWR<UserRolesResponse>(
-    url,
-    (url: string) => requestJson(url)
-  );
-
-  return {
-    roles: data?.data ?? [],
-    loading: isLoading,
-    error,
-    refresh: mutate,
-  };
+import {useState,useSyncExternalStore} from 'react';
+import {useAuth} from '../contexts/AuthContext';
+import {getAuthSnapshot,subscribeToAuthStore} from '../store/authStore';
+import {readUserRoleCatalog,roleCatalogBusy,roleCatalogNeedsRead,subscribeRoleCatalog,roleCatalogStatus,type UserRole} from '../lib/userRoleCatalog';
+export type {UserRole} from '../lib/userRoleCatalog';
+const emptyRoles:readonly UserRole[]=[];
+export const useUserRoles=()=>{
+ const [readEpoch,setReadEpoch]=useState(0);
+ const {user,isAdministrator}=useAuth(),session=useSyncExternalStore(subscribeToAuthStore,getAuthSnapshot);
+ const actor=isAdministrator&&session.accessToken?user?.uuid:undefined;
+ useSyncExternalStore(subscribeRoleCatalog,roleCatalogStatus);
+ const state=useSWR(actor?['/api/user-role-catalog',actor,session.accessToken]:null,([,id]:[string,string,string])=>readUserRoleCatalog(id),{keepPreviousData:false});
+ const needsRead=!!actor&&roleCatalogNeedsRead(actor),busy=!!actor&&roleCatalogBusy(actor);
+ const catalog=!needsRead&&!state.error&&state.data?.actor_uuid===actor?state.data:undefined;
+ return {actor,sessionToken:session.accessToken,readEpoch,catalog,roles:catalog?.roles??emptyRoles,loading:state.isLoading,busy,needsRead,error:state.error??(needsRead?new Error('Read saved roles before another change.'):undefined),refresh:async()=>{if(!actor)return;const fresh=await readUserRoleCatalog(actor,true);await state.mutate(fresh,{revalidate:false});setReadEpoch(value=>value+1);}};
 };

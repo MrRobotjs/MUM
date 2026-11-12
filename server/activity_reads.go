@@ -68,7 +68,7 @@ type activityReadResponse struct {
 	Target  string               `json:"target_uuid,omitempty"`
 }
 type activityReadFence struct {
-	Revision, Mapping, ServerRevision int64
+	Revision, Mapping, ConfigRevision int64
 	Active                            bool
 	Eligible                          int64
 }
@@ -129,7 +129,7 @@ func readActivityStatuses(ctx context.Context, tx *sql.Tx, actor string, q activ
 		return nil, nil, err
 	}
 	args := []any{actor, q.Server, q.Server}
-	query := `SELECT a.server_id,s.service_type,a.revision,a.mapping_revision,s.revision,(s.is_active=1 AND p.enabled=1),a.observed_at,a.observed_server_revision,a.observed_mapping_revision,a.last_result,a.pending_until,a.observed_source,(SELECT count(*) FROM service_accounts z JOIN service_links l ON l.service_uuid=z.uuid WHERE z.server_id=a.server_id AND l.user_uuid=? AND l.link_kind='owner' AND z.is_active=1 AND (z.access_expires_at IS NULL OR julianday(z.access_expires_at)>julianday('now'))) FROM media_activity_state a JOIN media_servers s ON s.id=a.server_id JOIN provider_settings p ON p.provider_id=s.service_type WHERE (?=0 OR a.server_id=?)`
+	query := `SELECT a.server_id,s.service_type,a.revision,a.mapping_revision,s.config_revision,(s.is_active=1 AND p.enabled=1),a.observed_at,a.observed_config_revision,a.observed_mapping_revision,a.last_result,a.pending_until,a.observed_source,(SELECT count(*) FROM service_accounts z JOIN service_links l ON l.service_uuid=z.uuid WHERE z.server_id=a.server_id AND l.user_uuid=? AND l.link_kind='owner' AND z.is_active=1 AND (z.access_expires_at IS NULL OR julianday(z.access_expires_at)>julianday('now'))) FROM media_activity_state a JOIN media_servers s ON s.id=a.server_id JOIN provider_settings p ON p.provider_id=s.service_type WHERE (?=0 OR a.server_id=?)`
 	if !q.All {
 		query += ` AND EXISTS(SELECT 1 FROM service_accounts u JOIN service_links l ON l.service_uuid=u.uuid WHERE u.server_id=a.server_id AND l.user_uuid=? AND l.link_kind='owner')`
 		args = append(args, actor)
@@ -150,8 +150,8 @@ func readActivityStatuses(ctx context.Context, tx *sql.Tx, actor string, q activ
 		var fence activityReadFence
 		var id int64
 		var observed, pending sql.NullString
-		var serverRevision, mappingRevision sql.NullInt64
-		if err := rows.Scan(&id, &item.Provider, &fence.Revision, &fence.Mapping, &fence.ServerRevision, &fence.Active, &observed, &serverRevision, &mappingRevision, &item.LastResult, &pending, &item.Source, &fence.Eligible); err != nil {
+		var configRevision, mappingRevision sql.NullInt64
+		if err := rows.Scan(&id, &item.Provider, &fence.Revision, &fence.Mapping, &fence.ConfigRevision, &fence.Active, &observed, &configRevision, &mappingRevision, &item.LastResult, &pending, &item.Source, &fence.Eligible); err != nil {
 			return nil, nil, err
 		}
 		item.Server = strconv.FormatInt(id, 10)
@@ -182,7 +182,7 @@ func readActivityStatuses(ctx context.Context, tx *sql.Tx, actor string, q activ
 			if age >= 60 {
 				item.Freshness = "stale"
 			}
-			if !serverRevision.Valid || !mappingRevision.Valid || serverRevision.Int64 != fence.ServerRevision || mappingRevision.Int64 != fence.Mapping {
+			if !configRevision.Valid || !mappingRevision.Valid || configRevision.Int64 != fence.ConfigRevision || mappingRevision.Int64 != fence.Mapping {
 				item.Freshness = "invalidated"
 			}
 		}
@@ -228,7 +228,7 @@ func readActivityItems(ctx context.Context, tx *sql.Tx, actor string, q activity
 		query += ` AND ` + activityOwnHistory
 		args = append(args, actor, actor)
 		if !q.History {
-			query += ` AND EXISTS(SELECT 1 FROM service_accounts u JOIN media_servers s ON s.id=u.server_id JOIN provider_settings p ON p.provider_id=s.service_type JOIN media_activity_state a ON a.server_id=s.id WHERE u.uuid=h.service_uuid AND u.is_active=1 AND (u.access_expires_at IS NULL OR julianday(u.access_expires_at)>julianday('now')) AND s.is_active=1 AND p.enabled=1 AND a.observed_mapping_revision=a.mapping_revision AND a.observed_server_revision=s.revision)`
+			query += ` AND EXISTS(SELECT 1 FROM service_accounts u JOIN media_servers s ON s.id=u.server_id JOIN provider_settings p ON p.provider_id=s.service_type JOIN media_activity_state a ON a.server_id=s.id WHERE u.uuid=h.service_uuid AND u.is_active=1 AND (u.access_expires_at IS NULL OR julianday(u.access_expires_at)>julianday('now')) AND s.is_active=1 AND p.enabled=1 AND a.observed_mapping_revision=a.mapping_revision AND a.observed_config_revision=s.config_revision)`
 		}
 	}
 	rows, err := tx.QueryContext(ctx, query+` ORDER BY h.id DESC LIMIT 101`, args...)

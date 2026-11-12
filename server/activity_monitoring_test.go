@@ -183,7 +183,7 @@ func TestActivityMonitorSystemClaimFences(t *testing.T) {
 			case "disable":
 				configureTestMonitor(t, a, token, id, false)
 			case "server":
-				activityExec(t, s, "UPDATE media_servers SET revision=revision+1 WHERE id=?", id)
+				activityExec(t, s, "UPDATE media_servers SET config_revision=config_revision+1 WHERE id=?", id)
 			case "provider":
 				activityExec(t, s, "UPDATE provider_settings SET enabled=0 WHERE provider_id='jellyfin'")
 			case "owner-expired":
@@ -245,7 +245,7 @@ func TestActivityMonitorExpiredRecoveryAndConfigurationPin(t *testing.T) {
 		t.Fatal("expired claim applied")
 	}
 	activityExec(t, s, "UPDATE activity_monitor_schedules SET next_run_at='2000-01-01T00:00:00Z'")
-	// Content revisions (sync/review/finalization) fence snapshots but keep consent.
+	// Content revisions (sync/review/finalization) neither fence snapshots nor revoke consent.
 	activityExec(t, s, "UPDATE media_servers SET revision=revision+1")
 	if next, err := a.claimActivityMonitor(t.Context()); err != nil || next == nil {
 		t.Fatal("content revision revoked consent", err)

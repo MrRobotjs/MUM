@@ -139,7 +139,7 @@ func TestActivityGenerationSupersedesOlderReadAndRejectsReplay(t *testing.T) {
 	}
 }
 func TestActivityClaimIdentityAuthorityAndAtomicFailureGuards(t *testing.T) {
-	for _, mode := range []string{"server-revision", "provider-disabled", "link", "service-aba", "expired", "logout", "revoked", "unknown-user", "duplicate", "provider", "early-time", "future-time", "backward-time", "rollback"} {
+	for _, mode := range []string{"config-revision", "provider-disabled", "link", "service-aba", "expired", "logout", "revoked", "unknown-user", "duplicate", "provider", "early-time", "future-time", "backward-time", "rollback"} {
 		t.Run(mode, func(t *testing.T) {
 			_, s, ownerToken, token, actor := roleReadFixture(t)
 			owner, _ := s.Authenticate(t.Context(), ownerToken)
@@ -151,8 +151,8 @@ func TestActivityClaimIdentityAuthorityAndAtomicFailureGuards(t *testing.T) {
 			}
 			snapshot := activityForUser(t, service)
 			switch mode {
-			case "server-revision":
-				s.writer.Exec("UPDATE media_servers SET revision=revision+1 WHERE id=?", server)
+			case "config-revision":
+				s.writer.Exec("UPDATE media_servers SET config_revision=config_revision+1 WHERE id=?", server)
 			case "provider-disabled":
 				s.writer.Exec("UPDATE provider_settings SET enabled=0 WHERE provider_id='jellyfin'")
 			case "link":

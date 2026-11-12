@@ -97,7 +97,7 @@ func (a *App) claimActivityMonitor(ctx context.Context) (*activityReadClaim, err
 		}
 		c := activityReadClaim{Token: newUUID(), Started: time.Now().UTC()}
 		var socketTriggered bool
-		err := tx.QueryRowContext(ctx, `SELECT q.server_id,q.revision,q.authorized_by,s.service_type,s.revision,a.generation+1,a.mapping_revision,(q.socket_pending=1 AND q.socket_enabled=1) FROM activity_monitor_schedules q JOIN media_activity_state a ON a.server_id=q.server_id JOIN media_servers s ON s.id=q.server_id JOIN provider_settings p ON p.provider_id=s.service_type JOIN user_accounts u ON u.uuid=q.authorized_by WHERE q.enabled=1 AND q.run_state<>'running' AND julianday(q.next_run_at)<=julianday('now') AND (a.pending_token IS NULL OR julianday(a.pending_until)<=julianday('now')) AND s.is_active=1 AND p.enabled=1 AND s.config_revision=q.configured_server_revision AND s.service_type IN ('jellyfin','emby','plex') AND u.kind='owner' AND u.is_active=1 AND (u.access_expires_at IS NULL OR julianday(u.access_expires_at)>julianday('now')) ORDER BY q.next_run_at,q.server_id LIMIT 1`).Scan(&c.Server, &c.MonitorRevision, &c.Actor, &c.Provider, &c.ServerRevision, &c.Generation, &c.MappingRevision, &socketTriggered)
+		err := tx.QueryRowContext(ctx, `SELECT q.server_id,q.revision,q.authorized_by,s.service_type,s.config_revision,a.generation+1,a.mapping_revision,(q.socket_pending=1 AND q.socket_enabled=1) FROM activity_monitor_schedules q JOIN media_activity_state a ON a.server_id=q.server_id JOIN media_servers s ON s.id=q.server_id JOIN provider_settings p ON p.provider_id=s.service_type JOIN user_accounts u ON u.uuid=q.authorized_by WHERE q.enabled=1 AND q.run_state<>'running' AND julianday(q.next_run_at)<=julianday('now') AND (a.pending_token IS NULL OR julianday(a.pending_until)<=julianday('now')) AND s.is_active=1 AND p.enabled=1 AND s.config_revision=q.configured_server_revision AND s.service_type IN ('jellyfin','emby','plex') AND u.kind='owner' AND u.is_active=1 AND (u.access_expires_at IS NULL OR julianday(u.access_expires_at)>julianday('now')) ORDER BY q.next_run_at,q.server_id LIMIT 1`).Scan(&c.Server, &c.MonitorRevision, &c.Actor, &c.Provider, &c.ConfigRevision, &c.Generation, &c.MappingRevision, &socketTriggered)
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil
 		}
@@ -149,7 +149,7 @@ func (a *App) runOneActivityMonitor(parent context.Context) error {
 	observed := 0
 	var applied activityApplyResult
 	server, err := a.loadServer(ctx, c.Server)
-	if err == nil && (server.Revision != c.ServerRevision || !server.EffectiveActive) {
+	if err == nil && (server.ConfigRevision != c.ConfigRevision || !server.EffectiveActive) {
 		err = ErrConflict
 	}
 	if err == nil {

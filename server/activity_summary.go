@@ -37,7 +37,7 @@ func formatActivityCounts(v activityCountValues) activityObservationCounts {
 func readActivitySummaryCounts(ctx context.Context, tx *sql.Tx, actor string, q activityReadQuery, statuses []activityReadStatus) (activityCountValues, []activityServerSummary, error) {
 	query := `SELECT h.server_id,count(*),coalesce(sum(h.ended_at IS NOT NULL),0),coalesce(sum(CASE WHEN c.history_id IS NOT NULL`
 	if !q.All {
-		query += ` AND EXISTS(SELECT 1 FROM service_accounts u JOIN media_servers s ON s.id=u.server_id JOIN provider_settings p ON p.provider_id=s.service_type JOIN media_activity_state a ON a.server_id=s.id WHERE u.uuid=h.service_uuid AND u.is_active=1 AND (u.access_expires_at IS NULL OR julianday(u.access_expires_at)>julianday('now')) AND s.is_active=1 AND p.enabled=1 AND a.observed_mapping_revision=a.mapping_revision AND a.observed_server_revision=s.revision)`
+		query += ` AND EXISTS(SELECT 1 FROM service_accounts u JOIN media_servers s ON s.id=u.server_id JOIN provider_settings p ON p.provider_id=s.service_type JOIN media_activity_state a ON a.server_id=s.id WHERE u.uuid=h.service_uuid AND u.is_active=1 AND (u.access_expires_at IS NULL OR julianday(u.access_expires_at)>julianday('now')) AND s.is_active=1 AND p.enabled=1 AND a.observed_mapping_revision=a.mapping_revision AND a.observed_config_revision=s.config_revision)`
 	}
 	query += ` THEN 1 ELSE 0 END),0) FROM media_activity_history h LEFT JOIN media_activity_current c ON c.history_id=h.id WHERE (?=0 OR h.server_id=?)`
 	args := []any{q.Server, q.Server}

@@ -644,7 +644,9 @@ func (a *App) syncServerClaimed(ctx context.Context, actor, access string, s Man
 		}
 	}
 	added, updated, removed := 0, 0, 0
+	var changes []syncAccountChange
 	err = a.store.write(ctx, func(tx *sql.Tx) error {
+		added, updated, removed, changes = 0, 0, 0, nil
 		if err := checkServerSyncAuthority(ctx, tx, actor, access, claim); err != nil {
 			return err
 		}
@@ -701,20 +703,22 @@ func (a *App) syncServerClaimed(ctx context.Context, actor, access string, s Man
 			if err := errors.Join(rows.Err(), rows.Close()); err != nil {
 				return err
 			}
-			// Everything is first marked inactive and, unless it is an invitation
-			// still awaiting acceptance, removed; accounts in this snapshot are
-			// restored below. Removed accounts keep their records and history.
-			if _, err := tx.ExecContext(ctx, `UPDATE service_accounts SET is_active=0,removed_at=CASE WHEN coalesce(json_extract(service_settings,'$.invitation_pending'),0)=1 THEN removed_at ELSE coalesce(removed_at,?) END WHERE server_id=? AND NOT (?='plex' AND coalesce(json_extract(service_settings,'$.activity_observed'),0)=1)`, now, s.ID, s.Type); err != nil {
+			var mappingBefore int64
+			if err := tx.QueryRowContext(ctx, "SELECT coalesce((SELECT mapping_revision FROM media_activity_state WHERE server_id=?),0)", s.ID).Scan(&mappingBefore); err != nil {
 				return err
 			}
+			seen := make([]string, 0, len(accounts))
 			for _, account := range accounts {
+				seen = append(seen, account.ID)
 				if _, err := tx.ExecContext(ctx, "DELETE FROM edit_removed_identities WHERE server_id=? AND external_user_id=?", s.ID, account.ID); err != nil {
 					return err
 				}
 				var uuid string
+				var stored storedSyncAccount
 				wasActive := priorActive[account.ID]
-				err := tx.QueryRowContext(ctx, "SELECT uuid FROM service_accounts WHERE server_id=? AND external_user_id=?", s.ID, account.ID).Scan(&uuid)
-				if errors.Is(err, sql.ErrNoRows) {
+				err := tx.QueryRowContext(ctx, "SELECT uuid,removed_at IS NOT NULL,external_username,external_email,allowed_library_ids,service_settings,is_active,allow_downloads,external_avatar_url,service_join_date FROM service_accounts WHERE server_id=? AND external_user_id=?", s.ID, account.ID).Scan(&uuid, &stored.Removed, &stored.Name, &stored.Email, &stored.Libraries, &stored.Settings, &stored.Active, &stored.Downloads, &stored.Avatar, &stored.Joined)
+				isNew := errors.Is(err, sql.ErrNoRows)
+				if isNew {
 					added++
 					uuid = newUUID()
 					if _, err := tx.ExecContext(ctx, "INSERT INTO identities(uuid,kind) VALUES(?,'service')", uuid); err != nil {
@@ -722,8 +726,6 @@ func (a *App) syncServerClaimed(ctx context.Context, actor, access string, s Man
 					}
 				} else if err != nil {
 					return err
-				} else {
-					updated++
 				}
 				if wasActive && account.Active {
 					removed--
@@ -748,11 +750,27 @@ func (a *App) syncServerClaimed(ctx context.Context, actor, access string, s Man
 						joined = value.UTC().Format(time.RFC3339)
 					}
 				}
-				// Missing optional fields are not evidence of removal. In particular,
-				// providers without profile discovery must preserve verified metadata.
-				if _, err := tx.ExecContext(ctx, `INSERT INTO service_accounts(uuid,server_id,external_user_id,external_username,external_email,allowed_library_ids,service_settings,is_active,created_at,updated_at,allow_downloads,external_avatar_url,service_join_date)
-				 VALUES(?,?,?,?,?,?,?,?,?,?,?,nullif(?,''),nullif(?,'')) ON CONFLICT(server_id,external_user_id) DO UPDATE SET removed_at=NULL,external_username=excluded.external_username,external_email=excluded.external_email,allowed_library_ids=excluded.allowed_library_ids,service_settings=excluded.service_settings,is_active=excluded.is_active,updated_at=excluded.updated_at,allow_downloads=CASE WHEN ? THEN excluded.allow_downloads ELSE service_accounts.allow_downloads END,external_avatar_url=coalesce(excluded.external_avatar_url,service_accounts.external_avatar_url),service_join_date=coalesce(excluded.service_join_date,service_accounts.service_join_date)`, uuid, s.ID, account.ID, account.Name, account.Email, string(allowed), string(settings), account.Active, now, now, allowDownloads, avatar, joined, knownDownloads); err != nil {
-					return err
+				incoming := syncedAccount{Name: account.Name, Email: account.Email, Libraries: string(allowed), Settings: string(settings), Active: account.Active, DownloadsKnown: knownDownloads, Downloads: allowDownloads, Avatar: avatar, Joined: joined}
+				// Only an account whose stored details differ is rewritten and
+				// counted: rewriting unchanged accounts would look like a change
+				// to everything that watches them.
+				write := true
+				if !isNew {
+					fields := stored.changedFields(incoming)
+					write = len(fields) > 0
+					if write {
+						updated++
+						changes = append(changes, syncAccountChange{account.ID, fields})
+					}
+				}
+				if write {
+					// Missing optional fields are not evidence of removal. In particular,
+					// providers without profile discovery must preserve verified metadata.
+					_, err = tx.ExecContext(ctx, `INSERT INTO service_accounts(uuid,server_id,external_user_id,external_username,external_email,allowed_library_ids,service_settings,is_active,created_at,updated_at,allow_downloads,external_avatar_url,service_join_date)
+				 VALUES(?,?,?,?,?,?,?,?,?,?,?,nullif(?,''),nullif(?,'')) ON CONFLICT(server_id,external_user_id) DO UPDATE SET removed_at=NULL,external_username=excluded.external_username,external_email=excluded.external_email,allowed_library_ids=excluded.allowed_library_ids,service_settings=excluded.service_settings,is_active=excluded.is_active,updated_at=excluded.updated_at,allow_downloads=CASE WHEN ? THEN excluded.allow_downloads ELSE service_accounts.allow_downloads END,external_avatar_url=coalesce(excluded.external_avatar_url,service_accounts.external_avatar_url),service_join_date=coalesce(excluded.service_join_date,service_accounts.service_join_date)`, uuid, s.ID, account.ID, account.Name, account.Email, string(allowed), string(settings), account.Active, now, now, allowDownloads, avatar, joined, knownDownloads)
+					if err != nil {
+						return err
+					}
 				}
 				if downloadRole != "" {
 					change, err := reconcileDownloadLabel(ctx, tx, s, downloadRole, uuid, account, now)
@@ -763,6 +781,20 @@ func (a *App) syncServerClaimed(ctx context.Context, actor, access string, s Man
 						downloadChanges = append(downloadChanges, *change)
 					}
 				}
+			}
+			// Accounts missing from this snapshot are marked inactive and, unless
+			// they are invitations still awaiting acceptance, removed. Accounts in
+			// the snapshot are left alone, so an unchanged sync changes nothing.
+			// Removed accounts keep their records and history.
+			missing, _ := json.Marshal(seen)
+			if _, err := tx.ExecContext(ctx, `UPDATE service_accounts SET is_active=0,removed_at=CASE WHEN coalesce(json_extract(service_settings,'$.invitation_pending'),0)=1 THEN removed_at ELSE coalesce(removed_at,?) END WHERE server_id=? AND NOT (?='plex' AND coalesce(json_extract(service_settings,'$.activity_observed'),0)=1) AND (external_user_id IS NULL OR external_user_id NOT IN (SELECT value FROM json_each(?))) AND (is_active=1 OR (removed_at IS NULL AND coalesce(json_extract(service_settings,'$.invitation_pending'),0)<>1))`, now, s.ID, s.Type, string(missing)); err != nil {
+				return err
+			}
+			// When accounts really changed, stream readings taken before the sync
+			// no longer say who is watching; ask for a fresh reading right away
+			// instead of waiting for the next scheduled check.
+			if _, err := tx.ExecContext(ctx, `UPDATE activity_monitor_schedules SET next_run_at=strftime('%Y-%m-%dT%H:%M:%fZ','now'),revision=revision+1 WHERE server_id=? AND enabled=1 AND run_state<>'running' AND (SELECT mapping_revision FROM media_activity_state WHERE server_id=?)<>?`, s.ID, s.ID, mappingBefore); err != nil {
+				return err
 			}
 			// PMS-observed identities are outside the cloud friend snapshot.
 			// Preserve them without claiming that an absent friend is a deleted account.
@@ -804,6 +836,9 @@ func (a *App) syncServerClaimed(ctx context.Context, actor, access string, s Man
 	})
 	if err != nil {
 		return nil, err
+	}
+	for _, change := range changes {
+		a.logger.Info("Provider sync updated account", "server_id", s.ID, "provider", s.Type, "external_user_id", change.ExternalID, "fields", strings.Join(change.Fields, ","))
 	}
 	// Overseerr links follow the committed Plex users; a failure is recorded on
 	// the Overseerr state and never fails the Plex sync.
@@ -989,4 +1024,54 @@ func nullableCount(v sql.NullInt64) any {
 		return nil
 	}
 	return v.Int64
+}
+
+// storedSyncAccount is what a user sync compares against before writing.
+type storedSyncAccount struct {
+	Removed, Active, Downloads                       bool
+	Name, Email, Libraries, Settings, Avatar, Joined sql.NullString
+}
+
+// syncedAccount is one account as the provider reported it, in stored form.
+type syncedAccount struct {
+	Name, Email, Libraries, Settings, Avatar, Joined string
+	Active, DownloadsKnown, Downloads                bool
+}
+
+// syncAccountChange names the stored details a sync changed, never values.
+type syncAccountChange struct {
+	ExternalID string
+	Fields     []string
+}
+
+// changedFields lists the stored details the sync would change. Details the
+// provider did not report (unknown downloads, an empty avatar or join date)
+// are kept as stored, so they are never a change.
+func (stored storedSyncAccount) changedFields(in syncedAccount) []string {
+	var fields []string
+	differs := func(field string, value sql.NullString, want string) {
+		if !value.Valid || value.String != want {
+			fields = append(fields, field)
+		}
+	}
+	if stored.Removed {
+		fields = append(fields, "removed_at")
+	}
+	differs("external_username", stored.Name, in.Name)
+	differs("external_email", stored.Email, in.Email)
+	differs("allowed_library_ids", stored.Libraries, in.Libraries)
+	differs("service_settings", stored.Settings, in.Settings)
+	if stored.Active != in.Active {
+		fields = append(fields, "is_active")
+	}
+	if in.DownloadsKnown && stored.Downloads != in.Downloads {
+		fields = append(fields, "allow_downloads")
+	}
+	if in.Avatar != "" {
+		differs("external_avatar_url", stored.Avatar, in.Avatar)
+	}
+	if in.Joined != "" {
+		differs("service_join_date", stored.Joined, in.Joined)
+	}
+	return fields
 }

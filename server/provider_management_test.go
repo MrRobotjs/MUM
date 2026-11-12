@@ -55,10 +55,16 @@ func providerFixture(t *testing.T, kind string) (*httptest.Server, *atomic.Int32
 				fmt.Fprint(w, `[]`)
 				return
 			}
+			name := "Reader"
+			if mode.Load() == 5 {
+				name = "Reader Renamed"
+			}
 			if kind == "kavita" {
-				fmt.Fprint(w, `[{"id":7,"username":"Reader","email":"reader@example.invalid","isPending":false,"roles":["Pleb","Login"],"libraries":[{"id":2}]}]`)
+				fmt.Fprintf(w, `[{"id":7,"username":%q,`, name)
+				fmt.Fprint(w, `"email":"reader@example.invalid","isPending":false,"roles":["Pleb","Login"],"libraries":[{"id":2}]}]`)
 			} else {
-				fmt.Fprint(w, `[{"Id":"reader","Name":"Reader","Policy":{"IsDisabled":false,"EnableAllFolders":false,"EnabledFolders":["movies"]}}]`)
+				fmt.Fprintf(w, `[{"Id":"reader","Name":%q,"Policy":`, name)
+				fmt.Fprint(w, `{"IsDisabled":false,"EnableAllFolders":false,"EnabledFolders":["movies"]}}]`)
 			}
 		default:
 			http.NotFound(w, r)
@@ -117,8 +123,45 @@ func TestCompiledProviderAdaptersAndSyncIdentityPreservation(t *testing.T) {
 				t.Fatal(w.Code, w.Body.String())
 			}
 			counts = responseData(t, w)
-			if counts["added"] != float64(0) || counts["updated"] != float64(1) || counts["removed"] != float64(0) {
-				t.Fatal(counts)
+			if counts["added"] != float64(0) || counts["updated"] != float64(0) || counts["removed"] != float64(0) {
+				t.Fatal("unchanged account counted as updated", counts)
+			}
+			// A repeat sync with nothing new leaves the account, its account
+			// mapping and any stream readings untouched.
+			var updatedAt string
+			var mapping, schedule int64
+			state := func() (string, int64, int64) {
+				t.Helper()
+				var at string
+				var m, q int64
+				if err := s.reader.QueryRow("SELECT a.updated_at,coalesce((SELECT mapping_revision FROM media_activity_state WHERE server_id=a.server_id),0),coalesce((SELECT revision FROM activity_monitor_schedules WHERE server_id=a.server_id),0) FROM service_accounts a WHERE a.uuid=?", serviceUUID).Scan(&at, &m, &q); err != nil {
+					t.Fatal(err)
+				}
+				return at, m, q
+			}
+			updatedAt, mapping, schedule = state()
+			if w = apiRequest(a, "POST", path, token, nil, nil); w.Code != 200 || responseData(t, w)["updated"] != float64(0) {
+				t.Fatal(w.Code, w.Body.String())
+			}
+			if at, m, q := state(); at != updatedAt || m != mapping || q != schedule {
+				t.Fatal("unchanged sync rewrote the account or its mapping", at, updatedAt, m, mapping, q, schedule)
+			}
+			// A real change is written and counted once, without touching the
+			// account mapping (a name does not change who owns the account).
+			mode.Store(5)
+			if w = apiRequest(a, "POST", path, token, nil, nil); w.Code != 200 || responseData(t, w)["updated"] != float64(1) {
+				t.Fatal(w.Code, w.Body.String())
+			}
+			var renamed string
+			if err := s.reader.QueryRow("SELECT external_username FROM service_accounts WHERE uuid=?", serviceUUID).Scan(&renamed); err != nil || renamed != "Reader Renamed" {
+				t.Fatal("rename not stored", renamed, err)
+			}
+			if _, m, _ := state(); m != mapping {
+				t.Fatal("rename changed the account mapping", m, mapping)
+			}
+			mode.Store(0)
+			if w = apiRequest(a, "POST", path, token, nil, nil); w.Code != 200 || responseData(t, w)["updated"] != float64(1) {
+				t.Fatal(w.Code, w.Body.String())
 			}
 			var uuid string
 			var repeatID int64
@@ -142,6 +185,18 @@ func TestCompiledProviderAdaptersAndSyncIdentityPreservation(t *testing.T) {
 			}
 			if err := s.reader.QueryRow("SELECT is_active FROM service_accounts WHERE uuid=?", serviceUUID).Scan(&active); err != nil || active {
 				t.Fatal("missing account not deactivated", err)
+			}
+			// A removed account changes who streams belong to, so the sync asks
+			// for a fresh activity reading straight away.
+			// (Kavita has no stream monitoring.)
+			if _, m, q := state(); kind != "kavita" && (m == mapping || q == schedule) {
+				t.Fatal("removal did not change the mapping or request an activity check", m, mapping, q, schedule)
+			}
+			if kind != "kavita" {
+				var due bool
+				if err := s.reader.QueryRow("SELECT julianday(next_run_at)<=julianday('now') FROM activity_monitor_schedules WHERE server_id=?", id).Scan(&due); err != nil || !due {
+					t.Fatal("activity check not due after removal", due, err)
+				}
 			}
 			if w := apiRequest(a, "GET", "/api/users?user_type=service&page_size=1", token, nil, nil); w.Code != 200 || strings.Contains(w.Body.String(), "fixture-secret") {
 				t.Fatal(w.Code, w.Body.String())

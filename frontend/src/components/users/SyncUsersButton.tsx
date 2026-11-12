@@ -1,37 +1,10 @@
 import { useState } from 'react';
-import { requestJson } from '../../util/apiClient';
+import { syncAllUsers, userSyncNotices } from '../../lib/userSync';
 import { useAlerts } from '../../contexts/AlertContext';
 import { Button } from '../ui/button';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faSync } from '@fortawesome/free-solid-svg-icons';
 import { Spinner } from '@/components/ui/spinner'
-
-interface SyncResult {
-  server_id: number;
-  server_name: string;
-  service_type: string;
-  success: boolean;
-  added: number;
-  updated: number;
-  removed: number;
-  message: string;
-  library_sync_failed?: boolean;
-  library_sync_message?: string;
-}
-
-interface SyncAllResponse {
-  data: {
-    results: SyncResult[];
-    summary: {
-      total_servers: number;
-      successful: number;
-      failed: number;
-      total_added: number;
-      total_updated: number;
-      total_removed: number;
-    };
-  };
-}
 
 export const SyncUsersButton = () => {
   const [syncing, setSyncing] = useState(false);
@@ -40,37 +13,10 @@ export const SyncUsersButton = () => {
   const handleSync = async () => {
     setSyncing(true);
     try {
-      const result = await requestJson<SyncAllResponse>('/api/users/sync-all', {
-        method: 'POST'
-      });
-
-      const { summary, results } = result.data;
-
-      // Show summary toast
-      if (summary.failed === 0) {
-        success(
-          `Synced ${summary.total_servers} server${summary.total_servers !== 1 ? 's' : ''}: ` +
-          `${summary.total_added} added, ${summary.total_updated} updated, ${summary.total_removed} removed`
-        );
-      } else {
-        error(
-          `Sync completed with errors: ${summary.successful}/${summary.total_servers} servers successful. ` +
-          `${summary.total_added} added, ${summary.total_updated} updated, ${summary.total_removed} removed`
-        );
+      const { results, summary } = await syncAllUsers();
+      for (const notice of userSyncNotices(results, summary)) {
+        (notice.ok ? success : error)(notice.text);
       }
-
-      // Log detailed results
-      results.forEach((result) => {
-        if (result.library_sync_failed) {
-          const serverLabel = result.server_name || 'Server';
-          error(`Library sync failed for ${serverLabel}: ${result.library_sync_message ?? 'Unknown error'}`);
-        }
-        if (!result.success) {
-          const serverLabel = result.server_name || 'Server';
-          error(`Sync failed for ${serverLabel}: ${result.message}`);
-          console.error(`Sync failed for ${serverLabel}: ${result.message}`);
-        }
-      });
     } catch (err) {
       error(`Failed to sync users: ${err instanceof Error ? err.message : 'Unknown error'}`);
     } finally {

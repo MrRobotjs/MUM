@@ -15,7 +15,7 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Badge } from '../components/ui/badge';
-import { requestJson } from '../util/apiClient';
+import { syncAllUsers, syncServerUsers, userSyncChanges, userSyncNotices } from '../lib/userSync';
 import { cn } from '@/lib/utils';
 import {
   Select,
@@ -252,61 +252,10 @@ export const UsersListPage = () => {
       return;
     }
     try {
-      const result = await requestJson<{
-        data: {
-          results: Array<{
-            server_id: number;
-            server_name: string;
-            service_type: string;
-            success: boolean;
-            added: number;
-            updated: number;
-            removed: number;
-            message: string;
-            library_sync_failed?: boolean;
-            library_sync_message?: string;
-          }>;
-          summary: {
-            total_servers: number;
-            successful: number;
-            failed: number;
-            total_added: number;
-            total_updated: number;
-            total_removed: number;
-          };
-        };
-      }>('/api/users/sync-all', {
-        method: 'POST'
-      });
-
-      const { summary, results } = result.data;
-
-      // Show summary toast
-      if (summary.failed === 0) {
-        success(
-          `Synced ${summary.total_servers} server${summary.total_servers !== 1 ? 's' : ''}: ` +
-          `${summary.total_added} added, ${summary.total_updated} updated, ${summary.total_removed} removed`
-        );
-      } else {
-        error(
-          `Sync completed with errors: ${summary.successful}/${summary.total_servers} servers successful. ` +
-          `${summary.total_added} added, ${summary.total_updated} updated, ${summary.total_removed} removed`
-        );
+      const { results, summary } = await syncAllUsers();
+      for (const notice of userSyncNotices(results, summary)) {
+        (notice.ok ? success : error)(notice.text);
       }
-
-      // Log detailed results
-      results.forEach((result) => {
-        if (result.library_sync_failed) {
-          const serverLabel = result.server_name || 'Server';
-          error(`Library sync failed for ${serverLabel}: ${result.library_sync_message ?? 'Unknown error'}`);
-        }
-        if (!result.success) {
-          const serverLabel = result.server_name || 'Server';
-          error(`Sync failed for ${serverLabel}: ${result.message}`);
-          console.error(`Sync failed for ${serverLabel}: ${result.message}`);
-        }
-      });
-
       // Refresh the user list
       mutate();
     } catch (err) {
@@ -324,40 +273,7 @@ export const UsersListPage = () => {
     setSyncingServerId(targetServerId);
 
     try {
-      const result = await requestJson<{
-        success?: boolean;
-        message?: string;
-        added?: number;
-        updated?: number;
-        removed?: number;
-        library_sync_failed?: boolean;
-        library_sync_message?: string;
-      }>(`/api/servers/${targetServerId}/sync-users`, {
-        method: 'POST',
-      });
-
-      const succeeded = Boolean(result?.success);
-      if (succeeded) {
-        const hasCounts =
-          typeof result?.added === 'number' &&
-          typeof result?.updated === 'number' &&
-          typeof result?.removed === 'number';
-
-        if (hasCounts) {
-          success(
-            `Synced ${serverLabel}: ${result.added} added, ${result.updated} updated, ${result.removed} removed`
-          );
-        } else {
-          success(`Synced ${serverLabel}.`);
-        }
-      } else {
-        error(`Sync failed for ${serverLabel}: ${result?.message ?? 'Unknown error'}`);
-      }
-
-      if (result?.library_sync_failed) {
-        error(`Library sync failed for ${serverLabel}: ${result.library_sync_message ?? 'Unknown error'}`);
-      }
-
+      success(`Synced ${serverLabel}: ${userSyncChanges(await syncServerUsers(targetServerId))}`);
       mutate();
     } catch (err) {
       error(`Failed to sync ${serverLabel}: ${err instanceof Error ? err.message : 'Unknown error'}`);

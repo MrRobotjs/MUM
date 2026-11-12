@@ -31,7 +31,7 @@ import {
 } from "@/components/ui/sidebar"
 import { useAuth } from "@/contexts/AuthContext"
 import { useAlerts } from "@/contexts/AlertContext"
-import { requestJson } from "@/util/apiClient"
+import { syncAllUsers, userSyncNotices } from "@/lib/userSync"
 import { useSyncStatus } from "@/hooks/useSyncStatus"
 import { useUserPreferences } from "@/hooks/useUserPreferences"
 import { useStreamingSummary } from "@/hooks/useStreamingSummary"
@@ -65,17 +65,18 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
     setIsStartingSync(true)
     try {
-      await requestJson('/api/users/sync-all', {
-        method: 'POST',
-      })
-
-      success('User sync started successfully')
+      // The request returns once the sync has finished, with its results.
+      const { results, summary } = await syncAllUsers()
+      for (const notice of userSyncNotices(results, summary)) {
+        (notice.ok ? success : error)(notice.text)
+      }
     } catch (err: any) {
       if (err.status === 409) {
         error(err.message || 'A sync is already in progress')
       } else {
-        error('Failed to start user sync')
+        error('Failed to sync users')
       }
+    } finally {
       setIsStartingSync(false)
     }
   }

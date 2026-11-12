@@ -102,7 +102,7 @@ func TestActivityReadsDelegateAndUnlinkedDoNotGainHistory(t *testing.T) {
 	}
 }
 func TestActivityReadFreshness(t *testing.T) {
-	for _, mode := range []string{"fresh", "stale", "failed", "never", "disabled", "provider-disabled", "mapping", "server", "pending", "expired", "null-ticks", "bad-time", "future-time"} {
+	for _, mode := range []string{"fresh", "stale", "failed", "never", "disabled", "provider-disabled", "mapping", "server", "sync", "pending", "expired", "null-ticks", "bad-time", "future-time"} {
 		t.Run(mode, func(t *testing.T) {
 			f := activityReadFixture(t)
 			expected := "fresh"
@@ -126,8 +126,12 @@ func TestActivityReadFreshness(t *testing.T) {
 				activityExec(t, f.store, "UPDATE media_activity_state SET mapping_revision=mapping_revision+1")
 				expected = "invalidated"
 			case "server":
-				activityExec(t, f.store, "UPDATE media_servers SET revision=revision+1")
+				activityExec(t, f.store, "UPDATE media_servers SET config_revision=config_revision+1")
 				expected = "invalidated"
+			case "sync":
+				// A sync raises the general revision, not the settings revision:
+				// readings stay fresh.
+				activityExec(t, f.store, "UPDATE media_servers SET revision=revision+1,last_sync_at=?", utcTimestamp(time.Now()))
 			case "pending":
 				activityExec(t, f.store, "UPDATE media_activity_state SET pending_until=?", utcTimestamp(time.Now().Add(time.Second*15)))
 			case "expired":
@@ -199,7 +203,7 @@ func TestActivityDeliveryRechecksLiveAuthorityAndRevisions(t *testing.T) {
 			case "mapping":
 				activityExec(t, f.store, "DELETE FROM service_links WHERE service_uuid=?", f.service)
 			case "server":
-				activityExec(t, f.store, "UPDATE media_servers SET revision=revision+1 WHERE id=?", f.server)
+				activityExec(t, f.store, "UPDATE media_servers SET config_revision=config_revision+1 WHERE id=?", f.server)
 			case "new-observation":
 				activityExec(t, f.store, "UPDATE media_activity_state SET revision=revision+1")
 			case "new-owned-server":

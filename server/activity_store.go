@@ -10,7 +10,7 @@ import (
 )
 
 type activityReadClaim struct {
-	Server, ServerRevision, Generation, MappingRevision int64
+	Server, ConfigRevision, Generation, MappingRevision int64
 	Provider, Actor, Access, Token                      string
 	Source                                              string
 	Started                                             time.Time
@@ -39,7 +39,7 @@ func (s *Store) beginActivityRead(ctx context.Context, actor, access string, ser
 			return err
 		}
 		var active bool
-		if err := tx.QueryRowContext(ctx, `SELECT s.service_type,s.revision,(s.is_active=1 AND p.enabled=1) FROM media_servers s JOIN provider_settings p ON p.provider_id=s.service_type WHERE s.id=?`, server).Scan(&claim.Provider, &claim.ServerRevision, &active); err != nil {
+		if err := tx.QueryRowContext(ctx, `SELECT s.service_type,s.config_revision,(s.is_active=1 AND p.enabled=1) FROM media_servers s JOIN provider_settings p ON p.provider_id=s.service_type WHERE s.id=?`, server).Scan(&claim.Provider, &claim.ConfigRevision, &active); err != nil {
 			return err
 		}
 		if !active || !activitySupported(claim.Provider) {
@@ -64,7 +64,7 @@ func checkActivityClaim(ctx context.Context, tx *sql.Tx, c activityReadClaim) er
 		return authorityErr
 	}
 	var valid bool
-	err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM media_activity_state a JOIN media_servers s ON s.id=a.server_id JOIN provider_settings p ON p.provider_id=s.service_type WHERE a.server_id=? AND a.generation=? AND a.mapping_revision=? AND a.pending_token=? AND julianday(a.pending_until)>julianday('now') AND s.revision=? AND s.service_type=? AND s.is_active=1 AND p.enabled=1)`, c.Server, c.Generation, c.MappingRevision, c.Token, c.ServerRevision, c.Provider).Scan(&valid)
+	err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM media_activity_state a JOIN media_servers s ON s.id=a.server_id JOIN provider_settings p ON p.provider_id=s.service_type WHERE a.server_id=? AND a.generation=? AND a.mapping_revision=? AND a.pending_token=? AND julianday(a.pending_until)>julianday('now') AND s.config_revision=? AND s.service_type=? AND s.is_active=1 AND p.enabled=1)`, c.Server, c.Generation, c.MappingRevision, c.Token, c.ConfigRevision, c.Provider).Scan(&valid)
 	if err != nil {
 		return err
 	}
@@ -270,7 +270,7 @@ func commitActivitySnapshot(ctx context.Context, tx *sql.Tx, c activityReadClaim
 		}
 		result.Ended++
 	}
-	if _, err := tx.ExecContext(ctx, `UPDATE media_activity_state SET pending_token=NULL,pending_at=NULL,pending_until=NULL,observed_at=?,observed_server_revision=?,observed_mapping_revision=?,observed_source=?,last_result='fresh',revision=revision+1 WHERE server_id=?`, observed, c.ServerRevision, c.MappingRevision, activityObservationSource(c.Source), c.Server); err != nil {
+	if _, err := tx.ExecContext(ctx, `UPDATE media_activity_state SET pending_token=NULL,pending_at=NULL,pending_until=NULL,observed_at=?,observed_config_revision=?,observed_mapping_revision=?,observed_source=?,last_result='fresh',revision=revision+1 WHERE server_id=?`, observed, c.ConfigRevision, c.MappingRevision, activityObservationSource(c.Source), c.Server); err != nil {
 		return result, err
 	}
 	if err := tx.QueryRowContext(ctx, `SELECT revision FROM media_activity_state WHERE server_id=?`, c.Server).Scan(&result.Revision); err != nil {
@@ -333,7 +333,7 @@ func (a *App) captureProviderActivity(ctx context.Context, actor, access string,
 	}
 	server, err := a.loadServer(ctx, serverID)
 	var snapshot activitySnapshot
-	if err == nil && (server.Revision != c.ServerRevision || !server.EffectiveActive) {
+	if err == nil && (server.ConfigRevision != c.ConfigRevision || !server.EffectiveActive) {
 		err = ErrConflict
 	}
 	if err == nil {

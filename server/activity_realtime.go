@@ -41,7 +41,7 @@ func (s *Store) activitySignal(ctx context.Context, actor, access string, all bo
 		if status.Observed != nil {
 			observed = *status.Observed
 		}
-		fmt.Fprintf(hash, "%s:%d:%d:%d:%t:%s:%s:%s:%s\n", status.Server, fence.Revision, fence.Mapping, fence.ServerRevision, fence.Active, status.Freshness, status.Pending, status.LastResult, observed)
+		fmt.Fprintf(hash, "%s:%d:%d:%d:%t:%s:%s:%s:%s\n", status.Server, fence.Revision, fence.Mapping, fence.ConfigRevision, fence.Active, status.Freshness, status.Pending, status.LastResult, observed)
 	}
 	if err = tx.Commit(); err != nil {
 		return empty, err

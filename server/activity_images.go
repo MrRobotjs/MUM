@@ -40,7 +40,7 @@ func (a *App) readActivityPictureSource(ctx context.Context, session string, ite
 	FROM media_activity_current c JOIN media_activity_history h ON h.id=c.history_id
 	JOIN media_servers s ON s.id=c.server_id JOIN provider_settings p ON p.provider_id=s.service_type JOIN media_activity_state a ON a.server_id=s.id
 	WHERE h.id=? AND s.service_type='plex' AND s.is_active=1 AND p.enabled=1 AND a.last_result='fresh'
-	AND a.observed_server_revision=s.revision AND a.observed_mapping_revision=a.mapping_revision
+	AND a.observed_config_revision=s.config_revision AND a.observed_mapping_revision=a.mapping_revision
 	AND julianday(a.observed_at)>julianday('now','-60 seconds')`, item).Scan(&source.Provider, &source.URL, &source.APIKey, &source.External, &source.Tag, &source.Server, &source.ConfigRevision, &source.ActivityMappingRevision)
 	valid := validPlexCataloguePoster(source.External, source.Tag)
 	if avatar {

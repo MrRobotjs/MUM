@@ -30,6 +30,26 @@ test('Plex resource statistics shaping', async t => {
     assert.equal(m.formatRate(2500), '2.5 Mbps');
   });
 
+  await t.test('each period reads from its start, and quiet hours or days show as empty bars', () => {
+    const now = Date.parse('2026-11-13T12:30:00Z');
+    const range = (value) => m.BANDWIDTH_RANGES.find((r) => r.value === value);
+    assert.deepEqual(m.BANDWIDTH_RANGES.map((r) => r.label), ['Real Time', 'Last 12 Hours', 'Last 24 Hours', 'Last 7 Days', 'Last 30 Days', 'Last 90 Days', 'Last Year', 'All Time']);
+    assert.equal(m.rangeSince(range('12h'), now), '2026-11-13T00:30:00Z');
+    assert.equal(m.rangeSince(range('realtime'), now), null);
+    assert.equal(m.rangeSince(range('all'), now), null);
+    const bars = m.bandwidthBars([
+      sample('2026-11-13T09:00:00Z', 4000, false),
+      sample('2026-11-13T11:00:00Z', 1000, true),
+      sample('2026-11-12T20:00:00Z', 9999, false), // before the 12 hours
+    ], range('12h'), null, now);
+    assert.equal(bars[0].at, '2026-11-13T01:00:00.000Z');
+    assert.equal(bars.length, 12);
+    assert.deepEqual(bars.find((b) => b.at === '2026-11-13T09:00:00Z'), { at: '2026-11-13T09:00:00Z', remote: 4000, local: 0 });
+    assert.deepEqual(bars.find((b) => b.at === '2026-11-13T10:00:00.000Z'), { at: '2026-11-13T10:00:00.000Z', remote: 0, local: 0 });
+    // Months are shown as Plex reports them.
+    assert.equal(m.bandwidthBars([sample('2025-01-01T00:00:00Z', 1, false), sample('2026-01-01T00:00:00Z', 2, true)], range('all'), null, now).length, 2);
+  });
+
   await t.test('CPU and memory series keep unknown readings as gaps', () => {
     const readings = [
       { at: '2026-11-13T10:00:02Z', host_cpu: 70, process_cpu: 55, host_memory: 42, process_memory: null },

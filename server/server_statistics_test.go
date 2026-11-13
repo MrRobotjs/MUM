@@ -17,6 +17,7 @@ type plexStatisticsFixture struct {
 	resources string
 	status    int
 	timespans []string
+	since     []string
 }
 
 func newPlexStatisticsRuntime(t *testing.T) (*App, *Store, string, int64, *plexStatisticsFixture) {
@@ -38,6 +39,7 @@ func newPlexStatisticsRuntime(t *testing.T) (*App, *Store, string, int64, *plexS
 			fmt.Fprint(w, `<MediaContainer/>`)
 		case "/proxy/statistics/bandwidth":
 			f.timespans = append(f.timespans, r.URL.Query().Get("timespan"))
+			f.since = append(f.since, r.URL.Query().Get("at>"))
 			w.WriteHeader(f.status)
 			fmt.Fprint(w, f.bandwidth)
 		case "/proxy/statistics/resources":
@@ -97,6 +99,21 @@ func TestPlexServerStatisticsAreReadOnDemand(t *testing.T) {
 	}
 	if w := apiRequest(a, "GET", path+"bandwidth?timespan=years", token, nil, nil); w.Code != 400 {
 		t.Fatal("unknown timespan accepted", w.Code)
+	}
+	// A period ("Last 7 Days") is passed to Plex as its at> filter; none means all.
+	if w := apiRequest(a, "GET", path+"bandwidth?timespan=days&since=2026-01-01T00:00:00Z", token, nil, nil); w.Code != 200 {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	f.mu.Lock()
+	sinceSent, firstSince := f.since[len(f.since)-1], f.since[0]
+	f.mu.Unlock()
+	if sinceSent != "1767225600" || firstSince != "" {
+		t.Fatal("period filter", sinceSent, firstSince)
+	}
+	for _, bad := range []string{"yesterday", "2999-01-01T00:00:00Z", "1990-01-01T00:00:00Z"} {
+		if w := apiRequest(a, "GET", path+"bandwidth?timespan=days&since="+bad, token, nil, nil); w.Code != 400 {
+			t.Fatal("bad since accepted", bad, w.Code)
+		}
 	}
 
 	w = apiRequest(a, "GET", path+"resources", token, nil, nil)

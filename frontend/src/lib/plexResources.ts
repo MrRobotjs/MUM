@@ -4,13 +4,26 @@ import { requestJson } from '../util/apiClient';
 // read on demand: bandwidth by bin size, and the recent CPU and memory use.
 
 export type BandwidthTimespan = 'seconds' | 'hours' | 'days' | 'weeks' | 'months';
-export const BANDWIDTH_TIMESPANS: Array<{ value: BandwidthTimespan; label: string }> = [
-  { value: 'seconds', label: 'Real Time' },
-  { value: 'hours', label: 'Hourly' },
-  { value: 'days', label: 'Daily' },
-  { value: 'weeks', label: 'Weekly' },
-  { value: 'months', label: 'Monthly' },
+
+// The periods Plex Web offers, each read in a bin size that gives a readable
+// number of bars, from `hours` ago (null: all of Plex's history).
+export type BandwidthRange = { value: string; label: string; timespan: BandwidthTimespan; hours: number | null };
+export const BANDWIDTH_RANGES: BandwidthRange[] = [
+  { value: 'realtime', label: 'Real Time', timespan: 'seconds', hours: null },
+  { value: '12h', label: 'Last 12 Hours', timespan: 'hours', hours: 12 },
+  { value: '24h', label: 'Last 24 Hours', timespan: 'hours', hours: 24 },
+  { value: '7d', label: 'Last 7 Days', timespan: 'days', hours: 7 * 24 },
+  { value: '30d', label: 'Last 30 Days', timespan: 'days', hours: 30 * 24 },
+  { value: '90d', label: 'Last 90 Days', timespan: 'weeks', hours: 90 * 24 },
+  { value: '1y', label: 'Last Year', timespan: 'months', hours: 365 * 24 },
+  { value: 'all', label: 'All Time', timespan: 'months', hours: null },
 ];
+
+export type BandwidthNetwork = 'all' | 'remote' | 'local';
+
+/** The start of a range's period, or null for real time and all time. */
+export const rangeSince = (range: BandwidthRange, now: number): string | null =>
+  range.hours === null || range.timespan === 'seconds' ? null : new Date(now - range.hours * 3600 * 1000).toISOString().replace(/\.\d{3}Z$/, 'Z');
 
 export type BandwidthSample = { at: string; bytes: number; lan: boolean; account_id: string | null; device_id: string | null };
 export type Named = { id: string; name: string };
@@ -20,9 +33,11 @@ export type ResourceSample = { at: string; host_cpu: number | null; process_cpu:
 const finite = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value);
 const percent = (value: unknown): number | null => (finite(value) && value >= 0 ? value : null);
 
-export async function fetchBandwidth(serverId: number, timespan: BandwidthTimespan, signal?: AbortSignal): Promise<BandwidthStatistics> {
+export async function fetchBandwidth(serverId: number, timespan: BandwidthTimespan, signal?: AbortSignal, since: string | null = null): Promise<BandwidthStatistics> {
+  const query = new URLSearchParams({ timespan });
+  if (since) query.set('since', since);
   const { data } = await requestJson<{ data?: { server_id?: unknown; samples?: unknown; accounts?: unknown; devices?: unknown } }>(
-    `/api/servers/${serverId}/statistics/bandwidth?timespan=${timespan}`, { signal, retryAuthentication: false });
+    `/api/servers/${serverId}/statistics/bandwidth?${query}`, { signal, retryAuthentication: false });
   if (data?.server_id !== serverId || !Array.isArray(data.samples)) throw new Error('Unexpected bandwidth statistics');
   const named = (list: unknown): Named[] => (Array.isArray(list) ? list : [])
     .filter((n): n is Named => typeof n?.id === 'string' && typeof n?.name === 'string');
@@ -64,6 +79,33 @@ export function bandwidthSeries(samples: BandwidthSample[], timespan: BandwidthT
     const kbps = (bytes: number) => (bytes * 8) / 1000 / gap;
     return { at, remote: kbps(b.remote), local: kbps(b.local) };
   });
+}
+
+const BIN_SECONDS: Partial<Record<BandwidthTimespan, number>> = { hours: 3600, days: 86400, weeks: 7 * 86400 };
+
+/**
+ * Bytes sent per period for the bar chart, remote and local, for all
+ * accounts or one. Hourly, daily and weekly periods with no traffic are
+ * filled in across the range (aligned to Plex's own bins) so quiet periods
+ * show as empty bars; months are shown as Plex reports them.
+ */
+export function bandwidthBars(samples: BandwidthSample[], range: BandwidthRange, account: string | null, now: number): BandwidthPoint[] {
+  const since = range.hours === null ? null : now - range.hours * 3600 * 1000;
+  const inRange = samples.filter((s) => since === null || Date.parse(s.at) >= since);
+  const points = bandwidthSeries(inRange, range.timespan, account);
+  const step = BIN_SECONDS[range.timespan];
+  if (!step || points.length === 0) return points;
+  const stepMs = step * 1000;
+  const byTime = new Map(points.map((p) => [Date.parse(p.at), p]));
+  const anchor = Date.parse(points[0].at);
+  const start = since === null ? anchor : anchor - Math.floor((anchor - since) / stepMs) * stepMs;
+  // Up to and including the period that holds now.
+  const end = Math.max(Date.parse(points[points.length - 1].at), now);
+  const filled: BandwidthPoint[] = [];
+  for (let t = start; t <= end && filled.length < 2000; t += stepMs) {
+    filled.push(byTime.get(t) ?? { at: new Date(t).toISOString(), remote: 0, local: 0 });
+  }
+  return filled;
 }
 
 export type ResourcePoint = { at: string; system: number | null; plex: number | null };

@@ -1,7 +1,7 @@
 import { displayExpirationInfo } from '../../lib/accountDisplay';
 import { useAccountDisplay } from '../../hooks/useAccountDisplay';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { buildUserProfilePath } from '../../util/routes';
 import type { UserRow, SelectionModifiers } from './UsersTable';
@@ -15,6 +15,7 @@ import { getServicePalette } from '@/config/pluginMetadata';
 import { ServiceIcon } from '@/components/services/ServiceIcon';
 import { UserAvatar } from './UserAvatar';
 import { requestJson } from '@/util/apiClient';
+import { EditOperationsClient, editOutcomeMessage, libraryIdsWithout, runEditOperation } from '@/lib/editOperations';
 import { useAlerts } from '@/contexts/AlertContext';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import type { IconDefinition } from '@fortawesome/fontawesome-svg-core';
@@ -135,17 +136,9 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
     }
   };
 
-  const getLibraryIdentifier = (
-    library: { external_id?: string | null; internal_id?: string | null; id?: string | number | null },
-    effectiveServiceType?: string | null
-  ) => {
-    const normalizedServiceType = (effectiveServiceType || '').toLowerCase();
-    if (normalizedServiceType === 'kavita' && library.internal_id) {
-      return String(library.internal_id);
-    }
-    return String(library.external_id ?? library.internal_id ?? library.id ?? '');
-  };
-
+  // Removing a library goes through the same prepared Edit operation as the
+  // Users page Edit dialog (prepare, run once, read the result).
+  const editClient = useRef(new EditOperationsClient());
   const handleRemoveLibrary = async (libraryName: string, libraryKey: string, event: React.MouseEvent) => {
     event.stopPropagation();
     if (!isService) return;
@@ -162,83 +155,43 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
         data: {
           user_type?: string | null;
           server_id?: number | null;
-          service_type?: string | null;
           has_all_libraries?: boolean | null;
           allowed_library_ids?: string[] | null;
         };
       };
-      type LibrariesResponse = {
-        data: Array<{
-          id?: number | string | null;
-          name: string;
-          external_id?: string | null;
-          internal_id?: string | null;
-          server?: { service_type?: string | null };
-        }>;
-      };
+      type LibrariesResponse = { data: Array<{ name: string; external_id?: string | null }> };
 
-      const userDetail = await requestJson<UserDetailResponse>(`/api/users/${user.uuid}`);
-      const detail = userDetail?.data;
+      const detail = (await requestJson<UserDetailResponse>(`/api/users/${user.uuid}`))?.data;
       if (!detail || String(detail.user_type ?? '').toLowerCase() !== 'service') {
         throw new Error('Only service users support library removal.');
       }
-      const serverId = detail.server_id;
-      if (!serverId) {
+      if (!detail.server_id) {
         throw new Error('No server is associated with this service user.');
       }
-
-      const librariesResponse = await requestJson<LibrariesResponse>(
-        `/api/libraries?server_id=${serverId}&include_server=true`
+      const serverLibraries = (await requestJson<LibrariesResponse>(`/api/libraries?server_id=${detail.server_id}`))?.data ?? [];
+      const nextAllowedIds = libraryIdsWithout(
+        serverLibraries,
+        { all: Boolean(detail.has_all_libraries), ids: detail.allowed_library_ids ?? [] },
+        libraryName
       );
-      const serverLibraries = librariesResponse?.data ?? [];
-      const effectiveServiceType =
-        detail.service_type ??
-        serverLibraries[0]?.server?.service_type ??
-        user.service_type ??
-        null;
 
-      const idsForClickedLibrary = serverLibraries
-        .filter((library) => library.name === libraryName)
-        .map((library) => getLibraryIdentifier(library, effectiveServiceType))
-        .filter(Boolean);
-
-      if (idsForClickedLibrary.length === 0) {
-        throw new Error(`Could not resolve library "${libraryName}" on server.`);
-      }
-
-      const allServerIds = serverLibraries
-        .map((library) => getLibraryIdentifier(library, effectiveServiceType))
-        .filter(Boolean);
-      const currentAllowedIds = detail.has_all_libraries
-        ? allServerIds
-        : (detail.allowed_library_ids ?? []).map((id) => String(id));
-
-      const removalSet = new Set(idsForClickedLibrary);
-      const nextAllowedIds = currentAllowedIds.filter((id) => !removalSet.has(String(id)));
-
-      await requestJson('/api/users/edit', {
-        method: 'POST',
-        body: JSON.stringify({
-          user_uuids: [user.uuid],
-          operations: [
-            {
-              action: 'update_libraries',
-              library_ids: nextAllowedIds,
-              has_all_libraries: false,
-            },
-          ],
-        }),
+      const receipt = await runEditOperation(editClient.current, [user.uuid], {
+        action: 'update_libraries',
+        has_all_libraries: false,
+        library_ids: nextAllowedIds,
       });
-
-      const nextAllowedIdSet = new Set(nextAllowedIds.map((id) => String(id)));
-      const nextLibraries = serverLibraries
-        .filter((library) => nextAllowedIdSet.has(getLibraryIdentifier(library, effectiveServiceType)))
-        .map((library) => library.name);
-      const dedupedLibraries = Array.from(new Set(nextLibraries)).sort((a, b) => a.localeCompare(b));
-      setDisplayLibraries(dedupedLibraries);
-      setDisplayHasAllLibraries(false);
-
-      success(`Removed "${libraryName}" from ${user.display_name || user.username || 'user'}.`);
+      const problem = editOutcomeMessage([receipt]);
+      if (problem) {
+        error(`Library not removed: ${problem}`);
+      } else {
+        const kept = new Set(nextAllowedIds);
+        const nextLibraries = serverLibraries
+          .filter((library) => kept.has(String(library.external_id ?? '').trim()))
+          .map((library) => library.name);
+        setDisplayLibraries(Array.from(new Set(nextLibraries)).sort((a, b) => a.localeCompare(b)));
+        setDisplayHasAllLibraries(false);
+        success(`Removed "${libraryName}" from ${user.display_name || user.username || 'user'}.`);
+      }
       onLibraryChanged?.();
     } catch (err) {
       error(`Failed to remove library: ${err instanceof Error ? err.message : 'Unknown error'}`);

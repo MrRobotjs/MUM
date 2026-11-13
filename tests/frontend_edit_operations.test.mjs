@@ -32,3 +32,17 @@ test("library edits send each checked library's server ID, never MUM's row numbe
  assert.throws(()=>m.editLibraryExternalIds(libraries,{'5':true}),/no longer available/);
  assert.throws(()=>m.editLibraryExternalIds([{id:3,external_id:'',internal_id:null,name:'Broken'}],{'3':true}),/server ID/);
 });
+// The X on a user card's library badge removes one library through Edit, with
+// the media server's own library IDs.
+test('removing one library keeps the server IDs of the others',async()=>{
+ const m=await load();
+ const libraries=[{name:'Movies',external_id:'1'},{name:'TV Shows',external_id:'2'},{name:'Anime',external_id:'3'},{name:'Unsynced',external_id:null}];
+ assert.deepEqual(m.libraryIdsWithout(libraries,{all:false,ids:['1','2']},'Movies'),['2']);
+ // All libraries becomes the explicit list of the others.
+ assert.deepEqual(m.libraryIdsWithout(libraries,{all:true,ids:[]},'TV Shows'),['1','3']);
+ // Removing the last library leaves no access, which the server accepts.
+ assert.deepEqual(m.libraryIdsWithout(libraries,{all:false,ids:['3']},'Anime'),[]);
+ assert.throws(()=>m.libraryIdsWithout(libraries,{all:false,ids:['1']},'Anime'),/does not have access/);
+ assert.throws(()=>m.libraryIdsWithout(libraries,{all:false,ids:['1']},'Unsynced'),/not a synced library/);
+ assert.throws(()=>m.libraryIdsWithout(libraries,{all:false,ids:['1']},'Missing'),/not a synced library/);
+});

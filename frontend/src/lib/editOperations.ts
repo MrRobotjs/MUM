@@ -129,3 +129,17 @@ export function editExpiryOutcome(done:string,receipts:EditReceipt[]):string{
  }
  return `${done} for ${plural(changed)}${undated?`; ${undated} skipped (no expiration date)`:''}`;
 }
+
+// The X on a user card's library badge: the server library IDs the account
+// keeps once the named library is removed. IDs are the media server's own
+// library IDs (external_id), as for every grant; "all libraries" becomes the
+// explicit list of the server's current libraries minus this one.
+export function libraryIdsWithout(libraries:{name:string;external_id?:string|null}[],access:{all:boolean;ids:string[]},name:string):string[]{
+ const serverId=(library:{external_id?:string|null})=>String(library.external_id??'').trim();
+ const removed=new Set(libraries.filter(library=>library.name===name).map(serverId).filter(Boolean));
+ if(!removed.size)throw Error(`"${name}" is not a synced library on this server. Sync the server and try again.`);
+ const current=access.all?libraries.map(serverId).filter(Boolean):access.ids.map(String);
+ if(!current.some(id=>removed.has(id)))throw Error(`This account does not have access to "${name}".`);
+ return [...new Set(current.filter(id=>!removed.has(id)))];
+}
+

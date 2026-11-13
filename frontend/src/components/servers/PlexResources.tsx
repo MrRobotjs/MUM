@@ -97,6 +97,9 @@ export const PlexResources = ({ serverId }: { serverId: number }) => {
   );
   const showRemote = network !== 'local';
   const showLocal = network !== 'remote';
+  // Hovering one series' bar dims the other in every bar and in the legend, as in Plex.
+  const [hoveredSeries, setHoveredSeries] = useState<'remote' | 'local' | null>(null);
+  const barColor = (series: 'remote' | 'local', color: string) => (hoveredSeries && hoveredSeries !== series ? `${color}59` : color);
   const bandwidthLatest = bandwidthPoints.length ? Date.parse(bandwidthPoints[bandwidthPoints.length - 1].at) : 0;
   // Month bins are labelled by their month; the mid-month point keeps a
   // server's local month start from reading as the month before.
@@ -134,8 +137,10 @@ export const PlexResources = ({ serverId }: { serverId: number }) => {
 
   const bandwidthTooltip = ({ active, payload, label }: { active?: boolean; payload?: ReadonlyArray<any>; label?: string | number }) => {
     if (!active || !payload?.length) return null;
+    // The dots keep their full colours while a hovered bar dims the other series.
+    const seriesColor: Record<string, string> = { remote: REMOTE_COLOR, local: LOCAL_COLOR };
     const rows = payload.map((entry) => ({
-      key: String(entry.dataKey), label: String(entry.name), value: formatBandwidth(Number(entry.value || 0)), dotColor: String(entry.color),
+      key: String(entry.dataKey), label: String(entry.name), value: formatBandwidth(Number(entry.value || 0)), dotColor: seriesColor[String(entry.dataKey)] ?? String(entry.color),
     }));
     // A period's bar also shows its total, as in Plex.
     if (!realTime && payload.length > 1) {
@@ -213,14 +218,16 @@ export const PlexResources = ({ serverId }: { serverId: number }) => {
             {showLocal && <Area type="monotone" dataKey="local" name="Local" stroke={LOCAL_COLOR} fill={LOCAL_COLOR} fillOpacity={0.15} strokeWidth={2} isAnimationActive={false} />}
           </AreaChart>
         </ResponsiveContainer> : <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={bandwidthPoints} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
+          <BarChart data={bandwidthPoints} margin={{ top: 10, right: 20, left: 0, bottom: 0 }} onMouseLeave={() => setHoveredSeries(null)}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" opacity={0.35} />
             <XAxis dataKey="at" tickFormatter={(at) => bandwidthLabel(String(at))} tickLine={false} axisLine={false} tickMargin={6} tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }} minTickGap={24} />
             <YAxis tickFormatter={(v) => formatBytes(Number(v))} tickLine={false} axisLine={false} tickMargin={6} tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }} width={72} />
             <Tooltip content={bandwidthTooltip} cursor={{ fill: 'var(--muted)', opacity: 0.4 }} />
             <Legend {...legendProps} />
-            {showRemote && <Bar dataKey="remote" name="Remote" stackId="bandwidth" fill={REMOTE_COLOR} isAnimationActive={false} />}
-            {showLocal && <Bar dataKey="local" name="Local" stackId="bandwidth" fill={LOCAL_COLOR} radius={[3, 3, 0, 0]} isAnimationActive={false} />}
+            {showRemote && <Bar dataKey="remote" name="Remote" stackId="bandwidth" fill={barColor('remote', REMOTE_COLOR)} isAnimationActive={false}
+              onMouseEnter={() => setHoveredSeries('remote')} onMouseLeave={() => setHoveredSeries(null)} />}
+            {showLocal && <Bar dataKey="local" name="Local" stackId="bandwidth" fill={barColor('local', LOCAL_COLOR)} radius={[3, 3, 0, 0]} isAnimationActive={false}
+              onMouseEnter={() => setHoveredSeries('local')} onMouseLeave={() => setHoveredSeries(null)} />}
           </BarChart>
         </ResponsiveContainer>}
         {bandwidth.error ? <ChartMessage error text={bandwidth.error} />

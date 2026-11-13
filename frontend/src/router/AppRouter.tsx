@@ -152,7 +152,8 @@ const adminServerUsers = createRoute({ getParentRoute: () => adminRoute, path: '
 const adminServerLibraries = createRoute({ getParentRoute: () => adminRoute, path: 'servers/$serverId/libraries', component: () => <ServerDetailPage section="libraries" /> })
 const adminLibraryDetail = createRoute({
   getParentRoute: () => adminRoute,
-  path: 'libraries/$libraryId',
+  // A library lives under its server: /admin/servers/<server>/libraries/<library>.
+  path: 'servers/$serverId/libraries/$libraryId',
   component: LibraryDetailPage,
   // Validate search param "tab" for stronger typing
   validateSearch: (search): { tab?: 'overview' | 'media' | 'collections' | 'stats' | 'activity' } => {
@@ -165,7 +166,7 @@ const mediaTabs = ['overview', 'episodes', 'activity'] as const
 type MediaTab = typeof mediaTabs[number]
 const adminMediaDetail = createRoute({
   getParentRoute: () => adminRoute,
-  path: 'libraries/$libraryId/$mediaId',
+  path: 'servers/$serverId/libraries/$libraryId/$mediaId',
   component: MediaDetailPage,
   validateSearch: (search): { tab?: MediaTab } => {
     const tabVal = typeof search.tab === 'string' && (mediaTabs as readonly string[]).includes(search.tab)

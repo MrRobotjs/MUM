@@ -189,12 +189,12 @@ const renderLibraryStatsAreaTooltip = ({
 };
 
 // Component for individual media poster with loading state
-const MediaPosterCard = ({ item, libraryId }: { item: MediaItem; libraryId: string }) => {
+const MediaPosterCard = ({ item, serverId, libraryId }: { item: MediaItem; serverId: string; libraryId: string }) => {
   const [imageLoading, setImageLoading] = useState(true);
   const [imageError, setImageError] = useState(false);
 
   return (
-    <Link to="/admin/libraries/$libraryId/$mediaId" params={{ libraryId: String(libraryId), mediaId: String(item.id) }} className="group cursor-pointer">
+    <Link to="/admin/servers/$serverId/libraries/$libraryId/$mediaId" params={{ serverId, libraryId: String(libraryId), mediaId: String(item.id) }} className="group cursor-pointer">
       <div className="relative aspect-[2/3] bg-accent rounded-lg overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 group-hover:scale-105">
         {item.thumb && !imageError ? (
           <>
@@ -323,7 +323,7 @@ const CollectionCard = ({ collection }: { collection: LibraryCollection }) => {
 };
 
 export const LibraryDetailPage = () => {
-  const { libraryId } = useParams({ from: '/admin/libraries/$libraryId' });
+  const { libraryId } = useParams({ from: '/admin/servers/$serverId/libraries/$libraryId' });
   const { user, isAdministrator } = useAuth();
   const auth = useSyncExternalStore(subscribeToAuthStore, getAuthSnapshot, getAuthSnapshot);
   if (!user || !isAdministrator || !auth.accessToken) return null;
@@ -333,11 +333,11 @@ export const LibraryDetailPage = () => {
 const LibraryDetailPageView = () => {
   const { formatTimestamp } = useAccountDisplay();
   // Use TanStack Router APIs for params and search
-  const { libraryId } = useParams({ from: '/admin/libraries/$libraryId' });
+  const { serverId, libraryId } = useParams({ from: '/admin/servers/$serverId/libraries/$libraryId' });
   const search = useSearch({ strict: false }) as { tab?: TabType };
   const activeTab: TabType = search.tab ?? 'overview';
   
-  const navigate = useNavigate({ from: '/admin/libraries/$libraryId' });
+  const navigate = useNavigate({ from: '/admin/servers/$serverId/libraries/$libraryId' });
   const { success, error: showError, info } = useAlerts();
 
   const [library, setLibrary] = useState<Library | null>(null);
@@ -645,6 +645,12 @@ const LibraryDetailPageView = () => {
       if (!read.current()) return false;
 
       if (response.data?.id !== Number(libraryId)) throw new Error('Library detail does not match this route');
+      // The library's own server decides its address; a different server in
+      // the address is replaced with the right one.
+      if (typeof response.data.server_id === 'number' && response.data.server_id !== Number(serverId)) {
+        navigate({ to: '/admin/servers/$serverId/libraries/$libraryId', params: { serverId: String(response.data.server_id), libraryId }, search: (prev: { tab?: TabType }) => prev, replace: true });
+        return false;
+      }
       if (response.data) {
         setLibrary(response.data);
         setError(null);
@@ -1136,6 +1142,7 @@ const LibraryDetailPageView = () => {
                 <MediaPosterCard
                   key={item.id}
                   item={item}
+                  serverId={serverId}
                   libraryId={libraryId!}
                 />
               ))}

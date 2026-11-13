@@ -629,8 +629,8 @@ export const ServerDetailPage = ({ section = 'overview' }: { section?: ServerTab
                         <TableRow key={library.id}>
                           <TableCell>
                             <Link
-                              to="/admin/libraries/$libraryId"
-                              params={{ libraryId: String(library.id) }}
+                              to="/admin/servers/$serverId/libraries/$libraryId"
+                              params={{ serverId: String(library.server_id ?? numericServerId), libraryId: String(library.id) }}
                               search={{ tab: 'overview' }}
                               className="font-semibold text-primary hover:underline"
                             >

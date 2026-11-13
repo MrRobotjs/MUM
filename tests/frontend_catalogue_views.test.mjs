@@ -8,7 +8,7 @@ const deferred=()=>{let resolve;const promise=new Promise(r=>{resolve=r});return
 const flush=async()=>{for(let n=0;n<12;n++)await new Promise(r=>setImmediate(r));};
 const actor='12345678-1234-1234-1234-123456789abc';
 function harness(){
- const h={params:{libraryId:'1',mediaId:'10'},tab:'episodes',auth:{user:{uuid:actor},isAdministrator:true},alerts:[],instances:[],current:null};
+ const h={params:{serverId:'1',libraryId:'1',mediaId:'10'},tab:'episodes',auth:{user:{uuid:actor},isAdministrator:true},alerts:[],instances:[],current:null};
  h.useState=initial=>{const c=h.current,i=c.index++;if(!(i in c.slots))c.slots[i]=typeof initial==='function'?initial():initial;return [c.slots[i],value=>{c.slots[i]=typeof value==='function'?value(c.slots[i]):value}];};
  h.useRef=initial=>{const c=h.current,i=c.index++;return c.slots[i]??(c.slots[i]={current:initial});};
  h.useEffect=(effect,deps)=>{const c=h.current,i=c.index++,old=c.slots[i];if(!old||!deps||deps.some((v,n)=>!Object.is(v,old.deps[n]))){c.effects.push(()=>{old?.cleanup?.();c.slots[i]={deps,cleanup:effect()};});}};
@@ -48,11 +48,11 @@ test('catalogue page async boundaries',async t=>{
  await t.test('changing between two series reloads episodes and hides the previous series',async()=>{
   const h=harness(),m=await load(h);t.after(h.close);const calls=[];globalThis.fetch=async req=>{const p=new URL(req.url).pathname;calls.push(p);return Response.json(p.endsWith('/episodes')?episodes(p.includes('/20/')?'Episode B':'Episode A'):show(p.endsWith('/20')?20:10,p.endsWith('/20')?'Show B':'Show A'));};
   h.render(m.MediaDetailPage);await flush();h.render(m.MediaDetailPage);await flush();assert.match(text(h.render(m.MediaDetailPage)),/Episode A/);
-  h.params={libraryId:'1',mediaId:'20'};h.render(m.MediaDetailPage);await flush();h.render(m.MediaDetailPage);await flush();const view=text(h.render(m.MediaDetailPage));assert.match(view,/Show B/);assert.match(view,/Episode B/);assert.doesNotMatch(view,/Episode A/);assert.ok(calls.includes('/api/libraries/1/media/20/episodes'));
+  h.params={serverId:'1',libraryId:'1',mediaId:'20'};h.render(m.MediaDetailPage);await flush();h.render(m.MediaDetailPage);await flush();const view=text(h.render(m.MediaDetailPage));assert.match(view,/Show B/);assert.match(view,/Episode B/);assert.doesNotMatch(view,/Episode A/);assert.ok(calls.includes('/api/libraries/1/media/20/episodes'));
  });
  await t.test('a late item response cannot overwrite a newer route',async()=>{
   const h=harness(),m=await load(h),pending=deferred();t.after(h.close);globalThis.fetch=async req=>req.url.includes('/media/10?')?pending.promise:Response.json(req.url.includes('/episodes')?episodes('B only'):show(20,'Show B'));
-  h.render(m.MediaDetailPage);h.params={libraryId:'1',mediaId:'20'};h.render(m.MediaDetailPage);await flush();h.render(m.MediaDetailPage);pending.resolve(Response.json(show(10,'Stale Show A')));await flush();const view=text(h.render(m.MediaDetailPage));assert.match(view,/Show B/);assert.doesNotMatch(view,/Stale Show A/);
+  h.render(m.MediaDetailPage);h.params={serverId:'1',libraryId:'1',mediaId:'20'};h.render(m.MediaDetailPage);await flush();h.render(m.MediaDetailPage);pending.resolve(Response.json(show(10,'Stale Show A')));await flush();const view=text(h.render(m.MediaDetailPage));assert.match(view,/Show B/);assert.doesNotMatch(view,/Stale Show A/);
  });
  await t.test('a late read after token replacement is discarded without authentication replay',async()=>{
   const h=harness(),m=await load(h),pending=deferred(),calls=[];t.after(h.close);globalThis.fetch=async req=>{calls.push(req.url);return pending.promise;};h.render(m.MediaDetailPage);m.setAccessToken('session-b');pending.resolve(Response.json(show(10,'Old session title')));await flush();assert.doesNotMatch(text(h.render(m.MediaDetailPage)),/Old session title/);assert.equal(calls.filter(v=>v.includes('/auth/refresh')).length,0);
@@ -70,7 +70,7 @@ test('catalogue page async boundaries',async t=>{
  await t.test('library detail discards a late read from another library',async()=>{
   const h=harness(),m=await load(h),pending=deferred();t.after(h.close);h.tab='overview';
   globalThis.fetch=async req=>req.url.includes('/libraries/1?')?pending.promise:Response.json({data:{id:2,name:'Library B',library_type:'movies',catalogue:{supported:true,revision:1},server:{service_type:'jellyfin'}}});
-  h.render(m.LibraryDetailPage);h.params={libraryId:'2'};h.render(m.LibraryDetailPage);await flush();pending.resolve(Response.json({data:{id:1,name:'Stale Library A',library_type:'movies',server:{service_type:'jellyfin'}}}));await flush();const page=text(h.render(m.LibraryDetailPage));assert.match(page,/Library B/);assert.doesNotMatch(page,/Stale Library A/);
+  h.render(m.LibraryDetailPage);h.params={serverId:'1',libraryId:'2'};h.render(m.LibraryDetailPage);await flush();pending.resolve(Response.json({data:{id:1,name:'Stale Library A',library_type:'movies',server:{service_type:'jellyfin'}}}));await flush();const page=text(h.render(m.LibraryDetailPage));assert.match(page,/Library B/);assert.doesNotMatch(page,/Stale Library A/);
  });
 
  await t.test('mutation reconciliation does not reload a superseded episode sort',async()=>{
@@ -99,7 +99,7 @@ test('catalogue page async boundaries',async t=>{
   globalThis.fetch=async req=>{calls.push(req.method+' '+req.url);if(req.method==='POST')return pending.promise;return Response.json(req.url.includes('/media?')?{data:[],meta:{pagination:{total_pages:1,total_items:0}}}:{data:{id:Number(h.params.libraryId),name:'Library '+h.params.libraryId,library_type:'movies',catalogue:{supported:true,revision:1},server:{service_type:'jellyfin'}}});};
   h.render(m.LibraryDetailPage);await flush();const page=h.render(m.LibraryDetailPage);button(page,'Sync Library')?.props.onClick();
   // The existing label is "Sync" on this toolbar.
-  if(!calls.some(v=>v.startsWith('POST')))button(page,'Sync').props.onClick();await flush();h.params={libraryId:'2'};h.render(m.LibraryDetailPage);await flush();const count=calls.length;pending.resolve(Response.json({data:{success:true,library_id:1,source_revision:1,revision:2,message:'done',result:{added:1,updated:0,removed:0,total:1}}}));await flush();assert.equal(calls.length,count);assert.deepEqual(h.alerts,[]);
+  if(!calls.some(v=>v.startsWith('POST')))button(page,'Sync').props.onClick();await flush();h.params={serverId:'1',libraryId:'2'};h.render(m.LibraryDetailPage);await flush();const count=calls.length;pending.resolve(Response.json({data:{success:true,library_id:1,source_revision:1,revision:2,message:'done',result:{added:1,updated:0,removed:0,total:1}}}));await flush();assert.equal(calls.length,count);assert.deepEqual(h.alerts,[]);
  });
 
  await t.test('a detail reply for a different item cannot authorize controls in this route',async()=>{

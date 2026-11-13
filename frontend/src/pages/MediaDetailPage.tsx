@@ -94,7 +94,7 @@ interface Episode {
 }
 
 export const MediaDetailPage = () => {
-  const { libraryId, mediaId } = useParams({ from: '/admin/libraries/$libraryId/$mediaId' });
+  const { libraryId, mediaId } = useParams({ from: '/admin/servers/$serverId/libraries/$libraryId/$mediaId' });
   const { user, isAdministrator } = useAuth();
   const auth = useSyncExternalStore(subscribeToAuthStore, getAuthSnapshot, getAuthSnapshot);
   if (!user || !isAdministrator || !auth.accessToken) return null;
@@ -104,7 +104,8 @@ export const MediaDetailPage = () => {
 const MediaDetailPageView = () => {
   const { formatTimestamp } = useAccountDisplay();
   const { success, error: showError, info } = useAlerts();
-  const { libraryId, mediaId } = useParams({ from: '/admin/libraries/$libraryId/$mediaId' }) as {
+  const { serverId, libraryId, mediaId } = useParams({ from: '/admin/servers/$serverId/libraries/$libraryId/$mediaId' }) as {
+    serverId: string
     libraryId: string
     mediaId: string
   };
@@ -163,6 +164,13 @@ const MediaDetailPageView = () => {
       if (!read.current()) return false;
 
       if (response.data?.id !== Number(mediaId) || response.data?.library?.id !== Number(libraryId)) throw new Error('Media detail does not match this route');
+      // The library's own server decides the address; a different server in
+      // the address is replaced with the right one.
+      const ownServer = response.data.library?.server_id;
+      if (typeof ownServer === 'number' && ownServer !== Number(serverId)) {
+        navigate({ to: '/admin/servers/$serverId/libraries/$libraryId/$mediaId', params: { serverId: String(ownServer), libraryId, mediaId }, search: (prev: { tab?: TabType }) => prev, replace: true });
+        return false;
+      }
       if (response.data) {
         setMediaItem(response.data);
         setError(null);
@@ -289,7 +297,7 @@ const MediaDetailPageView = () => {
   };
 
   const setTab = (tab: TabType) => {
-    navigate({ from: '/admin/libraries/$libraryId/$mediaId', search: (prev) => ({ ...prev, tab }) });
+    navigate({ from: '/admin/servers/$serverId/libraries/$libraryId/$mediaId', search: (prev) => ({ ...prev, tab }) });
   };
 
   const getServiceBadge = (serviceType?: ServiceType) => {
@@ -391,7 +399,7 @@ const MediaDetailPageView = () => {
             <span className="text-destructive">{error || 'Media item not found'}</span>
           </CardContent>
         </Card>
-        <Link to="/admin/libraries/$libraryId" params={{ libraryId }} search={{ tab: 'media' }}>
+        <Link to="/admin/servers/$serverId/libraries/$libraryId" params={{ serverId, libraryId }} search={{ tab: 'media' }}>
           <Button>
             <FontAwesomeIcon icon={faArrowLeft} className="mr-2 h-4 w-4" />
             Back to Library
@@ -440,7 +448,7 @@ const MediaDetailPageView = () => {
                   {mediaItem.library?.server?.server_nickname}
                 </span>
 
-                <Link to="/admin/libraries/$libraryId" params={{ libraryId }}>
+                <Link to="/admin/servers/$serverId/libraries/$libraryId" params={{ serverId, libraryId }}>
                   <span className="inline-flex items-center rounded-md bg-blue-50 dark:bg-blue-400/10 px-2 py-1 text-xs font-medium text-blue-700 dark:text-blue-400 ring-1 ring-inset ring-blue-600/20 dark:ring-blue-500/20 gap-1 hover:bg-blue-100 dark:hover:bg-blue-400/20 transition-colors cursor-pointer">
                     <FontAwesomeIcon icon={faFolder} className="w-3 h-3" />
                     {mediaItem.library?.name}
@@ -917,7 +925,7 @@ const MediaDetailPageView = () => {
       </Tabs>
 
       {/* Back Button */}
-      <Link to="/admin/libraries/$libraryId" params={{ libraryId }} search={{ tab: 'media' }}>
+      <Link to="/admin/servers/$serverId/libraries/$libraryId" params={{ serverId, libraryId }} search={{ tab: 'media' }}>
         <Button variant="ghost">
           <FontAwesomeIcon icon={faArrowLeft} className="mr-2 h-4 w-4" />
           Back to Library

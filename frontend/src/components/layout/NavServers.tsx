@@ -72,8 +72,10 @@ const ServerNavItem = ({ server, pathname, onNavigate }: ServerNavItemProps) => 
       <FontAwesomeIcon icon={faServer} className="h-4 w-4" />
     )
 
-  const isLibraryActive = (libraryId: number) =>
-    pathname.startsWith(`/admin/libraries/${libraryId}`)
+  const isLibraryActive = (libraryId: number) => {
+    const libraryPath = `/admin/servers/${server.id}/libraries/${libraryId}`
+    return pathname === libraryPath || pathname.startsWith(`${libraryPath}/`)
+  }
 
   const requestLibraries = React.useCallback(() => {
     setLibrariesRequested(true)
@@ -260,8 +262,8 @@ const ServerNavItem = ({ server, pathname, onNavigate }: ServerNavItemProps) => 
                             isActive={isLibraryActive(library.id)}
                           >
                             <Link
-                              to="/admin/libraries/$libraryId"
-                              params={{ libraryId: String(library.id) }}
+                              to="/admin/servers/$serverId/libraries/$libraryId"
+                              params={{ serverId: String(server.id), libraryId: String(library.id) }}
                               onClick={onNavigate}
                             >
                               <FontAwesomeIcon
@@ -292,7 +294,7 @@ const ServerNavItem = ({ server, pathname, onNavigate }: ServerNavItemProps) => 
                 key={page.title}
                 asChild
                 tooltip={`${server.server_nickname} · ${page.title}`}
-                isActive={pathname === `${serverPath}${page.suffix}`}
+                isActive={pathname === `${serverPath}${page.suffix}` || (page.suffix === "/libraries" && pathname.startsWith(`${serverPath}/libraries/`))}
                 className="text-sidebar-foreground/70 data-[active=true]:text-sidebar-accent-foreground [&>svg]:size-3.5"
               >
                 <Link

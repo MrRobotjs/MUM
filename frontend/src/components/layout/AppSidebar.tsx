@@ -163,14 +163,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     // For Users page, also match user detail pages
     if (url === '/admin/users' && location.pathname.startsWith('/admin/users/')) return true
 
-    // For Servers page, also match server detail, library detail, and media detail pages
-    if (
-      url === '/admin/servers' &&
-      (
-        location.pathname.startsWith('/admin/servers/')
-        || location.pathname.startsWith('/admin/libraries/')
-      )
-    ) return true
+    // For Servers page, also match server pages, including their library and media pages
+    if (url === '/admin/servers' && location.pathname.startsWith('/admin/servers/')) return true
 
     return false
   }

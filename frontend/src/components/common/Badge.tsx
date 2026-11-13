@@ -44,11 +44,52 @@ export interface BadgeProps {
 // draws text and icons snapped to the pixel grid. Fractional sizes would make
 // the icon and the label round in different directions on different cards.
 //   font / height / horizontal padding / icon / gap / border
+// The icon is exactly as tall as the capital letters and stands on the text
+// baseline: never higher, lower, taller or shorter than the text. Its height
+// is the number of screen rows the capitals cover (cap height is 0.7 of the
+// font size; at 12px the 8.4px capitals cover 9 rows), verified on drawn
+// pixels by migration-documentation/check_badge_pixels.mjs.
 const sizeClasses: Record<BadgeSize, string> = {
-  xs: 'text-[10px] h-[20px] px-[6px] [--badge-icon:9px] [--badge-gap:4px] border',
-  sm: 'text-xs h-[24px] px-[8px] [--badge-icon:11px] [--badge-gap:4px] border',
-  md: 'text-sm h-[28px] px-[9px] [--badge-icon:12px] [--badge-gap:5px] border',
-  lg: 'text-base h-[32px] px-[10px] [--badge-icon:14px] [--badge-gap:6px] border',
+  xs: 'text-[10px] h-[20px] px-[6px] [--badge-icon:7px] [--badge-gap:4px] border',
+  sm: 'text-xs h-[24px] px-[8px] [--badge-icon:9px] [--badge-gap:4px] border',
+  md: 'text-sm h-[28px] px-[9px] [--badge-icon:10px] [--badge-gap:5px] border',
+  lg: 'text-base h-[32px] px-[10px] [--badge-icon:11px] [--badge-gap:6px] border',
+};
+
+// Each icon's drawing sits at its own place inside its canvas (Font Awesome
+// draws on a 512-unit square; other icons have their own viewBox). The badge
+// measures the drawing once per icon and scales and moves it so the drawing
+// itself fills the icon box: top on the cap line, bottom on the baseline,
+// left edge at the box's left. The box stays on whole pixels; only the
+// drawing is transformed inside it.
+type GlyphBounds = { x: number; y: number; width: number; height: number };
+const glyphBounds = new Map<string, GlyphBounds>();
+
+const glyphKey = (svg: SVGSVGElement): string | null => {
+  const prefix = svg.getAttribute('data-prefix'), name = svg.getAttribute('data-icon');
+  if (prefix && name) return `${prefix}:${name}`;
+  const path = svg.querySelector('path')?.getAttribute('d');
+  return path ? `path:${path.length}:${path.slice(0, 96)}` : null;
+};
+
+// The drawing's bounds relative to the canvas, as fractions of the canvas
+// height (the rendered icon height); null while the icon is not laid out.
+const measureGlyph = (svg: SVGSVGElement): GlyphBounds | null => {
+  const viewBox = svg.viewBox?.baseVal;
+  if (!viewBox || !viewBox.height) return null;
+  let drawing: DOMRect;
+  try {
+    drawing = svg.getBBox();
+  } catch {
+    return null;
+  }
+  if (!drawing.height || !drawing.width) return null;
+  return {
+    x: (drawing.x - viewBox.x) / viewBox.height,
+    y: (drawing.y - viewBox.y) / viewBox.height,
+    width: drawing.width / viewBox.height,
+    height: drawing.height / viewBox.height,
+  };
 };
 
 type BadgeStyle = CSSProperties & { [key: `--${string}`]: string | number | undefined };
@@ -110,6 +151,28 @@ export const Badge = ({
   const iconDefinition = isIconDefinition(icon) ? icon : resolvedIconDefinition;
   const iconNode = iconDefinition ? <FontAwesomeIcon icon={iconDefinition} /> : (icon as ReactNode) ?? null;
 
+  const glyphRef = useRef<HTMLSpanElement | null>(null);
+  const definitionKey = iconDefinition ? `${iconDefinition.prefix}:${iconDefinition.iconName}` : null;
+  const [measured, setMeasured] = useState<{ key: string; bounds: GlyphBounds } | null>(null);
+  const glyph = (definitionKey !== null ? glyphBounds.get(definitionKey) : undefined) ?? measured?.bounds ?? null;
+  useEffect(() => {
+    const svg = glyphRef.current?.querySelector('svg');
+    const key = svg ? glyphKey(svg) : null;
+    if (!svg || !key) return;
+    let bounds = glyphBounds.get(key);
+    if (bounds === undefined) {
+      const value = measureGlyph(svg);
+      if (value === null) return;
+      bounds = value;
+      glyphBounds.set(key, bounds);
+    }
+    const next = bounds;
+    setMeasured((prev) => (prev?.key === key && prev.bounds === next ? prev : { key, bounds: next }));
+  });
+  // The drawing, scaled to the icon height and moved to the box's corner; the
+  // box is as wide as the drawing, so the gap starts at the visible edge.
+  const fit = glyph ? 1 / glyph.height : 1;
+
   const style = resolveVariant(variant);
   const tint = (state: string) => (hovered ? `var(--badge-${state}-hover)` : `var(--badge-${state})`);
   const inlineStyle: BadgeStyle = {
@@ -165,15 +228,25 @@ export const Badge = ({
         style={maxLabelWidth ? { maxWidth: iconNode ? `calc(${maxLabelWidth} + var(--badge-icon) + var(--badge-gap))` : maxLabelWidth } : undefined}
       >
         {iconNode && (
-          // The icon sits on the text baseline, 1px below it, at a whole-pixel
-          // height: it is then always drawn exactly where the text is, wherever
-          // the badge lands on the pixel grid, and its centre meets the middle
-          // of the capital letters at every size.
+          // The icon box stands on the text baseline at a whole-pixel height:
+          // it is then always drawn exactly where the text is, wherever the
+          // badge lands on the pixel grid.
           // Font Awesome's runtime stylesheet is not in a cascade layer, so it
           // outranks utilities: its icons are sized through its own rules
           // instead (1em of the slot's font size, display block, no nudge).
-          <span className="mr-[var(--badge-gap)] inline-block h-[var(--badge-icon)] overflow-hidden align-[-1px] [font-size:var(--badge-icon)] [--fa-display:block] [&>*]:block [&>*]:h-full [&_svg]:h-full [&_svg]:w-auto [&_img]:h-full [&_img]:w-auto">
-            {iconNode}
+          <span
+            className="mr-(--badge-gap) inline-block h-(--badge-icon) overflow-hidden align-baseline [font-size:var(--badge-icon)] [--fa-display:block] [&_svg]:h-full [&_svg]:w-auto [&_img]:h-full [&_img]:w-auto"
+            style={glyph ? { width: `${glyph.width * fit}em` } : undefined}
+          >
+            {/* A flex box, so an icon inside a button (the removable library
+                badge) is placed exactly like a bare icon. */}
+            <span
+              ref={glyphRef}
+              className="flex h-full origin-top-left"
+              style={glyph ? { transform: `translate(${-glyph.x * fit}em, ${-glyph.y * fit}em) scale(${fit})` } : undefined}
+            >
+              {iconNode}
+            </span>
           </span>
         )}
         {children}

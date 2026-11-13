@@ -794,8 +794,8 @@ func (a *App) libraryCatalogueItem(w http.ResponseWriter, r *http.Request) {
 		domainError(w, err)
 		return
 	}
-	var nickname, serverName string
-	if err := tx.QueryRowContext(r.Context(), "SELECT server_nickname,coalesce(server_name,'') FROM media_servers WHERE id=?", library.Server).Scan(&nickname, &serverName); err != nil {
+	libraryInfo, err := catalogueLibraryInfo(r.Context(), tx, library)
+	if err != nil {
 		domainError(w, err)
 		return
 	}
@@ -804,8 +804,18 @@ func (a *App) libraryCatalogueItem(w http.ResponseWriter, r *http.Request) {
 		"catalogue_revision": library.Revision, "catalogue_supported": catalogueLibrarySupported(library.Provider, library.Kind, library.External),
 		"episode_catalogue_supported": episodeCatalogueSupported(library.Provider) && item.Type == "show",
 		"episode_revision":            episodeRevision, "episodes_synced_at": nullableText(episodesSynced.String), "episode_count": nullableCount(episodeCount),
-		"library": map[string]any{"id": library.ID, "name": library.Name, "library_type": library.Kind, "server_id": library.Server,
-			"server": map[string]any{"id": library.Server, "server_nickname": nickname, "server_name": serverName, "service_type": library.Provider}}})
+		"library": libraryInfo})
+}
+
+// catalogueLibraryInfo is the library and server summary item and episode
+// pages show.
+func catalogueLibraryInfo(ctx context.Context, tx *sql.Tx, library catalogueLibrary) (map[string]any, error) {
+	var nickname, serverName string
+	if err := tx.QueryRowContext(ctx, "SELECT server_nickname,coalesce(server_name,'') FROM media_servers WHERE id=?", library.Server).Scan(&nickname, &serverName); err != nil {
+		return nil, err
+	}
+	return map[string]any{"id": library.ID, "name": library.Name, "library_type": library.Kind, "server_id": library.Server,
+		"server": map[string]any{"id": library.Server, "server_nickname": nickname, "server_name": serverName, "service_type": library.Provider}}, nil
 }
 
 type catalogueImageSource struct {

@@ -172,6 +172,16 @@ const itemActivityMatch = `SELECT h.id AS id,h.title AS title,h.media_type AS me
  FROM media_items i JOIN media_activity_history h ON h.server_id=? AND h.first_seen_at>=? AND (h.parent_item_id=i.external_id OR (h.parent_item_id IS NULL AND h.item_id=i.external_id))
  WHERE i.id=?`
 
+// episodeActivityMatch selects one episode's observations since a cutoff with
+// libraryActivityMatch's columns. Its parameters are server ID, cutoff and
+// episode ID.
+const episodeActivityMatch = `SELECT h.id AS id,h.title AS title,h.media_type AS media_type,coalesce(h.parent_title,'') AS parent_title,h.first_seen_at AS first_seen_at,
+ max(0,CAST(round((julianday(h.last_seen_at)-julianday(h.first_seen_at))*86400) AS INTEGER)) AS observed,
+ coalesce(h.owner_uuid,h.service_uuid) AS viewer,i.id AS item,i.title AS item_title,coalesce(i.thumb_path,'') AS tag,
+ coalesce((SELECT local_username FROM user_accounts WHERE uuid=h.owner_uuid),(SELECT external_username FROM service_accounts WHERE uuid=h.service_uuid),'') AS viewer_name
+ FROM media_items i JOIN media_activity_history h ON h.server_id=? AND h.first_seen_at>=? AND h.item_id=i.external_id
+ WHERE i.id=?`
+
 func activityPage(w http.ResponseWriter, r *http.Request) (int, int, bool) {
 	query := r.URL.Query()
 	page, size := 1, 20
@@ -227,6 +237,38 @@ func (a *App) itemActivity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a.writeActivityPage(w, r, q, itemActivityMatch, []any{q.library.Server, utcTimestamp(q.cutoff), itemID}, page, size)
+}
+
+// episodeActivity lists one episode's recent plays.
+func (a *App) episodeActivity(w http.ResponseWriter, r *http.Request) {
+	page, size, ok := activityPage(w, r)
+	if !ok {
+		return
+	}
+	itemID, ok := pathID(w, r, "item")
+	if !ok {
+		return
+	}
+	episodeID, ok := pathID(w, r, "episode")
+	if !ok {
+		return
+	}
+	q, ok := a.beginLibraryActivity(w, r)
+	if !ok {
+		return
+	}
+	defer q.tx.Rollback()
+	var found bool
+	if err := q.tx.QueryRowContext(r.Context(), `SELECT EXISTS(SELECT 1 FROM media_items e JOIN media_items s ON s.id=? AND s.library_id=e.library_id AND s.parent_id IS NULL AND s.item_type='show'
+	 WHERE e.id=? AND e.library_id=? AND e.parent_id=s.external_id)`, itemID, episodeID, q.library.ID).Scan(&found); err != nil {
+		domainError(w, err)
+		return
+	}
+	if !found {
+		domainError(w, ErrNotFound)
+		return
+	}
+	a.writeActivityPage(w, r, q, episodeActivityMatch, []any{q.library.Server, utcTimestamp(q.cutoff), episodeID}, page, size)
 }
 
 // writeActivityPage writes one page of the observations match selects.

@@ -25,10 +25,11 @@ const generateBreadcrumbs = (pathname: string) => {
   // Remove /admin prefix and split by /
   const paths = pathname.replace(/^\/admin\/?/, '').split('/').filter(Boolean);
 
-  const breadcrumbs: { label: string; href: string }[] = [];
+  const breadcrumbs: { label: string; href: string; search?: { tab: 'episodes' } }[] = [];
   let currentPath = '/admin';
 
   paths.forEach((segment, index) => {
+    const parentPath = currentPath;
     currentPath += `/${segment}`;
     // Capitalize and format the segment
     const label = segment
@@ -36,6 +37,12 @@ const generateBreadcrumbs = (pathname: string) => {
       .map(word => word.charAt(0).toUpperCase() + word.slice(1))
       .join(' ');
 
+    // An episode's address has no page at ".../<show>/episodes"; that crumb
+    // opens the show's Episodes tab instead.
+    if (segment === 'episodes' && paths[0] === 'servers' && paths[2] === 'libraries' && index === 5) {
+      breadcrumbs.push({ label, href: parentPath, search: { tab: 'episodes' } });
+      return;
+    }
     breadcrumbs.push({
       label,
       href: currentPath,
@@ -156,7 +163,7 @@ export const EnhancedAppLayout = ({
                   const showMobile = isLast || isPenultimate
 
                   return (
-                    <span key={crumb.href} className="contents">
+                    <span key={`${index}:${crumb.href}`} className="contents">
                       <BreadcrumbSeparator
                         className={
                           index === 0
@@ -175,7 +182,7 @@ export const EnhancedAppLayout = ({
                           <BreadcrumbPage className="max-w-[150px] truncate md:max-w-none">{crumb.label}</BreadcrumbPage>
                         ) : (
                           <BreadcrumbLink asChild>
-                            <Link to={crumb.href} className="max-w-[150px] truncate md:max-w-none">{crumb.label}</Link>
+                            <Link to={crumb.href} search={crumb.search} className="max-w-[150px] truncate md:max-w-none">{crumb.label}</Link>
                           </BreadcrumbLink>
                         )}
                       </BreadcrumbItem>

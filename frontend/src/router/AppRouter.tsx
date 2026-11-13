@@ -23,7 +23,7 @@ import UserLoginPage from '../pages/UserLoginPage';
 import LibrariesPage from '../pages/LibrariesPage';
 import LibraryDetailPage from '../pages/LibraryDetailPage';
 import ServerDetailPage from '../pages/ServerDetailPage';
-import MediaDetailPage from '../pages/MediaDetailPage';
+import MediaDetailPage, { EpisodeDetailPage } from '../pages/MediaDetailPage';
 import AdminSettingsAdminRolesPage from '../pages/AdminSettingsAdminRolesPage';
 import AdminSettingsAdminRolesEditPage from '../pages/AdminSettingsAdminRolesEditPage';
 import AdminSettingsUserRolesPage from '../pages/AdminSettingsUserRolesPage';
@@ -175,6 +175,20 @@ const adminMediaDetail = createRoute({
     return { tab: tabVal }
   },
 })
+// An episode lives under its show: .../libraries/<library>/<show>/episodes/<episode>.
+const episodeTabs = ['overview', 'activity'] as const
+type EpisodeTab = typeof episodeTabs[number]
+const adminEpisodeDetail = createRoute({
+  getParentRoute: () => adminRoute,
+  path: 'servers/$serverId/libraries/$libraryId/$mediaId/episodes/$episodeId',
+  component: EpisodeDetailPage,
+  validateSearch: (search): { tab?: EpisodeTab } => {
+    const tabVal = typeof search.tab === 'string' && (episodeTabs as readonly string[]).includes(search.tab)
+      ? (search.tab as EpisodeTab)
+      : undefined
+    return { tab: tabVal }
+  },
+})
 const adminSettings = createRoute({
   getParentRoute: () => adminRoute,
   path: 'settings',
@@ -293,6 +307,7 @@ const routeTree = rootRoute.addChildren([
     adminServerLibraries,
     adminLibraryDetail,
     adminMediaDetail,
+    adminEpisodeDetail,
     adminSettings,
     adminSettingsGeneral,
     adminAdminRoles,

@@ -26,7 +26,6 @@ import {
   faGamepad,
   faTriangleExclamation,
   faFileLines,
-  faPlay,
   faChevronLeft,
   faChevronRight,
   faArrowLeft,
@@ -67,6 +66,10 @@ interface MediaItem {
   catalogue_supported?: boolean;
   episode_catalogue_supported?: boolean;
   episode_revision?: number;
+  // Episodes only: their numbers and their show.
+  season_number?: number | null;
+  episode_number?: number | null;
+  show?: { id: number; title: string };
   library?: {
     id: number;
     name: string;
@@ -94,22 +97,37 @@ interface Episode {
   stream_count?: number;
 }
 
+const MEDIA_ROUTE = '/admin/servers/$serverId/libraries/$libraryId/$mediaId';
+const EPISODE_ROUTE = '/admin/servers/$serverId/libraries/$libraryId/$mediaId/episodes/$episodeId';
+
 export const MediaDetailPage = () => {
-  const { libraryId, mediaId } = useParams({ from: '/admin/servers/$serverId/libraries/$libraryId/$mediaId' });
+  const { libraryId, mediaId } = useParams({ from: MEDIA_ROUTE });
   const { user, isAdministrator } = useAuth();
   const auth = useSyncExternalStore(subscribeToAuthStore, getAuthSnapshot, getAuthSnapshot);
   if (!user || !isAdministrator || !auth.accessToken) return null;
   return <MediaDetailPageView key={JSON.stringify([user.uuid, auth.accessToken, libraryId, mediaId])} />;
 };
 
+/** An episode's page: the same layout as its show's, with Overview and Activity. */
+export const EpisodeDetailPage = () => {
+  const { libraryId, mediaId, episodeId } = useParams({ from: EPISODE_ROUTE });
+  const { user, isAdministrator } = useAuth();
+  const auth = useSyncExternalStore(subscribeToAuthStore, getAuthSnapshot, getAuthSnapshot);
+  if (!user || !isAdministrator || !auth.accessToken) return null;
+  return <MediaDetailPageView key={JSON.stringify([user.uuid, auth.accessToken, libraryId, mediaId, episodeId])} />;
+};
+
 const MediaDetailPageView = () => {
   const { formatTimestamp } = useAccountDisplay();
   const { success, error: showError, info } = useAlerts();
-  const { serverId, libraryId, mediaId } = useParams({ from: '/admin/servers/$serverId/libraries/$libraryId/$mediaId' }) as {
+  // On an episode's page mediaId is its show and episodeId the episode.
+  const { serverId, libraryId, mediaId, episodeId } = useParams({ strict: false }) as {
     serverId: string
     libraryId: string
     mediaId: string
+    episodeId?: string
   };
+  const isEpisode = episodeId !== undefined;
   const search = useSearch({ strict: false }) as { tab?: TabType };
   const navigate = useNavigate();
 
@@ -139,15 +157,18 @@ const MediaDetailPageView = () => {
   const activeTab: TabType = search.tab ?? 'overview';
   const [needsInspection, setNeedsInspection] = useState(false);
   const queries = {
-    item: JSON.stringify([libraryId, mediaId]),
+    item: JSON.stringify([libraryId, mediaId, episodeId]),
     episodes: JSON.stringify([libraryId, mediaId, activeTab, episodesPage, episodesSearch, episodesSortBy, episodesPerPage]),
-    activity: JSON.stringify([libraryId, mediaId, activeTab, activityDays, activityPage]),
+    activity: JSON.stringify([libraryId, mediaId, episodeId, activeTab, activityDays, activityPage]),
   };
   const view = useCatalogueView(queries);
 
   // Check if this is a TV show library (show, tv, series, tvshows)
   const libraryType = mediaItem?.library?.library_type?.toLowerCase() || '';
-  const isTVShow = ['show', 'tv', 'series', 'tvshows'].includes(libraryType);
+  const isTVShow = ['show', 'tv', 'series', 'tvshows'].includes(libraryType) && !isEpisode;
+  const episodeCode = isEpisode && mediaItem?.season_number != null && mediaItem?.episode_number != null
+    ? `S${mediaItem.season_number.toString().padStart(2, '0')}E${mediaItem.episode_number.toString().padStart(2, '0')}`
+    : null;
 
   useEffect(() => {
     loadMediaItem();
@@ -161,7 +182,7 @@ const MediaDetailPageView = () => {
 
   useEffect(() => {
     if (activeTab === 'activity') loadActivity();
-  }, [libraryId, mediaId, activeTab, activityDays, activityPage]);
+  }, [libraryId, mediaId, episodeId, activeTab, activityDays, activityPage]);
 
   const loadActivity = async () => {
     if (!libraryId || !mediaId) return false;
@@ -171,7 +192,7 @@ const MediaDetailPageView = () => {
     try {
       setActivityLoading(true);
       const response = await requestJson<{ data?: any[]; meta?: { pagination?: { total_pages?: number } } }>(
-        `/api/libraries/${libraryId}/media/${mediaId}/activity?days=${activityDays}&page=${activityPage}&page_size=20`,
+        `/api/libraries/${libraryId}/media/${mediaId}${isEpisode ? `/episodes/${episodeId}` : ''}/activity?days=${activityDays}&page=${activityPage}&page_size=20`,
         { signal: read.signal, retryAuthentication: false });
       if (!read.current()) return false;
       setActivityData(response.data || []);
@@ -197,16 +218,25 @@ const MediaDetailPageView = () => {
     try {
       setLoading(true);
       const response = await requestJson<{data?: MediaItem}>(
-        `/api/libraries/${libraryId}/media/${mediaId}?include_library=true`,
+        isEpisode
+          ? `/api/libraries/${libraryId}/media/${mediaId}/episodes/${episodeId}`
+          : `/api/libraries/${libraryId}/media/${mediaId}?include_library=true`,
         { signal: read.signal, retryAuthentication: false });
       if (!read.current()) return false;
 
-      if (response.data?.id !== Number(mediaId) || response.data?.library?.id !== Number(libraryId)) throw new Error('Media detail does not match this route');
+      const matches = isEpisode
+        ? response.data?.id === Number(episodeId) && response.data?.show?.id === Number(mediaId)
+        : response.data?.id === Number(mediaId);
+      if (!matches || response.data?.library?.id !== Number(libraryId)) throw new Error('Media detail does not match this route');
       // The library's own server decides the address; a different server in
       // the address is replaced with the right one.
-      const ownServer = response.data.library?.server_id;
+      const ownServer = response.data!.library?.server_id;
       if (typeof ownServer === 'number' && ownServer !== Number(serverId)) {
-        navigate({ to: '/admin/servers/$serverId/libraries/$libraryId/$mediaId', params: { serverId: String(ownServer), libraryId, mediaId }, search: (prev: { tab?: TabType }) => prev, replace: true });
+        if (isEpisode) {
+          navigate({ to: EPISODE_ROUTE, params: { serverId: String(ownServer), libraryId, mediaId, episodeId: episodeId! }, search: (prev: { tab?: 'overview' | 'activity' }) => prev, replace: true });
+        } else {
+          navigate({ to: MEDIA_ROUTE, params: { serverId: String(ownServer), libraryId, mediaId }, search: (prev: { tab?: TabType }) => prev, replace: true });
+        }
         return false;
       }
       if (response.data) {
@@ -335,7 +365,11 @@ const MediaDetailPageView = () => {
   };
 
   const setTab = (tab: TabType) => {
-    navigate({ from: '/admin/servers/$serverId/libraries/$libraryId/$mediaId', search: (prev) => ({ ...prev, tab }) });
+    if (isEpisode) {
+      navigate({ from: EPISODE_ROUTE, search: (prev) => ({ ...prev, tab: tab === 'episodes' ? undefined : tab }) });
+    } else {
+      navigate({ from: MEDIA_ROUTE, search: (prev) => ({ ...prev, tab }) });
+    }
   };
 
   const getServiceBadge = (serviceType?: ServiceType) => {
@@ -493,6 +527,22 @@ const MediaDetailPageView = () => {
                   </span>
                 </Link>
 
+                {isEpisode && mediaItem.show && (
+                  <Link to={MEDIA_ROUTE} params={{ serverId, libraryId, mediaId }} search={{ tab: 'episodes' }}>
+                    <span className="inline-flex items-center rounded-md bg-blue-50 dark:bg-blue-400/10 px-2 py-1 text-xs font-medium text-blue-700 dark:text-blue-400 ring-1 ring-inset ring-blue-600/20 dark:ring-blue-500/20 gap-1 hover:bg-blue-100 dark:hover:bg-blue-400/20 transition-colors cursor-pointer">
+                      <FontAwesomeIcon icon={faTv} className="w-3 h-3" />
+                      {mediaItem.show.title}
+                    </span>
+                  </Link>
+                )}
+
+                {episodeCode && (
+                  <span className="inline-flex items-center rounded-md bg-purple-50 dark:bg-purple-400/10 px-2 py-1 text-xs font-medium text-purple-700 dark:text-purple-400 ring-1 ring-inset ring-purple-600/20 dark:ring-purple-500/20 gap-1">
+                    <FontAwesomeIcon icon={faList} className="w-3 h-3" />
+                    {episodeCode}
+                  </span>
+                )}
+
                 {(mediaItem as any).type && (
                   <span className="inline-flex items-center rounded-md bg-purple-50 dark:bg-purple-400/10 px-2 py-1 text-xs font-medium text-purple-700 dark:text-purple-400 ring-1 ring-inset ring-purple-600/20 dark:ring-purple-500/20 gap-1">
                     <FontAwesomeIcon icon={faTag} className="w-3 h-3" />
@@ -574,6 +624,20 @@ const MediaDetailPageView = () => {
                     <span className="text-muted-foreground mr-2">Title:</span>
                     <span className="font-medium">{mediaItem.title}</span>
                   </div>
+                  {isEpisode && mediaItem.show && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground mr-2">Show:</span>
+                      <Link to={MEDIA_ROUTE} params={{ serverId, libraryId, mediaId }} search={{ tab: 'episodes' }} className="font-medium text-primary hover:underline">
+                        {mediaItem.show.title}
+                      </Link>
+                    </div>
+                  )}
+                  {isEpisode && mediaItem.season_number != null && mediaItem.episode_number != null && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground mr-2">Episode:</span>
+                      <span className="font-medium">Season {mediaItem.season_number}, Episode {mediaItem.episode_number}</span>
+                    </div>
+                  )}
                   {(mediaItem as any).type && (
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Type:</span>
@@ -785,7 +849,7 @@ const MediaDetailPageView = () => {
                 <>
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4">
                     {episodes.map((episode) => (
-                      <div key={episode.id} className="group cursor-pointer">
+                      <Link key={episode.id} to={EPISODE_ROUTE} params={{ serverId, libraryId, mediaId, episodeId: String(episode.id) }} className="group cursor-pointer block">
                         {/* Episode Poster Container */}
                         <div className="relative aspect-[2/3] bg-accent rounded-lg overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 group-hover:scale-105">
                           {episode.thumb ? (
@@ -804,7 +868,7 @@ const MediaDetailPageView = () => {
                           {/* Hover Overlay */}
                           <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
                             <div className="text-center text-white p-2">
-                              <FontAwesomeIcon icon={faPlay} className="text-2xl mb-2" />
+                              <FontAwesomeIcon icon={faTv} className="h-8 w-8 mx-auto mb-2" />
                               <div className="text-xs">View Episode</div>
                             </div>
                           </div>
@@ -843,7 +907,7 @@ const MediaDetailPageView = () => {
                             </p>
                           )}
                         </div>
-                      </div>
+                      </Link>
                     ))}
                   </div>
 
@@ -958,18 +1022,27 @@ const MediaDetailPageView = () => {
             onPageChange={setActivityPage}
             loading={activityLoading}
             rows={activityData}
-            emptyMessage={`No streaming activity found for this ${isTVShow ? 'show' : 'item'} in the selected time period.`}
+            emptyMessage={`No streaming activity found for this ${isEpisode ? 'episode' : isTVShow ? 'show' : 'item'} in the selected time period.`}
           />
         </TabsContent>
       </Tabs>
 
       {/* Back Button */}
-      <Link to="/admin/servers/$serverId/libraries/$libraryId" params={{ serverId, libraryId }} search={{ tab: 'media' }}>
-        <Button variant="ghost">
-          <FontAwesomeIcon icon={faArrowLeft} className="mr-2 h-4 w-4" />
-          Back to Library
-        </Button>
-      </Link>
+      {isEpisode ? (
+        <Link to={MEDIA_ROUTE} params={{ serverId, libraryId, mediaId }} search={{ tab: 'episodes' }}>
+          <Button variant="ghost">
+            <FontAwesomeIcon icon={faArrowLeft} className="mr-2 h-4 w-4" />
+            Back to Show
+          </Button>
+        </Link>
+      ) : (
+        <Link to="/admin/servers/$serverId/libraries/$libraryId" params={{ serverId, libraryId }} search={{ tab: 'media' }}>
+          <Button variant="ghost">
+            <FontAwesomeIcon icon={faArrowLeft} className="mr-2 h-4 w-4" />
+            Back to Library
+          </Button>
+        </Link>
+      )}
     </div>
   );
 };

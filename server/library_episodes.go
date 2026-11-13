@@ -316,6 +316,85 @@ func (a *App) purgeEpisodeCatalogue(w http.ResponseWriter, r *http.Request) {
 	respond(w, 200, map[string]any{"success": true, "library_id": libraryID, "item_id": itemID, "deleted_count": deleted, "revision": revision})
 }
 
+// catalogueEpisodeItem returns one saved episode of a show for its page,
+// with the show it belongs to.
+func (a *App) catalogueEpisodeItem(w http.ResponseWriter, r *http.Request) {
+	p, ok := a.principal(w, r, true)
+	if !ok {
+		return
+	}
+	libraryID, ok := pathID(w, r, "library")
+	if !ok {
+		return
+	}
+	itemID, ok := pathID(w, r, "item")
+	if !ok {
+		return
+	}
+	episodeID, ok := pathID(w, r, "episode")
+	if !ok {
+		return
+	}
+	tx, err := a.store.reader.BeginTx(r.Context(), &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		domainError(w, err)
+		return
+	}
+	defer tx.Rollback()
+	session, err := readCatalogueAuthority(r.Context(), tx, p.UUID, bearer(r))
+	if err != nil {
+		domainError(w, err)
+		return
+	}
+	library, err := loadCatalogueLibrary(r.Context(), tx, libraryID)
+	if err != nil {
+		domainError(w, err)
+		return
+	}
+	show, err := loadCatalogueShow(r.Context(), tx, libraryID, itemID)
+	if err != nil {
+		episodeDomainError(w, err)
+		return
+	}
+	var showTitle string
+	if err := tx.QueryRowContext(r.Context(), "SELECT title FROM media_items WHERE id=?", show.ID).Scan(&showTitle); err != nil {
+		domainError(w, err)
+		return
+	}
+	var id, streams int64
+	var external, title, sortTitle, added, synced string
+	var season, number, year, duration sql.NullInt64
+	var rating sql.NullFloat64
+	var summary, tag sql.NullString
+	err = tx.QueryRowContext(r.Context(), "SELECT i.id,i.external_id,i.title,coalesce(i.sort_title,i.title),i.season_number,i.episode_number,i.year,i.rating,i.duration,i.summary,i.thumb_path,coalesce(i.added_at,''),coalesce(i.last_synced,''),"+episodeStreamCount+
+		" FROM media_items i WHERE i.id=? AND i.library_id=? AND i.parent_id=?", episodeID, libraryID, show.External).
+		Scan(&id, &external, &title, &sortTitle, &season, &number, &year, &rating, &duration, &summary, &tag, &added, &synced, &streams)
+	if errors.Is(err, sql.ErrNoRows) {
+		domainError(w, ErrNotFound)
+		return
+	}
+	if err != nil {
+		domainError(w, err)
+		return
+	}
+	libraryInfo, err := catalogueLibraryInfo(r.Context(), tx, library)
+	if err != nil {
+		domainError(w, err)
+		return
+	}
+	episode := map[string]any{"id": id, "external_id": external, "title": title, "sort_title": sortTitle, "item_type": "episode",
+		"season_number": nullableCount(season), "episode_number": nullableCount(number), "year": nullableCount(year), "rating": nil, "duration": nullableCount(duration),
+		"summary": summary.String, "thumb": "", "added_at": added, "last_synced": synced, "stream_count": streams,
+		"show": map[string]any{"id": show.ID, "title": showTitle}, "library": libraryInfo}
+	if rating.Valid {
+		episode["rating"] = rating.Float64
+	}
+	if tag.Valid && tag.String != "" && library.Active {
+		episode["thumb"] = a.catalogueImageURL(session, id, time.Now())
+	}
+	respond(w, 200, episode)
+}
+
 var episodeSorts = map[string]string{
 	"season_episode_asc":  "i.season_number IS NULL,i.season_number ASC,i.episode_number IS NULL,i.episode_number ASC,i.id ASC",
 	"season_episode_desc": "i.season_number IS NULL,i.season_number DESC,i.episode_number IS NULL,i.episode_number DESC,i.id DESC",

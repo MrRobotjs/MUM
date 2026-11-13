@@ -124,4 +124,33 @@ func TestCatalogueStreamCountsAndItemActivity(t *testing.T) {
 	if w := apiRequest(f.a, "GET", f.path(fmt.Sprintf("/media/%d/activity?days=0", ids["show1"])), f.token, nil, nil); w.Code != 400 {
 		t.Fatal(w.Code)
 	}
+
+	// An episode's own page: its details with its show, and its own plays.
+	episodePath := func(suffix string) string {
+		return f.path(fmt.Sprintf("/media/%d/episodes/%d%s", ids["show1"], episode, suffix))
+	}
+	detail = responseData(t, apiRequest(f.a, "GET", episodePath(""), f.token, nil, nil))
+	show1 := detail["show"].(map[string]any)
+	if detail["id"].(float64) != float64(episode) || detail["title"] != "Pilot" || detail["item_type"] != "episode" || detail["season_number"].(float64) != 1 || detail["episode_number"].(float64) != 1 ||
+		detail["stream_count"].(float64) != 2 || show1["id"].(float64) != float64(ids["show1"]) || show1["title"] != "The Show" || detail["library"].(map[string]any)["id"].(float64) != float64(f.library) {
+		t.Fatal(detail)
+	}
+	w = apiRequest(f.a, "GET", episodePath("/activity?days=30"), f.token, nil, nil)
+	var plays struct {
+		Data []map[string]any `json:"data"`
+	}
+	if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &plays) != nil || len(plays.Data) != 2 || plays.Data[0]["media_title"] != "Title ep1" {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	// An episode is only found under its own show, and a show is not an episode.
+	for _, path := range []string{
+		fmt.Sprintf("/media/%d/episodes/%d", ids["a0000"], episode),
+		fmt.Sprintf("/media/%d/episodes/%d/activity", ids["a0000"], episode),
+		fmt.Sprintf("/media/%d/episodes/%d", ids["show1"], ids["show1"]),
+		fmt.Sprintf("/media/%d/episodes/%d/activity", ids["show1"], ids["a0000"]),
+	} {
+		if w := apiRequest(f.a, "GET", f.path(path), f.token, nil, nil); w.Code != 404 && w.Code != 409 {
+			t.Fatal(path, w.Code, w.Body.String())
+		}
+	}
 }

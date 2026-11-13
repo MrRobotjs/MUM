@@ -21,7 +21,7 @@ const userProjection = `SELECT i.id,i.uuid,i.kind,coalesce(u.local_username,a.ex
  coalesce(a.external_avatar_url,''),coalesce(a.service_join_date,''),
  coalesce(a.is_active=1 AND s.service_type='plex' AND s.is_active=1 AND EXISTS(SELECT 1 FROM provider_settings p WHERE p.provider_id='plex' AND p.enabled=1),0),
  (SELECT max(seen) FROM (SELECT max(h.last_seen_at) seen FROM media_activity_history h WHERE h.service_uuid=i.uuid
-  UNION ALL SELECT max(h.last_seen_at) FROM media_activity_history h WHERE h.owner_uuid=i.uuid))
+  UNION ALL SELECT max(h.last_seen_at) FROM media_activity_history h WHERE h.owner_uuid=i.uuid)) AS last_streamed_at
  FROM identities i LEFT JOIN user_accounts u ON u.uuid=i.uuid LEFT JOIN service_accounts a ON a.uuid=i.uuid
  LEFT JOIN media_servers s ON s.id=a.server_id LEFT JOIN service_links owner ON owner.service_uuid=a.uuid AND owner.link_kind='owner'
  LEFT JOIN user_accounts parent ON parent.uuid=owner.user_uuid`
@@ -103,7 +103,9 @@ func (a *App) listUsers(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	orders := map[string]string{"": "i.id DESC", "created_desc": "coalesce(u.created_at,a.created_at) DESC,i.id DESC", "created_asc": "coalesce(u.created_at,a.created_at),i.id", "username_asc": "coalesce(u.local_username,a.external_username) COLLATE NOCASE,i.id", "username_desc": "coalesce(u.local_username,a.external_username) COLLATE NOCASE DESC,i.id DESC"}
+	orders := map[string]string{"": "i.id DESC", "created_desc": "coalesce(u.created_at,a.created_at) DESC,i.id DESC", "created_asc": "coalesce(u.created_at,a.created_at),i.id", "username_asc": "coalesce(u.local_username,a.external_username) COLLATE NOCASE,i.id", "username_desc": "coalesce(u.local_username,a.external_username) COLLATE NOCASE DESC,i.id DESC",
+		// Users who have never streamed come last either way.
+		"last_streamed_desc": "last_streamed_at IS NULL,last_streamed_at DESC,i.id DESC", "last_streamed_asc": "last_streamed_at IS NULL,last_streamed_at ASC,i.id"}
 	order, ok := orders[r.URL.Query().Get("sort")]
 	if !ok {
 		fail(w, 400, "INVALID_SORT", "Invalid sort")

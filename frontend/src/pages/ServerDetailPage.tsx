@@ -33,6 +33,7 @@ import { Card, CardContent } from '../components/ui/card';
 import { Skeleton } from '../components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
+import { ACTIVITY_GRAPH_SERVICES, ActivityGraphs } from './GraphsPage';
 
 type ServerTab = 'overview' | 'users' | 'libraries';
 
@@ -488,6 +489,11 @@ export const ServerDetailPage = ({ section = 'overview' }: { section?: ServerTab
             <FontAwesomeIcon icon={faClock} className="h-4 w-4" />
             Use the sync actions above to refresh server health, users, and libraries.
           </div>
+
+          {/* The Graphs page's charts, for this server's recorded plays */}
+          {numericServerId !== undefined && ACTIVITY_GRAPH_SERVICES.has(serviceType.toLowerCase()) && (
+            <ActivityGraphs key={numericServerId} serverId={numericServerId} />
+          )}
         </div>) : null}
 
         {section === 'users' ? (<div className="space-y-6">

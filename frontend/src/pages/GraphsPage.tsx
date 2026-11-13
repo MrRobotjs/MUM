@@ -84,6 +84,10 @@ type GraphsAnalyticsResponse = {
 };
 
 const STORAGE_KEY = 'mum_graphs_filters';
+// A server overview remembers only its time range, separately from the Graphs page.
+const SERVER_STORAGE_KEY = 'mum_server_graphs_days';
+// Servers whose plays MUM records, so their overviews show these graphs.
+export const ACTIVITY_GRAPH_SERVICES = new Set(['plex', 'jellyfin', 'emby']);
 const DEVICE_COLORS = ['#06b6d4', '#3b82f6', '#8b5cf6', '#64748b', '#f59e0b', '#ec4899'];
 const PLAYBACK_HEALTH_UNSUPPORTED_SERVICES = new Set(['kavita', 'komga', 'romm']);
 const SERVICE_LINE_COLORS: Record<string, string> = {
@@ -295,12 +299,18 @@ const renderSeparatedWatchTimeTooltip = ({
   return renderGraphsTooltipCard(formatChartDateFull(String(label || '')), rows);
 };
 
-export const GraphsPage = () => {
+/**
+ * The activity graphs: on the Graphs page for any or all servers, or on a
+ * server's overview fixed to that server (serverId), without the server picker.
+ */
+export const ActivityGraphs = ({ serverId: fixedServerId }: { serverId?: number } = {}) => {
   const { formatTimestamp } = useAccountDisplay();
   const formatGeneratedAt = (value?: string) => value ? formatTimestamp(value) : null;
+  const fixed = fixedServerId !== undefined;
+  const storageKey = fixed ? SERVER_STORAGE_KEY : STORAGE_KEY;
   const [days, setDays] = useState<number>(() => {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
+      const raw = localStorage.getItem(storageKey);
       if (!raw) return 30;
       const parsed = JSON.parse(raw) as { days?: number };
       return parsed.days && parsed.days >= 1 && parsed.days <= 365 ? parsed.days : 30;
@@ -310,6 +320,7 @@ export const GraphsPage = () => {
   });
   const [daysInput, setDaysInput] = useState(String(days));
   const [serverId, setServerId] = useState<string>(() => {
+    if (fixed) return String(fixedServerId);
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) return 'all';
@@ -330,7 +341,7 @@ export const GraphsPage = () => {
   const serverMode = isAllServersSeparated ? 'separated' : 'combined';
 
   useEffect(() => {
-    if (serverId === 'all' || serverId === 'all-separated') return;
+    if (fixed || serverId === 'all' || serverId === 'all-separated') return;
     const selected = servers.find((server) => String(server.id) === serverId);
     if (!selected) return;
     if (PLAYBACK_HEALTH_UNSUPPORTED_SERVICES.has(String(selected.service_type || '').toLowerCase())) {
@@ -339,8 +350,12 @@ export const GraphsPage = () => {
   }, [serverId, servers]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ days, serverId }));
-  }, [days, serverId]);
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(fixed ? { days } : { days, serverId }));
+    } catch {
+      // Remembering the filters is only a convenience.
+    }
+  }, [days, serverId, fixed, storageKey]);
 
   useEffect(() => {
     setDaysInput(String(days));
@@ -579,10 +594,12 @@ export const GraphsPage = () => {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Graphs"
-        description="Streaming analytics visualizations across your connected media servers."
-      />
+      {!fixed && (
+        <PageHeader
+          title="Graphs"
+          description="Streaming analytics visualizations across your connected media servers."
+        />
+      )}
 
       <Card className="border shadow-sm">
         <CardContent>
@@ -594,7 +611,7 @@ export const GraphsPage = () => {
             </Button>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className={fixed ? 'grid gap-4' : 'grid gap-4 md:grid-cols-2'}>
             <div className="space-y-2">
               <Label htmlFor="graphs-days">Time Range (Days)</Label>
               <div className="flex gap-2">
@@ -617,7 +634,7 @@ export const GraphsPage = () => {
               </div>
             </div>
 
-            <div className="space-y-2">
+            {!fixed && <div className="space-y-2">
               <Label htmlFor="graphs-server">Server</Label>
               <Select value={serverId} onValueChange={setServerId}>
                 <SelectTrigger id="graphs-server">
@@ -657,7 +674,7 @@ export const GraphsPage = () => {
                   ))}
                 </SelectContent>
               </Select>
-            </div>
+            </div>}
           </div>
 
           <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
@@ -1123,5 +1140,7 @@ export const GraphsPage = () => {
     </div>
   );
 };
+
+export const GraphsPage = () => <ActivityGraphs />;
 
 export default GraphsPage;

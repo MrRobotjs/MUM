@@ -131,3 +131,34 @@ func TestUserListLastStreamedFromActivityHistory(t *testing.T) {
 		t.Fatal("account without playback should report null", v)
 	}
 }
+
+// "Last Streamed" sorts by each user's most recent play, newest or oldest
+// first; users who have never streamed come last either way.
+func TestUserListSortsByLastStreamed(t *testing.T) {
+	a, s, token, _, _ := roleReadFixture(t)
+	sid := seedServer(t, s)
+	early, late, never := seedService(t, s, sid), seedService(t, s, sid), seedService(t, s, sid)
+	activityExec(t, s, `INSERT INTO media_activity_history(server_id,external_session_id,service_uuid,item_id,media_type,title,first_seen_at,last_seen_at,paused) VALUES(?,'e',?,'i','Movie','Film','2026-11-01T10:00:00Z','2026-11-01T11:00:00Z',0),(?,'l',?,'i','Movie','Film','2026-11-05T10:00:00Z','2026-11-05T11:00:00Z',0)`, sid, early, sid, late)
+	order := func(sort string) []string {
+		t.Helper()
+		w := apiRequest(a, "GET", "/api/users?user_type=service&page_size=50&sort="+sort, token, nil, nil)
+		if w.Code != 200 {
+			t.Fatal(sort, w.Code, w.Body.String())
+		}
+		var page struct{ Data []map[string]any }
+		if err := json.Unmarshal(w.Body.Bytes(), &page); err != nil {
+			t.Fatal(err)
+		}
+		ids := []string{}
+		for _, row := range page.Data {
+			ids = append(ids, row["uuid"].(string))
+		}
+		return ids
+	}
+	if got := order("last_streamed_desc"); strings.Join(got, ",") != strings.Join([]string{late, early, never}, ",") {
+		t.Fatal("recent first", got)
+	}
+	if got := order("last_streamed_asc"); strings.Join(got, ",") != strings.Join([]string{early, late, never}, ",") {
+		t.Fatal("oldest first", got)
+	}
+}

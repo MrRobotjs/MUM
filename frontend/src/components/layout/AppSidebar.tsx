@@ -16,7 +16,6 @@ import { useLocation } from "@tanstack/react-router"
 
 import { NavMain } from "@/components/layout/NavMain"
 import { NavServers } from "@/components/layout/NavServers"
-import { NavServerDetail } from "@/components/layout/NavServerDetail"
 import { NavSettings } from "@/components/layout/NavSettings"
 import { NavUser } from "@/components/layout/NavUser"
 import {
@@ -165,11 +164,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     return false
   }
 
+  // Settings has its own sidebar; every other page, server pages included,
+  // shows the full navigation (the server being viewed opens in the list).
   const isSettingsRoute = location.pathname.startsWith('/admin/settings')
-  // A server's page (/admin/servers/<id>) gets its own sidebar, like settings.
-  const serverRouteMatch = /^\/admin\/servers\/([1-9]\d*)(?:\/(?:users|libraries))?\/?$/.exec(location.pathname)
-  const serverRouteId = serverRouteMatch ? Number(serverRouteMatch[1]) : null
-  const isFocusedRoute = isSettingsRoute || (serverRouteId !== null && Number.isSafeInteger(serverRouteId))
+  const isFocusedRoute = isSettingsRoute
 
   // All nav items are visible to administrators (owner or users with admin roles)
   const navMainItems = isAdministrator
@@ -246,11 +244,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton
-              asChild
-              size="lg"
-              className="data-[slot=sidebar-menu-button]:!p-2"
-            >
+            <SidebarMenuButton asChild size="lg">
               <a href="/admin/dashboard" onClick={handleLogoClick}>
                 <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
                   <FontAwesomeIcon icon={faDesktop} className="size-4" />
@@ -268,7 +262,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <NavMain items={navMainItems} />
         {!isFocusedRoute ? <NavServers /> : null}
         {isSettingsRoute ? <NavSettings /> : null}
-        {!isSettingsRoute && isFocusedRoute && serverRouteId !== null ? <NavServerDetail serverId={serverRouteId} /> : null}
       </SidebarContent>
       <SidebarFooter>
         <NavUser user={user} />

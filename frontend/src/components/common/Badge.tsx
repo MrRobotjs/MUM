@@ -47,8 +47,8 @@ export interface BadgeProps {
 // The icon is exactly as tall as the capital letters and stands on the text
 // baseline: never higher, lower, taller or shorter than the text. Its height
 // is the number of screen rows the capitals cover (cap height is 0.7 of the
-// font size; at 12px the 8.4px capitals cover 9 rows), verified on drawn
-// pixels by migration-documentation/check_badge_pixels.mjs.
+// font size; at 12px the 8.4px capitals cover 9 rows), as measured on drawn
+// pixels in Chrome at every size.
 const sizeClasses: Record<BadgeSize, string> = {
   xs: 'text-[10px] h-[20px] px-[6px] [--badge-icon:7px] [--badge-gap:4px] border',
   sm: 'text-xs h-[24px] px-[8px] [--badge-icon:9px] [--badge-gap:4px] border',

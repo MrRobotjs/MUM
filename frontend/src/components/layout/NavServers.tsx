@@ -71,6 +71,17 @@ const ServerNavItem = ({ server, pathname, onNavigate }: ServerNavItemProps) => 
     setLibrariesRequested(true)
   }, [])
 
+  // The server being viewed opens by itself (it can still be closed).
+  const serverPath = `/admin/servers/${server.id}`
+  const onServerPage = pathname === serverPath || pathname.startsWith(`${serverPath}/`)
+  const [open, setOpen] = React.useState(onServerPage)
+  React.useEffect(() => {
+    if (onServerPage) {
+      setOpen(true)
+      requestLibraries()
+    }
+  }, [onServerPage, requestLibraries])
+
   const handleSyncLibraries = React.useCallback(async () => {
     requestLibraries()
     await sync()
@@ -102,8 +113,10 @@ const ServerNavItem = ({ server, pathname, onNavigate }: ServerNavItemProps) => 
   return (
     <Collapsible
       asChild
-      onOpenChange={(open) => {
-        if (open) {
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next)
+        if (next) {
           requestLibraries()
         }
       }}
@@ -166,26 +179,30 @@ const ServerNavItem = ({ server, pathname, onNavigate }: ServerNavItemProps) => 
               }}
             >
               <SidebarMenuSubItem className="relative">
+                {/* The label opens the server's Libraries page; the arrow
+                    shows or hides its library list. */}
+                <SidebarMenuSubButton asChild isActive={pathname === `${serverPath}/libraries`} className="pr-8">
+                  <Link to="/admin/servers/$serverId/libraries" params={{ serverId: String(server.id) }} onClick={onNavigate}>
+                    <FontAwesomeIcon icon={faLayerGroup} className="h-4 w-4" />
+                    <span>Libraries</span>
+                    {libraryMeta && (
+                      <span className="flex items-center justify-center">
+                        {libraryMeta}
+                      </span>
+                    )}
+                  </Link>
+                </SidebarMenuSubButton>
                 <CollapsibleTrigger asChild>
-                  <SidebarMenuSubButton asChild className="pr-6 w-full group/nav-sub-button">
-                    <button type="button" className="w-full relative flex items-center gap-2">
-                      <FontAwesomeIcon icon={faLayerGroup} className="h-4 w-4" />
-                      <span>Libraries</span>
-                      {libraryMeta && (
-                        <span className="flex items-center justify-center">
-                          {libraryMeta}
-                        </span>
-                      )}
-
-                      {/* Chevron for child collapsible - Inside button for clickability */}
-                      <div className="absolute right-2 top-1/2 -translate-y-1/2 flex h-7 items-center justify-center pointer-events-none">
-                        <FontAwesomeIcon
-                          icon={faChevronRight}
-                          className="text-[10px] text-muted-foreground transition-transform duration-200 group-data-[state=open]/menu-sub-item:rotate-90"
-                        />
-                      </div>
-                    </button>
-                  </SidebarMenuSubButton>
+                  <button
+                    type="button"
+                    aria-label={`Show ${server.server_nickname} libraries`}
+                    className="absolute right-1 top-3.5 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                  >
+                    <FontAwesomeIcon
+                      icon={faChevronRight}
+                      className="text-[10px] transition-transform duration-200 group-data-[state=open]/menu-sub-item:rotate-90"
+                    />
+                  </button>
                 </CollapsibleTrigger>
 
                 <CollapsibleContent>

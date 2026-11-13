@@ -123,11 +123,42 @@ func TestAdminManagementRoleUpdatesAndRefusedActions(t *testing.T) {
 	if updated := adminByName(readAdmins(t, a, owner), "managed"); len(updated.Roles) != 1 || updated.Roles[0].ID != "high" {
 		t.Fatal(updated.Roles)
 	}
-	for _, req := range [][2]string{{"DELETE", fmt.Sprintf("/api/admins/%d", managed.ID)}, {"POST", fmt.Sprintf("/api/admins/%d/reset-password", managed.ID)}} {
-		w := apiRequest(a, req[0], req[1], owner, map[string]any{"password": "x"}, nil)
-		if w.Code != 409 || !strings.Contains(w.Body.String(), "UNAVAILABLE") {
-			t.Fatal(req, w.Code, w.Body.String())
-		}
+	// Passwords are reset from the profile's Local Credentials card.
+	if w := apiRequest(a, "POST", fmt.Sprintf("/api/admins/%d/reset-password", managed.ID), owner, map[string]any{"password": "x"}, nil); w.Code != 409 || !strings.Contains(w.Body.String(), "UNAVAILABLE") {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	// Deleting follows the same rules as role changes.
+	remove := func(token string, target *adminListItem) *httptest.ResponseRecorder {
+		return apiRequest(a, "DELETE", fmt.Sprintf("/api/admins/%d", target.ID), token, nil, nil)
+	}
+	if w := remove(owner, &ownerRow); w.Code != 403 {
+		t.Fatal("owner deleted", w.Code)
+	}
+	if w := remove(delegate, self); w.Code != 403 {
+		t.Fatal("administrator deleted itself", w.Code)
+	}
+	if w := remove(delegate, managed); w.Code != 403 {
+		t.Fatal("delegate deleted an administrator holding its own rank", w.Code)
+	}
+	if w := remove(owner, managed); w.Code != 200 {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	if adminByName(readAdmins(t, a, owner), "managed") != nil {
+		t.Fatal("deleted administrator still listed")
+	}
+	var retired bool
+	var privileges, sessions, audits int
+	if err := s.reader.QueryRow(`SELECT u.deleted_at IS NOT NULL AND u.local_username IS NULL AND u.password_hash IS NULL,
+	 (SELECT count(*) FROM admin_privileges WHERE user_uuid=u.uuid),(SELECT count(*) FROM app_sessions WHERE user_uuid=u.uuid),
+	 (SELECT count(*) FROM audit_events WHERE action IN ('admin.delete','account.delete'))
+	 FROM identities i JOIN user_accounts u ON u.uuid=i.uuid WHERE i.id=?`, managed.ID).Scan(&retired, &privileges, &sessions, &audits); err != nil {
+		t.Fatal(err)
+	}
+	if !retired || privileges != 0 || sessions != 0 || audits != 2 {
+		t.Fatal("administrator not retired cleanly", retired, privileges, sessions, audits)
+	}
+	if w := remove(owner, managed); w.Code != 404 {
+		t.Fatal("deleted administrator deleted again", w.Code)
 	}
 	activityExec(t, s, "DELETE FROM admin_privileges WHERE user_uuid=?", user)
 	if w := apiRequest(a, "GET", "/api/admins", delegate, nil, nil); w.Code != 403 {

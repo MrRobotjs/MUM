@@ -68,6 +68,15 @@ type User struct {
 	LibraryIDs   []string
 	Access       *UserAccess
 	Profile      *UserProfile
+	Relationship *UserRelationship
+}
+
+// UserRelationship is how a user relates to the server owner, for services
+// that report it (Plex). nil means not reported: the sync then leaves the
+// matching automatic roles as they are.
+type UserRelationship struct {
+	Home       bool // a member of the owner's Plex Home
+	SharesBack bool // shares their own server with the owner
 }
 
 // UserProfile holds optional observations, independent of access policy.

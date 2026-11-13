@@ -21,9 +21,10 @@ import (
 )
 
 var Definition = provider.Definition{
-	ID:          "plex",
-	Name:        "Plex",
-	Description: "Plex library discovery and cloud sharing synchronization",
+	ID:             "plex",
+	Name:           "Plex",
+	Description:    "Plex library discovery and cloud sharing synchronization",
+	DownloadLabels: true,
 }
 
 // DefaultClientID identifies MUM to Plex when no per-installation client ID
@@ -155,6 +156,28 @@ func (s *Server) Test(ctx context.Context) (provider.Info, error) {
 	return provider.Info{Name: identity.Name, Version: identity.Version}, nil
 }
 
+// friendRelationship reads a friend's Plex Home membership and whether they
+// share a server back. In the friend list, each of the friend's Server entries
+// says whether the owner owns it: owned="0" is the friend's own server shared
+// with the owner. Any flag that is not explicit leaves both unknown (nil).
+func friendRelationship(u Friend) *provider.UserRelationship {
+	home, known := ExplicitBool(u.Attr("home"))
+	if !known {
+		return nil
+	}
+	relationship := &provider.UserRelationship{Home: home}
+	for _, server := range u.Servers {
+		owned, known := ExplicitBool(server.Owned)
+		if !known {
+			return nil
+		}
+		if !owned {
+			relationship.SharesBack = true
+		}
+	}
+	return relationship
+}
+
 // OwnerAccountID is the server-local account ID Plex Media Server gives its
 // owner, also used in playback sessions.
 const OwnerAccountID = "1"
@@ -216,8 +239,9 @@ func (s *Server) Users(ctx context.Context) ([]provider.User, error) {
 		}
 		policy[g.UserID] = provider.User{AllLibraries: all, LibraryIDs: ids, Profile: &provider.UserProfile{JoinDate: ShareJoinDate(g.Accepted)}}
 	}
-	// The owner has every library; plex.tv supplies no share date for it.
-	result := []provider.User{{ID: OwnerAccountID, Name: ownerName, Email: owner.Email, Active: true, AllLibraries: true, LibraryIDs: []string{}, Profile: &provider.UserProfile{AvatarURL: UserAvatar(owner.Thumb)}}}
+	// The owner has every library and can always download; plex.tv supplies
+	// no share date for it.
+	result := []provider.User{{ID: OwnerAccountID, Name: ownerName, Email: owner.Email, Active: true, AllLibraries: true, LibraryIDs: []string{}, Access: &provider.UserAccess{LibrariesKnown: true, DownloadsKnown: true, AllowDownloads: true}, Profile: &provider.UserProfile{AvatarURL: UserAvatar(owner.Thumb)}}}
 	seenUsers := map[string]bool{OwnerAccountID: true}
 	for _, u := range users.Users {
 		id := u.Attr("id")
@@ -251,7 +275,9 @@ func (s *Server) Users(ctx context.Context) ([]provider.User, error) {
 			if !pending && grant.Profile != nil {
 				profile.JoinDate = grant.Profile.JoinDate
 			}
-			result = append(result, provider.User{ID: id, Name: name, Email: u.Attr("email"), Active: !pending, AllLibraries: grant.AllLibraries, LibraryIDs: grant.LibraryIDs, Profile: profile})
+			access := &provider.UserAccess{LibrariesKnown: true}
+			access.AllowDownloads, access.DownloadsKnown = ExplicitBool(u.Attr("allowSync"))
+			result = append(result, provider.User{ID: id, Name: name, Email: u.Attr("email"), Active: !pending, AllLibraries: grant.AllLibraries, LibraryIDs: grant.LibraryIDs, Access: access, Profile: profile, Relationship: friendRelationship(u)})
 		}
 	}
 	return result, nil

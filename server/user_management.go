@@ -15,7 +15,7 @@ const userProjection = `SELECT i.id,i.uuid,i.kind,coalesce(u.local_username,a.ex
  coalesce(u.email,a.external_email,''),coalesce(u.is_active,a.is_active),coalesce(u.created_at,a.created_at),
  coalesce(u.notes,a.notes,''),a.server_id,coalesce(s.server_nickname,''),coalesce(s.service_type,''),
  (SELECT count(*) FROM service_links l WHERE l.user_uuid=i.uuid AND l.link_kind='owner'),
- (SELECT json_group_array(r.name) FROM admin_privileges ap JOIN admin_roles r ON r.id=ap.role_id WHERE ap.user_uuid=i.uuid),
+ (SELECT json_group_array(json_object('name',r.name,'color',r.color,'icon',r.icon,'badge_style',r.badge_style,'description',r.description)) FROM (SELECT r.* FROM admin_privileges ap JOIN admin_roles r ON r.id=ap.role_id WHERE ap.user_uuid=i.uuid ORDER BY r.position,r.id) r),
  (SELECT json_group_array(json_object('name',r.name,'color',r.color,'icon',r.icon,'badge_style',r.badge_style)) FROM (SELECT r.* FROM identity_user_roles ir JOIN user_roles r ON r.id=ir.role_id WHERE ir.user_uuid=i.uuid ORDER BY r.position DESC,r.id) r),
  coalesce(a.allowed_library_ids,'[]'),coalesce(a.service_settings,'{}'),coalesce(parent.uuid,''),coalesce(parent.local_username,''),coalesce(u.access_expires_at,a.access_expires_at),
  coalesce(a.external_avatar_url,''),coalesce(a.service_join_date,''),
@@ -150,11 +150,11 @@ func (a *App) listUsers(w http.ResponseWriter, r *http.Request) {
 			domainError(w, err)
 			return
 		}
-		var adminRoles []string
+		var adminRoleDetails []map[string]any
 		var userRoles []map[string]any
 		var libraryIDs []string
 		var policy map[string]any
-		if json.Unmarshal([]byte(roles), &adminRoles) != nil || json.Unmarshal([]byte(visual), &userRoles) != nil || json.Unmarshal([]byte(libraries), &libraryIDs) != nil || json.Unmarshal([]byte(settings), &policy) != nil {
+		if json.Unmarshal([]byte(roles), &adminRoleDetails) != nil || json.Unmarshal([]byte(visual), &userRoles) != nil || json.Unmarshal([]byte(libraries), &libraryIDs) != nil || json.Unmarshal([]byte(settings), &policy) != nil {
 			rows.Close()
 			fail(w, 500, "INVALID_STORED_DATA", "Could not read account metadata")
 			return
@@ -188,7 +188,7 @@ func (a *App) listUsers(w http.ResponseWriter, r *http.Request) {
 		if email != "" {
 			emailValue = email
 		}
-		item := map[string]any{"access_expires_at": expiryValue, "id": id, "uuid": uuid, "user_type": kind, "username": name, "display_name": name, "email": emailValue, "external_email": emailValue, "is_active": active, "created_at": created, "notes": notes, "server_id": serverValue, "server_nickname": nickname, "service_type": provider, "linked_service_count": linked, "admin_roles": adminRoles, "user_roles": userRoles, "libraries": []string{}, "allowed_library_ids": libraryIDs, "has_all_libraries": allLibraries, "linked_local_user": parentValue, "avatar_url": nil, "service_join_date": joinValue, "last_streamed_at": nil}
+		item := map[string]any{"access_expires_at": expiryValue, "id": id, "uuid": uuid, "user_type": kind, "username": name, "display_name": name, "email": emailValue, "external_email": emailValue, "is_active": active, "created_at": created, "notes": notes, "server_id": serverValue, "server_nickname": nickname, "service_type": provider, "linked_service_count": linked, "admin_roles": adminRoleNames(adminRoleDetails), "admin_roles_detail": adminRoleDetails, "user_roles": userRoles, "libraries": []string{}, "allowed_library_ids": libraryIDs, "has_all_libraries": allLibraries, "linked_local_user": parentValue, "avatar_url": nil, "service_join_date": joinValue, "last_streamed_at": nil}
 		// Latest observed playback of this account (or of the services it owns).
 		if lastSeen.Valid {
 			item["last_streamed_at"] = lastSeen.String
@@ -336,4 +336,15 @@ func (a *App) syncAllUsers(w http.ResponseWriter, r *http.Request) {
 		results = append(results, result)
 	}
 	respond(w, 200, map[string]any{"results": results, "summary": summary})
+}
+
+// adminRoleNames lists the names of a user's admin roles, in order.
+func adminRoleNames(details []map[string]any) []string {
+	names := make([]string, 0, len(details))
+	for _, role := range details {
+		if name, ok := role["name"].(string); ok {
+			names = append(names, name)
+		}
+	}
+	return names
 }

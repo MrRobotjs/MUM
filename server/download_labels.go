@@ -27,7 +27,7 @@ func ensureDownloadRole(ctx context.Context, tx *sql.Tx, expected int64) (string
 	var automatic bool
 	err := tx.QueryRowContext(ctx, "SELECT r.id,r.name,r.is_auto_managed FROM download_role d JOIN user_roles r ON r.id=d.role_id WHERE d.singleton=1").Scan(&id, &name, &automatic)
 	if err == nil {
-		if !automatic || name != "Downloads" {
+		if !automatic {
 			return "", automaticRoleOwnershipConflict()
 		}
 		return id, nil
@@ -75,7 +75,7 @@ func reconcileDownloadLabel(ctx context.Context, tx *sql.Tx, server ManagedServe
 	}
 	var valid, member bool
 	if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM service_accounts a JOIN media_servers s ON s.id=a.server_id JOIN download_role d ON d.singleton=1 AND d.role_id=?
- JOIN user_roles r ON r.id=d.role_id AND r.is_auto_managed=1 AND r.name='Downloads'
+ JOIN user_roles r ON r.id=d.role_id AND r.is_auto_managed=1
  WHERE a.uuid=? AND a.server_id=? AND a.external_user_id=? AND s.service_type=?),
  EXISTS(SELECT 1 FROM identity_user_roles WHERE user_uuid=? AND role_id=?)`, role, service, server.ID, account.ID, server.Type, service, role).Scan(&valid, &member); err != nil {
 		return nil, err

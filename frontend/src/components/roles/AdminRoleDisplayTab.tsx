@@ -25,7 +25,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge as UiBadge } from '@/components/ui/badge'
-import { Badge as RoleBadge } from '@/components/common/Badge'
+import { Badge as CommonBadge, RoleBadge } from '@/components/common/Badge'
 import { ResponsiveDialog } from '@/components/ui/responsive-dialog'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
@@ -382,17 +382,9 @@ export const AdminRoleDisplayTab = ({ role, onUpdate }: AdminRoleDisplayTabProps
                     onOpenChange={handleBrowseOpenChange}
                     onSelect={handleIconSelect}
                     renderStyleBadge={({ isActive, label, StyleIcon }) => (
-                      <RoleBadge
-                        color={isActive ? 'bg-primary' : 'bg-muted/60'}
-                        className={cn(
-                          'rounded-full px-3 py-1 text-xs font-medium gap-1',
-                          isActive ? 'text-primary-foreground' : 'text-muted-foreground'
-                        )}
-                        hover={false}
-                      >
-                        <StyleIcon className="text-[0.65rem]" />
+                      <CommonBadge color={isActive ? 'bg-primary' : 'bg-muted/60'} icon={<StyleIcon />} shape="pill" hover={false}>
                         {label}
-                      </RoleBadge>
+                      </CommonBadge>
                     )}
                   />
                 </Suspense>
@@ -422,17 +414,9 @@ export const AdminRoleDisplayTab = ({ role, onUpdate }: AdminRoleDisplayTabProps
                     onOpenChange={handleBrowseOpenChange}
                     onSelect={handleIconSelect}
                     renderStyleBadge={({ isActive, label, StyleIcon }) => (
-                      <RoleBadge
-                        color={isActive ? 'bg-primary' : 'bg-muted/60'}
-                        className={cn(
-                          'rounded-full px-3 py-1 text-xs font-medium gap-1',
-                          isActive ? 'text-primary-foreground' : 'text-muted-foreground'
-                        )}
-                        hover={false}
-                      >
-                        <StyleIcon className="text-[0.65rem]" />
+                      <CommonBadge color={isActive ? 'bg-primary' : 'bg-muted/60'} icon={<StyleIcon />} shape="pill" hover={false}>
                         {label}
-                      </RoleBadge>
+                      </CommonBadge>
                     )}
                   />
                 </Suspense>
@@ -469,15 +453,7 @@ export const AdminRoleDisplayTab = ({ role, onUpdate }: AdminRoleDisplayTabProps
                     : 'border-border bg-muted/30 hover:border-border/60'
                     }`}
                 >
-                  <RoleBadge
-                    hexColor={formValues.color}
-                    iconClass={formValues.icon}
-                    roleKind="admin"
-                    badgeStyle={option.value}
-                    className="rounded-full px-3 py-1 text-xs"
-                  >
-                    {formValues.name || 'Role Name'}
-                  </RoleBadge>
+                  <RoleBadge kind="admin" role={{ name: formValues.name || 'Role Name', color: formValues.color, icon: formValues.icon || null, badge_style: option.value }} />
                   <div>
                     <div className="text-xs font-semibold text-foreground">{option.label}</div>
                     <div className="text-[10px] text-muted-foreground">{option.description}</div>

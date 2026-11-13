@@ -15,6 +15,7 @@ func userRoleCreateBody(p map[string]any, name string) map[string]any {
 func humanRolesFixture(t *testing.T) (*App, *Store, string, string, string, string) {
 	t.Helper()
 	a, s, owner, admin, actor := roleReadFixture(t)
+	removeAutomaticRoles(t, s)
 	p, _ := s.Authenticate(t.Context(), owner)
 	target, err := s.CreateAccount(t.Context(), p.UUID, "role-label-target", "fixture-hash", false)
 	if err != nil {
@@ -359,5 +360,17 @@ func TestHumanUserRolesCatalogBoundAndCreateConcurrency(t *testing.T) {
 	}
 	if w := apiRequest(a, "GET", path, owner, nil, nil); w.Code != 409 {
 		t.Fatal("oversized catalog accepted as complete", w.Code, w.Body.String())
+	}
+}
+
+// removeAutomaticRoles drops the Downloads, Home User and Shares Back roles
+// migration 068 creates, for tests that need a catalog with only their own
+// roles or that exercise creating Downloads on first sync.
+func removeAutomaticRoles(t *testing.T, s *Store) {
+	t.Helper()
+	for _, query := range []string{"DELETE FROM relationship_roles", "DELETE FROM download_role", "DELETE FROM user_roles WHERE is_auto_managed=1 AND name IN ('Downloads','Home User','Shares Back')"} {
+		if _, err := s.writer.Exec(query); err != nil {
+			t.Fatal(query, err)
+		}
 	}
 }

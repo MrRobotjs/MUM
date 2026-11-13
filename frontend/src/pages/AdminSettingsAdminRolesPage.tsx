@@ -17,7 +17,7 @@ import { requestJson } from '../util/apiClient'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
-import { Badge as RoleBadge } from '@/components/common/Badge'
+import { Badge as CommonBadge, RoleBadge } from '@/components/common/Badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -649,17 +649,9 @@ export const AdminSettingsAdminRolesPage = () => {
                     onOpenChange={handleBrowseOpenChange}
                     onSelect={handleIconSelect}
                     renderStyleBadge={({ isActive, label, StyleIcon }) => (
-                      <RoleBadge
-                        color={isActive ? 'bg-primary' : 'bg-muted/60'}
-                        className={cn(
-                          'rounded-full px-3 py-1 text-xs font-medium gap-1',
-                          isActive ? 'text-primary-foreground' : 'text-muted-foreground'
-                        )}
-                        hover={false}
-                      >
-                        <StyleIcon className="text-[0.65rem]" />
+                      <CommonBadge color={isActive ? 'bg-primary' : 'bg-muted/60'} icon={<StyleIcon />} shape="pill" hover={false}>
                         {label}
-                      </RoleBadge>
+                      </CommonBadge>
                     )}
                   />
                 </Suspense>
@@ -693,15 +685,7 @@ export const AdminSettingsAdminRolesPage = () => {
                         : 'border-border bg-muted/30 hover:border-border/60'
                         }`}
                     >
-                      <RoleBadge
-                        hexColor={formValues.color}
-                        iconClass={formValues.icon}
-                        roleKind="admin"
-                        badgeStyle={option.value}
-                        className="rounded-full px-3 py-1 text-xs"
-                      >
-                        {formValues.name || 'Role Name'}
-                      </RoleBadge>
+                      <RoleBadge kind="admin" role={{ name: formValues.name || 'Role Name', color: formValues.color, icon: formValues.icon || null, badge_style: option.value }} />
                       <div>
                         <div className="text-xs font-semibold text-foreground">{option.label}</div>
                         <div className="text-[10px] text-muted-foreground">{option.description}</div>

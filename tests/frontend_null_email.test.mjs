@@ -5,7 +5,7 @@ async function load(){return loadFrontend("export * from './src/lib/profileMetad
 const actor='12345678-1234-1234-1234-123456789abc',target='12345678-1234-1234-1234-123456789def';
 // GET /api/users returns null for an unknown email (for example a Plex managed
 // account such as "Guest"); readers must treat it as "no email", not as invalid.
-const profile=()=>({id:1,uuid:target,user_type:'service',username:'Guest',display_name:'Guest',email:null,external_email:null,is_active:true,access_expires_at:null,created_at:'2026-11-03T12:00:00Z',notes:'',server_id:1,server_nickname:'Plex++',service_type:'plex',linked_service_count:0,admin_roles:[],user_roles:[],libraries:['Movies'],has_all_libraries:false,linked_local_user:null});
+const profile=()=>({id:1,uuid:target,user_type:'service',username:'Guest',display_name:'Guest',email:null,external_email:null,is_active:true,access_expires_at:null,created_at:'2026-11-03T12:00:00Z',notes:'',server_id:1,server_nickname:'Plex++',service_type:'plex',linked_service_count:0,admin_roles:[],admin_roles_detail:[],user_roles:[],libraries:['Movies'],has_all_libraries:false,linked_local_user:null});
 test('a missing email is accepted as null by user readers',async t=>{
  const before={fetch:globalThis.fetch,window:globalThis.window};t.after(()=>{globalThis.fetch=before.fetch;globalThis.window=before.window});
  globalThis.window={location:{origin:'http://mum.test'}};

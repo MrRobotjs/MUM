@@ -21,3 +21,18 @@ test('current visual role catalog',async t=>{
  await t.test('one actor cannot overlap mutations or reuse a captured snapshot under a different session',async()=>{const a=await setup();let release,gateReads=false,posts=0;const gate=new Promise(resolve=>release=resolve);globalThis.fetch=async r=>{if(r.method==='GET'){if(gateReads)await gate;return Response.json({data:dto()})}posts++;return Response.json({data:receipt('update')})};const p=await a.readUserRoleCatalog(actor);gateReads=true;const first=a.changeUserRoleCatalog(p,'update','role-a',values);await assert.rejects(a.changeUserRoleCatalog(p,'delete','role-a'));assert.equal(a.roleCatalogBusy(actor),true);release();await first;assert.equal(posts,1);const next=await a.readUserRoleCatalog(actor);a.setAccessToken('new');await assert.rejects(a.changeUserRoleCatalog(next,'delete','role-a'))});
  await t.test('malformed successful operation, identity or revisions remain uncertain until read',async()=>{for(const mode of ['operation','id','catalog','role','link']){const a=await setup();globalThis.fetch=async r=>{if(r.method==='GET')return Response.json({data:dto()});const p=receipt('update');if(mode==='operation')p.operation='delete';if(mode==='id')p.role_id='role-b';if(mode==='catalog')p.catalog_revision='9007199254740995';if(mode==='role')p.role_revision='3';if(mode==='link')p.link_revision='4';return Response.json({data:p})};const p=await a.readUserRoleCatalog(actor);await assert.rejects(a.changeUserRoleCatalog(p,'update','role-a',values),e=>e.uncertain);assert.equal(a.roleCatalogNeedsRead(actor),true)}});
 });
+
+// Automatic roles (Downloads, Home User, Shares Back) cannot be edited but can
+// be moved, so they do not stop the list from being reordered.
+test('automatic roles can be reordered with the rest',async t=>{
+ const oldFetch=globalThis.fetch,oldWindow=globalThis.window;t.after(()=>{globalThis.fetch=oldFetch;globalThis.window=oldWindow});
+ globalThis.window={location:{origin:'http://mum.test'}};
+ const automatic={id:'role-auto',name:'Downloads',description:null,color:'#3b82f6',icon:'fa-solid fa-download',badge_style:'default',position:2,is_auto_managed:true,user_count:3,can_update:false,can_delete:false};
+ // Automatic roles can also be edited (renamed, restyled) but never deleted.
+ for(const [locked,ok] of [[automatic,true],[{...automatic,can_update:true},true],[{...automatic,is_auto_managed:false,can_update:false,can_delete:false},false]]){
+  const a=await load();a.setAccessToken('session');
+  globalThis.fetch=async()=>{const p=dto();p.roles=[...p.roles,locked];return Response.json({data:p})};
+  if(ok){const catalog=await a.readUserRoleCatalog(actor);assert.equal(catalog.can_reorder,true);assert.equal(catalog.roles.at(-1).is_auto_managed,true);}
+  else await assert.rejects(a.readUserRoleCatalog(actor),/Invalid role ordering capability/);
+ }
+});

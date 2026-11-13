@@ -87,16 +87,25 @@ export async function fetchProfileMetadata(actor:string,target:string,signal?:Ab
   // Human rows carry local account expiry; service rows carry their own service expiry.
   if(!validSavedExpiry(p.access_expires_at))throw Error('Invalid account expiry');
   if(service?(!positive(p.server_id)||!isServiceType(p.service_type)):p.server_id!==null||p.service_type!=='')throw Error('Invalid profile service identity');
-  const seen=new Set<string>();const roles:UserRoleDetail[]=p.user_roles.map(raw=>{
-   const r=raw as Record<string,unknown>;
-   if(!r||!text(r.name,255)||!r.name||seen.has(r.name)||(r.color!==null&&!text(r.color,128))||(r.icon!==null&&!text(r.icon,128))||(typeof r.badge_style!=='string'||!['default','fill','outline'].includes(r.badge_style)))throw Error('Invalid role visuals');
-   seen.add(r.name);return {name:r.name,color:r.color as string|null,icon:r.icon as string|null,badge_style:r.badge_style as string};
-  });
+  // User and admin roles both carry their display settings (name, colour, icon, style).
+  const visuals=(list:unknown):UserRoleDetail[]=>{
+   if(!Array.isArray(list)||list.length>1000)throw Error('Invalid role visuals');
+   const seen=new Set<string>();
+   return list.map(raw=>{
+    const r=raw as Record<string,unknown>;
+    if(!r||!text(r.name,255)||!r.name||seen.has(r.name)||(r.color!==null&&!text(r.color,128))||(r.icon!==null&&!text(r.icon,128))||(typeof r.badge_style!=='string'||!['default','fill','outline'].includes(r.badge_style))||(r.description!==undefined&&r.description!==null&&!text(r.description,4096)))throw Error('Invalid role visuals');
+    seen.add(r.name);return {name:r.name,color:r.color as string|null,icon:r.icon as string|null,badge_style:r.badge_style as string,...(typeof r.description==='string'?{description:r.description}:{})};
+   });
+  };
+  const roles=visuals(p.user_roles);
+  const adminRoles=visuals(p.admin_roles_detail);
+  const adminNames=p.admin_roles as string[];
+  if(adminRoles.length!==adminNames.length||adminRoles.some((r,i)=>r.name!==adminNames[i]))throw Error('Invalid admin role visuals');
   let parent:UserDetail['linked_local_user']=null;
   if(p.linked_local_user!==null){const q=p.linked_local_user as Record<string,unknown>;if(!service||!q||!uuid(q.uuid)||!text(q.username,255)||!text(q.display_name,255))throw Error('Invalid primary account');parent={uuid:q.uuid,username:q.username,display_name:q.display_name};}
   return {uuid:target,user_type:p.user_type as string,username:p.username||null,display_name:p.display_name||null,email:p.email||null,is_active:p.is_active,created_at:p.created_at,notes:p.notes,
    local_username:service?null:p.username||null,external_username:service?p.username||null:null,external_email:service?p.email||null:null,service_type:service?p.service_type:null,server_nickname:service?p.server_nickname:null,service_types:service?[p.service_type]:[],server_names:service&&p.server_nickname?[p.server_nickname]:[],linked_local_user:parent,libraries:p.libraries,has_all_libraries:p.has_all_libraries,
-   linked_service_count:p.linked_service_count as number,roles:{admin_roles:p.admin_roles,user_roles:roles.map(r=>r.name)},admin_roles_detail:p.admin_roles.map(name=>({name})),user_roles_detail:roles,
+   linked_service_count:p.linked_service_count as number,roles:{admin_roles:p.admin_roles,user_roles:roles.map(r=>r.name)},admin_roles_detail:adminRoles,user_roles_detail:roles,
    allow_downloads:null,allow_4k_transcode:null,is_purge_whitelisted:null,is_discord_bot_whitelisted:null,is_home_user:null,shares_back:null,has_password:null,used_invite:null,force_password_change:null,
    last_login_at:null,last_activity_at:null,access_expires_at:p.access_expires_at,capabilities:{resetPassword:false,editSettings:false,resync:false,manageLinks:false,overseerr:service&&p.service_type==='plex'}};
  }finally{clearTimeout(timer);signal?.removeEventListener('abort',cancel);}

@@ -352,9 +352,85 @@ func (a *App) unsupportedAdminAction(w http.ResponseWriter, r *http.Request) {
 	if _, ok := a.principal(w, r, true); !ok {
 		return
 	}
-	if r.Method == http.MethodDelete {
-		fail(w, 409, "ADMIN_DELETE_UNAVAILABLE", "MUM keeps administrator profiles for identity and history. Remove their roles here or deactivate the profile instead.")
+	fail(w, 409, "ADMIN_RESET_UNAVAILABLE", "Reset this password from the profile's Local Credentials card, which confirms your owner password.")
+}
+
+// deleteAdmin deletes an administrator account: it loses its admin roles and
+// is then retired like any deleted local account (sign-in ends, it is unlinked
+// and its username freed, while the row stays for history). The same rules as
+// role changes apply: never the owner or yourself, and only administrators
+// and roles the actor ranks above.
+func (a *App) deleteAdmin(w http.ResponseWriter, r *http.Request) {
+	p, ok := a.principal(w, r, true)
+	if !ok {
 		return
 	}
-	fail(w, 409, "ADMIN_RESET_UNAVAILABLE", "Reset this password from the profile's Local Credentials card, which confirms your owner password.")
+	id, err := strconv.ParseInt(r.PathValue("admin"), 10, 64)
+	if err != nil || id < 1 {
+		domainError(w, ErrNotFound)
+		return
+	}
+	skipped := ""
+	err = a.store.write(r.Context(), func(tx *sql.Tx) error {
+		skipped = ""
+		if err := accountPreferenceAuthority(r.Context(), tx, p.UUID, bearer(r)); err != nil {
+			return err
+		}
+		if err := requirePermission(r.Context(), tx, p.UUID, "administrator"); err != nil {
+			return err
+		}
+		hierarchy, err := readAdminRoleHierarchyActor(r.Context(), tx, p.UUID)
+		if err != nil {
+			return err
+		}
+		var target, kind string
+		var retired bool
+		err = tx.QueryRowContext(r.Context(), `SELECT u.uuid,u.kind,u.deleted_at IS NOT NULL FROM identities i JOIN user_accounts u ON u.uuid=i.uuid WHERE i.id=?`, id).Scan(&target, &kind, &retired)
+		if errors.Is(err, sql.ErrNoRows) || err == nil && retired {
+			return ErrNotFound
+		}
+		if err != nil {
+			return err
+		}
+		if kind != "local" || target == p.UUID {
+			return ErrForbidden
+		}
+		if err := checkAdminRoleHierarchyTarget(r.Context(), tx, hierarchy, target); err != nil {
+			return err
+		}
+		current, err := readAdminBadges(r.Context(), tx, target)
+		if err != nil {
+			return err
+		}
+		for _, role := range current {
+			if err := checkAdminRoleHierarchyRole(r.Context(), tx, hierarchy, role.ID, -1); err != nil {
+				return err
+			}
+		}
+		if _, err := tx.ExecContext(r.Context(), "DELETE FROM admin_privileges WHERE user_uuid=?", target); err != nil {
+			return err
+		}
+		result, err := editDeleteOne(r, tx, p.UUID, target, utcTimestamp(time.Now()))
+		if err != nil {
+			return err
+		}
+		if result.Outcome != "deleted" {
+			// Nothing is kept: the roles removed above roll back with it.
+			skipped = result.Reason
+			return ErrConflict
+		}
+		return auditAction(r.Context(), tx, p.UUID, "admin.delete")
+	})
+	switch {
+	case skipped == "invite_in_progress":
+		fail(w, 409, "ADMIN_DELETE_BUSY", "An invitation for this account is being processed. Try again in a few seconds.")
+	case skipped == "plex_connection":
+		fail(w, 409, "ADMIN_DELETE_PLEX_CONNECTED", "Disconnect this administrator's personal Plex account before deleting it.")
+	case skipped != "":
+		fail(w, 409, "ADMIN_DELETE_UNAVAILABLE", "This administrator cannot be deleted right now.")
+	case err != nil:
+		domainError(w, err)
+	default:
+		respond(w, 200, map[string]any{"deleted": true})
+	}
 }

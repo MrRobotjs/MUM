@@ -3,6 +3,14 @@ import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { visualizer } from 'rollup-plugin-visualizer';
 import path from 'path';
+import { realpathSync } from 'fs';
+
+// This folder, spelled exactly as the file system spells it. On Windows,
+// Vite's config loader can report the drive letter in lower case ("c:\..."),
+// while the rest of the build uses "C:\...". An alias built from that would
+// make the bundler load every "@/..." module a second time, as a separate
+// copy (two React contexts, and "useAuth must be used within an AuthProvider").
+const here = realpathSync.native(import.meta.dirname);
 
 // A build file name the Go embed keeps: no leading "_" or ".".
 const embeddableName = (name: string) => name.replace(/^[_.]+/, '') || 'chunk';
@@ -16,13 +24,13 @@ export default defineConfig(({ mode }) => {
   const analyzePlugins = isAnalyze
     ? [
         visualizer({
-          filename: path.resolve(import.meta.dirname, '../release/bundle-stats.html'),
+          filename: path.resolve(here, '../release/bundle-stats.html'),
           gzipSize: true,
           brotliSize: true,
           open: false,
         }),
         visualizer({
-          filename: path.resolve(import.meta.dirname, '../release/bundle-stats.json'),
+          filename: path.resolve(here, '../release/bundle-stats.json'),
           template: 'raw-data',
           gzipSize: true,
           brotliSize: true,
@@ -34,7 +42,7 @@ export default defineConfig(({ mode }) => {
     plugins: [react(), tailwindcss(), ...analyzePlugins],
     resolve: {
       alias: {
-        '@': path.resolve(import.meta.dirname, 'src'),
+        '@': path.resolve(here, 'src'),
       },
       dedupe: ['react', 'react-dom']
     },
@@ -60,7 +68,7 @@ export default defineConfig(({ mode }) => {
     },
     build: {
       // Embedded into the Go binary by server/main.go (//go:embed dist/*).
-      outDir: path.resolve(import.meta.dirname, '../server/dist'),
+      outDir: path.resolve(here, '../server/dist'),
       emptyOutDir: true,
       sourcemap: false,
       chunkSizeWarningLimit: 3000,

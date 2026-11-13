@@ -99,8 +99,9 @@ func TestRomMDownloadLabelsKnownLifecycleAndManualHumanProtection(t *testing.T) 
 	}
 	catalog := responseData(t, apiRequest(a, "GET", "/api/user-role-catalog", token, nil, nil))
 	managed := catalogRole(t, catalog, role)
-	if managed["can_update"] != false || managed["can_delete"] != false || catalog["can_reorder"] != false {
-		t.Fatal(managed)
+	// Automatic roles can be renamed, restyled and moved, but never deleted.
+	if managed["can_update"] != true || managed["can_delete"] != false || catalog["can_reorder"] != true {
+		t.Fatal(managed, catalog["can_reorder"])
 	}
 	selector := responseData(t, apiRequest(a, "GET", "/api/user-role-catalog/"+role+"/members", token, nil, nil))
 	if selector["mutations_available"] != false {
@@ -204,6 +205,9 @@ func TestRomMDownloadLabelsRejectUnownedDefinitionsAndProvenance(t *testing.T) {
 	for _, mode := range []string{"manual-name", "automatic-name", "capacity", "definition-drift", "untracked-member", "missing-member", "newer-source", "wrong-source", "wrong-provider", "wrong-external"} {
 		t.Run(mode, func(t *testing.T) {
 			a, s, token, id, _ := rommLabelFixture(t)
+			if mode == "manual-name" || mode == "automatic-name" || mode == "capacity" {
+				removeAutomaticRoles(t, s)
+			}
 			if mode == "manual-name" || mode == "automatic-name" {
 				if _, err := s.writer.Exec("INSERT INTO user_roles(id,name,is_auto_managed) VALUES('unowned','DOWNLOADS',?)", mode == "automatic-name"); err != nil {
 					t.Fatal(err)
@@ -231,7 +235,7 @@ func TestRomMDownloadLabelsRejectUnownedDefinitionsAndProvenance(t *testing.T) {
 					t.Fatal(err)
 				}
 				catalog := responseData(t, apiRequest(a, "GET", "/api/user-role-catalog", token, nil, nil))
-				if row := catalogRole(t, catalog, role); row["is_auto_managed"] != true || row["can_update"] != false || row["can_delete"] != false {
+				if row := catalogRole(t, catalog, role); row["is_auto_managed"] != true || row["can_update"] != true || row["can_delete"] != false {
 					t.Fatal("registry ownership was ignored", row)
 				}
 				members := responseData(t, apiRequest(a, "GET", "/api/user-role-catalog/"+role+"/members", token, nil, nil))
@@ -332,6 +336,9 @@ func TestRomMDownloadLabelsDefinitionEpochAndAuditRollback(t *testing.T) {
 			a, s, token, id, f := rommLabelFixture(t)
 			owner, _ := s.Authenticate(t.Context(), token)
 			role := ""
+			if mode == "bootstrap-audit" {
+				removeAutomaticRoles(t, s) // exercise creating Downloads on first sync
+			}
 			if mode != "bootstrap-audit" {
 				syncRomMLabel(t, a, token, id, 200)
 				_, role, _, _ = rommLabelSource(t, s, id)

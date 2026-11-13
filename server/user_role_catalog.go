@@ -89,8 +89,16 @@ func readUserRoleCatalog(ctx context.Context, tx *sql.Tx, actor, access string) 
 		if err = rows.Scan(&r.ID, &r.Name, &r.Description, &r.Color, &r.Icon, &r.Badge, &r.Position, &r.Automatic, &r.Count, &protected); err != nil {
 			return out, err
 		}
-		r.CanUpdate = hierarchy.Owner && !r.Automatic && !protected && !working && r.Count <= 1000
-		r.CanDelete = r.CanUpdate && r.Count == 0
+		// Automatic roles (Downloads, Home User, Shares Back) can be renamed and
+		// restyled like any other, as in the Flask version; only the sync
+		// changes who has them, so they are never deleted. Editing one changes
+		// only how its badge looks, so members such as the owner do not block it.
+		if r.Automatic {
+			r.CanUpdate = hierarchy.Owner && !working && r.Count <= 1000
+		} else {
+			r.CanUpdate = hierarchy.Owner && !protected && !working && r.Count <= 1000
+			r.CanDelete = r.CanUpdate && r.Count == 0
+		}
 		out.Roles = append(out.Roles, r)
 	}
 	if err = rows.Err(); err != nil {
@@ -105,8 +113,10 @@ func readUserRoleCatalog(ctx context.Context, tx *sql.Tx, actor, access string) 
 		return out, err
 	}
 	out.CanReorder = hierarchy.Owner && len(out.Roles) >= 2 && !working && members <= 1000
+	// Automatic roles (Downloads, Home User, Shares Back) cannot be edited, but
+	// they can be moved: reordering changes only where they are listed.
 	for _, r := range out.Roles {
-		if !r.CanUpdate {
+		if !r.CanUpdate && !r.Automatic {
 			out.CanReorder = false
 		}
 	}

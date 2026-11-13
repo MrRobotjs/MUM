@@ -15,7 +15,7 @@ import { ResponsiveDialog } from '@/components/ui/responsive-dialog'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
 import { getReadableTextColor, resolveCssVarHex } from '@/lib/themeColors'
-import { Badge } from '@/components/common/Badge'
+import { Badge as CommonBadge, RoleBadge } from '@/components/common/Badge'
 import { PRESET_ROLE_COLORS, ROLE_BADGE_STYLE_OPTIONS } from '@/components/roles/roleFormConstants'
  
 import type { FontAwesomeBrowserIcon } from '@/components/icons/FontAwesomeIconBrowser'
@@ -328,17 +328,9 @@ export const UserRoleDisplayTab = ({ role, catalog, onUpdate }: UserRoleDisplayT
                         onOpenChange={handleBrowseOpenChange}
                         onSelect={handleIconSelect}
                         renderStyleBadge={({ isActive, label, StyleIcon }) => (
-                          <Badge
-                            color={isActive ? 'bg-primary' : 'bg-muted/60'}
-                            className={cn(
-                              'rounded-full px-3 py-1 text-xs font-medium gap-1',
-                              isActive ? 'text-primary-foreground' : 'text-muted-foreground'
-                            )}
-                            hover={false}
-                          >
-                            <StyleIcon className="text-[0.65rem]" />
-                            {label}
-                          </Badge>
+                          <CommonBadge color={isActive ? 'bg-primary' : 'bg-muted/60'} icon={<StyleIcon />} shape="pill" hover={false}>
+                        {label}
+                      </CommonBadge>
                         )}
                       />
                     </Suspense>
@@ -369,15 +361,7 @@ export const UserRoleDisplayTab = ({ role, catalog, onUpdate }: UserRoleDisplayT
                           : 'border-border bg-muted/30 hover:border-border/60'
                       )}
                     >
-                      <Badge
-                        hexColor={formValues.color}
-                        iconClass={formValues.icon || null}
-                        roleKind="user"
-                        badgeStyle={option.value}
-                        className="rounded-full px-3 py-1 text-xs"
-                      >
-                        {formValues.name || 'Role Name'}
-                      </Badge>
+                      <RoleBadge kind="user" role={{ name: formValues.name || 'Role Name', color: formValues.color, icon: formValues.icon || null, badge_style: option.value }} />
                       <div>
                         <div className="text-xs font-semibold text-foreground">{option.label}</div>
                         <div className="text-[10px] text-muted-foreground">{option.description}</div>

@@ -46,15 +46,16 @@ type ProviderConfig struct {
 // aliases, not copies, so values cross the module boundary unconverted; the
 // names stay because many core functions call a local variable "provider".
 type (
-	ProviderInfo        = provider.Info
-	ProviderLibrary     = provider.Library
-	ProviderUser        = provider.User
-	ProviderUserAccess  = provider.UserAccess
-	ProviderUserProfile = provider.UserProfile
-	InvitationGrant     = provider.Grant
-	remoteReview        = provider.Account
-	catalogueItem       = provider.CatalogueItem
-	catalogueCollection = provider.CatalogueCollection
+	ProviderInfo             = provider.Info
+	ProviderLibrary          = provider.Library
+	ProviderUser             = provider.User
+	ProviderUserAccess       = provider.UserAccess
+	ProviderUserProfile      = provider.UserProfile
+	ProviderUserRelationship = provider.UserRelationship
+	InvitationGrant          = provider.Grant
+	remoteReview             = provider.Account
+	catalogueItem            = provider.CatalogueItem
+	catalogueCollection      = provider.CatalogueCollection
 )
 
 // serverConnection is the core's connection to one configured media server: its

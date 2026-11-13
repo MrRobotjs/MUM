@@ -1,11 +1,14 @@
 import { useAccountDisplay } from '../hooks/useAccountDisplay';
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
+import { DragDropProvider, type DragEndEvent } from '@dnd-kit/react';
+import { isSortable, useSortable } from '@dnd-kit/react/sortable';
+import { PointerActivationConstraints, PointerSensor } from '@dnd-kit/dom';
 
 
 import { useUserRoles, type UserRole } from '../hooks/useUserRoles';
 import { PageHeader } from '../components';
-import { Badge } from '@/components/common/Badge';
+import { Badge, RoleBadge } from '@/components/common/Badge';
 import {
   Alert,
   AlertDescription,
@@ -43,8 +46,7 @@ import { useResolvedIconDefinition } from '@/hooks/useResolvedIconDefinition';
 import { Label } from '@/components/ui/label'
 import { PRESET_ROLE_COLORS, ROLE_BADGE_STYLE_OPTIONS, type RoleBadgeStyle } from '@/components/roles/roleFormConstants'
 import {
-  faArrowUp,
-  faArrowDown,
+  faGripVertical,
   faTag,
   faTags,
   faPenToSquare,
@@ -79,7 +81,15 @@ const isAutoManagedRole = (role: UserRole) => Boolean(role.is_auto_managed);
 export const AdminSettingsUserRolesPage = () => {
   const { formatTimestamp } = useAccountDisplay();
   const navigate = useNavigate();
-  const { roles, loading, error, refresh, actor, sessionToken, catalog, busy, needsRead } = useUserRoles();
+  const { roles: savedRoles, loading, error, refresh, actor, sessionToken, catalog, busy, needsRead } = useUserRoles();
+  // The order just dropped, shown while it is saved so the list does not jump back.
+  const [pendingOrder, setPendingOrder] = useState<string[] | null>(null);
+  const roles = useMemo(() => {
+    if (!pendingOrder) return savedRoles;
+    const byId = new Map(savedRoles.map((role) => [role.id, role]));
+    const ordered = pendingOrder.map((id) => byId.get(id)).filter((role): role is UserRole => Boolean(role));
+    return ordered.length === savedRoles.length ? ordered : savedRoles;
+  }, [savedRoles, pendingOrder]);
   const [draftBase,setDraftBase]=useState<UserRoleCatalog|null>(null);
   useEffect(()=>{setModalOpen(false);setDraftBase(null)},[actor,sessionToken]);
   const { success, error: showError } = useAlerts();
@@ -152,13 +162,18 @@ export const AdminSettingsUserRolesPage = () => {
     try{await changeUserRoleCatalog(catalog,'delete',role.id);if(token!==getAccessToken())return;success('Role deleted successfully');try{await refresh();}catch{showError('Role deleted. Read saved roles to refresh the list.');}}
     catch(err){if(token===getAccessToken())showError(String(err instanceof Error?err.message:err));}finally{if(token===getAccessToken())setSubmitting(false);}
   };
-  const handleMove=async(index:number,offset:number)=>{
-    if(!catalog?.can_reorder||busy||needsRead||index+offset<0||index+offset>=roles.length)return;
-    const order=[...roles];[order[index],order[index+offset]]=[order[index+offset],order[index]];
-    if(!confirm(`Save visual role order: ${order.map(r=>r.name).join(', ')}?`))return;
-    const token=getAccessToken();setSubmitting(true);
+  // Same drag-to-sort as Admin Roles: drop a row by its grip to save the new order.
+  const handleDragEnd=async(event:DragEndEvent)=>{
+    if(!catalog?.can_reorder||busy||needsRead||submitting||event.canceled)return;
+    const {source}=event.operation;
+    if(!isSortable(source))return;
+    const from=source.initialIndex,to=source.index;
+    if(from===to||roles[from]?.id!==String(source.id)||!roles[to])return;
+    const order=[...roles];order.splice(to,0,...order.splice(from,1));
+    const token=getAccessToken();setSubmitting(true);setPendingOrder(order.map(r=>r.id));
     try{await changeUserRoleCatalog(catalog,'reorder',undefined,undefined,order.map((r,i)=>({id:r.id,position:order.length-1-i})));if(token!==getAccessToken())return;success('Role order saved');try{await refresh();}catch{showError('Role order saved. Read saved roles to refresh the list.');}}
-    catch(err){if(token===getAccessToken())showError(String(err instanceof Error?err.message:err));}finally{if(token===getAccessToken())setSubmitting(false);}
+    catch(err){if(token===getAccessToken())showError(String(err instanceof Error?err.message:err));}
+    finally{if(token===getAccessToken()){setSubmitting(false);setPendingOrder(null);}}
   };
 
   const formId = 'user-role-form';
@@ -371,15 +386,7 @@ export const AdminSettingsUserRolesPage = () => {
                 onOpenChange={handleBrowseOpenChange}
                 onSelect={handleIconSelect}
                 renderStyleBadge={({ isActive, label, StyleIcon }) => (
-                  <Badge
-                    color={isActive ? 'bg-primary' : 'bg-muted/60'}
-                    className={cn(
-                      'rounded-full px-3 py-1 text-xs font-medium gap-1',
-                      isActive ? 'text-primary-foreground' : 'text-muted-foreground'
-                    )}
-                    hover={false}
-                  >
-                    <StyleIcon className="text-[0.65rem]" />
+                  <Badge color={isActive ? 'bg-primary' : 'bg-muted/60'} icon={<StyleIcon />} shape="pill" hover={false}>
                     {label}
                   </Badge>
                 )}
@@ -415,16 +422,7 @@ export const AdminSettingsUserRolesPage = () => {
                       : 'border-border bg-muted/30 hover:border-border/60'
                   )}
                 >
-                  <Badge
-                    hexColor={formValues.color}
-                    iconClass={formValues.icon || null}
-                    roleKind="user"
-                    badgeStyle={option.value}
-                    className="rounded-full px-3 py-1 text-xs"
-                    hover={false}
-                  >
-                    {formValues.name || 'Role Name'}
-                  </Badge>
+                  <RoleBadge kind="user" role={{ name: formValues.name || 'Role Name', color: formValues.color, icon: formValues.icon || null, badge_style: option.value }} />
                   <div>
                     <div className="text-xs font-semibold text-foreground">{option.label}</div>
                     <div className="text-[10px] text-muted-foreground">{option.description}</div>
@@ -438,16 +436,7 @@ export const AdminSettingsUserRolesPage = () => {
         <div className="rounded-lg border border-dashed border-border bg-muted/40 p-4">
           <p className="text-xs font-medium uppercase text-muted-foreground">Live preview</p>
           <div className="mt-3 flex flex-wrap items-center gap-3">
-            <Badge
-              hexColor={formValues.color}
-              iconClass={formValues.icon || null}
-              roleKind="user"
-              badgeStyle={formValues.badge_style}
-              className="rounded-full px-3 py-1 text-sm shadow-sm"
-              hover={false}
-            >
-              {formValues.name || 'Role Name'}
-            </Badge>
+            <RoleBadge kind="user" size="md" role={{ name: formValues.name || 'Role Name', color: formValues.color, icon: formValues.icon || null, badge_style: formValues.badge_style }} />
             <span className="text-xs text-muted-foreground">
               {formValues.description || 'Description preview text'}
             </span>
@@ -508,6 +497,7 @@ export const AdminSettingsUserRolesPage = () => {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-12"></TableHead>
                     <TableHead>Role</TableHead>
                     <TableHead>Color</TableHead>
                     <TableHead>Members</TableHead>
@@ -518,7 +508,7 @@ export const AdminSettingsUserRolesPage = () => {
                 <TableBody>
                   {roles.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={5} className="py-8 text-center">
+                      <TableCell colSpan={6} className="py-8 text-center">
                         <div className="text-muted-foreground">
                           <FontAwesomeIcon icon={faTags} className="mb-2 text-2xl text-muted-foreground/30" />
                           <p className="text-sm">No user roles found. Create roles to assign visual badges to users.</p>
@@ -526,8 +516,17 @@ export const AdminSettingsUserRolesPage = () => {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    roles.map((role,index) => (
-                      <TableRow key={role.id}>
+                    <DragDropProvider
+                      // The default sensors stay (keyboard included); pointer drags
+                      // start after 8px with a mouse or pen, or a 100ms hold on touch.
+                      sensors={(defaults) => [
+                        ...defaults.filter((sensor) => sensor !== PointerSensor),
+                        rolePointerSensor,
+                      ]}
+                      onDragEnd={(event) => void handleDragEnd(event)}
+                    >
+                    {roles.map((role,index) => (
+                      <SortableUserRoleRow key={role.id} id={role.id} name={role.name} index={index} disabled={!catalog.can_reorder||busy||submitting||needsRead}>
                         <TableCell>
                           <div className="flex items-center gap-3">
                             <div
@@ -577,7 +576,6 @@ export const AdminSettingsUserRolesPage = () => {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-2">
-                            <Button variant="ghost" size="sm" disabled={!catalog.can_reorder||busy||submitting||index===0} onClick={()=>void handleMove(index,-1)} aria-label={`Move ${role.name} up`}><FontAwesomeIcon icon={faArrowUp} className="mr-1 size-3"/></Button><Button variant="ghost" size="sm" disabled={!catalog.can_reorder||busy||submitting||index===roles.length-1} onClick={()=>void handleMove(index,1)} aria-label={`Move ${role.name} down`}><FontAwesomeIcon icon={faArrowDown} className="mr-1 size-3"/></Button>
                             <Button variant="ghost" size="sm" disabled={!role.can_update||busy||submitting} onClick={() => handleEdit(role)}>
                               <FontAwesomeIcon icon={faPenToSquare} className="mr-1 size-3" />
                               <span className="hidden md:inline">Edit</span>
@@ -596,8 +594,9 @@ export const AdminSettingsUserRolesPage = () => {
                             )}
                           </div>
                         </TableCell>
-                      </TableRow>
-                    ))
+                      </SortableUserRoleRow>
+                    ))}
+                    </DragDropProvider>
                   )}
                 </TableBody>
               </Table>
@@ -633,3 +632,39 @@ export const AdminSettingsUserRolesPage = () => {
 };
 
 export default AdminSettingsUserRolesPage;
+
+const rolePointerSensor = PointerSensor.configure({
+  activationConstraints: (event) =>
+    event.pointerType === 'touch'
+      ? [new PointerActivationConstraints.Delay({ value: 100, tolerance: 8 })]
+      : [new PointerActivationConstraints.Distance({ value: 8 })],
+});
+
+// One role row, sortable by the grip on the left, as on the Admin Roles page.
+const SortableUserRoleRow = ({ id, name, index, disabled, children }: { id: string; name: string; index: number; disabled: boolean; children: React.ReactNode }) => {
+  const { ref, handleRef, isDragging } = useSortable({ id, index, disabled });
+  const style: React.CSSProperties = {
+    userSelect: disabled ? undefined : 'none',
+    WebkitUserSelect: disabled ? undefined : 'none',
+    position: 'relative',
+    zIndex: isDragging ? 5 : undefined,
+  };
+  return (
+    <TableRow ref={ref} style={style} className={cn('relative', isDragging && 'bg-primary/5 shadow-lg')}>
+      <TableCell className="w-12">
+        <button
+          type="button"
+          className={cn(
+            'flex items-center justify-center text-muted-foreground',
+            disabled ? 'cursor-default opacity-40' : 'cursor-grab active:cursor-grabbing touch-none'
+          )}
+          ref={handleRef}
+          aria-label={`Reorder ${name}`}
+        >
+          <FontAwesomeIcon icon={faGripVertical} className="size-5" />
+        </button>
+      </TableCell>
+      {children}
+    </TableRow>
+  );
+};

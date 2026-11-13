@@ -11,7 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { ResponsiveDialog } from '@/components/ui/responsive-dialog'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Badge as UiBadge } from '@/components/ui/badge'
-import { Badge } from '@/components/common/Badge'
+import { RoleBadge } from '@/components/common/Badge'
 import {
   Table,
   TableBody,
@@ -475,17 +475,7 @@ const AdminSettingsAdminManagementPage = () => {
                           ) : admin.admin_roles.length > 0 ? (
                             <div className="flex flex-wrap gap-1">
                               {admin.admin_roles.map((role) => (
-                                <Badge
-                                  key={role.id}
-                                  hexColor={role.color}
-                                  iconClass={role.icon}
-                                  roleKind="admin"
-                                  badgeStyle={role.badge_style ?? undefined}
-                                  className="text-xs font-medium rounded-full"
-                                  hover={false}
-                                >
-                                  {role.name}
-                                </Badge>
+                                <RoleBadge key={role.id} role={role} kind="admin" />
                               ))}
                             </div>
                           ) : (

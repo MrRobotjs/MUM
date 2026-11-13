@@ -15,9 +15,8 @@ func TestModuleCapabilitiesMatchPreviousLists(t *testing.T) {
 	recovering := []string{"auth.api_key", "server.test", "libraries.read", "libraries.sync", "users.read", "users.sync", "users.libraries.update", "users.provision", "invitations.redeem", "labels.downloads.sync"}
 	// Jellyfin and Emby also sync library catalogues (still read by the core).
 	catalogued := []string{"auth.api_key", "server.test", "libraries.read", "libraries.sync", "users.read", "users.sync", "users.libraries.update", "libraries.items.sync", "users.provision", "invitations.redeem", "labels.downloads.sync"}
-	// Plex provisions by sharing, keeps its sharing features in the core and
-	// has no download labels.
-	plexList := []string{"auth.api_key", "server.test", "libraries.read", "libraries.sync", "users.read", "users.sync", "users.libraries.update", "libraries.items.sync", "users.provision", "invitations.redeem", "integrations.overseerr"}
+	// Plex provisions by sharing and keeps its sharing features in the core.
+	plexList := []string{"auth.api_key", "server.test", "libraries.read", "libraries.sync", "users.read", "users.sync", "users.libraries.update", "libraries.items.sync", "users.provision", "invitations.redeem", "labels.downloads.sync", "integrations.overseerr"}
 	// RomM cannot edit library access: its grants cover every platform.
 	romm := []string{"auth.api_key", "server.test", "libraries.read", "libraries.sync", "users.read", "users.sync", "users.provision", "invitations.redeem", "labels.downloads.sync"}
 	for id, want := range map[string][]string{"komga": recovering, "audiobookshelf": recovering, "kavita": recovering, "romm": romm, "jellyfin": catalogued, "emby": catalogued, "plex": plexList} {

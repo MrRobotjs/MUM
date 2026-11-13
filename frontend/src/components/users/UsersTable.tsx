@@ -9,7 +9,7 @@ import { Skeleton } from '../ui/skeleton';
 import { cn } from '@/lib/utils';
 import { Button } from '../ui/button';
 import { UserDebugModal } from './UserDebugModal';
-import { Badge } from '../common/Badge';
+import { Badge, RoleBadge } from '../common/Badge';
 import { UserAvatar } from './UserAvatar';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
@@ -191,8 +191,7 @@ export const UsersTable = ({
   const renderLibraries = (user: UserRow) => {
     if (user.has_all_libraries) {
       return (
-        <Badge color="bg-blue-500" className="text-xs font-medium gap-1" hover={false}>
-          <FontAwesomeIcon icon={faLayerGroup} className="h-3 w-3" />
+        <Badge color="bg-blue-500" icon={faLayerGroup} hover={false}>
           {user.server_nickname ? `All libraries on ${user.server_nickname}` : 'All libraries'}
         </Badge>
       );
@@ -200,10 +199,7 @@ export const UsersTable = ({
 
     if (!user.libraries || user.libraries.length === 0) {
       return (
-        <Badge color="bg-muted" className="text-xs font-medium gap-1" hover={false}>
-          <FontAwesomeIcon icon={faFolderOpen} className="h-3 w-3" />
-          No libraries
-        </Badge>
+        <Badge color="bg-muted" icon={faFolderOpen} hover={false}>No libraries</Badge>
       );
     }
 
@@ -215,10 +211,7 @@ export const UsersTable = ({
     return (
       <div className="flex flex-wrap items-center gap-1">
         {visibleLibraries.map((library) => (
-          <Badge key={library} color="bg-blue-500" className="text-xs font-medium gap-1" hover={false}>
-            <FontAwesomeIcon icon={faFolder} className="h-3 w-3 mt-0.5" />
-            {library}
-          </Badge>
+          <Badge key={library} color="bg-blue-500" icon={faFolder} hover={false}>{library}</Badge>
         ))}
         {hiddenCount > 0 && (
           <Button
@@ -456,29 +449,10 @@ export const UsersTable = ({
                       <TableCell>
                         <div className="flex flex-wrap gap-1">
                           {getAdminRoleBadges(user).map((role) => (
-                            <Badge
-                              key={role.name}
-                              hexColor={role.color ?? undefined}
-                              iconClass={role.icon ?? undefined}
-                              roleKind="admin"
-                              badgeStyle={role.badge_style ?? undefined}
-                              className="text-xs font-medium"
-                              title={role.description ?? undefined}
-                            >
-                              {role.name}
-                            </Badge>
+                            <RoleBadge key={role.name} role={role} kind="admin" />
                           ))}
                           {user.user_roles.map((role) => (
-                            <Badge
-                              key={`user-role-${role.name}`}
-                              hexColor={role.color}
-                              iconClass={role.icon}
-                              roleKind="user"
-                              badgeStyle={role.badge_style ?? undefined}
-                              className="text-xs font-medium"
-                            >
-                              {role.name}
-                            </Badge>
+                            <RoleBadge key={`user-role-${role.name}`} role={role} kind="user" />
                           ))}
                         </div>
                       </TableCell>

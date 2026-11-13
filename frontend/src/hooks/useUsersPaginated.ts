@@ -51,11 +51,20 @@ type UsersResponse = {
     } | null;
     is_active: boolean;
     admin_roles: string[];
+    /** Admin roles with their display settings, in the Admin Roles order. */
+    admin_roles_detail?: Array<{
+      name: string;
+      color?: string | null;
+      description?: string | null;
+      icon?: string | null;
+      badge_style?: string | null;
+    }>;
     user_roles: Array<{
       name: string;
       color?: string | null;
       description?: string | null;
       icon?: string | null;
+      badge_style?: string | null;
     }>;
     linked_service_count: number;
     service_type?: string;

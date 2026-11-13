@@ -10,7 +10,7 @@ import { Button } from '../ui/button';
 import { Card, CardContent, CardFooter } from '../ui/card';
 import { UserDebugModal } from './UserDebugModal';
 import { cn } from '@/lib/utils';
-import { Badge } from '../common/Badge';
+import { Badge, RoleBadge } from '../common/Badge';
 import { getServicePalette } from '@/config/pluginMetadata';
 import { ServiceIcon } from '@/components/services/ServiceIcon';
 import { UserAvatar } from './UserAvatar';
@@ -263,11 +263,14 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
         onMouseLeave={() => setHoveredLibraryKey((prev) => (prev === libraryKey ? null : prev))}
         title={isRemoving ? `Removing ${library}...` : `Remove ${library}`}
       >
-        <Badge color="bg-blue-500" className="text-xs font-medium gap-1 pr-1" hover={false}>
+        <Badge
+          color="bg-blue-500"
+          hover={false}
+          icon={
           <button
             type="button"
             className={cn(
-              'inline-flex h-4 w-4 items-center justify-center rounded-sm transition-colors',
+              'inline-flex h-full items-center justify-center rounded-sm transition-colors',
               isRemoving
                 ? 'cursor-wait opacity-80'
                 : isHovered
@@ -285,13 +288,11 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
             aria-label={isRemoving ? `Removing ${library}` : `Remove ${library}`}
             title={isRemoving ? `Removing ${library}...` : `Remove ${library}`}
           >
-            <FontAwesomeIcon
-              icon={isRemoving ? faSpinner : isHovered ? faXmark : faFolder}
-              spin={isRemoving}
-              className="w-3 h-3"
-            />
+            <FontAwesomeIcon icon={isRemoving ? faSpinner : isHovered ? faXmark : faFolder} spin={isRemoving} />
           </button>
-          <span>{library}</span>
+          }
+        >
+          {library}
         </Badge>
       </span>
     );
@@ -391,20 +392,13 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
 
             <div className="flex items-center gap-2">
               {isService ? (
-                <Badge color={palette.avatar} className="text-xs font-semibold tracking-wider gap-1 border-border/30" hover={false}>
-                  <ServiceIcon serviceType={serviceType} className="relative top-[0.2px] text-[10px] w-3 h-3" />
-                  <span className="truncate max-w-[120px]">{user.server_nickname || 'Service Account'}</span>
+                <Badge color={palette.avatar} icon={<ServiceIcon serviceType={serviceType} />} maxLabelWidth="120px" hover={false}>
+                  {user.server_nickname || 'Service Account'}
                 </Badge>
               ) : user.user_type.toLowerCase() === 'owner' ? (
-                <Badge color="bg-amber-500" className="text-xs font-semibold tracking-wider gap-1" hover={false}>
-                  <FontAwesomeIcon icon={faCrown} className="w-3 h-3" />
-                  <span>Owner</span>
-                </Badge>
+                <Badge color="bg-amber-500" icon={faCrown} hover={false}>Owner</Badge>
               ) : (
-                <Badge color="bg-primary" className="text-xs font-semibold tracking-wider gap-1.5" hover={false}>
-                  <FontAwesomeIcon icon={faUser} className="w-3 h-3" />
-                  <span>Local User</span>
-                </Badge>
+                <Badge color="bg-primary" icon={faUser} hover={false}>Local User</Badge>
               )}
             </div>
           </div>
@@ -570,10 +564,7 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
             {displayHasAllLibraries ? (
               <>
                 <div className="flex flex-wrap items-center gap-2">
-                  <Badge color="bg-blue-500" className="text-xs font-medium gap-1" hover={false}>
-                    <FontAwesomeIcon icon={faLayerGroup} className="w-3 h-3" />
-                    All Libraries
-                  </Badge>
+                  <Badge color="bg-blue-500" icon={faLayerGroup} hover={false}>All Libraries</Badge>
                   {displayLibraries.length > 0 && (
                     <Button
                       variant="ghost"
@@ -584,7 +575,7 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
                         setShowAllLibraries((prev) => !prev);
                       }}
                     >
-                      <Badge color="bg-blue-500" className="text-xs font-medium gap-1" hover={false}>
+                      <Badge color="bg-blue-500" hover={false}>
                         {showAllLibraries ? '-' : '+'}{displayLibraries.length}
                       </Badge>
                     </Button>
@@ -616,7 +607,7 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
                       setShowAllLibraries((prev) => !prev);
                     }}
                   >
-                    <Badge color="bg-blue-500" className="text-xs font-medium gap-1" hover={false}>
+                    <Badge color="bg-blue-500" hover={false}>
                       {showAllLibraries ? '-' : '+'}{displayLibraries.length - maxVisibleLibraries}
                     </Badge>
                   </Button>
@@ -638,17 +629,7 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
             </div>
             <div className="flex flex-wrap gap-1.5">
               {user.user_roles.map((role) => (
-                <Badge
-                  key={role.name}
-                  hexColor={role.color}
-                  iconClass={role.icon}
-                  roleKind="user"
-                  badgeStyle={role.badge_style ?? undefined}
-                  className="text-xs font-medium gap-1 rounded-full"
-                  hover={false}
-                >
-                  {role.name}
-                </Badge>
+                <RoleBadge key={role.name} role={role} kind="user" />
               ))}
             </div>
           </div>
@@ -662,18 +643,7 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
             </div>
             <div className="flex flex-wrap gap-1.5">
               {adminRoleBadges.map((role) => (
-                <Badge
-                  key={role.name}
-                  hexColor={role.color ?? undefined}
-                  iconClass={role.icon ?? undefined}
-                  roleKind="admin"
-                  badgeStyle={role.badge_style ?? undefined}
-                  className="rounded-full gap-1 text-xs font-medium"
-                  title={role.description ?? undefined}
-                  hover={false}
-                >
-                  {role.name}
-                </Badge>
+                <RoleBadge key={role.name} role={role} kind="admin" />
               ))}
             </div>
           </div>

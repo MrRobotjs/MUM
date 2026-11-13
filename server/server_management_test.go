@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"encoding/json"
 	"slices"
 	"testing"
 )
@@ -39,5 +40,48 @@ func TestSyncAccountChangedFields(t *testing.T) {
 				t.Fatalf("changed fields %v, want %v", got, c.fields)
 			}
 		})
+	}
+}
+
+// Users and profiles carry each admin role's saved colour, icon and style, so
+// admin role badges look the same as in the Admin Roles settings.
+func TestUserReadsCarryAdminRoleVisuals(t *testing.T) {
+	a, s := testApp(t)
+	token, _ := bootstrapOwner(t, a)
+	owner, err := s.Authenticate(t.Context(), token)
+	if err != nil {
+		t.Fatal(err)
+	}
+	target, err := s.CreateAccount(t.Context(), owner.UUID, "visual-admin", "fixture-hash", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.writer.Exec(`INSERT INTO admin_roles(id,name,description,position,color,icon,badge_style) VALUES('second','Second','Later',20,'#00ff00',NULL,'default'),('first','First','Shown first',10,'#123abc','fa-solid fa-star','outline');
+		INSERT INTO admin_privileges VALUES(?,'second'),(?,'first')`, target, target); err != nil {
+		t.Fatal(err)
+	}
+	w := apiRequest(a, "GET", "/api/users/"+target, token, nil, nil)
+	if w.Code != 200 {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	var body struct {
+		Data struct {
+			Names   []string `json:"admin_roles"`
+			Details []struct {
+				Name, Color, Badge string
+				Icon, Description  *string
+			} `json:"admin_roles_detail"`
+		}
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	got := body.Data
+	if len(got.Names) != 2 || got.Names[0] != "First" || got.Names[1] != "Second" || len(got.Details) != 2 {
+		t.Fatalf("admin roles %s", w.Body.String())
+	}
+	first, second := got.Details[0], got.Details[1]
+	if first.Name != "First" || first.Color != "#123abc" || first.Icon == nil || *first.Icon != "fa-solid fa-star" || first.Description == nil || *first.Description != "Shown first" || second.Name != "Second" || second.Icon != nil {
+		t.Fatalf("admin role visuals %s", w.Body.String())
 	}
 }

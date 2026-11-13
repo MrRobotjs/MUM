@@ -61,7 +61,7 @@ func TestPlexUserProfileSnapshotSync(t *testing.T) {
 			t.Fatalf("sharing data changed or secret retained: %s %s", libraries, settings)
 		}
 		var roles int
-		if err := store.reader.QueryRow(`SELECT count(*) FROM identity_user_roles`).Scan(&roles); err != nil || roles != 0 {
+		if err := store.reader.QueryRow(`SELECT count(*) FROM identity_user_roles m JOIN user_roles r ON r.id=m.role_id AND r.is_auto_managed=0`).Scan(&roles); err != nil || roles != 0 {
 			t.Fatalf("profile sync changed role grants: %d %v", roles, err)
 		}
 	}

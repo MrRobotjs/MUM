@@ -115,7 +115,7 @@ func NewApp(store *Store, queue *LogQueue, assets fs.FS) (*App, error) {
 	handle("GET /api/admins", a.listAdmins)
 	handle("POST /api/admins", a.createAdmin)
 	handle("PATCH /api/admins/{admin}", a.updateAdminRoles)
-	handle("DELETE /api/admins/{admin}", a.unsupportedAdminAction)
+	handle("DELETE /api/admins/{admin}", a.deleteAdmin)
 	handle("POST /api/admins/{admin}/reset-password", a.unsupportedAdminAction)
 	handle("GET /api/admin-roles", a.adminRolesRead)
 	handle("GET /api/admin-roles/{role}", a.adminRolesRead)

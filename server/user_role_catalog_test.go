@@ -181,7 +181,9 @@ func TestUserRoleCatalogProtectedHumanServiceAndPendingMembers(t *testing.T) {
 				}
 				want = 200
 			case "automatic":
+				// Automatic roles can be renamed and restyled, as in Flask.
 				id = "automatic"
+				want = 200
 			case "pending":
 				if _, err := s.writer.Exec(`INSERT INTO provisioning_jobs(id,user_uuid,status,created_at,updated_at) VALUES('catalog-job',?,'failed','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`, target); err != nil {
 					t.Fatal(err)
@@ -211,7 +213,7 @@ func TestUserRoleCatalogProtectedHumanServiceAndPendingMembers(t *testing.T) {
 }
 
 func TestUserRoleCatalogStaleProofsAndInvalidChanges(t *testing.T) {
-	for _, mode := range []string{"actor", "catalog", "role", "link", "member-cycle", "link-cycle", "role-cycle", "duplicate-name", "bad-color", "bad-description", "auto-field", "missing-ack", "mixed", "noop", "session", "permission", "reorder-protected", "missing-order", "duplicate-order", "partial-order", "unknown-order"} {
+	for _, mode := range []string{"actor", "catalog", "role", "link", "member-cycle", "link-cycle", "role-cycle", "duplicate-name", "bad-color", "bad-description", "auto-field", "missing-ack", "mixed", "noop", "session", "permission", "reorder-automatic", "missing-order", "duplicate-order", "partial-order", "unknown-order"} {
 		t.Run(mode, func(t *testing.T) {
 			a, s, owner, admin, actor, target := humanRolesFixture(t)
 			if mode == "duplicate-order" || mode == "partial-order" || mode == "unknown-order" {
@@ -287,10 +289,11 @@ func TestUserRoleCatalogStaleProofsAndInvalidChanges(t *testing.T) {
 					t.Fatal(err)
 				}
 				want = 403
-			case "reorder-protected":
+			case "reorder-automatic":
+				// Automatic roles can be moved; only their position changes.
 				body = catalogChangeBody(base, "reorder", "")
 				body["positions"] = []userRoleCatalogPosition{{"manual-a", 1}, {"manual-b", 2}, {"automatic", 0}}
-				want = 403
+				want = 200
 			case "missing-order":
 				body = catalogChangeBody(base, "reorder", "")
 				want = 400

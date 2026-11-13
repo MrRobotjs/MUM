@@ -672,6 +672,7 @@ func (a *App) syncServerClaimed(ctx context.Context, actor, access string, s Man
 			}
 		}
 		downloadChanges := []downloadLabelChange{}
+		var relationshipChanges []relationshipLabelChange
 		if libraries {
 			if _, err := tx.ExecContext(ctx, "UPDATE media_libraries SET is_available=0 WHERE server_id=?", s.ID); err != nil {
 				return err
@@ -705,6 +706,10 @@ func (a *App) syncServerClaimed(ctx context.Context, actor, access string, s Man
 			}
 			var mappingBefore int64
 			if err := tx.QueryRowContext(ctx, "SELECT coalesce((SELECT mapping_revision FROM media_activity_state WHERE server_id=?),0)", s.ID).Scan(&mappingBefore); err != nil {
+				return err
+			}
+			relationships, err := loadRelationshipRoles(ctx, tx)
+			if err != nil {
 				return err
 			}
 			seen := make([]string, 0, len(accounts))
@@ -781,6 +786,11 @@ func (a *App) syncServerClaimed(ctx context.Context, actor, access string, s Man
 						downloadChanges = append(downloadChanges, *change)
 					}
 				}
+				changed, err := reconcileRelationshipRoles(ctx, tx, relationships, uuid, account.Relationship)
+				if err != nil {
+					return err
+				}
+				relationshipChanges = append(relationshipChanges, changed...)
 			}
 			// Accounts missing from this snapshot are marked inactive and, unless
 			// they are invitations still awaiting acceptance, removed. Accounts in
@@ -818,6 +828,18 @@ func (a *App) syncServerClaimed(ctx context.Context, actor, access string, s Man
 				return err
 			}
 			if _, err = tx.ExecContext(ctx, "INSERT INTO audit_events(actor_uuid,action,details,occurred_at) VALUES(?,'provider.labels.reconcile',?,?)", actor, string(details), now); err != nil {
+				return err
+			}
+		}
+		if len(relationshipChanges) > 0 {
+			details, err := json.Marshal(struct {
+				Server  int64                     `json:"server_id"`
+				Changes []relationshipLabelChange `json:"changes"`
+			}{s.ID, relationshipChanges})
+			if err != nil {
+				return err
+			}
+			if _, err = tx.ExecContext(ctx, "INSERT INTO audit_events(actor_uuid,action,details,occurred_at) VALUES(?,'provider.relationship_labels.reconcile',?,?)", actor, string(details), now); err != nil {
 				return err
 			}
 		}

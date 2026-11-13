@@ -26,7 +26,7 @@ import {HumanExpiryCard} from '../components/users/HumanExpiryCard';
 import {HumanUserRolesCard} from '../components/users/HumanUserRolesCard';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import {Button} from '@/components/ui/button';
-import { Badge } from '@/components/common/Badge';
+import { Badge, RoleBadge } from '@/components/common/Badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { getServiceMeta } from '@/config/pluginMetadata';
 import type { UnifiedSession } from '@/types/realtime';
@@ -248,13 +248,7 @@ const ProfileTab = ({ user,target }: { user: UserDetail;target:string }) => {
                     </div>
                     <div className="flex flex-wrap gap-2">
                       {user.server_names.map((server) => (
-                        <Badge
-                          key={server}
-                          color={theme.palette?.avatar ?? 'bg-primary'}
-                          className="text-xs font-semibold gap-2"
-                          hover={false}
-                        >
-                          <FontAwesomeIcon icon={faDatabase} className="w-3 h-3" />
+                        <Badge key={server} color={theme.palette?.avatar ?? 'bg-primary'} icon={faDatabase} hover={false}>
                           {server}
                         </Badge>
                       ))}
@@ -299,40 +293,22 @@ const ProfileTab = ({ user,target }: { user: UserDetail;target:string }) => {
                 <div className="text-sm font-semibold text-foreground">Status Flags</div>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {user.is_active && (
-                    <Badge color="bg-green-600" className="text-xs font-semibold gap-1" hover={false}>
-                      <FontAwesomeIcon icon={faCircleCheck} className="w-3 h-3 mt-0.5" />
-                      Active
-                    </Badge>
+                    <Badge color="bg-green-600" icon={faCircleCheck} hover={false}>Active</Badge>
                   )}
                   {!user.is_active && (
-                    <Badge color="bg-amber-600" className="text-xs font-semibold gap-1" hover={false}>
-                      <FontAwesomeIcon icon={faCircleXmark} className="w-3 h-3 mt-0.5" />
-                      Inactive
-                    </Badge>
+                    <Badge color="bg-amber-600" icon={faCircleXmark} hover={false}>Inactive</Badge>
                   )}
                   {user.is_home_user && (
-                    <Badge color="bg-blue-600" className="text-xs font-semibold gap-1" hover={false}>
-                      <FontAwesomeIcon icon={faHouse} className="w-3 h-3 mt-0.5" />
-                      Home User
-                    </Badge>
+                    <Badge color="bg-blue-600" icon={faHouse} hover={false}>Home User</Badge>
                   )}
                   {user.shares_back && (
-                    <Badge color="bg-purple-600" className="text-xs font-semibold gap-1" hover={false}>
-                      <FontAwesomeIcon icon={faShareNodes} className="w-3 h-3 mt-0.5" />
-                      Shares Back
-                    </Badge>
+                    <Badge color="bg-purple-600" icon={faShareNodes} hover={false}>Shares Back</Badge>
                   )}
                   {user.is_purge_whitelisted && (
-                    <Badge color="bg-amber-600" className="text-xs font-semibold gap-1" hover={false}>
-                      <FontAwesomeIcon icon={faShieldHalved} className="w-3 h-3 mt-0.5" />
-                      Purge Protected
-                    </Badge>
+                    <Badge color="bg-amber-600" icon={faShieldHalved} hover={false}>Purge Protected</Badge>
                   )}
                   {user.is_discord_bot_whitelisted && (
-                    <Badge color="bg-blue-600" className="text-xs font-semibold gap-1" hover={false}>
-                      <FontAwesomeIcon icon={faDiscord} className="w-3 h-3 mt-0.5" />
-                      Discord Bot Allowed
-                    </Badge>
+                    <Badge color="bg-blue-600" icon={faDiscord} hover={false}>Discord Bot Allowed</Badge>
                   )}
                 </div>
               </div>
@@ -348,13 +324,7 @@ const ProfileTab = ({ user,target }: { user: UserDetail;target:string }) => {
                 ) : (
                   <div className="mt-3 flex flex-wrap gap-2">
                     {user.libraries.map((library) => (
-                      <Badge
-                        key={library}
-                        color={theme.palette?.avatar ?? 'bg-primary'}
-                        className="text-xs font-medium gap-2"
-                        hover={false}
-                      >
-                        <FontAwesomeIcon icon={faFolder} className="w-3 h-3" />
+                      <Badge key={library} color={theme.palette?.avatar ?? 'bg-primary'} icon={faFolder} hover={false}>
                         {library}
                       </Badge>
                     ))}
@@ -381,18 +351,7 @@ const ProfileTab = ({ user,target }: { user: UserDetail;target:string }) => {
               ) : (
                 <div className="mt-2 flex flex-wrap gap-2">
                   {adminRoleBadges.map((role) => (
-                    <Badge
-                      key={role.name}
-                      hexColor={role.color}
-                      iconClass={role.icon}
-                      roleKind="admin"
-                      badgeStyle={role.badge_style ?? undefined}
-                      className="text-xs font-semibold"
-                      title={role.description ?? undefined}
-                      hover={false}
-                    >
-                      {role.name}
-                    </Badge>
+                    <RoleBadge key={role.name} role={role} kind="admin" />
                   ))}
                 </div>
               )}
@@ -405,18 +364,7 @@ const ProfileTab = ({ user,target }: { user: UserDetail;target:string }) => {
               ) : (
                 <div className="mt-2 flex flex-wrap gap-2">
                   {roleBadges.map((role) => (
-                    <Badge
-                      key={role.name}
-                      hexColor={role.color}
-                      iconClass={role.icon}
-                      roleKind="user"
-                      badgeStyle={role.badge_style ?? undefined}
-                      className="text-xs font-medium"
-                      title={role.description ?? undefined}
-                      hover={false}
-                    >
-                      {role.name}
-                    </Badge>
+                    <RoleBadge key={role.name} role={role} kind="user" />
                   ))}
                 </div>
               )}
@@ -870,22 +818,13 @@ export const UserDetailPage = () => {
               <div className="flex items-center justify-center gap-2 flex-wrap">
                 {!isServiceUser ? (
                   <>
-                    <Badge color="bg-primary" className="text-sm font-medium px-3 py-1 gap-2" hover={false}>
-                      <FontAwesomeIcon icon={faUser} className="h-4 w-4" />
-                      Local Account
-                    </Badge>
+                    <Badge color="bg-primary" icon={faUser} size="md" hover={false}>Local Account</Badge>
 
                     {/* Show badges for linked service accounts */}
                     {links.page?.linked_accounts.map((serviceAccount) => {
                       const serviceTheme = getServiceMeta(serviceAccount.service_type);
                       return (
-                        <Badge
-                          key={serviceAccount.uuid}
-                          color={serviceTheme.palette?.avatar ?? 'bg-primary'}
-                          className="text-sm font-medium gap-2"
-                          hover={false}
-                        >
-                          {serviceTheme.icon}
+                        <Badge key={serviceAccount.uuid} color={serviceTheme.palette?.avatar ?? 'bg-primary'} icon={serviceTheme.icon} size="md" hover={false}>
                           {serviceAccount.external_username || 'Service Account'}
                         </Badge>
                       );
@@ -893,15 +832,13 @@ export const UserDetailPage = () => {
                   </>
                 ) : (
                   <>
-                    <Badge color={heroTheme.palette?.avatar ?? 'bg-primary'} className="text-sm font-medium gap-2" hover={false}>
-                      <FontAwesomeIcon icon={faServer} className="h-3 w-3 mb-0.5" />
+                    <Badge color={heroTheme.palette?.avatar ?? 'bg-primary'} icon={faServer} size="md" hover={false}>
                       {user.server_nickname || `${heroTheme.label} User`}
                     </Badge>
 
                     {/* Show linked local user badge if this service user is linked to a local account */}
                     {user.linked_local_user && (
-                      <Badge color="bg-primary" className="text-sm font-medium px-3 py-1 gap-2" hover={false}>
-                        <FontAwesomeIcon icon={faLink} className="h-4 w-4" />
+                      <Badge color="bg-primary" icon={faLink} size="md" hover={false}>
                         {user.linked_local_user.display_name ?? user.linked_local_user.username ?? 'Local account'}
                       </Badge>
                     )}

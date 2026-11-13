@@ -1,7 +1,7 @@
 import { useAccountDisplay } from '../../hooks/useAccountDisplay';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/common/Badge';
+import { RoleBadge } from '@/components/common/Badge';
 
 export type UserSummary = {
   display_name?: string;
@@ -71,18 +71,7 @@ export const UserSummaryCard = ({ user }: UserSummaryCardProps) => {
             <div className="text-xs uppercase text-muted-foreground">Admin Roles</div>
             <div className="mt-1 flex flex-wrap gap-1">
               {adminRoleBadges.map((role) => (
-                <Badge
-                  key={role.name}
-                  hexColor={role.color}
-                  iconClass={role.icon}
-                  roleKind="admin"
-                  badgeStyle={role.badge_style === 'fill' || role.badge_style === 'outline' || role.badge_style === 'default' ? role.badge_style : undefined}
-                  className="text-xs font-medium"
-                  title={role.description ?? undefined}
-                  hover={false}
-                >
-                  {role.name}
-                </Badge>
+                <RoleBadge key={role.name} role={role} kind="admin" />
               ))}
             </div>
           </div>

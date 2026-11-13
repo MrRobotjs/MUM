@@ -22,10 +22,11 @@ export const roleCatalogNeedsRead=(actor:string)=>!!getAccessToken()&&blocked.ge
 function project(p:UserRoleCatalog,actor:string):UserRoleCatalog {
  if(!p||p.actor_uuid!==actor||!revision(p.catalog_revision)||!revision(p.role_revision)||!revision(p.link_revision)||typeof p.can_create!=='boolean'||typeof p.can_reorder!=='boolean'||!Array.isArray(p.roles)||p.roles.length>1000)throw Error('Role catalog is unavailable. Read again.');
  const ids=new Set<string>(),names=new Set<string>();const roles=p.roles.map(r=>{
-  if(!r||!roleID(r.id)||ids.has(r.id)||names.has(r.name)||!Number.isSafeInteger(r.position)||r.position<0||r.position>1000000||typeof r.is_auto_managed!=='boolean'||!Number.isSafeInteger(r.user_count)||r.user_count<0||typeof r.can_update!=='boolean'||typeof r.can_delete!=='boolean'||r.is_auto_managed&&(r.can_update||r.can_delete)||r.can_delete&&(!r.can_update||r.user_count!==0))throw Error('Invalid role metadata or capabilities');
+  if(!r||!roleID(r.id)||ids.has(r.id)||names.has(r.name)||!Number.isSafeInteger(r.position)||r.position<0||r.position>1000000||typeof r.is_auto_managed!=='boolean'||!Number.isSafeInteger(r.user_count)||r.user_count<0||typeof r.can_update!=='boolean'||typeof r.can_delete!=='boolean'||r.is_auto_managed&&r.can_delete||r.can_delete&&(!r.can_update||r.user_count!==0))throw Error('Invalid role metadata or capabilities');
   const values=roleCatalogValues(r);ids.add(r.id);names.add(r.name);return Object.freeze({...values,id:r.id,position:r.position,is_auto_managed:r.is_auto_managed,user_count:r.user_count,can_update:r.can_update,can_delete:r.can_delete,created_at:null,updated_at:null});
  });
- if(p.can_reorder&&(roles.length<2||roles.some(r=>!r.can_update)))throw Error('Invalid role ordering capability');
+ // Automatic roles cannot be edited but can be moved, as the server allows.
+ if(p.can_reorder&&(roles.length<2||roles.some(r=>!r.can_update&&!r.is_auto_managed)))throw Error('Invalid role ordering capability');
  return Object.freeze({actor_uuid:actor,catalog_revision:p.catalog_revision,role_revision:p.role_revision,link_revision:p.link_revision,can_create:p.can_create,can_reorder:p.can_reorder,roles:Object.freeze(roles)});
 }
 export async function readUserRoleCatalog(actor:string,reconcile=false):Promise<UserRoleCatalog>{

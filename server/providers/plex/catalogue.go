@@ -124,6 +124,19 @@ type CataloguePage struct {
 // roots and excessive nesting are refused before decoding values.
 func DecodeCataloguePage(body []byte) (CataloguePage, error) {
 	var page CataloguePage
+	if err := strictXML(body); err != nil {
+		return page, err
+	}
+	if err := xml.Unmarshal(body, &page); err != nil {
+		return page, errors.New("invalid Plex catalogue fields")
+	}
+	return page, nil
+}
+
+// strictXML refuses ambiguous Plex XML before it is decoded: duplicate or
+// namespaced attributes, directives, text outside elements, more than one root
+// and excessive nesting.
+func strictXML(body []byte) error {
 	decoder := xml.NewDecoder(bytes.NewReader(body))
 	depth, roots := 0, 0
 	for {
@@ -132,7 +145,7 @@ func DecodeCataloguePage(body []byte) (CataloguePage, error) {
 			break
 		}
 		if err != nil {
-			return page, errors.New("invalid Plex catalogue XML")
+			return errors.New("invalid Plex catalogue XML")
 		}
 		switch node := token.(type) {
 		case xml.StartElement:
@@ -141,32 +154,29 @@ func DecodeCataloguePage(body []byte) (CataloguePage, error) {
 			}
 			depth++
 			if depth > 64 || node.Name.Space != "" {
-				return page, errors.New("unsupported Plex catalogue XML structure")
+				return errors.New("unsupported Plex catalogue XML structure")
 			}
 			seen := map[xml.Name]bool{}
 			for _, attr := range node.Attr {
 				if seen[attr.Name] || attr.Name.Space != "" {
-					return page, errors.New("ambiguous Plex catalogue XML attributes")
+					return errors.New("ambiguous Plex catalogue XML attributes")
 				}
 				seen[attr.Name] = true
 			}
 		case xml.EndElement:
 			depth--
 		case xml.Directive:
-			return page, errors.New("unsupported Plex catalogue XML directive")
+			return errors.New("unsupported Plex catalogue XML directive")
 		case xml.CharData:
 			if depth <= 1 && strings.TrimSpace(string(node)) != "" {
-				return page, errors.New("invalid Plex catalogue XML content")
+				return errors.New("invalid Plex catalogue XML content")
 			}
 		}
 	}
 	if roots != 1 || depth != 0 {
-		return page, errors.New("invalid Plex catalogue XML roots")
+		return errors.New("invalid Plex catalogue XML roots")
 	}
-	if err := xml.Unmarshal(body, &page); err != nil {
-		return page, errors.New("invalid Plex catalogue fields")
-	}
-	return page, nil
+	return nil
 }
 
 // pages reads every page of one listing and hands each entry to visit. Plex

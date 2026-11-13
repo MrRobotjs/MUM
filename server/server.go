@@ -66,6 +66,8 @@ type App struct {
 	episodeOutcomes  map[int64]map[string]any
 	imageKey         []byte
 	imageSlots       chan struct{}
+	// statisticsSlots bounds concurrent server statistics reads.
+	statisticsSlots chan struct{}
 }
 
 func NewApp(store *Store, queue *LogQueue, assets fs.FS) (*App, error) {
@@ -83,6 +85,7 @@ func NewApp(store *Store, queue *LogQueue, assets fs.FS) (*App, error) {
 	a.episodeOutcomes = map[int64]map[string]any{}
 	a.catalogueCtx, a.catalogueCancel = context.WithCancel(context.Background())
 	a.imageSlots = make(chan struct{}, 8)
+	a.statisticsSlots = make(chan struct{}, 4)
 	a.imageKey = make([]byte, 32)
 	if _, err := rand.Read(a.imageKey); err != nil {
 		return nil, err
@@ -192,6 +195,8 @@ func NewApp(store *Store, queue *LogQueue, assets fs.FS) (*App, error) {
 	handle("GET /api/servers", a.listServers)
 	handle("POST /api/servers", a.saveServer)
 	handle("GET /api/servers/{server}", a.getServer)
+	handle("GET /api/servers/{server}/statistics/bandwidth", a.serverBandwidth)
+	handle("GET /api/servers/{server}/statistics/resources", a.serverResources)
 	handle("PATCH /api/servers/{server}", a.saveServer)
 	handle("DELETE /api/servers/{server}", a.deleteServer)
 	handle("POST /api/servers/{server}/test-connection", a.testSavedServer)

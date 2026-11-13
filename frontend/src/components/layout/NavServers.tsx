@@ -7,6 +7,7 @@ import {
   faCircleInfo,
   faGear,
   faLayerGroup,
+  faGaugeHigh,
   faRotate,
   faServer,
   faUsers,
@@ -49,11 +50,13 @@ type ServerNavItemProps = {
   onNavigate: () => void
 }
 
-// A server's own pages, in sidebar order.
+// A server's own pages, in sidebar order. Resources (the server's dashboard
+// graphs) is offered for Plex servers only.
 const serverPages = [
-  { title: "Overview", suffix: "", to: "/admin/servers/$serverId", icon: faCircleInfo },
-  { title: "Users", suffix: "/users", to: "/admin/servers/$serverId/users", icon: faUsers },
-  { title: "Libraries", suffix: "/libraries", to: "/admin/servers/$serverId/libraries", icon: faLayerGroup },
+  { title: "Overview", suffix: "", to: "/admin/servers/$serverId", icon: faCircleInfo, plexOnly: false },
+  { title: "Users", suffix: "/users", to: "/admin/servers/$serverId/users", icon: faUsers, plexOnly: false },
+  { title: "Libraries", suffix: "/libraries", to: "/admin/servers/$serverId/libraries", icon: faLayerGroup, plexOnly: false },
+  { title: "Resources", suffix: "/resources", to: "/admin/servers/$serverId/resources", icon: faGaugeHigh, plexOnly: true },
 ] as const
 
 const ServerNavItem = ({ server, pathname, onNavigate }: ServerNavItemProps) => {
@@ -280,6 +283,16 @@ const ServerNavItem = ({ server, pathname, onNavigate }: ServerNavItemProps) => 
                 </CollapsibleContent>
               </SidebarMenuSubItem>
             </Collapsible>
+            {server.service_type === "plex" && (
+              <SidebarMenuSubItem>
+                <SidebarMenuSubButton asChild isActive={pathname === `${serverPath}/resources`}>
+                  <Link to="/admin/servers/$serverId/resources" params={{ serverId: String(server.id) }} onClick={onNavigate}>
+                    <FontAwesomeIcon icon={faGaugeHigh} className="h-4 w-4" />
+                    <span>Resources</span>
+                  </Link>
+                </SidebarMenuSubButton>
+              </SidebarMenuSubItem>
+            )}
           </SidebarMenuSub>
         </CollapsibleContent>
         {/* Collapsed to icons (desktop only): an open server shows its pages
@@ -289,7 +302,7 @@ const ServerNavItem = ({ server, pathname, onNavigate }: ServerNavItemProps) => 
             shows these pages. */}
         {open && (
           <div className="mt-0.5 hidden flex-col items-center gap-0.5 group-data-[collapsible=icon]:flex">
-            {serverPages.map((page) => (
+            {serverPages.filter((page) => !page.plexOnly || server.service_type === "plex").map((page) => (
               <SidebarMenuButton
                 key={page.title}
                 asChild

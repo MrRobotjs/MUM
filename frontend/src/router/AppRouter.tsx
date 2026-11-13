@@ -150,6 +150,7 @@ const adminServersList = createRoute({ getParentRoute: () => adminRoute, path: '
 const adminServerDetail = createRoute({ getParentRoute: () => adminRoute, path: 'servers/$serverId', component: () => <ServerDetailPage section="overview" /> })
 const adminServerUsers = createRoute({ getParentRoute: () => adminRoute, path: 'servers/$serverId/users', component: () => <ServerDetailPage section="users" /> })
 const adminServerLibraries = createRoute({ getParentRoute: () => adminRoute, path: 'servers/$serverId/libraries', component: () => <ServerDetailPage section="libraries" /> })
+const adminServerResources = createRoute({ getParentRoute: () => adminRoute, path: 'servers/$serverId/resources', component: () => <ServerDetailPage section="resources" /> })
 const adminLibraryDetail = createRoute({
   getParentRoute: () => adminRoute,
   // A library lives under its server: /admin/servers/<server>/libraries/<library>.
@@ -305,6 +306,7 @@ const routeTree = rootRoute.addChildren([
     adminServerDetail,
     adminServerUsers,
     adminServerLibraries,
+    adminServerResources,
     adminLibraryDetail,
     adminMediaDetail,
     adminEpisodeDetail,

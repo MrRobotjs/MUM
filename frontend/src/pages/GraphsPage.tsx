@@ -119,7 +119,7 @@ const formatMinutesAxisCompact = (rawMinutes: number) => {
 const formatChartDateShort = (value: string) => formatCalendarDate(value, 'short');
 const formatChartDateFull = (value: string) => formatCalendarDate(value, 'full');
 
-const renderGraphsTooltipCard = (
+export const renderGraphsTooltipCard = (
   title: string,
   rows: Array<{ key: string; label: string; value: string; dotClass?: string; dotColor?: string }>
 ) => (
@@ -298,6 +298,48 @@ const renderSeparatedWatchTimeTooltip = ({
     .map(({ sortValue: _sortValue, ...rest }) => rest);
   return renderGraphsTooltipCard(formatChartDateFull(String(label || '')), rows);
 };
+
+/** A graph card: icon, title and description, optional header controls, and a loading overlay. */
+export const ChartCard = ({ title, description, icon, loading, actions, children }: {
+  title: string;
+  description: string;
+  icon: IconDefinition;
+  loading: boolean;
+  actions?: React.ReactNode;
+  children: React.ReactNode;
+}) => (
+    <Card className="pt-0 gap-0 overflow-hidden border border-border/60 shadow-md">
+      <CardHeader className="pt-6 border-b border-border/60 bg-gradient-to-r from-primary/5 via-transparent to-transparent pb-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary shadow-inner">
+              <FontAwesomeIcon icon={icon} className="text-lg" />
+            </div>
+            <div className="space-y-1">
+              <CardTitle className="flex items-center gap-2 text-2xl text-foreground">{title}</CardTitle>
+              <CardDescription className="text-sm text-muted-foreground space-y-1">
+                <p>{description}</p>
+              </CardDescription>
+            </div>
+          </div>
+          {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
+        </div>
+      </CardHeader>
+      <CardContent className="px-3 pt-5 pb-6">
+        <div className="relative min-h-[300px]">
+          {loading ? (
+            <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-background/70 backdrop-blur-sm">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Spinner className="h-4 w-4" />
+                Loading graph...
+              </div>
+            </div>
+          ) : null}
+          {children}
+        </div>
+      </CardContent>
+    </Card>
+);
 
 /**
  * The activity graphs: on the Graphs page for any or all servers, or on a
@@ -560,36 +602,9 @@ export const ActivityGraphs = ({ serverId: fixedServerId }: { serverId?: number 
     icon: IconDefinition,
     children: React.ReactNode
   ) => (
-    <Card className="pt-0 gap-0 overflow-hidden border border-border/60 shadow-md">
-      <CardHeader className="pt-6 border-b border-border/60 bg-gradient-to-r from-primary/5 via-transparent to-transparent pb-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-start gap-3">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary shadow-inner">
-              <FontAwesomeIcon icon={icon} className="text-lg" />
-            </div>
-            <div className="space-y-1">
-              <CardTitle className="flex items-center gap-2 text-2xl text-foreground">{title}</CardTitle>
-              <CardDescription className="text-sm text-muted-foreground space-y-1">
-                <p>{description}</p>
-              </CardDescription>
-            </div>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="px-3 pt-5 pb-6">
-        <div className="relative min-h-[300px]">
-          {loading ? (
-            <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-background/70 backdrop-blur-sm">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Spinner className="h-4 w-4" />
-                Loading graph...
-              </div>
-            </div>
-          ) : null}
-          {children}
-        </div>
-      </CardContent>
-    </Card>
+    <ChartCard title={title} description={description} icon={icon} loading={loading}>
+      {children}
+    </ChartCard>
   );
 
   return (

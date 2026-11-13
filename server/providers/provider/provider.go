@@ -213,6 +213,32 @@ type CatalogueItem struct {
 	Season, Episode *int64
 }
 
+// BandwidthSample is one bin of a server's bandwidth statistics: the bytes
+// sent at At to one account's device, locally or remotely.
+type BandwidthSample struct {
+	At              time.Time
+	Bytes           int64
+	LAN             bool
+	Account, Device string
+}
+
+// Named is an account or device a statistics answer names.
+type Named struct{ ID, Name string }
+
+// BandwidthStatistics is a server's bandwidth samples with the accounts and
+// devices they name.
+type BandwidthStatistics struct {
+	Samples           []BandwidthSample
+	Accounts, Devices []Named
+}
+
+// ResourceSample is one reading of the server machine's and the media
+// server's CPU and memory use, in percent; nil when not reported.
+type ResourceSample struct {
+	At                                             time.Time
+	HostCPU, ProcessCPU, HostMemory, ProcessMemory *float64
+}
+
 // CatalogueCollection is one library collection a module reports.
 type CatalogueCollection struct {
 	ID, Title, SortTitle, ImageTag, AddedAt string

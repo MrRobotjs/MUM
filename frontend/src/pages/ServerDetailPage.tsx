@@ -34,8 +34,9 @@ import { Skeleton } from '../components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { ACTIVITY_GRAPH_SERVICES, ActivityGraphs } from './GraphsPage';
+import { PlexResources } from '../components/servers/PlexResources';
 
-type ServerTab = 'overview' | 'users' | 'libraries';
+type ServerTab = 'overview' | 'users' | 'libraries' | 'resources';
 
 type ServerStatusPayload = {
   online?: boolean;
@@ -590,6 +591,17 @@ export const ServerDetailPage = ({ section = 'overview' }: { section?: ServerTab
             </CardContent>
           </Card>
         </div>) : null}
+
+        {/* The server's own dashboard graphs (Plex only for now) */}
+        {section === 'resources' ? (
+          numericServerId !== undefined && serviceType.toLowerCase() === 'plex' ? (
+            <PlexResources key={numericServerId} serverId={numericServerId} />
+          ) : (
+            <Card>
+              <CardContent className="p-6 text-sm text-muted-foreground">Resource graphs are available for Plex servers.</CardContent>
+            </Card>
+          )
+        ) : null}
 
         {section === 'libraries' ? (<div className="space-y-6">
           <Card>

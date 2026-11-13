@@ -145,6 +145,11 @@ type (
 	episodeReader interface {
 		CatalogueEpisodes(ctx context.Context, show string) ([]provider.CatalogueItem, error)
 	}
+	// statisticsReader reads a server's own dashboard statistics.
+	statisticsReader interface {
+		Bandwidth(ctx context.Context, timespan string, since time.Time) (provider.BandwidthStatistics, error)
+		Resources(ctx context.Context) ([]provider.ResourceSample, error)
+	}
 	// trackReader reads an album's tracks, with any music videos of them.
 	trackReader interface {
 		CatalogueTracks(ctx context.Context, album string) ([]provider.CatalogueItem, error)

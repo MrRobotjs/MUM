@@ -33,6 +33,7 @@ func testApp(t *testing.T) (*App, *Store) {
 	t.Cleanup(func() {
 		a.CloseScheduler()
 		a.CloseProvisioning()
+		a.CloseCatalogue()
 		a.CloseRealtime()
 		if err := q.Shutdown(context.Background()); err != nil {
 			t.Error(err)

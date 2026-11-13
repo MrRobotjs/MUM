@@ -11,8 +11,22 @@ interface LibrarySyncProgress {
   phase?: 'shows' | 'episodes' | null;
   shows_current?: number;
   shows_total?: number;
+  shows_failed?: number;
   episodes_current?: number;
   episodes_total?: number;
+}
+
+/** The outcome of the library's last "TV Shows + Episodes" run. */
+export interface LibraryEpisodeRun {
+  finished_at: string;
+  shows_total: number;
+  shows_synced: number;
+  shows_failed: number;
+  shows_skipped: number;
+  added: number;
+  updated: number;
+  removed: number;
+  stopped: 'library_changed' | 'forbidden' | 'shutdown' | 'timeout' | null;
 }
 
 interface LibrarySyncStatus {
@@ -22,6 +36,7 @@ interface LibrarySyncStatus {
   started_by: number | null;
   started_by_username: string | null;
   progress: LibrarySyncProgress;
+  last_episode_run?: LibraryEpisodeRun | null;
 }
 
 interface LibrarySyncStatusResponse {

@@ -56,8 +56,16 @@ type App struct {
 	catalogueMu   sync.Mutex
 	catalogueRuns map[int64]*catalogueProgress
 	episodeRuns   map[int64]bool
-	imageKey      []byte
-	imageSlots    chan struct{}
+	// Library-wide episode runs continue after their request; they are
+	// tracked so shutdown can cancel and wait for them, and each library's
+	// last outcome is kept for its sync status.
+	catalogueClosing bool
+	catalogueWG      sync.WaitGroup
+	catalogueCtx     context.Context
+	catalogueCancel  context.CancelFunc
+	episodeOutcomes  map[int64]map[string]any
+	imageKey         []byte
+	imageSlots       chan struct{}
 }
 
 func NewApp(store *Store, queue *LogQueue, assets fs.FS) (*App, error) {
@@ -72,6 +80,8 @@ func NewApp(store *Store, queue *LogQueue, assets fs.FS) (*App, error) {
 	a.provisionSlots = make(chan struct{}, 2)
 	a.catalogueRuns = map[int64]*catalogueProgress{}
 	a.episodeRuns = map[int64]bool{}
+	a.episodeOutcomes = map[int64]map[string]any{}
+	a.catalogueCtx, a.catalogueCancel = context.WithCancel(context.Background())
 	a.imageSlots = make(chan struct{}, 8)
 	a.imageKey = make([]byte, 32)
 	if _, err := rand.Read(a.imageKey); err != nil {

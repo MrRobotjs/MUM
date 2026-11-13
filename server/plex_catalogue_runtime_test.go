@@ -118,10 +118,9 @@ func TestPlexCatalogueRuntimeSyncImagesAndCapabilityBoundaries(t *testing.T) {
 	}
 	var show int64
 	f.s.reader.QueryRow("SELECT id FROM media_items WHERE library_id=?", shows).Scan(&show)
-	for _, action := range []string{"sync", "purge"} {
-		if w := apiRequest(f.a, "POST", fmt.Sprintf("/api/libraries/%d/media/%d/episodes/%s", shows, show, action), f.token, nil, nil); w.Code != 409 {
-			t.Fatal("unsupported episodes admitted", action, w.Code, w.Body.String())
-		}
+	// Plex shows have episode catalogues (plex_episodes_test.go covers syncing).
+	if w := apiRequest(f.a, "POST", fmt.Sprintf("/api/libraries/%d/media/%d/episodes/purge", shows, show), f.token, nil, nil); w.Code != 200 {
+		t.Fatal("Plex episode purge refused", w.Code, w.Body.String())
 	}
 	if w := apiRequest(f.a, "POST", f.path("/purge"), f.token, map[string]any{"expected_catalogue_revision": 2}, nil); w.Code != 200 || f.itemCount(t) != 0 {
 		t.Fatal("purge", w.Code, w.Body.String())

@@ -1,6 +1,6 @@
 import { formatCalendarDate } from '../util/calendarDates';
 import { useAccountDisplay } from '../hooks/useAccountDisplay';
-import { useState, useEffect, useSyncExternalStore, useMemo } from 'react';
+import { useState, useEffect, useSyncExternalStore, useMemo, useRef } from 'react';
 import { useNavigate, Link, useParams, useSearch } from '@tanstack/react-router';
 import { useAuth } from '../contexts/AuthContext';
 import { getAuthSnapshot, subscribeToAuthStore } from '../store/authStore';
@@ -75,6 +75,7 @@ interface Library {
   catalogue?: {
     supported: boolean;
     collections_supported?: boolean;
+    episodes_supported?: boolean;
     revision: number;
     synced_at: string | null;
     item_count: number | null;
@@ -410,6 +411,36 @@ const LibraryDetailPageView = () => {
     }
   }, [libraryId, activeTab, currentPage, pageSize, sortBy, searchQuery, statsDays, activityDays, activityPage, library?.server?.service_type, library?.catalogue?.collections_supported]);
 
+  // A "TV Shows + Episodes" run continues after its request: this page waits
+  // for its outcome (a new last_episode_run), then reports it and reloads.
+  const episodeRunWatch = useRef<{ previous: string | null } | null>(null);
+  useEffect(() => {
+    const watch = episodeRunWatch.current;
+    const run = libSyncStatus?.last_episode_run;
+    if (!watch || libSyncStatus?.is_syncing || !run || run.finished_at === watch.previous) return;
+    episodeRunWatch.current = null;
+    const changes = run.added + run.updated + run.removed > 0
+      ? `${run.added} added, ${run.updated} updated, ${run.removed} removed`
+      : 'no changes needed';
+    const shows = `${run.shows_synced} of ${run.shows_total} ${run.shows_total === 1 ? 'show' : 'shows'}`;
+    const stopped: Record<string, string> = {
+      library_changed: 'the server or library changed',
+      forbidden: 'your session ended',
+      shutdown: 'MUM is shutting down',
+      timeout: 'it reached its time limit',
+    };
+    if (run.stopped) {
+      showError(`Episode sync stopped because ${stopped[run.stopped] ?? 'it could not continue'}. Episodes saved for ${shows} (${changes}).`);
+    } else if (run.shows_failed > 0) {
+      showError(`Episodes saved for ${shows} (${changes}). ${run.shows_failed} could not be read and kept their previous episodes.`);
+    } else if (run.added + run.updated + run.removed > 0) {
+      success(`Episodes synced for ${shows}: ${changes}`);
+    } else {
+      info(`Episodes synced for ${shows}: ${changes}`);
+    }
+    void refreshSavedState();
+  }, [libSyncStatus?.is_syncing, libSyncStatus?.last_episode_run]);
+
   // Adapt polling interval for snappy updates during active sync
   useEffect(() => {
     const fast = (syncing || Boolean((libSyncStatus as any)?.is_syncing)) ? 250 : 2000;
@@ -514,8 +545,8 @@ const LibraryDetailPageView = () => {
     }
 
     const catalogue = library?.catalogue;
-    if (!catalogue?.supported || syncEpisodes) {
-      showError(syncEpisodes ? 'Episode catalogues are not implemented yet.' : 'Item catalogues are not available for this library.');
+    if (!catalogue?.supported || (syncEpisodes && catalogue.episodes_supported !== true)) {
+      showError(catalogue?.supported ? 'Episode catalogues are not available for this server.' : 'Item catalogues are not available for this library.');
       setShowSyncDialog(false);
       return;
     }
@@ -529,7 +560,8 @@ const LibraryDetailPageView = () => {
       refetchLibSync();
       // Backend publishes real progress; no local timer
       // Sync library content (all media items within this library)
-      const outcome = await syncLibraryCatalogue(Number(libraryId), catalogue.revision);
+      const previousEpisodeRun = libSyncStatus?.last_episode_run?.finished_at ?? null;
+      const outcome = await syncLibraryCatalogue(Number(libraryId), catalogue.revision, { episodes: syncEpisodes === true });
       if (!mutation.current()) return;
       view.requireInspection();
       setNeedsInspection(true);
@@ -546,8 +578,8 @@ const LibraryDetailPageView = () => {
         const updated = result.updated;
         const removed = result.removed;
 
-        // For TV show libraries, library sync only handles shows (not episodes)
-        // Episodes are synced from individual show detail pages
+        // For TV show libraries this receipt counts shows; episodes are
+        // reported when their background run finishes (episodeRunWatch).
         const isTvLibrary = (library?.library_type || '').toLowerCase().includes('show')
           || (library?.library_type || '').toLowerCase().includes('tv')
           || (library?.library_type || '').toLowerCase().includes('series');
@@ -556,7 +588,7 @@ const LibraryDetailPageView = () => {
           let message = `${added} added, ${updated} updated`;
 
           // Only show removed count for non-TV libraries
-          // TV libraries sync shows at this level; episodes sync from show detail pages
+          // TV libraries count shows here; episodes are reported separately
           if (!isTvLibrary && removed > 0) {
             message += `, ${removed} removed`;
           } else if (isTvLibrary && removed > 0) {
@@ -566,6 +598,15 @@ const LibraryDetailPageView = () => {
           success(message);
         } else {
           info(result.message || 'No changes detected');
+        }
+
+        // The shows are saved; their episodes now synchronize show by show.
+        if (result.episodes?.started) {
+          episodeRunWatch.current = { previous: previousEpisodeRun };
+          refetchLibSync();
+          info(`Syncing episodes for ${result.episodes.shows} ${result.episodes.shows === 1 ? 'show' : 'shows'}…`);
+        } else if (result.episodes) {
+          showError('The shows were saved, but their episodes could not start syncing. Try again.');
         }
 
         // Reload library data after sync
@@ -1791,8 +1832,8 @@ const LibraryDetailPageView = () => {
             </Button>
             <Button
               onClick={() => handleSyncLibrary(true)}
-              disabled
-              title="Synchronize episodes from each show's page"
+              disabled={library?.catalogue?.episodes_supported !== true}
+              title={library?.catalogue?.episodes_supported !== true ? 'Episode catalogues are not available for this server' : undefined}
             >
               TV Shows + Episodes
             </Button>

@@ -17,6 +17,9 @@ export type CatalogueSyncReceipt = {
   removed: number;
   total: number;
   message: string;
+  /** Present when episodes were requested: whether the background episode
+   * run started, and for how many shows. */
+  episodes?: { started: boolean; shows: number };
 };
 
 export type CataloguePurgeReceipt = { libraryId: number; revision: number; deleted: number };
@@ -48,15 +51,22 @@ async function send<T>(path: string, revision: number, parse: (data: any) => T |
   return receipt ? { kind: 'committed', receipt } : { kind: 'unconfirmed', message: UNCONFIRMED };
 }
 
-export function syncLibraryCatalogue(libraryId: number, revision: number): Promise<CatalogueOutcome<CatalogueSyncReceipt>> {
-  return send(`/api/libraries/${libraryId}/sync`, revision, data => {
+// With episodes, the shows are saved first and the reply says whether their
+// episodes are now synchronizing in the background (followed on the sync status).
+export function syncLibraryCatalogue(libraryId: number, revision: number, { episodes = false }: { episodes?: boolean } = {}): Promise<CatalogueOutcome<CatalogueSyncReceipt>> {
+  return send(`/api/libraries/${libraryId}/sync${episodes ? '?sync_episodes=true' : ''}`, revision, data => {
     const result = data?.result;
     const values = [count(result?.added), count(result?.updated), count(result?.removed), count(result?.total)];
     if (data?.success !== true || data?.library_id !== libraryId || data?.source_revision !== revision || data?.revision !== revision + 1 || values.some(v => v === null)) {
       return null;
     }
     const [added, updated, removed, total] = values as number[];
-    return { libraryId, revision: data.revision, added, updated, removed, total, message: typeof data.message === 'string' ? data.message : '' };
+    const receipt: CatalogueSyncReceipt = { libraryId, revision: data.revision, added, updated, removed, total, message: typeof data.message === 'string' ? data.message : '' };
+    if (!episodes) return receipt;
+    const started = data?.episodes?.started;
+    const shows = count(data?.episodes?.shows);
+    if (typeof started !== 'boolean' || shows === null) return null;
+    return { ...receipt, episodes: { started, shows } };
   });
 }
 

@@ -29,6 +29,19 @@ test('library catalogue adapter', async t => {
     assert.deepEqual(out, { kind: 'committed', receipt: { libraryId: 7, revision: 4, added: 2, updated: 0, removed: 1, total: 9, message: '2 added, 0 updated, 1 removed' } });
   });
 
+  await t.test('a TV Shows + Episodes sync asks for episodes and reports whether their run started', async () => {
+    const m = await load();
+    const urls = [];
+    globalThis.fetch = async (input, init) => { urls.push(new Request(input, init).url); return Response.json(syncReceipt({ episodes: { started: true, shows: 12 } })); };
+    const out = await m.syncLibraryCatalogue(7, 3, { episodes: true });
+    assert.equal(new URL(urls[0]).pathname + new URL(urls[0]).search, '/api/libraries/7/sync?sync_episodes=true');
+    assert.deepEqual(out.receipt.episodes, { started: true, shows: 12 });
+    for (const episodes of [undefined, { started: 'yes', shows: 1 }, { started: true, shows: -1 }]) {
+      globalThis.fetch = async () => Response.json(syncReceipt({ episodes }));
+      assert.equal((await m.syncLibraryCatalogue(7, 3, { episodes: true })).kind, 'unconfirmed');
+    }
+  });
+
   await t.test('an application refusal is definitive and reported with its code', async () => {
     const m = await load();
     globalThis.fetch = async () => Response.json({ error: { code: 'CATALOGUE_SYNC_FAILED', message: 'Provider item synchronization failed; previous catalogue retained' } }, { status: 502 });

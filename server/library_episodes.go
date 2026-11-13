@@ -40,7 +40,7 @@ var errNotASeries = errors.New("item is not a series")
 
 func episodeDomainError(w http.ResponseWriter, err error) {
 	if errors.Is(err, errCatalogueUnsupported) {
-		fail(w, 409, "CATALOGUE_UNSUPPORTED", "Episode catalogues are implemented only for Jellyfin and Emby")
+		fail(w, 409, "CATALOGUE_UNSUPPORTED", "Episode catalogues are available for Jellyfin, Emby and Plex")
 		return
 	}
 	if errors.Is(err, errNotASeries) {
@@ -113,7 +113,7 @@ func (a *App) syncEpisodeCatalogue(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !episodeCatalogueSupported(library.Provider) {
-		fail(w, 409, "CATALOGUE_UNSUPPORTED", "Item catalogues are implemented only for Jellyfin and Emby")
+		episodeDomainError(w, errCatalogueUnsupported)
 		return
 	}
 	if !library.Active || expected != nil && *expected != show.Revision {
@@ -121,6 +121,12 @@ func (a *App) syncEpisodeCatalogue(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a.catalogueMu.Lock()
+	if a.catalogueRuns[libraryID] != nil {
+		// The whole library is being synchronized, its episodes included.
+		a.catalogueMu.Unlock()
+		fail(w, 409, "CATALOGUE_SYNC_BUSY", "This library is synchronizing; try again when it finishes")
+		return
+	}
 	if a.episodeRuns[itemID] || len(a.catalogueRuns)+len(a.episodeRuns) >= 2 {
 		a.catalogueMu.Unlock()
 		fail(w, 409, "CATALOGUE_SYNC_BUSY", "A catalogue synchronization is already running")
@@ -138,27 +144,66 @@ func (a *App) syncEpisodeCatalogue(w http.ResponseWriter, r *http.Request) {
 		domainError(w, ErrConflict)
 		return
 	}
-	ctx, cancel := context.WithTimeout(r.Context(), time.Minute)
-	defer cancel()
-	episodes, err := provider.catalogueEpisodes(ctx, show.External)
+	result, err := a.syncShowEpisodes(r.Context(), p.UUID, access, library, provider, show, true)
 	if err != nil {
-		fail(w, 502, "EPISODE_SYNC_FAILED", "Provider episode synchronization failed; previous episodes retained")
+		switch {
+		case errors.Is(err, errEpisodeRead):
+			fail(w, 502, "EPISODE_SYNC_FAILED", "Provider episode synchronization failed; previous episodes retained")
+		case errors.Is(err, ErrConflict) || errors.Is(err, ErrForbidden) || errors.Is(err, ErrNotFound) || errors.Is(err, errNotASeries):
+			episodeDomainError(w, err)
+		default:
+			fail(w, 500, "EPISODE_COMMIT_FAILED", "The episodes could not be saved; previous episodes retained")
+		}
 		return
 	}
-	added, updated, removed := 0, 0, 0
-	now := utcTimestamp(time.Now())
+	message := "No changes detected"
+	if result.Added+result.Updated+result.Removed > 0 {
+		message = fmt.Sprintf("%d added, %d updated, %d removed", result.Added, result.Updated, result.Removed)
+	}
+	respond(w, 200, map[string]any{"success": true, "library_id": libraryID, "item_id": itemID, "source_revision": show.Revision, "revision": show.Revision + 1, "synced_at": result.SyncedAt, "message": message,
+		"result": map[string]int{"added": result.Added, "updated": result.Updated, "removed": result.Removed, "total": result.Total}})
+}
+
+type episodeSyncResult struct {
+	Added, Updated, Removed, Total int
+	SyncedAt                       string
+}
+
+var (
+	// errEpisodeRead: the provider's episode list could not be read completely.
+	errEpisodeRead = errors.New("provider episode read failed")
+	// errCatalogueLibraryChanged: the library or its server changed since the
+	// sync began, so no further episodes of it are saved.
+	errCatalogueLibraryChanged = fmt.Errorf("%w: library changed", ErrConflict)
+)
+
+// syncShowEpisodes saves one show's episodes: the provider's complete list is
+// read outside the writer (at most a minute), then committed in one transaction
+// that rechecks the caller's authority, the library's server configuration and
+// the show's episode revision. Any failure leaves the saved episodes as they
+// were. audit records the change; a library-wide run records one summary instead.
+func (a *App) syncShowEpisodes(ctx context.Context, actor, access string, library catalogueLibrary, provider *serverConnection, show catalogueShow, audit bool) (episodeSyncResult, error) {
+	var result episodeSyncResult
+	read, cancel := context.WithTimeout(ctx, time.Minute)
+	defer cancel()
+	episodes, err := provider.catalogueEpisodes(read, show.External)
+	if err != nil {
+		return result, fmt.Errorf("%w: %w", errEpisodeRead, err)
+	}
+	result.Total = len(episodes)
+	result.SyncedAt = utcTimestamp(time.Now())
 	err = a.store.write(ctx, func(tx *sql.Tx) error {
-		if _, err := readCatalogueAuthority(ctx, tx, p.UUID, access); err != nil {
+		if _, err := readCatalogueAuthority(ctx, tx, actor, access); err != nil {
 			return err
 		}
-		current, err := loadCatalogueLibrary(ctx, tx, libraryID)
+		current, err := loadCatalogueLibrary(ctx, tx, library.ID)
 		if err != nil {
 			return err
 		}
 		if !current.Active || current.ConfigRevision != library.ConfigRevision || current.External != library.External {
-			return ErrConflict
+			return errCatalogueLibraryChanged
 		}
-		currentShow, err := loadCatalogueShow(ctx, tx, libraryID, itemID)
+		currentShow, err := loadCatalogueShow(ctx, tx, library.ID, show.ID)
 		if err != nil {
 			return err
 		}
@@ -166,7 +211,7 @@ func (a *App) syncEpisodeCatalogue(w http.ResponseWriter, r *http.Request) {
 			return ErrConflict
 		}
 		existing := map[string]int64{}
-		rows, err := tx.QueryContext(ctx, "SELECT id,external_id FROM media_items WHERE library_id=? AND parent_id=?", libraryID, show.External)
+		rows, err := tx.QueryContext(ctx, "SELECT id,external_id FROM media_items WHERE library_id=? AND parent_id=?", library.ID, show.External)
 		if err != nil {
 			return err
 		}
@@ -182,36 +227,26 @@ func (a *App) syncEpisodeCatalogue(w http.ResponseWriter, r *http.Request) {
 		if err := errors.Join(rows.Err(), rows.Close()); err != nil {
 			return err
 		}
-		if added, updated, err = upsertCatalogueItems(ctx, tx, libraryID, current.Server, show.External, episodes, existing, now); err != nil {
+		if result.Added, result.Updated, err = upsertCatalogueItems(ctx, tx, library.ID, current.Server, show.External, episodes, existing, result.SyncedAt); err != nil {
 			return err
 		}
 		for _, row := range existing {
 			if _, err := tx.ExecContext(ctx, "DELETE FROM media_items WHERE id=?", row); err != nil {
 				return err
 			}
-			removed++
+			result.Removed++
 		}
-		if _, err := tx.ExecContext(ctx, "UPDATE media_items SET episode_revision=episode_revision+1,episodes_synced_at=?,episode_count=? WHERE id=?", now, len(episodes), itemID); err != nil {
+		if _, err := tx.ExecContext(ctx, "UPDATE media_items SET episode_revision=episode_revision+1,episodes_synced_at=?,episode_count=? WHERE id=?", result.SyncedAt, len(episodes), show.ID); err != nil {
 			return err
 		}
-		details, _ := json.Marshal(map[string]any{"library_id": libraryID, "item_id": itemID, "source_revision": show.Revision, "added": added, "updated": updated, "removed": removed, "total": len(episodes)})
-		_, err = tx.ExecContext(ctx, "INSERT INTO audit_events(actor_uuid,action,details,occurred_at) VALUES(?,'library.episodes.sync',?,?)", p.UUID, string(details), now)
+		if !audit {
+			return nil
+		}
+		details, _ := json.Marshal(map[string]any{"library_id": library.ID, "item_id": show.ID, "source_revision": show.Revision, "added": result.Added, "updated": result.Updated, "removed": result.Removed, "total": len(episodes)})
+		_, err = tx.ExecContext(ctx, "INSERT INTO audit_events(actor_uuid,action,details,occurred_at) VALUES(?,'library.episodes.sync',?,?)", actor, string(details), result.SyncedAt)
 		return err
 	})
-	if err != nil {
-		if errors.Is(err, ErrConflict) || errors.Is(err, ErrForbidden) || errors.Is(err, ErrNotFound) || errors.Is(err, errNotASeries) {
-			episodeDomainError(w, err)
-		} else {
-			fail(w, 500, "EPISODE_COMMIT_FAILED", "The episodes could not be saved; previous episodes retained")
-		}
-		return
-	}
-	message := "No changes detected"
-	if added+updated+removed > 0 {
-		message = fmt.Sprintf("%d added, %d updated, %d removed", added, updated, removed)
-	}
-	respond(w, 200, map[string]any{"success": true, "library_id": libraryID, "item_id": itemID, "source_revision": show.Revision, "revision": show.Revision + 1, "synced_at": now, "message": message,
-		"result": map[string]int{"added": added, "updated": updated, "removed": removed, "total": len(episodes)}})
+	return result, err
 }
 
 func (a *App) purgeEpisodeCatalogue(w http.ResponseWriter, r *http.Request) {
@@ -232,7 +267,7 @@ func (a *App) purgeEpisodeCatalogue(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a.catalogueMu.Lock()
-	busy := a.episodeRuns[itemID]
+	busy := a.episodeRuns[itemID] || a.catalogueRuns[libraryID] != nil
 	a.catalogueMu.Unlock()
 	if busy {
 		fail(w, 409, "CATALOGUE_SYNC_BUSY", "An episode synchronization is running")

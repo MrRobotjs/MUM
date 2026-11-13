@@ -98,6 +98,10 @@ type CatalogueEntry struct {
 	Added     *int64   `xml:"addedAt,attr"`
 	Children  *int64   `xml:"childCount,attr"`
 	Smart     string   `xml:"smart,attr"`
+	// Episodes only: their show, season number and episode number.
+	Show        string `xml:"grandparentRatingKey,attr"`
+	SeasonIndex *int64 `xml:"parentIndex,attr"`
+	Index       *int64 `xml:"index,attr"`
 }
 
 // CataloguePage is one page of a section listing.
@@ -160,16 +164,17 @@ func DecodeCataloguePage(body []byte) (CataloguePage, error) {
 	return page, nil
 }
 
-// pages reads every page of one section listing and hands each entry to
-// visit. Plex has no snapshot isolation, so missing or inconsistent paging, a
-// changed total, a mis-scoped page or a short final count rejects the whole
-// snapshot.
-func (s *Server) pages(ctx context.Context, section, path string, query url.Values, progress func(fetched, total int), visit func(CatalogueEntry) error) error {
+// pages reads every page of one listing and hands each entry to visit. Plex
+// has no snapshot isolation, so missing or inconsistent paging, a changed
+// total, a mis-scoped page or a short final count rejects the whole snapshot.
+// A listing outside one known section (a show's episodes) passes section ""
+// and must then keep to whichever single section its first page reports.
+func (s *Server) pages(ctx context.Context, path, section string, max int, query url.Values, progress func(fetched, total int), visit func(CatalogueEntry) error) error {
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
 	total, read := -1, 0
 	for start := 0; ; {
-		_, body, err := s.catalogueGet(ctx, "/library/sections/"+section+path+"?"+query.Encode(), "application/xml", start, 16<<20, nil)
+		_, body, err := s.catalogueGet(ctx, path+"?"+query.Encode(), "application/xml", start, 16<<20, nil)
 		if err != nil {
 			return err
 		}
@@ -177,7 +182,10 @@ func (s *Server) pages(ctx context.Context, section, path string, query url.Valu
 		if err != nil {
 			return err
 		}
-		if page.Size == nil || page.Total == nil || page.Offset == nil || *page.Total < 0 || *page.Total > provider.CatalogueMaxItems || *page.Size < 0 || *page.Size > provider.CataloguePageSize || *page.Size != len(page.Items) || *page.Offset != start || page.Section != "" && page.Section != section {
+		if section == "" && NumericID(page.Section) {
+			section = page.Section
+		}
+		if page.Size == nil || page.Total == nil || page.Offset == nil || *page.Total < 0 || *page.Total > max || *page.Size < 0 || *page.Size > provider.CataloguePageSize || *page.Size != len(page.Items) || *page.Offset != start || page.Section != "" && page.Section != section {
 			return errors.New("invalid Plex catalogue pagination or section")
 		}
 		if total >= 0 && total != *page.Total {
@@ -185,6 +193,9 @@ func (s *Server) pages(ctx context.Context, section, path string, query url.Valu
 		}
 		total = *page.Total
 		for _, row := range page.Items {
+			if section == "" && NumericID(row.Section) {
+				section = row.Section
+			}
 			if row.Section != "" && row.Section != section {
 				return errors.New("mis-scoped Plex catalogue entry")
 			}
@@ -228,7 +239,7 @@ func (s *Server) CatalogueItems(ctx context.Context, section, kind string, progr
 	items := []provider.CatalogueItem{}
 	seen := map[string]bool{}
 	query := url.Values{"type": {itemType}, "includeCollections": {"0"}, "sort": {"titleSort:asc"}}
-	err := s.pages(ctx, section, "/all", query, progress, func(row CatalogueEntry) error {
+	err := s.pages(ctx, "/library/sections/"+section+"/all", section, provider.CatalogueMaxItems, query, progress, func(row CatalogueEntry) error {
 		title := provider.TruncateRunes(row.Title, 512)
 		if row.XMLName.Local != element || row.Kind != kind || !NumericID(row.ID) || seen[row.ID] || title == "" || row.Poster != "" && !ValidPoster(row.ID, row.Poster) {
 			return errors.New("invalid, duplicate or mis-scoped Plex catalogue item")
@@ -257,6 +268,55 @@ func (s *Server) CatalogueItems(ctx context.Context, section, kind string, progr
 	return items, nil
 }
 
+// CatalogueEpisodes reads one show's complete episode list: every episode of
+// every season, from the show's "all leaves" listing. Each episode must be its
+// own numbered item of that show; anything else rejects the snapshot. A
+// thumbnail that is not the episode's own is dropped rather than stored, so it
+// is never fetched.
+func (s *Server) CatalogueEpisodes(ctx context.Context, show string) ([]provider.CatalogueItem, error) {
+	if !NumericID(show) {
+		return nil, errors.New("invalid Plex show identifier")
+	}
+	items := []provider.CatalogueItem{}
+	seen := map[string]bool{}
+	err := s.pages(ctx, "/library/metadata/"+show+"/allLeaves", "", provider.CatalogueMaxEpisodes, url.Values{}, nil, func(row CatalogueEntry) error {
+		title := provider.TruncateRunes(row.Title, 512)
+		if row.XMLName.Local != "Video" || row.Kind != "episode" || !NumericID(row.ID) || seen[row.ID] || row.Show != show || title == "" {
+			return errors.New("invalid, duplicate or mis-scoped Plex episode")
+		}
+		seen[row.ID] = true
+		item := provider.CatalogueItem{ID: row.ID, Type: "episode", Title: title, SortTitle: provider.TruncateRunes(row.SortTitle, 512), Summary: provider.TruncateRunes(row.Summary, 8000)}
+		if item.SortTitle == "" {
+			item.SortTitle = title
+		}
+		if ValidPoster(row.ID, row.Poster) {
+			item.ImageTag = row.Poster
+		}
+		if row.Year != nil && *row.Year > 0 && *row.Year < 10000 {
+			item.Year = row.Year
+		}
+		if row.Rating != nil && !math.IsNaN(*row.Rating) && !math.IsInf(*row.Rating, 0) && *row.Rating >= 0 && *row.Rating <= 10 {
+			item.Rating = row.Rating
+		}
+		if row.Duration != nil && *row.Duration >= 0 {
+			item.DurationMS = row.Duration
+		}
+		if row.SeasonIndex != nil && *row.SeasonIndex >= 0 && *row.SeasonIndex <= 100000 {
+			item.Season = row.SeasonIndex
+		}
+		if row.Index != nil && *row.Index >= 0 && *row.Index <= 100000 {
+			item.Episode = row.Index
+		}
+		item.AddedAt = addedAt(row.Added)
+		items = append(items, item)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 // CatalogueCollections reads one section's complete collection list. A
 // poster reference in an unrecognised form is dropped rather than stored, so
 // it is never fetched; every other inconsistency rejects the snapshot.
@@ -266,7 +326,7 @@ func (s *Server) CatalogueCollections(ctx context.Context, section, kind string)
 	}
 	collections := []provider.CatalogueCollection{}
 	seen := map[string]bool{}
-	err := s.pages(ctx, section, "/collections", url.Values{"sort": {"titleSort:asc"}}, nil, func(row CatalogueEntry) error {
+	err := s.pages(ctx, "/library/sections/"+section+"/collections", section, provider.CatalogueMaxItems, url.Values{"sort": {"titleSort:asc"}}, nil, func(row CatalogueEntry) error {
 		title := provider.TruncateRunes(row.Title, 512)
 		if row.XMLName.Local != "Directory" || row.Kind != "collection" || !NumericID(row.ID) || seen[row.ID] || title == "" || row.Children != nil && *row.Children < 0 || row.Smart != "" && row.Smart != "0" && row.Smart != "1" {
 			return errors.New("invalid, duplicate or mis-scoped Plex collection")

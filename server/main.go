@@ -110,6 +110,7 @@ func run() error {
 	app.SecureCookies = settings.SecureCookies
 	app.TrustedProxies = settings.TrustedProxies
 	defer app.CloseProvisioning()
+	defer app.CloseCatalogue()
 	defer app.CloseScheduler()
 	defer app.CloseRealtime()
 	listener, err := net.Listen("tcp", settings.Listen)
@@ -138,6 +139,7 @@ func run() error {
 	app.StopScheduler()
 	app.CloseRealtime()
 	app.StopProvisioning()
+	app.StopCatalogue()
 	httpErr := server.Shutdown(shutdownCtx)
 	if httpErr != nil {
 		_ = server.Close()

@@ -168,7 +168,7 @@ func TestLibraryCatalogueSyncListDetailImagesAndPurge(t *testing.T) {
 	if w := apiRequest(f.a, "POST", f.path("/sync"), f.token, map[string]any{"expected_catalogue_revision": 5}, nil); w.Code != 409 {
 		t.Fatal("stale catalogue revision accepted", w.Code)
 	}
-	if w := apiRequest(f.a, "POST", f.path("/sync?sync_episodes=true"), f.token, nil, nil); w.Code != 409 || !strings.Contains(w.Body.String(), "EPISODES_UNAVAILABLE") {
+	if w := apiRequest(f.a, "POST", f.path("/sync?sync_episodes=1"), f.token, nil, nil); w.Code != 400 || !strings.Contains(w.Body.String(), "INVALID_SYNC_EPISODES") {
 		t.Fatal(w.Code, w.Body.String())
 	}
 	w := apiRequest(f.a, "POST", f.path("/sync"), f.token, map[string]any{"expected_catalogue_revision": 1}, nil)

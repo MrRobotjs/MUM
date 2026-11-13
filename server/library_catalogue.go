@@ -127,6 +127,10 @@ type catalogueProgress struct {
 	Fetched  int
 	Total    int
 	Finished bool
+	// Phase is "shows" while the item list is read and "episodes" while a
+	// "TV Shows + Episodes" run works through the library's shows.
+	Phase                              string
+	ShowsDone, ShowsTotal, ShowsFailed int
 }
 
 func (a *App) catalogueProgressUpdate(library int64, update func(*catalogueProgress)) {
@@ -188,8 +192,13 @@ func (a *App) syncLibraryCatalogue(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	if r.URL.Query().Get("sync_episodes") == "true" {
-		fail(w, 409, "EPISODES_UNAVAILABLE", "Episode catalogues are not implemented; synchronize without episodes")
+	syncEpisodes := false
+	switch r.URL.Query().Get("sync_episodes") {
+	case "", "false":
+	case "true":
+		syncEpisodes = true
+	default:
+		fail(w, 400, "INVALID_SYNC_EPISODES", "sync_episodes must be true or false")
 		return
 	}
 	access := bearer(r)
@@ -220,19 +229,34 @@ func (a *App) syncLibraryCatalogue(w http.ResponseWriter, r *http.Request) {
 		fail(w, 409, "CATALOGUE_UNSUPPORTED", "Item catalogues support Jellyfin, Emby and Plex movie/show libraries")
 		return
 	}
+	if syncEpisodes && !episodeCatalogueSupported(library.Provider) {
+		episodeDomainError(w, errCatalogueUnsupported)
+		return
+	}
 	if !library.Active || input.Revision != nil && *input.Revision != library.Revision {
 		domainError(w, ErrConflict)
 		return
 	}
 	a.catalogueMu.Lock()
+	if a.catalogueClosing {
+		a.catalogueMu.Unlock()
+		fail(w, 503, "SHUTTING_DOWN", "MUM is shutting down")
+		return
+	}
 	if a.catalogueRuns[id] != nil || len(a.catalogueRuns)+len(a.episodeRuns) >= 2 {
 		a.catalogueMu.Unlock()
 		fail(w, 409, "CATALOGUE_SYNC_BUSY", "A catalogue synchronization is already running")
 		return
 	}
-	a.catalogueRuns[id] = &catalogueProgress{Started: utcTimestamp(time.Now()), ActorID: p.ID, Actor: p.Username}
+	a.catalogueRuns[id] = &catalogueProgress{Started: utcTimestamp(time.Now()), ActorID: p.ID, Actor: p.Username, Phase: "shows"}
 	a.catalogueMu.Unlock()
+	// An episode run takes the library's progress entry over and removes it
+	// itself when it finishes.
+	handedOff := false
 	defer func() {
+		if handedOff {
+			return
+		}
 		a.catalogueMu.Lock()
 		delete(a.catalogueRuns, id)
 		a.catalogueMu.Unlock()
@@ -327,9 +351,144 @@ func (a *App) syncLibraryCatalogue(w http.ResponseWriter, r *http.Request) {
 	if added+updated+removed > 0 {
 		message = fmt.Sprintf("%d added, %d updated, %d removed", added, updated, removed)
 	}
-	respond(w, 200, map[string]any{"success": true, "library_id": id, "source_revision": library.Revision, "revision": library.Revision + 1, "synced_at": now, "message": message,
-		"result": map[string]int{"added": added, "updated": updated, "removed": removed, "total": len(items)}})
+	response := map[string]any{"success": true, "library_id": id, "source_revision": library.Revision, "revision": library.Revision + 1, "synced_at": now, "message": message,
+		"result": map[string]int{"added": added, "updated": updated, "removed": removed, "total": len(items)}}
+	if syncEpisodes {
+		// The shows are saved; their episodes follow in the background, show
+		// by show, with progress on the library's sync status.
+		episodes := map[string]any{"started": false, "shows": 0}
+		if shows, err := a.catalogueShows(context.WithoutCancel(r.Context()), id); err != nil {
+			a.logger.Warn("Library episode synchronization could not start", "library_id", id, "error", err)
+		} else if a.startLibraryEpisodes(id, p.UUID, access, library, provider, shows) {
+			handedOff = true
+			episodes = map[string]any{"started": true, "shows": len(shows)}
+		}
+		response["episodes"] = episodes
+	}
+	respond(w, 200, response)
 }
+
+// catalogueShows lists a library's saved shows, in title order, for an episode run.
+func (a *App) catalogueShows(ctx context.Context, library int64) ([]catalogueShow, error) {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	rows, err := a.store.reader.QueryContext(ctx, "SELECT id,external_id,episode_revision FROM media_items WHERE library_id=? AND parent_id IS NULL AND item_type='show' ORDER BY sort_title COLLATE NOCASE,id", library)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	shows := []catalogueShow{}
+	for rows.Next() {
+		var show catalogueShow
+		if err := rows.Scan(&show.ID, &show.External, &show.Revision); err != nil {
+			return nil, err
+		}
+		shows = append(shows, show)
+	}
+	return shows, rows.Err()
+}
+
+// libraryEpisodeRunLimit bounds one library-wide episode run; each show's
+// read is bounded separately (syncShowEpisodes).
+const libraryEpisodeRunLimit = 2 * time.Hour
+
+// startLibraryEpisodes hands the library's progress entry to a tracked
+// background run that saves each show's episodes in turn. It reports false,
+// leaving the entry with the caller, while MUM is shutting down.
+func (a *App) startLibraryEpisodes(id int64, actor, access string, library catalogueLibrary, provider *serverConnection, shows []catalogueShow) bool {
+	a.catalogueMu.Lock()
+	defer a.catalogueMu.Unlock()
+	if a.catalogueClosing || a.catalogueRuns[id] == nil {
+		return false
+	}
+	run := a.catalogueRuns[id]
+	run.Phase, run.ShowsTotal = "episodes", len(shows)
+	delete(a.episodeOutcomes, id)
+	a.catalogueWG.Add(1)
+	go func() {
+		defer a.catalogueWG.Done()
+		a.runLibraryEpisodes(id, actor, access, library, provider, shows)
+	}()
+	return true
+}
+
+// runLibraryEpisodes saves each show's episodes, one short transaction per
+// show, so a stop keeps every show finished so far. A show that cannot be read
+// or saved keeps its previous episodes and the run moves on; a changed
+// library or server, lost authority, shutdown or the time limit stops the
+// run. The outcome is kept for the library's sync status and audited once.
+func (a *App) runLibraryEpisodes(id int64, actor, access string, library catalogueLibrary, provider *serverConnection, shows []catalogueShow) {
+	ctx, cancel := context.WithTimeout(a.catalogueCtx, libraryEpisodeRunLimit)
+	defer cancel()
+	synced, failed, skipped, added, updated, removed := 0, 0, 0, 0, 0, 0
+	stopped := ""
+	for i, show := range shows {
+		if ctx.Err() != nil {
+			break
+		}
+		result, err := a.syncShowEpisodes(ctx, actor, access, library, provider, show, false)
+		switch {
+		case err == nil:
+			synced++
+			added, updated, removed = added+result.Added, updated+result.Updated, removed+result.Removed
+		case ctx.Err() != nil:
+		case errors.Is(err, errCatalogueLibraryChanged):
+			stopped = "library_changed"
+		case errors.Is(err, ErrForbidden):
+			stopped = "forbidden"
+		case errors.Is(err, ErrNotFound) || errors.Is(err, errNotASeries):
+			// The show left the library after the run began.
+			skipped++
+		default:
+			failed++
+			a.logger.Warn("Show episodes not synchronized; previous episodes retained", "library_id", id, "item_id", show.ID, "error", err)
+		}
+		a.catalogueProgressUpdate(id, func(run *catalogueProgress) { run.ShowsDone, run.ShowsFailed = i+1, failed })
+		if stopped != "" {
+			break
+		}
+	}
+	if stopped == "" && ctx.Err() != nil {
+		stopped = "timeout"
+		if a.catalogueCtx.Err() != nil {
+			stopped = "shutdown"
+		}
+	}
+	finished := utcTimestamp(time.Now())
+	outcome := map[string]any{"finished_at": finished, "shows_total": len(shows), "shows_synced": synced, "shows_failed": failed, "shows_skipped": skipped,
+		"added": added, "updated": updated, "removed": removed, "stopped": nil}
+	if stopped != "" {
+		outcome["stopped"] = stopped
+	}
+	// The summary is recorded even during shutdown: the store closes only
+	// after this run returns.
+	auditCtx, auditCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer auditCancel()
+	details, _ := json.Marshal(map[string]any{"library_id": id, "shows_total": len(shows), "shows_synced": synced, "shows_failed": failed, "shows_skipped": skipped, "added": added, "updated": updated, "removed": removed, "stopped": outcome["stopped"]})
+	if err := a.store.write(auditCtx, func(tx *sql.Tx) error {
+		_, err := tx.ExecContext(auditCtx, "INSERT INTO audit_events(actor_uuid,action,details,occurred_at) VALUES(?,'library.episodes.sync_all',?,?)", actor, string(details), finished)
+		return err
+	}); err != nil {
+		a.logger.Error("Library episode synchronization summary not recorded", "library_id", id, "error", err)
+	}
+	a.logger.Info("Library episode synchronization finished", "library_id", id, "shows", len(shows), "synced", synced, "failed", failed, "skipped", skipped, "stopped", stopped)
+	a.catalogueMu.Lock()
+	delete(a.catalogueRuns, id)
+	a.episodeOutcomes[id] = outcome
+	a.catalogueMu.Unlock()
+}
+
+// StopCatalogue refuses new catalogue runs and cancels library episode runs.
+func (a *App) StopCatalogue() {
+	a.catalogueMu.Lock()
+	a.catalogueClosing = true
+	a.catalogueMu.Unlock()
+	a.catalogueCancel()
+}
+
+// CloseCatalogue stops and waits for library episode runs; call it before
+// closing the Store.
+func (a *App) CloseCatalogue() { a.StopCatalogue(); a.catalogueWG.Wait() }
 
 func (a *App) purgeLibraryCatalogue(w http.ResponseWriter, r *http.Request) {
 	p, ok := a.principal(w, r, true)
@@ -412,13 +571,24 @@ func (a *App) librarySyncStatus(w http.ResponseWriter, r *http.Request) {
 	if run != nil {
 		state = *run
 	}
+	var lastEpisodes any
+	if outcome := a.episodeOutcomes[id]; outcome != nil {
+		lastEpisodes = outcome
+	}
 	a.catalogueMu.Unlock()
 	status := map[string]any{"is_syncing": run != nil, "library_id": id, "started_at": nil, "started_by": nil, "started_by_username": nil,
-		"progress": map[string]any{"current_page": 0, "total_pages": 0, "total_items": 0, "total_fetched": 0, "message": nil}}
+		"progress":         map[string]any{"phase": nil, "current_page": 0, "total_pages": 0, "total_items": 0, "total_fetched": 0, "shows_current": 0, "shows_total": 0, "shows_failed": 0, "message": nil},
+		"last_episode_run": lastEpisodes}
 	if run != nil {
 		pages := (state.Total + cataloguePageSize - 1) / cataloguePageSize
 		status["started_at"], status["started_by"], status["started_by_username"] = state.Started, state.ActorID, state.Actor
-		status["progress"] = map[string]any{"current_page": (state.Fetched + cataloguePageSize - 1) / cataloguePageSize, "total_pages": pages, "total_items": state.Total, "total_fetched": state.Fetched, "message": "Reading provider items; nothing is saved until the complete snapshot is validated"}
+		progress := map[string]any{"phase": state.Phase, "current_page": (state.Fetched + cataloguePageSize - 1) / cataloguePageSize, "total_pages": pages, "total_items": state.Total, "total_fetched": state.Fetched,
+			"shows_current": state.ShowsDone, "shows_total": state.ShowsTotal, "shows_failed": state.ShowsFailed, "message": "Reading provider items; nothing is saved until the complete snapshot is validated"}
+		if state.Phase == "episodes" {
+			// Each show is saved as soon as its episodes are read.
+			progress["message"] = nil
+		}
+		status["progress"] = progress
 	}
 	respond(w, 200, status)
 }

@@ -597,7 +597,15 @@ var catalogueSorts = map[string]string{
 	"title_asc": "i.sort_title COLLATE NOCASE ASC,i.id ASC", "title_desc": "i.sort_title COLLATE NOCASE DESC,i.id DESC",
 	"year_desc": "i.year IS NULL,i.year DESC,i.id DESC", "year_asc": "i.year IS NULL,i.year ASC,i.id ASC",
 	"added_desc": "i.added_at IS NULL,i.added_at DESC,i.id DESC", "rating_desc": "i.rating IS NULL,i.rating DESC,i.id DESC",
+	"total_streams_desc": "stream_count DESC,i.sort_title COLLATE NOCASE ASC,i.id ASC", "total_streams_asc": "stream_count ASC,i.sort_title COLLATE NOCASE ASC,i.id ASC",
 }
+
+// itemStreamCount counts the retained plays of the top-level item i on its
+// server: a movie's own plays, a series' episode plays and an album's track
+// plays (attributed through the play's parent item, as library activity is).
+// Each half uses one history index.
+const itemStreamCount = `((SELECT count(*) FROM media_activity_history h WHERE h.server_id=i.server_id AND h.parent_item_id=i.external_id)
+ +(SELECT count(*) FROM media_activity_history h WHERE h.server_id=i.server_id AND h.parent_item_id IS NULL AND h.item_id=i.external_id))`
 
 type catalogueItemRow struct {
 	ID         int64    `json:"id"`
@@ -612,6 +620,8 @@ type catalogueItemRow struct {
 	Thumb      string   `json:"thumb,omitempty"`
 	AddedAt    string   `json:"added_at,omitempty"`
 	LastSynced string   `json:"last_synced"`
+	// StreamCount is the item's retained plays (itemStreamCount).
+	StreamCount int64 `json:"stream_count"`
 }
 
 func scanCatalogueItem(row rowScanner, summary bool) (catalogueItemRow, bool, error) {
@@ -620,7 +630,7 @@ func scanCatalogueItem(row rowScanner, summary bool) (catalogueItemRow, bool, er
 	var rating sql.NullFloat64
 	var duration sql.NullInt64
 	var tag, text sql.NullString
-	err := row.Scan(&item.ID, &item.External, &item.Title, &item.SortTitle, &item.Type, &year, &rating, &duration, &text, &tag, &item.AddedAt, &item.LastSynced)
+	err := row.Scan(&item.ID, &item.External, &item.Title, &item.SortTitle, &item.Type, &year, &rating, &duration, &text, &tag, &item.AddedAt, &item.LastSynced, &item.StreamCount)
 	if year.Valid {
 		item.Year = &year.Int64
 	}
@@ -636,7 +646,7 @@ func scanCatalogueItem(row rowScanner, summary bool) (catalogueItemRow, bool, er
 	return item, tag.Valid && tag.String != "", err
 }
 
-const catalogueItemColumns = "i.id,i.external_id,i.title,coalesce(i.sort_title,i.title),i.item_type,i.year,i.rating,i.duration,i.summary,i.thumb_path,coalesce(i.added_at,''),coalesce(i.last_synced,'')"
+const catalogueItemColumns = "i.id,i.external_id,i.title,coalesce(i.sort_title,i.title),i.item_type,i.year,i.rating,i.duration,i.summary,i.thumb_path,coalesce(i.added_at,''),coalesce(i.last_synced,'')," + itemStreamCount + " AS stream_count"
 
 func (a *App) libraryCatalogueItems(w http.ResponseWriter, r *http.Request) {
 	p, ok := a.principal(w, r, true)
@@ -790,7 +800,7 @@ func (a *App) libraryCatalogueItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respond(w, 200, map[string]any{"id": item.ID, "external_id": item.External, "title": item.Title, "sort_title": item.SortTitle, "item_type": item.Type,
-		"year": item.Year, "rating": item.Rating, "duration": item.DurationMS, "summary": item.Summary, "thumb": item.Thumb, "added_at": item.AddedAt, "last_synced": item.LastSynced,
+		"year": item.Year, "rating": item.Rating, "duration": item.DurationMS, "summary": item.Summary, "thumb": item.Thumb, "added_at": item.AddedAt, "last_synced": item.LastSynced, "stream_count": item.StreamCount,
 		"catalogue_revision": library.Revision, "catalogue_supported": catalogueLibrarySupported(library.Provider, library.Kind, library.External),
 		"episode_catalogue_supported": episodeCatalogueSupported(library.Provider) && item.Type == "show",
 		"episode_revision":            episodeRevision, "episodes_synced_at": nullableText(episodesSynced.String), "episode_count": nullableCount(episodeCount),

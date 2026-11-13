@@ -161,7 +161,18 @@ func libraryChart(ctx context.Context, q libraryActivityRequest) ([]map[string]a
 	return out, nil
 }
 
-func (a *App) libraryActivity(w http.ResponseWriter, r *http.Request) {
+// itemActivityMatch selects one top-level catalogue item's observations since
+// a cutoff with libraryActivityMatch's columns: a movie's own plays, a series'
+// episode plays or an album's track plays. Its parameters are item ID, server
+// ID and cutoff.
+const itemActivityMatch = `SELECT h.id AS id,h.title AS title,h.media_type AS media_type,coalesce(h.parent_title,'') AS parent_title,h.first_seen_at AS first_seen_at,
+ max(0,CAST(round((julianday(h.last_seen_at)-julianday(h.first_seen_at))*86400) AS INTEGER)) AS observed,
+ coalesce(h.owner_uuid,h.service_uuid) AS viewer,i.id AS item,i.title AS item_title,coalesce(i.thumb_path,'') AS tag,
+ coalesce((SELECT local_username FROM user_accounts WHERE uuid=h.owner_uuid),(SELECT external_username FROM service_accounts WHERE uuid=h.service_uuid),'') AS viewer_name
+ FROM media_items i JOIN media_activity_history h ON h.server_id=? AND h.first_seen_at>=? AND (h.parent_item_id=i.external_id OR (h.parent_item_id IS NULL AND h.item_id=i.external_id))
+ WHERE i.id=?`
+
+func activityPage(w http.ResponseWriter, r *http.Request) (int, int, bool) {
 	query := r.URL.Query()
 	page, size := 1, 20
 	for key, target := range map[string]*int{"page": &page, "page_size": &size} {
@@ -169,23 +180,64 @@ func (a *App) libraryActivity(w http.ResponseWriter, r *http.Request) {
 			n, err := strconv.Atoi(raw)
 			if err != nil || n < 1 || key == "page" && n > 100000 || key == "page_size" && n > 100 {
 				fail(w, 400, "INVALID_PAGE", "Use a positive page and a page size from 1 to 100")
-				return
+				return 0, 0, false
 			}
 			*target = n
 		}
+	}
+	return page, size, true
+}
+
+func (a *App) libraryActivity(w http.ResponseWriter, r *http.Request) {
+	page, size, ok := activityPage(w, r)
+	if !ok {
+		return
 	}
 	q, ok := a.beginLibraryActivity(w, r)
 	if !ok {
 		return
 	}
 	defer q.tx.Rollback()
-	ctx := r.Context()
-	var total int
-	if err := q.tx.QueryRowContext(ctx, "SELECT count(*) FROM ("+libraryActivityMatch+")", q.args()...).Scan(&total); err != nil {
+	a.writeActivityPage(w, r, q, libraryActivityMatch, q.args(), page, size)
+}
+
+// itemActivity lists one catalogue item's recent plays, as libraryActivity
+// does for the whole library.
+func (a *App) itemActivity(w http.ResponseWriter, r *http.Request) {
+	page, size, ok := activityPage(w, r)
+	if !ok {
+		return
+	}
+	itemID, ok := pathID(w, r, "item")
+	if !ok {
+		return
+	}
+	q, ok := a.beginLibraryActivity(w, r)
+	if !ok {
+		return
+	}
+	defer q.tx.Rollback()
+	var found bool
+	if err := q.tx.QueryRowContext(r.Context(), "SELECT EXISTS(SELECT 1 FROM media_items WHERE id=? AND library_id=? AND parent_id IS NULL)", itemID, q.library.ID).Scan(&found); err != nil {
 		domainError(w, err)
 		return
 	}
-	rows, err := q.tx.QueryContext(ctx, "SELECT id,title,media_type,parent_title,first_seen_at,observed,viewer_name,item,tag FROM ("+libraryActivityMatch+") ORDER BY first_seen_at DESC,id DESC LIMIT ? OFFSET ?", append(q.args(), size, (page-1)*size)...)
+	if !found {
+		domainError(w, ErrNotFound)
+		return
+	}
+	a.writeActivityPage(w, r, q, itemActivityMatch, []any{q.library.Server, utcTimestamp(q.cutoff), itemID}, page, size)
+}
+
+// writeActivityPage writes one page of the observations match selects.
+func (a *App) writeActivityPage(w http.ResponseWriter, r *http.Request, q libraryActivityRequest, match string, args []any, page, size int) {
+	ctx := r.Context()
+	var total int
+	if err := q.tx.QueryRowContext(ctx, "SELECT count(*) FROM ("+match+")", args...).Scan(&total); err != nil {
+		domainError(w, err)
+		return
+	}
+	rows, err := q.tx.QueryContext(ctx, "SELECT id,title,media_type,parent_title,first_seen_at,observed,viewer_name,item,tag FROM ("+match+") ORDER BY first_seen_at DESC,id DESC LIMIT ? OFFSET ?", append(args, size, (page-1)*size)...)
 	if err != nil {
 		domainError(w, err)
 		return

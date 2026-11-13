@@ -199,7 +199,7 @@ func TestLibraryCatalogueSyncListDetailImagesAndPurge(t *testing.T) {
 	if desc := f.list(t, "sort_by=title_desc&page_size=1"); desc.Data[0].Title != "Movie 0449" {
 		t.Fatal(desc.Data[0].Title)
 	}
-	for _, query := range []string{"sort_by=total_streams_desc", "page_size=500", "page=0"} {
+	for _, query := range []string{"sort_by=plays_desc", "page_size=500", "page=0"} {
 		if w := apiRequest(f.a, "GET", f.path("/media?"+query), f.token, nil, nil); w.Code != 400 {
 			t.Fatal(query, w.Code)
 		}

@@ -15,6 +15,7 @@ import { Card, CardContent } from '../components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Skeleton } from '../components/ui/skeleton';
+import { ActivityTable } from '../components/library/ActivityTable';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faCube,
@@ -128,11 +129,19 @@ const MediaDetailPageView = () => {
   const [syncing, setSyncing] = useState(false);
   const [purgingEpisodes, setPurgingEpisodes] = useState(false);
 
+  // Activity state: this item's recent plays (a show's include its episodes).
+  const [activityData, setActivityData] = useState<any[]>([]);
+  const [activityLoading, setActivityLoading] = useState(false);
+  const [activityDays, setActivityDays] = useState(30);
+  const [activityPage, setActivityPage] = useState(1);
+  const [activityTotalPages, setActivityTotalPages] = useState(1);
+
   const activeTab: TabType = search.tab ?? 'overview';
   const [needsInspection, setNeedsInspection] = useState(false);
   const queries = {
     item: JSON.stringify([libraryId, mediaId]),
     episodes: JSON.stringify([libraryId, mediaId, activeTab, episodesPage, episodesSearch, episodesSortBy, episodesPerPage]),
+    activity: JSON.stringify([libraryId, mediaId, activeTab, activityDays, activityPage]),
   };
   const view = useCatalogueView(queries);
 
@@ -149,6 +158,35 @@ const MediaDetailPageView = () => {
       loadEpisodes();
     }
   }, [libraryId, mediaId, activeTab, episodesPage, episodesSearch, episodesSortBy, episodesPerPage, isTVShow, mediaItem?.episode_catalogue_supported]);
+
+  useEffect(() => {
+    if (activeTab === 'activity') loadActivity();
+  }, [libraryId, mediaId, activeTab, activityDays, activityPage]);
+
+  const loadActivity = async () => {
+    if (!libraryId || !mediaId) return false;
+    if (!view.current()) return false;
+    const read = view.begin('activity', queries.activity);
+    if (!read.current()) return false;
+    try {
+      setActivityLoading(true);
+      const response = await requestJson<{ data?: any[]; meta?: { pagination?: { total_pages?: number } } }>(
+        `/api/libraries/${libraryId}/media/${mediaId}/activity?days=${activityDays}&page=${activityPage}&page_size=20`,
+        { signal: read.signal, retryAuthentication: false });
+      if (!read.current()) return false;
+      setActivityData(response.data || []);
+      setActivityTotalPages(response.meta?.pagination?.total_pages || 1);
+      return true;
+    } catch (err) {
+      if (!read.current()) return false;
+      console.error('Failed to load activity:', err);
+      setActivityData([]);
+      return false;
+    } finally {
+      read.finish();
+      if (read.current()) setActivityLoading(false);
+    }
+  };
 
   const loadMediaItem = async () => {
     if (!libraryId || !mediaId) return;
@@ -701,8 +739,8 @@ const MediaDetailPageView = () => {
                           <SelectItem value="year_asc">Year (Oldest First)</SelectItem>
                           <SelectItem value="added_at_desc">Date Added (Newest)</SelectItem>
                           <SelectItem value="added_at_asc">Date Added (Oldest)</SelectItem>
-                          <SelectItem value="total_streams_desc" disabled>Streams (Most)</SelectItem>
-                          <SelectItem value="total_streams_asc" disabled>Streams (Least)</SelectItem>
+                          <SelectItem value="total_streams_desc">Streams (Most)</SelectItem>
+                          <SelectItem value="total_streams_asc">Streams (Least)</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -911,16 +949,17 @@ const MediaDetailPageView = () => {
           )}
         </TabsContent>
 
-        <TabsContent value="activity">
-          <Card>
-            <CardContent className="p-12 text-center">
-              <div className="w-16 h-16 rounded-full bg-accent flex items-center justify-center mx-auto mb-4">
-                <FontAwesomeIcon icon={faChartLine} className="h-8 w-8 text-muted-foreground" />
-              </div>
-              <h3 className="text-lg font-medium mb-2">Activity</h3>
-              <p className="text-muted-foreground">Activity tracking feature coming soon</p>
-            </CardContent>
-          </Card>
+        <TabsContent value="activity" className="space-y-6">
+          <ActivityTable
+            days={activityDays}
+            onDaysChange={(days) => { setActivityDays(days); setActivityPage(1); }}
+            page={activityPage}
+            totalPages={activityTotalPages}
+            onPageChange={setActivityPage}
+            loading={activityLoading}
+            rows={activityData}
+            emptyMessage={`No streaming activity found for this ${isTVShow ? 'show' : 'item'} in the selected time period.`}
+          />
         </TabsContent>
       </Tabs>
 

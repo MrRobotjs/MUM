@@ -322,7 +322,12 @@ var episodeSorts = map[string]string{
 	"title_asc":           "i.sort_title COLLATE NOCASE ASC,i.id ASC", "title_desc": "i.sort_title COLLATE NOCASE DESC,i.id DESC",
 	"year_desc": "i.year IS NULL,i.year DESC,i.id DESC", "year_asc": "i.year IS NULL,i.year ASC,i.id ASC",
 	"added_at_desc": "i.added_at IS NULL,i.added_at DESC,i.id DESC", "added_at_asc": "i.added_at IS NULL,i.added_at ASC,i.id ASC",
+	"total_streams_desc": "stream_count DESC,i.season_number IS NULL,i.season_number ASC,i.episode_number IS NULL,i.episode_number ASC,i.id ASC",
+	"total_streams_asc":  "stream_count ASC,i.season_number IS NULL,i.season_number ASC,i.episode_number IS NULL,i.episode_number ASC,i.id ASC",
 }
+
+// episodeStreamCount counts the retained plays of episode i on its server.
+const episodeStreamCount = "(SELECT count(*) FROM media_activity_history h WHERE h.server_id=i.server_id AND h.item_id=i.external_id)"
 
 func (a *App) listEpisodeCatalogue(w http.ResponseWriter, r *http.Request) {
 	p, ok := a.principal(w, r, true)
@@ -397,7 +402,7 @@ func (a *App) listEpisodeCatalogue(w http.ResponseWriter, r *http.Request) {
 		domainError(w, err)
 		return
 	}
-	rows, err := tx.QueryContext(r.Context(), "SELECT i.id,i.title,i.season_number,i.episode_number,i.year,i.rating,i.duration,coalesce(i.thumb_path,''),coalesce(i.added_at,'') FROM media_items i"+where+" ORDER BY "+order+" LIMIT ? OFFSET ?", append(args, size, (page-1)*size)...)
+	rows, err := tx.QueryContext(r.Context(), "SELECT i.id,i.title,i.season_number,i.episode_number,i.year,i.rating,i.duration,coalesce(i.thumb_path,''),coalesce(i.added_at,''),"+episodeStreamCount+" AS stream_count FROM media_items i"+where+" ORDER BY "+order+" LIMIT ? OFFSET ?", append(args, size, (page-1)*size)...)
 	if err != nil {
 		domainError(w, err)
 		return
@@ -406,15 +411,15 @@ func (a *App) listEpisodeCatalogue(w http.ResponseWriter, r *http.Request) {
 	now := time.Now()
 	episodes := []map[string]any{}
 	for rows.Next() {
-		var id int64
+		var id, streams int64
 		var title, tag, added string
 		var season, number, year, duration sql.NullInt64
 		var rating sql.NullFloat64
-		if err := rows.Scan(&id, &title, &season, &number, &year, &rating, &duration, &tag, &added); err != nil {
+		if err := rows.Scan(&id, &title, &season, &number, &year, &rating, &duration, &tag, &added, &streams); err != nil {
 			domainError(w, err)
 			return
 		}
-		row := map[string]any{"id": id, "title": title, "season_number": nullableCount(season), "episode_number": nullableCount(number), "year": nullableCount(year), "rating": nil, "duration": nullableCount(duration), "added_at": nullableText(added)}
+		row := map[string]any{"id": id, "title": title, "season_number": nullableCount(season), "episode_number": nullableCount(number), "year": nullableCount(year), "rating": nil, "duration": nullableCount(duration), "added_at": nullableText(added), "stream_count": streams}
 		if rating.Valid {
 			row["rating"] = rating.Float64
 		}

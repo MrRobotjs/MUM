@@ -208,6 +208,7 @@ func NewApp(store *Store, queue *LogQueue, assets fs.FS) (*App, error) {
 	handle("GET /api/libraries/{library}/sync-status", a.librarySyncStatus)
 	handle("GET /api/libraries/{library}/stats", a.libraryStats)
 	handle("GET /api/libraries/{library}/activity", a.libraryActivity)
+	handle("GET /api/libraries/{library}/media/{item}/activity", a.itemActivity)
 	handle("GET /api/libraries/{library}/collections", a.libraryCollections)
 	handle("GET /api/media/images/{item}", a.catalogueImageProxy)
 	handle("GET /api/media/collections/images/{collection}", a.collectionImageProxy)

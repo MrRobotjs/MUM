@@ -95,7 +95,7 @@ func TestEpisodeCatalogueSyncListAndIsolation(t *testing.T) {
 	if found := list("search=episode%2002"); found.Meta.Pagination.Total != 10 {
 		t.Fatal(found.Meta)
 	}
-	if w := apiRequest(f.a, "GET", ep(show, "?sort_by=total_streams_desc"), f.token, nil, nil); w.Code != 400 {
+	if w := apiRequest(f.a, "GET", ep(show, "?sort_by=plays_desc"), f.token, nil, nil); w.Code != 400 {
 		t.Fatal(w.Code)
 	}
 

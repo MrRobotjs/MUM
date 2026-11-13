@@ -1,7 +1,8 @@
-import { FormEvent, useState, useEffect } from 'react';
+import { FormEvent, useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate, Link, useSearch } from '@tanstack/react-router';
 import { requestJson, ApiError } from '../util/apiClient';
 import { setAccessToken } from '../util/tokenStore';
+import { checkPlexSignIn, startPlexSignIn } from '../lib/plexSignIn';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -29,8 +30,6 @@ type LocationState = {
   from?: string;
 };
 
-const PLEX_SIGN_IN_UNAVAILABLE = 'Plex sign-in is not available yet. Sign in with your MUM username and password.';
-
 const LoginPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -38,7 +37,8 @@ const LoginPage = () => {
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [plexLoading] = useState(false);
+  const [plexLoading, setPlexLoading] = useState(false);
+  const plexAttempt = useRef(0);
   const [logoutNotice, setLogoutNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [allowUserAccounts, setAllowUserAccounts] = useState(false);
@@ -139,11 +139,56 @@ const LoginPage = () => {
     }
   };
 
-  // Plex administrator sign-in is not implemented in the Go runtime yet, so
-  // this control is disabled and never sends a request.
+  // Sign in with Plex: Plex opens in a separate window and this page checks
+  // every 2 seconds until Plex approves. The Plex account must already be
+  // linked to a MUM account (Account → Credentials).
   const handlePlexSSO = async () => {
-    setError(PLEX_SIGN_IN_UNAVAILABLE);
+    if (plexLoading) return;
+    const attempt = ++plexAttempt.current;
+    // Opened during the click so the browser does not block it.
+    const popup = window.open('', 'mum-plex-sign-in', 'width=600,height=750');
+    setPlexLoading(true);
+    setError(null);
+    try {
+      const started = await startPlexSignIn(rememberMe);
+      if (popup && !popup.closed) {
+        popup.opener = null;
+        popup.location.href = started.authorizationUrl;
+      } else {
+        window.open(started.authorizationUrl, '_blank', 'noopener');
+      }
+      const deadline = Math.min(Date.parse(started.expiresAt), Date.now() + 15 * 60 * 1000);
+      while (Date.now() < deadline && attempt === plexAttempt.current) {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        if (attempt !== plexAttempt.current) return;
+        let result;
+        try {
+          result = await checkPlexSignIn(started.id);
+        } catch (err) {
+          // Checking too soon is answered with 429; wait and check again.
+          if (err instanceof ApiError && err.status === 429) continue;
+          throw err;
+        }
+        if (result.status === 'signed_in') {
+          if (popup && !popup.closed) popup.close();
+          setAccessToken(result.accessToken);
+          navigate({ to: fromPath, replace: true });
+          return;
+        }
+        if (popup && popup.closed) {
+          setError('Plex sign-in was closed before it finished. Try again.');
+          return;
+        }
+      }
+      if (attempt === plexAttempt.current) setError('Plex sign-in expired. Try again.');
+    } catch (err) {
+      if (popup && !popup.closed) popup.close();
+      if (attempt === plexAttempt.current) setError(err instanceof Error && err.message ? err.message : 'Plex sign-in failed. Try again.');
+    } finally {
+      if (attempt === plexAttempt.current) setPlexLoading(false);
+    }
   };
+  useEffect(() => () => { ++plexAttempt.current; }, []);
 
   return (
     <div className="min-h-screen lg:min-h-[calc(100vh-4rem)] flex items-center justify-center p-4 bg-muted/30">
@@ -345,9 +390,9 @@ const LoginPage = () => {
                   type="button"
                   variant="outline"
                   onClick={handlePlexSSO}
-                  title={PLEX_SIGN_IN_UNAVAILABLE}
+                  title="Sign in with a Plex account linked to your MUM account"
                   className="w-full text-lg h-12 hover:-translate-y-0.5 hover:shadow-lg transition-all duration-200 ease-in-out border-orange-600 text-orange-700 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-950 hover:border-orange-600"
-                  disabled
+                  disabled={plexLoading || submitting}
                 >
                   {plexLoading ? (
                     <>
@@ -363,7 +408,7 @@ const LoginPage = () => {
                     </>
                   )}
                 </Button>
-                <p className="text-xs text-muted-foreground text-center">{PLEX_SIGN_IN_UNAVAILABLE}</p>
+                <p className="text-xs text-muted-foreground text-center">Link your Plex account first under Account → Credentials.</p>
 
                 {/* Additional Info */}
                 <div className="pt-6">

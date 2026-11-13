@@ -31,6 +31,8 @@ var publicAPIRoutes = map[string]string{
 	"GET /api/setup/status":                                                            "First-run setup state",
 	"POST /api/setup/account":                                                          "Creates the owner during first-run setup only",
 	"POST /api/auth/login":                                                             "Password sign-in",
+	"POST /api/auth/plex":                                                              "Starts Sign in with Plex, bound to this browser by an HttpOnly cookie",
+	"POST /api/auth/plex/{attempt}/poll":                                               "Finishes Sign in with Plex from the browser that started it; signs in only the MUM account linked to the verified Plex account",
 	"POST /api/auth/logout":                                                            "Ends the session named by the HttpOnly refresh cookie, if any",
 	"GET /api/settings/general":                                                        "Application name and URLs shown on sign-in pages",
 	"GET /api/settings/user-accounts":                                                  "Whether user accounts are enabled",

@@ -111,6 +111,33 @@ export class PlexConnectionController {
    else this.publish({error:sent?'The request was rejected. Check approval, your session and provider availability before trying again.':'Could not verify your account or provider availability. Refresh connection status.'});
   } finally {if(this.valid(run))this.publish({busy:false});}
  }
+ /**
+  * One click, as in Flask: start, open the Plex page (open), check every 2
+  * seconds until Plex approves, then link the approved account. It stops if
+  * the Plex window is closed first (closed), on any refusal, or when disposed.
+  */
+ async connect(open:(url:string)=>void, closed:()=>boolean, wait:(ms:number)=>Promise<void> = ms => new Promise(resolve => setTimeout(resolve,ms))) {
+  const run = ++this.connecting;
+  const current = () => run===this.connecting && !this.disposed;
+  // Read each time: the phase changes across the awaits below.
+  const phase = () => this.state.phase;
+  await this.start();
+  if (!current() || phase()!=='pending' || !this.state.challenge?.authorization_url) return;
+  open(this.state.challenge.authorization_url);
+  while (current() && phase()==='pending') {
+   await wait(2100);
+   if (!current()) return;
+   this.expire();
+   if (phase()!=='pending') break;
+   await this.poll();
+   if (current() && phase()==='pending' && closed()) {
+    this.publish({phase:'expired',challenge:null,error:'The Plex window was closed before you approved. Connect again to retry.'});
+    return;
+   }
+  }
+  if (current() && phase()==='verified') await this.confirm();
+ }
+ private connecting = 0;
  start(){return this.action('start');}
  poll(){return this.action('poll');}
  confirm(){return this.action('confirm');}

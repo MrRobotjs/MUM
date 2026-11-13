@@ -162,6 +162,8 @@ func NewApp(store *Store, queue *LogQueue, assets fs.FS) (*App, error) {
 	handle("POST /api/auth/login", a.login)
 	handle("POST /api/auth/refresh", a.refresh)
 	handle("POST /api/auth/logout", a.logout)
+	handle("POST /api/auth/plex", a.startPlexLogin)
+	handle("POST /api/auth/plex/{attempt}/poll", a.pollPlexLogin)
 	handle("GET /api/auth/session", a.session)
 	handle("POST /api/setup/app", a.setupConfig)
 	handle("POST /api/setup/complete", a.setupComplete)

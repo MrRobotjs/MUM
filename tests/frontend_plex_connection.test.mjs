@@ -44,6 +44,26 @@ test('Plex personal connection adapters',async t=>{
   await flow.confirm();assert.equal(calls.filter(p=>p.endsWith('/confirm')).length,1);
   await flow.disconnect();assert.equal(flow.state.phase,'ready');assert.equal(flow.state.connection,null);
  });
+ await t.test('one-click connect opens Plex, checks until approved and links the approved account once',async()=>{
+  const api=await load();let active=null;let polls=0;let clock=now;const opened=[];const calls=[];
+  globalThis.fetch=async req=>{const path=new URL(req.url).pathname;calls.push(path);
+   if(path==='/api/account/profile')return respond(profile);
+   if(path==='/api/plex/connection')return respond(active);
+   if(path.endsWith('/poll')){polls++;return respond(polls<2?{...pending,authorization_url:undefined,revision:3}:verified);}
+   if(path.endsWith('/confirm')){assert.deepEqual(await req.json(),{expected_account_id:'2'});active=connected;return respond(connected,201);}
+   return respond(pending,201);};
+  const flow=new api.PlexConnectionController(owner,()=>{},()=>clock);await flow.reload();
+  await flow.connect(url=>opened.push(url),()=>false,async ms=>{clock+=ms;});
+  assert.deepEqual(opened,[url]);assert.equal(polls,2);assert.equal(flow.state.phase,'connected');assert.equal(flow.state.connection.username,'Reader');
+  assert.equal(calls.filter(p=>p.endsWith('/confirm')).length,1);
+ });
+ await t.test('one-click connect stops when the Plex window is closed before approval',async()=>{
+  const api=await load();let clock=now;let confirmations=0;
+  globalThis.fetch=async req=>{const path=new URL(req.url).pathname;if(path==='/api/account/profile')return respond(profile);if(path==='/api/plex/connection')return respond(null);if(path.endsWith('/confirm')){confirmations++;return respond(connected,201);}if(path.endsWith('/poll'))return respond({...pending,authorization_url:undefined,revision:3});return respond(pending,201);};
+  const flow=new api.PlexConnectionController(owner,()=>{},()=>clock);await flow.reload();
+  await flow.connect(()=>{},()=>true,async ms=>{clock+=ms;});
+  assert.equal(flow.state.phase,'expired');assert.match(flow.state.error,/closed before you approved/);assert.equal(confirmations,0);
+ });
  await t.test('pending polls retain the authorization link and throttle manual checks',async()=>{
   const api=await load();let polls=0;let clock=now;
   globalThis.fetch=async req=>{const path=new URL(req.url).pathname;if(path==='/api/account/profile')return respond(profile);if(path==='/api/plex/connection')return respond(null);if(path.endsWith('/poll')){polls++;return respond({...pending,authorization_url:undefined,revision:3});}return respond(pending,201);};

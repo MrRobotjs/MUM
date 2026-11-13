@@ -46,6 +46,8 @@ import {
   faCircleInfo,
   faFilm,
   faLayerGroup,
+  faCompactDisc,
+  faMusic,
   faChartBar,
   faClockRotateLeft,
   faServer,
@@ -77,6 +79,7 @@ interface Library {
     supported: boolean;
     collections_supported?: boolean;
     episodes_supported?: boolean;
+    tracks_supported?: boolean;
     revision: number;
     synced_at: string | null;
     item_count: number | null;
@@ -412,7 +415,15 @@ const LibraryDetailPageView = () => {
     }
   }, [libraryId, activeTab, currentPage, pageSize, sortBy, searchQuery, statsDays, activityDays, activityPage, library?.server?.service_type, library?.catalogue?.collections_supported]);
 
-  // A "TV Shows + Episodes" run continues after its request: this page waits
+  // A TV library syncs shows and their episodes; a music library its albums
+  // and their tracks. These are the words each uses.
+  const libraryKind = (library?.library_type || '').toLowerCase();
+  const isMusicLibrary = libraryKind === 'artist' || libraryKind.includes('music');
+  const words = isMusicLibrary
+    ? { parent: 'album', parents: 'albums', Parents: 'Albums', entry: 'album', Child: 'Track', children: 'tracks', Children: 'Tracks', kind: 'music', supported: library?.catalogue?.tracks_supported === true }
+    : { parent: 'show', parents: 'shows', Parents: 'TV Shows', entry: 'TV show', Child: 'Episode', children: 'episodes', Children: 'Episodes', kind: 'TV show', supported: library?.catalogue?.episodes_supported === true };
+
+  // A "TV Shows + Episodes" (or "Albums + Tracks") run continues after its request: this page waits
   // for its outcome (a new last_episode_run), then reports it and reloads.
   const episodeRunWatch = useRef<{ previous: string | null } | null>(null);
   useEffect(() => {
@@ -423,7 +434,7 @@ const LibraryDetailPageView = () => {
     const changes = run.added + run.updated + run.removed > 0
       ? `${run.added} added, ${run.updated} updated, ${run.removed} removed`
       : 'no changes needed';
-    const shows = `${run.shows_synced} of ${run.shows_total} ${run.shows_total === 1 ? 'show' : 'shows'}`;
+    const shows = `${run.shows_synced} of ${run.shows_total} ${run.shows_total === 1 ? words.parent : words.parents}`;
     const stopped: Record<string, string> = {
       library_changed: 'the server or library changed',
       forbidden: 'your session ended',
@@ -431,13 +442,13 @@ const LibraryDetailPageView = () => {
       timeout: 'it reached its time limit',
     };
     if (run.stopped) {
-      showError(`Episode sync stopped because ${stopped[run.stopped] ?? 'it could not continue'}. Episodes saved for ${shows} (${changes}).`);
+      showError(`${words.Child} sync stopped because ${stopped[run.stopped] ?? 'it could not continue'}. ${words.Children} saved for ${shows} (${changes}).`);
     } else if (run.shows_failed > 0) {
-      showError(`Episodes saved for ${shows} (${changes}). ${run.shows_failed} could not be read and kept their previous episodes.`);
+      showError(`${words.Children} saved for ${shows} (${changes}). ${run.shows_failed} could not be read and kept their previous ${words.children}.`);
     } else if (run.added + run.updated + run.removed > 0) {
-      success(`Episodes synced for ${shows}: ${changes}`);
+      success(`${words.Children} synced for ${shows}: ${changes}`);
     } else {
-      info(`Episodes synced for ${shows}: ${changes}`);
+      info(`${words.Children} synced for ${shows}: ${changes}`);
     }
     void refreshSavedState();
   }, [libSyncStatus?.is_syncing, libSyncStatus?.last_episode_run]);
@@ -539,15 +550,15 @@ const LibraryDetailPageView = () => {
     const libType = (library?.library_type || '').toLowerCase();
     const isTvLibrary = libType.includes('show') || libType.includes('tv') || libType.includes('series');
 
-    // If it's a TV library and syncEpisodes hasn't been specified, show dialog
-    if (isTvLibrary && syncEpisodes === null) {
+    // A TV or music library asks whether to include episodes or tracks
+    if ((isTvLibrary || isMusicLibrary) && syncEpisodes === null) {
       setShowSyncDialog(true);
       return;
     }
 
     const catalogue = library?.catalogue;
-    if (!catalogue?.supported || (syncEpisodes && catalogue.episodes_supported !== true)) {
-      showError(catalogue?.supported ? 'Episode catalogues are not available for this server.' : 'Item catalogues are not available for this library.');
+    if (!catalogue?.supported || (syncEpisodes && !words.supported)) {
+      showError(catalogue?.supported ? `${words.Child} catalogues are not available for this server.` : 'Item catalogues are not available for this library.');
       setShowSyncDialog(false);
       return;
     }
@@ -583,7 +594,8 @@ const LibraryDetailPageView = () => {
         // reported when their background run finishes (episodeRunWatch).
         const isTvLibrary = (library?.library_type || '').toLowerCase().includes('show')
           || (library?.library_type || '').toLowerCase().includes('tv')
-          || (library?.library_type || '').toLowerCase().includes('series');
+          || (library?.library_type || '').toLowerCase().includes('series')
+          || isMusicLibrary;
 
         if (added > 0 || updated > 0 || removed > 0) {
           let message = `${added} added, ${updated} updated`;
@@ -593,7 +605,7 @@ const LibraryDetailPageView = () => {
           if (!isTvLibrary && removed > 0) {
             message += `, ${removed} removed`;
           } else if (isTvLibrary && removed > 0) {
-            message += ` (${removed} shows no longer available)`;
+            message += ` (${removed} ${words.parents} no longer available)`;
           }
 
           success(message);
@@ -605,9 +617,9 @@ const LibraryDetailPageView = () => {
         if (result.episodes?.started) {
           episodeRunWatch.current = { previous: previousEpisodeRun };
           refetchLibSync();
-          info(`Syncing episodes for ${result.episodes.shows} ${result.episodes.shows === 1 ? 'show' : 'shows'}…`);
+          info(`Syncing ${words.children} for ${result.episodes.shows} ${result.episodes.shows === 1 ? words.parent : words.parents}…`);
         } else if (result.episodes) {
-          showError('The shows were saved, but their episodes could not start syncing. Try again.');
+          showError(`The ${words.parents} were saved, but their ${words.children} could not start syncing. Try again.`);
         }
 
         // Reload library data after sync
@@ -626,7 +638,7 @@ const LibraryDetailPageView = () => {
   const handleSyncClick = () => {
     const type = (library?.library_type || '').toLowerCase();
     const isTvLibrary = type.includes('show') || type.includes('tv') || type.includes('series');
-    if (isTvLibrary) {
+    if (isTvLibrary || isMusicLibrary) {
       setShowSyncDialog(true);
       return;
     }
@@ -1031,14 +1043,14 @@ const LibraryDetailPageView = () => {
                       <span className="font-medium">
                         {(backendSyncing && libSyncStatus?.progress?.message) || (
                           phase === 'episodes'
-                            ? <>Syncing episodes…</>
+                            ? <>Syncing {words.children}…</>
                             : <>Syncing library content from {library?.server?.server_nickname || 'server'}...</>
                         )}
                       </span>
                     </div>
                     <span className="text-xs text-muted-foreground min-w-[3ch] text-right">
                       {phase === 'episodes' && showsTotal > 0 ? (
-                        <>{showsCurrent} / {showsTotal} shows</>
+                        <>{showsCurrent} / {showsTotal} {words.parents}</>
                       ) : pagesTotal > 0 ? (
                         <>Page {pagesDone} / {pagesTotal}</>
                       ) : (
@@ -1050,7 +1062,7 @@ const LibraryDetailPageView = () => {
                   {phase === 'episodes' && (
                     <div className="flex items-center justify-between">
                       <p className="text-xs text-muted-foreground">
-                        Syncing episodes across shows
+                        Syncing {words.children} across {words.parents}
                       </p>
                     </div>
                   )}
@@ -1617,8 +1629,8 @@ const LibraryDetailPageView = () => {
       <ResponsiveDialog
         open={showSyncDialog}
         onOpenChange={setShowSyncDialog}
-        title="Sync TV Library"
-        description="Choose what you want to sync for this TV show library"
+        title={isMusicLibrary ? 'Sync Music Library' : 'Sync TV Library'}
+        description={`Choose what you want to sync for this ${words.kind} library`}
         footer={
           <>
             <Button
@@ -1631,14 +1643,14 @@ const LibraryDetailPageView = () => {
               variant="secondary"
               onClick={() => handleSyncLibrary(false)}
             >
-              TV Shows Only
+              {words.Parents} Only
             </Button>
             <Button
               onClick={() => handleSyncLibrary(true)}
-              disabled={library?.catalogue?.episodes_supported !== true}
-              title={library?.catalogue?.episodes_supported !== true ? 'Episode catalogues are not available for this server' : undefined}
+              disabled={!words.supported}
+              title={!words.supported ? `${words.Child} catalogues are not available for this server` : undefined}
             >
-              TV Shows + Episodes
+              {words.Parents} + {words.Children}
             </Button>
           </>
         }
@@ -1646,21 +1658,21 @@ const LibraryDetailPageView = () => {
         <div className="space-y-4 py-4">
           <div className="space-y-2">
             <h4 className="font-medium flex items-center gap-2">
-              <FontAwesomeIcon icon={faFilm} className="h-4 w-4" />
-              TV Shows Only
+              <FontAwesomeIcon icon={isMusicLibrary ? faCompactDisc : faFilm} className="h-4 w-4" />
+              {words.Parents} Only
             </h4>
             <p className="text-sm text-muted-foreground">
-              Syncs only the TV show entries. Episodes will not be synced. Use this for a quick library update.
+              Syncs only the {words.entry} entries. {words.Children} will not be synced. Use this for a quick library update.
             </p>
           </div>
 
           <div className="space-y-2">
             <h4 className="font-medium flex items-center gap-2">
-              <FontAwesomeIcon icon={faLayerGroup} className="h-4 w-4" />
-              TV Shows + Episodes
+              <FontAwesomeIcon icon={isMusicLibrary ? faMusic : faLayerGroup} className="h-4 w-4" />
+              {words.Parents} + {words.Children}
             </h4>
             <p className="text-sm text-muted-foreground">
-              Syncs TV shows and all their episodes. This will take significantly longer but ensures all episodes are up to date.
+              Syncs {words.Parents === 'TV Shows' ? 'TV shows' : words.parents} and all their {words.children}. This will take significantly longer but ensures all {words.children} are up to date.
             </p>
           </div>
         </div>

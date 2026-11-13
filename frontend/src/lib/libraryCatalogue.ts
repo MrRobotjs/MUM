@@ -83,8 +83,19 @@ export function purgeLibraryCatalogue(libraryId: number, revision: number): Prom
 export type EpisodeSyncReceipt = CatalogueSyncReceipt & { itemId: number };
 export type EpisodePurgeReceipt = CataloguePurgeReceipt & { itemId: number };
 
+/** A series' episodes or an album's tracks. */
+export type ChildCatalogue = 'episodes' | 'tracks';
+
 export function syncEpisodeCatalogue(libraryId: number, itemId: number, revision: number): Promise<CatalogueOutcome<EpisodeSyncReceipt>> {
-  return send(`/api/libraries/${libraryId}/media/${itemId}/episodes/sync`, revision, data => {
+  return syncChildCatalogue('episodes', libraryId, itemId, revision);
+}
+
+export function purgeEpisodeCatalogue(libraryId: number, itemId: number, revision: number): Promise<CatalogueOutcome<EpisodePurgeReceipt>> {
+  return purgeChildCatalogue('episodes', libraryId, itemId, revision);
+}
+
+export function syncChildCatalogue(children: ChildCatalogue, libraryId: number, itemId: number, revision: number): Promise<CatalogueOutcome<EpisodeSyncReceipt>> {
+  return send(`/api/libraries/${libraryId}/media/${itemId}/${children}/sync`, revision, data => {
     const result = data?.result;
     const values = [count(result?.added), count(result?.updated), count(result?.removed), count(result?.total)];
     if (data?.success !== true || data?.library_id !== libraryId || data?.item_id !== itemId || data?.source_revision !== revision || data?.revision !== revision + 1 || values.some(v => v === null)) {
@@ -95,8 +106,8 @@ export function syncEpisodeCatalogue(libraryId: number, itemId: number, revision
   }, 'expected_episode_revision');
 }
 
-export function purgeEpisodeCatalogue(libraryId: number, itemId: number, revision: number): Promise<CatalogueOutcome<EpisodePurgeReceipt>> {
-  return send(`/api/libraries/${libraryId}/media/${itemId}/episodes/purge`, revision, data => {
+export function purgeChildCatalogue(children: ChildCatalogue, libraryId: number, itemId: number, revision: number): Promise<CatalogueOutcome<EpisodePurgeReceipt>> {
+  return send(`/api/libraries/${libraryId}/media/${itemId}/${children}/purge`, revision, data => {
     const deleted = count(data?.deleted_count);
     if (data?.success !== true || data?.library_id !== libraryId || data?.item_id !== itemId || data?.revision !== revision + 1 || deleted === null) {
       return null;

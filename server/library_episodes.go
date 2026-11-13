@@ -8,43 +8,97 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 	"unicode/utf8"
 )
 
-// Episode catalogues: one series' episodes, stored as media_items under the
-// series' external ID. Sync follows the library catalogue rules: a complete,
-// validated provider snapshot is read outside the writer and committed in one
-// transaction against the series' episode revision and the server configuration
-// it started from.
+// Child catalogues: a series' episodes or an album's tracks, stored as
+// media_items under the parent's external ID. Sync follows the library
+// catalogue rules: a complete, validated provider snapshot is read outside the
+// writer and committed in one transaction against the parent's child revision
+// (the episode_revision column) and the server configuration it started from.
+
+// childCatalogue is one kind of child list: which parent item type has it,
+// its plural noun (also its route segment and list key) and the refusal for
+// any other parent.
+type childCatalogue struct {
+	Parent, Noun, Code, Message string
+}
+
+var (
+	episodeChildren = childCatalogue{Parent: "show", Noun: "episodes", Code: "NOT_A_SERIES", Message: "Episodes exist only for series"}
+	trackChildren   = childCatalogue{Parent: "album", Noun: "tracks", Code: "NOT_AN_ALBUM", Message: "Tracks exist only for albums"}
+)
+
+// childrenOf returns the child list a parent item type has.
+func childrenOf(itemType string) (childCatalogue, bool) {
+	switch itemType {
+	case episodeChildren.Parent:
+		return episodeChildren, true
+	case trackChildren.Parent:
+		return trackChildren, true
+	}
+	return childCatalogue{}, false
+}
+
+// childCatalogueSupported reports whether a service's module reads this
+// child list.
+func childCatalogueSupported(provider string, c childCatalogue) bool {
+	switch c.Noun {
+	case "episodes":
+		_, ok := moduleRules(provider).(episodeReader)
+		return ok
+	case "tracks":
+		_, ok := moduleRules(provider).(trackReader)
+		return ok
+	}
+	return false
+}
+
+// catalogueChildren reads one parent's complete child snapshot.
+func (p *serverConnection) catalogueChildren(ctx context.Context, c childCatalogue, parent string) ([]catalogueItem, error) {
+	switch c.Noun {
+	case "episodes":
+		if m, ok := p.module().(episodeReader); ok {
+			return m.CatalogueEpisodes(ctx, parent)
+		}
+	case "tracks":
+		if m, ok := p.module().(trackReader); ok {
+			return m.CatalogueTracks(ctx, parent)
+		}
+	}
+	return nil, errCatalogueUnsupported
+}
 
 type catalogueShow struct {
 	ID, Revision int64
 	External     string
+	// Kind is the parent's item type ("show" or "album").
+	Kind string
 }
 
-func loadCatalogueShow(ctx context.Context, tx *sql.Tx, library, item int64) (catalogueShow, error) {
+func loadCatalogueParent(ctx context.Context, tx *sql.Tx, c childCatalogue, library, item int64) (catalogueShow, error) {
 	var s catalogueShow
-	var kind string
-	err := tx.QueryRowContext(ctx, "SELECT id,external_id,item_type,episode_revision FROM media_items WHERE id=? AND library_id=? AND parent_id IS NULL", item, library).Scan(&s.ID, &s.External, &kind, &s.Revision)
+	err := tx.QueryRowContext(ctx, "SELECT id,external_id,item_type,episode_revision FROM media_items WHERE id=? AND library_id=? AND parent_id IS NULL", item, library).Scan(&s.ID, &s.External, &s.Kind, &s.Revision)
 	if errors.Is(err, sql.ErrNoRows) {
 		return s, ErrNotFound
 	}
-	if err == nil && kind != "show" {
-		return s, errNotASeries
+	if err == nil && s.Kind != c.Parent {
+		return s, errWrongParent
 	}
 	return s, err
 }
 
-var errNotASeries = errors.New("item is not a series")
+var errWrongParent = errors.New("item does not have this kind of child")
 
-func episodeDomainError(w http.ResponseWriter, err error) {
+func childDomainError(w http.ResponseWriter, c childCatalogue, err error) {
 	if errors.Is(err, errCatalogueUnsupported) {
-		fail(w, 409, "CATALOGUE_UNSUPPORTED", "Episode catalogues are available for Jellyfin, Emby and Plex")
+		fail(w, 409, "CATALOGUE_UNSUPPORTED", fmt.Sprintf("%s%s catalogues are available for Jellyfin, Emby and Plex", strings.ToUpper(c.Noun[:1]), c.Noun[1:len(c.Noun)-1]))
 		return
 	}
-	if errors.Is(err, errNotASeries) {
-		fail(w, 409, "NOT_A_SERIES", "Episodes exist only for series")
+	if errors.Is(err, errWrongParent) {
+		fail(w, 409, c.Code, c.Message)
 		return
 	}
 	domainError(w, err)
@@ -67,7 +121,7 @@ func decodeEpisodeRevision(w http.ResponseWriter, r *http.Request) (*int64, bool
 	return input.Revision, true
 }
 
-func (a *App) syncEpisodeCatalogue(w http.ResponseWriter, r *http.Request) {
+func (a *App) syncChildCatalogue(w http.ResponseWriter, r *http.Request, c childCatalogue) {
 	p, ok := a.principal(w, r, true)
 	if !ok {
 		return
@@ -100,7 +154,7 @@ func (a *App) syncEpisodeCatalogue(w http.ResponseWriter, r *http.Request) {
 		if library, err = loadCatalogueLibrary(r.Context(), tx, libraryID); err != nil {
 			return err
 		}
-		if show, err = loadCatalogueShow(r.Context(), tx, libraryID, itemID); err != nil {
+		if show, err = loadCatalogueParent(r.Context(), tx, c, libraryID, itemID); err != nil {
 			return err
 		}
 		if err = tx.QueryRowContext(r.Context(), "SELECT url,coalesce(api_key,'') FROM media_servers WHERE id=?", library.Server).Scan(&baseURL, &apiKey); err != nil {
@@ -109,11 +163,11 @@ func (a *App) syncEpisodeCatalogue(w http.ResponseWriter, r *http.Request) {
 		return tx.Commit()
 	}()
 	if err != nil {
-		episodeDomainError(w, err)
+		childDomainError(w, c, err)
 		return
 	}
-	if !episodeCatalogueSupported(library.Provider) {
-		episodeDomainError(w, errCatalogueUnsupported)
+	if !childCatalogueSupported(library.Provider, c) {
+		childDomainError(w, c, errCatalogueUnsupported)
 		return
 	}
 	if !library.Active || expected != nil && *expected != show.Revision {
@@ -144,15 +198,15 @@ func (a *App) syncEpisodeCatalogue(w http.ResponseWriter, r *http.Request) {
 		domainError(w, ErrConflict)
 		return
 	}
-	result, err := a.syncShowEpisodes(r.Context(), p.UUID, access, library, provider, show, true)
+	result, err := a.syncChildren(r.Context(), c, p.UUID, access, library, provider, show, true)
 	if err != nil {
 		switch {
 		case errors.Is(err, errEpisodeRead):
-			fail(w, 502, "EPISODE_SYNC_FAILED", "Provider episode synchronization failed; previous episodes retained")
-		case errors.Is(err, ErrConflict) || errors.Is(err, ErrForbidden) || errors.Is(err, ErrNotFound) || errors.Is(err, errNotASeries):
-			episodeDomainError(w, err)
+			fail(w, 502, "EPISODE_SYNC_FAILED", "Provider synchronization failed; previous "+c.Noun+" retained")
+		case errors.Is(err, ErrConflict) || errors.Is(err, ErrForbidden) || errors.Is(err, ErrNotFound) || errors.Is(err, errWrongParent):
+			childDomainError(w, c, err)
 		default:
-			fail(w, 500, "EPISODE_COMMIT_FAILED", "The episodes could not be saved; previous episodes retained")
+			fail(w, 500, "EPISODE_COMMIT_FAILED", "The "+c.Noun+" could not be saved; previous "+c.Noun+" retained")
 		}
 		return
 	}
@@ -182,11 +236,11 @@ var (
 // that rechecks the caller's authority, the library's server configuration and
 // the show's episode revision. Any failure leaves the saved episodes as they
 // were. audit records the change; a library-wide run records one summary instead.
-func (a *App) syncShowEpisodes(ctx context.Context, actor, access string, library catalogueLibrary, provider *serverConnection, show catalogueShow, audit bool) (episodeSyncResult, error) {
+func (a *App) syncChildren(ctx context.Context, c childCatalogue, actor, access string, library catalogueLibrary, provider *serverConnection, show catalogueShow, audit bool) (episodeSyncResult, error) {
 	var result episodeSyncResult
 	read, cancel := context.WithTimeout(ctx, time.Minute)
 	defer cancel()
-	episodes, err := provider.catalogueEpisodes(read, show.External)
+	episodes, err := provider.catalogueChildren(read, c, show.External)
 	if err != nil {
 		return result, fmt.Errorf("%w: %w", errEpisodeRead, err)
 	}
@@ -203,7 +257,7 @@ func (a *App) syncShowEpisodes(ctx context.Context, actor, access string, librar
 		if !current.Active || current.ConfigRevision != library.ConfigRevision || current.External != library.External {
 			return errCatalogueLibraryChanged
 		}
-		currentShow, err := loadCatalogueShow(ctx, tx, library.ID, show.ID)
+		currentShow, err := loadCatalogueParent(ctx, tx, c, library.ID, show.ID)
 		if err != nil {
 			return err
 		}
@@ -243,13 +297,13 @@ func (a *App) syncShowEpisodes(ctx context.Context, actor, access string, librar
 			return nil
 		}
 		details, _ := json.Marshal(map[string]any{"library_id": library.ID, "item_id": show.ID, "source_revision": show.Revision, "added": result.Added, "updated": result.Updated, "removed": result.Removed, "total": len(episodes)})
-		_, err = tx.ExecContext(ctx, "INSERT INTO audit_events(actor_uuid,action,details,occurred_at) VALUES(?,'library.episodes.sync',?,?)", actor, string(details), result.SyncedAt)
+		_, err = tx.ExecContext(ctx, "INSERT INTO audit_events(actor_uuid,action,details,occurred_at) VALUES(?,?,?,?)", actor, "library."+c.Noun+".sync", string(details), result.SyncedAt)
 		return err
 	})
 	return result, err
 }
 
-func (a *App) purgeEpisodeCatalogue(w http.ResponseWriter, r *http.Request) {
+func (a *App) purgeChildCatalogue(w http.ResponseWriter, r *http.Request, c childCatalogue) {
 	p, ok := a.principal(w, r, true)
 	if !ok {
 		return
@@ -283,11 +337,11 @@ func (a *App) purgeEpisodeCatalogue(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return err
 		}
-		if !episodeCatalogueSupported(library.Provider) {
+		if !childCatalogueSupported(library.Provider, c) {
 			return errCatalogueUnsupported
 		}
 
-		show, err := loadCatalogueShow(r.Context(), tx, libraryID, itemID)
+		show, err := loadCatalogueParent(r.Context(), tx, c, libraryID, itemID)
 		if err != nil {
 			return err
 		}
@@ -306,11 +360,11 @@ func (a *App) purgeEpisodeCatalogue(w http.ResponseWriter, r *http.Request) {
 		}
 		revision = show.Revision + 1
 		details, _ := json.Marshal(map[string]any{"library_id": libraryID, "item_id": itemID, "source_revision": show.Revision, "deleted": deleted})
-		_, err = tx.ExecContext(r.Context(), "INSERT INTO audit_events(actor_uuid,action,details,occurred_at) VALUES(?,'library.episodes.purge',?,?)", p.UUID, string(details), utcTimestamp(time.Now()))
+		_, err = tx.ExecContext(r.Context(), "INSERT INTO audit_events(actor_uuid,action,details,occurred_at) VALUES(?,?,?,?)", p.UUID, "library."+c.Noun+".purge", string(details), utcTimestamp(time.Now()))
 		return err
 	})
 	if err != nil {
-		episodeDomainError(w, err)
+		childDomainError(w, c, err)
 		return
 	}
 	respond(w, 200, map[string]any{"success": true, "library_id": libraryID, "item_id": itemID, "deleted_count": deleted, "revision": revision})
@@ -351,9 +405,9 @@ func (a *App) catalogueEpisodeItem(w http.ResponseWriter, r *http.Request) {
 		domainError(w, err)
 		return
 	}
-	show, err := loadCatalogueShow(r.Context(), tx, libraryID, itemID)
+	show, err := loadCatalogueParent(r.Context(), tx, episodeChildren, libraryID, itemID)
 	if err != nil {
-		episodeDomainError(w, err)
+		childDomainError(w, episodeChildren, err)
 		return
 	}
 	var showTitle string
@@ -396,8 +450,8 @@ func (a *App) catalogueEpisodeItem(w http.ResponseWriter, r *http.Request) {
 }
 
 var episodeSorts = map[string]string{
-	"season_episode_asc":  "i.season_number IS NULL,i.season_number ASC,i.episode_number IS NULL,i.episode_number ASC,i.id ASC",
-	"season_episode_desc": "i.season_number IS NULL,i.season_number DESC,i.episode_number IS NULL,i.episode_number DESC,i.id DESC",
+	"season_episode_asc":  "i.season_number IS NULL,i.season_number ASC,i.episode_number IS NULL,i.episode_number ASC,i.item_type='music_video',i.id ASC",
+	"season_episode_desc": "i.season_number IS NULL,i.season_number DESC,i.episode_number IS NULL,i.episode_number DESC,i.item_type='music_video',i.id DESC",
 	"title_asc":           "i.sort_title COLLATE NOCASE ASC,i.id ASC", "title_desc": "i.sort_title COLLATE NOCASE DESC,i.id DESC",
 	"year_desc": "i.year IS NULL,i.year DESC,i.id DESC", "year_asc": "i.year IS NULL,i.year ASC,i.id ASC",
 	"added_at_desc": "i.added_at IS NULL,i.added_at DESC,i.id DESC", "added_at_asc": "i.added_at IS NULL,i.added_at ASC,i.id ASC",
@@ -408,7 +462,7 @@ var episodeSorts = map[string]string{
 // episodeStreamCount counts the retained plays of episode i on its server.
 const episodeStreamCount = "(SELECT count(*) FROM media_activity_history h WHERE h.server_id=i.server_id AND h.item_id=i.external_id)"
 
-func (a *App) listEpisodeCatalogue(w http.ResponseWriter, r *http.Request) {
+func (a *App) listChildCatalogue(w http.ResponseWriter, r *http.Request, c childCatalogue) {
 	p, ok := a.principal(w, r, true)
 	if !ok {
 		return
@@ -461,9 +515,9 @@ func (a *App) listEpisodeCatalogue(w http.ResponseWriter, r *http.Request) {
 		domainError(w, err)
 		return
 	}
-	show, err := loadCatalogueShow(r.Context(), tx, libraryID, itemID)
+	show, err := loadCatalogueParent(r.Context(), tx, c, libraryID, itemID)
 	if err != nil {
-		episodeDomainError(w, err)
+		childDomainError(w, c, err)
 		return
 	}
 	var synced sql.NullString
@@ -481,7 +535,7 @@ func (a *App) listEpisodeCatalogue(w http.ResponseWriter, r *http.Request) {
 		domainError(w, err)
 		return
 	}
-	rows, err := tx.QueryContext(r.Context(), "SELECT i.id,i.title,i.season_number,i.episode_number,i.year,i.rating,i.duration,coalesce(i.thumb_path,''),coalesce(i.added_at,''),"+episodeStreamCount+" AS stream_count FROM media_items i"+where+" ORDER BY "+order+" LIMIT ? OFFSET ?", append(args, size, (page-1)*size)...)
+	rows, err := tx.QueryContext(r.Context(), "SELECT i.id,i.title,i.item_type,i.season_number,i.episode_number,i.year,i.rating,i.duration,coalesce(i.thumb_path,''),coalesce(i.added_at,''),"+episodeStreamCount+" AS stream_count FROM media_items i"+where+" ORDER BY "+order+" LIMIT ? OFFSET ?", append(args, size, (page-1)*size)...)
 	if err != nil {
 		domainError(w, err)
 		return
@@ -491,14 +545,14 @@ func (a *App) listEpisodeCatalogue(w http.ResponseWriter, r *http.Request) {
 	episodes := []map[string]any{}
 	for rows.Next() {
 		var id, streams int64
-		var title, tag, added string
+		var title, kind, tag, added string
 		var season, number, year, duration sql.NullInt64
 		var rating sql.NullFloat64
-		if err := rows.Scan(&id, &title, &season, &number, &year, &rating, &duration, &tag, &added, &streams); err != nil {
+		if err := rows.Scan(&id, &title, &kind, &season, &number, &year, &rating, &duration, &tag, &added, &streams); err != nil {
 			domainError(w, err)
 			return
 		}
-		row := map[string]any{"id": id, "title": title, "season_number": nullableCount(season), "episode_number": nullableCount(number), "year": nullableCount(year), "rating": nil, "duration": nullableCount(duration), "added_at": nullableText(added), "stream_count": streams}
+		row := map[string]any{"id": id, "title": title, "item_type": kind, "season_number": nullableCount(season), "episode_number": nullableCount(number), "year": nullableCount(year), "rating": nil, "duration": nullableCount(duration), "added_at": nullableText(added), "stream_count": streams}
 		if rating.Valid {
 			row["rating"] = rating.Float64
 		}
@@ -517,6 +571,6 @@ func (a *App) listEpisodeCatalogue(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]any{
-		"data": map[string]any{"episodes": episodes, "episode_revision": show.Revision, "episodes_synced_at": nullableText(synced.String)},
+		"data": map[string]any{c.Noun: episodes, "episode_revision": show.Revision, "episodes_synced_at": nullableText(synced.String)},
 		"meta": map[string]any{"pagination": map[string]int{"page": page, "page_size": size, "total_items": total, "total_pages": pages}}})
 }

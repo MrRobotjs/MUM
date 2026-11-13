@@ -68,7 +68,7 @@ func newCatalogueUpstream(t *testing.T) (*catalogueUpstream, *httptest.Server) {
 			source := u.items
 			if parent != "movies" {
 				var ok bool
-				if source, ok = u.episodes[parent]; !ok || r.URL.Query().Get("IncludeItemTypes") != "Episode" {
+				if source, ok = u.episodes[parent]; !ok || r.URL.Query().Get("IncludeItemTypes") != "Episode" && r.URL.Query().Get("IncludeItemTypes") != "Audio" {
 					u.mu.Unlock()
 					w.WriteHeader(400)
 					return

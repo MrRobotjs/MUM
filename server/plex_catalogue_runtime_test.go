@@ -36,8 +36,8 @@ func newPlexRuntime(t *testing.T, duringRead func(*Store), hooks *plexRuntimeHoo
 		case "/proxy/":
 			fmt.Fprint(w, `<MediaContainer friendlyName="Plex Fixture" version="1" machineIdentifier="fixture-machine"/>`)
 		case "/proxy/library/sections":
-			fmt.Fprint(w, `<MediaContainer><Directory key="7" title="Movies" type="movie"/><Directory key="8" title="Shows" type="show"/><Directory key="9" title="Music" type="artist"/></MediaContainer>`)
-		case "/proxy/library/sections/7/all", "/proxy/library/sections/8/all":
+			fmt.Fprint(w, `<MediaContainer><Directory key="7" title="Movies" type="movie"/><Directory key="8" title="Shows" type="show"/><Directory key="9" title="Music" type="artist"/><Directory key="10" title="Photos" type="photo"/></MediaContainer>`)
+		case "/proxy/library/sections/7/all", "/proxy/library/sections/8/all", "/proxy/library/sections/9/all":
 			hits.Add(1)
 			if duringRead != nil {
 				duringRead(s)
@@ -46,8 +46,14 @@ func newPlexRuntime(t *testing.T, duringRead func(*Store), hooks *plexRuntimeHoo
 			if strings.Contains(r.URL.Path, "/8/") {
 				kind, element = "show", "Directory"
 			}
+			if strings.Contains(r.URL.Path, "/9/") { // a music section lists its albums
+				if r.URL.Query().Get("type") != "9" {
+					t.Error("music section not read by album")
+				}
+				kind, element = "album", "Directory"
+			}
 			fmt.Fprintf(w, `<MediaContainer offset="0" size="1" totalSize="1"><%s ratingKey="123" type="%s" title="Plex Fixture Item" thumb="/library/metadata/123/thumb/1"/></MediaContainer>`, element, kind)
-		case "/proxy/library/sections/7/collections", "/proxy/library/sections/8/collections":
+		case "/proxy/library/sections/7/collections", "/proxy/library/sections/8/collections", "/proxy/library/sections/9/collections":
 			if hooks.collectionsFail.Load() {
 				w.WriteHeader(500)
 				return
@@ -100,18 +106,28 @@ func TestPlexCatalogueRuntimeSyncImagesAndCapabilityBoundaries(t *testing.T) {
 	if image.Code != 200 || image.Body.String() != "fixture-poster" || image.Header().Get("Cache-Control") != "private, no-store" {
 		t.Fatal(image.Code, image.Body.String())
 	}
-	var music, shows int64
+	var music, photos, shows int64
 	f.s.reader.QueryRow("SELECT id FROM media_libraries WHERE external_id='9'").Scan(&music)
+	f.s.reader.QueryRow("SELECT id FROM media_libraries WHERE external_id='10'").Scan(&photos)
 	f.s.reader.QueryRow("SELECT id FROM media_libraries WHERE external_id='8'").Scan(&shows)
-	w := apiRequest(f.a, "GET", fmt.Sprintf("/api/libraries/%d", music), f.token, nil, nil)
+	w := apiRequest(f.a, "GET", fmt.Sprintf("/api/libraries/%d", photos), f.token, nil, nil)
 	if responseData(t, w)["catalogue"].(map[string]any)["supported"] != false {
-		t.Fatal("unsupported music advertised")
+		t.Fatal("unsupported photos advertised")
 	}
-	if w := apiRequest(f.a, "POST", fmt.Sprintf("/api/libraries/%d/sync", music), f.token, nil, nil); w.Code != 409 {
-		t.Fatal("music sync admitted", w.Code)
+	if w := apiRequest(f.a, "POST", fmt.Sprintf("/api/libraries/%d/sync", photos), f.token, nil, nil); w.Code != 409 {
+		t.Fatal("photo sync admitted", w.Code)
 	}
 	if hits.Load() != 1 {
 		t.Fatal("unsupported provider request sent", hits.Load())
+	}
+	// A music library is catalogued by album, like Jellyfin and Emby music.
+	if w := apiRequest(f.a, "POST", fmt.Sprintf("/api/libraries/%d/sync", music), f.token, nil, nil); w.Code != 200 {
+		t.Fatal("music sync", w.Code, w.Body.String())
+	}
+	var albumType string
+	f.s.reader.QueryRow("SELECT item_type FROM media_items WHERE library_id=?", music).Scan(&albumType)
+	if albumType != "album" {
+		t.Fatal("music not catalogued by album", albumType)
 	}
 	if w := apiRequest(f.a, "POST", fmt.Sprintf("/api/libraries/%d/sync", shows), f.token, nil, nil); w.Code != 200 {
 		t.Fatal(w.Code, w.Body.String())

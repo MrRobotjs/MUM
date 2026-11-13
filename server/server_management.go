@@ -1018,7 +1018,7 @@ func (a *App) listLibraries(w http.ResponseWriter, r *http.Request) {
 			number = count.Int64
 		}
 		items = append(items, map[string]any{"id": id, "internal_id": internal, "server_id": server, "external_id": external, "name": name, "library_type": kind, "item_count": number, "last_scanned": scanned, "server": map[string]any{"id": server, "server_nickname": nickname, "service_type": provider},
-			"catalogue": map[string]any{"supported": catalogueLibrarySupported(provider, kind, external), "collections_supported": collectionsSupported(provider, kind, external), "episodes_supported": episodeCatalogueSupported(provider), "revision": catalogueRevision, "synced_at": nullableText(catalogueSynced), "item_count": nullableCount(catalogueCount)}})
+			"catalogue": map[string]any{"supported": catalogueLibrarySupported(provider, kind, external), "collections_supported": collectionsSupported(provider, kind, external), "episodes_supported": childCatalogueSupported(provider, episodeChildren), "tracks_supported": childCatalogueSupported(provider, trackChildren), "revision": catalogueRevision, "synced_at": nullableText(catalogueSynced), "item_count": nullableCount(catalogueCount)}})
 	}
 	if rows.Err() != nil {
 		domainError(w, rows.Err())

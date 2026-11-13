@@ -6,7 +6,7 @@ import {loadFrontend} from './frontendLoader.mjs';
 const directory = fileURLToPath(new URL('../frontend/', import.meta.url));
 async function load() {
   
-  const m = await loadFrontend("export { syncLibraryCatalogue, purgeLibraryCatalogue, syncEpisodeCatalogue, purgeEpisodeCatalogue } from './src/lib/libraryCatalogue';export {setAccessToken} from './src/store/authStore';");
+  const m = await loadFrontend("export { syncLibraryCatalogue, purgeLibraryCatalogue, syncEpisodeCatalogue, purgeEpisodeCatalogue, syncChildCatalogue, purgeChildCatalogue } from './src/lib/libraryCatalogue';export {setAccessToken} from './src/store/authStore';");
   m.setAccessToken('session');
   return m;
 }
@@ -40,6 +40,21 @@ test('library catalogue adapter', async t => {
       globalThis.fetch = async () => Response.json(syncReceipt({ episodes }));
       assert.equal((await m.syncLibraryCatalogue(7, 3, { episodes: true })).kind, 'unconfirmed');
     }
+  });
+
+  await t.test('an album syncs and purges its tracks on the tracks routes with the same receipts', async () => {
+    const m = await load();
+    const paths = [];
+    globalThis.fetch = async (input, init) => {
+      const url = new URL(new Request(input, init).url).pathname;
+      paths.push(url);
+      return Response.json(url.endsWith('/purge')
+        ? { data: { success: true, library_id: 7, item_id: 42, deleted_count: 9, revision: 3 } }
+        : { data: { success: true, library_id: 7, item_id: 42, source_revision: 2, revision: 3, message: '9 added, 0 updated, 0 removed', result: { added: 9, updated: 0, removed: 0, total: 9 } } });
+    };
+    assert.equal((await m.syncChildCatalogue('tracks', 7, 42, 2)).receipt.added, 9);
+    assert.deepEqual(await m.purgeChildCatalogue('tracks', 7, 42, 2), { kind: 'committed', receipt: { libraryId: 7, itemId: 42, revision: 3, deleted: 9 } });
+    assert.deepEqual(paths, ['/api/libraries/7/media/42/tracks/sync', '/api/libraries/7/media/42/tracks/purge']);
   });
 
   await t.test('an application refusal is definitive and reported with its code', async () => {

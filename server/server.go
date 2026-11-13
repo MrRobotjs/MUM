@@ -200,9 +200,12 @@ func NewApp(store *Store, queue *LogQueue, assets fs.FS) (*App, error) {
 	handle("GET /api/libraries/{library}", a.listLibraries)
 	handle("GET /api/libraries/{library}/media", a.libraryCatalogueItems)
 	handle("GET /api/libraries/{library}/media/{item}", a.libraryCatalogueItem)
-	handle("GET /api/libraries/{library}/media/{item}/episodes", a.listEpisodeCatalogue)
-	handle("POST /api/libraries/{library}/media/{item}/episodes/sync", a.syncEpisodeCatalogue)
-	handle("POST /api/libraries/{library}/media/{item}/episodes/purge", a.purgeEpisodeCatalogue)
+	// A series' episodes and an album's tracks share one child catalogue.
+	for _, c := range []childCatalogue{episodeChildren, trackChildren} {
+		handle("GET /api/libraries/{library}/media/{item}/"+c.Noun, func(w http.ResponseWriter, r *http.Request) { a.listChildCatalogue(w, r, c) })
+		handle("POST /api/libraries/{library}/media/{item}/"+c.Noun+"/sync", func(w http.ResponseWriter, r *http.Request) { a.syncChildCatalogue(w, r, c) })
+		handle("POST /api/libraries/{library}/media/{item}/"+c.Noun+"/purge", func(w http.ResponseWriter, r *http.Request) { a.purgeChildCatalogue(w, r, c) })
+	}
 	handle("POST /api/libraries/{library}/sync", a.syncLibraryCatalogue)
 	handle("POST /api/libraries/{library}/purge", a.purgeLibraryCatalogue)
 	handle("GET /api/libraries/{library}/sync-status", a.librarySyncStatus)

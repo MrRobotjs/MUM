@@ -19,9 +19,11 @@ import (
 // Plex movie/show catalogue. MUM's core pins the library kind and revisions
 // around these reads.
 
-// CatalogueLibrarySupported: Plex catalogues numeric movie and show sections.
+// CatalogueLibrarySupported: Plex catalogues numeric movie, show and music
+// sections. A music ("artist") section is catalogued by its albums, the items
+// Plex records as each track play's parent, as Jellyfin and Emby music is.
 func (s *Server) CatalogueLibrarySupported(kind, section string) bool {
-	return NumericID(section) && (kind == "movie" || kind == "show")
+	return NumericID(section) && (kind == "movie" || kind == "show" || kind == "artist")
 }
 
 // ValidPoster reports whether path is the item's own poster (optionally
@@ -98,10 +100,13 @@ type CatalogueEntry struct {
 	Added     *int64   `xml:"addedAt,attr"`
 	Children  *int64   `xml:"childCount,attr"`
 	Smart     string   `xml:"smart,attr"`
-	// Episodes only: their show, season number and episode number.
+	// Episodes only: their show, season number and episode number. Tracks:
+	// their album, disc number, track number and any music video of them.
 	Show        string `xml:"grandparentRatingKey,attr"`
+	Album       string `xml:"parentRatingKey,attr"`
 	SeasonIndex *int64 `xml:"parentIndex,attr"`
 	Index       *int64 `xml:"index,attr"`
+	Video       string `xml:"primaryExtraKey,attr"`
 }
 
 // CataloguePage is one page of a section listing.
@@ -232,20 +237,25 @@ func (s *Server) CatalogueItems(ctx context.Context, section, kind string, progr
 	if !s.CatalogueLibrarySupported(kind, section) {
 		return nil, provider.ErrCatalogueUnsupported
 	}
-	itemType, element := "1", "Video"
-	if kind == "show" {
+	// Plex item types: 1 movie, 2 show, 9 album. rowKind is the listed
+	// entry's type, which is also the stored item type.
+	itemType, element, rowKind := "1", "Video", kind
+	switch kind {
+	case "show":
 		itemType, element = "2", "Directory"
+	case "artist":
+		itemType, element, rowKind = "9", "Directory", "album"
 	}
 	items := []provider.CatalogueItem{}
 	seen := map[string]bool{}
 	query := url.Values{"type": {itemType}, "includeCollections": {"0"}, "sort": {"titleSort:asc"}}
 	err := s.pages(ctx, "/library/sections/"+section+"/all", section, provider.CatalogueMaxItems, query, progress, func(row CatalogueEntry) error {
 		title := provider.TruncateRunes(row.Title, 512)
-		if row.XMLName.Local != element || row.Kind != kind || !NumericID(row.ID) || seen[row.ID] || title == "" || row.Poster != "" && !ValidPoster(row.ID, row.Poster) {
+		if row.XMLName.Local != element || row.Kind != rowKind || !NumericID(row.ID) || seen[row.ID] || title == "" || row.Poster != "" && !ValidPoster(row.ID, row.Poster) {
 			return errors.New("invalid, duplicate or mis-scoped Plex catalogue item")
 		}
 		seen[row.ID] = true
-		item := provider.CatalogueItem{ID: row.ID, Type: kind, Title: title, SortTitle: provider.TruncateRunes(row.SortTitle, 512), Summary: provider.TruncateRunes(row.Summary, 8000), ImageTag: row.Poster}
+		item := provider.CatalogueItem{ID: row.ID, Type: rowKind, Title: title, SortTitle: provider.TruncateRunes(row.SortTitle, 512), Summary: provider.TruncateRunes(row.Summary, 8000), ImageTag: row.Poster}
 		if item.SortTitle == "" {
 			item.SortTitle = title
 		}
@@ -285,29 +295,7 @@ func (s *Server) CatalogueEpisodes(ctx context.Context, show string) ([]provider
 			return errors.New("invalid, duplicate or mis-scoped Plex episode")
 		}
 		seen[row.ID] = true
-		item := provider.CatalogueItem{ID: row.ID, Type: "episode", Title: title, SortTitle: provider.TruncateRunes(row.SortTitle, 512), Summary: provider.TruncateRunes(row.Summary, 8000)}
-		if item.SortTitle == "" {
-			item.SortTitle = title
-		}
-		if ValidPoster(row.ID, row.Poster) {
-			item.ImageTag = row.Poster
-		}
-		if row.Year != nil && *row.Year > 0 && *row.Year < 10000 {
-			item.Year = row.Year
-		}
-		if row.Rating != nil && !math.IsNaN(*row.Rating) && !math.IsInf(*row.Rating, 0) && *row.Rating >= 0 && *row.Rating <= 10 {
-			item.Rating = row.Rating
-		}
-		if row.Duration != nil && *row.Duration >= 0 {
-			item.DurationMS = row.Duration
-		}
-		if row.SeasonIndex != nil && *row.SeasonIndex >= 0 && *row.SeasonIndex <= 100000 {
-			item.Season = row.SeasonIndex
-		}
-		if row.Index != nil && *row.Index >= 0 && *row.Index <= 100000 {
-			item.Episode = row.Index
-		}
-		item.AddedAt = addedAt(row.Added)
+		item := catalogueChild(row, "episode", title)
 		items = append(items, item)
 		return nil
 	})
@@ -315,6 +303,108 @@ func (s *Server) CatalogueEpisodes(ctx context.Context, show string) ([]provider
 		return nil, err
 	}
 	return items, nil
+}
+
+// CatalogueTracks reads one album's complete track list, from the album's
+// children, with disc and track numbers. A track whose music video Plex links
+// (its primary extra) is followed by that video as its own item, read in
+// batches; a linked video that cannot be read rejects the snapshot. A
+// thumbnail that is not the item's own is dropped.
+func (s *Server) CatalogueTracks(ctx context.Context, album string) ([]provider.CatalogueItem, error) {
+	if !NumericID(album) {
+		return nil, errors.New("invalid Plex album identifier")
+	}
+	tracks := []provider.CatalogueItem{}
+	seen := map[string]bool{}
+	videoOf := map[string]provider.CatalogueItem{} // video ID -> its track
+	videos := []string{}
+	err := s.pages(ctx, "/library/metadata/"+album+"/children", "", provider.CatalogueMaxEpisodes, url.Values{}, nil, func(row CatalogueEntry) error {
+		title := provider.TruncateRunes(row.Title, 512)
+		if row.XMLName.Local != "Track" || row.Kind != "track" || !NumericID(row.ID) || seen[row.ID] || row.Album != album || title == "" {
+			return errors.New("invalid, duplicate or mis-scoped Plex track")
+		}
+		seen[row.ID] = true
+		track := catalogueChild(row, "track", title)
+		tracks = append(tracks, track)
+		if row.Video != "" {
+			video := strings.TrimPrefix(row.Video, "/library/metadata/")
+			if !NumericID(video) || video == row.ID {
+				return errors.New("invalid Plex track video")
+			}
+			if _, linked := videoOf[video]; !linked {
+				videoOf[video] = track
+				videos = append(videos, video)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	if len(tracks)+len(videos) > provider.CatalogueMaxEpisodes {
+		return nil, errors.New("Plex album exceeds the catalogue limit")
+	}
+	found := map[string]provider.CatalogueItem{}
+	for start := 0; start < len(videos); start += 50 {
+		batch := videos[start:min(start+50, len(videos))]
+		_, body, err := s.catalogueGet(ctx, "/library/metadata/"+strings.Join(batch, ","), "application/xml", -1, 16<<20, nil)
+		if err != nil {
+			return nil, err
+		}
+		page, err := DecodeCataloguePage(body)
+		if err != nil {
+			return nil, err
+		}
+		for _, row := range page.Items {
+			title := provider.TruncateRunes(row.Title, 512)
+			track, requested := videoOf[row.ID]
+			if row.XMLName.Local != "Video" || row.Kind != "clip" || !requested || seen[row.ID] || title == "" {
+				return nil, errors.New("invalid, duplicate or unrequested Plex music video")
+			}
+			seen[row.ID] = true
+			video := catalogueChild(row, "music_video", title)
+			// A video sorts with its track: same disc and track number.
+			video.Season, video.Episode = track.Season, track.Episode
+			found[row.ID] = video
+		}
+	}
+	if len(found) != len(videos) {
+		return nil, errors.New("Plex did not return every linked music video")
+	}
+	items := make([]provider.CatalogueItem, 0, len(tracks)+len(videos))
+	items = append(items, tracks...)
+	for _, video := range videos {
+		items = append(items, found[video])
+	}
+	return items, nil
+}
+
+// catalogueChild builds an episode, track or video item from its entry.
+func catalogueChild(row CatalogueEntry, kind, title string) provider.CatalogueItem {
+	item := provider.CatalogueItem{ID: row.ID, Type: kind, Title: title, SortTitle: provider.TruncateRunes(row.SortTitle, 512), Summary: provider.TruncateRunes(row.Summary, 8000)}
+	if item.SortTitle == "" {
+		item.SortTitle = title
+	}
+	if ValidPoster(row.ID, row.Poster) {
+		item.ImageTag = row.Poster
+	}
+	if row.Year != nil && *row.Year > 0 && *row.Year < 10000 {
+		item.Year = row.Year
+	}
+	if row.Rating != nil && !math.IsNaN(*row.Rating) && !math.IsInf(*row.Rating, 0) && *row.Rating >= 0 && *row.Rating <= 10 {
+		item.Rating = row.Rating
+	}
+	if row.Duration != nil && *row.Duration >= 0 {
+		item.DurationMS = row.Duration
+	}
+	if row.SeasonIndex != nil && *row.SeasonIndex >= 0 && *row.SeasonIndex <= 100000 {
+		item.Season = row.SeasonIndex
+	}
+	if row.Index != nil && *row.Index >= 0 && *row.Index <= 100000 {
+		item.Episode = row.Index
+	}
+	item.AddedAt = addedAt(row.Added)
+	return item
 }
 
 // CatalogueCollections reads one section's complete collection list. A

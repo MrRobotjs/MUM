@@ -31,24 +31,34 @@ var catalogueKinds = map[string]string{"Movie": "movie", "Series": "show", "Musi
 // CatalogueItems reads one library's top-level items. kind is not needed:
 // every library type is listed the same way.
 func (s *Server) CatalogueItems(ctx context.Context, library, kind string, progress func(fetched, total int)) ([]provider.CatalogueItem, error) {
-	return s.items(ctx, library, false, progress)
+	return s.items(ctx, library, "", progress)
 }
 
 // CatalogueEpisodes reads one series' episodes.
 func (s *Server) CatalogueEpisodes(ctx context.Context, show string) ([]provider.CatalogueItem, error) {
-	return s.items(ctx, show, true, nil)
+	return s.items(ctx, show, "episode", nil)
 }
 
-// items pages through one library's items, or one series' episodes. The
+// CatalogueTracks reads one album's tracks. Music videos are separate library
+// items here, not linked to tracks, so none are listed.
+func (s *Server) CatalogueTracks(ctx context.Context, album string) ([]provider.CatalogueItem, error) {
+	return s.items(ctx, album, "track", nil)
+}
+
+// items pages through one library's items, or one parent's children (child
+// "episode" for a series, "track" for an album). The
 // server has no snapshot isolation, so a changed total, a duplicate or a
 // short final count rejects the whole snapshot instead of returning part.
-func (s *Server) items(ctx context.Context, parent string, episodes bool, progress func(fetched, total int)) ([]provider.CatalogueItem, error) {
+func (s *Server) items(ctx context.Context, parent string, child string, progress func(fetched, total int)) ([]provider.CatalogueItem, error) {
 	if !ValidToken(parent) {
 		return nil, errors.New("invalid provider parent identifier")
 	}
 	kinds, types, limit := catalogueKinds, "Movie,Series,MusicAlbum,Book,AudioBook,MusicVideo,Video", provider.CatalogueMaxItems
-	if episodes {
+	switch child {
+	case "episode":
 		kinds, types, limit = map[string]string{"Episode": "episode"}, "Episode", provider.CatalogueMaxEpisodes
+	case "track":
+		kinds, types, limit = map[string]string{"Audio": "track"}, "Audio", provider.CatalogueMaxEpisodes
 	}
 	items := []provider.CatalogueItem{}
 	seen := map[string]bool{}
@@ -74,6 +84,7 @@ func (s *Server) items(ctx context.Context, parent string, episodes bool, progre
 				RunTimeTicks    *int64
 				ImageTags       map[string]string
 				SeriesID        string `json:"SeriesId"`
+				AlbumID         string `json:"AlbumId"`
 				IndexNumber     *int64
 				ParentIndex     *int64 `json:"ParentIndexNumber"`
 			}
@@ -92,7 +103,7 @@ func (s *Server) items(ctx context.Context, parent string, episodes bool, progre
 		for _, row := range *page.Items {
 			kind, ok := kinds[row.Type]
 			title := provider.TruncateRunes(row.Name, 512)
-			if !ok || !ValidToken(row.ID) || seen[row.ID] || title == "" || episodes && row.SeriesID != parent {
+			if !ok || !ValidToken(row.ID) || seen[row.ID] || title == "" || child == "episode" && row.SeriesID != parent || child == "track" && row.AlbumID != parent {
 				return nil, errors.New("provider returned an invalid or duplicate item")
 			}
 			seen[row.ID] = true
@@ -116,7 +127,8 @@ func (s *Server) items(ctx context.Context, parent string, episodes bool, progre
 			if tag := row.ImageTags["Primary"]; ValidToken(tag) {
 				item.ImageTag = tag
 			}
-			if episodes {
+			// An episode's season and number; a track's disc and number.
+			if child != "" {
 				if row.ParentIndex != nil && *row.ParentIndex >= 0 && *row.ParentIndex <= 100000 {
 					item.Season = row.ParentIndex
 				}

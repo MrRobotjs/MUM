@@ -6,7 +6,7 @@ import { getAuthSnapshot, subscribeToAuthStore } from '../store/authStore';
 import { useCatalogueView } from '../lib/catalogueView';
 import { requestJson } from '../util/apiClient';
 import { useAlerts } from '../contexts/AlertContext';
-import { purgeEpisodeCatalogue, syncEpisodeCatalogue } from '../lib/libraryCatalogue';
+import { purgeChildCatalogue, syncChildCatalogue } from '../lib/libraryCatalogue';
 // Catalogue posters use signed session-bound URLs.
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -16,6 +16,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Skeleton } from '../components/ui/skeleton';
 import { ActivityTable } from '../components/library/ActivityTable';
+import { ExpandableText } from '../components/common/ExpandableText';
+import { Pagination } from '../components/common/Pagination';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faCube,
@@ -44,6 +46,8 @@ import {
   faPlus,
   faEye,
   faTv,
+  faMusic,
+  faVideo,
   faXmark,
   faTrash,
 } from '@fortawesome/free-solid-svg-icons';
@@ -65,6 +69,7 @@ interface MediaItem {
   stream_count?: number;
   catalogue_supported?: boolean;
   episode_catalogue_supported?: boolean;
+  track_catalogue_supported?: boolean;
   episode_revision?: number;
   // Episodes only: their numbers and their show.
   season_number?: number | null;
@@ -84,11 +89,14 @@ interface MediaItem {
   };
 }
 
-type TabType = 'overview' | 'episodes' | 'activity';
+type TabType = 'overview' | 'episodes' | 'tracks' | 'activity';
 
+// An episode, or an album's track or music video.
 interface Episode {
   id: number;
   title: string;
+  item_type?: string;
+  duration?: number | null;
   season_number?: number;
   episode_number?: number;
   year?: number;
@@ -166,6 +174,11 @@ const MediaDetailPageView = () => {
   // Check if this is a TV show library (show, tv, series, tvshows)
   const libraryType = mediaItem?.library?.library_type?.toLowerCase() || '';
   const isTVShow = ['show', 'tv', 'series', 'tvshows'].includes(libraryType) && !isEpisode;
+  // An album lists its tracks the way a show lists its episodes; both use the
+  // child list state and actions below.
+  const isAlbum = mediaItem?.item_type === 'album' && !isEpisode;
+  const childNoun = isAlbum ? 'tracks' : 'episodes';
+  const childSupported = isAlbum ? mediaItem?.track_catalogue_supported === true : mediaItem?.episode_catalogue_supported === true;
   const episodeCode = isEpisode && mediaItem?.season_number != null && mediaItem?.episode_number != null
     ? `S${mediaItem.season_number.toString().padStart(2, '0')}E${mediaItem.episode_number.toString().padStart(2, '0')}`
     : null;
@@ -175,10 +188,10 @@ const MediaDetailPageView = () => {
   }, [libraryId, mediaId]);
 
   useEffect(() => {
-    if (isTVShow && mediaItem?.episode_catalogue_supported === true && activeTab === 'episodes') {
+    if (childSupported && (isTVShow && activeTab === 'episodes' || isAlbum && activeTab === 'tracks')) {
       loadEpisodes();
     }
-  }, [libraryId, mediaId, activeTab, episodesPage, episodesSearch, episodesSortBy, episodesPerPage, isTVShow, mediaItem?.episode_catalogue_supported]);
+  }, [libraryId, mediaId, activeTab, episodesPage, episodesSearch, episodesSortBy, episodesPerPage, isTVShow, isAlbum, childSupported]);
 
   useEffect(() => {
     if (activeTab === 'activity') loadActivity();
@@ -255,30 +268,30 @@ const MediaDetailPageView = () => {
   };
 
   const loadEpisodes = async () => {
-    if (!libraryId || !mediaId || mediaItem?.episode_catalogue_supported !== true) return false;
+    if (!libraryId || !mediaId || !childSupported) return false;
 
     if (!view.current()) return false;
     const read = view.begin('episodes', queries.episodes);
     if (!read.current()) return false;
     try {
       setEpisodesLoading(true);
-      const params = new URLSearchParams({
-        page: episodesPage.toString(),
-        page_size: episodesPerPage,
-        sort_by: episodesSortBy
-      });
-      if (episodesSearch) {
+      // An album's tracks are listed in disc and track order, 100 at a time.
+      const params = new URLSearchParams(isAlbum
+        ? { page: episodesPage.toString(), page_size: '100', sort_by: 'season_episode_asc' }
+        : { page: episodesPage.toString(), page_size: episodesPerPage, sort_by: episodesSortBy });
+      if (episodesSearch && !isAlbum) {
         params.append('search', episodesSearch);
       }
 
-      const response = await requestJson<{data?: {episodes?: Episode[]}; meta?: {pagination?: {total_pages?: number; total_items?: number}}}>(
-        `/api/libraries/${libraryId}/media/${mediaId}/episodes?${params}`,
+      const response = await requestJson<{data?: {episodes?: Episode[]; tracks?: Episode[]}; meta?: {pagination?: {total_pages?: number; total_items?: number}}}>(
+        `/api/libraries/${libraryId}/media/${mediaId}/${childNoun}?${params}`,
         { signal: read.signal, retryAuthentication: false });
       if (!read.current()) return false;
 
-      if (!Array.isArray(response.data?.episodes) || !response.meta?.pagination) throw new Error('Invalid episode list');
+      const children = response.data?.[childNoun];
+      if (!Array.isArray(children) || !response.meta?.pagination) throw new Error(`Invalid ${childNoun} list`);
       if (response.data) {
-        setEpisodes(response.data.episodes || []);
+        setEpisodes(children);
         setEpisodesTotalPages(response.meta?.pagination?.total_pages || 1);
         setEpisodesTotalItems(response.meta?.pagination?.total_items || 0);
       }
@@ -305,13 +318,13 @@ const MediaDetailPageView = () => {
   };
 
   const handleSyncEpisodes = async () => {
-    if (!libraryId || !mediaId || !mediaItem?.episode_catalogue_supported || mediaItem.episode_revision == null) return;
+    if (!libraryId || !mediaId || !childSupported || mediaItem?.episode_revision == null) return;
 
     const mutation = view.beginMutation();
     if (!mutation) return;
     try {
       setSyncing(true);
-      const outcome = await syncEpisodeCatalogue(Number(libraryId), Number(mediaId), mediaItem.episode_revision);
+      const outcome = await syncChildCatalogue(childNoun, Number(libraryId), Number(mediaId), mediaItem.episode_revision);
       if (!mutation.current()) return;
       view.requireInspection();
       setNeedsInspection(true);
@@ -334,9 +347,11 @@ const MediaDetailPageView = () => {
   };
 
   const handlePurgeEpisodes = async () => {
-    if (!libraryId || !mediaId || !mediaItem?.episode_catalogue_supported || mediaItem.episode_revision == null) return;
+    if (!libraryId || !mediaId || !childSupported || mediaItem?.episode_revision == null) return;
     const confirmed = window.confirm(
-      'Purge all cached episodes for this show? They will need to be re-synced from the server.'
+      isAlbum
+        ? 'Purge all cached tracks for this album? They will need to be re-synced from the server.'
+        : 'Purge all cached episodes for this show? They will need to be re-synced from the server.'
     );
     if (!confirmed) {
       return;
@@ -346,7 +361,7 @@ const MediaDetailPageView = () => {
     if (!mutation) return;
     try {
       setPurgingEpisodes(true);
-      const outcome = await purgeEpisodeCatalogue(Number(libraryId), Number(mediaId), mediaItem.episode_revision);
+      const outcome = await purgeChildCatalogue(childNoun, Number(libraryId), Number(mediaId), mediaItem.episode_revision);
       if (!mutation.current()) return;
       view.requireInspection();
       setNeedsInspection(true);
@@ -366,7 +381,8 @@ const MediaDetailPageView = () => {
 
   const setTab = (tab: TabType) => {
     if (isEpisode) {
-      navigate({ from: EPISODE_ROUTE, search: (prev) => ({ ...prev, tab: tab === 'episodes' ? undefined : tab }) });
+      // An episode has only Overview and Activity.
+      navigate({ from: EPISODE_ROUTE, search: (prev) => ({ ...prev, tab: tab === 'overview' || tab === 'activity' ? tab : undefined }) });
     } else {
       navigate({ from: MEDIA_ROUTE, search: (prev) => ({ ...prev, tab }) });
     }
@@ -440,6 +456,16 @@ const MediaDetailPageView = () => {
         {badge.name}
       </span>
     );
+  };
+
+  // A track's length as minutes:seconds (hours:minutes:seconds when longer).
+  const formatTrackDuration = (ms?: number | null) => {
+    if (ms == null) return '';
+    const total = Math.round(ms / 1000);
+    const hours = Math.floor(total / 3600);
+    const minutes = Math.floor((total % 3600) / 60);
+    const seconds = String(total % 60).padStart(2, '0');
+    return hours > 0 ? `${hours}:${String(minutes).padStart(2, '0')}:${seconds}` : `${minutes}:${seconds}`;
   };
 
   const formatDuration = (ms?: number) => {
@@ -561,7 +587,7 @@ const MediaDetailPageView = () => {
               {/* Summary */}
               {mediaItem.summary && (
                 <div className="text-left max-w-2xl">
-                  <p className="text-sm text-muted-foreground leading-relaxed">{mediaItem.summary}</p>
+                  <ExpandableText text={mediaItem.summary} limit={300} className="text-sm text-muted-foreground leading-relaxed" />
                 </div>
               )}
 
@@ -602,6 +628,12 @@ const MediaDetailPageView = () => {
             <TabsTrigger value="episodes">
               <FontAwesomeIcon icon={faList} className="mr-2 h-4 w-4" />
               Episodes
+            </TabsTrigger>
+          )}
+          {isAlbum && (
+            <TabsTrigger value="tracks">
+              <FontAwesomeIcon icon={faMusic} className="mr-2 h-4 w-4" />
+              Tracks
             </TabsTrigger>
           )}
           <TabsTrigger value="activity">
@@ -698,7 +730,7 @@ const MediaDetailPageView = () => {
                     <FontAwesomeIcon icon={faFileLines} className="text-primary" />
                     Summary
                   </h3>
-                  <p className="text-sm text-muted-foreground leading-relaxed">{mediaItem.summary}</p>
+                  <ExpandableText text={mediaItem.summary} limit={600} className="text-sm text-muted-foreground leading-relaxed" />
                 </CardContent>
               </Card>
             )}
@@ -1013,6 +1045,137 @@ const MediaDetailPageView = () => {
           )}
         </TabsContent>
 
+        <TabsContent value="tracks" className="space-y-6">
+          {isAlbum && (
+            <>
+              {/* Tracks Header */}
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <h3 className="text-lg font-semibold flex items-center">
+                  <FontAwesomeIcon icon={faMusic} className="text-primary mr-2 h-5 w-5" />
+                  Tracks
+                  <span className="text-sm text-muted-foreground ml-2">
+                    ({episodesTotalItems} {episodesTotalItems === 1 ? 'item' : 'items'})
+                  </span>
+                </h3>
+
+                {/* Actions */}
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={handlePurgeEpisodes}
+                    disabled={purgingEpisodes || syncing || needsInspection || !childSupported}
+                    title="Delete cached tracks for this album from the database"
+                  >
+                    {purgingEpisodes ? (
+                      <>
+                        <FontAwesomeIcon icon={faRotate} className="mr-2 h-4 w-4 animate-spin" />
+                        Purging...
+                      </>
+                    ) : (
+                      <>
+                        <FontAwesomeIcon icon={faTrash} className="mr-2 h-4 w-4" />
+                        Purge
+                      </>
+                    )}
+                  </Button>
+                  <Button onClick={refreshSavedState} disabled={syncing || purgingEpisodes || !childSupported} size="sm" variant="outline">Refresh saved state</Button>
+                  {needsInspection && <span>Inspect saved state before another action.</span>}
+                  <Button onClick={handleSyncEpisodes} disabled={syncing || purgingEpisodes || needsInspection || !childSupported} size="sm">
+                    {syncing ? (
+                      <>
+                        <FontAwesomeIcon icon={faRotate} className="mr-2 h-4 w-4 animate-spin" />
+                        Syncing...
+                      </>
+                    ) : (
+                      <>
+                        <FontAwesomeIcon icon={faRotate} className="mr-2 h-4 w-4" />
+                        Sync
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+
+              {/* Track List: in disc and track order, each music video on its own row after its track */}
+              {episodesLoading ? (
+                <Card className="py-0 overflow-hidden">
+                  <CardContent className="p-0 divide-y">
+                    {Array.from({ length: 8 }).map((_, idx) => (
+                      <div key={idx} className="flex items-center gap-4 px-4 py-3">
+                        <Skeleton className="h-4 w-6" />
+                        <Skeleton className="h-4 flex-1" />
+                        <Skeleton className="h-4 w-12" />
+                      </div>
+                    ))}
+                  </CardContent>
+                </Card>
+              ) : episodes.length > 0 ? (
+                <>
+                  <Card className="py-0 overflow-hidden">
+                    <CardContent className="p-0 divide-y">
+                      {episodes.map((track, index) => {
+                        const isVideo = track.item_type === 'music_video';
+                        const discs = new Set(episodes.map((t) => t.season_number ?? null));
+                        const newDisc = discs.size > 1 && (index === 0 || episodes[index - 1].season_number !== track.season_number);
+                        return (
+                          <div key={track.id}>
+                            {newDisc && (
+                              <div className="px-4 py-2 text-xs font-semibold text-muted-foreground bg-muted/50">
+                                {track.season_number != null ? `Disc ${track.season_number}` : 'Other'}
+                              </div>
+                            )}
+                            <div className="flex items-center gap-4 px-4 py-3 hover:bg-accent/50 transition-colors">
+                              <span className="w-8 text-right text-sm text-muted-foreground">
+                                {isVideo ? '' : track.episode_number ?? '—'}
+                              </span>
+                              <div className="flex min-w-0 flex-1 items-center gap-2">
+                                {isVideo && (
+                                  <FontAwesomeIcon icon={faVideo} className="h-4 w-4 text-primary" title="Music video" />
+                                )}
+                                <span className="truncate font-medium" title={track.title}>{track.title}</span>
+                              </div>
+                              {track.stream_count !== undefined && track.stream_count > 0 && (
+                                <span className="flex items-center gap-1 text-xs text-muted-foreground" title={`${track.stream_count} ${track.stream_count === 1 ? 'play' : 'plays'}`}>
+                                  <FontAwesomeIcon icon={faEye} className="h-3 w-3" />
+                                  {track.stream_count}
+                                </span>
+                              )}
+                              <span className="w-12 text-right text-sm text-muted-foreground">
+                                {formatTrackDuration(track.duration)}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </CardContent>
+                  </Card>
+                  {episodesTotalPages > 1 && (
+                    <Pagination
+                      currentPage={episodesPage}
+                      totalPages={episodesTotalPages}
+                      onPageChange={setEpisodesPage}
+                      loading={episodesLoading}
+                    />
+                  )}
+                </>
+              ) : (
+                <Card>
+                  <CardContent className="p-12 text-center">
+                    <div className="w-16 h-16 rounded-full bg-accent flex items-center justify-center mx-auto mb-4">
+                      <FontAwesomeIcon icon={faMusic} className="h-8 w-8 text-muted-foreground" />
+                    </div>
+                    <h3 className="text-lg font-medium mb-2">{childSupported ? 'No Tracks Found' : 'Tracks unavailable'}</h3>
+                    <p className="text-sm text-muted-foreground max-w-md mx-auto">
+                      {childSupported ? 'No tracks are saved for this album. Click the Sync button to fetch tracks.' : 'Track synchronization is unavailable for this provider.'}
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
+            </>
+          )}
+        </TabsContent>
+
         <TabsContent value="activity" className="space-y-6">
           <ActivityTable
             days={activityDays}
@@ -1022,7 +1185,7 @@ const MediaDetailPageView = () => {
             onPageChange={setActivityPage}
             loading={activityLoading}
             rows={activityData}
-            emptyMessage={`No streaming activity found for this ${isEpisode ? 'episode' : isTVShow ? 'show' : 'item'} in the selected time period.`}
+            emptyMessage={`No streaming activity found for this ${isEpisode ? 'episode' : isTVShow ? 'show' : isAlbum ? 'album' : 'item'} in the selected time period.`}
           />
         </TabsContent>
       </Tabs>

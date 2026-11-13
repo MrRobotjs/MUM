@@ -22,7 +22,7 @@ func plexCatalogueFixture(t *testing.T, handler http.HandlerFunc) *serverConnect
 }
 
 func TestPlexCatalogueAdapterCompleteSnapshots(t *testing.T) {
-	for _, kind := range []string{"movie", "show"} {
+	for _, kind := range []string{"movie", "show", "artist"} {
 		t.Run(kind, func(t *testing.T) {
 			pages := 0
 			p := plexCatalogueFixture(t, func(w http.ResponseWriter, r *http.Request) {
@@ -31,18 +31,19 @@ func TestPlexCatalogueAdapterCompleteSnapshots(t *testing.T) {
 				if r.Header.Get("X-Plex-Token") != "fixture-secret" || r.Header.Get("X-Plex-Container-Size") != "200" || r.Header.Get("Accept") != "application/xml" || r.URL.Path != "/proxy/library/sections/7/all" || strings.Contains(r.URL.RawQuery, "secret") {
 					t.Error("wrong private transport", r.URL, r.Header)
 				}
-				expectedType := "1"
-				element := "Video"
+				expectedType, element, rowKind := "1", "Video", kind
 				if kind == "show" {
-					expectedType = "2"
-					element = "Directory"
+					expectedType, element = "2", "Directory"
+				}
+				if kind == "artist" { // music sections are catalogued by album
+					expectedType, element, rowKind = "9", "Directory", "album"
 				}
 				if r.URL.Query().Get("type") != expectedType {
 					t.Error("wrong item kind")
 				}
 				fmt.Fprintf(w, `<MediaContainer size="%d" totalSize="201" offset="%d" librarySectionID="7">`, min(200, 201-start), start)
 				for n := start; n < min(start+200, 201); n++ {
-					fmt.Fprintf(w, `<%s ratingKey="%d" type="%s" title="Item %d" titleSort="Sorted %d" summary="Fixture" year="2020" rating="7.5" duration="7200000" addedAt="1700000000" thumb="/library/metadata/%d/thumb/1700000000"/>`, element, n+1, kind, n, n, n+1)
+					fmt.Fprintf(w, `<%s ratingKey="%d" type="%s" title="Item %d" titleSort="Sorted %d" summary="Fixture" year="2020" rating="7.5" duration="7200000" addedAt="1700000000" thumb="/library/metadata/%d/thumb/1700000000"/>`, element, n+1, rowKind, n, n, n+1)
 				}
 				fmt.Fprint(w, `</MediaContainer>`)
 			})
@@ -57,7 +58,7 @@ func TestPlexCatalogueAdapterCompleteSnapshots(t *testing.T) {
 				t.Fatal(len(items), pages, progress, err)
 			}
 			first := items[0]
-			if first.ID != "1" || first.Type != kind || first.SortTitle != "Sorted 0" || first.Summary != "Fixture" || first.Year == nil || *first.Year != 2020 || first.DurationMS == nil || *first.DurationMS != 7200000 || first.Rating == nil || *first.Rating != 7.5 || first.AddedAt != "2023-11-14T22:13:20.000000000Z" || first.ImageTag != "/library/metadata/1/thumb/1700000000" {
+			if first.ID != "1" || first.Type != map[string]string{"movie": "movie", "show": "show", "artist": "album"}[kind] || first.SortTitle != "Sorted 0" || first.Summary != "Fixture" || first.Year == nil || *first.Year != 2020 || first.DurationMS == nil || *first.DurationMS != 7200000 || first.Rating == nil || *first.Rating != 7.5 || first.AddedAt != "2023-11-14T22:13:20.000000000Z" || first.ImageTag != "/library/metadata/1/thumb/1700000000" {
 				t.Fatal(first)
 			}
 		})
@@ -131,7 +132,7 @@ func TestPlexCatalogueAdapterRefusesIncompleteAndAmbiguousSnapshots(t *testing.T
 				t.Fatal(section)
 			}
 		}
-		if _, err := p.catalogueItems(t.Context(), "7", "artist", nil); err == nil {
+		if _, err := p.catalogueItems(t.Context(), "7", "photo", nil); err == nil {
 			t.Fatal("unsupported kind accepted")
 		}
 		ctx, cancel := context.WithCancel(t.Context())

@@ -39,10 +39,6 @@ func catalogueSupported(kind string) bool {
 	_, ok := moduleRules(kind).(catalogueReader)
 	return ok
 }
-func episodeCatalogueSupported(kind string) bool {
-	_, ok := moduleRules(kind).(episodeReader)
-	return ok
-}
 func catalogueLibrarySupported(kind, libraryKind, external string) bool {
 	if rule, ok := moduleRules(kind).(catalogueLibraryRule); ok {
 		return rule.CatalogueLibrarySupported(libraryKind, external)
@@ -61,15 +57,6 @@ func (p *serverConnection) catalogueItems(ctx context.Context, library, kind str
 		return nil, errCatalogueUnsupported
 	}
 	return m.CatalogueItems(ctx, library, kind, progress)
-}
-
-// catalogueEpisodes reads one series' complete episode snapshot.
-func (p *serverConnection) catalogueEpisodes(ctx context.Context, show string) ([]catalogueItem, error) {
-	m, ok := p.module().(episodeReader)
-	if !ok {
-		return nil, errCatalogueUnsupported
-	}
-	return m.CatalogueEpisodes(ctx, show)
 }
 
 // catalogueCollections reads one library's complete collection snapshot.
@@ -229,8 +216,8 @@ func (a *App) syncLibraryCatalogue(w http.ResponseWriter, r *http.Request) {
 		fail(w, 409, "CATALOGUE_UNSUPPORTED", "Item catalogues support Jellyfin, Emby and Plex movie/show libraries")
 		return
 	}
-	if syncEpisodes && !episodeCatalogueSupported(library.Provider) {
-		episodeDomainError(w, errCatalogueUnsupported)
+	if syncEpisodes && !childCatalogueSupported(library.Provider, episodeChildren) && !childCatalogueSupported(library.Provider, trackChildren) {
+		childDomainError(w, episodeChildren, errCatalogueUnsupported)
 		return
 	}
 	if !library.Active || input.Revision != nil && *input.Revision != library.Revision {
@@ -372,7 +359,7 @@ func (a *App) syncLibraryCatalogue(w http.ResponseWriter, r *http.Request) {
 func (a *App) catalogueShows(ctx context.Context, library int64) ([]catalogueShow, error) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-	rows, err := a.store.reader.QueryContext(ctx, "SELECT id,external_id,episode_revision FROM media_items WHERE library_id=? AND parent_id IS NULL AND item_type='show' ORDER BY sort_title COLLATE NOCASE,id", library)
+	rows, err := a.store.reader.QueryContext(ctx, "SELECT id,external_id,episode_revision,item_type FROM media_items WHERE library_id=? AND parent_id IS NULL AND item_type IN ('show','album') ORDER BY sort_title COLLATE NOCASE,id", library)
 	if err != nil {
 		return nil, err
 	}
@@ -380,7 +367,7 @@ func (a *App) catalogueShows(ctx context.Context, library int64) ([]catalogueSho
 	shows := []catalogueShow{}
 	for rows.Next() {
 		var show catalogueShow
-		if err := rows.Scan(&show.ID, &show.External, &show.Revision); err != nil {
+		if err := rows.Scan(&show.ID, &show.External, &show.Revision, &show.Kind); err != nil {
 			return nil, err
 		}
 		shows = append(shows, show)
@@ -426,7 +413,13 @@ func (a *App) runLibraryEpisodes(id int64, actor, access string, library catalog
 		if ctx.Err() != nil {
 			break
 		}
-		result, err := a.syncShowEpisodes(ctx, actor, access, library, provider, show, false)
+		c, _ := childrenOf(show.Kind)
+		if !childCatalogueSupported(library.Provider, c) {
+			skipped++
+			a.catalogueProgressUpdate(id, func(run *catalogueProgress) { run.ShowsDone = i + 1 })
+			continue
+		}
+		result, err := a.syncChildren(ctx, c, actor, access, library, provider, show, false)
 		switch {
 		case err == nil:
 			synced++
@@ -436,7 +429,7 @@ func (a *App) runLibraryEpisodes(id int64, actor, access string, library catalog
 			stopped = "library_changed"
 		case errors.Is(err, ErrForbidden):
 			stopped = "forbidden"
-		case errors.Is(err, ErrNotFound) || errors.Is(err, errNotASeries):
+		case errors.Is(err, ErrNotFound) || errors.Is(err, errWrongParent):
 			// The show left the library after the run began.
 			skipped++
 		default:
@@ -455,6 +448,11 @@ func (a *App) runLibraryEpisodes(id int64, actor, access string, library catalog
 		}
 	}
 	finished := utcTimestamp(time.Now())
+	// A music library's run is recorded as a track run.
+	summary := "library.episodes.sync_all"
+	if len(shows) > 0 && shows[0].Kind == trackChildren.Parent {
+		summary = "library.tracks.sync_all"
+	}
 	outcome := map[string]any{"finished_at": finished, "shows_total": len(shows), "shows_synced": synced, "shows_failed": failed, "shows_skipped": skipped,
 		"added": added, "updated": updated, "removed": removed, "stopped": nil}
 	if stopped != "" {
@@ -466,7 +464,7 @@ func (a *App) runLibraryEpisodes(id int64, actor, access string, library catalog
 	defer auditCancel()
 	details, _ := json.Marshal(map[string]any{"library_id": id, "shows_total": len(shows), "shows_synced": synced, "shows_failed": failed, "shows_skipped": skipped, "added": added, "updated": updated, "removed": removed, "stopped": outcome["stopped"]})
 	if err := a.store.write(auditCtx, func(tx *sql.Tx) error {
-		_, err := tx.ExecContext(auditCtx, "INSERT INTO audit_events(actor_uuid,action,details,occurred_at) VALUES(?,'library.episodes.sync_all',?,?)", actor, string(details), finished)
+		_, err := tx.ExecContext(auditCtx, "INSERT INTO audit_events(actor_uuid,action,details,occurred_at) VALUES(?,?,?,?)", actor, summary, string(details), finished)
 		return err
 	}); err != nil {
 		a.logger.Error("Library episode synchronization summary not recorded", "library_id", id, "error", err)
@@ -802,7 +800,8 @@ func (a *App) libraryCatalogueItem(w http.ResponseWriter, r *http.Request) {
 	respond(w, 200, map[string]any{"id": item.ID, "external_id": item.External, "title": item.Title, "sort_title": item.SortTitle, "item_type": item.Type,
 		"year": item.Year, "rating": item.Rating, "duration": item.DurationMS, "summary": item.Summary, "thumb": item.Thumb, "added_at": item.AddedAt, "last_synced": item.LastSynced, "stream_count": item.StreamCount,
 		"catalogue_revision": library.Revision, "catalogue_supported": catalogueLibrarySupported(library.Provider, library.Kind, library.External),
-		"episode_catalogue_supported": episodeCatalogueSupported(library.Provider) && item.Type == "show",
+		"episode_catalogue_supported": childCatalogueSupported(library.Provider, episodeChildren) && item.Type == episodeChildren.Parent,
+		"track_catalogue_supported":   childCatalogueSupported(library.Provider, trackChildren) && item.Type == trackChildren.Parent,
 		"episode_revision":            episodeRevision, "episodes_synced_at": nullableText(episodesSynced.String), "episode_count": nullableCount(episodeCount),
 		"library": libraryInfo})
 }

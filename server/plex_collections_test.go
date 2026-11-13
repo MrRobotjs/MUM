@@ -74,7 +74,7 @@ func TestPlexCollectionsAdapterRejectsIncompleteSnapshots(t *testing.T) {
 func TestPlexCollectionsAdapterRefusesUnsupportedBeforeHTTP(t *testing.T) {
 	calls := 0
 	p := plexCatalogueFixture(t, func(http.ResponseWriter, *http.Request) { calls++ })
-	for _, tc := range [][2]string{{"7", "artist"}, {"x", "movie"}, {"07", "show"}} {
+	for _, tc := range [][2]string{{"7", "photo"}, {"x", "movie"}, {"07", "show"}} {
 		if _, err := p.catalogueCollections(context.Background(), tc[0], tc[1]); err == nil {
 			t.Fatal("unsupported section admitted", tc)
 		}
@@ -169,12 +169,12 @@ func TestPlexCollectionsRuntimeFailedSnapshotRetainsCatalogue(t *testing.T) {
 func TestPlexCollectionsRuntimeUnsupportedAndAuthority(t *testing.T) {
 	hooks := &plexRuntimeHooks{}
 	f, _ := newPlexRuntime(t, nil, hooks)
-	var music int64
-	f.s.reader.QueryRow("SELECT id FROM media_libraries WHERE external_id='9'").Scan(&music)
-	if w := apiRequest(f.a, "GET", fmt.Sprintf("/api/libraries/%d", music), f.token, nil, nil); responseData(t, w)["catalogue"].(map[string]any)["collections_supported"] != false {
-		t.Fatal("music collections advertised")
+	var photos int64
+	f.s.reader.QueryRow("SELECT id FROM media_libraries WHERE external_id='10'").Scan(&photos)
+	if w := apiRequest(f.a, "GET", fmt.Sprintf("/api/libraries/%d", photos), f.token, nil, nil); responseData(t, w)["catalogue"].(map[string]any)["collections_supported"] != false {
+		t.Fatal("photo collections advertised")
 	}
-	if w := apiRequest(f.a, "GET", fmt.Sprintf("/api/libraries/%d/collections", music), f.token, nil, nil); w.Code != 409 {
+	if w := apiRequest(f.a, "GET", fmt.Sprintf("/api/libraries/%d/collections", photos), f.token, nil, nil); w.Code != 409 {
 		t.Fatal("unsupported collections read admitted", w.Code)
 	}
 	if w := apiRequest(f.a, "GET", f.path("/collections"), "", nil, nil); w.Code != 401 {

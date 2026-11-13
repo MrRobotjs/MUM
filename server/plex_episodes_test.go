@@ -38,7 +38,7 @@ func TestPlexEpisodeAdapterReadsEveryEpisodeOfAShow(t *testing.T) {
 		}
 		fmt.Fprint(w, `</MediaContainer>`)
 	})
-	episodes, err := p.catalogueEpisodes(t.Context(), "55")
+	episodes, err := p.catalogueChildren(t.Context(), episodeChildren, "55")
 	if err != nil || len(episodes) != 201 || pages != 2 {
 		t.Fatal(len(episodes), pages, err)
 	}
@@ -73,7 +73,7 @@ func TestPlexEpisodeAdapterRefusesForeignOrIncompleteEpisodes(t *testing.T) {
 	for name, body := range cases {
 		t.Run(name, func(t *testing.T) {
 			p := plexCatalogueFixture(t, func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, body) })
-			if episodes, err := p.catalogueEpisodes(t.Context(), "55"); err == nil || episodes != nil {
+			if episodes, err := p.catalogueChildren(t.Context(), episodeChildren, "55"); err == nil || episodes != nil {
 				t.Fatal("invalid episode list accepted", episodes, err)
 			}
 		})
@@ -82,7 +82,7 @@ func TestPlexEpisodeAdapterRefusesForeignOrIncompleteEpisodes(t *testing.T) {
 		calls := 0
 		p := plexCatalogueFixture(t, func(w http.ResponseWriter, r *http.Request) { calls++ })
 		for _, show := range []string{"", "0", "01", "../55", "55?X-Plex-Token=x"} {
-			if _, err := p.catalogueEpisodes(t.Context(), show); err == nil {
+			if _, err := p.catalogueChildren(t.Context(), episodeChildren, show); err == nil {
 				t.Fatal(show)
 			}
 		}

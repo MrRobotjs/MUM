@@ -162,7 +162,7 @@ const adminLibraryDetail = createRoute({
     return { tab: tabVal }
   },
 })
-const mediaTabs = ['overview', 'episodes', 'activity'] as const
+const mediaTabs = ['overview', 'episodes', 'tracks', 'activity'] as const
 type MediaTab = typeof mediaTabs[number]
 const adminMediaDetail = createRoute({
   getParentRoute: () => adminRoute,

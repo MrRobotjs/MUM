@@ -145,6 +145,10 @@ type (
 	episodeReader interface {
 		CatalogueEpisodes(ctx context.Context, show string) ([]provider.CatalogueItem, error)
 	}
+	// trackReader reads an album's tracks, with any music videos of them.
+	trackReader interface {
+		CatalogueTracks(ctx context.Context, album string) ([]provider.CatalogueItem, error)
+	}
 	collectionReader interface {
 		CatalogueCollections(ctx context.Context, library, kind string) ([]provider.CatalogueCollection, error)
 	}

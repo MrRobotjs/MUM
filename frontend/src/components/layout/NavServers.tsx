@@ -15,6 +15,8 @@ import { Link, useLocation } from "@tanstack/react-router"
 
 import { useServerOptions } from "@/hooks/useServerOptions"
 import { useServerLibraries } from "@/hooks/useServerLibraries"
+import { useUserTotal } from "@/hooks/useUserTotal"
+import { SidebarCount } from "@/components/layout/SidebarCount"
 import { useSyncServerLibraries } from "@/hooks/useSyncServerLibraries"
 import { getServiceIcon } from "@/config/pluginMetadata"
 import { useAlerts } from "@/contexts/AlertContext"
@@ -24,7 +26,6 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Badge } from "@/components/ui/badge"
 import {
   SidebarGroup,
   SidebarGroupLabel,
@@ -47,6 +48,13 @@ type ServerNavItemProps = {
   pathname: string
   onNavigate: () => void
 }
+
+// A server's own pages, in sidebar order.
+const serverPages = [
+  { title: "Overview", suffix: "", to: "/admin/servers/$serverId", icon: faCircleInfo },
+  { title: "Users", suffix: "/users", to: "/admin/servers/$serverId/users", icon: faUsers },
+  { title: "Libraries", suffix: "/libraries", to: "/admin/servers/$serverId/libraries", icon: faLayerGroup },
+] as const
 
 const ServerNavItem = ({ server, pathname, onNavigate }: ServerNavItemProps) => {
   const { success, error } = useAlerts()
@@ -102,13 +110,11 @@ const ServerNavItem = ({ server, pathname, onNavigate }: ServerNavItemProps) => 
   const libraryMeta = loading ? (
     <span className="text-[10px] text-muted-foreground">Loading...</span>
   ) : libraryCount !== null ? (
-    <Badge
-      variant="default"
-      className="flex items-center justify-center h-5 w-5 p-0 text-[10px] font-semibold bg-sidebar-accent text-sidebar-accent-foreground border-transparent leading-none"
-    >
-      {libraryCount}
-    </Badge>
+    <SidebarCount value={libraryCount} singular="library" plural="libraries" />
   ) : null
+  // This server's service accounts, as its Users page lists them; read once
+  // the server's entry is open, like its libraries.
+  const userTotal = useUserTotal({ serverId: server.id, enabled: open })
 
   return (
     <Collapsible
@@ -121,7 +127,9 @@ const ServerNavItem = ({ server, pathname, onNavigate }: ServerNavItemProps) => 
         }
       }}
     >
-      <SidebarMenuItem>
+      {/* Collapsed with this server open, one tray runs from the server's
+          icon through its page icons. */}
+      <SidebarMenuItem className={open ? "group-data-[collapsible=icon]:rounded-md group-data-[collapsible=icon]:bg-sidebar-accent/50 group-data-[collapsible=icon]:pb-0.5" : undefined}>
         <CollapsibleTrigger asChild>
           <SidebarMenuButton tooltip={server.server_nickname} className="pr-12">
             {serviceIcon}
@@ -156,7 +164,7 @@ const ServerNavItem = ({ server, pathname, onNavigate }: ServerNavItemProps) => 
             {/* The server's own pages; Libraries below expands its library list. */}
             <SidebarMenuSubItem>
               <SidebarMenuSubButton asChild isActive={pathname === `/admin/servers/${server.id}`}>
-                <Link to="/admin/servers/$serverId" params={{ serverId: String(server.id) }} onClick={onNavigate}>
+                <Link to="/admin/servers/$serverId" params={{ serverId: String(server.id) }} activeOptions={{ exact: true }} onClick={onNavigate}>
                   <FontAwesomeIcon icon={faCircleInfo} className="h-4 w-4" />
                   <span>Overview</span>
                 </Link>
@@ -167,6 +175,11 @@ const ServerNavItem = ({ server, pathname, onNavigate }: ServerNavItemProps) => 
                 <Link to="/admin/servers/$serverId/users" params={{ serverId: String(server.id) }} onClick={onNavigate}>
                   <FontAwesomeIcon icon={faUsers} className="h-4 w-4" />
                   <span>Users</span>
+                  {userTotal !== null && (
+                    <span className="flex items-center justify-center">
+                      <SidebarCount value={userTotal} singular="user" plural="users" />
+                    </span>
+                  )}
                 </Link>
               </SidebarMenuSubButton>
             </SidebarMenuSubItem>
@@ -267,6 +280,35 @@ const ServerNavItem = ({ server, pathname, onNavigate }: ServerNavItemProps) => 
             </Collapsible>
           </SidebarMenuSub>
         </CollapsibleContent>
+        {/* Collapsed to icons (desktop only): an open server shows its pages
+            as a small rail under its icon, the current one highlighted.
+            Clicking a server's icon opens or closes it; the server being
+            viewed opens by itself. Expanded and on phones the list above
+            shows these pages. */}
+        {open && (
+          <div className="mt-0.5 hidden flex-col items-center gap-0.5 group-data-[collapsible=icon]:flex">
+            {serverPages.map((page) => (
+              <SidebarMenuButton
+                key={page.title}
+                asChild
+                tooltip={`${server.server_nickname} · ${page.title}`}
+                isActive={pathname === `${serverPath}${page.suffix}`}
+                className="text-sidebar-foreground/70 data-[active=true]:text-sidebar-accent-foreground [&>svg]:size-3.5"
+              >
+                <Link
+                  to={page.to}
+                  params={{ serverId: String(server.id) }}
+                  activeOptions={{ exact: true }}
+                  onClick={onNavigate}
+                  aria-label={`${server.server_nickname} ${page.title}`}
+                >
+                  <FontAwesomeIcon icon={page.icon} />
+                  <span>{page.title}</span>
+                </Link>
+              </SidebarMenuButton>
+            ))}
+          </div>
+        )}
       </SidebarMenuItem>
     </Collapsible >
   )

@@ -31,6 +31,8 @@ export function NavMain({
     url: string
     icon?: IconDefinition
     isActive?: boolean
+    /** A count shown right after the title, like a server's Libraries count. */
+    count?: ReactNode
     statusIndicator?: ReactNode
     actions?: {
       label: string
@@ -61,6 +63,7 @@ export function NavMain({
                   <Link to={item.url} onClick={handleNavLinkClick}>
                     {item.icon && <FontAwesomeIcon icon={item.icon} className="h-4 w-4" />}
                     <span>{item.title}</span>
+                    {item.count && <span className="flex items-center justify-center">{item.count}</span>}
                   </Link>
                 </SidebarMenuButton>
                 {item.statusIndicator && (

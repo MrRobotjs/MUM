@@ -32,6 +32,9 @@ import { useAuth } from "@/contexts/AuthContext"
 import { useAlerts } from "@/contexts/AlertContext"
 import { syncAllUsers, userSyncNotices } from "@/lib/userSync"
 import { useSyncStatus } from "@/hooks/useSyncStatus"
+import { USER_TOTAL_KEY_PREFIX, useUserTotal } from "@/hooks/useUserTotal"
+import { SidebarCount } from "@/components/layout/SidebarCount"
+import { useSWRConfig } from "swr"
 import { useUserPreferences } from "@/hooks/useUserPreferences"
 import { useStreamingSummary } from "@/hooks/useStreamingSummary"
 import { Badge } from "@/components/ui/badge"
@@ -50,6 +53,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const observedCount = observationSummary?.servers.length && observationSummary.servers.every(s => s.freshness === 'fresh') ? observationSummary.fresh_current_observations : null
   const [isStartingSync, setIsStartingSync] = React.useState(false)
   const [showSyncComplete, setShowSyncComplete] = React.useState(false)
+  const userTotal = useUserTotal({ enabled: isAdministrator })
+  // A finished user sync refreshes every sidebar user count.
+  const { mutate } = useSWRConfig()
+  const refreshUserTotals = React.useCallback(() => {
+    void mutate((key) => typeof key === "string" && key.startsWith(USER_TOTAL_KEY_PREFIX))
+  }, [mutate])
   const previousSyncingRef = React.useRef(syncStatus.is_syncing)
   const location = useLocation()
 
@@ -69,6 +78,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       for (const notice of userSyncNotices(results, summary)) {
         (notice.ok ? success : error)(notice.text)
       }
+      refreshUserTotals()
     } catch (err: any) {
       if (err.status === 409) {
         error(err.message || 'A sync is already in progress')
@@ -98,6 +108,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     previousSyncingRef.current = isSyncingNow
 
     if (!isSyncingNow && wasSyncing) {
+      refreshUserTotals()
       setShowSyncComplete(true)
       const timeout = window.setTimeout(() => setShowSyncComplete(false), 3000)
       return () => window.clearTimeout(timeout)
@@ -106,7 +117,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     if (isSyncingNow) {
       setShowSyncComplete(false)
     }
-  }, [syncStatus.is_syncing])
+  }, [syncStatus.is_syncing, refreshUserTotals])
 
   React.useEffect(() => {
     if (!isStartingSync) {
@@ -208,6 +219,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     disabled: syncInProgress,
                   }
                 ],
+                count: userTotal !== null ? <SidebarCount value={userTotal} singular="user" plural="users" /> : null,
                 statusIndicator: syncStatusIndicator,
               },
               {

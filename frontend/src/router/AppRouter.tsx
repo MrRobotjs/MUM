@@ -12,6 +12,7 @@ import AdminShell from './AdminShell';
 import AdminGuard from './AdminGuard';
 import DashboardPage from '../pages/DashboardPage';
 import GraphsPage from '../pages/GraphsPage';
+import AdminHomePage from '../pages/AdminHomePage';
 import UsersListPage from '../pages/UsersListPage';
 import UserDetailPage from '../pages/UserDetailPage';
 import StreamingPage from '../pages/StreamingPage';
@@ -103,6 +104,7 @@ const adminIndexRedirect = createRoute({
 })
 const adminDashboard = createRoute({ getParentRoute: () => adminRoute, path: 'dashboard', component: DashboardPage })
 const adminGraphs = createRoute({ getParentRoute: () => adminRoute, path: 'graphs', component: GraphsPage })
+const adminHome = createRoute({ getParentRoute: () => adminRoute, path: 'home', component: AdminHomePage })
 const adminNotifications = createRoute({ getParentRoute: () => adminRoute, path: 'notifications', component: AdminNotificationsPage })
 const adminAccountTabs = ['overview', 'credentials', 'preferences'] as const
 type AdminAccountTab = typeof adminAccountTabs[number]
@@ -295,6 +297,7 @@ const routeTree = rootRoute.addChildren([
     adminIndexRedirect,
     adminDashboard,
     adminGraphs,
+    adminHome,
     adminNotifications,
     adminAccount,
     adminStreaming,

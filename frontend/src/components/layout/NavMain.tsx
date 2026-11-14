@@ -9,6 +9,7 @@ import { faEllipsis } from "@fortawesome/free-solid-svg-icons"
 import {
   SidebarGroup,
   SidebarGroupContent,
+  SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuAction,
   SidebarMenuButton,
@@ -25,7 +26,10 @@ import { cn } from "@/lib/utils"
 
 export function NavMain({
   items,
+  label,
 }: {
+  /** An optional category label above the items, like "Media Servers". */
+  label?: string
   items: {
     title: string
     url: string
@@ -53,6 +57,7 @@ export function NavMain({
 
   return (
     <SidebarGroup>
+      {label && <SidebarGroupLabel>{label}</SidebarGroupLabel>}
       <SidebarGroupContent>
         <SidebarMenu>
           {items.map((item) => {

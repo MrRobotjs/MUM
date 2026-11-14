@@ -4,6 +4,8 @@ import * as React from "react"
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome"
 import {
   faChartLine,
+  faGaugeHigh,
+  faHouse,
   faUsers,
   faTicket,
   faLayerGroup,
@@ -174,6 +176,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const isSettingsRoute = location.pathname.startsWith('/admin/settings')
   const isFocusedRoute = isSettingsRoute
 
+  // Home sits above the Admin category.
+  const homeItems = isAdministrator
+    ? [{ title: 'Home', url: '/admin/home', icon: faHouse, isActive: isNavItemActive('/admin/home') }]
+    : []
+
   // All nav items are visible to administrators (owner or users with admin roles)
   const navMainItems = isAdministrator
     ? (
@@ -196,7 +203,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               {
                 title: 'Graphs',
                 url: '/admin/graphs',
-                icon: faChartLine,
+                icon: faGaugeHigh,
                 isActive: isNavItemActive('/admin/graphs'),
               },
               {
@@ -265,7 +272,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        <NavMain items={navMainItems} />
+        {homeItems.length > 0 && <NavMain items={homeItems} />}
+        <NavMain items={navMainItems} label={navMainItems.length > 0 ? 'Admin' : undefined} />
         {!isFocusedRoute ? <NavServers /> : null}
         {isSettingsRoute ? <NavSettings /> : null}
       </SidebarContent>

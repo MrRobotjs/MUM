@@ -157,7 +157,30 @@ export const PlexResources = ({ serverId }: { serverId: number }) => {
   };
   const legendProps = { itemSorter: null, iconType: 'circle' as const, iconSize: 10, wrapperStyle: { fontSize: '12px' } };
 
-  const percentChart = (points: typeof cpu, kind: string, colors: { system: string; plex: string }) => (
+  // Each of CPU and Memory can show both lines, only Plex Media Server, or only the system.
+  type ResourceView = 'all' | 'plex' | 'system';
+  const [cpuView, setCpuView] = useState<ResourceView>('all');
+  const [memoryView, setMemoryView] = useState<ResourceView>('all');
+  const averagePercent = (points: typeof cpu, key: 'system' | 'plex') => {
+    const values = points.map((p) => p[key]).filter((v): v is number => v !== null);
+    return values.length ? `${(values.reduce((a, b) => a + b, 0) / values.length).toFixed(2)}%` : '—';
+  };
+  const resourceSummary = (points: typeof cpu, view: ResourceView) => [
+    view !== 'system' ? `Plex Media Server ${averagePercent(points, 'plex')}` : null,
+    view !== 'plex' ? `System ${averagePercent(points, 'system')}` : null,
+  ].filter(Boolean).join(', ');
+  const viewPicker = (value: ResourceView, onChange: (view: ResourceView) => void, label: string) => (
+    <Select value={value} onValueChange={(v) => onChange(v as ResourceView)}>
+      <SelectTrigger className="w-[180px]" aria-label={label}><SelectValue /></SelectTrigger>
+      <SelectContent>
+        <SelectItem value="all">All</SelectItem>
+        <SelectItem value="plex">Plex Media Server</SelectItem>
+        <SelectItem value="system">System</SelectItem>
+      </SelectContent>
+    </Select>
+  );
+
+  const percentChart = (points: typeof cpu, colors: { system: string; plex: string }, view: ResourceView) => (
     <ResponsiveContainer width="100%" height={300}>
       <LineChart data={points} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" opacity={0.35} />
@@ -165,8 +188,8 @@ export const PlexResources = ({ serverId }: { serverId: number }) => {
         <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} tickLine={false} axisLine={false} tickMargin={6} tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }} width={44} />
         <Tooltip content={percentTooltip} />
         <Legend {...legendProps} />
-        <Line type="monotone" dataKey="system" name={`System ${kind}`} stroke={colors.system} strokeWidth={2} dot={false} connectNulls isAnimationActive={false} />
-        <Line type="monotone" dataKey="plex" name={`Plex Media Server ${kind}`} stroke={colors.plex} strokeWidth={2} dot={false} connectNulls isAnimationActive={false} />
+        {view !== 'plex' && <Line type="monotone" dataKey="system" name="System" stroke={colors.system} strokeWidth={2} dot={false} connectNulls isAnimationActive={false} />}
+        {view !== 'system' && <Line type="monotone" dataKey="plex" name="Plex Media Server" stroke={colors.plex} strokeWidth={2} dot={false} connectNulls isAnimationActive={false} />}
       </LineChart>
     </ResponsiveContainer>
   );
@@ -236,12 +259,14 @@ export const PlexResources = ({ serverId }: { serverId: number }) => {
       </ChartCard>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <ChartCard title="CPU" description="Processor use of the whole machine and of Plex Media Server, over the last few minutes." icon={faMicrochip} loading={resources.loading}>
-          {percentChart(cpu, 'CPU', CPU_COLORS)}
+        <ChartCard title="CPU" description={`Processor use over the last few minutes. Averages: ${resourceSummary(cpu, cpuView)}.`} icon={faMicrochip} loading={resources.loading}
+          actions={viewPicker(cpuView, setCpuView, 'CPU lines')}>
+          {percentChart(cpu, CPU_COLORS, cpuView)}
           {resourceState(cpu)}
         </ChartCard>
-        <ChartCard title="Memory" description="Memory use of the whole machine and of Plex Media Server, over the last few minutes." icon={faMemory} loading={resources.loading}>
-          {percentChart(memory, 'memory', MEMORY_COLORS)}
+        <ChartCard title="Memory" description={`Memory use over the last few minutes. Averages: ${resourceSummary(memory, memoryView)}.`} icon={faMemory} loading={resources.loading}
+          actions={viewPicker(memoryView, setMemoryView, 'Memory lines')}>
+          {percentChart(memory, MEMORY_COLORS, memoryView)}
           {resourceState(memory)}
         </ChartCard>
       </div>

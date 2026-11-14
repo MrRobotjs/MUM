@@ -74,9 +74,9 @@ export const AdminSettingsAdminRolesEditPage = () => {
             <FontAwesomeIcon icon={faPen} className="size-5 text-primary" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold">Edit Role</h1>
+            <h1 className="text-2xl font-bold">Edit Admin Role</h1>
             <p className="text-sm text-muted-foreground">
-              Review settings and permissions for <strong>{role.name}</strong>. The owner can change unprotected roles. Delegated writes and member changes remain unavailable.
+              Manage display settings, permissions and members for <strong>{role.name}</strong>
             </p>
           </div>
         </div>

@@ -880,7 +880,7 @@ const SortableRoleRow = ({ role, index, disabled, onEdit, onDelete, themePrimary
         <div className="flex items-center justify-end gap-2">
           <Button variant="ghost" size="sm" onClick={() => onEdit(role)}>
             <FontAwesomeIcon icon={faPenToSquare} className="mr-1 size-3" />
-            <span className="hidden md:inline">View</span>
+            <span className="hidden md:inline">Edit</span>
           </Button>
           {!role.is_auto_managed && (
             <Button

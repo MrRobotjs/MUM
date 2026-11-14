@@ -1,3 +1,5 @@
+import { useAuth } from '../../contexts/AuthContext';
+import { LOGIN_PATH, ACCOUNT_PATH } from '../../router/routePaths';
 "use client"
 
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome"
@@ -43,6 +45,7 @@ export function NavUser({
 }) {
   const { isMobile } = useSidebar()
   const navigate = useNavigate()
+  const { hasAdminAccess } = useAuth()
 
   const handleLogout = async () => {
     try {
@@ -52,7 +55,7 @@ export function NavUser({
       // Ignore logout errors; proceed with client-side cleanup
     } finally {
       clearAccessToken()
-      navigate({ to: '/admin/login', replace: true })
+      navigate({ to: LOGIN_PATH, replace: true })
     }
   }
 
@@ -113,12 +116,13 @@ export function NavUser({
               <DropdownMenuItem
                 onSelect={(event) => {
                   event.preventDefault()
-                  navigate({ to: "/admin/account" })
+                  navigate({ to: ACCOUNT_PATH })
                 }}
               >
                 <FontAwesomeIcon icon={faUserCircle} className="h-4 w-4" />
                 My Account
               </DropdownMenuItem>
+              {hasAdminAccess && (
               <DropdownMenuItem
                 onSelect={(event) => {
                   event.preventDefault()
@@ -128,6 +132,7 @@ export function NavUser({
                 <FontAwesomeIcon icon={faGear} className="h-4 w-4" />
                 App Settings
               </DropdownMenuItem>
+              )}
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleLogout}>

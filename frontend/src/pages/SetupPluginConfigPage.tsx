@@ -23,7 +23,7 @@ function SetupPluginConfigContent() {
   // Handle authentication errors by redirecting to login
   useEffect(() => {
     if (pluginsError && pluginsError instanceof ApiError && pluginsError.status === 401) {
-      window.location.href = `/admin/login?next=/setup/media-servers/${resolvedPluginId}`
+      window.location.href = `/login?next=/setup/media-servers/${resolvedPluginId}`
     }
   }, [pluginsError, resolvedPluginId])
 

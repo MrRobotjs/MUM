@@ -8,11 +8,13 @@ import {
 } from '@tanstack/react-router'
 import { lazy, Suspense } from 'react';
 import { Spinner } from '@/components/ui/spinner'
-import AdminShell from './AdminShell';
+import AppShell from './AppShell';
 import AdminGuard from './AdminGuard';
+import SignedInGuard from './SignedInGuard';
+import { HOME_PATH } from './routePaths';
 import DashboardPage from '../pages/DashboardPage';
 import GraphsPage from '../pages/GraphsPage';
-import AdminHomePage from '../pages/AdminHomePage';
+import HomePage from '../pages/HomePage';
 import UsersListPage from '../pages/UsersListPage';
 import UserDetailPage from '../pages/UserDetailPage';
 import StreamingPage from '../pages/StreamingPage';
@@ -20,7 +22,6 @@ import InvitesPage from '../pages/InvitesPage';
 import InviteWizardPage from '../pages/InviteWizardPage';
 import InviteLandingPage from '../pages/InviteLandingPage';
 import LoginPage from '../pages/LoginPage';
-import UserLoginPage from '../pages/UserLoginPage';
 import LibrariesPage from '../pages/LibrariesPage';
 import LibraryDetailPage from '../pages/LibraryDetailPage';
 import ServerDetailPage from '../pages/ServerDetailPage';
@@ -42,8 +43,7 @@ import AdminSettingsApiDebugPage from '../pages/AdminSettingsApiDebugPage';
 import AdminSettingsPage from '../pages/AdminSettingsPage';
 import AdminNotificationsPage from '../pages/AdminNotificationsPage';
 const ApiDocsPage = lazy(() => import('../pages/ApiDocsPage'));
-import AdminAccountPage from '../pages/AdminAccountPage';
-import UserDashboardPage from '../pages/UserDashboardPage';
+import AccountPage from '../pages/AccountPage';
 import SetupAccountPage from '../pages/SetupAccountPage';
 import SetupAppConfigPage from '../pages/SetupAppConfigPage';
 import SetupPluginsPage from '../pages/SetupPluginsPage';
@@ -58,20 +58,10 @@ const rootRoute = createRootRoute({
   component: () => <Outlet />,
 })
 
-// User login route (regular user portal)
+// Admin login route (actual admin login page)
 const userLoginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: 'login',
-  component: UserLoginPage,
-  validateSearch: (search): { next?: string } => {
-    return { next: typeof search.next === 'string' ? (search.next as string) : undefined }
-  },
-})
-
-// Admin login route (actual admin login page)
-const adminLoginRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: 'admin/login',
   component: LoginPage,
   validateSearch: (search): { next?: string; error?: string } => {
     return {
@@ -85,7 +75,7 @@ const adminLoginRoute = createRoute({
 function AdminLayout() {
   return (
     <AdminGuard>
-      <AdminShell />
+      <AppShell />
     </AdminGuard>
   )
 }
@@ -96,6 +86,8 @@ const adminRoute = createRoute({
   component: AdminLayout,
 })
 
+const adminWildcardRedirect = createRoute({ getParentRoute: () => adminRoute, path: '$', component: () => <Navigate to={HOME_PATH} replace /> })
+
 // Admin children
 const adminIndexRedirect = createRoute({
   getParentRoute: () => adminRoute,
@@ -104,14 +96,15 @@ const adminIndexRedirect = createRoute({
 })
 const adminDashboard = createRoute({ getParentRoute: () => adminRoute, path: 'dashboard', component: DashboardPage })
 const adminGraphs = createRoute({ getParentRoute: () => adminRoute, path: 'graphs', component: GraphsPage })
-const adminHome = createRoute({ getParentRoute: () => adminRoute, path: 'home', component: AdminHomePage })
+const homeRoute = createRoute({ getParentRoute: () => rootRoute, path: 'home', component: () => <SignedInGuard><AppShell /></SignedInGuard> })
+const homeIndex = createRoute({ getParentRoute: () => homeRoute, path: '/', component: HomePage })
 const adminNotifications = createRoute({ getParentRoute: () => adminRoute, path: 'notifications', component: AdminNotificationsPage })
 const adminAccountTabs = ['overview', 'credentials', 'preferences'] as const
 type AdminAccountTab = typeof adminAccountTabs[number]
-const adminAccount = createRoute({
-  getParentRoute: () => adminRoute,
+const accountRoute = createRoute({
+  getParentRoute: () => rootRoute,
   path: 'account',
-  component: AdminAccountPage,
+  component: () => <SignedInGuard><AppShell /></SignedInGuard>,
   validateSearch: (search): { tab?: AdminAccountTab } => {
     const tabVal = typeof search.tab === 'string' && (adminAccountTabs as readonly string[]).includes(search.tab)
       ? (search.tab as AdminAccountTab)
@@ -260,20 +253,7 @@ const inviteRoute = createRoute({ getParentRoute: () => rootRoute, path: 'invite
 const inviteLanding = createRoute({ getParentRoute: () => inviteRoute, path: '/', component: InviteLandingPage })
 const inviteWizard = createRoute({ getParentRoute: () => inviteRoute, path: '$token', component: InviteWizardPage })
 
-// User portal
-const userRoute = createRoute({ getParentRoute: () => rootRoute, path: 'user' })
-const userIndex = createRoute({
-  getParentRoute: () => userRoute,
-  path: '/',
-  component: UserDashboardPage,
-  validateSearch: (search): { next?: string } => ({ next: typeof search.next === 'string' ? (search.next as string) : undefined }),
-})
-const userDashboard = createRoute({
-  getParentRoute: () => userRoute,
-  path: 'dashboard',
-  component: UserDashboardPage,
-  validateSearch: (search): { next?: string } => ({ next: typeof search.next === 'string' ? (search.next as string) : undefined }),
-})
+const accountIndex = createRoute({ getParentRoute: () => accountRoute, path: '/', component: AccountPage })
 
 // Setup UI
 const setupRoute = createRoute({ getParentRoute: () => rootRoute, path: 'setup' })
@@ -287,19 +267,19 @@ const setupRootRedirect = createRoute({ getParentRoute: () => setupRoute, path: 
 const setupWildcardRedirect = createRoute({ getParentRoute: () => setupRoute, path: '*', component: () => <Navigate to="/setup/account" replace /> })
 
 // Root redirects
-const rootIndexRedirect = createRoute({ getParentRoute: () => rootRoute, path: '/', component: () => <Navigate to="/admin/dashboard" replace /> })
-const rootWildcardRedirect = createRoute({ getParentRoute: () => rootRoute, path: '*', component: () => <Navigate to="/admin/dashboard" replace /> })
+const rootIndexRedirect = createRoute({ getParentRoute: () => rootRoute, path: '/', component: () => <Navigate to={HOME_PATH} replace /> })
+const rootWildcardRedirect = createRoute({ getParentRoute: () => rootRoute, path: '$', component: () => <Navigate to={HOME_PATH} replace /> })
 
 const routeTree = rootRoute.addChildren([
   userLoginRoute,
-  adminLoginRoute,
+  homeRoute.addChildren([homeIndex]),
+  accountRoute.addChildren([accountIndex]),
   adminRoute.addChildren([
     adminIndexRedirect,
+    adminWildcardRedirect,
     adminDashboard,
     adminGraphs,
-    adminHome,
     adminNotifications,
-    adminAccount,
     adminStreaming,
     adminUsers,
     adminUserByNick,
@@ -332,7 +312,6 @@ const routeTree = rootRoute.addChildren([
   apiDocsStandalone,
   adminApiDocsStandalone,
   inviteRoute.addChildren([inviteLanding, inviteWizard]),
-  userRoute.addChildren([userIndex, userDashboard]),
   setupRoute.addChildren([setupAccount, setupApp, setupPlugins, setupPluginConfig, setupServerAdd, setupFinish, setupRootRedirect, setupWildcardRedirect]),
   rootIndexRedirect,
   rootWildcardRedirect,

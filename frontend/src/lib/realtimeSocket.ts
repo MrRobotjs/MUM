@@ -5,6 +5,7 @@ type ChannelListener = (event: UnifiedEvent) => void;
 let socket: WebSocket | null = null;
 let connected = false;
 let wanted = false;
+let authIdentity = getAuthSnapshot();
 let retry: ReturnType<typeof setTimeout> | null = null;
 const channels = new Map<string, Set<ChannelListener>>();
 const connectionListeners = new Set<(connected: boolean) => void>();
@@ -24,7 +25,7 @@ const connect = () => {
     if (parsed.type === 'authenticated') {
       notify(true);
       if (channels.size) send({ type: 'subscribe', channels: Array.from(channels.keys()) });
-    } else if (parsed.type === 'event' && parsed.event) {
+    } else if (connected && parsed.type === 'event' && parsed.event) {
       channels.get(parsed.event.channel)?.forEach(listener => {
         try { listener(parsed.event); } catch (error) { console.error('[Realtime] listener failed', error); }
       });
@@ -40,13 +41,15 @@ const connect = () => {
 };
 subscribeToAuthStore(() => {
   const auth = getAuthSnapshot();
-  if (auth.status === 'anonymous') { disconnectRealtimeSocket(); return; }
-  if (auth.accessToken && socket?.readyState === WebSocket.OPEN) {
-    notify(false);
-    send({ type: 'authenticate', access_token: auth.accessToken });
-  } else if (wanted) connect();
+  const replaced = auth.generation !== authIdentity.generation;
+  authIdentity = auth;
+  disconnectRealtimeSocket();
+  // An explicit sign-in replaces the principal. Its consumers must subscribe
+  // again; rotating credentials for the same session preserves consumers.
+  if (replaced) channels.clear();
+  if (auth.accessToken && channels.size) connectRealtimeSocket();
 });
-export const connectRealtimeSocket = () => { wanted = true; connect(); };
+export const connectRealtimeSocket = () => { wanted = channels.size > 0; connect(); };
 export const disconnectRealtimeSocket = () => {
   wanted = false;
   if (retry) clearTimeout(retry);
@@ -64,10 +67,11 @@ export const subscribeToChannel = (channel: string, listener: ChannelListener) =
   connectRealtimeSocket();
   if (connected && first) send({ type: 'subscribe', channels: [channel] });
   return () => {
-    current.delete(listener);
+    if (channels.get(channel) !== current || !current.delete(listener)) return;
     if (!current.size) {
       channels.delete(channel);
       if (connected) send({ type: 'unsubscribe', channels: [channel] });
+      if (!channels.size) disconnectRealtimeSocket();
     }
   };
 };

@@ -2,7 +2,7 @@ import { PageHeader } from '../components';
 import { useAuth } from '../contexts/AuthContext';
 
 /** The administrator's home page; for now a greeting. */
-export const AdminHomePage = () => {
+export const HomePage = () => {
   const { user } = useAuth();
   const name = user?.display_name || user?.username || '';
   return (
@@ -12,4 +12,4 @@ export const AdminHomePage = () => {
   );
 };
 
-export default AdminHomePage;
+export default HomePage;

@@ -1,3 +1,5 @@
+import { HOME_PATH } from '@/router/routePaths';
+import { generateBreadcrumbs } from './breadcrumbs';
 import { ReactNode, useEffect, useRef, useState } from 'react';
 import { useLocation, Link } from '@tanstack/react-router';
 import { AppSidebar } from './AppSidebar';
@@ -21,42 +23,11 @@ type EnhancedAppLayoutProps = {
   showSidebar?: boolean;
 };
 
-const generateBreadcrumbs = (pathname: string) => {
-  // Remove /admin prefix and split by /
-  const paths = pathname.replace(/^\/admin\/?/, '').split('/').filter(Boolean);
-
-  const breadcrumbs: { label: string; href: string; search?: { tab: 'episodes' } }[] = [];
-  let currentPath = '/admin';
-
-  paths.forEach((segment, index) => {
-    const parentPath = currentPath;
-    currentPath += `/${segment}`;
-    // Capitalize and format the segment
-    const label = segment
-      .split('-')
-      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(' ');
-
-    // An episode's address has no page at ".../<show>/episodes"; that crumb
-    // opens the show's Episodes tab instead.
-    if (segment === 'episodes' && paths[0] === 'servers' && paths[2] === 'libraries' && index === 5) {
-      breadcrumbs.push({ label, href: parentPath, search: { tab: 'episodes' } });
-      return;
-    }
-    breadcrumbs.push({
-      label,
-      href: currentPath,
-    });
-  });
-
-  return breadcrumbs;
-};
-
 export const EnhancedAppLayout = ({
   children,
   showSidebar = true,
 }: EnhancedAppLayoutProps) => {
-  const { session } = useAuth();
+  const { session, hasAdminAccess } = useAuth();
   const location = useLocation();
   const isMobile = useIsMobile();
   const [showMobileHeader, setShowMobileHeader] = useState(true);
@@ -154,7 +125,7 @@ export const EnhancedAppLayout = ({
               <BreadcrumbList>
                 <BreadcrumbItem className="hidden md:block">
                   <BreadcrumbLink asChild>
-                    <Link to="/admin/dashboard" className="max-w-[200px] truncate">{appName}</Link>
+                    <Link to={HOME_PATH} className="max-w-[200px] truncate">{appName}</Link>
                   </BreadcrumbLink>
                 </BreadcrumbItem>
                 {breadcrumbs.map((crumb, index) => {
@@ -192,7 +163,7 @@ export const EnhancedAppLayout = ({
               </BreadcrumbList>
             </Breadcrumb>
             <div className="ml-auto flex items-center gap-2">
-              <NotificationDropdown />
+              {hasAdminAccess && <NotificationDropdown />}
               <ModeToggle />
             </div>
           </div>

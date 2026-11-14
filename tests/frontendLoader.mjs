@@ -18,13 +18,16 @@ import path from 'node:path';
 import {fileURLToPath, pathToFileURL} from 'node:url';
 import {realpathSync} from 'node:fs';
 
-const frontend = fileURLToPath(new URL('../frontend/', import.meta.url));
+// Spelled as the file system spells it: on Windows the drive letter of
+// import.meta.url depends on how Node was started, and a module reached
+// through two spellings (`c:/…` from the entry, `C:/…` from a dependency) is
+// bundled twice, e.g. two SWR instances that do not share an SWRConfig.
+const frontend = realpathSync.native(fileURLToPath(new URL('../frontend/', import.meta.url))) + path.sep;
 const vite = await import(pathToFileURL(createRequire(path.join(frontend, 'package.json')).resolve('vite')).href);
 // TSX, so a fixture entry may contain JSX as well as plain re-exports.
 const entry = path.join(frontend, '__frontend_test_entry__.tsx');
 const mocked = '\0mum-test-mock:';
-// Spelled as the file system spells it, like the `@/` alias in vite.config.ts
-// (on Windows the drive letter otherwise depends on how Node was started).
+// The same spelling as the `@/` alias in vite.config.ts.
 const sourceRoot = realpathSync.native(path.join(frontend, 'src')).replaceAll('\\', '/') + '/';
 
 // Vite applies resolve.alias before any plugin sees an import, so an `@/`

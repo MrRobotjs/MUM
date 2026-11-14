@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
-import { connectRealtimeSocket, subscribeToChannel } from '../lib/realtimeSocket';
+import { getAuthSnapshot, subscribeToAuthStore } from '../store/authStore';
+import { useEffect, useState, useSyncExternalStore } from 'react';
+import { subscribeToChannel } from '../lib/realtimeSocket';
 import type { UnifiedEvent } from '../types/realtime';
 import { requestJson } from '../util/apiClient';
 
@@ -29,19 +30,25 @@ const defaultStatus: SyncStatus = {
   },
 };
 
-export const useSyncStatus = () => {
-  const [syncStatus, setSyncStatus] = useState<SyncStatus>(defaultStatus);
-  const [loading, setLoading] = useState(true);
+export const useSyncStatus = ({ enabled = true }: { enabled?: boolean } = {}) => {
+  const auth = useSyncExternalStore(subscribeToAuthStore, getAuthSnapshot, getAuthSnapshot);
+  const [observation, setObservation] = useState({ auth, status: defaultStatus });
+  const [loading, setLoading] = useState(enabled);
 
   useEffect(() => {
+    const setSyncStatus = (status: SyncStatus) => setObservation({ auth, status });
+    setSyncStatus(defaultStatus);
+    setLoading(enabled);
+    if (!enabled) return;
+    const controller = new AbortController();
     let stopped = false;
     let live = false;
-    void requestJson<{ data: SyncStatus }>('/api/sync/status').then(response => {
-      if (!stopped && !live) { setSyncStatus(response.data); setLoading(false); }
-    }).catch(() => { if (!stopped) setLoading(false); });
-    connectRealtimeSocket();
+    const current = () => !stopped && getAuthSnapshot() === auth;
+    void requestJson<{ data: SyncStatus }>('/api/sync/status', { signal: controller.signal }).then(response => {
+      if (current() && !live) { setSyncStatus(response.data); setLoading(false); }
+    }).catch(() => { if (current()) setLoading(false); });
     const unsubscribe = subscribeToChannel('system.sync_status', (envelope: UnifiedEvent) => {
-      if (envelope.type === 'TaskProgress') {
+      if (current() && envelope.type === 'TaskProgress') {
         live = true;
         setSyncStatus((envelope.payload as SyncStatus) ?? defaultStatus);
         setLoading(false);
@@ -50,9 +57,10 @@ export const useSyncStatus = () => {
 
     return () => {
       stopped = true;
+      controller.abort();
       unsubscribe();
     };
-  }, []);
+  }, [enabled, auth]);
 
-  return { syncStatus, loading };
+  return { syncStatus: enabled && observation.auth === auth ? observation.status : defaultStatus, loading: enabled && loading };
 };

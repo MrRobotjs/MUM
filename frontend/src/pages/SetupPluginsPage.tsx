@@ -30,7 +30,7 @@ function SetupPluginsContent() {
     if (error && error instanceof ApiError && error.status === 401) {
       // User is not authenticated, redirect to login with return path
       // Use window.location to ensure clean redirect without state issues
-      window.location.href = '/admin/login?next=/setup/media-servers'
+      window.location.href = '/login?next=/setup/media-servers'
     }
   }, [error])
 

@@ -1,3 +1,4 @@
+import { HOME_PATH } from '@/router/routePaths'
 "use client"
 
 import * as React from "react"
@@ -45,7 +46,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { isAdministrator, isOwner, hasAdminAccess, user: currentUser } = useAuth()
   const { isMobile, setOpenMobile } = useSidebar()
   const { success, error } = useAlerts()
-  const { syncStatus } = useSyncStatus()
+  const { syncStatus } = useSyncStatus({ enabled: hasAdminAccess })
   const { getPreference, dbPreferences, syncEnabled } = useUserPreferences()
   const [streamBadgeEnabled, setStreamBadgeEnabled] = React.useState(() =>
     getPreference('stream_counter', false)
@@ -177,9 +178,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const isFocusedRoute = isSettingsRoute
 
   // Home sits above the Admin category.
-  const homeItems = isAdministrator
-    ? [{ title: 'Home', url: '/admin/home', icon: faHouse, isActive: isNavItemActive('/admin/home') }]
-    : []
+  const homeItems = [{ title: 'Home', url: HOME_PATH, icon: faHouse, isActive: isNavItemActive(HOME_PATH) }]
 
   // All nav items are visible to administrators (owner or users with admin roles)
   const navMainItems = isAdministrator
@@ -258,7 +257,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton asChild size="lg">
-              <a href="/admin/dashboard" onClick={handleLogoClick}>
+              <a href={HOME_PATH} onClick={handleLogoClick}>
                 <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
                   <FontAwesomeIcon icon={faDesktop} className="size-4" />
                 </div>
@@ -273,9 +272,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </SidebarHeader>
       <SidebarContent>
         {homeItems.length > 0 && <NavMain items={homeItems} />}
-        <NavMain items={navMainItems} label={navMainItems.length > 0 ? 'Admin' : undefined} />
-        {!isFocusedRoute ? <NavServers /> : null}
-        {isSettingsRoute ? <NavSettings /> : null}
+        {hasAdminAccess && <NavMain items={navMainItems} label={navMainItems.length > 0 ? 'Admin' : undefined} />}
+        {hasAdminAccess && !isFocusedRoute ? <NavServers /> : null}
+        {hasAdminAccess && isSettingsRoute ? <NavSettings /> : null}
       </SidebarContent>
       <SidebarFooter>
         <NavUser user={user} />

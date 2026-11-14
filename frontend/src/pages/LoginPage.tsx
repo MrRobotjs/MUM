@@ -1,5 +1,8 @@
+import { getAuthSnapshot, type AuthSnapshot } from '../store/authStore';
+import { readFreshSession, useSession } from '../hooks/useSession';
+import { postLoginPath, safeNextPath, LOGIN_PATH } from '../router/routePaths';
 import { FormEvent, useState, useEffect, useRef } from 'react';
-import { useLocation, useNavigate, Link, useSearch } from '@tanstack/react-router';
+import { useLocation, useNavigate, useSearch } from '@tanstack/react-router';
 import { requestJson, ApiError } from '../util/apiClient';
 import { setAccessToken } from '../util/tokenStore';
 import { checkPlexSignIn, startPlexSignIn } from '../lib/plexSignIn';
@@ -38,10 +41,13 @@ const LoginPage = () => {
   const [rememberMe, setRememberMe] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [plexLoading, setPlexLoading] = useState(false);
-  const plexAttempt = useRef(0);
+  const loginAttempt = useRef(0);
+  const currentAttempt = (attempt: number, auth: AuthSnapshot) => {
+    const current = getAuthSnapshot();
+    return attempt === loginAttempt.current && current.generation === auth.generation && current.credentialRevision === auth.credentialRevision;
+  };
   const [logoutNotice, setLogoutNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [allowUserAccounts, setAllowUserAccounts] = useState(false);
   const [showInactivityInfo, setShowInactivityInfo] = useState(false);
 
   // Prefer ?next= query, then location.state.from, else dashboard
@@ -50,29 +56,24 @@ const LoginPage = () => {
   const errorParam = search.error;
   const locationStateFrom = (location.state as LocationState | undefined)?.from;
   // Ignore location.state.from if it's the login page itself (avoid redirect loop)
-  const validLocationFrom = locationStateFrom && locationStateFrom !== '/admin/login' ? locationStateFrom : null;
-  const fromPath = nextParam || validLocationFrom || '/admin/dashboard';
+  const validLocationFrom = locationStateFrom && safeNextPath(locationStateFrom) !== null && locationStateFrom !== LOGIN_PATH ? locationStateFrom : null;
+  const fromPath = nextParam ?? validLocationFrom;
 
-  // Check if user accounts are enabled
+  // An account that is already signed in is sent on, as after signing in. Not
+  // while a sign-in here is pending: that attempt navigates once validated.
+  const { session } = useSession();
+  const signedInAs = session?.user ? Boolean(session.user.has_admin_access) : null;
   useEffect(() => {
-    const checkUserAccounts = async () => {
-      try {
-        const response = await requestJson<{ data: { allow_user_accounts: boolean } }>('/api/settings/user-accounts');
-        setAllowUserAccounts(response.data?.allow_user_accounts || false);
-      } catch {
-        // If check fails, default to false
-        setAllowUserAccounts(false);
-      }
-    };
-    checkUserAccounts();
-  }, []);
+    if (signedInAs === null || submitting || plexLoading) return;
+    navigate({ href: postLoginPath(fromPath, signedInAs), replace: true });
+  }, [signedInAs, submitting, plexLoading, fromPath, navigate]);
 
   // Check for error query parameter (e.g., from Plex SSO callback)
   useEffect(() => {
     if (errorParam) {
       setError(errorParam);
       // Clear the error from URL to prevent it from showing again on refresh
-      navigate({ from: '/admin/login', search: (prev) => ({ ...prev, error: undefined }), replace: true });
+      navigate({ from: LOGIN_PATH, search: (prev) => ({ ...prev, error: undefined }), replace: true });
     }
   }, [errorParam, navigate]);
 
@@ -102,7 +103,10 @@ const LoginPage = () => {
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    const attempt = ++loginAttempt.current;
+    const auth = getAuthSnapshot();
     setSubmitting(true);
+    setPlexLoading(false);
     setError(null);
 
     try {
@@ -126,16 +130,18 @@ const LoginPage = () => {
       const token = (response && typeof response === 'object' && 'data' in response)
         ? (response.data as { access_token?: string })?.access_token
         : undefined;
-      if (token) {
-        setAccessToken(token);
-      }
-
-      navigate({ to: fromPath, replace: true });
+      if (!currentAttempt(attempt, auth)) return;
+      if (!token) throw new Error('Sign-in response did not include an access token');
+      setAccessToken(token);
+      let validated: AuthSnapshot | undefined;
+      const session = await readFreshSession((checkpoint) => { validated = checkpoint; });
+      if (!validated || !currentAttempt(attempt, validated)) throw new Error('Authentication session changed during sign-in');
+      navigate({ href: postLoginPath(fromPath, Boolean(session.user.has_admin_access)), replace: true });
     } catch (err) {
       const apiError = err as ApiError;
-      setError(apiError.message || 'Login failed');
+      if (attempt === loginAttempt.current) setError(apiError.message || 'Login failed');
     } finally {
-      setSubmitting(false);
+      if (attempt === loginAttempt.current) setSubmitting(false);
     }
   };
 
@@ -144,13 +150,16 @@ const LoginPage = () => {
   // linked to a MUM account (Account → Credentials).
   const handlePlexSSO = async () => {
     if (plexLoading) return;
-    const attempt = ++plexAttempt.current;
+    const attempt = ++loginAttempt.current;
+    const auth = getAuthSnapshot();
+    setSubmitting(false);
     // Opened during the click so the browser does not block it.
     const popup = window.open('', 'mum-plex-sign-in', 'width=600,height=750');
     setPlexLoading(true);
     setError(null);
     try {
       const started = await startPlexSignIn(rememberMe);
+      if (!currentAttempt(attempt, auth)) { if (popup && !popup.closed) popup.close(); return; }
       if (popup && !popup.closed) {
         popup.opener = null;
         popup.location.href = started.authorizationUrl;
@@ -158,9 +167,9 @@ const LoginPage = () => {
         window.open(started.authorizationUrl, '_blank', 'noopener');
       }
       const deadline = Math.min(Date.parse(started.expiresAt), Date.now() + 15 * 60 * 1000);
-      while (Date.now() < deadline && attempt === plexAttempt.current) {
+      while (Date.now() < deadline && currentAttempt(attempt, auth)) {
         await new Promise((resolve) => setTimeout(resolve, 2000));
-        if (attempt !== plexAttempt.current) return;
+        if (!currentAttempt(attempt, auth)) return;
         let result;
         try {
           result = await checkPlexSignIn(started.id);
@@ -169,10 +178,14 @@ const LoginPage = () => {
           if (err instanceof ApiError && err.status === 429) continue;
           throw err;
         }
+        if (!currentAttempt(attempt, auth)) return;
         if (result.status === 'signed_in') {
           if (popup && !popup.closed) popup.close();
           setAccessToken(result.accessToken);
-          navigate({ to: fromPath, replace: true });
+          let validated: AuthSnapshot | undefined;
+          const session = await readFreshSession((checkpoint) => { validated = checkpoint; });
+          if (!validated || !currentAttempt(attempt, validated)) throw new Error('Authentication session changed during sign-in');
+          navigate({ href: postLoginPath(fromPath, Boolean(session.user.has_admin_access)), replace: true });
           return;
         }
         if (popup && popup.closed) {
@@ -180,15 +193,15 @@ const LoginPage = () => {
           return;
         }
       }
-      if (attempt === plexAttempt.current) setError('Plex sign-in expired. Try again.');
+      if (currentAttempt(attempt, auth)) setError('Plex sign-in expired. Try again.');
     } catch (err) {
       if (popup && !popup.closed) popup.close();
-      if (attempt === plexAttempt.current) setError(err instanceof Error && err.message ? err.message : 'Plex sign-in failed. Try again.');
+      if (attempt === loginAttempt.current) setError(err instanceof Error && err.message ? err.message : 'Plex sign-in failed. Try again.');
     } finally {
-      if (attempt === plexAttempt.current) setPlexLoading(false);
+      if (attempt === loginAttempt.current) setPlexLoading(false);
     }
   };
-  useEffect(() => () => { ++plexAttempt.current; }, []);
+  useEffect(() => () => { ++loginAttempt.current; }, []);
 
   return (
     <div className="min-h-screen lg:min-h-[calc(100vh-4rem)] flex items-center justify-center p-4 bg-muted/30">
@@ -210,7 +223,7 @@ const LoginPage = () => {
                   </div>
                   
                   <div className="space-y-4 text-muted-foreground">
-                    <p className="text-lg">Administrator access portal. Sign in to manage your media services and user accounts.</p>
+                    <p className="text-lg">Sign in to your MUM account.</p>
                     <div className="flex flex-wrap justify-center lg:justify-start gap-4 text-sm">
                       <div className="flex items-center">
                         <FontAwesomeIcon icon={faCrown} className="text-primary mr-2" />
@@ -230,7 +243,7 @@ const LoginPage = () => {
                 
                 {/* Feature Highlights */}
                 <div className="hidden lg:block">
-                  <h3 className="text-xl font-semibold mb-4">Administrative Features</h3>
+                  <h3 className="text-xl font-semibold mb-4">What MUM Does</h3>
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div className="bg-muted/50 rounded-lg p-3 hover:bg-muted/80 hover:-translate-y-0.5 hover:shadow-md transition-all duration-200 ease-in-out">
                       <FontAwesomeIcon icon={faUsers} className="text-primary mb-2 block" />
@@ -262,8 +275,8 @@ const LoginPage = () => {
           <div className="order-2 lg:order-2">
             <Card className="rounded-2xl shadow-2xl p-8 max-w-md mx-auto">
               <CardHeader className="text-center">
-                <CardTitle className="text-2xl mb-2">Admin Login</CardTitle>
-                <CardDescription>Administrator access required</CardDescription>
+                <CardTitle className="text-2xl mb-2">Sign In</CardTitle>
+                <CardDescription>Use your MUM account or Plex</CardDescription>
               </CardHeader>
 
               <CardContent className="space-y-6">
@@ -301,7 +314,7 @@ const LoginPage = () => {
                     <Input
                       id="username"
                       type="text"
-                      placeholder="Admin username"
+                      placeholder="Username"
                       value={username}
                       autoComplete="username"
                       onChange={(event) => setUsername(event.target.value)}
@@ -414,15 +427,8 @@ const LoginPage = () => {
                 <div className="pt-6">
                   <Separator className="mb-6" />
                   <div className="text-center text-sm text-muted-foreground">
-                    <p className="mb-4">Secure administrator access to MUM</p>
-                    {allowUserAccounts && (
-                      <div>
-                        <p className="text-muted-foreground mb-1">Need to access your user account?</p>
-                        <Link to="/login" className="text-primary hover:underline">
-                          User Login
-                        </Link>
-                      </div>
-                    )}
+                    <p className="mb-4">Secure access to MUM</p>
+
                   </div>
                 </div>
               </CardContent>

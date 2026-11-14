@@ -47,9 +47,15 @@ test('token rotation and disposal fence pending and late invalidations',async t=
  const {api,sockets,event}=await setup(t);let oldReads=0,newReads=0;
  const stop=api.watchNotificationInbox(actor,()=>oldReads++);sockets[0].open();api.setAccessToken('new-session');
  await delay(140);assert.equal(oldReads,0);stop();
+ // An explicit sign-in replaces the connection: the old socket is closed and
+ // ignored, and the next subscription authenticates a new one.
+ assert.equal(sockets[0].readyState,3);
  const stopNew=api.watchNotificationInbox(actor,()=>newReads++);t.after(stopNew);
- sockets[0].receive({type:'authenticated'});await delay(140);assert.equal(newReads,1);
- sockets[0].receive(event());stopNew();await delay(140);assert.equal(newReads,1);
+ const replacement=sockets.at(-1);assert.notEqual(replacement,sockets[0]);
+ replacement.open();await delay(140);assert.equal(newReads,1);
+ assert.deepEqual(replacement.sent[0],{type:'authenticate',access_token:'new-session'});
+ sockets[0].receive(event());await delay(140);assert.equal(newReads,1);
+ replacement.receive(event());stopNew();await delay(140);assert.equal(newReads,1);
 });
 test('reconnection refreshes missed changes without requiring an event or mutation',async t=>{
  const {api,sockets}=await setup(t);let reads=0;const stop=api.watchNotificationInbox(actor,()=>reads++);t.after(stop);

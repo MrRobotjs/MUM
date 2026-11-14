@@ -2,6 +2,7 @@ import React from 'react';
 import { Navigate, Outlet, useLocation } from '@tanstack/react-router';
 import { useAuth } from '../contexts/AuthContext';
 import { ApiError } from '../util/apiClient';
+import { guardDecision, LOGIN_PATH, HOME_PATH } from './routePaths';
 import { Spinner } from '@/components/ui/spinner'
 
 type Props = {
@@ -11,14 +12,19 @@ type Props = {
 const AdminGuard = ({ children }: Props) => {
   const location = useLocation();
   const { session, loading, error, hasAdminAccess } = useAuth();
-  // The guard can render again after navigation to the login page has begun;
-  // redirecting then would replace the remembered page with the login page.
-  const toLogin = location.pathname === '/admin/login'
+  // The guard can render again after navigation has begun, while its route is
+  // still matched: redirecting to the login page then would replace the
+  // remembered page, and redirecting home again would navigate again on every
+  // render (the location store re-renders the guard synchronously).
+  const toLogin = location.pathname === LOGIN_PATH
     ? null
-    : <Navigate to="/admin/login" replace state={{ from: location.href }} />;
+    : <Navigate to={LOGIN_PATH} replace state={{ from: location.href }} />;
+  const toHome = location.pathname === HOME_PATH ? null : <Navigate to={HOME_PATH} replace />;
+
+  const decision = guardDecision({ loading, unauthorized: (error as ApiError)?.status === 401, failed: Boolean(error), signedIn: Boolean(session?.user), hasAdminAccess }, 'admin');
 
   // Show loading while session is being fetched
-  if (loading) {
+  if (decision === 'loading') {
     return (
       <div className="flex min-h-screen items-center justify-center bg-muted text-muted-foreground">
         <Spinner className="size-6" />
@@ -26,23 +32,23 @@ const AdminGuard = ({ children }: Props) => {
     );
   }
 
-  if (error && (error as ApiError).status === 401) {
+  if (decision === 'login') {
     return toLogin;
   }
 
-  if (error) {
+  if (decision === 'error') {
     return (
       <div className="flex min-h-screen items-center justify-center bg-muted">
         <div className="max-w-md rounded-xl border border-red-500/30 bg-red-50 dark:bg-red-400/10 p-6 text-center">
-          <h2 className="mb-2 text-lg font-semibold text-red-600 dark:text-red-400">Unable to load admin session</h2>
-          <p className="text-sm text-red-600 dark:text-red-400/80">{error.message}</p>
+          <h2 className="mb-2 text-lg font-semibold text-red-600 dark:text-red-400">Unable to load your session</h2>
+          <p className="text-sm text-red-600 dark:text-red-400/80">{error?.message}</p>
         </div>
       </div>
     );
   }
 
-  if (!hasAdminAccess) {
-    return toLogin;
+  if (decision === 'home') {
+    return toHome;
   }
 
   // If children are provided, render them, otherwise fall back to an Outlet

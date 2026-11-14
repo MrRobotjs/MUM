@@ -165,8 +165,8 @@ const InitialCredentialsForm = ({ initialUsername, onSuccess }: InitialCredentia
 
 // --- Main Page Component ---
 
-const AdminAccountPage = () => {
-  const { user } = useAuth();
+const AccountPage = () => {
+  const { user, isOwner, hasAdminAccess } = useAuth();
   const { formatTimestamp: formatIsoDate } = useAccountDisplay();
   const { success, error: showError } = useAlerts();
   const navigate = useNavigate();
@@ -211,7 +211,7 @@ const AdminAccountPage = () => {
   }, [account]);
 
   const setTab = (tab: TabType) => {
-    void navigate({href:`/admin/account?tab=${encodeURIComponent(tab)}`,replace:true});
+    void navigate({href:`/account?tab=${encodeURIComponent(tab)}`,replace:true});
   };
 
   const handleCredentialsSuccess = (response: AccountResponse) => {
@@ -260,7 +260,7 @@ const AdminAccountPage = () => {
   // Generate keys for form components to reset when account data changes
   const accountKey = `${account.user.uuid}-${account.user.username}-${account.user.email}`;
 
-  const displayName = account.user.display_name || account.user.username || 'Administrator';
+  const displayName = account.user.display_name || account.user.username || 'MUM User';
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-6">
@@ -273,11 +273,11 @@ const AdminAccountPage = () => {
             </div>
             <div className="space-y-1">
               <h1 className="text-3xl font-semibold text-foreground md:text-4xl text-center">{displayName}</h1>
-              <p className="text-sm text-muted-foreground">{account.user.email || account.user.username || 'Administrator'}</p>
+              <p className="text-sm text-muted-foreground">{account.user.email || account.user.username || 'MUM User'}</p>
             </div>
             <Badge variant="outline" className="gap-2 uppercase tracking-wide">
               <FontAwesomeIcon icon={faUserShield} className="h-3.5 w-3.5" />
-              System Administrator
+              {isOwner ? 'Owner' : hasAdminAccess ? 'Administrator' : 'User'}
             </Badge>
           </div>
         </CardContent>
@@ -329,8 +329,7 @@ const AdminAccountPage = () => {
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-muted-foreground">
-                  You are signed in as an administrator with full access to system settings and user
-                  management features.
+                  You are signed in to your MUM account. Your current permissions determine access to administrative features.
                 </p>
               </CardContent>
             </Card>
@@ -367,4 +366,4 @@ const AdminAccountPage = () => {
   );
 };
 
-export default AdminAccountPage;
+export default AccountPage;

@@ -72,7 +72,7 @@ func readUserRoleMembers(ctx context.Context, tx *sql.Tx, actor, access, role st
 	out.LinkRevision = strconv.FormatInt(links, 10)
 	out.SelectorRevision = strconv.FormatInt(selector, 10)
 	out.Mutations = !out.Automatic && !working
-	rows, err := tx.QueryContext(ctx, `SELECT i.uuid,i.kind,coalesce(u.local_username,a.external_username,''),coalesce(s.service_type,''),coalesce(s.server_nickname,''),l.user_uuid,
+	rows, err := tx.QueryContext(ctx, `SELECT i.uuid,i.kind,coalesce(`+humanNameSQL("u")+`,a.external_username,''),coalesce(s.service_type,''),coalesce(s.server_nickname,''),l.user_uuid,
  EXISTS(SELECT 1 FROM identity_user_roles m WHERE m.user_uuid=i.uuid AND m.role_id=?),coalesce(h.kind='owner',0),
  EXISTS(SELECT 1 FROM provisioning_jobs j WHERE j.user_uuid=h.uuid AND (j.status!='completed' OR j.reservation_held=1 OR j.review_token IS NOT NULL))
  OR EXISTS(SELECT 1 FROM plex_authorizations p WHERE p.owner_uuid=h.uuid AND (p.status='creating' OR p.operation_token IS NOT NULL))

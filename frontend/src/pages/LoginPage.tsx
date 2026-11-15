@@ -6,7 +6,7 @@ import { useLocation, useNavigate, useSearch } from '@tanstack/react-router';
 import { requestJson, ApiError } from '../util/apiClient';
 import { setAccessToken } from '../util/tokenStore';
 import { checkPlexSignIn, startPlexSignIn } from '../lib/plexSignIn';
-import { serviceSignIn } from '../lib/serviceSignIn';
+import { checkQuickConnect, serviceSignIn, startQuickConnect } from '../lib/serviceSignIn';
 import { useSignInMethods } from '../hooks/useSignInMethods';
 import { getServiceIcon, getServiceMeta } from '../config/pluginMetadata';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
@@ -59,6 +59,9 @@ const LoginPage = () => {
   const methods = useSignInMethods();
   const targetServer = methods.servers.find((server) => String(server.id) === target);
   const plexChosen = methods.plex && target === 'plex';
+  // A Quick Connect code waiting for approval in a Jellyfin app.
+  const [quickConnect, setQuickConnect] = useState<{ code: string } | null>(null);
+  const quickConnectOffered = targetServer?.type === 'jellyfin';
   const showPicker = methods.plex || (methods.serviceSignIn && methods.servers.length > 0);
 
   // Prefer ?next= query, then location.state.from, else dashboard
@@ -75,9 +78,9 @@ const LoginPage = () => {
   const { session } = useSession();
   const signedInAs = session?.user ? Boolean(session.user.has_admin_access) : null;
   useEffect(() => {
-    if (signedInAs === null || submitting || plexLoading) return;
+    if (signedInAs === null || submitting || plexLoading || quickConnect) return;
     navigate({ href: postLoginPath(fromPath, signedInAs), replace: true });
-  }, [signedInAs, submitting, plexLoading, fromPath, navigate]);
+  }, [signedInAs, submitting, plexLoading, quickConnect, fromPath, navigate]);
 
   // Check for error query parameter (e.g., from Plex SSO callback)
   useEffect(() => {
@@ -217,6 +220,61 @@ const LoginPage = () => {
       if (attempt === loginAttempt.current) setPlexLoading(false);
     }
   };
+
+  // Jellyfin Quick Connect: show the server's code, then check every 3
+  // seconds until the user approves it in a Jellyfin app.
+  const handleQuickConnect = async () => {
+    if (!targetServer || quickConnect) return;
+    const server = targetServer;
+    const attempt = ++loginAttempt.current;
+    const auth = getAuthSnapshot();
+    setSubmitting(false);
+    setPlexLoading(false);
+    setError(null);
+    try {
+      const started = await startQuickConnect(server.id, rememberMe);
+      if (!currentAttempt(attempt, auth)) return;
+      setQuickConnect({ code: started.code });
+      const deadline = Math.min(Date.parse(started.expiresAt), Date.now() + 10 * 60 * 1000);
+      while (Date.now() < deadline && currentAttempt(attempt, auth)) {
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+        if (!currentAttempt(attempt, auth)) return;
+        let result;
+        try {
+          result = await checkQuickConnect(started.id);
+        } catch (err) {
+          // Checking too soon is answered with 429; wait and check again.
+          if (err instanceof ApiError && err.status === 429) continue;
+          throw err;
+        }
+        if (!currentAttempt(attempt, auth)) return;
+        if (result.status === 'signed_in') {
+          setAccessToken(result.accessToken);
+          let validated: AuthSnapshot | undefined;
+          const session = await readFreshSession((checkpoint) => { validated = checkpoint; });
+          if (!validated || !currentAttempt(attempt, validated)) throw new Error('Authentication session changed during sign-in');
+          navigate({ href: postLoginPath(fromPath, Boolean(session.user.has_admin_access)), replace: true });
+          return;
+        }
+      }
+      if (currentAttempt(attempt, auth)) setError('The Quick Connect code expired. Try again.');
+    } catch (err) {
+      if (attempt === loginAttempt.current) setError(err instanceof Error && err.message ? err.message : 'Quick Connect failed. Try again.');
+    } finally {
+      if (attempt === loginAttempt.current) setQuickConnect(null);
+    }
+  };
+
+  // Stops waiting for a Quick Connect approval; the code expires on its own.
+  const cancelQuickConnect = () => {
+    ++loginAttempt.current;
+    setQuickConnect(null);
+  };
+
+  const chooseTarget = (value: string) => {
+    if (quickConnect) cancelQuickConnect();
+    setTarget(value);
+  };
   useEffect(() => () => { ++loginAttempt.current; }, []);
 
   return (
@@ -328,7 +386,7 @@ const LoginPage = () => {
                         <FontAwesomeIcon icon={faServer} className="text-muted-foreground text-sm" />
                         <span>Sign in using</span>
                       </Label>
-                      <Select value={plexChosen ? 'plex' : targetServer ? target : 'mum'} onValueChange={setTarget}>
+                      <Select value={plexChosen ? 'plex' : targetServer ? target : 'mum'} onValueChange={chooseTarget}>
                         <SelectTrigger id="sign-in-target" className="w-full">
                           <SelectValue />
                         </SelectTrigger>
@@ -354,7 +412,13 @@ const LoginPage = () => {
                     </div>
                   )}
 
-                  {!plexChosen && (<>
+                  {quickConnect ? (
+                    <div className="space-y-3 rounded-md border p-4 text-center">
+                      <p className="text-sm text-muted-foreground">In a Jellyfin app where you are signed in, open Quick Connect and enter this code:</p>
+                      <p id="quick-connect-code" className="font-mono text-3xl font-semibold tracking-widest text-foreground">{quickConnect.code}</p>
+                      <p className="flex items-center justify-center gap-2 text-xs text-muted-foreground"><Spinner className="h-4 w-4" />Waiting for approval...</p>
+                    </div>
+                  ) : !plexChosen && (<>
                   {/* Username Field */}
                   <div className="space-y-2">
                     <Label htmlFor="username" className="flex items-center gap-2">
@@ -404,7 +468,9 @@ const LoginPage = () => {
                     </Label>
                   </div>
 
-                  {plexChosen ? (<>
+                  {quickConnect ? (
+                  <Button type="button" variant="ghost" className="w-full" onClick={cancelQuickConnect}>Cancel</Button>
+                  ) : plexChosen ? (<>
                   {/* Plex SSO Button */}
                   <Button
                     type="button"
@@ -445,6 +511,11 @@ const LoginPage = () => {
                       'Sign in'
                     )}
                   </Button>
+                  )}
+                  {quickConnectOffered && !quickConnect && (
+                    <Button type="button" variant="outline" className="w-full" onClick={handleQuickConnect} disabled={submitting}>
+                      Use Quick Connect instead
+                    </Button>
                   )}
                 </form>
 

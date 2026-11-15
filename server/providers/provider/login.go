@@ -23,3 +23,18 @@ func LoginRefused(err error) error {
 	}
 	return err
 }
+
+// QuickConnectRequest is a Jellyfin Quick Connect request: the user approves
+// Code in an app where they are signed in, and Secret then completes the
+// sign-in. Secret is a credential and must not be logged or returned.
+type QuickConnectRequest struct {
+	Secret, Code string
+}
+
+var (
+	// ErrQuickConnectOff reports a server with Quick Connect turned off.
+	ErrQuickConnectOff = errors.New("Quick Connect is turned off on this server")
+	// ErrQuickConnectExpired reports a request the server no longer knows or
+	// has not approved.
+	ErrQuickConnectExpired = errors.New("Quick Connect request expired")
+)

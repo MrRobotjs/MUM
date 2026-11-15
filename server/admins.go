@@ -46,18 +46,18 @@ func readAdminList(ctx context.Context, tx *sql.Tx) ([]adminListItem, int64, err
 	if err := tx.QueryRowContext(ctx, "SELECT revision FROM admin_role_state WHERE singleton=1").Scan(&snapshot); err != nil {
 		return nil, 0, err
 	}
-	rows, err := tx.QueryContext(ctx, `SELECT i.id,u.uuid,coalesce(u.local_username,''),u.kind,u.email,u.last_login_at,u.profile_revision FROM user_accounts u JOIN identities i ON i.uuid=u.uuid
- WHERE u.kind='owner' OR EXISTS(SELECT 1 FROM admin_privileges g WHERE g.user_uuid=u.uuid) ORDER BY u.kind='owner' DESC,u.local_username COLLATE NOCASE,i.id LIMIT ?`, adminListLimit+1)
+	rows, err := tx.QueryContext(ctx, `SELECT i.id,u.uuid,coalesce(u.local_username,''),coalesce(`+humanNameSQL("u")+`,''),u.kind,u.email,u.last_login_at,u.profile_revision FROM user_accounts u JOIN identities i ON i.uuid=u.uuid
+ WHERE u.kind='owner' OR EXISTS(SELECT 1 FROM admin_privileges g WHERE g.user_uuid=u.uuid) ORDER BY u.kind='owner' DESC,`+humanNameSQL("u")+` COLLATE NOCASE,i.id LIMIT ?`, adminListLimit+1)
 	if err != nil {
 		return nil, 0, err
 	}
 	items := []adminListItem{}
 	for rows.Next() {
 		var item adminListItem
-		if err = rows.Scan(&item.ID, &item.UUID, &item.Username, &item.UserType, &item.Email, &item.LastLogin, &item.Revision); err != nil {
+		if err = rows.Scan(&item.ID, &item.UUID, &item.Username, &item.DisplayName, &item.UserType, &item.Email, &item.LastLogin, &item.Revision); err != nil {
 			break
 		}
-		item.DisplayName, item.Roles = item.Username, []adminRoleBadge{}
+		item.Roles = []adminRoleBadge{}
 		items = append(items, item)
 	}
 	if err == nil {

@@ -31,11 +31,7 @@ func (s *Server) VerifyLogin(ctx context.Context, username, password string) (pr
 		} `json:"User"`
 		AccessToken string `json:"AccessToken"`
 	}
-	identify := func(header http.Header) {
-		header.Set("Authorization", loginClient)
-		header.Set("X-Emby-Authorization", loginClient)
-	}
-	err := s.transport.JSON(ctx, http.MethodPost, s.base+"/Users/AuthenticateByName", identify, map[string]string{"Username": username, "Pw": password}, &answer)
+	err := s.transport.JSON(ctx, http.MethodPost, s.base+"/Users/AuthenticateByName", identifyClient, map[string]string{"Username": username, "Pw": password}, &answer)
 	if err != nil {
 		return provider.VerifiedLogin{}, provider.LoginRefused(err)
 	}

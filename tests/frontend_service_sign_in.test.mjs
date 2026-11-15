@@ -56,7 +56,7 @@ async function loginPage() {
     if (s === 'react') return `export const useState=v=>[v==='mum'?(globalThis.__login.target??v):v,()=>{}];export const useRef=v=>({current:v});export const useEffect=()=>{};export default {};`;
     if (s.includes('pluginMetadata')) return `export const getServiceIcon=t=>'icon:'+t;export const getServiceMeta=t=>({label:{jellyfin:'Jellyfin',emby:'Emby'}[t]??t});`;
     if (s.includes('useSignInMethods')) return `export const useSignInMethods=()=>globalThis.__login.methods;`;
-    if (s.includes('serviceSignIn')) return `export const serviceSignIn=async(id,u,p,r)=>{globalThis.__login.events.push('service:'+id+':'+u+':'+r);return 'fixture'};`;
+    if (s.includes('serviceSignIn')) return `export const serviceSignIn=async(id,u,p,r)=>{globalThis.__login.events.push('service:'+id+':'+u+':'+r);return 'fixture'};export const startQuickConnect=async(id,r)=>{globalThis.__login.events.push('qc-start:'+id+':'+r);return {id:'0b0b0b0b-0000-4000-8000-000000000001',code:'123456',expiresAt:new Date(Date.now()+60000).toISOString()}};export const checkQuickConnect=async()=>{globalThis.__login.events.push('qc-check');return globalThis.__login.qc.shift()??{status:'pending'}};`;
     if (s.includes('plexSignIn')) return `export const startPlexSignIn=async()=>({});export const checkPlexSignIn=async()=>({});`;
     if (s.includes('useSession')) return `import {getAuthSnapshot} from '@/store/authStore';export async function readFreshSession(c){globalThis.__login.events.push('fresh');c?.(getAuthSnapshot());return {user:{has_admin_access:false}}};export const useSession=()=>({session:null});`;
     if (s.includes('tokenStore')) return `export const setAccessToken=()=>globalThis.__login.events.push('token');`;
@@ -89,6 +89,52 @@ test('the login page names each server with its icon, nickname and type', async 
   assert.equal(option('8'), 'icon:embyDen (Emby)');
   assert.equal(option('mum'), 'MUM account');
   delete globalThis.__login;
+});
+
+test('Quick Connect is offered on Jellyfin and signs in once the code is approved', async t => {
+  const m = await loginPage();
+  const timer = globalThis.setTimeout;
+  globalThis.setTimeout = f => { f(); return 0; };
+  t.after(() => { globalThis.setTimeout = timer; delete globalThis.__login; });
+  const quickButton = page => find(page, e => e.props?.onClick?.name === 'handleQuickConnect');
+  const servers = [{ id: 7, name: 'Jelly++', type: 'jellyfin' }, { id: 8, name: 'Den', type: 'emby' }];
+  for (const [target, offered] of [['7', true], ['8', false], ['mum', false]]) {
+    globalThis.__login = { events: [], qc: [], target, methods: { serviceSignIn: true, plex: false, servers } };
+    assert.equal(Boolean(quickButton(m.Login())), offered, target);
+  }
+  globalThis.__login = { events: [], qc: [{ status: 'pending' }, { status: 'signed_in', accessToken: 'T'.repeat(43) }], target: '7', methods: { serviceSignIn: true, plex: false, servers } };
+  await quickButton(m.Login()).props.onClick();
+  assert.deepEqual(globalThis.__login.events.slice(0, 5), ['qc-start:7:false', 'qc-check', 'qc-check', 'token', 'fresh']);
+  assert.equal(globalThis.__login.events[5]?.replace, true, 'navigates after the approved sign-in');
+});
+
+test('Quick Connect answers are checked before use', async t => {
+  const before = globalThis.fetch, beforeWindow = globalThis.window;
+  t.after(() => { globalThis.fetch = before; globalThis.window = beforeWindow; });
+  globalThis.window = { location: { origin: 'https://mum.example' }, sessionStorage: { setItem() {} } };
+  const id = '0b0b0b0b-0000-4000-8000-000000000001';
+  const calls = [];
+  let answer;
+  globalThis.fetch = async (request) => {
+    calls.push({ url: new URL(request.url).pathname, body: await request.text() });
+    return new Response(JSON.stringify({ data: answer }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  };
+  const { startQuickConnect, checkQuickConnect } = await loadLib();
+  answer = { id, status: 'pending', code: '123456', expires_at: '2026-11-14T00:10:00Z' };
+  assert.deepEqual(await startQuickConnect(7, true), { id, code: '123456', expiresAt: '2026-11-14T00:10:00Z' });
+  assert.deepEqual(calls[0], { url: '/api/auth/quick-connect', body: JSON.stringify({ server_id: 7, remember: true }) });
+  for (const bad of [{ ...answer, code: '<b>1</b>' }, { ...answer, id: '../x' }, { ...answer, status: 'signed_in' }, { ...answer, expires_at: 'soon' }]) {
+    answer = bad;
+    await assert.rejects(startQuickConnect(7, false), /unexpected/, JSON.stringify(bad));
+  }
+  answer = { id, status: 'pending' };
+  assert.deepEqual(await checkQuickConnect(id), { status: 'pending' });
+  assert.equal(calls.at(-1).url, `/api/auth/quick-connect/${id}/poll`);
+  answer = { id, status: 'signed_in', access_token: 'T'.repeat(43) };
+  assert.deepEqual(await checkQuickConnect(id), { status: 'signed_in', accessToken: 'T'.repeat(43) });
+  answer = { id: '0b0b0b0b-0000-4000-8000-000000000002', status: 'pending' };
+  await assert.rejects(checkQuickConnect(id), /unexpected/, 'an answer for another attempt');
+  await assert.rejects(checkQuickConnect('../x'), /Invalid/);
 });
 
 test('the login page offers only the sign-in methods that are on', async () => {

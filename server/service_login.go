@@ -174,35 +174,58 @@ func resolveServiceAccount(ctx context.Context, tx *sql.Tx, serverID int64, exte
 	return user, service, nil
 }
 
-// verifyServiceLogin admits the attempt, then checks the login with the
-// server outside any transaction. It returns the verified server account.
-func (a *App) verifyServiceLogin(ctx context.Context, r *http.Request, serverID int64, username, password string) (provider.VerifiedLogin, error) {
-	err := a.store.write(ctx, func(tx *sql.Tx) error {
-		if enabled, _ := serviceSignInSettings(ctx, tx); !enabled {
-			return errServiceLoginDisabled
-		}
-		var available bool
-		if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM media_servers s JOIN provider_settings p ON p.provider_id=s.service_type
-		 WHERE s.id=? AND s.is_active=1 AND p.enabled=1 AND s.service_type IN `+serviceCredentialTypesSQL+`)`, serverID).Scan(&available); err != nil {
+// serverSignInAvailable checks that media server sign-in is on and that
+// serverID is an active, enabled server of one of types.
+func serverSignInAvailable(ctx context.Context, db queryRower, serverID int64, types string) error {
+	if enabled, _ := serviceSignInSettings(ctx, db); !enabled {
+		return errServiceLoginDisabled
+	}
+	var available bool
+	if err := db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM media_servers s JOIN provider_settings p ON p.provider_id=s.service_type
+	 WHERE s.id=? AND s.is_active=1 AND p.enabled=1 AND s.service_type IN `+types+`)`, serverID).Scan(&available); err != nil {
+		return err
+	}
+	if !available {
+		return errServiceLoginServer
+	}
+	return nil
+}
+
+// admitServerSignIn checks the server is available for sign-in and admits
+// the attempt under the attempt limits, before any server is contacted.
+func (a *App) admitServerSignIn(ctx context.Context, r *http.Request, serverID int64, types, username string) error {
+	return a.store.write(ctx, func(tx *sql.Tx) error {
+		if err := serverSignInAvailable(ctx, tx, serverID, types); err != nil {
 			return err
-		}
-		if !available {
-			return errServiceLoginServer
 		}
 		return serviceSignInAdmission(ctx, tx, requestSource(r), serverID, username)
 	})
-	if err != nil {
-		return provider.VerifiedLogin{}, err
-	}
+}
+
+// signInModule returns the provider module of serverID for a sign-in.
+func (a *App) signInModule(ctx context.Context, serverID int64) (any, error) {
 	server, err := a.loadServer(ctx, serverID)
 	if err != nil || !server.EffectiveActive {
-		return provider.VerifiedLogin{}, errServiceLoginServer
+		return nil, errServiceLoginServer
 	}
 	connection, err := newServerConnection(ProviderConfig{server.Type, server.URL, server.apiKey}, a.ProviderHTTP)
 	if err != nil {
-		return provider.VerifiedLogin{}, errServiceLoginServer
+		return nil, errServiceLoginServer
 	}
-	verifier, ok := connection.module().(loginVerifier)
+	return connection.module(), nil
+}
+
+// verifyServiceLogin admits the attempt, then checks the login with the
+// server outside any transaction. It returns the verified server account.
+func (a *App) verifyServiceLogin(ctx context.Context, r *http.Request, serverID int64, username, password string) (provider.VerifiedLogin, error) {
+	if err := a.admitServerSignIn(ctx, r, serverID, serviceCredentialTypesSQL, username); err != nil {
+		return provider.VerifiedLogin{}, err
+	}
+	module, err := a.signInModule(ctx, serverID)
+	if err != nil {
+		return provider.VerifiedLogin{}, err
+	}
+	verifier, ok := module.(loginVerifier)
 	if !ok {
 		return provider.VerifiedLogin{}, errServiceLoginServer
 	}
@@ -287,13 +310,26 @@ func (a *App) serviceLogin(w http.ResponseWriter, r *http.Request) {
 		serviceLoginError(w, err)
 		return
 	}
+	tokens, principal, err := a.issueServiceSession(ctx, input.ServerID, login, input.Remember, "auth.login.service")
+	if err != nil {
+		serviceLoginError(w, err)
+		return
+	}
+	a.setRefreshCookie(w, r, tokens)
+	respond(w, 200, map[string]any{"access_token": tokens.Access, "user": principal})
+}
+
+// issueServiceSession signs in the MUM account that owns the verified server
+// account, creating one on first sign-in, after rechecking the switch and the
+// administrator rule. action names the audit event.
+func (a *App) issueServiceSession(ctx context.Context, serverID int64, login provider.VerifiedLogin, remember bool, action string) (sessionTokens, Principal, error) {
 	var tokens sessionTokens
 	var principal Principal
-	err = a.store.write(ctx, func(tx *sql.Tx) error {
+	err := a.store.write(ctx, func(tx *sql.Tx) error {
 		if enabled, _ := serviceSignInSettings(ctx, tx); !enabled {
 			return errServiceLoginDisabled
 		}
-		user, service, err := resolveServiceAccount(ctx, tx, input.ServerID, login.ID, true)
+		user, service, err := resolveServiceAccount(ctx, tx, serverID, login.ID, true)
 		if err != nil {
 			return err
 		}
@@ -303,15 +339,10 @@ func (a *App) serviceLogin(w http.ResponseWriter, r *http.Request) {
 		if err := serviceSignInPermitted(ctx, tx, principal); err != nil {
 			return err
 		}
-		if tokens, err = insertSession(ctx, tx, user, sessionOrigin{Kind: "service", Service: service}, input.Remember); err != nil {
+		if tokens, err = insertSession(ctx, tx, user, sessionOrigin{Kind: "service", Service: service}, remember); err != nil {
 			return err
 		}
-		return auditAction(ctx, tx, user, "auth.login.service")
+		return auditAction(ctx, tx, user, action)
 	})
-	if err != nil {
-		serviceLoginError(w, err)
-		return
-	}
-	a.setRefreshCookie(w, r, tokens)
-	respond(w, 200, map[string]any{"access_token": tokens.Access, "user": principal})
+	return tokens, principal, err
 }

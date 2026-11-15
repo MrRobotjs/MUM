@@ -74,6 +74,41 @@ export async function serviceSignIn(serverId: number, username: string, password
   return data.access_token;
 }
 
+// Jellyfin Quick Connect: the server gives a code to approve in a Jellyfin app
+// where the user is signed in; this browser then checks until it is approved.
+export type QuickConnectStart = { id: string; code: string; expiresAt: string };
+export type QuickConnectCheck = { status: 'pending' } | { status: 'signed_in'; accessToken: string };
+
+const uuid = (value: unknown): value is string => typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(value);
+
+export async function startQuickConnect(serverId: number, remember: boolean): Promise<QuickConnectStart> {
+  const { data } = await requestJson<{ data?: { id?: unknown; status?: unknown; code?: unknown; expires_at?: unknown } }>('/api/auth/quick-connect', {
+    method: 'POST',
+    body: JSON.stringify({ server_id: serverId, remember }),
+    retryAuthentication: false,
+  });
+  if (!uuid(data?.id) || data?.status !== 'pending' || typeof data.code !== 'string' || !/^[0-9A-Za-z]{1,32}$/.test(data.code) ||
+    typeof data.expires_at !== 'string' || !Number.isFinite(Date.parse(data.expires_at))) {
+    throw new Error('Quick Connect returned an unexpected answer');
+  }
+  return { id: data.id, code: data.code, expiresAt: data.expires_at };
+}
+
+export async function checkQuickConnect(id: string): Promise<QuickConnectCheck> {
+  if (!uuid(id)) throw new Error('Invalid Quick Connect sign-in');
+  const { data } = await requestJson<{ data?: { id?: unknown; status?: unknown; access_token?: unknown } }>(`/api/auth/quick-connect/${id}/poll`, {
+    method: 'POST',
+    body: '{}',
+    retryAuthentication: false,
+  });
+  if (data?.id !== id) throw new Error('Quick Connect returned an unexpected answer');
+  if (data.status === 'pending') return { status: 'pending' };
+  if (data.status === 'signed_in' && typeof data.access_token === 'string' && data.access_token.length === 43) {
+    return { status: 'signed_in', accessToken: data.access_token };
+  }
+  throw new Error('Quick Connect returned an unexpected answer');
+}
+
 export async function getServiceLinks(): Promise<ServiceLinks> {
   const { data } = await requestJson<{ data?: unknown }>('/api/account/service-links');
   return parseServiceLinks(data);

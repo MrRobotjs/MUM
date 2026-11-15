@@ -11,13 +11,31 @@ import (
 	"time"
 )
 
-const userProjection = `SELECT i.id,i.uuid,i.kind,coalesce(u.local_username,a.external_username,''),
- coalesce(u.email,a.external_email,''),coalesce(u.is_active,a.is_active),coalesce(u.created_at,a.created_at),
+// humanNameSQL is the name a MUM account is shown by: its MUM username, or,
+// for an account without one (created by media server sign-in), the name of
+// the earliest server account it owns. alias is the user_accounts alias.
+func humanNameSQL(alias string) string {
+	return `(SELECT coalesce(` + alias + `.local_username,(SELECT sa.external_username FROM service_links l JOIN service_accounts sa ON sa.uuid=l.service_uuid
+ WHERE l.user_uuid=` + alias + `.uuid AND l.link_kind='owner' AND coalesce(sa.external_username,'')<>'' ORDER BY sa.removed_at IS NOT NULL,l.created_at,sa.uuid LIMIT 1)))`
+}
+
+// humanEmailSQL is the address a MUM account without its own shows: that of
+// the earliest server account it owns. It is for display only.
+func humanEmailSQL(alias string) string {
+	return `(SELECT sa.external_email FROM service_links l JOIN service_accounts sa ON sa.uuid=l.service_uuid
+ WHERE l.user_uuid=` + alias + `.uuid AND l.link_kind='owner' AND coalesce(sa.external_email,'')<>'' ORDER BY sa.removed_at IS NOT NULL,l.created_at,sa.uuid LIMIT 1)`
+}
+
+// userDisplayNameSQL is how a listed account is named.
+var userDisplayNameSQL = `coalesce(` + humanNameSQL("u") + `,a.external_username,'')`
+
+var userProjection = `SELECT i.id,i.uuid,i.kind,coalesce(u.local_username,a.external_username,''),` + userDisplayNameSQL + `,
+ coalesce(u.email,a.external_email,''),coalesce(u.email,` + humanEmailSQL("u") + `,a.external_email,''),coalesce(u.is_active,a.is_active),coalesce(u.created_at,a.created_at),
  coalesce(u.notes,a.notes,''),a.server_id,coalesce(s.server_nickname,''),coalesce(s.service_type,''),
  (SELECT count(*) FROM service_links l WHERE l.user_uuid=i.uuid AND l.link_kind='owner'),
  (SELECT json_group_array(json_object('name',r.name,'color',r.color,'icon',r.icon,'badge_style',r.badge_style,'description',r.description)) FROM (SELECT r.* FROM admin_privileges ap JOIN admin_roles r ON r.id=ap.role_id WHERE ap.user_uuid=i.uuid ORDER BY r.position,r.id) r),
  (SELECT json_group_array(json_object('name',r.name,'color',r.color,'icon',r.icon,'badge_style',r.badge_style)) FROM (SELECT r.* FROM identity_user_roles ir JOIN user_roles r ON r.id=ir.role_id WHERE ir.user_uuid=i.uuid ORDER BY r.position DESC,r.id) r),
- coalesce(a.allowed_library_ids,'[]'),coalesce(a.service_settings,'{}'),coalesce(parent.uuid,''),coalesce(parent.local_username,''),coalesce(u.access_expires_at,a.access_expires_at),
+ coalesce(a.allowed_library_ids,'[]'),coalesce(a.service_settings,'{}'),coalesce(parent.uuid,''),coalesce(parent.local_username,''),coalesce(` + humanNameSQL("parent") + `,''),coalesce(u.access_expires_at,a.access_expires_at),
  coalesce(a.external_avatar_url,''),coalesce(a.service_join_date,''),
  coalesce(a.is_active=1 AND s.service_type='plex' AND s.is_active=1 AND EXISTS(SELECT 1 FROM provider_settings p WHERE p.provider_id='plex' AND p.enabled=1),0),
  (SELECT max(seen) FROM (SELECT max(h.last_seen_at) seen FROM media_activity_history h WHERE h.service_uuid=i.uuid
@@ -82,7 +100,7 @@ func (a *App) listUsers(w http.ResponseWriter, r *http.Request) {
 		where += " AND a.server_id=?"
 		args = append(args, id)
 	}
-	for _, filter := range []struct{ key, expression string }{{"search", "coalesce(u.local_username,a.external_username,'')||' '||coalesce(u.email,a.external_email,'')||' '||coalesce(u.notes,a.notes,'')"}, {"search_username", "coalesce(u.local_username,a.external_username,'')"}, {"search_email", "coalesce(u.email,a.external_email,'')"}, {"search_notes", "coalesce(u.notes,a.notes,'')"}} {
+	for _, filter := range []struct{ key, expression string }{{"search", userDisplayNameSQL + "||' '||coalesce(u.email,a.external_email,'')||' '||coalesce(u.notes,a.notes,'')"}, {"search_username", userDisplayNameSQL}, {"search_email", "coalesce(u.email,a.external_email,'')"}, {"search_notes", "coalesce(u.notes,a.notes,'')"}} {
 		if value := r.URL.Query().Get(filter.key); value != "" {
 			where += " AND instr(lower(" + filter.expression + "),lower(?))>0"
 			args = append(args, value)
@@ -103,7 +121,7 @@ func (a *App) listUsers(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	orders := map[string]string{"": "i.id DESC", "created_desc": "coalesce(u.created_at,a.created_at) DESC,i.id DESC", "created_asc": "coalesce(u.created_at,a.created_at),i.id", "username_asc": "coalesce(u.local_username,a.external_username) COLLATE NOCASE,i.id", "username_desc": "coalesce(u.local_username,a.external_username) COLLATE NOCASE DESC,i.id DESC",
+	orders := map[string]string{"": "i.id DESC", "created_desc": "coalesce(u.created_at,a.created_at) DESC,i.id DESC", "created_asc": "coalesce(u.created_at,a.created_at),i.id", "username_asc": userDisplayNameSQL + " COLLATE NOCASE,i.id", "username_desc": userDisplayNameSQL + " COLLATE NOCASE DESC,i.id DESC",
 		// Users who have never streamed come last either way.
 		"last_streamed_desc": "last_streamed_at IS NULL,last_streamed_at DESC,i.id DESC", "last_streamed_asc": "last_streamed_at IS NULL,last_streamed_at ASC,i.id"}
 	order, ok := orders[r.URL.Query().Get("sort")]
@@ -143,11 +161,11 @@ func (a *App) listUsers(w http.ResponseWriter, r *http.Request) {
 	var avatarRows []map[string]any
 	for rows.Next() {
 		var id, linked int64
-		var uuid, kind, name, email, created, notes, nickname, provider, roles, visual, libraries, settings, parent, parentName, avatarTag, joined string
+		var uuid, kind, name, displayName, email, shownEmail, created, notes, nickname, provider, roles, visual, libraries, settings, parent, parentName, parentDisplay, avatarTag, joined string
 		var active, avatarServed bool
 		var server sql.NullInt64
 		var expiry, lastSeen sql.NullString
-		if err := rows.Scan(&id, &uuid, &kind, &name, &email, &active, &created, &notes, &server, &nickname, &provider, &linked, &roles, &visual, &libraries, &settings, &parent, &parentName, &expiry, &avatarTag, &joined, &avatarServed, &lastSeen); err != nil {
+		if err := rows.Scan(&id, &uuid, &kind, &name, &displayName, &email, &shownEmail, &active, &created, &notes, &server, &nickname, &provider, &linked, &roles, &visual, &libraries, &settings, &parent, &parentName, &parentDisplay, &expiry, &avatarTag, &joined, &avatarServed, &lastSeen); err != nil {
 			rows.Close()
 			domainError(w, err)
 			return
@@ -163,7 +181,7 @@ func (a *App) listUsers(w http.ResponseWriter, r *http.Request) {
 		}
 		var parentValue any
 		if parent != "" {
-			parentValue = map[string]string{"uuid": parent, "username": parentName, "display_name": parentName}
+			parentValue = map[string]string{"uuid": parent, "username": parentName, "display_name": parentDisplay}
 		}
 		var serverValue any
 		if server.Valid {
@@ -185,12 +203,17 @@ func (a *App) listUsers(w http.ResponseWriter, r *http.Request) {
 			joinValue = joined
 		}
 		allLibraries := policy["all_libraries"] == true
-		// An unknown address is null, so cards show "No email" rather than an empty value.
-		var emailValue any
+		// An unknown address is null, so cards show "No email" rather than an
+		// empty value. external_email is what cards show: a MUM account
+		// without its own address shows that of a server account it owns.
+		var emailValue, shownEmailValue any
 		if email != "" {
 			emailValue = email
 		}
-		item := map[string]any{"access_expires_at": expiryValue, "id": id, "uuid": uuid, "user_type": kind, "username": name, "display_name": name, "email": emailValue, "external_email": emailValue, "is_active": active, "created_at": created, "notes": notes, "server_id": serverValue, "server_nickname": nickname, "service_type": provider, "linked_service_count": linked, "admin_roles": adminRoleNames(adminRoleDetails), "admin_roles_detail": adminRoleDetails, "user_roles": userRoles, "libraries": []string{}, "allowed_library_ids": libraryIDs, "has_all_libraries": allLibraries, "linked_local_user": parentValue, "avatar_url": nil, "service_join_date": joinValue, "last_streamed_at": nil}
+		if shownEmail != "" {
+			shownEmailValue = shownEmail
+		}
+		item := map[string]any{"access_expires_at": expiryValue, "id": id, "uuid": uuid, "user_type": kind, "username": name, "display_name": displayName, "email": emailValue, "external_email": shownEmailValue, "is_active": active, "created_at": created, "notes": notes, "server_id": serverValue, "server_nickname": nickname, "service_type": provider, "linked_service_count": linked, "admin_roles": adminRoleNames(adminRoleDetails), "admin_roles_detail": adminRoleDetails, "user_roles": userRoles, "libraries": []string{}, "allowed_library_ids": libraryIDs, "has_all_libraries": allLibraries, "linked_local_user": parentValue, "avatar_url": nil, "service_join_date": joinValue, "last_streamed_at": nil}
 		// Latest observed playback of this account (or of the services it owns).
 		if lastSeen.Valid {
 			item["last_streamed_at"] = lastSeen.String

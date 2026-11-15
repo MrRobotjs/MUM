@@ -35,6 +35,8 @@ var publicAPIRoutes = map[string]string{
 	"POST /api/auth/plex/{attempt}/poll":                                               "Finishes Sign in with Plex from the browser that started it; signs in only the MUM account linked to the verified Plex account",
 	"GET /api/auth/methods":                                                            "Whether media server sign-in is on and which servers the login page may offer (names and types only)",
 	"POST /api/auth/service":                                                           "Media server sign-in: the chosen server checks its own username and password",
+	"POST /api/auth/quick-connect":                                                     "Starts Jellyfin Quick Connect sign-in on a chosen server, bound to this browser by an HttpOnly cookie",
+	"POST /api/auth/quick-connect/{attempt}/poll":                                      "Checks Quick Connect from the browser that started it; once approved, signs in the approving Jellyfin user",
 	"POST /api/auth/logout":                                                            "Ends the session named by the HttpOnly refresh cookie, if any",
 	"GET /api/settings/general":                                                        "Application name and URLs shown on sign-in pages",
 	"GET /api/settings/user-accounts":                                                  "Whether user accounts are enabled",

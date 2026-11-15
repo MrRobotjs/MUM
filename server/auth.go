@@ -68,6 +68,7 @@ type Principal struct {
 	ID          int64    `json:"id"`
 	UUID        string   `json:"uuid"`
 	Username    string   `json:"username"`
+	DisplayName string   `json:"display_name"`
 	Kind        string   `json:"user_type"`
 	Active      bool     `json:"is_active"`
 	CreatedAt   string   `json:"created_at"`
@@ -81,11 +82,11 @@ type queryRower interface {
 
 func loadPrincipal(ctx context.Context, db queryRower, uuid string) (Principal, error) {
 	p := Principal{Permissions: []string{}}
-	err := db.QueryRowContext(ctx, `SELECT i.id,u.uuid,coalesce(u.local_username,''),u.kind,u.is_active,u.created_at,
+	err := db.QueryRowContext(ctx, `SELECT i.id,u.uuid,coalesce(u.local_username,''),coalesce(`+humanNameSQL("u")+`,''),u.kind,u.is_active,u.created_at,
 	 (u.kind='owner' OR EXISTS(SELECT 1 FROM admin_privileges a JOIN admin_role_permissions rp ON rp.role_id=a.role_id
 	 JOIN admin_permissions perm ON perm.id=rp.permission_id WHERE a.user_uuid=u.uuid AND perm.name='administrator'))
 	 FROM user_accounts u JOIN identities i ON i.uuid=u.uuid WHERE u.uuid=? AND u.is_active=1
-	 AND (u.access_expires_at IS NULL OR julianday(u.access_expires_at)>julianday('now'))`, uuid).Scan(&p.ID, &p.UUID, &p.Username, &p.Kind, &p.Active, &p.CreatedAt, &p.Admin)
+	 AND (u.access_expires_at IS NULL OR julianday(u.access_expires_at)>julianday('now'))`, uuid).Scan(&p.ID, &p.UUID, &p.Username, &p.DisplayName, &p.Kind, &p.Active, &p.CreatedAt, &p.Admin)
 	if err != nil {
 		return p, ErrForbidden
 	}

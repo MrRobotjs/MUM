@@ -37,7 +37,9 @@ type App struct {
 	passwordSlots   chan struct{}
 	provisionSlots  chan struct{}
 	// signInSlots bounds media server sign-ins in flight, apart from provisioning.
-	signInSlots      chan struct{}
+	signInSlots chan struct{}
+	// quickConnect holds Jellyfin Quick Connect sign-ins in progress.
+	quickConnect     quickConnectAttempts
 	provisionMu      sync.Mutex
 	provisionClosing bool
 	provisionWG      sync.WaitGroup
@@ -174,6 +176,8 @@ func NewApp(store *Store, queue *LogQueue, assets fs.FS) (*App, error) {
 	handle("POST /api/auth/logout", a.logout)
 	handle("POST /api/auth/plex", a.startPlexLogin)
 	handle("POST /api/auth/plex/{attempt}/poll", a.pollPlexLogin)
+	handle("POST /api/auth/quick-connect", a.startQuickConnectLogin)
+	handle("POST /api/auth/quick-connect/{attempt}/poll", a.pollQuickConnectLogin)
 	handle("GET /api/auth/methods", a.signInMethods)
 	handle("POST /api/auth/service", a.serviceLogin)
 	handle("GET /api/auth/session", a.session)

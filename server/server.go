@@ -25,17 +25,19 @@ type attemptWindow struct {
 	count int
 }
 type App struct {
-	locationCache    provider.LocationCache
-	logger           *slog.Logger
-	scheduler        *syncScheduler
-	providerSockets  *providerSocketRuntime
-	store            *Store
-	queue            *LogQueue
-	hub              *realtimeHub
-	handler          http.Handler
-	dummyHash        string
-	passwordSlots    chan struct{}
-	provisionSlots   chan struct{}
+	locationCache   provider.LocationCache
+	logger          *slog.Logger
+	scheduler       *syncScheduler
+	providerSockets *providerSocketRuntime
+	store           *Store
+	queue           *LogQueue
+	hub             *realtimeHub
+	handler         http.Handler
+	dummyHash       string
+	passwordSlots   chan struct{}
+	provisionSlots  chan struct{}
+	// signInSlots bounds media server sign-ins in flight, apart from provisioning.
+	signInSlots      chan struct{}
 	provisionMu      sync.Mutex
 	provisionClosing bool
 	provisionWG      sync.WaitGroup
@@ -80,6 +82,7 @@ func NewApp(store *Store, queue *LogQueue, assets fs.FS) (*App, error) {
 	a.scheduler = &syncScheduler{ctx: schedulerCtx, cancel: schedulerCancel, done: make(chan struct{}), runner: newUUID()}
 	a.providerSockets = &providerSocketRuntime{workers: map[int64]*providerSocketWorker{}, done: make(chan struct{})}
 	a.provisionSlots = make(chan struct{}, 2)
+	a.signInSlots = make(chan struct{}, 8)
 	a.catalogueRuns = map[int64]*catalogueProgress{}
 	a.episodeRuns = map[int64]bool{}
 	a.episodeOutcomes = map[int64]map[string]any{}
@@ -125,6 +128,10 @@ func NewApp(store *Store, queue *LogQueue, assets fs.FS) (*App, error) {
 	handle("PUT /api/account/display", a.saveAccountDisplay)
 	handle("GET /api/account/username", a.accountUsername)
 	handle("PATCH /api/account/username", a.changeAccountUsername)
+	handle("GET /api/account/service-links", a.accountServiceLinks)
+	handle("POST /api/account/service-links", a.linkAccountService)
+	handle("DELETE /api/account/service-links/{service}", a.unlinkAccountService)
+	handle("POST /api/account/initial-credentials", a.setInitialCredentials)
 	handle("GET /api/admins", a.listAdmins)
 	handle("POST /api/admins", a.createAdmin)
 	handle("PATCH /api/admins/{admin}", a.updateAdminRoles)
@@ -167,6 +174,8 @@ func NewApp(store *Store, queue *LogQueue, assets fs.FS) (*App, error) {
 	handle("POST /api/auth/logout", a.logout)
 	handle("POST /api/auth/plex", a.startPlexLogin)
 	handle("POST /api/auth/plex/{attempt}/poll", a.pollPlexLogin)
+	handle("GET /api/auth/methods", a.signInMethods)
+	handle("POST /api/auth/service", a.serviceLogin)
 	handle("GET /api/auth/session", a.session)
 	handle("POST /api/setup/app", a.setupConfig)
 	handle("POST /api/setup/complete", a.setupComplete)
@@ -175,6 +184,8 @@ func NewApp(store *Store, queue *LogQueue, assets fs.FS) (*App, error) {
 	})
 	handle("GET /api/settings/general", a.generalSettings)
 	handle("PATCH /api/settings/general", a.saveGeneralSettings)
+	handle("GET /api/settings/sign-in", a.signInSettings)
+	handle("PUT /api/settings/sign-in", a.saveSignInSettings)
 	handle("GET /api/settings/runtime-info", a.runtimeInfo)
 	handle("GET /api/activity/statistics", a.activityStatistics)
 	handle("GET /api/audit-events", a.recentAuditEvents)

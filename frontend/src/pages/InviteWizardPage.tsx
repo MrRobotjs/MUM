@@ -50,7 +50,7 @@ import { faDiscord } from '@fortawesome/free-brands-svg-icons';
 import { Spinner } from '@/components/ui/spinner'
 import { ServiceIcon } from '@/components/services/ServiceIcon'
 
-import { InvitationDraft, loadPublicInvitation } from '../lib/invitationWizard';
+import { InvitationDraft, loadPublicInvitation, serviceSignInNotice } from '../lib/invitationWizard';
 import type { WizardStep, WizardServer, WizardState, CompletionResponse } from '../lib/invitationWizardTypes';
 
 type AccountFormState = {
@@ -802,6 +802,9 @@ export const InviteWizardPage = () => {
               </div>
               <h2 className="text-3xl font-bold text-green-600 dark:text-green-400 mb-3">Welcome, {completion.username}!</h2>
               <p className="text-muted-foreground text-lg">Your invitation has been completed successfully</p>
+              {completion.state.meta.service_sign_in && serviceSignInNotice(completion.servers) && (
+                <p className="text-muted-foreground mt-2">{serviceSignInNotice(completion.servers)}</p>
+              )}
             </div>
 
             {state.plex.authenticated || state.discord.authenticated ? (
@@ -1144,7 +1147,7 @@ export const InviteWizardPage = () => {
                     <div>
                       <h2 className="text-xl font-semibold text-foreground mb-1">Set Up Your Account</h2>
                       <p className="text-sm text-muted-foreground">
-                        {draft.current?.recovering ? 'Re-enter the original local account details to recover your provisioning receipt.' : 'Configure your account details - your account will be created when you complete all steps'}
+                        {draft.current?.recovering ? 'Re-enter the original local account details to recover your provisioning receipt.' : state.meta.service_sign_in ? 'These become the username and password for your new media server accounts. You will sign in to MUM with them.' : 'Configure your account details - your account will be created when you complete all steps'}
                       </p>
                     </div>
                   </div>

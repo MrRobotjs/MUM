@@ -100,11 +100,19 @@ func (s *Store) Authenticate(ctx context.Context, token string) (Principal, erro
 		return Principal{}, ErrForbidden
 	}
 	var uuid string
-	err := s.reader.QueryRowContext(ctx, `SELECT s.user_uuid FROM app_sessions s JOIN session_access_tokens t ON t.session_id=s.id WHERE t.token_hash=? AND t.expires_at>? AND s.refresh_expires_at>?`, tokenHash(token), utcTimestamp(time.Now()), utcTimestamp(time.Now())).Scan(&uuid)
+	var origin sessionOrigin
+	err := s.reader.QueryRowContext(ctx, `SELECT s.user_uuid,`+sessionOriginColumns+` FROM app_sessions s JOIN session_access_tokens t ON t.session_id=s.id WHERE t.token_hash=? AND t.expires_at>? AND s.refresh_expires_at>?`, tokenHash(token), utcTimestamp(time.Now()), utcTimestamp(time.Now())).Scan(&uuid, &origin.Kind, &origin.Service, &origin.PlexConnection)
 	if err != nil {
 		return Principal{}, ErrForbidden
 	}
-	return loadPrincipal(ctx, s.reader, uuid)
+	p, err := loadPrincipal(ctx, s.reader, uuid)
+	if err != nil {
+		return p, err
+	}
+	if err := sessionOriginAllowed(ctx, s.reader, p, origin); err != nil {
+		return Principal{}, err
+	}
+	return p, nil
 }
 
 type sessionTokens struct {
@@ -121,10 +129,7 @@ func (s *Store) issueSession(ctx context.Context, uuid string, remember bool) (s
 // HTTP entry points supply the exact hash and profile revision read before KDF
 // work. A username change (including change-away-and-back) invalidates that proof.
 func (s *Store) issuePasswordSession(ctx context.Context, uuid, verifiedHash string, verifiedRevision int64, remember bool) (sessionTokens, error) {
-	tokens := sessionTokens{Access: randomToken(), Refresh: randomToken(), RefreshExpires: time.Now().Add(refreshSessionLifetime)}
-	if remember {
-		tokens.RefreshExpires = time.Now().Add(30 * 24 * time.Hour)
-	}
+	var tokens sessionTokens
 	err := s.write(ctx, func(tx *sql.Tx) error {
 		if verifiedHash != "" {
 			var current string
@@ -133,17 +138,43 @@ func (s *Store) issuePasswordSession(ctx context.Context, uuid, verifiedHash str
 				return ErrForbidden
 			}
 		}
-		if _, err := loadPrincipal(ctx, tx, uuid); err != nil {
-			return err
-		}
-		id := newUUID()
-		expires := utcTimestamp(time.Now().Add(accessTokenLifetime))
-		if _, err := tx.ExecContext(ctx, `INSERT INTO app_sessions VALUES(?,?,?,?,?,?,?)`, id, uuid, tokenHash(tokens.Access), tokenHash(tokens.Refresh), expires, utcTimestamp(tokens.RefreshExpires), utcTimestamp(time.Now())); err != nil {
-			return err
-		}
-		_, err := tx.ExecContext(ctx, "INSERT INTO session_access_tokens VALUES(?,?,?)", tokenHash(tokens.Access), id, expires)
+		var err error
+		tokens, err = insertSession(ctx, tx, uuid, sessionOrigin{Kind: "password"}, remember)
 		return err
 	})
+	return tokens, err
+}
+
+// sessionOrigin is how a session was signed in: "password", "service" (a
+// media server login for Service) or "plex_connection" (Plex sign-in through
+// the linked PlexConnection).
+type sessionOrigin struct {
+	Kind, Service, PlexConnection string
+}
+
+const sessionOriginColumns = `s.sign_in_origin,coalesce(s.via_service_uuid,''),coalesce(s.via_plex_connection,'')`
+
+// insertSession issues a session inside the caller's transaction, after
+// confirming the account may use it now.
+func insertSession(ctx context.Context, tx *sql.Tx, uuid string, origin sessionOrigin, remember bool) (sessionTokens, error) {
+	tokens := sessionTokens{Access: randomToken(), Refresh: randomToken(), RefreshExpires: time.Now().Add(refreshSessionLifetime)}
+	if remember {
+		tokens.RefreshExpires = time.Now().Add(30 * 24 * time.Hour)
+	}
+	p, err := loadPrincipal(ctx, tx, uuid)
+	if err != nil {
+		return tokens, err
+	}
+	if err := sessionOriginAllowed(ctx, tx, p, origin); err != nil {
+		return tokens, err
+	}
+	id := newUUID()
+	expires := utcTimestamp(time.Now().Add(accessTokenLifetime))
+	if _, err := tx.ExecContext(ctx, `INSERT INTO app_sessions(id,user_uuid,access_hash,refresh_hash,access_expires_at,refresh_expires_at,created_at,sign_in_origin,via_service_uuid,via_plex_connection) VALUES(?,?,?,?,?,?,?,?,nullif(?,''),nullif(?,''))`,
+		id, uuid, tokenHash(tokens.Access), tokenHash(tokens.Refresh), expires, utcTimestamp(tokens.RefreshExpires), utcTimestamp(time.Now()), origin.Kind, origin.Service, origin.PlexConnection); err != nil {
+		return tokens, err
+	}
+	_, err = tx.ExecContext(ctx, "INSERT INTO session_access_tokens VALUES(?,?,?)", tokenHash(tokens.Access), id, expires)
 	return tokens, err
 }
 
@@ -155,12 +186,16 @@ func (s *Store) refreshSession(ctx context.Context, refresh string) (sessionToke
 	}
 	err := s.write(ctx, func(tx *sql.Tx) error {
 		var id, uuid, expires string
-		if err := tx.QueryRowContext(ctx, "SELECT id,user_uuid,refresh_expires_at FROM app_sessions WHERE refresh_hash=? AND refresh_expires_at>?", tokenHash(refresh), utcTimestamp(time.Now())).Scan(&id, &uuid, &expires); err != nil {
+		var origin sessionOrigin
+		if err := tx.QueryRowContext(ctx, "SELECT s.id,s.user_uuid,s.refresh_expires_at,"+sessionOriginColumns+" FROM app_sessions s WHERE s.refresh_hash=? AND s.refresh_expires_at>?", tokenHash(refresh), utcTimestamp(time.Now())).Scan(&id, &uuid, &expires, &origin.Kind, &origin.Service, &origin.PlexConnection); err != nil {
 			return ErrForbidden
 		}
 		var err error
 		p, err = loadPrincipal(ctx, tx, uuid)
 		if err != nil {
+			return err
+		}
+		if err = sessionOriginAllowed(ctx, tx, p, origin); err != nil {
 			return err
 		}
 		tokens.RefreshExpires, err = time.Parse(time.RFC3339Nano, expires)

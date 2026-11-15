@@ -2,6 +2,7 @@ package main
 
 import (
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -18,7 +19,31 @@ func plexLoginFixture(t *testing.T, mode string) (*App, *Store, string, *plexAut
 	if w := apiRequest(a, "POST", "/api/providers/plex/enable", token, map[string]any{}, nil); w.Code != 200 {
 		t.Fatal(w.Code, w.Body.String())
 	}
+	setSignInSwitches(t, s, true, false)
 	return a, s, token, f
+}
+
+// plexMemberToken signs in a regular MUM account with its password, for tests
+// that link Plex to an account other than the owner.
+func plexMemberToken(t *testing.T, a *App, s *Store, owner string) (string, string) {
+	t.Helper()
+	ownerPrincipal, err := s.Authenticate(t.Context(), owner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hash, err := hashPassword("a-strong-member-password")
+	if err != nil {
+		t.Fatal(err)
+	}
+	member, err := s.CreateAccount(t.Context(), ownerPrincipal.UUID, "plex-member", hash, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	w := apiRequest(a, "POST", "/api/auth/login", "", map[string]any{"username": "plex-member", "password": "a-strong-member-password"}, nil)
+	if w.Code != 200 {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	return responseData(t, w)["access_token"].(string), member
 }
 
 // linkPlexForTest links Plex account 2 to the signed-in account, as the
@@ -58,7 +83,8 @@ func countRows(t *testing.T, s *Store, query string, args ...any) int {
 }
 
 func TestPlexSignInSignsInTheLinkedAccountOnce(t *testing.T) {
-	a, s, token, _ := plexLoginFixture(t, "")
+	a, s, owner, _ := plexLoginFixture(t, "")
+	token, member := plexMemberToken(t, a, s, owner)
 	linkPlexForTest(t, a, token)
 	sessions := countRows(t, s, "SELECT count(*) FROM app_sessions")
 	id, cookie := startPlexLoginForTest(t, a, true)
@@ -75,8 +101,12 @@ func TestPlexSignInSignsInTheLinkedAccountOnce(t *testing.T) {
 		t.Fatal(w.Code, w.Body.String())
 	}
 	data := responseData(t, w)
-	if data["status"] != "signed_in" || data["user"].(map[string]any)["user_type"] != "owner" || strings.Contains(w.Body.String(), plexFixtureToken) {
+	if data["status"] != "signed_in" || data["user"].(map[string]any)["uuid"] != member || strings.Contains(w.Body.String(), plexFixtureToken) {
 		t.Fatal("unexpected sign-in result", w.Body.String())
+	}
+	var origin, connection string
+	if err := s.reader.QueryRow("SELECT s.sign_in_origin,s.via_plex_connection FROM app_sessions s JOIN session_access_tokens t ON t.session_id=s.id WHERE t.token_hash=?", tokenHash(data["access_token"].(string))).Scan(&origin, &connection); err != nil || origin != "plex_connection" || connection == "" {
+		t.Fatal("Plex session origin", origin, connection, err)
 	}
 	var refresh *http.Cookie
 	for _, c := range w.Result().Cookies() {
@@ -110,7 +140,8 @@ func TestPlexSignInSignsInTheLinkedAccountOnce(t *testing.T) {
 }
 
 func TestPlexSignInRefusesAnUnlinkedOrDisconnectedPlexAccount(t *testing.T) {
-	a, s, token, _ := plexLoginFixture(t, "")
+	a, s, owner, _ := plexLoginFixture(t, "")
+	token, _ := plexMemberToken(t, a, s, owner)
 	sessions := countRows(t, s, "SELECT count(*) FROM app_sessions")
 	id, cookie := startPlexLoginForTest(t, a, false)
 	w := apiRequest(a, "POST", "/api/auth/plex/"+id+"/poll", "", map[string]any{}, cookie)
@@ -158,5 +189,143 @@ func TestPlexSignInWaitsForApprovalAndRespectsTheProvider(t *testing.T) {
 	f.mu.Unlock()
 	if creates != 1 {
 		t.Fatal("a disabled provider still contacted Plex", creates)
+	}
+}
+
+// plexShareServer adds an enabled Plex server with one synced user whose
+// external ID is external, and returns the server and that service account.
+func plexShareServer(t *testing.T, s *Store, name, external string) (int64, string) {
+	t.Helper()
+	r, err := s.writer.Exec(`INSERT INTO media_servers(server_nickname,service_type,url,api_key) VALUES(?,'plex','http://plex.invalid','k')`, name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	server, _ := r.LastInsertId()
+	return server, seedExternalService(t, s, server, external)
+}
+
+func plexSignInNow(t *testing.T, a *App) *httptest.ResponseRecorder {
+	t.Helper()
+	id, cookie := startPlexLoginForTest(t, a, false)
+	return apiRequest(a, "POST", "/api/auth/plex/"+id+"/poll", "", map[string]any{}, cookie)
+}
+
+// A linked Plex account signs in with the switch off, as it did before media
+// server sign-in existed; only synced shares need the switch.
+func TestPlexSignInSharesRequireSwitch(t *testing.T) {
+	a, s, owner, _ := plexLoginFixture(t, "")
+	setSignInSwitches(t, s, false, false)
+	plexShareServer(t, s, "Plex", "2")
+	if w := plexSignInNow(t, a); w.Code != 403 || !strings.Contains(w.Body.String(), "PLEX_ACCOUNT_NOT_LINKED") {
+		t.Fatal("a synced share signed in with the switch off", w.Code, w.Body.String())
+	}
+	if countRows(t, s, "SELECT count(*) FROM user_accounts WHERE kind='local'") != 0 {
+		t.Fatal("an account was created with the switch off")
+	}
+	token, member := plexMemberToken(t, a, s, owner)
+	linkPlexForTest(t, a, token)
+	w := plexSignInNow(t, a)
+	if w.Code != 200 || responseData(t, w)["user"].(map[string]any)["uuid"] != member {
+		t.Fatal("linked Plex refused with the switch off", w.Code, w.Body.String())
+	}
+}
+
+func TestPlexSignInMatchesSyncedShare(t *testing.T) {
+	a, s, _, _ := plexLoginFixture(t, "")
+	_, share := plexShareServer(t, s, "Plex One", "2")
+	_, other := plexShareServer(t, s, "Plex Two", "2")
+	w := plexSignInNow(t, a)
+	if w.Code != 200 {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	user := responseData(t, w)["user"].(map[string]any)
+	if user["user_type"] != "local" || user["has_admin_access"] != false {
+		t.Fatal("created account", user)
+	}
+	// The verified Plex account proves both shares, so both join the account.
+	if countRows(t, s, "SELECT count(*) FROM service_links WHERE user_uuid=? AND service_uuid IN (?,?) AND link_kind='owner'", user["uuid"], share, other) != 2 {
+		t.Fatal("shares not linked to the new account")
+	}
+	var origin string
+	if err := s.reader.QueryRow("SELECT sign_in_origin FROM app_sessions WHERE user_uuid=?", user["uuid"]).Scan(&origin); err != nil || origin != "service" {
+		t.Fatal("origin", origin, err)
+	}
+	if w := plexSignInNow(t, a); w.Code != 200 || responseData(t, w)["user"].(map[string]any)["uuid"] != user["uuid"] {
+		t.Fatal("second Plex sign-in reached another account", w.Body.String())
+	}
+}
+
+func TestPlexSignInNeverMatchesServerOwnerID(t *testing.T) {
+	a, s, _, _ := plexLoginFixture(t, "")
+	plexShareServer(t, s, "Plex", plexOwnerAccountID)
+	if w := plexSignInNow(t, a); w.Code != 403 || !strings.Contains(w.Body.String(), "PLEX_ACCOUNT_NOT_LINKED") {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	if countRows(t, s, "SELECT count(*) FROM user_accounts WHERE kind='local'") != 0 {
+		t.Fatal("an account was created from the server owner record")
+	}
+}
+
+func TestPlexSignInSharesOwnedByDifferentAccounts(t *testing.T) {
+	a, s, owner, _ := plexLoginFixture(t, "")
+	ownerPrincipal, _ := s.Authenticate(t.Context(), owner)
+	_, first := plexShareServer(t, s, "Plex One", "2")
+	_, second := plexShareServer(t, s, "Plex Two", "2")
+	for i, service := range []string{first, second} {
+		user, err := s.CreateAccount(t.Context(), ownerPrincipal.UUID, "holder"+string(rune('a'+i)), "fixture-hash", false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := s.writer.Exec("INSERT INTO service_links(user_uuid,service_uuid,link_kind,created_at) VALUES(?,?,'owner',?)", user, service, utcTimestamp(time.Now())); err != nil {
+			t.Fatal(err)
+		}
+	}
+	sessions := countRows(t, s, "SELECT count(*) FROM app_sessions")
+	if w := plexSignInNow(t, a); w.Code != 409 || !strings.Contains(w.Body.String(), "SERVICE_ACCOUNT_CLAIMED") {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	if countRows(t, s, "SELECT count(*) FROM app_sessions") != sessions {
+		t.Fatal("an ambiguous Plex account received a session")
+	}
+}
+
+// The owner's own linked Plex account keeps signing in whatever the switches
+// say, as it did before media server sign-in existed.
+func TestPlexSignInOwnerLinkedPlex(t *testing.T) {
+	a, s, owner, _ := plexLoginFixture(t, "")
+	ownerPrincipal, _ := s.Authenticate(t.Context(), owner)
+	linkPlexForTest(t, a, owner)
+	for _, sw := range [][2]bool{{true, false}, {false, false}, {true, true}} {
+		setSignInSwitches(t, s, sw[0], sw[1])
+		w := plexSignInNow(t, a)
+		if w.Code != 200 || responseData(t, w)["user"].(map[string]any)["uuid"] != ownerPrincipal.UUID {
+			t.Fatal("owner's linked Plex refused", sw, w.Code, w.Body.String())
+		}
+		if _, err := s.Authenticate(t.Context(), responseData(t, w)["access_token"].(string)); err != nil {
+			t.Fatal("owner's Plex session refused", sw, err)
+		}
+	}
+}
+
+// An administrator reached through synced shares follows the administrator
+// switch.
+func TestPlexSignInSharesAdminRule(t *testing.T) {
+	a, s, owner, _ := plexLoginFixture(t, "")
+	ownerPrincipal, _ := s.Authenticate(t.Context(), owner)
+	_, share := plexShareServer(t, s, "Plex", "2")
+	admin, err := s.CreateAccount(t.Context(), ownerPrincipal.UUID, "share-admin", "fixture-hash", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.writer.Exec("INSERT INTO service_links(user_uuid,service_uuid,link_kind,created_at) VALUES(?,?,'owner',?)", admin, share, utcTimestamp(time.Now())); err != nil {
+		t.Fatal(err)
+	}
+	grantAdministrator(t, s, admin)
+	if w := plexSignInNow(t, a); w.Code != 403 || !strings.Contains(w.Body.String(), "ADMIN_PASSWORD_REQUIRED") {
+		t.Fatal("administrator signed in through a share while admins are off", w.Code, w.Body.String())
+	}
+	setSignInSwitches(t, s, true, true)
+	if w := plexSignInNow(t, a); w.Code != 200 || responseData(t, w)["user"].(map[string]any)["uuid"] != admin {
+		t.Fatal("administrator refused while admins are on", w.Code, w.Body.String())
 	}
 }

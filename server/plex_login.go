@@ -13,9 +13,13 @@ import (
 
 // Sign in with Plex. An anonymous Plex PIN authorization, bound to the browser
 // that started it, signs in the MUM account whose active Plex connection
-// (linked on the account page) matches the Plex account Plex verifies. The
-// Plex token only proves the account during the attempt: it is never stored,
-// and the attempt ends in at most one session.
+// (linked on the account page) matches the Plex account Plex verifies; that
+// works whenever the Plex provider is enabled, for any account, as before
+// media server sign-in existed. With media server sign-in (SERVICE_SIGN_IN)
+// on, an unlinked Plex account also signs in the account that owns its synced
+// shares (created on first sign-in), under the administrator rule. The Plex token
+// only proves the account during the attempt: it is never stored, and the
+// attempt ends in at most one session.
 
 var (
 	errPlexLoginDisabled = errors.New("Plex sign-in is disabled")
@@ -55,7 +59,9 @@ func plexLoginError(w http.ResponseWriter, err error) {
 		w.Header().Set("Retry-After", "2")
 		fail(w, 429, "PLEX_SIGN_IN_LIMIT", "Wait before starting or checking Plex sign-in")
 	case errors.Is(err, errPlexLoginDisabled):
-		fail(w, 409, "PLEX_SIGN_IN_DISABLED", "Plex sign-in is turned off because the Plex provider is disabled")
+		fail(w, 409, "PLEX_SIGN_IN_DISABLED", "Plex sign-in is turned off")
+	case errors.Is(err, errServiceAccountClaimed), errors.Is(err, errServiceAdminPassword):
+		serviceLoginError(w, err)
 	case errors.Is(err, errPlexLoginUnlinked):
 		fail(w, 403, "PLEX_ACCOUNT_NOT_LINKED", "This Plex account is not linked to a MUM account. Sign in with your password, then link Plex on your account page under Credentials.")
 	case errors.Is(err, ErrForbidden):
@@ -264,17 +270,33 @@ func (a *App) pollPlexLogin(w http.ResponseWriter, r *http.Request) {
 	// Plex verified the account: the attempt is consumed either way, and its
 	// device secret is discarded.
 	var owner string
+	var origin sessionOrigin
+	var refused error
 	err = a.store.write(ctx, func(tx *sql.Tx) error {
 		if err := plexLoginEnabled(ctx, tx); err != nil {
 			return err
 		}
-		lookup := tx.QueryRowContext(ctx, "SELECT owner_uuid FROM plex_connections WHERE account_id=? AND status='active'", result.Account.ID).Scan(&owner)
+		var connection string
+		lookup := tx.QueryRowContext(ctx, "SELECT id,owner_uuid FROM plex_connections WHERE account_id=? AND status='active'", result.Account.ID).Scan(&connection, &owner)
 		if lookup != nil && !errors.Is(lookup, sql.ErrNoRows) {
 			return lookup
 		}
-		next, action := "consumed", "auth.login.plex"
+		origin = sessionOrigin{Kind: "plex_connection", PlexConnection: connection}
 		if errors.Is(lookup, sql.ErrNoRows) {
-			next, action, owner = "failed", "auth.login.plex.unlinked", ""
+			var service string
+			if enabled, _ := serviceSignInSettings(ctx, tx); !enabled {
+				refused = errPlexLoginUnlinked
+			} else {
+				owner, service, refused = resolvePlexShares(ctx, tx, result.Account.ID)
+			}
+			origin = sessionOrigin{Kind: "service", Service: service}
+		}
+		next, action := "consumed", "auth.login.plex"
+		if refused != nil {
+			next, action, owner = "failed", "auth.login.plex.refused", ""
+			if errors.Is(refused, errPlexLoginUnlinked) {
+				action = "auth.login.plex.unlinked"
+			}
 		}
 		updated, err := tx.ExecContext(ctx, `UPDATE plex_login_attempts SET status=?,secret=NULL,operation_token=NULL,operation_expires_at=NULL,revision=revision+1,updated_at=? WHERE id=? AND browser_hash=? AND revision=? AND status='pending' AND operation_token=? AND operation_expires_at>? AND expires_at>?`,
 			next, utcTimestamp(time.Now()), id, tokenHash(cookie.Value), p.Revision, lease, utcTimestamp(time.Now()), utcTimestamp(time.Now()))
@@ -292,22 +314,101 @@ func (a *App) pollPlexLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a.setPlexLoginCookie(w, r, id, "", -1)
-	if owner == "" {
-		plexLoginError(w, errPlexLoginUnlinked)
+	if refused != nil {
+		plexLoginError(w, refused)
 		return
 	}
-	// Plex has proved the linked account, which stands in for the password
-	// proof; the session rechecks that the account is active and unexpired.
-	tokens, err := a.store.issueSession(ctx, owner, p.Remember)
-	if err != nil {
-		fail(w, 401, "INVALID_CREDENTIALS", "Account is unavailable")
+	// Plex has proved the account, which stands in for the password proof. A
+	// share sign-in rechecks the switches and the administrator rule; every
+	// session rechecks that the account is active and unexpired.
+	var tokens sessionTokens
+	var principal Principal
+	err = a.store.write(ctx, func(tx *sql.Tx) error {
+		var err error
+		if principal, err = loadPrincipal(ctx, tx, owner); err != nil {
+			return err
+		}
+		if origin.Kind == "service" {
+			if err := serviceSignInPermitted(ctx, tx, principal); err != nil {
+				return err
+			}
+		}
+		tokens, err = insertSession(ctx, tx, owner, origin, p.Remember)
+		return err
+	})
+	if errors.Is(err, errServiceLoginDisabled) {
+		err = errPlexLoginDisabled
+	}
+	if errors.Is(err, errServiceAdminPassword) || errors.Is(err, errPlexLoginDisabled) {
+		plexLoginError(w, err)
 		return
 	}
-	principal, err := loadPrincipal(ctx, a.store.reader, owner)
 	if err != nil {
 		fail(w, 401, "INVALID_CREDENTIALS", "Account is unavailable")
 		return
 	}
 	a.setRefreshCookie(w, r, tokens)
 	respond(w, 200, map[string]any{"id": id, "status": "signed_in", "access_token": tokens.Access, "user": principal})
+}
+
+// resolvePlexShares finds the active synced shares of a verified Plex account
+// on enabled Plex servers (never the server owner record) and returns the MUM
+// account they belong to, creating one on first sign-in. Shares owned by
+// different MUM accounts are refused; unowned shares join the account, since
+// the verified Plex account proves them all.
+func resolvePlexShares(ctx context.Context, tx *sql.Tx, account string) (user, service string, err error) {
+	if account == "" || account == plexOwnerAccountID {
+		return "", "", errPlexLoginUnlinked
+	}
+	rows, err := tx.QueryContext(ctx, `SELECT sa.uuid,sa.server_id,coalesce((SELECT l.user_uuid FROM service_links l WHERE l.service_uuid=sa.uuid AND l.link_kind='owner'),'')
+	 FROM service_accounts sa JOIN media_servers m ON m.id=sa.server_id JOIN provider_settings p ON p.provider_id=m.service_type
+	 WHERE m.service_type='plex' AND m.is_active=1 AND p.enabled=1 AND sa.external_user_id=? AND sa.is_active=1 AND sa.removed_at IS NULL
+	 ORDER BY sa.server_id,sa.uuid`, account)
+	if err != nil {
+		return "", "", err
+	}
+	type share struct {
+		service, owner string
+		server         int64
+	}
+	var shares []share
+	for rows.Next() {
+		var s share
+		if err := rows.Scan(&s.service, &s.server, &s.owner); err != nil {
+			rows.Close()
+			return "", "", err
+		}
+		shares = append(shares, s)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return "", "", err
+	}
+	if len(shares) == 0 {
+		return "", "", errPlexLoginUnlinked
+	}
+	for _, s := range shares {
+		if s.owner == "" {
+			continue
+		}
+		if user != "" && user != s.owner {
+			return "", "", errServiceAccountClaimed
+		}
+		user, service = s.owner, s.service
+	}
+	if user == "" {
+		if user, service, err = resolveServiceAccount(ctx, tx, shares[0].server, account, true); err != nil {
+			return "", "", err
+		}
+	}
+	now := utcTimestamp(time.Now())
+	for _, s := range shares {
+		if s.owner != "" || s.service == service {
+			continue
+		}
+		if _, err := tx.ExecContext(ctx, "INSERT INTO service_links(user_uuid,service_uuid,link_kind,created_at) VALUES(?,?,'owner',?)", user, s.service, now); err != nil {
+			return "", "", err
+		}
+	}
+	return user, service, nil
 }

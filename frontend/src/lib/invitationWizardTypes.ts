@@ -128,6 +128,7 @@ export type WizardState = {
   meta: {
     server_label: string;
     has_multiple_servers: boolean;
+    service_sign_in: boolean;
   };
 };
 

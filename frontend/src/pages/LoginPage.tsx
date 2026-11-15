@@ -6,6 +6,10 @@ import { useLocation, useNavigate, useSearch } from '@tanstack/react-router';
 import { requestJson, ApiError } from '../util/apiClient';
 import { setAccessToken } from '../util/tokenStore';
 import { checkPlexSignIn, startPlexSignIn } from '../lib/plexSignIn';
+import { serviceSignIn } from '../lib/serviceSignIn';
+import { useSignInMethods } from '../hooks/useSignInMethods';
+import { getServiceIcon, getServiceMeta } from '../config/pluginMetadata';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -49,6 +53,13 @@ const LoginPage = () => {
   const [logoutNotice, setLogoutNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showInactivityInfo, setShowInactivityInfo] = useState(false);
+  // 'mum' signs in with a MUM password, 'plex' through Plex's own sign-in
+  // page, and a server ID with that server's login.
+  const [target, setTarget] = useState('mum');
+  const methods = useSignInMethods();
+  const targetServer = methods.servers.find((server) => String(server.id) === target);
+  const plexChosen = methods.plex && target === 'plex';
+  const showPicker = methods.plex || (methods.serviceSignIn && methods.servers.length > 0);
 
   // Prefer ?next= query, then location.state.from, else dashboard
   const search = useSearch({ strict: false }) as { next?: string; error?: string };
@@ -110,26 +121,31 @@ const LoginPage = () => {
     setError(null);
 
     try {
-      const response = await requestJson<{
-        data?: {
-          access_token?: string;
-          user?: unknown;
-        };
-      }>(
-        '/api/auth/login',
-        {
-          method: 'POST',
-          body: JSON.stringify({
-            username,
-            password,
-            remember: rememberMe
-          })
-        }
-      );
+      let token: string | undefined;
+      if (targetServer) {
+        token = await serviceSignIn(targetServer.id, username, password, rememberMe);
+      } else {
+        const response = await requestJson<{
+          data?: {
+            access_token?: string;
+            user?: unknown;
+          };
+        }>(
+          '/api/auth/login',
+          {
+            method: 'POST',
+            body: JSON.stringify({
+              username,
+              password,
+              remember: rememberMe
+            })
+          }
+        );
 
-      const token = (response && typeof response === 'object' && 'data' in response)
-        ? (response.data as { access_token?: string })?.access_token
-        : undefined;
+        token = (response && typeof response === 'object' && 'data' in response)
+          ? (response.data as { access_token?: string })?.access_token
+          : undefined;
+      }
       if (!currentAttempt(attempt, auth)) return;
       if (!token) throw new Error('Sign-in response did not include an access token');
       setAccessToken(token);
@@ -276,7 +292,7 @@ const LoginPage = () => {
             <Card className="rounded-2xl shadow-2xl p-8 max-w-md mx-auto">
               <CardHeader className="text-center">
                 <CardTitle className="text-2xl mb-2">Sign In</CardTitle>
-                <CardDescription>Use your MUM account or Plex</CardDescription>
+                <CardDescription>{methods.serviceSignIn ? 'Use your MUM account or a media server login' : methods.plex ? 'Use your MUM account or Plex' : 'Use your MUM account'}</CardDescription>
               </CardHeader>
 
               <CardContent className="space-y-6">
@@ -305,11 +321,45 @@ const LoginPage = () => {
                 )}
 
                 <form onSubmit={handleSubmit} className="space-y-6">
+                  {/* Account Choice: a MUM account or a media server login */}
+                  {showPicker && (
+                    <div className="space-y-2">
+                      <Label htmlFor="sign-in-target" className="flex items-center gap-2">
+                        <FontAwesomeIcon icon={faServer} className="text-muted-foreground text-sm" />
+                        <span>Sign in using</span>
+                      </Label>
+                      <Select value={plexChosen ? 'plex' : targetServer ? target : 'mum'} onValueChange={setTarget}>
+                        <SelectTrigger id="sign-in-target" className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="mum">
+                            <FontAwesomeIcon icon={faCrown} className="text-primary" />
+                            <span>MUM account</span>
+                          </SelectItem>
+                          {methods.plex && (
+                            <SelectItem value="plex">
+                              {getServiceIcon('plex')}
+                              <span>Plex <span className="text-muted-foreground">(Plex account)</span></span>
+                            </SelectItem>
+                          )}
+                          {methods.servers.map((server) => (
+                            <SelectItem key={server.id} value={String(server.id)}>
+                              {getServiceIcon(server.type)}
+                              <span>{server.name} <span className="text-muted-foreground">({getServiceMeta(server.type).label})</span></span>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
+                  {!plexChosen && (<>
                   {/* Username Field */}
                   <div className="space-y-2">
                     <Label htmlFor="username" className="flex items-center gap-2">
                       <FontAwesomeIcon icon={faUserShield} className="text-muted-foreground text-sm" />
-                      <span>Username</span>
+                      <span>{targetServer ? `${targetServer.name} username` : 'Username'}</span>
                     </Label>
                     <Input
                       id="username"
@@ -340,6 +390,7 @@ const LoginPage = () => {
                       className="transition-all duration-200 ease-in-out focus:-translate-y-0.5"
                     />
                   </div>
+                  </>)}
 
                   {/* Remember Me Checkbox */}
                   <div className="flex items-center space-x-2">
@@ -353,7 +404,33 @@ const LoginPage = () => {
                     </Label>
                   </div>
 
-                  {/* Sign In Button */}
+                  {plexChosen ? (<>
+                  {/* Plex SSO Button */}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handlePlexSSO}
+                    title="Sign in with your Plex account"
+                    className="w-full text-lg h-12 hover:-translate-y-0.5 hover:shadow-lg transition-all duration-200 ease-in-out border-orange-600 text-orange-700 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-950 hover:border-orange-600"
+                    disabled={plexLoading || submitting}
+                  >
+                    {plexLoading ? (
+                      <>
+                        <Spinner className="h-4 w-4 mr-2" />
+                        Connecting...
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-5 h-5 mr-3" viewBox="0 0 192 192" xmlns="http://www.w3.org/2000/svg" fill="currentColor" stroke="transparent" strokeLinejoin="round" strokeWidth="12">
+                          <path d="M22 25.5h48L116 94l-46 68.5H22L68.5 94Zm109.8 56L108 46l14-20.5h48zm-.3 23.5c10.979 17.625 25.52 38.875 38.5 49.5-11.149 13.635-34.323 32.278-62.5-14z"/>
+                        </svg>
+                        Sign in with Plex
+                      </>
+                    )}
+                  </Button>
+                  <p className="text-xs text-muted-foreground text-center">{methods.serviceSignIn ? 'Use the Plex account you were invited with or linked under Account → Credentials.' : 'Link your Plex account first under Account → Credentials.'}</p>
+                  </>) : (
+                  /* Sign In Button */
                   <Button
                     type="submit"
                     className="w-full text-lg h-12 hover:-translate-y-0.5 hover:shadow-lg transition-all duration-200 ease-in-out"
@@ -368,6 +445,7 @@ const LoginPage = () => {
                       'Sign in'
                     )}
                   </Button>
+                  )}
                 </form>
 
                 <ResponsiveDialog
@@ -388,40 +466,6 @@ const LoginPage = () => {
                   </div>
                 </ResponsiveDialog>
 
-                {/* Divider */}
-                <div className="relative">
-                  <div className="absolute inset-0 flex items-center">
-                    <Separator />
-                  </div>
-                  <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-card px-2 text-muted-foreground">or continue with</span>
-                  </div>
-                </div>
-
-                {/* Plex SSO Button */}
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handlePlexSSO}
-                  title="Sign in with a Plex account linked to your MUM account"
-                  className="w-full text-lg h-12 hover:-translate-y-0.5 hover:shadow-lg transition-all duration-200 ease-in-out border-orange-600 text-orange-700 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-950 hover:border-orange-600"
-                  disabled={plexLoading || submitting}
-                >
-                  {plexLoading ? (
-                    <>
-                      <Spinner className="h-4 w-4 mr-2" />
-                      Connecting...
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-5 h-5 mr-3" viewBox="0 0 192 192" xmlns="http://www.w3.org/2000/svg" fill="currentColor" stroke="transparent" strokeLinejoin="round" strokeWidth="12">
-                        <path d="M22 25.5h48L116 94l-46 68.5H22L68.5 94Zm109.8 56L108 46l14-20.5h48zm-.3 23.5c10.979 17.625 25.52 38.875 38.5 49.5-11.149 13.635-34.323 32.278-62.5-14z"/>
-                      </svg>
-                      Sign in with Plex
-                    </>
-                  )}
-                </Button>
-                <p className="text-xs text-muted-foreground text-center">Link your Plex account first under Account → Credentials.</p>
 
                 {/* Additional Info */}
                 <div className="pt-6">

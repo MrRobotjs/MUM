@@ -28,5 +28,5 @@ func (a *App) accountProfile(w http.ResponseWriter, r *http.Request) {
 	if lastLogin.Valid {
 		login = lastLogin.String
 	}
-	respond(w, 200, map[string]any{"uuid": owner.UUID, "username": username, "email": address, "user_type": owner.Kind, "has_password": hasPassword, "force_password_change": forcePassword, "last_login_at": login, "plex_authorization_enabled": plexEnabled, "profile_changes_available": false, "password_change_available": hasPassword, "email_change_available": hasPassword, "profile_revision": revision, "email_verified": false})
+	respond(w, 200, map[string]any{"uuid": owner.UUID, "username": username, "email": address, "user_type": owner.Kind, "has_password": hasPassword, "force_password_change": forcePassword, "last_login_at": login, "plex_authorization_enabled": plexEnabled, "profile_changes_available": false, "password_change_available": hasPassword, "email_change_available": hasPassword, "profile_revision": revision, "email_verified": false, "initial_credentials_available": !hasPassword && owner.Kind == "local"})
 }

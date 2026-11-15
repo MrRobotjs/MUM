@@ -341,3 +341,15 @@ func TestInvitationDiscordConfigurationAndRecovery(t *testing.T) {
 		t.Fatal("start with Discord disabled", w.Code)
 	}
 }
+
+func TestPublicInvitationReportsServiceSignIn(t *testing.T) {
+	a, s, _, _, create := discordInvitationApp(t)
+	_, token := create(false)
+	for _, enabled := range []bool{false, true} {
+		setSignInSwitches(t, s, enabled, false)
+		data := responseData(t, apiRequest(a, "GET", "/api/public/invitations/"+token, "", nil, nil))
+		if data["service_sign_in"] != enabled {
+			t.Fatal("public invitation service_sign_in", enabled, data["service_sign_in"])
+		}
+	}
+}

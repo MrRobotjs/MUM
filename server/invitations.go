@@ -458,7 +458,8 @@ func (a *App) publicInvitation(w http.ResponseWriter, r *http.Request) {
 			discord["invite_url"] = settings.InviteURL
 		}
 	}
-	respond(w, 200, map[string]any{"id": id, "revision": revision, "expires_at": nullableText(expires), "max_uses": invitationLimit(maxUses), "current_uses": uses, "reserved_uses": reserved, "servers": servers, "grants": grants, "discord": discord})
+	serviceSignIn, _ := serviceSignInSettings(r.Context(), a.store.reader)
+	respond(w, 200, map[string]any{"id": id, "revision": revision, "expires_at": nullableText(expires), "max_uses": invitationLimit(maxUses), "current_uses": uses, "reserved_uses": reserved, "servers": servers, "grants": grants, "discord": discord, "service_sign_in": serviceSignIn})
 }
 
 type redemptionInput struct {

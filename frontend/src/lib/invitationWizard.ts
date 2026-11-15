@@ -12,6 +12,8 @@ export type PublicInvitation = {
   servers: { id: number; name: string; provider: string; access_url: string; libraries: { id: string; name: string }[] }[];
   grants: { server_id: number; all_libraries: boolean; library_ids: string[]; allow_downloads: boolean }[];
   discord: { required: boolean; requires_guild: boolean; available: boolean; invite_url: string | null };
+  // Invitees sign in to MUM with their media server login (SERVICE_SIGN_IN).
+  service_sign_in?: boolean;
 };
 export type DiscordProof = { authorization_id: string; status: 'pending' | 'exchanging' | 'verified' | 'consumed' | 'failed' | 'expired'; error_code: string | null;
   user: { id: string; username: string; avatar: string | null } | null; guild_verified: boolean | null; invite_url: string | null };
@@ -91,7 +93,9 @@ function publicSnapshot(value: unknown): PublicInvitation {
   if (!d || typeof d.required !== 'boolean' || typeof d.requires_guild !== 'boolean' || typeof d.available !== 'boolean' || d.requires_guild && !d.required ||
       d.invite_url !== null && !(typeof d.invite_url === 'string' && /^https:\/\/(discord\.gg\/|discord\.com\/invite\/)[A-Za-z0-9-]+$/.test(d.invite_url))) throw new Error('Invalid invitation Discord requirement');
   const discord = { required: d.required, requires_guild: d.requires_guild, available: d.available, invite_url: d.invite_url };
-  return { id: v.id, revision: v.revision, expires_at: v.expires_at, max_uses: v.max_uses, current_uses: v.current_uses, reserved_uses: v.reserved_uses, servers, grants, discord };
+  const serviceSignIn = (v as { service_sign_in?: unknown }).service_sign_in;
+  if (serviceSignIn !== undefined && typeof serviceSignIn !== 'boolean') throw new Error('Invalid invitation sign-in setting');
+  return { id: v.id, revision: v.revision, expires_at: v.expires_at, max_uses: v.max_uses, current_uses: v.current_uses, reserved_uses: v.reserved_uses, servers, grants, discord, service_sign_in: serviceSignIn === true };
 }
 
 const discordStatuses = ['pending', 'exchanging', 'verified', 'consumed', 'failed', 'expired'];
@@ -151,6 +155,14 @@ async function publicRequest<T>(token: string, suffix = '', body?: object, bound
   return payload?.data as T;
 }
 
+// serviceSignInNotice tells an invitee which logins sign them in to MUM.
+export function serviceSignInNotice(servers: { name: string }[]): string {
+  const names = servers.map(server => server.name);
+  if (!names.length) return '';
+  const list = names.length === 1 ? names[0] : `${names.slice(0, -1).join(', ')} or ${names[names.length - 1]}`;
+  return `Sign in to MUM with your ${list} login.`;
+}
+
 // A custom invite path (Flask feature) is resolved to the invitation's link
 // code; every later request uses the code.
 export async function resolveInvitationToken(value: string): Promise<string> {
@@ -176,7 +188,8 @@ async function loadPublicInvitationByToken(token: string, storage: StoragePort |
   const saved = savedAttempt(token, storage);
   try {
     const current = publicSnapshot(await publicRequest(token));
-    const draft = new InvitationDraft(token, saved?.invitation.id === current.id ? saved.invitation : current, storage, saved?.requestID, Boolean(saved));
+    // A resumed attempt keeps its frozen invitation, but the sign-in setting is always the current one.
+    const draft = new InvitationDraft(token, saved?.invitation.id === current.id ? { ...saved.invitation, service_sign_in: current.service_sign_in } : current, storage, saved?.requestID, Boolean(saved));
     if (current.discord.required) await draft.refreshDiscord();
     return draft;
   } catch (error) {
@@ -329,7 +342,7 @@ export class InvitationDraft {
         guild_error: this.discord?.status === 'failed' ? discordMessages[this.discord.error_code ?? ''] ?? 'Discord sign-in failed. Try again.' : this.discord?.status === 'expired' ? 'Discord sign-in expired. Sign in again.' : null },
       account: { allowed: true, completed: Boolean(a), data: a ? { username: a.username, email: a.email } : null,
         preferences: { use_same_username: a?.use_same_username ?? true, use_same_email: a?.use_same_email ?? true, use_same_password: a?.use_same_password ?? true } },
-      servers, disabled_servers: [], meta: { server_label: servers.length === 1 ? 'server' : 'servers', has_multiple_servers: servers.length > 1 },
+      servers, disabled_servers: [], meta: { server_label: servers.length === 1 ? 'server' : 'servers', has_multiple_servers: servers.length > 1, service_sign_in: this.invitation.service_sign_in === true },
     };
   }
 

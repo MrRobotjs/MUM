@@ -16,6 +16,9 @@ import { useAuth } from '../contexts/AuthContext';
 import { AccountEmailCard } from '../components/users/AccountEmailCard';
 import { PasswordChangeCard } from '../components/users/PasswordChangeCard';
 import { PlexConnectionCard } from '../components/users/PlexConnectionCard';
+import { ServiceLinksCard } from '../components/users/ServiceLinksCard';
+import { getServiceLinks, type SignInServer } from '../lib/serviceSignIn';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { fetchPersonalProfile } from '../lib/plexConnection';
 import { useAlerts } from '../contexts/AlertContext';
 import { AccountDisplayCard } from '../components/users/AccountDisplayCard';
@@ -78,6 +81,20 @@ const InitialCredentialsForm = ({ initialUsername, onSuccess }: InitialCredentia
   });
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  // Setting the first MUM password proves a linked server login again.
+  const [verifyServers, setVerifyServers] = useState<SignInServer[] | null>(null);
+  const [verification, setVerification] = useState({ server: '', username: '', password: '' });
+
+  useEffect(() => {
+    let current = true;
+    getServiceLinks().then((value) => {
+      if (!current) return;
+      const linked = new Set(value.links.map((link) => link.serverId));
+      setVerifyServers(value.servers.filter((server) => linked.has(server.id)));
+    }, () => { if (current) setVerifyServers([]); });
+    return () => { current = false; };
+  }, []);
+  const verifyServer = verifyServers?.find((server) => String(server.id) === verification.server);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -95,6 +112,7 @@ const InitialCredentialsForm = ({ initialUsername, onSuccess }: InitialCredentia
         body: JSON.stringify({
           username: form.username,
           password: form.password,
+          ...(verifyServer ? { verification: { server_id: verifyServer.id, username: verification.username, password: verification.password } } : {}),
         }),
       });
       onSuccess(response);
@@ -111,7 +129,7 @@ const InitialCredentialsForm = ({ initialUsername, onSuccess }: InitialCredentia
       <CardHeader>
         <CardTitle>Set Local Credentials</CardTitle>
         <CardDescription>
-          Configure a local username and password to sign in without Plex SSO.
+          Add a MUM username and password, so you can also sign in without your media server login.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -135,7 +153,7 @@ const InitialCredentialsForm = ({ initialUsername, onSuccess }: InitialCredentia
               value={form.password}
               onChange={(event) => setForm((prev) => ({ ...prev, password: event.target.value }))}
               required
-              minLength={8}
+              minLength={12}
             />
           </div>
           <div className="space-y-2">
@@ -146,15 +164,43 @@ const InitialCredentialsForm = ({ initialUsername, onSuccess }: InitialCredentia
               value={form.confirmPassword}
               onChange={(event) => setForm((prev) => ({ ...prev, confirmPassword: event.target.value }))}
               required
-              minLength={8}
+              minLength={12}
             />
           </div>
+          {verifyServers && verifyServers.length > 0 ? (
+            <div className="space-y-4 rounded-md border p-4">
+              <p className="text-sm text-muted-foreground">Confirm it is you: sign in to one of your linked server accounts.</p>
+              <div className="space-y-2">
+                <Label htmlFor="verify-server">Server</Label>
+                <Select value={verification.server} onValueChange={(value) => setVerification((prev) => ({ ...prev, server: value }))}>
+                  <SelectTrigger id="verify-server" className="w-full">
+                    <SelectValue placeholder="Choose a server" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {verifyServers.map((server) => (
+                      <SelectItem key={server.id} value={String(server.id)}>{server.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="verify-username">Server username</Label>
+                <Input id="verify-username" autoComplete="off" value={verification.username} required onChange={(event) => setVerification((prev) => ({ ...prev, username: event.target.value }))} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="verify-password">Server password</Label>
+                <Input id="verify-password" type="password" autoComplete="off" value={verification.password} required onChange={(event) => setVerification((prev) => ({ ...prev, password: event.target.value }))} />
+              </div>
+            </div>
+          ) : verifyServers ? (
+            <p className="text-xs text-muted-foreground">If you signed in with Plex, sign in again within five minutes before saving.</p>
+          ) : null}
           {error ? (
             <Alert variant="destructive">
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           ) : null}
-          <Button type="submit" disabled={submitting} className="w-full sm:w-auto">
+          <Button type="submit" disabled={submitting || (verifyServers !== null && verifyServers.length > 0 && !verifyServer)} className="w-full sm:w-auto">
             {submitting ? 'Saving…' : 'Save Credentials'}
           </Button>
         </form>
@@ -190,7 +236,7 @@ const AccountPage = () => {
       const profile = await fetchPersonalProfile();
       if (run !== accountLoad.current) return;
       if (profile.uuid !== user?.uuid) throw new Error('The signed-in account changed. Reload your profile.');
-      setAccount({user:{uuid:profile.uuid,username:profile.username,email:profile.email,display_name:profile.username,user_type:profile.user_type,has_password:profile.has_password,force_password_change:profile.force_password_change,last_login_at:profile.last_login_at},capabilities:{can_set_initial_credentials:false,can_change_password:profile.password_change_available}});
+      setAccount({user:{uuid:profile.uuid,username:profile.username,email:profile.email,display_name:profile.username,user_type:profile.user_type,has_password:profile.has_password,force_password_change:profile.force_password_change,last_login_at:profile.last_login_at},capabilities:{can_set_initial_credentials:profile.initial_credentials_available===true,can_change_password:profile.password_change_available}});
     } catch (error) {
       const message = getApiErrorMessage(error);
       if (run === accountLoad.current) setFetchError(message);
@@ -355,6 +401,7 @@ const AccountPage = () => {
 
           </fieldset>
           <PlexConnectionCard />
+          <ServiceLinksCard />
         </TabsContent>
 
         <TabsContent value="preferences" className="space-y-6">

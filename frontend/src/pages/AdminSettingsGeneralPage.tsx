@@ -13,6 +13,7 @@ import { Label } from '../components/ui/label';
 import { Switch } from '../components/ui/switch';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Spinner } from '@/components/ui/spinner'
+import { SignInSettingsCard } from '../components/settings/SignInSettingsCard';
 
 const buildGeneralFormValues = (settings: GeneralSettings | null): GeneralSettings => ({
   app_name: '',
@@ -250,6 +251,7 @@ export const AdminSettingsGeneralPage = () => {
         description="Configure application-wide settings"
       />
       <GeneralSettingsForm key={settingsKey} initialValues={initialValues} refresh={refresh} />
+      <SignInSettingsCard />
     </div>
   );
 };

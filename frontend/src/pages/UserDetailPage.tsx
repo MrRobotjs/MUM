@@ -4,7 +4,10 @@ import { cn } from '@/lib/utils';
 import { useLocation, useNavigate, useParams, useSearch } from '@tanstack/react-router';
 import { useAlerts } from '../contexts/AlertContext';
 import { useUserDetail, UserDetail } from '../hooks/useUserDetail';
-import {useIdentityHistory,useIdentityCurrent} from '../hooks/useIdentityHistory';
+import {useIdentityCurrent} from '../hooks/useIdentityHistory';
+import {useIdentityTimeline} from '../hooks/useIdentityTimeline';
+import type {TimelineSource} from '../lib/identityTimeline';
+import {Select,SelectContent,SelectItem,SelectTrigger,SelectValue} from '@/components/ui/select';
 import {observationPosition,observationProgress} from '../lib/activityHistory';
 import { useOverseerr } from '../hooks/useOverseerr';
 import { useServers } from '../hooks/useServers';
@@ -452,18 +455,35 @@ const formatTicks = (ticks: string | null) => {
   return `${secs}s`;
 };
 
-const HistoryTab=({history,target}:{history:ReturnType<typeof useIdentityHistory>;target:string})=>{
+// The History tab's source picker: both timelines, or MUM's or Plex's only.
+const historySources:{value:TimelineSource;label:string}[]=[{value:'all',label:'Combined'},{value:'mum',label:'MUM'},{value:'plex',label:'Plex'}];
+const HistorySourcePicker=({source,onChange}:{source:TimelineSource;onChange:(source:TimelineSource)=>void})=>(
+  <Select value={source} onValueChange={(value:TimelineSource)=>onChange(value)}>
+    <SelectTrigger className="w-40" aria-label="History source"><SelectValue/></SelectTrigger>
+    <SelectContent>{historySources.map(option=><SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent>
+  </Select>
+);
+
+// One timeline of MUM's recorded plays and plays imported from Plex's own
+// history. Plex only records when an item was finished, so its rows have no
+// player, length or progress, and carry a "Plex history" label.
+const HistoryTab=({history,target,source,onSourceChange}:{history:ReturnType<typeof useIdentityTimeline>;target:string;source:TimelineSource;onSourceChange:(source:TimelineSource)=>void})=>{
   const {formatTimestamp}=useAccountDisplay();
   const {page,loading,error,refresh,hasPrevious,previous,next}=history;
   if(error)return <section className="space-y-4"><div className="rounded border border-red-500/40 bg-red-50 dark:bg-red-400/10 px-4 py-3 text-sm text-red-600 dark:text-red-400">Failed to load history: {error.message} <Button variant="outline" onClick={()=>void refresh().catch(()=>{})}>Refresh history</Button></div></section>;
   if(loading||!page||page.target_uuid!==target)return <section className="space-y-4"><div className="flex items-center gap-3 rounded border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground"><Spinner className="size-4"/>Fetching recent history…</div></section>;
-  if(page.items.length===0&&!hasPrevious)return <section className="space-y-4"><div className="flex flex-col items-center gap-3 py-10 text-muted-foreground/60"><FontAwesomeIcon icon={faClockRotateLeft} className="text-3xl"/><p className="text-sm">No streaming history to display yet.</p></div></section>;
+  if(page.items.length===0&&!hasPrevious)return <section className="space-y-4"><div className="flex justify-end"><HistorySourcePicker source={source} onChange={onSourceChange}/></div><div className="flex flex-col items-center gap-3 py-10 text-muted-foreground/60"><FontAwesomeIcon icon={faClockRotateLeft} className="text-3xl"/><p className="text-sm">No streaming history to display yet.</p></div></section>;
   return (
     <section className="space-y-4">
       <Card>
         <CardHeader>
-          <CardTitle>Recent Activity</CardTitle>
-          <CardDescription>Streaming history and playback sessions</CardDescription>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <CardTitle>Recent Activity</CardTitle>
+              <CardDescription>Streaming history and playback sessions</CardDescription>
+            </div>
+            <HistorySourcePicker source={source} onChange={onSourceChange}/>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
@@ -473,13 +493,14 @@ const HistoryTab=({history,target}:{history:ReturnType<typeof useIdentityHistory
                   <th className="w-20 py-3 px-4 text-sm font-medium text-muted-foreground">Poster</th>
                   <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Media Title</th>
                   <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Player / Platform</th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground" title="When MUM first observed this playback">Started</th>
+                  <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground" title="When MUM first observed this playback, or when Plex recorded it as watched">Started</th>
                   <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground" title="Last observed position of the total length">Duration</th>
                   <th className="text-center py-3 px-4 text-sm font-medium text-muted-foreground">Progress</th>
                 </tr>
               </thead>
               <tbody>
                 {page.items.map(row=>{
+                  const fromPlex=row.source==='plex';
                   const progress=observationProgress(row.position_ticks,row.duration_ticks)??0;
                   const percent=Math.min(Math.round(progress),100);
                   return (
@@ -489,21 +510,26 @@ const HistoryTab=({history,target}:{history:ReturnType<typeof useIdentityHistory
                         <div className="font-medium">{row.title||'Unknown Title'}</div>
                         {row.parent_title&&<div className="text-xs text-muted-foreground">{row.parent_title}</div>}
                         {row.library_name&&<div className="text-xs text-muted-foreground/60"><FontAwesomeIcon icon={faFolder} className="mr-1 h-3 w-3"/>{row.library_name}</div>}
+                        {fromPlex&&<span className="mt-1 inline-flex items-center rounded-md px-2.5 py-0.5 text-xs font-semibold bg-muted text-muted-foreground" title="Imported from the Plex server's own play history">Plex history</span>}
                       </td>
                       <td className="py-3 px-4">
-                        <div className="font-medium text-sm">{row.client||'Unknown Player'}</div>
-                        <div className="text-xs text-muted-foreground">{row.play_method?playMethodLabels[row.play_method]:'Unknown Platform'}</div>
+                        {fromPlex?<div className="text-xs text-muted-foreground">Not recorded by Plex</div>:<>
+                          <div className="font-medium text-sm">{row.client||'Unknown Player'}</div>
+                          <div className="text-xs text-muted-foreground">{row.play_method?playMethodLabels[row.play_method]:'Unknown Platform'}</div>
+                        </>}
                       </td>
                       <td className="py-3 px-4">
-                        <div className="text-sm">{formatTimestamp(row.first_observed_at,'date')}</div>
-                        <div className="text-xs text-muted-foreground">{formatTimestamp(row.first_observed_at,'time')}</div>
+                        <div className="text-sm">{formatTimestamp(row.played_at,'date')}</div>
+                        <div className="text-xs text-muted-foreground">{formatTimestamp(row.played_at,'time')}</div>
                       </td>
                       <td className="py-3 px-4">
-                        <div className="text-sm font-medium">{formatTicks(row.position_ticks)}</div>
-                        {row.duration_ticks!==null&&<div className="text-xs text-muted-foreground">of {formatTicks(row.duration_ticks)}</div>}
+                        {fromPlex?<div className="text-xs text-muted-foreground">Not recorded</div>:<>
+                          <div className="text-sm font-medium">{formatTicks(row.position_ticks)}</div>
+                          {row.duration_ticks!==null&&<div className="text-xs text-muted-foreground">of {formatTicks(row.duration_ticks)}</div>}
+                        </>}
                       </td>
                       <td className="py-3 px-4 text-center">
-                        <div className="inline-flex items-center justify-center">
+                        {fromPlex?<span className="text-xs text-muted-foreground">Watched</span>:<div className="inline-flex items-center justify-center">
                           <div className="relative size-12">
                             <svg className="size-12 transform -rotate-90">
                               <circle cx="24" cy="24" r="20" stroke="currentColor" strokeWidth="4" fill="none" className="text-muted/30"/>
@@ -511,7 +537,7 @@ const HistoryTab=({history,target}:{history:ReturnType<typeof useIdentityHistory
                             </svg>
                             <div className="absolute inset-0 flex items-center justify-center"><span className="text-xs font-mono font-semibold">{percent}%</span></div>
                           </div>
-                        </div>
+                        </div>}
                       </td>
                     </tr>
                   );
@@ -674,7 +700,8 @@ export const UserDetailPage = () => {
   const { success, error: showError } = useAlerts();
   const { user, loading, error, refresh: refreshUser } = useUserDetail(effectiveUuid);
   const links=useProfileAccountSnapshot(user?.user_type!=='service'?user?.uuid:undefined,Boolean(user)&&user?.user_type!=='service');
-  const history=useIdentityHistory(effectiveUuid,activeTab==='history');
+  const [historySource,setHistorySource]=useState<TimelineSource>('all');
+  const history=useIdentityTimeline(effectiveUuid,historySource,activeTab==='history');
   const {
     overseerrLinks,
     loading: overseerrLoading,
@@ -873,7 +900,7 @@ export const UserDetailPage = () => {
           </TabsContent>
 
           <TabsContent value="history" className="pt-5">
-            <HistoryTab history={history} target={effectiveUuid}/>
+            <HistoryTab history={history} target={effectiveUuid} source={historySource} onSourceChange={setHistorySource}/>
           </TabsContent>
 
           <TabsContent value="settings" className="pt-5">

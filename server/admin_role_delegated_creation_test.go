@@ -21,7 +21,7 @@ func TestDelegatedRoleCreationCapabilityLifecycleAndAudit(t *testing.T) {
 		t.Fatal(catalog)
 	}
 	before := roleRevision(t, s)
-	w := apiRequest(a, "POST", "/api/admin-roles", token, roleChangeBody(actor, before, roleChangeValues("Delegated creation", 49, "admin")), nil)
+	w := apiRequest(a, "POST", "/api/admin-roles", token, roleChangeBody(actor, before, roleChangeValues("Delegated creation", 49)), nil)
 	if w.Code != 201 {
 		t.Fatal(w.Code, w.Body.String())
 	}
@@ -36,7 +36,7 @@ func TestDelegatedRoleCreationCapabilityLifecycleAndAudit(t *testing.T) {
 		t.Fatal(err)
 	}
 	var audit adminRoleChangeAudit
-	if err := json.Unmarshal([]byte(raw), &audit); err != nil || audit.Role != id || audit.BeforeRevision != before || audit.AfterRevision <= before || len(audit.AfterPermissions) != 1 {
+	if err := json.Unmarshal([]byte(raw), &audit); err != nil || audit.Role != id || audit.BeforeRevision != before || audit.AfterRevision <= before || len(audit.AfterPermissions) != 0 {
 		t.Fatal(raw, err)
 	}
 	if w := apiRequest(a, "POST", "/api/admin-roles", token, roleChangeBody(actor, before, roleChangeValues("Stale create", 1)), nil); w.Code != 409 {
@@ -119,7 +119,7 @@ func TestDelegatedRoleCreationCatalogCapacityAndRollback(t *testing.T) {
 					t.Fatal(cap)
 				}
 			}
-			p := adminRoleChange{Actor: actor, Access: token, Revision: roleRevision(t, s), Operation: "create", ID: newUUID(), Values: roleChangeValues("Prepared creation", 10, "admin")}
+			p := adminRoleChange{Actor: actor, Access: token, Revision: roleRevision(t, s), Operation: "create", ID: newUUID(), Values: roleChangeValues("Prepared creation", 10)}
 			rollback := errors.New("rollback after complete creation and audit")
 			err := s.write(t.Context(), func(tx *sql.Tx) error {
 				if mode == "grant" {

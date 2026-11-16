@@ -364,7 +364,7 @@ func TestServiceRemoteDisableDelegatedHierarchy(t *testing.T) {
 	for _, tc := range []struct {
 		name, role, availability string
 		code                     int
-	}{{"no-role", "", "available", 200}, {"cosmetic-lower", "low", "available", 200}, {"peer", "high", "", 403}, {"owner", "", "protected_owner", 200}, {"unowned", "", "owner_only", 200}} {
+	}{{"no-role", "", "available", 200}, {"cosmetic-lower", "low", "available", 200}, {"peer", "high", "", 403}, {"owner", "", "protected_owner", 200}, {"unowned", "", "available", 200}} {
 		t.Run(tc.name, func(t *testing.T) {
 			f := newRemoteFixture(t)
 			switch tc.name {
@@ -771,7 +771,9 @@ func TestServiceRemoteDeleteRefusesRemoteChangesAndNeverReplays(t *testing.T) {
 		t.Run(mode, func(t *testing.T) {
 			f := newRemoteFixture(t)
 			if mode == "delegated" {
-				f.moveService(t, f.member(t, "remote-delete-target", ""))
+				// Only the owner deletes an administrator's server account, even a
+				// lower-ranked one (user decision 2026-11-16).
+				f.moveService(t, f.member(t, "remote-delete-target", "low"))
 			}
 			p := f.disabledByMUM(t)
 			switch mode {

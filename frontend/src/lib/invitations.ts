@@ -6,7 +6,8 @@ import type { InviteFormValues } from '../components/invites/InviteModal';
 
 export const INVITATIONS_CACHE_KEY = '/api/invitations';
 // allow_4k_transcode: false has MUM stop streams that transcode 4K (Plex, Jellyfin, Emby).
-export type InvitationGrant = { server_id: number; all_libraries: boolean; library_ids: string[]; allow_downloads: boolean; allow_4k_transcode?: boolean };
+// purge_protected: true keeps the created server account out of purges.
+export type InvitationGrant = { server_id: number; all_libraries: boolean; library_ids: string[]; allow_downloads: boolean; allow_4k_transcode?: boolean; purge_protected?: boolean };
 // Server types whose 4K transcodes MUM can stop.
 export const transcodePolicyServiceTypes = ['plex', 'jellyfin', 'emby'];
 // Null expiry = never expires, null max_uses = unlimited, null membership = permanent (Flask behaviour).
@@ -73,6 +74,7 @@ export function invitationRow(record: InvitationRecord, catalog: InvitationCatal
     libraries: selected.map(l => ({ server_id: l.server_id, id: `${l.server_id}::${l.external_id}`, name: l.name, server_name: servers.find(s => s.id === l.server_id)?.server_nickname ?? '', service_type: servers.find(s => s.id === l.server_id)?.service_type ?? '' })),
     allow_downloads: record.grants.some(g => g.allow_downloads), allow_4k_transcode: record.grants.every(g => g.allow_4k_transcode !== false),
     server_features: record.grants.map(g => ({ server_id: g.server_id, allow_downloads: g.allow_downloads, allow_4k_transcode: g.allow_4k_transcode !== false })),
+    grant_purge_whitelist: record.grants.some(g => g.purge_protected === true),
     require_discord_auth: record.require_discord_auth === true, require_discord_guild_membership: record.require_discord_guild_membership === true,
   };
 }
@@ -116,7 +118,7 @@ export function membershipDateFromDays(days: number | null | undefined): string 
 }
 
 export function invitationPayload(values: InviteFormValues, servers: { id: number; service_type: string }[] = []) {
-  if (values.grant_purge_whitelist || values.grant_bot_whitelist || values.invite_to_plex_home || values.allow_live_tv || values.server_features?.some(f => f.invite_to_plex_home || f.allow_live_tv)) throw new Error('Plex Home, Live TV and protection grants are not available yet');
+  if (values.grant_bot_whitelist || values.invite_to_plex_home || values.allow_live_tv || values.server_features?.some(f => f.invite_to_plex_home || f.allow_live_tv)) throw new Error('Plex Home, Live TV and the bot whitelist are not available yet');
   const require_discord_guild_membership = values.require_discord_guild_membership === true;
   const require_discord_auth = values.require_discord_auth === true || require_discord_guild_membership;
   // Blank or 0 = unlimited uses; blank expiry = never expires (Flask behaviour).
@@ -147,7 +149,9 @@ export function invitationPayload(values: InviteFormValues, servers: { id: numbe
     // Only Plex, Jellyfin and Emby enforce it; other servers always allow.
     const supports4k = !server || transcodePolicyServiceTypes.includes(server.service_type.toLowerCase());
     const allow_4k_transcode = supports4k ? values.server_features?.find(f => f.server_id === server_id)?.allow_4k_transcode ?? values.allow_4k_transcode ?? true : true;
-    return { server_id, all_libraries, library_ids, allow_downloads, allow_4k_transcode };
+    // The invite form's one purge protection switch applies to every server.
+    const purge_protected = values.grant_purge_whitelist === true;
+    return { server_id, all_libraries, library_ids, allow_downloads, allow_4k_transcode, purge_protected };
   });
   return { expires_at: expiresAt, max_uses: maxUses, is_active: values.is_active ?? true, grants, require_discord_auth, require_discord_guild_membership, custom_path: customPath, membership_duration_days: membershipDays };
 }

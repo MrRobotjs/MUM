@@ -4,6 +4,7 @@ import {useAuth} from '../contexts/AuthContext';
 import {getAccessToken,getAuthSnapshot,subscribeToAuthStore} from '../store/authStore';
 import {checkServerConnection} from '../lib/serverConnection';
 import {syncSelectedServer,type ServerSyncScope} from '../lib/serverSync';
+import {readPlexHistory,startPlexHistoryImport,plexHistorySummary,type PlexHistoryStatus} from '../lib/plexHistory';
 import { Link, useParams } from '@tanstack/react-router';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
@@ -19,6 +20,7 @@ import {
   faLink,
   faClock,
   faDatabase,
+  faClockRotateLeft,
 } from '@fortawesome/free-solid-svg-icons';
 
 import { useAlerts } from '../contexts';
@@ -158,6 +160,31 @@ export const ServerDetailPage = ({ section = 'overview' }: { section?: ServerTab
   useEffect(()=>{liveSyncKey.current=syncPageKey;syncRun.current?.abort.abort();syncRun.current=null;setSyncBusy(null);return()=>{liveSyncKey.current='';syncRun.current?.abort.abort();};},[syncPageKey]);
 
   const serviceType = server?.service_type || 'unknown';
+
+  // Plex play history import: reads the server's own history (read-only on
+  // Plex) for the purge; later runs add only plays MUM does not have yet.
+  const isPlex = serviceType.toLowerCase() === 'plex';
+  const [history,setHistory]=useState<PlexHistoryStatus|null>(null);
+  const [historyError,setHistoryError]=useState<string|null>(null);
+  const [historyStarting,setHistoryStarting]=useState(false);
+  const [historyRun,setHistoryRun]=useState(0);
+  useEffect(()=>{
+    if(!isPlex||!isAdministrator||!numericServerId){setHistory(null);return;}
+    let live=true;let timer:ReturnType<typeof setTimeout>|undefined;
+    const load=async()=>{
+      try{const status=await readPlexHistory(numericServerId);if(!live)return;setHistory(status);setHistoryError(null);if(status.state==='running')timer=setTimeout(()=>void load(),2000);}
+      catch{if(live)setHistoryError('Play history status could not be read.');}
+    };
+    void load();
+    return()=>{live=false;if(timer)clearTimeout(timer);};
+  },[isPlex,isAdministrator,numericServerId,historyRun]);
+  const handleImportHistory=async()=>{
+    if(!numericServerId||historyStarting||history?.state==='running')return;
+    setHistoryStarting(true);
+    try{await startPlexHistoryImport(numericServerId);success('Play history import started.');setHistoryRun(n=>n+1);}
+    catch(err){showError(err instanceof Error&&err.message?err.message:'The import could not be started.');}
+    finally{setHistoryStarting(false);}
+  };
   const serviceMeta = getServiceMeta(serviceType);
   const statusOnline = server?.status?.online ?? server?.last_status ?? null;
   const statusVersion = server?.status?.version ?? server?.last_version ?? null;
@@ -462,6 +489,22 @@ export const ServerDetailPage = ({ section = 'overview' }: { section?: ServerTab
                   <FontAwesomeIcon icon={faRotate} className="mr-2 h-4 w-4" />
                   Refresh saved state
                 </Button>
+                {isPlex&&isAdministrator&&(
+                  <div className="space-y-2">
+                    <Button variant="outline" className="w-full" disabled={historyStarting||history?.state==='running'} onClick={()=>void handleImportHistory()}>
+                      {historyStarting||history?.state==='running' ? (
+                        <Spinner className="mr-2 h-4 w-4" />
+                      ) : (
+                        <FontAwesomeIcon icon={faClockRotateLeft} className="mr-2 h-4 w-4" />
+                      )}
+                      {history?.state==='running' ? 'Importing play history' : 'Import play history'}
+                    </Button>
+                    <p className="text-sm text-muted-foreground">
+                      Reads this server's play history so purges can count plays from before MUM was watching. Running it again adds only plays MUM doesn't have yet.{' '}
+                      {historyError ?? (history ? plexHistorySummary(history) : '')}
+                    </p>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>

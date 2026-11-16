@@ -49,11 +49,14 @@ func editDigest(value any) string {
 }
 
 func validEditInput(op editOperationInput) bool {
-	if (op.Action == "set_4k_transcode") != (op.Allow4KTranscode != nil) {
+	if (op.Action == "set_4k_transcode") != (op.Allow4KTranscode != nil) || (op.Action == "set_purge_protection") != (op.PurgeProtected != nil) {
+		return false
+	}
+	if op.Purge != nil && (op.Action != "delete_users" || !validPurgeRule(*op.Purge)) {
 		return false
 	}
 	switch op.Action {
-	case "set_4k_transcode":
+	case "set_4k_transcode", "set_purge_protection":
 		return op.Days == 0 && op.ExpiresAt == nil && len(op.LibraryIDs) == 0 && !op.HasAllLibraries && op.TargetLocalUserUUID == ""
 	case "delete_users", "unlink_local", "clear_expiration":
 		return op.Days == 0 && op.ExpiresAt == nil && len(op.LibraryIDs) == 0 && !op.HasAllLibraries && op.TargetLocalUserUUID == ""
@@ -282,37 +285,50 @@ func (a *App) prepareEdit(w http.ResponseWriter, r *http.Request) {
 			domainError(w, err)
 			return
 		}
+		if result.Outcome == "pending" && stored.Operation.Purge != nil && target.Kind != "service" {
+			// A purge removes server accounts only; it never retires MUM accounts.
+			result.Outcome = "skipped"
+			result.Reason = "service_account_required"
+		}
 		if result.Outcome == "pending" {
 			if target.Kind == "service" && (stored.Action == "delete_users" || stored.Action == "update_libraries") {
-				if actor.Kind != "owner" {
+				// Full administrators remove and update server accounts like the
+				// owner (user decision 2026-11-16), except the protected ones below.
+				target, err = editServiceTarget(r.Context(), tx, id)
+				if err != nil {
+					domainError(w, err)
+					return
+				}
+				busy, e := servicePendingWork(r.Context(), tx, target.ServerID)
+				if e != nil {
+					domainError(w, e)
+					return
+				}
+				if busy {
 					result.Outcome = "skipped"
-					result.Reason = "owner_only"
-				} else {
-					target, err = editServiceTarget(r.Context(), tx, id)
-					if err != nil {
-						domainError(w, err)
-						return
-					}
-					busy, e := servicePendingWork(r.Context(), tx, target.ServerID)
+					result.Reason = "pending_work"
+				}
+				// The owner's and the caller's own server accounts are never deleted
+				// here; administrators' accounts only by the owner.
+				var protected bool
+				err = tx.QueryRowContext(r.Context(), protectedServiceSQL, id, actor.UUID, actor.UUID).Scan(&protected)
+				if err != nil {
+					domainError(w, err)
+					return
+				}
+				if protected {
+					result.Outcome = "skipped"
+					result.Reason = "protected_account"
+				}
+				if result.Outcome == "pending" && stored.Operation.Purge != nil {
+					reason, e := purgeTargetReason(r.Context(), tx, actor.UUID, id, *stored.Operation.Purge)
 					if e != nil {
 						domainError(w, e)
 						return
 					}
-					if busy {
+					if reason != "" {
 						result.Outcome = "skipped"
-						result.Reason = "pending_work"
-					}
-					// The owner's and the caller's own server accounts are never deleted
-					// here; administrators' accounts only by the owner.
-					var protected bool
-					err = tx.QueryRowContext(r.Context(), protectedServiceSQL, id, actor.UUID, actor.UUID).Scan(&protected)
-					if err != nil {
-						domainError(w, err)
-						return
-					}
-					if protected {
-						result.Outcome = "skipped"
-						result.Reason = "protected_account"
+						result.Reason = reason
 					}
 				}
 			} else if target.Kind != "service" && stored.Action == "update_libraries" {
@@ -395,6 +411,12 @@ func (a *App) prepareEdit(w http.ResponseWriter, r *http.Request) {
 	}
 	if stored.Action == "set_expiration" || stored.Action == "extend_access" || stored.Action == "clear_expiration" {
 		stored.Effects = append(stored.Effects, "Expiry is MUM policy. Changing a local account's expiry signs out its MUM sessions; it does not delete provider accounts.")
+	}
+	if stored.Operation.Purge != nil {
+		stored.Effects = append(stored.Effects, "Purge: each account is checked against the purge rule again just before its server is asked; anyone who played something or was protected since the list was made is skipped.")
+	}
+	if stored.Action == "set_purge_protection" {
+		stored.Effects = append(stored.Effects, "Purge protection is MUM policy for server accounts. A protected account is left out of purges that skip protected people; nothing changes on the server.")
 	}
 	if stored.Action == "set_4k_transcode" {
 		stored.Effects = append(stored.Effects, "4K transcoding is MUM policy for Plex, Jellyfin and Emby server accounts. When it is off, MUM stops a stream once when the server transcodes a 4K source; direct play is never stopped.")

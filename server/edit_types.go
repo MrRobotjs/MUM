@@ -8,6 +8,9 @@ type editOperationInput struct {
 	HasAllLibraries     bool     `json:"has_all_libraries,omitempty"`
 	TargetLocalUserUUID string   `json:"target_local_user_uuid,omitempty"`
 	Allow4KTranscode    *bool    `json:"allow_4k_transcode,omitempty"`
+	PurgeProtected      *bool    `json:"purge_protected,omitempty"`
+	// Purge carries the purge dialog's rule on a delete_users edit (purge.go).
+	Purge *editPurgeRule `json:"purge,omitempty"`
 }
 
 type editReceipt struct {

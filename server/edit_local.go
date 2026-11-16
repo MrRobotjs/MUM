@@ -222,6 +222,31 @@ func prepareEditLocal(ctx context.Context, tx *sql.Tx, actor, access, target str
 		case allowed == *op.Allow4KTranscode:
 			out.Outcome = "unchanged"
 		}
+	case "set_purge_protection":
+		// A setting of the server account, read by the purge. The same accounts
+		// are left alone as for the other server account settings.
+		if out.Local {
+			out.Outcome = "skipped"
+			out.Reason = "service_account_required"
+			break
+		}
+		if err = requirePermission(ctx, tx, actor, "administrator"); err != nil {
+			return out, err
+		}
+		var current, protected bool
+		if err = tx.QueryRowContext(ctx, "SELECT is_purge_whitelisted FROM service_accounts WHERE uuid=?", target).Scan(&current); err != nil {
+			return out, err
+		}
+		if err = tx.QueryRowContext(ctx, protectedServiceSQL, target, actor, actor).Scan(&protected); err != nil {
+			return out, err
+		}
+		snapshot = []any{current, protected}
+		switch {
+		case protected:
+			out.Outcome, out.Reason = "skipped", "protected_account"
+		case current == *op.PurgeProtected:
+			out.Outcome = "unchanged"
+		}
 	case "delete_users":
 		if !out.Local {
 			out.Outcome = "skipped"
@@ -321,6 +346,13 @@ func applyEditLocal(ctx context.Context, tx *sql.Tx, actor, access, target strin
 		}
 		if _, err = tx.ExecContext(ctx, "UPDATE service_accounts SET allow_4k_transcode=?,updated_at=? WHERE uuid=?", *op.Allow4KTranscode, now, target); err == nil {
 			err = auditAction(ctx, tx, actor, "edit.set_4k_transcode")
+		}
+	case "set_purge_protection":
+		if current.Local || op.PurgeProtected == nil {
+			return result, ErrConflict
+		}
+		if _, err = tx.ExecContext(ctx, "UPDATE service_accounts SET is_purge_whitelisted=?,updated_at=? WHERE uuid=?", *op.PurgeProtected, now, target); err == nil {
+			err = auditAction(ctx, tx, actor, "edit.set_purge_protection")
 		}
 	default:
 		// Freeze extension at preparation; a queue delay must not silently extend it.

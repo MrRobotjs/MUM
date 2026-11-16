@@ -110,7 +110,7 @@ func commitPlexCompletionAs(ctx context.Context, tx *sql.Tx, p preparedPlexCompl
 	if _, err := tx.ExecContext(ctx, "INSERT INTO identities(uuid,kind) VALUES(?,'service')", p.service); err != nil {
 		return err
 	}
-	if _, err := tx.ExecContext(ctx, `INSERT INTO service_accounts(uuid,server_id,external_user_id,external_username,allowed_library_ids,allow_downloads,service_settings,is_active,used_invite_id,created_at,updated_at,allow_4k_transcode) VALUES(?,?,?,?,?,0,?,1,?,?,?,?)`, p.service, p.server, p.account, p.username, string(ids), string(settings), p.invite, now, now, checkpoint.grant.Allows4KTranscode()); err != nil {
+	if _, err := tx.ExecContext(ctx, `INSERT INTO service_accounts(uuid,server_id,external_user_id,external_username,allowed_library_ids,allow_downloads,service_settings,is_active,used_invite_id,created_at,updated_at,allow_4k_transcode,is_purge_whitelisted) VALUES(?,?,?,?,?,0,?,1,?,?,?,?,?)`, p.service, p.server, p.account, p.username, string(ids), string(settings), p.invite, now, now, checkpoint.grant.Allows4KTranscode(), checkpoint.grant.Protected()); err != nil {
 		return err
 	}
 	if _, err := tx.ExecContext(ctx, "INSERT INTO service_links(user_uuid,service_uuid,link_kind,created_at) VALUES(?,?,'owner',?)", p.user, p.service, now); err != nil {

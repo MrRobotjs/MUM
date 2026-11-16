@@ -117,7 +117,10 @@ func (a *App) CloseScheduler() { a.StopScheduler(); _ = a.WaitScheduler(context.
 
 func checkScheduledSyncClaim(ctx context.Context, tx *sql.Tx, c *scheduledSyncClaim) error {
 	var valid bool
-	err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM server_sync_schedules s JOIN user_accounts u ON u.uuid=s.authorized_by WHERE s.server_id=? AND s.revision=? AND s.claim_token=? AND s.run_state='running' AND s.enabled=1 AND julianday(s.lease_until)>julianday('now') AND s.authorized_by=? AND u.kind='owner' AND u.is_active=1 AND (u.access_expires_at IS NULL OR julianday(u.access_expires_at)>julianday('now')))`, c.Server, c.Revision, c.Token, c.Actor).Scan(&valid)
+	// Scheduled syncs run on MUM's standing authority, the owner account, not
+	// on whoever configured them (user decision 2026-11-16): a schedule an
+	// administrator set up keeps running if they later lose the role.
+	err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM server_sync_schedules s JOIN user_accounts u ON u.kind='owner' WHERE s.server_id=? AND s.revision=? AND s.claim_token=? AND s.run_state='running' AND s.enabled=1 AND julianday(s.lease_until)>julianday('now') AND u.uuid=? AND u.is_active=1 AND (u.access_expires_at IS NULL OR julianday(u.access_expires_at)>julianday('now')))`, c.Server, c.Revision, c.Token, c.Actor).Scan(&valid)
 	if err != nil {
 		return err
 	}
@@ -162,7 +165,7 @@ func (a *App) claimScheduledSync(ctx context.Context) (*scheduledSyncClaim, erro
 		}
 		c := scheduledSyncClaim{}
 		var interval int
-		err := tx.QueryRowContext(ctx, `SELECT q.server_id,q.revision,q.authorized_by,q.interval_seconds FROM server_sync_schedules q JOIN media_servers s ON s.id=q.server_id JOIN provider_settings p ON p.provider_id=s.service_type JOIN user_accounts u ON u.uuid=q.authorized_by WHERE q.enabled=1 AND q.run_state<>'running' AND julianday(q.next_run_at)<=julianday(?) AND s.is_active=1 AND p.enabled=1 AND u.kind='owner' AND u.is_active=1 AND (u.access_expires_at IS NULL OR julianday(u.access_expires_at)>julianday(?)) ORDER BY q.next_run_at,q.server_id LIMIT 1`, now, now).Scan(&c.Server, &c.Revision, &c.Actor, &interval)
+		err := tx.QueryRowContext(ctx, `SELECT q.server_id,q.revision,u.uuid,q.interval_seconds FROM server_sync_schedules q JOIN media_servers s ON s.id=q.server_id JOIN provider_settings p ON p.provider_id=s.service_type JOIN user_accounts u ON u.kind='owner' WHERE q.enabled=1 AND q.run_state<>'running' AND julianday(q.next_run_at)<=julianday(?) AND s.is_active=1 AND p.enabled=1 AND u.kind='owner' AND u.is_active=1 AND (u.access_expires_at IS NULL OR julianday(u.access_expires_at)>julianday(?)) ORDER BY q.next_run_at,q.server_id LIMIT 1`, now, now).Scan(&c.Server, &c.Revision, &c.Actor, &interval)
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil
 		}
@@ -287,7 +290,7 @@ func (a *App) scheduledTasks(w http.ResponseWriter, r *http.Request) {
 		domainError(w, err)
 		return
 	}
-	respond(w, 200, map[string]any{"actor_uuid": actor.UUID, "runtime_available": running, "checkpoint_error": checkpointError, "configuration_available": actor.Kind == "owner", "generated_at": utcTimestamp(time.Now()), "tasks": tasks})
+	respond(w, 200, map[string]any{"actor_uuid": actor.UUID, "runtime_available": running, "checkpoint_error": checkpointError, "configuration_available": true, "generated_at": utcTimestamp(time.Now()), "tasks": tasks})
 }
 func (a *App) configureScheduledSync(w http.ResponseWriter, r *http.Request) {
 	actor, ok := a.principal(w, r, true)
@@ -308,7 +311,7 @@ func (a *App) configureScheduledSync(w http.ResponseWriter, r *http.Request) {
 	if !decodeStrictBody(w, r, &input) {
 		return
 	}
-	if input.Actor != actor.UUID || actor.Kind != "owner" {
+	if input.Actor != actor.UUID {
 		domainError(w, ErrForbidden)
 		return
 	}
@@ -318,15 +321,10 @@ func (a *App) configureScheduledSync(w http.ResponseWriter, r *http.Request) {
 	}
 	var revision int64
 	err := a.store.write(r.Context(), func(tx *sql.Tx) error {
-		if err := notificationAuthority(r.Context(), tx, actor.UUID, bearer(r)); err != nil {
-			return err
-		}
-		current, err := loadPrincipal(r.Context(), tx, actor.UUID)
+		// The owner and full administrators configure schedules (2026-11-16).
+		err := notificationAuthority(r.Context(), tx, actor.UUID, bearer(r))
 		if err != nil {
 			return err
-		}
-		if current.Kind != "owner" {
-			return ErrForbidden
 		}
 		var stored, serverRevision int64
 		var enabled, active bool

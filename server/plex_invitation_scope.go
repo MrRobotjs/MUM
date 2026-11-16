@@ -27,6 +27,8 @@ func canonicalPlexInvitationGrant(g InvitationGrant) string {
 	// A grant frozen before the 4K setting existed means allowed.
 	allow4K := g.Allows4KTranscode()
 	g.Allow4KTranscode = &allow4K
+	protected := g.Protected()
+	g.PurgeProtected = &protected
 	data, _ := json.Marshal(g)
 	return string(data)
 }

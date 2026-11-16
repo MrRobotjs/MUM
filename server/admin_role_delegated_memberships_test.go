@@ -39,8 +39,10 @@ func TestDelegatedRoleMembershipLifecycleAndScopedProjections(t *testing.T) {
 	}
 	for _, raw := range data["roles"].([]any) {
 		r := raw.(map[string]any)
+		// 'low' carries the Administrator permission: a delegated administrator
+		// changes its members within rank but only the owner assigns it.
 		want := r["id"] == "low" || r["id"] == "retain"
-		if r["member_changes_available"] != want || r["member_assignment_available"] != want {
+		if r["member_changes_available"] != want || r["member_assignment_available"] != (r["id"] == "retain") {
 			t.Fatal(r)
 		}
 	}
@@ -49,10 +51,14 @@ func TestDelegatedRoleMembershipLifecycleAndScopedProjections(t *testing.T) {
 		t.Fatal(page)
 	}
 	candidate := page["candidates"].([]any)[0].(map[string]any)
-	if candidate["uuid"] != target || candidate["can_assign"] != true || candidate["can_remove"] != false {
+	if candidate["uuid"] != target || candidate["can_assign"] != false || candidate["can_remove"] != false {
 		t.Fatal(candidate)
 	}
 	w := apiRequest(a, "POST", "/api/admin-roles/low/memberships", token, membershipBody(actor, roleRevision(t, s), "assign", adminRoleTarget{target, 1}), nil)
+	if w.Code != 403 {
+		t.Fatal("a delegated administrator gave the Administrator permission", w.Code, w.Body.String())
+	}
+	w = apiRequest(a, "POST", "/api/admin-roles/low/memberships", ownerToken, membershipBody(owner.UUID, roleRevision(t, s), "assign", adminRoleTarget{target, 1}), nil)
 	if w.Code != 200 {
 		t.Fatal(w.Code, w.Body.String())
 	}
@@ -89,7 +95,8 @@ func TestDelegatedRoleMembershipLifecycleAndScopedProjections(t *testing.T) {
 	var retained, audits int
 	s.reader.QueryRow("SELECT count(*) FROM admin_privileges WHERE user_uuid=? AND role_id='retain'", target).Scan(&retained)
 	s.reader.QueryRow("SELECT count(*) FROM audit_events WHERE actor_uuid=? AND action LIKE 'admin.role.members.%'", actor).Scan(&audits)
-	if retained != 1 || audits != 2 {
+	// The owner made the assignment; the delegate's audit holds only the removal.
+	if retained != 1 || audits != 1 {
 		t.Fatal(retained, audits)
 	}
 }

@@ -69,6 +69,7 @@ export type InviteRow = {
   allow_live_tv?: boolean;
   membership_duration_days?: number;
   allow_4k_transcode?: boolean;
+  grant_purge_whitelist?: boolean;
   server_features?: InviteServerFeature[];
 };
 

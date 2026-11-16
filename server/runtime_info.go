@@ -24,7 +24,8 @@ type runtimeInformation struct {
 }
 
 // runtimeInfo reports observed facts, never arbitrary environment/build settings.
-// Filesystem locations are visible only to the owner.
+// Filesystem locations are visible to the owner and full administrators
+// (beginAdminRoleRead requires the Administrator permission; 2026-11-16).
 func (a *App) runtimeInfo(w http.ResponseWriter, r *http.Request) {
 	p, ok := a.principal(w, r, true)
 	if !ok {
@@ -47,16 +48,14 @@ func (a *App) runtimeInfo(w http.ResponseWriter, r *http.Request) {
 		domainError(w, err)
 		return
 	}
-	if p.Kind == "owner" {
-		var sequence int
-		var name, file string
-		if err = tx.QueryRowContext(r.Context(), "PRAGMA database_list").Scan(&sequence, &name, &file); err != nil {
-			domainError(w, err)
-			return
-		}
-		directory := filepath.Dir(file)
-		info.DatabaseFile, info.DataDirectory = &file, &directory
+	var sequence int
+	var name, file string
+	if err = tx.QueryRowContext(r.Context(), "PRAGMA database_list").Scan(&sequence, &name, &file); err != nil {
+		domainError(w, err)
+		return
 	}
+	directory := filepath.Dir(file)
+	info.DatabaseFile, info.DataDirectory = &file, &directory
 	if build, found := debug.ReadBuildInfo(); found {
 		for _, setting := range build.Settings {
 			switch setting.Key {

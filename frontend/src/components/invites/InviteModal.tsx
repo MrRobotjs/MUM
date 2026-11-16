@@ -1054,12 +1054,10 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
                         <FontAwesomeIcon icon={faShieldHalved} className="text-blue-400 text-sm" />
                         <div>
                           <p className="font-medium text-sm">Grant Purge Whitelist</p>
-                          <p className="text-xs text-muted-foreground">Protect from automated purges.</p>
+                          <p className="text-xs text-muted-foreground">Protect from inactivity purges.</p>
                         </div>
                       </div>
                       <Switch
-                        disabled
-                                title="This invitation feature is not available yet"
                                 checked={form.grant_purge_whitelist ?? false}
                         onCheckedChange={(checked) => setForm((prev) => ({ ...prev, grant_purge_whitelist: checked }))}
                       />

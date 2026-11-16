@@ -72,6 +72,11 @@ func commitAdminRoleMembership(ctx context.Context, tx *sql.Tx, p adminRoleMembe
 		if p.Operation == "assign" && !permission.Implemented {
 			return result, ErrConflict
 		}
+		// Only the owner gives out the full-access Administrator permission
+		// (user decision 2026-11-16); removing it stays within rank.
+		if p.Operation == "assign" && permission.ID == "admin" && !hierarchy.Owner {
+			return result, ErrForbidden
+		}
 	}
 	if p.Operation == "assign" && role.UserCount+len(p.Targets) > 10000 {
 		return result, ErrConflict
@@ -234,7 +239,7 @@ func (a *App) adminRoleCandidatesRead(w http.ResponseWriter, r *http.Request) {
 		if err = rows.Scan(&candidate.UUID, &candidate.Username, &candidate.Kind, &candidate.Email, &candidate.Active, &candidate.Revision); err != nil {
 			break
 		}
-		candidate.CanAssign = true
+		candidate.CanAssign = hierarchy.Owner || !roleGrantsAdministrator(roles[0])
 		candidates = append(candidates, candidate)
 	}
 	if err == nil {

@@ -223,7 +223,10 @@ export const ServerAddForm = ({ pluginId, onSuccess, onCancel, submitEndpoint }:
         method: 'POST',
         body: JSON.stringify(payload)
       });
-      success(`Server "${values.server_nickname}" added`);
+      // A new Plex server can import its own play history from its server page.
+      success(pluginId === 'plex'
+        ? `Server "${values.server_nickname}" added. Import its play history from the server's page so purges count plays from before MUM.`
+        : `Server "${values.server_nickname}" added`);
       onSuccess();
     } catch (err) {
       setError((err as Error).message || 'Failed to save server');

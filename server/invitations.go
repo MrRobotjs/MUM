@@ -241,7 +241,7 @@ func (a *App) createInvitation(w http.ResponseWriter, r *http.Request) {
 		}
 		for _, g := range input.Grants {
 			ids, _ := json.Marshal(g.LibraryIDs)
-			if _, err := tx.ExecContext(r.Context(), "INSERT INTO invitation_grants(invite_id,server_id,all_libraries,library_ids,allow_downloads,allow_4k_transcode) VALUES(?,?,?,?,?,?)", id, g.ServerID, g.AllLibraries, string(ids), g.AllowDownloads, g.Allows4KTranscode()); err != nil {
+			if _, err := tx.ExecContext(r.Context(), "INSERT INTO invitation_grants(invite_id,server_id,all_libraries,library_ids,allow_downloads,allow_4k_transcode,purge_protected) VALUES(?,?,?,?,?,?,?)", id, g.ServerID, g.AllLibraries, string(ids), g.AllowDownloads, g.Allows4KTranscode(), g.Protected()); err != nil {
 				return err
 			}
 		}
@@ -333,7 +333,7 @@ type grantQuerier interface {
 }
 
 func loadInvitationGrants(ctx context.Context, q grantQuerier, id int64) ([]InvitationGrant, error) {
-	rows, err := q.QueryContext(ctx, "SELECT server_id,all_libraries,library_ids,allow_downloads,allow_4k_transcode FROM invitation_grants WHERE invite_id=? ORDER BY server_id", id)
+	rows, err := q.QueryContext(ctx, "SELECT server_id,all_libraries,library_ids,allow_downloads,allow_4k_transcode,purge_protected FROM invitation_grants WHERE invite_id=? ORDER BY server_id", id)
 	if err != nil {
 		return nil, err
 	}
@@ -342,11 +342,12 @@ func loadInvitationGrants(ctx context.Context, q grantQuerier, id int64) ([]Invi
 	for rows.Next() {
 		var g InvitationGrant
 		var ids string
-		var allow4K bool
-		if err := rows.Scan(&g.ServerID, &g.AllLibraries, &ids, &g.AllowDownloads, &allow4K); err != nil {
+		var allow4K, protected bool
+		if err := rows.Scan(&g.ServerID, &g.AllLibraries, &ids, &g.AllowDownloads, &allow4K, &protected); err != nil {
 			return nil, err
 		}
 		g.Allow4KTranscode = &allow4K
+		g.PurgeProtected = &protected
 		if err := json.Unmarshal([]byte(ids), &g.LibraryIDs); err != nil {
 			return nil, err
 		}
@@ -405,6 +406,10 @@ func (a *App) publicInvitation(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		domainError(w, err)
 		return
+	}
+	// Purge protection is the administrator's policy; invitees are not told.
+	for i := range grants {
+		grants[i].PurgeProtected = nil
 	}
 	servers := []map[string]any{}
 	for _, g := range grants {
@@ -942,7 +947,7 @@ func (a *App) commitProvisionedStep(ctx context.Context, jobID, userUUID string,
 		if _, err := tx.ExecContext(ctx, "INSERT INTO identities(uuid,kind) VALUES(?,'service')", uuid); err != nil {
 			return err
 		}
-		if _, err := tx.ExecContext(ctx, `INSERT INTO service_accounts(uuid,server_id,external_user_id,external_username,allowed_library_ids,allow_downloads,service_settings,is_active,used_invite_id,created_at,updated_at,allow_4k_transcode) SELECT ?,?,?,?,?,?,?,1,?,?,?,? FROM user_accounts WHERE uuid=?`, uuid, s.ID, remoteID, remoteName, string(ids), g.AllowDownloads, string(settings), inviteID, now, now, g.Allows4KTranscode(), userUUID); err != nil {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO service_accounts(uuid,server_id,external_user_id,external_username,allowed_library_ids,allow_downloads,service_settings,is_active,used_invite_id,created_at,updated_at,allow_4k_transcode,is_purge_whitelisted) SELECT ?,?,?,?,?,?,?,1,?,?,?,?,? FROM user_accounts WHERE uuid=?`, uuid, s.ID, remoteID, remoteName, string(ids), g.AllowDownloads, string(settings), inviteID, now, now, g.Allows4KTranscode(), g.Protected(), userUUID); err != nil {
 			return err
 		}
 		if _, err := tx.ExecContext(ctx, "INSERT INTO service_links(user_uuid,service_uuid,link_kind,created_at) VALUES(?,?,'owner',?)", userUUID, uuid, now); err != nil {

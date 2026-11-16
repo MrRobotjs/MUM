@@ -62,7 +62,7 @@ test('current admin invitation adapters', async t => {
   await t.test('strict payloads preserve explicit all-library grants and reject unsupported conditions', async () => {
     const api = await loadAdapters();
     const payload = api.invitationPayload(values());
-    assert.deepEqual(payload.grants, [{ server_id: 9, all_libraries: false, library_ids: ['movies'], allow_downloads: true, allow_4k_transcode: true }]);
+    assert.deepEqual(payload.grants, [{ server_id: 9, all_libraries: false, library_ids: ['movies'], allow_downloads: true, allow_4k_transcode: true, purge_protected: false }]);
     assert.equal(payload.server_ids, undefined);
     assert.equal(api.invitationPayload({ ...values(), all_library_server_ids: [9] }).grants[0].all_libraries, true);
     const plain = api.invitationPayload(values());
@@ -78,7 +78,7 @@ test('current admin invitation adapters', async t => {
     assert.ok(Number.isInteger(flask.membership_duration_days) && flask.membership_duration_days > 1);
     assert.equal(api.invitationPayload({ ...values(), max_uses: 0 }).max_uses, null);
     assert.throws(() => api.invitationPayload({ ...values(), custom_path: 'a b' }), /Custom paths/);
-    for (const unsupported of [{ grant_purge_whitelist: true }, { invite_to_plex_home: true }]) {
+    for (const unsupported of [{ grant_bot_whitelist: true }, { invite_to_plex_home: true }]) {
       assert.throws(() => api.invitationPayload({ ...values(), ...unsupported }), /not available/);
     }
     assert.throws(() => api.invitationPayload({ ...values(), grant_library_ids: [] }), /at least one library/);
@@ -170,7 +170,7 @@ test('RomM admin grants never infer all-platform/download access', async () => {
  assert.throws(() => api.invitationPayload(values(),metadata), /RomM/);
  const all = {...values(),all_library_server_ids:[9]};
  assert.throws(() => api.invitationPayload({...all,server_features:[{server_id:9,allow_downloads:false}]},metadata),/RomM/);
- assert.deepEqual(api.invitationPayload(all,metadata).grants,[{server_id:9,all_libraries:true,library_ids:[],allow_downloads:true,allow_4k_transcode:true}]);
+ assert.deepEqual(api.invitationPayload(all,metadata).grants,[{server_id:9,all_libraries:true,library_ids:[],allow_downloads:true,allow_4k_transcode:true,purge_protected:false}]);
 });
 
 // 4K transcoding is chosen per Plex, Jellyfin or Emby server; other servers
@@ -186,4 +186,16 @@ test('admin invitations carry the 4K transcoding choice', async () => {
  assert.equal(row.allow_4k_transcode,false);
  assert.deepEqual(row.server_features,[{server_id:9,allow_downloads:false,allow_4k_transcode:false}]);
  assert.equal(api.invitationRow(record(),catalog).allow_4k_transcode,true);
+});
+
+// Purge protection is one switch in the invite form, saved on every server's
+// grant and read back from the saved grants.
+test('admin invitations carry purge protection', async () => {
+ const api = await loadAdapters();
+ const grants = api.invitationPayload({...values(),grant_purge_whitelist:true},[{id:9,service_type:'plex'}]).grants;
+ assert.deepEqual(grants.map(g => g.purge_protected),[true]);
+ assert.equal(api.invitationPayload(values(),[{id:9,service_type:'plex'}]).grants[0].purge_protected,false);
+ const catalog = {records:[record({grants:[{server_id:9,all_libraries:false,library_ids:['movies'],allow_downloads:false,purge_protected:true}]})],servers:[{id:9,server_nickname:'Plex',service_type:'plex',is_active:true,provider_enabled:true,effective_active:true}],libraries:[{server_id:9,external_id:'movies',name:'Movies'}]};
+ assert.equal(api.invitationRow(catalog.records[0],catalog).grant_purge_whitelist,true);
+ assert.equal(api.invitationRow(record(),catalog).grant_purge_whitelist,false);
 });

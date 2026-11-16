@@ -241,6 +241,20 @@ func (a *App) runEdit(stored editStored, access string, reconcile bool) {
 			a.recordEditResult(&stored, i, editPreDispatchOutcome(target), "stale_authority", false)
 			continue
 		}
+		if !reconcile && stored.Operation.Purge != nil {
+			// The purge rule is checked again right before the server is asked.
+			reason, err := a.purgeStillAllowed(ctx, stored.Actor, target.UUID, *stored.Operation.Purge)
+			if err != nil {
+				a.recordEditResult(&stored, i, editPreDispatchOutcome(target), "stale_authority", false)
+				continue
+			}
+			if reason != "" {
+				if !a.recordEditResult(&stored, i, "skipped", reason, false) {
+					return
+				}
+				continue
+			}
+		}
 		source, err := a.loadServer(ctx, target.ServerID)
 		if err != nil {
 			a.recordEditResult(&stored, i, editPreDispatchOutcome(target), "server_unavailable", false)
@@ -390,15 +404,10 @@ func (a *App) recordEditResult(b *editStored, index int, outcome, reason string,
 			if err := checkEditTarget(ctx, tx, current.Actor, "", current.Operation, target); err != nil {
 				return err
 			}
+			// Full administrators finish removals like the owner (2026-11-16);
+			// the role revision check below still catches any change of rank.
 			if err := editAuthorityTx(ctx, tx, current.Actor, b.liveAccess); err != nil {
 				return err
-			}
-			var kind string
-			if err := tx.QueryRowContext(ctx, "SELECT kind FROM user_accounts WHERE uuid=?", current.Actor).Scan(&kind); err != nil {
-				return err
-			}
-			if kind != "owner" {
-				return ErrForbidden
 			}
 			var role int64
 			if err := tx.QueryRowContext(ctx, "SELECT revision FROM admin_role_state WHERE singleton=1").Scan(&role); err != nil {
@@ -461,6 +470,9 @@ func (a *App) finishEdit(id, token string) {
 		if err := saveEdit(ctx, tx, &b); err != nil {
 			return err
 		}
+		if err := recordPurge(ctx, tx, b); err != nil {
+			return err
+		}
 		if b.Summary["unknown"] == 0 {
 			if _, err := tx.ExecContext(ctx, "DELETE FROM edit_source_locks WHERE operation_id=? AND operation_token=?", id, token); err != nil {
 				return err
@@ -479,10 +491,7 @@ func (a *App) reconcileEdit(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if actor.Kind != "owner" {
-		domainError(w, ErrForbidden)
-		return
-	}
+	// The edit's own actor (owner or full administrator) checks its outcome.
 	var input struct {
 		Revision string `json:"revision"`
 	}

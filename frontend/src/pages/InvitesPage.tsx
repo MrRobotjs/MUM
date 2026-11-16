@@ -160,7 +160,7 @@ const mapInviteToForm = (invite: InviteRow): InviteFormValues => {
     allow_4k_transcode: invite.allow_4k_transcode ?? true,
     require_discord_auth: invite.require_discord_auth ?? false,
     require_discord_guild_membership: invite.require_discord_guild_membership ?? false,
-    grant_purge_whitelist: false,
+    grant_purge_whitelist: invite.grant_purge_whitelist ?? false,
     grant_bot_whitelist: false,
     membership_expires_at: membershipDateFromDays(invite.membership_duration_days),
     server_features: invite.server_features ?? []

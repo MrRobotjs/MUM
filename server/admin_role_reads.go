@@ -205,6 +205,11 @@ func projectAdminRoleCapabilities(ctx context.Context, tx *sql.Tx, roles []admin
 		role.CanUpdate = role.MemberAssignment && (hierarchy.Owner || !blocked[role.ID] && role.UserCount <= 10000)
 		role.CanDelete = role.MemberChanges && (hierarchy.Owner || role.UserCount == 0 && role.MemberAssignment)
 		role.CanReorder = !role.Protected && (hierarchy.Owner || role.CanUpdate)
+		// Only the owner gives out the Administrator permission (2026-11-16): a
+		// delegated administrator may edit such a role within rank, not assign it.
+		if !hierarchy.Owner && roleGrantsAdministrator(*role) {
+			role.MemberAssignment = false
+		}
 		if role.CanReorder {
 			maximum := 1000000
 			if !hierarchy.Owner && hierarchy.Ceiling-1 < maximum {
@@ -214,6 +219,17 @@ func projectAdminRoleCapabilities(ctx context.Context, tx *sql.Tx, roles []admin
 		}
 	}
 	return nil
+}
+
+// roleGrantsAdministrator reports whether a role carries the full-access
+// Administrator permission.
+func roleGrantsAdministrator(role adminRoleRecord) bool {
+	for _, permission := range role.Permissions {
+		if permission.ID == "admin" {
+			return true
+		}
+	}
+	return false
 }
 
 func roleReorderAvailable(roles []adminRoleRecord) bool {

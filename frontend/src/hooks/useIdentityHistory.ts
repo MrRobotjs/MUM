@@ -1,11 +1,7 @@
 import {useAuth} from '../contexts/AuthContext';
-import {useActivityHistory,useActivityCurrent} from './useActivityHistory';
+import {useActivityCurrent} from './useActivityHistory';
 
-export function useIdentityHistory(target?:string,enabled=true){
-  const {isAdministrator}=useAuth();
-  return useActivityHistory(isAdministrator?'all':'own',undefined,target,enabled&&Boolean(target));
-}
-
+// The user page's History tab reads the combined timeline (useIdentityTimeline).
 export function useIdentityCurrent(target?:string,enabled=true){
  const {isAdministrator}=useAuth();
  return useActivityCurrent(isAdministrator?'all':'own',undefined,target,enabled&&Boolean(target));

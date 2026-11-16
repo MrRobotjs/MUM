@@ -30,12 +30,9 @@ func readServiceExpiry(ctx context.Context, tx *sql.Tx, actor, access, target st
 	if err := notificationAuthority(ctx, tx, actor, access); err != nil {
 		return out, err
 	}
-	p, err := loadPrincipal(ctx, tx, actor)
+	authority, err := readAdminRoleHierarchyActor(ctx, tx, actor)
 	if err != nil {
 		return out, err
-	}
-	if p.Kind != "owner" {
-		return out, ErrForbidden
 	}
 	if !validAdminMemberCursor(target) {
 		return out, ErrNotFound
@@ -44,6 +41,15 @@ func readServiceExpiry(ctx context.Context, tx *sql.Tx, actor, access, target st
 	err = tx.QueryRowContext(ctx, `SELECT coalesce(a.external_username,''),a.server_id,a.is_active,a.access_expires_at,(SELECT user_uuid FROM service_links WHERE service_uuid=a.uuid AND link_kind='owner'),e.revision,s.revision,(SELECT revision FROM account_link_state WHERE singleton=1) FROM service_accounts a JOIN service_expiry_state e ON e.uuid=a.uuid JOIN media_servers s ON s.id=a.server_id WHERE a.uuid=?`, target).Scan(&out.Username, &server, &out.Active, &out.Expires, &out.Owner, &revision, &source, &link)
 	if err != nil {
 		return out, err
+	}
+	// Full administrators edit server account expiry like the owner, within the
+	// role ranking: never on the owner's, their own or higher-ranked accounts
+	// (user decision 2026-11-16). Unlinked server accounts are open to them.
+	// The ranking check refuses the owner's and the actor's own accounts too.
+	if !authority.Owner && out.Owner != nil {
+		if err = checkAdminRoleHierarchyTarget(ctx, tx, authority, *out.Owner); err != nil {
+			return out, err
+		}
 	}
 	if out.Expires != nil {
 		if _, err = time.Parse(time.RFC3339Nano, *out.Expires); err != nil {

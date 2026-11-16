@@ -88,6 +88,7 @@ export async function fetchProfileMetadata(actor:string,target:string,signal?:Ab
   if(!validSavedExpiry(p.access_expires_at))throw Error('Invalid account expiry');
   // 4K transcoding policy: Plex, Jellyfin and Emby server accounts only.
   if(!(p.allow_4k_transcode===null||service&&typeof p.allow_4k_transcode==='boolean'))throw Error('Invalid 4K transcoding policy');
+  if(!(service?typeof p.is_purge_whitelisted==='boolean':p.is_purge_whitelisted===null))throw Error('Invalid purge protection');
   if(service?(!positive(p.server_id)||!isServiceType(p.service_type)):p.server_id!==null||p.service_type!=='')throw Error('Invalid profile service identity');
   // User and admin roles both carry their display settings (name, colour, icon, style).
   const visuals=(list:unknown):UserRoleDetail[]=>{
@@ -108,7 +109,7 @@ export async function fetchProfileMetadata(actor:string,target:string,signal?:Ab
   return {uuid:target,user_type:p.user_type as string,username:p.username||null,display_name:p.display_name||null,email:p.email||null,is_active:p.is_active,created_at:p.created_at,notes:p.notes,
    local_username:service?null:p.username||null,external_username:service?p.username||null:null,external_email:service?p.email||null:null,service_type:service?p.service_type:null,server_nickname:service?p.server_nickname:null,service_types:service?[p.service_type]:[],server_names:service&&p.server_nickname?[p.server_nickname]:[],linked_local_user:parent,libraries:p.libraries,has_all_libraries:p.has_all_libraries,
    linked_service_count:p.linked_service_count as number,roles:{admin_roles:p.admin_roles,user_roles:roles.map(r=>r.name)},admin_roles_detail:adminRoles,user_roles_detail:roles,
-   allow_downloads:null,allow_4k_transcode:p.allow_4k_transcode as boolean|null,is_purge_whitelisted:null,is_discord_bot_whitelisted:null,is_home_user:null,shares_back:null,has_password:null,used_invite:null,force_password_change:null,
+   allow_downloads:null,allow_4k_transcode:p.allow_4k_transcode as boolean|null,is_purge_whitelisted:p.is_purge_whitelisted as boolean|null,is_discord_bot_whitelisted:null,is_home_user:null,shares_back:null,has_password:null,used_invite:null,force_password_change:null,
    last_login_at:null,last_activity_at:null,access_expires_at:p.access_expires_at,capabilities:{resetPassword:false,editSettings:false,resync:false,manageLinks:false,overseerr:service&&p.service_type==='plex'}};
  }finally{clearTimeout(timer);signal?.removeEventListener('abort',cancel);}
 }

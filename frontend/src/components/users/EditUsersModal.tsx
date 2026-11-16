@@ -38,6 +38,7 @@ import {
   faLink,
   faListCheck,
   faServer,
+  faShieldHalved,
   faSliders,
   faTrash,
   faTriangleExclamation,
@@ -135,6 +136,9 @@ export const EditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplete, i
   // 4K transcoding state
   const [allow4kTranscode, setAllow4kTranscode] = useState<'allow' | 'block'>('block');
 
+  // Purge protection state
+  const [purgeProtection, setPurgeProtection] = useState<'protect' | 'unprotect'>('protect');
+
   // Local link state
   const [targetLocalUserUuid, setTargetLocalUserUuid] = useState<string>('');
   const [localLinkMode, setLocalLinkMode] = useState<'link' | 'unlink'>('link');
@@ -186,6 +190,8 @@ export const EditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplete, i
       setExtendDays(30);
     } else if (action === 'manage_4k_transcode') {
       setAllow4kTranscode('block');
+    } else if (action === 'manage_purge_protection') {
+      setPurgeProtection('protect');
     } else if (action === 'manage_local_link') {
       setTargetLocalUserUuid('');
       setLocalLinkMode('link');
@@ -824,6 +830,10 @@ export const EditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplete, i
       const allow = allow4kTranscode === 'allow';
       requests.push({ ids, intent: { action: 'set_4k_transcode', allow_4k_transcode: allow } });
       successMessage = `${allow ? 'Allowed' : 'Blocked'} 4K transcoding for ${plural(ids.length)}`;
+    } else if (action === 'manage_purge_protection') {
+      const protect = purgeProtection === 'protect';
+      requests.push({ ids, intent: { action: 'set_purge_protection', purge_protected: protect } });
+      successMessage = `${protect ? 'Protected' : 'Removed purge protection from'} ${plural(ids.length)}`;
     } else if (action === 'manage_local_link') {
       if (linkContextError || localUsersError || serviceOptionsError) { error('Account details could not be loaded. Close and try again.'); return; }
       if (localLinkMode === 'unlink') {
@@ -1170,6 +1180,41 @@ export const EditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplete, i
           </div>
         );
 
+      case 'manage_purge_protection':
+        return (
+          <div className="space-y-4">
+            <Alert variant="info">
+              <FontAwesomeIcon icon={faCircleInfo} className="h-4 w-4" />
+              <AlertTitle>Purge Protection</AlertTitle>
+              <AlertDescription>
+                Protected users are left out of inactivity purges. Applies to server accounts; MUM accounts are skipped. Nothing changes on the server.
+              </AlertDescription>
+            </Alert>
+
+            <div className="space-y-2">
+              <Label htmlFor="purge-protection-mode">Purge Protection</Label>
+              <Select
+                value={purgeProtection}
+                onValueChange={(value: 'protect' | 'unprotect') => setPurgeProtection(value)}
+              >
+                <SelectTrigger id="purge-protection-mode" className="h-11">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="protect">
+                    <FontAwesomeIcon icon={faShieldHalved} className="mr-2" />
+                    Protect from purges
+                  </SelectItem>
+                  <SelectItem value="unprotect">
+                    <FontAwesomeIcon icon={faBan} className="mr-2" />
+                    Remove protection
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        );
+
       case 'manage_local_link':
         return (
           <div className="space-y-4">
@@ -1467,6 +1512,10 @@ export const EditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplete, i
                 <SelectItem value="manage_4k_transcode">
                   <FontAwesomeIcon icon={faFilm} className="mr-2" />
                   Manage 4K Transcoding
+                </SelectItem>
+                <SelectItem value="manage_purge_protection">
+                  <FontAwesomeIcon icon={faShieldHalved} className="mr-2" />
+                  Manage Purge Protection
                 </SelectItem>
                 <SelectItem value="manage_local_link">
                   <FontAwesomeIcon icon={faLink} className="mr-2" />

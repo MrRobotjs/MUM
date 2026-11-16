@@ -94,14 +94,15 @@ func readServiceRemote(ctx context.Context, tx *sql.Tx, actor, access, target st
 	if err != nil {
 		return out, err
 	}
-	// Delegated administrators act only on accounts primarily owned by a
-	// lower-ranked local human, never the owner's, their own or unowned ones.
+	// Delegated administrators act on unlinked accounts and on accounts
+	// primarily owned by a lower-ranked local human, never the owner's or their
+	// own (user decision 2026-11-16).
 	protection := ""
+	targetAdmin := false
 	if !authority.Owner {
 		var ownerKind string
 		switch {
 		case out.Owner == nil:
-			protection = "owner_only"
 		case *out.Owner == actor:
 			protection = "protected_self"
 		default:
@@ -111,6 +112,8 @@ func readServiceRemote(ctx context.Context, tx *sql.Tx, actor, access, target st
 			if ownerKind == "owner" {
 				protection = "protected_owner"
 			} else if err = checkAdminRoleHierarchyTarget(ctx, tx, authority, *out.Owner); err != nil {
+				return out, err
+			} else if err = tx.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM admin_privileges WHERE user_uuid=?)", *out.Owner).Scan(&targetAdmin); err != nil {
 				return out, err
 			}
 		}
@@ -171,12 +174,13 @@ func readServiceRemote(ctx context.Context, tx *sql.Tx, actor, access, target st
 		}
 	}
 	out.CanEnable = out.Enable == "available"
-	// Delete is irreversible: owner-only, ID-addressed providers only, and only
-	// after MUM has verified the account disabled.
+	// Delete is irreversible: ID-addressed providers only, and only after MUM
+	// has verified the account disabled. Only the owner deletes an
+	// administrator's account, whatever the ranks (user decision 2026-11-16).
 	out.Delete = out.Reason
 	if out.Delete == "available" {
 		switch {
-		case !authority.Owner:
+		case targetAdmin:
 			out.Delete = "owner_only"
 		case !serviceRemoteDeletable(server.Type):
 			out.Delete = "unsupported"

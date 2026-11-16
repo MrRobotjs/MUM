@@ -1,37 +1,87 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faTrash, faTriangleExclamation, faCircleInfo } from '@fortawesome/free-solid-svg-icons';
-import { requestJson } from '../../util/apiClient';
+import { faTrash, faTriangleExclamation, faCircleInfo, faClockRotateLeft } from '@fortawesome/free-solid-svg-icons';
+import { readPurgeCandidates, purgeUsers, lastPlayLabel, type PurgeCandidate } from '../../lib/purge';
+import { EditOperationsClient, editOutcomeMessage } from '../../lib/editOperations';
+import { readPlexHistory, startPlexHistoryImport, plexHistoryNotice, type PlexHistoryStatus } from '../../lib/plexHistory';
+import { useServers } from '../../hooks/useServers';
 import { useAlerts } from '../../contexts/AlertContext';
 import { Input } from '../ui/input';
 import { Checkbox } from '../ui/checkbox';
 import { Label } from '../ui/label';
 import { Button } from '../ui/button';
-import { Alert, AlertDescription } from '../ui/alert';
+import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
 import { ResponsiveDialog } from '../ui/responsive-dialog';
 import { Spinner } from '@/components/ui/spinner'
 
-interface EligibleUser {
-  uuid: string;
-  username?: string;
-  email?: string;
-  server_name?: string;
-  service_type?: string;
-  avatar_url?: string;
-  created_at?: string;
-  last_streamed_at?: string | null;
-  last_login_at?: string | null;
-  days_since_activity?: number;
-  is_sharer?: boolean;
-  is_whitelisted?: boolean;
-}
+// For each active Plex server whose play history has not been imported, a
+// notice explaining why it matters, with its own import button. Preview is
+// never blocked: someone who has run MUM for a long time may not need it.
+const PlexHistoryNotices = () => {
+  const { servers } = useServers({ serviceType: 'plex' });
+  const { success, error } = useAlerts();
+  const [statuses, setStatuses] = useState<Record<number, PlexHistoryStatus>>({});
+  const [starting, setStarting] = useState<number | null>(null);
+  const [run, setRun] = useState(0);
+  const active = servers.filter(server => server.service_type.toLowerCase() === 'plex' && server.effective_active !== false && server.is_active);
+  const ids = active.map(server => server.id).join(',');
 
-interface PurgeCriteria {
-  inactive_days: number;
-  exclude_sharers: boolean;
-  exclude_whitelisted: boolean;
-  ignore_creation_date: boolean;
-}
+  useEffect(() => {
+    if (!ids) return;
+    let live = true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const load = async () => {
+      const results = await Promise.allSettled(ids.split(',').map(id => readPlexHistory(Number(id))));
+      if (!live) return;
+      const next: Record<number, PlexHistoryStatus> = {};
+      for (const result of results) if (result.status === 'fulfilled') next[result.value.server_id] = result.value;
+      setStatuses(next);
+      if (Object.values(next).some(status => status.state === 'running')) timer = setTimeout(() => void load(), 2000);
+    };
+    void load();
+    return () => { live = false; if (timer) clearTimeout(timer); };
+  }, [ids, run]);
+
+  const handleImport = async (serverId: number) => {
+    if (starting !== null) return;
+    setStarting(serverId);
+    try {
+      await startPlexHistoryImport(serverId);
+      success('Play history import started.');
+      setRun(n => n + 1);
+    } catch (err) {
+      error(err instanceof Error && err.message ? err.message : 'The import could not be started.');
+    } finally {
+      setStarting(null);
+    }
+  };
+
+  const notices = active.flatMap(server => {
+    const status = statuses[server.id];
+    const notice = status ? plexHistoryNotice(status, server.server_nickname) : null;
+    return notice && status ? [{ server, status, notice }] : [];
+  });
+  if (!notices.length) return null;
+  return (
+    <div className="space-y-2">
+      {notices.map(({ server, status, notice }) => (
+        <Alert key={server.id} variant="info">
+          <FontAwesomeIcon icon={faCircleInfo} className="h-4 w-4" />
+          <AlertTitle>{notice.title}</AlertTitle>
+          <AlertDescription>
+            <p className="text-sm">{notice.body}</p>
+            {status.state !== 'running' && (
+              <Button type="button" variant="outline" className="mt-2" disabled={starting !== null} onClick={() => void handleImport(server.id)}>
+                {starting === server.id ? <Spinner className="mr-2 size-3" /> : <FontAwesomeIcon icon={faClockRotateLeft} className="mr-2" />}
+                Import play history
+              </Button>
+            )}
+          </AlertDescription>
+        </Alert>
+      ))}
+    </div>
+  );
+};
 
 interface PurgeUsersModalProps {
   onClose: () => void;
@@ -51,20 +101,20 @@ export const PurgeUsersModal = ({ onClose, onPurgeComplete }: PurgeUsersModalPro
   const [ignoreCreationDate, setIgnoreCreationDate] = useState(false);
 
   // Preview state
-  const [eligibleUsers, setEligibleUsers] = useState<EligibleUser[]>([]);
+  const [eligibleUsers, setEligibleUsers] = useState<PurgeCandidate[]>([]);
   const [selectedUserUuids, setSelectedUserUuids] = useState<Set<string>>(new Set());
+
+  const rule = () => ({
+    inactive_days: inactiveDays,
+    exclude_sharers: excludeSharers,
+    exclude_whitelisted: excludeWhitelisted,
+    ignore_creation_date: ignoreCreationDate
+  });
 
   const handlePreview = async () => {
     setLoading(true);
     try {
-      const result = await requestJson<{
-        data: {
-          users: EligibleUser[];
-          criteria: PurgeCriteria;
-        };
-      }>(`/api/users/eligible-for-purge?inactive_days=${inactiveDays}&exclude_sharers=${excludeSharers}&exclude_whitelisted=${excludeWhitelisted}&ignore_creation_date=${ignoreCreationDate}`);
-
-      const users = result.data.users;
+      const users = await readPurgeCandidates(rule());
       setEligibleUsers(users);
 
       // Select all users by default
@@ -110,31 +160,15 @@ export const PurgeUsersModal = ({ onClose, onPurgeComplete }: PurgeUsersModalPro
 
     setPurging(true);
     try {
-      const result = await requestJson<{
-        data: {
-          deleted: number;
-          failed: number;
-          message: string;
-        };
-      }>('/api/users/purge', {
-        method: 'POST',
-        body: JSON.stringify({
-          user_uuids: Array.from(selectedUserUuids),
-          criteria: {
-            inactive_days: inactiveDays,
-            exclude_sharers: excludeSharers,
-            exclude_whitelisted: excludeWhitelisted,
-            ignore_creation_date: ignoreCreationDate
-          }
-        })
-      });
+      // One prepared removal; Plex confirms each before MUM removes its record.
+      const receipt = await purgeUsers(new EditOperationsClient(), Array.from(selectedUserUuids), rule());
+      const deleted = receipt.summary.deleted;
+      const problems = editOutcomeMessage([receipt]);
 
-      const { deleted, failed } = result.data;
-
-      if (failed === 0) {
+      if (problems === null) {
         success(`Successfully purged ${deleted} user${deleted !== 1 ? 's' : ''}.`);
       } else {
-        error(`Purged ${deleted} user${deleted !== 1 ? 's' : ''} with ${failed} error${failed !== 1 ? 's' : ''}.`);
+        error(`Purged ${deleted} user${deleted !== 1 ? 's' : ''}: ${problems}`);
       }
 
       onPurgeComplete?.();
@@ -152,9 +186,11 @@ export const PurgeUsersModal = ({ onClose, onPurgeComplete }: PurgeUsersModalPro
         <Alert variant="warning">
           <FontAwesomeIcon icon={faTriangleExclamation} className="h-4 w-4" />
           <AlertDescription>
-            This will permanently delete selected users and all their associated data. This action cannot be undone.
+            This removes the selected users from your Plex server and deletes their server accounts and play history from MUM. This action cannot be undone.
           </AlertDescription>
         </Alert>
+
+        <PlexHistoryNotices />
 
         <div className="space-y-2">
           <Label htmlFor="inactive-days" className="font-semibold">Inactive for (days)</Label>
@@ -166,7 +202,7 @@ export const PurgeUsersModal = ({ onClose, onPurgeComplete }: PurgeUsersModalPro
             min="1"
           />
           <p className="text-sm text-muted-foreground">
-            Users who haven't logged in or streamed in this many days
+            Users who haven't played anything in this many days
           </p>
         </div>
 
@@ -268,9 +304,8 @@ export const PurgeUsersModal = ({ onClose, onPurgeComplete }: PurgeUsersModalPro
                   {user.server_name && (
                     <span className="badge badge-ghost badge-xs">{user.server_name}</span>
                   )}
-                  {user.days_since_activity !== undefined && (
-                    <span>{user.days_since_activity} days inactive</span>
-                  )}
+                  <span>{user.days_since_activity} days inactive</span>
+                  <span>{lastPlayLabel(user)}</span>
                 </div>
               </div>
             </Label>
@@ -302,7 +337,7 @@ export const PurgeUsersModal = ({ onClose, onPurgeComplete }: PurgeUsersModalPro
           <AlertDescription>
             <p className="font-semibold">Final Confirmation</p>
             <p className="text-sm">
-              You are about to permanently delete {selectedUserUuids.size} user{selectedUserUuids.size !== 1 ? 's' : ''}.
+              You are about to remove {selectedUserUuids.size} user{selectedUserUuids.size !== 1 ? 's' : ''} from your Plex server.
               This action cannot be undone.
             </p>
           </AlertDescription>
@@ -353,8 +388,8 @@ export const PurgeUsersModal = ({ onClose, onPurgeComplete }: PurgeUsersModalPro
 
   const stepDescriptions = {
     criteria: 'Configure the criteria for selecting users to purge based on inactivity and other factors.',
-    preview: 'Review and select which users you want to permanently delete from the system.',
-    confirm: 'Final confirmation before permanently deleting the selected users.'
+    preview: 'Review and select which users you want to remove from your Plex server.',
+    confirm: 'Final confirmation before removing the selected users.'
   };
 
   const { body, footer } =

@@ -102,6 +102,9 @@ func NewApp(store *Store, queue *LogQueue, assets fs.FS) (*App, error) {
 	if err := a.recoverEdit(context.Background()); err != nil {
 		return nil, err
 	}
+	if err := recoverPlexHistoryImports(context.Background(), store); err != nil {
+		return nil, err
+	}
 	a.hub = newRealtimeHub(store)
 	mux := http.NewServeMux()
 	// Every API route pattern is recorded for the generated OpenAPI document,
@@ -163,6 +166,7 @@ func NewApp(store *Store, queue *LogQueue, assets fs.FS) (*App, error) {
 	handle("GET /api/graphs/analytics", a.graphAnalytics)
 	handle("GET /api/activity/identities/{identity}/current", a.activityRead)
 	handle("GET /api/activity/identities/{identity}/history", a.activityRead)
+	handle("GET /api/activity/identities/{identity}/timeline", a.identityTimeline)
 	handle("GET /api/activity/identities/{identity}/summary", a.activitySummary)
 	handle("GET /api/settings/activity-monitoring", a.activityMonitorSettings)
 	handle("GET /api/settings/streaming-map", a.streamingMapSettings)
@@ -219,6 +223,8 @@ func NewApp(store *Store, queue *LogQueue, assets fs.FS) (*App, error) {
 	handle("POST /api/servers/{server}/sync", a.syncServerEndpoint)
 	handle("POST /api/servers/{server}/sync-libraries", a.syncServerEndpoint)
 	handle("POST /api/servers/{server}/sync-users", a.syncServerEndpoint)
+	handle("GET /api/servers/{server}/plex-history", a.plexHistoryStatus)
+	handle("POST /api/servers/{server}/plex-history/import", a.startPlexHistoryImport)
 	handle("GET /api/libraries", a.listLibraries)
 	handle("GET /api/libraries/{library}", a.listLibraries)
 	handle("GET /api/libraries/{library}/media", a.libraryCatalogueItems)
@@ -272,6 +278,7 @@ func NewApp(store *Store, queue *LogQueue, assets fs.FS) (*App, error) {
 	handle("POST /api/users/sync-all", a.syncAllUsers)
 	handle("POST /api/users/edit", a.editUsers)
 	handle("POST /api/users/edit/prepare", a.prepareEdit)
+	handle("GET /api/users/eligible-for-purge", a.eligibleForPurge)
 	handle("POST /api/users/edit/expiry", a.editExpiry)
 	handle("POST /api/edit-operations/{operation}/execute", a.executeEdit)
 	handle("GET /api/edit-operations/{operation}", a.readEditReceipt)

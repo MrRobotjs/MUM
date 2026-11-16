@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 	"unicode"
@@ -236,6 +237,12 @@ func commitAdminRoleChange(ctx context.Context, tx *sql.Tx, p adminRoleChange) (
 			oldJSON, _ := json.Marshal(oldIDs)
 			newJSON, _ := json.Marshal(p.Values.Permissions)
 			permissionChange := string(oldJSON) != string(newJSON)
+			// Only the owner gives out the full-access Administrator permission,
+			// whether by creating a role with it or adding it to one (user decision
+			// 2026-11-16). Delegated administrators may still remove it within rank.
+			if !hierarchy.Owner && slices.Contains(p.Values.Permissions, "admin") && !slices.Contains(oldIDs, "admin") {
+				return result, ErrForbidden
+			}
 			if p.Operation == "update" {
 				before := adminRoleValues{previous.Name, previous.Description, previous.Position, previous.Color, previous.Icon, previous.BadgeStyle, oldIDs}
 				oldBody, _ := json.Marshal(before)

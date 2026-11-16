@@ -96,10 +96,16 @@ type Grant struct {
 	// stop the account's streams that transcode a 4K source. Unset (older
 	// grants and Edit) means allowed, and is left out of the encoding.
 	Allow4KTranscode *bool `json:"allow_4k_transcode,omitempty"`
+	// PurgeProtected is MUM policy, not sent to the server: true keeps the
+	// created account out of purges. Unset means not protected.
+	PurgeProtected *bool `json:"purge_protected,omitempty"`
 }
 
 // Allows4KTranscode reports the grant's 4K transcoding policy.
 func (g Grant) Allows4KTranscode() bool { return g.Allow4KTranscode == nil || *g.Allow4KTranscode }
+
+// Protected reports whether the grant protects its account from purges.
+func (g Grant) Protected() bool { return g.PurgeProtected != nil && *g.PurgeProtected }
 
 // Account is one remote account as a module observed it by its recorded ID.
 // Detail is the module's own observed state, opaque to MUM: the core hands it

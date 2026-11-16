@@ -56,6 +56,16 @@ func readHumanActivation(ctx context.Context, tx *sql.Tx, actor, access, target 
 		out.Reason = "protected_self"
 	} else if err = checkAdminRoleHierarchyTarget(ctx, tx, authority, target); err != nil {
 		return out, err
+	} else if !authority.Owner {
+		// Only the owner deactivates or reactivates an administrator, whatever
+		// the ranks (user decision 2026-11-16).
+		var admin bool
+		if err = tx.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM admin_privileges WHERE user_uuid=?)", target).Scan(&admin); err != nil {
+			return out, err
+		}
+		if admin {
+			out.Reason = "administrator_unavailable"
+		}
 	}
 	if err = tx.QueryRowContext(ctx, "SELECT revision FROM admin_role_state WHERE singleton=1").Scan(&role); err != nil {
 		return out, err

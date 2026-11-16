@@ -43,7 +43,8 @@ func TestRuntimeInfoAdministratorPathsAndRevocation(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &result); err != nil {
 		t.Fatal(err)
 	}
-	if result.Data.Actor != f.user || result.Data.DatabaseFile != nil || result.Data.DataDirectory != nil || strings.Contains(w.Body.String(), f.store.dataDir) {
+	// Full administrators see the paths too (user decision 2026-11-16).
+	if result.Data.Actor != f.user || result.Data.DatabaseFile == nil || result.Data.DataDirectory == nil || *result.Data.DataDirectory != f.store.dataDir {
 		t.Fatal(w.Body.String())
 	}
 	activityExec(t, f.store, "DELETE FROM admin_privileges WHERE user_uuid=?", f.user)

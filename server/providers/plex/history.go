@@ -1,0 +1,115 @@
+package plex
+
+import (
+	"context"
+	"encoding/xml"
+	"errors"
+	"net/http"
+	"strconv"
+	"time"
+
+	"app/server/providers/provider"
+)
+
+// ErrPlayHistory is any unusable play history reply. The caller stops and
+// keeps what it already stored; nothing is guessed from a bad page.
+var ErrPlayHistory = errors.New("unusable Plex play history")
+
+// maxHistoryBytes bounds one history page; 500 entries are about 250 KiB.
+const maxHistoryBytes = 8 << 20
+
+// HistoryEntry is one play in the server's own history. Plex writes it when an
+// item is finished, with a single time and no length, player or quality. An
+// entry for a deleted item has no rating key and may have no title.
+type HistoryEntry struct {
+	Key              string // historyKey, unique on the server
+	AccountID        string
+	ViewedAt         time.Time
+	Type             string
+	RatingKey        string
+	Section          string
+	Title            string
+	ParentTitle      string
+	GrandparentTitle string
+}
+
+// HistoryPage is one page of the history and where it sits in the whole.
+type HistoryPage struct {
+	Entries []HistoryEntry
+	Offset  int
+	Total   int
+}
+
+// PlayHistory reads one page of the server's play history, oldest first, so
+// entries Plex adds while an import runs land after the pages already read.
+// It only reads.
+func (s *Server) PlayHistory(ctx context.Context, start, size int) (HistoryPage, error) {
+	if start < 0 || size < 1 || size > 1000 {
+		return HistoryPage{}, ErrPlayHistory
+	}
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, s.url+"/status/sessions/history/all?sort=viewedAt:asc", nil)
+	if err != nil {
+		return HistoryPage{}, ErrPlayHistory
+	}
+	req.Header.Set("Accept", "application/xml")
+	req.Header.Set("X-Plex-Container-Start", strconv.Itoa(start))
+	req.Header.Set("X-Plex-Container-Size", strconv.Itoa(size))
+	s.Authorize(req.Header)
+	_, body, err := s.transport.Fetch(req, maxHistoryBytes, nil)
+	if err != nil {
+		return HistoryPage{}, err
+	}
+	return ParsePlayHistory(body)
+}
+
+// ParsePlayHistory validates one history page: its size must match its rows,
+// and every row needs a unique history key, an account and a time. Titles and
+// other descriptive fields that are too long are dropped, not fatal.
+func ParsePlayHistory(body []byte) (HistoryPage, error) {
+	var page struct {
+		XMLName xml.Name `xml:"MediaContainer"`
+		Size    *int     `xml:"size,attr"`
+		Total   *int     `xml:"totalSize,attr"`
+		Offset  int      `xml:"offset,attr"`
+		Rows    []struct {
+			Key              string `xml:"historyKey,attr"`
+			Account          string `xml:"accountID,attr"`
+			Viewed           string `xml:"viewedAt,attr"`
+			Type             string `xml:"type,attr"`
+			RatingKey        string `xml:"ratingKey,attr"`
+			Section          string `xml:"librarySectionID,attr"`
+			Title            string `xml:"title,attr"`
+			ParentTitle      string `xml:"parentTitle,attr"`
+			GrandparentTitle string `xml:"grandparentTitle,attr"`
+		} `xml:",any"`
+	}
+	if len(body) > maxHistoryBytes || xml.Unmarshal(body, &page) != nil || page.Size == nil || page.Total == nil {
+		return HistoryPage{}, ErrPlayHistory
+	}
+	if *page.Size != len(page.Rows) || *page.Total < 0 || page.Offset < 0 {
+		return HistoryPage{}, ErrPlayHistory
+	}
+	out := HistoryPage{Entries: make([]HistoryEntry, 0, len(page.Rows)), Offset: page.Offset, Total: *page.Total}
+	seen := map[string]bool{}
+	optional := func(value string, limit int) string {
+		if value != "" && provider.ValidText(value, limit) {
+			return value
+		}
+		return ""
+	}
+	for _, row := range page.Rows {
+		viewed, err := strconv.ParseInt(row.Viewed, 10, 64)
+		if !provider.ValidText(row.Key, 256) || !provider.ValidText(row.Account, 64) || err != nil || viewed <= 0 || seen[row.Key] {
+			return HistoryPage{}, ErrPlayHistory
+		}
+		seen[row.Key] = true
+		out.Entries = append(out.Entries, HistoryEntry{
+			Key: row.Key, AccountID: row.Account, ViewedAt: time.Unix(viewed, 0),
+			Type: optional(row.Type, 32), RatingKey: optional(row.RatingKey, 256), Section: optional(row.Section, 64),
+			Title: optional(row.Title, 1024), ParentTitle: optional(row.ParentTitle, 1024), GrandparentTitle: optional(row.GrandparentTitle, 1024),
+		})
+	}
+	return out, nil
+}

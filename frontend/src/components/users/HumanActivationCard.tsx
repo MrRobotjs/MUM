@@ -6,7 +6,7 @@ import {Card,CardHeader,CardTitle,CardDescription,CardContent} from '../ui/card'
 import {Button} from '../ui/button';
 
 const unavailable={protected_owner:'The owner account is protected.',protected_self:'You cannot change your own activation here.',
-  administrator_unavailable:'Administrator activation changes are not available yet.',pending_work:'Finish or reconcile pending provisioning and authorization work first.',
+  administrator_unavailable:'Only the owner can deactivate or reactivate an administrator.',pending_work:'Finish or reconcile pending provisioning and authorization work first.',
   credentials_unavailable:'Activation changes require a supported local sign-in account.',expired:'The account is expired. Extend or clear its local expiry before activating it.',available:''};
 
 export function HumanActivationCard({target,refreshUser}:{target:string;refreshUser:()=>Promise<unknown>}){

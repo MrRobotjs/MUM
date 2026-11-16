@@ -16,6 +16,7 @@ import {
   faBook,
   faCircleInfo,
   faFloppyDisk,
+  faTriangleExclamation,
   faLock,
   faPlay,
   faServer,
@@ -149,7 +150,7 @@ const PERMISSION_ICON_MAP: Record<string, IconDefinition> = {
 
 export const AdminRolePermissionsTab = ({ role, permissions, onUpdate }: AdminRolePermissionsTabProps) => {
   const { success, error: showError } = useAlerts()
-  const {user} = useAuth()
+  const {user,isOwner} = useAuth()
   const active = useRef(true)
   useEffect(() => {active.current=true;return()=>{active.current=false}}, [])
   const [baseRole,setBaseRole] = useState(role)
@@ -240,15 +241,23 @@ export const AdminRolePermissionsTab = ({ role, permissions, onUpdate }: AdminRo
             <h3 className="text-lg font-semibold">Administrator</h3>
             <p className="text-sm text-muted-foreground">Full administrative access to all features</p>
           </div>
+          {/* Only the owner gives this permission; others may only turn it off. */}
           <Switch
             checked={isAdministrator}
             onCheckedChange={(checked) => setIsAdministrator(checked === true)}
-            disabled={!adminPermission}
+            disabled={!adminPermission || (!isOwner && !isAdministrator)}
           />
         </div>
         {!adminPermission && (
           <p className="text-xs text-muted-foreground">No Administrator permission available. Contact your server admin.</p>
         )}
+        <Alert variant="warning" className="mt-3">
+          <FontAwesomeIcon icon={faTriangleExclamation} />
+          <AlertTitle>Full access</AlertTitle>
+          <AlertDescription>
+            Administrators can do everything the owner can — manage users, servers, invites, roles and removals — except act against the owner or administrators ranked at or above them. Only the owner can delete, deactivate or remove the server accounts of an administrator, and only the owner can give this permission. Give it only to people you fully trust.
+          </AlertDescription>
+        </Alert>
       </div>
 
       {/* Permission Categories */}

@@ -10,7 +10,7 @@ const connectionID='33333333-3333-4333-8333-333333333333';
 const client='44444444-4444-4444-8444-444444444444';
 const now=Date.parse('2026-11-02T12:00:00Z');
 const url=`https://app.plex.tv/auth#?clientID=${client}&code=strongCode1234567890&context%5Bdevice%5D%5Bproduct%5D=MUM`;
-const profile={uuid:owner,username:'Owner',email:null,user_type:'owner',has_password:true,force_password_change:false,last_login_at:null,plex_authorization_enabled:true,profile_changes_available:false,password_change_available:true,email_change_available:true,profile_revision:1,email_verified:false};
+const profile={uuid:owner,username:'Owner',display_name:'Owner',email:null,user_type:'owner',has_password:true,force_password_change:false,last_login_at:null,plex_authorization_enabled:true,profile_changes_available:false,password_change_available:true,email_change_available:true,profile_revision:1,email_verified:false};
 const pending={id:auth,status:'pending',expires_at:'2026-11-02T12:10:00Z',revision:2,authorization_url:url};
 const verified={id:auth,status:'verified',expires_at:pending.expires_at,revision:4,account:{id:'2',username:'Reader'}};
 const connected={id:connectionID,account_id:'2',username:'Reader',status:'active',verified_at:'2026-11-02T12:00:00Z',on_server:true};

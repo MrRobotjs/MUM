@@ -193,13 +193,14 @@ func prepareEditLocal(ctx context.Context, tx *sql.Tx, actor, access, target str
 			return out, err
 		}
 		var localKind string
-		var deleted, admin, running, plex bool
+		var deleted, admin, running, plex, ownerActor bool
 		var profile, roles int64
-		err = tx.QueryRowContext(ctx, `SELECT u.kind,u.deleted_at IS NOT NULL,EXISTS(SELECT 1 FROM admin_privileges WHERE user_uuid=u.uuid),EXISTS(SELECT 1 FROM provisioning_jobs WHERE user_uuid=u.uuid AND resolution IS NULL AND (status IN ('pending','running') OR review_token IS NOT NULL)),EXISTS(SELECT 1 FROM plex_connections WHERE owner_uuid=u.uuid AND status='active'),u.profile_revision,(SELECT revision FROM admin_role_state WHERE singleton=1) FROM user_accounts u WHERE uuid=?`, target).Scan(&localKind, &deleted, &admin, &running, &plex, &profile, &roles)
+		err = tx.QueryRowContext(ctx, `SELECT u.kind,u.deleted_at IS NOT NULL,EXISTS(SELECT 1 FROM admin_privileges WHERE user_uuid=u.uuid),EXISTS(SELECT 1 FROM provisioning_jobs WHERE user_uuid=u.uuid AND resolution IS NULL AND (status IN ('pending','running') OR review_token IS NOT NULL)),EXISTS(SELECT 1 FROM plex_connections WHERE owner_uuid=u.uuid AND status='active'),u.profile_revision,(SELECT revision FROM admin_role_state WHERE singleton=1),
+		 EXISTS(SELECT 1 FROM user_accounts o WHERE o.uuid=? AND o.kind='owner') FROM user_accounts u WHERE uuid=?`, actor, target).Scan(&localKind, &deleted, &admin, &running, &plex, &profile, &roles, &ownerActor)
 		if err != nil {
 			return out, err
 		}
-		snapshot = []any{localKind, deleted, admin, running, plex, profile, roles}
+		snapshot = []any{localKind, deleted, admin, running, plex, profile, roles, ownerActor}
 		switch {
 		case localKind == "owner":
 			out.Reason = "protected_owner"
@@ -207,7 +208,8 @@ func prepareEditLocal(ctx context.Context, tx *sql.Tx, actor, access, target str
 			out.Reason = "protected_self"
 		case deleted:
 			out.Reason = "already_deleted"
-		case admin:
+		case admin && !ownerActor:
+			// Only the owner stands above administrators (user decision 2026-11-15).
 			out.Reason = "administrator"
 		case running:
 			out.Reason = "invite_in_progress"

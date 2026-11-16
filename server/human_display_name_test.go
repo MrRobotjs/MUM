@@ -17,6 +17,10 @@ func TestSignInAccountShownByServerName(t *testing.T) {
 	if user["display_name"] != "alice" || user["username"] != "" {
 		t.Fatal("session user", user)
 	}
+	// The account page names the account the same way.
+	if own := responseData(t, apiRequest(f.a, "GET", "/api/account/profile", token, nil, nil)); own["display_name"] != "alice" || own["username"] != "" {
+		t.Fatal("account page", own)
+	}
 	human := responseData(t, apiRequest(f.a, "GET", "/api/users/"+alice, f.owner, nil, nil))
 	if human["display_name"] != "alice" || human["username"] != "" || human["email"] != nil || human["external_email"] != "alice@example.test" {
 		t.Fatal("listed account", human)

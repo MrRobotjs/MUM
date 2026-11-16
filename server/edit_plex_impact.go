@@ -109,7 +109,7 @@ func (a *App) prepareEditPlexImpacts(ctx context.Context, b *editStored, access 
 			impact, err := editServiceTarget(ctx, tx, id)
 			protected := false
 			if err == nil {
-				err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM service_links l JOIN user_accounts u ON u.uuid=l.user_uuid WHERE l.service_uuid=? AND (u.kind='owner' OR u.uuid=? OR EXISTS(SELECT 1 FROM admin_privileges WHERE user_uuid=u.uuid)))`, id, b.Actor).Scan(&protected)
+				err = tx.QueryRowContext(ctx, protectedServiceSQL, id, b.Actor, b.Actor).Scan(&protected)
 			}
 			tx.Rollback()
 			if err != nil {
@@ -187,7 +187,7 @@ func checkEditImpacts(ctx context.Context, tx *sql.Tx, b editStored, target edit
 			return err
 		}
 		var protected bool
-		if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM service_links l JOIN user_accounts u ON u.uuid=l.user_uuid WHERE l.service_uuid=? AND (u.kind='owner' OR u.uuid=? OR EXISTS(SELECT 1 FROM admin_privileges WHERE user_uuid=u.uuid)))`, impact.UUID, b.Actor).Scan(&protected); err != nil {
+		if err := tx.QueryRowContext(ctx, protectedServiceSQL, impact.UUID, b.Actor, b.Actor).Scan(&protected); err != nil {
 			return err
 		}
 		if protected {

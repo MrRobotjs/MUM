@@ -203,7 +203,7 @@ func projectAdminRoleCapabilities(ctx context.Context, tx *sql.Tx, roles []admin
 			}
 		}
 		role.CanUpdate = role.MemberAssignment && (hierarchy.Owner || !blocked[role.ID] && role.UserCount <= 10000)
-		role.CanDelete = role.MemberChanges && role.UserCount == 0 && (hierarchy.Owner || role.MemberAssignment)
+		role.CanDelete = role.MemberChanges && (hierarchy.Owner || role.UserCount == 0 && role.MemberAssignment)
 		role.CanReorder = !role.Protected && (hierarchy.Owner || role.CanUpdate)
 		if role.CanReorder {
 			maximum := 1000000

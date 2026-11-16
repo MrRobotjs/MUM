@@ -31,7 +31,8 @@ func editOutcomes(t *testing.T, body map[string]any) map[string]string {
 // unlinked, hidden, username free for reuse) while its records and history
 // stay; a service account is deleted with its history and links, even while
 // playing. Failed invitation jobs are closed; only an invitation being
-// processed right now, the owner and administrators are skipped.
+// processed right now and the owner are skipped; the owner deletes
+// administrators, who lose their administrator roles (a non-owner cannot).
 func TestEditDeleteRetiresLocalAndDeletesServiceAccounts(t *testing.T) {
 	a, s := testApp(t)
 	token, _ := bootstrapOwner(t, a)
@@ -95,20 +96,48 @@ func TestEditDeleteRetiresLocalAndDeletesServiceAccounts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	code, body := 200, map[string]any{"data": map[string]any{"results": results, "summary": map[string]any{"deleted": float64(4), "updated": float64(0), "skipped": float64(3), "errors": float64(0)}}}
+	code, body := 200, map[string]any{"data": map[string]any{"results": results, "summary": map[string]any{"deleted": float64(5), "updated": float64(0), "skipped": float64(2), "errors": float64(0)}}}
 	if code != 200 {
 		t.Fatal(code, body)
 	}
 	got := editOutcomes(t, body)
-	want := map[string]string{local: "deleted:", service: "deleted:", owner.UUID: "skipped:protected_owner", admin: "skipped:administrator", pending: "deleted:", playing: "deleted:", busy: "skipped:invite_in_progress"}
+	want := map[string]string{local: "deleted:", service: "deleted:", owner.UUID: "skipped:protected_owner", admin: "deleted:", pending: "deleted:", playing: "deleted:", busy: "skipped:invite_in_progress"}
 	for id, outcome := range want {
 		if got[id] != outcome {
 			t.Fatalf("%s: got %q want %q (all %v)", id, got[id], outcome, got)
 		}
 	}
 	summary := body["data"].(map[string]any)["summary"].(map[string]any)
-	if summary["deleted"] != float64(4) || summary["updated"] != float64(0) || summary["skipped"] != float64(3) || summary["errors"] != float64(0) {
+	if summary["deleted"] != float64(5) || summary["updated"] != float64(0) || summary["skipped"] != float64(2) || summary["errors"] != float64(0) {
 		t.Fatal("summary", summary)
+	}
+	if countRows(t, s, "SELECT count(*) FROM admin_privileges WHERE user_uuid=?", admin) != 0 {
+		t.Fatal("deleted administrator kept administrator roles")
+	}
+	// Below the owner, administrators are still refused.
+	deputy, err := s.CreateAccount(t.Context(), owner.UUID, "deputy-admin", "fixture-hash", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	other, err := s.CreateAccount(t.Context(), owner.UUID, "second-admin", "fixture-hash", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []string{deputy, other} {
+		if err := s.AssignAdminRole(t.Context(), owner.UUID, id, "edit-admin"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	err = s.write(t.Context(), func(tx *sql.Tx) error {
+		request, _ := http.NewRequestWithContext(t.Context(), "POST", "/", nil)
+		result, e := editDeleteOne(request, tx, deputy, other, now)
+		if e == nil && (result.Outcome != "skipped" || result.Reason != "administrator") {
+			t.Errorf("administrator deleted by a non-owner: %+v", result)
+		}
+		return e
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
 	// The retired account cannot sign in, is unlinked and hidden, and its
 	// username is free; its record remains.

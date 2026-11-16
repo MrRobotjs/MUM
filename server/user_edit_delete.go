@@ -55,14 +55,15 @@ func editDeleteOne(r *http.Request, tx *sql.Tx, actor, id, now string) (editUser
 		return editDeleteService(r, tx, actor, id)
 	}
 	var accountKind string
-	var deleted, admin, running, plexConnected bool
+	var deleted, admin, running, plexConnected, ownerActor bool
 	// Only a job that is executing right now (seconds) holds up a delete;
 	// failed jobs awaiting review are closed below.
 	err = tx.QueryRowContext(ctx, `SELECT u.kind,u.deleted_at IS NOT NULL,
 	 EXISTS(SELECT 1 FROM admin_privileges WHERE user_uuid=u.uuid),
 	 EXISTS(SELECT 1 FROM provisioning_jobs WHERE user_uuid=u.uuid AND resolution IS NULL AND (status IN ('pending','running') OR review_token IS NOT NULL)),
-	 EXISTS(SELECT 1 FROM plex_connections WHERE owner_uuid=u.uuid AND status='active')
-	 FROM user_accounts u WHERE u.uuid=?`, id).Scan(&accountKind, &deleted, &admin, &running, &plexConnected)
+	 EXISTS(SELECT 1 FROM plex_connections WHERE owner_uuid=u.uuid AND status='active'),
+	 EXISTS(SELECT 1 FROM user_accounts o WHERE o.uuid=? AND o.kind='owner')
+	 FROM user_accounts u WHERE u.uuid=?`, actor, id).Scan(&accountKind, &deleted, &admin, &running, &plexConnected, &ownerActor)
 	if errors.Is(err, sql.ErrNoRows) {
 		return skip("not_found")
 	}
@@ -76,8 +77,10 @@ func editDeleteOne(r *http.Request, tx *sql.Tx, actor, id, now string) (editUser
 		return skip("protected_self")
 	case deleted:
 		return skip("already_deleted")
-	case admin:
-		// Administrators are changed through role management, never through Edit.
+	case admin && !ownerActor:
+		// Administrators are changed through role management; only the owner,
+		// who stands above every administrator, deletes one directly (user
+		// decision 2026-11-15).
 		return skip("administrator")
 	case running:
 		// An invitation is being processed this moment; its result would be
@@ -99,7 +102,8 @@ func editDeleteOne(r *http.Request, tx *sql.Tx, actor, id, now string) (editUser
 	if err := revokeHumanSignIn(ctx, tx, id, now); err != nil {
 		return editUserResult{}, err
 	}
-	for _, statement := range []string{"DELETE FROM service_links WHERE user_uuid=?", "DELETE FROM identity_user_roles WHERE user_uuid=?"} {
+	// A deleted administrator keeps no administrator roles.
+	for _, statement := range []string{"DELETE FROM service_links WHERE user_uuid=?", "DELETE FROM identity_user_roles WHERE user_uuid=?", "DELETE FROM admin_privileges WHERE user_uuid=?"} {
 		if _, err := tx.ExecContext(ctx, statement, id); err != nil {
 			return editUserResult{}, err
 		}

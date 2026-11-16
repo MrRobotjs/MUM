@@ -175,7 +175,10 @@ export const AdminSettingsAdminRolesPage = () => {
       return
     }
 
-    if (!window.confirm(`Delete admin role "${role.name}"?`)) {
+    const members = role.user_count ?? 0
+    if (!window.confirm(members > 0
+      ? `Delete admin role "${role.name}"? ${members} ${members === 1 ? 'person loses' : 'people lose'} this role.`
+      : `Delete admin role "${role.name}"?`)) {
       return
     }
 

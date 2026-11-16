@@ -154,7 +154,8 @@ const PayloadDialog = ({
 interface StreamingSessionCardProps {
   session: ActiveSession;
   cardStyle?: StreamCardStyle;
-  onTerminate: (session: ActiveSession) => void;
+  /** Stops the stream; without it the card offers no Terminate Stream. */
+  onTerminate?: (session: ActiveSession) => void;
   pluginFeaturesByService?: PluginMetaResponse['data'] | null;
 }
 
@@ -619,13 +620,15 @@ export const StreamingSessionCard = ({
                   <FontAwesomeIcon icon={faCode} className="mr-2" />
                   Payload
                 </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => onTerminate(session)}
-                  className="text-red-600 focus:text-red-600 focus:bg-red-100 dark:focus:bg-red-900/20"
-                >
-                  <FontAwesomeIcon icon={faBan} className="mr-2" />
-                  Terminate Stream
-                </DropdownMenuItem>
+                {onTerminate && (
+                  <DropdownMenuItem
+                    onClick={() => onTerminate(session)}
+                    className="text-red-600 focus:text-red-600 focus:bg-red-100 dark:focus:bg-red-900/20"
+                  >
+                    <FontAwesomeIcon icon={faBan} className="mr-2" />
+                    Terminate Stream
+                  </DropdownMenuItem>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -852,13 +855,15 @@ export const StreamingSessionCard = ({
                   <FontAwesomeIcon icon={faCode} className="mr-2" />
                   Payload
                 </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => onTerminate(session)}
-                  className="text-red-600 focus:text-red-600 focus:bg-red-100 dark:focus:bg-red-900/20"
-                >
-                  <FontAwesomeIcon icon={faBan} className="mr-2" />
-                  Terminate Stream
-                </DropdownMenuItem>
+                {onTerminate && (
+                  <DropdownMenuItem
+                    onClick={() => onTerminate(session)}
+                    className="text-red-600 focus:text-red-600 focus:bg-red-100 dark:focus:bg-red-900/20"
+                  >
+                    <FontAwesomeIcon icon={faBan} className="mr-2" />
+                    Terminate Stream
+                  </DropdownMenuItem>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           </div>

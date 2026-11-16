@@ -193,8 +193,13 @@ func commitAdminRoleChange(ctx context.Context, tx *sql.Tx, p adminRoleChange) (
 			}
 		}
 		if p.Operation == "delete" {
-			if previous.UserCount != 0 {
+			// Only the owner deletes a role that is still assigned; its members
+			// lose it (user decision 2026-11-15).
+			if previous.UserCount != 0 && !hierarchy.Owner {
 				return result, ErrConflict
+			}
+			if _, err := tx.ExecContext(ctx, "DELETE FROM admin_privileges WHERE role_id=?", p.ID); err != nil {
+				return result, err
 			}
 			if _, err := tx.ExecContext(ctx, "DELETE FROM admin_roles WHERE id=?", p.ID); err != nil {
 				return result, err

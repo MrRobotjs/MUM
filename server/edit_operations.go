@@ -103,6 +103,13 @@ func editServiceTarget(ctx context.Context, tx *sql.Tx, id string) (editTarget, 
 	return target, nil
 }
 
+// protectedServiceSQL matches a server account linked to the owner, to the
+// acting account, or to an administrator unless the actor is the owner, who
+// stands above administrators (user decision 2026-11-15). Arguments: the
+// service account, then the actor twice.
+const protectedServiceSQL = `SELECT EXISTS(SELECT 1 FROM service_links l JOIN user_accounts u ON u.uuid=l.user_uuid WHERE l.service_uuid=? AND (u.kind='owner' OR u.uuid=?
+ OR (EXISTS(SELECT 1 FROM admin_privileges WHERE user_uuid=u.uuid) AND NOT EXISTS(SELECT 1 FROM user_accounts o WHERE o.uuid=? AND o.kind='owner'))))`
+
 func editSourceBusy(ctx context.Context, tx *sql.Tx, server int64, except string) (bool, error) {
 	var busy bool
 	err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM edit_source_locks WHERE (?=0 OR server_id=?) AND operation_id<>?)`, server, server, except).Scan(&busy)
@@ -290,9 +297,10 @@ func (a *App) prepareEdit(w http.ResponseWriter, r *http.Request) {
 						result.Outcome = "skipped"
 						result.Reason = "pending_work"
 					}
-					// Protect any linked MUM owner/administrator, even for owner callers.
+					// The owner's and the caller's own server accounts are never deleted
+					// here; administrators' accounts only by the owner.
 					var protected bool
-					err = tx.QueryRowContext(r.Context(), `SELECT EXISTS(SELECT 1 FROM service_links l JOIN user_accounts u ON u.uuid=l.user_uuid WHERE l.service_uuid=? AND (u.kind='owner' OR u.uuid=? OR EXISTS(SELECT 1 FROM admin_privileges WHERE user_uuid=u.uuid)))`, id, actor.UUID).Scan(&protected)
+					err = tx.QueryRowContext(r.Context(), protectedServiceSQL, id, actor.UUID, actor.UUID).Scan(&protected)
 					if err != nil {
 						domainError(w, err)
 						return

@@ -3,14 +3,16 @@ import test from 'node:test';
 import {fileURLToPath} from 'node:url';
 import {loadFrontend} from './frontendLoader.mjs';
 async function load(){
- return loadFrontend("export {useLiveStreams} from './src/hooks/useLiveStreams';export {StreamingPage} from './src/pages/StreamingPage';",{mock:{filter:/^(react(?:\/jsx-runtime)?|swr)$|contexts\/AuthContext$|store\/authStore$|lib\/(realtimeSocket|activityRealtime|liveStreams)$|hooks\/usePlaybackClock$|components\/(dashboard|streaming|ui)\/|^\.\.\/components$/,module:path=>(a=>{
+ return loadFrontend("export {useLiveStreams} from './src/hooks/useLiveStreams';export {StreamingPage} from './src/pages/StreamingPage';",{mock:{filter:/^(react(?:\/jsx-runtime)?|swr)$|contexts\/(AuthContext|AlertContext)$|TerminateSessionModal$|store\/authStore$|lib\/(realtimeSocket|activityRealtime|liveStreams|streamTerminate)$|hooks\/usePlaybackClock$|components\/(dashboard|streaming|ui)\/|^\.\.\/components$/,module:path=>(a=>{
   const p=a.path;if(p==='react/jsx-runtime')return{contents:'export const jsx=(type,props,key)=>({type,props,key});export const jsxs=jsx;'};
   if(p==='react')return{contents:'export const useState=v=>[typeof v==="function"?v():v,()=>{}];export const useSyncExternalStore=(s,r)=>r();export const useEffect=f=>f();'};
   if(p==='swr')return{contents:'export default (key,fetcher,options)=>{globalThis.streamTransport.options=options;return globalThis.streamTransport.swr;};'};
+  if(p.endsWith('AlertContext'))return{contents:'export const useAlerts=()=>({success(){},error(){}});'};
   if(p.endsWith('AuthContext'))return{contents:'export const useAuth=()=>({user:{uuid:"actor"},isAdministrator:true});'};
   if(p.endsWith('authStore'))return{contents:'export const getAccessToken=()=>globalThis.streamTransport.token;export const getAuthSnapshot=()=>({accessToken:globalThis.streamTransport.token});export const subscribeToAuthStore=()=>()=>{};'};
   if(p.endsWith('realtimeSocket'))return{contents:'export const getRealtimeState=()=>({connected:globalThis.streamTransport.connected});export const onConnectionChange=()=>()=>{};'};
   if(p.endsWith('activityRealtime'))return{contents:'export const watchActivity=(actor,scope,refresh)=>{globalThis.streamTransport.invalidate=refresh;return()=>{};};'};
+  if(p.endsWith('streamTerminate'))return{contents:'export const terminateStream=async()=>{};'};
   if(p.endsWith('usePlaybackClock'))return{contents:'export const usePlaybackClock=data=>data;'};
   if(p.endsWith('liveStreams'))return{contents:'export const fetchLiveStreams=async()=>globalThis.streamTransport.data;export const readStreamDisplayDefaults=()=>({default_card_style:"detailed",default_grouping:"merged"});'};
   const names=p.endsWith('/card')?['Card','CardContent','CardDescription','CardHeader','CardTitle']:p==='../components'?['PageHeader']:p.endsWith('/button')?['Button']:[p.split('/').at(-1)];return{contents:names.map(n=>`export const ${n}=${JSON.stringify(n)};`).join('')};

@@ -5,7 +5,7 @@ import {loadFrontend} from './frontendLoader.mjs';
 const directory=fileURLToPath(new URL('../frontend/',import.meta.url));
 async function load(){return loadFrontend("export * from './src/lib/accountPassword';export {setAccessToken,getAccessToken} from './src/store/authStore';");}
 const user='12345678-1234-1234-1234-123456789abc';
-const profile={uuid:user,username:'owner',email:null,user_type:'owner',has_password:true,force_password_change:false,last_login_at:null,plex_authorization_enabled:false,profile_changes_available:false,password_change_available:true,email_change_available:true,profile_revision:1,email_verified:false};
+const profile={uuid:user,username:'owner',display_name:'owner',email:null,user_type:'owner',has_password:true,force_password_change:false,last_login_at:null,plex_authorization_enabled:false,profile_changes_available:false,password_change_available:true,email_change_available:true,profile_revision:1,email_verified:false};
 const input=()=>({current_password:'old-private-password',new_password:'new-private-password',confirm_password:'new-private-password',acknowledge_revoke_sessions:true});
 test('own password adapter',async t=>{
  const before=globalThis.fetch,oldWindow=globalThis.window;globalThis.window={location:{origin:'http://mum.test'}};t.after(()=>{globalThis.fetch=before;globalThis.window=oldWindow;});

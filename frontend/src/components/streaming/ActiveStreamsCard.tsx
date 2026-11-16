@@ -66,7 +66,7 @@ interface ActiveStreamsCardProps {
   lastWsUpdateAt: Date | null;
   lastHttpUpdateAt: Date | null;
   sessionMonitoringInterval: number | null;
-  onTerminateSession: (session: ActiveSession) => void;
+  onTerminateSession?: (session: ActiveSession) => void;
 }
 
 export const ActiveStreamsCard = ({

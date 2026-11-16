@@ -98,8 +98,18 @@ func TestAdminRoleChangesRejectDelegatedProtectedAssignedAndUnsupported(t *testi
 			t.Fatal(id, w.Code, w.Body.String())
 		}
 	}
-	if w := apiRequest(a, "DELETE", "/api/admin-roles/high", token, map[string]any{"expected_actor_uuid": owner.UUID, "snapshot_revision": roleRevision(t, s), "acknowledge_delete": true}, nil); w.Code != 409 {
-		t.Fatal("assigned role deleted", w.Code)
+	// Only the owner deletes a role that is still assigned; its members lose it.
+	if countRows(t, s, "SELECT count(*) FROM admin_privileges WHERE role_id='high'") == 0 {
+		t.Fatal("fixture: high is unassigned")
+	}
+	if w := apiRequest(a, "DELETE", "/api/admin-roles/high", admin, map[string]any{"expected_actor_uuid": delegate.UUID, "snapshot_revision": roleRevision(t, s), "acknowledge_delete": true}, nil); w.Code == 200 {
+		t.Fatal("assigned role deleted by a delegate")
+	}
+	if w := apiRequest(a, "DELETE", "/api/admin-roles/high", token, map[string]any{"expected_actor_uuid": owner.UUID, "snapshot_revision": roleRevision(t, s), "acknowledge_delete": true}, nil); w.Code != 200 {
+		t.Fatal("owner could not delete an assigned role", w.Code, w.Body.String())
+	}
+	if countRows(t, s, "SELECT count(*) FROM admin_privileges WHERE role_id='high'")+countRows(t, s, "SELECT count(*) FROM admin_roles WHERE id='high'") != 0 {
+		t.Fatal("deleted role or its assignments remain")
 	}
 	for _, mode := range []string{"unknown", "permission", "color", "missing", "target", "consent"} {
 		t.Run(mode, func(t *testing.T) {

@@ -9,7 +9,7 @@ async function load(){
 }
 const id='12345678-1234-1234-1234-123456789abc';
 const owner='87654321-1234-1234-1234-123456789abc';
-const profile={uuid:owner,username:'owner',email:null,user_type:'owner',has_password:true,force_password_change:false,last_login_at:null,plex_authorization_enabled:true,profile_changes_available:false,password_change_available:true,email_change_available:true,profile_revision:1,email_verified:false};
+const profile={uuid:owner,username:'owner',display_name:'owner',email:null,user_type:'owner',has_password:true,force_password_change:false,last_login_at:null,plex_authorization_enabled:true,profile_changes_available:false,password_change_available:true,email_change_available:true,profile_revision:1,email_verified:false};
 const job=(revision=3)=>({id,status:'running',revision:1,reservation_held:true,review_in_progress:false,steps:[{server_id:9,plex:{state:'access_observed',revision,operation_in_progress:false,reconciliation_required:false,access_verified:false,cleanup_scope:'none'}}],plex_progress:{phase:'verification_required',operation_in_progress:false,requires_review:true,completion_available:false}});
 const completed=()=>{const j=job(5);return {...j,status:'completed',revision:2,reservation_held:false,steps:[{...j.steps[0],plex:{...j.steps[0].plex,completion_recorded:true,verification_scope:'accepted_cloud_and_recipient_library_listing',verified_at:'2026-11-02T12:00:00Z'}}],plex_progress:{...j.plex_progress,phase:'completed',requires_review:false}};};
 const decision=(activate=false)=>({reason:'Reviewed the accepted selected libraries',acknowledge_in_flight_risk:true,acknowledge_local_activation:activate});

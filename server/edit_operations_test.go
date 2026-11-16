@@ -448,3 +448,38 @@ func TestEditExpiryLeavesUsersWithoutOne(t *testing.T) {
 		t.Fatal("dated user not cleared")
 	}
 }
+
+// The owner may delete administrators' server accounts, never their own
+// (user decision 2026-11-15).
+func TestEditPrepareOwnerDeletesAdministratorServerAccounts(t *testing.T) {
+	a, s := testApp(t)
+	token, _ := bootstrapOwner(t, a)
+	owner, _ := s.Authenticate(t.Context(), token)
+	admin, _ := s.CreateAccount(t.Context(), owner.UUID, "server-admin", "fixture-hash", false)
+	activityExec(t, s, "INSERT INTO admin_roles(id,name,position) VALUES('full-admin','Full administrator',10)")
+	activityExec(t, s, "INSERT INTO admin_role_permissions VALUES('full-admin','admin')")
+	activityExec(t, s, "INSERT INTO admin_privileges VALUES(?,'full-admin')", admin)
+	server := seedServer(t, s)
+	mine, theirs := seedService(t, s, server), seedService(t, s, server)
+	if err := s.LinkServiceAccounts(t.Context(), owner.UUID, owner.UUID, []string{mine}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.LinkServiceAccounts(t.Context(), owner.UUID, admin, []string{theirs}); err != nil {
+		t.Fatal(err)
+	}
+	w := apiRequest(a, "POST", "/api/users/edit/prepare", token, map[string]any{"request_id": newUUID(), "user_uuids": []string{mine, theirs}, "operation": map[string]any{"action": "delete_users"}}, nil)
+	var prepared struct{ Data editReceipt }
+	if err := json.Unmarshal(w.Body.Bytes(), &prepared); err != nil || w.Code != 201 {
+		t.Fatalf("prepare %d %s", w.Code, w.Body.String())
+	}
+	reasons := map[string]string{}
+	for _, result := range prepared.Data.Results {
+		reasons[result.UUID] = result.Reason
+	}
+	if reasons[mine] != "protected_account" {
+		t.Fatal("owner's own server account not protected", reasons)
+	}
+	if reasons[theirs] == "protected_account" {
+		t.Fatal("administrator's server account protected from the owner", reasons)
+	}
+}

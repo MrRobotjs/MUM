@@ -1,6 +1,6 @@
 import { ApiError, requestJson } from '../util/apiClient';
 
-export type PersonalProfile = { uuid: string; username: string; email: string | null; user_type: string; has_password: boolean; force_password_change: boolean; last_login_at: string | null; plex_authorization_enabled: boolean; profile_changes_available: false; password_change_available: boolean; email_change_available: boolean; profile_revision: number; email_verified: false; initial_credentials_available?: boolean };
+export type PersonalProfile = { uuid: string; username: string; display_name: string; email: string | null; user_type: string; has_password: boolean; force_password_change: boolean; last_login_at: string | null; plex_authorization_enabled: boolean; profile_changes_available: false; password_change_available: boolean; email_change_available: boolean; profile_revision: number; email_verified: false; initial_credentials_available?: boolean };
 // on_server: whether the account is on one of this MUM's Plex servers (null: unknown, for the owner).
 export type PlexConnection = { id: string; account_id: string; username: string; status: 'active'; verified_at?: string; on_server: boolean | null };
 export type PlexChallenge = { id: string; status: 'pending' | 'verified'; expires_at: string; revision: number; authorization_url?: string; account?: {id: string; username: string} };
@@ -18,7 +18,7 @@ export function plexAuthorizationURL(value: unknown): string {
 }
 export async function fetchPersonalProfile(): Promise<PersonalProfile> {
  const {data:p} = await requestJson<{data:PersonalProfile}>('/api/account/profile');
- if (!p || !uuid(p.uuid) || typeof p.username !== 'string' || !['owner','local'].includes(p.user_type) || typeof p.plex_authorization_enabled !== 'boolean' || p.profile_changes_available !== false || typeof p.password_change_available !== 'boolean' || typeof p.email_change_available !== 'boolean' || !Number.isSafeInteger(p.profile_revision) || p.profile_revision<1 || p.email_verified!==false || typeof p.has_password !== 'boolean' || typeof p.force_password_change !== 'boolean' || p.email !== null && typeof p.email !== 'string' || p.last_login_at !== null && typeof p.last_login_at !== 'string' || p.initial_credentials_available !== undefined && typeof p.initial_credentials_available !== 'boolean') throw new Error('Invalid personal profile');
+ if (!p || !uuid(p.uuid) || typeof p.username !== 'string' || !['owner','local'].includes(p.user_type) || typeof p.plex_authorization_enabled !== 'boolean' || p.profile_changes_available !== false || typeof p.password_change_available !== 'boolean' || typeof p.email_change_available !== 'boolean' || !Number.isSafeInteger(p.profile_revision) || p.profile_revision<1 || p.email_verified!==false || typeof p.has_password !== 'boolean' || typeof p.force_password_change !== 'boolean' || p.email !== null && typeof p.email !== 'string' || p.last_login_at !== null && typeof p.last_login_at !== 'string' || p.initial_credentials_available !== undefined && typeof p.initial_credentials_available !== 'boolean' || typeof p.display_name !== 'string') throw new Error('Invalid personal profile');
  return p;
 }
 function connection(value: unknown): PlexConnection | null {

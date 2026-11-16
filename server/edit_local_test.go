@@ -222,3 +222,49 @@ func TestEditLocalProtectsOwnerAndExistingPrimary(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// The Users list Edit delete: the owner deletes an administrator; a full
+// administrator below the owner cannot (user decision 2026-11-15).
+func TestEditLocalOnlyOwnerDeletesAdministrators(t *testing.T) {
+	a, s := testApp(t)
+	token, _ := bootstrapOwner(t, a)
+	owner, _ := s.Authenticate(t.Context(), token)
+	deputy, _ := s.CreateAccount(t.Context(), owner.UUID, "deputy", "fixture-hash", false)
+	first, _ := s.CreateAccount(t.Context(), owner.UUID, "first-admin", "fixture-hash", false)
+	second, _ := s.CreateAccount(t.Context(), owner.UUID, "second-admin", "fixture-hash", false)
+	activityExec(t, s, "INSERT INTO admin_roles(id,name,position) VALUES('full-admin','Full administrator',10)")
+	activityExec(t, s, "INSERT INTO admin_role_permissions VALUES('full-admin','admin')")
+	for _, id := range []string{deputy, first, second} {
+		activityExec(t, s, "INSERT INTO admin_privileges VALUES(?,'full-admin')", id)
+	}
+	deputySession, err := s.issueSession(t.Context(), deputy, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	deletion := editOperationInput{Action: "delete_users"}
+	run := func(actor, access, target string) editUserResult {
+		t.Helper()
+		var result editUserResult
+		err := s.write(t.Context(), func(tx *sql.Tx) error {
+			prepared, e := prepareEditLocal(t.Context(), tx, actor, access, target, deletion)
+			if e != nil {
+				return e
+			}
+			result, e = applyEditLocal(t.Context(), tx, actor, access, target, deletion, prepared)
+			return e
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return result
+	}
+	if result := run(deputy, deputySession.Access, first); result.Outcome != "skipped" || result.Reason != "administrator" {
+		t.Fatalf("administrator deleted by a non-owner: %+v", result)
+	}
+	if result := run(owner.UUID, token, second); result.Outcome != "deleted" {
+		t.Fatalf("owner could not delete an administrator: %+v", result)
+	}
+	if countRows(t, s, "SELECT count(*) FROM admin_privileges WHERE user_uuid=?", second) != 0 {
+		t.Fatal("deleted administrator kept administrator roles")
+	}
+}

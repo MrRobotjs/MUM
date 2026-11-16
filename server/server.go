@@ -157,6 +157,7 @@ func NewApp(store *Store, queue *LogQueue, assets fs.FS) (*App, error) {
 	handle("GET /api/notifications", a.notificationList)
 	handle("POST /api/notifications/state", a.notificationState)
 	handle("GET /api/activity/current", a.activityRead)
+	handle("POST /api/activity/current/{observation}/terminate", a.terminateStream)
 	handle("GET /api/activity/history", a.activityRead)
 	handle("GET /api/activity/summary", a.activitySummary)
 	handle("GET /api/graphs/analytics", a.graphAnalytics)

@@ -236,7 +236,7 @@ const AccountPage = () => {
       const profile = await fetchPersonalProfile();
       if (run !== accountLoad.current) return;
       if (profile.uuid !== user?.uuid) throw new Error('The signed-in account changed. Reload your profile.');
-      setAccount({user:{uuid:profile.uuid,username:profile.username,email:profile.email,display_name:profile.username,user_type:profile.user_type,has_password:profile.has_password,force_password_change:profile.force_password_change,last_login_at:profile.last_login_at},capabilities:{can_set_initial_credentials:profile.initial_credentials_available===true,can_change_password:profile.password_change_available}});
+      setAccount({user:{uuid:profile.uuid,username:profile.username,email:profile.email,display_name:profile.display_name||profile.username,user_type:profile.user_type,has_password:profile.has_password,force_password_change:profile.force_password_change,last_login_at:profile.last_login_at},capabilities:{can_set_initial_credentials:profile.initial_credentials_available===true,can_change_password:profile.password_change_available}});
     } catch (error) {
       const message = getApiErrorMessage(error);
       if (run === accountLoad.current) setFetchError(message);
@@ -319,7 +319,7 @@ const AccountPage = () => {
             </div>
             <div className="space-y-1">
               <h1 className="text-3xl font-semibold text-foreground md:text-4xl text-center">{displayName}</h1>
-              <p className="text-sm text-muted-foreground">{account.user.email || account.user.username || 'MUM User'}</p>
+              <p className="text-sm text-muted-foreground">{account.user.email || displayName}</p>
             </div>
             <Badge variant="outline" className="gap-2 uppercase tracking-wide">
               <FontAwesomeIcon icon={faUserShield} className="h-3.5 w-3.5" />

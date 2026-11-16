@@ -32,6 +32,7 @@ import {
   faMusic,
   faPause,
   faPlay,
+  faRightToBracket,
   faServer,
   faShieldHalved,
   faSignal,
@@ -286,7 +287,11 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
   };
 
   const playbackInfo = nowPlaying ? getPlaybackInfo(nowPlaying.state) : null;
-  const showLinkedSection = !isService || Boolean(user.linked_local_user);
+  // A server account shows the owner's other server accounts, and the owner
+  // itself when it has its own card (a MUM username).
+  const linkedAccounts = isService ? user.linked_accounts ?? [] : [];
+  const linkedOwner = isService && user.linked_local_user?.username ? user.linked_local_user : null;
+  const showLinkedSection = !isService || Boolean(linkedOwner) || linkedAccounts.length > 0;
   const adminRoleBadges = user.admin_roles_detail && user.admin_roles_detail.length > 0
     ? user.admin_roles_detail
     : user.admin_roles.map((role): { name: string; color?: string | null; icon?: string | null; badge_style?: string | null; description?: string | null } => ({ name: role }));
@@ -343,12 +348,15 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
               {user.display_name || user.username || 'Unnamed User'}
             </h2>
 
-            <div className="flex items-center gap-2">
-              {isService ? (
+            <div className="flex flex-wrap items-center gap-2">
+              {isService ? (<>
                 <Badge color={palette.avatar} icon={<ServiceIcon serviceType={serviceType} />} maxLabelWidth="120px" hover={false}>
                   {user.server_nickname || 'Service Account'}
                 </Badge>
-              ) : user.user_type.toLowerCase() === 'owner' ? (
+                {user.mum_last_login_at && (
+                  <Badge color="bg-primary" icon={faUser} hover={false} title="This person has signed in to MUM">MUM account</Badge>
+                )}
+              </>) : user.user_type.toLowerCase() === 'owner' ? (
                 <Badge color="bg-amber-500" icon={faCrown} hover={false}>Owner</Badge>
               ) : (
                 <Badge color="bg-primary" icon={faUser} hover={false}>Local User</Badge>
@@ -405,6 +413,13 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
                 <span className="truncate">{formatTimestamp(user.service_join_date, 'date')}</span>
               </div>
             )}
+            {user.mum_last_login_at && (
+              <div className="flex items-center gap-1.5 overflow-hidden" title={`Last Sign-in: ${formatTimestamp(user.mum_last_login_at)}`}>
+                <FontAwesomeIcon icon={faRightToBracket} className="h-3 w-3 shrink-0 text-blue-400" />
+                <span className="text-[10px] font-semibold uppercase tracking-wider shrink-0">Signed in:</span>
+                <span className="truncate">{formatTimestamp(user.mum_last_login_at, 'date')}</span>
+              </div>
+            )}
             {settings.show_streamed_section && (
               <div className="flex items-center gap-1.5 overflow-hidden" title={`Last Streamed: ${user.last_streamed_at ? formatTimestamp(user.last_streamed_at) : 'Never'}`}>
                 <FontAwesomeIcon icon={faClock} className={cn("h-3 w-3 shrink-0", user.last_streamed_at && "text-green-500")} />
@@ -443,15 +458,32 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
               </div>
             )}
 
-            {isService && user.linked_local_user && (
+            {linkedOwner && (
               <div className="flex items-center gap-2 rounded-md bg-primary/5 px-2 py-1.5 border border-primary/10">
                 <FontAwesomeIcon icon={faLink} className="h-3 w-3 text-primary shrink-0" />
                 <div className="flex flex-col min-w-0">
                   <span className="text-[10px] font-medium leading-none text-muted-foreground mb-0.5">Linked to</span>
-                  <span className="text-xs font-semibold leading-none truncate text-primary" title={user.linked_local_user.display_name || user.linked_local_user.username || undefined}>
-                    {user.linked_local_user.display_name || user.linked_local_user.username}
+                  <span className="text-xs font-semibold leading-none truncate text-primary" title={linkedOwner.display_name || linkedOwner.username || undefined}>
+                    {linkedOwner.display_name || linkedOwner.username}
                   </span>
                 </div>
+              </div>
+            )}
+
+            {linkedAccounts.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1.5">
+                {linkedAccounts.map((account) => (
+                  <Badge
+                    key={account.uuid}
+                    color={getServicePalette(account.service_type).avatar}
+                    icon={<ServiceIcon serviceType={account.service_type} />}
+                    maxLabelWidth="120px"
+                    hover={false}
+                    title={`Also ${account.username || 'linked'} on ${account.server_nickname}`}
+                  >
+                    {account.username || account.server_nickname}
+                  </Badge>
+                ))}
               </div>
             )}
           </div>

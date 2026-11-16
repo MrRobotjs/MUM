@@ -59,6 +59,15 @@ export type UserRow = {
     username?: string | null;
     display_name?: string | null;
   } | null;
+  /** When the MUM account (a server account's owner) last signed in. */
+  mum_last_login_at?: string | null;
+  /** The owner's other server accounts. */
+  linked_accounts?: Array<{
+    uuid: string;
+    service_type: string;
+    server_nickname: string;
+    username: string;
+  }>;
   notes?: string | null;
   last_known_ip?: string | null;
   last_platform?: string | null;

@@ -800,6 +800,13 @@ func (a *App) syncServerClaimed(ctx context.Context, actor, access string, s Man
 			if _, err := tx.ExecContext(ctx, `UPDATE service_accounts SET is_active=0,removed_at=CASE WHEN coalesce(json_extract(service_settings,'$.invitation_pending'),0)=1 THEN removed_at ELSE coalesce(removed_at,?) END WHERE server_id=? AND NOT (?='plex' AND coalesce(json_extract(service_settings,'$.activity_observed'),0)=1) AND (external_user_id IS NULL OR external_user_id NOT IN (SELECT value FROM json_each(?))) AND (is_active=1 OR (removed_at IS NULL AND coalesce(json_extract(service_settings,'$.invitation_pending'),0)<>1))`, now, s.ID, s.Type, string(missing)); err != nil {
 				return err
 			}
+			// A Plex account someone connected on their account page before it
+			// was on this server is theirs once a sync finds it here.
+			if s.Type == "plex" {
+				if err := claimSyncedPlexShares(ctx, tx, s.ID); err != nil {
+					return err
+				}
+			}
 			// When accounts really changed, stream readings taken before the sync
 			// no longer say who is watching; ask for a fresh reading right away
 			// instead of waiting for the next scheduled check.

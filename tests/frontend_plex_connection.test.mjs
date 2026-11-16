@@ -13,7 +13,7 @@ const url=`https://app.plex.tv/auth#?clientID=${client}&code=strongCode123456789
 const profile={uuid:owner,username:'Owner',email:null,user_type:'owner',has_password:true,force_password_change:false,last_login_at:null,plex_authorization_enabled:true,profile_changes_available:false,password_change_available:true,email_change_available:true,profile_revision:1,email_verified:false};
 const pending={id:auth,status:'pending',expires_at:'2026-11-02T12:10:00Z',revision:2,authorization_url:url};
 const verified={id:auth,status:'verified',expires_at:pending.expires_at,revision:4,account:{id:'2',username:'Reader'}};
-const connected={id:connectionID,account_id:'2',username:'Reader',status:'active',verified_at:'2026-11-02T12:00:00Z'};
+const connected={id:connectionID,account_id:'2',username:'Reader',status:'active',verified_at:'2026-11-02T12:00:00Z',on_server:true};
 function respond(data,status=200){return Response.json({data},{status});}
 
 test('Plex personal connection adapters',async t=>{
@@ -105,5 +105,13 @@ test('Plex personal connection adapters',async t=>{
   const api=await load();let starts=0;let release;
   globalThis.fetch=async req=>{const path=new URL(req.url).pathname;if(path==='/api/account/profile')return respond(profile);if(path==='/api/plex/connection')return respond(null);starts++;return new Promise(resolve=>release=resolve);};
   const flow=new api.PlexConnectionController(owner,()=>{},()=>now);await flow.reload();const a=flow.start();const b=flow.start();while(!release)await new Promise(resolve=>setTimeout(resolve,0));release(respond(pending,201));await Promise.all([a,b]);assert.equal(starts,1);
+ });
+ // The account page says when the Plex account is on none of this MUM's Plex servers;
+ // the owner's own account cannot be told (null). Anything else fails closed.
+ await t.test('reads whether the connected Plex account is on a server',async()=>{
+  for(const on_server of [true,false,null]){const api=await load();globalThis.fetch=async req=>{const path=new URL(req.url).pathname;if(path==='/api/account/profile')return respond(profile);return respond({...connected,on_server});};
+   const flow=new api.PlexConnectionController(owner,()=>{},()=>now);await flow.reload();assert.equal(flow.state.phase,'connected');assert.equal(flow.state.connection.on_server,on_server);}
+  for(const on_server of [undefined,'false',1]){const api=await load();globalThis.fetch=async req=>{const path=new URL(req.url).pathname;if(path==='/api/account/profile')return respond(profile);return respond({...connected,on_server});};
+   const flow=new api.PlexConnectionController(owner,()=>{},()=>now);await flow.reload();assert.notEqual(flow.state.phase,'connected');assert.equal(flow.state.connection??null,null);}
  });
 });

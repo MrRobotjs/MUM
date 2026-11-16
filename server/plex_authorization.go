@@ -404,14 +404,129 @@ func (a *App) confirmPlexAuthorization(w http.ResponseWriter, r *http.Request) {
 		if _, err := tx.ExecContext(r.Context(), `INSERT INTO plex_connections(id,owner_uuid,account_id,username,secret,status,created_at,verified_at) VALUES(?,?,?,?,?,'active',?,?)`, connectionID, owner.UUID, row.AccountID, row.Username, encoded, utcTimestamp(time.Now()), utcTimestamp(time.Now())); err != nil {
 			return err
 		}
-		return auditAction(r.Context(), tx, owner.UUID, "plex.connection.confirm")
+		if err := auditAction(r.Context(), tx, owner.UUID, "plex.connection.confirm"); err != nil {
+			return err
+		}
+		return claimPlexShares(r.Context(), tx, owner.UUID, row.AccountID)
 	})
 	if err != nil {
 		plexAuthorizationError(w, err)
 		return
 	}
 	a.plexCookie(w, id, "", -1)
-	respond(w, 201, map[string]string{"id": connectionID, "account_id": row.AccountID, "username": row.Username, "status": "active"})
+	onServer, err := plexAccountOnServer(r.Context(), a.store.reader, owner, row.AccountID)
+	if err != nil {
+		plexAuthorizationError(w, err)
+		return
+	}
+	respond(w, 201, map[string]any{"id": connectionID, "account_id": row.AccountID, "username": row.Username, "status": "active", "on_server": onServer})
+}
+
+// claimPlexShares links the caller's unowned accounts on Plex servers to
+// their MUM account when they connect that Plex account: the Plex sign-in
+// that made the connection proves the account is theirs, as signing in with
+// Plex does. It follows the media server sign-in switch like every other
+// self-service link. Accounts owned by someone else stay theirs, and servers
+// with an account change underway are left alone.
+func claimPlexShares(ctx context.Context, tx *sql.Tx, user, account string) error {
+	if account == "" || account == plexOwnerAccountID {
+		return nil
+	}
+	if enabled, _ := serviceSignInSettings(ctx, tx); !enabled {
+		return nil
+	}
+	rows, err := tx.QueryContext(ctx, `SELECT sa.uuid,sa.server_id FROM service_accounts sa JOIN media_servers m ON m.id=sa.server_id
+	 WHERE m.service_type='plex' AND sa.external_user_id=? AND sa.removed_at IS NULL
+	 AND NOT EXISTS(SELECT 1 FROM service_links l WHERE l.service_uuid=sa.uuid AND l.link_kind='owner') ORDER BY sa.server_id,sa.uuid`, account)
+	if err != nil {
+		return err
+	}
+	type share struct {
+		service string
+		server  int64
+	}
+	var shares []share
+	for rows.Next() {
+		var s share
+		if err := rows.Scan(&s.service, &s.server); err != nil {
+			rows.Close()
+			return err
+		}
+		shares = append(shares, s)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	linked := false
+	for _, s := range shares {
+		if busy, err := editSourceBusy(ctx, tx, s.server, ""); err != nil {
+			return err
+		} else if busy {
+			continue
+		}
+		if _, err := tx.ExecContext(ctx, "INSERT INTO service_links(user_uuid,service_uuid,link_kind,created_by,created_at) VALUES(?,?,'owner',?,?)", user, s.service, user, utcTimestamp(time.Now())); err != nil {
+			return err
+		}
+		linked = true
+	}
+	if !linked {
+		return nil
+	}
+	return auditAction(ctx, tx, user, "account.link.plex")
+}
+
+// claimSyncedPlexShares links the unowned accounts on Plex server serverID
+// to the MUM accounts whose connected Plex account they are, as connecting
+// would have if the account had been on the server then. The same rules
+// apply: the media server sign-in switch, never the server owner's account,
+// never an account someone already owns.
+func claimSyncedPlexShares(ctx context.Context, tx *sql.Tx, serverID int64) error {
+	if enabled, _ := serviceSignInSettings(ctx, tx); !enabled {
+		return nil
+	}
+	rows, err := tx.QueryContext(ctx, `INSERT INTO service_links(user_uuid,service_uuid,link_kind,created_by,created_at)
+	 SELECT c.owner_uuid,sa.uuid,'owner',c.owner_uuid,? FROM service_accounts sa
+	 JOIN plex_connections c ON c.account_id=sa.external_user_id AND c.status='active'
+	 JOIN user_accounts u ON u.uuid=c.owner_uuid AND u.deleted_at IS NULL
+	 WHERE sa.server_id=? AND sa.removed_at IS NULL AND sa.external_user_id<>?
+	 AND NOT EXISTS(SELECT 1 FROM service_links l WHERE l.service_uuid=sa.uuid AND l.link_kind='owner')
+	 RETURNING user_uuid`, utcTimestamp(time.Now()), serverID, plexOwnerAccountID)
+	if err != nil {
+		return err
+	}
+	var owners []string
+	for rows.Next() {
+		var owner string
+		if err := rows.Scan(&owner); err != nil {
+			rows.Close()
+			return err
+		}
+		owners = append(owners, owner)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	for _, owner := range owners {
+		if err := auditAction(ctx, tx, owner, "account.link.plex"); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// plexAccountOnServer reports whether the Plex account has an account on one
+// of this MUM's Plex servers. The server owner's own account is not listed
+// that way, so for the owner it is unknown (nil).
+func plexAccountOnServer(ctx context.Context, db queryRower, p Principal, account string) (any, error) {
+	if p.Kind == "owner" {
+		return nil, nil
+	}
+	var found bool
+	err := db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM service_accounts sa JOIN media_servers m ON m.id=sa.server_id
+	 WHERE m.service_type='plex' AND sa.external_user_id=? AND sa.removed_at IS NULL)`, account).Scan(&found)
+	return found, err
 }
 func (a *App) getPlexConnection(w http.ResponseWriter, r *http.Request) {
 	owner, ok := a.principal(w, r, false)
@@ -428,7 +543,12 @@ func (a *App) getPlexConnection(w http.ResponseWriter, r *http.Request) {
 		plexAuthorizationError(w, err)
 		return
 	}
-	respond(w, 200, map[string]string{"id": id, "account_id": account, "username": username, "verified_at": verified, "status": "active"})
+	onServer, err := plexAccountOnServer(r.Context(), a.store.reader, owner, account)
+	if err != nil {
+		plexAuthorizationError(w, err)
+		return
+	}
+	respond(w, 200, map[string]any{"id": id, "account_id": account, "username": username, "verified_at": verified, "status": "active", "on_server": onServer})
 }
 func (a *App) revokePlexConnection(w http.ResponseWriter, r *http.Request) {
 	owner, ok := a.principal(w, r, false)

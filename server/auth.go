@@ -175,7 +175,12 @@ func insertSession(ctx context.Context, tx *sql.Tx, uuid string, origin sessionO
 		id, uuid, tokenHash(tokens.Access), tokenHash(tokens.Refresh), expires, utcTimestamp(tokens.RefreshExpires), utcTimestamp(time.Now()), origin.Kind, origin.Service, origin.PlexConnection); err != nil {
 		return tokens, err
 	}
-	_, err = tx.ExecContext(ctx, "INSERT INTO session_access_tokens VALUES(?,?,?)", tokenHash(tokens.Access), id, expires)
+	if _, err := tx.ExecContext(ctx, "INSERT INTO session_access_tokens VALUES(?,?,?)", tokenHash(tokens.Access), id, expires); err != nil {
+		return tokens, err
+	}
+	// Every sign-in passes through here; the Users list shows when an
+	// account last signed in.
+	_, err = tx.ExecContext(ctx, "UPDATE user_accounts SET last_login_at=? WHERE uuid=?", utcTimestamp(time.Now()), uuid)
 	return tokens, err
 }
 

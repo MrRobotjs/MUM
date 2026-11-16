@@ -45,6 +45,7 @@ function PlexConnectionPanel({owner}:{owner:string}) {
    {!state.enabled && state.phase!=='loading' && state.phase!=='error' && <p className="text-sm text-muted-foreground">An administrator must enable Plex connections before authorization.</p>}
    {state.connection && state.phase!=='uncertain' && <>
     <p className="text-sm text-muted-foreground">Connected account: {state.connection.username} (Plex ID {state.connection.account_id}). You can use Sign in with Plex on the sign-in page.</p>
+    {state.connection.on_server === false && <p className="text-sm text-muted-foreground">This Plex account isn't on any of this server's Plex servers, but you can still use it to sign in to MUM.</p>}
     <label className="flex items-start gap-2 text-sm"><Checkbox checked={disconnectAcknowledged} onCheckedChange={value => setDisconnectAcknowledged(value===true)} disabled={state.busy} /><span>Disconnect only this local connection. Sign in with Plex stops working for this account; Plex devices, sessions and existing library shares will remain.</span></label>
     <Button variant="outline" disabled={state.busy || !disconnectAcknowledged} onClick={() => void controller.current?.disconnect()}>Disconnect Local Connection</Button>
    </>}

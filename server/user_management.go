@@ -26,6 +26,18 @@ func humanEmailSQL(alias string) string {
  WHERE l.user_uuid=` + alias + `.uuid AND l.link_kind='owner' AND coalesce(sa.external_email,'')<>'' ORDER BY sa.removed_at IS NOT NULL,l.created_at,sa.uuid LIMIT 1)`
 }
 
+// lastSignInSQL is when the MUM account alias last signed in. Sign-ins
+// before last_login_at was recorded fall back to the newest session.
+func lastSignInSQL(alias string) string {
+	return `coalesce(` + alias + `.last_login_at,(SELECT max(created_at) FROM app_sessions WHERE user_uuid=` + alias + `.uuid))`
+}
+
+// signInOnlySQL matches a MUM account created by media server sign-in that
+// still has no MUM username. Its server accounts stand for it in the Users
+// list, so its own card is left out unless asked for.
+const signInOnlySQL = `(i.kind='local' AND u.local_username IS NULL AND EXISTS(SELECT 1 FROM service_links l JOIN service_accounts sa ON sa.uuid=l.service_uuid
+ WHERE l.user_uuid=i.uuid AND l.link_kind='owner' AND sa.removed_at IS NULL))`
+
 // userDisplayNameSQL is how a listed account is named.
 var userDisplayNameSQL = `coalesce(` + humanNameSQL("u") + `,a.external_username,'')`
 
@@ -37,6 +49,10 @@ var userProjection = `SELECT i.id,i.uuid,i.kind,coalesce(u.local_username,a.exte
  (SELECT json_group_array(json_object('name',r.name,'color',r.color,'icon',r.icon,'badge_style',r.badge_style)) FROM (SELECT r.* FROM identity_user_roles ir JOIN user_roles r ON r.id=ir.role_id WHERE ir.user_uuid=i.uuid ORDER BY r.position DESC,r.id) r),
  coalesce(a.allowed_library_ids,'[]'),coalesce(a.service_settings,'{}'),coalesce(parent.uuid,''),coalesce(parent.local_username,''),coalesce(` + humanNameSQL("parent") + `,''),coalesce(u.access_expires_at,a.access_expires_at),
  coalesce(a.external_avatar_url,''),coalesce(a.service_join_date,''),
+ CASE WHEN i.kind='service' THEN ` + lastSignInSQL("parent") + ` ELSE ` + lastSignInSQL("u") + ` END,
+ (SELECT json_group_array(json_object('uuid',x.uuid,'service_type',x.service_type,'server_nickname',x.server_nickname,'username',x.external_username)) FROM (
+  SELECT sa.uuid,ms.service_type,ms.server_nickname,coalesce(sa.external_username,'') external_username FROM service_links l JOIN service_accounts sa ON sa.uuid=l.service_uuid JOIN media_servers ms ON ms.id=sa.server_id
+  WHERE l.user_uuid=owner.user_uuid AND l.link_kind='owner' AND sa.uuid<>a.uuid AND sa.removed_at IS NULL ORDER BY l.created_at,sa.uuid LIMIT 20) x),
  coalesce(a.is_active=1 AND s.service_type='plex' AND s.is_active=1 AND EXISTS(SELECT 1 FROM provider_settings p WHERE p.provider_id='plex' AND p.enabled=1),0),
  (SELECT max(seen) FROM (SELECT max(h.last_seen_at) seen FROM media_activity_history h WHERE h.service_uuid=i.uuid
   UNION ALL SELECT max(h.last_seen_at) FROM media_activity_history h WHERE h.owner_uuid=i.uuid)) AS last_streamed_at
@@ -75,6 +91,12 @@ func (a *App) listUsers(w http.ResponseWriter, r *http.Request) {
 	// their history) but are not listed.
 	if r.PathValue("user") == "" {
 		where += " AND a.removed_at IS NULL AND u.deleted_at IS NULL"
+	}
+	// Without a type or role filter, accounts created by media server sign-in
+	// are shown through their server accounts.
+	query := r.URL.Query()
+	if r.PathValue("user") == "" && query.Get("user_type") == "" && !query.Has("admin_role_id") && !query.Has("user_role_id") {
+		where += " AND NOT " + signInOnlySQL
 	}
 	if r.URL.Query().Get("unlinked") == "true" {
 		where += " AND i.kind='service' AND owner.user_uuid IS NULL"
@@ -164,8 +186,9 @@ func (a *App) listUsers(w http.ResponseWriter, r *http.Request) {
 		var uuid, kind, name, displayName, email, shownEmail, created, notes, nickname, provider, roles, visual, libraries, settings, parent, parentName, parentDisplay, avatarTag, joined string
 		var active, avatarServed bool
 		var server sql.NullInt64
-		var expiry, lastSeen sql.NullString
-		if err := rows.Scan(&id, &uuid, &kind, &name, &displayName, &email, &shownEmail, &active, &created, &notes, &server, &nickname, &provider, &linked, &roles, &visual, &libraries, &settings, &parent, &parentName, &parentDisplay, &expiry, &avatarTag, &joined, &avatarServed, &lastSeen); err != nil {
+		var expiry, lastSeen, lastSignIn sql.NullString
+		var siblings string
+		if err := rows.Scan(&id, &uuid, &kind, &name, &displayName, &email, &shownEmail, &active, &created, &notes, &server, &nickname, &provider, &linked, &roles, &visual, &libraries, &settings, &parent, &parentName, &parentDisplay, &expiry, &avatarTag, &joined, &lastSignIn, &siblings, &avatarServed, &lastSeen); err != nil {
 			rows.Close()
 			domainError(w, err)
 			return
@@ -174,7 +197,8 @@ func (a *App) listUsers(w http.ResponseWriter, r *http.Request) {
 		var userRoles []map[string]any
 		var libraryIDs []string
 		var policy map[string]any
-		if json.Unmarshal([]byte(roles), &adminRoleDetails) != nil || json.Unmarshal([]byte(visual), &userRoles) != nil || json.Unmarshal([]byte(libraries), &libraryIDs) != nil || json.Unmarshal([]byte(settings), &policy) != nil {
+		linkedAccounts := []map[string]any{}
+		if json.Unmarshal([]byte(siblings), &linkedAccounts) != nil || json.Unmarshal([]byte(roles), &adminRoleDetails) != nil || json.Unmarshal([]byte(visual), &userRoles) != nil || json.Unmarshal([]byte(libraries), &libraryIDs) != nil || json.Unmarshal([]byte(settings), &policy) != nil {
 			rows.Close()
 			fail(w, 500, "INVALID_STORED_DATA", "Could not read account metadata")
 			return
@@ -213,7 +237,10 @@ func (a *App) listUsers(w http.ResponseWriter, r *http.Request) {
 		if shownEmail != "" {
 			shownEmailValue = shownEmail
 		}
-		item := map[string]any{"access_expires_at": expiryValue, "id": id, "uuid": uuid, "user_type": kind, "username": name, "display_name": displayName, "email": emailValue, "external_email": shownEmailValue, "is_active": active, "created_at": created, "notes": notes, "server_id": serverValue, "server_nickname": nickname, "service_type": provider, "linked_service_count": linked, "admin_roles": adminRoleNames(adminRoleDetails), "admin_roles_detail": adminRoleDetails, "user_roles": userRoles, "libraries": []string{}, "allowed_library_ids": libraryIDs, "has_all_libraries": allLibraries, "linked_local_user": parentValue, "avatar_url": nil, "service_join_date": joinValue, "last_streamed_at": nil}
+		item := map[string]any{"access_expires_at": expiryValue, "id": id, "uuid": uuid, "user_type": kind, "username": name, "display_name": displayName, "email": emailValue, "external_email": shownEmailValue, "is_active": active, "created_at": created, "notes": notes, "server_id": serverValue, "server_nickname": nickname, "service_type": provider, "linked_service_count": linked, "admin_roles": adminRoleNames(adminRoleDetails), "admin_roles_detail": adminRoleDetails, "user_roles": userRoles, "libraries": []string{}, "allowed_library_ids": libraryIDs, "has_all_libraries": allLibraries, "linked_local_user": parentValue, "avatar_url": nil, "service_join_date": joinValue, "last_streamed_at": nil,
+			// When the MUM account (a server account's owner) last signed in,
+			// and the other server accounts that owner has.
+			"mum_last_login_at": nullableString(lastSignIn), "linked_accounts": linkedAccounts}
 		// Latest observed playback of this account (or of the services it owns).
 		if lastSeen.Valid {
 			item["last_streamed_at"] = lastSeen.String

@@ -86,3 +86,31 @@ func TestPlayHistoryReadsOnePageWithGET(t *testing.T) {
 		t.Fatal("headers", seen.Header)
 	}
 }
+
+// Posters are chosen as for live playback, and only an item's own thumbnail
+// is kept: a path that belongs to another item is dropped.
+func TestParsePlayHistoryChoosesPosters(t *testing.T) {
+	page, err := ParsePlayHistory([]byte(`<MediaContainer size="5" totalSize="5" offset="0">
+<Video historyKey="/m" ratingKey="10" thumb="/library/metadata/10/thumb/1700" type="movie" viewedAt="1" accountID="1"/>
+<Video historyKey="/e" ratingKey="22" thumb="/library/metadata/22/thumb/1" parentKey="/library/metadata/21" parentThumb="/library/metadata/21/thumb/2" grandparentKey="/library/metadata/20" grandparentThumb="/library/metadata/20/thumb/3" type="episode" viewedAt="2" accountID="1"/>
+<Track historyKey="/t" ratingKey="32" thumb="/library/metadata/31/thumb/4" parentKey="/library/metadata/31" parentThumb="/library/metadata/31/thumb/4" grandparentKey="/library/metadata/30" grandparentThumb="/library/metadata/30/thumb/5" type="track" viewedAt="3" accountID="1"/>
+<Video historyKey="/x" ratingKey="40" thumb="/library/metadata/41/thumb/6" type="movie" viewedAt="4" accountID="1"/>
+<Video historyKey="/g" ratingKey="50" thumb="https://elsewhere.test/a.jpg" type="movie" viewedAt="5" accountID="1"/>
+</MediaContainer>`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := [][2]string{{"10", "/library/metadata/10/thumb/1700"}, {"20", "/library/metadata/20/thumb/3"}, {"31", "/library/metadata/31/thumb/4"}, {"", ""}, {"", ""}}
+	for i, entry := range page.Entries {
+		if got := [2]string{entry.PosterItem, entry.PosterPath}; got != want[i] {
+			t.Errorf("%s poster %v, want %v", entry.Key, got, want[i])
+		}
+	}
+	// The page without posters (the first fixture) has none.
+	plain, _ := ParsePlayHistory([]byte(historyPage))
+	for _, entry := range plain.Entries {
+		if entry.PosterItem != "" || entry.PosterPath != "" {
+			t.Errorf("%s poster without a thumbnail", entry.Key)
+		}
+	}
+}

@@ -134,8 +134,8 @@ func (a *App) identityTimeline(w http.ResponseWriter, r *http.Request) {
 		value := last.PlayedAt + "_" + last.Source[:1] + "_" + strconv.FormatInt(last.rowID, 10)
 		next = &value
 	}
-	// Retained MUM posters: signed, administrator-only links, as on the
-	// history list. Plays from Plex's history have none.
+	// Posters: signed, administrator-only links, as on the history list. A
+	// play imported from Plex's history uses its own link.
 	if q.All {
 		now := time.Now().UTC()
 		var session string
@@ -149,7 +149,11 @@ func (a *App) identityTimeline(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 			}
-			items[i].PosterURL = a.signedImageURL(activityHistoryPosterPurpose, "/api/activity/history-images", session, items[i].rowID, now)
+			if items[i].Source == "plex" {
+				items[i].PosterURL = a.signedImageURL(plexHistoryPosterPurpose, "/api/activity/plex-history-images", session, items[i].rowID, now)
+			} else {
+				items[i].PosterURL = a.signedImageURL(activityHistoryPosterPurpose, "/api/activity/history-images", session, items[i].rowID, now)
+			}
 		}
 	}
 	if err := tx.Commit(); err != nil {
@@ -222,7 +226,7 @@ func readTimelineMUM(ctx context.Context, tx *sql.Tx, actor string, q activityRe
 // the account must be linked to the reader.
 func readTimelinePlex(ctx context.Context, tx *sql.Tx, actor string, q activityReadQuery, c timelineCursor) ([]timelineItem, error) {
 	query := `SELECT i.rowid,i.server_id,s.uuid,coalesce(i.media_type,''),coalesce(i.title,''),coalesce(i.grandparent_title,i.parent_title),
-	 (SELECT l.name FROM media_libraries l WHERE l.server_id=i.server_id AND l.external_id=i.library_section_id),i.viewed_at
+	 (SELECT l.name FROM media_libraries l WHERE l.server_id=i.server_id AND l.external_id=i.library_section_id),i.viewed_at,i.poster_path IS NOT NULL
 	 FROM plex_history_imports i JOIN service_accounts s ON s.server_id=i.server_id AND s.external_user_id=i.account_id
 	 WHERE (i.viewed_at<? OR i.viewed_at=? AND ?='p' AND i.rowid<?)`
 	args := []any{c.At, c.At, c.Source, c.ID}
@@ -243,7 +247,7 @@ func readTimelinePlex(ctx context.Context, tx *sql.Tx, actor string, q activityR
 	for rows.Next() {
 		item := timelineItem{Source: "plex"}
 		var server int64
-		if err := rows.Scan(&item.rowID, &server, &item.Service, &item.Kind, &item.Title, &item.ParentTitle, &item.LibraryName, &item.PlayedAt); err != nil {
+		if err := rows.Scan(&item.rowID, &server, &item.Service, &item.Kind, &item.Title, &item.ParentTitle, &item.LibraryName, &item.PlayedAt, &item.hasPoster); err != nil {
 			return nil, err
 		}
 		item.ID = "plex-" + strconv.FormatInt(item.rowID, 10)

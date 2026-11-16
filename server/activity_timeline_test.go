@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/url"
 	"strings"
 	"testing"
@@ -16,6 +17,7 @@ type timelineTestItem struct {
 	PlayedAt    string  `json:"played_at"`
 	Client      *string `json:"client"`
 	Position    *string `json:"position_ticks"`
+	Poster      string  `json:"poster_url"`
 }
 
 type timelineTestPage struct {
@@ -153,5 +155,38 @@ func TestIdentityTimelineAuthority(t *testing.T) {
 		if code, _ := readTimeline(t, a, token, local, bad); code != 400 {
 			t.Fatal("bad query accepted", bad, code)
 		}
+	}
+}
+
+// An imported play's poster is a signed, administrator-only link; the stored
+// Plex path never reaches the browser, and a viewer's own timeline has none.
+func TestIdentityTimelinePlexPosters(t *testing.T) {
+	a, s, token, viewer, local := timelineFixture(t)
+	activityExec(t, s, "UPDATE provider_settings SET enabled=1 WHERE provider_id='plex'")
+	activityExec(t, s, "UPDATE plex_history_imports SET poster_item='20',poster_path='/library/metadata/20/thumb/1' WHERE history_key='/h/4'")
+	_, page := readTimeline(t, a, token, local, url.Values{"scope": {"all"}, "source": {"plex"}})
+	var rowid int64
+	_ = s.reader.QueryRow("SELECT rowid FROM plex_history_imports WHERE history_key='/h/4'").Scan(&rowid)
+	if len(page.Items) != 3 || !strings.HasPrefix(page.Items[0].Poster, fmt.Sprintf("/api/activity/plex-history-images/%d?", rowid)) || page.Items[1].Poster != "" {
+		t.Fatalf("posters %+v", page.Items)
+	}
+	poster := page.Items[0].Poster
+	// The fixture server is offline: the link resolves, the fetch fails upstream.
+	if got := apiRequest(a, "GET", poster, "", nil, nil).Code; got != 502 {
+		t.Fatal("poster source not resolved", got)
+	}
+	if got := apiRequest(a, "GET", strings.Replace(poster, "plex-history-images", "history-images", 1), "", nil, nil).Code; got != 403 {
+		t.Fatal("a Plex poster link worked as a MUM one", got)
+	}
+	if _, own := readTimeline(t, a, viewer, local, url.Values{"scope": {"own"}, "source": {"plex"}}); own.Items[0].Poster != "" {
+		t.Fatal("a viewer got a poster link", own.Items[0].Poster)
+	}
+	// A link signed for the viewer's own session is refused: posters are for administrators.
+	var session string
+	if err := s.reader.QueryRow("SELECT id FROM app_sessions WHERE user_uuid=?", local).Scan(&session); err != nil {
+		t.Fatal(err)
+	}
+	if got := apiRequest(a, "GET", a.signedImageURL(plexHistoryPosterPurpose, "/api/activity/plex-history-images", session, rowid, time.Now()), "", nil, nil).Code; got != 403 {
+		t.Fatal("a viewer's link was served", got)
 	}
 }

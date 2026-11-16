@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"app/server/providers/provider"
@@ -31,6 +32,11 @@ type HistoryEntry struct {
 	Title            string
 	ParentTitle      string
 	GrandparentTitle string
+	// The poster, chosen as for live playback: the movie's own, the show's
+	// for an episode, the album's for a track. Empty when Plex sent none or
+	// the path is not that item's own thumbnail.
+	PosterItem string
+	PosterPath string
 }
 
 // HistoryPage is one page of the history and where it sits in the whole.
@@ -83,6 +89,11 @@ func ParsePlayHistory(body []byte) (HistoryPage, error) {
 			Title            string `xml:"title,attr"`
 			ParentTitle      string `xml:"parentTitle,attr"`
 			GrandparentTitle string `xml:"grandparentTitle,attr"`
+			Thumb            string `xml:"thumb,attr"`
+			ParentKey        string `xml:"parentKey,attr"`
+			ParentThumb      string `xml:"parentThumb,attr"`
+			GrandparentKey   string `xml:"grandparentKey,attr"`
+			GrandparentThumb string `xml:"grandparentThumb,attr"`
 		} `xml:",any"`
 	}
 	if len(body) > maxHistoryBytes || xml.Unmarshal(body, &page) != nil || page.Size == nil || page.Total == nil {
@@ -105,11 +116,31 @@ func ParsePlayHistory(body []byte) (HistoryPage, error) {
 			return HistoryPage{}, ErrPlayHistory
 		}
 		seen[row.Key] = true
+		item, path := row.RatingKey, row.Thumb
+		switch {
+		case row.Type == "episode" && row.GrandparentThumb != "":
+			item, path = metadataID(row.GrandparentKey), row.GrandparentThumb
+		case row.Type == "track" && row.ParentThumb != "":
+			item, path = metadataID(row.ParentKey), row.ParentThumb
+		}
+		if !ValidPoster(item, path) {
+			item, path = "", ""
+		}
 		out.Entries = append(out.Entries, HistoryEntry{
 			Key: row.Key, AccountID: row.Account, ViewedAt: time.Unix(viewed, 0),
 			Type: optional(row.Type, 32), RatingKey: optional(row.RatingKey, 256), Section: optional(row.Section, 64),
 			Title: optional(row.Title, 1024), ParentTitle: optional(row.ParentTitle, 1024), GrandparentTitle: optional(row.GrandparentTitle, 1024),
+			PosterItem: item, PosterPath: path,
 		})
 	}
 	return out, nil
+}
+
+// metadataID is the rating key in a "/library/metadata/{id}" key, or "".
+func metadataID(key string) string {
+	id, found := strings.CutPrefix(key, "/library/metadata/")
+	if !found || !NumericID(id) {
+		return ""
+	}
+	return id
 }

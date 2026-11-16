@@ -265,3 +265,54 @@ func TestPlexHistoryImportStoppedByShutdownIsMarkedOnRestart(t *testing.T) {
 		t.Fatal("recovered run", state, finished, code)
 	}
 }
+
+// Every run fills in a poster a stored play lacks and never replaces one.
+func TestPlexHistoryImportFillsMissingPostersOnly(t *testing.T) {
+	viewed := time.Date(2026, 10, 1, 20, 0, 0, 0, time.UTC).Unix()
+	entry := func(key, item, thumb string) string {
+		return fmt.Sprintf(`<Video historyKey="/status/sessions/history/%s" accountID="42" ratingKey="%s" thumb="%s" type="movie" title="Film" viewedAt="%d"/>`, key, item, thumb, viewed)
+	}
+	fake := &fakePlexHistory{failAt: -1, entries: []string{
+		entry("1", "10", ""),                             // no poster yet
+		entry("2", "20", "/library/metadata/20/thumb/1"), // stored with its poster
+		entry("3", "30", "/library/metadata/99/thumb/1"), // another item's path: never stored
+	}}
+	a, s, token, server := plexHistoryFixture(t, fake)
+	posters := func() string {
+		t.Helper()
+		rows, err := s.reader.Query("SELECT history_key,coalesce(poster_item,''),coalesce(poster_path,'') FROM plex_history_imports WHERE server_id=? ORDER BY history_key", server)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer rows.Close()
+		var out []string
+		for rows.Next() {
+			var key, item, path string
+			_ = rows.Scan(&key, &item, &path)
+			out = append(out, strings.TrimPrefix(key, "/status/sessions/history/")+"="+item+path)
+		}
+		return strings.Join(out, ",")
+	}
+	if code := startPlexHistory(a, token, server); code != 202 {
+		t.Fatal("start", code)
+	}
+	if status := waitPlexHistory(t, a, token, server); status.State != "completed" || status.Added != 3 {
+		t.Fatalf("first import %+v", status)
+	}
+	if got := posters(); got != "1=,2=20/library/metadata/20/thumb/1,3=" {
+		t.Fatal("first import posters", got)
+	}
+	// Plex now has a poster for the first play and a newer one for the second.
+	fake.mu.Lock()
+	fake.entries = []string{entry("1", "10", "/library/metadata/10/thumb/5"), entry("2", "20", "/library/metadata/20/thumb/9"), entry("3", "30", "/library/metadata/99/thumb/1")}
+	fake.mu.Unlock()
+	if code := startPlexHistory(a, token, server); code != 202 {
+		t.Fatal("second start", code)
+	}
+	if status := waitPlexHistory(t, a, token, server); status.State != "completed" || status.Added != 0 || status.AlreadyStored != 3 {
+		t.Fatalf("second import %+v", status)
+	}
+	if got := posters(); got != "1=10/library/metadata/10/thumb/5,2=20/library/metadata/20/thumb/1,3=" {
+		t.Fatal("second import posters", got)
+	}
+}

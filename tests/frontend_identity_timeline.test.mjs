@@ -33,6 +33,14 @@ test('identity timeline adapter', async t => {
     assert.equal(result.next_before, '2024-04-30T18:00:00.000000000Z_p_3');
   });
 
+  await t.test('keeps the signed poster link of a play imported from Plex', async () => {
+    const m = await load(); m.setAccessToken('session');
+    const poster = '/api/activity/plex-history-images/3?s=x&e=1&g=y';
+    globalThis.fetch = async () => Response.json({data: page({items: [{...plex, poster_url: poster}]})});
+    const result = await m.fetchIdentityTimeline(actor, target, 'all', 'all');
+    assert.equal(result.items[0].poster_url, poster);
+  });
+
   await t.test('rejects bad input before any request', async () => {
     const m = await load(); m.setAccessToken('session');
     let called = false;
@@ -46,7 +54,8 @@ test('identity timeline adapter', async t => {
   await t.test('rejects pages that do not match the request or mix the sources up', async () => {
     const m = await load(); m.setAccessToken('session');
     for (const bad of [page({actor_uuid: target}), page({target_uuid: actor}), page({source: 'mum'}), page({items: [{...plex, client: 'Plex Web'}]}),
-      page({items: [{...plex, position_ticks: '5'}]}), page({items: [{...mum, source: 'other'}]}), page({items: [mum, mum]}), page({items: [{...plex, id: 'mum-3'}]})]) {
+      page({items: [{...plex, position_ticks: '5'}]}), page({items: [{...mum, source: 'other'}]}), page({items: [mum, mum]}), page({items: [{...plex, id: 'mum-3'}]}),
+      page({items: [{...plex, poster_url: '/api/activity/history-images/3?s=x'}]}), page({items: [{...plex, poster_url: 'http://plex.test/library/metadata/1/thumb'}]})]) {
       globalThis.fetch = async () => Response.json({data: bad});
       await assert.rejects(m.fetchIdentityTimeline(actor, target, 'all', 'all'), /Invalid history/);
     }

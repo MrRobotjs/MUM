@@ -118,6 +118,7 @@ func NewApp(store *Store, queue *LogQueue, assets fs.FS) (*App, error) {
 	handle("GET /api/openapi/openapi.json", a.openAPIDocument)
 	handle("GET /api/activity/images/{item}", a.activityImageProxy)
 	handle("GET /api/activity/history-images/{item}", a.activityHistoryImageProxy)
+	handle("GET /api/activity/plex-history-images/{item}", a.plexHistoryImageProxy)
 	handle("GET /api/activity/avatars/{item}", a.activityAvatarProxy)
 	handle("GET /api/user-avatars/{item}", a.userAvatarProxy)
 	handle("POST /api/public/invitations/{token}/plex-authorizations", a.startInvitationPlexAuthorization)

@@ -16,7 +16,8 @@ import (
 // at a time, and stores each page in its own short transaction; it never holds
 // the writer during a Plex request. It can run again at any time: stored
 // entries are skipped by their history key, and plays MUM recorded itself are
-// left out. One run per server at a time; shutdown stops it and the next start
+// left out. Every run also fills in the poster of a stored play that has none,
+// and never replaces one already stored. One run per server at a time; shutdown stops it and the next start
 // marks it stopped.
 
 // plexHistoryPageSize is the number of entries read per request (tests lower it).
@@ -223,8 +224,9 @@ func (a *App) runPlexHistoryImport(ctx context.Context, server int64, reader pla
 	}
 }
 
-// storePlexHistoryPage stores one page in one transaction. An entry is left
-// out when it is already stored, or when MUM recorded the same play itself:
+// storePlexHistoryPage stores one page in one transaction. An entry already
+// stored only gains a poster it lacks. An entry is left out when it is already
+// stored, or when MUM recorded the same play itself:
 // the same account and item, between 5 minutes before MUM first saw the play
 // and 15 minutes after it last saw it (Plex writes the entry when the item is
 // finished).
@@ -246,6 +248,12 @@ func (a *App) storePlexHistoryPage(ctx context.Context, server int64, page plex.
 			}
 			if exists {
 				stored++
+				if entry.PosterPath != "" && validPlexCataloguePoster(entry.PosterItem, entry.PosterPath) {
+					if _, err := tx.ExecContext(ctx, "UPDATE plex_history_imports SET poster_item=?,poster_path=? WHERE server_id=? AND history_key=? AND poster_path IS NULL",
+						entry.PosterItem, entry.PosterPath, server, entry.Key); err != nil {
+						return err
+					}
+				}
 				continue
 			}
 			if entry.RatingKey != "" {
@@ -260,9 +268,13 @@ func (a *App) storePlexHistoryPage(ctx context.Context, server int64, page plex.
 					continue
 				}
 			}
-			if _, err := tx.ExecContext(ctx, `INSERT INTO plex_history_imports(server_id,history_key,account_id,viewed_at,media_type,rating_key,library_section_id,title,parent_title,grandparent_title,imported_at)
-			 VALUES(?,?,?,?,nullif(?,''),nullif(?,''),nullif(?,''),nullif(?,''),nullif(?,''),nullif(?,''),?)`,
-				server, entry.Key, entry.AccountID, viewed, entry.Type, entry.RatingKey, entry.Section, entry.Title, entry.ParentTitle, entry.GrandparentTitle, now); err != nil {
+			posterItem, posterPath := entry.PosterItem, entry.PosterPath
+			if !validPlexCataloguePoster(posterItem, posterPath) {
+				posterItem, posterPath = "", ""
+			}
+			if _, err := tx.ExecContext(ctx, `INSERT INTO plex_history_imports(server_id,history_key,account_id,viewed_at,media_type,rating_key,library_section_id,title,parent_title,grandparent_title,imported_at,poster_item,poster_path)
+			 VALUES(?,?,?,?,nullif(?,''),nullif(?,''),nullif(?,''),nullif(?,''),nullif(?,''),nullif(?,''),?,nullif(?,''),nullif(?,''))`,
+				server, entry.Key, entry.AccountID, viewed, entry.Type, entry.RatingKey, entry.Section, entry.Title, entry.ParentTitle, entry.GrandparentTitle, now, posterItem, posterPath); err != nil {
 				return err
 			}
 			added++

@@ -4,7 +4,8 @@ import { getAccessToken } from '../store/authStore';
 // The user page's History tab: MUM's recorded plays and plays imported from
 // Plex's own history in one timeline, newest first (user decision 2026-11-16).
 // Plex history only records when an item was finished, so its plays have no
-// player, quality or progress.
+// player, quality or progress. Posters are signed administrator links; an
+// imported play's comes from its own route.
 
 export type TimelineSource = 'all' | 'mum' | 'plex';
 export type TimelineScope = 'own' | 'all';
@@ -42,7 +43,8 @@ function item(value: unknown, seen: Set<string>): TimelineItem {
       !optionalText(v.client) || !methods.includes(v.play_method as string | null) || !ticks(v.position_ticks) || !ticks(v.duration_ticks) ||
       v.poster_url !== undefined && !text(v.poster_url) ||
       // Plex history records no player, quality or progress.
-      plex && (v.client !== null || v.play_method !== null || v.position_ticks !== null || v.duration_ticks !== null || v.poster_url !== undefined)) throw new Error('Invalid history item');
+      plex && (v.client !== null || v.play_method !== null || v.position_ticks !== null || v.duration_ticks !== null ||
+        v.poster_url !== undefined && !(v.poster_url as string).startsWith('/api/activity/plex-history-images/'))) throw new Error('Invalid history item');
   seen.add(v.id as string);
   return Object.freeze({ ...(v as TimelineItem) });
 }

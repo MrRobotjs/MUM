@@ -92,7 +92,14 @@ type Grant struct {
 	AllLibraries   bool     `json:"all_libraries"`
 	LibraryIDs     []string `json:"library_ids"`
 	AllowDownloads bool     `json:"allow_downloads"`
+	// Allow4KTranscode is MUM policy, not sent to the server: false has MUM
+	// stop the account's streams that transcode a 4K source. Unset (older
+	// grants and Edit) means allowed, and is left out of the encoding.
+	Allow4KTranscode *bool `json:"allow_4k_transcode,omitempty"`
 }
+
+// Allows4KTranscode reports the grant's 4K transcoding policy.
+func (g Grant) Allows4KTranscode() bool { return g.Allow4KTranscode == nil || *g.Allow4KTranscode }
 
 // Account is one remote account as a module observed it by its recorded ID.
 // Detail is the module's own observed state, opaque to MUM: the core hands it

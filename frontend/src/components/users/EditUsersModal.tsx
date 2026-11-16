@@ -26,11 +26,13 @@ import { UserAvatar } from './UserAvatar';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { Spinner } from '@/components/ui/spinner'
 import {
+  faBan,
   faCalendar,
   faCalendarPlus,
   faCheck,
   faCircleInfo,
   faCog,
+  faFilm,
   faFolder,
   faInfinity,
   faLink,
@@ -130,6 +132,9 @@ export const EditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplete, i
   const noneDated = expiryOverview !== null && expiryOverview.dated === 0;
   const expiryNote = editExpiryNote(expiryOverview);
 
+  // 4K transcoding state
+  const [allow4kTranscode, setAllow4kTranscode] = useState<'allow' | 'block'>('block');
+
   // Local link state
   const [targetLocalUserUuid, setTargetLocalUserUuid] = useState<string>('');
   const [localLinkMode, setLocalLinkMode] = useState<'link' | 'unlink'>('link');
@@ -179,6 +184,8 @@ export const EditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplete, i
       setExpirationMode('set');
       setExpirationDate(undefined);
       setExtendDays(30);
+    } else if (action === 'manage_4k_transcode') {
+      setAllow4kTranscode('block');
     } else if (action === 'manage_local_link') {
       setTargetLocalUserUuid('');
       setLocalLinkMode('link');
@@ -813,6 +820,10 @@ export const EditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplete, i
         requests.push({ ids, intent: { action: 'clear_expiration' } });
         successMessage = 'Cleared expiration date';
       }
+    } else if (action === 'manage_4k_transcode') {
+      const allow = allow4kTranscode === 'allow';
+      requests.push({ ids, intent: { action: 'set_4k_transcode', allow_4k_transcode: allow } });
+      successMessage = `${allow ? 'Allowed' : 'Blocked'} 4K transcoding for ${plural(ids.length)}`;
     } else if (action === 'manage_local_link') {
       if (linkContextError || localUsersError || serviceOptionsError) { error('Account details could not be loaded. Close and try again.'); return; }
       if (localLinkMode === 'unlink') {
@@ -1124,6 +1135,41 @@ export const EditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplete, i
           </div>
         );
 
+      case 'manage_4k_transcode':
+        return (
+          <div className="space-y-4">
+            <Alert variant="info">
+              <FontAwesomeIcon icon={faCircleInfo} className="h-4 w-4" />
+              <AlertTitle>4K Transcoding</AlertTitle>
+              <AlertDescription>
+                When 4K transcoding is blocked, MUM stops a stream once if the server transcodes a 4K video for that user, and shows them a message. Direct play of 4K is never stopped. Applies to Plex, Jellyfin and Emby server accounts; other selected users are skipped.
+              </AlertDescription>
+            </Alert>
+
+            <div className="space-y-2">
+              <Label htmlFor="transcode-4k-mode">4K Transcoding</Label>
+              <Select
+                value={allow4kTranscode}
+                onValueChange={(value: 'allow' | 'block') => setAllow4kTranscode(value)}
+              >
+                <SelectTrigger id="transcode-4k-mode" className="h-11">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="block">
+                    <FontAwesomeIcon icon={faBan} className="mr-2" />
+                    Block 4K transcoding
+                  </SelectItem>
+                  <SelectItem value="allow">
+                    <FontAwesomeIcon icon={faCheck} className="mr-2" />
+                    Allow 4K transcoding
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        );
+
       case 'manage_local_link':
         return (
           <div className="space-y-4">
@@ -1417,6 +1463,10 @@ export const EditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplete, i
                 <SelectItem value="manage_expiration">
                   <FontAwesomeIcon icon={faCalendar} className="mr-2" />
                   Manage Expiration
+                </SelectItem>
+                <SelectItem value="manage_4k_transcode">
+                  <FontAwesomeIcon icon={faFilm} className="mr-2" />
+                  Manage 4K Transcoding
                 </SelectItem>
                 <SelectItem value="manage_local_link">
                   <FontAwesomeIcon icon={faLink} className="mr-2" />

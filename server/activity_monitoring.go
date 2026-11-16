@@ -164,6 +164,12 @@ func (a *App) runOneActivityMonitor(parent context.Context) error {
 				observed = len(snapshot.Sessions)
 				stage = "persist_snapshot"
 				applied, err = a.store.applyActivitySnapshot(ctx, *c, snapshot)
+				if err == nil {
+					// Its own budget: the poll's may be nearly spent.
+					policy, cancel := context.WithTimeout(parent, 30*time.Second)
+					a.enforceTranscodePolicy(policy, c.Server, c.Provider, provider, snapshot)
+					cancel()
+				}
 			}
 		}
 	}

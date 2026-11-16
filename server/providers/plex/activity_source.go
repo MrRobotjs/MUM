@@ -42,8 +42,8 @@ func (s *Server) enrichSourceDisplay(ctx context.Context, body []byte, snapshot 
 				failures++
 			}
 		}
-		if source != nil {
-			ApplySourceDisplay(snapshot.Sessions[index].Display, row, *source)
+		if source != nil && ApplySourceDisplay(snapshot.Sessions[index].Display, row, *source) && row.Transcode != nil && row.Transcode.VideoDecision == "transcode" {
+			snapshot.Sessions[index].Transcode4K = true
 		}
 	}
 	if failures > 0 {
@@ -92,7 +92,9 @@ func selectedPart(rows []DisplayPart) DisplayPart {
 
 // ApplySourceDisplay fills the source side of a display from the item's
 // library metadata, using only the media version and part being played.
-func ApplySourceDisplay(d *provider.ActivityDisplay, live, original DisplayRow) {
+// ApplySourceDisplay reports whether the playing source is 4K. It answers
+// false whenever the source version cannot be identified.
+func ApplySourceDisplay(d *provider.ActivityDisplay, live, original DisplayRow) bool {
 	liveMedia := selectedMedia(live.Media)
 	media := selectedMedia(original.Media)
 	if liveMedia.ID == "" && len(original.Media) > 1 {
@@ -104,7 +106,7 @@ func ApplySourceDisplay(d *provider.ActivityDisplay, live, original DisplayRow) 
 			}
 		}
 		if selected != 1 {
-			return
+			return false
 		}
 	}
 	if liveMedia.ID != "" {
@@ -117,11 +119,11 @@ func ApplySourceDisplay(d *provider.ActivityDisplay, live, original DisplayRow) 
 			}
 		}
 		if !found {
-			return
+			return false
 		} // Never guess another source version.
 	}
 	if len(original.Media) == 0 {
-		return
+		return false
 	}
 	livePart := selectedPart(liveMedia.Parts)
 	part := selectedPart(media.Parts)
@@ -134,7 +136,7 @@ func ApplySourceDisplay(d *provider.ActivityDisplay, live, original DisplayRow) 
 			}
 		}
 		if selected != 1 {
-			return
+			return false
 		}
 	}
 	if livePart.ID != "" {
@@ -147,14 +149,14 @@ func ApplySourceDisplay(d *provider.ActivityDisplay, live, original DisplayRow) 
 			}
 		}
 		if !found {
-			return
+			return false
 		}
 	}
 	videoCodec := displayText(media.VideoCodec)
 	if d.MediaPath == "" {
 		d.MediaPath = provider.SafeMediaFilePath(part.File)
 	}
-	videoHeight := media.Height
+	videoHeight, videoWidth := media.Height, media.Width
 	audioID := ""
 	for _, v := range livePart.Streams {
 		if v.Type == 2 && v.Selected == "1" {
@@ -170,6 +172,9 @@ func ApplySourceDisplay(d *provider.ActivityDisplay, live, original DisplayRow) 
 			}
 			if videoHeight == 0 {
 				videoHeight = v.Height
+			}
+			if videoWidth == 0 {
+				videoWidth = v.Width
 			}
 		}
 		if v.Type == 2 && (audio.Type == 0 || v.Selected == "1") {
@@ -243,5 +248,7 @@ func ApplySourceDisplay(d *provider.ActivityDisplay, live, original DisplayRow) 
 	}
 	if live.Kind == "track" {
 		d.Video = "Audio Only"
+		return false
 	}
+	return strings.EqualFold(strings.TrimSpace(media.Resolution), "4k") || provider.Is4K(int64(videoWidth), int64(videoHeight))
 }

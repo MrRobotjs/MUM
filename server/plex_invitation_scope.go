@@ -24,6 +24,9 @@ type plexInvitationScope struct {
 func canonicalPlexInvitationGrant(g InvitationGrant) string {
 	g.LibraryIDs = slices.Clone(g.LibraryIDs)
 	slices.Sort(g.LibraryIDs)
+	// A grant frozen before the 4K setting existed means allowed.
+	allow4K := g.Allows4KTranscode()
+	g.Allow4KTranscode = &allow4K
 	data, _ := json.Marshal(g)
 	return string(data)
 }

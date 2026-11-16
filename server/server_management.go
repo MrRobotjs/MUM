@@ -337,9 +337,6 @@ func (a *App) saveServer(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				return err
 			}
-			if err := recordServerNotification(r.Context(), tx, s.ID); err != nil {
-				return err
-			}
 			if _, err = tx.ExecContext(r.Context(), "UPDATE provider_settings SET enabled=1 WHERE provider_id=?", s.Type); err != nil {
 				return err
 			}
@@ -851,9 +848,6 @@ func (a *App) syncServerClaimed(ctx context.Context, actor, access string, s Man
 			}
 		}
 		if _, err := tx.ExecContext(ctx, "UPDATE media_servers SET last_sync_at=?,updated_at=?,revision=revision+1 WHERE id=?", now, now, s.ID); err != nil {
-			return err
-		}
-		if _, err := tx.ExecContext(ctx, "UPDATE admin_notifications SET resolved=1 WHERE server_id=? AND resolved=0", s.ID); err != nil {
 			return err
 		}
 		if claim != nil {

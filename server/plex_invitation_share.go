@@ -254,7 +254,7 @@ func (a *App) commitPlexInvitationStep(ctx context.Context, jobID, userUUID stri
 			if _, err := tx.ExecContext(ctx, "INSERT INTO identities(uuid,kind) VALUES(?,'service')", uuid); err != nil {
 				return err
 			}
-			if _, err := tx.ExecContext(ctx, `INSERT INTO service_accounts(uuid,server_id,external_user_id,external_username,allowed_library_ids,allow_downloads,service_settings,is_active,used_invite_id,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)`, uuid, s.ID, account, username, string(ids), g.AllowDownloads, string(settings), accepted, inviteID, now, now); err != nil {
+			if _, err := tx.ExecContext(ctx, `INSERT INTO service_accounts(uuid,server_id,external_user_id,external_username,allowed_library_ids,allow_downloads,service_settings,is_active,used_invite_id,created_at,updated_at,allow_4k_transcode) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`, uuid, s.ID, account, username, string(ids), g.AllowDownloads, string(settings), accepted, inviteID, now, now, g.Allows4KTranscode()); err != nil {
 				return err
 			}
 		case err != nil:

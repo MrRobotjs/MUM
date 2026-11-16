@@ -1,7 +1,7 @@
 import {requestJson} from '../util/apiClient';
 import {getAccessToken} from '../store/authStore';
-export type EditAction = 'update_libraries'|'extend_access'|'set_expiration'|'clear_expiration'|'link_local'|'unlink_local'|'delete_users';
-export type EditIntent = {action:EditAction;days?:number;expires_at?:string;library_ids?:string[];has_all_libraries?:boolean;target_local_user_uuid?:string};
+export type EditAction = 'update_libraries'|'extend_access'|'set_expiration'|'clear_expiration'|'link_local'|'unlink_local'|'delete_users'|'set_4k_transcode';
+export type EditIntent = {action:EditAction;days?:number;expires_at?:string;library_ids?:string[];has_all_libraries?:boolean;target_local_user_uuid?:string;allow_4k_transcode?:boolean};
 export type EditReceipt = {id:string;revision:string;state:'prepared'|'running'|'completed'|'needs_review';action:EditAction;results:{uuid:string;outcome:string;reason:string}[];summary:Record<'updated'|'deleted'|'unchanged'|'skipped'|'failed'|'unknown'|'pending',number>;warnings:string[];effects:string[]};
 // The library edit dialog keys its checkboxes by MUM's library row ID, but the
 // server, like every other grant, expects the media server's own library ID.
@@ -60,7 +60,7 @@ const reasonLabels:Record<string,string>={
  not_primary_owner:'not linked to that local account',link_unavailable:'linking is not possible',provider_rejected:'the server refused the change',
  provider_inspection_failed:'the server could not be read',provider_not_verified:'the server did not confirm the change',remote_outcome_uncertain:'the server result is uncertain',
  interrupted_before_dispatch:'interrupted before it was sent',plex_dynamic_all_unsupported:'Plex cannot switch this user to all libraries',
- no_expiration:'no expiration date',plex_impact_too_large:'too many Plex shares are affected',plex_impact_unavailable:'Plex shares could not be read',protected_plex_impact:'it would remove Plex access of the owner or an administrator',
+ no_expiration:'no expiration date',not_supported:'only Plex, Jellyfin and Emby accounts',plex_impact_too_large:'too many Plex shares are affected',plex_impact_unavailable:'Plex shares could not be read',protected_plex_impact:'it would remove Plex access of the owner or an administrator',
 };
 // Returns null when every selected user changed as asked, otherwise a short
 // summary for an error toast (counts plus plain-language reasons).

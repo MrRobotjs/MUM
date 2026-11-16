@@ -10,7 +10,7 @@ export type PublicInvitation = {
   current_uses: number;
   reserved_uses: number;
   servers: { id: number; name: string; provider: string; access_url: string; libraries: { id: string; name: string }[] }[];
-  grants: { server_id: number; all_libraries: boolean; library_ids: string[]; allow_downloads: boolean }[];
+  grants: { server_id: number; all_libraries: boolean; library_ids: string[]; allow_downloads: boolean; allow_4k_transcode?: boolean }[];
   discord: { required: boolean; requires_guild: boolean; available: boolean; invite_url: string | null };
   // Invitees sign in to MUM with their media server login (SERVICE_SIGN_IN).
   service_sign_in?: boolean;
@@ -79,7 +79,7 @@ function publicSnapshot(value: unknown): PublicInvitation {
   });
   const granted = new Set<number>();
   const grants = v.grants.map(g => {
-    if (!seen.has(g.server_id) || granted.has(g.server_id) || typeof g.all_libraries !== 'boolean' || typeof g.allow_downloads !== 'boolean' ||
+    if (!seen.has(g.server_id) || granted.has(g.server_id) || typeof g.all_libraries !== 'boolean' || typeof g.allow_downloads !== 'boolean' || g.allow_4k_transcode !== undefined && typeof g.allow_4k_transcode !== 'boolean' ||
         !Array.isArray(g.library_ids) || g.library_ids.some(id => typeof id !== 'string' || !id) ||
         g.all_libraries && g.library_ids.length > 0 || !g.all_libraries && g.library_ids.length === 0) throw new Error('Invalid invitation grant');
     const provider = servers.find(server => server.id === g.server_id)!.provider;
@@ -87,7 +87,7 @@ function publicSnapshot(value: unknown): PublicInvitation {
     if (provider === 'kavita' && (g.all_libraries || g.library_ids.some(id => !/^[1-9]\d*$/.test(id) || Number(id) > 2147483647))) throw new Error('Kavita requires selected libraries with valid IDs');
     if (new Set(g.library_ids).size !== g.library_ids.length) throw new Error('Invalid invitation grant');
     granted.add(g.server_id);
-    return { server_id: g.server_id, all_libraries: g.all_libraries, library_ids: [...g.library_ids], allow_downloads: g.allow_downloads };
+    return { server_id: g.server_id, all_libraries: g.all_libraries, library_ids: [...g.library_ids], allow_downloads: g.allow_downloads, allow_4k_transcode: g.allow_4k_transcode !== false };
   });
   const d = (v as { discord?: unknown }).discord as PublicInvitation['discord'] | undefined;
   if (!d || typeof d.required !== 'boolean' || typeof d.requires_guild !== 'boolean' || typeof d.available !== 'boolean' || d.requires_guild && !d.required ||
@@ -318,7 +318,7 @@ export class InvitationDraft {
       return { id: s.id, name: s.name, service_type: s.provider.toUpperCase(), access_url: s.access_url,
         completed: plex ? this.plexConfirmed() : Boolean(a && !invitationCredentialError(s.provider, credentials.username, credentials.password)), all_libraries: grant.all_libraries,
         credentials: a && !plex ? { username: credentials.username, email: ['kavita','audiobookshelf','romm'].includes(s.provider) ? '' : credentials.email } : null, libraries: s.libraries,
-        features: { allow_downloads: grant.allow_downloads, invite_to_plex_home: false, allow_live_tv: false, allow_4k_transcode: true } };
+        features: { allow_downloads: grant.allow_downloads, invite_to_plex_home: false, allow_live_tv: false, allow_4k_transcode: grant.allow_4k_transcode !== false } };
     });
     const discordRequired = this.invitation.discord.required;
     const steps = [...(discordRequired ? [{ id: 'discord', name: 'Discord', icon: 'discord', required: true, completed: this.discordVerified() }] : []),
@@ -330,7 +330,7 @@ export class InvitationDraft {
       invite: { id: this.invitation.id, token: this.token, custom_path: null, expires_at: this.invitation.expires_at,
         max_uses: this.invitation.max_uses, current_uses: this.invitation.current_uses + this.invitation.reserved_uses,
         is_active: true, is_paused: false, allow_downloads: this.invitation.grants.some(g => g.allow_downloads),
-        invite_to_plex_home: false, allow_live_tv: false, allow_4k_transcode: true, membership_duration_days: null,
+        invite_to_plex_home: false, allow_live_tv: false, allow_4k_transcode: this.invitation.grants.every(g => g.allow_4k_transcode !== false), membership_duration_days: null,
         grant_library_ids: this.invitation.grants.flatMap(g => g.library_ids.map(id => `${g.server_id}::${id}`)),
         require_discord_auth: discordRequired, require_discord_guild_membership: this.invitation.discord.requires_guild, server_count: servers.length,
         effective_server_count: servers.length, disabled_server_count: 0 },

@@ -48,6 +48,19 @@ func (a *App) startStreamOperation(w http.ResponseWriter, r *http.Request) (cont
 	return ctx, func() { stop(); cancel(); <-a.provisionSlots; a.provisionWG.Done() }, true
 }
 
+// terminateOutcome names the result of one stop request for the audit log.
+func terminateOutcome(err error) string {
+	switch {
+	case err == nil:
+		return "terminated"
+	case errors.Is(err, provider.ErrSessionGone):
+		return "already_ended"
+	case errors.Is(err, provider.ErrTerminateRefused):
+		return "refused"
+	}
+	return "failed"
+}
+
 // validTerminateMessage accepts an optional message of printable text.
 func validTerminateMessage(message string) bool {
 	if !utf8.ValidString(message) || utf8.RuneCountInString(message) > provider.MaxTerminateMessage {
@@ -114,17 +127,7 @@ func (a *App) terminateStream(w http.ResponseWriter, r *http.Request) {
 		fail(w, 409, "TERMINATE_UNSUPPORTED", "This server type cannot stop streams from MUM.")
 		return
 	}
-	err = terminator.TerminateSession(ctx, session, message)
-	outcome := "terminated"
-	switch {
-	case err == nil:
-	case errors.Is(err, provider.ErrSessionGone):
-		outcome = "already_ended"
-	case errors.Is(err, provider.ErrTerminateRefused):
-		outcome = "refused"
-	default:
-		outcome = "failed"
-	}
+	outcome := terminateOutcome(terminator.TerminateSession(ctx, session, message))
 	// The attempt is recorded whatever happened; it is never retried.
 	details, _ := json.Marshal(map[string]any{"server_id": serverID, "history_id": history, "provider": kind, "outcome": outcome, "message_sent": message != ""})
 	record := context.WithoutCancel(ctx)

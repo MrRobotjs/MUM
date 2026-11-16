@@ -56,11 +56,10 @@ func TestScheduledSyncConfigurationAndSuccessfulCheckpoint(t *testing.T) {
 	if state != "succeeded" || code != "SUCCEEDED" || attempts != 1 {
 		t.Fatal(state, code, attempts)
 	}
-	var accounts, notices int
+	var accounts int
 	s.reader.QueryRow("SELECT count(*) FROM service_accounts WHERE server_id=?", id).Scan(&accounts)
-	s.reader.QueryRow("SELECT count(*) FROM admin_notifications WHERE server_id=? AND resolved=1", id).Scan(&notices)
-	if accounts == 0 || notices != 1 {
-		t.Fatal("success checkpoint lacked snapshot/notice outcome", accounts, notices)
+	if accounts == 0 {
+		t.Fatal("success checkpoint lacked snapshot outcome", accounts)
 	}
 	if err := a.runOneScheduledSync(t.Context()); err != nil {
 		t.Fatal(err)
@@ -241,12 +240,11 @@ func TestScheduledSyncFailureCannotCommitSuccessfulCheckpoint(t *testing.T) {
 		t.Fatal(err)
 	}
 	var code string
-	var accounts, resolved int
+	var accounts int
 	s.reader.QueryRow("SELECT last_code FROM server_sync_schedules WHERE server_id=?", id).Scan(&code)
 	s.reader.QueryRow("SELECT count(*) FROM service_accounts WHERE server_id=?", id).Scan(&accounts)
-	s.reader.QueryRow("SELECT count(*) FROM admin_notifications WHERE server_id=? AND resolved=1", id).Scan(&resolved)
-	if code != "FAILED" || accounts != 0 || resolved != 0 {
-		t.Fatal("partial successful checkpoint survived rollback", code, accounts, resolved)
+	if code != "FAILED" || accounts != 0 {
+		t.Fatal("partial successful checkpoint survived rollback", code, accounts)
 	}
 }
 

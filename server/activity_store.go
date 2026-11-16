@@ -336,8 +336,8 @@ func (a *App) captureProviderActivity(ctx context.Context, actor, access string,
 	if err == nil && (server.ConfigRevision != c.ConfigRevision || !server.EffectiveActive) {
 		err = ErrConflict
 	}
+	var provider *serverConnection
 	if err == nil {
-		var provider *serverConnection
 		provider, err = newServerConnection(ProviderConfig{server.Type, server.URL, server.apiKey}, a.ProviderHTTP)
 		if err == nil {
 			provider.locations = &a.locationCache
@@ -347,6 +347,9 @@ func (a *App) captureProviderActivity(ctx context.Context, actor, access string,
 	var result activityApplyResult
 	if err == nil {
 		result, err = a.store.applyActivitySnapshot(ctx, c, snapshot)
+		if err == nil {
+			a.enforceTranscodePolicy(ctx, serverID, server.Type, provider, snapshot)
+		}
 	}
 	if err != nil {
 		cleanup, stop := context.WithTimeout(context.Background(), 5*time.Second)

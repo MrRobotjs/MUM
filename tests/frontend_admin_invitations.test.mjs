@@ -62,7 +62,7 @@ test('current admin invitation adapters', async t => {
   await t.test('strict payloads preserve explicit all-library grants and reject unsupported conditions', async () => {
     const api = await loadAdapters();
     const payload = api.invitationPayload(values());
-    assert.deepEqual(payload.grants, [{ server_id: 9, all_libraries: false, library_ids: ['movies'], allow_downloads: true }]);
+    assert.deepEqual(payload.grants, [{ server_id: 9, all_libraries: false, library_ids: ['movies'], allow_downloads: true, allow_4k_transcode: true }]);
     assert.equal(payload.server_ids, undefined);
     assert.equal(api.invitationPayload({ ...values(), all_library_server_ids: [9] }).grants[0].all_libraries, true);
     const plain = api.invitationPayload(values());
@@ -170,5 +170,20 @@ test('RomM admin grants never infer all-platform/download access', async () => {
  assert.throws(() => api.invitationPayload(values(),metadata), /RomM/);
  const all = {...values(),all_library_server_ids:[9]};
  assert.throws(() => api.invitationPayload({...all,server_features:[{server_id:9,allow_downloads:false}]},metadata),/RomM/);
- assert.deepEqual(api.invitationPayload(all,metadata).grants,[{server_id:9,all_libraries:true,library_ids:[],allow_downloads:true}]);
+ assert.deepEqual(api.invitationPayload(all,metadata).grants,[{server_id:9,all_libraries:true,library_ids:[],allow_downloads:true,allow_4k_transcode:true}]);
+});
+
+// 4K transcoding is chosen per Plex, Jellyfin or Emby server; other servers
+// always allow it, and the saved choice is read back per server.
+test('admin invitations carry the 4K transcoding choice', async () => {
+ const api = await loadAdapters();
+ const blocked = {...values(),server_features:[{server_id:9,allow_downloads:true,allow_4k_transcode:false}]};
+ for (const service_type of ['plex','jellyfin','emby']) assert.equal(api.invitationPayload(blocked,[{id:9,service_type}]).grants[0].allow_4k_transcode,false);
+ assert.equal(api.invitationPayload(blocked,[{id:9,service_type:'audiobookshelf'}]).grants[0].allow_4k_transcode,true);
+ assert.equal(api.invitationPayload(values(),[{id:9,service_type:'emby'}]).grants[0].allow_4k_transcode,true);
+ const catalog = {records:[record({grants:[{server_id:9,all_libraries:false,library_ids:['movies'],allow_downloads:false,allow_4k_transcode:false}]})],servers:[{id:9,server_nickname:'Jelly',service_type:'jellyfin',is_active:true,provider_enabled:true,effective_active:true}],libraries:[]};
+ const row = api.invitationRow(catalog.records[0],catalog);
+ assert.equal(row.allow_4k_transcode,false);
+ assert.deepEqual(row.server_features,[{server_id:9,allow_downloads:false,allow_4k_transcode:false}]);
+ assert.equal(api.invitationRow(record(),catalog).allow_4k_transcode,true);
 });

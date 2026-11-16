@@ -152,7 +152,7 @@ func TestNotificationRevisionAuthorityAndAtomicRollback(t *testing.T) {
 		})
 	}
 }
-func TestNotificationPagesResolutionAndCurrentProducer(t *testing.T) {
+func TestNotificationPagesAndResolution(t *testing.T) {
 	a, s, token, _, _ := roleReadFixture(t)
 	server := seedServer(t, s)
 	if _, err := s.writer.Exec(`WITH RECURSIVE n(i) AS (VALUES(1) UNION ALL SELECT i+1 FROM n WHERE i<101) INSERT INTO admin_notifications(notification_type,audience,server_id,recipient_uuid) SELECT 'SERVER_NOT_SYNCED','recipient',?,? FROM n`, server, responseData(t, apiRequest(a, "GET", "/api/auth/session", token, nil, nil))["user"].(map[string]any)["uuid"]); err != nil {
@@ -179,9 +179,9 @@ func TestNotificationPagesResolutionAndCurrentProducer(t *testing.T) {
 	if w.Code != 201 {
 		t.Fatal(w.Code, w.Body.String())
 	}
-	produced := inboxSnapshot(t, a, token)
-	if produced["total"] != float64(102) || produced["unread_count"] != float64(1) {
-		t.Fatal("server producer missing", produced)
+	// Adding a server raises no notification (user decision 2026-11-15).
+	if produced := inboxSnapshot(t, a, token); produced["total"] != float64(101) || produced["unread_count"] != float64(0) {
+		t.Fatal("adding a server raised a notification", produced)
 	}
 	for _, query := range []string{"limit=100", "after=00", "after=-1", "after=1&after=2"} {
 		if w := apiRequest(a, "GET", "/api/notifications?"+query, token, nil, nil); w.Code != 400 {
@@ -190,27 +190,57 @@ func TestNotificationPagesResolutionAndCurrentProducer(t *testing.T) {
 	}
 }
 
-func TestNotificationResolutionRequiresCommittedSuccessfulSync(t *testing.T) {
+// Adding and syncing a server leaves the bell empty, whether the sync fails
+// or succeeds.
+func TestServerAddAndSyncRaiseNoNotification(t *testing.T) {
 	a, _ := testApp(t)
 	token, _ := bootstrapOwner(t, a)
 	upstream, mode := providerFixture(t, "jellyfin")
 	id := createManagedServer(t, a, token, "jellyfin", upstream.URL)
-	if inboxSnapshot(t, a, token)["unread_count"] != float64(1) {
-		t.Fatal("producer missing")
+	empty := func(step string) {
+		t.Helper()
+		if snapshot := inboxSnapshot(t, a, token); snapshot["total"] != float64(0) {
+			t.Fatal(step, snapshot)
+		}
 	}
+	empty("after adding")
 	mode.Store(3)
 	if w := apiRequest(a, "POST", "/api/servers/"+strconv.FormatInt(id, 10)+"/sync", token, nil, nil); w.Code != 502 {
 		t.Fatal(w.Code, w.Body.String())
 	}
-	if inboxSnapshot(t, a, token)["unread_count"] != float64(1) {
-		t.Fatal("failed sync resolved notification")
-	}
+	empty("after a failed sync")
 	mode.Store(0)
 	if w := apiRequest(a, "POST", "/api/servers/"+strconv.FormatInt(id, 10)+"/sync", token, nil, nil); w.Code != 200 {
 		t.Fatal(w.Code, w.Body.String())
 	}
-	snapshot := inboxSnapshot(t, a, token)
-	if snapshot["unread_count"] != float64(0) || snapshot["notifications"].([]any)[0].(map[string]any)["resolved"] != true {
+	empty("after a sync")
+}
+
+// Migration 072 clears stored "not synced" notifications and their receipts.
+func TestMigrationClearsServerSyncNotifications(t *testing.T) {
+	a, s, token, _, _ := roleReadFixture(t)
+	server := seedServer(t, s)
+	if _, err := s.writer.Exec("INSERT INTO admin_notifications(notification_type,audience,server_id) VALUES('SERVER_NOT_SYNCED','administrators',?)", server); err != nil {
+		t.Fatal(err)
+	}
+	if snapshot := inboxSnapshot(t, a, token); snapshot["total"] != float64(1) {
+		t.Fatal("fixture", snapshot)
+	}
+	if _, err := s.writer.Exec("INSERT INTO admin_notification_receipts(user_uuid,notification_id,is_read) SELECT uuid,(SELECT max(id) FROM admin_notifications),1 FROM user_accounts WHERE kind='owner'"); err != nil {
+		t.Fatal(err)
+	}
+	migration, err := migrationFiles.ReadFile("go_migrations/072_no_server_sync_notice.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.writer.Exec(string(migration)); err != nil {
+		t.Fatal(err)
+	}
+	var left int
+	if err := s.reader.QueryRow("SELECT (SELECT count(*) FROM admin_notifications)+(SELECT count(*) FROM admin_notification_receipts)").Scan(&left); err != nil || left != 0 {
+		t.Fatal(left, err)
+	}
+	if snapshot := inboxSnapshot(t, a, token); snapshot["total"] != float64(0) {
 		t.Fatal(snapshot)
 	}
 }

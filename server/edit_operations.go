@@ -49,7 +49,12 @@ func editDigest(value any) string {
 }
 
 func validEditInput(op editOperationInput) bool {
+	if (op.Action == "set_4k_transcode") != (op.Allow4KTranscode != nil) {
+		return false
+	}
 	switch op.Action {
+	case "set_4k_transcode":
+		return op.Days == 0 && op.ExpiresAt == nil && len(op.LibraryIDs) == 0 && !op.HasAllLibraries && op.TargetLocalUserUUID == ""
 	case "delete_users", "unlink_local", "clear_expiration":
 		return op.Days == 0 && op.ExpiresAt == nil && len(op.LibraryIDs) == 0 && !op.HasAllLibraries && op.TargetLocalUserUUID == ""
 	case "link_local":
@@ -390,6 +395,9 @@ func (a *App) prepareEdit(w http.ResponseWriter, r *http.Request) {
 	}
 	if stored.Action == "set_expiration" || stored.Action == "extend_access" || stored.Action == "clear_expiration" {
 		stored.Effects = append(stored.Effects, "Expiry is MUM policy. Changing a local account's expiry signs out its MUM sessions; it does not delete provider accounts.")
+	}
+	if stored.Action == "set_4k_transcode" {
+		stored.Effects = append(stored.Effects, "4K transcoding is MUM policy for Plex, Jellyfin and Emby server accounts. When it is off, MUM stops a stream once when the server transcodes a 4K source; direct play is never stopped.")
 	}
 	err = a.store.write(r.Context(), func(tx *sql.Tx) error {
 		if err := editAuthorityTx(r.Context(), tx, stored.Actor, bearer(r)); err != nil {

@@ -401,3 +401,16 @@ test('custom invite paths resolve to the link code and unlimited invites load',a
  assert.deepEqual(calls,['/api/public/invitations/besties','/api/public/invitation-paths/besties',`/api/public/invitations/${code}`]);
  const view=draft.view();assert.equal(view.invite.token,code);assert.equal(view.invite.expires_at,null);assert.equal(view.invite.max_uses,null);
 });
+
+// The wizard shows each server's saved 4K transcoding choice; an older
+// invitation without one allows it, and a malformed value is rejected.
+test('invitation wizard shows the 4K transcoding choice', async () => {
+ const { InvitationDraft } = await loadModule();
+ const data = invitation();
+ data.grants = data.grants.map((grant, index) => index === 0 ? {...grant, allow_4k_transcode: false} : grant);
+ const view = new InvitationDraft('token', data, storagePort()).view();
+ assert.equal(view.servers[0].features.allow_4k_transcode, false);
+ assert.equal(view.servers[1].features.allow_4k_transcode, true);
+ assert.equal(view.invite.allow_4k_transcode, false);
+ assert.throws(() => new InvitationDraft('token', {...data, grants: [{...data.grants[0], allow_4k_transcode: 'no'}, data.grants[1]]}, storagePort()), /grant/);
+});

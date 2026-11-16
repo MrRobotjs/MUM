@@ -5,7 +5,10 @@ import type { InviteRow } from '../components/invites/InvitesTable';
 import type { InviteFormValues } from '../components/invites/InviteModal';
 
 export const INVITATIONS_CACHE_KEY = '/api/invitations';
-export type InvitationGrant = { server_id: number; all_libraries: boolean; library_ids: string[]; allow_downloads: boolean };
+// allow_4k_transcode: false has MUM stop streams that transcode 4K (Plex, Jellyfin, Emby).
+export type InvitationGrant = { server_id: number; all_libraries: boolean; library_ids: string[]; allow_downloads: boolean; allow_4k_transcode?: boolean };
+// Server types whose 4K transcodes MUM can stop.
+export const transcodePolicyServiceTypes = ['plex', 'jellyfin', 'emby'];
 // Null expiry = never expires, null max_uses = unlimited, null membership = permanent (Flask behaviour).
 export type InvitationRecord = { id: number; revision: number; created_at: string; expires_at: string | null; max_uses: number | null; current_uses: number; reserved_uses: number; is_active: boolean; grants: InvitationGrant[]; require_discord_auth?: boolean; require_discord_guild_membership?: boolean; custom_path?: string | null; membership_duration_days?: number | null; token_prefix?: string; archived_at?: string | null };
 export type InvitationServer = { id: number; server_nickname: string; service_type: string; is_active: boolean; provider_enabled: boolean; effective_active: boolean; public_url?: string };
@@ -68,8 +71,8 @@ export function invitationRow(record: InvitationRecord, catalog: InvitationCatal
     all_library_server_ids: record.grants.filter(g => g.all_libraries).map(g => g.server_id),
     grant_library_ids: selected.map(l => `${l.server_id}::${l.external_id}`),
     libraries: selected.map(l => ({ server_id: l.server_id, id: `${l.server_id}::${l.external_id}`, name: l.name, server_name: servers.find(s => s.id === l.server_id)?.server_nickname ?? '', service_type: servers.find(s => s.id === l.server_id)?.service_type ?? '' })),
-    allow_downloads: record.grants.some(g => g.allow_downloads), allow_4k_transcode: true,
-    server_features: record.grants.map(g => ({ server_id: g.server_id, allow_downloads: g.allow_downloads })),
+    allow_downloads: record.grants.some(g => g.allow_downloads), allow_4k_transcode: record.grants.every(g => g.allow_4k_transcode !== false),
+    server_features: record.grants.map(g => ({ server_id: g.server_id, allow_downloads: g.allow_downloads, allow_4k_transcode: g.allow_4k_transcode !== false })),
     require_discord_auth: record.require_discord_auth === true, require_discord_guild_membership: record.require_discord_guild_membership === true,
   };
 }
@@ -141,7 +144,10 @@ export function invitationPayload(values: InviteFormValues, servers: { id: numbe
     if (server && !invitationServerLimits(server.service_type).allLibraries && (all_libraries || library_ids.some(id => !/^[1-9]\d*$/.test(id) || Number(id) > 2147483647))) throw new Error('Kavita requires selected libraries with valid IDs; future libraries are not included');
     const allow_downloads = values.server_features?.find(f => f.server_id === server_id)?.allow_downloads ?? values.allow_downloads ?? false;
     if (server?.service_type.toLowerCase() === 'romm' && (!all_libraries || library_ids.length || !allow_downloads)) throw new Error('RomM requires explicit all-platform access including downloads');
-    return { server_id, all_libraries, library_ids, allow_downloads };
+    // Only Plex, Jellyfin and Emby enforce it; other servers always allow.
+    const supports4k = !server || transcodePolicyServiceTypes.includes(server.service_type.toLowerCase());
+    const allow_4k_transcode = supports4k ? values.server_features?.find(f => f.server_id === server_id)?.allow_4k_transcode ?? values.allow_4k_transcode ?? true : true;
+    return { server_id, all_libraries, library_ids, allow_downloads, allow_4k_transcode };
   });
   return { expires_at: expiresAt, max_uses: maxUses, is_active: values.is_active ?? true, grants, require_discord_auth, require_discord_guild_membership, custom_path: customPath, membership_duration_days: membershipDays };
 }

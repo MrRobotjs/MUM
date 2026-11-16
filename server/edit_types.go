@@ -7,6 +7,7 @@ type editOperationInput struct {
 	LibraryIDs          []string `json:"library_ids,omitempty"`
 	HasAllLibraries     bool     `json:"has_all_libraries,omitempty"`
 	TargetLocalUserUUID string   `json:"target_local_user_uuid,omitempty"`
+	Allow4KTranscode    *bool    `json:"allow_4k_transcode,omitempty"`
 }
 
 type editReceipt struct {

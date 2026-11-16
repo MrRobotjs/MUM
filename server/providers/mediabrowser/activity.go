@@ -145,6 +145,7 @@ func ParseSessions(kind string, body []byte) (provider.ActivitySnapshot, error) 
 			return result, bad
 		}
 		session.PlayMethod = provider.PlayMethods[method]
+		session.Transcode4K = videoTranscoded(row["TranscodingInfo"]) && sourceIs4K(media)
 		if ticks, ok := media["RunTimeTicks"]; ok {
 			if json.Unmarshal(ticks, &session.Duration) != nil {
 				return result, bad
@@ -158,6 +159,39 @@ func ParseSessions(kind string, body []byte) (provider.ActivitySnapshot, error) 
 	result.Sessions = validated
 	result.ObservedAt = time.Now().UTC()
 	return result, nil
+}
+
+// videoTranscoded reports whether TranscodingInfo says the video is being
+// transcoded. Missing or malformed information counts as not transcoding.
+func videoTranscoded(raw json.RawMessage) bool {
+	var info map[string]json.RawMessage
+	if len(raw) == 0 || json.Unmarshal(raw, &info) != nil || info == nil {
+		return false
+	}
+	var direct *bool
+	return json.Unmarshal(info["IsVideoDirect"], &direct) == nil && direct != nil && !*direct
+}
+
+// sourceIs4K reports whether the playing item is 4K: by its first video
+// stream, otherwise by the item's own size. Unknown counts as not 4K.
+func sourceIs4K(media map[string]json.RawMessage) bool {
+	size := func(object map[string]json.RawMessage) (int64, int64) {
+		var width, height int64
+		if json.Unmarshal(object["Width"], &width) != nil || json.Unmarshal(object["Height"], &height) != nil {
+			return 0, 0
+		}
+		return width, height
+	}
+	var streams []map[string]json.RawMessage
+	if raw, ok := media["MediaStreams"]; ok && json.Unmarshal(raw, &streams) == nil {
+		for _, stream := range streams {
+			var kind string
+			if json.Unmarshal(stream["Type"], &kind) == nil && kind == "Video" {
+				return provider.Is4K(size(stream))
+			}
+		}
+	}
+	return provider.Is4K(size(media))
 }
 
 // exactKeys rejects a field whose name differs from an expected key only by

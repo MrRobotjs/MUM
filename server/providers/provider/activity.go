@@ -38,6 +38,16 @@ type ActivitySession struct {
 	// Empty means unknown. Device names stay private: only classified
 	// buckets leave MUM's store.
 	Client, Device, PlayMethod string
+	// Transcode4K is true only when the server reports that it is transcoding
+	// the video of a 4K source. Unknown counts as false, so a stream is never
+	// stopped on a guess.
+	Transcode4K bool
+}
+
+// Is4K reports whether a video size is 4K. The width also catches
+// widescreen 4K such as 3840×1600; a 3440×1440 ultrawide is not 4K.
+func Is4K(width, height int64) bool {
+	return width >= 3800 || height >= 2000
 }
 
 // ActivitySnapshot is a complete list of a server's current sessions.

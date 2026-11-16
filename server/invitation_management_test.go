@@ -175,7 +175,7 @@ func TestInvitationCursorPaginationHasNoSecretFields(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			if _, err := tx.Exec("INSERT INTO invitation_grants VALUES(?,?,0,'[\"movies\"]',0)", id, servers[0]); err != nil {
+			if _, err := tx.Exec("INSERT INTO invitation_grants(invite_id,server_id,all_libraries,library_ids,allow_downloads) VALUES(?,?,0,'[\"movies\"]',0)", id, servers[0]); err != nil {
 				return err
 			}
 		}

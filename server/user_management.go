@@ -55,7 +55,8 @@ var userProjection = `SELECT i.id,i.uuid,i.kind,coalesce(u.local_username,a.exte
   WHERE l.user_uuid=owner.user_uuid AND l.link_kind='owner' AND sa.uuid<>a.uuid AND sa.removed_at IS NULL ORDER BY l.created_at,sa.uuid LIMIT 20) x),
  coalesce(a.is_active=1 AND s.service_type='plex' AND s.is_active=1 AND EXISTS(SELECT 1 FROM provider_settings p WHERE p.provider_id='plex' AND p.enabled=1),0),
  (SELECT max(seen) FROM (SELECT max(h.last_seen_at) seen FROM media_activity_history h WHERE h.service_uuid=i.uuid
-  UNION ALL SELECT max(h.last_seen_at) FROM media_activity_history h WHERE h.owner_uuid=i.uuid)) AS last_streamed_at
+  UNION ALL SELECT max(h.last_seen_at) FROM media_activity_history h WHERE h.owner_uuid=i.uuid)) AS last_streamed_at,
+ CASE WHEN s.service_type IN ('plex','jellyfin','emby') THEN a.allow_4k_transcode END
  FROM identities i LEFT JOIN user_accounts u ON u.uuid=i.uuid LEFT JOIN service_accounts a ON a.uuid=i.uuid
  LEFT JOIN media_servers s ON s.id=a.server_id LEFT JOIN service_links owner ON owner.service_uuid=a.uuid AND owner.link_kind='owner'
  LEFT JOIN user_accounts parent ON parent.uuid=owner.user_uuid`
@@ -188,7 +189,8 @@ func (a *App) listUsers(w http.ResponseWriter, r *http.Request) {
 		var server sql.NullInt64
 		var expiry, lastSeen, lastSignIn sql.NullString
 		var siblings string
-		if err := rows.Scan(&id, &uuid, &kind, &name, &displayName, &email, &shownEmail, &active, &created, &notes, &server, &nickname, &provider, &linked, &roles, &visual, &libraries, &settings, &parent, &parentName, &parentDisplay, &expiry, &avatarTag, &joined, &lastSignIn, &siblings, &avatarServed, &lastSeen); err != nil {
+		var allow4K sql.NullBool
+		if err := rows.Scan(&id, &uuid, &kind, &name, &displayName, &email, &shownEmail, &active, &created, &notes, &server, &nickname, &provider, &linked, &roles, &visual, &libraries, &settings, &parent, &parentName, &parentDisplay, &expiry, &avatarTag, &joined, &lastSignIn, &siblings, &avatarServed, &lastSeen, &allow4K); err != nil {
 			rows.Close()
 			domainError(w, err)
 			return
@@ -240,7 +242,12 @@ func (a *App) listUsers(w http.ResponseWriter, r *http.Request) {
 		item := map[string]any{"access_expires_at": expiryValue, "id": id, "uuid": uuid, "user_type": kind, "username": name, "display_name": displayName, "email": emailValue, "external_email": shownEmailValue, "is_active": active, "created_at": created, "notes": notes, "server_id": serverValue, "server_nickname": nickname, "service_type": provider, "linked_service_count": linked, "admin_roles": adminRoleNames(adminRoleDetails), "admin_roles_detail": adminRoleDetails, "user_roles": userRoles, "libraries": []string{}, "allowed_library_ids": libraryIDs, "has_all_libraries": allLibraries, "linked_local_user": parentValue, "avatar_url": nil, "service_join_date": joinValue, "last_streamed_at": nil,
 			// When the MUM account (a server account's owner) last signed in,
 			// and the other server accounts that owner has.
-			"mum_last_login_at": nullableString(lastSignIn), "linked_accounts": linkedAccounts}
+			"mum_last_login_at": nullableString(lastSignIn), "linked_accounts": linkedAccounts,
+			// 4K transcoding for Plex, Jellyfin and Emby server accounts; null elsewhere.
+			"allow_4k_transcode": nil}
+		if allow4K.Valid {
+			item["allow_4k_transcode"] = allow4K.Bool
+		}
 		// Latest observed playback of this account (or of the services it owns).
 		if lastSeen.Valid {
 			item["last_streamed_at"] = lastSeen.String

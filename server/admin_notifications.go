@@ -50,10 +50,6 @@ func notificationAuthority(ctx context.Context, tx *sql.Tx, actor, access string
 	}
 	return requirePermission(ctx, tx, actor, "administrator")
 }
-func recordServerNotification(ctx context.Context, tx *sql.Tx, server int64) error {
-	_, err := tx.ExecContext(ctx, `INSERT INTO admin_notifications(notification_type,audience,server_id) VALUES('SERVER_NOT_SYNCED','administrators',?)`, server)
-	return err
-}
 func (a *App) notificationList(w http.ResponseWriter, r *http.Request) {
 	actor, ok := a.principal(w, r, true)
 	if !ok {

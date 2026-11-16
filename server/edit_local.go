@@ -20,6 +20,16 @@ type editLocalSelection struct {
 	ExpiresAt   *string
 }
 
+// transcodePolicySupported reports whether MUM can stop a server type's 4K
+// transcodes: it must read its streams and stop them.
+func transcodePolicySupported(kind string) bool {
+	switch kind {
+	case "plex", "jellyfin", "emby":
+		return true
+	}
+	return false
+}
+
 func editLocalExpiry(op editOperationInput, before *string, now time.Time) (*string, error) {
 	switch op.Action {
 	case "clear_expiration":
@@ -183,6 +193,35 @@ func prepareEditLocal(ctx context.Context, tx *sql.Tx, actor, access, target str
 			out.Outcome = "skipped"
 			out.Reason = "not_primary_owner"
 		}
+	case "set_4k_transcode":
+		// A setting of the server account, read by the stream monitor. The
+		// owner's, the caller's and other administrators' accounts are left alone,
+		// as for deletion; only the owner changes administrators' accounts.
+		if out.Local {
+			out.Outcome = "skipped"
+			out.Reason = "service_account_required"
+			break
+		}
+		if err = requirePermission(ctx, tx, actor, "administrator"); err != nil {
+			return out, err
+		}
+		var kind string
+		var allowed, protected bool
+		if err = tx.QueryRowContext(ctx, "SELECT s.service_type,a.allow_4k_transcode FROM service_accounts a JOIN media_servers s ON s.id=a.server_id WHERE a.uuid=?", target).Scan(&kind, &allowed); err != nil {
+			return out, err
+		}
+		if err = tx.QueryRowContext(ctx, protectedServiceSQL, target, actor, actor).Scan(&protected); err != nil {
+			return out, err
+		}
+		snapshot = []any{kind, allowed, protected}
+		switch {
+		case !transcodePolicySupported(kind):
+			out.Outcome, out.Reason = "skipped", "not_supported"
+		case protected:
+			out.Outcome, out.Reason = "skipped", "protected_account"
+		case allowed == *op.Allow4KTranscode:
+			out.Outcome = "unchanged"
+		}
 	case "delete_users":
 		if !out.Local {
 			out.Outcome = "skipped"
@@ -276,6 +315,13 @@ func applyEditLocal(ctx context.Context, tx *sql.Tx, actor, access, target strin
 			return result, err
 		}
 		err = auditAction(ctx, tx, actor, "service."+op.Action)
+	case "set_4k_transcode":
+		if current.Local || op.Allow4KTranscode == nil {
+			return result, ErrConflict
+		}
+		if _, err = tx.ExecContext(ctx, "UPDATE service_accounts SET allow_4k_transcode=?,updated_at=? WHERE uuid=?", *op.Allow4KTranscode, now, target); err == nil {
+			err = auditAction(ctx, tx, actor, "edit.set_4k_transcode")
+		}
 	default:
 		// Freeze extension at preparation; a queue delay must not silently extend it.
 		after := prepared.ExpiresAt

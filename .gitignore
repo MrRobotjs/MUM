@@ -6,17 +6,6 @@ env/
 venv/
 .env
 
-PlixMetrics-main/
-tautulli-master/
-PUM-master/
-MUM-2025.10.09/
-.idea
-.junie
-.claude
-.mcp.json
-AGENTS.md
-migration-documentation/
-
 *.sqlite
 *.sqlite3
 *.db*
@@ -29,20 +18,15 @@ __pycache__/
 *.egg-info/
 build/
 *.log*
-MUM/
 node_modules/*
 node_modules
 
 db
 =*
-log.txt
-read.txt
+
 #app/static/dist/
 
 # Embedded Go frontend build output (run the frontend build before go build).
 /server/dist/
 # Local release builds (go run ./tools/release)
 /release/
-
-# Reference repositories and the archived Flask backend (local only)
-/.references/

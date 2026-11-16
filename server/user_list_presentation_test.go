@@ -2,8 +2,10 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestUserListProfileAndServerScopedLibraryNames(t *testing.T) {
@@ -160,5 +162,77 @@ func TestUserListSortsByLastStreamed(t *testing.T) {
 	}
 	if got := order("last_streamed_asc"); strings.Join(got, ",") != strings.Join([]string{early, late, never}, ",") {
 		t.Fatal("oldest first", got)
+	}
+}
+
+// "Last Streamed" is the newest play from MUM's records or the imported Plex
+// history, whichever is newer; both sorts and the shown date use it, with its
+// source. A local user counts the imported plays of the server accounts they own.
+func TestUserListLastStreamedIncludesImportedPlexHistory(t *testing.T) {
+	a, s := testApp(t)
+	token, _ := bootstrapOwner(t, a)
+	owner, _ := s.Authenticate(t.Context(), token)
+	activityExec(t, s, `INSERT INTO media_servers(server_nickname,service_type,url,api_key) VALUES('Plex++','plex','http://plex.test','fixture-secret')`)
+	var server int64
+	_ = s.reader.QueryRow("SELECT id FROM media_servers WHERE server_nickname='Plex++'").Scan(&server)
+	at := func(day int) string { return utcTimestamp(time.Date(2026, 10, day, 12, 0, 0, 0, time.UTC)) }
+	both, mumOnly, plexOnly, never, linked := seedExternalService(t, s, server, "1"), seedExternalService(t, s, server, "2"), seedExternalService(t, s, server, "3"), seedExternalService(t, s, server, "4"), seedExternalService(t, s, server, "5")
+	for i, play := range []struct {
+		service string
+		day     int
+	}{{both, 5}, {mumOnly, 7}} {
+		activityExec(t, s, `INSERT INTO media_activity_history(server_id,external_session_id,service_uuid,item_id,media_type,title,first_seen_at,last_seen_at,paused) VALUES(?,?,?,'i','movie','Film',?,?,0)`,
+			server, fmt.Sprint("s", i), play.service, at(play.day-1), at(play.day))
+	}
+	for i, play := range []struct {
+		account string
+		day     int
+	}{{"1", 8}, {"1", 2}, {"3", 1}, {"5", 9}, {"9", 20}} { // account 9 is nobody MUM knows
+		activityExec(t, s, `INSERT INTO plex_history_imports(server_id,history_key,account_id,viewed_at,imported_at) VALUES(?,?,?,?,?)`, server, fmt.Sprint("/h/", i), play.account, at(play.day), at(play.day))
+	}
+	hash, _ := hashPassword("a-strong-member-password")
+	local, err := s.CreateAccount(t.Context(), owner.UUID, "viewer", hash, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.LinkServiceAccounts(t.Context(), owner.UUID, local, []string{linked}); err != nil {
+		t.Fatal(err)
+	}
+	list := func(query string) []map[string]any {
+		t.Helper()
+		w := apiRequest(a, "GET", "/api/users?page_size=50&"+query, token, nil, nil)
+		if w.Code != 200 {
+			t.Fatal(query, w.Code, w.Body.String())
+		}
+		var page struct{ Data []map[string]any }
+		if err := json.Unmarshal(w.Body.Bytes(), &page); err != nil {
+			t.Fatal(err)
+		}
+		return page.Data
+	}
+	order := func(sort string) string {
+		var ids []string
+		for _, row := range list("user_type=service&sort=" + sort) {
+			ids = append(ids, row["uuid"].(string))
+		}
+		return strings.Join(ids, ",")
+	}
+	if got := order("last_streamed_desc"); got != strings.Join([]string{linked, both, mumOnly, plexOnly, never}, ",") {
+		t.Fatal("recent first", got)
+	}
+	if got := order("last_streamed_asc"); got != strings.Join([]string{plexOnly, mumOnly, both, linked, never}, ",") {
+		t.Fatal("oldest first", got)
+	}
+	want := map[string][2]any{both: {at(8), "plex"}, mumOnly: {at(7), "mum"}, plexOnly: {at(1), "plex"}, never: {nil, nil}, local: {at(9), "plex"}}
+	for _, row := range append(list("user_type=service"), list("user_type=local")...) {
+		if expected, ok := want[row["uuid"].(string)]; ok {
+			if got := [2]any{row["last_streamed_at"], row["last_streamed_source"]}; got != expected {
+				t.Errorf("%s: %v, want %v", row["uuid"], got, expected)
+			}
+			delete(want, row["uuid"].(string))
+		}
+	}
+	if len(want) != 0 {
+		t.Fatal("not listed", want)
 	}
 }

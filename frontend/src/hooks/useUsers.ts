@@ -23,6 +23,7 @@ type UsersResponse = {
     display_name?: string;
     created_at?: string;
     last_streamed_at?: string | null;
+    last_streamed_source?: 'mum' | 'plex' | null;
     service_join_date?: string | null;
     last_login_at?: string;
     is_active: boolean;

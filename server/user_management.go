@@ -38,6 +38,20 @@ func lastSignInSQL(alias string) string {
 const signInOnlySQL = `(i.kind='local' AND u.local_username IS NULL AND EXISTS(SELECT 1 FROM service_links l JOIN service_accounts sa ON sa.uuid=l.service_uuid
  WHERE l.user_uuid=i.uuid AND l.link_kind='owner' AND sa.removed_at IS NULL))`
 
+// lastStreamSQL is a listed account's newest play from any history MUM has,
+// as "<time> <source>": MUM's own plays and plays imported from Plex's history
+// (another provider's imported history joins here as another source). A
+// server account counts its own plays; a local user counts plays MUM tied to
+// them and imported plays of the server accounts they own. Times are fixed-width
+// UTC, so the text sorts by time; NULL when the account never streamed.
+const lastStreamSQL = `(SELECT seen||' '||source FROM (
+  SELECT max(h.last_seen_at) seen,'mum' source FROM media_activity_history h WHERE h.service_uuid=i.uuid
+  UNION ALL SELECT max(h.last_seen_at),'mum' FROM media_activity_history h WHERE h.owner_uuid=i.uuid
+  UNION ALL SELECT max(p.viewed_at),'plex' FROM plex_history_imports p WHERE p.server_id=a.server_id AND p.account_id=a.external_user_id
+  UNION ALL SELECT max(p.viewed_at),'plex' FROM service_links l JOIN service_accounts sa ON sa.uuid=l.service_uuid
+   JOIN plex_history_imports p ON p.server_id=sa.server_id AND p.account_id=sa.external_user_id WHERE l.user_uuid=i.uuid AND l.link_kind='owner'
+ ) WHERE seen IS NOT NULL ORDER BY seen DESC LIMIT 1)`
+
 // userDisplayNameSQL is how a listed account is named.
 var userDisplayNameSQL = `coalesce(` + humanNameSQL("u") + `,a.external_username,'')`
 
@@ -54,8 +68,7 @@ var userProjection = `SELECT i.id,i.uuid,i.kind,coalesce(u.local_username,a.exte
   SELECT sa.uuid,ms.service_type,ms.server_nickname,coalesce(sa.external_username,'') external_username FROM service_links l JOIN service_accounts sa ON sa.uuid=l.service_uuid JOIN media_servers ms ON ms.id=sa.server_id
   WHERE l.user_uuid=owner.user_uuid AND l.link_kind='owner' AND sa.uuid<>a.uuid AND sa.removed_at IS NULL ORDER BY l.created_at,sa.uuid LIMIT 20) x),
  coalesce(a.is_active=1 AND s.service_type='plex' AND s.is_active=1 AND EXISTS(SELECT 1 FROM provider_settings p WHERE p.provider_id='plex' AND p.enabled=1),0),
- (SELECT max(seen) FROM (SELECT max(h.last_seen_at) seen FROM media_activity_history h WHERE h.service_uuid=i.uuid
-  UNION ALL SELECT max(h.last_seen_at) FROM media_activity_history h WHERE h.owner_uuid=i.uuid)) AS last_streamed_at,
+ ` + lastStreamSQL + ` AS last_stream,
  CASE WHEN s.service_type IN ('plex','jellyfin','emby') THEN a.allow_4k_transcode END,
  a.is_purge_whitelisted
  FROM identities i LEFT JOIN user_accounts u ON u.uuid=i.uuid LEFT JOIN service_accounts a ON a.uuid=i.uuid
@@ -147,7 +160,7 @@ func (a *App) listUsers(w http.ResponseWriter, r *http.Request) {
 
 	orders := map[string]string{"": "i.id DESC", "created_desc": "coalesce(u.created_at,a.created_at) DESC,i.id DESC", "created_asc": "coalesce(u.created_at,a.created_at),i.id", "username_asc": userDisplayNameSQL + " COLLATE NOCASE,i.id", "username_desc": userDisplayNameSQL + " COLLATE NOCASE DESC,i.id DESC",
 		// Users who have never streamed come last either way.
-		"last_streamed_desc": "last_streamed_at IS NULL,last_streamed_at DESC,i.id DESC", "last_streamed_asc": "last_streamed_at IS NULL,last_streamed_at ASC,i.id"}
+		"last_streamed_desc": "last_stream IS NULL,last_stream DESC,i.id DESC", "last_streamed_asc": "last_stream IS NULL,last_stream ASC,i.id"}
 	order, ok := orders[r.URL.Query().Get("sort")]
 	if !ok {
 		fail(w, 400, "INVALID_SORT", "Invalid sort")
@@ -240,7 +253,7 @@ func (a *App) listUsers(w http.ResponseWriter, r *http.Request) {
 		if shownEmail != "" {
 			shownEmailValue = shownEmail
 		}
-		item := map[string]any{"access_expires_at": expiryValue, "id": id, "uuid": uuid, "user_type": kind, "username": name, "display_name": displayName, "email": emailValue, "external_email": shownEmailValue, "is_active": active, "created_at": created, "notes": notes, "server_id": serverValue, "server_nickname": nickname, "service_type": provider, "linked_service_count": linked, "admin_roles": adminRoleNames(adminRoleDetails), "admin_roles_detail": adminRoleDetails, "user_roles": userRoles, "libraries": []string{}, "allowed_library_ids": libraryIDs, "has_all_libraries": allLibraries, "linked_local_user": parentValue, "avatar_url": nil, "service_join_date": joinValue, "last_streamed_at": nil,
+		item := map[string]any{"access_expires_at": expiryValue, "id": id, "uuid": uuid, "user_type": kind, "username": name, "display_name": displayName, "email": emailValue, "external_email": shownEmailValue, "is_active": active, "created_at": created, "notes": notes, "server_id": serverValue, "server_nickname": nickname, "service_type": provider, "linked_service_count": linked, "admin_roles": adminRoleNames(adminRoleDetails), "admin_roles_detail": adminRoleDetails, "user_roles": userRoles, "libraries": []string{}, "allowed_library_ids": libraryIDs, "has_all_libraries": allLibraries, "linked_local_user": parentValue, "avatar_url": nil, "service_join_date": joinValue, "last_streamed_at": nil, "last_streamed_source": nil,
 			// When the MUM account (a server account's owner) last signed in,
 			// and the other server accounts that owner has.
 			"mum_last_login_at": nullableString(lastSignIn), "linked_accounts": linkedAccounts,
@@ -255,8 +268,8 @@ func (a *App) listUsers(w http.ResponseWriter, r *http.Request) {
 			item["is_purge_whitelisted"] = purgeProtected.Bool
 		}
 		// Latest observed playback of this account (or of the services it owns).
-		if lastSeen.Valid {
-			item["last_streamed_at"] = lastSeen.String
+		if at, source, found := strings.Cut(lastSeen.String, " "); lastSeen.Valid && found {
+			item["last_streamed_at"], item["last_streamed_source"] = at, source
 		}
 		items = append(items, item)
 		if server.Valid {

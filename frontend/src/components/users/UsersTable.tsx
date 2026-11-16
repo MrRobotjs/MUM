@@ -31,6 +31,7 @@ export type UserRow = {
   created_at?: string;
   last_login_at?: string;
   last_streamed_at?: string | null;
+  last_streamed_source?: 'mum' | 'plex' | null;
   service_join_date?: string | null;
   is_active: boolean;
   admin_roles: string[];
@@ -472,7 +473,7 @@ export const UsersTable = ({
                       </TableCell>
                     ) : null}
                     {columns.lastStreamed ? (
-                      <TableCell className="text-xs text-muted-foreground">
+                      <TableCell className="text-xs text-muted-foreground" title={user.last_streamed_source === 'plex' ? 'From Plex history' : undefined}>
                         {formatDateTime(user.last_streamed_at)}
                       </TableCell>
                     ) : null}

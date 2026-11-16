@@ -31,6 +31,7 @@ type UsersResponse = {
     avatar_url?: string | null;
     created_at?: string;
     last_streamed_at?: string | null;
+    last_streamed_source?: 'mum' | 'plex' | null;
     service_join_date?: string | null;
     last_login_at?: string;
     last_platform?: string | null;

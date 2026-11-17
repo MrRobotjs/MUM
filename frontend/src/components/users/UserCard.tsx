@@ -49,6 +49,8 @@ export type UserNowPlaying = {
   serviceType?: string | null;
   serverName?: string | null;
   sessionCount?: number;
+  // Percent played, when the server reports both position and length.
+  progress?: number | null;
 };
 
 interface UserCardProps {
@@ -501,7 +503,15 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
               <div className={cn(
                 "relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-background/50 shadow-sm",
                 playbackInfo.color
-              )}>
+              )} title={typeof nowPlaying.progress === 'number' ? `${Math.round(nowPlaying.progress)}% played` : undefined}>
+                {/* Progress ring: the played share drawn clockwise from the top, in the state's colour. */}
+                {typeof nowPlaying.progress === 'number' && (
+                  <svg viewBox="0 0 36 36" className="absolute inset-0 h-full w-full" aria-hidden="true">
+                    <circle cx="18" cy="18" r="16.5" fill="none" stroke="currentColor" strokeWidth="3" opacity={0.2} />
+                    <circle cx="18" cy="18" r="16.5" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" pathLength={100}
+                      strokeDasharray={`${Math.min(Math.max(nowPlaying.progress, 0), 100)} 100`} transform="rotate(-90 18 18)" />
+                  </svg>
+                )}
                 <FontAwesomeIcon icon={playbackInfo.icon as IconDefinition} spin={Boolean(playbackInfo.spin)} className="h-4 w-4" />
               </div>
 

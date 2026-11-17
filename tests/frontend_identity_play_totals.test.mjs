@@ -76,9 +76,12 @@ test('now playing reads in plain words and only while the server is up to date',
   const m = await load();
   const names = new Map([['3', 'Living room']]);
   const now = m.nowPlaying(page(), target, names);
-  assert.deepEqual({ ...now, items: undefined }, { title: 'Pilot', subtitle: 'A Show', paused: false, serverName: 'Living room', serviceType: 'jellyfin', progress: 25,
+  assert.deepEqual({ ...now, items: undefined }, { title: 'Pilot', subtitle: 'A Show', state: 'playing', serverName: 'Living room', serviceType: 'jellyfin', progress: 25,
     position: '0:15:00', duration: '1:00:00', updatedAt: '2026-11-17T09:58:00Z', others: 0, items: undefined });
-  assert.equal(m.nowPlaying(page({ paused: true }), target, names).paused, true);
+  assert.equal(m.nowPlaying(page({ paused: true }), target, names).state, 'paused');
+  // The server's own state wins, as on the user cards, so buffering shows.
+  assert.equal(m.nowPlaying(page({ display: { state: 'buffering' } }), target, names).state, 'buffering');
+  assert.equal(m.nowPlaying(page({ paused: true, display: { state: 'playing' } }), target, names).state, 'playing');
   // Without a nickname the service's name stands in; unknown progress stays unknown.
   const plain = m.nowPlaying(page({ position_ticks: null, parent_title: undefined }), target, new Map());
   assert.equal(plain.serverName, 'Jellyfin');
@@ -90,4 +93,7 @@ test('now playing reads in plain words and only while the server is up to date',
   assert.equal(m.nowPlaying(undefined, target, names), null);
   const two = page(); two.items.push({ ...two.items[0], id: '2', title: 'Second' });
   assert.equal(m.nowPlaying(two, target, names).others, 1);
+  // Like the cards: active playback first, then the most recent.
+  const mixed = page({ paused: true, last_observed_at: '2026-11-17T09:59:00Z' }); mixed.items.push({ ...mixed.items[0], id: '2', title: 'Second', paused: false, last_observed_at: '2026-11-17T09:50:00Z' });
+  assert.equal(m.nowPlaying(mixed, target, names).title, 'Second');
 });

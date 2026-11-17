@@ -146,7 +146,7 @@ const ProfileTab = ({ user,target }: { user: UserDetail;target:string }) => {
   const adminRoleBadges = user.admin_roles_detail && user.admin_roles_detail.length > 0
     ? user.admin_roles_detail
     : user.roles.admin_roles.map((role): { name: string; color?: string | null; icon?: string | null; badge_style?: string | null; description?: string | null } => ({ name: role }));
-  const playbackInfo=getPlaybackInfo(playing?.paused?'paused':'playing');
+  const playbackInfo=getPlaybackInfo(playing?.state);
   const ids=([['Server user ID',user.external_user_id],['Alternate user ID',user.external_user_alt_id]] as [string,string|null|undefined][]).filter((id):id is [string,string]=>!!id[1]);
   const count=(value:string)=>BigInt(value).toLocaleString();
 
@@ -161,13 +161,13 @@ const ProfileTab = ({ user,target }: { user: UserDetail;target:string }) => {
               <div className={cn("relative overflow-hidden rounded-md border p-2.5", playbackInfo.bg, playbackInfo.border)}>
                 <div className="flex items-start gap-3">
                   <div className={cn("relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-background/50 shadow-sm", playbackInfo.color)}>
-                    <FontAwesomeIcon icon={playbackInfo.icon as IconDefinition} className="h-4 w-4" />
+                    <FontAwesomeIcon icon={playbackInfo.icon as IconDefinition} spin={Boolean(playbackInfo.spin)} className="h-4 w-4" />
                   </div>
                   <div className="flex-1 min-w-0 flex flex-col justify-center">
                     <span className="text-sm font-semibold leading-none truncate w-full" title={playing.title}>{playing.title}</span>
                     {playing.subtitle && <span className="mt-1 text-xs text-muted-foreground truncate" title={playing.subtitle}>{playing.subtitle}</span>}
                     <div className="flex items-center gap-1.5 mt-1">
-                      <span className={cn("text-[10px] font-bold uppercase tracking-wider", playbackInfo.color)}>{playing.paused?'Paused':'Playing'}</span>
+                      <span className={cn("text-[10px] font-bold uppercase tracking-wider", playbackInfo.color)}>{playing.state}</span>
                       <span className="text-[10px] text-muted-foreground/60">·</span>
                       <span className="text-[10px] text-muted-foreground font-medium truncate max-w-[140px]" title={playing.serverName}>{playing.serverName}</span>
                     </div>

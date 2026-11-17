@@ -3,6 +3,7 @@ import { getAccessToken } from '../store/authStore';
 import { observationPosition, observationProgress, type ActivityHistoryPage, type ActivityScope } from './activityHistory';
 import { historyServices, type HistoryService } from './playHistory';
 import type { TimelineSource } from './identityTimeline';
+import { byPlayback, playbackState } from './userNowPlaying';
 
 // The user page's Profile tab: plays and watched time per period, like
 // Tautulli, for the History tab's sources (everything, MUM's plays or one
@@ -76,7 +77,9 @@ export function watchTime(seconds: string): [string, string][] {
 const serviceNames: Readonly<Record<string, string>> = { plex: 'Plex', jellyfin: 'Jellyfin', emby: 'Emby', audiobookshelf: 'Audiobookshelf', kavita: 'Kavita', komga: 'Komga', romm: 'RomM' };
 
 export type NowPlaying = Readonly<{
-  title: string; subtitle: string | null; paused: boolean;
+  title: string; subtitle: string | null;
+  // playing, paused or buffering, as on the user cards.
+  state: string;
   serverName: string; serviceType: string | null;
   // Percent watched, when the server reports both position and length.
   progress: number | null; position: string; duration: string;
@@ -90,11 +93,11 @@ export type NowPlaying = Readonly<{
 export function nowPlaying(page: ActivityHistoryPage | undefined, target: string, serverNames: ReadonlyMap<string, string>): NowPlaying | null {
   if (!page || page.target_uuid !== target) return null;
   const playing = page.items.filter(row => row.ended_observation_at === null && page.servers.some(s => s.server_id === row.server_id && s.freshness === 'fresh'));
-  const row = playing[0];
+  const row = [...playing].sort(byPlayback)[0];
   if (!row) return null;
   const provider = page.servers.find(s => s.server_id === row.server_id)?.provider ?? null;
   return Object.freeze({
-    title: row.title || 'Unknown title', subtitle: row.parent_title || null, paused: row.paused,
+    title: row.title || 'Unknown title', subtitle: row.parent_title || null, state: playbackState(row),
     serverName: serverNames.get(row.server_id) || (provider && serviceNames[provider]) || provider || 'Unknown server', serviceType: provider,
     progress: observationProgress(row.position_ticks, row.duration_ticks), position: observationPosition(row.position_ticks), duration: observationPosition(row.duration_ticks),
     updatedAt: row.last_observed_at, others: playing.length - 1,

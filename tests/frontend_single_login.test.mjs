@@ -21,6 +21,7 @@ test('real TanStack tree keeps shared pages and removes split login routes',asyn
  for(const path of ['/login','/home','/account','/admin/users','/admin/dashboard'])assert.equal(router.matchRoutes(path).at(-1).pathname.replace(/\/$/,''),path);
  for(const path of ['/admin/login','/admin/home','/admin/account','/user/dashboard'])assert.equal(router.matchRoutes(path).at(-1).routeId,path.startsWith('/admin/')?'/admin/$':'/$');
  const account=router.matchRoutes('/account',{tab:'credentials'}).at(-1);assert.equal(account.search.tab,'credentials');
+ for(const tab of ['overview','credentials','linked-accounts','preferences'])assert.equal(router.matchRoutes('/account',{tab}).at(-1).search.tab,tab);
  const returned=router.buildLocation({href:'/account?tab=credentials#security'});assert.equal(returned.pathname,'/account');assert.equal(returned.search.tab,'credentials');assert.equal(returned.hash,'security');
  router.history.destroy();delete globalThis.window;delete globalThis.self;
 });

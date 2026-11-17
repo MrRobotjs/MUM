@@ -108,7 +108,7 @@ export class PlexConnectionController {
   } catch(error) {
    if (!this.valid(run)) return;
    const known = error instanceof ApiError && error.status>=400 && error.status<500 && error.status!==409;
-   if (sent && !known) this.publish({phase:'uncertain',challenge:null,error:'The result is uncertain. Check the current connection before starting another action.'});
+   if (sent && !known) this.publish({phase:'uncertain',challenge:null,error:'The result is uncertain. Press Try again to check the current connection before starting another action.'});
    else this.publish({error:sent?'The request was rejected. Check approval, your session and provider availability before trying again.':'Could not verify your account or provider availability. Refresh connection status.'});
   } finally {if(this.valid(run))this.publish({busy:false});}
  }

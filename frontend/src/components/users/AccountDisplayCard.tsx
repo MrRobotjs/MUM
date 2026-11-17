@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '../ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
+import { Card, CardContent } from '../ui/card';
+import { SettingHeader } from './AccountSettings';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { Alert, AlertDescription } from '../ui/alert';
 import { useAccountDisplay } from '../../hooks/useAccountDisplay';
 import { useAlerts } from '../../contexts/AlertContext';
 import { getAccessToken } from '../../store/authStore';
@@ -61,22 +61,39 @@ export function AccountDisplayCard() {
     } finally { if (scoped()) { pending.current = false; setBusy(false); } }
   };
   const zone = detectedZone();
-  return <Card><CardHeader><CardTitle>Timezone Settings</CardTitle><CardDescription>
-    Display settings are saved to your account independently of stream-counter sync. Device mode uses each browser's timezone. UTC and named zones apply across devices.
-  </CardDescription></CardHeader><CardContent><form className="space-y-4" onSubmit={e => void submit(e)}>
-    <div className="space-y-2"><Label>Display Time In</Label><Select disabled={disabled} value={values?.mode ?? 'device'} onValueChange={(mode: DisplayValues['mode']) => values && edit({ ...values, mode, time_zone: mode === 'named' ? zone ?? 'UTC' : null })}>
-      <SelectTrigger className="w-full"><SelectValue /></SelectTrigger><SelectContent>
-        <SelectItem value="device">This Device's Timezone</SelectItem><SelectItem value="utc">UTC</SelectItem><SelectItem value="named">Named Timezone</SelectItem>
-      </SelectContent></Select></div>
-    {values?.mode === 'named' ? <div className="space-y-2"><Label htmlFor="local-timezone">Named Timezone</Label>
-      <Input id="local-timezone" placeholder="e.g. America/New_York" value={values.time_zone ?? ''} disabled={disabled} maxLength={128} onChange={e => edit({ ...values, time_zone: e.target.value })} required />
-      {zone ? <button type="button" disabled={disabled} className="text-sm text-primary underline-offset-4 hover:underline" onClick={() => edit({ ...values, time_zone: zone })}>Use detected timezone ({zone})</button> : null}
-    </div> : null}
-    <div className="space-y-2"><Label>Time Format</Label><Select disabled={disabled} value={values?.time_format ?? '12'} onValueChange={(time_format: DisplayValues['time_format']) => values && edit({ ...values, time_format })}>
-      <SelectTrigger className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="12">12-hour (AM/PM)</SelectItem><SelectItem value="24">24-hour</SelectItem></SelectContent>
-    </Select></div>
-    {error || readError ? <Alert variant="destructive"><AlertDescription>{error ?? 'Could not read display settings. Refresh before saving.'}</AlertDescription></Alert> : null}
-    <Button type="submit" disabled={disabled || Boolean(error)} className="w-full sm:w-auto">{busy ? 'Saving…' : 'Save Preferences'}</Button>
-    <Button type="button" variant="outline" disabled={busy} onClick={() => void refresh()}>Refresh Display Settings</Button>
-  </form></CardContent></Card>;
+  return (
+    <Card>
+      <SettingHeader title="Time & timezone" info={<>
+        <p>Choose how dates and times appear throughout MUM. These settings are saved to your account.</p>
+        <p>This device's timezone follows the browser you are using. UTC or a named timezone keeps the same time display on every device.</p>
+      </>} />
+      <CardContent>
+        <form className="space-y-5" onSubmit={e => void submit(e)}>
+          <div className="space-y-2">
+            <Label htmlFor="display-timezone-mode">Timezone</Label>
+            <Select disabled={disabled} value={values?.mode ?? 'device'} onValueChange={(mode: DisplayValues['mode']) => values && edit({ ...values, mode, time_zone: mode === 'named' ? zone ?? 'UTC' : null })}>
+              <SelectTrigger id="display-timezone-mode" className="w-full"><SelectValue /></SelectTrigger>
+              <SelectContent><SelectItem value="device">This Device's Timezone</SelectItem><SelectItem value="utc">UTC</SelectItem><SelectItem value="named">Named Timezone</SelectItem></SelectContent>
+            </Select>
+          </div>
+          {values?.mode === 'named' ? (
+            <div className="space-y-2">
+              <Label htmlFor="local-timezone">Named timezone</Label>
+              <Input id="local-timezone" placeholder="e.g. America/New_York" value={values.time_zone ?? ''} disabled={disabled} maxLength={128} onChange={e => edit({ ...values, time_zone: e.target.value })} required />
+              {zone ? <button type="button" disabled={disabled} className="text-sm text-primary underline-offset-4 hover:underline" onClick={() => edit({ ...values, time_zone: zone })}>Use detected timezone ({zone})</button> : null}
+            </div>
+          ) : null}
+          <div className="space-y-2">
+            <Label htmlFor="display-time-format">Time format</Label>
+            <Select disabled={disabled} value={values?.time_format ?? '12'} onValueChange={(time_format: DisplayValues['time_format']) => values && edit({ ...values, time_format })}>
+              <SelectTrigger id="display-time-format" className="w-full"><SelectValue /></SelectTrigger>
+              <SelectContent><SelectItem value="12">12-hour (AM/PM)</SelectItem><SelectItem value="24">24-hour</SelectItem></SelectContent>
+            </Select>
+          </div>
+          {error || readError ? <div className="account-setting-error flex flex-wrap items-center gap-3"><p className="text-sm text-destructive">{error ?? 'Could not read display settings.'}</p><Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => void refresh()}>Refresh</Button></div> : null}
+          <Button type="submit" disabled={disabled || Boolean(error) || !form} className="w-full sm:w-auto">{busy ? 'Saving…' : 'Save'}</Button>
+        </form>
+      </CardContent>
+    </Card>
+  );
 }

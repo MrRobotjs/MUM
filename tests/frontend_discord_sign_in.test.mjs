@@ -80,18 +80,49 @@ test('discord sign-in adapter', async t => {
 const renderer = `export function render(e){if(e==null||e===false||e===true)return '';if(typeof e!=='object')return String(e);if(Array.isArray(e))return e.map(render).join('');if(typeof e.type==='function')return render(e.type(e.props));const p=e.props??{};if(typeof e.type==='symbol')return render(p.children);return '<'+e.type+(p.disabled?' disabled':'')+'>'+render(p.children)+'</'+e.type+'>';}`;
 const uiMock = `export const Card='div',CardContent='div',CardHeader='div',CardTitle='div',CardDescription='div',Button='button',Checkbox='input',Alert='div',AlertDescription='div',Spinner='i';export const FontAwesomeIcon='i';`;
 
-test('the account card links, explains and guards unlinking', async () => {
-  const m = await loadFrontend(`export {DiscordLinkFields} from './src/components/users/DiscordLinkCard';${renderer}`, { mock: { filter: s => /components\/ui|ui\/|@fortawesome\/react-fontawesome|contexts|@tanstack\/react-router|lib\/discordSignIn/.test(s), module: s =>
-    /contexts/.test(s) ? `export const useAuth=()=>({});export const useAlerts=()=>({});` : /react-router/.test(s) ? `export const useNavigate=()=>()=>{};export const useSearch=()=>({});` : /discordSignIn/.test(s) ? `export const discordOutcome=()=>null;export const getAccountDiscord=async()=>({});export const startDiscordLink=async()=>'';export const unlinkDiscord=async()=>{};` : uiMock } });
-  const html = (info, acknowledged = false) => m.render(m.DiscordLinkFields({ info, busy: false, unlinkAcknowledged: acknowledged, onAcknowledge() {}, onLink() {}, onUnlink() {} }));
-  assert.match(html({ available: false, linked: false, username: null, signIn: false }), /administrator must set up Discord/);
-  const unlinked = html({ available: true, linked: false, username: null, signIn: false });
-  assert.match(unlinked, /<button>.*Link Discord Account<\/button>/);
-  const linked = html({ available: true, linked: true, username: 'discord_viewer', signIn: true });
-  assert.match(linked, /Linked Discord account: discord_viewer\. You can use Sign in with Discord/);
-  assert.match(linked, /<button disabled>Unlink Discord Account<\/button>/, 'unlinking waits for the confirmation');
-  assert.match(html({ available: true, linked: true, username: 'discord_viewer', signIn: false }, true), /<button>Unlink Discord Account<\/button>/);
+test('the account card links, explains, and unlinks only through a confirmation', async () => {
+  const header = `export const SettingHeader=({title,info,summary,action})=>({type:'section',props:{children:[title,'|',info,'|',summary,'|',action]}});export const ConfirmAction=()=>null;`;
+  const m = await loadFrontend(`export {DiscordLinkFields} from './src/components/users/DiscordLinkCard';${renderer}`, { mock: { filter: s => /components\/ui|ui\/|@fortawesome\/react-fontawesome|contexts|@tanstack\/react-router|lib\/discordSignIn|AccountSettings/.test(s), module: s =>
+    /AccountSettings/.test(s) ? header : /contexts/.test(s) ? `export const useAuth=()=>({});export const useAlerts=()=>({});` : /react-router/.test(s) ? `export const useNavigate=()=>()=>{};export const useSearch=()=>({});` : /discordSignIn/.test(s) ? `export const discordOutcome=()=>null;export const getAccountDiscord=async()=>({});export const startDiscordLink=async()=>'';export const unlinkDiscord=async()=>{};` : uiMock } });
+  const onLink = () => {}, onUnlink = () => {};
+  const fields = info => m.DiscordLinkFields({ info, busy: false, onLink, onUnlink });
+  const html = info => m.render(fields(info));
+  const off = html({ available: false, linked: false, username: null, signIn: false });
+  assert.match(off, /administrator must set up Discord/);
+  assert.match(off, /Not available/);
+  assert.doesNotMatch(off, /<button/);
+  const unlinked = fields({ available: true, linked: false, username: null, signIn: false });
+  assert.match(m.render(unlinked), /<button>.*Link Discord<\/button>/);
+  assert.equal(unlinked.props.action.props.onClick, onLink);
+  const linked = fields({ available: true, linked: true, username: 'discord_viewer', signIn: true });
+  const text = m.render(linked);
+  assert.match(text, /\|discord_viewer\|/);
+  assert.match(text, /You can use Sign in with Discord/);
+  assert.match(text, /<button>Unlink<\/button>/, 'no checkbox stands in front of unlinking');
+  assert.doesNotMatch(text, /<input/);
+  // The button only opens the confirmation; the panel unlinks from its Confirm.
+  assert.equal(linked.props.action.props.onClick, onUnlink);
   assert.doesNotMatch(html({ available: true, linked: true, username: 'discord_viewer', signIn: false }), /Sign in with Discord on the sign-in page/);
+});
+
+test('a confirmation runs its action from Confirm only, and cannot be dismissed while running', async () => {
+  const dialog = `export const ResponsiveDialog=p=>({type:'dialog',props:p});export const Button='button';export const CardTitle='h3';`;
+  const m = await loadFrontend(`export {ConfirmAction} from './src/components/users/AccountSettings';`, { mock: { filter: s => /components\/ui|ui\/|@fortawesome/.test(s), module: () => dialog + `export const FontAwesomeIcon='i';export const faCircleInfo={};` } });
+  let confirmed = 0; const changes = [];
+  const props = busy => ({ open: true, onOpenChange: v => changes.push(v), title: 'Unlink Discord?', confirmLabel: 'Unlink', busy, destructive: true, onConfirm: () => { confirmed++; } });
+  const idle = m.ConfirmAction(props(false));
+  const [cancel, confirm] = idle.props.footer;
+  assert.equal(idle.props.title, 'Unlink Discord?');
+  assert.equal(confirm.props.children, 'Unlink');
+  assert.equal(confirm.props.variant, 'destructive');
+  assert.equal(confirmed, 0, 'opening the dialog does nothing');
+  confirm.props.onClick(); assert.equal(confirmed, 1);
+  cancel.props.onClick(); assert.deepEqual(changes, [false]);
+  const running = m.ConfirmAction(props(true));
+  assert.equal(running.props.footer[1].props.disabled, true);
+  assert.equal(running.props.footer[0].props.disabled, true);
+  running.props.onOpenChange(false);
+  assert.deepEqual(changes, [false], 'closing is ignored while the action runs');
 });
 
 test('the settings page saves only what MUM supports, in a form the server accepts', async () => {

@@ -101,7 +101,7 @@ const adminGraphs = createRoute({ getParentRoute: () => adminRoute, path: 'graph
 const homeRoute = createRoute({ getParentRoute: () => rootRoute, path: 'home', component: () => <SignedInGuard><AppShell /></SignedInGuard> })
 const homeIndex = createRoute({ getParentRoute: () => homeRoute, path: '/', component: HomePage })
 const adminNotifications = createRoute({ getParentRoute: () => adminRoute, path: 'notifications', component: AdminNotificationsPage })
-const adminAccountTabs = ['overview', 'credentials', 'preferences'] as const
+const adminAccountTabs = ['overview', 'credentials', 'linked-accounts', 'preferences'] as const
 type AdminAccountTab = typeof adminAccountTabs[number]
 const accountRoute = createRoute({
   getParentRoute: () => rootRoute,

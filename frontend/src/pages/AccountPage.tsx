@@ -3,12 +3,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearch } from '@tanstack/react-router';
 
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
+import { SettingHeader } from '../components/users/AccountSettings';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ApiError, requestJson } from '@/util/apiClient';
@@ -25,9 +24,7 @@ import { useAlerts } from '../contexts/AlertContext';
 import { AccountDisplayCard } from '../components/users/AccountDisplayCard';
 import { useAccountDisplay } from '../hooks/useAccountDisplay';
 import { UserPreferencesCard } from '../components/users/UserPreferencesCard';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faArrowRightArrowLeft, faUserShield, faCircleInfo, faKey, faClock } from '@fortawesome/free-solid-svg-icons';
-import { Spinner } from '@/components/ui/spinner'
+import './AccountPage.css';
 
 type AccountUser = {
   uuid: string;
@@ -66,7 +63,7 @@ const getApiErrorMessage = (error: unknown) => {
   return 'Unexpected error';
 };
 
-type TabType = 'overview' | 'credentials' | 'preferences';
+type TabType = 'overview' | 'credentials' | 'linked-accounts' | 'preferences';
 
 type InitialCredentialsFormProps = {
   initialUsername: string;
@@ -127,12 +124,10 @@ const InitialCredentialsForm = ({ initialUsername, onSuccess }: InitialCredentia
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Set Local Credentials</CardTitle>
-        <CardDescription>
-          Add a MUM username and password, so you can also sign in without your media server login.
-        </CardDescription>
-      </CardHeader>
+      <SettingHeader title="MUM username & password" summary="Not set" info={<>
+        <p>Add a MUM username and password, so you can also sign in without your media server login.</p>
+        <p>To confirm it is you, sign in to one of your linked server accounts below. If you signed in with Plex, sign in again within five minutes before saving.</p>
+      </>} />
       <CardContent>
         <form className="space-y-4" onSubmit={handleSubmit}>
           <div className="space-y-2">
@@ -158,7 +153,7 @@ const InitialCredentialsForm = ({ initialUsername, onSuccess }: InitialCredentia
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="initial-confirm-password">Confirm Password</Label>
+            <Label htmlFor="initial-confirm-password">Confirm password</Label>
             <Input
               id="initial-confirm-password"
               type="password"
@@ -170,7 +165,6 @@ const InitialCredentialsForm = ({ initialUsername, onSuccess }: InitialCredentia
           </div>
           {verifyServers && verifyServers.length > 0 ? (
             <div className="space-y-4 rounded-md border p-4">
-              <p className="text-sm text-muted-foreground">Confirm it is you: sign in to one of your linked server accounts.</p>
               <div className="space-y-2">
                 <Label htmlFor="verify-server">Server</Label>
                 <Select value={verification.server} onValueChange={(value) => setVerification((prev) => ({ ...prev, server: value }))}>
@@ -194,7 +188,7 @@ const InitialCredentialsForm = ({ initialUsername, onSuccess }: InitialCredentia
               </div>
             </div>
           ) : verifyServers ? (
-            <p className="text-xs text-muted-foreground">If you signed in with Plex, sign in again within five minutes before saving.</p>
+            <p className="text-sm text-muted-foreground">If you signed in with Plex, sign in again within five minutes before saving.</p>
           ) : null}
           {error ? (
             <Alert variant="destructive">
@@ -202,7 +196,7 @@ const InitialCredentialsForm = ({ initialUsername, onSuccess }: InitialCredentia
             </Alert>
           ) : null}
           <Button type="submit" disabled={submitting || (verifyServers !== null && verifyServers.length > 0 && !verifyServer)} className="w-full sm:w-auto">
-            {submitting ? 'Saving…' : 'Save Credentials'}
+            {submitting ? 'Saving…' : 'Save'}
           </Button>
         </form>
       </CardContent>
@@ -221,6 +215,7 @@ const AccountPage = () => {
   // Use TanStack Router search for tab state
   const search = useSearch({ strict: false }) as { tab?: TabType };
   const activeTab: TabType = search.tab ?? 'overview';
+  const tabsRef = useRef<HTMLDivElement>(null);
 
   const [loading, setLoading] = useState(true);
   const [account, setAccount] = useState<AccountResponse['data'] | null>(null);
@@ -252,6 +247,15 @@ const AccountPage = () => {
     return () => {accountLoad.current++;};
   }, [refreshAccount]);
 
+  useEffect(() => {
+    const list = tabsRef.current;
+    const selected = list?.querySelector<HTMLElement>('[data-state="active"]');
+    if (!list || !selected) return;
+    const left = selected.offsetLeft - list.offsetLeft;
+    if (left < list.scrollLeft) list.scrollLeft = left;
+    else if (left + selected.offsetWidth > list.scrollLeft + list.clientWidth) list.scrollLeft = left + selected.offsetWidth - list.clientWidth;
+  }, [activeTab, loading]);
+
   const showInitialCredentialsCard = useMemo(() => {
     if (!account) return false;
     return account.capabilities.can_set_initial_credentials;
@@ -267,28 +271,17 @@ const AccountPage = () => {
 
   if (loading && !account) {
     return (
-      <div className="mx-auto w-full max-w-5xl space-y-6">
-        <Card className="bg-gradient-to-r from-primary/10 to-primary/20">
-          <CardContent className="p-8">
-            <div className="flex flex-col items-center gap-4">
-              <Skeleton className="h-24 w-24 rounded-full" />
-              <Skeleton className="h-6 w-40" />
-              <Skeleton className="h-5 w-32" />
-            </div>
-          </CardContent>
-        </Card>
-        <div className="space-y-6">
-          <Skeleton className="h-12 w-full rounded-lg" />
-          <Skeleton className="h-32 w-full rounded-lg" />
-          <Skeleton className="h-48 w-full rounded-lg" />
-        </div>
+      <div className="mx-auto w-full max-w-6xl space-y-8" aria-label="Loading account settings">
+        <div className="flex items-center gap-6 py-4"><Skeleton className="size-20 rounded-full" /><div className="space-y-3"><Skeleton className="h-6 w-40" /><Skeleton className="h-4 w-56" /></div></div>
+        <Skeleton className="h-12 w-full" />
+        <div className="space-y-6"><Skeleton className="h-6 w-40" /><Skeleton className="h-32 w-full" /><Skeleton className="h-48 w-full" /></div>
       </div>
     );
   }
 
   if (fetchError) {
     return (
-      <div className="mx-auto w-full max-w-5xl space-y-6">
+      <div className="mx-auto w-full max-w-6xl space-y-6">
         <Alert variant="destructive" className="rounded-xl">
           <AlertTitle>Unable to load account details</AlertTitle>
           <AlertDescription>{fetchError}</AlertDescription>
@@ -308,107 +301,66 @@ const AccountPage = () => {
   const accountKey = `${account.user.uuid}-${account.user.username}-${account.user.email}`;
 
   const displayName = account.user.display_name || account.user.username || 'MUM User';
+  const accountRole = isOwner ? 'Owner' : hasAdminAccess ? 'Administrator' : 'User';
+  const initials = displayName.trim().split(/\s+/).slice(0, 2).map(part => part.charAt(0)).join('').toUpperCase();
 
   return (
-    <div className="mx-auto w-full max-w-5xl space-y-6">
-      {/* Header Section */}
-      <Card className="bg-gradient-to-r from-primary/10 to-primary/20">
-        <CardContent className="p-8">
-          <div className="flex flex-col items-center space-y-4">
-            <div className="flex h-24 w-24 items-center justify-center rounded-full border-4 border-primary/30 bg-primary text-primary-foreground shadow-lg">
-              <FontAwesomeIcon icon={faUserShield} className="h-10 w-10" />
-            </div>
-            <div className="space-y-1">
-              <h1 className="text-3xl font-semibold text-foreground md:text-4xl text-center">{displayName}</h1>
-              <p className="text-sm text-muted-foreground">{account.user.email || displayName}</p>
-            </div>
-            <Badge variant="outline" className="gap-2 uppercase tracking-wide">
-              <FontAwesomeIcon icon={faUserShield} className="h-3.5 w-3.5" />
-              {isOwner ? 'Owner' : hasAdminAccess ? 'Administrator' : 'User'}
-            </Badge>
+    <div className="account-settings mx-auto w-full max-w-6xl space-y-8">
+      <header className="flex min-w-0 items-center gap-4 py-4 sm:gap-6">
+        <div aria-hidden="true" className="flex size-16 shrink-0 items-center justify-center rounded-full bg-primary/15 text-2xl font-semibold text-primary sm:size-20 sm:text-3xl">{initials}</div>
+        <div className="min-w-0 space-y-2">
+          <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
+            <h1 className="max-w-full break-words text-xl font-semibold text-primary sm:text-2xl">{displayName}</h1>
+            {account.user.email && <p className="break-all text-base text-muted-foreground">({account.user.email})</p>}
           </div>
-        </CardContent>
-      </Card>
+          <p className="text-sm text-muted-foreground">Last signed in {formatIsoDate(account.user.last_login_at)}</p>
+        </div>
+      </header>
 
-      {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={(value) => setTab(value as TabType)}>
-        <TabsList className="w-full justify-start overflow-x-auto">
-          <TabsTrigger value="overview">
-            <FontAwesomeIcon icon={faCircleInfo} className="mr-2 h-4 w-4" />
-            Overview
-          </TabsTrigger>
-          <TabsTrigger value="credentials">
-            <FontAwesomeIcon icon={faKey} className="mr-2 h-4 w-4" />
-            Credentials
-          </TabsTrigger>
-          <TabsTrigger value="preferences">
-            <FontAwesomeIcon icon={faClock} className="mr-2 h-4 w-4" />
-            Preferences
-          </TabsTrigger>
+      <Tabs value={activeTab} onValueChange={(value) => setTab(value as TabType)} className="gap-8">
+        <TabsList ref={tabsRef} aria-label="Account settings" className="w-full justify-start overflow-x-auto">
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="credentials">Credentials</TabsTrigger>
+          <TabsTrigger value="linked-accounts">Linked accounts</TabsTrigger>
+          <TabsTrigger value="preferences">Preferences</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="overview" className="space-y-6">
-          <div className="grid gap-6 lg:grid-cols-3">
-            <Card className="lg:col-span-1">
-              <CardHeader>
-                <CardTitle className="text-sm">Account Details</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <dl className="space-y-2 text-sm text-muted-foreground">
-                  <div className="flex justify-between gap-4">
-                    <dt className="font-medium text-foreground/60">Username</dt>
-                    <dd className="text-foreground">{account.user.username || 'Not configured'}</dd>
-                  </div>
-                  <div className="flex justify-between gap-4">
-                    <dt className="font-medium text-foreground/60">Email</dt>
-                    <dd className="text-right text-foreground">{account.user.email || '—'}</dd>
-                  </div>
-                  <div className="flex justify-between gap-4">
-                    <dt className="font-medium text-foreground/60">Last Login</dt>
-                    <dd className="text-right text-foreground">{formatIsoDate(account.user.last_login_at)}</dd>
-                  </div>
-                </dl>
-              </CardContent>
-            </Card>
-            <Card className="lg:col-span-2">
-              <CardHeader>
-                <CardTitle className="text-sm">Session Status</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground">
-                  You are signed in to your MUM account. Your current permissions determine access to administrative features.
-                </p>
-              </CardContent>
-            </Card>
+        <TabsContent value="overview" className="space-y-8 rounded-xl border bg-card p-6 text-card-foreground shadow-sm">
+          <h2 className="text-xl font-semibold">General settings</h2>
+          <dl className="account-settings-details">
+            <div><dt>Username</dt><dd>{account.user.username || 'Not configured'}</dd></div>
+            <div><dt>Role</dt><dd>{accountRole}</dd></div>
+            <div><dt>MUM password</dt><dd>{account.user.has_password ? 'Configured' : 'Not configured'}</dd></div>
+          </dl>
+          <div className="account-settings-panels border-t pt-8">
+            <AccountEmailCard key={`email-${accountKey}`} onChanged={refreshAccount} />
           </div>
         </TabsContent>
 
-        <TabsContent value="credentials" className="space-y-6">
-          <p className="text-sm text-muted-foreground">Local password and username changes sign out all sessions. Contact email changes require your current local password.</p>
-          <fieldset className="space-y-6">
-          <div className="grid gap-6 lg:grid-cols-2">
-            {showInitialCredentialsCard && (
-              <InitialCredentialsForm
-                key={`credentials-${accountKey}`}
-                initialUsername={account.user.username ?? ''}
-                onSuccess={handleCredentialsSuccess}
-              />
-            )}
+        <TabsContent value="credentials" className="space-y-8 rounded-xl border bg-card p-6 text-card-foreground shadow-sm">
+          <h2 className="text-xl font-semibold">Credentials</h2>
+          <div className="account-settings-panels">
+            {showInitialCredentialsCard && <InitialCredentialsForm key={`credentials-${accountKey}`} initialUsername={account.user.username ?? ''} onSuccess={handleCredentialsSuccess} />}
             <PasswordChangeCard key={`password-${accountKey}`} />
             <UsernameChangeCard key={`username-${accountKey}`} />
           </div>
-
-          <AccountEmailCard key={`email-${accountKey}`} onChanged={refreshAccount} />
-
-          </fieldset>
-          <PlexConnectionCard />
-          <DiscordLinkCard />
-          <ServiceLinksCard />
         </TabsContent>
 
-        <TabsContent value="preferences" className="space-y-6">
-          <AccountDisplayCard />
-          <UserPreferencesCard />
+        <TabsContent value="linked-accounts" className="space-y-8 rounded-xl border bg-card p-6 text-card-foreground shadow-sm">
+          <h2 className="text-xl font-semibold">Linked accounts</h2>
+          <div className="account-settings-panels account-settings-linked">
+            <PlexConnectionCard />
+            <DiscordLinkCard />
+            <ServiceLinksCard />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="preferences" className="space-y-8 rounded-xl border bg-card p-6 text-card-foreground shadow-sm">
+          <h2 className="text-xl font-semibold">Preferences</h2>
+          <div className="account-settings-panels">
+            <AccountDisplayCard />
+            <UserPreferencesCard />
+          </div>
         </TabsContent>
       </Tabs>
     </div>

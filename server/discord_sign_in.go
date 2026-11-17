@@ -211,7 +211,7 @@ func (a *App) discordAuthCallback(w http.ResponseWriter, r *http.Request) bool {
 	// Back to the login page, or to the account page's tab with the Discord card.
 	page := "/login?discord="
 	if at.Kind == "link" {
-		page = "/account?tab=credentials&discord="
+		page = "/account?tab=linked-accounts&discord="
 	}
 	back := func(outcome string) {
 		a.setDiscordAuthCookie(w, r, "", -1)

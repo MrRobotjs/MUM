@@ -74,7 +74,7 @@ func TestDiscordLinkAndUnlink(t *testing.T) {
 	if p := responseData(t, apiRequest(a, "GET", "/api/account/discord", token, nil, nil)); p["available"] != true || p["linked"] != false {
 		t.Fatal(p)
 	}
-	if where, _ := discordRoundTrip(t, a, "/api/account/discord", token, "good-code"); where != "/account?tab=credentials&discord=linked" || discordLinked(t, s, member) != f.user {
+	if where, _ := discordRoundTrip(t, a, "/api/account/discord", token, "good-code"); where != "/account?tab=linked-accounts&discord=linked" || discordLinked(t, s, member) != f.user {
 		t.Fatal(where, discordLinked(t, s, member))
 	}
 	p := responseData(t, apiRequest(a, "GET", "/api/account/discord", token, nil, nil))
@@ -85,14 +85,14 @@ func TestDiscordLinkAndUnlink(t *testing.T) {
 		t.Fatal("user page", u["discord_username"], u["discord_user_id"])
 	}
 	// The owner cannot take the same Discord account.
-	if where, _ := discordRoundTrip(t, a, "/api/account/discord", owner, "good-code"); where != "/account?tab=credentials&discord=in_use" {
+	if where, _ := discordRoundTrip(t, a, "/api/account/discord", owner, "good-code"); where != "/account?tab=linked-accounts&discord=in_use" {
 		t.Fatal(where)
 	}
 	// A refused code links nothing.
 	if w := apiRequest(a, "DELETE", "/api/account/discord", token, nil, nil); w.Code != 200 || discordLinked(t, s, member) != "" {
 		t.Fatal("unlink", w.Code)
 	}
-	if where, _ := discordRoundTrip(t, a, "/api/account/discord", token, "bad-code"); where != "/account?tab=credentials&discord=failed" || discordLinked(t, s, member) != "" {
+	if where, _ := discordRoundTrip(t, a, "/api/account/discord", token, "bad-code"); where != "/account?tab=linked-accounts&discord=failed" || discordLinked(t, s, member) != "" {
 		t.Fatal(where)
 	}
 }
@@ -109,14 +109,14 @@ func TestDiscordCallbackIsBoundAndSingleUse(t *testing.T) {
 	}
 	redirect, _ := url.Parse(responseData(t, w)["redirect_url"].(string))
 	callback := discordCallbackPath + "?state=" + url.QueryEscape(redirect.Query().Get("state")) + "&code=good-code"
-	if got := apiRequest(a, "GET", callback, "", nil, nil).Header().Get("Location"); got != "/account?tab=credentials&discord=failed" || f.count() != 0 {
+	if got := apiRequest(a, "GET", callback, "", nil, nil).Header().Get("Location"); got != "/account?tab=linked-accounts&discord=failed" || f.count() != 0 {
 		t.Fatal("callback without the browser cookie", got, f.count())
 	}
-	if got := apiRequest(a, "GET", callback, "", nil, cookie).Header().Get("Location"); got != "/account?tab=credentials&discord=linked" {
+	if got := apiRequest(a, "GET", callback, "", nil, cookie).Header().Get("Location"); got != "/account?tab=linked-accounts&discord=linked" {
 		t.Fatal(got)
 	}
 	activityExec(t, s, "UPDATE user_accounts SET discord_user_id=NULL WHERE uuid=?", member)
-	if got := apiRequest(a, "GET", callback, "", nil, cookie).Header().Get("Location"); got != "/account?tab=credentials&discord=failed" || f.count() != 1 || discordLinked(t, s, member) != "" {
+	if got := apiRequest(a, "GET", callback, "", nil, cookie).Header().Get("Location"); got != "/account?tab=linked-accounts&discord=failed" || f.count() != 1 || discordLinked(t, s, member) != "" {
 		t.Fatal("replayed callback", got, f.count())
 	}
 }

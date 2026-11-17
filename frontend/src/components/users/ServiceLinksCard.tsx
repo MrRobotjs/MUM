@@ -5,7 +5,8 @@ import { getServiceLinks, linkServiceAccount, unlinkServiceAccount, type Service
 import { ApiError } from '../../util/apiClient';
 import { Alert, AlertDescription } from '../ui/alert';
 import { Button } from '../ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
+import { Card, CardContent } from '../ui/card';
+import { ConfirmAction, SettingHeader } from './AccountSettings';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
@@ -35,7 +36,7 @@ export const ServiceLinksList = ({ links, busy, onUnlink }: { links: ServiceLink
           {link.canUnlink ? (
             <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => onUnlink(link)}>Unlink</Button>
           ) : (
-            <span className="text-xs text-muted-foreground" title="Link another account or set a MUM password first">Only way to sign in</span>
+            <span className="text-xs text-muted-foreground">Only way to sign in</span>
           )}
         </li>
       ))}
@@ -49,6 +50,8 @@ export const ServiceLinksCard = () => {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [form, setForm] = useState({ server: '', username: '', password: '' });
+  const [open, setOpen] = useState(false);
+  const [unlinking, setUnlinking] = useState<ServiceLink | null>(null);
   const load = useRef(0);
 
   const refresh = useCallback(async () => {
@@ -76,6 +79,7 @@ export const ServiceLinksCard = () => {
     try {
       await linkServiceAccount(server.id, form.username, form.password);
       setForm({ server: form.server, username: '', password: '' });
+      setOpen(false);
       success(`${server.name} account linked`);
       await refresh();
     } catch (err) {
@@ -96,15 +100,20 @@ export const ServiceLinksCard = () => {
       setError(message(err));
     } finally {
       setBusy(false);
+      setUnlinking(null);
     }
   };
 
+  const canLink = Boolean(state?.serviceSignIn && state.servers.length > 0);
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Linked Media Server Accounts</CardTitle>
-        <CardDescription>Any of these logins signs you in to this MUM account.</CardDescription>
-      </CardHeader>
+      <SettingHeader title="Media server accounts"
+        info={<>
+          <p>Any of these logins signs you in to this MUM account. Linking or unlinking does not change your access on the media server.</p>
+          <p>An account marked "Only way to sign in" can be unlinked once you link another account or set a MUM password.</p>
+          {state && !state.serviceSignIn && <p>Linking your own accounts is available when your administrator allows signing in with media server logins.</p>}
+        </>}
+        action={canLink && <Button type="button" variant="outline" size="sm" aria-expanded={open} disabled={busy} onClick={() => setOpen(!open)}>{open ? 'Cancel' : 'Link account'}</Button>} />
       <CardContent className="space-y-4">
         {error && (
           <Alert variant="destructive">
@@ -115,41 +124,40 @@ export const ServiceLinksCard = () => {
           !error && <div className="flex items-center gap-2 text-sm text-muted-foreground"><Spinner className="h-4 w-4" />Loading linked accounts...</div>
         ) : (
           <>
-            <ServiceLinksList links={state.links} busy={busy} onUnlink={unlink} />
-            {state.serviceSignIn && state.servers.length > 0 ? (
+            <ServiceLinksList links={state.links} busy={busy} onUnlink={setUnlinking} />
+            {canLink && open && (
               <form className="space-y-4" onSubmit={link}>
-                <p className="text-sm text-muted-foreground">Link another account by signing in to it.</p>
-                <div className="grid gap-4 md:grid-cols-3">
-                  <div className="space-y-2">
-                    <Label htmlFor="link-server">Server</Label>
-                    <Select value={form.server} onValueChange={(value) => setForm((prev) => ({ ...prev, server: value }))}>
-                      <SelectTrigger id="link-server" className="w-full">
-                        <SelectValue placeholder="Choose a server" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {state.servers.map((s) => (
-                          <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="link-username">Username</Label>
-                    <Input id="link-username" autoComplete="off" value={form.username} required maxLength={255} onChange={(event) => setForm((prev) => ({ ...prev, username: event.target.value }))} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="link-password">Password</Label>
-                    <Input id="link-password" type="password" autoComplete="off" value={form.password} required maxLength={1024} onChange={(event) => setForm((prev) => ({ ...prev, password: event.target.value }))} />
-                  </div>
+                <div className="space-y-2">
+                  <Label htmlFor="link-server">Server</Label>
+                  <Select value={form.server} onValueChange={(value) => setForm((prev) => ({ ...prev, server: value }))}>
+                    <SelectTrigger id="link-server" className="w-full">
+                      <SelectValue placeholder="Choose a server" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {state.servers.map((s) => (
+                        <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-                <Button type="submit" disabled={busy || !server}>{busy ? 'Checking…' : 'Link Account'}</Button>
+                <div className="space-y-2">
+                  <Label htmlFor="link-username">Username</Label>
+                  <Input id="link-username" autoComplete="off" value={form.username} required maxLength={255} onChange={(event) => setForm((prev) => ({ ...prev, username: event.target.value }))} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="link-password">Password</Label>
+                  <Input id="link-password" type="password" autoComplete="off" value={form.password} required maxLength={1024} onChange={(event) => setForm((prev) => ({ ...prev, password: event.target.value }))} />
+                </div>
+                <Button type="submit" disabled={busy || !server}>{busy ? 'Checking…' : 'Link account'}</Button>
               </form>
-            ) : (
-              !state.serviceSignIn && <p className="text-xs text-muted-foreground">Linking your own accounts is available when your administrator allows signing in with media server logins.</p>
             )}
           </>
         )}
       </CardContent>
+      <ConfirmAction open={unlinking !== null} onOpenChange={value => { if (!value) setUnlinking(null); }} title={`Unlink ${unlinking?.serverName ?? 'this'} account?`} confirmLabel="Unlink" destructive busy={busy}
+        onConfirm={() => { if (unlinking) void unlink(unlinking); }}>
+        You will no longer be able to sign in to MUM with {unlinking?.username || 'this account'} on {unlinking?.serverName ?? 'this server'}. Your access on that server does not change.
+      </ConfirmAction>
     </Card>
   );
 };

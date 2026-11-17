@@ -24,6 +24,8 @@ import { useAlerts } from '../contexts/AlertContext';
 import { AccountDisplayCard } from '../components/users/AccountDisplayCard';
 import { useAccountDisplay } from '../hooks/useAccountDisplay';
 import { UserPreferencesCard } from '../components/users/UserPreferencesCard';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faKey, faLink, faSliders, faUser, type IconDefinition } from '@fortawesome/free-solid-svg-icons';
 import './AccountPage.css';
 
 type AccountUser = {
@@ -204,6 +206,19 @@ const InitialCredentialsForm = ({ initialUsername, onSuccess }: InitialCredentia
   );
 };
 
+// Each tab opens with the settings pages' heading: an icon, a title and one line about it.
+const TabHeading = ({ icon, title, description }: { icon: IconDefinition; title: string; description: string }) => (
+  <div className="flex items-center gap-3">
+    <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/20">
+      <FontAwesomeIcon icon={icon} className="size-5 text-primary" />
+    </div>
+    <div>
+      <h2 className="mb-1 text-xl font-semibold">{title}</h2>
+      <p className="text-sm text-muted-foreground">{description}</p>
+    </div>
+  </div>
+);
+
 // --- Main Page Component ---
 
 const AccountPage = () => {
@@ -326,7 +341,7 @@ const AccountPage = () => {
         </TabsList>
 
         <TabsContent value="overview" className="space-y-8 rounded-xl border bg-card p-6 text-card-foreground shadow-sm">
-          <h2 className="text-xl font-semibold">General settings</h2>
+          <TabHeading icon={faUser} title="General settings" description="Your profile and contact details" />
           <dl className="account-settings-details">
             <div><dt>Username</dt><dd>{account.user.username || 'Not configured'}</dd></div>
             <div><dt>Role</dt><dd>{accountRole}</dd></div>
@@ -338,7 +353,7 @@ const AccountPage = () => {
         </TabsContent>
 
         <TabsContent value="credentials" className="space-y-8 rounded-xl border bg-card p-6 text-card-foreground shadow-sm">
-          <h2 className="text-xl font-semibold">Credentials</h2>
+          <TabHeading icon={faKey} title="Credentials" description="How you sign in to MUM" />
           <div className="account-settings-panels">
             {showInitialCredentialsCard && <InitialCredentialsForm key={`credentials-${accountKey}`} initialUsername={account.user.username ?? ''} onSuccess={handleCredentialsSuccess} />}
             <PasswordChangeCard key={`password-${accountKey}`} />
@@ -347,7 +362,7 @@ const AccountPage = () => {
         </TabsContent>
 
         <TabsContent value="linked-accounts" className="space-y-8 rounded-xl border bg-card p-6 text-card-foreground shadow-sm">
-          <h2 className="text-xl font-semibold">Linked accounts</h2>
+          <TabHeading icon={faLink} title="Linked accounts" description="Other accounts you can sign in with" />
           <div className="account-settings-panels account-settings-linked">
             <PlexConnectionCard />
             <DiscordLinkCard />
@@ -356,7 +371,7 @@ const AccountPage = () => {
         </TabsContent>
 
         <TabsContent value="preferences" className="space-y-8 rounded-xl border bg-card p-6 text-card-foreground shadow-sm">
-          <h2 className="text-xl font-semibold">Preferences</h2>
+          <TabHeading icon={faSliders} title="Preferences" description="How dates, times and badges appear for you" />
           <div className="account-settings-panels">
             <AccountDisplayCard />
             <UserPreferencesCard />

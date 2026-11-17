@@ -171,6 +171,7 @@ func NewApp(store *Store, queue *LogQueue, assets fs.FS) (*App, error) {
 	handle("GET /api/activity/identities/{identity}/current", a.activityRead)
 	handle("GET /api/activity/identities/{identity}/history", a.activityRead)
 	handle("GET /api/activity/identities/{identity}/timeline", a.identityTimeline)
+	handle("GET /api/activity/identities/{identity}/plays", a.identityPlayTotals)
 	handle("GET /api/activity/identities/{identity}/summary", a.activitySummary)
 	handle("GET /api/settings/activity-monitoring", a.activityMonitorSettings)
 	handle("GET /api/settings/streaming-map", a.streamingMapSettings)

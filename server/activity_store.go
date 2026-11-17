@@ -209,12 +209,12 @@ func commitActivitySnapshot(ctx context.Context, tx *sql.Tx, c activityReadClaim
 		}
 		historyID := old.History
 		if exists {
-			if _, err := tx.ExecContext(ctx, `UPDATE media_activity_history SET title=?,last_seen_at=?,paused=?,position_ticks=?,duration_ticks=?,client=coalesce(nullif(?,''),client),device_name=coalesce(nullif(?,''),device_name),play_method=coalesce(nullif(?,''),play_method) WHERE id=?`, session.Title, observed, session.Paused, session.Position, session.Duration, session.Client, session.Device, session.PlayMethod, old.History); err != nil {
+			if _, err := tx.ExecContext(ctx, `UPDATE media_activity_history SET paused_seconds=CASE WHEN paused=1 AND paused_seconds IS NOT NULL THEN paused_seconds+max(0,CAST(round((julianday(?)-julianday(last_seen_at))*86400) AS INTEGER)) ELSE paused_seconds END,title=?,last_seen_at=?,paused=?,position_ticks=?,duration_ticks=?,client=coalesce(nullif(?,''),client),device_name=coalesce(nullif(?,''),device_name),play_method=coalesce(nullif(?,''),play_method) WHERE id=?`, observed, session.Title, observed, session.Paused, session.Position, session.Duration, session.Client, session.Device, session.PlayMethod, old.History); err != nil {
 				return result, err
 			}
 			result.Updated++
 		} else {
-			inserted, err := tx.ExecContext(ctx, `INSERT INTO media_activity_history(server_id,external_session_id,service_uuid,owner_uuid,item_id,media_type,title,first_seen_at,last_seen_at,paused,position_ticks,duration_ticks,parent_item_id,parent_title,client,device_name,play_method) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,nullif(?,''),nullif(?,''),nullif(?,''),nullif(?,''),nullif(?,''))`, c.Server, session.Session, row.Service, row.Owner, session.Item, session.Kind, session.Title, observed, observed, session.Paused, session.Position, session.Duration, session.Parent, session.ParentTitle, session.Client, session.Device, session.PlayMethod)
+			inserted, err := tx.ExecContext(ctx, `INSERT INTO media_activity_history(server_id,external_session_id,service_uuid,owner_uuid,item_id,media_type,title,first_seen_at,last_seen_at,paused,position_ticks,duration_ticks,parent_item_id,parent_title,client,device_name,play_method,paused_seconds) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,nullif(?,''),nullif(?,''),nullif(?,''),nullif(?,''),nullif(?,''),0)`, c.Server, session.Session, row.Service, row.Owner, session.Item, session.Kind, session.Title, observed, observed, session.Paused, session.Position, session.Duration, session.Parent, session.ParentTitle, session.Client, session.Device, session.PlayMethod)
 			if err != nil {
 				return result, err
 			}

@@ -1,0 +1,195 @@
+package main
+
+import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"sync/atomic"
+	"testing"
+	"time"
+)
+
+type playPeriodTest struct {
+	Period  string `json:"period"`
+	Plays   string `json:"plays"`
+	Timed   string `json:"timed_plays"`
+	Seconds string `json:"seconds"`
+}
+
+type playTotalsTestPage struct {
+	Actor    string           `json:"actor_uuid"`
+	Scope    string           `json:"scope"`
+	Target   string           `json:"target_uuid"`
+	Source   string           `json:"source"`
+	Sources  []string         `json:"sources"`
+	Imported string           `json:"imported_plays"`
+	Periods  []playPeriodTest `json:"periods"`
+	Last     *struct {
+		Source      string  `json:"source"`
+		Title       string  `json:"title"`
+		ParentTitle *string `json:"parent_title"`
+		PlayedAt    string  `json:"played_at"`
+		Poster      string  `json:"poster_url"`
+	} `json:"last_play"`
+	Players []struct {
+		Client string `json:"client"`
+		Plays  string `json:"plays"`
+	} `json:"players"`
+}
+
+func readPlayTotals(t *testing.T, a *App, token, target, query string) (int, playTotalsTestPage) {
+	t.Helper()
+	w := apiRequest(a, "GET", "/api/activity/identities/"+target+"/plays"+query, token, nil, nil)
+	var out struct{ Data playTotalsTestPage }
+	if w.Code == 200 {
+		if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return w.Code, out.Data
+}
+
+func periodsText(p playTotalsTestPage) string {
+	out := ""
+	for _, period := range p.Periods {
+		out += period.Period + ":" + period.Plays + "/" + period.Timed + "/" + period.Seconds + " "
+	}
+	return out
+}
+
+// playTotalsFixture moves the timeline fixture's plays to times around now:
+// MUM one 2h ago (an hour long, 10 minutes paused), MUM three 3 days ago (two
+// hours seen, one-hour item, pauses unknown), imported Plex plays 12 hours, 10
+// days and 40 days ago.
+func playTotalsFixture(t *testing.T) (*App, string, string, string) {
+	t.Helper()
+	a, s, token, viewer, local := timelineFixture(t)
+	now := time.Now().UTC()
+	ago := func(d time.Duration) string { return utcTimestamp(now.Add(-d)) }
+	activityExec(t, s, `UPDATE media_activity_history SET first_seen_at=?,last_seen_at=?,paused_seconds=600,client='Infuse' WHERE title='MUM one'`, ago(2*time.Hour), ago(time.Hour))
+	activityExec(t, s, `UPDATE media_activity_history SET first_seen_at=?,last_seen_at=?,paused_seconds=NULL,duration_ticks=36000000000 WHERE title='MUM three'`, ago(72*time.Hour), ago(70*time.Hour))
+	for title, d := range map[string]time.Duration{"Plex four": 12 * time.Hour, "Plex two": 240 * time.Hour, "Plex three": 960 * time.Hour} {
+		activityExec(t, s, `UPDATE history_imports SET viewed_at=? WHERE title=?`, ago(d), title)
+	}
+	return a, token, viewer, local
+}
+
+// The profile's totals count the plays the History tab lists, per period, with
+// time only from MUM's plays: seen time less paused time, capped at the item's
+// length. Imported plays count as plays without time.
+func TestIdentityPlayTotalsPeriods(t *testing.T) {
+	a, token, viewer, local := playTotalsFixture(t)
+	for _, c := range []struct{ token, scope string }{{token, "all"}, {viewer, "own"}} {
+		code, p := readPlayTotals(t, a, c.token, local, "?scope="+c.scope+"&source=all")
+		if code != 200 || p.Scope != c.scope || p.Target != local || p.Source != "all" || len(p.Sources) != 1 || p.Sources[0] != "plex" {
+			t.Fatal(c.scope, code, p)
+		}
+		if got := periodsText(p); got != "day:2/1/3000 week:3/2/6600 month:4/2/6600 all:5/2/6600 " {
+			t.Fatal(c.scope, got)
+		}
+		if p.Imported != "3" || p.Last == nil || p.Last.Source != "mum" || p.Last.Title != "MUM one" {
+			t.Fatalf("%s imported/last %+v", c.scope, p)
+		}
+		if len(p.Players) != 2 || p.Players[0].Client != "Infuse" || p.Players[1].Client != "Plex Web" {
+			t.Fatalf("%s players %+v", c.scope, p.Players)
+		}
+	}
+	_, mum := readPlayTotals(t, a, token, local, "?scope=all&source=mum")
+	if got := periodsText(mum); got != "day:1/1/3000 week:2/2/6600 month:2/2/6600 all:2/2/6600 " || mum.Imported != "0" || len(mum.Players) != 2 {
+		t.Fatal("mum", got, mum)
+	}
+	_, plex := readPlayTotals(t, a, token, local, "?scope=all&source=plex")
+	if got := periodsText(plex); got != "day:1/0/0 week:1/0/0 month:2/0/0 all:3/0/0 " || plex.Imported != "3" || len(plex.Players) != 0 {
+		t.Fatal("plex", got, plex)
+	}
+	if plex.Last == nil || plex.Last.Source != "plex" || plex.Last.Title != "Plex four" || plex.Last.ParentTitle == nil || *plex.Last.ParentTitle != "A Show" {
+		t.Fatalf("plex last %+v", plex.Last)
+	}
+}
+
+func TestIdentityPlayTotalsEmptyAndAuthority(t *testing.T) {
+	a, s, token, viewer, local := timelineFixture(t)
+	owner, _ := s.Authenticate(t.Context(), token)
+	other, err := s.CreateAccount(t.Context(), owner.UUID, "other-viewer", "fixture-hash", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	code, p := readPlayTotals(t, a, token, other, "?scope=all&source=all")
+	if code != 200 || periodsText(p) != "day:0/0/0 week:0/0/0 month:0/0/0 all:0/0/0 " || p.Last != nil || p.Players == nil || len(p.Players) != 0 || p.Sources == nil || len(p.Sources) != 0 {
+		t.Fatalf("no plays %d %+v", code, p)
+	}
+	if code, _ := readPlayTotals(t, a, viewer, other, "?scope=own&source=all"); code != 403 {
+		t.Fatal("read another person's plays", code)
+	}
+	if code, _ := readPlayTotals(t, a, viewer, local, "?scope=all&source=all"); code != 403 {
+		t.Fatal("a viewer used the administrator scope", code)
+	}
+	for _, bad := range []string{"", "?scope=all", "?scope=every&source=all", "?scope=all&source=both", "?scope=all&source=all&before=1", "?scope=all&scope=own&source=all"} {
+		if code, _ := readPlayTotals(t, a, token, local, bad); code != 400 {
+			t.Fatal("bad query accepted", bad, code)
+		}
+	}
+}
+
+// The last play's poster is a signed administrator link, as on the History tab.
+func TestIdentityPlayTotalsLastPlayPoster(t *testing.T) {
+	a, token, viewer, local := playTotalsFixture(t)
+	activityExec(t, a.store, "UPDATE history_imports SET poster_item='20',poster_path='/library/metadata/20/thumb/1' WHERE title='Plex four'")
+	_, plex := readPlayTotals(t, a, token, local, "?scope=all&source=plex")
+	if plex.Last == nil || len(plex.Last.Poster) < len("/api/activity/imported-history-images/") || plex.Last.Poster[:len("/api/activity/imported-history-images/")] != "/api/activity/imported-history-images/" {
+		t.Fatalf("poster %+v", plex.Last)
+	}
+	if _, own := readPlayTotals(t, a, viewer, local, "?scope=own&source=plex"); own.Last == nil || own.Last.Poster != "" {
+		t.Fatalf("a viewer got a poster link %+v", own.Last)
+	}
+}
+
+// MUM counts paused time while a play runs: from each paused reading to the
+// next one. Plays recorded before this have no paused time (NULL).
+func TestActivityHistoryCountsPausedTime(t *testing.T) {
+	a, s := testApp(t)
+	token, _ := bootstrapOwner(t, a)
+	owner, _ := s.Authenticate(t.Context(), token)
+	var payload atomic.Value
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write(payload.Load().([]byte)) }))
+	defer upstream.Close()
+	server := createManagedServer(t, a, token, "jellyfin", upstream.URL)
+	service := seedService(t, s, server)
+	row := activityFixtureRow()
+	row["UserId"] = service
+	capture := func(paused bool) {
+		t.Helper()
+		row["PlayState"].(map[string]any)["IsPaused"] = paused
+		body, _ := json.Marshal([]any{row})
+		payload.Store(body)
+		if _, err := a.captureProviderActivity(t.Context(), owner.UUID, token, server); err != nil {
+			t.Fatal(err)
+		}
+	}
+	back := func(seconds int) {
+		activityExec(t, s, `UPDATE media_activity_history SET last_seen_at=strftime('%Y-%m-%dT%H:%M:%f000000Z',julianday(last_seen_at)-?/86400.0)`, seconds)
+	}
+	paused := func() int64 {
+		var v int64
+		if err := s.reader.QueryRow(`SELECT paused_seconds FROM media_activity_history`).Scan(&v); err != nil {
+			t.Fatal(err)
+		}
+		return v
+	}
+	capture(false)
+	if paused() != 0 {
+		t.Fatal("a new play starts with no paused time")
+	}
+	back(100)
+	capture(true) // was playing: the 100 seconds were not paused
+	if got := paused(); got != 0 {
+		t.Fatal("playing time counted as paused", got)
+	}
+	back(60)
+	capture(true)
+	back(30)
+	capture(false) // was paused until this reading
+	if got := paused(); got < 89 || got > 91 {
+		t.Fatal("paused seconds", got)
+	}
+}

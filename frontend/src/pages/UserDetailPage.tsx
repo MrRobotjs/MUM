@@ -8,11 +8,13 @@ import {useIdentityCurrent} from '../hooks/useIdentityHistory';
 import {useIdentityTimeline} from '../hooks/useIdentityTimeline';
 import {historyServiceName,offeredSource,type HistoryService,type TimelineSource} from '../lib/identityTimeline';
 import {Select,SelectContent,SelectItem,SelectTrigger,SelectValue} from '@/components/ui/select';
-import {observationPosition,observationProgress} from '../lib/activityHistory';
+import {observationProgress} from '../lib/activityHistory';
 import { useOverseerr } from '../hooks/useOverseerr';
 import { useServers } from '../hooks/useServers';
 import { useUserUuidBySlug } from '../hooks/useUserUuidBySlug';
-import {useIdentitySummary} from '../hooks/useIdentitySummary';
+import {useIdentityPlayTotals} from '../hooks/useIdentityPlayTotals';
+import {nowPlaying,watchTime,type PlayPeriod} from '../lib/identityPlayTotals';
+import {Progress} from '@/components/ui/progress';
 import { requestJson } from '../util/apiClient';
 import {
   OverseerrCard
@@ -39,7 +41,6 @@ import type { IconDefinition } from '@fortawesome/fontawesome-svg-core';
 import {
   faAt,
   faIdCard,
-  faFingerprint,
   faCalendarPlus,
   faServer,
   faDatabase,
@@ -70,7 +71,7 @@ import {
   faWaveSquare,
   faSliders,
 } from '@fortawesome/free-solid-svg-icons';
-import { TabHeading } from '../components/users/AccountSettings';
+import { SettingInfo, TabHeading } from '../components/users/AccountSettings';
 import { faDiscord } from '@fortawesome/free-brands-svg-icons';
 import { Spinner } from '@/components/ui/spinner'
 
@@ -97,104 +98,99 @@ const getPlaybackInfo = (state?: string) => {
   return { icon: faWaveSquare, color: 'text-muted-foreground', bg: 'bg-secondary/50', border: 'border-border/50', animate: false };
 };
 
-// Retain existing player theme utilities while telemetry is unavailable: w-11 dark:border-border/70 dark:bg-muted/20
+// The Profile tab's period tiles, like Tautulli's user stats.
+const periodTiles:Record<PlayPeriod['period'],{title:string;icon:IconDefinition;iconColor:string;gradient:string}>={
+  day:{title:'Last 24 hours',icon:faClock,iconColor:'text-blue-600 dark:text-blue-300',gradient:'from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20'},
+  week:{title:'Last 7 days',icon:faCalendarWeek,iconColor:'text-green-600 dark:text-green-300',gradient:'from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20'},
+  month:{title:'Last 30 days',icon:faCalendarDays,iconColor:'text-purple-600 dark:text-purple-300',gradient:'from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20'},
+  all:{title:'All time',icon:faInfinity,iconColor:'text-orange-600 dark:text-orange-300',gradient:'from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20'},
+};
+
+// Only MUM's plays have time; say so when a period also holds imported plays.
+const timeCaption=(p:PlayPeriod)=>p.plays==='0'||p.timed_plays===p.plays?'':p.timed_plays==='0'?'Imported plays don’t record watch time':`Time from ${BigInt(p.timed_plays).toLocaleString()} of ${BigInt(p.plays).toLocaleString()} plays`;
+
+const activityDescription=(source:TimelineSource,imported?:string)=>
+  source==='mum'?'Plays MUM recorded while they were playing.':
+  source!=='all'?`Plays imported from the ${historyServiceName[source]} server’s own history.`:
+  imported&&imported!=='0'?`Plays MUM recorded, plus ${BigInt(imported).toLocaleString()} imported from the servers’ own history.`:'Plays MUM recorded, plus any imported from the servers’ own history.';
+
+// Keeps these player theme utilities in the stylesheet: w-11 dark:border-border/70 dark:bg-muted/20
+// The Profile tab: what the person is playing now, their account at a glance,
+// roles, and how much they have played (MUM's plays and imported history,
+// counted like the History tab).
 const ProfileTab = ({ user,target }: { user: UserDetail;target:string }) => {
   const { formatTimestamp } = useAccountDisplay();
-  const formatDateTime = (value?: string | null, withTime = true) => formatTimestamp(value, withTime ? 'datetime' : 'date');
   const theme = getServiceMeta(user.service_type ?? user.service_types?.[0]);
   const current=useIdentityCurrent(target);
-  const summaryState=useIdentitySummary(target);
-  const summary=summaryState.summary;
+  const [source,setSource]=useState<TimelineSource>('all');
+  const {totals,error:totalsError}=useIdentityPlayTotals(target,source);
+  // Back to Combined when the person has no account on the chosen service.
+  useEffect(()=>{if(totals&&offeredSource(source,totals.sources)!==source)setSource('all');},[totals,source]);
+  const {servers}=useServers();
+  const serverNames=useMemo(()=>new Map(servers.map(s=>[String(s.id),s.server_nickname||s.server_name||''])),[servers]);
+  const playing=useMemo(()=>nowPlaying(current.page,target,serverNames),[current.page,target,serverNames]);
   const isServiceUser = user.user_type.toLowerCase() === 'service';
   const roleBadges = user.user_roles_detail;
   const adminRoleBadges = user.admin_roles_detail && user.admin_roles_detail.length > 0
     ? user.admin_roles_detail
     : user.roles.admin_roles.map((role): { name: string; color?: string | null; icon?: string | null; badge_style?: string | null; description?: string | null } => ({ name: role }));
-  const nowPlaying = useMemo<UserNowPlaying | null>(()=>{
-    const page=current.page,row=page?.items[0];if(!row||page?.target_uuid!==target)return null;
-    const source=page.servers.find(s=>s.server_id===row.server_id);
-    return {state:`Last observed ${row.paused?'paused':'playing'} · ${source?.freshness??'unknown'}`,mediaTitle:row.title,serviceType:source?.provider??null,serverName:`${source?.provider??'Unknown'} · Server ${row.server_id}`};
-  },[current.page,target]);
-  const playbackInfo=nowPlaying?getPlaybackInfo('unknown'):null;
-  const PlaybackIcon = playbackInfo?.icon as IconDefinition | undefined;
+  const playbackInfo=getPlaybackInfo(playing?.paused?'paused':'playing');
+  const ids=([['Server user ID',user.external_user_id],['Alternate user ID',user.external_user_alt_id]] as [string,string|null|undefined][]).filter((id):id is [string,string]=>!!id[1]);
+  const count=(value:string)=>BigInt(value).toLocaleString();
 
-  if(user.uuid!==target)return <p className="text-sm text-muted-foreground">Profile identity is unavailable. Refresh before inspecting activity.</p>;
+  if(user.uuid!==target)return <p className="text-sm text-muted-foreground">This profile changed while loading. Refresh the page.</p>;
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
       <div className="space-y-6">
-        {nowPlaying && playbackInfo && PlaybackIcon ? (
-          <Card>
-            <CardHeader>
-              <CardTitle>Retained Observation</CardTitle>
-              <CardDescription>One retained row on this target page; present playback is unverified.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className={cn(
-                "relative overflow-hidden rounded-md border p-2.5",
-                playbackInfo.bg,
-                playbackInfo.border
-              )}>
+        <Card>
+          <CardHeader>
+            <CardTitle>Now playing</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {playing ? (
+              <div className={cn("relative overflow-hidden rounded-md border p-2.5", playbackInfo.bg, playbackInfo.border)}>
                 <div className="flex items-start gap-3">
-                  <div
-                    className={cn(
-                      "relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-background/50 shadow-sm",
-                      playbackInfo.color
-                    )}
-                  >
-                    <FontAwesomeIcon
-                      icon={PlaybackIcon}
-                      className={cn("h-4 w-4", playbackInfo.spin && "animate-spin")}
-                    />
+                  <div className={cn("relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-background/50 shadow-sm", playbackInfo.color)}>
+                    <FontAwesomeIcon icon={playbackInfo.icon as IconDefinition} className="h-4 w-4" />
                   </div>
-
                   <div className="flex-1 min-w-0 flex flex-col justify-center">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-semibold leading-none truncate w-full" title={nowPlaying.mediaTitle}>
-                        {nowPlaying.mediaTitle || 'Unknown Title'}
-                      </span>
-                    </div>
+                    <span className="text-sm font-semibold leading-none truncate w-full" title={playing.title}>{playing.title}</span>
+                    {playing.subtitle && <span className="mt-1 text-xs text-muted-foreground truncate" title={playing.subtitle}>{playing.subtitle}</span>}
                     <div className="flex items-center gap-1.5 mt-1">
-                      <span className={cn(
-                        "text-[10px] font-bold uppercase tracking-wider",
-                        playbackInfo.color
-                      )}>
-                        {nowPlaying.state}
-                      </span>
-                      {nowPlaying.serverName && (
-                        <>
-                          <span className="text-[10px] text-muted-foreground/60">·</span>
-                          <span className="text-[10px] text-muted-foreground font-medium truncate max-w-[140px]" title={nowPlaying.serverName}>
-                            {nowPlaying.serverName}
-                          </span>
-                        </>
-                      )}
+                      <span className={cn("text-[10px] font-bold uppercase tracking-wider", playbackInfo.color)}>{playing.paused?'Paused':'Playing'}</span>
+                      <span className="text-[10px] text-muted-foreground/60">·</span>
+                      <span className="text-[10px] text-muted-foreground font-medium truncate max-w-[140px]" title={playing.serverName}>{playing.serverName}</span>
                     </div>
                   </div>
-
-                  {nowPlaying.sessionCount && nowPlaying.sessionCount > 1 && (
-                    <div className="flex shrink-0 items-center justify-center h-5 px-1.5 rounded-full bg-background/50 border border-border/50 shadow-sm">
-                      <span className="text-[10px] font-medium text-muted-foreground">
-                        +{nowPlaying.sessionCount - 1}
-                      </span>
+                  {playing.others > 0 && (
+                    <div className="flex shrink-0 items-center justify-center h-5 px-1.5 rounded-full bg-background/50 border border-border/50 shadow-sm" title={`${playing.others} more playing`}>
+                      <span className="text-[10px] font-medium text-muted-foreground">+{playing.others}</span>
                     </div>
                   )}
                 </div>
+                {playing.progress !== null && <Progress value={Math.min(playing.progress,100)} className="mt-2" aria-label="Progress" />}
+                <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+                  <span>{playing.progress !== null ? `${playing.position} of ${playing.duration}` : ''}</span>
+                  <span>Updated {formatTimestamp(playing.updatedAt,'time')}</span>
+                </div>
               </div>
-              <p className="text-xs text-muted-foreground">Read at {formatTimestamp(current.page?.read_at)}. Last observed {formatTimestamp(current.page?.items[0]?.last_observed_at)}. Position {observationPosition(current.page?.items[0]?.position_ticks??null)} / Duration {observationPosition(current.page?.items[0]?.duration_ticks??null)}. No playback extrapolation.</p>
-              <Button variant="outline" onClick={()=>void current.refresh().catch(()=>{})}>Refresh observation</Button>
-            </CardContent>
-          </Card>
-        ) : <Card><CardHeader><CardTitle>Retained Observation</CardTitle><CardDescription>Current observation coverage is limited to supported sources.</CardDescription></CardHeader><CardContent><p className="text-sm text-muted-foreground">{current.error?'Current observations are unavailable.':current.loading?'Loading observations...':'No retained observation is available in this authorized page.'}</p><Button variant="outline" onClick={()=>void current.refresh().catch(()=>{})}>Refresh observation</Button></CardContent></Card>}
+            ) : (
+              <p className="text-sm text-muted-foreground">{current.error?'Couldn’t check what’s playing right now.':current.loading?'Checking…':'Nothing playing right now.'}</p>
+            )}
+          </CardContent>
+        </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>Account Snapshot</CardTitle>
-            <CardDescription>
-              Core identity and service information pulled from connected systems.
-            </CardDescription>
+            <div className="flex items-center gap-2">
+              <CardTitle>Account</CardTitle>
+              {ids.length > 0 && <SettingInfo title="Account IDs">
+                <p>The IDs the media server uses for this account. They help when troubleshooting.</p>
+                {ids.map(([label,value]) => <div key={label} className="mt-3"><div>{label}</div><div className="font-mono text-sm text-foreground">{value}</div></div>)}
+              </SettingInfo>}
+            </div>
           </CardHeader>
           <CardContent className="space-y-4">
-
             <div className="space-y-3 text-sm">
               <div className="flex items-start gap-3">
                 <FontAwesomeIcon icon={faAt} className="mt-1 text-blue-600 dark:text-blue-400" />
@@ -208,38 +204,16 @@ const ProfileTab = ({ user,target }: { user: UserDetail;target:string }) => {
                 <FontAwesomeIcon icon={faIdCard} className="mt-1 text-green-600 dark:text-green-400" />
                 <div>
                   <div className="text-muted-foreground">Username</div>
-                  <div className="font-medium">
-                    {user.local_username ?? user.external_username ?? user.username ?? 'Unknown'}
-                  </div>
+                  <div className="font-medium">{user.local_username ?? user.external_username ?? user.username ?? 'Unknown'}</div>
                 </div>
               </div>
-
-              {user.external_user_id ? (
-                <div className="flex items-start gap-3">
-                  <FontAwesomeIcon icon={faFingerprint} className="mt-1 text-amber-600 dark:text-amber-400" />
-                  <div>
-                    <div className="text-muted-foreground">External User ID</div>
-                    <div className="font-mono text-sm">{user.external_user_id}</div>
-                  </div>
-                </div>
-              ) : null}
-
-              {user.external_user_alt_id ? (
-                <div className="flex items-start gap-3">
-                  <FontAwesomeIcon icon={faFingerprint} className="mt-1 text-orange-600 dark:text-orange-400" />
-                  <div>
-                    <div className="text-muted-foreground">Alt External User ID</div>
-                    <div className="font-mono text-sm">{user.external_user_alt_id}</div>
-                  </div>
-                </div>
-              ) : null}
 
               {user.service_join_date ? (
                 <div className="flex items-start gap-3">
                   <FontAwesomeIcon icon={faCalendarPlus} className="mt-1 text-primary" />
                   <div>
-                    <div className="text-muted-foreground">Service Join Date</div>
-                    <div className="font-medium">{formatDateTime(user.service_join_date, false)}</div>
+                    <div className="text-muted-foreground">Joined</div>
+                    <div className="font-medium">{formatTimestamp(user.service_join_date, 'date')}</div>
                   </div>
                 </div>
               ) : null}
@@ -248,14 +222,10 @@ const ProfileTab = ({ user,target }: { user: UserDetail;target:string }) => {
                 <div className="flex items-start gap-3">
                   <FontAwesomeIcon icon={faServer} className="mt-1 text-secondary" />
                   <div className="space-y-1">
-                    <div className="text-muted-foreground">
-                      Connected {user.server_names.length > 1 ? 'Servers' : 'Server'}
-                    </div>
+                    <div className="text-muted-foreground">{user.server_names.length > 1 ? 'Servers' : 'Server'}</div>
                     <div className="flex flex-wrap gap-2">
                       {user.server_names.map((server) => (
-                        <Badge key={server} color={theme.palette?.avatar ?? 'bg-primary'} icon={faDatabase} hover={false}>
-                          {server}
-                        </Badge>
+                        <Badge key={server} color={theme.palette?.avatar ?? 'bg-primary'} icon={faDatabase} hover={false}>{server}</Badge>
                       ))}
                     </div>
                   </div>
@@ -266,13 +236,9 @@ const ProfileTab = ({ user,target }: { user: UserDetail;target:string }) => {
                 <div className="flex items-start gap-3">
                   <FontAwesomeIcon icon={faLink} className="mt-1 text-primary" />
                   <div>
-                    <div className="text-muted-foreground">Linked Local Account</div>
-                    <div className="font-medium">
-                      {user.linked_local_user.display_name ?? user.linked_local_user.username ?? 'Local account'}
-                    </div>
-                    {user.linked_local_user.email ? (
-                      <div className="text-xs text-muted-foreground">{user.linked_local_user.email}</div>
-                    ) : null}
+                    <div className="text-muted-foreground">MUM profile</div>
+                    <div className="font-medium">{user.linked_local_user.display_name ?? user.linked_local_user.username ?? 'Local account'}</div>
+                    {user.linked_local_user.email ? <div className="text-xs text-muted-foreground">{user.linked_local_user.email}</div> : null}
                   </div>
                 </div>
               ) : null}
@@ -282,56 +248,37 @@ const ProfileTab = ({ user,target }: { user: UserDetail;target:string }) => {
                   <FontAwesomeIcon icon={faDiscord} className="mt-1 text-indigo-500" />
                   <div>
                     <div className="text-muted-foreground">Discord</div>
-                    <div className="font-medium">
-                      {user.discord_username ?? user.discord_user_id ?? 'Linked account'}
-                    </div>
-                    {user.discord_email ? (
-                      <div className="text-xs text-muted-foreground">{user.discord_email}</div>
-                    ) : null}
+                    <div className="font-medium">{user.discord_username ?? user.discord_user_id ?? 'Linked account'}</div>
+                    {user.discord_email ? <div className="text-xs text-muted-foreground">{user.discord_email}</div> : null}
                   </div>
                 </div>
               ) : null}
             </div>
 
-            {(user.is_active || !user.is_active || user.is_home_user || user.shares_back || user.is_purge_whitelisted || user.is_discord_bot_whitelisted) && (
-              <div className="border-t border-border pt-4">
-                <div className="text-sm font-semibold text-foreground">Status Flags</div>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {user.is_active && (
-                    <Badge color="bg-green-600" icon={faCircleCheck} hover={false}>Active</Badge>
-                  )}
-                  {!user.is_active && (
-                    <Badge color="bg-amber-600" icon={faCircleXmark} hover={false}>Inactive</Badge>
-                  )}
-                  {user.is_home_user && (
-                    <Badge color="bg-blue-600" icon={faHouse} hover={false}>Home User</Badge>
-                  )}
-                  {user.shares_back && (
-                    <Badge color="bg-purple-600" icon={faShareNodes} hover={false}>Shares Back</Badge>
-                  )}
-                  {user.is_purge_whitelisted && (
-                    <Badge color="bg-amber-600" icon={faShieldHalved} hover={false}>Purge Protected</Badge>
-                  )}
-                  {user.is_discord_bot_whitelisted && (
-                    <Badge color="bg-blue-600" icon={faDiscord} hover={false}>Discord Bot Allowed</Badge>
-                  )}
-                </div>
+            <div className="border-t border-border pt-4">
+              <div className="text-sm font-semibold text-foreground">Status</div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {user.is_active
+                  ? <Badge color="bg-green-600" icon={faCircleCheck} hover={false}>Active</Badge>
+                  : <Badge color="bg-amber-600" icon={faCircleXmark} hover={false}>Inactive</Badge>}
+                {user.is_home_user && <Badge color="bg-blue-600" icon={faHouse} hover={false}>Home User</Badge>}
+                {user.shares_back && <Badge color="bg-purple-600" icon={faShareNodes} hover={false}>Shares Back</Badge>}
+                {user.is_purge_whitelisted && <Badge color="bg-amber-600" icon={faShieldHalved} hover={false}>Purge Protected</Badge>}
+                {user.is_discord_bot_whitelisted && <Badge color="bg-blue-600" icon={faDiscord} hover={false}>Discord Bot Allowed</Badge>}
               </div>
-            )}
+            </div>
 
             {user.libraries.length > 0 || isServiceUser ? (
               <div className="border-t border-border pt-4">
-                <div className="text-sm font-semibold text-foreground">Library Access</div>
+                <div className="text-sm font-semibold text-foreground">Libraries</div>
                 {user.has_all_libraries ? (
-                  <p className="mt-2 text-sm text-muted-foreground">This profile reports all-library access.</p>
+                  <p className="mt-2 text-sm text-muted-foreground">Can see every library.</p>
                 ) : user.libraries.length === 0 ? (
-                  <p className="mt-2 text-sm text-muted-foreground">No specific library IDs are returned by this profile.</p>
+                  <p className="mt-2 text-sm text-muted-foreground">No libraries shared.</p>
                 ) : (
                   <div className="mt-3 flex flex-wrap gap-2">
                     {user.libraries.map((library) => (
-                      <Badge key={library} color={theme.palette?.avatar ?? 'bg-primary'} icon={faFolder} hover={false}>
-                        {library}
-                      </Badge>
+                      <Badge key={library} color={theme.palette?.avatar ?? 'bg-primary'} icon={faFolder} hover={false}>{library}</Badge>
                     ))}
                   </div>
                 )}
@@ -342,35 +289,26 @@ const ProfileTab = ({ user,target }: { user: UserDetail;target:string }) => {
 
         <Card>
           <CardHeader>
-            <CardTitle>Roles & Permissions</CardTitle>
-            <CardDescription>
-              Visual roles and administrative access assigned to this account.
-            </CardDescription>
+            <CardTitle>Roles</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-
             <div>
-              <div className="text-xs uppercase text-muted-foreground/60">Admin Roles</div>
+              <div className="text-xs uppercase text-muted-foreground/60">Admin roles</div>
               {adminRoleBadges.length === 0 ? (
-                <p className="mt-1 text-sm text-muted-foreground">No admin roles assigned.</p>
+                <p className="mt-1 text-sm text-muted-foreground">None</p>
               ) : (
                 <div className="mt-2 flex flex-wrap gap-2">
-                  {adminRoleBadges.map((role) => (
-                    <RoleBadge key={role.name} role={role} kind="admin" />
-                  ))}
+                  {adminRoleBadges.map((role) => <RoleBadge key={role.name} role={role} kind="admin" />)}
                 </div>
               )}
             </div>
-
             <div>
-              <div className="text-xs uppercase text-muted-foreground/60">User Roles</div>
+              <div className="text-xs uppercase text-muted-foreground/60">User roles</div>
               {roleBadges.length === 0 ? (
-                <p className="mt-1 text-sm text-muted-foreground">No visual roles have been added yet.</p>
+                <p className="mt-1 text-sm text-muted-foreground">None</p>
               ) : (
                 <div className="mt-2 flex flex-wrap gap-2">
-                  {roleBadges.map((role) => (
-                    <RoleBadge key={role.name} role={role} kind="user" />
-                  ))}
+                  {roleBadges.map((role) => <RoleBadge key={role.name} role={role} kind="user" />)}
                 </div>
               )}
             </div>
@@ -381,51 +319,99 @@ const ProfileTab = ({ user,target }: { user: UserDetail;target:string }) => {
       <div className="space-y-6 lg:col-span-2">
         <Card>
           <CardHeader>
-            <CardTitle>Recorded Observation Totals</CardTitle>
-            <CardDescription>
-              Complete target-bound counts across authorized recorded observations; these are not plays or watched duration.
-            </CardDescription>
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div className="min-w-0">
+                <CardTitle>Activity</CardTitle>
+                <CardDescription className="mt-1">{activityDescription(source,totals?.imported_plays)}</CardDescription>
+              </div>
+              {totals && <HistorySourcePicker source={source} services={totals.sources} onChange={setSource} label="Activity source"/>}
+            </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            {!summary ? (
+            {!totals ? (
               <div className="flex flex-col items-center gap-3 py-8 text-muted-foreground/60">
                 <FontAwesomeIcon icon={faChartSimple} className="text-3xl" />
-                <p className="text-sm">{summaryState.error?'Observation totals are unavailable.':'Loading observation totals...'}</p>
+                <p className="text-sm">{totalsError?'Couldn’t load activity.':'Loading activity…'}</p>
               </div>
             ) : (
               <div className="grid gap-4 md:grid-cols-2">
-                {[
-                  {title:'Recorded',count:summary.recorded_observations,gradient:'from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20',icon:<FontAwesomeIcon icon={faClock} className="text-blue-600 dark:text-blue-300"/>},
-                  {title:'Ended observations',count:summary.ended_observations,gradient:'from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20',icon:<FontAwesomeIcon icon={faCalendarWeek} className="text-green-600 dark:text-green-300"/>},
-                  {title:'Retained current',count:summary.retained_current_observations,gradient:'from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20',icon:<FontAwesomeIcon icon={faCalendarDays} className="text-purple-600 dark:text-purple-300"/>},
-                  {title:'Fresh current observations',count:summary.fresh_current_observations,gradient:'from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20',icon:<FontAwesomeIcon icon={faInfinity} className="text-orange-600 dark:text-orange-300"/>}
-                ].map((stat) => (
-                  <div
-                    key={stat.title}
-                    className={cn(
-                      'rounded-xl border border-border p-4 shadow-sm transition-shadow hover:shadow-md',
-                      `bg-gradient-to-br ${stat.gradient}`
-                    )}
-                  >
-                    <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                      {stat.icon}
-                      {stat.title}
+                {totals.periods.map(period => {
+                  const tile=periodTiles[period.period];
+                  return (
+                    <div key={period.period} className={cn('rounded-xl border border-border p-4 shadow-sm transition-shadow hover:shadow-md', `bg-gradient-to-br ${tile.gradient}`)}>
+                      <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground"><FontAwesomeIcon icon={tile.icon} className={tile.iconColor}/>{tile.title}</div>
+                      <div className="mt-3 flex items-baseline gap-1">
+                        <span className="text-3xl font-bold text-foreground">{count(period.plays)}</span>
+                        <span className="text-sm text-muted-foreground">{period.plays==='1'?'play':'plays'}</span>
+                      </div>
+                      {period.timed_plays!=='0' && <div className="mt-1 flex flex-wrap items-baseline gap-1">
+                        {watchTime(period.seconds).map(([value,unit])=><span key={unit} className="flex items-baseline gap-1"><span className="text-xl font-semibold text-foreground">{value}</span><span className="text-xs text-muted-foreground">{unit}</span></span>)}
+                      </div>}
+                      <div className="mt-2 text-xs text-muted-foreground">{timeCaption(period)}</div>
                     </div>
-                    <div className="mt-3 flex items-baseline gap-2">
-                      <span className="text-3xl font-bold text-foreground">{stat.count}</span>
-                      <span className="text-xs uppercase tracking-wide text-muted-foreground/60">observations</span>
-                    </div>
-                    <div className="mt-2 text-xs text-muted-foreground">
-                      Watched duration unavailable
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </CardContent>
         </Card>
 
-        <Card><CardHeader className="flex flex-row items-center justify-between space-y-0"><div><CardTitle>Preferred Players</CardTitle><CardDescription>Player and device telemetry is unavailable for these observations.</CardDescription></div></CardHeader><CardContent><div className="flex flex-col items-center gap-3 py-8 text-muted-foreground/60"><FontAwesomeIcon icon={faTv} className="text-3xl"/><p className="text-sm">Player rankings, daily plays and watched duration cannot be inferred.</p></div></CardContent></Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Last played</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {!totals ? (
+              <p className="text-sm text-muted-foreground">{totalsError?'Couldn’t load the last play.':'Loading…'}</p>
+            ) : !totals.last_play ? (
+              <p className="text-sm text-muted-foreground">Nothing played yet.</p>
+            ) : (
+              <div className="flex items-start gap-4">
+                <HistoryPoster url={totals.last_play.poster_url} title={totals.last_play.title} className="w-16 h-24 shrink-0"/>
+                <div className="min-w-0 space-y-1">
+                  <div className="font-medium truncate" title={totals.last_play.title}>{totals.last_play.title||'Removed item'}</div>
+                  {totals.last_play.parent_title && <div className="text-sm text-muted-foreground truncate" title={totals.last_play.parent_title}>{totals.last_play.parent_title}</div>}
+                  <div className="text-xs text-muted-foreground">{formatTimestamp(totals.last_play.played_at,'datetime')}</div>
+                  {totals.last_play.source!=='mum' && <span className="inline-flex items-center rounded-md px-2.5 py-0.5 text-xs font-semibold bg-muted text-muted-foreground">{historyServiceName[totals.last_play.source]} history</span>}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <CardTitle>Players</CardTitle>
+              <SettingInfo title="Players"><p>The apps MUM saw this person play on, most used first. Imported plays don’t say which app was used, so only plays MUM recorded count here.</p></SettingInfo>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {!totals ? (
+              <p className="text-sm text-muted-foreground">{totalsError?'Couldn’t load players.':'Loading players…'}</p>
+            ) : source !== 'all' && source !== 'mum' ? (
+              <p className="text-sm text-muted-foreground">Imported plays don’t say which app was used. Choose Combined or MUM to see players.</p>
+            ) : totals.players.length === 0 ? (
+              <div className="flex flex-col items-center gap-3 py-8 text-muted-foreground/60">
+                <FontAwesomeIcon icon={faTv} className="text-3xl"/>
+                <p className="text-sm">No players recorded yet.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {totals.players.map(p => {
+                  const share=Number(BigInt(p.plays)*1000n/(BigInt(totals.periods[3].timed_plays)||1n))/10;
+                  return <div key={p.client}>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="font-medium truncate" title={p.client}>{p.client}</span>
+                      <span className="text-muted-foreground">{count(p.plays)} {p.plays==='1'?'play':'plays'}</span>
+                    </div>
+                    <Progress value={Math.min(share,100)} className="mt-2" aria-label={`${p.client}: share of plays`} />
+                  </div>;
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
@@ -433,10 +419,10 @@ const ProfileTab = ({ user,target }: { user: UserDetail;target:string }) => {
 
 // Poster cell: a signed history image when the play kept one, otherwise the
 // play icon (also when the image fails to load).
-const HistoryPoster = ({ url, title }: { url?: string; title: string }) => {
+const HistoryPoster = ({ url, title, className = 'w-12 h-18' }: { url?: string; title: string; className?: string }) => {
   const [failed, setFailed] = useState(false);
   return (
-    <div className="w-12 h-18 rounded bg-muted/30 flex items-center justify-center overflow-hidden">
+    <div className={cn(className, 'rounded bg-muted/30 flex items-center justify-center overflow-hidden')}>
       {url && !failed ? (
         <img src={url} alt={title || 'Media poster'} className="w-full h-full object-cover" onError={() => setFailed(true)} />
       ) : (
@@ -459,11 +445,11 @@ const formatTicks = (ticks: string | null) => {
 
 // The History tab's source picker: everything, MUM's plays, or the plays
 // imported from one service the person has an account on.
-const HistorySourcePicker=({source,services,onChange}:{source:TimelineSource;services:readonly HistoryService[];onChange:(source:TimelineSource)=>void})=>{
+const HistorySourcePicker=({source,services,onChange,label='History source'}:{source:TimelineSource;services:readonly HistoryService[];onChange:(source:TimelineSource)=>void;label?:string})=>{
   const options:{value:TimelineSource;label:string}[]=[{value:'all',label:'Combined'},{value:'mum',label:'MUM'},...services.map(service=>({value:service,label:historyServiceName[service]}))];
   return (
     <Select value={source} onValueChange={(value:TimelineSource)=>onChange(value)}>
-      <SelectTrigger className="w-40" aria-label="History source"><SelectValue/></SelectTrigger>
+      <SelectTrigger className="w-40" aria-label={label}><SelectValue/></SelectTrigger>
       <SelectContent>{options.map(option=><SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent>
     </Select>
   );

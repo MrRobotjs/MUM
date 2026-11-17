@@ -1,0 +1,218 @@
+package main
+
+import (
+	"context"
+	"database/sql"
+	"net/http"
+	"net/url"
+	"slices"
+	"strconv"
+	"time"
+)
+
+// A person's play totals for the user page's Profile tab (user decisions
+// 2026-11-17), like Tautulli's user stats: plays and watched time in the last
+// 24 hours, 7 days, 30 days and all time, the latest play, and the players MUM
+// saw them use. The source picker is the History tab's: everything, MUM's
+// plays, or one service's imported plays, counted with the same filters.
+//
+// Watched time comes only from MUM's plays: the time MUM saw the play, less
+// the paused time it counted (unknown for plays recorded before it counted
+// pauses), never more than the item's length. Imported plays say that
+// something was played, not for how long (Audiobookshelf reports the book's
+// length, not the time listened), so they count as plays without time, and
+// each period says how many of its plays have time. Counts are decimal
+// strings, as elsewhere.
+
+type playerPlays struct {
+	Client string `json:"client"`
+	Plays  string `json:"plays"`
+}
+
+type playPeriod struct {
+	Period  string `json:"period"` // "day", "week", "month" or "all"
+	Plays   string `json:"plays"`
+	Timed   string `json:"timed_plays"`
+	Seconds string `json:"seconds"`
+}
+
+type lastPlay struct {
+	Source      string  `json:"source"` // "mum" or the server's type
+	Kind        string  `json:"media_type"`
+	Title       string  `json:"title"`
+	ParentTitle *string `json:"parent_title"`
+	PlayedAt    string  `json:"played_at"`
+	PosterURL   string  `json:"poster_url,omitempty"`
+	rowID       int64
+	hasPoster   bool
+}
+
+type identityPlayTotals struct {
+	Actor    string        `json:"actor_uuid"`
+	Scope    string        `json:"scope"`
+	Target   string        `json:"target_uuid"`
+	Source   string        `json:"source"`
+	Sources  []string      `json:"sources"`
+	Imported string        `json:"imported_plays"`
+	Periods  []playPeriod  `json:"periods"`
+	Last     *lastPlay     `json:"last_play"`
+	Players  []playerPlays `json:"players"`
+}
+
+// playTotalsPlayers is how many players the totals list, most used first.
+const playTotalsPlayers = 5
+
+// mumWatchedSeconds is one MUM play's watched time.
+const mumWatchedSeconds = `max(0,min(CAST(round((julianday(h.last_seen_at)-julianday(h.first_seen_at))*86400) AS INTEGER)-coalesce(h.paused_seconds,0),coalesce(h.duration_ticks/10000000,9223372036854775807)))`
+
+func (a *App) identityPlayTotals(w http.ResponseWriter, r *http.Request) {
+	actor, ok := a.principal(w, r, false)
+	if !ok {
+		return
+	}
+	q := activityReadQuery{History: true, Target: r.PathValue("identity")}
+	values, err := url.ParseQuery(r.URL.RawQuery)
+	scope, source := values["scope"], values["source"]
+	if err != nil || !validAdminMemberCursor(q.Target) || len(values) != 2 || len(scope) != 1 || len(source) != 1 || scope[0] != "own" && scope[0] != "all" ||
+		source[0] != "all" && source[0] != "mum" && !slices.Contains(importableHistory, source[0]) {
+		fail(w, 400, "INVALID_PLAY_TOTALS_QUERY", "Use scope own or all, and source all, mum or a service with imported history")
+		return
+	}
+	q.All = scope[0] == "all"
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+	tx, err := a.store.beginActivityView(ctx, actor.UUID, bearer(r), q.All)
+	if err != nil {
+		domainError(w, err)
+		return
+	}
+	defer tx.Rollback()
+	if err := checkActivityTarget(ctx, tx, actor.UUID, q); err != nil {
+		domainError(w, err)
+		return
+	}
+	out, err := queryPlayTotals(ctx, tx, actor.UUID, q, source[0], time.Now().UTC())
+	if err == nil {
+		out.Sources, err = readTimelineSources(ctx, tx, q.Target)
+	}
+	// The last play's poster: a signed administrator link, as on the History tab.
+	if err == nil && q.All && out.Last != nil && out.Last.hasPoster {
+		var session string
+		if session, err = readCatalogueAuthority(ctx, tx, actor.UUID, bearer(r)); err == nil {
+			now := time.Now().UTC()
+			if out.Last.Source == "mum" {
+				out.Last.PosterURL = a.signedImageURL(activityHistoryPosterPurpose, "/api/activity/history-images", session, out.Last.rowID, now)
+			} else {
+				out.Last.PosterURL = a.signedImageURL(importedHistoryPosterPurpose, "/api/activity/imported-history-images", session, out.Last.rowID, now)
+			}
+		}
+	}
+	if err == nil {
+		err = tx.Commit()
+	}
+	if err != nil {
+		domainError(w, err)
+		return
+	}
+	// Authority is checked again right before delivery, as for the timeline.
+	check, err := a.store.beginActivityView(ctx, actor.UUID, bearer(r), q.All)
+	if err == nil {
+		err = checkActivityTarget(ctx, check, actor.UUID, q)
+		check.Rollback()
+	}
+	if err != nil {
+		domainError(w, err)
+		return
+	}
+	out.Actor, out.Scope, out.Target, out.Source = actor.UUID, scope[0], q.Target, source[0]
+	respond(w, 200, out)
+}
+
+func queryPlayTotals(ctx context.Context, tx *sql.Tx, actor string, q activityReadQuery, source string, now time.Time) (identityPlayTotals, error) {
+	mumFilter, mumArgs := mumPlayFilter(actor, q)
+	importFilter, importArgs := importedPlayFilter(actor, q)
+	importedFrom := ` FROM history_imports i JOIN media_servers ms ON ms.id=i.server_id JOIN service_accounts s ON s.server_id=i.server_id AND s.external_user_id=i.account_id WHERE 1=1` + importFilter
+	if source != "all" && source != "mum" {
+		importedFrom += ` AND ms.service_type=?`
+		importArgs = append(importArgs, source)
+	}
+	withMUM, withImported := source == "all" || source == "mum", source != "mum"
+	since := []string{utcTimestamp(now.Add(-24 * time.Hour)), utcTimestamp(now.Add(-7 * 24 * time.Hour)), utcTimestamp(now.Add(-30 * 24 * time.Hour))}
+	// count reads plays and seconds for the last day, week and month and all time.
+	type sums struct{ plays, seconds [4]int64 }
+	count := func(at, seconds, from string, args []any) (sums, error) {
+		var v sums
+		period := `coalesce(sum(` + at + `>=?),0),coalesce(sum(CASE WHEN ` + at + `>=? THEN ` + seconds + ` ELSE 0 END),0),`
+		err := tx.QueryRowContext(ctx, `SELECT `+period+period+period+`count(*),coalesce(sum(`+seconds+`),0)`+from,
+			append([]any{since[0], since[0], since[1], since[1], since[2], since[2]}, args...)...).
+			Scan(&v.plays[0], &v.seconds[0], &v.plays[1], &v.seconds[1], &v.plays[2], &v.seconds[2], &v.plays[3], &v.seconds[3])
+		return v, err
+	}
+	var mum, imported sums
+	var err error
+	if withMUM {
+		if mum, err = count("h.first_seen_at", mumWatchedSeconds, ` FROM media_activity_history h WHERE 1=1`+mumFilter, mumArgs); err != nil {
+			return identityPlayTotals{}, err
+		}
+	}
+	if withImported {
+		if imported, err = count("i.viewed_at", "0", importedFrom, importArgs); err != nil {
+			return identityPlayTotals{}, err
+		}
+	}
+	// Every MUM play has time; no imported play does.
+	out := identityPlayTotals{Imported: strconv.FormatInt(imported.plays[3], 10), Players: []playerPlays{}}
+	for i, name := range []string{"day", "week", "month", "all"} {
+		out.Periods = append(out.Periods, playPeriod{name, strconv.FormatInt(mum.plays[i]+imported.plays[i], 10), strconv.FormatInt(mum.plays[i], 10), strconv.FormatInt(mum.seconds[i], 10)})
+	}
+	// The latest play of the chosen sources; at the same time an imported
+	// play wins, as it sorts first on the History tab.
+	var candidates []lastPlay
+	if withMUM {
+		var p lastPlay
+		err := tx.QueryRowContext(ctx, `SELECT h.id,h.media_type,h.title,h.parent_title,h.first_seen_at,h.poster_path IS NOT NULL FROM media_activity_history h WHERE 1=1`+mumFilter+
+			` ORDER BY h.first_seen_at DESC,h.id DESC LIMIT 1`, mumArgs...).Scan(&p.rowID, &p.Kind, &p.Title, &p.ParentTitle, &p.PlayedAt, &p.hasPoster)
+		if err != nil && err != sql.ErrNoRows {
+			return identityPlayTotals{}, err
+		}
+		if err == nil {
+			p.Source = "mum"
+			candidates = append(candidates, p)
+		}
+	}
+	if withImported {
+		var p lastPlay
+		err := tx.QueryRowContext(ctx, `SELECT i.rowid,ms.service_type,coalesce(i.media_type,''),coalesce(i.title,''),coalesce(i.grandparent_title,i.parent_title),i.viewed_at,i.poster_path IS NOT NULL`+importedFrom+
+			` ORDER BY i.viewed_at DESC,i.rowid DESC LIMIT 1`, importArgs...).Scan(&p.rowID, &p.Source, &p.Kind, &p.Title, &p.ParentTitle, &p.PlayedAt, &p.hasPoster)
+		if err != nil && err != sql.ErrNoRows {
+			return identityPlayTotals{}, err
+		}
+		if err == nil {
+			candidates = append(candidates, p)
+		}
+	}
+	for i := range candidates {
+		if out.Last == nil || candidates[i].PlayedAt > out.Last.PlayedAt || candidates[i].PlayedAt == out.Last.PlayedAt && candidates[i].Source != "mum" {
+			out.Last = &candidates[i]
+		}
+	}
+	if !withMUM {
+		return out, nil
+	}
+	rows, err := tx.QueryContext(ctx, `SELECT h.client,count(*) AS plays FROM media_activity_history h WHERE h.client IS NOT NULL`+mumFilter+
+		` GROUP BY h.client ORDER BY plays DESC,h.client LIMIT ?`, append(mumArgs, playTotalsPlayers)...)
+	if err != nil {
+		return identityPlayTotals{}, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var player playerPlays
+		var plays int64
+		if err := rows.Scan(&player.Client, &plays); err != nil {
+			return identityPlayTotals{}, err
+		}
+		player.Plays = strconv.FormatInt(plays, 10)
+		out.Players = append(out.Players, player)
+	}
+	return out, rows.Err()
+}

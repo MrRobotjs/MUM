@@ -185,6 +185,34 @@ func (a *App) identityTimeline(w http.ResponseWriter, r *http.Request) {
 	respond(w, 200, map[string]any{"actor_uuid": actor.UUID, "scope": map[bool]string{true: "all", false: "own"}[q.All], "target_uuid": q.Target, "source": source, "sources": sources, "items": items, "next_before": next})
 }
 
+// mumPlayFilter limits MUM's plays (h) to the target and, in the own scope,
+// to the reader's own. The profile's play totals use it too, so both count
+// the same plays.
+func mumPlayFilter(actor string, q activityReadQuery) (string, []any) {
+	filter, args := activityTargetPredicate(q)
+	if !q.All {
+		filter += ` AND ` + activityOwnHistory
+		args = append(args, actor, actor)
+	}
+	return filter, args
+}
+
+// importedPlayFilter limits imported plays, matched to server accounts (s), to
+// the target's accounts and, in the own scope, to accounts the reader owns.
+func importedPlayFilter(actor string, q activityReadQuery) (string, []any) {
+	var filter string
+	var args []any
+	if q.Target != "" {
+		filter += ` AND (s.uuid=? OR EXISTS(SELECT 1 FROM service_links l WHERE l.service_uuid=s.uuid AND l.user_uuid=? AND l.link_kind='owner'))`
+		args = append(args, q.Target, q.Target)
+	}
+	if !q.All {
+		filter += ` AND EXISTS(SELECT 1 FROM service_links l WHERE l.service_uuid=s.uuid AND l.user_uuid=? AND l.link_kind='owner')`
+		args = append(args, actor)
+	}
+	return filter, args
+}
+
 // sortKey orders by time, then source ("p" before "m" when descending), then id.
 func timelineSortKey(at, source string, id int64) string {
 	return at + "_" + source + "_" + strconv.FormatInt(1<<62+id, 10)
@@ -194,13 +222,9 @@ func readTimelineMUM(ctx context.Context, tx *sql.Tx, actor string, q activityRe
 	query := `SELECT h.id,h.server_id,h.service_uuid,h.media_type,h.title,h.parent_title,h.library_name,h.first_seen_at,h.client,h.play_method,h.position_ticks,h.duration_ticks,h.poster_path IS NOT NULL
 	 FROM media_activity_history h WHERE (h.first_seen_at<? OR h.first_seen_at=? AND ('m'<? OR ?='m' AND h.id<?))`
 	args := []any{c.At, c.At, c.Source, c.Source, c.ID}
-	predicate, targetArgs := activityTargetPredicate(q)
-	query += predicate
-	args = append(args, targetArgs...)
-	if !q.All {
-		query += ` AND ` + activityOwnHistory
-		args = append(args, actor, actor)
-	}
+	filter, filterArgs := mumPlayFilter(actor, q)
+	query += filter
+	args = append(args, filterArgs...)
 	rows, err := tx.QueryContext(ctx, query+` ORDER BY h.first_seen_at DESC,h.id DESC LIMIT ?`, append(args, timelinePageSize+1)...)
 	if err != nil {
 		return nil, err
@@ -283,14 +307,9 @@ func readTimelineImported(ctx context.Context, tx *sql.Tx, actor string, q activ
 		query += ` AND ms.service_type=?`
 		args = append(args, kind)
 	}
-	if q.Target != "" {
-		query += ` AND (s.uuid=? OR EXISTS(SELECT 1 FROM service_links l WHERE l.service_uuid=s.uuid AND l.user_uuid=? AND l.link_kind='owner'))`
-		args = append(args, q.Target, q.Target)
-	}
-	if !q.All {
-		query += ` AND EXISTS(SELECT 1 FROM service_links l WHERE l.service_uuid=s.uuid AND l.user_uuid=? AND l.link_kind='owner')`
-		args = append(args, actor)
-	}
+	filter, filterArgs := importedPlayFilter(actor, q)
+	query += filter
+	args = append(args, filterArgs...)
 	rows, err := tx.QueryContext(ctx, query+` ORDER BY i.viewed_at DESC,i.rowid DESC LIMIT ?`, append(args, timelinePageSize+1)...)
 	if err != nil {
 		return nil, err

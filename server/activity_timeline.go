@@ -242,10 +242,11 @@ func timelineSourceCode(source string) string {
 }
 
 // readTimelineSources are the importable services, in picker order, the
-// target has a current account on: its own, or those of the accounts it owns.
+// target has an account on: its own, or those of the accounts it owns. A
+// removed account counts too, because its history is kept and shown.
 func readTimelineSources(ctx context.Context, tx *sql.Tx, target string) ([]string, error) {
 	rows, err := tx.QueryContext(ctx, `SELECT DISTINCT ms.service_type FROM service_accounts sa JOIN media_servers ms ON ms.id=sa.server_id
-	 WHERE sa.removed_at IS NULL AND (sa.uuid=? OR EXISTS(SELECT 1 FROM service_links l WHERE l.service_uuid=sa.uuid AND l.user_uuid=? AND l.link_kind='owner'))`, target, target)
+	 WHERE (sa.uuid=? OR EXISTS(SELECT 1 FROM service_links l WHERE l.service_uuid=sa.uuid AND l.user_uuid=? AND l.link_kind='owner'))`, target, target)
 	if err != nil {
 		return nil, err
 	}

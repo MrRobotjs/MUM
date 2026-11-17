@@ -259,6 +259,13 @@ func TestIdentityTimelineServiceSources(t *testing.T) {
 	if timelineTitles(first)+"|"+timelineTitles(second) != "jellyfin:Jelly film|audiobookshelf:A Book" {
 		t.Fatal("paging", timelineTitles(first), timelineTitles(second))
 	}
+	// A removed account keeps its history, and its service stays in the picker.
+	activityExec(t, s, "UPDATE service_accounts SET removed_at=? WHERE external_user_id='jellyfin-user'", at)
+	timelinePageSize = 100
+	w = apiRequest(a, "GET", "/api/activity/identities/"+local+"/timeline?scope=all", token, nil, nil)
+	if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil || strings.Join(out.Data.Sources, ",") != "plex,jellyfin,audiobookshelf" || out.Data.Items[0].Source != "jellyfin" {
+		t.Fatal("removed account", err, out.Data.Sources)
+	}
 	if code, _ := readTimeline(t, a, token, local, url.Values{"scope": {"all"}, "source": {"kavita"}}); code != 400 {
 		t.Fatal("unknown source accepted", code)
 	}

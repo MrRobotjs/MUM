@@ -34,7 +34,7 @@ export function ProfileAccountLinks({user,refreshUser}:{user:UserDetail;refreshU
   const change=async(uuid:string,action:'link'|'unlink')=>{
     if(!page||context.running||context.controller.uncertain||!current())return;
     const account=(action==='link'?page.available_accounts:page.linked_accounts).find(a=>a.uuid===uuid);
-    if(!account||service&&(action!=='unlink'||uuid!==user.uuid))return;
+    if(!account)return;
     setModal(null);
     context.running=true;redraw(x=>x+1);
     try{
@@ -63,6 +63,7 @@ export function ProfileAccountLinks({user,refreshUser}:{user:UserDetail;refreshU
   if(!target)return null;
   const linked=page?.linked_accounts.find(a=>a.uuid===user.uuid);
   const owner=service?user.linked_local_user?.display_name||user.linked_local_user?.username||'the local account':user.display_name||user.username||'this profile';
+  const linkable=!!(page?.can_link&&!blocked);
   const asking=unlinking?.context===context?(page?.linked_accounts.find(a=>a.uuid===unlinking.uuid)??null):null;
   const status=<>
     {message&&<p className="text-sm text-muted-foreground" role="status">{message}</p>}
@@ -72,12 +73,12 @@ export function ProfileAccountLinks({user,refreshUser}:{user:UserDetail;refreshU
     {service?<><Card>
       <SettingHeader title="MUM profile" icon={<SettingIcon className="bg-primary/20 text-primary"><FontAwesomeIcon icon={faUser} /></SettingIcon>} summary={state.error?'Unavailable':!page?'Loading…':linked?(user.linked_local_user?.display_name??user.linked_local_user?.username??'Local account'):'Not linked'}
         info={<><p>The MUM profile that owns this service account. Unlinking changes ownership in MUM only; access on the server doesn't change.</p>{linked&&user.linked_local_user?.email&&<p>Email: {user.linked_local_user.email}</p>}</>}
-        action={linked&&page?.can_unlink&&<Button type="button" variant="outline" size="sm" disabled={blocked} onClick={()=>setUnlinking({context,uuid:user.uuid})}>{context.running?'Unlinking…':'Unlink'}</Button>}/>
+/>
       {(message||context.controller.uncertain||state.error)&&<CardContent className="space-y-3">{state.error&&<p className="text-sm text-destructive">Current ownership is unavailable.</p>}{status}</CardContent>}
     </Card>
-    {linked&&<ServiceAccountsCard accounts={page?.linked_accounts??[]} currentUuid={user.uuid} title="Linked service accounts" description="Every media server account owned by the same MUM profile, including this one. Open the profile to change the others."/>}
-    </>:<ServiceAccountsCard accounts={page?.linked_accounts??[]} loading={!state.error&&!page} error={state.error} onLink={page?.can_link&&page.available_accounts.length&&!blocked?()=>setModal(context):undefined} onUnlink={page?.can_unlink&&!blocked?uuid=>setUnlinking({context,uuid}):undefined}>{(message||context.controller.uncertain)&&status}</ServiceAccountsCard>}
-    {!service&&<ServiceAccountLinkModal key={`${actor}:${target}`} open={modal===context&&!blocked&&!!page?.can_link} onClose={()=>setModal(null)} accounts={page?.available_accounts??[]} loading={!page&&!state.error} error={state.error} onSubmit={uuid=>change(uuid,'link')}/>}
+    {linked&&<ServiceAccountsCard accounts={page?.linked_accounts??[]} currentUuid={user.uuid} title="Linked service accounts" description="Every media server account owned by the same MUM profile, including this one. Linking or unlinking changes which MUM profile owns the account; it doesn't change access on the server." onLink={linkable?()=>setModal(context):undefined} onUnlink={page?.can_unlink&&!blocked?uuid=>setUnlinking({context,uuid}):undefined}/>}
+    </>:<ServiceAccountsCard accounts={page?.linked_accounts??[]} loading={!state.error&&!page} error={state.error} onLink={linkable?()=>setModal(context):undefined} onUnlink={page?.can_unlink&&!blocked?uuid=>setUnlinking({context,uuid}):undefined}>{(message||context.controller.uncertain)&&status}</ServiceAccountsCard>}
+    <ServiceAccountLinkModal key={`${actor}:${target}`} open={modal===context&&!blocked&&!!page?.can_link} onClose={()=>setModal(null)} accounts={page?.available_accounts??[]} loading={!page&&!state.error} error={state.error} ownerName={owner} onSubmit={uuid=>change(uuid,'link')}/>
     <ConfirmAction open={asking!==null} onOpenChange={value=>{if(!value)setUnlinking(null);}} title={`Unlink ${asking?.external_username||'this service account'}?`} confirmLabel="Unlink" destructive busy={context.running} onConfirm={()=>{if(asking)void change(asking.uuid,'unlink');}}>
       It will no longer be owned by {owner}. This changes ownership in MUM only; access on the server doesn't change.
     </ConfirmAction>

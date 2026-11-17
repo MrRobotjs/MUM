@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"net/http"
@@ -24,9 +25,12 @@ import (
 // each period says how many of its plays have time. Counts are decimal
 // strings, as elsewhere.
 
+// A player is an app; Platform is the platform most of its plays reported
+// (Plex only), for the logo. Device names stay private.
 type playerPlays struct {
-	Client string `json:"client"`
-	Plays  string `json:"plays"`
+	Client   string  `json:"client"`
+	Platform *string `json:"platform"`
+	Plays    string  `json:"plays"`
 }
 
 type playPeriod struct {
@@ -199,20 +203,45 @@ func queryPlayTotals(ctx context.Context, tx *sql.Tx, actor string, q activityRe
 	if !withMUM {
 		return out, nil
 	}
-	rows, err := tx.QueryContext(ctx, `SELECT h.client,count(*) AS plays FROM media_activity_history h WHERE h.client IS NOT NULL`+mumFilter+
-		` GROUP BY h.client ORDER BY plays DESC,h.client LIMIT ?`, append(mumArgs, playTotalsPlayers)...)
+	// Plays per app and platform; each app keeps its most used platform (a tie
+	// goes to the first name) and the apps are ranked by all their plays.
+	rows, err := tx.QueryContext(ctx, `SELECT h.client,h.platform,count(*) FROM media_activity_history h WHERE h.client IS NOT NULL`+mumFilter+
+		` GROUP BY h.client,h.platform ORDER BY h.client,h.platform`, mumArgs...)
 	if err != nil {
 		return identityPlayTotals{}, err
 	}
 	defer rows.Close()
+	type app struct {
+		client, platform string
+		plays, best      int64
+	}
+	var apps []app
 	for rows.Next() {
-		var player playerPlays
+		var client string
+		var platform sql.NullString
 		var plays int64
-		if err := rows.Scan(&player.Client, &plays); err != nil {
+		if err := rows.Scan(&client, &platform, &plays); err != nil {
 			return identityPlayTotals{}, err
 		}
-		player.Plays = strconv.FormatInt(plays, 10)
+		if len(apps) == 0 || apps[len(apps)-1].client != client {
+			apps = append(apps, app{client: client})
+		}
+		last := &apps[len(apps)-1]
+		last.plays += plays
+		if platform.Valid && plays > last.best {
+			last.platform, last.best = platform.String, plays
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return identityPlayTotals{}, err
+	}
+	slices.SortStableFunc(apps, func(x, y app) int { return cmp.Compare(y.plays, x.plays) })
+	for _, a := range apps[:min(len(apps), playTotalsPlayers)] {
+		player := playerPlays{Client: a.client, Plays: strconv.FormatInt(a.plays, 10)}
+		if a.platform != "" {
+			player.Platform = &a.platform
+		}
 		out.Players = append(out.Players, player)
 	}
-	return out, rows.Err()
+	return out, nil
 }

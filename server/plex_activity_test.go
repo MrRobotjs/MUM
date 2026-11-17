@@ -16,7 +16,11 @@ const plexPlaying = `<MediaContainer size="1"><Video sessionKey="10" ratingKey="
 
 func TestPlexActivityParser(t *testing.T) {
 	s, err := parseActivitySnapshot("plex", []byte(plexPlaying))
-	if err != nil || len(s.Sessions) != 1 || *s.Sessions[0].Position != 20000000 || s.Sessions[0].User != "42" {
+	if err != nil || len(s.Sessions) != 1 || *s.Sessions[0].Position != 20000000 || s.Sessions[0].User != "42" || s.Sessions[0].Platform != "" {
+		t.Fatal(s, err)
+	}
+	// The player's platform, for the Profile tab's player logos.
+	if s, err := parseActivitySnapshot("plex", []byte(strings.Replace(plexPlaying, `product="Plex Web"`, `product="Plex Web" platform=" Chrome "`, 1))); err != nil || s.Sessions[0].Platform != "Chrome" {
 		t.Fatal(s, err)
 	}
 	for _, body := range []string{`<MediaContainer/>`, strings.Replace(plexPlaying, `size="1"`, `size="2"`, 1), strings.Replace(plexPlaying, `id="42"`, `id="42" id="43"`, 1), strings.Replace(plexPlaying, `state="playing"`, `state="broken"`, 1)} {

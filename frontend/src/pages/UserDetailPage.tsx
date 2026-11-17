@@ -1,5 +1,5 @@
 import { useAccountDisplay } from '../hooks/useAccountDisplay';
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 import { useLocation, useNavigate, useParams, useSearch } from '@tanstack/react-router';
 import { useAlerts } from '../contexts/AlertContext';
@@ -14,6 +14,7 @@ import { useServers } from '../hooks/useServers';
 import { useUserUuidBySlug } from '../hooks/useUserUuidBySlug';
 import {useIdentityPlayTotals} from '../hooks/useIdentityPlayTotals';
 import {nowPlaying,watchTime,type PlayPeriod} from '../lib/identityPlayTotals';
+import {playerLogo} from '../lib/playerPlatforms';
 import {Progress} from '@/components/ui/progress';
 import { requestJson } from '../util/apiClient';
 import {
@@ -377,7 +378,7 @@ const ProfileTab = ({ user,target }: { user: UserDetail;target:string }) => {
 
         <Card>
           <CardHeading icon={faTv} title="Players" description="The apps they play on, most used first.">
-            <SettingInfo title="Players"><p>The apps MUM saw this person play on, most used first. Imported plays don’t say which app was used, so only plays MUM recorded count here.</p></SettingInfo>
+            <SettingInfo title="Players"><p>The apps MUM saw this person play on, most used first. Imported plays don’t say which app was used, so only plays MUM recorded count here.</p><p>The logo shows the platform Plex reports, such as Android or Roku. Jellyfin and Emby don’t report one, so MUM goes by the app’s name.</p></SettingInfo>
           </CardHeading>
           <CardContent>
             {!totals ? (
@@ -393,12 +394,16 @@ const ProfileTab = ({ user,target }: { user: UserDetail;target:string }) => {
               <div className="space-y-3">
                 {totals.players.map(p => {
                   const share=Number(BigInt(p.plays)*1000n/(BigInt(totals.periods[3].timed_plays)||1n))/10;
-                  return <div key={p.client}>
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="font-medium truncate" title={p.client}>{p.client}</span>
-                      <span className="text-muted-foreground">{count(p.plays)} {p.plays==='1'?'play':'plays'}</span>
+                  const logo=playerLogo(p.platform,p.client);
+                  return <div key={p.client} className="flex items-center gap-3">
+                    <span className="account-player-logo" style={{'--logo':logo.color} as CSSProperties} role="img" aria-label={logo.name} title={logo.name}><FontAwesomeIcon icon={logo.icon}/></span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="font-medium truncate" title={p.client}>{p.client}</span>
+                        <span className="text-muted-foreground">{count(p.plays)} {p.plays==='1'?'play':'plays'}</span>
+                      </div>
+                      <Progress value={Math.min(share,100)} className="mt-2" aria-label={`${p.client}: share of plays`} />
                     </div>
-                    <Progress value={Math.min(share,100)} className="mt-2" aria-label={`${p.client}: share of plays`} />
                   </div>;
                 })}
               </div>

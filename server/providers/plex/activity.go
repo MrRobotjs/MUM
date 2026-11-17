@@ -122,9 +122,10 @@ func ParseActivity(body []byte) (provider.ActivitySnapshot, error) {
 				Name string `xml:"title,attr"`
 			} `xml:"User"`
 			Players []struct {
-				State   string `xml:"state,attr"`
-				Product string `xml:"product,attr"`
-				Title   string `xml:"title,attr"`
+				State    string `xml:"state,attr"`
+				Product  string `xml:"product,attr"`
+				Title    string `xml:"title,attr"`
+				Platform string `xml:"platform,attr"`
 			} `xml:"Player"`
 		} `xml:",any"`
 	}
@@ -146,7 +147,7 @@ func ParseActivity(body []byte) (provider.ActivitySnapshot, error) {
 		if player.State != "playing" && player.State != "paused" && player.State != "buffering" {
 			return result, bad
 		}
-		session := provider.ActivitySession{Session: row.Session, User: row.Users[0].ID, UserName: provider.TruncateRunes(row.Users[0].Name, 128), Item: row.Item, Kind: kinds[row.Kind], Title: row.Title, Paused: player.State == "paused", Parent: row.Parent, ParentTitle: row.ParentTitle, Client: provider.TruncateRunes(player.Product, 128), Device: provider.TruncateRunes(player.Title, 256)}
+		session := provider.ActivitySession{Session: row.Session, User: row.Users[0].ID, UserName: provider.TruncateRunes(row.Users[0].Name, 128), Item: row.Item, Kind: kinds[row.Kind], Title: row.Title, Paused: player.State == "paused", Parent: row.Parent, ParentTitle: row.ParentTitle, Client: provider.TruncateRunes(player.Product, 128), Device: provider.TruncateRunes(player.Title, 256), Platform: provider.TruncateRunes(strings.TrimSpace(player.Platform), 64)}
 		session.Display = displays[index]
 		if session.Display.Stream != "" && session.Display.Stream != "Unknown" {
 			session.PlayMethod = provider.PlayMethods[strings.ReplaceAll(session.Display.Stream, " ", "")]

@@ -27,6 +27,24 @@
   justify-content: center;
   border-radius: 9999px;
 }
+/* Player logos on the user profile's Players card: the brand colour (--logo),
+   soft behind the icon. Dark mode lightens the icon so dark brands stay readable. */
+.account-player-logo {
+  display: inline-flex;
+  width: 2.5rem;
+  height: 2.5rem;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border-radius: .5rem;
+  font-size: 1.125rem;
+  color: var(--logo);
+  background-color: color-mix(in srgb, var(--logo) 15%, transparent);
+}
+[data-theme=dark] .account-player-logo {
+  color: color-mix(in srgb, var(--logo) 70%, white);
+  background-color: color-mix(in srgb, var(--logo) 22%, transparent);
+}
 .account-info {
   display: inline-flex;
   width: 1.5rem;

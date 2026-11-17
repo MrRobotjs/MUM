@@ -10,7 +10,8 @@ import type { TimelineSource } from './identityTimeline';
 // Watched time comes only from MUM's plays, so each period says how many of
 // its plays have time.
 
-export type PlayerPlays = Readonly<{ client: string; plays: string }>;
+// platform is the one most of the app's plays reported (Plex only), for its logo.
+export type PlayerPlays = Readonly<{ client: string; platform: string | null; plays: string }>;
 export type PlayPeriod = Readonly<{ period: 'day' | 'week' | 'month' | 'all'; plays: string; timed_plays: string; seconds: string }>;
 export type LastPlay = Readonly<{ source: 'mum' | HistoryService; media_type: string; title: string; parent_title: string | null; played_at: string; poster_url?: string }>;
 export type IdentityPlayTotals = Readonly<{
@@ -25,7 +26,8 @@ const service = (v: unknown): v is HistoryService => historyServices.includes(v 
 const periodNames = ['day', 'week', 'month', 'all'];
 const player = (v: unknown) => {
   const p = v as Record<string, unknown> | null;
-  return !!p && typeof p.client === 'string' && p.client !== '' && count(p.plays) && p.plays !== '0';
+  return !!p && typeof p.client === 'string' && p.client !== '' && (p.platform === null || typeof p.platform === 'string' && p.platform !== '' && [...p.platform].length <= 64) &&
+    count(p.plays) && p.plays !== '0';
 };
 // Periods come in order and each holds the one before it.
 const periodsValid = (v: unknown): v is PlayPeriod[] => Array.isArray(v) && v.length === 4 && v.every((p, i) => {
@@ -56,7 +58,7 @@ export async function fetchIdentityPlayTotals(actor: string, target: string, sco
   return Object.freeze({ actor_uuid: actor, scope, target_uuid: target, source, sources: Object.freeze([...data.sources as HistoryService[]]),
     imported_plays: data.imported_plays, periods: Object.freeze(data.periods.map(p => Object.freeze({ period: p.period, plays: p.plays, timed_plays: p.timed_plays, seconds: p.seconds }))),
     last_play: data.last_play ? Object.freeze({ ...data.last_play }) : null,
-    players: Object.freeze((data.players as PlayerPlays[]).map(p => Object.freeze({ client: p.client, plays: p.plays }))) });
+    players: Object.freeze((data.players as PlayerPlays[]).map(p => Object.freeze({ client: p.client, platform: p.platform, plays: p.plays }))) });
 }
 
 // watchTime splits seconds into Tautulli's parts: days, hours and minutes,

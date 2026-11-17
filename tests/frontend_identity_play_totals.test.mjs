@@ -10,7 +10,7 @@ const periods = () => [['day', '0', '0', '0'], ['week', '19', '19', '10620'], ['
   .map(([period, plays, timed_plays, seconds]) => ({ period, plays, timed_plays, seconds }));
 const totals = (source = 'all') => ({ actor_uuid: actor, scope: 'all', target_uuid: target, source, sources: ['plex', 'jellyfin'], imported_plays: '9007199254738948', periods: periods(),
   last_play: { source: 'plex', media_type: 'episode', title: 'Pilot', parent_title: 'A Show', played_at: '2026-11-01T04:00:00.000000000Z', poster_url: '/api/activity/imported-history-images/4?x=1' },
-  players: [{ client: 'Infuse', plays: '2' }, { client: 'Plex Web', plays: '1' }] });
+  players: [{ client: 'Infuse', platform: null, plays: '2' }, { client: 'Plex Web', platform: 'Chrome', plays: '1' }] });
 
 test('play totals adapter', async t => {
   const before = { fetch: globalThis.fetch, window: globalThis.window };
@@ -27,6 +27,7 @@ test('play totals adapter', async t => {
     assert.equal(p.periods[3].plays, '9007199254740993');
     assert.deepEqual(p.sources, ['plex', 'jellyfin']);
     assert.equal(p.last_play.title, 'Pilot');
+    assert.deepEqual(p.players.map(x => x.platform), [null, 'Chrome']);
     globalThis.fetch = async () => Response.json({ data: { ...totals(), last_play: null, players: [] } });
     assert.equal((await m.fetchIdentityPlayTotals(actor, target, 'all', 'all')).last_play, null);
   });
@@ -36,7 +37,8 @@ test('play totals adapter', async t => {
       { periods: periods().slice(0, 3) }, { periods: periods().map(p => p.period === 'week' ? { ...p, timed_plays: '20' } : p) },
       { periods: periods().map(p => p.period === 'week' ? { ...p, period: 'month' } : p) }, { periods: periods().map(p => p.period === 'all' ? { ...p, plays: '21' } : p) },
       { last_play: { ...totals().last_play, played_at: 'yesterday' } }, { last_play: { ...totals().last_play, source: 'kodi' } },
-      { last_play: { ...totals().last_play, poster_url: 'https://evil.example/x' } }, { players: [{ client: '', plays: '1' }] }, { players: [{ client: 'A', plays: '0' }] }, { players: null }];
+      { last_play: { ...totals().last_play, poster_url: 'https://evil.example/x' } }, { players: [{ client: '', platform: null, plays: '1' }] }, { players: [{ client: 'A', platform: null, plays: '0' }] }, { players: null },
+      { players: [{ client: 'A', plays: '1' }] }, { players: [{ client: 'A', platform: '', plays: '1' }] }, { players: [{ client: 'A', platform: 'x'.repeat(65), plays: '1' }] }];
     for (const change of bad) {
       const m = await load(); m.setAccessToken('session');
       globalThis.fetch = async () => Response.json({ data: { ...totals(), ...change } });

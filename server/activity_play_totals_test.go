@@ -32,8 +32,9 @@ type playTotalsTestPage struct {
 		Poster      string  `json:"poster_url"`
 	} `json:"last_play"`
 	Players []struct {
-		Client string `json:"client"`
-		Plays  string `json:"plays"`
+		Client   string  `json:"client"`
+		Platform *string `json:"platform"`
+		Plays    string  `json:"plays"`
 	} `json:"players"`
 }
 
@@ -67,7 +68,7 @@ func playTotalsFixture(t *testing.T) (*App, string, string, string) {
 	now := time.Now().UTC()
 	ago := func(d time.Duration) string { return utcTimestamp(now.Add(-d)) }
 	activityExec(t, s, `UPDATE media_activity_history SET first_seen_at=?,last_seen_at=?,paused_seconds=600,client='Infuse' WHERE title='MUM one'`, ago(2*time.Hour), ago(time.Hour))
-	activityExec(t, s, `UPDATE media_activity_history SET first_seen_at=?,last_seen_at=?,paused_seconds=NULL,duration_ticks=36000000000 WHERE title='MUM three'`, ago(72*time.Hour), ago(70*time.Hour))
+	activityExec(t, s, `UPDATE media_activity_history SET first_seen_at=?,last_seen_at=?,paused_seconds=NULL,duration_ticks=36000000000,platform='Chrome' WHERE title='MUM three'`, ago(72*time.Hour), ago(70*time.Hour))
 	for title, d := range map[string]time.Duration{"Plex four": 12 * time.Hour, "Plex two": 240 * time.Hour, "Plex three": 960 * time.Hour} {
 		activityExec(t, s, `UPDATE history_imports SET viewed_at=? WHERE title=?`, ago(d), title)
 	}
@@ -90,7 +91,7 @@ func TestIdentityPlayTotalsPeriods(t *testing.T) {
 		if p.Imported != "3" || p.Last == nil || p.Last.Source != "mum" || p.Last.Title != "MUM one" {
 			t.Fatalf("%s imported/last %+v", c.scope, p)
 		}
-		if len(p.Players) != 2 || p.Players[0].Client != "Infuse" || p.Players[1].Client != "Plex Web" {
+		if len(p.Players) != 2 || p.Players[0].Client != "Infuse" || p.Players[0].Platform != nil || p.Players[1].Client != "Plex Web" || p.Players[1].Platform == nil || *p.Players[1].Platform != "Chrome" {
 			t.Fatalf("%s players %+v", c.scope, p.Players)
 		}
 	}
@@ -128,6 +129,30 @@ func TestIdentityPlayTotalsEmptyAndAuthority(t *testing.T) {
 		if code, _ := readPlayTotals(t, a, token, local, bad); code != 400 {
 			t.Fatal("bad query accepted", bad, code)
 		}
+	}
+}
+
+// Each app carries the platform most of its plays reported, as Plex sends it
+// (a tie goes to the first name), and apps are counted across platforms before the most used are kept.
+func TestIdentityPlayTotalsPlayerPlatforms(t *testing.T) {
+	a, token, _, local := playTotalsFixture(t)
+	var id int64
+	if err := a.store.reader.QueryRow(`SELECT id FROM media_activity_history WHERE title='MUM three'`).Scan(&id); err != nil {
+		t.Fatal(err)
+	}
+	// Two more Plex Web plays: one on Android, one with no platform.
+	for i, platform := range []any{"Android", nil} {
+		activityExec(t, a.store, `INSERT INTO media_activity_history(server_id,external_session_id,service_uuid,owner_uuid,item_id,media_type,title,first_seen_at,last_seen_at,paused,client,platform)
+			SELECT server_id,external_session_id||?,service_uuid,owner_uuid,item_id,media_type,title,first_seen_at,last_seen_at,0,client,? FROM media_activity_history WHERE id=?`, "-extra"+string(rune('a'+i)), platform, id)
+	}
+	_, p := readPlayTotals(t, a, token, local, "?scope=all&source=mum")
+	if len(p.Players) != 2 || p.Players[0].Client != "Plex Web" || p.Players[0].Plays != "3" || p.Players[0].Platform == nil || *p.Players[0].Platform != "Android" {
+		t.Fatalf("a tie goes to the first name %+v", p.Players)
+	}
+	// Chrome now has more Plex Web plays than Android.
+	activityExec(t, a.store, `UPDATE media_activity_history SET platform='Chrome' WHERE client='Plex Web' AND platform IS NULL`)
+	if _, p = readPlayTotals(t, a, token, local, "?scope=all&source=mum"); *p.Players[0].Platform != "Chrome" {
+		t.Fatalf("players %+v", p.Players)
 	}
 }
 

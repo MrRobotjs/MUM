@@ -38,6 +38,10 @@ type ActivitySession struct {
 	// Empty means unknown. Device names stay private: only classified
 	// buckets leave MUM's store.
 	Client, Device, PlayMethod string
+	// Platform is the player's platform as Plex reports it ("Android",
+	// "Roku", "tvOS", "Chrome"), for the Profile tab's player logos. Other
+	// services report none, so it stays empty for them.
+	Platform string
 	// Transcode4K is true only when the server reports that it is transcoding
 	// the video of a 4K source. Unknown counts as false, so a stream is never
 	// stopped on a guess.

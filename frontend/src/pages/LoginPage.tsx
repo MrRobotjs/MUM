@@ -7,6 +7,8 @@ import { requestJson, ApiError } from '../util/apiClient';
 import { setAccessToken } from '../util/tokenStore';
 import { checkPlexSignIn, startPlexSignIn } from '../lib/plexSignIn';
 import { checkQuickConnect, serviceSignIn, startQuickConnect } from '../lib/serviceSignIn';
+import { discordOutcome, startDiscordSignIn } from '../lib/discordSignIn';
+import { faDiscord } from '@fortawesome/free-brands-svg-icons';
 import { useSignInMethods } from '../hooks/useSignInMethods';
 import { getServiceIcon, getServiceMeta } from '../config/pluginMetadata';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
@@ -59,15 +61,19 @@ const LoginPage = () => {
   const methods = useSignInMethods();
   const targetServer = methods.servers.find((server) => String(server.id) === target);
   const plexChosen = methods.plex && target === 'plex';
+  // Sign in with Discord: the account must have linked that Discord account.
+  const discordChosen = Boolean(methods.discord) && target === 'discord';
+  const [discordLoading, setDiscordLoading] = useState(false);
   // A Quick Connect code waiting for approval in a Jellyfin app.
   const [quickConnect, setQuickConnect] = useState<{ code: string } | null>(null);
   const quickConnectOffered = targetServer?.type === 'jellyfin';
-  const showPicker = methods.plex || (methods.serviceSignIn && methods.servers.length > 0);
+  const showPicker = methods.plex || Boolean(methods.discord) || (methods.serviceSignIn && methods.servers.length > 0);
 
   // Prefer ?next= query, then location.state.from, else dashboard
-  const search = useSearch({ strict: false }) as { next?: string; error?: string };
+  const search = useSearch({ strict: false }) as { next?: string; error?: string; discord?: string };
   const nextParam = search.next;
   const errorParam = search.error;
+  const discordParam = search.discord;
   const locationStateFrom = (location.state as LocationState | undefined)?.from;
   // Ignore location.state.from if it's the login page itself (avoid redirect loop)
   const validLocationFrom = locationStateFrom && safeNextPath(locationStateFrom) !== null && locationStateFrom !== LOGIN_PATH ? locationStateFrom : null;
@@ -90,6 +96,29 @@ const LoginPage = () => {
       navigate({ from: LOGIN_PATH, search: (prev) => ({ ...prev, error: undefined }), replace: true });
     }
   }, [errorParam, navigate]);
+
+  // Discord returns here with an outcome; a successful sign-in is completed by
+  // the refresh cookie it set, so only failures need a message.
+  useEffect(() => {
+    if (!discordParam) return;
+    const outcome = discordOutcome('login', discordParam);
+    if (outcome) setError(outcome.message);
+    navigate({ from: LOGIN_PATH, search: (prev) => ({ ...prev, discord: undefined }), replace: true });
+  }, [discordParam, navigate]);
+
+  // Sign in with Discord: the browser goes to Discord and comes back here.
+  const handleDiscord = async () => {
+    if (discordLoading) return;
+    ++loginAttempt.current;
+    setError(null);
+    setDiscordLoading(true);
+    try {
+      window.location.assign(await startDiscordSignIn(rememberMe));
+    } catch (err) {
+      setError(err instanceof Error && err.message ? err.message : 'Discord sign-in failed. Try again.');
+      setDiscordLoading(false);
+    }
+  };
 
   useEffect(() => {
     try {
@@ -386,7 +415,7 @@ const LoginPage = () => {
                         <FontAwesomeIcon icon={faServer} className="text-muted-foreground text-sm" />
                         <span>Sign in using</span>
                       </Label>
-                      <Select value={plexChosen ? 'plex' : targetServer ? target : 'mum'} onValueChange={chooseTarget}>
+                      <Select value={plexChosen ? 'plex' : discordChosen ? 'discord' : targetServer ? target : 'mum'} onValueChange={chooseTarget}>
                         <SelectTrigger id="sign-in-target" className="w-full">
                           <SelectValue />
                         </SelectTrigger>
@@ -399,6 +428,12 @@ const LoginPage = () => {
                             <SelectItem value="plex">
                               {getServiceIcon('plex')}
                               <span>Plex <span className="text-muted-foreground">(Plex account)</span></span>
+                            </SelectItem>
+                          )}
+                          {methods.discord && (
+                            <SelectItem value="discord">
+                              <FontAwesomeIcon icon={faDiscord} className="text-indigo-500" />
+                              <span>Discord <span className="text-muted-foreground">(linked Discord account)</span></span>
                             </SelectItem>
                           )}
                           {methods.servers.map((server) => (
@@ -418,7 +453,7 @@ const LoginPage = () => {
                       <p id="quick-connect-code" className="font-mono text-3xl font-semibold tracking-widest text-foreground">{quickConnect.code}</p>
                       <p className="flex items-center justify-center gap-2 text-xs text-muted-foreground"><Spinner className="h-4 w-4" />Waiting for approval...</p>
                     </div>
-                  ) : !plexChosen && (<>
+                  ) : !plexChosen && !discordChosen && (<>
                   {/* Username Field */}
                   <div className="space-y-2">
                     <Label htmlFor="username" className="flex items-center gap-2">
@@ -470,7 +505,29 @@ const LoginPage = () => {
 
                   {quickConnect ? (
                   <Button type="button" variant="ghost" className="w-full" onClick={cancelQuickConnect}>Cancel</Button>
-                  ) : plexChosen ? (<>
+                  ) : discordChosen ? (<>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleDiscord}
+                    title="Sign in with your linked Discord account"
+                    className="w-full text-lg h-12 hover:-translate-y-0.5 hover:shadow-lg transition-all duration-200 ease-in-out"
+                    disabled={discordLoading || submitting}
+                  >
+                    {discordLoading ? (
+                      <>
+                        <Spinner className="h-4 w-4 mr-2" />
+                        Connecting...
+                      </>
+                    ) : (
+                      <>
+                        <FontAwesomeIcon icon={faDiscord} className="mr-2 text-indigo-500" />
+                        Sign in with Discord
+                      </>
+                    )}
+                  </Button>
+                  <p className="text-xs text-muted-foreground text-center">Link your Discord account first under Account → Credentials.</p>
+                  </>) : plexChosen ? (<>
                   {/* Plex SSO Button */}
                   <Button
                     type="button"

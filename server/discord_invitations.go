@@ -269,6 +269,10 @@ func (a *App) readDiscordIdentity(ctx context.Context, s discordSettings, redire
 // discordCallback completes one browser-bound proof. Every outcome redirects
 // back to the wizard; no Discord response text is shown.
 func (a *App) discordCallback(w http.ResponseWriter, r *http.Request) {
+	// The same address completes linking and sign-in attempts.
+	if a.discordAuthCallback(w, r) {
+		return
+	}
 	w.Header().Set("Cache-Control", "no-store")
 	back := func(path string) { http.Redirect(w, r, path, http.StatusSeeOther) }
 	query := r.URL.Query()

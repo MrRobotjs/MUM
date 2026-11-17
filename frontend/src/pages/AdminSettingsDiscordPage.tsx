@@ -17,6 +17,7 @@ import { useDiscordSettings, type DiscordSettings } from '../hooks/useSettings'
 import { PageHeader } from '../components'
 import { requestJson } from '../util/apiClient'
 import { useAlerts } from '../contexts'
+import { discordRedirectHint, discordSettingsPayload, type DiscordSettingsValues } from '../lib/discordSignIn'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -25,104 +26,48 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Switch } from '@/components/ui/switch'
 import { Spinner } from '@/components/ui/spinner'
 
-type DiscordFormValues = {
-  enable_oauth: boolean
-  enable_bot: boolean
-  enable_membership_requirement: boolean
-  default_require_discord_auth: boolean
-  default_require_discord_guild_membership: boolean
-  client_id: string
-  client_secret: string
-  oauth_auth_url: string
-  guild_id: string
-  server_invite_url: string
-  bot_token: string
-  monitored_role_id: string
-  thread_channel_id: string
-  bot_log_channel_id: string
-  whitelist_sharers: boolean
-}
+// Discord settings (DISCORD_SIGN_IN_DESIGN.md): the client ID and secret,
+// the one redirect address to add in Discord, the optional Discord server
+// (found from its invite link), defaults for new invites and Sign in with
+// Discord. The bot is not available yet.
 
 type DiscordFormMeta = {
   revision: number
   client_secret_set: boolean
-  bot_token_set: boolean
-  redirect_uri_invite: string
-  redirect_uri_admin: string
-}
-
-const emptyFormValues: DiscordFormValues = {
-  enable_oauth: false,
-  enable_bot: false,
-  enable_membership_requirement: false,
-  default_require_discord_auth: false,
-  default_require_discord_guild_membership: false,
-  client_id: '',
-  client_secret: '',
-  oauth_auth_url: '',
-  guild_id: '',
-  server_invite_url: '',
-  bot_token: '',
-  monitored_role_id: '',
-  thread_channel_id: '',
-  bot_log_channel_id: '',
-  whitelist_sharers: false,
-}
-
-const emptyFormMeta: DiscordFormMeta = {
-  revision: 0,
-  client_secret_set: false,
-  bot_token_set: false,
-  redirect_uri_invite: '',
-  redirect_uri_admin: '',
+  redirect_uri: string
+  redirect_problem: string | null
+  guild_id: string
+  guild_name: string
+  verified: boolean
 }
 
 type DiscordFormState = {
-  values: DiscordFormValues
+  values: DiscordSettingsValues
   meta: DiscordFormMeta
-  useOauthOverride: boolean
 }
 
-const buildDiscordFormState = (settings: DiscordSettings | null): DiscordFormState => {
-  if (!settings) {
-    return {
-      values: emptyFormValues,
-      meta: emptyFormMeta,
-      useOauthOverride: false,
-    }
-  }
-
-  const defaultRequireGuild = settings.default_require_discord_guild_membership
-  const defaultRequireAuth = settings.default_require_discord_auth || defaultRequireGuild
-
-  return {
-    values: {
-      enable_oauth: settings.enable_oauth,
-      enable_bot: settings.enable_bot,
-      enable_membership_requirement: settings.enable_membership_requirement,
-      default_require_discord_auth: defaultRequireAuth,
-      default_require_discord_guild_membership: defaultRequireGuild,
-      client_id: settings.client_id ?? '',
-      client_secret: '',
-      oauth_auth_url: settings.oauth_auth_url ?? '',
-      guild_id: settings.guild_id ?? '',
-      server_invite_url: settings.server_invite_url ?? '',
-      bot_token: '',
-      monitored_role_id: settings.monitored_role_id ?? '',
-      thread_channel_id: settings.thread_channel_id ?? '',
-      bot_log_channel_id: settings.bot_log_channel_id ?? '',
-      whitelist_sharers: settings.whitelist_sharers,
-    },
-    meta: {
-      revision: settings.revision,
-      client_secret_set: settings.client_secret_set,
-      bot_token_set: settings.bot_token_set,
-      redirect_uri_invite: settings.redirect_uri_invite ?? '',
-      redirect_uri_admin: settings.redirect_uri_admin ?? '',
-    },
-    useOauthOverride: Boolean(settings.oauth_auth_url),
-  }
-}
+const buildDiscordFormState = (settings: DiscordSettings | null): DiscordFormState => ({
+  values: {
+    enable_oauth: settings?.enable_oauth ?? false,
+    client_id: settings?.client_id ?? '',
+    client_secret: '',
+    server_invite_url: settings?.server_invite_url ?? '',
+    guild_id: settings?.server_invite_url ? '' : settings?.guild_id ?? '',
+    default_require_discord_auth: settings?.default_require_discord_auth ?? false,
+    default_require_discord_guild_membership: settings?.default_require_discord_guild_membership ?? false,
+    sign_in_enabled: settings?.sign_in_enabled ?? false,
+    sign_in_admins: settings?.sign_in_admins ?? false,
+  },
+  meta: {
+    revision: settings?.revision ?? 0,
+    client_secret_set: settings?.client_secret_set ?? false,
+    redirect_uri: settings?.redirect_uri_invite ?? '',
+    redirect_problem: settings?.redirect_problem ?? null,
+    guild_id: settings?.guild_id ?? '',
+    guild_name: settings?.guild_name ?? '',
+    verified: Boolean(settings?.verified_at),
+  },
+})
 
 type DiscordSettingsFormProps = {
   initialState: DiscordFormState
@@ -131,44 +76,26 @@ type DiscordSettingsFormProps = {
 
 const DiscordSettingsForm = ({ initialState, refresh }: DiscordSettingsFormProps) => {
   const { success, error: showError } = useAlerts()
-  const [formValues, setFormValues] = useState<DiscordFormValues>(() => initialState.values)
+  const [formValues, setFormValues] = useState<DiscordSettingsValues>(() => initialState.values)
   const formMeta = initialState.meta
   const [submitting, setSubmitting] = useState(false)
   const [testing, setTesting] = useState(false)
   const [hasChanges, setHasChanges] = useState(false)
-  const [useOauthOverride, setUseOauthOverride] = useState(() => initialState.useOauthOverride)
 
-  const handleChange = (field: keyof DiscordFormValues, value: string) => {
+  const handleChange = (field: 'client_id' | 'client_secret' | 'server_invite_url' | 'guild_id', value: string) => {
     setFormValues((prev) => ({ ...prev, [field]: value }))
     setHasChanges(true)
   }
 
   const handleToggle = (
-    field: 'enable_oauth' | 'enable_bot' | 'enable_membership_requirement' | 'whitelist_sharers' | 'default_require_discord_auth' | 'default_require_discord_guild_membership',
+    field: 'enable_oauth' | 'default_require_discord_auth' | 'default_require_discord_guild_membership' | 'sign_in_enabled' | 'sign_in_admins',
     value: boolean
   ) => {
     setFormValues((prev) => {
       const next = { ...prev, [field]: value }
-      if (field === 'enable_oauth' && !value) {
-        next.enable_bot = false
-        next.enable_membership_requirement = false
-        next.default_require_discord_auth = false
-        next.default_require_discord_guild_membership = false
-        return next
-      }
-      if (field === 'default_require_discord_guild_membership' && value) {
-        next.default_require_discord_auth = true
-      }
-      if (field === 'default_require_discord_auth' && !value) {
-        next.default_require_discord_guild_membership = false
-        next.enable_membership_requirement = false
-      }
-      if (
-        (next.enable_bot || next.enable_membership_requirement || next.default_require_discord_auth || next.default_require_discord_guild_membership)
-        && !next.enable_oauth
-      ) {
-        next.enable_oauth = true
-      }
+      if (field === 'default_require_discord_guild_membership' && value) next.default_require_discord_auth = true
+      if (field === 'default_require_discord_auth' && !value) next.default_require_discord_guild_membership = false
+      if (field === 'sign_in_enabled' && !value) next.sign_in_admins = false
       return next
     })
     setHasChanges(true)
@@ -177,16 +104,10 @@ const DiscordSettingsForm = ({ initialState, refresh }: DiscordSettingsFormProps
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setSubmitting(true)
-
     try {
       await requestJson('/api/settings/discord', {
         method: 'PATCH',
-        body: JSON.stringify({
-          ...formValues,
-          revision: formMeta.revision,
-          redirect_uri_invite: formMeta.redirect_uri_invite,
-          redirect_uri_admin: formMeta.redirect_uri_admin,
-        }),
+        body: JSON.stringify(discordSettingsPayload(formValues, formMeta.revision)),
       })
       success('Discord settings saved successfully')
       setHasChanges(false)
@@ -198,15 +119,15 @@ const DiscordSettingsForm = ({ initialState, refresh }: DiscordSettingsFormProps
     }
   }
 
-  const handleTest = async (type: 'oauth' | 'bot' = 'oauth') => {
+  const handleTest = async () => {
     setTesting(true)
     try {
       const response = await requestJson<{ data: { success: boolean; message?: string } }>(
         '/api/settings/discord/test',
-        { method: 'POST', body: JSON.stringify({ type }) }
+        { method: 'POST', body: JSON.stringify({ type: 'oauth' }) }
       )
       if (response.data?.success) {
-        success('Discord connection test successful')
+        success(response.data.message || 'Discord connection test successful')
       } else {
         showError(`Discord test failed: ${response.data?.message || 'Unknown error'}`)
       }
@@ -219,39 +140,7 @@ const DiscordSettingsForm = ({ initialState, refresh }: DiscordSettingsFormProps
 
   const handleReset = () => {
     setFormValues(initialState.values)
-    setUseOauthOverride(initialState.useOauthOverride)
     setHasChanges(false)
-  }
-
-  const requireGuildId = formValues.enable_bot || formValues.enable_membership_requirement || formValues.default_require_discord_guild_membership
-  const clientSecretConfigured = formMeta.client_secret_set || formValues.client_secret.length > 0
-  const requireClientSecret = formValues.enable_oauth && !formMeta.client_secret_set
-  const oauthDisabled = !formValues.enable_oauth
-  const requireMembershipInviteUrl = formValues.enable_membership_requirement || formValues.default_require_discord_guild_membership
-  const generatedOauthUrl = (() => {
-    if (!formValues.client_id || !formMeta.redirect_uri_invite) {
-      return ''
-    }
-    const params = new URLSearchParams({
-      response_type: 'code',
-      client_id: formValues.client_id,
-      scope: 'identify email guilds',
-      state: '{STATE}',
-      redirect_uri: formMeta.redirect_uri_invite,
-      prompt: 'consent',
-    })
-    const query = params.toString().replace(/state=%7BSTATE%7D/i, 'state={STATE}')
-    return `https://discord.com/api/v10/oauth2/authorize?${query}`
-  })()
-  const oauthAuthInputValue = useOauthOverride ? formValues.oauth_auth_url : generatedOauthUrl
-
-  const handleOauthOverrideToggle = (value: boolean) => {
-    setUseOauthOverride(value)
-    setFormValues((prev) => ({
-      ...prev,
-      oauth_auth_url: value ? (prev.oauth_auth_url || generatedOauthUrl) : ''
-    }))
-    setHasChanges(true)
   }
 
   const handleCopy = async (label: string, value: string) => {
@@ -267,6 +156,17 @@ const DiscordSettingsForm = ({ initialState, refresh }: DiscordSettingsFormProps
     }
   }
 
+  const clientSecretConfigured = formMeta.client_secret_set || formValues.client_secret.length > 0
+  const requireClientSecret = formValues.enable_oauth && !formMeta.client_secret_set
+  const oauthDisabled = !formValues.enable_oauth
+  const redirectHint = discordRedirectHint(formMeta.redirect_problem)
+  const serverKnown = formValues.server_invite_url.trim() !== '' || formValues.guild_id.trim() !== ''
+  const checklist: { done: boolean; text: string }[] = [
+    { done: formMeta.redirect_problem === null && formMeta.redirect_uri !== '', text: formMeta.redirect_uri ? 'Redirect URL ready to add in Discord' : 'Redirect URL needs an App Base URL' },
+    { done: formMeta.verified, text: formMeta.verified ? 'Client ID and secret checked by Discord' : 'Client ID and secret not checked yet (turn on Discord and save)' },
+    { done: formMeta.guild_id !== '', text: formMeta.guild_id ? `Discord server: ${formMeta.guild_name || formMeta.guild_id}` : 'No Discord server yet (only needed to require server membership)' },
+  ]
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -278,7 +178,7 @@ const DiscordSettingsForm = ({ initialState, refresh }: DiscordSettingsFormProps
         <FontAwesomeIcon icon={faCircleInfo} className="h-4 w-4" />
         <AlertTitle>Discord Integration Setup</AlertTitle>
         <AlertDescription>
-          <p>Create a Discord application at{' '}
+          <p>1. Create an application in the{' '}
           <a
             href="https://discord.com/developers/applications"
             target="_blank"
@@ -286,8 +186,9 @@ const DiscordSettingsForm = ({ initialState, refresh }: DiscordSettingsFormProps
             className="font-medium underline underline-offset-4 hover:text-blue-600 dark:text-blue-400"
           >
             Discord Developer Portal
-          </a>{' '}
-          to get your Client ID and Secret.</p>
+          </a>.</p>
+          <p>2. Under OAuth2, copy the Client ID and Client Secret into the fields below, and add the Redirect URL shown below to Redirects.</p>
+          <p>3. Turn on Discord and save: MUM checks the ID and secret with Discord first.</p>
         </AlertDescription>
       </Alert>
 
@@ -301,12 +202,21 @@ const DiscordSettingsForm = ({ initialState, refresh }: DiscordSettingsFormProps
                 </div>
                 <div>
                   <CardTitle className="mb-1 text-xl font-semibold">Discord OAuth</CardTitle>
-                  <CardDescription>Connect MUM to Discord for OAuth-based linking.</CardDescription>
+                  <CardDescription>Discord sign-in on invites, linking Discord accounts and Sign in with Discord.</CardDescription>
                 </div>
               </div>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
+            <div className="rounded-lg border border-border/70 bg-background p-3 space-y-2">
+              {checklist.map((item) => (
+                <p key={item.text} className="text-sm flex items-center gap-2">
+                  <FontAwesomeIcon icon={item.done ? faCircleInfo : faCircleExclamation} className={item.done ? 'size-4 text-primary' : 'size-4 text-warning'} />
+                  {item.text}
+                </p>
+              ))}
+            </div>
+
             <div className="rounded-lg border border-border/70 bg-muted/40 p-4 space-y-3">
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-start gap-3">
@@ -314,12 +224,9 @@ const DiscordSettingsForm = ({ initialState, refresh }: DiscordSettingsFormProps
                     <FontAwesomeIcon icon={faKey} className="size-4 text-primary" />
                   </div>
                   <div>
-                    <p className="text-sm font-medium">Enable Auth Feature</p>
+                    <p className="text-sm font-medium">Turn On Discord</p>
                     <p className="text-xs text-muted-foreground">
-                      Enables Discord linking on public invites and for admin accounts.{' '}
-                      <span className="text-warning">
-                        This is automatically enabled if Bot Configuration or Discord membership requirement is enabled below.
-                      </span>
+                      Needed for Discord on invites, linking and Sign in with Discord. Saving with this on checks the ID and secret with Discord.
                     </p>
                   </div>
                 </div>
@@ -342,7 +249,6 @@ const DiscordSettingsForm = ({ initialState, refresh }: DiscordSettingsFormProps
                     value={formValues.client_id}
                     onChange={(e) => handleChange('client_id', e.target.value)}
                     required={formValues.enable_oauth}
-                    disabled={oauthDisabled}
                     placeholder="1234567890123456789"
                   />
                 </div>
@@ -358,7 +264,6 @@ const DiscordSettingsForm = ({ initialState, refresh }: DiscordSettingsFormProps
                     value={formValues.client_secret}
                     onChange={(e) => handleChange('client_secret', e.target.value)}
                     required={requireClientSecret}
-                    disabled={oauthDisabled}
                     placeholder="********"
                   />
                   <p className="text-xs text-muted-foreground">
@@ -367,46 +272,13 @@ const DiscordSettingsForm = ({ initialState, refresh }: DiscordSettingsFormProps
                 </div>
 
                 <div className="space-y-2">
-                  <div className="flex items-center justify-between gap-4">
-                    <Label htmlFor="oauth_auth_url">Authorization URL</Label>
-                    <div className="flex items-center gap-2">
-                      <Label htmlFor="oauth-auth-override" className="text-xs text-muted-foreground">
-                        Override
-                      </Label>
-                      <Switch
-                        id="oauth-auth-override"
-                        checked={useOauthOverride}
-                        onCheckedChange={handleOauthOverrideToggle}
-                        disabled={oauthDisabled}
-                      />
-                    </div>
-                  </div>
-                  <Input
-                    id="oauth_auth_url"
-                    type="url"
-                    className="font-mono"
-                    value={oauthAuthInputValue}
-                    onChange={(e) => handleChange('oauth_auth_url', e.target.value)}
-                    disabled={oauthDisabled || !useOauthOverride}
-                    placeholder="https://discord.com/api/v10/oauth2/authorize"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    {useOauthOverride ? (
-                      'This overrides the generated URL used for invite links. Use {STATE} to preserve the runtime state value.'
-                    ) : (
-                      'Generated from the Client ID and Invite Redirect URI. The state value is filled in at runtime.'
-                    )}
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="redirect_uri_invite">Invite Redirect URI</Label>
+                  <Label htmlFor="redirect_uri">Redirect URL</Label>
                   <div className="relative">
                     <Input
-                      id="redirect_uri_invite"
+                      id="redirect_uri"
                       type="url"
                       className="pr-10 font-mono"
-                      value={formMeta.redirect_uri_invite}
+                      value={formMeta.redirect_uri}
                       readOnly
                       disabled
                     />
@@ -415,100 +287,116 @@ const DiscordSettingsForm = ({ initialState, refresh }: DiscordSettingsFormProps
                       variant="ghost"
                       size="icon"
                       className="absolute right-2 top-1/2 h-7 w-7 -translate-y-1/2"
-                      onClick={() => handleCopy('Invite Redirect URI', formMeta.redirect_uri_invite)}
-                      disabled={!formMeta.redirect_uri_invite}
-                      aria-label="Copy invite redirect URI"
-                    >
-                      <FontAwesomeIcon icon={faCopy} className="size-4" />
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="redirect_uri_admin">Admin Redirect URI</Label>
-                  <div className="relative">
-                    <Input
-                      id="redirect_uri_admin"
-                      type="url"
-                      className="pr-10 font-mono"
-                      value={formMeta.redirect_uri_admin}
-                      readOnly
-                      disabled
-                    />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="absolute right-2 top-1/2 h-7 w-7 -translate-y-1/2"
-                      onClick={() => handleCopy('Admin Redirect URI', formMeta.redirect_uri_admin)}
-                      disabled={!formMeta.redirect_uri_admin}
-                      aria-label="Copy admin redirect URI"
+                      onClick={() => handleCopy('Redirect URL', formMeta.redirect_uri)}
+                      disabled={!formMeta.redirect_uri}
+                      aria-label="Copy redirect URL"
                     >
                       <FontAwesomeIcon icon={faCopy} className="size-4" />
                     </Button>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Add BOTH of these redirect URIs to your Discord Developer Portal OAuth2 Redirects section, it is required for this feature to work. These redirect URIs are derived from the configured app base URL.
+                    Add this address to Redirects under OAuth2 in the Discord Developer Portal. It serves invites, linking and Sign in with Discord.
                   </p>
+                  {redirectHint && <p className="text-xs text-warning">{redirectHint}</p>}
                 </div>
               </div>
             </div>
 
             <div className="rounded-lg border border-border/70 bg-muted/40 p-4 space-y-3">
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-start gap-3">
-                  <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/20">
-                    <FontAwesomeIcon icon={faUsers} className="size-4 text-primary" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium">Enable Discord Membership Requirement Feature</p>
-                    <p className="text-xs text-muted-foreground">
-                      Require invitees to be members of your Discord server before linking.
-                    </p>
-                  </div>
+              <div className="flex items-start gap-3">
+                <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/20">
+                  <FontAwesomeIcon icon={faUsers} className="size-4 text-primary" />
                 </div>
-                <Switch
-                  checked={formValues.enable_membership_requirement}
-                  onCheckedChange={(checked) => handleToggle('enable_membership_requirement', checked)}
-                  disabled={oauthDisabled}
-                />
+                <div>
+                  <p className="text-sm font-medium">Discord Server (optional)</p>
+                  <p className="text-xs text-muted-foreground">
+                    Only needed to require server membership on invites. Paste an invite link to your server; MUM finds the server from it.
+                  </p>
+                </div>
               </div>
 
               <div className="rounded-lg border border-border/70 bg-background p-3 space-y-3">
                 <div className="space-y-2">
-                  <Label htmlFor="guild_id">
-                    Guild (Server) ID {requireGuildId && <span className="text-destructive">*</span>}
-                  </Label>
-                  <Input
-                    id="guild_id"
-                    type="text"
-                    className="font-mono"
-                    value={formValues.guild_id}
-                    onChange={(e) => handleChange('guild_id', e.target.value)}
-                    required={requireGuildId}
-                    disabled={oauthDisabled || (!formValues.enable_membership_requirement && !formValues.enable_bot && !formValues.default_require_discord_guild_membership)}
-                    placeholder="1234567890123456789"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Enable Developer Mode in Discord, right-click your server, and select "Copy ID"
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="server_invite_url">
-                    Server Invite URL {requireMembershipInviteUrl && <span className="text-destructive">*</span>}
-                  </Label>
+                  <Label htmlFor="server_invite_url">Server Invite Link</Label>
                   <Input
                     id="server_invite_url"
                     type="url"
                     className="font-mono"
                     value={formValues.server_invite_url}
                     onChange={(e) => handleChange('server_invite_url', e.target.value)}
-                    required={requireMembershipInviteUrl}
-                    disabled={oauthDisabled || !requireMembershipInviteUrl}
                     placeholder="https://discord.gg/your-invite"
                   />
+                  <p className="text-xs text-muted-foreground">
+                    Invitees use this link to join your server, so it must keep working: in Discord, choose Invite People, then Edit invite link, and set Expire After to Never and Max Number of Uses to No limit. MUM refuses a link that expires.
+                  </p>
+                  {formMeta.guild_id && formValues.server_invite_url === initialState.values.server_invite_url && formValues.server_invite_url !== '' && (
+                    <p className="text-xs text-muted-foreground">Server: {formMeta.guild_name || 'Unnamed server'} (ID {formMeta.guild_id})</p>
+                  )}
                 </div>
+
+                {formValues.server_invite_url.trim() === '' && (
+                  <div className="space-y-2">
+                    <Label htmlFor="guild_id">Server ID (only without an invite link)</Label>
+                    <Input
+                      id="guild_id"
+                      type="text"
+                      className="font-mono"
+                      value={formValues.guild_id}
+                      onChange={(e) => handleChange('guild_id', e.target.value)}
+                      placeholder="1234567890123456789"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Enable Developer Mode in Discord, right-click your server, and select "Copy ID"
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-border/70 bg-muted/40 p-4 space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium">New Invites Require Discord Sign-In</p>
+                  <p className="text-xs text-muted-foreground">Pre-ticks the option on new invites; you can still change it on each invite.</p>
+                </div>
+                <Switch
+                  checked={formValues.default_require_discord_auth}
+                  onCheckedChange={(checked) => handleToggle('default_require_discord_auth', checked)}
+                  disabled={oauthDisabled}
+                />
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium">New Invites Require Server Membership</p>
+                  <p className="text-xs text-muted-foreground">{serverKnown ? 'Invitees must be in your Discord server. Pre-ticks the option on new invites.' : 'Add your server\'s invite link above first.'}</p>
+                </div>
+                <Switch
+                  checked={formValues.default_require_discord_guild_membership}
+                  onCheckedChange={(checked) => handleToggle('default_require_discord_guild_membership', checked)}
+                  disabled={oauthDisabled || !serverKnown}
+                />
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium">Allow Sign in with Discord</p>
+                  <p className="text-xs text-muted-foreground">People who linked Discord on their account page can sign in with it. A Discord account never creates a MUM account, and the owner always uses the MUM password.</p>
+                </div>
+                <Switch
+                  checked={formValues.sign_in_enabled}
+                  onCheckedChange={(checked) => handleToggle('sign_in_enabled', checked)}
+                  disabled={oauthDisabled}
+                />
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium">Include Accounts with Admin Access</p>
+                  <p className="text-xs text-muted-foreground">Off (recommended): administrators sign in with their MUM password. On: anyone who controls an administrator's Discord account can sign in as that administrator.</p>
+                </div>
+                <Switch
+                  checked={formValues.sign_in_admins}
+                  onCheckedChange={(checked) => handleToggle('sign_in_admins', checked)}
+                  disabled={oauthDisabled || !formValues.sign_in_enabled}
+                />
               </div>
             </div>
           </CardContent>
@@ -530,78 +418,34 @@ const DiscordSettingsForm = ({ initialState, refresh }: DiscordSettingsFormProps
                 <Label htmlFor="bot-enabled" className="cursor-pointer">
                   Enable Bot
                 </Label>
-                <Switch
-                  id="bot-enabled"
-                  checked={formValues.enable_bot}
-                  onCheckedChange={(checked) => handleToggle('enable_bot', checked)}
-                  disabled={oauthDisabled}
-                />
+                <Switch id="bot-enabled" checked={false} disabled />
               </div>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
             <Alert variant="warning">
               <FontAwesomeIcon icon={faTriangleExclamation} className="h-4 w-4" />
-              <AlertTitle>Under Development</AlertTitle>
+              <AlertTitle>Not Available Yet</AlertTitle>
               <AlertDescription>
-                Bot configuration is not functional yet and is still a WIP.
+                The Discord bot is not available in this version, so its settings cannot be turned on.
               </AlertDescription>
             </Alert>
             <div className="space-y-2">
               <Label htmlFor="bot_token">Bot Token</Label>
-              <Input
-                id="bot_token"
-                type="password"
-                className="font-mono"
-                value={formValues.bot_token}
-                onChange={(e) => handleChange('bot_token', e.target.value)}
-                disabled={oauthDisabled}
-                placeholder="********"
-              />
-              <p className="text-xs text-muted-foreground">
-                {formMeta.bot_token_set ? 'Bot token is already configured. Leave blank to keep it.' : 'Enter the bot token to enable bot features.'}
-              </p>
+              <Input id="bot_token" type="password" className="font-mono" value="" disabled placeholder="********" />
             </div>
-
             <div className="space-y-2">
               <Label htmlFor="monitored_role_id">Monitored Role ID</Label>
-              <Input
-                id="monitored_role_id"
-                type="text"
-                className="font-mono"
-                value={formValues.monitored_role_id}
-                onChange={(e) => handleChange('monitored_role_id', e.target.value)}
-                disabled={oauthDisabled}
-                placeholder="1234567890123456789"
-              />
+              <Input id="monitored_role_id" type="text" className="font-mono" value="" disabled placeholder="1234567890123456789" />
             </div>
-
             <div className="space-y-2">
               <Label htmlFor="thread_channel_id">Thread Channel ID</Label>
-              <Input
-                id="thread_channel_id"
-                type="text"
-                className="font-mono"
-                value={formValues.thread_channel_id}
-                onChange={(e) => handleChange('thread_channel_id', e.target.value)}
-                disabled={oauthDisabled}
-                placeholder="1234567890123456789"
-              />
+              <Input id="thread_channel_id" type="text" className="font-mono" value="" disabled placeholder="1234567890123456789" />
             </div>
-
             <div className="space-y-2">
               <Label htmlFor="bot_log_channel_id">Bot Log Channel ID</Label>
-              <Input
-                id="bot_log_channel_id"
-                type="text"
-                className="font-mono"
-                value={formValues.bot_log_channel_id}
-                onChange={(e) => handleChange('bot_log_channel_id', e.target.value)}
-                disabled={oauthDisabled}
-                placeholder="1234567890123456789"
-              />
+              <Input id="bot_log_channel_id" type="text" className="font-mono" value="" disabled placeholder="1234567890123456789" />
             </div>
-
             <div className="flex items-center justify-between rounded-lg border border-border/70 bg-muted/40 p-3">
               <div>
                 <p className="text-sm font-medium">Whitelist Sharers</p>
@@ -609,11 +453,7 @@ const DiscordSettingsForm = ({ initialState, refresh }: DiscordSettingsFormProps
                   Automatically whitelist users who share back.
                 </p>
               </div>
-              <Switch
-                checked={formValues.whitelist_sharers}
-                onCheckedChange={(checked) => handleToggle('whitelist_sharers', checked)}
-                disabled={oauthDisabled}
-              />
+              <Switch checked={false} disabled />
             </div>
           </CardContent>
         </Card>
@@ -622,8 +462,8 @@ const DiscordSettingsForm = ({ initialState, refresh }: DiscordSettingsFormProps
           <Button
             type="button"
             variant="ghost"
-            onClick={() => handleTest('oauth')}
-            disabled={testing || !formValues.enable_oauth}
+            onClick={() => void handleTest()}
+            disabled={testing || !formMeta.client_secret_set || !formValues.client_id}
           >
             {testing ? (
               <>
@@ -665,7 +505,7 @@ const DiscordSettingsForm = ({ initialState, refresh }: DiscordSettingsFormProps
   )
 }
 
-export const AdminSettingsDiscordPage = () => {
+const AdminSettingsDiscordPage = () => {
   const { settings, loading, error, refresh } = useDiscordSettings()
 
   if (loading) {

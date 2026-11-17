@@ -5,7 +5,7 @@ import { useInvites } from '../hooks/useInvites';
 import { useAdminApi } from '../hooks/useAdminApi';
 import { usePlugins } from '../hooks/usePlugins';
 import { useInviteSummary } from '../hooks/useInviteSummary';
-import type { DiscordSettings } from '../hooks/useSettings';
+import { useDiscordSettings } from '../hooks/useSettings';
 import { InvitesTable, InviteRow, InviteModal, InviteFormValues, InviteDetailDrawer, InviteCard, FeatureMeta } from '../components/invites';
 import { saveInvitation, applyInvitationAction, invitationShareURL, openInvitation, membershipDateFromDays } from '../lib/invitations';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
@@ -195,7 +195,9 @@ export const InvitesPage = () => {
   // Shares the reshaped /api/providers cache; a raw read of the same key would get whichever shape loaded first.
   const { plugins: providerPlugins } = usePlugins();
   const { summary } = useInviteSummary();
-  const [discordSettings] = useState<DiscordSettings | null>(null);
+  // Discord defaults pre-tick new invites; readiness decides which Discord
+  // requirements the invite form offers.
+  const { settings: discordSettings } = useDiscordSettings();
   const { invites, pagination, loading, error, refresh } = useInvites({
     status: statusFilter === 'all' ? undefined : statusFilter,
     page,
@@ -267,8 +269,8 @@ export const InvitesPage = () => {
   };
 
   const openCreateModal = () => {
-    const defaultRequireGuild = discordSettings?.default_require_discord_guild_membership ?? false;
-    const defaultRequireAuth = discordSettings?.default_require_discord_auth ?? false;
+    const defaultRequireGuild = Boolean(discordSettings?.membership_ready) && (discordSettings?.default_require_discord_guild_membership ?? false);
+    const defaultRequireAuth = Boolean(discordSettings?.invite_ready) && (discordSettings?.default_require_discord_auth ?? false);
     const requireAuth = defaultRequireAuth || defaultRequireGuild;
     setEditingInvite(null);
     setEditingInitialValues({
@@ -617,6 +619,7 @@ export const InvitesPage = () => {
         }}
         initialValues={editingInitialValues}
         isEditing={Boolean(editingInvite)}
+        discord={{ ready: Boolean(discordSettings?.invite_ready), membership: Boolean(discordSettings?.membership_ready) }}
         onSubmit={handleSaveInvite}
         loading={saving}
       />

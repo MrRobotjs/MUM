@@ -284,7 +284,7 @@ func (a *App) signInMethods(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	respond(w, 200, map[string]any{"service_sign_in": enabled, "plex": plexAvailable, "servers": servers})
+	respond(w, 200, map[string]any{"service_sign_in": enabled, "plex": plexAvailable, "servers": servers, "discord": a.discordSignInOffered(r.Context())})
 }
 
 // serviceLogin signs in with a media server login.

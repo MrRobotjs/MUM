@@ -63,10 +63,12 @@ const userLoginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: 'login',
   component: LoginPage,
-  validateSearch: (search): { next?: string; error?: string } => {
+  validateSearch: (search): { next?: string; error?: string; discord?: string } => {
     return {
       next: typeof search.next === 'string' ? (search.next as string) : undefined,
       error: typeof search.error === 'string' ? (search.error as string) : undefined,
+      // The outcome of Sign in with Discord.
+      discord: typeof search.discord === 'string' ? (search.discord as string) : undefined,
     }
   },
 })
@@ -105,11 +107,12 @@ const accountRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: 'account',
   component: () => <SignedInGuard><AppShell /></SignedInGuard>,
-  validateSearch: (search): { tab?: AdminAccountTab } => {
+  validateSearch: (search): { tab?: AdminAccountTab; discord?: string } => {
     const tabVal = typeof search.tab === 'string' && (adminAccountTabs as readonly string[]).includes(search.tab)
       ? (search.tab as AdminAccountTab)
       : undefined
-    return { tab: tabVal }
+    // The outcome of linking Discord.
+    return { tab: tabVal, discord: typeof search.discord === 'string' ? search.discord : undefined }
   },
 })
 const adminStreaming = createRoute({ getParentRoute: () => adminRoute, path: 'streaming', component: StreamingPage })

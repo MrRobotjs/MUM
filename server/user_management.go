@@ -70,7 +70,7 @@ var userProjection = `SELECT i.id,i.uuid,i.kind,coalesce(u.local_username,a.exte
  coalesce(a.is_active=1 AND s.service_type='plex' AND s.is_active=1 AND EXISTS(SELECT 1 FROM provider_settings p WHERE p.provider_id='plex' AND p.enabled=1),0),
  ` + lastStreamSQL + ` AS last_stream,
  CASE WHEN s.service_type IN ('plex','jellyfin','emby') THEN a.allow_4k_transcode END,
- a.is_purge_whitelisted
+ a.is_purge_whitelisted,coalesce(u.discord_user_id,''),coalesce(u.discord_username,'')
  FROM identities i LEFT JOIN user_accounts u ON u.uuid=i.uuid LEFT JOIN service_accounts a ON a.uuid=i.uuid
  LEFT JOIN media_servers s ON s.id=a.server_id LEFT JOIN service_links owner ON owner.service_uuid=a.uuid AND owner.link_kind='owner'
  LEFT JOIN user_accounts parent ON parent.uuid=owner.user_uuid`
@@ -204,7 +204,8 @@ func (a *App) listUsers(w http.ResponseWriter, r *http.Request) {
 		var expiry, lastSeen, lastSignIn sql.NullString
 		var siblings string
 		var allow4K, purgeProtected sql.NullBool
-		if err := rows.Scan(&id, &uuid, &kind, &name, &displayName, &email, &shownEmail, &active, &created, &notes, &server, &nickname, &provider, &linked, &roles, &visual, &libraries, &settings, &parent, &parentName, &parentDisplay, &expiry, &avatarTag, &joined, &lastSignIn, &siblings, &avatarServed, &lastSeen, &allow4K, &purgeProtected); err != nil {
+		var discordID, discordName string
+		if err := rows.Scan(&id, &uuid, &kind, &name, &displayName, &email, &shownEmail, &active, &created, &notes, &server, &nickname, &provider, &linked, &roles, &visual, &libraries, &settings, &parent, &parentName, &parentDisplay, &expiry, &avatarTag, &joined, &lastSignIn, &siblings, &avatarServed, &lastSeen, &allow4K, &purgeProtected, &discordID, &discordName); err != nil {
 			rows.Close()
 			domainError(w, err)
 			return
@@ -257,6 +258,8 @@ func (a *App) listUsers(w http.ResponseWriter, r *http.Request) {
 			// When the MUM account (a server account's owner) last signed in,
 			// and the other server accounts that owner has.
 			"mum_last_login_at": nullableString(lastSignIn), "linked_accounts": linkedAccounts,
+			// The Discord account a MUM account linked (by invitation or on the account page).
+			"discord_user_id": nullableText(discordID), "discord_username": nullableText(discordName),
 			// 4K transcoding for Plex, Jellyfin and Emby server accounts; null elsewhere.
 			"allow_4k_transcode": nil,
 			// Purge protection of a server account; null for MUM accounts.

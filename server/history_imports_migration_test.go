@@ -9,9 +9,10 @@ import (
 	"time"
 )
 
-// Plays and run status imported from Plex before the shared store existed
-// move into it unchanged, posters included, and the Plex tables are gone.
-func TestHistoryImportsMigrationKeepsPlexRows(t *testing.T) {
+// databaseBefore creates a database with every migration before version
+// applied, as an older MUM left it, and returns it open with its path.
+func databaseBefore(t *testing.T, version string) (*sql.DB, string) {
+	t.Helper()
 	path := filepath.Join(t.TempDir(), "mum.db")
 	db, err := sql.Open("sqlite", sqliteDSN(path, false))
 	if err != nil {
@@ -29,7 +30,7 @@ func TestHistoryImportsMigrationKeepsPlexRows(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, file := range files {
-		if file.Name() >= "076" {
+		if file.Name() >= version {
 			break
 		}
 		body, err := migrationFiles.ReadFile("go_migrations/" + file.Name())
@@ -43,6 +44,14 @@ func TestHistoryImportsMigrationKeepsPlexRows(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	return db, path
+}
+
+// Plays and run status imported from Plex before the shared store existed
+// move into it unchanged, posters included, and the Plex tables are gone.
+func TestHistoryImportsMigrationKeepsPlexRows(t *testing.T) {
+	db, path := databaseBefore(t, "076")
+	var err error
 	for _, statement := range []string{
 		"INSERT INTO media_servers(id,server_nickname,service_type,url) VALUES(1,'Plex','plex','http://plex.invalid')",
 		`INSERT INTO plex_history_imports(server_id,history_key,account_id,viewed_at,media_type,rating_key,library_section_id,title,parent_title,grandparent_title,imported_at,poster_item,poster_path)

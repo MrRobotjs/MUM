@@ -56,6 +56,17 @@ func sessionOriginAllowed(ctx context.Context, db queryRower, p Principal, origi
 	if origin.Kind == "service" && serviceSignInPermitted(ctx, db, p) != nil {
 		return ErrForbidden
 	}
+	if origin.Kind == "discord" {
+		if discordSignInPermitted(ctx, db, p) != nil {
+			return ErrForbidden
+		}
+		// The account must still have the Discord account it signed in with.
+		var linked bool
+		if err := db.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM user_accounts WHERE uuid=? AND discord_user_id=?)", p.UUID, origin.Discord).Scan(&linked); err != nil || !linked {
+			return ErrForbidden
+		}
+		return nil
+	}
 	var allowed bool
 	var err error
 	switch origin.Kind {

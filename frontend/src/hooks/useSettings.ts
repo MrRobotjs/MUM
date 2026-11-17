@@ -29,7 +29,17 @@ export type DiscordSettings = {
   default_require_discord_guild_membership: boolean;
   enable_membership_requirement: boolean;
   guild_id: string | null;
+  // The Discord server's name, read from its invite link.
+  guild_name?: string | null;
   server_invite_url: string | null;
+  // Why the redirect address will not work, if it will not.
+  redirect_problem?: 'missing' | 'not_https' | null;
+  sign_in_enabled?: boolean;
+  sign_in_admins?: boolean;
+  // Whether invitations may require Discord sign-in and server membership.
+  invite_ready?: boolean;
+  membership_ready?: boolean;
+  verified_at?: string | null;
   enable_bot: boolean;
   bot_token_set: boolean;
   monitored_role_id: string | null;

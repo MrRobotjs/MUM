@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -15,6 +16,9 @@ func discordFixture(t *testing.T, a *App) *atomic.Int32 {
 	calls := &atomic.Int32{}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls.Add(1)
+		if serveDiscordInvite(w, r) {
+			return
+		}
 		id, secret, ok := r.BasicAuth()
 		if r.Method != "POST" || r.URL.Path != "/oauth2/token" || r.ParseForm() != nil || r.PostForm.Get("grant_type") != "client_credentials" || r.PostForm.Get("scope") != "identify" {
 			t.Error("unexpected Discord request", r.Method, r.URL.Path, r.PostForm)
@@ -28,6 +32,32 @@ func discordFixture(t *testing.T, a *App) *atomic.Int32 {
 	t.Cleanup(server.Close)
 	a.DiscordAPI = server.URL
 	return calls
+}
+
+// discordInviteGone makes the fixture invite link stop working, as when it is
+// deleted in Discord.
+var discordInviteGone atomic.Bool
+
+// serveDiscordInvite answers Discord's public invite lookup: "fixture" never
+// expires, "temporary" expires, anything else is unknown.
+func serveDiscordInvite(w http.ResponseWriter, r *http.Request) bool {
+	code, found := strings.CutPrefix(r.URL.Path, "/invites/")
+	if !found {
+		return false
+	}
+	if r.Method != "GET" || r.URL.Query().Get("with_expiration") != "true" || r.Header.Get("Authorization") != "" {
+		http.Error(w, "bad lookup", 400)
+		return true
+	}
+	switch {
+	case code == "fixture" && !discordInviteGone.Load():
+		_, _ = w.Write([]byte(`{"code":"fixture","expires_at":null,"guild":{"id":"223456789012345678","name":"Fixture Guild"}}`))
+	case code == "temporary":
+		_, _ = w.Write([]byte(`{"code":"temporary","expires_at":"2026-11-23T00:00:00+00:00","guild":{"id":"223456789012345678","name":"Fixture Guild"}}`))
+	default:
+		http.Error(w, `{"message":"Unknown Invite","code":10006}`, 404)
+	}
+	return true
 }
 
 func discordBody(revision any, extra map[string]any) map[string]any {
@@ -101,7 +131,7 @@ func TestDiscordSettingsVerifiedWriteOnlyAndRevisionGuarded(t *testing.T) {
 func TestDiscordSettingsRefuseUnimplementedFeaturesAndInvalidValues(t *testing.T) {
 	a, _, token, _, _ := roleReadFixture(t)
 	calls := discordFixture(t, a)
-	for _, extra := range []map[string]any{{"enable_bot": true}, {"enable_membership_requirement": true}, {"default_require_discord_auth": true}, {"default_require_discord_guild_membership": true}, {"whitelist_sharers": true}, {"bot_token": "x"}, {"monitored_role_id": "1"}, {"oauth_auth_url": "https://discord.com/api/v10/oauth2/authorize"}, {"redirect_uri_admin": "https://mum.example/x"}} {
+	for _, extra := range []map[string]any{{"enable_bot": true}, {"enable_membership_requirement": true}, {"whitelist_sharers": true}, {"bot_token": "x"}, {"monitored_role_id": "1"}, {"oauth_auth_url": "https://discord.com/api/v10/oauth2/authorize"}, {"redirect_uri_admin": "https://mum.example/x"}} {
 		if w := apiRequest(a, "PATCH", "/api/settings/discord", token, discordBody(1, extra), nil); w.Code != 422 {
 			t.Fatal(extra, w.Code)
 		}
@@ -123,7 +153,7 @@ func TestDiscordRedirectAndConnectionTest(t *testing.T) {
 	a, s, token, _, _ := roleReadFixture(t)
 	discordFixture(t, a)
 	activityExec(t, s, "INSERT INTO settings(key,value,value_type) VALUES('APP_BASE_URL','https://mum.example/','string') ON CONFLICT(key) DO UPDATE SET value=excluded.value")
-	if p := discordRead(t, a, token); p["redirect_uri_invite"] != "https://mum.example"+discordInviteCallbackPath || p["redirect_uri_admin"] != nil {
+	if p := discordRead(t, a, token); p["redirect_uri_invite"] != "https://mum.example"+discordCallbackPath || p["redirect_uri_admin"] != nil {
 		t.Fatal(p)
 	}
 	test := func(kind string) map[string]any {
@@ -137,7 +167,7 @@ func TestDiscordRedirectAndConnectionTest(t *testing.T) {
 		t.Fatal("unconfigured test passed", r)
 	}
 	// Pinning the computed default stores nothing; a different URI is pinned.
-	w := apiRequest(a, "PATCH", "/api/settings/discord", token, discordBody(1, map[string]any{"enable_oauth": true, "client_id": discordFixtureClient, "client_secret": "valid-discord-secret", "redirect_uri_invite": "https://mum.example" + discordInviteCallbackPath}), nil)
+	w := apiRequest(a, "PATCH", "/api/settings/discord", token, discordBody(1, map[string]any{"enable_oauth": true, "client_id": discordFixtureClient, "client_secret": "valid-discord-secret", "redirect_uri_invite": "https://mum.example" + discordCallbackPath}), nil)
 	if w.Code != 200 {
 		t.Fatal(w.Code, w.Body.String())
 	}
@@ -158,5 +188,124 @@ func TestDiscordRedirectAndConnectionTest(t *testing.T) {
 	}
 	if w := apiRequest(a, "POST", "/api/settings/discord/test", token, map[string]any{"type": "other"}, nil); w.Code != 400 {
 		t.Fatal(w.Code)
+	}
+}
+
+// The Discord server comes from its invite link: Discord's public lookup gives
+// its ID and name. A link that expires, or that Discord does not know, is
+// refused and nothing is saved.
+func TestDiscordInviteLinkSetsServer(t *testing.T) {
+	a, s, token, _, _ := roleReadFixture(t)
+	discordFixture(t, a)
+	save := func(extra map[string]any) (int, map[string]any) {
+		t.Helper()
+		revision := discordRead(t, a, token)["revision"]
+		w := apiRequest(a, "PATCH", "/api/settings/discord", token, discordBody(revision, extra), nil)
+		if w.Code != 200 {
+			var out struct{ Error struct{ Code string } }
+			_ = json.Unmarshal(w.Body.Bytes(), &out)
+			return w.Code, map[string]any{"code": out.Error.Code}
+		}
+		return w.Code, responseData(t, w)
+	}
+	if code, p := save(map[string]any{"server_invite_url": "https://discord.gg/fixture", "guild_id": "999456789012345678"}); code != 200 || p["guild_id"] != "223456789012345678" || p["guild_name"] != "Fixture Guild" {
+		t.Fatal(code, p)
+	}
+	for link, want := range map[string]string{"https://discord.gg/temporary": "DISCORD_INVITE_EXPIRES", "https://discord.com/invite/gone": "DISCORD_INVITE_INVALID"} {
+		if code, p := save(map[string]any{"server_invite_url": link}); code != 422 || p["code"] != want {
+			t.Fatal(link, code, p)
+		}
+	}
+	if p := discordRead(t, a, token); p["server_invite_url"] != "https://discord.gg/fixture" || p["guild_id"] != "223456789012345678" {
+		t.Fatal("a refused link was saved", p)
+	}
+	// Without a link, a typed server ID is kept and no name is known.
+	if code, p := save(map[string]any{"guild_id": "999456789012345678"}); code != 200 || p["guild_id"] != "999456789012345678" || p["guild_name"] != nil || p["server_invite_url"] != nil {
+		t.Fatal(code, p)
+	}
+	// An unchanged link is not looked up again.
+	save(map[string]any{"server_invite_url": "https://discord.gg/fixture"})
+	discordInviteGone.Store(true)
+	t.Cleanup(func() { discordInviteGone.Store(false) })
+	if code, p := save(map[string]any{"server_invite_url": "https://discord.gg/fixture", "client_id": discordFixtureClient}); code != 200 || p["guild_name"] != "Fixture Guild" {
+		t.Fatal("unchanged link", code, p)
+	}
+	var stored string
+	_ = s.reader.QueryRow("SELECT guild_id FROM discord_settings").Scan(&stored)
+	if stored != "223456789012345678" {
+		t.Fatal(stored)
+	}
+}
+
+// Defaults for new invitations and sign-in with Discord need Discord turned
+// on; requiring membership needs a server; the administrator switch means
+// nothing without sign-in.
+func TestDiscordDefaultsAndSignInSwitches(t *testing.T) {
+	a, s, token, _, _ := roleReadFixture(t)
+	discordFixture(t, a)
+	activityExec(t, s, "INSERT INTO settings(key,value,value_type) VALUES('APP_BASE_URL','https://mum.example','string') ON CONFLICT(key) DO UPDATE SET value=excluded.value")
+	for _, extra := range []map[string]any{{"default_require_discord_auth": true}, {"sign_in_enabled": true}} {
+		if w := apiRequest(a, "PATCH", "/api/settings/discord", token, discordBody(1, extra), nil); w.Code != 400 {
+			t.Fatal("saved without Discord", extra, w.Code)
+		}
+	}
+	on := map[string]any{"enable_oauth": true, "client_id": discordFixtureClient, "client_secret": "valid-discord-secret"}
+	with := func(extra map[string]any) map[string]any {
+		out := map[string]any{}
+		for k, v := range on {
+			out[k] = v
+		}
+		for k, v := range extra {
+			out[k] = v
+		}
+		return out
+	}
+	if w := apiRequest(a, "PATCH", "/api/settings/discord", token, discordBody(1, with(map[string]any{"default_require_discord_guild_membership": true})), nil); w.Code != 400 {
+		t.Fatal("membership default without a server", w.Code)
+	}
+	w := apiRequest(a, "PATCH", "/api/settings/discord", token, discordBody(1, with(map[string]any{"server_invite_url": "https://discord.gg/fixture", "default_require_discord_guild_membership": true, "sign_in_admins": true})), nil)
+	if w.Code != 200 {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	p := responseData(t, w)
+	if p["default_require_discord_auth"] != true || p["default_require_discord_guild_membership"] != true || p["sign_in_enabled"] != false || p["sign_in_admins"] != false ||
+		p["invite_ready"] != true || p["membership_ready"] != true {
+		t.Fatal(p)
+	}
+	w = apiRequest(a, "PATCH", "/api/settings/discord", token, discordBody(p["revision"], with(map[string]any{"server_invite_url": "https://discord.gg/fixture", "sign_in_enabled": true, "sign_in_admins": true})), nil)
+	if p = responseData(t, w); w.Code != 200 || p["sign_in_enabled"] != true || p["sign_in_admins"] != true || p["default_require_discord_auth"] != false {
+		t.Fatal(w.Code, p)
+	}
+}
+
+// The redirect address is built from App Base URL; the settings say when it
+// is missing or is plain HTTP, which Discord accepts only for localhost.
+func TestDiscordRedirectProblems(t *testing.T) {
+	a, s, token, _, _ := roleReadFixture(t)
+	for base, want := range map[string]any{"": "missing", "http://mum.lan:5699": "not_https", "http://localhost:5699": nil, "http://127.0.0.1:5699": nil, "https://mum.example": nil} {
+		activityExec(t, s, "INSERT INTO settings(key,value,value_type) VALUES('APP_BASE_URL',?,'string') ON CONFLICT(key) DO UPDATE SET value=excluded.value", base)
+		if p := discordRead(t, a, token); p["redirect_problem"] != want {
+			t.Fatal(base, p["redirect_problem"])
+		}
+	}
+}
+
+// Test also checks that the saved invite link still works.
+func TestDiscordConnectionTestRechecksInviteLink(t *testing.T) {
+	a, _, token, _, _ := roleReadFixture(t)
+	discordFixture(t, a)
+	if w := apiRequest(a, "PATCH", "/api/settings/discord", token, discordBody(1, map[string]any{"enable_oauth": true, "client_id": discordFixtureClient, "client_secret": "valid-discord-secret", "server_invite_url": "https://discord.gg/fixture"}), nil); w.Code != 200 {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	test := func() map[string]any {
+		return responseData(t, apiRequest(a, "POST", "/api/settings/discord/test", token, map[string]any{"type": "oauth"}, nil))
+	}
+	if r := test(); r["success"] != true {
+		t.Fatal(r)
+	}
+	discordInviteGone.Store(true)
+	t.Cleanup(func() { discordInviteGone.Store(false) })
+	if r := test(); r["success"] != false || !strings.Contains(r["message"].(string), "invite link") {
+		t.Fatal(r)
 	}
 }

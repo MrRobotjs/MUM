@@ -17,6 +17,7 @@ import { AccountEmailCard } from '../components/users/AccountEmailCard';
 import { PasswordChangeCard } from '../components/users/PasswordChangeCard';
 import { PlexConnectionCard } from '../components/users/PlexConnectionCard';
 import { ServiceLinksCard } from '../components/users/ServiceLinksCard';
+import { DiscordLinkCard } from '../components/users/DiscordLinkCard';
 import { getServiceLinks, type SignInServer } from '../lib/serviceSignIn';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { fetchPersonalProfile } from '../lib/plexConnection';
@@ -401,6 +402,7 @@ const AccountPage = () => {
 
           </fieldset>
           <PlexConnectionCard />
+          <DiscordLinkCard />
           <ServiceLinksCard />
         </TabsContent>
 

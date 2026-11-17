@@ -6,7 +6,7 @@ import { requestJson } from '../util/apiClient';
 // what the login or account page offers.
 
 export type SignInServer = { id: number; name: string; type: string };
-export type SignInMethods = { serviceSignIn: boolean; plex: boolean; servers: SignInServer[] };
+export type SignInMethods = { serviceSignIn: boolean; plex: boolean; servers: SignInServer[]; discord?: boolean };
 export type ServiceLink = { serviceUuid: string; serverId: number; serverName: string; serverType: string; username: string; canUnlink: boolean };
 export type ServiceLinks = { links: ServiceLink[]; servers: SignInServer[]; serviceSignIn: boolean };
 export type SignInSettings = { serviceSignIn: boolean; serviceSignInAdmins: boolean; passwordlessAccounts: number; passwordlessAdmins: number };
@@ -35,7 +35,11 @@ export function parseSignInMethods(value: unknown): SignInMethods {
   const list = servers(v.servers);
   // A linked Plex account signs in without the media server switch.
   if (!v.service_sign_in && list.length) throw new Error('Unexpected sign-in methods');
-  return { serviceSignIn: v.service_sign_in, plex: v.plex, servers: list };
+  // Sign in with Discord has its own switch.
+  if (v.discord !== undefined && typeof v.discord !== 'boolean') throw new Error('Unexpected sign-in methods');
+  const methods: SignInMethods = { serviceSignIn: v.service_sign_in, plex: v.plex, servers: list };
+  if (v.discord === true) methods.discord = true;
+  return methods;
 }
 
 export function parseServiceLinks(value: unknown): ServiceLinks {

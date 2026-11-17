@@ -99,6 +99,8 @@ type InviteModalProps = {
   initialValues?: InviteFormValues;
   isEditing?: boolean;
   loading?: boolean;
+  // Whether Discord is set up enough to require sign-in or server membership.
+  discord?: { ready: boolean; membership: boolean };
 };
 
 const defaultValues: InviteFormValues = {
@@ -144,7 +146,7 @@ const parseScopedLibraryToken = (token: string): { serverId: number; libraryId: 
   return { serverId: Number(serverPart), libraryId: libraryPart };
 };
 
-export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing, loading }: InviteModalProps) => {
+export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing, loading, discord }: InviteModalProps) => {
   const [form, setForm] = useState<InviteFormValues>(defaultValues);
   const [servers, setServers] = useState<Server[]>([]);
   const [selectedServerIds, setSelectedServerIds] = useState<Set<number>>(new Set());
@@ -1003,6 +1005,8 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
                   <h5 className="font-medium text-base">Discord Requirements</h5>
                   <span className="text-xs text-muted-foreground">Identity & membership</span>
                 </div>
+                {!discord?.ready && <p className="text-xs text-muted-foreground">Set up Discord under Settings → Discord to use these.</p>}
+                {discord?.ready && !discord.membership && <p className="text-xs text-muted-foreground">To require server membership, add your Discord server's invite link under Settings → Discord.</p>}
                         <div className="space-y-3">
                           <div className="rounded-lg p-4 border bg-background">
                             <div className="flex items-center justify-between">
@@ -1014,8 +1018,8 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
                                 </div>
                               </div>
                               <Switch
-                                disabled
-                                title="This invitation feature is not available yet"
+                                disabled={!discord?.ready && !form.require_discord_auth}
+                                title={discord?.ready ? undefined : 'Set up Discord under Settings → Discord first'}
                                 checked={form.require_discord_auth ?? false}
                                 onCheckedChange={(checked) => handleDiscordRequirementToggle('require_discord_auth', checked)}
                               />
@@ -1032,8 +1036,8 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
                                 </div>
                               </div>
                               <Switch
-                                disabled
-                                title="This invitation feature is not available yet"
+                                disabled={!discord?.membership && !form.require_discord_guild_membership}
+                                title={discord?.membership ? undefined : "Add your Discord server's invite link under Settings → Discord first"}
                                 checked={form.require_discord_guild_membership ?? false}
                                 onCheckedChange={(checked) => handleDiscordRequirementToggle('require_discord_guild_membership', checked)}
                               />

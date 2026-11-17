@@ -105,7 +105,7 @@ func (s *Store) Authenticate(ctx context.Context, token string) (Principal, erro
 	}
 	var uuid string
 	var origin sessionOrigin
-	err := s.reader.QueryRowContext(ctx, `SELECT s.user_uuid,`+sessionOriginColumns+` FROM app_sessions s JOIN session_access_tokens t ON t.session_id=s.id WHERE t.token_hash=? AND t.expires_at>? AND s.refresh_expires_at>?`, tokenHash(token), utcTimestamp(time.Now()), utcTimestamp(time.Now())).Scan(&uuid, &origin.Kind, &origin.Service, &origin.PlexConnection)
+	err := s.reader.QueryRowContext(ctx, `SELECT s.user_uuid,`+sessionOriginColumns+` FROM app_sessions s JOIN session_access_tokens t ON t.session_id=s.id WHERE t.token_hash=? AND t.expires_at>? AND s.refresh_expires_at>?`, tokenHash(token), utcTimestamp(time.Now()), utcTimestamp(time.Now())).Scan(&uuid, &origin.Kind, &origin.Service, &origin.PlexConnection, &origin.Discord)
 	if err != nil {
 		return Principal{}, ErrForbidden
 	}
@@ -150,13 +150,13 @@ func (s *Store) issuePasswordSession(ctx context.Context, uuid, verifiedHash str
 }
 
 // sessionOrigin is how a session was signed in: "password", "service" (a
-// media server login for Service) or "plex_connection" (Plex sign-in through
-// the linked PlexConnection).
+// media server login for Service), "plex_connection" (Plex sign-in through
+// the linked PlexConnection) or "discord" (the linked Discord account).
 type sessionOrigin struct {
-	Kind, Service, PlexConnection string
+	Kind, Service, PlexConnection, Discord string
 }
 
-const sessionOriginColumns = `s.sign_in_origin,coalesce(s.via_service_uuid,''),coalesce(s.via_plex_connection,'')`
+const sessionOriginColumns = `s.sign_in_origin,coalesce(s.via_service_uuid,''),coalesce(s.via_plex_connection,''),coalesce(s.via_discord_id,'')`
 
 // insertSession issues a session inside the caller's transaction, after
 // confirming the account may use it now.
@@ -174,8 +174,8 @@ func insertSession(ctx context.Context, tx *sql.Tx, uuid string, origin sessionO
 	}
 	id := newUUID()
 	expires := utcTimestamp(time.Now().Add(accessTokenLifetime))
-	if _, err := tx.ExecContext(ctx, `INSERT INTO app_sessions(id,user_uuid,access_hash,refresh_hash,access_expires_at,refresh_expires_at,created_at,sign_in_origin,via_service_uuid,via_plex_connection) VALUES(?,?,?,?,?,?,?,?,nullif(?,''),nullif(?,''))`,
-		id, uuid, tokenHash(tokens.Access), tokenHash(tokens.Refresh), expires, utcTimestamp(tokens.RefreshExpires), utcTimestamp(time.Now()), origin.Kind, origin.Service, origin.PlexConnection); err != nil {
+	if _, err := tx.ExecContext(ctx, `INSERT INTO app_sessions(id,user_uuid,access_hash,refresh_hash,access_expires_at,refresh_expires_at,created_at,sign_in_origin,via_service_uuid,via_plex_connection,via_discord_id) VALUES(?,?,?,?,?,?,?,?,nullif(?,''),nullif(?,''),nullif(?,''))`,
+		id, uuid, tokenHash(tokens.Access), tokenHash(tokens.Refresh), expires, utcTimestamp(tokens.RefreshExpires), utcTimestamp(time.Now()), origin.Kind, origin.Service, origin.PlexConnection, origin.Discord); err != nil {
 		return tokens, err
 	}
 	if _, err := tx.ExecContext(ctx, "INSERT INTO session_access_tokens VALUES(?,?,?)", tokenHash(tokens.Access), id, expires); err != nil {
@@ -196,7 +196,7 @@ func (s *Store) refreshSession(ctx context.Context, refresh string) (sessionToke
 	err := s.write(ctx, func(tx *sql.Tx) error {
 		var id, uuid, expires string
 		var origin sessionOrigin
-		if err := tx.QueryRowContext(ctx, "SELECT s.id,s.user_uuid,s.refresh_expires_at,"+sessionOriginColumns+" FROM app_sessions s WHERE s.refresh_hash=? AND s.refresh_expires_at>?", tokenHash(refresh), utcTimestamp(time.Now())).Scan(&id, &uuid, &expires, &origin.Kind, &origin.Service, &origin.PlexConnection); err != nil {
+		if err := tx.QueryRowContext(ctx, "SELECT s.id,s.user_uuid,s.refresh_expires_at,"+sessionOriginColumns+" FROM app_sessions s WHERE s.refresh_hash=? AND s.refresh_expires_at>?", tokenHash(refresh), utcTimestamp(time.Now())).Scan(&id, &uuid, &expires, &origin.Kind, &origin.Service, &origin.PlexConnection, &origin.Discord); err != nil {
 			return ErrForbidden
 		}
 		var err error

@@ -172,6 +172,26 @@ test('the login page offers only the sign-in methods that are on', async () => {
   delete globalThis.__login;
 });
 
+test('the login page offers Discord only while it is on, and never asks for a password with it', async () => {
+  const m = await loginPage();
+  const discordButton = page => find(page, e => e.props?.onClick?.name === 'handleDiscord');
+  const option = (page, value) => find(page, e => e.props?.value === value && !e.props?.onValueChange);
+  globalThis.__login = { events: [], methods: { serviceSignIn: false, plex: false, servers: [] } };
+  let page = m.Login();
+  assert.equal(option(page, 'discord'), null);
+  assert.equal(discordButton(page), null);
+  globalThis.__login.methods = { serviceSignIn: false, plex: false, servers: [], discord: true };
+  page = m.Login();
+  assert.ok(option(page, 'discord') && find(page, e => e.props?.id === 'sign-in-target'));
+  assert.equal(discordButton(page), null, 'Discord button shown before Discord is chosen');
+  globalThis.__login.target = 'discord';
+  page = m.Login();
+  assert.ok(discordButton(page));
+  assert.equal(find(page, e => e.props?.id === 'password'), null);
+  assert.equal(find(page, e => e.props?.type === 'submit'), null);
+  delete globalThis.__login;
+});
+
 test('the settings explain the administrator choice and warn before locking accounts out', async () => {
   const m = await loadFrontend(`export {SignInSettingsFields} from './src/components/settings/SignInSettingsCard';${renderer}`, { mock: { filter: s => /components\/ui|ui\/|@fortawesome\/react-fontawesome|contexts|lib\/serviceSignIn/.test(s), module: s => /contexts/.test(s) ? `export const useAlerts=()=>({});` : /serviceSignIn/.test(s) ? `export const getSignInSettings=async()=>({});export const saveSignInSettings=async()=>({});` : uiMock } });
   const saved = { serviceSignIn: true, serviceSignInAdmins: true, passwordlessAccounts: 3, passwordlessAdmins: 1 };

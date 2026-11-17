@@ -31,6 +31,9 @@ func newDiscordOAuthFixture(t *testing.T) *discordOAuthFixture {
 		f.mu.Lock()
 		user, scope, guilds, hook := f.user, f.scope, f.guilds, f.onToken
 		f.mu.Unlock()
+		if serveDiscordInvite(w, r) {
+			return
+		}
 		switch {
 		case r.Method == "POST" && r.URL.Path == "/oauth2/token":
 			id, secret, _ := r.BasicAuth()
@@ -49,7 +52,7 @@ func newDiscordOAuthFixture(t *testing.T) *discordOAuthFixture {
 			f.mu.Lock()
 			f.exchanges++
 			f.mu.Unlock()
-			if r.PostForm.Get("grant_type") != "authorization_code" || r.PostForm.Get("code") != "good-code" || r.PostForm.Get("redirect_uri") != "https://mum.example"+discordInviteCallbackPath {
+			if r.PostForm.Get("grant_type") != "authorization_code" || r.PostForm.Get("code") != "good-code" || r.PostForm.Get("redirect_uri") != "https://mum.example"+discordCallbackPath {
 				http.Error(w, `{"error":"invalid_grant","private":"upstream detail"}`, 400)
 				return
 			}
@@ -142,11 +145,11 @@ func signIn(t *testing.T, a *App, token, code string) (*http.Cookie, string, str
 	}
 	data := responseData(t, w)
 	redirect, err := url.Parse(data["redirect_url"].(string))
-	if err != nil || redirect.Host != "discord.com" || redirect.Path != "/oauth2/authorize" || redirect.Query().Get("client_id") != discordFixtureClient || redirect.Query().Get("redirect_uri") != "https://mum.example"+discordInviteCallbackPath {
+	if err != nil || redirect.Host != "discord.com" || redirect.Path != "/oauth2/authorize" || redirect.Query().Get("client_id") != discordFixtureClient || redirect.Query().Get("redirect_uri") != "https://mum.example"+discordCallbackPath {
 		t.Fatal(data["redirect_url"])
 	}
 	state := redirect.Query().Get("state")
-	callback := apiRequest(a, "GET", discordInviteCallbackPath+"?state="+url.QueryEscape(state)+"&code="+code, "", nil, cookie)
+	callback := apiRequest(a, "GET", discordCallbackPath+"?state="+url.QueryEscape(state)+"&code="+code, "", nil, cookie)
 	return cookie, data["authorization_id"].(string), callback.Header().Get("Location") + "|" + redirect.Query().Get("scope") + "|" + state
 }
 
@@ -182,7 +185,7 @@ func TestInvitationDiscordSignInBindsVerifiedIdentityToRedemption(t *testing.T) 
 		t.Fatal(parts)
 	}
 	// A replayed callback cannot exchange again.
-	if w := apiRequest(a, "GET", discordInviteCallbackPath+"?state="+url.QueryEscape(parts[2])+"&code=good-code", "", nil, cookie); w.Header().Get("Location") != "/invite/"+token+"?discord=connected" || f.count() != 1 {
+	if w := apiRequest(a, "GET", discordCallbackPath+"?state="+url.QueryEscape(parts[2])+"&code=good-code", "", nil, cookie); w.Header().Get("Location") != "/invite/"+token+"?discord=connected" || f.count() != 1 {
 		t.Fatal("callback replayed", w.Header().Get("Location"), f.count())
 	}
 	status := apiRequest(a, "GET", "/api/public/invitations/"+token+"/discord-authorization", "", nil, cookie)
@@ -257,7 +260,7 @@ func TestInvitationDiscordRefusalsLeaveNoUsableProof(t *testing.T) {
 			if mode == "no_cookie" {
 				w := apiRequest(a, "POST", "/api/public/invitations/"+token+"/discord-authorizations", "", map[string]any{"invitation_revision": 1}, nil)
 				state, _ := url.Parse(responseData(t, w)["redirect_url"].(string))
-				callback := apiRequest(a, "GET", discordInviteCallbackPath+"?state="+url.QueryEscape(state.Query().Get("state"))+"&code=good-code", "", nil, nil)
+				callback := apiRequest(a, "GET", discordCallbackPath+"?state="+url.QueryEscape(state.Query().Get("state"))+"&code=good-code", "", nil, nil)
 				if callback.Header().Get("Location") != "/invite?discord=failed" || f.count() != 0 {
 					t.Fatal("callback without browser binding", callback.Header().Get("Location"))
 				}

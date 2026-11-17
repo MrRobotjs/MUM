@@ -4,6 +4,7 @@ import { faCircleInfo } from '@fortawesome/free-solid-svg-icons';
 import { Button } from '../ui/button';
 import { CardTitle } from '../ui/card';
 import { ResponsiveDialog } from '../ui/responsive-dialog';
+import './AccountSettings.css';
 
 // Building blocks for the account page (ACCOUNT_PAGE_DESIGN.md): each section
 // is a title, its current state and one action. Explanations open from an (i)
@@ -36,14 +37,30 @@ export function SettingHeader({ title, info, summary, action }: { title: string;
 
 // ConfirmAction asks before a risky action. Confirm runs the action once; the
 // dialog stays open while it runs, so it cannot be pressed twice.
-export function ConfirmAction({ open, onOpenChange, title, children, confirmLabel, busy, destructive, onConfirm }: {
+export function ConfirmAction({ open, onOpenChange, title, children, confirmLabel, busy, destructive, onConfirm, confirmDisabled }: {
   open: boolean; onOpenChange: (open: boolean) => void; title: string; children: ReactNode;
   confirmLabel: string; busy: boolean; destructive?: boolean; onConfirm: () => void;
+  // Holds Confirm until fields inside the dialog (such as an audited reason) are valid.
+  confirmDisabled?: boolean;
 }) {
   return <ResponsiveDialog open={open} onOpenChange={value => { if (!busy) onOpenChange(value); }} title={title} footer={[
     <Button key="cancel" type="button" variant="outline" disabled={busy} onClick={() => onOpenChange(false)}>Cancel</Button>,
-    <Button key="confirm" type="button" variant={destructive ? 'destructive' : 'default'} disabled={busy} onClick={onConfirm}>{confirmLabel}</Button>,
+    <Button key="confirm" type="button" variant={destructive ? 'destructive' : 'default'} disabled={busy || confirmDisabled} onClick={onConfirm}>{confirmLabel}</Button>,
   ]}>
     <div className="account-info-body text-sm text-muted-foreground">{children}</div>
   </ResponsiveDialog>;
 }
+
+// SettingNotice is a section's last message. A failure offers Try again, which
+// only reads the saved state again; nothing is ever retried by itself.
+export type Notice = { text: string; error?: boolean } | null;
+export function SettingNotice({ notice, busy, onRetry }: { notice: Notice; busy?: boolean; onRetry?: () => void }) {
+  if (!notice) return null;
+  return <div className="account-setting-error flex flex-wrap items-center gap-3">
+    <p className={notice.error ? 'text-sm text-destructive' : 'text-sm text-muted-foreground'} role="status">{notice.text}</p>
+    {notice.error && onRetry ? <Button type="button" variant="outline" size="sm" disabled={busy} onClick={onRetry}>Try again</Button> : null}
+  </div>;
+}
+
+// The message shown when a confirmed change no longer matches what was read.
+export const changedWhileConfirming = 'This account changed while you were confirming. Check it and try again.';

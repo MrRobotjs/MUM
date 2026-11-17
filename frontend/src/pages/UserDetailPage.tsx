@@ -72,7 +72,7 @@ import {
 import { faDiscord } from '@fortawesome/free-brands-svg-icons';
 import { Spinner } from '@/components/ui/spinner'
 
-type TabKey = 'profile' | 'history' | 'settings' | 'overseerr' | 'security';
+type TabKey = 'profile' | 'history' | 'settings' | 'linked-accounts' | 'overseerr' | 'security';
 
 const formatDuration = (value?: string | null) => value || '0m';
 const formatNumber = (value?: number | null) => (typeof value === 'number' ? value.toLocaleString() : '0');
@@ -556,8 +556,9 @@ const HistoryTab=({history,target,source,onSourceChange}:{history:ReturnType<typ
   );
 };
 
+// Laid out like the account page (ACCOUNT_PAGE_DESIGN.md): one panel of sections.
 const SettingsTab = ({user,refreshUser}:{user:UserDetail;refreshUser:()=>Promise<unknown>}) => (
-  <div className="space-y-6">
+  <div className="account-settings-panels rounded-xl border bg-card p-6 text-card-foreground shadow-sm">
     <ProfileNotesCard target={user.uuid} refreshUser={refreshUser}/>
     {user.user_type!=='service'&&<HumanActivationCard target={user.uuid} refreshUser={refreshUser}/>}
     {user.user_type==='service'&&<ServiceExpiryCard target={user.uuid} refreshUser={refreshUser}/>}
@@ -566,7 +567,13 @@ const SettingsTab = ({user,refreshUser}:{user:UserDetail;refreshUser:()=>Promise
     {user.user_type!=='service'&&<ProfileRemoteAccessCard target={user.uuid} refreshUser={refreshUser}/>}
     {user.user_type!=='service'&&<HumanCredentialsCard target={user.uuid} refreshUser={refreshUser}/>}
     {user.user_type!=='service'&&<HumanUserRolesCard target={user.uuid} refreshUser={refreshUser}/>}
-    <ProfileAccountLinks user={user} refreshUser={refreshUser}/>
+  </div>
+);
+
+// Who owns which accounts, in the same panel layout as Settings.
+const LinkedAccountsTab = ({user,refreshUser}:{user:UserDetail;refreshUser:()=>Promise<unknown>}) => (
+  <div className="account-settings-panels rounded-xl border bg-card p-6 text-card-foreground shadow-sm">
+    {user.user_type==='service'&&!user.linked_local_user?<p className="text-sm text-muted-foreground">This service account is not linked to a MUM profile.</p>:<ProfileAccountLinks user={user} refreshUser={refreshUser}/>}
   </div>
 );
 
@@ -797,6 +804,7 @@ export const UserDetailPage = () => {
     { key: 'profile', label: 'Profile' },
     { key: 'history', label: 'History' },
     { key: 'settings', label: 'Settings' },
+    { key: 'linked-accounts', label: 'Linked accounts' },
     { key: 'overseerr', label: 'Overseerr', hidden: !user.capabilities.overseerr||!showOverseerrTab },
     { key: 'security', label: 'Security', hidden: !showSecurityTab }
   ];
@@ -915,6 +923,10 @@ export const UserDetailPage = () => {
 
           <TabsContent value="settings" className="pt-5">
             <SettingsTab user={user} refreshUser={refreshUser}/>
+          </TabsContent>
+
+          <TabsContent value="linked-accounts" className="pt-5">
+            <LinkedAccountsTab user={user} refreshUser={refreshUser}/>
           </TabsContent>
 
           <TabsContent value="overseerr" className="pt-5">

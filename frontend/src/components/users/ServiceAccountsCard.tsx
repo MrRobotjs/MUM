@@ -1,5 +1,7 @@
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import type { ReactNode } from 'react'
+import { Card, CardContent } from '@/components/ui/card'
+import { SettingHeader } from './AccountSettings'
 import { Spinner } from '@/components/ui/spinner'
 
 export type ServiceAccount = {
@@ -17,72 +19,37 @@ type ServiceAccountsCardProps = {
   error?: Error | null
   onUnlink?: (serviceUuid: string) => Promise<void> | void
   onLink?: () => void
+  children?: ReactNode
 }
 
-export const ServiceAccountsCard = ({ accounts, loading, error, onUnlink, onLink }: ServiceAccountsCardProps) => {
-  if (loading) {
-    return (
-      <Card>
-        <CardContent className="p-6">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Spinner className="size-4" />
-            Loading service accounts.
-          </div>
-        </CardContent>
-      </Card>
-    )
-  }
-
-  if (error) {
-    return (
-      <Card>
-        <CardContent className="p-6 text-sm text-destructive">
-          Failed to load service accounts: {error.message}
-        </CardContent>
-      </Card>
-    )
-  }
-
-  return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0">
-        <div>
-          <CardTitle>Linked Service Accounts</CardTitle>
-          <CardDescription>{accounts.length} linked</CardDescription>
-        </div>
-        {onLink ? (
-          <Button onClick={onLink} size="sm">
-            Link Account
-          </Button>
-        ) : null}
-      </CardHeader>
+export const ServiceAccountsCard = ({ accounts, loading, error, onUnlink, onLink, children }: ServiceAccountsCardProps) => (
+  <Card>
+    <SettingHeader
+      title="Linked service accounts"
+      summary={loading ? <Spinner className="size-4" /> : error ? 'Unavailable' : `${accounts.length} linked`}
+      info={<p>Media server accounts owned by this person. Linking or unlinking changes which MUM profile owns the account; it doesn't change access on the server.</p>}
+      action={onLink ? <Button type="button" variant="outline" size="sm" onClick={onLink}>Link account</Button> : null}
+    />
+    {error || accounts.length > 0 || children ? (
       <CardContent className="space-y-3">
-        {accounts.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No service accounts linked.</p>
-        ) : (
-          <ul className="space-y-2 text-sm">
+        {error ? <p className="text-sm text-destructive">Failed to load service accounts: {error.message}</p> : null}
+        {!error && accounts.length > 0 ? (
+          <ul className="divide-y rounded-md border">
             {accounts.map((account) => (
-              <li key={account.uuid} className="rounded-lg border border-border bg-muted/30 px-3 py-2">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="font-medium">{account.external_username ?? 'Service Account'}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {account.service_type ?? 'service'} • {account.server_name ?? 'Unknown server'}
-                    </div>
-                  </div>
-                  {onUnlink ? (
-                    <Button variant="ghost" size="sm" className="text-destructive" onClick={() => onUnlink(account.uuid)}>
-                      Unlink
-                    </Button>
-                  ) : null}
+              <li key={account.uuid} className="flex items-center justify-between gap-3 p-3 text-sm">
+                <div className="min-w-0">
+                  <p className="truncate font-medium text-foreground">{account.external_username ?? 'Service Account'}</p>
+                  <p className="truncate text-xs text-muted-foreground">{account.service_type ?? 'service'} • {account.server_name ?? 'Unknown server'}</p>
                 </div>
+                {onUnlink ? <Button type="button" variant="outline" size="sm" onClick={() => onUnlink(account.uuid)}>Unlink</Button> : null}
               </li>
             ))}
           </ul>
-        )}
+        ) : null}
+        {children}
       </CardContent>
-    </Card>
-  )
-}
+    ) : null}
+  </Card>
+)
 
 export default ServiceAccountsCard

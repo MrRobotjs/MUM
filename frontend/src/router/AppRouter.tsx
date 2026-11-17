@@ -117,7 +117,7 @@ const accountRoute = createRoute({
 })
 const adminStreaming = createRoute({ getParentRoute: () => adminRoute, path: 'streaming', component: StreamingPage })
 const adminUsers = createRoute({ getParentRoute: () => adminRoute, path: 'users', component: UsersListPage })
-const userTabs = ['profile', 'history', 'settings', 'overseerr', 'security'] as const
+const userTabs = ['profile', 'history', 'settings', 'linked-accounts', 'overseerr', 'security'] as const
 type UserTab = typeof userTabs[number]
 
 const adminUserByNick = createRoute({

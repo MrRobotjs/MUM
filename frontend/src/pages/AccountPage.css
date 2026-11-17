@@ -1,65 +1,15 @@
-/* The account page uses the application's theme; these rules only flatten its settings layout. */
+/* The account page uses the application's theme; these rules only lay out its overview details.
+   The section layout is shared with the user profile settings tab (components/users/AccountSettings.css). */
 .account-settings-details { display: grid; gap: 1.5rem; }
 .account-settings-details > div { display: grid; gap: .5rem; }
 .account-settings-details dt { color: var(--muted-foreground); font-size: .875rem; font-weight: 500; }
 .account-settings-details dd { min-width: 0; overflow-wrap: anywhere; font-size: .875rem; }
-.account-settings-panels [data-slot="card"] {
-  display: block;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  padding: 0;
-  box-shadow: none;
-}
-.account-settings-panels > [data-slot="card"] + [data-slot="card"] {
-  margin-top: 2rem;
-  border-top: 1px solid var(--border);
-  padding-top: 2rem;
-}
-/* A section is a title with its (i), the current state and one action. */
-.account-setting-head { row-gap: .25rem; }
-.account-setting-title { flex: 1 1 auto; min-width: 0; }
-.account-setting-title [data-slot="card-title"] { line-height: 1.5; }
-.account-setting-summary { order: 3; flex-basis: 100%; min-width: 0; overflow-wrap: anywhere; }
-.account-setting-action { display: flex; flex-wrap: wrap; gap: .5rem; }
-.account-info {
-  display: inline-flex;
-  width: 1.5rem;
-  height: 1.5rem;
-  flex: none;
-  align-items: center;
-  justify-content: center;
-  border: 0;
-  border-radius: 9999px;
-  background: transparent;
-  cursor: pointer;
-}
-.account-info:hover { color: var(--foreground); }
-.account-info:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
-.account-info-body { display: grid; gap: .75rem; line-height: 1.6; }
-.account-settings-panels [data-slot="card-content"] { min-width: 0; margin-top: 1.5rem; padding: 0; }
-.account-settings-panels form > .space-y-2 { display: grid; gap: .5rem; }
-.account-settings-panels form > .space-y-2 > * { margin-block: 0; min-width: 0; }
-.account-settings-panels [role="switch"] { flex-shrink: 0; }
 
 @media (min-width: 640px) {
-  .account-settings-details > div,
-  .account-settings-panels form > .space-y-2,
-  .account-settings .account-preference-row,
-  .account-setting-head {
+  .account-settings-details > div {
     display: grid;
     grid-template-columns: 14rem minmax(0, 1fr);
     column-gap: 2rem;
     align-items: start;
   }
-  .account-setting-head { grid-template-columns: 14rem minmax(0, 1fr) auto; align-items: center; }
-  .account-setting-title { grid-column: 1; }
-  .account-setting-summary { grid-column: 2; order: 0; }
-  .account-setting-action { grid-column: 3; justify-content: flex-end; }
-  .account-settings-panels form > .space-y-2 > label { padding-top: .6rem; }
-  .account-settings-panels form > .space-y-2 > :not(label) { grid-column: 2; }
-  .account-settings .account-preference-row > [role="switch"] { justify-self: start; }
-  /* Everything below a section's head that is not a label/control row lines up with the values. */
-  .account-settings-panels [data-slot="card-content"] > :not(form, .account-preference-row),
-  .account-settings-panels form > :not(.space-y-2) { margin-left: 16rem; }
 }

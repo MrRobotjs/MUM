@@ -7,17 +7,19 @@ import { useAlerts } from '../../contexts/AlertContext';
 import { discordOutcome, getAccountDiscord, startDiscordLink, unlinkDiscord, type AccountDiscord } from '../../lib/discordSignIn';
 import { Button } from '../ui/button';
 import { Card, CardContent } from '../ui/card';
-import { ConfirmAction, SettingHeader } from './AccountSettings';
+import { ConfirmAction, SettingHeader, SettingIcon } from './AccountSettings';
 import { Spinner } from '../ui/spinner';
 
 // Linking a Discord account on the account page (DISCORD_SIGN_IN_DESIGN.md):
 // the same for admins and users. Discord sends the browser back here with the
 // outcome, which is shown once. Unlinking asks for confirmation first.
+const DISCORD_ICON = <SettingIcon className="bg-indigo-500/10 text-indigo-500"><FontAwesomeIcon icon={faDiscord} /></SettingIcon>;
+
 export function DiscordLinkFields({ info, busy, onLink, onUnlink }: {
   info: AccountDiscord; busy: boolean; onLink: () => void; onUnlink: () => void;
 }) {
   const summary = info.linked ? info.username : info.available ? 'Not linked' : 'Not available';
-  return <SettingHeader title="Discord" summary={summary}
+  return <SettingHeader title="Discord" icon={DISCORD_ICON} summary={summary}
     info={<>
       <p>Link your Discord account to show it on your profile and, when an administrator allows it, to use Sign in with Discord.</p>
       {!info.available && !info.linked && <p>An administrator must set up Discord before you can link an account.</p>}
@@ -25,7 +27,7 @@ export function DiscordLinkFields({ info, busy, onLink, onUnlink }: {
     </>}
     action={info.linked
       ? <Button type="button" variant="outline" size="sm" disabled={busy} onClick={onUnlink}>Unlink</Button>
-      : info.available && <Button type="button" variant="outline" size="sm" disabled={busy} onClick={onLink}><FontAwesomeIcon icon={faDiscord} className="mr-2 text-indigo-500" />Link Discord</Button>} />;
+      : info.available && <Button type="button" variant="outline" size="sm" disabled={busy} onClick={onLink}>Link Discord</Button>} />;
 }
 
 function DiscordLinkPanel() {
@@ -61,7 +63,7 @@ function DiscordLinkPanel() {
   };
   return <Card>
     {info ? <DiscordLinkFields info={info} busy={busy} onLink={() => void link()} onUnlink={() => setConfirming(true)} />
-      : <SettingHeader title="Discord" summary={error ? '' : <Spinner className="h-4 w-4" />} />}
+      : <SettingHeader title="Discord" icon={DISCORD_ICON} summary={error ? '' : <Spinner className="h-4 w-4" />} />}
     {error && <CardContent><div className="account-setting-error flex flex-wrap items-center gap-3"><p className="text-sm text-destructive">{error}</p><Button type="button" variant="outline" size="sm" onClick={() => void load()}>Try again</Button></div></CardContent>}
     <ConfirmAction open={confirming} onOpenChange={setConfirming} title="Unlink Discord?" confirmLabel="Unlink" destructive busy={busy} onConfirm={() => void unlink()}>
       Sign in with Discord stops working for this account, and sessions started with it end.

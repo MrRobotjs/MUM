@@ -4,7 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { PlexConnectionController, type PlexConnectionState } from '../../lib/plexConnection';
 import { Button } from '../ui/button';
 import { Card, CardContent } from '../ui/card';
-import { ConfirmAction, SettingHeader } from './AccountSettings';
+import { ConfirmAction, ServiceSettingIcon, SettingHeader } from './AccountSettings';
 import { Spinner } from '../ui/spinner';
 
 const initial: PlexConnectionState = {phase:'loading',busy:false,enabled:false,connection:null,challenge:null,error:null};
@@ -36,7 +36,7 @@ function PlexConnectionPanel({owner}:{owner:string}) {
  const canConnect = !linked && state.enabled && ['ready','expired','error'].includes(state.phase);
  const summary = state.phase==='loading' ? <Spinner className="h-4 w-4" /> : linked ? linked.username : state.enabled ? 'Not linked' : 'Not available';
  return <Card>
-  <SettingHeader title="Plex" summary={summary}
+  <SettingHeader title="Plex" icon={<ServiceSettingIcon serviceType="plex" />} summary={summary}
    info={<>
     <p>Link your personal Plex account to use Sign in with Plex on the sign-in page. Linking does not grant library access.</p>
     {!state.enabled && <p>An administrator must turn on Plex connections first.</p>}

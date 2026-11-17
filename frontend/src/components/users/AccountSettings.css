@@ -18,6 +18,15 @@
 .account-setting-title [data-slot="card-title"] { line-height: 1.5; }
 .account-setting-summary { order: 3; flex-basis: 100%; min-width: 0; overflow-wrap: anywhere; }
 .account-setting-action { display: flex; flex-wrap: wrap; gap: .5rem; }
+.account-setting-icon {
+  display: inline-flex;
+  width: 2rem;
+  height: 2rem;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+}
 .account-info {
   display: inline-flex;
   width: 1.5rem;

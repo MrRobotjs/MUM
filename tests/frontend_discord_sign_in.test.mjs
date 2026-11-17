@@ -81,7 +81,7 @@ const renderer = `export function render(e){if(e==null||e===false||e===true)retu
 const uiMock = `export const Card='div',CardContent='div',CardHeader='div',CardTitle='div',CardDescription='div',Button='button',Checkbox='input',Alert='div',AlertDescription='div',Spinner='i';export const FontAwesomeIcon='i';`;
 
 test('the account card links, explains, and unlinks only through a confirmation', async () => {
-  const header = `export const SettingHeader=({title,info,summary,action})=>({type:'section',props:{children:[title,'|',info,'|',summary,'|',action]}});export const ConfirmAction=()=>null;`;
+  const header = `export const SettingHeader=({title,info,summary,action})=>({type:'section',props:{children:[title,'|',info,'|',summary,'|',action]}});export const ConfirmAction=()=>null;export const SettingIcon=(p)=>p.children;`;
   const m = await loadFrontend(`export {DiscordLinkFields} from './src/components/users/DiscordLinkCard';${renderer}`, { mock: { filter: s => /components\/ui|ui\/|@fortawesome\/react-fontawesome|contexts|@tanstack\/react-router|lib\/discordSignIn|AccountSettings/.test(s), module: s =>
     /AccountSettings/.test(s) ? header : /contexts/.test(s) ? `export const useAuth=()=>({});export const useAlerts=()=>({});` : /react-router/.test(s) ? `export const useNavigate=()=>()=>{};export const useSearch=()=>({});` : /discordSignIn/.test(s) ? `export const discordOutcome=()=>null;export const getAccountDiscord=async()=>({});export const startDiscordLink=async()=>'';export const unlinkDiscord=async()=>{};` : uiMock } });
   const onLink = () => {}, onUnlink = () => {};
@@ -107,7 +107,7 @@ test('the account card links, explains, and unlinks only through a confirmation'
 
 test('a confirmation runs its action from Confirm only, and cannot be dismissed while running', async () => {
   const dialog = `export const ResponsiveDialog=p=>({type:'dialog',props:p});export const Button='button';export const CardTitle='h3';`;
-  const m = await loadFrontend(`export {ConfirmAction} from './src/components/users/AccountSettings';`, { mock: { filter: s => /components\/ui|ui\/|@fortawesome/.test(s), module: () => dialog + `export const FontAwesomeIcon='i';export const faCircleInfo={};` } });
+  const m = await loadFrontend(`export {ConfirmAction} from './src/components/users/AccountSettings';`, { mock: { filter: s => /components\/ui|ui\/|@fortawesome|config\/pluginMetadata/.test(s), module: s => /pluginMetadata/.test(s) ? `export const getServiceMeta=()=>({icon:null});` : dialog + `export const FontAwesomeIcon='i';export const faCircleInfo={};` } });
   let confirmed = 0; const changes = [];
   const props = busy => ({ open: true, onOpenChange: v => changes.push(v), title: 'Unlink Discord?', confirmLabel: 'Unlink', busy, destructive: true, onConfirm: () => { confirmed++; } });
   const idle = m.ConfirmAction(props(false));

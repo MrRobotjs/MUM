@@ -6,7 +6,9 @@ import { ApiError } from '../../util/apiClient';
 import { Alert, AlertDescription } from '../ui/alert';
 import { Button } from '../ui/button';
 import { Card, CardContent } from '../ui/card';
-import { ConfirmAction, SettingHeader } from './AccountSettings';
+import { ConfirmAction, ServiceSettingIcon, SettingHeader, SettingIcon } from './AccountSettings';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faServer } from '@fortawesome/free-solid-svg-icons';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
@@ -29,9 +31,12 @@ export const ServiceLinksList = ({ links, busy, onUnlink }: { links: ServiceLink
     <ul className="divide-y rounded-md border">
       {links.map((link) => (
         <li key={link.serviceUuid} className="flex items-center justify-between gap-3 p-3 text-sm">
-          <div className="min-w-0">
+          <div className="flex min-w-0 items-center gap-3">
+            <ServiceSettingIcon serviceType={link.serverType} />
+            <div className="min-w-0">
             <p className="truncate font-medium text-foreground">{link.serverName}</p>
             <p className="truncate text-xs text-muted-foreground">{link.username || 'Unnamed account'}</p>
+            </div>
           </div>
           {link.canUnlink ? (
             <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => onUnlink(link)}>Unlink</Button>
@@ -107,7 +112,7 @@ export const ServiceLinksCard = () => {
   const canLink = Boolean(state?.serviceSignIn && state.servers.length > 0);
   return (
     <Card>
-      <SettingHeader title="Media server accounts"
+      <SettingHeader title="Media servers" icon={<SettingIcon className="bg-muted text-muted-foreground"><FontAwesomeIcon icon={faServer} /></SettingIcon>}
         info={<>
           <p>Any of these logins signs you in to this MUM account. Linking or unlinking does not change your access on the media server.</p>
           <p>An account marked "Only way to sign in" can be unlinked once you link another account or set a MUM password.</p>

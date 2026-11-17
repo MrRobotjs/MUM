@@ -1,6 +1,8 @@
-import { useState, type ReactNode } from 'react';
+import { cloneElement, useState, type ReactNode } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faCircleInfo } from '@fortawesome/free-solid-svg-icons';
+import { getServiceMeta } from '@/config/pluginMetadata';
+import { cn } from '@/lib/utils';
 import { Button } from '../ui/button';
 import { CardTitle } from '../ui/card';
 import { ResponsiveDialog } from '../ui/responsive-dialog';
@@ -24,9 +26,10 @@ export function SettingInfo({ title, children }: { title: string; children: Reac
 }
 
 // SettingHeader lays out a section's title, (i), current state and action.
-export function SettingHeader({ title, info, summary, action }: { title: string; info?: ReactNode; summary?: ReactNode; action?: ReactNode }) {
+export function SettingHeader({ title, icon, info, summary, action }: { title: string; icon?: ReactNode; info?: ReactNode; summary?: ReactNode; action?: ReactNode }) {
   return <div className="account-setting-head flex flex-wrap items-center gap-3">
     <div className="account-setting-title flex items-center gap-2">
+      {icon}
       <CardTitle>{title}</CardTitle>
       {info ? <SettingInfo title={title}>{info}</SettingInfo> : null}
     </div>
@@ -64,3 +67,15 @@ export function SettingNotice({ notice, busy, onRetry }: { notice: Notice; busy?
 
 // The message shown when a confirmed change no longer matches what was read.
 export const changedWhileConfirming = 'This account changed while you were confirming. Check it and try again.';
+
+// SettingIcon is the round, tinted icon beside a section title.
+export function SettingIcon({ className, children }: { className: string; children: ReactNode }) {
+  return <span aria-hidden="true" className={cn('account-setting-icon', className)}>{children}</span>;
+}
+
+// ServiceSettingIcon shows a media service's own icon in its own colour.
+export function ServiceSettingIcon({ serviceType }: { serviceType?: string }) {
+  const meta = getServiceMeta(serviceType);
+  return <SettingIcon className={cn(meta.palette?.accent, meta.palette?.accentDark)}>{appendSize(meta.icon)}</SettingIcon>;
+}
+const appendSize = (icon: ReturnType<typeof getServiceMeta>['icon']) => cloneElement(icon, { className: cn(icon.props.className, 'w-4 h-4') });

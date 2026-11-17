@@ -177,12 +177,13 @@ test('current invitation wizard adapters', async t => {
     assert.equal((await recovered.redeem()).status, 'completed');
   });
 
-  await t.test('validation matches Go password byte limits and unavailable storage does not stop in-tab retries', async () => {
+  await t.test('validation counts password characters like Go and unavailable storage does not stop in-tab retries', async () => {
     const { InvitationDraft } = await loadModule();
     const draft = new InvitationDraft('token', invitation(), { getItem() { throw new Error('disabled'); }, setItem() { throw new Error('disabled'); } });
     assert.throws(() => draft.saveAccount(account({ password: 'short', confirm_password: 'short' })), /12/);
     assert.throws(() => draft.saveAccount(account({ password: 'x'.repeat(1025), confirm_password: 'x'.repeat(1025) })), /1024/);
-    draft.saveAccount(account({ password: '界'.repeat(4), confirm_password: '界'.repeat(4) }));
+    assert.throws(() => draft.saveAccount(account({ password: '界'.repeat(4), confirm_password: '界'.repeat(4) })), /12 to 1024 characters/);
+    draft.saveAccount(account({ password: '界'.repeat(12), confirm_password: '界'.repeat(12) }));
     globalThis.fetch = async () => Response.json({ data: receipt() });
     assert.equal((await draft.redeem()).status, 'completed');
   });

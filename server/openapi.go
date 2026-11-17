@@ -23,7 +23,7 @@ type apiRoute struct {
 // this list against every registered route.
 var publicAPIRoutes = map[string]string{
 	"GET /api/activity/history-images/{item}":                                          "Signed, short-lived link; administrator session and the retained play's stored poster are rechecked on every fetch",
-	"GET /api/activity/plex-history-images/{item}":                                     "Signed, short-lived link; administrator session and the imported Plex play's stored poster are rechecked on every fetch",
+	"GET /api/activity/imported-history-images/{item}":                                 "Signed, short-lived link; administrator session and the imported play's stored poster are rechecked on every fetch",
 	"GET /api/user-avatars/{item}":                                                     "Signed, short-lived link; administrator session and current user avatar source are rechecked on every fetch",
 	"GET /api/activity/avatars/{item}":                                                 "Signed, short-lived link; administrator session and current avatar source are rechecked on every fetch",
 	"GET /api/activity/images/{item}":                                                  "Signed, short-lived link; administrator session and current activity are rechecked on every fetch",

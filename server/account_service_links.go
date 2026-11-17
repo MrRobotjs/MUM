@@ -135,7 +135,7 @@ func (a *App) linkAccountService(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !input.valid() {
-		fail(w, 400, "INVALID_SIGN_IN", "Choose a server and enter its username and a password of at most 1024 bytes")
+		fail(w, 400, "INVALID_SIGN_IN", "Choose a server and enter its username and password (up to 1024 characters)")
 		return
 	}
 	ctx, done, ok := a.startSignInOperation(w, r)
@@ -239,8 +239,8 @@ func (a *App) setInitialCredentials(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	username, err := normalizeAccountUsername(input.Username)
-	if err != nil || len(input.Password) < 12 || len(input.Password) > 1024 || (input.Verification != nil && !input.Verification.valid()) {
-		fail(w, 400, "INVALID_CREDENTIALS_INPUT", "Choose a printable ASCII username and a password of 12–1024 bytes")
+	if err != nil || !passwordLongEnough(input.Password) || len(input.Password) > 1024 || (input.Verification != nil && !input.Verification.valid()) {
+		fail(w, 400, "INVALID_CREDENTIALS_INPUT", "Choose a username of English letters, numbers, spaces and standard symbols (no accents or emoji) and a password of 12 to 1024 characters")
 		return
 	}
 	ctx := r.Context()

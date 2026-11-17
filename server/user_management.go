@@ -39,17 +39,17 @@ const signInOnlySQL = `(i.kind='local' AND u.local_username IS NULL AND EXISTS(S
  WHERE l.user_uuid=i.uuid AND l.link_kind='owner' AND sa.removed_at IS NULL))`
 
 // lastStreamSQL is a listed account's newest play from any history MUM has,
-// as "<time> <source>": MUM's own plays and plays imported from Plex's history
-// (another provider's imported history joins here as another source). A
+// as "<time> <source>": MUM's own plays ("mum") and plays imported from a
+// server's own history (the server's type, such as "plex" or "jellyfin"). A
 // server account counts its own plays; a local user counts plays MUM tied to
 // them and imported plays of the server accounts they own. Times are fixed-width
 // UTC, so the text sorts by time; NULL when the account never streamed.
 const lastStreamSQL = `(SELECT seen||' '||source FROM (
   SELECT max(h.last_seen_at) seen,'mum' source FROM media_activity_history h WHERE h.service_uuid=i.uuid
   UNION ALL SELECT max(h.last_seen_at),'mum' FROM media_activity_history h WHERE h.owner_uuid=i.uuid
-  UNION ALL SELECT max(p.viewed_at),'plex' FROM plex_history_imports p WHERE p.server_id=a.server_id AND p.account_id=a.external_user_id
-  UNION ALL SELECT max(p.viewed_at),'plex' FROM service_links l JOIN service_accounts sa ON sa.uuid=l.service_uuid
-   JOIN plex_history_imports p ON p.server_id=sa.server_id AND p.account_id=sa.external_user_id WHERE l.user_uuid=i.uuid AND l.link_kind='owner'
+  UNION ALL SELECT (SELECT max(p.viewed_at) FROM history_imports p WHERE p.server_id=a.server_id AND p.account_id=a.external_user_id),s.service_type
+  UNION ALL SELECT max(p.viewed_at),ms.service_type FROM service_links l JOIN service_accounts sa ON sa.uuid=l.service_uuid JOIN media_servers ms ON ms.id=sa.server_id
+   JOIN history_imports p ON p.server_id=sa.server_id AND p.account_id=sa.external_user_id WHERE l.user_uuid=i.uuid AND l.link_kind='owner' GROUP BY ms.service_type
  ) WHERE seen IS NOT NULL ORDER BY seen DESC LIMIT 1)`
 
 // userDisplayNameSQL is how a listed account is named.
@@ -342,7 +342,7 @@ func (a *App) createUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if strings.TrimSpace(input.Username) == "" || len(input.Username) > 255 {
-		fail(w, 400, "INVALID_USERNAME", "A username up to 255 bytes is required")
+		fail(w, 400, "INVALID_USERNAME", "Enter a username of up to 255 characters")
 		return
 	}
 	if !a.passwordAdmission(w, r) {

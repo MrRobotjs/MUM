@@ -5,7 +5,7 @@ export type EmailChangeInput={email:string;current_password:string;acknowledge_u
 export function normalizeContactEmail(value:string):string{
  const email=value.trim();if(!email)return '';
  const parts=email.split('@');
- if(new TextEncoder().encode(email).length>254 || !/^[\x21-\x7e]+$/.test(email) || /["\\<>]/.test(email) || parts.length!==2 || !parts[0] || parts[0].length>64 || !parts[1] || parts[1].split('.').some(label=>!label || label.length>63 || !/^[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?$/.test(label)))throw Error('Use a bare ASCII email address of at most 254 bytes, or leave it empty to clear it.');
+ if(new TextEncoder().encode(email).length>254 || !/^[\x21-\x7e]+$/.test(email) || /["\\<>]/.test(email) || parts.length!==2 || !parts[0] || parts[0].length>64 || !parts[1] || parts[1].split('.').some(label=>!label || label.length>63 || !/^[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?$/.test(label)))throw Error('Enter a valid email address of up to 254 characters, using English letters, numbers and standard symbols (no accents or emoji), or leave it empty to clear it.');
  return parts[0]+'@'+parts[1].toLowerCase();
 }
 export function emailChangePayload(user:string,revision:number,input:EmailChangeInput){

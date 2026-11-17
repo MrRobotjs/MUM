@@ -26,18 +26,18 @@ func TestParsePlayHistoryKeepsWhatPlexGives(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if page.Total != 5 || page.Offset != 0 || len(page.Entries) != 3 {
+	if page.Total != 5 || page.Offset != 0 || page.Read != 3 || len(page.Entries) != 3 {
 		t.Fatalf("page %+v", page)
 	}
 	first := page.Entries[0]
-	if first.Key != "/status/sessions/history/12" || first.AccountID != "123456" || first.RatingKey != "1234" || first.Type != "movie" || first.Section != "1" || first.Title != "A Movie" || !first.ViewedAt.Equal(time.Unix(1345678901, 0)) {
+	if first.Key != "/status/sessions/history/12" || first.AccountID != "123456" || first.ItemID != "1234" || first.Type != "movie" || first.Section != "1" || first.Title != "A Movie" || !first.ViewedAt.Equal(time.Unix(1345678901, 0)) {
 		t.Fatalf("first %+v", first)
 	}
 	if e := page.Entries[1]; e.ParentTitle != "Season 1" || e.GrandparentTitle != "A Show" || e.AccountID != "1" {
 		t.Fatalf("episode %+v", e)
 	}
 	// An entry for a deleted item has no rating key or title; it is still a play.
-	if e := page.Entries[2]; e.RatingKey != "" || e.Title != "" || e.Key != "/status/sessions/history/14" {
+	if e := page.Entries[2]; e.ItemID != "" || e.Title != "" || e.Key != "/status/sessions/history/14" {
 		t.Fatalf("deleted item %+v", e)
 	}
 }

@@ -188,7 +188,7 @@ func TestUserListLastStreamedIncludesImportedPlexHistory(t *testing.T) {
 		account string
 		day     int
 	}{{"1", 8}, {"1", 2}, {"3", 1}, {"5", 9}, {"9", 20}} { // account 9 is nobody MUM knows
-		activityExec(t, s, `INSERT INTO plex_history_imports(server_id,history_key,account_id,viewed_at,imported_at) VALUES(?,?,?,?,?)`, server, fmt.Sprint("/h/", i), play.account, at(play.day), at(play.day))
+		activityExec(t, s, `INSERT INTO history_imports(server_id,entry_key,account_id,viewed_at,imported_at) VALUES(?,?,?,?,?)`, server, fmt.Sprint("/h/", i), play.account, at(play.day), at(play.day))
 	}
 	hash, _ := hashPassword("a-strong-member-password")
 	local, err := s.CreateAccount(t.Context(), owner.UUID, "viewer", hash, false)

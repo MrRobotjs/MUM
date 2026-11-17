@@ -52,6 +52,7 @@ import { ServiceIcon } from '@/components/services/ServiceIcon'
 
 import { InvitationDraft, loadPublicInvitation, serviceSignInNotice } from '../lib/invitationWizard';
 import type { WizardStep, WizardServer, WizardState, CompletionResponse } from '../lib/invitationWizardTypes';
+import {passwordLimitText} from '../lib/textLimits';
 
 type AccountFormState = {
   username: string;
@@ -261,7 +262,7 @@ const ServerAccessDetails = ({ server, invite, grantLibraryIds }: ServerAccessDe
                         </div>
                         <div className="flex items-center gap-2">
                           <FontAwesomeIcon icon={faKey} className="w-4 text-green-500" />
-                          <span>Authentication: <strong>{server.service_type === 'ROMM' ? 'Lowercase ASCII username; printable ASCII password of 12–72 bytes' : server.service_type === 'KAVITA' ? 'Username without @; password of 12–256 bytes' : server.service_type === 'KOMGA' ? 'Email and password (12–72 bytes)' : server.service_type === 'AUDIOBOOKSHELF' ? 'Username and password (12–72 bytes)' : 'Username and password (required)'}</strong></span>
+                          <span>Authentication: <strong>{server.service_type === 'ROMM' ? 'Username of English letters without capitals, numbers, underscores or hyphens; password of 12 to 72 English letters, numbers and standard symbols' : server.service_type === 'KAVITA' ? 'Username without @; password of 12 to 256 characters' : server.service_type === 'KOMGA' ? 'Email and password (12 to 72 characters)' : server.service_type === 'AUDIOBOOKSHELF' ? 'Username and password (12 to 72 characters)' : 'Username and password (required)'}</strong></span>
                         </div>
                         <div className="flex items-center gap-2">
                           <FontAwesomeIcon icon={faDownload} className="w-4 text-green-500" />
@@ -1271,7 +1272,7 @@ export const InviteWizardPage = () => {
                           <div>
                             <span className="text-sm font-medium">Use same password across servers</span>
                             <p className="text-xs text-muted-foreground">
-                              Your local account password will be used for all media servers{state.servers.some(server => server.service_type === 'AUDIOBOOKSHELF' || server.service_type === 'KOMGA' || server.service_type === 'ROMM') ? '. Audiobookshelf and Komga need 12–72 bytes; RomM needs 12–72 printable ASCII bytes. You can set a separate server password.' : state.servers.some(server => server.service_type === 'KAVITA') ? '. Kavita needs 12–256 bytes; you can set a separate server password.' : ''}
+                              Your local account password will be used for all media servers{state.servers.some(server => server.service_type === 'AUDIOBOOKSHELF' || server.service_type === 'KOMGA' || server.service_type === 'ROMM') ? '. Audiobookshelf and Komga need 12 to 72 characters (accented letters and emoji take up extra space); RomM needs 12 to 72 English letters, numbers and standard symbols. You can set a separate server password.' : state.servers.some(server => server.service_type === 'KAVITA') ? '. Kavita needs 12 to 256 characters (accented letters and emoji take up extra space); you can set a separate server password.' : ''}
                             </p>
                           </div>
                         </label>
@@ -1546,7 +1547,7 @@ export const InviteWizardPage = () => {
                         {activeServer.name}
                       </h2>
                       <p className="text-sm text-muted-foreground">
-                        Setting up access to {activeServer.name || activeServer.service_type}{limits.asciiOnly ? '. Use an ASCII username of 3–255 characters using a–z, digits, underscores or hyphens and a printable ASCII password of 12–72 bytes.' : limits.usernameWithoutAt ? '. Username-only account; your local email is not sent to Kavita.' : ''}
+                        Setting up access to {activeServer.name || activeServer.service_type}{limits.asciiOnly ? '. Use a username of 3 to 255 English letters without capitals, numbers, underscores or hyphens and a password of 12 to 72 English letters, numbers, spaces and standard symbols (no accents or emoji).' : limits.usernameWithoutAt ? '. Username-only account; your local email is not sent to Kavita.' : ''}
                       </p>
                     </div>
                   </div>
@@ -1584,7 +1585,7 @@ export const InviteWizardPage = () => {
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor={`server-${activeServer.id}-password`}>Password (12–{limits.passwordMaxBytes} bytes)</Label>
+                      <Label htmlFor={`server-${activeServer.id}-password`}>Password ({passwordLimitText(limits.passwordMaxBytes)})</Label>
                       <Input
                         id={`server-${activeServer.id}-password`}
                         type="password"

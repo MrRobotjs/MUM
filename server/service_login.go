@@ -297,7 +297,7 @@ func (a *App) serviceLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !input.valid() {
-		fail(w, 400, "INVALID_SIGN_IN", "Choose a server and enter its username and a password of at most 1024 bytes")
+		fail(w, 400, "INVALID_SIGN_IN", "Choose a server and enter its username and password (up to 1024 characters)")
 		return
 	}
 	ctx, done, ok := a.startSignInOperation(w, r)

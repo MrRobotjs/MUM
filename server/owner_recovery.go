@@ -164,15 +164,15 @@ func runOwnerRecovery(ctx context.Context, directory string, input, output *os.F
 	if string(confirmation) != "RECOVER" {
 		return errors.New("owner recovery canceled")
 	}
-	fmt.Fprint(output, "New owner password (12–1024 UTF-8 bytes; input hidden): ")
+	fmt.Fprint(output, "New owner password (12 to 1024 characters; typing is hidden): ")
 	password, err := readRecoveryLine(ctx, &terminal, &cr, 1024)
 	fmt.Fprint(output, "\r\n")
 	if err != nil {
 		return err
 	}
 	defer clear(password)
-	if len(password) < 12 {
-		return errors.New("password must contain 12–1024 bytes; recovery was not changed")
+	if utf8.RuneCount(password) < 12 { // characters, without copying the secret
+		return errors.New("the password must be 12 to 1024 characters; recovery was not changed")
 	}
 	fmt.Fprint(output, "Confirm new owner password (input hidden): ")
 	repeat, err := readRecoveryLine(ctx, &terminal, &cr, 1024)

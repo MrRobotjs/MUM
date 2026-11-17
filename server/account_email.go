@@ -121,7 +121,7 @@ func (a *App) changeAccountEmail(w http.ResponseWriter, r *http.Request) {
 	}
 	email, err := normalizeAccountEmail(*input.Email)
 	if err != nil {
-		fail(w, 400, "INVALID_CONTACT_EMAIL", "Use a bare ASCII email address of at most 254 bytes or an empty string to clear it")
+		fail(w, 400, "INVALID_CONTACT_EMAIL", "Enter a valid email address of up to 254 characters, using English letters, numbers and standard symbols (no accents or emoji), or leave it empty to clear it")
 		return
 	}
 	if !a.passwordAdmission(w, r) {

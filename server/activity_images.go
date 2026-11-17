@@ -100,13 +100,13 @@ func (a *App) activityHistoryImageProxy(w http.ResponseWriter, r *http.Request) 
 	})
 }
 
-const plexHistoryPosterPurpose = "plex-history-poster"
+const importedHistoryPosterPurpose = "imported-history-poster"
 
-// readPlexHistoryImageSource resolves the poster stored with a play imported
-// from Plex's history, with the same rechecks as a retained MUM play: an
-// administrator session, an active Plex server, an enabled provider and a
-// validated catalogue reference.
-func (a *App) readPlexHistoryImageSource(ctx context.Context, session string, item int64) (catalogueImageSource, error) {
+// readImportedHistoryImageSource resolves the poster stored with a play
+// imported from a server's own history, with the same rechecks as a retained
+// MUM play: an administrator session, an active server, an enabled provider
+// and a reference valid for that kind of server.
+func (a *App) readImportedHistoryImageSource(ctx context.Context, session string, item int64) (catalogueImageSource, error) {
 	var source catalogueImageSource
 	tx, err := a.store.reader.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
@@ -123,16 +123,16 @@ func (a *App) readPlexHistoryImageSource(ctx context.Context, session string, it
 		return source, err
 	}
 	err = tx.QueryRowContext(ctx, `SELECT s.service_type,s.url,coalesce(s.api_key,''),coalesce(i.poster_item,''),coalesce(i.poster_path,''),s.id,s.config_revision
-	FROM plex_history_imports i JOIN media_servers s ON s.id=i.server_id JOIN provider_settings p ON p.provider_id=s.service_type
-	WHERE i.rowid=? AND s.service_type='plex' AND s.is_active=1 AND p.enabled=1`, item).Scan(&source.Provider, &source.URL, &source.APIKey, &source.External, &source.Tag, &source.Server, &source.ConfigRevision)
-	if errors.Is(err, sql.ErrNoRows) || err == nil && !validPlexCataloguePoster(source.External, source.Tag) {
+	FROM history_imports i JOIN media_servers s ON s.id=i.server_id JOIN provider_settings p ON p.provider_id=s.service_type
+	WHERE i.rowid=? AND s.is_active=1 AND p.enabled=1`, item).Scan(&source.Provider, &source.URL, &source.APIKey, &source.External, &source.Tag, &source.Server, &source.ConfigRevision)
+	if errors.Is(err, sql.ErrNoRows) || err == nil && !validHistoryPoster(source.Provider, source.External, source.Tag) {
 		return source, ErrNotFound
 	}
 	return source, err
 }
 
-func (a *App) plexHistoryImageProxy(w http.ResponseWriter, r *http.Request) {
-	a.serveSignedImage(w, r, "item", plexHistoryPosterPurpose, a.readPlexHistoryImageSource, func(ctx context.Context, p *serverConnection, s catalogueImageSource) (string, []byte, error) {
+func (a *App) importedHistoryImageProxy(w http.ResponseWriter, r *http.Request) {
+	a.serveSignedImage(w, r, "item", importedHistoryPosterPurpose, a.readImportedHistoryImageSource, func(ctx context.Context, p *serverConnection, s catalogueImageSource) (string, []byte, error) {
 		return p.catalogueImage(ctx, s.External, s.Tag)
 	})
 }

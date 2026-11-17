@@ -19,45 +19,25 @@ var ErrPlayHistory = errors.New("unusable Plex play history")
 // maxHistoryBytes bounds one history page; 500 entries are about 250 KiB.
 const maxHistoryBytes = 8 << 20
 
-// HistoryEntry is one play in the server's own history. Plex writes it when an
+// Play history entries use provider.HistoryEntry: Plex writes an entry when an
 // item is finished, with a single time and no length, player or quality. An
-// entry for a deleted item has no rating key and may have no title.
-type HistoryEntry struct {
-	Key              string // historyKey, unique on the server
-	AccountID        string
-	ViewedAt         time.Time
-	Type             string
-	RatingKey        string
-	Section          string
-	Title            string
-	ParentTitle      string
-	GrandparentTitle string
-	// The poster, chosen as for live playback: the movie's own, the show's
-	// for an episode, the album's for a track. Empty when Plex sent none or
-	// the path is not that item's own thumbnail.
-	PosterItem string
-	PosterPath string
-}
-
-// HistoryPage is one page of the history and where it sits in the whole.
-type HistoryPage struct {
-	Entries []HistoryEntry
-	Offset  int
-	Total   int
-}
+// entry for a deleted item has no rating key (ItemID) and may have no title.
+// The poster is chosen as for live playback: the movie's own, the show's for
+// an episode, the album's for a track; empty when Plex sent none or the path
+// is not that item's own thumbnail.
 
 // PlayHistory reads one page of the server's play history, oldest first, so
 // entries Plex adds while an import runs land after the pages already read.
 // It only reads.
-func (s *Server) PlayHistory(ctx context.Context, start, size int) (HistoryPage, error) {
+func (s *Server) PlayHistory(ctx context.Context, start, size int) (provider.HistoryPage, error) {
 	if start < 0 || size < 1 || size > 1000 {
-		return HistoryPage{}, ErrPlayHistory
+		return provider.HistoryPage{}, ErrPlayHistory
 	}
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, s.url+"/status/sessions/history/all?sort=viewedAt:asc", nil)
 	if err != nil {
-		return HistoryPage{}, ErrPlayHistory
+		return provider.HistoryPage{}, ErrPlayHistory
 	}
 	req.Header.Set("Accept", "application/xml")
 	req.Header.Set("X-Plex-Container-Start", strconv.Itoa(start))
@@ -65,7 +45,7 @@ func (s *Server) PlayHistory(ctx context.Context, start, size int) (HistoryPage,
 	s.Authorize(req.Header)
 	_, body, err := s.transport.Fetch(req, maxHistoryBytes, nil)
 	if err != nil {
-		return HistoryPage{}, err
+		return provider.HistoryPage{}, err
 	}
 	return ParsePlayHistory(body)
 }
@@ -73,7 +53,7 @@ func (s *Server) PlayHistory(ctx context.Context, start, size int) (HistoryPage,
 // ParsePlayHistory validates one history page: its size must match its rows,
 // and every row needs a unique history key, an account and a time. Titles and
 // other descriptive fields that are too long are dropped, not fatal.
-func ParsePlayHistory(body []byte) (HistoryPage, error) {
+func ParsePlayHistory(body []byte) (provider.HistoryPage, error) {
 	var page struct {
 		XMLName xml.Name `xml:"MediaContainer"`
 		Size    *int     `xml:"size,attr"`
@@ -97,12 +77,12 @@ func ParsePlayHistory(body []byte) (HistoryPage, error) {
 		} `xml:",any"`
 	}
 	if len(body) > maxHistoryBytes || xml.Unmarshal(body, &page) != nil || page.Size == nil || page.Total == nil {
-		return HistoryPage{}, ErrPlayHistory
+		return provider.HistoryPage{}, ErrPlayHistory
 	}
 	if *page.Size != len(page.Rows) || *page.Total < 0 || page.Offset < 0 {
-		return HistoryPage{}, ErrPlayHistory
+		return provider.HistoryPage{}, ErrPlayHistory
 	}
-	out := HistoryPage{Entries: make([]HistoryEntry, 0, len(page.Rows)), Offset: page.Offset, Total: *page.Total}
+	out := provider.HistoryPage{Entries: make([]provider.HistoryEntry, 0, len(page.Rows)), Offset: page.Offset, Read: len(page.Rows), Total: *page.Total}
 	seen := map[string]bool{}
 	optional := func(value string, limit int) string {
 		if value != "" && provider.ValidText(value, limit) {
@@ -113,7 +93,7 @@ func ParsePlayHistory(body []byte) (HistoryPage, error) {
 	for _, row := range page.Rows {
 		viewed, err := strconv.ParseInt(row.Viewed, 10, 64)
 		if !provider.ValidText(row.Key, 256) || !provider.ValidText(row.Account, 64) || err != nil || viewed <= 0 || seen[row.Key] {
-			return HistoryPage{}, ErrPlayHistory
+			return provider.HistoryPage{}, ErrPlayHistory
 		}
 		seen[row.Key] = true
 		item, path := row.RatingKey, row.Thumb
@@ -126,9 +106,9 @@ func ParsePlayHistory(body []byte) (HistoryPage, error) {
 		if !ValidPoster(item, path) {
 			item, path = "", ""
 		}
-		out.Entries = append(out.Entries, HistoryEntry{
+		out.Entries = append(out.Entries, provider.HistoryEntry{
 			Key: row.Key, AccountID: row.Account, ViewedAt: time.Unix(viewed, 0),
-			Type: optional(row.Type, 32), RatingKey: optional(row.RatingKey, 256), Section: optional(row.Section, 64),
+			Type: optional(row.Type, 32), ItemID: optional(row.RatingKey, 256), Section: optional(row.Section, 64),
 			Title: optional(row.Title, 1024), ParentTitle: optional(row.ParentTitle, 1024), GrandparentTitle: optional(row.GrandparentTitle, 1024),
 			PosterItem: item, PosterPath: path,
 		})

@@ -1,3 +1,4 @@
+import { historyServiceName } from '../../lib/playHistory';
 import { displayExpirationInfo } from '../../lib/accountDisplay';
 import { useAccountDisplay } from '../../hooks/useAccountDisplay';
 
@@ -421,7 +422,7 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
               </div>
             )}
             {settings.show_streamed_section && (
-              <div className="flex items-center gap-1.5 overflow-hidden" title={`Last Streamed: ${user.last_streamed_at ? formatTimestamp(user.last_streamed_at) : 'Never'}${user.last_streamed_source === 'plex' ? ' (Plex history)' : ''}`}>
+              <div className="flex items-center gap-1.5 overflow-hidden" title={`Last Streamed: ${user.last_streamed_at ? formatTimestamp(user.last_streamed_at) : 'Never'}${user.last_streamed_source && user.last_streamed_source !== 'mum' ? ` (${historyServiceName[user.last_streamed_source]} history)` : ''}`}>
                 <FontAwesomeIcon icon={faClock} className={cn("h-3 w-3 shrink-0", user.last_streamed_at && "text-green-500")} />
                 <span className="text-[10px] font-semibold uppercase tracking-wider shrink-0">Seen:</span>
                 <span className="truncate">{user.last_streamed_at ? formatTimestamp(user.last_streamed_at, 'date') : 'Never'}</span>

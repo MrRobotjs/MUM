@@ -29,7 +29,7 @@ type profileNoteRecord struct {
 }
 
 func validProfileNotes(notes string) bool {
-	if len(notes) > 16384 || !utf8.ValidString(notes) {
+	if !utf8.ValidString(notes) || characters(notes) > 16384 {
 		return false
 	}
 	for _, r := range notes {
@@ -133,7 +133,7 @@ func (a *App) profileNotes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if input.Notes == nil || !validProfileNotes(*input.Notes) {
-		fail(w, 400, "INVALID_NOTES", "Notes must be valid text up to 16384 UTF-8 bytes")
+		fail(w, 400, "INVALID_NOTES", "Notes can be up to 16,384 characters")
 		return
 	}
 	var out profileNoteRecord

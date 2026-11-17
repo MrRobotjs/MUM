@@ -1,6 +1,7 @@
 import { requestJson } from '../util/apiClient';
 import { getAccessToken } from '../store/authStore';
 import { fetchPersonalProfile } from './plexConnection';
+import {reasonFits} from './textLimits';
 
 export const plexJobVerificationScope = 'accepted_cloud_and_recipient_library_listing';
 export type PlexJobStep = { server_id: number; plex?: { state: string; revision: number; operation_in_progress: boolean; reconciliation_required: boolean; access_verified: false; cleanup_scope: 'none' | 'owner_cloud_grant'; completion_recorded?: boolean; verification_scope?: string; verified_at?: string } };
@@ -37,9 +38,8 @@ export function plexJobCanVerify(j: PlexReviewJob) {
 }
 export function plexJobActionPayload(job: PlexReviewJob, action: 'verify'|'finalize', decision: PlexJobDecision) {
  const j = plexReviewJob(job,job.id);
- const length = new TextEncoder().encode(decision.reason.trim()).length;
  if (!['verify','finalize'].includes(action) || !plexJobCanVerify(j)) throw new Error('This Plex job is not available for verification or activation');
- if (length < 10 || length > 1000 || decision.acknowledge_in_flight_risk !== true || decision.acknowledge_local_activation !== (action === 'finalize')) throw new Error('Enter a reason of 10–1000 bytes and confirm the scope and activation choice');
+ if (!reasonFits(decision.reason) || decision.acknowledge_in_flight_risk !== true || decision.acknowledge_local_activation !== (action === 'finalize')) throw new Error('Enter a reason of 10 to 1000 characters and confirm the scope and activation choice');
  return {job_revision:j.revision,checkpoint_revision:j.steps[0].plex!.revision,reason:decision.reason.trim(),verification_scope:plexJobVerificationScope,acknowledge_in_flight_risk:true,acknowledge_local_activation:action === 'finalize'};
 }
 export type PlexJobReviewState = { job: PlexReviewJob | null; busy: boolean; canFinalize: boolean; error: string | null; notice: string | null };

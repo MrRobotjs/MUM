@@ -54,7 +54,7 @@ func TestProfileNotesLifecycleExactTextAndAudit(t *testing.T) {
 }
 
 func TestProfileNotesStrictInputAndRevisionGuards(t *testing.T) {
-	for _, mode := range []string{"missing", "null", "unknown", "control", "long", "utf8-bytes", "wrong-actor", "wrong-target", "note-revision", "role-revision", "link-revision", "external-note-update", "unchanged"} {
+	for _, mode := range []string{"missing", "null", "unknown", "control", "long", "accented", "wrong-actor", "wrong-target", "note-revision", "role-revision", "link-revision", "external-note-update", "unchanged"} {
 		t.Run(mode, func(t *testing.T) {
 			a, s := testApp(t)
 			token, _ := bootstrapOwner(t, a)
@@ -79,8 +79,8 @@ func TestProfileNotesStrictInputAndRevisionGuards(t *testing.T) {
 			case "long":
 				body["notes"] = strings.Repeat("x", 16385)
 				want = 400
-			case "utf8-bytes":
-				body["notes"] = strings.Repeat("é", 8193)
+			case "accented":
+				body["notes"] = strings.Repeat("é", 16385) // counted in characters
 				want = 400
 			case "wrong-actor":
 				body["expected_actor_uuid"] = newUUID()

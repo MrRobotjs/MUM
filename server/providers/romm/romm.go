@@ -25,7 +25,7 @@ var Definition = provider.Definition{
 	DownloadLabels: true,
 }
 
-var errCredentials = &provider.CredentialsError{Code: "INVALID_ROMM_CREDENTIALS", Message: "RomM requires a lowercase ASCII username of 3–255 letters, digits, underscores or hyphens and a printable ASCII password of 12–72 bytes"}
+var errCredentials = &provider.CredentialsError{Code: "INVALID_ROMM_CREDENTIALS", Message: "RomM needs a username of 3 to 255 English letters without capitals, numbers, underscores or hyphens, and a password of 12 to 72 English letters, numbers, spaces and standard symbols (no accents or emoji)"}
 
 // Server is one configured RomM server.
 type Server struct {

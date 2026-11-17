@@ -1,3 +1,4 @@
+import type { HistoryService } from '../lib/playHistory';
 import {useSyncExternalStore} from 'react';
 import {useAuth} from '../contexts/AuthContext';
 import {getAccessToken,getAuthSnapshot,subscribeToAuthStore} from '../store/authStore';
@@ -31,7 +32,7 @@ type UsersResponse = {
     avatar_url?: string | null;
     created_at?: string;
     last_streamed_at?: string | null;
-    last_streamed_source?: 'mum' | 'plex' | null;
+    last_streamed_source?: 'mum' | HistoryService | null;
     service_join_date?: string | null;
     last_login_at?: string;
     last_platform?: string | null;

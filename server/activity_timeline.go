@@ -11,21 +11,24 @@ import (
 	"time"
 )
 
-// A person's play timeline for the user page's History tab (user decision
-// 2026-11-16): MUM's recorded plays and the plays imported from Plex's own
-// history in one list, newest first, each marked with where it came from. The
-// Streams page, dashboard and statistics keep using MUM's plays only.
+// A person's play timeline for the user page's History tab (user decisions
+// 2026-11-16): MUM's recorded plays and the plays imported from the servers'
+// own histories (HISTORY_IMPORT_DESIGN.md) in one list, newest first, each
+// marked with where it came from: "mum" or the server's type. The source
+// picker offers MUM and each importable service the person has an account on.
+// The Streams page, dashboard and statistics keep using MUM's plays only.
 //
 // It pages by time, not by row number, because the two sources number their
-// rows separately. A cursor is "<time>_<source>_<id>"; at the same time a Plex
-// play sorts before a MUM play. Timestamps are stored in one fixed-width UTC
+// rows separately. A cursor is "<time>_<source>_<id>", the source "m" for MUM
+// or "p" for an imported play; at the same time an imported play sorts before
+// a MUM play. Timestamps are stored in one fixed-width UTC
 // format, so comparing them as text compares them in time.
 
 // timelinePageSize is the number of plays per page (tests lower it).
 var timelinePageSize = 100
 
 type timelineItem struct {
-	Source      string  `json:"source"` // "mum" or "plex"
+	Source      string  `json:"source"` // "mum" or the server's type
 	ID          string  `json:"id"`
 	Server      string  `json:"server_id"`
 	Service     string  `json:"service_uuid"`
@@ -33,9 +36,10 @@ type timelineItem struct {
 	Title       string  `json:"title"`
 	ParentTitle *string `json:"parent_title"`
 	LibraryName *string `json:"library_name"`
-	// When MUM first saw the play, or when Plex recorded it as watched.
+	// When MUM first saw the play, or the time the server recorded for it.
 	PlayedAt string `json:"played_at"`
-	// Recorded by MUM only; null for plays from Plex's history.
+	// Recorded by MUM only; null for imported plays. Position and duration
+	// are also known for plays imported from Audiobookshelf.
 	Client     *string `json:"client"`
 	PlayMethod *string `json:"play_method"`
 	Position   *string `json:"position_ticks"`
@@ -85,7 +89,7 @@ func (a *App) identityTimeline(w http.ResponseWriter, r *http.Request) {
 			valid = list[0] == "own" || list[0] == "all"
 			q.All = list[0] == "all"
 		case "source":
-			valid = list[0] == "all" || list[0] == "mum" || list[0] == "plex"
+			valid = list[0] == "all" || list[0] == "mum" || slices.Contains(importableHistory, list[0])
 			source = list[0]
 		case "before":
 			cursor, valid = parseTimelineCursor(list[0])
@@ -94,7 +98,7 @@ func (a *App) identityTimeline(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if !valid {
-		fail(w, 400, "INVALID_TIMELINE_QUERY", "Use scope own/all, source all/mum/plex and a cursor from the previous page")
+		fail(w, 400, "INVALID_TIMELINE_QUERY", "Use scope own/all, source all, mum or a service with imported history, and a cursor from the previous page")
 		return
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
@@ -110,7 +114,7 @@ func (a *App) identityTimeline(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var items []timelineItem
-	if source != "plex" {
+	if source == "all" || source == "mum" {
 		mum, err := readTimelineMUM(ctx, tx, actor.UUID, q, cursor)
 		if err != nil {
 			domainError(w, err)
@@ -119,23 +123,28 @@ func (a *App) identityTimeline(w http.ResponseWriter, r *http.Request) {
 		items = append(items, mum...)
 	}
 	if source != "mum" {
-		plex, err := readTimelinePlex(ctx, tx, actor.UUID, q, cursor)
+		imported, err := readTimelineImported(ctx, tx, actor.UUID, q, cursor, strings.TrimPrefix(source, "all"))
 		if err != nil {
 			domainError(w, err)
 			return
 		}
-		items = append(items, plex...)
+		items = append(items, imported...)
+	}
+	sources, err := readTimelineSources(ctx, tx, q.Target)
+	if err != nil {
+		domainError(w, err)
+		return
 	}
 	slices.SortFunc(items, func(x, y timelineItem) int { return strings.Compare(y.sortKey, x.sortKey) })
 	var next *string
 	if len(items) > timelinePageSize {
 		items = items[:timelinePageSize]
 		last := items[len(items)-1]
-		value := last.PlayedAt + "_" + last.Source[:1] + "_" + strconv.FormatInt(last.rowID, 10)
+		value := last.PlayedAt + "_" + timelineSourceCode(last.Source) + "_" + strconv.FormatInt(last.rowID, 10)
 		next = &value
 	}
-	// Posters: signed, administrator-only links, as on the history list. A
-	// play imported from Plex's history uses its own link.
+	// Posters: signed, administrator-only links, as on the history list. An
+	// imported play uses its own link.
 	if q.All {
 		now := time.Now().UTC()
 		var session string
@@ -149,8 +158,8 @@ func (a *App) identityTimeline(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 			}
-			if items[i].Source == "plex" {
-				items[i].PosterURL = a.signedImageURL(plexHistoryPosterPurpose, "/api/activity/plex-history-images", session, items[i].rowID, now)
+			if items[i].Source != "mum" {
+				items[i].PosterURL = a.signedImageURL(importedHistoryPosterPurpose, "/api/activity/imported-history-images", session, items[i].rowID, now)
 			} else {
 				items[i].PosterURL = a.signedImageURL(activityHistoryPosterPurpose, "/api/activity/history-images", session, items[i].rowID, now)
 			}
@@ -173,7 +182,7 @@ func (a *App) identityTimeline(w http.ResponseWriter, r *http.Request) {
 	if items == nil {
 		items = []timelineItem{}
 	}
-	respond(w, 200, map[string]any{"actor_uuid": actor.UUID, "scope": map[bool]string{true: "all", false: "own"}[q.All], "target_uuid": q.Target, "source": source, "items": items, "next_before": next})
+	respond(w, 200, map[string]any{"actor_uuid": actor.UUID, "scope": map[bool]string{true: "all", false: "own"}[q.All], "target_uuid": q.Target, "source": source, "sources": sources, "items": items, "next_before": next})
 }
 
 // sortKey orders by time, then source ("p" before "m" when descending), then id.
@@ -224,12 +233,55 @@ func readTimelineMUM(ctx context.Context, tx *sql.Tx, actor string, q activityRe
 // readTimelinePlex reads imported plays matched to the person's server
 // accounts through the Plex account ID, as the purge does. In the own scope
 // the account must be linked to the reader.
-func readTimelinePlex(ctx context.Context, tx *sql.Tx, actor string, q activityReadQuery, c timelineCursor) ([]timelineItem, error) {
-	query := `SELECT i.rowid,i.server_id,s.uuid,coalesce(i.media_type,''),coalesce(i.title,''),coalesce(i.grandparent_title,i.parent_title),
-	 (SELECT l.name FROM media_libraries l WHERE l.server_id=i.server_id AND l.external_id=i.library_section_id),i.viewed_at,i.poster_path IS NOT NULL
-	 FROM plex_history_imports i JOIN service_accounts s ON s.server_id=i.server_id AND s.external_user_id=i.account_id
+// timelineSourceCode is a play's source letter in cursors and sort keys.
+func timelineSourceCode(source string) string {
+	if source == "mum" {
+		return "m"
+	}
+	return "p"
+}
+
+// readTimelineSources are the importable services, in picker order, the
+// target has a current account on: its own, or those of the accounts it owns.
+func readTimelineSources(ctx context.Context, tx *sql.Tx, target string) ([]string, error) {
+	rows, err := tx.QueryContext(ctx, `SELECT DISTINCT ms.service_type FROM service_accounts sa JOIN media_servers ms ON ms.id=sa.server_id
+	 WHERE sa.removed_at IS NULL AND (sa.uuid=? OR EXISTS(SELECT 1 FROM service_links l WHERE l.service_uuid=sa.uuid AND l.user_uuid=? AND l.link_kind='owner'))`, target, target)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	have := map[string]bool{}
+	for rows.Next() {
+		var kind string
+		if err := rows.Scan(&kind); err != nil {
+			return nil, err
+		}
+		have[kind] = true
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	out := []string{}
+	for _, kind := range importableHistory {
+		if have[kind] {
+			out = append(out, kind)
+		}
+	}
+	return out, nil
+}
+
+// readTimelineImported reads plays imported from the servers' own histories,
+// of one service type or, when kind is "", of all of them.
+func readTimelineImported(ctx context.Context, tx *sql.Tx, actor string, q activityReadQuery, c timelineCursor, kind string) ([]timelineItem, error) {
+	query := `SELECT i.rowid,i.server_id,s.uuid,ms.service_type,coalesce(i.media_type,''),coalesce(i.title,''),coalesce(i.grandparent_title,i.parent_title),
+	 (SELECT l.name FROM media_libraries l WHERE l.server_id=i.server_id AND l.external_id=i.library_id),i.viewed_at,i.poster_path IS NOT NULL,i.position_seconds,i.duration_seconds
+	 FROM history_imports i JOIN media_servers ms ON ms.id=i.server_id JOIN service_accounts s ON s.server_id=i.server_id AND s.external_user_id=i.account_id
 	 WHERE (i.viewed_at<? OR i.viewed_at=? AND ?='p' AND i.rowid<?)`
 	args := []any{c.At, c.At, c.Source, c.ID}
+	if kind != "" {
+		query += ` AND ms.service_type=?`
+		args = append(args, kind)
+	}
 	if q.Target != "" {
 		query += ` AND (s.uuid=? OR EXISTS(SELECT 1 FROM service_links l WHERE l.service_uuid=s.uuid AND l.user_uuid=? AND l.link_kind='owner'))`
 		args = append(args, q.Target, q.Target)
@@ -245,12 +297,21 @@ func readTimelinePlex(ctx context.Context, tx *sql.Tx, actor string, q activityR
 	defer rows.Close()
 	var out []timelineItem
 	for rows.Next() {
-		item := timelineItem{Source: "plex"}
+		var item timelineItem
 		var server int64
-		if err := rows.Scan(&item.rowID, &server, &item.Service, &item.Kind, &item.Title, &item.ParentTitle, &item.LibraryName, &item.PlayedAt, &item.hasPoster); err != nil {
+		var position, duration sql.NullInt64
+		if err := rows.Scan(&item.rowID, &server, &item.Service, &item.Source, &item.Kind, &item.Title, &item.ParentTitle, &item.LibraryName, &item.PlayedAt, &item.hasPoster, &position, &duration); err != nil {
 			return nil, err
 		}
-		item.ID = "plex-" + strconv.FormatInt(item.rowID, 10)
+		ticks := func(v sql.NullInt64) *string {
+			if !v.Valid {
+				return nil
+			}
+			text := strconv.FormatInt(v.Int64*10_000_000, 10)
+			return &text
+		}
+		item.Position, item.Duration = ticks(position), ticks(duration)
+		item.ID = item.Source + "-" + strconv.FormatInt(item.rowID, 10)
 		item.Server = strconv.FormatInt(server, 10)
 		item.sortKey = timelineSortKey(item.PlayedAt, "p", item.rowID)
 		out = append(out, item)

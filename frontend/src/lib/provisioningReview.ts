@@ -1,5 +1,6 @@
 import { requestJson } from '../util/apiClient';
 import { plexReviewJob, type PlexReviewJob } from './plexJobReview';
+import {newPasswordFits,reasonFits} from './textLimits';
 
 export type ProvisioningReviewStep = {
   server_id: number; password_max_bytes: number; password_ascii_only: boolean; status: string; stage: string; remote_id?: string; remote_username?: string;
@@ -28,16 +29,14 @@ export type ResumeDecision = { reason: string; acknowledge_in_flight_risk: boole
 
 export function resumeDecisionPayload(job: ProvisioningReviewJob, decision: ResumeDecision) {
   if ('plex_progress' in job) throw new Error('Plex recovery controls are not available yet.');
-  const length = new TextEncoder().encode(decision.reason.trim()).length;
   if (!job.resume_available || job.status !== 'failed' || !job.reservation_held || job.review_in_progress) throw new Error('This job cannot resume its recorded accounts');
-  if (length < 10 || length > 1000 || !decision.acknowledge_in_flight_risk || !decision.acknowledge_password_changes) throw new Error('Enter a review reason and acknowledge upstream risk and server password changes');
+  if (!reasonFits(decision.reason) || !decision.acknowledge_in_flight_risk || !decision.acknowledge_password_changes) throw new Error('Enter a review reason and acknowledge upstream risk and server password changes');
   const expected = new Set(job.steps.map(step => step.server_id));
   const seen = new Set<number>();
   const passwords = decision.server_passwords.map(entry => {
-    const bytes = new TextEncoder().encode(entry.password).length;
     const maximum = job.steps.find(step => step.server_id === entry.server_id)?.password_max_bytes;
-    if (!expected.has(entry.server_id) || seen.has(entry.server_id) || bytes < 12 || maximum === undefined || ![72, 256, 1024].includes(maximum) || bytes > maximum || entry.password !== entry.confirm_password) throw new Error('Provide matching passwords within each recorded server’s displayed byte limits');
-    if (job.steps.find(step => step.server_id === entry.server_id)?.password_ascii_only && (!/^[\x20-\x7e]{12,72}$/.test(entry.password) || !entry.password.trim())) throw new Error('This server requires 12–72 printable ASCII bytes');
+    if (!expected.has(entry.server_id) || seen.has(entry.server_id) || maximum === undefined || ![72, 256, 1024].includes(maximum) || !newPasswordFits(entry.password, maximum) || entry.password !== entry.confirm_password) throw new Error('Enter the same password twice for each server, within the length shown for it');
+    if (job.steps.find(step => step.server_id === entry.server_id)?.password_ascii_only && (!/^[\x20-\x7e]{12,72}$/.test(entry.password) || !entry.password.trim())) throw new Error('This server needs a password of 12 to 72 English letters, numbers, spaces and standard symbols (no accents or emoji)');
     seen.add(entry.server_id);
     return { server_id: entry.server_id, password: entry.password };
   });
@@ -69,16 +68,14 @@ export async function fetchProvisioningReceipt(id: string): Promise<Provisioning
 
 export function reviewDecisionPayload(job: ProvisioningReviewJob, action: 'disable-accounts' | 'cancel', decision: ReviewDecision) {
   if ('plex_progress' in job) throw new Error('Plex recovery controls are not available yet.');
-  const length = new TextEncoder().encode(decision.reason.trim()).length;
   if (job.status !== 'failed' || !job.reservation_held || job.review_in_progress) throw new Error('This job is not available for review');
-  if (length < 10 || length > 1000 || !decision.acknowledge_in_flight_risk) throw new Error('Enter a reason of 10–1000 bytes and acknowledge uncertain provider outcomes');
+  if (!reasonFits(decision.reason) || !decision.acknowledge_in_flight_risk) throw new Error('Enter a reason of 10 to 1000 characters and confirm you understand some server changes may not have finished');
   const required = new Set(job.steps.filter(s => s.manual_resolution_required).map(s => s.server_id));
 	const allowed = new Set(job.steps.filter(s => s.manual_resolution_allowed).map(s => s.server_id));
   const seen = new Set<number>();
   const manual = action === 'cancel' ? decision.manual_resolutions.map(r => {
     const reason = r.reason.trim();
-    const bytes = new TextEncoder().encode(reason).length;
-    if (!allowed.has(r.server_id) || seen.has(r.server_id) || bytes < 10 || bytes > 1000) throw new Error('Record a specific external resolution for each uncertain server');
+    if (!allowed.has(r.server_id) || seen.has(r.server_id) || !reasonFits(reason)) throw new Error('Record a specific external resolution for each uncertain server');
     seen.add(r.server_id);
     return { server_id: r.server_id, reason };
   }) : [];

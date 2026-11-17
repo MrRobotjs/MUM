@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"slices"
 	"strings"
+	"unicode/utf8"
 
 	"app/server/providers/provider"
 )
@@ -23,7 +24,7 @@ var Definition = provider.Definition{
 	DownloadLabels: true,
 }
 
-var errCredentials = &provider.CredentialsError{Code: "INVALID_KOMGA_CREDENTIALS", Message: "Komga requires an email identity and a password of 12–72 UTF-8 bytes"}
+var errCredentials = &provider.CredentialsError{Code: "INVALID_KOMGA_CREDENTIALS", Message: "Komga needs an email address as the username and a password of 12 to 72 characters (accented letters and emoji take up extra space)"}
 
 // Server is one configured Komga server.
 type Server struct {
@@ -338,7 +339,7 @@ func (s *Server) ProvisionAccount(ctx context.Context, email, password string, g
 	if !grant.AllLibraries && len(grant.LibraryIDs) == 0 {
 		return provider.ErrConflict
 	}
-	if !ValidEmail(email) || len(password) < 12 || len(password) > 72 {
+	if !ValidEmail(email) || utf8.RuneCountInString(password) < 12 || len(password) > 72 {
 		return errCredentials
 	}
 	if err := checkpoint("creating", ""); err != nil {

@@ -8,6 +8,7 @@ import { useAlerts } from '../../contexts/AlertContext';
 import { fetchProvisioningReceipt, fetchProvisioningReview, submitProvisioningReview, submitProvisioningResume, type ProvisioningReviewJob } from '../../lib/provisioningReview';
 import type { PlexReviewJob } from '../../lib/plexJobReview';
 import { PlexProvisioningDialog } from './PlexProvisioningDialog';
+import {passwordLimitText,plainCharacters} from '../../lib/textLimits';
 
 const cleanupLabels: Record<string, string> = { pending: 'Not checked', running: 'Checking', disabled: 'Disabled (verified)', absent: 'Absent (verified)', not_started: 'Not started', manual: 'Resolved externally by administrator', failed: 'Verification failed', unknown: 'Needs external review' };
 const resumeLabels: Record<string, string> = { pending: '', running: 'Resumption in progress', completed: 'Resumption verified', failed: 'Resumption failed', unknown: 'Resumption outcome needs review' };
@@ -85,11 +86,11 @@ export function ProvisioningReviewDialog({ jobId, onClose, onChanged }: { jobId:
           <span>External resolution for server #{step.server_id}{step.manual_resolution_required ? ' (required)' : ' (optional after failed verification)'}</span>
           <Input value={manual[step.server_id] ?? ''} onChange={event => setManual(previous => ({ ...previous, [step.server_id]: event.target.value }))} disabled={busy || !available} placeholder="Describe how you confirmed remote effects are absent or revoked" />
         </label>)}
-        <label className="space-y-1 block"><span>Review reason</span><Input value={reason} onChange={event => setReason(event.target.value)} disabled={busy || !available} placeholder="Record what you checked (10–1000 bytes)" /></label>
+        <label className="space-y-1 block"><span>Review reason</span><Input value={reason} onChange={event => setReason(event.target.value)} disabled={busy || !available} placeholder="Record what you checked (10 to 1000 characters)" /></label>
         {job.resume_available ? <div className="space-y-4">
           <p className="text-muted-foreground">Resumption uses only recorded identities and reapplies the original grants. It sets new passwords on every selected server and enables the local profile only after all servers succeed. The local login password remains unchanged.</p>
           {job.steps.map(step => <div key={step.server_id} className="space-y-2">
-            <label className="space-y-1 block"><span>New server #{step.server_id} password (12–{step.password_max_bytes} bytes{step.password_ascii_only ? ", printable ASCII" : ""})</span><Input type="password" autoComplete="new-password" value={passwords[step.server_id] ?? ''} disabled={busy} onChange={event => setPasswords(previous => ({ ...previous, [step.server_id]: event.target.value }))} /></label>
+            <label className="space-y-1 block"><span>New server #{step.server_id} password ({step.password_ascii_only ? `12 to 72 ${plainCharacters}` : passwordLimitText(step.password_max_bytes)})</span><Input type="password" autoComplete="new-password" value={passwords[step.server_id] ?? ''} disabled={busy} onChange={event => setPasswords(previous => ({ ...previous, [step.server_id]: event.target.value }))} /></label>
             <label className="space-y-1 block"><span>Confirm server #{step.server_id} password</span><Input type="password" autoComplete="new-password" value={confirmPasswords[step.server_id] ?? ''} disabled={busy} onChange={event => setConfirmPasswords(previous => ({ ...previous, [step.server_id]: event.target.value }))} /></label>
           </div>)}
           <label className="flex items-start gap-3"><Checkbox checked={acknowledgePasswords} onCheckedChange={value => setAcknowledgePasswords(value === true)} disabled={busy} /><span>I authorize these server password changes and will provide the new credentials to the recipient.</span></label>

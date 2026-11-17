@@ -42,7 +42,7 @@ test('Plex administrator job controls',async t=>{
  });
  await t.test('requires exact consent and available one-server running reservation',async()=>{
   const {api}=await setup();
-  for(const d of [{...decision(),reason:'short'},{...decision(),reason:'é'.repeat(501)},{...decision(),acknowledge_in_flight_risk:false},decision(true)])assert.throws(()=>api.plexJobActionPayload(job(),'verify',d),/reason/);
+  for(const d of [{...decision(),reason:'short'},{...decision(),reason:'é'.repeat(5)},{...decision(),reason:'é'.repeat(1001)},{...decision(),acknowledge_in_flight_risk:false},decision(true)])assert.throws(()=>api.plexJobActionPayload(job(),'verify',d),/reason/);
   for(const j of [{...job(),status:'failed'},{...job(),reservation_held:false},{...job(),review_in_progress:true},{...job(),steps:[...job().steps,{server_id:10}]}])assert.throws(()=>api.plexJobActionPayload(j,'verify',decision()),/not available/);
   const payload=api.plexJobActionPayload(job(),'finalize',decision(true));assert.equal(payload.checkpoint_revision,3);assert.equal(payload.job_revision,1);assert.equal(payload.acknowledge_local_activation,true);
  });

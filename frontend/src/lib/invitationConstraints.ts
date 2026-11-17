@@ -1,3 +1,4 @@
+import {newPasswordFits,passwordLimitText} from './textLimits';
 export function invitationServerLimits(provider: string) {
   switch (provider.toLowerCase()) {
     case 'romm':
@@ -23,11 +24,11 @@ export function invitationServerLimits(provider: string) {
 export function invitationCredentialError(provider: string, username: string, password: string): string | null {
   const limits = invitationServerLimits(provider);
   const nameBytes = new TextEncoder().encode(username.trim()).length;
-  if (nameBytes < 1 || nameBytes > 255) return 'Enter a username of 1–255 bytes';
-  if (limits.asciiOnly && (!/^[a-z0-9_-]{3,255}$/.test(username.trim()) || !/^[\x20-\x7e]{12,72}$/.test(password) || !password.trim())) return 'RomM requires an ASCII username of 3–255 characters using a–z, digits, underscores or hyphens and a printable ASCII password of 12–72 bytes';
+  if (nameBytes < 1 || nameBytes > 255) return 'Enter a username of 1 to 255 characters';
+  if (limits.asciiOnly && (!/^[a-z0-9_-]{3,255}$/.test(username.trim()) || !/^[\x20-\x7e]{12,72}$/.test(password) || !password.trim())) return 'RomM needs a username of 3 to 255 English letters without capitals, numbers, underscores or hyphens, and a password of 12 to 72 English letters, numbers, spaces and standard symbols (no accents or emoji)';
   if (limits.emailIdentity && !/^[^\s@<>"(),;:]+@[^\s@<>"(),;:]+\.[^\s@<>"(),;:]+$/.test(username.trim())) return 'Komga requires a valid email identity';
   if (limits.usernameWithoutAt && username.includes('@')) return 'Kavita requires a username without @';
   const bytes = new TextEncoder().encode(password).length;
-  if (bytes < 12 || bytes > limits.passwordMaxBytes) return `Password must contain 12–${limits.passwordMaxBytes} bytes for this server`;
+  if (!newPasswordFits(password, limits.passwordMaxBytes)) return `The password for this server must be ${passwordLimitText(limits.passwordMaxBytes)}`;
   return null;
 }

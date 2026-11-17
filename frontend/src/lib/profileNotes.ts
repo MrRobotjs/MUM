@@ -7,7 +7,7 @@ export type ProfileNotes = Readonly<{actor_uuid:string;user_uuid:string;user_typ
 const uuid=(v:unknown):v is string=>typeof v==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(v);
 const revision=(v:unknown):v is string=>typeof v==='string'&&/^[1-9][0-9]{0,18}$/.test(v)&&BigInt(v)<=9223372036854775807n;
 export function validNotes(v:unknown):v is string {
-  if(typeof v!=='string'||v.length>16384||new TextEncoder().encode(v).length>16384||/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(v))return false;
+  if(typeof v!=='string'||Array.from(v).length>16384||/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(v))return false;
   for(const character of v){const code=character.codePointAt(0)!;if(code>=0xd800&&code<=0xdfff)return false;}
   return true;
 }

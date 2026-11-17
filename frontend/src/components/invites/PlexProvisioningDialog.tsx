@@ -49,7 +49,7 @@ export function PlexProvisioningDialog({jobId,onClose,onChanged}:{jobId:string;o
     </TableBody></Table>
     <p className="text-muted-foreground">Verification checks accepted selected libraries with downloads disabled on one Plex server. It records the cloud policy and recipient library listing at that time. It does not prove continuous playback or terminate existing sessions.</p>
     <p className="text-muted-foreground">Activation completes the job, consumes one invitation use, releases its reservation and enables the local profile with its original login credentials. Share sending and cleanup controls are unavailable here. Failed or uncertain jobs require further reconciliation.</p>
-    <label className="space-y-1 block"><span>Review reason</span><Input value={reason} onChange={e=>setReason(e.target.value)} disabled={state.busy || !available} placeholder="Record what you checked (10–1000 bytes)" /></label>
+    <label className="space-y-1 block"><span>Review reason</span><Input value={reason} onChange={e=>setReason(e.target.value)} disabled={state.busy || !available} placeholder="Record what you checked (10 to 1000 characters)" /></label>
     <label className="flex items-start gap-3"><Checkbox checked={risk} onCheckedChange={v=>setRisk(v===true)} disabled={state.busy || !available}/><span>I understand the selected-library verification scope and that outstanding provider work or later changes can alter access.</span></label>
     <label className="flex items-start gap-3"><Checkbox checked={activation} onCheckedChange={v=>setActivation(v===true)} disabled={state.busy || !state.canFinalize}/><span>I authorize local profile activation and completion of this invitation use.</span></label>
    </>:null}

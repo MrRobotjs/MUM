@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"slices"
 	"strings"
+	"unicode/utf8"
 
 	"app/server/providers/provider"
 )
@@ -22,7 +23,7 @@ var Definition = provider.Definition{
 	DownloadLabels: true,
 }
 
-var errCredentials = &provider.CredentialsError{Code: "INVALID_AUDIOBOOKSHELF_CREDENTIALS", Message: "Audiobookshelf passwords must contain 12–72 UTF-8 bytes to avoid bcrypt truncation"}
+var errCredentials = &provider.CredentialsError{Code: "INVALID_AUDIOBOOKSHELF_CREDENTIALS", Message: "Audiobookshelf passwords must be 12 to 72 characters (accented letters and emoji take up extra space)"}
 
 // Server is one configured Audiobookshelf server.
 type Server struct {
@@ -45,7 +46,7 @@ func (s *Server) api(ctx context.Context, method, endpoint string, body, out any
 func (s *Server) PasswordMaxBytes() int { return 72 }
 
 // CheckCredentials is the early check made when an invitation is redeemed or
-// resumed; the 12-byte minimum is enforced when the account is created.
+// resumed; the 12-character minimum is enforced when the account is created.
 func (s *Server) CheckCredentials(name, password string) error {
 	if len(password) > 72 {
 		return errCredentials
@@ -295,7 +296,7 @@ func (s *Server) ProvisionAccount(ctx context.Context, username, password string
 	if !grant.AllLibraries && len(grant.LibraryIDs) == 0 {
 		return provider.ErrConflict
 	}
-	if len(password) < 12 || len(password) > 72 {
+	if utf8.RuneCountInString(password) < 12 || len(password) > 72 {
 		return errCredentials
 	}
 	if err := checkpoint("creating", ""); err != nil {

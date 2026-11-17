@@ -28,7 +28,8 @@ test('provisioning review adapters', async t => {
     const api = await loadModule();
     for (const unavailable of [job({ status: 'completed' }), job({ status: 'cancelled' }), job({ reservation_held: false }), job({ review_in_progress: true })]) assert.throws(() => api.reviewDecisionPayload(unavailable, 'cancel', decision()), /not available/);
     assert.throws(() => api.reviewDecisionPayload(job(), 'cancel', decision({ reason: 'short' })), /10/);
-    assert.throws(() => api.reviewDecisionPayload(job(), 'cancel', decision({ acknowledge_in_flight_risk: false })), /acknowledge/);
+    assert.throws(() => api.reviewDecisionPayload(job(), 'cancel', decision({ acknowledge_in_flight_risk: false })), /confirm/);
+    assert.throws(() => api.reviewDecisionPayload(job(), 'cancel', decision({ reason: 'é'.repeat(5) })), /10 to 1000 characters/);
   });
 
   await t.test('every unknown outcome needs its own explicit external resolution', async () => {
@@ -96,19 +97,19 @@ test('provisioning review adapters', async t => {
     const api = await loadModule();
     const input = { reason: 'Reviewed all recorded targets and authorization', acknowledge_in_flight_risk: true, acknowledge_password_changes: true, server_passwords: [] };
     assert.throws(() => api.resumeDecisionPayload(job(), input), /Every recorded/);
-    for (const entries of [[{ server_id: 10, password: 'new-server-password', confirm_password: 'new-server-password' }], [{ server_id: 9, password: 'new-server-password', confirm_password: 'different' }], [{ server_id: 9, password: 'short', confirm_password: 'short' }]]) assert.throws(() => api.resumeDecisionPayload(job(), { ...input, server_passwords: entries }), /matching passwords/);
+    for (const entries of [[{ server_id: 10, password: 'new-server-password', confirm_password: 'new-server-password' }], [{ server_id: 9, password: 'new-server-password', confirm_password: 'different' }], [{ server_id: 9, password: 'short', confirm_password: 'short' }], [{ server_id: 9, password: 'é'.repeat(6), confirm_password: 'é'.repeat(6) }]]) assert.throws(() => api.resumeDecisionPayload(job(), { ...input, server_passwords: entries }), /same password twice/);
   });
 
-  await t.test('provider-specific password limits count UTF-8 bytes', async () => {
+  await t.test('provider-specific password limits still count stored size', async () => {
     const api = await loadModule();
     const input = { reason: 'Reviewed all recorded targets and authorization', acknowledge_in_flight_risk: true, acknowledge_password_changes: true };
     const kavita = job({ steps: [{ ...job().steps[0], password_max_bytes: 256 }] });
     const entries = password => [{ server_id: 9, password, confirm_password: password }];
-    assert.throws(() => api.resumeDecisionPayload(kavita, { ...input, server_passwords: entries('é'.repeat(129)) }), /displayed byte limits/);
+    assert.throws(() => api.resumeDecisionPayload(kavita, { ...input, server_passwords: entries('é'.repeat(129)) }), /same password twice/);
     assert.equal(api.resumeDecisionPayload(kavita, { ...input, server_passwords: entries('é'.repeat(128)) }).server_passwords.length, 1);
     assert.equal(api.resumeDecisionPayload(job(), { ...input, server_passwords: entries('x'.repeat(257)) }).server_passwords.length, 1);
     const abs = job({ steps: [{ ...job().steps[0], password_max_bytes: 72 }] });
-    assert.throws(() => api.resumeDecisionPayload(abs, { ...input, server_passwords: entries('é'.repeat(37)) }), /displayed byte limits/);
+    assert.throws(() => api.resumeDecisionPayload(abs, { ...input, server_passwords: entries('é'.repeat(37)) }), /same password twice/);
     assert.equal(api.resumeDecisionPayload(abs, { ...input, server_passwords: entries('é'.repeat(36)) }).server_passwords.length, 1);
   });
 

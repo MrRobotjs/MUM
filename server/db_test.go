@@ -14,7 +14,11 @@ import (
 
 func testStore(t *testing.T) *Store {
 	t.Helper()
-	s, err := OpenStore(t.Context(), filepath.Join(t.TempDir(), "data #1 & unicode é.sqlite"))
+	path := filepath.Join(t.TempDir(), "data #1 & unicode é.sqlite")
+	if err := copyMigratedTemplate(path); err != nil {
+		t.Fatal(err)
+	}
+	s, err := OpenStore(t.Context(), path)
 	if err != nil {
 		t.Fatal(err)
 	}

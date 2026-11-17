@@ -267,14 +267,14 @@ func (a *App) humanCredentials(w http.ResponseWriter, r *http.Request) {
 		domainError(w, ErrForbidden)
 		return
 	}
-	if in.HasPassword == nil || !in.Revoke || !in.LocalOnly || (in.Operation != "set_initial" && in.Operation != "reset") || len(in.Current) < 12 || len(in.Current) > 1024 || len(in.Replacement) < 12 || len(in.Replacement) > 1024 || in.Replacement != in.Confirm || in.Replacement == in.Current {
+	if in.HasPassword == nil || !in.Revoke || !in.LocalOnly || (in.Operation != "set_initial" && in.Operation != "reset") || len(in.Current) < 12 || len(in.Current) > 1024 || !passwordLongEnough(in.Replacement) || len(in.Replacement) > 1024 || in.Replacement != in.Confirm || in.Replacement == in.Current {
 		fail(w, 400, "INVALID_CREDENTIAL_CHANGE", "Provide matching distinct local passwords and acknowledge local-only session revocation")
 		return
 	}
 	if in.NewUsername != "" {
 		name, err := normalizeAccountUsername(in.NewUsername)
 		if err != nil || name != in.NewUsername {
-			fail(w, 400, "INVALID_CREDENTIAL_CHANGE", "Use an exact printable ASCII username of 1–255 bytes")
+			fail(w, 400, "INVALID_CREDENTIAL_CHANGE", "Use a username of 1 to 255 characters, using English letters, numbers, spaces and standard symbols (no accents or emoji), with no spaces at the start or end")
 			return
 		}
 	}

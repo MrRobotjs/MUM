@@ -48,9 +48,9 @@ export function UsernameChangeCard() {
   };
   const disabled = busy || !profile?.username_change_available || Boolean(error);
   return <Card><CardHeader><CardTitle>Change Username</CardTitle><CardDescription>
-    Change your MUM sign-in name and sign out every session. Your password, account identity and server usernames stay the same. Usernames are unique without regard to ASCII letter case.
+    Change your MUM sign-in name and sign out every session. Your password, account identity and server usernames stay the same. Capital and small letters count as the same, so two people cannot have names that differ only in capitals.
   </CardDescription></CardHeader><CardContent><form className="space-y-4" onSubmit={event => void submit(event)}>
-    <div className="space-y-2"><Label htmlFor="account-new-username">New Username</Label><Input id="account-new-username" autoComplete="username" value={username} onChange={e => setUsername(e.target.value)} minLength={1} maxLength={255} disabled={disabled} required /><p className="text-sm text-muted-foreground">Use 1–255 printable ASCII characters. Outer whitespace is trimmed.</p></div>
+    <div className="space-y-2"><Label htmlFor="account-new-username">New Username</Label><Input id="account-new-username" autoComplete="username" value={username} onChange={e => setUsername(e.target.value)} minLength={1} maxLength={255} disabled={disabled} required /><p className="text-sm text-muted-foreground">Use 1 to 255 English letters, numbers, spaces and standard symbols (no accents or emoji). Spaces at the start and end are removed.</p></div>
     <div className="space-y-2"><Label htmlFor="username-current-password">Current Local Password</Label><Input id="username-current-password" type="password" autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} minLength={12} maxLength={1024} disabled={disabled} required /></div>
     <label className="flex items-start gap-3"><Checkbox checked={ack} onCheckedChange={value => setAck(value === true)} disabled={disabled} /><span>I authorize signing out every session, including this one.</span></label>
     {error ? <p className="text-sm text-destructive">{error}</p> : null}

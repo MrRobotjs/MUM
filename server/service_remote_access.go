@@ -311,8 +311,8 @@ func (a *App) serviceRemoteOperation(w http.ResponseWriter, r *http.Request, kin
 	}
 	reason := strings.TrimSpace(input.Reason)
 	var owner *string
-	if !input.AckWrite || !input.AckUncert || input.Active == nil || len(input.Owner) == 0 || json.Unmarshal(input.Owner, &owner) != nil || len(reason) < 10 || len(reason) > 1000 {
-		fail(w, 400, "REMOTE_ACCESS_CONFIRMATION_REQUIRED", "Provide the current selection, a reason of 10–1000 bytes and both remote-write acknowledgments")
+	if !input.AckWrite || !input.AckUncert || input.Active == nil || len(input.Owner) == 0 || json.Unmarshal(input.Owner, &owner) != nil || !validReason(reason) {
+		fail(w, 400, "REMOTE_ACCESS_CONFIRMATION_REQUIRED", "Enter a reason of 10 to 1000 characters and confirm both warnings about changing the account on the server")
 		return
 	}
 	if (kind == "delete") != (input.AckIrreversible || input.ConfirmName != "") || kind == "delete" && (!input.AckIrreversible || input.ConfirmName == "") {

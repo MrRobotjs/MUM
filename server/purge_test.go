@@ -87,7 +87,7 @@ func TestEligibleForPurgeListsInactivePlexAccounts(t *testing.T) {
 	inactive := account(plex, "inactive")
 	play(inactive, plex, old)
 	plexActive := account(plex, "plex-active") // only Plex's own history knows this play
-	activityExec(t, s, "INSERT INTO plex_history_imports(server_id,history_key,account_id,viewed_at,imported_at) VALUES(?,'/h/1','plex-active',?,?)", plex, recent, recent)
+	activityExec(t, s, "INSERT INTO history_imports(server_id,entry_key,account_id,viewed_at,imported_at) VALUES(?,'/h/1','plex-active',?,?)", plex, recent, recent)
 	never := account(plex, "never")
 	newcomer := account(plex, "newcomer")
 	activityExec(t, s, "UPDATE service_accounts SET created_at=? WHERE uuid=?", recent, newcomer)
@@ -150,7 +150,7 @@ func TestEligibleForPurgeListsInactivePlexAccounts(t *testing.T) {
 
 	// The newest play from either source counts: a recent MUM play hides an
 	// account whose Plex history is old.
-	activityExec(t, s, "INSERT INTO plex_history_imports(server_id,history_key,account_id,viewed_at,imported_at) VALUES(?,'/h/2','inactive',?,?)", plex, old, old)
+	activityExec(t, s, "INSERT INTO history_imports(server_id,entry_key,account_id,viewed_at,imported_at) VALUES(?,'/h/2','inactive',?,?)", plex, old, old)
 	play(inactive, plex, recent)
 	if _, users = listPurge(t, a, token, url.Values{"inactive_days": {"30"}}); strings.Contains(names(users), "inactive") {
 		t.Fatal("listed an account with a recent MUM play", names(users))

@@ -25,7 +25,7 @@ var Definition = provider.Definition{
 	DownloadLabels: true,
 }
 
-var errCredentials = &provider.CredentialsError{Code: "INVALID_KAVITA_CREDENTIALS", Message: "Kavita requires a username without @ and a password of at most 256 bytes"}
+var errCredentials = &provider.CredentialsError{Code: "INVALID_KAVITA_CREDENTIALS", Message: "Kavita needs a username without @ and a password of up to 256 characters (accented letters and emoji take up extra space)"}
 
 // Server is one configured Kavita server.
 type Server struct {

@@ -70,7 +70,7 @@ func (a *App) plexAdministratorJobAction(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	input.Reason = strings.TrimSpace(input.Reason)
-	if err != nil || server < 1 || !validProvisionedID(job) || input.JobRevision < 1 || input.CheckpointRevision < 1 || len(input.Reason) < 10 || len(input.Reason) > 1000 || input.Scope != plexLibraryVerificationScope || !input.AcknowledgeRisk || input.Activate != (action == "finalize") {
+	if err != nil || server < 1 || !validProvisionedID(job) || input.JobRevision < 1 || input.CheckpointRevision < 1 || !validReason(input.Reason) || input.Scope != plexLibraryVerificationScope || !input.AcknowledgeRisk || input.Activate != (action == "finalize") {
 		fail(w, 400, "PLEX_JOB_CONFIRMATION_REQUIRED", "Provide current job/checkpoint revisions, a reason, the exact verification scope and acknowledgments for this action")
 		return
 	}

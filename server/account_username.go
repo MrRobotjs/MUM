@@ -146,7 +146,7 @@ func (a *App) changeAccountUsername(w http.ResponseWriter, r *http.Request) {
 	}
 	username, err := normalizeAccountUsername(input.Username)
 	if err != nil || input.Revision < 1 || len(input.Password) < 12 || len(input.Password) > 1024 || !input.Revoke {
-		fail(w, 400, "INVALID_USERNAME_CHANGE", "Provide the current revision/password, a username of 1–255 printable ASCII bytes and all-session sign-out acknowledgment")
+		fail(w, 400, "INVALID_USERNAME_CHANGE", "Enter your password and a username of 1 to 255 characters, using English letters, numbers, spaces and standard symbols (no accents or emoji), and confirm signing out everywhere")
 		return
 	}
 	if !a.passwordAdmission(w, r) {

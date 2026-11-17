@@ -256,8 +256,8 @@ func (a *App) reviewProvisioningJob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	input.Reason = strings.TrimSpace(input.Reason)
-	if input.Revision < 1 || len(input.Reason) < 10 || len(input.Reason) > 1000 || !input.AcknowledgeRisk || len(input.Manual) > 20 {
-		fail(w, 400, "REVIEW_REQUIRED", "Provide the current revision, a reason of 10–1000 bytes and acknowledgment of uncertain in-flight provider outcomes")
+	if input.Revision < 1 || !validReason(input.Reason) || !input.AcknowledgeRisk || len(input.Manual) > 20 {
+		fail(w, 400, "REVIEW_REQUIRED", "Enter a reason of 10 to 1000 characters and confirm you understand some server changes may not have finished")
 		return
 	}
 	cancelJob := r.PathValue("action") == "cancel"
@@ -292,7 +292,7 @@ func (a *App) reviewProvisioningJob(w http.ResponseWriter, r *http.Request) {
 	manual := map[int64]string{}
 	for _, resolution := range input.Manual {
 		reason := strings.TrimSpace(resolution.Reason)
-		if resolution.ServerID < 1 || manual[resolution.ServerID] != "" || len(reason) < 10 || len(reason) > 1000 {
+		if resolution.ServerID < 1 || manual[resolution.ServerID] != "" || !validReason(reason) {
 			err = ErrConflict
 			break
 		}

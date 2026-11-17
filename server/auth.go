@@ -20,12 +20,15 @@ const (
 	refreshSessionLifetime = 14 * 24 * time.Hour
 )
 
-const passwordIterations = 600000
+// passwordIterations is the PBKDF2 cost of every stored password. It is a
+// variable only so the test binary can lower it (testing_speed_test.go);
+// nothing in the application changes it.
+var passwordIterations = 600000
 
 // Only the new Go hash format is supported. There is no Flask hash fallback.
 func hashPassword(password string) (string, error) {
-	if len(password) < 12 || len(password) > 1024 {
-		return "", errors.New("password must contain 12 to 1024 bytes")
+	if !passwordLongEnough(password) || len(password) > 1024 {
+		return "", errors.New("password must be 12 to 1024 characters")
 	}
 	salt := make([]byte, 32)
 	if _, err := rand.Read(salt); err != nil {

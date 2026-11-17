@@ -1,5 +1,6 @@
 import {requestJson,ApiError} from '../util/apiClient';
 import {getAccessToken} from '../store/authStore';
+import {newPasswordFits} from './textLimits';
 export type HumanCredentials=Readonly<{actor_uuid:string;user_uuid:string;username:string;is_active:boolean;has_password:boolean;credential_revision:string;profile_revision:string;activation_revision:string;role_revision:string;can_set_username:boolean;can_set_initial:boolean;can_reset:boolean;availability:'available'|'protected_owner'|'protected_self'|'protected_administrator'|'pending_work'|'username_unavailable';sessions_revoked:boolean}>;
 export type CredentialDraft={new_username:string;current_owner_password:string;new_password:string;confirm_password:string;acknowledge_revoke_sessions:boolean;acknowledge_local_only:boolean};
 const uuid=(v:unknown):v is string=>typeof v==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(v);
@@ -12,7 +13,7 @@ function project(p:HumanCredentials,actor:string,target:string,committed:boolean
 export function validInitialUsername(v:unknown):v is string{return typeof v==='string'&&v.length>=1&&v.length<=255&&v.trim()===v&&Array.from(v).every(c=>c.charCodeAt(0)>=32&&c.charCodeAt(0)<=126);}
 export function validCredentialDraft(p:CredentialDraft):boolean{
  const password=(v:unknown)=>typeof v==='string'&&new TextEncoder().encode(v).length>=12&&new TextEncoder().encode(v).length<=1024&&Array.from(v).every(c=>{const n=c.codePointAt(0)!;return n<0xd800||n>0xdfff;});
- return !!p&&typeof p.new_username==='string'&&(p.new_username===''||validInitialUsername(p.new_username))&&password(p.current_owner_password)&&password(p.new_password)&&p.confirm_password===p.new_password&&p.new_password!==p.current_owner_password&&p.acknowledge_revoke_sessions===true&&p.acknowledge_local_only===true;
+ return !!p&&typeof p.new_username==='string'&&(p.new_username===''||validInitialUsername(p.new_username))&&password(p.current_owner_password)&&password(p.new_password)&&newPasswordFits(p.new_password)&&p.confirm_password===p.new_password&&p.new_password!==p.current_owner_password&&p.acknowledge_revoke_sessions===true&&p.acknowledge_local_only===true;
 }
 export function validCredentialSelection(base:HumanCredentials,p:CredentialDraft):boolean{return validCredentialDraft(p)&&(base.can_set_username?validInitialUsername(p.new_username):p.new_username==='');}
 export class HumanCredentialsWriteError extends Error{constructor(public uncertain:boolean){super(uncertain?'The credential outcome is unknown. Read saved state before another attempt.':'The credential change was rejected. Read saved state before another attempt.');}}

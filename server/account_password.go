@@ -86,8 +86,8 @@ func (a *App) changeAccountPassword(w http.ResponseWriter, r *http.Request) {
 		domainError(w, ErrForbidden)
 		return
 	}
-	if !input.Revoke || len(input.Current) < 12 || len(input.Current) > 1024 || len(input.Replacement) < 12 || len(input.Replacement) > 1024 || input.Replacement != input.Confirm || input.Replacement == input.Current {
-		fail(w, 400, "INVALID_PASSWORD_CHANGE", "Provide matching different passwords of 12–1024 bytes and acknowledge signing out all sessions")
+	if !input.Revoke || len(input.Current) < 12 || len(input.Current) > 1024 || !passwordLongEnough(input.Replacement) || len(input.Replacement) > 1024 || input.Replacement != input.Confirm || input.Replacement == input.Current {
+		fail(w, 400, "INVALID_PASSWORD_CHANGE", "Enter your current password and a new password of 12 to 1024 characters, typed the same twice and different from the current one, and confirm signing out everywhere")
 		return
 	}
 	if !a.passwordAdmission(w, r) {

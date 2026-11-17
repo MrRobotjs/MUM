@@ -17,7 +17,7 @@ export async function fetchOwnUsername(user: string, signal?: AbortSignal): Prom
 
 export function usernameChangePayload(current: AccountUsername, input: UsernameChangeInput) {
   const p = usernameRecord(current, current.user_uuid), username = input.username.trim(), bytes = new TextEncoder().encode(input.current_password).length;
-  if (!/^[0-9a-f-]{36}$/.test(p.user_uuid) || !p.username_change_available || !/^[\x20-\x7e]{1,255}$/.test(username) || username === p.username || bytes < 12 || bytes > 1024 || input.acknowledge_revoke_sessions !== true) throw Error('Enter a different username of 1–255 printable ASCII characters, your current password and all-session sign-out acknowledgment.');
+  if (!/^[0-9a-f-]{36}$/.test(p.user_uuid) || !p.username_change_available || !/^[\x20-\x7e]{1,255}$/.test(username) || username === p.username || bytes < 12 || bytes > 1024 || input.acknowledge_revoke_sessions !== true) throw Error('Enter a new username of 1 to 255 characters using English letters, numbers, spaces and standard symbols (no accents or emoji), your current password, and confirm signing out everywhere.');
   return { expected_user_uuid: p.user_uuid, profile_revision: p.profile_revision, username, current_password: input.current_password, acknowledge_revoke_sessions: true };
 }
 

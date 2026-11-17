@@ -4,7 +4,7 @@ import {useAuth} from '../contexts/AuthContext';
 import {getAccessToken,getAuthSnapshot,subscribeToAuthStore} from '../store/authStore';
 import {checkServerConnection} from '../lib/serverConnection';
 import {syncSelectedServer,type ServerSyncScope} from '../lib/serverSync';
-import {readPlexHistory,startPlexHistoryImport,plexHistorySummary,type PlexHistoryStatus} from '../lib/plexHistory';
+import {readPlayHistory,startPlayHistoryImport,playHistorySummary,importsHistory,type PlayHistoryStatus} from '../lib/playHistory';
 import { Link, useParams } from '@tanstack/react-router';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
@@ -161,27 +161,30 @@ export const ServerDetailPage = ({ section = 'overview' }: { section?: ServerTab
 
   const serviceType = server?.service_type || 'unknown';
 
-  // Plex play history import: reads the server's own history (read-only on
-  // Plex) for the purge; later runs add only plays MUM does not have yet.
-  const isPlex = serviceType.toLowerCase() === 'plex';
-  const [history,setHistory]=useState<PlexHistoryStatus|null>(null);
+  // Play history import (Plex, Jellyfin, Emby, Audiobookshelf): reads the
+  // server's own history, read-only on the server; later runs add only plays
+  // MUM does not have yet.
+  const historyService = serviceType.toLowerCase();
+  const canImportHistory = importsHistory(historyService);
+  const isPlex = historyService === 'plex';
+  const [history,setHistory]=useState<PlayHistoryStatus|null>(null);
   const [historyError,setHistoryError]=useState<string|null>(null);
   const [historyStarting,setHistoryStarting]=useState(false);
   const [historyRun,setHistoryRun]=useState(0);
   useEffect(()=>{
-    if(!isPlex||!isAdministrator||!numericServerId){setHistory(null);return;}
+    if(!canImportHistory||!isAdministrator||!numericServerId){setHistory(null);return;}
     let live=true;let timer:ReturnType<typeof setTimeout>|undefined;
     const load=async()=>{
-      try{const status=await readPlexHistory(numericServerId);if(!live)return;setHistory(status);setHistoryError(null);if(status.state==='running')timer=setTimeout(()=>void load(),2000);}
+      try{const status=await readPlayHistory(numericServerId);if(!live)return;setHistory(status);setHistoryError(null);if(status.state==='running')timer=setTimeout(()=>void load(),2000);}
       catch{if(live)setHistoryError('Play history status could not be read.');}
     };
     void load();
     return()=>{live=false;if(timer)clearTimeout(timer);};
-  },[isPlex,isAdministrator,numericServerId,historyRun]);
+  },[canImportHistory,isAdministrator,numericServerId,historyRun]);
   const handleImportHistory=async()=>{
     if(!numericServerId||historyStarting||history?.state==='running')return;
     setHistoryStarting(true);
-    try{await startPlexHistoryImport(numericServerId);success('Play history import started.');setHistoryRun(n=>n+1);}
+    try{await startPlayHistoryImport(numericServerId);success('Play history import started.');setHistoryRun(n=>n+1);}
     catch(err){showError(err instanceof Error&&err.message?err.message:'The import could not be started.');}
     finally{setHistoryStarting(false);}
   };
@@ -489,7 +492,7 @@ export const ServerDetailPage = ({ section = 'overview' }: { section?: ServerTab
                   <FontAwesomeIcon icon={faRotate} className="mr-2 h-4 w-4" />
                   Refresh saved state
                 </Button>
-                {isPlex&&isAdministrator&&(
+                {canImportHistory&&isAdministrator&&(
                   <div className="space-y-2">
                     <Button variant="outline" className="w-full" disabled={historyStarting||history?.state==='running'} onClick={()=>void handleImportHistory()}>
                       {historyStarting||history?.state==='running' ? (
@@ -500,8 +503,8 @@ export const ServerDetailPage = ({ section = 'overview' }: { section?: ServerTab
                       {history?.state==='running' ? 'Importing play history' : 'Import play history'}
                     </Button>
                     <p className="text-sm text-muted-foreground">
-                      Reads this server's play history so purges can count plays from before MUM was watching. Running it again adds only plays MUM doesn't have yet.{' '}
-                      {historyError ?? (history ? plexHistorySummary(history) : '')}
+                      {isPlex ? "Reads this server's play history so purges can count plays from before MUM was watching." : "Reads this server's play history."} Running it again adds only plays MUM doesn't have yet.{' '}
+                      {historyError ?? (history&&canImportHistory ? playHistorySummary(history,historyService) : '')}
                     </p>
                   </div>
                 )}

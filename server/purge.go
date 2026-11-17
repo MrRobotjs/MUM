@@ -84,7 +84,7 @@ func purgeDecision(p purgeAccount, rule editPurgeRule, now time.Time) string {
 const purgeAccountsSQL = `SELECT a.uuid,coalesce(a.external_username,''),coalesce(a.external_email,''),a.external_user_id,s.id,s.is_active=1,s.server_nickname,
  coalesce(a.service_join_date,a.created_at),
  (SELECT max(h.last_seen_at) FROM media_activity_history h WHERE h.service_uuid=a.uuid),
- (SELECT max(i.viewed_at) FROM plex_history_imports i WHERE i.server_id=a.server_id AND i.account_id=a.external_user_id),
+ (SELECT max(i.viewed_at) FROM history_imports i WHERE i.server_id=a.server_id AND i.account_id=a.external_user_id),
  a.is_purge_whitelisted,
  EXISTS(SELECT 1 FROM identity_user_roles r JOIN relationship_roles k ON k.role_id=r.role_id WHERE r.user_uuid=a.uuid AND k.kind='shares_back'),
  EXISTS(SELECT 1 FROM identity_user_roles r JOIN relationship_roles k ON k.role_id=r.role_id WHERE r.user_uuid=a.uuid AND k.kind='home_user'),

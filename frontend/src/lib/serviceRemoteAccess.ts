@@ -1,6 +1,7 @@
 import {requestJson,ApiError} from '../util/apiClient';
 import {getAccessToken} from '../store/authStore';
 import {validSavedExpiry} from './humanExpiry';
+import {reasonFits} from './textLimits';
 
 export type RemoteAccessState='none'|'running'|'disabled'|'enabled'|'deleted'|'absent'|'failed'|'unknown';
 type Availability='available'|'running'|'unsupported'|'server_inactive'|'identity_unknown'|'pending_work'|'owner_only'|'protected_owner'|'protected_self';
@@ -28,7 +29,7 @@ export async function readServiceRemoteAccess(actor:string,target:string):Promis
  const abort=new AbortController(),timer=setTimeout(()=>abort.abort(),15000);
  try{const{data}=await requestJson<{data:ServiceRemoteAccess}>(`/api/service-accounts/${target}/remote-access`,{signal:abort.signal,retryAuthentication:false});if(abort.signal.aborted||token!==getAccessToken())throw Error('The session changed.');const p=project(data,actor,target);tokens.set(p,token);return p}finally{clearTimeout(timer)}
 }
-export const validRemoteReason=(reason:string)=>{const bytes=new TextEncoder().encode(reason.trim()).length;return bytes>=10&&bytes<=1000};
+export const validRemoteReason=(reason:string)=>reasonFits(reason);
 export class ServiceRemoteAccessWriteError extends Error{constructor(public uncertain:boolean){super(uncertain?'The remote outcome is unknown. Read remote access before another change; the request was not retried.':'The remote access change was rejected. Read remote access before another change.')}}
 export type RemoteOperation='disable'|'enable'|'delete';
 const results:Record<RemoteOperation,readonly RemoteAccessState[]>={disable:['disabled','absent','failed','unknown'],enable:['enabled','absent','failed','unknown'],delete:['deleted','absent','failed','unknown']};

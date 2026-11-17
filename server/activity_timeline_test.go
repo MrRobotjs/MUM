@@ -71,7 +71,7 @@ func timelineFixture(t *testing.T) (*App, *Store, string, string, string) {
 		key, account, title string
 		hour                int
 	}{{"/h/2", "42", "Plex two", 2}, {"/h/3", "42", "Plex three", 3}, {"/h/4", "42", "Plex four", 4}, {"/h/9", "77", "Someone else", 5}} {
-		activityExec(t, s, `INSERT INTO plex_history_imports(server_id,history_key,account_id,viewed_at,media_type,title,grandparent_title,imported_at) VALUES(?,?,?,?,'episode',?,'A Show',?)`, server, p.key, p.account, at(p.hour), p.title, at(p.hour))
+		activityExec(t, s, `INSERT INTO history_imports(server_id,entry_key,account_id,viewed_at,media_type,title,grandparent_title,imported_at) VALUES(?,?,?,?,'episode',?,'A Show',?)`, server, p.key, p.account, at(p.hour), p.title, at(p.hour))
 	}
 	w := apiRequest(a, "POST", "/api/auth/login", "", map[string]any{"username": "viewer", "password": "a-strong-member-password"}, nil)
 	return a, s, token, responseData(t, w)["access_token"].(string), local
@@ -163,11 +163,11 @@ func TestIdentityTimelineAuthority(t *testing.T) {
 func TestIdentityTimelinePlexPosters(t *testing.T) {
 	a, s, token, viewer, local := timelineFixture(t)
 	activityExec(t, s, "UPDATE provider_settings SET enabled=1 WHERE provider_id='plex'")
-	activityExec(t, s, "UPDATE plex_history_imports SET poster_item='20',poster_path='/library/metadata/20/thumb/1' WHERE history_key='/h/4'")
+	activityExec(t, s, "UPDATE history_imports SET poster_item='20',poster_path='/library/metadata/20/thumb/1' WHERE entry_key='/h/4'")
 	_, page := readTimeline(t, a, token, local, url.Values{"scope": {"all"}, "source": {"plex"}})
 	var rowid int64
-	_ = s.reader.QueryRow("SELECT rowid FROM plex_history_imports WHERE history_key='/h/4'").Scan(&rowid)
-	if len(page.Items) != 3 || !strings.HasPrefix(page.Items[0].Poster, fmt.Sprintf("/api/activity/plex-history-images/%d?", rowid)) || page.Items[1].Poster != "" {
+	_ = s.reader.QueryRow("SELECT rowid FROM history_imports WHERE entry_key='/h/4'").Scan(&rowid)
+	if len(page.Items) != 3 || !strings.HasPrefix(page.Items[0].Poster, fmt.Sprintf("/api/activity/imported-history-images/%d?", rowid)) || page.Items[1].Poster != "" {
 		t.Fatalf("posters %+v", page.Items)
 	}
 	poster := page.Items[0].Poster
@@ -175,7 +175,7 @@ func TestIdentityTimelinePlexPosters(t *testing.T) {
 	if got := apiRequest(a, "GET", poster, "", nil, nil).Code; got != 502 {
 		t.Fatal("poster source not resolved", got)
 	}
-	if got := apiRequest(a, "GET", strings.Replace(poster, "plex-history-images", "history-images", 1), "", nil, nil).Code; got != 403 {
+	if got := apiRequest(a, "GET", strings.Replace(poster, "imported-history-images", "history-images", 1), "", nil, nil).Code; got != 403 {
 		t.Fatal("a Plex poster link worked as a MUM one", got)
 	}
 	if _, own := readTimeline(t, a, viewer, local, url.Values{"scope": {"own"}, "source": {"plex"}}); own.Items[0].Poster != "" {
@@ -186,7 +186,80 @@ func TestIdentityTimelinePlexPosters(t *testing.T) {
 	if err := s.reader.QueryRow("SELECT id FROM app_sessions WHERE user_uuid=?", local).Scan(&session); err != nil {
 		t.Fatal(err)
 	}
-	if got := apiRequest(a, "GET", a.signedImageURL(plexHistoryPosterPurpose, "/api/activity/plex-history-images", session, rowid, time.Now()), "", nil, nil).Code; got != 403 {
+	if got := apiRequest(a, "GET", a.signedImageURL(importedHistoryPosterPurpose, "/api/activity/imported-history-images", session, rowid, time.Now()), "", nil, nil).Code; got != 403 {
 		t.Fatal("a viewer's link was served", got)
+	}
+}
+
+// A person with accounts on several services gets one picker entry per
+// service; each imported play is marked with its service, Audiobookshelf
+// plays carry how far and how long, and every service's poster is a signed
+// administrator link.
+func TestIdentityTimelineServiceSources(t *testing.T) {
+	a, s, token, _, local := timelineFixture(t)
+	owner, _ := s.Authenticate(t.Context(), token)
+	activityExec(t, s, "UPDATE provider_settings SET enabled=1 WHERE provider_id IN ('jellyfin','audiobookshelf')")
+	var servers []int64
+	for _, kind := range []string{"jellyfin", "audiobookshelf"} {
+		activityExec(t, s, `INSERT INTO media_servers(server_nickname,service_type,url,api_key) VALUES(?,?,?,'fixture-secret')`, kind+"++", kind, "http://"+kind+".test")
+		var server int64
+		_ = s.reader.QueryRow("SELECT id FROM media_servers WHERE server_nickname=?", kind+"++").Scan(&server)
+		servers = append(servers, server)
+		if err := s.LinkServiceAccounts(t.Context(), owner.UUID, local, []string{seedExternalService(t, s, server, kind+"-user")}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	at := "2026-11-01T06:00:00.000000000Z"
+	activityExec(t, s, `INSERT INTO history_imports(server_id,entry_key,account_id,viewed_at,media_type,title,poster_item,poster_path,imported_at) VALUES(?,'a1','jellyfin-user',?,'movie','Jelly film','m1','tag1',?)`, servers[0], at, at)
+	activityExec(t, s, `INSERT INTO history_imports(server_id,entry_key,account_id,viewed_at,media_type,title,parent_title,position_seconds,duration_seconds,imported_at) VALUES(?,'ses','audiobookshelf-user','2026-11-01T05:00:00.000000000Z','book','A Book','An Author',90,3600,?)`, servers[1], at)
+
+	w := apiRequest(a, "GET", "/api/activity/identities/"+local+"/timeline?scope=all", token, nil, nil)
+	var out struct {
+		Data struct {
+			Sources []string `json:"sources"`
+			Items   []struct {
+				Source   string  `json:"source"`
+				ID       string  `json:"id"`
+				Title    string  `json:"title"`
+				Position *string `json:"position_ticks"`
+				Duration *string `json:"duration_ticks"`
+				Poster   string  `json:"poster_url"`
+			} `json:"items"`
+		}
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil || w.Code != 200 {
+		t.Fatal(w.Code, err)
+	}
+	if got := strings.Join(out.Data.Sources, ","); got != "plex,jellyfin,audiobookshelf" {
+		t.Fatal("sources", got)
+	}
+	jelly, book := out.Data.Items[0], out.Data.Items[1]
+	if jelly.Source != "jellyfin" || !strings.HasPrefix(jelly.ID, "jellyfin-") || !strings.HasPrefix(jelly.Poster, "/api/activity/imported-history-images/") {
+		t.Fatalf("jellyfin row %+v", jelly)
+	}
+	if book.Source != "audiobookshelf" || book.Position == nil || *book.Position != "900000000" || book.Duration == nil || *book.Duration != "36000000000" || book.Poster != "" {
+		t.Fatalf("audiobookshelf row %+v", book)
+	}
+	// The fixture server is offline: the link resolves, the fetch fails upstream.
+	if got := apiRequest(a, "GET", jelly.Poster, "", nil, nil).Code; got != 502 {
+		t.Fatal("jellyfin poster source not resolved", got)
+	}
+	_, page := readTimeline(t, a, token, local, url.Values{"scope": {"all"}, "source": {"jellyfin"}})
+	if got := timelineTitles(page); got != "jellyfin:Jelly film" || page.Source != "jellyfin" {
+		t.Fatal("jellyfin only", got)
+	}
+	// Paging past a Jellyfin play keeps its place.
+	timelinePageSize = 1
+	t.Cleanup(func() { timelinePageSize = 100 })
+	_, first := readTimeline(t, a, token, local, url.Values{"scope": {"all"}})
+	if first.Next == nil {
+		t.Fatal("no next page")
+	}
+	_, second := readTimeline(t, a, token, local, url.Values{"scope": {"all"}, "before": {*first.Next}})
+	if timelineTitles(first)+"|"+timelineTitles(second) != "jellyfin:Jelly film|audiobookshelf:A Book" {
+		t.Fatal("paging", timelineTitles(first), timelineTitles(second))
+	}
+	if code, _ := readTimeline(t, a, token, local, url.Values{"scope": {"all"}, "source": {"kavita"}}); code != 400 {
+		t.Fatal("unknown source accepted", code)
 	}
 }

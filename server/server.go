@@ -102,7 +102,7 @@ func NewApp(store *Store, queue *LogQueue, assets fs.FS) (*App, error) {
 	if err := a.recoverEdit(context.Background()); err != nil {
 		return nil, err
 	}
-	if err := recoverPlexHistoryImports(context.Background(), store); err != nil {
+	if err := recoverHistoryImports(context.Background(), store); err != nil {
 		return nil, err
 	}
 	a.hub = newRealtimeHub(store)
@@ -118,7 +118,7 @@ func NewApp(store *Store, queue *LogQueue, assets fs.FS) (*App, error) {
 	handle("GET /api/openapi/openapi.json", a.openAPIDocument)
 	handle("GET /api/activity/images/{item}", a.activityImageProxy)
 	handle("GET /api/activity/history-images/{item}", a.activityHistoryImageProxy)
-	handle("GET /api/activity/plex-history-images/{item}", a.plexHistoryImageProxy)
+	handle("GET /api/activity/imported-history-images/{item}", a.importedHistoryImageProxy)
 	handle("GET /api/activity/avatars/{item}", a.activityAvatarProxy)
 	handle("GET /api/user-avatars/{item}", a.userAvatarProxy)
 	handle("POST /api/public/invitations/{token}/plex-authorizations", a.startInvitationPlexAuthorization)
@@ -224,8 +224,8 @@ func NewApp(store *Store, queue *LogQueue, assets fs.FS) (*App, error) {
 	handle("POST /api/servers/{server}/sync", a.syncServerEndpoint)
 	handle("POST /api/servers/{server}/sync-libraries", a.syncServerEndpoint)
 	handle("POST /api/servers/{server}/sync-users", a.syncServerEndpoint)
-	handle("GET /api/servers/{server}/plex-history", a.plexHistoryStatus)
-	handle("POST /api/servers/{server}/plex-history/import", a.startPlexHistoryImport)
+	handle("GET /api/servers/{server}/play-history", a.playHistoryStatus)
+	handle("POST /api/servers/{server}/play-history/import", a.startPlayHistoryImport)
 	handle("GET /api/libraries", a.listLibraries)
 	handle("GET /api/libraries/{library}", a.listLibraries)
 	handle("GET /api/libraries/{library}/media", a.libraryCatalogueItems)

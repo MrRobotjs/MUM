@@ -3,7 +3,8 @@ import test from 'node:test';
 import {loadFrontend} from './frontendLoader.mjs';
 
 // The user page's History tab reads one timeline of MUM's plays and plays
-// imported from Plex's history, chosen by source, each marked with its source.
+// imported from the servers' own histories, chosen by source, each marked with
+// its service; the page lists the services the person has accounts on.
 async function load() {
   return loadFrontend("export * from './src/lib/identityTimeline';export {setAccessToken} from './src/store/authStore';");
 }
@@ -15,7 +16,9 @@ const mum = {source: 'mum', id: 'mum-7', server_id: '1', service_uuid: service, 
   played_at: '2026-11-10T20:00:00.000000000Z', client: 'Plex Web', play_method: 'direct_play', position_ticks: '600', duration_ticks: '1200'};
 const plex = {source: 'plex', id: 'plex-3', server_id: '1', service_uuid: service, media_type: 'episode', title: 'Pilot', parent_title: 'A Show', library_name: null,
   played_at: '2024-04-30T18:00:00.000000000Z', client: null, play_method: null, position_ticks: null, duration_ticks: null};
-const page = (extra = {}) => ({actor_uuid: actor, scope: 'all', target_uuid: target, source: 'all', items: [mum, plex], next_before: '2024-04-30T18:00:00.000000000Z_p_3', ...extra});
+const jelly = {...plex, source: 'jellyfin', id: 'jellyfin-4', title: 'Film', parent_title: null};
+const book = {...plex, source: 'audiobookshelf', id: 'audiobookshelf-5', media_type: 'book', title: 'A Book', parent_title: 'An Author', position_ticks: '900000000', duration_ticks: '36000000000'};
+const page = (extra = {}) => ({actor_uuid: actor, scope: 'all', target_uuid: target, source: 'all', sources: ['plex', 'jellyfin'], items: [mum, plex], next_before: '2024-04-30T18:00:00.000000000Z_p_3', ...extra});
 
 test('identity timeline adapter', async t => {
   const before = {fetch: globalThis.fetch, window: globalThis.window};
@@ -35,10 +38,28 @@ test('identity timeline adapter', async t => {
 
   await t.test('keeps the signed poster link of a play imported from Plex', async () => {
     const m = await load(); m.setAccessToken('session');
-    const poster = '/api/activity/plex-history-images/3?s=x&e=1&g=y';
+    const poster = '/api/activity/imported-history-images/3?s=x&e=1&g=y';
     globalThis.fetch = async () => Response.json({data: page({items: [{...plex, poster_url: poster}]})});
     const result = await m.fetchIdentityTimeline(actor, target, 'all', 'all');
     assert.equal(result.items[0].poster_url, poster);
+  });
+
+  await t.test('reads plays of every service and the services offered', async () => {
+    const m = await load(); m.setAccessToken('session');
+    globalThis.fetch = async () => Response.json({data: page({source: 'jellyfin', items: [jelly, book]})});
+    const result = await m.fetchIdentityTimeline(actor, target, 'all', 'jellyfin');
+    assert.deepEqual(result.sources, ['plex', 'jellyfin']);
+    assert.deepEqual(result.items.map(item => item.source), ['jellyfin', 'audiobookshelf']);
+    assert.equal(result.items[1].position_ticks, '900000000');
+    assert.equal(m.historyServiceName.audiobookshelf, 'Audiobookshelf');
+  });
+
+  await t.test('falls back to Combined when the person has no account on the chosen service', async () => {
+    const m = await load();
+    assert.equal(m.offeredSource('jellyfin', ['plex']), 'all');
+    assert.equal(m.offeredSource('jellyfin', ['plex', 'jellyfin']), 'jellyfin');
+    assert.equal(m.offeredSource('mum', []), 'mum');
+    assert.equal(m.offeredSource('all', []), 'all');
   });
 
   await t.test('rejects bad input before any request', async () => {
@@ -47,6 +68,7 @@ test('identity timeline adapter', async t => {
     globalThis.fetch = async () => { called = true; return Response.json({}); };
     await assert.rejects(m.fetchIdentityTimeline(actor, 'not-a-uuid', 'all', 'all'));
     await assert.rejects(m.fetchIdentityTimeline(actor, target, 'all', 'both'));
+    await assert.rejects(m.fetchIdentityTimeline(actor, target, 'all', 'kavita'));
     await assert.rejects(m.fetchIdentityTimeline(actor, target, 'all', 'all', 'yesterday'));
     assert.equal(called, false);
   });
@@ -55,7 +77,9 @@ test('identity timeline adapter', async t => {
     const m = await load(); m.setAccessToken('session');
     for (const bad of [page({actor_uuid: target}), page({target_uuid: actor}), page({source: 'mum'}), page({items: [{...plex, client: 'Plex Web'}]}),
       page({items: [{...plex, position_ticks: '5'}]}), page({items: [{...mum, source: 'other'}]}), page({items: [mum, mum]}), page({items: [{...plex, id: 'mum-3'}]}),
-      page({items: [{...plex, poster_url: '/api/activity/history-images/3?s=x'}]}), page({items: [{...plex, poster_url: 'http://plex.test/library/metadata/1/thumb'}]})]) {
+      page({items: [{...plex, poster_url: '/api/activity/history-images/3?s=x'}]}), page({items: [{...plex, poster_url: 'http://plex.test/library/metadata/1/thumb'}]}),
+      page({items: [{...plex, poster_url: '/api/activity/plex-history-images/3?s=x'}]}), page({items: [{...jelly, position_ticks: '5'}]}), page({items: [{...jelly, client: 'Web'}]}),
+      page({items: [{...jelly, source: 'kavita', id: 'kavita-4'}]}), page({sources: ['kavita']}), page({sources: ['plex', 'plex']}), page({sources: undefined})]) {
       globalThis.fetch = async () => Response.json({data: bad});
       await assert.rejects(m.fetchIdentityTimeline(actor, target, 'all', 'all'), /Invalid history/);
     }

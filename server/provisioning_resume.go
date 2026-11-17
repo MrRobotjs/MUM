@@ -82,7 +82,7 @@ func resumeAuthority(ctx context.Context, tx *sql.Tx, actor string, job redempti
 func (a *App) prepareResume(ctx context.Context, actor string, job redemptionJob, token string, input resumeInput) ([]resumeTarget, error) {
 	passwords := map[int64]string{}
 	for _, entry := range input.Passwords {
-		if entry.ServerID < 1 || passwords[entry.ServerID] != "" || len(entry.Password) < 12 || len(entry.Password) > 1024 {
+		if entry.ServerID < 1 || passwords[entry.ServerID] != "" || !passwordLongEnough(entry.Password) || len(entry.Password) > 1024 {
 			return nil, ErrConflict
 		}
 		passwords[entry.ServerID] = entry.Password
@@ -233,7 +233,7 @@ func (a *App) resumeProvisioningJob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	input.Reason = strings.TrimSpace(input.Reason)
-	if input.Revision < 1 || len(input.Reason) < 10 || len(input.Reason) > 1000 || !input.AcknowledgeRisk || !input.AcknowledgePasswords || len(input.Passwords) < 1 || len(input.Passwords) > 20 {
+	if input.Revision < 1 || !validReason(input.Reason) || !input.AcknowledgeRisk || !input.AcknowledgePasswords || len(input.Passwords) < 1 || len(input.Passwords) > 20 {
 		fail(w, 400, "INVALID_RESUME", "Provide the current revision, reason, risk/password acknowledgments and passwords for every recorded server")
 		return
 	}

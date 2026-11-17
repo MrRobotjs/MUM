@@ -20,6 +20,7 @@ type fakePlexHistory struct {
 	methods []string
 	failAt  int // start offset that answers 503; -1 never
 	block   chan struct{}
+	onPage  func(f *fakePlexHistory, start int) // called after a page is served, with f.mu held
 }
 
 func (f *fakePlexHistory) client(t *testing.T) *http.Client {
@@ -47,6 +48,11 @@ func (f *fakePlexHistory) client(t *testing.T) *http.Client {
 		end := min(start+size, len(entries))
 		page := entries[min(start, len(entries)):end]
 		body := fmt.Sprintf(`<MediaContainer size="%d" totalSize="%d" offset="%d">%s</MediaContainer>`, len(page), len(entries), start, strings.Join(page, ""))
+		f.mu.Lock()
+		if f.onPage != nil {
+			f.onPage(f, start)
+		}
+		f.mu.Unlock()
 		return &http.Response{StatusCode: 200, Header: http.Header{}, Body: io.NopCloser(strings.NewReader(body)), Request: r}, nil
 	})}
 }
@@ -80,7 +86,7 @@ type plexHistoryStatus struct {
 
 func readPlexHistoryStatus(t *testing.T, a *App, token string, server int64) plexHistoryStatus {
 	t.Helper()
-	w := apiRequest(a, "GET", fmt.Sprintf("/api/servers/%d/plex-history", server), token, nil, nil)
+	w := apiRequest(a, "GET", fmt.Sprintf("/api/servers/%d/play-history", server), token, nil, nil)
 	if w.Code != 200 {
 		t.Fatal("status", w.Code, w.Body.String())
 	}
@@ -108,8 +114,8 @@ func waitPlexHistory(t *testing.T, a *App, token string, server int64) plexHisto
 
 func plexHistoryFixture(t *testing.T, fake *fakePlexHistory) (*App, *Store, string, int64) {
 	t.Helper()
-	plexHistoryPageSize = 2
-	t.Cleanup(func() { plexHistoryPageSize = 500 })
+	historyPageSize = 2
+	t.Cleanup(func() { historyPageSize = 500 })
 	a, s := testApp(t)
 	a.ProviderHTTP = fake.client(t)
 	token, _ := bootstrapOwner(t, a)
@@ -123,10 +129,10 @@ func plexHistoryFixture(t *testing.T, fake *fakePlexHistory) (*App, *Store, stri
 }
 
 func startPlexHistory(a *App, token string, server int64) int {
-	return apiRequest(a, "POST", fmt.Sprintf("/api/servers/%d/plex-history/import", server), token, nil, nil).Code
+	return apiRequest(a, "POST", fmt.Sprintf("/api/servers/%d/play-history/import", server), token, nil, nil).Code
 }
 
-func TestPlexHistoryImportStoresOnlyWhatMUMLacks(t *testing.T) {
+func TestPlayHistoryImportStoresOnlyWhatMUMLacks(t *testing.T) {
 	seen := time.Date(2026, 11, 10, 20, 0, 0, 0, time.UTC)
 	fake := &fakePlexHistory{failAt: -1, entries: []string{
 		plexHistoryEntry("1", "42", "99", seen.AddDate(0, -3, 0)),     // an old play MUM never saw
@@ -154,7 +160,7 @@ func TestPlexHistoryImportStoresOnlyWhatMUMLacks(t *testing.T) {
 		t.Fatal("MUM's first recorded play", status.MUMSince)
 	}
 	var keys []string
-	rows, err := s.reader.Query("SELECT history_key FROM plex_history_imports WHERE server_id=? ORDER BY history_key", server)
+	rows, err := s.reader.Query("SELECT entry_key FROM history_imports WHERE server_id=? ORDER BY entry_key", server)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -186,7 +192,7 @@ func TestPlexHistoryImportStoresOnlyWhatMUMLacks(t *testing.T) {
 	}
 }
 
-func TestPlexHistoryImportFailureKeepsEarlierPages(t *testing.T) {
+func TestPlayHistoryImportFailureKeepsEarlierPages(t *testing.T) {
 	now := time.Now()
 	fake := &fakePlexHistory{failAt: 2, entries: []string{
 		plexHistoryEntry("1", "42", "1", now.AddDate(0, -1, 0)),
@@ -198,12 +204,12 @@ func TestPlexHistoryImportFailureKeepsEarlierPages(t *testing.T) {
 		t.Fatal("start", code)
 	}
 	status := waitPlexHistory(t, a, token, server)
-	if status.State != "failed" || status.ErrorCode == nil || *status.ErrorCode != "plex_read_failed" || status.Added != 2 || status.StoredPlays != 2 {
+	if status.State != "failed" || status.ErrorCode == nil || *status.ErrorCode != "server_read_failed" || status.Added != 2 || status.StoredPlays != 2 {
 		t.Fatalf("failed import %+v", status)
 	}
 }
 
-func TestPlexHistoryImportAuthorityAndOneRunAtATime(t *testing.T) {
+func TestPlayHistoryImportAuthorityAndOneRunAtATime(t *testing.T) {
 	fake := &fakePlexHistory{failAt: -1, block: make(chan struct{}), entries: []string{plexHistoryEntry("1", "42", "1", time.Now())}}
 	a, s, token, server := plexHistoryFixture(t, fake)
 	owner, err := s.Authenticate(t.Context(), token)
@@ -222,14 +228,14 @@ func TestPlexHistoryImportAuthorityAndOneRunAtATime(t *testing.T) {
 	if code := startPlexHistory(a, viewer, server); code != 403 {
 		t.Fatal("a viewer started an import", code)
 	}
-	if w := apiRequest(a, "GET", fmt.Sprintf("/api/servers/%d/plex-history", server), viewer, nil, nil); w.Code != 403 {
+	if w := apiRequest(a, "GET", fmt.Sprintf("/api/servers/%d/play-history", server), viewer, nil, nil); w.Code != 403 {
 		t.Fatal("a viewer read the import status", w.Code)
 	}
-	activityExec(t, s, `INSERT INTO media_servers(server_nickname,service_type,url,api_key) VALUES('Jelly','jellyfin','http://jelly.test','fixture-secret')`)
-	var jelly int64
-	_ = s.reader.QueryRow("SELECT id FROM media_servers WHERE server_nickname='Jelly'").Scan(&jelly)
-	if code := startPlexHistory(a, token, jelly); code != 409 {
-		t.Fatal("imported from a Jellyfin server", code)
+	activityExec(t, s, `INSERT INTO media_servers(server_nickname,service_type,url,api_key) VALUES('Books','kavita','http://kavita.test','fixture-secret')`)
+	var books int64
+	_ = s.reader.QueryRow("SELECT id FROM media_servers WHERE server_nickname='Books'").Scan(&books)
+	if code := startPlexHistory(a, token, books); code != 409 {
+		t.Fatal("imported from a Kavita server", code)
 	}
 	if code := startPlexHistory(a, token, 9999); code != 404 {
 		t.Fatal("unknown server", code)
@@ -249,16 +255,16 @@ func TestPlexHistoryImportAuthorityAndOneRunAtATime(t *testing.T) {
 	}
 }
 
-func TestPlexHistoryImportStoppedByShutdownIsMarkedOnRestart(t *testing.T) {
+func TestPlayHistoryImportStoppedByShutdownIsMarkedOnRestart(t *testing.T) {
 	fake := &fakePlexHistory{failAt: -1, entries: []string{}}
 	_, s, _, server := plexHistoryFixture(t, fake)
-	activityExec(t, s, "INSERT INTO plex_history_import_runs(server_id,state,started_at) VALUES(?,'running',?)", server, utcTimestamp(time.Now()))
-	if err := recoverPlexHistoryImports(t.Context(), s); err != nil {
+	activityExec(t, s, "INSERT INTO history_import_runs(server_id,state,started_at) VALUES(?,'running',?)", server, utcTimestamp(time.Now()))
+	if err := recoverHistoryImports(t.Context(), s); err != nil {
 		t.Fatal(err)
 	}
 	var state string
 	var finished, code *string
-	if err := s.reader.QueryRow("SELECT state,finished_at,error_code FROM plex_history_import_runs WHERE server_id=?", server).Scan(&state, &finished, &code); err != nil {
+	if err := s.reader.QueryRow("SELECT state,finished_at,error_code FROM history_import_runs WHERE server_id=?", server).Scan(&state, &finished, &code); err != nil {
 		t.Fatal(err)
 	}
 	if state != "stopped" || finished == nil || code == nil || *code != "interrupted" {
@@ -267,7 +273,7 @@ func TestPlexHistoryImportStoppedByShutdownIsMarkedOnRestart(t *testing.T) {
 }
 
 // Every run fills in a poster a stored play lacks and never replaces one.
-func TestPlexHistoryImportFillsMissingPostersOnly(t *testing.T) {
+func TestPlayHistoryImportFillsMissingPostersOnly(t *testing.T) {
 	viewed := time.Date(2026, 10, 1, 20, 0, 0, 0, time.UTC).Unix()
 	entry := func(key, item, thumb string) string {
 		return fmt.Sprintf(`<Video historyKey="/status/sessions/history/%s" accountID="42" ratingKey="%s" thumb="%s" type="movie" title="Film" viewedAt="%d"/>`, key, item, thumb, viewed)
@@ -280,7 +286,7 @@ func TestPlexHistoryImportFillsMissingPostersOnly(t *testing.T) {
 	a, s, token, server := plexHistoryFixture(t, fake)
 	posters := func() string {
 		t.Helper()
-		rows, err := s.reader.Query("SELECT history_key,coalesce(poster_item,''),coalesce(poster_path,'') FROM plex_history_imports WHERE server_id=? ORDER BY history_key", server)
+		rows, err := s.reader.Query("SELECT entry_key,coalesce(poster_item,''),coalesce(poster_path,'') FROM history_imports WHERE server_id=? ORDER BY entry_key", server)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -314,5 +320,127 @@ func TestPlexHistoryImportFillsMissingPostersOnly(t *testing.T) {
 	}
 	if got := posters(); got != "1=10/library/metadata/10/thumb/5,2=20/library/metadata/20/thumb/1,3=" {
 		t.Fatal("second import posters", got)
+	}
+}
+
+// A play the server adds in front while a run pages through the history moves
+// the later pages back: the run sees one entry twice and stores it once, and
+// the next run picks up the new play. Nothing is skipped or stored twice.
+func TestPlayHistoryReimportWithShiftedOffsets(t *testing.T) {
+	now := time.Now().UTC()
+	fake := &fakePlexHistory{failAt: -1, entries: []string{
+		plexHistoryEntry("1", "42", "1", now.AddDate(0, -1, 0)),
+		plexHistoryEntry("2", "42", "2", now.AddDate(0, -1, 1)),
+		plexHistoryEntry("3", "42", "3", now.AddDate(0, -1, 2)),
+	}}
+	fake.onPage = func(f *fakePlexHistory, start int) {
+		if start == 0 {
+			f.entries = append([]string{plexHistoryEntry("0", "42", "9", now.AddDate(0, 0, -1))}, f.entries...)
+			f.onPage = nil
+		}
+	}
+	a, s, token, server := plexHistoryFixture(t, fake)
+	if code := startPlexHistory(a, token, server); code != 202 {
+		t.Fatal("start", code)
+	}
+	if status := waitPlexHistory(t, a, token, server); status.State != "completed" || status.Added != 3 || status.AlreadyStored != 1 {
+		t.Fatalf("first run %+v", status)
+	}
+	if code := startPlexHistory(a, token, server); code != 202 {
+		t.Fatal("second start", code)
+	}
+	if status := waitPlexHistory(t, a, token, server); status.State != "completed" || status.Added != 1 || status.StoredPlays != 4 {
+		t.Fatalf("second run %+v", status)
+	}
+	var rows int
+	_ = s.reader.QueryRow("SELECT count(*) FROM history_imports WHERE server_id=?", server).Scan(&rows)
+	if rows != 4 {
+		t.Fatal("stored", rows)
+	}
+}
+
+// A Jellyfin user ID written with dashes and capitals in the activity log is
+// stored under the account's own form, so the play counts for that account.
+func TestPlayHistoryJellyfinMatchesDashedUserID(t *testing.T) {
+	historyPageSize = 50
+	t.Cleanup(func() { historyPageSize = 500 })
+	a, s := testApp(t)
+	var requests []string
+	a.ProviderHTTP = &http.Client{Transport: providerTransport(func(r *http.Request) (*http.Response, error) {
+		requests = append(requests, r.Method+" "+r.URL.Path)
+		body := `{"Items":[]}`
+		switch r.URL.Path {
+		case "/System/ActivityLog/Entries":
+			body = `{"Items":[{"Id":7,"Type":"VideoPlaybackStopped","ItemId":"m1","UserId":"AB12CD34-AB12-CD34-AB12-CD34AB12CD34","Date":"2026-11-10T21:00:00.0000000Z"},
+			 {"Id":8,"Type":"VideoPlaybackStopped","ItemId":"m2","UserId":"FFFF0000-AB12-CD34-AB12-CD34AB12CD34","Date":"2026-11-10T22:00:00.0000000Z"}],"TotalRecordCount":2}`
+		case "/Items":
+			body = `{"Items":[{"Id":"m1","Name":"Film","Type":"Movie","ImageTags":{"Primary":"tag1"}}]}`
+		}
+		return &http.Response{StatusCode: 200, Header: http.Header{"Content-Type": {"application/json"}}, Body: io.NopCloser(strings.NewReader(body)), Request: r}, nil
+	})}
+	token, _ := bootstrapOwner(t, a)
+	activityExec(t, s, "UPDATE provider_settings SET enabled=1 WHERE provider_id='jellyfin'")
+	activityExec(t, s, `INSERT INTO media_servers(server_nickname,service_type,url,api_key) VALUES('Jelly','jellyfin','http://jelly.test','fixture-secret')`)
+	var server int64
+	if err := s.reader.QueryRow("SELECT id FROM media_servers WHERE server_nickname='Jelly'").Scan(&server); err != nil {
+		t.Fatal(err)
+	}
+	seedExternalService(t, s, server, "ab12cd34ab12cd34ab12cd34ab12cd34")
+	if code := startPlexHistory(a, token, server); code != 202 {
+		t.Fatal("start", code)
+	}
+	status := waitPlexHistory(t, a, token, server)
+	if status.State != "completed" || status.Added != 2 || status.UnknownAccounts != 1 {
+		t.Fatalf("import %+v", status)
+	}
+	got := map[string]string{}
+	rows, err := s.reader.Query("SELECT entry_key,account_id||' '||coalesce(title,'')||' '||coalesce(poster_path,'') FROM history_imports WHERE server_id=?", server)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for rows.Next() {
+		var key, value string
+		_ = rows.Scan(&key, &value)
+		got[key] = value
+	}
+	rows.Close()
+	if got["a7"] != "ab12cd34ab12cd34ab12cd34ab12cd34 Film tag1" || got["a8"] != "ffff0000ab12cd34ab12cd34ab12cd34  " {
+		t.Fatal("stored", got)
+	}
+	for _, request := range requests {
+		if !strings.HasPrefix(request, "GET ") {
+			t.Fatal("the import wrote to Jellyfin", request)
+		}
+	}
+}
+
+// An activity log page that holds no plays does not end the import: the run
+// advances by the records read and finds the plays on later pages.
+func TestPlayHistoryContinuesPastPagesWithoutPlays(t *testing.T) {
+	historyPageSize = 2
+	t.Cleanup(func() { historyPageSize = 500 })
+	a, s := testApp(t)
+	a.ProviderHTTP = &http.Client{Transport: providerTransport(func(r *http.Request) (*http.Response, error) {
+		body := `{"Items":[]}`
+		if r.URL.Path == "/emby/System/ActivityLog/Entries" {
+			switch r.URL.Query().Get("StartIndex") {
+			case "0":
+				body = `{"Items":[{"Id":1,"Type":"user.authenticated","UserId":"u1","Date":"2026-11-10T21:00:00Z"},{"Id":2,"Type":"playback.start","ItemId":"m1","UserId":"u1","Date":"2026-11-10T21:00:00Z"}],"TotalRecordCount":3}`
+			case "2":
+				body = `{"Items":[{"Id":3,"Type":"playback.stop","ItemId":"m1","UserId":"u1","Date":"2026-11-10T22:00:00Z"}],"TotalRecordCount":3}`
+			}
+		}
+		return &http.Response{StatusCode: 200, Header: http.Header{"Content-Type": {"application/json"}}, Body: io.NopCloser(strings.NewReader(body)), Request: r}, nil
+	})}
+	token, _ := bootstrapOwner(t, a)
+	activityExec(t, s, "UPDATE provider_settings SET enabled=1 WHERE provider_id='emby'")
+	activityExec(t, s, `INSERT INTO media_servers(server_nickname,service_type,url,api_key) VALUES('Emby','emby','http://emby.test','fixture-secret')`)
+	var server int64
+	_ = s.reader.QueryRow("SELECT id FROM media_servers WHERE server_nickname='Emby'").Scan(&server)
+	if code := startPlexHistory(a, token, server); code != 202 {
+		t.Fatal("start", code)
+	}
+	if status := waitPlexHistory(t, a, token, server); status.State != "completed" || status.Read != 3 || status.Added != 1 {
+		t.Fatalf("import %+v", status)
 	}
 }

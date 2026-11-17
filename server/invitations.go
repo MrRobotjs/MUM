@@ -573,8 +573,8 @@ func (a *App) redeemInvitation(w http.ResponseWriter, r *http.Request) {
 		fail(w, 400, "INVALID_REVISION", "Provide a positive invitation revision")
 		return
 	}
-	if len(input.RequestID) < 32 || len(input.RequestID) > 128 || len(input.Username) == 0 || len(input.Username) > 255 || len(input.Password) < 12 || len(input.Password) > 1024 {
-		fail(w, 400, "INVALID_REDEMPTION", "Provide a random request_id, username and a password of 12–1024 bytes")
+	if len(input.RequestID) < 32 || len(input.RequestID) > 128 || len(input.Username) == 0 || len(input.Username) > 255 || !passwordLongEnough(input.Password) || len(input.Password) > 1024 {
+		fail(w, 400, "INVALID_REDEMPTION", "Enter a username and a password of 12 to 1024 characters")
 		return
 	}
 	input.Email = strings.TrimSpace(input.Email)
@@ -592,8 +592,8 @@ func (a *App) redeemInvitation(w http.ResponseWriter, r *http.Request) {
 	}
 	for _, c := range input.ServerCredentials {
 		c.Username = strings.TrimSpace(c.Username)
-		if _, duplicate := credentials[c.ServerID]; duplicate || c.ServerID < 1 || c.Username == "" || len(c.Username) > 255 || len(c.Password) < 12 || len(c.Password) > 1024 {
-			fail(w, 400, "INVALID_CREDENTIALS", "Provide unique servers, usernames and passwords of 12–1024 bytes")
+		if _, duplicate := credentials[c.ServerID]; duplicate || c.ServerID < 1 || c.Username == "" || len(c.Username) > 255 || !passwordLongEnough(c.Password) || len(c.Password) > 1024 {
+			fail(w, 400, "INVALID_CREDENTIALS", "Enter a username and a password of 12 to 1024 characters for each server")
 			return
 		}
 		credentials[c.ServerID] = c

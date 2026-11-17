@@ -1,10 +1,11 @@
 import {ApiError,requestJson} from '../util/apiClient';
 import {getAccessToken,clearAccessToken} from '../store/authStore';
 import {fetchPersonalProfile} from './plexConnection';
+import {newPasswordFits} from './textLimits';
 export type PasswordChangeInput={current_password:string;new_password:string;confirm_password:string;acknowledge_revoke_sessions:boolean};
 export function passwordChangePayload(user:string,input:PasswordChangeInput){
  const bytes=(value:string)=>new TextEncoder().encode(value).length;
- if(!/^[0-9a-f-]{36}$/.test(user) || bytes(input.current_password)<12 || bytes(input.current_password)>1024 || bytes(input.new_password)<12 || bytes(input.new_password)>1024 || input.new_password!==input.confirm_password || input.new_password===input.current_password || input.acknowledge_revoke_sessions!==true)throw Error('Enter matching different passwords of 12–1024 bytes and acknowledge signing out all sessions.');
+ if(!/^[0-9a-f-]{36}$/.test(user) || bytes(input.current_password)<12 || bytes(input.current_password)>1024 || !newPasswordFits(input.new_password) || input.new_password!==input.confirm_password || input.new_password===input.current_password || input.acknowledge_revoke_sessions!==true)throw Error('Enter your current password and a new password of 12 to 1024 characters, typed the same twice and different from the current one, and confirm signing out everywhere.');
  return {expected_user_uuid:user,...input};
 }
 export async function changeOwnPassword(user:string,input:PasswordChangeInput){

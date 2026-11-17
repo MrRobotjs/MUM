@@ -1,3 +1,4 @@
+import type { HistoryService } from '../lib/playHistory';
 import {userListRoleFilter} from '../lib/userRoleCatalog';
 import useSWRInfinite from 'swr/infinite';
 import { requestJson } from '../util/apiClient';
@@ -23,7 +24,7 @@ type UsersResponse = {
     display_name?: string;
     created_at?: string;
     last_streamed_at?: string | null;
-    last_streamed_source?: 'mum' | 'plex' | null;
+    last_streamed_source?: 'mum' | HistoryService | null;
     service_join_date?: string | null;
     last_login_at?: string;
     is_active: boolean;

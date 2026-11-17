@@ -3,7 +3,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faTrash, faTriangleExclamation, faCircleInfo, faClockRotateLeft } from '@fortawesome/free-solid-svg-icons';
 import { readPurgeCandidates, purgeUsers, lastPlayLabel, type PurgeCandidate } from '../../lib/purge';
 import { EditOperationsClient, editOutcomeMessage } from '../../lib/editOperations';
-import { readPlexHistory, startPlexHistoryImport, plexHistoryNotice, type PlexHistoryStatus } from '../../lib/plexHistory';
+import { readPlayHistory, startPlayHistoryImport, playHistoryNotice, type PlayHistoryStatus } from '../../lib/playHistory';
 import { useServers } from '../../hooks/useServers';
 import { useAlerts } from '../../contexts/AlertContext';
 import { Input } from '../ui/input';
@@ -20,7 +20,7 @@ import { Spinner } from '@/components/ui/spinner'
 const PlexHistoryNotices = () => {
   const { servers } = useServers({ serviceType: 'plex' });
   const { success, error } = useAlerts();
-  const [statuses, setStatuses] = useState<Record<number, PlexHistoryStatus>>({});
+  const [statuses, setStatuses] = useState<Record<number, PlayHistoryStatus>>({});
   const [starting, setStarting] = useState<number | null>(null);
   const [run, setRun] = useState(0);
   const active = servers.filter(server => server.service_type.toLowerCase() === 'plex' && server.effective_active !== false && server.is_active);
@@ -31,9 +31,9 @@ const PlexHistoryNotices = () => {
     let live = true;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const load = async () => {
-      const results = await Promise.allSettled(ids.split(',').map(id => readPlexHistory(Number(id))));
+      const results = await Promise.allSettled(ids.split(',').map(id => readPlayHistory(Number(id))));
       if (!live) return;
-      const next: Record<number, PlexHistoryStatus> = {};
+      const next: Record<number, PlayHistoryStatus> = {};
       for (const result of results) if (result.status === 'fulfilled') next[result.value.server_id] = result.value;
       setStatuses(next);
       if (Object.values(next).some(status => status.state === 'running')) timer = setTimeout(() => void load(), 2000);
@@ -46,7 +46,7 @@ const PlexHistoryNotices = () => {
     if (starting !== null) return;
     setStarting(serverId);
     try {
-      await startPlexHistoryImport(serverId);
+      await startPlayHistoryImport(serverId);
       success('Play history import started.');
       setRun(n => n + 1);
     } catch (err) {
@@ -58,7 +58,7 @@ const PlexHistoryNotices = () => {
 
   const notices = active.flatMap(server => {
     const status = statuses[server.id];
-    const notice = status ? plexHistoryNotice(status, server.server_nickname) : null;
+    const notice = status ? playHistoryNotice(status, server.server_nickname) : null;
     return notice && status ? [{ server, status, notice }] : [];
   });
   if (!notices.length) return null;

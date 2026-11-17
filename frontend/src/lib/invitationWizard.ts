@@ -1,6 +1,7 @@
 import { invitationCredentialError } from './invitationConstraints';
 import { isServiceType } from '../config/serviceTypes';
 import type { WizardState } from './invitationWizardTypes';
+import {newPasswordFits} from './textLimits';
 
 export type PublicInvitation = {
   id: number;
@@ -50,7 +51,7 @@ function newRequestID() {
   const hex = [...bytes].map(value => value.toString(16).padStart(2, '0')).join('');
   return `${hex.slice(0,8)}-${hex.slice(8,12)}-${hex.slice(12,16)}-${hex.slice(16,20)}-${hex.slice(20)}`;
 }
-const validPassword = (value: string) => new TextEncoder().encode(value).length >= 12 && new TextEncoder().encode(value).length <= 1024;
+const validPassword = (value: string) => newPasswordFits(value);
 const validUsername = (value: string) => value.trim().length > 0 && new TextEncoder().encode(value.trim()).length <= 255;
 
 // Cache an explicit public allowlist. Never persist profile/server credentials,
@@ -279,8 +280,8 @@ export class InvitationDraft {
 
   saveAccount(account: DraftAccount) {
     this.mutable();
-    if (!validUsername(account.username)) throw new Error('Enter a username of 1–255 bytes');
-    if (!validPassword(account.password)) throw new Error('Password must contain 12–1024 bytes');
+    if (!validUsername(account.username)) throw new Error('Enter a username of 1 to 255 characters');
+    if (!validPassword(account.password)) throw new Error('The password must be 12 to 1024 characters');
     if (account.password !== account.confirm_password) throw new Error('Passwords do not match');
     this.account = { ...account, username: account.username.trim(), email: account.email.trim() };
     // Changing shared choices invalidates prepared per-server details.

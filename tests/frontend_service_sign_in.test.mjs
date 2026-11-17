@@ -216,3 +216,20 @@ test('linked accounts are offered for unlinking only while another sign-in remai
   assert.equal(two.match(/<button>Unlink<\/button>/g)?.length, 2);
   assert.match(m.render(m.ServiceLinksList({ links: [], busy: false, onUnlink() {} })), /No media server accounts/);
 });
+
+test("a service account's profile lists every account owned by the same MUM profile, marking the one viewed", async () => {
+  const header = `export const SettingHeader=({title,summary,action})=>({type:'section',props:{children:[title,'|',summary,'|',action]}});export const SettingIcon=p=>p.children;export const ServiceSettingIcon=()=>null;`;
+  const m = await loadFrontend(`export {ServiceAccountsCard} from './src/components/users/ServiceAccountsCard';${renderer}`, { mock: { filter: s => /components\/ui|ui\/|@fortawesome|AccountSettings|config\/pluginMetadata/.test(s), module: s =>
+    /AccountSettings/.test(s) ? header : /pluginMetadata/.test(s) ? `export const getServiceMeta=t=>({label:t==='plex'?'Plex':'Jellyfin'});` : /@fortawesome/.test(s) ? `export const FontAwesomeIcon='i';export const faServer={};` : uiMock } });
+  const accounts = [
+    { uuid: 'jellyfin-1', service_type: 'jellyfin', server_name: 'Living Room', external_username: 'AllBass' },
+    { uuid: 'plex-1', service_type: 'plex', server_name: 'Main', external_username: 'AllGas' },
+  ];
+  const html = m.render(m.ServiceAccountsCard({ accounts, currentUuid: 'jellyfin-1' }));
+  assert.match(html, /AllBass.*This account/);
+  assert.match(html, /AllGas/);
+  assert.match(html, /Plex • Main/);
+  assert.equal((html.match(/This account/g) ?? []).length, 1);
+  assert.doesNotMatch(html, /Unlink/, 'the other accounts are changed from their owner profile');
+  assert.match(html, /2 linked/);
+});

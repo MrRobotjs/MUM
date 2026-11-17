@@ -4,7 +4,7 @@ import { useNavigate, useSearch } from '@tanstack/react-router';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { SettingHeader } from '../components/users/AccountSettings';
+import { SettingHeader, TabHeading } from '../components/users/AccountSettings';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -24,8 +24,7 @@ import { useAlerts } from '../contexts/AlertContext';
 import { AccountDisplayCard } from '../components/users/AccountDisplayCard';
 import { useAccountDisplay } from '../hooks/useAccountDisplay';
 import { UserPreferencesCard } from '../components/users/UserPreferencesCard';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faKey, faLink, faSliders, faUser, type IconDefinition } from '@fortawesome/free-solid-svg-icons';
+import { faKey, faLink, faSliders, faUser } from '@fortawesome/free-solid-svg-icons';
 import './AccountPage.css';
 
 type AccountUser = {
@@ -205,19 +204,6 @@ const InitialCredentialsForm = ({ initialUsername, onSuccess }: InitialCredentia
     </Card>
   );
 };
-
-// Each tab opens with the settings pages' heading: an icon, a title and one line about it.
-const TabHeading = ({ icon, title, description }: { icon: IconDefinition; title: string; description: string }) => (
-  <div className="flex items-center gap-3">
-    <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/20">
-      <FontAwesomeIcon icon={icon} className="size-5 text-primary" />
-    </div>
-    <div>
-      <h2 className="mb-1 text-xl font-semibold">{title}</h2>
-      <p className="text-sm text-muted-foreground">{description}</p>
-    </div>
-  </div>
-);
 
 // --- Main Page Component ---
 

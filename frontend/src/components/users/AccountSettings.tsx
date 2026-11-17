@@ -1,6 +1,6 @@
 import { cloneElement, useState, type ReactNode } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faCircleInfo } from '@fortawesome/free-solid-svg-icons';
+import { faCircleInfo, type IconDefinition } from '@fortawesome/free-solid-svg-icons';
 import { getServiceMeta } from '@/config/pluginMetadata';
 import { cn } from '@/lib/utils';
 import { Button } from '../ui/button';
@@ -79,3 +79,17 @@ export function ServiceSettingIcon({ serviceType }: { serviceType?: string }) {
   return <SettingIcon className={cn(meta.palette?.accent, meta.palette?.accentDark)}>{appendSize(meta.icon)}</SettingIcon>;
 }
 const appendSize = (icon: ReturnType<typeof getServiceMeta>['icon']) => cloneElement(icon, { className: cn(icon.props.className, 'w-4 h-4') });
+
+// TabHeading opens a settings tab like the settings pages do: an icon, a
+// title and one line about it.
+export function TabHeading({ icon, title, description }: { icon: IconDefinition; title: string; description: string }) {
+  return <div className="flex items-center gap-3">
+    <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/20">
+      <FontAwesomeIcon icon={icon} className="size-5 text-primary" />
+    </div>
+    <div>
+      <h2 className="mb-1 text-xl font-semibold">{title}</h2>
+      <p className="text-sm text-muted-foreground">{description}</p>
+    </div>
+  </div>;
+}

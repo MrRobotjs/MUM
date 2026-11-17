@@ -68,7 +68,9 @@ import {
   faPause,
   faSpinner,
   faWaveSquare,
+  faSliders,
 } from '@fortawesome/free-solid-svg-icons';
+import { TabHeading } from '../components/users/AccountSettings';
 import { faDiscord } from '@fortawesome/free-brands-svg-icons';
 import { Spinner } from '@/components/ui/spinner'
 
@@ -558,7 +560,9 @@ const HistoryTab=({history,target,source,onSourceChange}:{history:ReturnType<typ
 
 // Laid out like the account page (ACCOUNT_PAGE_DESIGN.md): one panel of sections.
 const SettingsTab = ({user,refreshUser}:{user:UserDetail;refreshUser:()=>Promise<unknown>}) => (
-  <div className="account-settings-panels rounded-xl border bg-card p-6 text-card-foreground shadow-sm">
+  <div className="space-y-8 rounded-xl border bg-card p-6 text-card-foreground shadow-sm">
+  <TabHeading icon={faSliders} title="Settings" description={user.user_type==='service'?'Notes, expiry and access for this service account':'Notes, sign-in, access and roles for this person'} />
+  <div className="account-settings-panels">
     <ProfileNotesCard target={user.uuid} refreshUser={refreshUser}/>
     {user.user_type!=='service'&&<HumanActivationCard target={user.uuid} refreshUser={refreshUser}/>}
     {user.user_type==='service'&&<ServiceExpiryCard target={user.uuid} refreshUser={refreshUser}/>}
@@ -568,12 +572,16 @@ const SettingsTab = ({user,refreshUser}:{user:UserDetail;refreshUser:()=>Promise
     {user.user_type!=='service'&&<HumanCredentialsCard target={user.uuid} refreshUser={refreshUser}/>}
     {user.user_type!=='service'&&<HumanUserRolesCard target={user.uuid} refreshUser={refreshUser}/>}
   </div>
+  </div>
 );
 
 // Who owns which accounts, in the same panel layout as Settings.
 const LinkedAccountsTab = ({user,refreshUser}:{user:UserDetail;refreshUser:()=>Promise<unknown>}) => (
-  <div className="account-settings-panels rounded-xl border bg-card p-6 text-card-foreground shadow-sm">
-    {user.user_type==='service'&&!user.linked_local_user?<p className="text-sm text-muted-foreground">This service account is not linked to a MUM profile.</p>:<ProfileAccountLinks user={user} refreshUser={refreshUser}/>}
+  <div className="space-y-8 rounded-xl border bg-card p-6 text-card-foreground shadow-sm">
+    <TabHeading icon={faLink} title="Linked accounts" description={user.user_type==='service'?'The MUM profile that owns this account, and its other accounts':'The media server accounts this person owns'} />
+    <div className="account-settings-panels">
+      {user.user_type==='service'&&!user.linked_local_user?<p className="text-sm text-muted-foreground">This service account is not linked to a MUM profile.</p>:<ProfileAccountLinks user={user} refreshUser={refreshUser}/>}
+    </div>
   </div>
 );
 
@@ -803,8 +811,8 @@ export const UserDetailPage = () => {
   const tabs: Array<{ key: TabKey; label: string; hidden?: boolean }> = [
     { key: 'profile', label: 'Profile' },
     { key: 'history', label: 'History' },
-    { key: 'settings', label: 'Settings' },
     { key: 'linked-accounts', label: 'Linked accounts' },
+    { key: 'settings', label: 'Settings' },
     { key: 'overseerr', label: 'Overseerr', hidden: !user.capabilities.overseerr||!showOverseerrTab },
     { key: 'security', label: 'Security', hidden: !showSecurityTab }
   ];
@@ -921,12 +929,12 @@ export const UserDetailPage = () => {
             <HistoryTab history={history} target={effectiveUuid} source={historySource} onSourceChange={setHistorySource}/>
           </TabsContent>
 
-          <TabsContent value="settings" className="pt-5">
-            <SettingsTab user={user} refreshUser={refreshUser}/>
-          </TabsContent>
-
           <TabsContent value="linked-accounts" className="pt-5">
             <LinkedAccountsTab user={user} refreshUser={refreshUser}/>
+          </TabsContent>
+
+          <TabsContent value="settings" className="pt-5">
+            <SettingsTab user={user} refreshUser={refreshUser}/>
           </TabsContent>
 
           <TabsContent value="overseerr" className="pt-5">

@@ -1,5 +1,5 @@
 import { useAccountDisplay } from '../hooks/useAccountDisplay';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 import { useLocation, useNavigate, useParams, useSearch } from '@tanstack/react-router';
 import { useAlerts } from '../contexts/AlertContext';
@@ -98,6 +98,17 @@ const getPlaybackInfo = (state?: string) => {
   return { icon: faWaveSquare, color: 'text-muted-foreground', bg: 'bg-secondary/50', border: 'border-border/50', animate: false };
 };
 
+// A Profile tab card's header, in the settings tabs' heading style, with
+// anything that acts on the card (an (i) button, a picker) on the right.
+const CardHeading=({icon,title,description,children}:{icon:IconDefinition;title:string;description:string;children?:ReactNode})=>(
+  <CardHeader>
+    <div className="flex flex-wrap items-start justify-between gap-4">
+      <TabHeading icon={icon} title={title} description={description}/>
+      {children}
+    </div>
+  </CardHeader>
+);
+
 // The Profile tab's period tiles, like Tautulli's user stats.
 const periodTiles:Record<PlayPeriod['period'],{title:string;icon:IconDefinition;iconColor:string;gradient:string}>={
   day:{title:'Last 24 hours',icon:faClock,iconColor:'text-blue-600 dark:text-blue-300',gradient:'from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20'},
@@ -143,9 +154,7 @@ const ProfileTab = ({ user,target }: { user: UserDetail;target:string }) => {
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
       <div className="space-y-6">
         <Card>
-          <CardHeader>
-            <CardTitle>Now playing</CardTitle>
-          </CardHeader>
+          <CardHeading icon={faPlay} title="Now playing" description="What they’re playing right now." />
           <CardContent>
             {playing ? (
               <div className={cn("relative overflow-hidden rounded-md border p-2.5", playbackInfo.bg, playbackInfo.border)}>
@@ -181,15 +190,12 @@ const ProfileTab = ({ user,target }: { user: UserDetail;target:string }) => {
         </Card>
 
         <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <CardTitle>Account</CardTitle>
-              {ids.length > 0 && <SettingInfo title="Account IDs">
-                <p>The IDs the media server uses for this account. They help when troubleshooting.</p>
-                {ids.map(([label,value]) => <div key={label} className="mt-3"><div>{label}</div><div className="font-mono text-sm text-foreground">{value}</div></div>)}
-              </SettingInfo>}
-            </div>
-          </CardHeader>
+          <CardHeading icon={faUser} title="Account" description="Sign-in details and servers.">
+            {ids.length > 0 && <SettingInfo title="Account IDs">
+              <p>The IDs the media server uses for this account. They help when troubleshooting.</p>
+              {ids.map(([label,value]) => <div key={label} className="mt-3"><div>{label}</div><div className="font-mono text-sm text-foreground">{value}</div></div>)}
+            </SettingInfo>}
+          </CardHeading>
           <CardContent className="space-y-4">
             <div className="space-y-3 text-sm">
               <div className="flex items-start gap-3">
@@ -288,9 +294,7 @@ const ProfileTab = ({ user,target }: { user: UserDetail;target:string }) => {
         </Card>
 
         <Card>
-          <CardHeader>
-            <CardTitle>Roles</CardTitle>
-          </CardHeader>
+          <CardHeading icon={faShieldHalved} title="Roles" description="The admin and user roles they hold." />
           <CardContent className="space-y-4">
             <div>
               <div className="text-xs uppercase text-muted-foreground/60">Admin roles</div>
@@ -318,15 +322,9 @@ const ProfileTab = ({ user,target }: { user: UserDetail;target:string }) => {
 
       <div className="space-y-6 lg:col-span-2">
         <Card>
-          <CardHeader>
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div className="min-w-0">
-                <CardTitle>Activity</CardTitle>
-                <CardDescription className="mt-1">{activityDescription(source,totals?.imported_plays)}</CardDescription>
-              </div>
-              {totals && <HistorySourcePicker source={source} services={totals.sources} onChange={setSource} label="Activity source"/>}
-            </div>
-          </CardHeader>
+          <CardHeading icon={faChartSimple} title="Activity" description={activityDescription(source,totals?.imported_plays)}>
+            {totals && <HistorySourcePicker source={source} services={totals.sources} onChange={setSource} label="Activity source"/>}
+          </CardHeading>
           <CardContent className="space-y-4">
             {!totals ? (
               <div className="flex flex-col items-center gap-3 py-8 text-muted-foreground/60">
@@ -357,9 +355,7 @@ const ProfileTab = ({ user,target }: { user: UserDetail;target:string }) => {
         </Card>
 
         <Card>
-          <CardHeader>
-            <CardTitle>Last played</CardTitle>
-          </CardHeader>
+          <CardHeading icon={faClockRotateLeft} title="Last played" description="Their most recent play from the chosen source." />
           <CardContent>
             {!totals ? (
               <p className="text-sm text-muted-foreground">{totalsError?'Couldn’t load the last play.':'Loading…'}</p>
@@ -380,12 +376,9 @@ const ProfileTab = ({ user,target }: { user: UserDetail;target:string }) => {
         </Card>
 
         <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <CardTitle>Players</CardTitle>
-              <SettingInfo title="Players"><p>The apps MUM saw this person play on, most used first. Imported plays don’t say which app was used, so only plays MUM recorded count here.</p></SettingInfo>
-            </div>
-          </CardHeader>
+          <CardHeading icon={faTv} title="Players" description="The apps they play on, most used first.">
+            <SettingInfo title="Players"><p>The apps MUM saw this person play on, most used first. Imported plays don’t say which app was used, so only plays MUM recorded count here.</p></SettingInfo>
+          </CardHeading>
           <CardContent>
             {!totals ? (
               <p className="text-sm text-muted-foreground">{totalsError?'Couldn’t load players.':'Loading players…'}</p>

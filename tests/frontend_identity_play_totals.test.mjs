@@ -8,8 +8,9 @@ const load = () => loadFrontend("export * from './src/lib/identityPlayTotals';ex
 const actor = '12345678-1234-1234-1234-123456789abc', target = '12345678-1234-1234-1234-123456789def';
 const periods = () => [['day', '0', '0', '0'], ['week', '19', '19', '10620'], ['month', '22', '20', '24600'], ['all', '9007199254740993', '2045', '12435480']]
   .map(([period, plays, timed_plays, seconds]) => ({ period, plays, timed_plays, seconds }));
+const recent = () => ({ source: 'plex', media_type: 'episode', title: 'Pilot', parent_title: 'A Show', played_at: '2026-11-01T04:00:00.000000000Z', poster_url: '/api/activity/imported-history-images/4?x=1' });
 const totals = (source = 'all') => ({ actor_uuid: actor, scope: 'all', target_uuid: target, source, sources: ['plex', 'jellyfin'], imported_plays: '9007199254738948', periods: periods(),
-  last_play: { source: 'plex', media_type: 'episode', title: 'Pilot', parent_title: 'A Show', played_at: '2026-11-01T04:00:00.000000000Z', poster_url: '/api/activity/imported-history-images/4?x=1' },
+  recent_plays: [recent(), { source: 'mum', media_type: 'Audio', title: 'Track', parent_title: 'Album', played_at: '2026-10-31T04:00:00.000000000Z' }],
   players: [{ client: 'Infuse', platform: null, plays: '2' }, { client: 'Plex Web', platform: 'Chrome', plays: '1' }] });
 
 test('play totals adapter', async t => {
@@ -26,18 +27,18 @@ test('play totals adapter', async t => {
     assert.equal(url.search, '?scope=all&source=plex');
     assert.equal(p.periods[3].plays, '9007199254740993');
     assert.deepEqual(p.sources, ['plex', 'jellyfin']);
-    assert.equal(p.last_play.title, 'Pilot');
+    assert.deepEqual(p.recent_plays.map(x => x.title), ['Pilot', 'Track']);
     assert.deepEqual(p.players.map(x => x.platform), [null, 'Chrome']);
-    globalThis.fetch = async () => Response.json({ data: { ...totals(), last_play: null, players: [] } });
-    assert.equal((await m.fetchIdentityPlayTotals(actor, target, 'all', 'all')).last_play, null);
+    globalThis.fetch = async () => Response.json({ data: { ...totals(), recent_plays: [], players: [] } });
+    assert.deepEqual((await m.fetchIdentityPlayTotals(actor, target, 'all', 'all')).recent_plays, []);
   });
 
   await t.test('refuses answers for someone else or that do not add up', async () => {
     const bad = [{ target_uuid: actor }, { actor_uuid: target }, { scope: 'own' }, { source: 'mum' }, { sources: ['plex', 'plex'] }, { sources: ['kodi'] }, { imported_plays: '-1' },
       { periods: periods().slice(0, 3) }, { periods: periods().map(p => p.period === 'week' ? { ...p, timed_plays: '20' } : p) },
       { periods: periods().map(p => p.period === 'week' ? { ...p, period: 'month' } : p) }, { periods: periods().map(p => p.period === 'all' ? { ...p, plays: '21' } : p) },
-      { last_play: { ...totals().last_play, played_at: 'yesterday' } }, { last_play: { ...totals().last_play, source: 'kodi' } },
-      { last_play: { ...totals().last_play, poster_url: 'https://evil.example/x' } }, { players: [{ client: '', platform: null, plays: '1' }] }, { players: [{ client: 'A', platform: null, plays: '0' }] }, { players: null },
+      { recent_plays: [{ ...recent(), played_at: 'yesterday' }] }, { recent_plays: [{ ...recent(), source: 'kodi' }] }, { recent_plays: null }, { recent_plays: [null] },
+      { recent_plays: [{ ...recent(), poster_url: 'https://evil.example/x' }] }, { recent_plays: [...totals().recent_plays].reverse() }, { players: [{ client: '', platform: null, plays: '1' }] }, { players: [{ client: 'A', platform: null, plays: '0' }] }, { players: null },
       { players: [{ client: 'A', plays: '1' }] }, { players: [{ client: 'A', platform: '', plays: '1' }] }, { players: [{ client: 'A', platform: 'x'.repeat(65), plays: '1' }] }];
     for (const change of bad) {
       const m = await load(); m.setAccessToken('session');
@@ -96,4 +97,13 @@ test('now playing reads in plain words and only while the server is up to date',
   // Like the cards: active playback first, then the most recent.
   const mixed = page({ paused: true, last_observed_at: '2026-11-17T09:59:00Z' }); mixed.items.push({ ...mixed.items[0], id: '2', title: 'Second', paused: false, last_observed_at: '2026-11-17T09:50:00Z' });
   assert.equal(m.nowPlaying(mixed, target, names).title, 'Second');
+});
+
+test('recent plays are named like Tautulli', async () => {
+  const m = await load();
+  const play = (media_type, title, parent_title) => ({ source: 'mum', media_type, title, parent_title, played_at: '2026-11-01T04:00:00Z' });
+  assert.deepEqual(m.recentPlayText(play('Episode', 'Ozymandias', 'Breaking Bad')), { title: 'Breaking Bad', subtitle: 'Ozymandias', verb: 'Watched' });
+  assert.deepEqual(m.recentPlayText(play('movie', 'Limitless', null)), { title: 'Limitless', subtitle: null, verb: 'Watched' });
+  assert.deepEqual(m.recentPlayText(play('track', 'Best I Ever Had', 'Thank Me Later')), { title: 'Best I Ever Had', subtitle: 'Thank Me Later', verb: 'Played' });
+  assert.deepEqual(m.recentPlayText(play('episode', '', null)), { title: 'Removed item', subtitle: null, verb: 'Watched' });
 });

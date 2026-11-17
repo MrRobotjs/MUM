@@ -182,6 +182,15 @@ func friendRelationship(u Friend) *provider.UserRelationship {
 // owner, also used in playback sessions.
 const OwnerAccountID = "1"
 
+// ownerAccountID is the owner's plex.tv account ID, as Flask MUM stored it;
+// "" when it isn't a canonical Plex ID.
+func ownerAccountID(id string) string {
+	if NumericID(id) {
+		return id
+	}
+	return ""
+}
+
 // Users reads the server's users: the owner (as local account 1) and every
 // plex.tv account the server is shared with, with their library grants.
 // Cloud endpoints are fixed here, never configurable or taken from upstream
@@ -241,7 +250,7 @@ func (s *Server) Users(ctx context.Context) ([]provider.User, error) {
 	}
 	// The owner has every library and can always download; plex.tv supplies
 	// no share date for it.
-	result := []provider.User{{ID: OwnerAccountID, Name: ownerName, Email: owner.Email, Active: true, AllLibraries: true, LibraryIDs: []string{}, Access: &provider.UserAccess{LibrariesKnown: true, DownloadsKnown: true, AllowDownloads: true}, Profile: &provider.UserProfile{AvatarURL: UserAvatar(owner.Thumb)}}}
+	result := []provider.User{{ID: OwnerAccountID, AltID: AccountUUID(owner.UUID, owner.Thumb), AccountID: ownerAccountID(owner.ID), Name: ownerName, Email: owner.Email, Active: true, AllLibraries: true, LibraryIDs: []string{}, Access: &provider.UserAccess{LibrariesKnown: true, DownloadsKnown: true, AllowDownloads: true}, Profile: &provider.UserProfile{AvatarURL: UserAvatar(owner.Thumb)}}}
 	seenUsers := map[string]bool{OwnerAccountID: true}
 	for _, u := range users.Users {
 		id := u.Attr("id")
@@ -277,7 +286,7 @@ func (s *Server) Users(ctx context.Context) ([]provider.User, error) {
 			}
 			access := &provider.UserAccess{LibrariesKnown: true}
 			access.AllowDownloads, access.DownloadsKnown = ExplicitBool(u.Attr("allowSync"))
-			result = append(result, provider.User{ID: id, Name: name, Email: u.Attr("email"), Active: !pending, AllLibraries: grant.AllLibraries, LibraryIDs: grant.LibraryIDs, Access: access, Profile: profile, Relationship: friendRelationship(u)})
+			result = append(result, provider.User{ID: id, AltID: AccountUUID(u.Attr("uuid"), u.Attr("thumb")), Name: name, Email: u.Attr("email"), Active: !pending, AllLibraries: grant.AllLibraries, LibraryIDs: grant.LibraryIDs, Access: access, Profile: profile, Relationship: friendRelationship(u)})
 		}
 	}
 	return result, nil

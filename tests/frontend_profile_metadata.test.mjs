@@ -34,3 +34,22 @@ test('purge protection is shown for server accounts and fails closed otherwise',
  // A MUM account has no protection; a missing or malformed value is rejected.
  for(const data of [{...dto(),is_purge_whitelisted:true},service(undefined),service(null),service('yes')]){const a=await load();a.setAccessToken('session');globalThis.fetch=async()=>Response.json({data});await assert.rejects(a.fetchProfileMetadata(actor,target),/purge protection/);}
 });
+
+test('a server account shows its media server IDs; a MUM account never claims one',async t=>{
+ const oldFetch=globalThis.fetch,oldWindow=globalThis.window;t.after(()=>{globalThis.fetch=oldFetch;globalThis.window=oldWindow});globalThis.window={location:{origin:'http://mum.test'}};
+ const a=await load();a.setAccessToken('session');
+ const service=extra=>({...dto(),user_type:'service',server_id:1,server_nickname:'Fixture server',service_type:'plex',allow_4k_transcode:true,is_purge_whitelisted:false,...extra});
+ globalThis.fetch=async()=>Response.json({data:service({external_user_id:'42',external_user_alt_id:'a1b2c3d4e5f60718'})});
+ const p=await a.fetchProfileMetadata(actor,target);
+ assert.equal(p.external_user_id,'42');assert.equal(p.external_user_alt_id,'a1b2c3d4e5f60718');
+ globalThis.fetch=async()=>Response.json({data:service({external_user_id:'42',external_user_alt_id:null})});
+ assert.equal((await a.fetchProfileMetadata(actor,target)).external_user_alt_id,null);
+ globalThis.fetch=async()=>Response.json({data:service({avatar_url:'/api/user-avatars/7?expires=1&sig=abc'})});
+ assert.equal((await a.fetchProfileMetadata(actor,target)).avatar_url,'/api/user-avatars/7?expires=1&sig=abc');
+ globalThis.fetch=async()=>Response.json({data:service({})});
+ assert.equal((await a.fetchProfileMetadata(actor,target)).avatar_url,null);
+ for(const data of [service({avatar_url:'https://plex.tv/users/x/avatar'}),service({avatar_url:'/api/user-avatars/7'}),service({external_user_id:''}),service({external_user_id:7}),service({external_user_alt_id:'bad\nid'}),{...dto(),external_user_id:'42'}]){
+  globalThis.fetch=async()=>Response.json({data});
+  await assert.rejects(a.fetchProfileMetadata(actor,target));
+ }
+});

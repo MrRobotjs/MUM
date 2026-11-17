@@ -46,6 +46,8 @@ import {
 export type UserNowPlaying = {
   state: string;
   mediaTitle: string;
+  // The series of an episode or the album of a track.
+  subtitle?: string | null;
   serviceType?: string | null;
   serverName?: string | null;
   sessionCount?: number;
@@ -521,6 +523,12 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
                     {nowPlaying.mediaTitle || 'Unknown Title'}
                   </span>
                 </div>
+                {/* The episode's series or the track's album. */}
+                {nowPlaying.subtitle && (
+                  <span className="mt-1 text-xs text-muted-foreground truncate" title={nowPlaying.subtitle}>
+                    {nowPlaying.subtitle}
+                  </span>
+                )}
                 <div className="flex items-center gap-1.5 mt-1">
                   <span className={cn(
                     "text-[10px] font-bold uppercase tracking-wider",

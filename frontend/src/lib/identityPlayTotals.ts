@@ -7,17 +7,17 @@ import { byPlayback, playbackState } from './userNowPlaying';
 
 // The user page's Profile tab: plays and watched time per period, like
 // Tautulli, for the History tab's sources (everything, MUM's plays or one
-// service's imported plays); the last play; and what the person plays now.
+// service's imported plays); the recent plays; and what the person plays now.
 // Watched time comes only from MUM's plays, so each period says how many of
 // its plays have time.
 
 // platform is the one most of the app's plays reported (Plex only), for its logo.
 export type PlayerPlays = Readonly<{ client: string; platform: string | null; plays: string }>;
 export type PlayPeriod = Readonly<{ period: 'day' | 'week' | 'month' | 'all'; plays: string; timed_plays: string; seconds: string }>;
-export type LastPlay = Readonly<{ source: 'mum' | HistoryService; media_type: string; title: string; parent_title: string | null; played_at: string; poster_url?: string }>;
+export type RecentPlay = Readonly<{ source: 'mum' | HistoryService; media_type: string; title: string; parent_title: string | null; played_at: string; poster_url?: string }>;
 export type IdentityPlayTotals = Readonly<{
   actor_uuid: string; scope: ActivityScope; target_uuid: string; source: TimelineSource; sources: readonly HistoryService[];
-  imported_plays: string; periods: readonly PlayPeriod[]; last_play: LastPlay | null; players: readonly PlayerPlays[];
+  imported_plays: string; periods: readonly PlayPeriod[]; recent_plays: readonly RecentPlay[]; players: readonly PlayerPlays[];
 }>;
 
 const uuid = (v: unknown): v is string => typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(v);
@@ -37,9 +37,8 @@ const periodsValid = (v: unknown): v is PlayPeriod[] => Array.isArray(v) && v.le
   const prev = i > 0 ? v[i - 1] as PlayPeriod : null;
   return !prev || BigInt(prev.plays) <= BigInt(r.plays) && BigInt(prev.timed_plays) <= BigInt(r.timed_plays) && BigInt(prev.seconds) <= BigInt(r.seconds);
 });
-const lastValid = (v: unknown): v is LastPlay | null => {
-  if (v === null) return true;
-  const r = v as Record<string, unknown> | undefined;
+const recentValid = (v: unknown): v is RecentPlay => {
+  const r = v as Record<string, unknown> | null;
   return !!r && (r.source === 'mum' || service(r.source)) && typeof r.media_type === 'string' && typeof r.title === 'string' &&
     (r.parent_title === null || typeof r.parent_title === 'string') && typeof r.played_at === 'string' && Number.isFinite(Date.parse(r.played_at)) &&
     (r.poster_url === undefined || typeof r.poster_url === 'string' && r.poster_url.startsWith(r.source === 'mum' ? '/api/activity/history-images/' : '/api/activity/imported-history-images/'));
@@ -52,14 +51,28 @@ export async function fetchIdentityPlayTotals(actor: string, target: string, sco
   if (!token || token !== getAccessToken()) throw new Error('The session changed. Refresh the profile.');
   if (!data || data.actor_uuid !== actor || data.scope !== scope || data.target_uuid !== target || data.source !== source ||
       !Array.isArray(data.sources) || !data.sources.every(service) || new Set(data.sources).size !== data.sources.length ||
-      !count(data.imported_plays) || !periodsValid(data.periods) || !lastValid(data.last_play) || !Array.isArray(data.players) || !data.players.every(player)) throw new Error('Invalid play totals');
+      !count(data.imported_plays) || !periodsValid(data.periods) || !Array.isArray(data.recent_plays) || data.recent_plays.length > 50 || !data.recent_plays.every(recentValid) ||
+      // Newest first.
+      data.recent_plays.some((p, i) => i > 0 && Date.parse((data.recent_plays as RecentPlay[])[i - 1].played_at) < Date.parse(p.played_at)) || !Array.isArray(data.players) || !data.players.every(player)) throw new Error('Invalid play totals');
   const all = data.periods[3];
   // MUM's plays have time and imported ones do not, so all time adds up.
   if (BigInt(all.timed_plays) + BigInt(data.imported_plays) !== BigInt(all.plays)) throw new Error('Invalid play totals');
   return Object.freeze({ actor_uuid: actor, scope, target_uuid: target, source, sources: Object.freeze([...data.sources as HistoryService[]]),
     imported_plays: data.imported_plays, periods: Object.freeze(data.periods.map(p => Object.freeze({ period: p.period, plays: p.plays, timed_plays: p.timed_plays, seconds: p.seconds }))),
-    last_play: data.last_play ? Object.freeze({ ...data.last_play }) : null,
+    recent_plays: Object.freeze((data.recent_plays as RecentPlay[]).map(p => Object.freeze({ ...p }))),
     players: Object.freeze((data.players as PlayerPlays[]).map(p => Object.freeze({ client: p.client, platform: p.platform, plays: p.plays }))) });
+}
+
+const videoKinds = ['movie', 'episode', 'video', 'musicvideo', 'trailer', 'clip'];
+
+// recentPlayText is how a recent play is named, like Tautulli: an episode
+// leads with its series, anything else with its own title (a track then names
+// its album or artist); "Watched" for video, "Played" for the rest.
+export function recentPlayText(p: RecentPlay): Readonly<{ title: string; subtitle: string | null; verb: string }> {
+  const kind = p.media_type.toLowerCase();
+  const title = p.title || 'Removed item';
+  if (kind === 'episode' && p.parent_title) return { title: p.parent_title, subtitle: title, verb: 'Watched' };
+  return { title, subtitle: p.parent_title || null, verb: videoKinds.includes(kind) ? 'Watched' : 'Played' };
 }
 
 // watchTime splits seconds into Tautulli's parts: days, hours and minutes,

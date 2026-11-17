@@ -92,6 +92,7 @@ type SharedServers struct {
 type Account struct {
 	XMLName  xml.Name `xml:"user"`
 	ID       string   `xml:"id,attr"`
+	UUID     string   `xml:"uuid,attr"`
 	Username string   `xml:"username,attr"`
 	Title    string   `xml:"title,attr"`
 	Email    string   `xml:"email,attr"`

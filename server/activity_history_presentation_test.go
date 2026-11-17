@@ -38,6 +38,19 @@ func TestActivityHistoryKeepsPresentationAfterPlaybackEnds(t *testing.T) {
 		}
 	}
 	apply(plexTrack)
+	// While it plays, the current view names the album (the series for an
+	// episode) so a status can say what the track or episode belongs to; the
+	// other history details stay off it.
+	live := apiRequest(a, "GET", "/api/activity/current?scope=all", token, nil, nil)
+	current := responseData(t, live)["items"].([]any)
+	if len(current) != 1 || current[0].(map[string]any)["parent_title"] != "Nine Track Mind" {
+		t.Fatalf("current parent title missing: %s", live.Body.String())
+	}
+	for _, key := range []string{"library_name", "client", "play_method", "poster_url"} {
+		if _, ok := current[0].(map[string]any)[key]; ok {
+			t.Fatalf("history detail %s on a current row: %s", key, live.Body.String())
+		}
+	}
 	apply(`<MediaContainer size="0"/>`) // playback ended; the live row is gone
 	w := apiRequest(a, "GET", "/api/activity/history?scope=all", token, nil, nil)
 	if w.Code != 200 {

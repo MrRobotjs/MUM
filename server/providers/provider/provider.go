@@ -60,7 +60,14 @@ type UserAccess struct {
 }
 
 type User struct {
-	ID           string
+	ID string
+	// AltID is a second stable ID of the same account: for Plex, the plex.tv
+	// account UUID. Empty means unknown, never a removal.
+	AltID string
+	// AccountID is the account's ID on the provider's own service when the
+	// media server uses another (Plex: the owner's plex.tv account ID, while
+	// the server calls the owner 1). Empty means the same as ID, or unknown.
+	AccountID    string
 	Name         string
 	Email        string
 	Active       bool

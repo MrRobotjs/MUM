@@ -211,7 +211,9 @@ func readActivityItems(ctx context.Context, tx *sql.Tx, actor string, q activity
 	if q.All && !q.History {
 		displayColumn = `c.display_json`
 	}
-	presentation := `,NULL,NULL,NULL,NULL,0`
+	// Current rows carry the series or album too, so a status can say what an
+	// episode or track belongs to; the other details are history-only.
+	presentation := `,h.parent_title,NULL,NULL,NULL,0`
 	if q.History {
 		presentation = `,h.parent_title,h.library_name,h.client,h.play_method,h.poster_path IS NOT NULL`
 	}

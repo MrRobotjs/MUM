@@ -1,5 +1,5 @@
 import { useAccountDisplay } from '../hooks/useAccountDisplay';
-import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 import { useLocation, useNavigate, useParams, useSearch } from '@tanstack/react-router';
 import { useAlerts } from '../contexts/AlertContext';
@@ -13,7 +13,7 @@ import { useOverseerr } from '../hooks/useOverseerr';
 import { useServers } from '../hooks/useServers';
 import { useUserUuidBySlug } from '../hooks/useUserUuidBySlug';
 import {useIdentityPlayTotals} from '../hooks/useIdentityPlayTotals';
-import {nowPlaying,watchTime,type PlayPeriod} from '../lib/identityPlayTotals';
+import {nowPlaying,recentPlayText,watchTime,type PlayPeriod} from '../lib/identityPlayTotals';
 import {playerLogo} from '../lib/playerPlatforms';
 import {Progress} from '@/components/ui/progress';
 import { requestJson } from '../util/apiClient';
@@ -61,10 +61,13 @@ import {
   faTv,
   faPlay,
   faClockRotateLeft,
+  faChevronLeft,
+  faChevronRight,
   faUserClock,
   faLock,
   faUnlock,
   faKey,
+  faFingerprint,
   faUser,
   faMusic,
   faPause,
@@ -131,7 +134,9 @@ const activityDescription=(source:TimelineSource,imported?:string)=>
 // roles, and how much they have played (MUM's plays and imported history,
 // counted like the History tab).
 const ProfileTab = ({ user,target }: { user: UserDetail;target:string }) => {
-  const { formatTimestamp } = useAccountDisplay();
+  const { formatTimestamp, formatRelative } = useAccountDisplay();
+  const recentRow=useRef<HTMLDivElement>(null);
+  const scrollRecent=(direction:number)=>{const row=recentRow.current;if(row)row.scrollBy({left:direction*row.clientWidth*0.8});};
   const theme = getServiceMeta(user.service_type ?? user.service_types?.[0]);
   const current=useIdentityCurrent(target);
   const [source,setSource]=useState<TimelineSource>('all');
@@ -147,7 +152,7 @@ const ProfileTab = ({ user,target }: { user: UserDetail;target:string }) => {
     ? user.admin_roles_detail
     : user.roles.admin_roles.map((role): { name: string; color?: string | null; icon?: string | null; badge_style?: string | null; description?: string | null } => ({ name: role }));
   const playbackInfo=getPlaybackInfo(playing?.state);
-  const ids=([['Server user ID',user.external_user_id],['Alternate user ID',user.external_user_alt_id]] as [string,string|null|undefined][]).filter((id):id is [string,string]=>!!id[1]);
+  const ids=([['User ID',user.external_user_id],['Alternate user ID',user.external_user_alt_id]] as [string,string|null|undefined][]).filter((id):id is [string,string]=>!!id[1]);
   const count=(value:string)=>BigInt(value).toLocaleString();
 
   if(user.uuid!==target)return <p className="text-sm text-muted-foreground">This profile changed while loading. Refresh the page.</p>;
@@ -193,8 +198,8 @@ const ProfileTab = ({ user,target }: { user: UserDetail;target:string }) => {
         <Card>
           <CardHeading icon={faUser} title="Account" description="Sign-in details and servers.">
             {ids.length > 0 && <SettingInfo title="Account IDs">
-              <p>The IDs the media server uses for this account. They help when troubleshooting.</p>
-              {ids.map(([label,value]) => <div key={label} className="mt-3"><div>{label}</div><div className="font-mono text-sm text-foreground">{value}</div></div>)}
+              <p>The account’s IDs on its media service. They help when troubleshooting.</p>
+              <p>For Plex, the user ID is the plex.tv account ID and the alternate user ID is its UUID; other services have no alternate ID.</p>
             </SettingInfo>}
           </CardHeading>
           <CardContent className="space-y-4">
@@ -238,6 +243,16 @@ const ProfileTab = ({ user,target }: { user: UserDetail;target:string }) => {
                   </div>
                 </div>
               ) : null}
+
+              {ids.map(([label,value]) => (
+                <div key={label} className="flex items-start gap-3">
+                  <FontAwesomeIcon icon={faFingerprint} className="mt-1 text-amber-600 dark:text-amber-400" />
+                  <div className="min-w-0">
+                    <div className="text-muted-foreground">{label}</div>
+                    <div className="font-mono font-medium break-all">{value}</div>
+                  </div>
+                </div>
+              ))}
 
               {isServiceUser && user.linked_local_user ? (
                 <div className="flex items-start gap-3">
@@ -356,27 +371,6 @@ const ProfileTab = ({ user,target }: { user: UserDetail;target:string }) => {
         </Card>
 
         <Card>
-          <CardHeading icon={faClockRotateLeft} title="Last played" description="Their most recent play from the chosen source." />
-          <CardContent>
-            {!totals ? (
-              <p className="text-sm text-muted-foreground">{totalsError?'Couldn’t load the last play.':'Loading…'}</p>
-            ) : !totals.last_play ? (
-              <p className="text-sm text-muted-foreground">Nothing played yet.</p>
-            ) : (
-              <div className="flex items-start gap-4">
-                <HistoryPoster url={totals.last_play.poster_url} title={totals.last_play.title} className="w-16 h-24 shrink-0"/>
-                <div className="min-w-0 space-y-1">
-                  <div className="font-medium truncate" title={totals.last_play.title}>{totals.last_play.title||'Removed item'}</div>
-                  {totals.last_play.parent_title && <div className="text-sm text-muted-foreground truncate" title={totals.last_play.parent_title}>{totals.last_play.parent_title}</div>}
-                  <div className="text-xs text-muted-foreground">{formatTimestamp(totals.last_play.played_at,'datetime')}</div>
-                  {totals.last_play.source!=='mum' && <span className="inline-flex items-center rounded-md px-2.5 py-0.5 text-xs font-semibold bg-muted text-muted-foreground">{historyServiceName[totals.last_play.source]} history</span>}
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
           <CardHeading icon={faTv} title="Players" description="The apps they play on, most used first.">
             <SettingInfo title="Players"><p>The apps MUM saw this person play on, most used first. Imported plays don’t say which app was used, so only plays MUM recorded count here.</p><p>The logo shows the platform Plex reports, such as Android or Roku. Jellyfin and Emby don’t report one, so MUM goes by the app’s name.</p></SettingInfo>
           </CardHeading>
@@ -391,19 +385,50 @@ const ProfileTab = ({ user,target }: { user: UserDetail;target:string }) => {
                 <p className="text-sm">No players recorded yet.</p>
               </div>
             ) : (
-              <div className="space-y-3">
-                {totals.players.map(p => {
-                  const share=Number(BigInt(p.plays)*1000n/(BigInt(totals.periods[3].timed_plays)||1n))/10;
+              <div className="account-player-grid">
+                {[...totals.players].sort((a,b)=>BigInt(b.plays)>BigInt(a.plays)?1:BigInt(b.plays)<BigInt(a.plays)?-1:0).map(p => {
                   const logo=playerLogo(p.platform,p.client);
-                  return <div key={p.client} className="flex items-center gap-3">
+                  return <div key={p.client} className="flex items-center gap-3 min-w-0">
                     <span className="account-player-logo" style={{'--logo':logo.color} as CSSProperties} role="img" aria-label={logo.name} title={logo.name}><FontAwesomeIcon icon={logo.icon}/></span>
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="font-medium truncate" title={p.client}>{p.client}</span>
-                        <span className="text-muted-foreground">{count(p.plays)} {p.plays==='1'?'play':'plays'}</span>
+                      <div className="text-sm font-medium truncate" title={p.client}>{p.client}</div>
+                      <div className="mt-1 flex items-baseline gap-1">
+                        <span className="text-2xl font-bold leading-none text-foreground">{count(p.plays)}</span>
+                        <span className="text-xs text-muted-foreground">{p.plays==='1'?'play':'plays'}</span>
                       </div>
-                      <Progress value={Math.min(share,100)} className="mt-2" aria-label={`${p.client}: share of plays`} />
                     </div>
+                  </div>;
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeading icon={faClockRotateLeft} title="Recently Played" description="Their latest plays from the chosen source, newest first.">
+            {totals && totals.recent_plays.length > 1 && <div className="flex items-center gap-1">
+              <Button type="button" variant="ghost" size="icon" aria-label="Show newer plays" onClick={()=>scrollRecent(-1)}><FontAwesomeIcon icon={faChevronLeft}/></Button>
+              <Button type="button" variant="ghost" size="icon" aria-label="Show older plays" onClick={()=>scrollRecent(1)}><FontAwesomeIcon icon={faChevronRight}/></Button>
+            </div>}
+          </CardHeading>
+          <CardContent>
+            {!totals ? (
+              <p className="text-sm text-muted-foreground">{totalsError?'Couldn’t load recent plays.':'Loading…'}</p>
+            ) : totals.recent_plays.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Nothing played yet.</p>
+            ) : (
+              <div ref={recentRow} className="account-recent-row">
+                {totals.recent_plays.map((play,i) => {
+                  const text=recentPlayText(play);
+                  const when=formatRelative(play.played_at);
+                  return <div key={`${play.source}-${play.played_at}-${i}`} className="account-recent-item" title={formatTimestamp(play.played_at,'datetime')}>
+                    <div className="account-recent-poster">
+                      <HistoryPoster url={play.poster_url} title={text.title} className="w-full h-full"/>
+                      <div className="account-recent-when">{when==='—'?text.verb:`${text.verb} ${when==='Just now'?'just now':when}`}</div>
+                    </div>
+                    <div className="mt-2 text-sm font-medium truncate" title={text.title}>{text.title}</div>
+                    {text.subtitle && <div className="text-xs text-muted-foreground truncate" title={text.subtitle}>{text.subtitle}</div>}
+                    {play.source!=='mum' && <div className="text-xs text-muted-foreground truncate">{historyServiceName[play.source]} history</div>}
                   </div>;
                 })}
               </div>

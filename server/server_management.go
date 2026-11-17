@@ -718,7 +718,7 @@ func (a *App) syncServerClaimed(ctx context.Context, actor, access string, s Man
 				var uuid string
 				var stored storedSyncAccount
 				wasActive := priorActive[account.ID]
-				err := tx.QueryRowContext(ctx, "SELECT uuid,removed_at IS NOT NULL,external_username,external_email,allowed_library_ids,service_settings,is_active,allow_downloads,external_avatar_url,service_join_date FROM service_accounts WHERE server_id=? AND external_user_id=?", s.ID, account.ID).Scan(&uuid, &stored.Removed, &stored.Name, &stored.Email, &stored.Libraries, &stored.Settings, &stored.Active, &stored.Downloads, &stored.Avatar, &stored.Joined)
+				err := tx.QueryRowContext(ctx, "SELECT uuid,removed_at IS NOT NULL,external_username,external_email,allowed_library_ids,service_settings,is_active,allow_downloads,external_avatar_url,service_join_date,external_user_alt_id,external_account_id FROM service_accounts WHERE server_id=? AND external_user_id=?", s.ID, account.ID).Scan(&uuid, &stored.Removed, &stored.Name, &stored.Email, &stored.Libraries, &stored.Settings, &stored.Active, &stored.Downloads, &stored.Avatar, &stored.Joined, &stored.AltID, &stored.AccountID)
 				isNew := errors.Is(err, sql.ErrNoRows)
 				if isNew {
 					added++
@@ -752,7 +752,16 @@ func (a *App) syncServerClaimed(ctx context.Context, actor, access string, s Man
 						joined = value.UTC().Format(time.RFC3339)
 					}
 				}
-				incoming := syncedAccount{Name: account.Name, Email: account.Email, Libraries: string(allowed), Settings: string(settings), Active: account.Active, DownloadsKnown: knownDownloads, Downloads: allowDownloads, Avatar: avatar, Joined: joined}
+				// Only Plex reports other IDs: the plex.tv account UUID, and the
+				// owner's plex.tv account ID (the server calls the owner 1).
+				alt, cloudID := "", ""
+				if s.Type == "plex" {
+					alt = plex.AccountUUID(account.AltID, "")
+					if plex.NumericID(account.AccountID) {
+						cloudID = account.AccountID
+					}
+				}
+				incoming := syncedAccount{AltID: alt, AccountID: cloudID, Name: account.Name, Email: account.Email, Libraries: string(allowed), Settings: string(settings), Active: account.Active, DownloadsKnown: knownDownloads, Downloads: allowDownloads, Avatar: avatar, Joined: joined}
 				// Only an account whose stored details differ is rewritten and
 				// counted: rewriting unchanged accounts would look like a change
 				// to everything that watches them.
@@ -768,8 +777,8 @@ func (a *App) syncServerClaimed(ctx context.Context, actor, access string, s Man
 				if write {
 					// Missing optional fields are not evidence of removal. In particular,
 					// providers without profile discovery must preserve verified metadata.
-					_, err = tx.ExecContext(ctx, `INSERT INTO service_accounts(uuid,server_id,external_user_id,external_username,external_email,allowed_library_ids,service_settings,is_active,created_at,updated_at,allow_downloads,external_avatar_url,service_join_date)
-				 VALUES(?,?,?,?,?,?,?,?,?,?,?,nullif(?,''),nullif(?,'')) ON CONFLICT(server_id,external_user_id) DO UPDATE SET removed_at=NULL,external_username=excluded.external_username,external_email=excluded.external_email,allowed_library_ids=excluded.allowed_library_ids,service_settings=excluded.service_settings,is_active=excluded.is_active,updated_at=excluded.updated_at,allow_downloads=CASE WHEN ? THEN excluded.allow_downloads ELSE service_accounts.allow_downloads END,external_avatar_url=coalesce(excluded.external_avatar_url,service_accounts.external_avatar_url),service_join_date=coalesce(excluded.service_join_date,service_accounts.service_join_date)`, uuid, s.ID, account.ID, account.Name, account.Email, string(allowed), string(settings), account.Active, now, now, allowDownloads, avatar, joined, knownDownloads)
+					_, err = tx.ExecContext(ctx, `INSERT INTO service_accounts(uuid,server_id,external_user_id,external_username,external_email,allowed_library_ids,service_settings,is_active,created_at,updated_at,allow_downloads,external_avatar_url,service_join_date,external_user_alt_id,external_account_id)
+				 VALUES(?,?,?,?,?,?,?,?,?,?,?,nullif(?,''),nullif(?,''),nullif(?,''),nullif(?,'')) ON CONFLICT(server_id,external_user_id) DO UPDATE SET removed_at=NULL,external_username=excluded.external_username,external_email=excluded.external_email,allowed_library_ids=excluded.allowed_library_ids,service_settings=excluded.service_settings,is_active=excluded.is_active,updated_at=excluded.updated_at,allow_downloads=CASE WHEN ? THEN excluded.allow_downloads ELSE service_accounts.allow_downloads END,external_avatar_url=coalesce(excluded.external_avatar_url,service_accounts.external_avatar_url),service_join_date=coalesce(excluded.service_join_date,service_accounts.service_join_date),external_user_alt_id=coalesce(excluded.external_user_alt_id,service_accounts.external_user_alt_id),external_account_id=coalesce(excluded.external_account_id,service_accounts.external_account_id)`, uuid, s.ID, account.ID, account.Name, account.Email, string(allowed), string(settings), account.Active, now, now, allowDownloads, avatar, joined, alt, cloudID, knownDownloads)
 					if err != nil {
 						return err
 					}
@@ -1051,14 +1060,14 @@ func nullableCount(v sql.NullInt64) any {
 
 // storedSyncAccount is what a user sync compares against before writing.
 type storedSyncAccount struct {
-	Removed, Active, Downloads                       bool
-	Name, Email, Libraries, Settings, Avatar, Joined sql.NullString
+	Removed, Active, Downloads                                         bool
+	Name, Email, Libraries, Settings, Avatar, Joined, AltID, AccountID sql.NullString
 }
 
 // syncedAccount is one account as the provider reported it, in stored form.
 type syncedAccount struct {
-	Name, Email, Libraries, Settings, Avatar, Joined string
-	Active, DownloadsKnown, Downloads                bool
+	Name, Email, Libraries, Settings, Avatar, Joined, AltID, AccountID string
+	Active, DownloadsKnown, Downloads                                  bool
 }
 
 // syncAccountChange names the stored details a sync changed, never values.
@@ -1068,7 +1077,8 @@ type syncAccountChange struct {
 }
 
 // changedFields lists the stored details the sync would change. Details the
-// provider did not report (unknown downloads, an empty avatar or join date)
+// provider did not report (unknown downloads, an empty avatar, join date or
+// second ID)
 // are kept as stored, so they are never a change.
 func (stored storedSyncAccount) changedFields(in syncedAccount) []string {
 	var fields []string
@@ -1095,6 +1105,12 @@ func (stored storedSyncAccount) changedFields(in syncedAccount) []string {
 	}
 	if in.Joined != "" {
 		differs("service_join_date", stored.Joined, in.Joined)
+	}
+	if in.AltID != "" {
+		differs("external_user_alt_id", stored.AltID, in.AltID)
+	}
+	if in.AccountID != "" {
+		differs("external_account_id", stored.AccountID, in.AccountID)
 	}
 	return fields
 }

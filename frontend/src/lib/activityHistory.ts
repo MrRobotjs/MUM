@@ -42,7 +42,8 @@ async function readActivityPage(kind: 'history'|'current', actor: string, scope:
     if (row.owner_name !== undefined && (scope !== 'all' || !text(row.owner_name, 255)) || row.service_username !== undefined && (scope !== 'all' || !text(row.service_username, 255))) throw Error('Invalid history record.');
     if(row.display!==undefined&&(scope!=='all'||kind!=='current'))throw Error('Private stream details outside administrative current view.');
     const presentation:Pick<ActivityHistoryRow,'parent_title'|'library_name'|'client'|'play_method'|'poster_url'>={};
-    for(const key of ['parent_title','library_name','client'] as const){const v=row[key];if(v!==undefined){if(kind!=='history'||!text(v,1024))throw Error('Invalid history record.');presentation[key]=v;}}
+    // Live rows carry only the series or album; the rest is history-only.
+    for(const key of ['parent_title','library_name','client'] as const){const v=row[key];if(v!==undefined){if(kind!=='history'&&key!=='parent_title'||!text(v,1024))throw Error('Invalid history record.');presentation[key]=v;}}
     if(row.play_method!==undefined){if(kind!=='history'||!['direct_play','direct_stream','transcode'].includes(row.play_method))throw Error('Invalid history record.');presentation.play_method=row.play_method;}
     // Posters are signed administrator links to this exact row.
     if(row.poster_url!==undefined){if(kind!=='history'||scope!=='all'||typeof row.poster_url!=='string'||row.poster_url.length>2048||!row.poster_url.startsWith(`/api/activity/history-images/${row.id}?`)||/[#\s]/.test(row.poster_url))throw Error('Invalid history poster.');presentation.poster_url=row.poster_url;}

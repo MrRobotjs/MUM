@@ -13,5 +13,9 @@ test('history rows carry presentation kept with each play',async t=>{
  await t.test('own history keeps presentation but never a poster link',async()=>{const p=await read('history','own',[row()]);assert.equal(p.items[0].client,'Plexamp');await assert.rejects(read('history','own',[row({poster_url:poster})]))});
  await t.test('poster links must be signed links to the same row',async()=>{for(const bad of ['/api/activity/history-images/8?s=x','https://evil.example/x.jpg','/api/media/images/7?s=x','/api/activity/history-images/7?s=a b'])await assert.rejects(read('history','all',[row({poster_url:bad})]))});
  await t.test('invalid presentation values fail closed',async()=>{for(const bad of [{play_method:'teleport'},{client:''},{library_name:' padded'},{parent_title:5}])await assert.rejects(read('history','all',[row(bad)]))});
- await t.test('live rows never accept history presentation',async()=>{const live=row({ended_observation_at:null,end_reason:null});await assert.rejects(read('current','all',[live]))});
+ await t.test('live rows carry only the series or album, never other history presentation',async()=>{
+  const live=(o={})=>({...row({ended_observation_at:null,end_reason:null}),library_name:undefined,client:undefined,play_method:undefined,...o});
+  for(const scope of ['all','own'])assert.equal((await read('current',scope,[live()])).items[0].parent_title,'Nine Track Mind');
+  for(const bad of [{library_name:'Music'},{client:'Plexamp'},{play_method:'direct_play'},{poster_url:poster},{parent_title:5},{parent_title:''}])await assert.rejects(read('current','all',[live(bad)]),JSON.stringify(bad));
+ });
 });

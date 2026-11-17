@@ -13,7 +13,7 @@ import (
 
 // A person's play totals for the user page's Profile tab (user decisions
 // 2026-11-17), like Tautulli's user stats: plays and watched time in the last
-// 24 hours, 7 days, 30 days and all time, the latest play, and the players MUM
+// 24 hours, 7 days, 30 days and all time, the recent plays, and the players MUM
 // saw them use. The source picker is the History tab's: everything, MUM's
 // plays, or one service's imported plays, counted with the same filters.
 //
@@ -40,7 +40,7 @@ type playPeriod struct {
 	Seconds string `json:"seconds"`
 }
 
-type lastPlay struct {
+type recentPlay struct {
 	Source      string  `json:"source"` // "mum" or the server's type
 	Kind        string  `json:"media_type"`
 	Title       string  `json:"title"`
@@ -59,12 +59,16 @@ type identityPlayTotals struct {
 	Sources  []string      `json:"sources"`
 	Imported string        `json:"imported_plays"`
 	Periods  []playPeriod  `json:"periods"`
-	Last     *lastPlay     `json:"last_play"`
+	Recent   []recentPlay  `json:"recent_plays"`
 	Players  []playerPlays `json:"players"`
 }
 
-// playTotalsPlayers is how many players the totals list, most used first.
-const playTotalsPlayers = 5
+// playTotalsPlayers is how many players the totals list, most used first,
+// and playTotalsRecent how many recent plays, newest first.
+const (
+	playTotalsPlayers = 12
+	playTotalsRecent  = 12
+)
 
 // mumWatchedSeconds is one MUM play's watched time.
 const mumWatchedSeconds = `max(0,min(CAST(round((julianday(h.last_seen_at)-julianday(h.first_seen_at))*86400) AS INTEGER)-coalesce(h.paused_seconds,0),coalesce(h.duration_ticks/10000000,9223372036854775807)))`
@@ -99,15 +103,22 @@ func (a *App) identityPlayTotals(w http.ResponseWriter, r *http.Request) {
 	if err == nil {
 		out.Sources, err = readTimelineSources(ctx, tx, q.Target)
 	}
-	// The last play's poster: a signed administrator link, as on the History tab.
-	if err == nil && q.All && out.Last != nil && out.Last.hasPoster {
+	// Posters of the recent plays: signed administrator links, as on the
+	// History tab.
+	if err == nil && q.All && slices.ContainsFunc(out.Recent, func(p recentPlay) bool { return p.hasPoster }) {
 		var session string
 		if session, err = readCatalogueAuthority(ctx, tx, actor.UUID, bearer(r)); err == nil {
 			now := time.Now().UTC()
-			if out.Last.Source == "mum" {
-				out.Last.PosterURL = a.signedImageURL(activityHistoryPosterPurpose, "/api/activity/history-images", session, out.Last.rowID, now)
-			} else {
-				out.Last.PosterURL = a.signedImageURL(importedHistoryPosterPurpose, "/api/activity/imported-history-images", session, out.Last.rowID, now)
+			for i := range out.Recent {
+				p := &out.Recent[i]
+				if !p.hasPoster {
+					continue
+				}
+				if p.Source == "mum" {
+					p.PosterURL = a.signedImageURL(activityHistoryPosterPurpose, "/api/activity/history-images", session, p.rowID, now)
+				} else {
+					p.PosterURL = a.signedImageURL(importedHistoryPosterPurpose, "/api/activity/imported-history-images", session, p.rowID, now)
+				}
 			}
 		}
 	}
@@ -165,41 +176,50 @@ func queryPlayTotals(ctx context.Context, tx *sql.Tx, actor string, q activityRe
 		}
 	}
 	// Every MUM play has time; no imported play does.
-	out := identityPlayTotals{Imported: strconv.FormatInt(imported.plays[3], 10), Players: []playerPlays{}}
+	out := identityPlayTotals{Imported: strconv.FormatInt(imported.plays[3], 10), Recent: []recentPlay{}, Players: []playerPlays{}}
 	for i, name := range []string{"day", "week", "month", "all"} {
 		out.Periods = append(out.Periods, playPeriod{name, strconv.FormatInt(mum.plays[i]+imported.plays[i], 10), strconv.FormatInt(mum.plays[i], 10), strconv.FormatInt(mum.seconds[i], 10)})
 	}
-	// The latest play of the chosen sources; at the same time an imported
-	// play wins, as it sorts first on the History tab.
-	var candidates []lastPlay
-	if withMUM {
-		var p lastPlay
-		err := tx.QueryRowContext(ctx, `SELECT h.id,h.media_type,h.title,h.parent_title,h.first_seen_at,h.poster_path IS NOT NULL FROM media_activity_history h WHERE 1=1`+mumFilter+
-			` ORDER BY h.first_seen_at DESC,h.id DESC LIMIT 1`, mumArgs...).Scan(&p.rowID, &p.Kind, &p.Title, &p.ParentTitle, &p.PlayedAt, &p.hasPoster)
-		if err != nil && err != sql.ErrNoRows {
-			return identityPlayTotals{}, err
+	// The newest plays of the chosen sources; at the same time an imported
+	// play comes first, as on the History tab.
+	read := func(query string, args []any, source string) error {
+		rows, err := tx.QueryContext(ctx, query, append(args, playTotalsRecent)...)
+		if err != nil {
+			return err
 		}
-		if err == nil {
-			p.Source = "mum"
-			candidates = append(candidates, p)
+		defer rows.Close()
+		for rows.Next() {
+			p := recentPlay{Source: source}
+			dest := []any{&p.rowID, &p.Kind, &p.Title, &p.ParentTitle, &p.PlayedAt, &p.hasPoster}
+			if source == "" {
+				dest = []any{&p.rowID, &p.Source, &p.Kind, &p.Title, &p.ParentTitle, &p.PlayedAt, &p.hasPoster}
+			}
+			if err := rows.Scan(dest...); err != nil {
+				return err
+			}
+			out.Recent = append(out.Recent, p)
+		}
+		return rows.Err()
+	}
+	if withMUM {
+		if err := read(`SELECT h.id,h.media_type,h.title,h.parent_title,h.first_seen_at,h.poster_path IS NOT NULL FROM media_activity_history h WHERE 1=1`+mumFilter+
+			` ORDER BY h.first_seen_at DESC,h.id DESC LIMIT ?`, mumArgs, "mum"); err != nil {
+			return identityPlayTotals{}, err
 		}
 	}
 	if withImported {
-		var p lastPlay
-		err := tx.QueryRowContext(ctx, `SELECT i.rowid,ms.service_type,coalesce(i.media_type,''),coalesce(i.title,''),coalesce(i.grandparent_title,i.parent_title),i.viewed_at,i.poster_path IS NOT NULL`+importedFrom+
-			` ORDER BY i.viewed_at DESC,i.rowid DESC LIMIT 1`, importArgs...).Scan(&p.rowID, &p.Source, &p.Kind, &p.Title, &p.ParentTitle, &p.PlayedAt, &p.hasPoster)
-		if err != nil && err != sql.ErrNoRows {
+		if err := read(`SELECT i.rowid,ms.service_type,coalesce(i.media_type,''),coalesce(i.title,''),coalesce(i.grandparent_title,i.parent_title),i.viewed_at,i.poster_path IS NOT NULL`+importedFrom+
+			` ORDER BY i.viewed_at DESC,i.rowid DESC LIMIT ?`, importArgs, ""); err != nil {
 			return identityPlayTotals{}, err
 		}
-		if err == nil {
-			candidates = append(candidates, p)
-		}
 	}
-	for i := range candidates {
-		if out.Last == nil || candidates[i].PlayedAt > out.Last.PlayedAt || candidates[i].PlayedAt == out.Last.PlayedAt && candidates[i].Source != "mum" {
-			out.Last = &candidates[i]
+	slices.SortStableFunc(out.Recent, func(x, y recentPlay) int {
+		if c := cmp.Compare(y.PlayedAt, x.PlayedAt); c != 0 {
+			return c
 		}
-	}
+		return cmp.Compare(boolRank(x.Source == "mum"), boolRank(y.Source == "mum"))
+	})
+	out.Recent = out.Recent[:min(len(out.Recent), playTotalsRecent)]
 	if !withMUM {
 		return out, nil
 	}
@@ -244,4 +264,12 @@ func queryPlayTotals(ctx context.Context, tx *sql.Tx, actor string, q activityRe
 		out.Players = append(out.Players, player)
 	}
 	return out, nil
+}
+
+// boolRank orders false before true.
+func boolRank(v bool) int {
+	if v {
+		return 1
+	}
+	return 0
 }

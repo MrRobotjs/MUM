@@ -77,6 +77,22 @@ func ActivityAvatar(value string) string {
 	return result
 }
 
+// AccountUUID is a plex.tv account's UUID: the reported uuid, or else the one
+// in its public plex.tv avatar link (https://plex.tv/users/<uuid>/avatar),
+// as Flask MUM read it. "" means unknown.
+func AccountUUID(uuid, thumb string) string {
+	if len(uuid) <= 64 && AvatarIdentifier(uuid) {
+		return uuid
+	}
+	canonical, _, _ := strings.Cut(ActivityAvatar(thumb), "?")
+	if id, found := strings.CutPrefix(canonical, "https://plex.tv/users/"); found {
+		if id, found = strings.CutSuffix(id, "/avatar"); found && len(id) <= 64 {
+			return id
+		}
+	}
+	return ""
+}
+
 // UserAvatar canonicalises a user profile avatar: an activity avatar, or a
 // direct public plex.tv or assets.plex.tv image without query parameters.
 func UserAvatar(value string) string {

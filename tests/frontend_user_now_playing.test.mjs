@@ -13,7 +13,7 @@ test('user cards show live playback from fresh current observations',async t=>{
  const a=await load();
  await t.test('a service account sees its own session with server name and state',()=>{
   const m=a.userNowPlaying(page([row({display:{state:'playing'}})]),users);
-  assert.deepEqual(m.get(service),{state:'playing',mediaTitle:"We Don't Talk Anymore",serviceType:'plex',serverName:'Plex++',sessionCount:1,progress:null});
+  assert.deepEqual(m.get(service),{state:'playing',mediaTitle:"We Don't Talk Anymore",serviceType:'plex',serverName:'Plex++',sessionCount:1,progress:null,subtitle:null});
   assert.equal(m.has(other),false);
  });
  await t.test('a linked local account sees sessions of the services it owns',()=>{
@@ -27,6 +27,10 @@ test('user cards show live playback from fresh current observations',async t=>{
  await t.test('several sessions prefer active playback, then the most recent, and are counted',()=>{
   const m=a.userNowPlaying(page([row({id:'1',title:'Paused one',paused:true,last_observed_at:later}),row({id:'2',title:'Playing one',display:{state:'playing'}})]),users);
   assert.equal(m.get(service).mediaTitle,'Playing one');assert.equal(m.get(service).sessionCount,2);
+ });
+ await t.test('an episode names its series and a track its album',()=>{
+  assert.equal(a.userNowPlaying(page([row({media_type:'Episode',title:'Pilot',parent_title:'A Show'})]),users).get(service).subtitle,'A Show');
+  assert.equal(a.userNowPlaying(page([row({parent_title:'Nine Track Mind'})]),users).get(service).subtitle,'Nine Track Mind');
  });
  await t.test('progress is the percent played when the server reports both position and length',()=>{
   assert.equal(a.userNowPlaying(page([row({position_ticks:'900',duration_ticks:'3600'})]),users).get(service).progress,25);

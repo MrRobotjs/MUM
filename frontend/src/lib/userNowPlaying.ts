@@ -5,6 +5,8 @@ import { observationProgress, type ActivityHistoryPage, type ActivityHistoryRow 
 export type CardNowPlaying = {
   state: string;
   mediaTitle: string;
+  // The series of an episode or the album of a track.
+  subtitle: string | null;
   serviceType: string | null;
   serverName: string | null;
   sessionCount: number;
@@ -43,6 +45,7 @@ export function userNowPlaying(page: ActivityHistoryPage | undefined, users: Now
     result.set(user.uuid, {
       state: playbackState(primary),
       mediaTitle: primary.title,
+      subtitle: primary.parent_title ?? null,
       serviceType: fresh.get(primary.server_id)?.provider ?? null,
       serverName: sameServer ? user.server_nickname ?? null : null,
       sessionCount: rows.length,

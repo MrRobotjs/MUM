@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"slices"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -16,6 +18,14 @@ type playPeriodTest struct {
 	Seconds string `json:"seconds"`
 }
 
+type recentPlayTest struct {
+	Source      string  `json:"source"`
+	Title       string  `json:"title"`
+	ParentTitle *string `json:"parent_title"`
+	PlayedAt    string  `json:"played_at"`
+	Poster      string  `json:"poster_url"`
+}
+
 type playTotalsTestPage struct {
 	Actor    string           `json:"actor_uuid"`
 	Scope    string           `json:"scope"`
@@ -24,14 +34,8 @@ type playTotalsTestPage struct {
 	Sources  []string         `json:"sources"`
 	Imported string           `json:"imported_plays"`
 	Periods  []playPeriodTest `json:"periods"`
-	Last     *struct {
-		Source      string  `json:"source"`
-		Title       string  `json:"title"`
-		ParentTitle *string `json:"parent_title"`
-		PlayedAt    string  `json:"played_at"`
-		Poster      string  `json:"poster_url"`
-	} `json:"last_play"`
-	Players []struct {
+	Recent   []recentPlayTest `json:"recent_plays"`
+	Players  []struct {
 		Client   string  `json:"client"`
 		Platform *string `json:"platform"`
 		Plays    string  `json:"plays"`
@@ -88,7 +92,9 @@ func TestIdentityPlayTotalsPeriods(t *testing.T) {
 		if got := periodsText(p); got != "day:2/1/3000 week:3/2/6600 month:4/2/6600 all:5/2/6600 " {
 			t.Fatal(c.scope, got)
 		}
-		if p.Imported != "3" || p.Last == nil || p.Last.Source != "mum" || p.Last.Title != "MUM one" {
+		// Every play of both sources, newest first.
+		if p.Imported != "3" || len(p.Recent) != 5 || p.Recent[0].Source != "mum" || p.Recent[0].Title != "MUM one" ||
+			!slices.IsSortedFunc(p.Recent, func(x, y recentPlayTest) int { return strings.Compare(y.PlayedAt, x.PlayedAt) }) {
 			t.Fatalf("%s imported/last %+v", c.scope, p)
 		}
 		if len(p.Players) != 2 || p.Players[0].Client != "Infuse" || p.Players[0].Platform != nil || p.Players[1].Client != "Plex Web" || p.Players[1].Platform == nil || *p.Players[1].Platform != "Chrome" {
@@ -103,8 +109,8 @@ func TestIdentityPlayTotalsPeriods(t *testing.T) {
 	if got := periodsText(plex); got != "day:1/0/0 week:1/0/0 month:2/0/0 all:3/0/0 " || plex.Imported != "3" || len(plex.Players) != 0 {
 		t.Fatal("plex", got, plex)
 	}
-	if plex.Last == nil || plex.Last.Source != "plex" || plex.Last.Title != "Plex four" || plex.Last.ParentTitle == nil || *plex.Last.ParentTitle != "A Show" {
-		t.Fatalf("plex last %+v", plex.Last)
+	if len(plex.Recent) != 3 || plex.Recent[0].Source != "plex" || plex.Recent[0].Title != "Plex four" || plex.Recent[0].ParentTitle == nil || *plex.Recent[0].ParentTitle != "A Show" {
+		t.Fatalf("plex recent %+v", plex.Recent)
 	}
 }
 
@@ -116,7 +122,7 @@ func TestIdentityPlayTotalsEmptyAndAuthority(t *testing.T) {
 		t.Fatal(err)
 	}
 	code, p := readPlayTotals(t, a, token, other, "?scope=all&source=all")
-	if code != 200 || periodsText(p) != "day:0/0/0 week:0/0/0 month:0/0/0 all:0/0/0 " || p.Last != nil || p.Players == nil || len(p.Players) != 0 || p.Sources == nil || len(p.Sources) != 0 {
+	if code != 200 || periodsText(p) != "day:0/0/0 week:0/0/0 month:0/0/0 all:0/0/0 " || p.Recent == nil || len(p.Recent) != 0 || p.Players == nil || len(p.Players) != 0 || p.Sources == nil || len(p.Sources) != 0 {
 		t.Fatalf("no plays %d %+v", code, p)
 	}
 	if code, _ := readPlayTotals(t, a, viewer, other, "?scope=own&source=all"); code != 403 {
@@ -156,16 +162,16 @@ func TestIdentityPlayTotalsPlayerPlatforms(t *testing.T) {
 	}
 }
 
-// The last play's poster is a signed administrator link, as on the History tab.
-func TestIdentityPlayTotalsLastPlayPoster(t *testing.T) {
+// Recent plays' posters are signed administrator links, as on the History tab.
+func TestIdentityPlayTotalsRecentPlayPosters(t *testing.T) {
 	a, token, viewer, local := playTotalsFixture(t)
 	activityExec(t, a.store, "UPDATE history_imports SET poster_item='20',poster_path='/library/metadata/20/thumb/1' WHERE title='Plex four'")
 	_, plex := readPlayTotals(t, a, token, local, "?scope=all&source=plex")
-	if plex.Last == nil || len(plex.Last.Poster) < len("/api/activity/imported-history-images/") || plex.Last.Poster[:len("/api/activity/imported-history-images/")] != "/api/activity/imported-history-images/" {
-		t.Fatalf("poster %+v", plex.Last)
+	if len(plex.Recent) != 3 || !strings.HasPrefix(plex.Recent[0].Poster, "/api/activity/imported-history-images/") || plex.Recent[1].Poster != "" || plex.Recent[2].Poster != "" {
+		t.Fatalf("posters %+v", plex.Recent)
 	}
-	if _, own := readPlayTotals(t, a, viewer, local, "?scope=own&source=plex"); own.Last == nil || own.Last.Poster != "" {
-		t.Fatalf("a viewer got a poster link %+v", own.Last)
+	if _, own := readPlayTotals(t, a, viewer, local, "?scope=own&source=plex"); len(own.Recent) != 3 || own.Recent[0].Poster != "" {
+		t.Fatalf("a viewer got a poster link %+v", own.Recent)
 	}
 }
 

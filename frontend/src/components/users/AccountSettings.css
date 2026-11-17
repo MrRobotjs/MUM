@@ -45,6 +45,52 @@
   color: color-mix(in srgb, var(--logo) 70%, white);
   background-color: color-mix(in srgb, var(--logo) 22%, transparent);
 }
+/* The Players card's grid of tiles, like Tautulli's: a large logo beside the
+   app's name and play count. */
+.account-player-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+  gap: 1rem;
+}
+.account-player-grid .account-player-logo {
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: .75rem;
+  font-size: 1.75rem;
+}
+/* Recently Played: a row of posters that scrolls sideways, newest first. */
+.account-recent-row {
+  display: flex;
+  gap: 1rem;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  scroll-behavior: smooth;
+  scrollbar-width: thin;
+  padding-bottom: .5rem;
+}
+.account-recent-item {
+  flex: none;
+  width: 8.5rem;
+  min-width: 0;
+  scroll-snap-align: start;
+}
+.account-recent-poster {
+  position: relative;
+  aspect-ratio: 2 / 3;
+  width: 100%;
+}
+.account-recent-when {
+  position: absolute;
+  inset: auto 0 0 0;
+  padding: 1.25rem .5rem .375rem;
+  border-radius: 0 0 .25rem .25rem;
+  background: linear-gradient(to top, rgb(0 0 0 / .8), transparent);
+  color: #fff;
+  font-size: .75rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .account-info {
   display: inline-flex;
   width: 1.5rem;

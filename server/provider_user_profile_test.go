@@ -50,12 +50,17 @@ func TestPlexUserProfileSnapshotSync(t *testing.T) {
 		if w := apiRequest(a, "POST", path, token, nil, nil); w.Code != 200 {
 			t.Fatal(w.Code, w.Body.String())
 		}
-		var avatar, joined, settings, libraries string
-		if err := store.reader.QueryRow(`SELECT coalesce(external_avatar_url,''),coalesce(service_join_date,''),service_settings,allowed_library_ids FROM service_accounts WHERE server_id=? AND external_user_id='2'`, id).Scan(&avatar, &joined, &settings, &libraries); err != nil {
+		var avatar, joined, settings, libraries, alt string
+		if err := store.reader.QueryRow(`SELECT coalesce(external_avatar_url,''),coalesce(service_join_date,''),service_settings,allowed_library_ids,coalesce(external_user_alt_id,'') FROM service_accounts WHERE server_id=? AND external_user_id='2'`, id).Scan(&avatar, &joined, &settings, &libraries, &alt); err != nil {
 			t.Fatal(err)
 		}
 		if avatar != state.avatar || joined != state.joined {
 			t.Fatalf("profile = %q %q; want %q %q", avatar, joined, state.avatar, state.joined)
+		}
+		// The plex.tv account UUID comes from the avatar link and is kept
+		// when a later snapshot no longer reports it.
+		if alt != "fixture-user" {
+			t.Fatalf("alternate ID = %q", alt)
 		}
 		if libraries != `["shelf"]` || strings.Contains(settings, "never-persist") {
 			t.Fatalf("sharing data changed or secret retained: %s %s", libraries, settings)
@@ -63,6 +68,43 @@ func TestPlexUserProfileSnapshotSync(t *testing.T) {
 		var roles int
 		if err := store.reader.QueryRow(`SELECT count(*) FROM identity_user_roles m JOIN user_roles r ON r.id=m.role_id AND r.is_auto_managed=0`).Scan(&roles); err != nil || roles != 0 {
 			t.Fatalf("profile sync changed role grants: %d %v", roles, err)
+		}
+	}
+	// Administrators see both IDs on the account's profile.
+	var service string
+	if err := store.reader.QueryRow(`SELECT uuid FROM service_accounts WHERE server_id=? AND external_user_id='2'`, id).Scan(&service); err != nil {
+		t.Fatal(err)
+	}
+	w := apiRequest(a, "GET", "/api/users/"+service, token, nil, nil)
+	if profile := responseData(t, w); profile["external_user_id"] != "2" || profile["external_user_alt_id"] != "fixture-user" {
+		t.Fatalf("profile IDs missing: %s", w.Body.String())
+	}
+	// The owner keeps the server's ID 1 for matching plays, and the profile
+	// shows its plex.tv account ID and UUID, as Flask MUM did.
+	var owner, cloudID, ownerAlt string
+	if err := store.reader.QueryRow(`SELECT uuid,coalesce(external_account_id,''),coalesce(external_user_alt_id,'') FROM service_accounts WHERE server_id=? AND external_user_id='1'`, id).Scan(&owner, &cloudID, &ownerAlt); err != nil {
+		t.Fatal(err)
+	}
+	if cloudID != "9001" || ownerAlt != "0123456789abcdef" {
+		t.Fatalf("owner IDs = %q %q", cloudID, ownerAlt)
+	}
+	w = apiRequest(a, "GET", "/api/users/"+owner, token, nil, nil)
+	if profile := responseData(t, w); profile["external_user_id"] != "9001" || profile["external_user_alt_id"] != "0123456789abcdef" {
+		t.Fatalf("owner profile IDs: %s", w.Body.String())
+	}
+}
+
+func TestPlexAccountUUID(t *testing.T) {
+	for _, c := range []struct{ uuid, thumb, want string }{
+		{"a1b2c3d4e5f60718", "https://plex.tv/users/other/avatar", "a1b2c3d4e5f60718"},
+		{"", "https://plex.tv/users/a1b2c3d4e5f60718/avatar?c=1", "a1b2c3d4e5f60718"},
+		{"bad id", "https://plex.tv/users/a1b2/avatar", "a1b2"},
+		{"", "https://untrusted.invalid/users/a1b2/avatar", ""},
+		{"", "/accounts/42/thumb", ""},
+		{strings.Repeat("a", 65), "", ""},
+	} {
+		if got := plex.AccountUUID(c.uuid, c.thumb); got != c.want {
+			t.Errorf("AccountUUID(%q, %q) = %q; want %q", c.uuid, c.thumb, got, c.want)
 		}
 	}
 }

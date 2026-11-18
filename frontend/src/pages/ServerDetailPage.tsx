@@ -1,3 +1,4 @@
+import { ServerUsersCard } from '../components/servers/ServerUsersCard';
 import { useAccountDisplay } from '../hooks/useAccountDisplay';
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import {useAuth} from '../contexts/AuthContext';
@@ -543,100 +544,9 @@ export const ServerDetailPage = ({ section = 'overview' }: { section?: ServerTab
           )}
         </div>) : null}
 
-        {section === 'users' ? (<div className="space-y-6">
-          <Card>
-            <CardContent className="p-6 space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <h3 className="text-lg font-semibold flex items-center">
-                    <FontAwesomeIcon icon={faUsers} className="mr-2 h-5 w-5 text-indigo-500" />
-                    Users
-                  </h3>
-                  <p className="text-sm text-muted-foreground">
-                    Service users linked to this server ({userCount.toLocaleString()})
-                  </p>
-                </div>
-                <Button variant="ghost" size="sm" onClick={() => void refreshUsers()}>
-                  <FontAwesomeIcon icon={faRotate} className="mr-2 h-4 w-4" />
-                  Refresh
-                </Button>
-              </div>
-
-              {usersError ? (
-                <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
-                  Failed to load users for this server.
-                </div>
-              ) : usersLoading ? (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Spinner className="h-4 w-4" />
-                  Loading users...
-                </div>
-              ) : users.length > 0 ? (
-                <div className="overflow-hidden rounded-xl border shadow-sm">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>User</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Libraries</TableHead>
-                        <TableHead>Last Activity</TableHead>
-                        <TableHead>Access Expires</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {users.map((user) => (
-                        <TableRow key={user.uuid}>
-                          <TableCell>
-                            <div className="space-y-1">
-                              <Link
-                                to="/admin/users/$uuid"
-                                params={{ uuid: user.uuid }}
-                                search={{ tab: 'profile' }}
-                                className="font-semibold text-primary hover:underline"
-                              >
-                                {user.display_name || user.username || 'Unnamed User'}
-                              </Link>
-                              <div className="text-xs text-muted-foreground">
-                                {user.username || 'No username'}
-                                {user.linked_local_user
-                                  ? ` • Linked to ${user.linked_local_user.display_name || user.linked_local_user.username || 'Local User'}`
-                                  : ''}
-                              </div>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant={user.is_active ? 'default' : 'secondary'}>
-                              {user.is_active ? 'Active' : 'Inactive'}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            {user.has_all_libraries
-                              ? 'All libraries'
-                              : `${user.libraries?.length ?? 0} selected`}
-                          </TableCell>
-                          <TableCell>
-                            <div className="text-sm">
-                              {user.last_streamed_at
-                                ? `Streamed ${formatDateTime(user.last_streamed_at)}`
-                                : user.last_login_at
-                                  ? `Login ${formatDateTime(user.last_login_at)}`
-                                  : 'No recent activity'}
-                            </div>
-                          </TableCell>
-                          <TableCell>{formatDateTime(user.access_expires_at)}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              ) : (
-                <div className="rounded-lg border bg-muted/20 p-6 text-center text-sm text-muted-foreground">
-                  No service users found for this server.
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>) : null}
+        {section === 'users' && numericServerId !== undefined ? (
+          <ServerUsersCard serverId={numericServerId} serviceType={serviceType.toLowerCase()} onSync={() => void handleSync('users')} syncing={syncingUsers} syncDisabled={syncUnavailable} />
+        ) : null}
 
         {/* The server's own dashboard graphs (Plex only for now) */}
         {section === 'resources' ? (

@@ -7,6 +7,7 @@ import { getServiceMeta } from '@/config/pluginMetadata'
 import { ServiceSettingIcon, SettingHeader, SettingIcon } from './AccountSettings'
 import { Spinner } from '@/components/ui/spinner'
 import { AvatarName } from './AccountAvatar'
+import { Link } from '@tanstack/react-router'
 
 export type ServiceAccount = {
   uuid: string
@@ -51,7 +52,16 @@ export const ServiceAccountsCard = ({ accounts, loading, error, onUnlink, onLink
                 <div className="flex min-w-0 items-center gap-3">
                   <ServiceSettingIcon serviceType={account.service_type} />
                   <div className="min-w-0">
-                    <p className="font-medium text-foreground"><AvatarName key={account.uuid} url={account.avatar_url ?? null} name={account.external_username ?? 'Service Account'}>{account.external_username ?? 'Service Account'}{account.uuid === currentUuid ? <span className="text-xs font-normal text-muted-foreground"> · This account</span> : null}</AvatarName></p>
+                    <p className="font-medium text-foreground">
+                      {account.uuid === currentUuid ? (
+                        <AvatarName key={account.uuid} url={account.avatar_url ?? null} name={account.external_username ?? 'Service Account'}>{account.external_username ?? 'Service Account'}<span className="text-xs font-normal text-muted-foreground"> · This account</span></AvatarName>
+                      ) : (
+                        // Another account opens its own profile.
+                        <Link to="/admin/users/$uuid" params={{ uuid: account.uuid }} className="account-profile-link">
+                          <AvatarName key={account.uuid} url={account.avatar_url ?? null} name={account.external_username ?? 'Service Account'} />
+                        </Link>
+                      )}
+                    </p>
                     <p className="truncate text-xs text-muted-foreground">{getServiceMeta(account.service_type).label} • {account.server_name ?? 'Unknown server'}</p>
                   </div>
                 </div>

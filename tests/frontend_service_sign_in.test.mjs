@@ -220,7 +220,7 @@ test('linked accounts are offered for unlinking only while another sign-in remai
 
 test("a service account's profile lists every account owned by the same MUM profile, marking the one viewed", async () => {
   const header = `export const SettingHeader=({title,summary,action})=>({type:'section',props:{children:[title,'|',summary,'|',action]}});export const SettingIcon=p=>p.children;export const ServiceSettingIcon=()=>null;`;
-  const m = await loadFrontend(`export {ServiceAccountsCard} from './src/components/users/ServiceAccountsCard';${renderer}`, { mock: { filter: s => /AccountAvatar|components\/ui|ui\/|@fortawesome|AccountSettings|config\/pluginMetadata/.test(s), module: s => /AccountAvatar/.test(s) ? avatarMock :
+  const m = await loadFrontend(`export {ServiceAccountsCard} from './src/components/users/ServiceAccountsCard';${renderer}`, { mock: { filter: s => /AccountAvatar|@tanstack\/react-router|components\/ui|ui\/|@fortawesome|AccountSettings|config\/pluginMetadata/.test(s), module: s => /AccountAvatar/.test(s) ? avatarMock : /react-router/.test(s) ? `export const Link=p=>p.children;` :
     /AccountSettings/.test(s) ? header : /pluginMetadata/.test(s) ? `export const getServiceMeta=t=>({label:t==='plex'?'Plex':'Jellyfin'});` : /@fortawesome/.test(s) ? `export const FontAwesomeIcon='i';export const faServer={};` : uiMock } });
   const accounts = [
     { uuid: 'jellyfin-1', service_type: 'jellyfin', server_name: 'Living Room', external_username: 'AllBass' },

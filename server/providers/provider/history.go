@@ -27,6 +27,8 @@ type HistoryEntry struct {
 	// How far and how long, in seconds; only Audiobookshelf reports them.
 	PositionSeconds *int64
 	DurationSeconds *int64
+	// How long the session was listened to, in seconds (Audiobookshelf).
+	ListenedSeconds *int64
 }
 
 // HistoryPage is one page of a server's history. Read is how many records the

@@ -6,7 +6,11 @@ import { useAlerts } from '../contexts/AlertContext';
 import { useUserDetail, UserDetail } from '../hooks/useUserDetail';
 import {useIdentityCurrent} from '../hooks/useIdentityHistory';
 import {useIdentityTimeline} from '../hooks/useIdentityTimeline';
-import {historyServiceName,offeredSource,type HistoryService,type TimelineSource} from '../lib/identityTimeline';
+import {deleteTimelinePlays,historyServiceName,offeredSource,timelineMethods,type HistoryService,type TimelineCategory,type TimelineItem,type TimelineMethod,type TimelineRecords,type TimelineServer,type TimelineSource} from '../lib/identityTimeline';
+import {fetchPersonHistoryImport,historyImportSupport,personImportSummary,startPersonHistoryImport} from '../lib/personHistoryImport';
+import {startPlayHistoryImport} from '../lib/playHistory';
+import {useAuth} from '../contexts/AuthContext';
+import {DropdownMenu,DropdownMenuCheckboxItem,DropdownMenuContent,DropdownMenuTrigger} from '@/components/ui/dropdown-menu';
 import {Select,SelectContent,SelectItem,SelectTrigger,SelectValue} from '@/components/ui/select';
 import {observationProgress} from '../lib/activityHistory';
 import { useOverseerr } from '../hooks/useOverseerr';
@@ -74,8 +78,18 @@ import {
   faSpinner,
   faWaveSquare,
   faSliders,
+  faFilm,
+  faVideo,
+  faBook,
+  faPodcast,
+  faTrashCan,
+  faFileImport,
+  faTableColumns,
+  faCirclePlay,
+  faBars,
+  faGears,
 } from '@fortawesome/free-solid-svg-icons';
-import { SettingInfo, TabHeading } from '../components/users/AccountSettings';
+import { ConfirmAction, SettingInfo, TabHeading } from '../components/users/AccountSettings';
 import { faDiscord } from '@fortawesome/free-brands-svg-icons';
 import { Spinner } from '@/components/ui/spinner'
 
@@ -484,89 +498,265 @@ const HistorySourcePicker=({source,services,onChange,label='History source'}:{so
   );
 };
 
-// One timeline of MUM's recorded plays and plays imported from the servers'
-// own histories. Imported rows have no player and carry a "<service> history"
-// label; only Audiobookshelf rows have a length and progress.
-const HistoryTab=({history,target,source,onSourceChange}:{history:ReturnType<typeof useIdentityTimeline>;target:string;source:TimelineSource;onSourceChange:(source:TimelineSource)=>void})=>{
-  const {formatTimestamp}=useAccountDisplay();
-  const {page,loading,error,refresh,hasPrevious,previous,next}=history;
-  if(error)return <section className="space-y-4"><div className="rounded border border-red-500/40 bg-red-50 dark:bg-red-400/10 px-4 py-3 text-sm text-red-600 dark:text-red-400">Failed to load history: {error.message} <Button variant="outline" onClick={()=>void refresh().catch(()=>{})}>Refresh history</Button></div></section>;
-  if(loading||!page||page.target_uuid!==target)return <section className="space-y-4"><div className="flex items-center gap-3 rounded border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground"><Spinner className="size-4"/>Fetching recent history…</div></section>;
-  if(page.items.length===0&&!hasPrevious)return <section className="space-y-4"><Card><CardHeading icon={faClockRotateLeft} title="History" description="What they’ve played, newest first."><HistorySourcePicker source={source} services={page.sources} onChange={onSourceChange}/></CardHeading><CardContent><div className="flex flex-col items-center gap-3 py-10 text-muted-foreground/60"><FontAwesomeIcon icon={faClockRotateLeft} className="text-3xl"/><p className="text-sm">No streaming history to display yet.</p></div></CardContent></Card></section>;
+// The History tab shows one server at a time (HISTORY_TOOLBAR_DESIGN.md):
+// pickers for the server and the records, a Tautulli-style toolbar and the
+// columns that server type reports.
+type HistoryView = Readonly<{ server?: string; records: TimelineRecords; types: readonly TimelineCategory[]; methods: readonly TimelineMethod[] }>;
+const initialHistoryView: HistoryView = { records: 'all', types: [], methods: [] };
+
+type HistoryColumn = 'poster' | 'title' | 'platform' | 'product' | 'player' | 'date' | 'ip' | 'started' | 'paused' | 'stopped' | 'duration' | 'author' | 'listened' | 'progress';
+const historyColumnLabels: Record<HistoryColumn, string> = { poster: 'Poster', title: 'Media Title', platform: 'Platform', product: 'Product', player: 'Player', date: 'Date', ip: 'IP Address',
+  started: 'Started', paused: 'Paused', stopped: 'Stopped', duration: 'Duration', author: 'Author', listened: 'Listened', progress: 'Progress' };
+const historyColumnHints: Partial<Record<HistoryColumn, string>> = {
+  product: 'The app they played on',
+  player: 'The device’s name and how the server sent the stream',
+  started: 'When playback started: from Plex’s notification when MUM received one, otherwise MUM’s first check of the server, or the time the server recorded',
+  stopped: 'When playback stopped: from Plex’s notification when MUM received one, otherwise MUM’s last check of the server',
+  duration: 'Time watched: from start to stop, less paused time',
+  listened: 'How long the session was listened to',
+};
+// Columns each server type reports; the title can't be hidden.
+const historyColumns = (type: string): HistoryColumn[] => type === 'audiobookshelf' ? ['poster', 'title', 'author', 'date', 'listened', 'progress']
+  : type === 'plex' ? ['poster', 'title', 'platform', 'product', 'player', 'date', 'ip', 'started', 'paused', 'stopped', 'duration', 'progress']
+  : ['poster', 'title', 'product', 'player', 'date', 'started', 'paused', 'stopped', 'duration', 'progress'];
+const historyColumnKey = 'mum.history.columns';
+// Hidden columns per server type, remembered per browser.
+const readHiddenColumns = (): Record<string, HistoryColumn[]> => {
+  try {
+    const value: unknown = JSON.parse(localStorage.getItem(historyColumnKey) ?? '{}');
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+    return Object.fromEntries(Object.entries(value).filter(([, v]) => Array.isArray(v)).map(([k, v]) => [k, (v as unknown[]).filter((c): c is HistoryColumn => typeof c === 'string' && c in historyColumnLabels && c !== 'title')]));
+  } catch { return {}; }
+};
+const saveHiddenColumns = (value: Record<string, HistoryColumn[]>) => { try { localStorage.setItem(historyColumnKey, JSON.stringify(value)); } catch { /* not remembered */ } };
+
+const categoryButtons: Record<TimelineCategory, { label: string; icon: IconDefinition }> = {
+  movies: { label: 'Movies', icon: faFilm }, tv: { label: 'TV Shows', icon: faTv }, music: { label: 'Music', icon: faMusic },
+  videos: { label: 'Videos', icon: faVideo }, books: { label: 'Books', icon: faBook }, podcasts: { label: 'Podcasts', icon: faPodcast },
+};
+const methodButtons: Record<TimelineMethod, { label: string; icon: IconDefinition }> = {
+  direct_play: { label: 'Direct Play', icon: faCirclePlay }, direct_stream: { label: 'Direct Stream', icon: faBars }, transcode: { label: 'Transcode', icon: faGears },
+};
+const serviceLabel = (type: string) => getServiceMeta(type).label;
+
+const HistoryTab = ({ history, target, view, onViewChange, admin }: {
+  history: ReturnType<typeof useIdentityTimeline>; target: string; view: HistoryView; onViewChange: (view: HistoryView) => void; admin: boolean;
+}) => {
+  const { formatTimestamp } = useAccountDisplay();
+  const { success, error: showError } = useAlerts();
+  const { page, loading, error, refresh, hasPrevious, previous, next } = history;
+  const [deleteMode, setDeleteMode] = useState(false);
+  const [marked, setMarked] = useState<ReadonlySet<string>>(new Set());
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [hidden, setHidden] = useState(readHiddenColumns);
+  const [importNote, setImportNote] = useState<{ server: string; text: string; running: boolean } | null>(null);
+  const [fullImport, setFullImport] = useState<TimelineServer | null>(null);
+  const [importing, setImporting] = useState(false);
+  const shown = page?.servers.find(s => s.server_id === page.server_id);
+  const streams = Boolean(shown?.live) && view.records !== 'server';
+
+  // Filters the shown server and records don't offer are dropped.
+  useEffect(() => {
+    if (!page || page.target_uuid !== target) return;
+    const types = view.types.filter(t => page.categories.includes(t));
+    const methods = streams ? view.methods : [];
+    if (types.length !== view.types.length || methods.length !== view.methods.length) onViewChange({ ...view, types, methods });
+  }, [page, target, streams, view, onViewChange]);
+
+  // A running import is checked every 2 seconds until it ends.
+  useEffect(() => {
+    if (!importNote?.running) return;
+    let stopped = false;
+    const timer = window.setInterval(() => {
+      fetchPersonHistoryImport(target, importNote.server).then(status => {
+        if (stopped || status.state === 'running') return;
+        setImportNote({ server: importNote.server, text: personImportSummary(status), running: false });
+        void refresh();
+      }).catch(() => { if (!stopped) setImportNote({ server: importNote.server, text: 'Couldn’t read the import’s progress.', running: false }); });
+    }, 2000);
+    return () => { stopped = true; window.clearInterval(timer); };
+  }, [importNote, target, refresh]);
+
+  const toggleDeleteMode = () => {
+    if (!deleteMode) { setMarked(new Set()); setDeleteMode(true); return; }
+    setDeleteMode(false);
+    if (marked.size > 0) setConfirmDelete(true);
+  };
+  const toggleMark = (id: string) => setMarked(current => { const next = new Set(current); if (!next.delete(id)) next.add(id); return next; });
+  const finishDelete = () => { setConfirmDelete(false); setMarked(new Set()); };
+  const deleteMarked = async () => {
+    setDeleting(true);
+    try {
+      const count = await deleteTimelinePlays(target, [...marked]);
+      success(`Deleted ${count} history item${count === 1 ? '' : 's'}.`);
+      void refresh();
+    } catch (err) {
+      showError(err instanceof Error ? err.message : 'The history items couldn’t be deleted.');
+    } finally {
+      setDeleting(false);
+      finishDelete();
+    }
+  };
+  const startImport = async () => {
+    if (!shown) return;
+    // Jellyfin and Emby can only import the whole server: ask first.
+    if (historyImportSupport(shown.service_type) === 'server') { setFullImport(shown); return; }
+    setImporting(true);
+    try {
+      const result = await startPersonHistoryImport(target, shown.server_id);
+      if (result === 'started') setImportNote({ server: shown.server_id, text: `Importing their history from ${shown.name}…`, running: true });
+      else if (result === 'busy') setImportNote({ server: shown.server_id, text: `An import is already running on ${shown.name}. Try again when it finishes.`, running: false });
+      else if (result === 'full_import_only') setFullImport(shown);
+      else setImportNote({ server: shown.server_id, text: `${shown.name} can’t import history right now. Check that it’s active and has an API key.`, running: false });
+    } catch (err) {
+      showError(err instanceof Error ? err.message : 'The import couldn’t start.');
+    } finally {
+      setImporting(false);
+    }
+  };
+  const runFullImport = async () => {
+    const server = fullImport;
+    if (!server) return;
+    setImporting(true);
+    try {
+      await startPlayHistoryImport(Number(server.server_id));
+      setImportNote({ server: server.server_id, text: `Importing every user’s history from ${server.name}…`, running: true });
+    } catch (err) {
+      showError(err instanceof Error ? err.message : 'The import couldn’t start.');
+    } finally {
+      setImporting(false);
+      setFullImport(null);
+    }
+  };
+
+  const pickers = page && page.target_uuid === target && <>
+    {page.servers.length > 1 && <Select value={page.server_id ?? undefined} onValueChange={server => onViewChange({ ...initialHistoryView, server })}>
+      <SelectTrigger className="w-56" aria-label="Server"><SelectValue /></SelectTrigger>
+      <SelectContent>{page.servers.map(s => <SelectItem key={s.server_id} value={s.server_id}>{s.name} ({serviceLabel(s.service_type)})</SelectItem>)}</SelectContent>
+    </Select>}
+    {shown?.live && <Select value={view.records} onValueChange={(records: TimelineRecords) => onViewChange({ ...view, records })}>
+      <SelectTrigger className="w-56" aria-label="Records"><SelectValue /></SelectTrigger>
+      <SelectContent>
+        <SelectItem value="all">All plays</SelectItem>
+        <SelectItem value="mum">Recorded by MUM</SelectItem>
+        <SelectItem value="server">From server history</SelectItem>
+      </SelectContent>
+    </Select>}
+  </>;
+  const heading = <CardHeading icon={faClockRotateLeft} title="History" description="What they’ve played, newest first."><div className="flex flex-wrap items-center gap-2">{pickers}</div></CardHeading>;
+  if (error) return <section className="space-y-4"><div className="rounded border border-red-500/40 bg-red-50 dark:bg-red-400/10 px-4 py-3 text-sm text-red-600 dark:text-red-400">Failed to load history: {error.message} <Button variant="outline" onClick={() => void refresh().catch(() => {})}>Refresh history</Button></div></section>;
+  if (loading || !page || page.target_uuid !== target) return <section className="space-y-4"><div className="flex items-center gap-3 rounded border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground"><Spinner className="size-4" />Fetching recent history…</div></section>;
+  const empty = (text: string) => <div className="flex flex-col items-center gap-3 py-10 text-muted-foreground/60"><FontAwesomeIcon icon={faClockRotateLeft} className="text-3xl" /><p className="text-sm">{text}</p></div>;
+  if (!shown) return <section className="space-y-4"><Card>{heading}<CardContent>{empty('They have no media server accounts.')}</CardContent></Card></section>;
+  if (!shown.history) return <section className="space-y-4"><Card>{heading}<CardContent>{empty(`${serviceLabel(shown.service_type)} doesn’t share users’ history, so MUM has none to show for ${shown.name}.`)}</CardContent></Card></section>;
+
+  const columns = historyColumns(shown.service_type).filter(c => c === 'title' || !(hidden[shown.service_type] ?? []).includes(c));
+  const toggleColumn = (column: HistoryColumn) => setHidden(current => {
+    const list = current[shown.service_type] ?? [];
+    const updated = { ...current, [shown.service_type]: list.includes(column) ? list.filter(c => c !== column) : [...list, column] };
+    saveHiddenColumns(updated);
+    return updated;
+  });
+  const toggleFilter = <T extends string>(list: readonly T[], value: T) => list.includes(value) ? list.filter(v => v !== value) : [...list, value];
+  const canImport = admin && historyImportSupport(shown.service_type) !== 'none';
+  const filtered = view.types.length > 0 || view.methods.length > 0;
+
+  const cell = (column: HistoryColumn, row: TimelineItem) => {
+    const service = row.source === 'mum' ? null : historyServiceName[row.source];
+    const none = <span className="text-muted-foreground" title={service ? `Not recorded by ${service}` : 'Not recorded'}>—</span>;
+    switch (column) {
+      case 'poster': return <HistoryPoster url={row.poster_url} title={row.title} />;
+      case 'title': return <>
+        <div className="font-medium">{row.title || (service ? 'Removed item' : 'Unknown Title')}</div>
+        {row.parent_title && shown.service_type !== 'audiobookshelf' && <div className="text-xs text-muted-foreground">{row.parent_title}</div>}
+        {row.library_name && <div className="text-xs text-muted-foreground/60"><FontAwesomeIcon icon={faFolder} className="mr-1 h-3 w-3" />{row.library_name}</div>}
+        {service && view.records === 'all' && shown.live && <span className="mt-1 inline-flex items-center rounded-md px-2.5 py-0.5 text-xs font-semibold bg-muted text-muted-foreground" title={`Imported from the ${service} server's own play history`}>{service} history</span>}
+      </>;
+      case 'platform': return row.platform ?? none;
+      case 'product': return row.client ?? none;
+      case 'player': return <>{row.player ?? none}{row.play_method && <div className="text-xs text-muted-foreground">{playMethodLabels[row.play_method]}</div>}</>;
+      case 'date': return formatTimestamp(row.played_at, 'date');
+      case 'ip': return <span className="font-mono">{row.ip_address ?? none}</span>;
+      case 'started': return formatTimestamp(row.played_at, 'time');
+      case 'paused': return row.paused_seconds !== null ? minutes(row.paused_seconds) : none;
+      case 'stopped': return row.stopped_at !== null ? formatTimestamp(row.stopped_at, 'time') : none;
+      case 'duration': return row.watched_seconds !== null ? minutes(row.watched_seconds) : none;
+      case 'author': return row.parent_title ?? none;
+      case 'listened': return row.listened_seconds !== null ? minutes(row.listened_seconds) : none;
+      case 'progress': {
+        if (row.position_ticks === null) return <span className="text-xs text-muted-foreground">{row.source === 'plex' ? 'Watched' : 'Played'}</span>;
+        const percent = Math.min(Math.round(observationProgress(row.position_ticks, row.duration_ticks) ?? 0), 100);
+        return <div className="inline-flex items-center justify-center" title={row.duration_ticks !== null ? `${formatTicks(row.position_ticks)} of ${formatTicks(row.duration_ticks)}` : formatTicks(row.position_ticks)}>
+          <div className="relative size-12">
+            <svg className="size-12 transform -rotate-90">
+              <circle cx="24" cy="24" r="20" stroke="currentColor" strokeWidth="4" fill="none" className="text-muted/30" />
+              <circle cx="24" cy="24" r="20" stroke="currentColor" strokeWidth="4" fill="none" strokeDasharray={`${2 * Math.PI * 20}`} strokeDashoffset={`${2 * Math.PI * 20 * (1 - percent / 100)}`} className="text-primary transition-all" />
+            </svg>
+            <div className="absolute inset-0 flex items-center justify-center"><span className="text-xs font-mono font-semibold">{percent}%</span></div>
+          </div>
+        </div>;
+      }
+    }
+  };
+  const cellClass = (column: HistoryColumn) => column === 'progress' ? 'py-3 px-4 text-center' : column === 'title' ? 'account-history-title py-3 px-4' : column === 'poster' ? 'py-3 px-4' : 'py-3 px-4 text-sm whitespace-nowrap';
+
   return (
     <section className="space-y-4">
       <Card>
-        <CardHeading icon={faClockRotateLeft} title="History" description="What they’ve played, newest first.">
-          <HistorySourcePicker source={source} services={page.sources} onChange={onSourceChange}/>
-        </CardHeading>
-        <CardContent>
-          <div className="overflow-x-auto">
+        {heading}
+        <CardContent className="space-y-4">
+          <div className="flex flex-wrap items-center gap-2" role="toolbar" aria-label="History tools">
+            {admin && <Button variant={deleteMode ? 'destructive' : 'outline'} size="sm" aria-pressed={deleteMode} onClick={toggleDeleteMode}><FontAwesomeIcon icon={faTrashCan} />Delete mode</Button>}
+            {page.categories.map(category => <Button key={category} variant={view.types.includes(category) ? 'secondary' : 'outline'} size="sm" aria-pressed={view.types.includes(category)}
+              onClick={() => onViewChange({ ...view, types: toggleFilter(view.types, category) })}><FontAwesomeIcon icon={categoryButtons[category].icon} />{categoryButtons[category].label}</Button>)}
+            {streams && timelineMethods.map(method => <Button key={method} variant={view.methods.includes(method) ? 'secondary' : 'outline'} size="sm" aria-pressed={view.methods.includes(method)}
+              onClick={() => onViewChange({ ...view, methods: toggleFilter(view.methods, method) })}><FontAwesomeIcon icon={methodButtons[method].icon} />{methodButtons[method].label}</Button>)}
+            {canImport && <Button variant="outline" size="sm" disabled={importing || Boolean(importNote?.running)} onClick={() => void startImport()}><FontAwesomeIcon icon={faFileImport} />Import history</Button>}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild><Button variant="outline" size="sm"><FontAwesomeIcon icon={faTableColumns} />Select columns</Button></DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {historyColumns(shown.service_type).map(column => <DropdownMenuCheckboxItem key={column} checked={columns.includes(column)} disabled={column === 'title'}
+                  onCheckedChange={() => toggleColumn(column)} onSelect={e => e.preventDefault()}>{column === 'title' && shown.service_type === 'audiobookshelf' ? 'Title' : historyColumnLabels[column]}</DropdownMenuCheckboxItem>)}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+          {deleteMode && <p className="text-sm text-muted-foreground" role="status">Select rows to delete. They’re deleted when you leave delete mode{marked.size > 0 ? ` (${marked.size} selected)` : ''}.</p>}
+          {importNote && importNote.server === shown.server_id && <p className="text-sm text-muted-foreground" role="status">{importNote.text}</p>}
+          {page.items.length === 0 && !hasPrevious ? empty(filtered ? 'No plays match these filters.' : 'No history to display yet.') : <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-border">
-                  <th className="w-20 py-3 px-4 text-sm font-medium text-muted-foreground">Poster</th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Media Title</th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Platform</th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground" title="The app they played on">Product</th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground" title="The device's name and how the server sent the stream">Player</th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Date</th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">IP Address</th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground" title="When MUM first saw the play, or the time the server recorded for it">Started</th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Paused</th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground" title="When MUM last saw the play">Stopped</th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground" title="Time watched: from start to stop, less paused time">Duration</th>
-                  <th className="text-center py-3 px-4 text-sm font-medium text-muted-foreground">Progress</th>
+                  {deleteMode && <th className="w-12 py-3 px-4"><span className="sr-only">Delete</span></th>}
+                  {columns.map(column => <th key={column} className={column === 'poster' ? 'w-20 py-3 px-4 text-sm font-medium text-muted-foreground' : column === 'progress' ? 'text-center py-3 px-4 text-sm font-medium text-muted-foreground' : 'text-left py-3 px-4 text-sm font-medium text-muted-foreground'}
+                    title={historyColumnHints[column]}>{column === 'title' && shown.service_type === 'audiobookshelf' ? 'Title' : historyColumnLabels[column]}</th>)}
                 </tr>
               </thead>
               <tbody>
-                {page.items.map(row=>{
-                  const service=row.source==='mum'?null:historyServiceName[row.source];
-                  const noLength=service!==null&&row.position_ticks===null;
-                  const progress=observationProgress(row.position_ticks,row.duration_ticks)??0;
-                  const percent=Math.min(Math.round(progress),100);
-                  // A column MUM didn't record for this play.
-                  const none=<span className="text-muted-foreground" title={service?`Not recorded by ${service}`:'Not recorded'}>—</span>;
-                  return (
-                    <tr key={row.id} className="border-b border-border/50 hover:bg-muted/50 transition-colors">
-                      <td className="py-3 px-4"><HistoryPoster url={row.poster_url} title={row.title}/></td>
-                      <td className="py-3 px-4">
-                        <div className="font-medium">{row.title||(service?'Removed item':'Unknown Title')}</div>
-                        {row.parent_title&&<div className="text-xs text-muted-foreground">{row.parent_title}</div>}
-                        {row.library_name&&<div className="text-xs text-muted-foreground/60"><FontAwesomeIcon icon={faFolder} className="mr-1 h-3 w-3"/>{row.library_name}</div>}
-                        {service&&<span className="mt-1 inline-flex items-center rounded-md px-2.5 py-0.5 text-xs font-semibold bg-muted text-muted-foreground" title={`Imported from the ${service} server's own play history`}>{service} history</span>}
-                      </td>
-                      <td className="py-3 px-4 text-sm">{row.platform??none}</td>
-                      <td className="py-3 px-4 text-sm">{row.client??none}</td>
-                      <td className="py-3 px-4 text-sm">
-                        {row.player??none}
-                        {row.play_method&&<div className="text-xs text-muted-foreground">{playMethodLabels[row.play_method]}</div>}
-                      </td>
-                      <td className="py-3 px-4 text-sm whitespace-nowrap">{formatTimestamp(row.played_at,'date')}</td>
-                      <td className="py-3 px-4 text-sm font-mono">{row.ip_address??none}</td>
-                      <td className="py-3 px-4 text-sm whitespace-nowrap">{formatTimestamp(row.played_at,'time')}</td>
-                      <td className="py-3 px-4 text-sm whitespace-nowrap">{row.paused_seconds!==null?minutes(row.paused_seconds):none}</td>
-                      <td className="py-3 px-4 text-sm whitespace-nowrap">{row.stopped_at!==null?formatTimestamp(row.stopped_at,'time'):none}</td>
-                      <td className="py-3 px-4 text-sm whitespace-nowrap">{row.watched_seconds!==null?minutes(row.watched_seconds):none}</td>
-                      <td className="py-3 px-4 text-center">
-                        {noLength?<span className="text-xs text-muted-foreground">{row.source==='plex'?'Watched':'Played'}</span>:<div className="inline-flex items-center justify-center" title={row.duration_ticks!==null?`${formatTicks(row.position_ticks)} of ${formatTicks(row.duration_ticks)}`:formatTicks(row.position_ticks)}>
-                          <div className="relative size-12">
-                            <svg className="size-12 transform -rotate-90">
-                              <circle cx="24" cy="24" r="20" stroke="currentColor" strokeWidth="4" fill="none" className="text-muted/30"/>
-                              <circle cx="24" cy="24" r="20" stroke="currentColor" strokeWidth="4" fill="none" strokeDasharray={`${2*Math.PI*20}`} strokeDashoffset={`${2*Math.PI*20*(1-percent/100)}`} className="text-primary transition-all"/>
-                            </svg>
-                            <div className="absolute inset-0 flex items-center justify-center"><span className="text-xs font-mono font-semibold">{percent}%</span></div>
-                          </div>
-                        </div>}
-                      </td>
-                    </tr>
-                  );
-                })}
+                {page.items.map(row => (
+                  <tr key={row.id} className="border-b border-border/50 hover:bg-muted/50 transition-colors">
+                    {deleteMode && <td className="py-3 px-4">
+                      <Button variant={marked.has(row.id) ? 'destructive' : 'ghost'} size="icon-sm" disabled={row.in_progress} aria-pressed={marked.has(row.id)}
+                        aria-label={`${marked.has(row.id) ? 'Keep' : 'Delete'} ${row.title || 'this play'}`} title={row.in_progress ? 'Still playing: it can be deleted once it ends' : undefined}
+                        onClick={() => toggleMark(row.id)}><FontAwesomeIcon icon={faTrashCan} /></Button>
+                    </td>}
+                    {columns.map(column => <td key={column} className={cellClass(column)}>{cell(column, row)}</td>)}
+                  </tr>
+                ))}
               </tbody>
             </table>
-          </div>
-          {(hasPrevious||page.next_before)&&<div className="flex items-center justify-between gap-3 pt-4"><Button variant="outline" disabled={!hasPrevious} onClick={previous}>Newer</Button><Button variant="outline" disabled={!page.next_before} onClick={next}>Older</Button></div>}
+          </div>}
+          {(hasPrevious || page.next_before) && <div className="flex items-center justify-between gap-3"><Button variant="outline" disabled={!hasPrevious} onClick={previous}>Newer</Button><Button variant="outline" disabled={!page.next_before} onClick={next}>Older</Button></div>}
         </CardContent>
       </Card>
+      <ConfirmAction open={confirmDelete} onOpenChange={open => { if (!open) finishDelete(); }} title="Delete history" confirmLabel="Delete" destructive busy={deleting} onConfirm={() => void deleteMarked()}>
+        <p>Are you sure you want to delete {marked.size} history item{marked.size === 1 ? '' : 's'}?</p>
+        <p>This is permanent and cannot be undone.</p>
+      </ConfirmAction>
+      <ConfirmAction open={fullImport !== null} onOpenChange={open => { if (!open && !importing) setFullImport(null); }} title="Import the whole server?" confirmLabel="Run full import" busy={importing} onConfirm={() => void runFullImport()}>
+        <p>{fullImport ? serviceLabel(fullImport.service_type) : 'This server'} can’t import a single user’s history.</p>
+        <p>Run a full import of {fullImport?.name} instead? It imports every user’s plays on that server; plays MUM already has are skipped.</p>
+      </ConfirmAction>
     </section>
   );
 };
@@ -732,14 +922,11 @@ export const UserDetailPage = () => {
   const { success, error: showError } = useAlerts();
   const { user, loading, error, refresh: refreshUser } = useUserDetail(effectiveUuid);
   const links=useProfileAccountSnapshot(user?.user_type!=='service'?user?.uuid:undefined,Boolean(user)&&user?.user_type!=='service');
-  const [historySource,setHistorySource]=useState<TimelineSource>('all');
-  const history=useIdentityTimeline(effectiveUuid,historySource,activeTab==='history');
-  // A service chosen on one person's page falls back to Combined on the page
-  // of someone without an account there.
-  const historyPage=history.page;
-  useEffect(()=>{
-    if(historyPage&&historyPage.target_uuid===effectiveUuid&&offeredSource(historySource,historyPage.sources)!==historySource)setHistorySource('all');
-  },[historyPage,effectiveUuid,historySource]);
+  const {isAdministrator}=useAuth();
+  // The History tab's server, records and filters; another person starts afresh.
+  const [historyView,setHistoryView]=useState<HistoryView>(initialHistoryView);
+  useEffect(()=>{setHistoryView(initialHistoryView);},[effectiveUuid]);
+  const history=useIdentityTimeline(effectiveUuid,historyView.server,historyView.records,historyView,activeTab==='history');
   const {
     overseerrLinks,
     loading: overseerrLoading,
@@ -939,7 +1126,7 @@ export const UserDetailPage = () => {
           </TabsContent>
 
           <TabsContent value="history" className="pt-5">
-            <HistoryTab history={history} target={effectiveUuid} source={historySource} onSourceChange={setHistorySource}/>
+            <HistoryTab key={effectiveUuid} history={history} target={effectiveUuid} view={historyView} onViewChange={setHistoryView} admin={isAdministrator}/>
           </TabsContent>
 
           <TabsContent value="linked-accounts" className="pt-5">

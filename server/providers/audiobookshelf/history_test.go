@@ -104,3 +104,27 @@ func TestCoverRefusesOtherTags(t *testing.T) {
 		t.Fatal(kind, err, *requests)
 	}
 }
+
+// One user's sessions: the request names the user, a user ID that isn't a
+// UUID is refused before any request (Audiobookshelf would ignore it and send
+// everyone's), and a reply with another user's session is refused. Sessions
+// carry the time listened.
+func TestAccountPlayHistory(t *testing.T) {
+	const user = "4f8c2b1e-9d3a-4e5f-8a7b-6c5d4e3f2a1b"
+	reply := `{"total":1,"sessions":[{"id":"ses_1","userId":"` + user + `","libraryItemId":"li_book","mediaType":"book","displayTitle":"A Book","startedAt":1762800000000,"timeListening":3600.5,"currentTime":1800,"duration":36000}]}`
+	s, requests := historyServer(t, func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte(reply)) })
+	page, err := s.AccountPlayHistory(t.Context(), user, 0, 10)
+	if err != nil || len(page.Entries) != 1 || page.Entries[0].ListenedSeconds == nil || *page.Entries[0].ListenedSeconds != 3600 {
+		t.Fatal(page, err)
+	}
+	if got := (*requests)[0]; got != "GET /api/sessions?itemsPerPage=10&page=0&sort=startedAt&user="+user+" Bearer abs-key" {
+		t.Fatal(got)
+	}
+	if _, err := s.AccountPlayHistory(t.Context(), "usr_1", 0, 10); !errors.Is(err, ErrPlayHistory) || len(*requests) != 1 {
+		t.Fatal("non-UUID user", err)
+	}
+	reply = sessionsPage
+	if _, err := s.AccountPlayHistory(t.Context(), user, 0, 10); !errors.Is(err, ErrPlayHistory) {
+		t.Fatal("another user's sessions accepted", err)
+	}
+}

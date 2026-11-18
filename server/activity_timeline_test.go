@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -17,15 +19,27 @@ type timelineTestItem struct {
 	PlayedAt    string  `json:"played_at"`
 	Client      *string `json:"client"`
 	Position    *string `json:"position_ticks"`
+	Listened    *string `json:"listened_seconds"`
 	Poster      string  `json:"poster_url"`
 }
 
+type timelineTestServer struct {
+	ID      string `json:"server_id"`
+	Name    string `json:"name"`
+	Type    string `json:"service_type"`
+	Live    bool   `json:"live"`
+	History bool   `json:"history"`
+}
+
 type timelineTestPage struct {
-	Actor  string             `json:"actor_uuid"`
-	Target string             `json:"target_uuid"`
-	Source string             `json:"source"`
-	Items  []timelineTestItem `json:"items"`
-	Next   *string            `json:"next_before"`
+	Actor      string               `json:"actor_uuid"`
+	Target     string               `json:"target_uuid"`
+	Server     *string              `json:"server_id"`
+	Records    string               `json:"records"`
+	Servers    []timelineTestServer `json:"servers"`
+	Categories []string             `json:"categories"`
+	Items      []timelineTestItem   `json:"items"`
+	Next       *string              `json:"next_before"`
 }
 
 func readTimeline(t *testing.T, a *App, token, target string, query url.Values) (int, timelineTestPage) {
@@ -102,10 +116,13 @@ func TestIdentityTimelineMergesMUMAndPlexPlays(t *testing.T) {
 	if mum.Client == nil || *mum.Client != "Plex Web" {
 		t.Fatalf("mum row %+v", mum)
 	}
-	for source, want := range map[string]string{"mum": "mum:MUM three,mum:MUM one", "plex": "plex:Plex four,plex:Plex three,plex:Plex two"} {
-		_, page := readTimeline(t, a, token, local, url.Values{"scope": {"all"}, "source": {source}})
-		if got := timelineTitles(page); got != want || page.Source != source {
-			t.Fatal(source, got)
+	if page.Records != "all" || page.Server == nil || len(page.Servers) != 1 || page.Servers[0].ID != *page.Server || !page.Servers[0].Live || !page.Servers[0].History {
+		t.Fatalf("server %+v", page)
+	}
+	for records, want := range map[string]string{"mum": "mum:MUM three,mum:MUM one", "server": "plex:Plex four,plex:Plex three,plex:Plex two"} {
+		_, page := readTimeline(t, a, token, local, url.Values{"scope": {"all"}, "records": {records}})
+		if got := timelineTitles(page); got != want || page.Records != records {
+			t.Fatal(records, got)
 		}
 	}
 }
@@ -150,7 +167,7 @@ func TestIdentityTimelineAuthority(t *testing.T) {
 	if code, _ := readTimeline(t, a, viewer, other, url.Values{"scope": {"own"}}); code != 403 {
 		t.Fatal("read another person's timeline", code)
 	}
-	for _, bad := range []url.Values{{"source": {"both"}}, {"before": {"yesterday"}}, {"before": {"2026-11-01T04:00:00.000000000Z_x_1"}}, {"before": {"2026-11-01T04:00:00Z_p_1"}}, {"extra": {"1"}}} {
+	for _, bad := range []url.Values{{"records": {"both"}}, {"source": {"plex"}}, {"server": {"abc"}}, {"before": {"yesterday"}}, {"before": {"2026-11-01T04:00:00.000000000Z_x_1"}}, {"before": {"2026-11-01T04:00:00Z_p_1"}}, {"extra": {"1"}}} {
 		bad.Set("scope", "all")
 		if code, _ := readTimeline(t, a, token, local, bad); code != 400 {
 			t.Fatal("bad query accepted", bad, code)
@@ -164,7 +181,7 @@ func TestIdentityTimelinePlexPosters(t *testing.T) {
 	a, s, token, viewer, local := timelineFixture(t)
 	activityExec(t, s, "UPDATE provider_settings SET enabled=1 WHERE provider_id='plex'")
 	activityExec(t, s, "UPDATE history_imports SET poster_item='20',poster_path='/library/metadata/20/thumb/1' WHERE entry_key='/h/4'")
-	_, page := readTimeline(t, a, token, local, url.Values{"scope": {"all"}, "source": {"plex"}})
+	_, page := readTimeline(t, a, token, local, url.Values{"scope": {"all"}, "records": {"server"}})
 	var rowid int64
 	_ = s.reader.QueryRow("SELECT rowid FROM history_imports WHERE entry_key='/h/4'").Scan(&rowid)
 	if len(page.Items) != 3 || !strings.HasPrefix(page.Items[0].Poster, fmt.Sprintf("/api/activity/imported-history-images/%d?", rowid)) || page.Items[1].Poster != "" {
@@ -178,7 +195,7 @@ func TestIdentityTimelinePlexPosters(t *testing.T) {
 	if got := apiRequest(a, "GET", strings.Replace(poster, "imported-history-images", "history-images", 1), "", nil, nil).Code; got != 403 {
 		t.Fatal("a Plex poster link worked as a MUM one", got)
 	}
-	if _, own := readTimeline(t, a, viewer, local, url.Values{"scope": {"own"}, "source": {"plex"}}); own.Items[0].Poster != "" {
+	if _, own := readTimeline(t, a, viewer, local, url.Values{"scope": {"own"}, "records": {"server"}}); own.Items[0].Poster != "" {
 		t.Fatal("a viewer got a poster link", own.Items[0].Poster)
 	}
 	// A link signed for the viewer's own session is refused: posters are for administrators.
@@ -211,63 +228,117 @@ func TestIdentityTimelineServiceSources(t *testing.T) {
 	}
 	at := "2026-11-01T06:00:00.000000000Z"
 	activityExec(t, s, `INSERT INTO history_imports(server_id,entry_key,account_id,viewed_at,media_type,title,poster_item,poster_path,imported_at) VALUES(?,'a1','jellyfin-user',?,'movie','Jelly film','m1','tag1',?)`, servers[0], at, at)
-	activityExec(t, s, `INSERT INTO history_imports(server_id,entry_key,account_id,viewed_at,media_type,title,parent_title,position_seconds,duration_seconds,imported_at) VALUES(?,'ses','audiobookshelf-user','2026-11-01T05:00:00.000000000Z','book','A Book','An Author',90,3600,?)`, servers[1], at)
+	activityExec(t, s, `INSERT INTO history_imports(server_id,entry_key,account_id,viewed_at,media_type,title,parent_title,position_seconds,duration_seconds,listened_seconds,imported_at) VALUES(?,'ses','audiobookshelf-user','2026-11-01T05:00:00.000000000Z','book','A Book','An Author',90,3600,60,?)`, servers[1], at)
 
-	w := apiRequest(a, "GET", "/api/activity/identities/"+local+"/timeline?scope=all", token, nil, nil)
-	var out struct {
-		Data struct {
-			Sources []string `json:"sources"`
-			Items   []struct {
-				Source   string  `json:"source"`
-				ID       string  `json:"id"`
-				Title    string  `json:"title"`
-				Position *string `json:"position_ticks"`
-				Duration *string `json:"duration_ticks"`
-				Poster   string  `json:"poster_url"`
-			} `json:"items"`
-		}
+	// The picker lists every server by name; it opens on the newest play's
+	// server (Jellyfin, at 06:00).
+	code, page := readTimeline(t, a, token, local, url.Values{"scope": {"all"}})
+	if code != 200 {
+		t.Fatal(code)
 	}
-	if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil || w.Code != 200 {
-		t.Fatal(w.Code, err)
+	var names []string
+	for _, server := range page.Servers {
+		names = append(names, fmt.Sprintf("%s:%s:%v", server.Name, server.Type, server.Live))
 	}
-	if got := strings.Join(out.Data.Sources, ","); got != "plex,jellyfin,audiobookshelf" {
-		t.Fatal("sources", got)
+	if got := strings.Join(names, ","); got != "audiobookshelf++:audiobookshelf:false,jellyfin++:jellyfin:true,Plex++:plex:true" {
+		t.Fatal("servers", got)
 	}
-	jelly, book := out.Data.Items[0], out.Data.Items[1]
-	if jelly.Source != "jellyfin" || !strings.HasPrefix(jelly.ID, "jellyfin-") || !strings.HasPrefix(jelly.Poster, "/api/activity/imported-history-images/") {
+	if page.Server == nil || *page.Server != strconv.FormatInt(servers[0], 10) || timelineTitles(page) != "jellyfin:Jelly film" {
+		t.Fatal("default server", page.Server, timelineTitles(page))
+	}
+	jelly := page.Items[0]
+	if !strings.HasPrefix(jelly.ID, "jellyfin-") || !strings.HasPrefix(jelly.Poster, "/api/activity/imported-history-images/") {
 		t.Fatalf("jellyfin row %+v", jelly)
-	}
-	if book.Source != "audiobookshelf" || book.Position == nil || *book.Position != "900000000" || book.Duration == nil || *book.Duration != "36000000000" || book.Poster != "" {
-		t.Fatalf("audiobookshelf row %+v", book)
 	}
 	// The fixture server is offline: the link resolves, the fetch fails upstream.
 	if got := apiRequest(a, "GET", jelly.Poster, "", nil, nil).Code; got != 502 {
 		t.Fatal("jellyfin poster source not resolved", got)
 	}
-	_, page := readTimeline(t, a, token, local, url.Values{"scope": {"all"}, "source": {"jellyfin"}})
-	if got := timelineTitles(page); got != "jellyfin:Jelly film" || page.Source != "jellyfin" {
-		t.Fatal("jellyfin only", got)
+	_, page = readTimeline(t, a, token, local, url.Values{"scope": {"all"}, "server": {strconv.FormatInt(servers[1], 10)}})
+	if len(page.Items) != 1 {
+		t.Fatal("audiobookshelf", timelineTitles(page))
 	}
-	// Paging past a Jellyfin play keeps its place.
+	if book := page.Items[0]; book.Source != "audiobookshelf" || book.Position == nil || *book.Position != "900000000" || book.Poster != "" || book.Listened == nil || *book.Listened != "60" || !slices.Equal(page.Categories, []string{"books"}) {
+		t.Fatalf("audiobookshelf row %+v %v", book, page.Categories)
+	}
+	// A removed account keeps its history, and its server stays in the picker.
+	activityExec(t, s, "UPDATE service_accounts SET removed_at=? WHERE external_user_id='jellyfin-user'", at)
+	if _, page = readTimeline(t, a, token, local, url.Values{"scope": {"all"}}); len(page.Servers) != 3 || timelineTitles(page) != "jellyfin:Jelly film" {
+		t.Fatal("removed account", timelineTitles(page))
+	}
+	// A server the person has no account on.
+	activityExec(t, s, `INSERT INTO media_servers(server_nickname,service_type,url,api_key) VALUES('Other','plex','http://other.test','fixture-secret')`)
+	var other int64
+	_ = s.reader.QueryRow("SELECT id FROM media_servers WHERE server_nickname='Other'").Scan(&other)
+	if code, _ := readTimeline(t, a, token, local, url.Values{"scope": {"all"}, "server": {strconv.FormatInt(other, 10)}}); code != 404 {
+		t.Fatal("another server's history", code)
+	}
+}
+
+// Filters: by category and by stream method, with the categories the person
+// has on the selected server and records. A stream filter shows only MUM's
+// plays; a server without history has an empty timeline.
+func TestIdentityTimelineServerAndFilters(t *testing.T) {
+	a, s, token, _, local := timelineFixture(t)
+	activityExec(t, s, `UPDATE media_activity_history SET play_method='direct_play' WHERE title='MUM three'`)
+	query := func(extra url.Values) timelineTestPage {
+		t.Helper()
+		extra.Set("scope", "all")
+		code, page := readTimeline(t, a, token, local, extra)
+		if code != 200 {
+			t.Fatal(extra, code)
+		}
+		return page
+	}
+	if page := query(url.Values{}); !slices.Equal(page.Categories, []string{"movies", "tv"}) {
+		t.Fatal("categories", page.Categories)
+	}
+	if got := timelineTitles(query(url.Values{"types": {"tv"}})); got != "plex:Plex four,plex:Plex three,plex:Plex two" {
+		t.Fatal("tv", got)
+	}
+	if got := timelineTitles(query(url.Values{"types": {"movies,tv"}})); got != "plex:Plex four,plex:Plex three,mum:MUM three,plex:Plex two,mum:MUM one" {
+		t.Fatal("movies and tv", got)
+	}
+	if got := timelineTitles(query(url.Values{"methods": {"direct_play"}})); got != "mum:MUM three" {
+		t.Fatal("direct play", got)
+	}
+	if page := query(url.Values{"records": {"server"}}); !slices.Equal(page.Categories, []string{"tv"}) {
+		t.Fatal("server categories", page.Categories)
+	}
+	// Paging with a filter neither skips nor repeats.
 	timelinePageSize = 1
 	t.Cleanup(func() { timelinePageSize = 100 })
-	_, first := readTimeline(t, a, token, local, url.Values{"scope": {"all"}})
-	if first.Next == nil {
-		t.Fatal("no next page")
+	var seen []string
+	params := url.Values{"types": {"tv"}}
+	for range 5 {
+		page := query(params)
+		seen = append(seen, timelineTitles(page))
+		if page.Next == nil {
+			break
+		}
+		params.Set("before", *page.Next)
 	}
-	_, second := readTimeline(t, a, token, local, url.Values{"scope": {"all"}, "before": {*first.Next}})
-	if timelineTitles(first)+"|"+timelineTitles(second) != "jellyfin:Jelly film|audiobookshelf:A Book" {
-		t.Fatal("paging", timelineTitles(first), timelineTitles(second))
+	if got := strings.Join(seen, ","); got != "plex:Plex four,plex:Plex three,plex:Plex two" {
+		t.Fatal("filtered paging", got)
 	}
-	// A removed account keeps its history, and its service stays in the picker.
-	activityExec(t, s, "UPDATE service_accounts SET removed_at=? WHERE external_user_id='jellyfin-user'", at)
 	timelinePageSize = 100
-	w = apiRequest(a, "GET", "/api/activity/identities/"+local+"/timeline?scope=all", token, nil, nil)
-	if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil || strings.Join(out.Data.Sources, ",") != "plex,jellyfin,audiobookshelf" || out.Data.Items[0].Source != "jellyfin" {
-		t.Fatal("removed account", err, out.Data.Sources)
+	// A Kavita account: listed without history, and its timeline is empty.
+	owner, _ := s.Authenticate(t.Context(), token)
+	activityExec(t, s, `INSERT INTO media_servers(server_nickname,service_type,url,api_key) VALUES('Books','kavita','http://kavita.test','fixture-secret')`)
+	var kavita int64
+	_ = s.reader.QueryRow("SELECT id FROM media_servers WHERE server_nickname='Books'").Scan(&kavita)
+	if err := s.LinkServiceAccounts(t.Context(), owner.UUID, local, []string{seedExternalService(t, s, kavita, "7")}); err != nil {
+		t.Fatal(err)
 	}
-	if code, _ := readTimeline(t, a, token, local, url.Values{"scope": {"all"}, "source": {"kavita"}}); code != 400 {
-		t.Fatal("unknown source accepted", code)
+	page := query(url.Values{"server": {strconv.FormatInt(kavita, 10)}})
+	if len(page.Items) != 0 || len(page.Categories) != 0 || page.Servers[0].Name != "Books" || page.Servers[0].History || page.Servers[0].Live {
+		t.Fatalf("kavita %+v", page)
+	}
+	for _, bad := range []string{"types=movies,movies", "types=games", "types=", "methods=copy", "records=both", "server=0"} {
+		w := apiRequest(a, "GET", "/api/activity/identities/"+local+"/timeline?scope=all&"+bad, token, nil, nil)
+		if w.Code != 400 {
+			t.Fatal("accepted", bad, w.Code)
+		}
 	}
 }
 

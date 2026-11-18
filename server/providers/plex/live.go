@@ -2,6 +2,7 @@ package plex
 
 import (
 	"encoding/json"
+	"math"
 	"net/http"
 	"time"
 
@@ -44,4 +45,51 @@ func (s *Server) LiveEvent(frame []byte) (hint string, reply []byte, err error) 
 		return notification.Type, nil, nil
 	}
 	return "", nil, nil
+}
+
+// LivePlayback reads the playback states in a "playing" notification: the
+// session key, item, state and position of each PlaySessionStateNotification.
+// Nothing else in the frame is kept. Other notification types carry none. A
+// state outside PlaybackStates, a missing key or a bad position refuses the
+// whole frame.
+func (s *Server) LivePlayback(frame []byte) ([]provider.PlaybackEvent, error) {
+	fields, err := provider.DecodeObject(frame, provider.MaxLiveFrameBytes)
+	if err != nil {
+		return nil, err
+	}
+	var notification struct {
+		Type   string `json:"type"`
+		States []struct {
+			Session  string `json:"sessionKey"`
+			Item     string `json:"ratingKey"`
+			State    string `json:"state"`
+			Position *int64 `json:"viewOffset"`
+		} `json:"PlaySessionStateNotification"`
+	}
+	raw, ok := fields["NotificationContainer"]
+	if !ok || json.Unmarshal(raw, &notification) != nil {
+		return nil, provider.ErrActivitySnapshot
+	}
+	if notification.Type != "playing" {
+		return nil, nil
+	}
+	if len(notification.States) > 1000 {
+		return nil, provider.ErrActivitySnapshot
+	}
+	events := make([]provider.PlaybackEvent, 0, len(notification.States))
+	for _, state := range notification.States {
+		if !provider.ValidText(state.Session, 256) || !NumericID(state.Item) || !provider.PlaybackStates[state.State] {
+			return nil, provider.ErrActivitySnapshot
+		}
+		event := provider.PlaybackEvent{Session: state.Session, Item: state.Item, State: state.State}
+		if state.Position != nil {
+			if *state.Position < 0 || *state.Position > math.MaxInt64/10000 {
+				return nil, provider.ErrActivitySnapshot
+			}
+			ticks := *state.Position * 10000
+			event.Position = &ticks
+		}
+		events = append(events, event)
+	}
+	return events, nil
 }

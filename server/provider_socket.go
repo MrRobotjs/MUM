@@ -48,6 +48,7 @@ func (w *providerSocketWorker) status(state, code string) {
 
 func (a *App) runProviderSocket(ctx context.Context, w *providerSocketWorker, server ManagedServer) {
 	defer close(w.done)
+	defer a.playback.forget(server.ID)
 	// The service's module describes its socket and reads its frames; this
 	// loop owns dialing, retries, the queue and status.
 	var live liveConnector
@@ -113,9 +114,20 @@ func (a *App) runProviderSocket(ctx context.Context, w *providerSocketWorker, se
 					err = errActivitySnapshot
 					break
 				}
+				received := time.Now().UTC()
 				hint, reply, eventErr := live.LiveEvent(data)
 				if err = eventErr; err != nil {
 					break
+				}
+				// Playback state changes keep their arrival time for the next
+				// read. A frame whose states can't be read only loses that
+				// precision: the read falls back to its own estimates.
+				if reader, ok := live.(playbackEventReader); ok && hint != "" {
+					if events, playbackErr := reader.LivePlayback(data); playbackErr == nil {
+						a.playback.record(server.ID, events, received)
+					} else {
+						a.logger.Debug("Provider socket playback states unreadable", "server_id", server.ID, "provider", server.Type)
+					}
 				}
 				if len(reply) > 0 {
 					write, stop := context.WithTimeout(ctx, 2*time.Second)

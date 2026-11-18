@@ -25,7 +25,9 @@ type attemptWindow struct {
 	count int
 }
 type App struct {
-	locationCache   provider.LocationCache
+	locationCache provider.LocationCache
+	// playback holds socket playback events until the next activity read.
+	playback        playbackEvents
 	logger          *slog.Logger
 	scheduler       *syncScheduler
 	providerSockets *providerSocketRuntime
@@ -171,6 +173,9 @@ func NewApp(store *Store, queue *LogQueue, assets fs.FS) (*App, error) {
 	handle("GET /api/activity/identities/{identity}/current", a.activityRead)
 	handle("GET /api/activity/identities/{identity}/history", a.activityRead)
 	handle("GET /api/activity/identities/{identity}/timeline", a.identityTimeline)
+	handle("POST /api/activity/identities/{identity}/timeline/delete", a.deleteTimelinePlays)
+	handle("GET /api/activity/identities/{identity}/history-import", a.personHistoryImportStatus)
+	handle("POST /api/activity/identities/{identity}/history-import", a.startPersonHistoryImport)
 	handle("GET /api/activity/identities/{identity}/plays", a.identityPlayTotals)
 	handle("GET /api/activity/identities/{identity}/summary", a.activitySummary)
 	handle("GET /api/settings/activity-monitoring", a.activityMonitorSettings)

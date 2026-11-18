@@ -5,6 +5,7 @@ import (
 	"encoding/xml"
 	"errors"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -30,12 +31,37 @@ const maxHistoryBytes = 8 << 20
 // entries Plex adds while an import runs land after the pages already read.
 // It only reads.
 func (s *Server) PlayHistory(ctx context.Context, start, size int) (provider.HistoryPage, error) {
+	return s.readHistory(ctx, s.url+"/status/sessions/history/all?sort=viewedAt:asc", start, size)
+}
+
+// AccountPlayHistory reads one page of one account's play history, as
+// PlayHistory does. The account is the server's account ID (the owner is 1);
+// anything else is refused before any request, and so is a page holding
+// another account's play.
+func (s *Server) AccountPlayHistory(ctx context.Context, account string, start, size int) (provider.HistoryPage, error) {
+	if !NumericID(account) {
+		return provider.HistoryPage{}, ErrPlayHistory
+	}
+	query := url.Values{"accountID": {account}, "sort": {"viewedAt:asc"}}
+	page, err := s.readHistory(ctx, s.url+"/status/sessions/history/all?"+query.Encode(), start, size)
+	if err != nil {
+		return page, err
+	}
+	for _, entry := range page.Entries {
+		if entry.AccountID != account {
+			return provider.HistoryPage{}, ErrPlayHistory
+		}
+	}
+	return page, nil
+}
+
+func (s *Server) readHistory(ctx context.Context, target string, start, size int) (provider.HistoryPage, error) {
 	if start < 0 || size < 1 || size > 1000 {
 		return provider.HistoryPage{}, ErrPlayHistory
 	}
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, s.url+"/status/sessions/history/all?sort=viewedAt:asc", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
 	if err != nil {
 		return provider.HistoryPage{}, ErrPlayHistory
 	}

@@ -76,13 +76,16 @@ func (a *App) playHistoryStatus(w http.ResponseWriter, r *http.Request) {
 	}
 	out := map[string]any{"server_id": id, "state": "never", "started_at": nil, "finished_at": nil, "total": 0, "read": 0, "added": 0,
 		"already_stored": 0, "already_recorded": 0, "unknown_accounts": 0, "error_code": nil, "stored_plays": 0, "oldest_play": nil, "newest_play": nil}
+	out["scope"] = nil
 	var state, started string
 	var finished, code sql.NullString
+	var account bool
 	var total, read, added, stored, recorded, unknown int
-	err = tx.QueryRowContext(r.Context(), "SELECT state,started_at,finished_at,total,read_count,added,already_stored,already_recorded,unknown_accounts,error_code FROM history_import_runs WHERE server_id=?", id).
-		Scan(&state, &started, &finished, &total, &read, &added, &stored, &recorded, &unknown, &code)
+	err = tx.QueryRowContext(r.Context(), "SELECT state,started_at,finished_at,total,read_count,added,already_stored,already_recorded,unknown_accounts,error_code,account_id IS NOT NULL FROM history_import_runs WHERE server_id=?", id).
+		Scan(&state, &started, &finished, &total, &read, &added, &stored, &recorded, &unknown, &code, &account)
 	if err == nil {
 		out["state"], out["started_at"], out["finished_at"], out["error_code"] = state, started, nullableString(finished), nullableString(code)
+		out["scope"] = map[bool]string{true: "account", false: "server"}[account]
 		out["total"], out["read"], out["added"], out["already_stored"], out["already_recorded"], out["unknown_accounts"] = total, read, added, stored, recorded, unknown
 	} else if !errors.Is(err, sql.ErrNoRows) {
 		domainError(w, err)
@@ -162,7 +165,7 @@ func (a *App) startPlayHistoryImport(w http.ResponseWriter, r *http.Request) {
 			return errHistoryRunning
 		}
 		if _, err := tx.ExecContext(r.Context(), `INSERT INTO history_import_runs(server_id,state,started_at) VALUES(?,'running',?)
-		 ON CONFLICT(server_id) DO UPDATE SET state='running',started_at=excluded.started_at,finished_at=NULL,total=0,read_count=0,added=0,already_stored=0,already_recorded=0,unknown_accounts=0,error_code=NULL`, id, now); err != nil {
+		 ON CONFLICT(server_id) DO UPDATE SET state='running',started_at=excluded.started_at,finished_at=NULL,total=0,read_count=0,added=0,already_stored=0,already_recorded=0,unknown_accounts=0,error_code=NULL,account_id=NULL`, id, now); err != nil {
 			return err
 		}
 		return auditAction(r.Context(), tx, actor.UUID, "server.play_history_import")
@@ -185,11 +188,18 @@ func (a *App) startPlayHistoryImport(w http.ResponseWriter, r *http.Request) {
 
 var errHistoryRunning = errors.New("history import running")
 
-// runHistoryImport reads the history page by page until it has read every
-// record, the server fails, or MUM shuts down, and records how the run ended.
+// runHistoryImport imports the server's whole history and records how the
+// run ended.
 func (a *App) runHistoryImport(ctx context.Context, server int64, kind string, reader playHistoryReader) {
+	state, code := a.importHistoryPages(ctx, server, kind, reader.PlayHistory)
+	a.finishHistoryImport(ctx, server, state, code)
+}
+
+// importHistoryPages reads a history page by page until it has read every
+// record, the server fails, or MUM shuts down, and says how it ended.
+func (a *App) importHistoryPages(ctx context.Context, server int64, kind string, read func(ctx context.Context, start, size int) (provider.HistoryPage, error)) (state, code string) {
 	size := historyPageSize
-	state, code := "completed", ""
+	state, code = "completed", ""
 	for start := 0; ; {
 		if ctx.Err() != nil {
 			state, code = "stopped", "shutdown"
@@ -199,7 +209,7 @@ func (a *App) runHistoryImport(ctx context.Context, server int64, kind string, r
 			code = "limit_reached"
 			break
 		}
-		page, err := reader.PlayHistory(ctx, start, size)
+		page, err := read(ctx, start, size)
 		if err != nil {
 			state, code = "failed", "server_read_failed"
 			if ctx.Err() != nil {
@@ -223,6 +233,11 @@ func (a *App) runHistoryImport(ctx context.Context, server int64, kind string, r
 			break
 		}
 	}
+	return state, code
+}
+
+// finishHistoryImport records how a run ended.
+func (a *App) finishHistoryImport(ctx context.Context, server int64, state, code string) {
 	record, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 	defer cancel()
 	if err := a.store.write(record, func(tx *sql.Tx) error {
@@ -260,6 +275,12 @@ func (a *App) storeHistoryPage(ctx context.Context, server int64, kind string, p
 			}
 			if exists {
 				stored++
+				if entry.ListenedSeconds != nil {
+					if _, err := tx.ExecContext(ctx, "UPDATE history_imports SET listened_seconds=? WHERE server_id=? AND entry_key=? AND listened_seconds IS NULL",
+						nonNegativeSeconds(entry.ListenedSeconds), server, entry.Key); err != nil {
+						return err
+					}
+				}
 				if posterPath != "" {
 					if _, err := tx.ExecContext(ctx, "UPDATE history_imports SET poster_item=?,poster_path=? WHERE server_id=? AND entry_key=? AND poster_path IS NULL",
 						posterItem, posterPath, server, entry.Key); err != nil {
@@ -284,10 +305,10 @@ func (a *App) storeHistoryPage(ctx context.Context, server int64, kind string, p
 					continue
 				}
 			}
-			if _, err := tx.ExecContext(ctx, `INSERT INTO history_imports(server_id,entry_key,account_id,viewed_at,media_type,item_id,library_id,title,parent_title,grandparent_title,poster_item,poster_path,position_seconds,duration_seconds,imported_at)
-			 VALUES(?,?,?,?,nullif(?,''),nullif(?,''),nullif(?,''),nullif(?,''),nullif(?,''),nullif(?,''),nullif(?,''),nullif(?,''),?,?,?)`,
+			if _, err := tx.ExecContext(ctx, `INSERT INTO history_imports(server_id,entry_key,account_id,viewed_at,media_type,item_id,library_id,title,parent_title,grandparent_title,poster_item,poster_path,position_seconds,duration_seconds,listened_seconds,imported_at)
+			 VALUES(?,?,?,?,nullif(?,''),nullif(?,''),nullif(?,''),nullif(?,''),nullif(?,''),nullif(?,''),nullif(?,''),nullif(?,''),?,?,?,?)`,
 				server, entry.Key, account, viewed, entry.Type, entry.ItemID, entry.Section, entry.Title, entry.ParentTitle, entry.GrandparentTitle, posterItem, posterPath,
-				nonNegativeSeconds(entry.PositionSeconds), nonNegativeSeconds(entry.DurationSeconds), now); err != nil {
+				nonNegativeSeconds(entry.PositionSeconds), nonNegativeSeconds(entry.DurationSeconds), nonNegativeSeconds(entry.ListenedSeconds), now); err != nil {
 				return err
 			}
 			added++

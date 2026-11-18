@@ -172,6 +172,11 @@ type (
 		// instead of recording a hint.
 		LiveEvent(frame []byte) (hint string, reply []byte, err error)
 	}
+	// playbackEventReader reads the playback state changes in a live frame
+	// (Plex), for exact pause, resume and stop times.
+	playbackEventReader interface {
+		LivePlayback(frame []byte) ([]provider.PlaybackEvent, error)
+	}
 	activityReader interface {
 		ActivitySnapshot(ctx context.Context) (provider.ActivitySnapshot, error)
 	}

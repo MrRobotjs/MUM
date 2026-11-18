@@ -114,3 +114,28 @@ func TestParsePlayHistoryChoosesPosters(t *testing.T) {
 		}
 	}
 }
+
+// One account's history: the request names it, an account that isn't a Plex
+// ID is refused before any request, and a reply with another account's play
+// is refused.
+func TestAccountPlayHistory(t *testing.T) {
+	var requests []string
+	reply := historyPage
+	client := &http.Client{Transport: historyRoundTrip(func(r *http.Request) (*http.Response, error) {
+		requests = append(requests, r.Method+" "+r.URL.RequestURI())
+		return &http.Response{StatusCode: 200, Header: http.Header{"Content-Type": {"application/xml"}}, Body: io.NopCloser(strings.NewReader(reply)), Request: r}, nil
+	})}
+	s := New(provider.Config{URL: "http://plex.test/", APIKey: "fixture-secret", Transport: provider.Transport{Client: client}})
+	reply = `<MediaContainer size="1" totalSize="1" offset="0"><Video historyKey="/a" viewedAt="1345678901" accountID="1"/></MediaContainer>`
+	page, err := s.AccountPlayHistory(t.Context(), "1", 0, 10)
+	if err != nil || len(page.Entries) != 1 || len(requests) != 1 || requests[0] != "GET /status/sessions/history/all?accountID=1&sort=viewedAt%3Aasc" {
+		t.Fatal(page, err, requests)
+	}
+	if _, err := s.AccountPlayHistory(t.Context(), "1 OR 2", 0, 10); !errors.Is(err, ErrPlayHistory) || len(requests) != 1 {
+		t.Fatal("bad account", err, requests)
+	}
+	reply = historyPage
+	if _, err := s.AccountPlayHistory(t.Context(), "1", 0, 10); !errors.Is(err, ErrPlayHistory) {
+		t.Fatal("another account's plays accepted", err)
+	}
+}

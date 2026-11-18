@@ -1,15 +1,19 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	"app/server/providers/provider"
 )
 
 // fakePlexHistory serves /status/sessions/history/all from entries, a page at
@@ -18,6 +22,7 @@ type fakePlexHistory struct {
 	mu      sync.Mutex
 	entries []string // one XML element each
 	methods []string
+	queries []string // the raw query of every request
 	failAt  int // start offset that answers 503; -1 never
 	block   chan struct{}
 	onPage  func(f *fakePlexHistory, start int) // called after a page is served, with f.mu held
@@ -27,7 +32,12 @@ func (f *fakePlexHistory) client(t *testing.T) *http.Client {
 	return &http.Client{Transport: providerTransport(func(r *http.Request) (*http.Response, error) {
 		f.mu.Lock()
 		f.methods = append(f.methods, r.Method+" "+r.URL.Path)
+		f.queries = append(f.queries, r.URL.RawQuery)
 		entries, failAt, block := append([]string{}, f.entries...), f.failAt, f.block
+		// Plex answers one account's history when asked.
+		if account := r.URL.Query().Get("accountID"); account != "" {
+			entries = slices.DeleteFunc(entries, func(e string) bool { return !strings.Contains(e, `accountID="`+account+`"`) })
+		}
 		f.mu.Unlock()
 		if block != nil {
 			select {
@@ -442,5 +452,37 @@ func TestPlayHistoryContinuesPastPagesWithoutPlays(t *testing.T) {
 	}
 	if status := waitPlexHistory(t, a, token, server); status.State != "completed" || status.Read != 3 || status.Added != 1 {
 		t.Fatalf("import %+v", status)
+	}
+}
+
+// Audiobookshelf's listening time is stored with the play, and a stored play
+// gains it on a later import when it has none; a stored value never changes.
+func TestPlayHistoryStoresListeningTime(t *testing.T) {
+	a, s := testApp(t)
+	activityExec(t, s, `INSERT INTO media_servers(server_nickname,service_type,url,api_key) VALUES('Books','audiobookshelf','http://abs.test','fixture-secret')`)
+	var server int64
+	_ = s.reader.QueryRow("SELECT id FROM media_servers WHERE server_nickname='Books'").Scan(&server)
+	seconds := func(v int64) *int64 { return &v }
+	viewed := time.Date(2026, 11, 1, 5, 0, 0, 0, time.UTC)
+	store := func(key string, listened *int64) {
+		t.Helper()
+		page := provider.HistoryPage{Entries: []provider.HistoryEntry{{Key: key, AccountID: "u", ViewedAt: viewed, Type: "book", ListenedSeconds: listened}}, Read: 1, Total: 1}
+		if err := a.storeHistoryPage(t.Context(), server, "audiobookshelf", page); err != nil {
+			t.Fatal(err)
+		}
+	}
+	listened := func(key string) (v sql.NullInt64) {
+		_ = s.reader.QueryRow("SELECT listened_seconds FROM history_imports WHERE entry_key=?", key).Scan(&v)
+		return v
+	}
+	store("a", seconds(120))
+	store("b", nil)
+	if listened("a").Int64 != 120 || listened("b").Valid {
+		t.Fatal("first import", listened("a"), listened("b"))
+	}
+	store("a", seconds(999))
+	store("b", seconds(60))
+	if listened("a").Int64 != 120 || listened("b").Int64 != 60 {
+		t.Fatal("re-import", listened("a"), listened("b"))
 	}
 }

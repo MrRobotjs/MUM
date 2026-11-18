@@ -83,7 +83,10 @@ func TestPlexSocketTriggersCompleteSnapshotsWithoutLeakingFrames(t *testing.T) {
 		t.Fatal("no Plex connection")
 	}
 	playing.Store(false)
-	if err := wsjson.Write(t.Context(), c, map[string]any{"NotificationContainer": map[string]any{"type": "playing", "PlaySessionStateNotification": []any{map[string]string{"state": "stopped", "secret": "never persist"}}}}); err != nil {
+	// The stop notification's arrival time becomes the play's stop time,
+	// not the previous read.
+	stopSent := time.Now().UTC()
+	if err := wsjson.Write(t.Context(), c, map[string]any{"NotificationContainer": map[string]any{"type": "playing", "PlaySessionStateNotification": []any{map[string]string{"sessionKey": "10", "ratingKey": "123", "state": "stopped", "secret": "never persist"}}}}); err != nil {
 		t.Fatal(err)
 	}
 	waitProviderSocket(t, func() bool {
@@ -91,6 +94,13 @@ func TestPlexSocketTriggersCompleteSnapshotsWithoutLeakingFrames(t *testing.T) {
 		s.reader.QueryRow("SELECT count(*) FROM media_activity_current WHERE server_id=?", server).Scan(&count)
 		return count == 0 && reads.Load() >= 2
 	})
+	var stopped string
+	if err := s.reader.QueryRow("SELECT last_seen_at FROM media_activity_history WHERE server_id=?", server).Scan(&stopped); err != nil {
+		t.Fatal(err)
+	}
+	if at, err := time.Parse(time.RFC3339Nano, stopped); err != nil || at.Before(stopSent) || at.After(time.Now()) {
+		t.Fatalf("stop time %s, sent at %s", stopped, utcTimestamp(stopSent))
+	}
 	a.StopScheduler()
 	if err := a.WaitScheduler(t.Context()); err != nil {
 		t.Fatal(err)

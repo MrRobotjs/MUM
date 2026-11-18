@@ -91,6 +91,8 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* The History table's title column keeps a readable width; the table scrolls sideways instead. */
+.account-history-title { min-width: 12rem; }
 .account-info {
   display: inline-flex;
   width: 1.5rem;

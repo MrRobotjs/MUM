@@ -62,7 +62,24 @@ type ActivitySnapshot struct {
 	Provider   string
 	ObservedAt time.Time
 	Sessions   []ActivitySession
+	// Events are the playback state changes the server announced on its
+	// notification socket, oldest first, each with the time MUM received it.
+	// The core attaches them; modules leave them empty.
+	Events []PlaybackEvent
 }
+
+// PlaybackEvent is one playback state change a server announced: the
+// session, its item, the new state ("playing", "paused", "buffering" or
+// "stopped") and, when sent, the position in 100 ns ticks. At is when MUM
+// received it, set by the core.
+type PlaybackEvent struct {
+	Session, Item, State string
+	Position             *int64
+	At                   time.Time
+}
+
+// PlaybackStates are the states a PlaybackEvent may carry.
+var PlaybackStates = map[string]bool{"playing": true, "paused": true, "buffering": true, "stopped": true}
 
 // ActivityDisplay is current, administrator-only presentation data. It never
 // holds raw unfiltered payloads or tokens. Allowlisted technical diagnostics

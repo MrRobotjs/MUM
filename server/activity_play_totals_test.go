@@ -198,7 +198,8 @@ func TestActivityHistoryCountsPausedTime(t *testing.T) {
 		}
 	}
 	back := func(seconds int) {
-		activityExec(t, s, `UPDATE media_activity_history SET last_seen_at=strftime('%Y-%m-%dT%H:%M:%f000000Z',julianday(last_seen_at)-?/86400.0)`, seconds)
+		activityExec(t, s, `UPDATE media_activity_history SET last_seen_at=strftime('%Y-%m-%dT%H:%M:%f000000Z',julianday(last_seen_at)-?/86400.0),
+			paused_since=CASE WHEN paused_since IS NOT NULL THEN strftime('%Y-%m-%dT%H:%M:%f000000Z',julianday(paused_since)-?/86400.0) END`, seconds, seconds)
 	}
 	paused := func() int64 {
 		var v int64

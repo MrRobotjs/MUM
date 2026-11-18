@@ -163,7 +163,7 @@ func (a *App) runOneActivityMonitor(parent context.Context) error {
 			if err == nil {
 				observed = len(snapshot.Sessions)
 				stage = "persist_snapshot"
-				applied, err = a.store.applyActivitySnapshot(ctx, *c, snapshot)
+				applied, err = a.saveActivity(ctx, *c, snapshot)
 				if err == nil {
 					// Its own budget: the poll's may be nearly spent.
 					policy, cancel := context.WithTimeout(parent, 30*time.Second)

@@ -6,6 +6,7 @@ import (
 	"math"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -37,6 +38,33 @@ func ValidItemID(id string) bool {
 // Each session is one play with how long and how far. It only reads, and
 // needs an administrator's API key.
 func (s *Server) PlayHistory(ctx context.Context, start, size int) (provider.HistoryPage, error) {
+	return s.readHistory(ctx, "", start, size)
+}
+
+// userIDPattern is the user ID form Audiobookshelf's sessions list accepts as
+// a filter; it ignores anything else and lists every user.
+var userIDPattern = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
+
+// AccountPlayHistory reads one page of one user's listening sessions, as
+// PlayHistory does. A user ID Audiobookshelf wouldn't filter by is refused
+// before any request, and so is a page holding another user's session.
+func (s *Server) AccountPlayHistory(ctx context.Context, account string, start, size int) (provider.HistoryPage, error) {
+	if !userIDPattern.MatchString(account) {
+		return provider.HistoryPage{}, ErrPlayHistory
+	}
+	page, err := s.readHistory(ctx, account, start, size)
+	if err != nil {
+		return page, err
+	}
+	for _, entry := range page.Entries {
+		if entry.AccountID != account {
+			return provider.HistoryPage{}, ErrPlayHistory
+		}
+	}
+	return page, nil
+}
+
+func (s *Server) readHistory(ctx context.Context, user string, start, size int) (provider.HistoryPage, error) {
 	if start < 0 || size < 1 || size > 1000 || start%size != 0 {
 		return provider.HistoryPage{}, ErrPlayHistory
 	}
@@ -54,10 +82,14 @@ func (s *Server) PlayHistory(ctx context.Context, start, size int) (provider.His
 			DisplayAuthor string   `json:"displayAuthor"`
 			StartedAt     *int64   `json:"startedAt"`
 			CurrentTime   *float64 `json:"currentTime"`
+			TimeListening *float64 `json:"timeListening"`
 			Duration      *float64 `json:"duration"`
 		} `json:"sessions"`
 	}
 	query := url.Values{"itemsPerPage": {strconv.Itoa(size)}, "page": {strconv.Itoa(start / size)}, "sort": {"startedAt"}}
+	if user != "" {
+		query.Set("user", user)
+	}
 	if err := s.api(ctx, http.MethodGet, "/sessions?"+query.Encode(), nil, &reply); err != nil {
 		if strings.Contains(err.Error(), "invalid JSON") {
 			return provider.HistoryPage{}, ErrPlayHistory
@@ -91,7 +123,7 @@ func (s *Server) PlayHistory(ctx context.Context, start, size int) (provider.His
 			Key: row.ID, AccountID: row.UserID, ViewedAt: time.UnixMilli(*row.StartedAt).UTC(),
 			Type: optional(row.MediaType, 32), ItemID: optional(row.LibraryItemID, 256), Section: optional(row.LibraryID, 64),
 			Title: optional(row.DisplayTitle, 1024), ParentTitle: optional(row.DisplayAuthor, 1024),
-			PositionSeconds: seconds(row.CurrentTime), DurationSeconds: seconds(row.Duration),
+			PositionSeconds: seconds(row.CurrentTime), DurationSeconds: seconds(row.Duration), ListenedSeconds: seconds(row.TimeListening),
 		}
 		if ValidItemID(row.LibraryItemID) {
 			entry.PosterItem, entry.PosterPath = row.LibraryItemID, "cover"

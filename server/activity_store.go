@@ -2,6 +2,7 @@ package main
 
 import (
 	"app/server/providers/plex"
+	"app/server/providers/provider"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -22,10 +23,12 @@ type resolvedActivity struct {
 	Owner   *string
 }
 type activeActivity struct {
-	History    int64
-	Service    string
-	Owner      *string
-	Item, Kind string
+	History     int64
+	Service     string
+	Owner       *string
+	Item, Kind  string
+	LastSeen    time.Time
+	PausedSince *time.Time // a running pause, from paused_since (or paused)
 }
 type activityApplyResult struct {
 	Started, Updated, Ended int
@@ -79,9 +82,23 @@ func sameActivityOwner(a, b *string) bool {
 	}
 	return *a == *b
 }
-func endActivity(ctx context.Context, tx *sql.Tx, server int64, id string, current activeActivity, observed, reason string) error {
-	if _, err := tx.ExecContext(ctx, `UPDATE media_activity_history SET ended_at=?,end_reason=? WHERE id=? AND ended_at IS NULL`, observed, reason, current.History); err != nil {
+func endActivity(ctx context.Context, tx *sql.Tx, server int64, id string, current activeActivity, observed, reason string, events []provider.PlaybackEvent, until time.Time) error {
+	if _, err := tx.ExecContext(ctx, `UPDATE media_activity_history SET ended_at=?,end_reason=?,paused_since=NULL WHERE id=? AND ended_at IS NULL`, observed, reason, current.History); err != nil {
 		return err
+	}
+	// A play that stopped (rather than changing owner) takes its stop time,
+	// final position and last pause from its notifications. A stop within
+	// 10 seconds of the end counts as the full length, as in Tautulli.
+	if reason == "not_observed" || reason == "item_changed" {
+		out := playbackStretch{From: current.LastSeen, Until: until, PausedSince: current.PausedSince, Events: stretchEvents(events, id, current.Item, current.LastSeen, until)}.outcome()
+		if _, err := tx.ExecContext(ctx, `UPDATE media_activity_history SET last_seen_at=?,paused_seconds=CASE WHEN paused_seconds IS NULL THEN NULL ELSE paused_seconds+? END,
+		 position_ticks=CASE WHEN ? IS NULL THEN position_ticks WHEN duration_ticks IS NOT NULL AND ?>duration_ticks THEN duration_ticks ELSE ? END WHERE id=?`,
+			utcTimestamp(out.LastSeen), wholeSeconds(out.PausedFor), out.Position, out.Position, out.Position, current.History); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `UPDATE media_activity_history SET position_ticks=duration_ticks WHERE id=? AND duration_ticks IS NOT NULL AND position_ticks IS NOT NULL AND duration_ticks-position_ticks<=100000000`, current.History); err != nil {
+			return err
+		}
 	}
 	_, err := tx.ExecContext(ctx, `DELETE FROM media_activity_current WHERE server_id=? AND external_session_id=?`, server, id)
 	return err
@@ -163,16 +180,27 @@ func commitActivitySnapshot(ctx context.Context, tx *sql.Tx, c activityReadClaim
 		}
 		resolved = append(resolved, row)
 	}
-	rows, err := tx.QueryContext(ctx, `SELECT c.external_session_id,h.id,h.service_uuid,h.owner_uuid,h.item_id,h.media_type FROM media_activity_current c JOIN media_activity_history h ON h.id=c.history_id WHERE c.server_id=? ORDER BY c.external_session_id LIMIT 1001`, c.Server)
+	rows, err := tx.QueryContext(ctx, `SELECT c.external_session_id,h.id,h.service_uuid,h.owner_uuid,h.item_id,h.media_type,h.last_seen_at,CASE WHEN h.paused_since IS NOT NULL THEN h.paused_since WHEN h.paused=1 THEN h.last_seen_at END FROM media_activity_current c JOIN media_activity_history h ON h.id=c.history_id WHERE c.server_id=? ORDER BY c.external_session_id LIMIT 1001`, c.Server)
 	if err != nil {
 		return result, err
 	}
 	current := map[string]activeActivity{}
 	for rows.Next() {
-		var key string
+		var key, lastSeen string
+		var pausedSince *string
 		var row activeActivity
-		if err = rows.Scan(&key, &row.History, &row.Service, &row.Owner, &row.Item, &row.Kind); err != nil {
+		if err = rows.Scan(&key, &row.History, &row.Service, &row.Owner, &row.Item, &row.Kind, &lastSeen, &pausedSince); err != nil {
 			break
+		}
+		if row.LastSeen, err = time.Parse(time.RFC3339Nano, lastSeen); err != nil {
+			break
+		}
+		if pausedSince != nil {
+			at, parseErr := time.Parse(time.RFC3339Nano, *pausedSince)
+			if err = parseErr; err != nil {
+				break
+			}
+			row.PausedSince = &at
 		}
 		current[key] = row
 	}
@@ -187,9 +215,16 @@ func commitActivitySnapshot(ctx context.Context, tx *sql.Tx, c activityReadClaim
 		return result, ErrConflict
 	}
 	observed := utcTimestamp(snapshot.ObservedAt)
+	// A new play may begin at its first notification after the previous read
+	// (or within a minute before this one, for a server's first read).
+	newSince := snapshot.ObservedAt.Add(-time.Minute)
+	if previous != nil {
+		newSince, _ = time.Parse(time.RFC3339Nano, *previous)
+	}
 	for _, row := range resolved {
 		session := row.Session
 		old, exists := current[session.Session]
+		ownerChanged := false
 		if exists {
 			reason := ""
 			if old.Service != row.Service {
@@ -200,21 +235,30 @@ func commitActivitySnapshot(ctx context.Context, tx *sql.Tx, c activityReadClaim
 				reason = "item_changed"
 			}
 			if reason != "" {
-				if err := endActivity(ctx, tx, c.Server, session.Session, old, observed, reason); err != nil {
+				if err := endActivity(ctx, tx, c.Server, session.Session, old, observed, reason, snapshot.Events, snapshot.ObservedAt); err != nil {
 					return result, err
 				}
 				result.Ended++
 				exists = false
+				ownerChanged = reason != "item_changed"
 			}
 		}
 		historyID := old.History
 		if exists {
-			if _, err := tx.ExecContext(ctx, `UPDATE media_activity_history SET paused_seconds=CASE WHEN paused=1 AND paused_seconds IS NOT NULL THEN paused_seconds+max(0,CAST(round((julianday(?)-julianday(last_seen_at))*86400) AS INTEGER)) ELSE paused_seconds END,title=?,last_seen_at=?,paused=?,position_ticks=?,duration_ticks=?,client=coalesce(nullif(?,''),client),device_name=coalesce(nullif(?,''),device_name),play_method=coalesce(nullif(?,''),play_method),platform=coalesce(nullif(?,''),platform),ip_address=coalesce(nullif(?,''),ip_address) WHERE id=?`, observed, session.Title, observed, session.Paused, session.Position, session.Duration, session.Client, session.Device, session.PlayMethod, session.Platform, session.Address, old.History); err != nil {
+			out := playbackStretch{From: old.LastSeen, Until: snapshot.ObservedAt, PausedSince: old.PausedSince, Events: stretchEvents(snapshot.Events, session.Session, session.Item, old.LastSeen, snapshot.ObservedAt), Observed: true, Paused: session.Paused}.outcome()
+			if _, err := tx.ExecContext(ctx, `UPDATE media_activity_history SET paused_seconds=CASE WHEN paused_seconds IS NOT NULL THEN paused_seconds+? END,paused_since=?,title=?,last_seen_at=?,paused=?,position_ticks=?,duration_ticks=?,client=coalesce(nullif(?,''),client),device_name=coalesce(nullif(?,''),device_name),play_method=coalesce(nullif(?,''),play_method),platform=coalesce(nullif(?,''),platform),ip_address=coalesce(nullif(?,''),ip_address) WHERE id=?`, wholeSeconds(out.PausedFor), optionalTimestamp(out.PausedSince), session.Title, observed, session.Paused, session.Position, session.Duration, session.Client, session.Device, session.PlayMethod, session.Platform, session.Address, old.History); err != nil {
 				return result, err
 			}
 			result.Updated++
 		} else {
-			inserted, err := tx.ExecContext(ctx, `INSERT INTO media_activity_history(server_id,external_session_id,service_uuid,owner_uuid,item_id,media_type,title,first_seen_at,last_seen_at,paused,position_ticks,duration_ticks,parent_item_id,parent_title,client,device_name,play_method,paused_seconds,platform,ip_address) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,nullif(?,''),nullif(?,''),nullif(?,''),nullif(?,''),nullif(?,''),0,nullif(?,''),nullif(?,''))`, c.Server, session.Session, row.Service, row.Owner, session.Item, session.Kind, session.Title, observed, observed, session.Paused, session.Position, session.Duration, session.Parent, session.ParentTitle, session.Client, session.Device, session.PlayMethod, session.Platform, session.Address)
+			// It starts at its first notification since the previous read,
+			// unless it only changed owner (the play itself went on).
+			stretch := playbackStretch{From: snapshot.ObservedAt, Until: snapshot.ObservedAt, Observed: true, Paused: session.Paused}
+			if events := stretchEvents(snapshot.Events, session.Session, session.Item, newSince, snapshot.ObservedAt); len(events) > 0 && !ownerChanged {
+				stretch.From, stretch.Events = events[0].At, events
+			}
+			out := stretch.outcome()
+			inserted, err := tx.ExecContext(ctx, `INSERT INTO media_activity_history(server_id,external_session_id,service_uuid,owner_uuid,item_id,media_type,title,first_seen_at,last_seen_at,paused,position_ticks,duration_ticks,parent_item_id,parent_title,client,device_name,play_method,paused_seconds,platform,ip_address,paused_since) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,nullif(?,''),nullif(?,''),nullif(?,''),nullif(?,''),nullif(?,''),?,nullif(?,''),nullif(?,''),?)`, c.Server, session.Session, row.Service, row.Owner, session.Item, session.Kind, session.Title, utcTimestamp(stretch.From), observed, session.Paused, session.Position, session.Duration, session.Parent, session.ParentTitle, session.Client, session.Device, session.PlayMethod, wholeSeconds(out.PausedFor), session.Platform, session.Address, optionalTimestamp(out.PausedSince))
 			if err != nil {
 				return result, err
 			}
@@ -265,7 +309,7 @@ func commitActivitySnapshot(ctx context.Context, tx *sql.Tx, c activityReadClaim
 		}
 	}
 	for id, old := range current {
-		if err := endActivity(ctx, tx, c.Server, id, old, observed, "not_observed"); err != nil {
+		if err := endActivity(ctx, tx, c.Server, id, old, observed, "not_observed", snapshot.Events, snapshot.ObservedAt); err != nil {
 			return result, err
 		}
 		result.Ended++
@@ -346,7 +390,7 @@ func (a *App) captureProviderActivity(ctx context.Context, actor, access string,
 	}
 	var result activityApplyResult
 	if err == nil {
-		result, err = a.store.applyActivitySnapshot(ctx, c, snapshot)
+		result, err = a.saveActivity(ctx, c, snapshot)
 		if err == nil {
 			a.enforceTranscodePolicy(ctx, serverID, server.Type, provider, snapshot)
 		}

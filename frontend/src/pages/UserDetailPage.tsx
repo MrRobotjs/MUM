@@ -361,7 +361,10 @@ const ProfileTab = ({ user,target }: { user: UserDetail;target:string }) => {
                       {period.timed_plays!=='0' && <div className="mt-1 flex flex-wrap items-baseline gap-1">
                         {watchTime(period.seconds).map(([value,unit])=><span key={unit} className="flex items-baseline gap-1"><span className="text-xl font-semibold text-foreground">{value}</span><span className="text-xs text-muted-foreground">{unit}</span></span>)}
                       </div>}
-                      <div className="mt-2 text-xs text-muted-foreground">{timeCaption(period)}</div>
+                      {timeCaption(period) && <div className="account-time-caption mt-2 flex items-center gap-1 text-xs text-muted-foreground">
+                        {timeCaption(period)}
+                        <SettingInfo title="Watch time"><p>Watch time only counts plays MUM recorded itself, because MUM saw how long they lasted.</p><p>Plays imported from a server’s own history say what was played and when, but not for how long, so they count as plays without adding any time.</p></SettingInfo>
+                      </div>}
                     </div>
                   );
                 })}

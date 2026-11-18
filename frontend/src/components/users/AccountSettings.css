@@ -105,6 +105,8 @@
 }
 .account-info:hover { color: var(--foreground); }
 .account-info:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+/* The (i) beside an activity tile's watch-time caption, sized to the caption's line. */
+.account-time-caption .account-info { width: 1rem; height: 1rem; }
 .account-info-body { display: grid; gap: .75rem; line-height: 1.6; }
 .account-settings-panels [data-slot="card-content"] { min-width: 0; margin-top: 1.5rem; padding: 0; }
 .account-settings-panels form > .space-y-2 { display: grid; gap: .5rem; }

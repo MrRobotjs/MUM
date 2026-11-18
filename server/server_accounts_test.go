@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"strings"
 	"testing"
 )
 
@@ -19,8 +20,14 @@ type serverAccountsPage struct {
 		Active       bool    `json:"is_active"`
 		LastStreamed *string `json:"last_streamed_at"`
 		LastPlayed   *struct {
-			Title  string `json:"title"`
-			Source string `json:"source"`
+			Title     string `json:"title"`
+			Source    string `json:"source"`
+			PosterURL string `json:"poster_url"`
+			Link      *struct {
+				Library int64  `json:"library_id"`
+				Media   int64  `json:"media_id"`
+				Episode *int64 `json:"episode_id"`
+			} `json:"link"`
 		} `json:"last_played"`
 		LastIP       *string `json:"last_ip"`
 		LastPlatform *string `json:"last_platform"`
@@ -149,5 +156,44 @@ func TestServerAccountsSearchSortPagingAndAccess(t *testing.T) {
 	w := apiRequest(a, "POST", "/api/auth/login", "", map[string]any{"username": "viewer", "password": "a-strong-member-password"}, nil)
 	if code, _ := readServerAccounts(t, a, responseData(t, w)["access_token"].(string), server, url.Values{}); code != 403 {
 		t.Fatal("a member read the server's accounts", code)
+	}
+}
+
+func TestServerAccountsLastPlayedPosterAndPage(t *testing.T) {
+	a, s, token, server := serverAccountsFixture(t)
+	activityExec(t, s, "INSERT INTO media_libraries(server_id,external_id,name) VALUES(?,'lib','Shows')", server)
+	var library, show, episode, movie int64
+	_ = s.reader.QueryRow("SELECT id FROM media_libraries WHERE server_id=? AND external_id='lib'", server).Scan(&library)
+	activityExec(t, s, "INSERT INTO media_items(library_id,server_id,external_id,title,item_type) VALUES(?,?,'show1','A Show','show')", library, server)
+	activityExec(t, s, "INSERT INTO media_items(library_id,server_id,external_id,parent_id,title,item_type) VALUES(?,?,'ep4','show1','Plex four','episode')", library, server)
+	activityExec(t, s, "INSERT INTO media_items(library_id,server_id,external_id,title,item_type) VALUES(?,?,'movie1','Someone else','movie')", library, server)
+	_ = s.reader.QueryRow("SELECT id FROM media_items WHERE external_id='show1'").Scan(&show)
+	_ = s.reader.QueryRow("SELECT id FROM media_items WHERE external_id='ep4'").Scan(&episode)
+	_ = s.reader.QueryRow("SELECT id FROM media_items WHERE external_id='movie1'").Scan(&movie)
+	activityExec(t, s, "UPDATE history_imports SET item_id='ep4',poster_item='show1',poster_path='/library/metadata/show1/thumb' WHERE entry_key='/h/4'")
+	activityExec(t, s, "UPDATE history_imports SET item_id='movie1' WHERE entry_key='/h/9'")
+
+	_, page := readServerAccounts(t, a, token, server, url.Values{"sort": {"plays_desc"}})
+	top, other := page.Items[0].LastPlayed, page.Items[1].LastPlayed
+	// An episode opens its show's episode page and carries the History tab's poster link.
+	if top == nil || top.Link == nil || top.Link.Library != library || top.Link.Media != show || top.Link.Episode == nil || *top.Link.Episode != episode ||
+		!strings.HasPrefix(top.PosterURL, "/api/activity/imported-history-images/") {
+		t.Fatalf("episode %+v", top)
+	}
+	// A top-level item opens its own page; no poster is stored for it.
+	if other == nil || other.Link == nil || other.Link.Media != movie || other.Link.Episode != nil || other.PosterURL != "" {
+		t.Fatalf("movie %+v", other)
+	}
+	// A play whose item isn't catalogued has no page.
+	if _, mum := readServerAccounts(t, a, token, server, url.Values{"records": {"mum"}, "sort": {"plays_desc"}}); mum.Items[0].LastPlayed == nil || mum.Items[0].LastPlayed.Link != nil {
+		t.Fatalf("uncatalogued %+v", mum.Items[0].LastPlayed)
+	}
+	// The poster link's signature is accepted (the fixture server can't serve
+	// the image itself, so the image lookup ends in 404 rather than 401/403).
+	if w := apiRequest(a, "GET", top.PosterURL, "", nil, nil); w.Code == 403 || w.Code == 401 {
+		t.Fatalf("poster link refused: %d %s", w.Code, w.Body.String())
+	}
+	if w := apiRequest(a, "GET", strings.Replace(top.PosterURL, "s=", "s=x", 1), "", nil, nil); w.Code != 403 && w.Code != 401 {
+		t.Fatalf("a tampered poster link was accepted: %d", w.Code)
 	}
 }

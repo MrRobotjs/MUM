@@ -13,7 +13,9 @@ export const serverAccountSorts: readonly ServerAccountSort[] = sortColumns.flat
 export type ServerAccountPageSize = 10 | 25 | 50 | 100;
 export const serverAccountPageSizes: readonly ServerAccountPageSize[] = [10, 25, 50, 100];
 export type ServerAccountsRequest = Readonly<{ records: TimelineRecords; search: string; sort: ServerAccountSort; page: number; pageSize: ServerAccountPageSize }>;
-export type ServerAccountPlay = Readonly<{ title: string; parent_title: string | null; media_type: string; source: string }>;
+// A catalogue page: a top-level item, or an episode of a show.
+export type ServerAccountLink = Readonly<{ library_id: number; media_id: number; episode_id: number | null }>;
+export type ServerAccountPlay = Readonly<{ title: string; parent_title: string | null; media_type: string; source: string; poster_url: string | null; link: ServerAccountLink | null }>;
 export type ServerAccount = Readonly<{
   uuid: string; username: string; email: string | null; is_active: boolean; access_expires_at: string | null;
   plays: number; watch_seconds: number | null; last_streamed_at: string | null; last_played: ServerAccountPlay | null;
@@ -31,11 +33,24 @@ const optional = (v: unknown) => v === null || typeof v === 'string';
 const count = (v: unknown): v is number => Number.isSafeInteger(v) && (v as number) >= 0;
 const sources = ['mum', 'plex', 'jellyfin', 'emby', 'audiobookshelf'];
 
+const id = (v: unknown): v is number => Number.isSafeInteger(v) && (v as number) >= 1;
+// Posters are the History tab's signed links: MUM's plays or imported ones.
+const posters = ['/api/activity/history-images/', '/api/activity/imported-history-images/'];
+
+function link(value: unknown): ServerAccountLink | null {
+  if (value === null || value === undefined) return null;
+  const v = value as Record<string, unknown>;
+  if (!v || !id(v.library_id) || !id(v.media_id) || !(v.episode_id === null || v.episode_id === undefined || id(v.episode_id))) throw new Error('Invalid server account');
+  return Object.freeze({ library_id: v.library_id, media_id: v.media_id, episode_id: (v.episode_id ?? null) as number | null });
+}
+
 function play(value: unknown): ServerAccountPlay | null {
   if (value === null) return null;
   const v = value as Record<string, unknown>;
-  if (!v || !text(v.title) || !optional(v.parent_title) || !text(v.media_type) || !sources.includes(v.source as string)) throw new Error('Invalid server account');
-  return Object.freeze({ title: v.title as string, parent_title: v.parent_title as string | null, media_type: v.media_type as string, source: v.source as string });
+  if (!v || !text(v.title) || !optional(v.parent_title) || !text(v.media_type) || !sources.includes(v.source as string) ||
+      !(v.poster_url === undefined || typeof v.poster_url === 'string' && posters.some(p => (v.poster_url as string).startsWith(p)))) throw new Error('Invalid server account');
+  return Object.freeze({ title: v.title as string, parent_title: v.parent_title as string | null, media_type: v.media_type as string, source: v.source as string,
+    poster_url: (v.poster_url ?? null) as string | null, link: link(v.link) });
 }
 
 function account(value: unknown, seen: Set<string>): ServerAccount {

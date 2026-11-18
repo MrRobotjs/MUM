@@ -114,6 +114,12 @@
 .account-avatar-name { display: inline-flex; min-width: 0; max-width: 100%; align-items: center; gap: .5rem; vertical-align: middle; }
 /* The History table's title column keeps a readable width; the table scrolls sideways instead. */
 .account-history-title { min-width: 12rem; }
+/* A server's Users page: the last play's title opens its library page, and its poster shows on hover. */
+.account-last-played-link { display: block; border-radius: .25rem; color: inherit; text-decoration: none; }
+a.account-last-played-link:hover > span > span:first-child { text-decoration: underline; text-underline-offset: 2px; }
+.account-last-played-link:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.account-poster-tip { padding: .25rem; }
+.account-poster-tip img { display: block; width: 8rem; aspect-ratio: 2 / 3; border-radius: .25rem; object-fit: cover; }
 .account-info {
   display: inline-flex;
   width: 1.5rem;

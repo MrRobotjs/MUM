@@ -39,6 +39,23 @@ test('server accounts adapter', async t => {
     assert.equal(result.items[0].last_played, null);
   });
 
+  await t.test('reads the last play’s poster and library page', async () => {
+    const m = await load(); m.setAccessToken('session');
+    const lastPlayed = {title: 'Plex four', parent_title: 'A Show', media_type: 'episode', source: 'plex', poster_url: '/api/activity/imported-history-images/7?s=a&e=1&g=b', link: {library_id: 3, media_id: 10, episode_id: 11}};
+    globalThis.fetch = async () => Response.json({data: page({items: [account({last_played: lastPlayed})]})});
+    const result = await m.fetchServerAccounts(2, {records: 'all', search: '', sort: 'username_asc', page: 1, pageSize: 25});
+    assert.deepEqual(result.items[0].last_played.link, {library_id: 3, media_id: 10, episode_id: 11});
+    assert.equal(result.items[0].last_played.poster_url, lastPlayed.poster_url);
+    globalThis.fetch = async () => Response.json({data: page({items: [account({last_played: {...lastPlayed, poster_url: undefined, link: {library_id: 3, media_id: 12, episode_id: null}}})]})});
+    const movie = await m.fetchServerAccounts(2, {records: 'all', search: '', sort: 'username_asc', page: 1, pageSize: 25});
+    assert.equal(movie.items[0].last_played.poster_url, null);
+    assert.equal(movie.items[0].last_played.link.episode_id, null);
+    for (const bad of [{poster_url: 'https://plex.tv/poster.jpg'}, {poster_url: '/api/service-avatars/1'}, {link: {library_id: 0, media_id: 1, episode_id: null}}, {link: {library_id: 1, media_id: '2', episode_id: null}}]) {
+      globalThis.fetch = async () => Response.json({data: page({items: [account({last_played: {...lastPlayed, ...bad}})]})});
+      await assert.rejects(m.fetchServerAccounts(2, {records: 'all', search: '', sort: 'username_asc', page: 1, pageSize: 25}), /Invalid/);
+    }
+  });
+
   await t.test('rejects bad input before any request', async () => {
     const m = await load(); m.setAccessToken('session');
     let called = false;

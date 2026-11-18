@@ -62,7 +62,24 @@ type serverAccountPlay struct {
 	ParentTitle *string `json:"parent_title"`
 	Kind        string  `json:"media_type"`
 	Source      string  `json:"source"` // "mum" or the server's type
-	at          string
+	// The play's poster, signed as on the History tab, and its page in the
+	// library catalogue when the item has been catalogued.
+	PosterURL string             `json:"poster_url,omitempty"`
+	Link      *serverAccountLink `json:"link"`
+	at        string
+	rowID     int64
+	item      string
+	parent    string // the show or album a MUM play belongs to
+	poster    string // the item the poster was taken from
+	hasPoster bool
+}
+
+// serverAccountLink is a catalogue page: a top-level item, or an episode of a
+// show.
+type serverAccountLink struct {
+	Library int64  `json:"library_id"`
+	Media   int64  `json:"media_id"`
+	Episode *int64 `json:"episode_id"`
 }
 
 func (a *App) serverAccounts(w http.ResponseWriter, r *http.Request) {
@@ -224,7 +241,7 @@ func (a *App) serverAccounts(w http.ResponseWriter, r *http.Request) {
 	for _, r := range listed {
 		var newest *serverAccountPlay
 		if withMUM {
-			if play, err := readServerAccountPlay(ctx, tx, `SELECT title,parent_title,media_type,first_seen_at FROM media_activity_history WHERE server_id=? AND service_uuid=? ORDER BY first_seen_at DESC,id DESC LIMIT 1`, server, r.uuid); err != nil {
+			if play, err := readServerAccountPlay(ctx, tx, `SELECT title,parent_title,media_type,first_seen_at,id,item_id,coalesce(parent_item_id,''),coalesce(poster_item,''),poster_path IS NOT NULL FROM media_activity_history WHERE server_id=? AND service_uuid=? ORDER BY first_seen_at DESC,id DESC LIMIT 1`, server, r.uuid); err != nil {
 				domainError(w, err)
 				return
 			} else if play != nil {
@@ -242,7 +259,7 @@ func (a *App) serverAccounts(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if withImported {
-			play, err := readServerAccountPlay(ctx, tx, `SELECT coalesce(title,''),coalesce(grandparent_title,parent_title),coalesce(media_type,''),viewed_at FROM history_imports WHERE server_id=? AND account_id=? ORDER BY viewed_at DESC,rowid DESC LIMIT 1`, server, r.external)
+			play, err := readServerAccountPlay(ctx, tx, `SELECT coalesce(title,''),coalesce(grandparent_title,parent_title),coalesce(media_type,''),viewed_at,rowid,coalesce(item_id,''),'',coalesce(poster_item,''),poster_path IS NOT NULL FROM history_imports WHERE server_id=? AND account_id=? ORDER BY viewed_at DESC,rowid DESC LIMIT 1`, server, r.external)
 			if err != nil {
 				domainError(w, err)
 				return
@@ -252,6 +269,17 @@ func (a *App) serverAccounts(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if newest != nil {
+			if newest.Link, err = readServerPlayLink(ctx, tx, server, newest); err != nil {
+				domainError(w, err)
+				return
+			}
+			if newest.hasPoster && sessionErr == nil {
+				if newest.Source == "mum" {
+					newest.PosterURL = a.signedImageURL(activityHistoryPosterPurpose, "/api/activity/history-images", session, newest.rowID, now)
+				} else {
+					newest.PosterURL = a.signedImageURL(importedHistoryPosterPurpose, "/api/activity/imported-history-images", session, newest.rowID, now)
+				}
+			}
 			r.item["last_played"] = newest
 		}
 		r.item["libraries"] = userLibraryDisplayNames(libraryNames, r.libraryIDs, r.allLibraries)
@@ -271,7 +299,7 @@ func (a *App) serverAccounts(w http.ResponseWriter, r *http.Request) {
 func readServerAccountPlay(ctx context.Context, tx *sql.Tx, query string, args ...any) (*serverAccountPlay, error) {
 	var play serverAccountPlay
 	var parent sql.NullString
-	err := tx.QueryRowContext(ctx, query, args...).Scan(&play.Title, &parent, &play.Kind, &play.at)
+	err := tx.QueryRowContext(ctx, query, args...).Scan(&play.Title, &parent, &play.Kind, &play.at, &play.rowID, &play.item, &play.parent, &play.poster, &play.hasPoster)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -282,4 +310,43 @@ func readServerAccountPlay(ctx context.Context, tx *sql.Tx, query string, args .
 		play.ParentTitle = &parent.String
 	}
 	return &play, nil
+}
+
+// readServerPlayLink finds the catalogue page for a play: the played item when
+// it is top level, its show's episode page when it is an episode, otherwise
+// the show or album it belongs to (or the item its poster came from). Nil when
+// none of them has been catalogued.
+func readServerPlayLink(ctx context.Context, tx *sql.Tx, server int64, play *serverAccountPlay) (*serverAccountLink, error) {
+	if play.item != "" {
+		var link serverAccountLink
+		var top bool
+		var show int64
+		err := tx.QueryRowContext(ctx, `SELECT e.library_id,e.id,e.parent_id IS NULL,coalesce((SELECT s.id FROM media_items s WHERE s.library_id=e.library_id AND s.external_id=e.parent_id AND s.parent_id IS NULL AND s.item_type='show'),0)
+ FROM media_items e WHERE e.server_id=? AND e.external_id=? ORDER BY e.id LIMIT 1`, server, play.item).Scan(&link.Library, &link.Media, &top, &show)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return nil, err
+		}
+		if err == nil && top {
+			return &link, nil
+		}
+		if err == nil && show != 0 {
+			episode := link.Media
+			link.Media, link.Episode = show, &episode
+			return &link, nil
+		}
+	}
+	for _, item := range []string{play.parent, play.poster} {
+		if item == "" {
+			continue
+		}
+		var link serverAccountLink
+		err := tx.QueryRowContext(ctx, "SELECT library_id,id FROM media_items WHERE server_id=? AND external_id=? AND parent_id IS NULL ORDER BY id LIMIT 1", server, item).Scan(&link.Library, &link.Media)
+		if err == nil {
+			return &link, nil
+		}
+		if !errors.Is(err, sql.ErrNoRows) {
+			return nil, err
+		}
+	}
+	return nil, nil
 }

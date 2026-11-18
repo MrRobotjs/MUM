@@ -8,12 +8,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAccountDisplay } from '../../hooks/useAccountDisplay';
 import { getAuthSnapshot, subscribeToAuthStore } from '../../store/authStore';
-import { fetchServerAccounts, serverAccountPageSizes, type ServerAccount, type ServerAccountPageSize, type ServerAccountSort } from '../../lib/serverAccounts';
+import { fetchServerAccounts, serverAccountPageSizes, type ServerAccount, type ServerAccountPageSize, type ServerAccountPlay, type ServerAccountSort } from '../../lib/serverAccounts';
 import { importsHistory, playHistorySummary, readPlayHistory, startPlayHistoryImport, type PlayHistoryStatus } from '../../lib/playHistory';
 import { watchTime } from '../../lib/identityPlayTotals';
 import type { TimelineRecords } from '../../lib/identityTimeline';
@@ -140,7 +141,7 @@ export function ServerUsersCard({ serverId, serviceType, onSync, syncing, syncDi
       case 'username': return account.username || '—';
       case 'email': return account.email ?? '—';
       case 'lastStreamed': return account.last_streamed_at ? <span title={formatTimestamp(account.last_streamed_at)}>{formatRelative(account.last_streamed_at)}</span> : '—';
-      case 'lastPlayed': return account.last_played ? <div><div>{account.last_played.title || 'Removed item'}</div>{account.last_played.parent_title && <div className="text-xs text-muted-foreground">{account.last_played.parent_title}</div>}</div> : '—';
+      case 'lastPlayed': return account.last_played ? <LastPlayed serverId={serverId} play={account.last_played} /> : '—';
       case 'lastIp': return <span className="font-mono">{account.last_ip ?? '—'}</span>;
       case 'lastPlatform': return account.last_platform ?? '—';
       case 'lastPlayer': return account.last_player ?? '—';
@@ -224,4 +225,23 @@ export function ServerUsersCard({ serverId, serviceType, onSync, syncing, syncDi
       </CardContent>
     </Card>
   );
+}
+
+// The last play's title shows its poster on hover, like Tautulli, and opens
+// its page in the library when the item has been catalogued.
+function LastPlayed({ serverId, play }: { serverId: number; play: ServerAccountPlay }) {
+  const [failed, setFailed] = useState(false);
+  const text = <span className="block"><span className="block">{play.title || 'Removed item'}</span>{play.parent_title && <span className="block text-xs text-muted-foreground">{play.parent_title}</span>}</span>;
+  const target = play.link
+    ? play.link.episode_id === null
+      ? <Link to="/admin/servers/$serverId/libraries/$libraryId/$mediaId" params={{ serverId: String(serverId), libraryId: String(play.link.library_id), mediaId: String(play.link.media_id) }} className="account-last-played-link">{text}</Link>
+      : <Link to="/admin/servers/$serverId/libraries/$libraryId/$mediaId/episodes/$episodeId" params={{ serverId: String(serverId), libraryId: String(play.link.library_id), mediaId: String(play.link.media_id), episodeId: String(play.link.episode_id) }} className="account-last-played-link">{text}</Link>
+    : text;
+  if (!play.poster_url || failed) return target;
+  return <Tooltip>
+    <TooltipTrigger asChild>{play.link ? target : <span tabIndex={0} className="account-last-played-link">{text}</span>}</TooltipTrigger>
+    <TooltipContent side="right" className="account-poster-tip">
+      <img src={play.poster_url} alt={play.title || 'Media poster'} onError={() => setFailed(true)} />
+    </TooltipContent>
+  </Tooltip>;
 }

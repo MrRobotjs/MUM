@@ -1,6 +1,8 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import useSWR from 'swr';
 import { Link } from '@tanstack/react-router';
+import { columnVisibilityFeature, createColumnHelper, rowPaginationFeature, rowSortingFeature, tableFeatures, useTable,
+  type ColumnVisibilityState, type PaginationState, type SortingState, type Updater } from '@tanstack/react-table';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faUsers, faRotate, faFileImport, faTableColumns, faSort, faSortUp, faSortDown, faMagnifyingGlass, faChevronLeft, faChevronRight } from '@fortawesome/free-solid-svg-icons';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -14,7 +16,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { useAuth } from '../../contexts/AuthContext';
 import { useAccountDisplay } from '../../hooks/useAccountDisplay';
 import { getAuthSnapshot, subscribeToAuthStore } from '../../store/authStore';
-import { fetchServerAccounts, serverAccountPageSizes, type ServerAccount, type ServerAccountPageSize, type ServerAccountPlay, type ServerAccountSort } from '../../lib/serverAccounts';
+import { fetchServerAccounts, serverAccountPageSizes, serverAccountSort, type ServerAccount, type ServerAccountColumn, type ServerAccountPageSize, type ServerAccountPlay } from '../../lib/serverAccounts';
 import { importsHistory, playHistorySummary, readPlayHistory, startPlayHistoryImport, type PlayHistoryStatus } from '../../lib/playHistory';
 import { watchTime } from '../../lib/identityPlayTotals';
 import type { TimelineRecords } from '../../lib/identityTimeline';
@@ -23,9 +25,10 @@ import { AvatarName } from '../users/AccountAvatar';
 
 // A server's Users page (SERVER_USERS_DESIGN.md): its accounts with their
 // activity on this server only, for the chosen records, with search, sorting,
-// paging, a column menu, user sync and history import.
+// paging, a column menu, user sync and history import. TanStack Table holds
+// the sorting, paging and column state; the server searches, sorts and pages.
 
-type Column = 'user' | 'username' | 'email' | 'lastStreamed' | 'lastPlayed' | 'lastIp' | 'lastPlatform' | 'lastPlayer' | 'plays' | 'watch' | 'libraries' | 'expires';
+type Column = ServerAccountColumn;
 const columnLabels: Record<Column, string> = { user: 'User', username: 'Username', email: 'Email', lastStreamed: 'Last Streamed', lastPlayed: 'Last Played',
   lastIp: 'Last Known IP', lastPlatform: 'Last Platform', lastPlayer: 'Last Player', plays: 'Plays', watch: 'Watch Time', libraries: 'Libraries', expires: 'Access Expires' };
 const allColumns = Object.keys(columnLabels) as Column[];
@@ -33,11 +36,7 @@ const allColumns = Object.keys(columnLabels) as Column[];
 const mumOnly: readonly Column[] = ['lastIp', 'lastPlatform', 'lastPlayer', 'watch'];
 // Each column's first click sorts the way people usually want it: names A–Z,
 // times and counts newest or highest first, expiry soonest first.
-const sortable: Record<Column, [ServerAccountSort, ServerAccountSort]> = {
-  user: ['username_asc', 'username_desc'], username: ['username_asc', 'username_desc'], email: ['email_asc', 'email_desc'],
-  lastStreamed: ['last_streamed_desc', 'last_streamed_asc'], lastPlayed: ['last_played_asc', 'last_played_desc'], lastIp: ['last_ip_asc', 'last_ip_desc'],
-  lastPlatform: ['last_platform_asc', 'last_platform_desc'], lastPlayer: ['last_player_asc', 'last_player_desc'], plays: ['plays_desc', 'plays_asc'],
-  watch: ['watch_desc', 'watch_asc'], libraries: ['libraries_desc', 'libraries_asc'], expires: ['expires_asc', 'expires_desc'] };
+const descFirst: readonly Column[] = ['lastStreamed', 'plays', 'watch', 'libraries'];
 const columnKey = 'mum.server-users.columns';
 const readHidden = (): Column[] => {
   try {
@@ -53,33 +52,40 @@ const readPageSize = (): ServerAccountPageSize => {
     return serverAccountPageSizes.find(size => size === value) ?? 25;
   } catch { return 25; }
 };
+const apply = <T,>(updater: Updater<T>, current: T): T => typeof updater === 'function' ? (updater as (old: T) => T)(current) : updater;
 
 const recordsLabels: Record<TimelineRecords, string> = { all: 'All plays', mum: 'Recorded by MUM', server: 'From server history' };
+
+const features = tableFeatures({ rowSortingFeature, rowPaginationFeature, columnVisibilityFeature });
+const columnHelper = createColumnHelper<typeof features, ServerAccount>();
+const noAccounts: ServerAccount[] = [];
 
 export function ServerUsersCard({ serverId, serviceType, onSync, syncing, syncDisabled }: {
   serverId: number; serviceType: string; onSync: () => void; syncing: boolean; syncDisabled: boolean;
 }) {
   const { user, isAdministrator } = useAuth();
-  const session = useSyncExternalStore(subscribeToAuthStore, getAuthSnapshot);
+  const session = useSyncExternalStore(subscribeToAuthStore, getAuthSnapshot, getAuthSnapshot);
   const { formatTimestamp, formatRelative } = useAccountDisplay();
   const [records, setRecords] = useState<TimelineRecords>('all');
   const [typed, setTyped] = useState('');
   const [search, setSearch] = useState('');
-  const [sort, setSort] = useState<ServerAccountSort>('username_asc');
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(readPageSize);
+  const [sorting, setSorting] = useState<SortingState>([{ id: 'user', desc: false }]);
+  const [pagination, setPagination] = useState<PaginationState>(() => ({ pageIndex: 0, pageSize: readPageSize() }));
   const [hidden, setHidden] = useState(readHidden);
   const [importStatus, setImportStatus] = useState<PlayHistoryStatus | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
+  const firstPage = () => setPagination(current => current.pageIndex === 0 ? current : { ...current, pageIndex: 0 });
 
   // Search as you type, once typing pauses.
   useEffect(() => {
-    const timer = window.setTimeout(() => { setSearch(typed); setPage(1); }, 300);
+    const timer = window.setTimeout(() => { setSearch(typed); firstPage(); }, 300);
     return () => window.clearTimeout(timer);
   }, [typed]);
 
-  const key = isAdministrator && user?.uuid && session.accessToken ? ['server-accounts', user.uuid, session.accessToken, serverId, records, search, sort, page, pageSize] as const : null;
+  const sort = serverAccountSort(sorting[0]);
+  const pageSize = serverAccountPageSizes.find(size => size === pagination.pageSize) ?? 25;
+  const key = isAdministrator && user?.uuid && session.accessToken ? ['server-accounts', user.uuid, session.accessToken, serverId, records, search, sort, pagination.pageIndex + 1, pageSize] as const : null;
   const { data, error, isLoading, mutate } = useSWR(key, ([, , , id, r, s, o, p, n]) => fetchServerAccounts(id, { records: r, search: s, sort: o, page: p, pageSize: n }), { keepPreviousData: true });
 
   // A finished user sync changes the list: read it again.
@@ -102,23 +108,9 @@ export function ServerUsersCard({ serverId, serviceType, onSync, syncing, syncDi
   }, [importStatus?.state, serverId, mutate]);
 
   const live = data?.live ?? ['plex', 'jellyfin', 'emby'].includes(serviceType);
-  const shown = allColumns.filter(c => !hidden.includes(c) && !(mumOnly.includes(c) && (!live || records === 'server')));
-  const toggleColumn = (column: Column) => setHidden(current => {
-    const next = current.includes(column) ? current.filter(c => c !== column) : [...current, column];
-    saveHidden(next);
-    return next;
-  });
-  const sortBy = (column: Column) => {
-    const options = sortable[column];
-    if (!options) return;
-    setSort(sort === options[0] ? options[1] : options[0]);
-    setPage(1);
-  };
-  const sortIcon = (column: Column) => {
-    const options = sortable[column];
-    if (!options) return null;
-    return <FontAwesomeIcon icon={sort === options[0] ? (options[0].endsWith('asc') ? faSortUp : faSortDown) : sort === options[1] ? (options[1].endsWith('asc') ? faSortUp : faSortDown) : faSort} className="ml-1 h-3 w-3 opacity-60" />;
-  };
+  // A column the chosen records can't fill stays hidden whatever the menu says.
+  const columnVisibility = useMemo<ColumnVisibilityState>(() => Object.fromEntries(allColumns.map(c =>
+    [c, !hidden.includes(c) && !(mumOnly.includes(c) && (!live || records === 'server'))])), [hidden, live, records]);
   const startImport = async () => {
     setImporting(true);
     setImportError(null);
@@ -132,25 +124,53 @@ export function ServerUsersCard({ serverId, serviceType, onSync, syncing, syncDi
     }
   };
 
-  const watch = (seconds: number | null) => seconds === null ? '—' : watchTime(String(seconds)).map(([value, unit]) => `${value} ${unit}`).join(' ');
-  const cell = (column: Column, account: ServerAccount) => {
-    switch (column) {
-      case 'user': return <Link to="/admin/users/$uuid" params={{ uuid: account.uuid }} className="account-profile-link font-medium">
-        <AvatarName key={account.uuid} url={account.avatar_url} name={account.username || 'Unnamed account'} />
-      </Link>;
-      case 'username': return account.username || '—';
-      case 'email': return account.email ?? '—';
-      case 'lastStreamed': return account.last_streamed_at ? <span title={formatTimestamp(account.last_streamed_at)}>{formatRelative(account.last_streamed_at)}</span> : '—';
-      case 'lastPlayed': return account.last_played ? <LastPlayed serverId={serverId} play={account.last_played} /> : '—';
-      case 'lastIp': return <span className="font-mono">{account.last_ip ?? '—'}</span>;
-      case 'lastPlatform': return account.last_platform ?? '—';
-      case 'lastPlayer': return account.last_player ?? '—';
-      case 'plays': return account.plays.toLocaleString();
-      case 'watch': return watch(account.watch_seconds);
-      case 'libraries': return <span title={account.libraries.join(', ')}>{account.has_all_libraries ? 'All libraries' : `${account.libraries.length} selected`}</span>;
-      case 'expires': return account.access_expires_at ? formatTimestamp(account.access_expires_at, 'date') : 'Never';
-    }
-  };
+  const columns = useMemo(() => {
+    const watch = (seconds: number | null) => seconds === null ? '—' : watchTime(String(seconds)).map(([value, unit]) => `${value} ${unit}`).join(' ');
+    const cell = (column: Column, account: ServerAccount) => {
+      switch (column) {
+        case 'user': return <Link to="/admin/users/$uuid" params={{ uuid: account.uuid }} className="account-profile-link font-medium">
+          <AvatarName key={account.uuid} url={account.avatar_url} name={account.username || 'Unnamed account'} />
+        </Link>;
+        case 'username': return account.username || '—';
+        case 'email': return account.email ?? '—';
+        case 'lastStreamed': return account.last_streamed_at ? <span title={formatTimestamp(account.last_streamed_at)}>{formatRelative(account.last_streamed_at)}</span> : '—';
+        case 'lastPlayed': return account.last_played ? <LastPlayed serverId={serverId} play={account.last_played} /> : '—';
+        case 'lastIp': return <span className="font-mono">{account.last_ip ?? '—'}</span>;
+        case 'lastPlatform': return account.last_platform ?? '—';
+        case 'lastPlayer': return account.last_player ?? '—';
+        case 'plays': return account.plays.toLocaleString();
+        case 'watch': return watch(account.watch_seconds);
+        case 'libraries': return <span title={account.libraries.join(', ')}>{account.has_all_libraries ? 'All libraries' : `${account.libraries.length} selected`}</span>;
+        case 'expires': return account.access_expires_at ? formatTimestamp(account.access_expires_at, 'date') : 'Never';
+      }
+    };
+    // The accessor value is only sorting's bookkeeping: the server sorts.
+    return allColumns.map(id => columnHelper.accessor(account => account.uuid, {
+      id, header: columnLabels[id], cell: info => cell(id, info.row.original), sortDescFirst: descFirst.includes(id), enableHiding: id !== 'user',
+    }));
+  }, [serverId, formatTimestamp, formatRelative]);
+
+  const table = useTable({
+    features, columns, data: (data?.items as ServerAccount[] | undefined) ?? noAccounts, getRowId: account => account.uuid,
+    manualSorting: true, manualPagination: true, enableMultiSort: false, enableSortingRemoval: false, rowCount: data?.total_items ?? 0,
+    state: { sorting, pagination, columnVisibility },
+    onSortingChange: updater => { setSorting(current => apply(updater, current)); firstPage(); },
+    onPaginationChange: updater => setPagination(current => {
+      const next = apply(updater, current);
+      if (next.pageSize === current.pageSize) return next;
+      try { localStorage.setItem(pageSizeKey, String(next.pageSize)); } catch { /* not remembered */ }
+      return { pageIndex: 0, pageSize: next.pageSize };
+    }),
+    // The menu asks for a column by the viewer's choice; the choice is what's remembered.
+    onColumnVisibilityChange: updater => {
+      const next = apply(updater, columnVisibility);
+      setHidden(current => {
+        const updated = allColumns.filter(c => c !== 'user' && (next[c] === columnVisibility[c] ? current.includes(c) : !next[c]));
+        saveHidden(updated);
+        return updated;
+      });
+    },
+  });
   const total = data?.total_items ?? 0;
 
   return (
@@ -159,7 +179,7 @@ export function ServerUsersCard({ serverId, serviceType, onSync, syncing, syncDi
         <div className="flex flex-wrap items-start justify-between gap-4">
           <TabHeading icon={faUsers} title="Users" description={data ? `${total.toLocaleString()} user${total === 1 ? '' : 's'} on ${data.server_name}` : 'Accounts on this server'} />
           <div className="flex flex-wrap items-center gap-2">
-            {live && <Select value={records} onValueChange={(value: TimelineRecords) => { setRecords(value); setPage(1); }}>
+            {live && <Select value={records} onValueChange={(value: TimelineRecords) => { setRecords(value); firstPage(); }}>
               <SelectTrigger className="w-56" aria-label="Records"><SelectValue /></SelectTrigger>
               <SelectContent>{(Object.keys(recordsLabels) as TimelineRecords[]).map(r => <SelectItem key={r} value={r}>{recordsLabels[r]}</SelectItem>)}</SelectContent>
             </Select>}
@@ -172,8 +192,8 @@ export function ServerUsersCard({ serverId, serviceType, onSync, syncing, syncDi
             <DropdownMenu>
               <DropdownMenuTrigger asChild><Button variant="outline" size="sm"><FontAwesomeIcon icon={faTableColumns} />Select columns</Button></DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                {allColumns.map(column => <DropdownMenuCheckboxItem key={column} checked={!hidden.includes(column)} disabled={column === 'user'}
-                  onCheckedChange={() => toggleColumn(column)} onSelect={e => e.preventDefault()}>{columnLabels[column]}</DropdownMenuCheckboxItem>)}
+                {table.getAllLeafColumns().map(column => <DropdownMenuCheckboxItem key={column.id} checked={!hidden.includes(column.id as Column)} disabled={!column.getCanHide()}
+                  onCheckedChange={() => column.toggleVisibility(hidden.includes(column.id as Column))} onSelect={e => e.preventDefault()}>{columnLabels[column.id as Column]}</DropdownMenuCheckboxItem>)}
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -192,15 +212,23 @@ export function ServerUsersCard({ serverId, serviceType, onSync, syncing, syncDi
             <div className="overflow-x-auto rounded-xl border shadow-sm">
               <Table>
                 <TableHeader>
-                  <TableRow>
-                    {shown.map(column => <TableHead key={column} className="whitespace-nowrap">
-                      {sortable[column] ? <button type="button" className="inline-flex items-center font-medium" onClick={() => sortBy(column)}>{columnLabels[column]}{sortIcon(column)}</button> : columnLabels[column]}
-                    </TableHead>)}
-                  </TableRow>
+                  {table.getHeaderGroups().map(group => <TableRow key={group.id}>
+                    {group.headers.map(header => {
+                      const sorted = header.column.getIsSorted();
+                      return <TableHead key={header.id} className="whitespace-nowrap" aria-sort={sorted === 'asc' ? 'ascending' : sorted === 'desc' ? 'descending' : undefined}>
+                        <button type="button" className="inline-flex items-center font-medium" onClick={header.column.getToggleSortingHandler()}>
+                          <table.FlexRender header={header} />
+                          <FontAwesomeIcon icon={sorted === 'asc' ? faSortUp : sorted === 'desc' ? faSortDown : faSort} className="ml-1 h-3 w-3 opacity-60" />
+                        </button>
+                      </TableHead>;
+                    })}
+                  </TableRow>)}
                 </TableHeader>
                 <TableBody>
-                  {data.items.map(account => <TableRow key={account.uuid}>
-                    {shown.map(column => <TableCell key={column} className={column === 'user' || column === 'lastPlayed' ? 'account-history-title' : 'whitespace-nowrap'}>{cell(column, account)}</TableCell>)}
+                  {table.getRowModel().rows.map(row => <TableRow key={row.id}>
+                    {row.getVisibleCells().map(cell => <TableCell key={cell.id} className={cell.column.id === 'user' || cell.column.id === 'lastPlayed' ? 'account-history-title' : 'whitespace-nowrap'}>
+                      <table.FlexRender cell={cell} />
+                    </TableCell>)}
                   </TableRow>)}
                 </TableBody>
               </Table>
@@ -208,16 +236,16 @@ export function ServerUsersCard({ serverId, serviceType, onSync, syncing, syncDi
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 Show
-                <Select value={String(pageSize)} onValueChange={value => { const size = serverAccountPageSizes.find(s => String(s) === value) ?? 25; setPageSize(size); setPage(1); try { localStorage.setItem(pageSizeKey, String(size)); } catch { /* not remembered */ } }}>
+                <Select value={String(pageSize)} onValueChange={value => table.setPageSize(serverAccountPageSizes.find(s => String(s) === value) ?? 25)}>
                   <SelectTrigger className="w-20" size="sm" aria-label="Users per page"><SelectValue /></SelectTrigger>
                   <SelectContent>{serverAccountPageSizes.map(size => <SelectItem key={size} value={String(size)}>{size}</SelectItem>)}</SelectContent>
                 </Select>
                 users per page
               </div>
-              {data.total_pages > 1 && <div className="flex items-center gap-3">
-                <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(p => p - 1)}><FontAwesomeIcon icon={faChevronLeft} />Previous</Button>
-                <span className="text-sm text-muted-foreground">Page {data.page} of {data.total_pages}</span>
-                <Button variant="outline" size="sm" disabled={page >= data.total_pages} onClick={() => setPage(p => p + 1)}>Next<FontAwesomeIcon icon={faChevronRight} /></Button>
+              {table.getPageCount() > 1 && <div className="flex items-center gap-3">
+                <Button variant="outline" size="sm" disabled={!table.getCanPreviousPage()} onClick={() => table.previousPage()}><FontAwesomeIcon icon={faChevronLeft} />Previous</Button>
+                <span className="text-sm text-muted-foreground">Page {pagination.pageIndex + 1} of {table.getPageCount()}</span>
+                <Button variant="outline" size="sm" disabled={!table.getCanNextPage()} onClick={() => table.nextPage()}>Next<FontAwesomeIcon icon={faChevronRight} /></Button>
               </div>}
             </div>
           </>

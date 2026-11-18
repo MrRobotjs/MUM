@@ -10,6 +10,15 @@ import type { TimelineRecords } from './identityTimeline';
 const sortColumns = ['username', 'email', 'last_streamed', 'last_played', 'last_ip', 'last_platform', 'last_player', 'plays', 'watch', 'libraries', 'expires'] as const;
 export type ServerAccountSort = `${typeof sortColumns[number]}_${'asc' | 'desc'}`;
 export const serverAccountSorts: readonly ServerAccountSort[] = sortColumns.flatMap(c => [`${c}_asc`, `${c}_desc`] as const);
+// The Users table's columns and the server sort each one uses.
+export type ServerAccountColumn = 'user' | 'username' | 'email' | 'lastStreamed' | 'lastPlayed' | 'lastIp' | 'lastPlatform' | 'lastPlayer' | 'plays' | 'watch' | 'libraries' | 'expires';
+const columnSorts: Record<ServerAccountColumn, typeof sortColumns[number]> = { user: 'username', username: 'username', email: 'email', lastStreamed: 'last_streamed',
+  lastPlayed: 'last_played', lastIp: 'last_ip', lastPlatform: 'last_platform', lastPlayer: 'last_player', plays: 'plays', watch: 'watch', libraries: 'libraries', expires: 'expires' };
+// A table sort (a column and direction) as the server's sort; no sort or an unknown column is username A–Z.
+export function serverAccountSort(sort: Readonly<{ id: string; desc: boolean }> | undefined): ServerAccountSort {
+  if (!sort || !Object.prototype.hasOwnProperty.call(columnSorts, sort.id)) return 'username_asc';
+  return `${columnSorts[sort.id as ServerAccountColumn]}_${sort.desc ? 'desc' : 'asc'}`;
+}
 export type ServerAccountPageSize = 10 | 25 | 50 | 100;
 export const serverAccountPageSizes: readonly ServerAccountPageSize[] = [10, 25, 50, 100];
 export type ServerAccountsRequest = Readonly<{ records: TimelineRecords; search: string; sort: ServerAccountSort; page: number; pageSize: ServerAccountPageSize }>;

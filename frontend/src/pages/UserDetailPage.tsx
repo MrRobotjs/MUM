@@ -30,7 +30,7 @@ import {ServiceRemoteAccessCard} from '../components/users/ServiceRemoteAccessCa
 import {ProfileRemoteAccessCard} from '../components/users/ProfileRemoteAccessCard';
 import {HumanExpiryCard} from '../components/users/HumanExpiryCard';
 import {HumanUserRolesCard} from '../components/users/HumanUserRolesCard';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import {Button} from '@/components/ui/button';
 import { Badge, RoleBadge } from '@/components/common/Badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -489,19 +489,13 @@ const HistoryTab=({history,target,source,onSourceChange}:{history:ReturnType<typ
   const {page,loading,error,refresh,hasPrevious,previous,next}=history;
   if(error)return <section className="space-y-4"><div className="rounded border border-red-500/40 bg-red-50 dark:bg-red-400/10 px-4 py-3 text-sm text-red-600 dark:text-red-400">Failed to load history: {error.message} <Button variant="outline" onClick={()=>void refresh().catch(()=>{})}>Refresh history</Button></div></section>;
   if(loading||!page||page.target_uuid!==target)return <section className="space-y-4"><div className="flex items-center gap-3 rounded border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground"><Spinner className="size-4"/>Fetching recent history…</div></section>;
-  if(page.items.length===0&&!hasPrevious)return <section className="space-y-4"><div className="flex justify-end"><HistorySourcePicker source={source} services={page.sources} onChange={onSourceChange}/></div><div className="flex flex-col items-center gap-3 py-10 text-muted-foreground/60"><FontAwesomeIcon icon={faClockRotateLeft} className="text-3xl"/><p className="text-sm">No streaming history to display yet.</p></div></section>;
+  if(page.items.length===0&&!hasPrevious)return <section className="space-y-4"><Card><CardHeading icon={faClockRotateLeft} title="History" description="What they’ve played, newest first."><HistorySourcePicker source={source} services={page.sources} onChange={onSourceChange}/></CardHeading><CardContent><div className="flex flex-col items-center gap-3 py-10 text-muted-foreground/60"><FontAwesomeIcon icon={faClockRotateLeft} className="text-3xl"/><p className="text-sm">No streaming history to display yet.</p></div></CardContent></Card></section>;
   return (
     <section className="space-y-4">
       <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <CardTitle>Recent Activity</CardTitle>
-              <CardDescription>Streaming history and playback sessions</CardDescription>
-            </div>
-            <HistorySourcePicker source={source} services={page.sources} onChange={onSourceChange}/>
-          </div>
-        </CardHeader>
+        <CardHeading icon={faClockRotateLeft} title="History" description="What they’ve played, newest first.">
+          <HistorySourcePicker source={source} services={page.sources} onChange={onSourceChange}/>
+        </CardHeading>
         <CardContent>
           <div className="overflow-x-auto">
             <table className="w-full">

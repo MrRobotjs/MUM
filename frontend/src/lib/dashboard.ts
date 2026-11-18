@@ -49,6 +49,10 @@ async function readServers(token = getAccessToken()): Promise<ServerDTO[]> {
   });
 }
 
+export type ServerHealthStatus = 'online' | 'offline' | 'disabled' | 'unchecked';
+export type ServerHealth = { id: number; name: string; service_type: string; status: ServerHealthStatus; version?: string; checked_at: string | null };
+export type ServerHealthSummary = { total_servers: number; online: number; offline: number; disabled: number; unchecked: number };
+
 // Reads stored health. A refresh first probes active servers (four at a time);
 // each probe records its own outcome, so a failed probe still shows as offline.
 export async function fetchServerHealth(probe = false) {
@@ -63,13 +67,16 @@ export async function fetchServerHealth(probe = false) {
     if (token !== getAccessToken()) throw Error('Dashboard session changed. Refresh.');
     servers = await readServers(token);
   }
+  // A server turned off in MUM, or not checked yet, is neither online nor offline.
   const rows = servers.map(s => ({
-    id: s.id, name: s.server_nickname, online: s.effective_active && s.last_status === true, service_type: s.service_type,
+    id: s.id, name: s.server_nickname, service_type: s.service_type,
+    status: (!s.effective_active ? 'disabled' : s.last_status === true ? 'online' : s.last_status === false ? 'offline' : 'unchecked') as ServerHealthStatus,
     ...(s.last_version ? { version: s.last_version } : {}),
-    ...(!s.effective_active ? { error_message: 'Disabled' } : s.last_status === false ? { error_message: 'Last connection check failed' } : s.last_status === null ? { error_message: 'Not checked yet' } : {}),
+    checked_at: s.last_status_check || null,
   }));
-  const online = rows.filter(r => r.online).length;
-  return { data: { summary: { total_servers: rows.length, online, offline: rows.length - online }, servers: rows }, meta: { generated_at: new Date().toISOString() } };
+  const count = (status: ServerHealthStatus) => rows.filter(r => r.status === status).length;
+  return { data: { summary: { total_servers: rows.length, online: count('online'), offline: count('offline'), disabled: count('disabled'), unchecked: count('unchecked') }, servers: rows },
+    meta: { generated_at: new Date().toISOString() } };
 }
 
 // Current activity across all servers (administrators), shaped for the card.

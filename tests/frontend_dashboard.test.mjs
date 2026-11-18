@@ -49,10 +49,12 @@ test('dashboard adapters', async t => {
       'POST /api/servers/4/test-connection': () => Response.json({ error: { code: 'UPSTREAM_FAILED', message: 'down' } }, { status: 502 }),
     });
     const stored = await m.fetchServerHealth();
-    assert.deepEqual(stored.data.summary, { total_servers: 4, online: 1, offline: 3 });
-    assert.equal(stored.data.servers[1].error_message, 'Last connection check failed');
-    assert.equal(stored.data.servers[2].error_message, 'Disabled');
-    assert.equal(stored.data.servers[3].error_message, 'Not checked yet');
+    // A server turned off in MUM, or not checked yet, is not "offline".
+    assert.deepEqual(stored.data.summary, { total_servers: 4, online: 1, offline: 1, disabled: 1, unchecked: 1 });
+    assert.deepEqual(stored.data.servers.map(s => s.status), ['online', 'offline', 'disabled', 'unchecked']);
+    assert.deepEqual(stored.data.servers[0], { id: 1, name: 'Server 1', service_type: 'jellyfin', status: 'online', version: '10.9', checked_at: '2026-11-05T00:00:00Z' });
+    assert.equal(stored.data.servers[3].version, undefined);
+    assert.equal(stored.data.servers[2].checked_at, '2026-11-05T00:00:00Z');
     assert.equal(JSON.stringify(stored).includes('never-shown'), false);
     assert.equal(calls.filter(c => c.startsWith('POST')).length, 0);
     const refreshed = await m.fetchServerHealth(true);

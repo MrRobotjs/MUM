@@ -1,0 +1,59 @@
+/* The dashboard's Server Health card (user request 2026-11-17): a tile per
+   server with its logo, version, status pill and last check. */
+.dashboard-health-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+  gap: 1rem;
+}
+.dashboard-health-tile {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: .875rem;
+  border: 1px solid var(--border);
+  border-radius: .75rem;
+  background: var(--card);
+  padding: 1rem;
+  color: inherit;
+  text-decoration: none;
+  transition: border-color .15s, box-shadow .15s;
+}
+.dashboard-health-tile:hover {
+  border-color: color-mix(in srgb, var(--primary) 45%, var(--border));
+  box-shadow: 0 2px 8px rgb(0 0 0 / .06);
+}
+.dashboard-health-tile:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.dashboard-health-tile .account-setting-icon { width: 2.5rem; height: 2.5rem; }
+.dashboard-health-body { display: grid; min-width: 0; flex: 1; gap: .125rem; }
+.dashboard-health-name { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: .5rem; }
+.dashboard-health-name > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.dashboard-health-note { margin-top: .375rem; font-size: .75rem; color: var(--muted-foreground); }
+.dashboard-health-chips { display: flex; flex-wrap: wrap; gap: .5rem; }
+
+/* Status pills and the summary chips: a coloured dot and label. */
+.dashboard-health-status {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: .375rem;
+  border-radius: 9999px;
+  padding: .125rem .5rem;
+  font-size: .75rem;
+  font-weight: 600;
+  line-height: 1.25rem;
+  white-space: nowrap;
+}
+.dashboard-health-status::before {
+  content: "";
+  width: .5rem;
+  height: .5rem;
+  border-radius: 9999px;
+  background: currentColor;
+}
+.dashboard-health-status[data-status="online"] { color: #047857; background: rgb(16 185 129 / .12); }
+.dashboard-health-status[data-status="offline"] { color: var(--destructive); background: color-mix(in srgb, var(--destructive) 12%, transparent); }
+.dashboard-health-status[data-status="disabled"] { color: var(--muted-foreground); background: var(--muted); }
+.dashboard-health-status[data-status="disabled"]::before { background: transparent; box-shadow: inset 0 0 0 1.5px currentColor; }
+.dashboard-health-status[data-status="unchecked"] { color: #b45309; background: rgb(245 158 11 / .14); }
+[data-theme=dark] .dashboard-health-status[data-status="online"] { color: #6ee7b7; background: rgb(16 185 129 / .18); }
+[data-theme=dark] .dashboard-health-status[data-status="unchecked"] { color: #fcd34d; background: rgb(245 158 11 / .18); }

@@ -545,7 +545,7 @@ const HistoryTab = ({ history, target, view, onViewChange, admin }: {
 }) => {
   const { formatTimestamp } = useAccountDisplay();
   const { success, error: showError } = useAlerts();
-  const { page, loading, error, refresh, hasPrevious, previous, next } = history;
+  const { page, pending, loading, error, refresh, hasPrevious, previous, next } = history;
   const [deleteMode, setDeleteMode] = useState(false);
   const [marked, setMarked] = useState<ReadonlySet<string>>(new Set());
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -557,13 +557,14 @@ const HistoryTab = ({ history, target, view, onViewChange, admin }: {
   const shown = page?.servers.find(s => s.server_id === page.server_id);
   const streams = Boolean(shown?.live) && view.records !== 'server';
 
-  // Filters the shown server and records don't offer are dropped.
+  // Filters the shown server and records don't offer are dropped, judged on
+  // the page that answers the current view.
   useEffect(() => {
-    if (!page || page.target_uuid !== target) return;
+    if (!page || pending || page.target_uuid !== target) return;
     const types = view.types.filter(t => page.categories.includes(t));
     const methods = streams ? view.methods : [];
     if (types.length !== view.types.length || methods.length !== view.methods.length) onViewChange({ ...view, types, methods });
-  }, [page, target, streams, view, onViewChange]);
+  }, [page, pending, target, streams, view, onViewChange]);
 
   // A running import is checked every 2 seconds until it ends.
   useEffect(() => {
@@ -722,10 +723,11 @@ const HistoryTab = ({ history, target, view, onViewChange, admin }: {
                   onCheckedChange={() => toggleColumn(column)} onSelect={e => e.preventDefault()}>{column === 'title' && shown.service_type === 'audiobookshelf' ? 'Title' : historyColumnLabels[column]}</DropdownMenuCheckboxItem>)}
               </DropdownMenuContent>
             </DropdownMenu>
+            {pending && <Spinner className="size-4 text-muted-foreground" role="status" aria-label="Loading history" />}
           </div>
           {deleteMode && <p className="text-sm text-muted-foreground" role="status">Select rows to delete. They’re deleted when you leave delete mode{marked.size > 0 ? ` (${marked.size} selected)` : ''}.</p>}
           {importNote && importNote.server === shown.server_id && <p className="text-sm text-muted-foreground" role="status">{importNote.text}</p>}
-          {page.items.length === 0 && !hasPrevious ? empty(filtered ? 'No plays match these filters.' : 'No history to display yet.') : <div className="overflow-x-auto">
+          {page.items.length === 0 && !hasPrevious ? empty(filtered ? 'No plays match these filters.' : 'No history to display yet.') : <div className="account-history-table overflow-x-auto" aria-busy={pending}>
             <table className="w-full">
               <thead>
                 <tr className="border-b border-border">

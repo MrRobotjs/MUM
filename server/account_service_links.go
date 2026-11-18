@@ -62,8 +62,8 @@ func (a *App) accountServiceLinks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ctx := r.Context()
-	rows, err := a.store.reader.QueryContext(ctx, `SELECT sa.uuid,m.id,m.server_nickname,m.service_type,coalesce(sa.external_username,'')
-	 FROM service_links l JOIN service_accounts sa ON sa.uuid=l.service_uuid JOIN media_servers m ON m.id=sa.server_id
+	rows, err := a.store.reader.QueryContext(ctx, `SELECT sa.uuid,m.id,m.server_nickname,m.service_type,coalesce(sa.external_username,''),i.id,coalesce(sa.external_user_id,''),coalesce(sa.external_avatar_url,'')
+	 FROM service_links l JOIN service_accounts sa ON sa.uuid=l.service_uuid JOIN media_servers m ON m.id=sa.server_id JOIN identities i ON i.uuid=sa.uuid
 	 WHERE l.user_uuid=? AND l.link_kind='owner' AND sa.removed_at IS NULL ORDER BY m.server_nickname COLLATE NOCASE,sa.uuid`, p.UUID)
 	if err != nil {
 		domainError(w, err)
@@ -71,12 +71,13 @@ func (a *App) accountServiceLinks(w http.ResponseWriter, r *http.Request) {
 	}
 	type link struct {
 		Service, Name, Type, Username string
-		Server                        int64
+		Server, Identity              int64
+		External, Avatar              string
 	}
 	var links []link
 	for rows.Next() {
 		var l link
-		if err := rows.Scan(&l.Service, &l.Server, &l.Name, &l.Type, &l.Username); err != nil {
+		if err := rows.Scan(&l.Service, &l.Server, &l.Name, &l.Type, &l.Username, &l.Identity, &l.External, &l.Avatar); err != nil {
 			rows.Close()
 			domainError(w, err)
 			return
@@ -88,6 +89,13 @@ func (a *App) accountServiceLinks(w http.ResponseWriter, r *http.Request) {
 		domainError(w, err)
 		return
 	}
+	// Pictures are signed for this session only (account_avatars.go).
+	session, err := a.requestSession(ctx, r)
+	if err != nil {
+		domainError(w, err)
+		return
+	}
+	now := time.Now()
 	out := []map[string]any{}
 	for _, l := range links {
 		other, err := otherSignInMethod(ctx, a.store.reader, p.UUID, l.Service)
@@ -95,7 +103,11 @@ func (a *App) accountServiceLinks(w http.ResponseWriter, r *http.Request) {
 			domainError(w, err)
 			return
 		}
-		out = append(out, map[string]any{"service_uuid": l.Service, "server_id": l.Server, "server_name": l.Name, "server_type": l.Type, "username": l.Username, "can_unlink": other})
+		item := map[string]any{"service_uuid": l.Service, "server_id": l.Server, "server_name": l.Name, "server_type": l.Type, "username": l.Username, "can_unlink": other}
+		if serviceHasAvatar(l.Type, l.External, l.Avatar) {
+			item["avatar_url"] = a.serviceAvatarURL(session, l.Identity, now)
+		}
+		out = append(out, item)
 	}
 	enabled, _ := serviceSignInSettings(ctx, a.store.reader)
 	servers := []map[string]any{}

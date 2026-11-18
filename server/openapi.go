@@ -25,6 +25,8 @@ var publicAPIRoutes = map[string]string{
 	"GET /api/activity/history-images/{item}":                                       "Signed, short-lived link; administrator session and the retained play's stored poster are rechecked on every fetch",
 	"GET /api/activity/imported-history-images/{item}":                              "Signed, short-lived link; administrator session and the imported play's stored poster are rechecked on every fetch",
 	"GET /api/user-avatars/{item}":                                                  "Signed, short-lived link; administrator session and current user avatar source are rechecked on every fetch",
+	"GET /api/service-avatars/{item}":                                               "Signed, short-lived link; the session and its right to see the linked account (administrator, the account, its owner, or the matching Plex sign-in link) are rechecked on every fetch",
+	"GET /api/discord-avatars/{item}":                                               "Signed, short-lived link; the session (the account itself or an administrator) and the stored Discord picture are rechecked on every fetch",
 	"GET /api/activity/avatars/{item}":                                              "Signed, short-lived link; administrator session and current avatar source are rechecked on every fetch",
 	"GET /api/activity/images/{item}":                                               "Signed, short-lived link; administrator session and current activity are rechecked on every fetch",
 	"GET /api/openapi/openapi.json":                                                 "This document",

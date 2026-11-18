@@ -91,6 +91,24 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* A linked account's small round picture (or first letter) before its name. */
+.account-avatar {
+  display: inline-flex;
+  width: 1.5rem;
+  height: 1.5rem;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 9999px;
+  background: var(--muted);
+  color: var(--muted-foreground);
+  font-size: .75rem;
+  font-weight: 600;
+  line-height: 1;
+}
+.account-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.account-avatar-name { display: inline-flex; min-width: 0; max-width: 100%; align-items: center; gap: .5rem; vertical-align: middle; }
 /* The History table's title column keeps a readable width; the table scrolls sideways instead. */
 .account-history-title { min-width: 12rem; }
 .account-info {

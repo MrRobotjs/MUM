@@ -1,8 +1,10 @@
+import { avatarLink } from './accountAvatar';
 import { ApiError, requestJson } from '../util/apiClient';
 
 export type PersonalProfile = { uuid: string; username: string; display_name: string; email: string | null; user_type: string; has_password: boolean; force_password_change: boolean; last_login_at: string | null; plex_authorization_enabled: boolean; profile_changes_available: false; password_change_available: boolean; email_change_available: boolean; profile_revision: number; email_verified: false; initial_credentials_available?: boolean };
 // on_server: whether the account is on one of this MUM's Plex servers (null: unknown, for the owner).
-export type PlexConnection = { id: string; account_id: string; username: string; status: 'active'; verified_at?: string; on_server: boolean | null };
+// avatar_url: a signed link to the matching Plex server account's picture, or null.
+export type PlexConnection = { id: string; account_id: string; username: string; status: 'active'; verified_at?: string; on_server: boolean | null; avatar_url: string | null };
 export type PlexChallenge = { id: string; status: 'pending' | 'verified'; expires_at: string; revision: number; authorization_url?: string; account?: {id: string; username: string} };
 export type PlexConnectionState = { phase: 'loading' | 'ready' | 'pending' | 'verified' | 'connected' | 'expired' | 'uncertain' | 'error'; busy: boolean; enabled: boolean; connection: PlexConnection | null; challenge: PlexChallenge | null; error: string | null };
 const uuid = (value: unknown): value is string => typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(value);
@@ -25,7 +27,7 @@ function connection(value: unknown): PlexConnection | null {
  if (value === null) return null;
  const c = value as PlexConnection;
  if (!c || !uuid(c.id) || !accountID(c.account_id) || typeof c.username !== 'string' || !c.username || c.status !== 'active' || c.on_server !== null && typeof c.on_server !== 'boolean') throw new Error('Invalid Plex connection');
- return {id:c.id,account_id:c.account_id,username:c.username,status:'active',verified_at:c.verified_at,on_server:c.on_server};
+ return {id:c.id,account_id:c.account_id,username:c.username,status:'active',verified_at:c.verified_at,on_server:c.on_server,avatar_url:avatarLink(c.avatar_url,'service')};
 }
 function challenge(value: unknown, expected?: string): PlexChallenge {
  const c = value as PlexChallenge;

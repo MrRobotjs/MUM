@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { loadFrontend } from './frontendLoader.mjs';
+const avatarMock = `export const AvatarName=p=>p.children??p.name;export const AccountAvatar=()=>'';`;
 
 // Linking a Discord account on the account page and signing in with it
 // (DISCORD_SIGN_IN_DESIGN.md). Answers are checked before use, a start goes
@@ -18,7 +19,7 @@ test('discord sign-in adapter', async t => {
     const m = await load(); m.setAccessToken('session');
     let path;
     globalThis.fetch = async req => { path = new URL(req.url).pathname; return Response.json({ data: { available: true, linked: true, username: 'discord_viewer', sign_in: false } }); };
-    assert.deepEqual(await m.getAccountDiscord(), { available: true, linked: true, username: 'discord_viewer', signIn: false });
+    assert.deepEqual(await m.getAccountDiscord(), { available: true, linked: true, username: 'discord_viewer', signIn: false, avatarUrl: null });
     assert.equal(path, '/api/account/discord');
     for (const bad of [{ available: 'yes', linked: false, username: null, sign_in: false }, { available: true, linked: true, username: null, sign_in: false }, { available: true, linked: false, username: 5, sign_in: false }]) {
       globalThis.fetch = async () => Response.json({ data: bad });
@@ -82,7 +83,7 @@ const uiMock = `export const Card='div',CardContent='div',CardHeader='div',CardT
 
 test('the account card links, explains, and unlinks only through a confirmation', async () => {
   const header = `export const SettingHeader=({title,info,summary,action})=>({type:'section',props:{children:[title,'|',info,'|',summary,'|',action]}});export const ConfirmAction=()=>null;export const SettingIcon=(p)=>p.children;`;
-  const m = await loadFrontend(`export {DiscordLinkFields} from './src/components/users/DiscordLinkCard';${renderer}`, { mock: { filter: s => /components\/ui|ui\/|@fortawesome\/react-fontawesome|contexts|@tanstack\/react-router|lib\/discordSignIn|AccountSettings/.test(s), module: s =>
+  const m = await loadFrontend(`export {DiscordLinkFields} from './src/components/users/DiscordLinkCard';${renderer}`, { mock: { filter: s => /AccountAvatar|components\/ui|ui\/|@fortawesome\/react-fontawesome|contexts|@tanstack\/react-router|lib\/discordSignIn|AccountSettings/.test(s), module: s => /AccountAvatar/.test(s) ? avatarMock :
     /AccountSettings/.test(s) ? header : /contexts/.test(s) ? `export const useAuth=()=>({});export const useAlerts=()=>({});` : /react-router/.test(s) ? `export const useNavigate=()=>()=>{};export const useSearch=()=>({});` : /discordSignIn/.test(s) ? `export const discordOutcome=()=>null;export const getAccountDiscord=async()=>({});export const startDiscordLink=async()=>'';export const unlinkDiscord=async()=>{};` : uiMock } });
   const onLink = () => {}, onUnlink = () => {};
   const fields = info => m.DiscordLinkFields({ info, busy: false, onLink, onUnlink });

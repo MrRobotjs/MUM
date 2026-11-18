@@ -13,6 +13,8 @@ type accountLinkAccount struct {
 	Email    string `json:"external_email"`
 	Provider string `json:"service_type"`
 	Server   string `json:"server_name"`
+	// A signed link to the account's picture, when it has one (account_avatars.go).
+	AvatarURL string `json:"avatar_url,omitempty"`
 }
 
 type accountLinkAccountsRecord struct {
@@ -75,8 +77,8 @@ func (a *App) accountLinkAccounts(w http.ResponseWriter, r *http.Request) {
 	out.LinkRevision = strconv.FormatInt(link, 10)
 	out.ProfileRevision = strconv.FormatInt(profile, 10)
 	rows, err := tx.QueryContext(r.Context(), `SELECT a.uuid,coalesce(a.external_username,''),coalesce(a.external_email,''),s.service_type,s.server_nickname,
- EXISTS(SELECT 1 FROM service_links l WHERE l.service_uuid=a.uuid AND l.user_uuid=? AND l.link_kind='owner')
- FROM service_accounts a JOIN media_servers s ON s.id=a.server_id
+ EXISTS(SELECT 1 FROM service_links l WHERE l.service_uuid=a.uuid AND l.user_uuid=? AND l.link_kind='owner'),i.id,coalesce(a.external_user_id,''),coalesce(a.external_avatar_url,'')
+ FROM service_accounts a JOIN media_servers s ON s.id=a.server_id JOIN identities i ON i.uuid=a.uuid
  WHERE EXISTS(SELECT 1 FROM service_links l WHERE l.service_uuid=a.uuid AND l.user_uuid=? AND l.link_kind='owner')
  OR (? AND a.is_active=1 AND NOT EXISTS(SELECT 1 FROM service_links l WHERE l.service_uuid=a.uuid))
  ORDER BY a.uuid LIMIT 1001`, target, target, out.CanLink)
@@ -84,11 +86,18 @@ func (a *App) accountLinkAccounts(w http.ResponseWriter, r *http.Request) {
 		domainError(w, err)
 		return
 	}
+	session, sessionErr := a.requestSession(r.Context(), r)
+	now := time.Now()
 	for rows.Next() {
 		var account accountLinkAccount
 		var linked bool
-		if err = rows.Scan(&account.UUID, &account.Username, &account.Email, &account.Provider, &account.Server, &linked); err != nil {
+		var identity int64
+		var external, avatar string
+		if err = rows.Scan(&account.UUID, &account.Username, &account.Email, &account.Provider, &account.Server, &linked, &identity, &external, &avatar); err != nil {
 			break
+		}
+		if linked && sessionErr == nil && serviceHasAvatar(account.Provider, external, avatar) {
+			account.AvatarURL = a.serviceAvatarURL(session, identity, now)
 		}
 		if linked {
 			out.Linked = append(out.Linked, account)

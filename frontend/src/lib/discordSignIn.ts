@@ -1,3 +1,4 @@
+import { avatarLink } from './accountAvatar';
 import { requestJson } from '../util/apiClient';
 
 // Linking a Discord account and signing in with it (DISCORD_SIGN_IN_DESIGN.md).
@@ -6,7 +7,8 @@ import { requestJson } from '../util/apiClient';
 // only to Discord's own authorize page, and Discord sends it back to the
 // account or login page with an outcome.
 
-export type AccountDiscord = { available: boolean; linked: boolean; username: string | null; signIn: boolean };
+// avatarUrl: a signed link to the linked Discord account's picture, or null.
+export type AccountDiscord = { available: boolean; linked: boolean; username: string | null; signIn: boolean; avatarUrl: string | null };
 export type DiscordPage = 'login' | 'account';
 export type DiscordOutcome = { kind: 'success' | 'error'; message: string } | null;
 
@@ -15,8 +17,8 @@ const record = (value: unknown): Record<string, unknown> | null => (value && typ
 export function parseAccountDiscord(value: unknown): AccountDiscord {
   const v = record(value);
   if (!v || typeof v.available !== 'boolean' || typeof v.linked !== 'boolean' || typeof v.sign_in !== 'boolean' || !(v.username === null || typeof v.username === 'string') ||
-    v.linked !== (typeof v.username === 'string')) throw new Error('Unexpected Discord account answer');
-  return { available: v.available, linked: v.linked, username: v.username as string | null, signIn: v.sign_in };
+    v.linked !== (typeof v.username === 'string') || !v.linked && v.avatar_url !== undefined) throw new Error('Unexpected Discord account answer');
+  return { available: v.available, linked: v.linked, username: v.username as string | null, signIn: v.sign_in, avatarUrl: avatarLink(v.avatar_url, 'discord') };
 }
 
 export async function getAccountDiscord(): Promise<AccountDiscord> {

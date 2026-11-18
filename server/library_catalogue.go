@@ -894,10 +894,13 @@ func (a *App) serveSignedImage(w http.ResponseWriter, r *http.Request, param, pu
 		fail(w, 503, "IMAGE_PROXY_BUSY", "Too many image requests are in progress")
 		return
 	}
-	client, err := newServerConnection(ProviderConfig{source.Provider, source.URL, source.APIKey}, a.ProviderHTTP)
-	if err != nil {
-		domainError(w, ErrConflict)
-		return
+	// An image not kept on a media server (a Discord avatar) has no provider.
+	var client *serverConnection
+	if source.Provider != "" {
+		if client, err = newServerConnection(ProviderConfig{source.Provider, source.URL, source.APIKey}, a.ProviderHTTP); err != nil {
+			domainError(w, ErrConflict)
+			return
+		}
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()

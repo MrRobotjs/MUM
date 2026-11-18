@@ -9,6 +9,7 @@ import { Button } from '../ui/button';
 import { Card, CardContent } from '../ui/card';
 import { ConfirmAction, SettingHeader, SettingIcon } from './AccountSettings';
 import { Spinner } from '../ui/spinner';
+import { AvatarName } from './AccountAvatar';
 
 // Linking a Discord account on the account page (DISCORD_SIGN_IN_DESIGN.md):
 // the same for admins and users. Discord sends the browser back here with the
@@ -18,7 +19,7 @@ const DISCORD_ICON = <SettingIcon className="bg-indigo-500/10 text-indigo-500"><
 export function DiscordLinkFields({ info, busy, onLink, onUnlink }: {
   info: AccountDiscord; busy: boolean; onLink: () => void; onUnlink: () => void;
 }) {
-  const summary = info.linked ? info.username : info.available ? 'Not linked' : 'Not available';
+  const summary = info.linked ? <AvatarName key={info.username ?? ''} url={info.avatarUrl} name={info.username ?? ''} /> : info.available ? 'Not linked' : 'Not available';
   return <SettingHeader title="Discord" icon={DISCORD_ICON} summary={summary}
     info={<>
       <p>Link your Discord account to show it on your profile and, when an administrator allows it, to use Sign in with Discord.</p>

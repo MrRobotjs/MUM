@@ -53,6 +53,7 @@ type App struct {
 	TrustedProxies   []netip.Prefix // Reverse proxies whose X-Forwarded-* headers are honoured.
 	ProviderHTTP     *http.Client
 	DiscordAPI       string // test-only override of the fixed Discord API base
+	DiscordCDN       string // test-only override of Discord's image server
 	syncRun          sync.Mutex
 	syncMu           sync.Mutex
 	syncState        map[string]any
@@ -123,6 +124,8 @@ func NewApp(store *Store, queue *LogQueue, assets fs.FS) (*App, error) {
 	handle("GET /api/activity/imported-history-images/{item}", a.importedHistoryImageProxy)
 	handle("GET /api/activity/avatars/{item}", a.activityAvatarProxy)
 	handle("GET /api/user-avatars/{item}", a.userAvatarProxy)
+	handle("GET /api/service-avatars/{item}", a.serviceAvatarProxy)
+	handle("GET /api/discord-avatars/{item}", a.discordAvatarProxy)
 	handle("POST /api/public/invitations/{token}/plex-authorizations", a.startInvitationPlexAuthorization)
 	handle("POST /api/public/invitations/{token}/receipt", a.publicProvisioningReceipt)
 	handle("POST /api/public/invitations/{token}/plex-authorizations/{authorization}/poll", a.pollInvitationPlexAuthorization)

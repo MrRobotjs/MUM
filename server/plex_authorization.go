@@ -548,7 +548,23 @@ func (a *App) getPlexConnection(w http.ResponseWriter, r *http.Request) {
 		plexAuthorizationError(w, err)
 		return
 	}
-	respond(w, 200, map[string]any{"id": id, "account_id": account, "username": username, "verified_at": verified, "status": "active", "on_server": onServer})
+	out := map[string]any{"id": id, "account_id": account, "username": username, "verified_at": verified, "status": "active", "on_server": onServer}
+	// The picture is the one user sync keeps for the Plex server account with
+	// the same plex.tv ID (account_avatars.go); none when there is no such
+	// account.
+	var identity int64
+	var avatar string
+	err = a.store.reader.QueryRowContext(r.Context(), `SELECT i.id,a.external_avatar_url FROM service_accounts a JOIN identities i ON i.uuid=a.uuid JOIN media_servers s ON s.id=a.server_id
+	 WHERE s.service_type='plex' AND s.is_active=1 AND a.external_avatar_url IS NOT NULL AND (a.external_user_id=? OR a.external_account_id=?) ORDER BY a.is_active DESC,a.uuid LIMIT 1`, account, account).Scan(&identity, &avatar)
+	if err == nil && serviceHasAvatar("plex", "", avatar) {
+		if session, sessionErr := a.requestSession(r.Context(), r); sessionErr == nil {
+			out["avatar_url"] = a.serviceAvatarURL(session, identity, time.Now())
+		}
+	} else if err != nil && err != sql.ErrNoRows {
+		plexAuthorizationError(w, err)
+		return
+	}
+	respond(w, 200, out)
 }
 func (a *App) revokePlexConnection(w http.ResponseWriter, r *http.Request) {
 	owner, ok := a.principal(w, r, false)

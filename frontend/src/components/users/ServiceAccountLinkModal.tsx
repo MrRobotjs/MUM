@@ -14,7 +14,7 @@ export type AvailableServiceAccount = {
   server_name?: string;
   external_username?: string;
   external_email?: string;
-  avatar_url?: string;
+  avatar_url?: string | null;
 };
 
 type ServiceAccountLinkModalProps = {

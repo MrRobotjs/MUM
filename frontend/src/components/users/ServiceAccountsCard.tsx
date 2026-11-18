@@ -6,6 +6,7 @@ import { faServer } from '@fortawesome/free-solid-svg-icons'
 import { getServiceMeta } from '@/config/pluginMetadata'
 import { ServiceSettingIcon, SettingHeader, SettingIcon } from './AccountSettings'
 import { Spinner } from '@/components/ui/spinner'
+import { AvatarName } from './AccountAvatar'
 
 export type ServiceAccount = {
   uuid: string
@@ -14,6 +15,8 @@ export type ServiceAccount = {
   external_username?: string
   external_email?: string
   linked_at?: string
+  // A signed link to the account's picture, when it has one.
+  avatar_url?: string | null
 }
 
 type ServiceAccountsCardProps = {
@@ -48,7 +51,7 @@ export const ServiceAccountsCard = ({ accounts, loading, error, onUnlink, onLink
                 <div className="flex min-w-0 items-center gap-3">
                   <ServiceSettingIcon serviceType={account.service_type} />
                   <div className="min-w-0">
-                    <p className="truncate font-medium text-foreground">{account.external_username ?? 'Service Account'}{account.uuid === currentUuid ? <span className="text-xs font-normal text-muted-foreground"> · This account</span> : null}</p>
+                    <p className="font-medium text-foreground"><AvatarName key={account.uuid} url={account.avatar_url ?? null} name={account.external_username ?? 'Service Account'}>{account.external_username ?? 'Service Account'}{account.uuid === currentUuid ? <span className="text-xs font-normal text-muted-foreground"> · This account</span> : null}</AvatarName></p>
                     <p className="truncate text-xs text-muted-foreground">{getServiceMeta(account.service_type).label} • {account.server_name ?? 'Unknown server'}</p>
                   </div>
                 </div>

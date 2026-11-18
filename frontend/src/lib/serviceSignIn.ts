@@ -1,3 +1,4 @@
+import { avatarLink } from './accountAvatar';
 import { requestJson } from '../util/apiClient';
 
 // Sign in with a media server login (Plex, Jellyfin, Emby, Audiobookshelf,
@@ -7,7 +8,8 @@ import { requestJson } from '../util/apiClient';
 
 export type SignInServer = { id: number; name: string; type: string };
 export type SignInMethods = { serviceSignIn: boolean; plex: boolean; servers: SignInServer[]; discord?: boolean };
-export type ServiceLink = { serviceUuid: string; serverId: number; serverName: string; serverType: string; username: string; canUnlink: boolean };
+// avatarUrl: a signed link to the account's picture, or null (accountAvatar.ts).
+export type ServiceLink = { serviceUuid: string; serverId: number; serverName: string; serverType: string; username: string; canUnlink: boolean; avatarUrl: string | null };
 export type ServiceLinks = { links: ServiceLink[]; servers: SignInServer[]; serviceSignIn: boolean };
 export type SignInSettings = { serviceSignIn: boolean; serviceSignInAdmins: boolean; passwordlessAccounts: number; passwordlessAdmins: number };
 
@@ -49,7 +51,7 @@ export function parseServiceLinks(value: unknown): ServiceLinks {
     const l = record(raw);
     if (!l || typeof l.service_uuid !== 'string' || !/^[0-9a-f-]{36}$/.test(l.service_uuid) || !Number.isSafeInteger(l.server_id) || typeof l.server_name !== 'string' ||
       typeof l.server_type !== 'string' || typeof l.username !== 'string' || typeof l.can_unlink !== 'boolean') throw new Error('Unexpected linked account');
-    return { serviceUuid: l.service_uuid, serverId: l.server_id as number, serverName: l.server_name, serverType: l.server_type, username: l.username, canUnlink: l.can_unlink };
+    return { serviceUuid: l.service_uuid, serverId: l.server_id as number, serverName: l.server_name, serverType: l.server_type, username: l.username, canUnlink: l.can_unlink, avatarUrl: avatarLink(l.avatar_url, 'service') };
   });
   return { links, servers: servers(v.servers), serviceSignIn: v.service_sign_in };
 }

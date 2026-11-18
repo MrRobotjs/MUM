@@ -13,6 +13,7 @@ import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Spinner } from '@/components/ui/spinner';
+import { AvatarName } from './AccountAvatar';
 
 const message = (err: unknown) => {
   if (err instanceof ApiError) {
@@ -35,7 +36,7 @@ export const ServiceLinksList = ({ links, busy, onUnlink }: { links: ServiceLink
             <ServiceSettingIcon serviceType={link.serverType} />
             <div className="min-w-0">
             <p className="truncate font-medium text-foreground">{link.serverName}</p>
-            <p className="truncate text-xs text-muted-foreground">{link.username || 'Unnamed account'}</p>
+            <p className="text-xs text-muted-foreground"><AvatarName key={link.serviceUuid} url={link.avatarUrl} name={link.username || 'Unnamed account'} /></p>
             </div>
           </div>
           {link.canUnlink ? (

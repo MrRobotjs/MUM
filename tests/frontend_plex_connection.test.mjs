@@ -106,6 +106,14 @@ test('Plex personal connection adapters',async t=>{
   globalThis.fetch=async req=>{const path=new URL(req.url).pathname;if(path==='/api/account/profile')return respond(profile);if(path==='/api/plex/connection')return respond(null);starts++;return new Promise(resolve=>release=resolve);};
   const flow=new api.PlexConnectionController(owner,()=>{},()=>now);await flow.reload();const a=flow.start();const b=flow.start();while(!release)await new Promise(resolve=>setTimeout(resolve,0));release(respond(pending,201));await Promise.all([a,b]);assert.equal(starts,1);
  });
+ // The Plex link keeps the picture of the matching Plex server account; a link elsewhere fails closed.
+ await t.test('reads the Plex account picture',async()=>{
+  const avatar='/api/service-avatars/12?s=session&e=1700000000&g=signature';
+  let api=await load();globalThis.fetch=async req=>new URL(req.url).pathname==='/api/account/profile'?respond(profile):respond({...connected,avatar_url:avatar});
+  let flow=new api.PlexConnectionController(owner,()=>{},()=>now);await flow.reload();assert.equal(flow.state.connection.avatar_url,avatar);
+  api=await load();globalThis.fetch=async req=>new URL(req.url).pathname==='/api/account/profile'?respond(profile):respond({...connected,avatar_url:'https://plex.tv/users/x/avatar'});
+  flow=new api.PlexConnectionController(owner,()=>{},()=>now);await flow.reload();assert.notEqual(flow.state.phase,'connected');
+ });
  // The account page says when the Plex account is on none of this MUM's Plex servers;
  // the owner's own account cannot be told (null). Anything else fails closed.
  await t.test('reads whether the connected Plex account is on a server',async()=>{

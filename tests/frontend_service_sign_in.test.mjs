@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { loadFrontend } from './frontendLoader.mjs';
+const avatarMock = `export const AvatarName=p=>p.children??p.name;export const AccountAvatar=()=>'';`;
 
 const loadLib = () => loadFrontend("export * from './src/lib/serviceSignIn'");
 const server = (extra = {}) => ({ id: 7, name: 'Living Room', type: 'jellyfin', ...extra });
@@ -207,7 +208,7 @@ test('the settings explain the administrator choice and warn before locking acco
 });
 
 test('linked accounts are offered for unlinking only while another sign-in remains', async () => {
-  const m = await loadFrontend(`export {ServiceLinksList} from './src/components/users/ServiceLinksCard';${renderer}`, { mock: { filter: s => /components\/ui|ui\/|contexts|lib\/serviceSignIn|util\/apiClient/.test(s), module: s => /contexts/.test(s) ? `export const useAlerts=()=>({});` : /serviceSignIn/.test(s) ? `export const getServiceLinks=async()=>({});export const linkServiceAccount=async()=>{};export const unlinkServiceAccount=async()=>{};` : /apiClient/.test(s) ? `export class ApiError extends Error{};` : uiMock } });
+  const m = await loadFrontend(`export {ServiceLinksList} from './src/components/users/ServiceLinksCard';${renderer}`, { mock: { filter: s => /AccountAvatar|components\/ui|ui\/|contexts|lib\/serviceSignIn|util\/apiClient/.test(s), module: s => /AccountAvatar/.test(s) ? avatarMock : /contexts/.test(s) ? `export const useAlerts=()=>({});` : /serviceSignIn/.test(s) ? `export const getServiceLinks=async()=>({});export const linkServiceAccount=async()=>{};export const unlinkServiceAccount=async()=>{};` : /apiClient/.test(s) ? `export class ApiError extends Error{};` : uiMock } });
   const link = (canUnlink, name) => ({ serviceUuid: name + '-0000-4000-8000-000000000000', serverId: 7, serverName: name, serverType: 'jellyfin', username: 'alice', canUnlink });
   const only = m.render(m.ServiceLinksList({ links: [link(false, 'Living Room')], busy: false, onUnlink() {} }));
   assert.doesNotMatch(only, /<button>Unlink/);
@@ -219,7 +220,7 @@ test('linked accounts are offered for unlinking only while another sign-in remai
 
 test("a service account's profile lists every account owned by the same MUM profile, marking the one viewed", async () => {
   const header = `export const SettingHeader=({title,summary,action})=>({type:'section',props:{children:[title,'|',summary,'|',action]}});export const SettingIcon=p=>p.children;export const ServiceSettingIcon=()=>null;`;
-  const m = await loadFrontend(`export {ServiceAccountsCard} from './src/components/users/ServiceAccountsCard';${renderer}`, { mock: { filter: s => /components\/ui|ui\/|@fortawesome|AccountSettings|config\/pluginMetadata/.test(s), module: s =>
+  const m = await loadFrontend(`export {ServiceAccountsCard} from './src/components/users/ServiceAccountsCard';${renderer}`, { mock: { filter: s => /AccountAvatar|components\/ui|ui\/|@fortawesome|AccountSettings|config\/pluginMetadata/.test(s), module: s => /AccountAvatar/.test(s) ? avatarMock :
     /AccountSettings/.test(s) ? header : /pluginMetadata/.test(s) ? `export const getServiceMeta=t=>({label:t==='plex'?'Plex':'Jellyfin'});` : /@fortawesome/.test(s) ? `export const FontAwesomeIcon='i';export const faServer={};` : uiMock } });
   const accounts = [
     { uuid: 'jellyfin-1', service_type: 'jellyfin', server_name: 'Living Room', external_username: 'AllBass' },

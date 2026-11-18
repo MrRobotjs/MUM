@@ -155,13 +155,24 @@ func (a *App) accountDiscord(w http.ResponseWriter, r *http.Request) {
 		domainError(w, err)
 		return
 	}
-	var id, name string
-	if err := a.store.reader.QueryRowContext(r.Context(), "SELECT coalesce(discord_user_id,''),coalesce(discord_username,'') FROM user_accounts WHERE uuid=?", p.UUID).Scan(&id, &name); err != nil {
+	var id, name, hash string
+	var identity int64
+	if err := a.store.reader.QueryRowContext(r.Context(), "SELECT coalesce(u.discord_user_id,''),coalesce(u.discord_username,''),coalesce(u.discord_avatar_hash,''),i.id FROM user_accounts u JOIN identities i ON i.uuid=u.uuid WHERE u.uuid=?", p.UUID).Scan(&id, &name, &hash, &identity); err != nil {
 		domainError(w, err)
 		return
 	}
-	respond(w, 200, map[string]any{"available": discordReady(settings) && a.discordRedirect(r.Context(), settings) != "", "linked": id != "",
-		"username": nullableText(name), "sign_in": discordSignInPermitted(r.Context(), a.store.reader, p) == nil})
+	out := map[string]any{"available": discordReady(settings) && a.discordRedirect(r.Context(), settings) != "", "linked": id != "",
+		"username": nullableText(name), "sign_in": discordSignInPermitted(r.Context(), a.store.reader, p) == nil}
+	// The linked account's picture, through MUM (account_avatars.go).
+	if discordAvatarValid(id, hash) {
+		session, err := a.requestSession(r.Context(), r)
+		if err != nil {
+			domainError(w, err)
+			return
+		}
+		out["avatar_url"] = a.signedImageURL(discordAvatarPurpose, "/api/discord-avatars", session, identity, time.Now())
+	}
+	respond(w, 200, out)
 }
 
 // unlinkDiscord removes the account's Discord link and ends the sessions it

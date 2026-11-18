@@ -6,6 +6,7 @@ import { Button } from '../ui/button';
 import { Card, CardContent } from '../ui/card';
 import { ConfirmAction, ServiceSettingIcon, SettingHeader } from './AccountSettings';
 import { Spinner } from '../ui/spinner';
+import { AvatarName } from './AccountAvatar';
 
 const initial: PlexConnectionState = {phase:'loading',busy:false,enabled:false,connection:null,challenge:null,error:null};
 function PlexConnectionPanel({owner}:{owner:string}) {
@@ -34,7 +35,7 @@ function PlexConnectionPanel({owner}:{owner:string}) {
  };
  const linked = state.connection && state.phase!=='uncertain' ? state.connection : null;
  const canConnect = !linked && state.enabled && ['ready','expired','error'].includes(state.phase);
- const summary = state.phase==='loading' ? <Spinner className="h-4 w-4" /> : linked ? linked.username : state.enabled ? 'Not linked' : 'Not available';
+ const summary = state.phase==='loading' ? <Spinner className="h-4 w-4" /> : linked ? <AvatarName key={linked.id} url={linked.avatar_url} name={linked.username} /> : state.enabled ? 'Not linked' : 'Not available';
  return <Card>
   <SettingHeader title="Plex" icon={<ServiceSettingIcon serviceType="plex" />} summary={summary}
    info={<>

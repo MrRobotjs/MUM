@@ -1,8 +1,10 @@
+import { avatarLink } from './accountAvatar';
 import {requestJson} from '../util/apiClient';
 import {isServiceType} from '../config/serviceTypes';
 import {getAccessToken} from '../store/authStore';
 
-export type ProfileServiceAccount = {uuid: string; external_username: string; external_email: string; service_type: string; server_name: string};
+// avatar_url: a signed link to a linked account's picture, or null.
+export type ProfileServiceAccount = {uuid: string; external_username: string; external_email: string; service_type: string; server_name: string; avatar_url: string | null};
 export type ProfileAccountLinks = {actor_uuid: string; user_uuid: string; role_revision: string; link_revision: string; profile_revision: string;
   can_link: boolean; can_unlink: boolean; linked_accounts: ProfileServiceAccount[]; available_accounts: ProfileServiceAccount[]};
 const uuid = (v: unknown): v is string => typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(v);
@@ -23,7 +25,7 @@ export async function fetchProfileAccountLinks(actor: string, user: string): Pro
       if (!a || !uuid(a.uuid) || seen.has(a.uuid) || !text(a.external_username,255) || !text(a.external_email,320) || !text(a.server_name,255) ||
         typeof a.service_type !== 'string' || !isServiceType(a.service_type)) throw Error('Invalid service account selection.');
       seen.add(a.uuid);
-      return {uuid:a.uuid,external_username:a.external_username,external_email:a.external_email,service_type:a.service_type,server_name:a.server_name};
+      return {uuid:a.uuid,external_username:a.external_username,external_email:a.external_email,service_type:a.service_type,server_name:a.server_name,avatar_url:avatarLink(a.avatar_url,'service')};
     });
     return {actor_uuid:actor,user_uuid:user,role_revision:p.role_revision,link_revision:p.link_revision,profile_revision:p.profile_revision,
       can_link:p.can_link,can_unlink:true,linked_accounts:project(p.linked_accounts),available_accounts:project(p.available_accounts)};

@@ -504,12 +504,13 @@ const HistorySourcePicker=({source,services,onChange,label='History source'}:{so
 type HistoryView = Readonly<{ server?: string; records: TimelineRecords; types: readonly TimelineCategory[]; methods: readonly TimelineMethod[] }>;
 const initialHistoryView: HistoryView = { records: 'all', types: [], methods: [] };
 
-type HistoryColumn = 'poster' | 'title' | 'platform' | 'product' | 'player' | 'date' | 'ip' | 'started' | 'paused' | 'stopped' | 'duration' | 'author' | 'listened' | 'progress';
-const historyColumnLabels: Record<HistoryColumn, string> = { poster: 'Poster', title: 'Media Title', platform: 'Platform', product: 'Product', player: 'Player', date: 'Date', ip: 'IP Address',
+type HistoryColumn = 'poster' | 'title' | 'platform' | 'product' | 'player' | 'decision' | 'date' | 'ip' | 'started' | 'paused' | 'stopped' | 'duration' | 'author' | 'listened' | 'progress';
+const historyColumnLabels: Record<HistoryColumn, string> = { poster: 'Poster', title: 'Media Title', platform: 'Platform', product: 'Product', player: 'Player', decision: 'Transcode Decision', date: 'Date', ip: 'IP Address',
   started: 'Started', paused: 'Paused', stopped: 'Stopped', duration: 'Duration', author: 'Author', listened: 'Listened', progress: 'Progress' };
 const historyColumnHints: Partial<Record<HistoryColumn, string>> = {
   product: 'The app they played on',
-  player: 'The device’s name and how the server sent the stream',
+  player: 'The device’s name',
+  decision: 'How the server sent the stream: Direct Play, Direct Stream or Transcode',
   started: 'When playback started: from Plex’s notification when MUM received one, otherwise MUM’s first check of the server, or the time the server recorded',
   stopped: 'When playback stopped: from Plex’s notification when MUM received one, otherwise MUM’s last check of the server',
   duration: 'Time watched: from start to stop, less paused time',
@@ -517,8 +518,8 @@ const historyColumnHints: Partial<Record<HistoryColumn, string>> = {
 };
 // Columns each server type reports; the title can't be hidden.
 const historyColumns = (type: string): HistoryColumn[] => type === 'audiobookshelf' ? ['poster', 'title', 'author', 'date', 'listened', 'progress']
-  : type === 'plex' ? ['poster', 'title', 'platform', 'product', 'player', 'date', 'ip', 'started', 'paused', 'stopped', 'duration', 'progress']
-  : ['poster', 'title', 'product', 'player', 'date', 'started', 'paused', 'stopped', 'duration', 'progress'];
+  : type === 'plex' ? ['poster', 'title', 'platform', 'product', 'player', 'decision', 'date', 'ip', 'started', 'paused', 'stopped', 'duration', 'progress']
+  : ['poster', 'title', 'product', 'player', 'decision', 'date', 'started', 'paused', 'stopped', 'duration', 'progress'];
 const historyColumnKey = 'mum.history.columns';
 // Hidden columns per server type, remembered per browser.
 const readHiddenColumns = (): Record<string, HistoryColumn[]> => {
@@ -675,7 +676,8 @@ const HistoryTab = ({ history, target, view, onViewChange, admin }: {
       </>;
       case 'platform': return row.platform ?? none;
       case 'product': return row.client ?? none;
-      case 'player': return <>{row.player ?? none}{row.play_method && <div className="text-xs text-muted-foreground">{playMethodLabels[row.play_method]}</div>}</>;
+      case 'player': return row.player ?? none;
+      case 'decision': return row.play_method ? playMethodLabels[row.play_method] ?? none : none;
       case 'date': return formatTimestamp(row.played_at, 'date');
       case 'ip': return <span className="font-mono">{row.ip_address ?? none}</span>;
       case 'started': return formatTimestamp(row.played_at, 'time');
@@ -708,9 +710,9 @@ const HistoryTab = ({ history, target, view, onViewChange, admin }: {
         <CardContent className="space-y-4">
           <div className="flex flex-wrap items-center gap-2" role="toolbar" aria-label="History tools">
             {admin && <Button variant={deleteMode ? 'destructive' : 'outline'} size="sm" aria-pressed={deleteMode} onClick={toggleDeleteMode}><FontAwesomeIcon icon={faTrashCan} />Delete mode</Button>}
-            {page.categories.map(category => <Button key={category} variant={view.types.includes(category) ? 'secondary' : 'outline'} size="sm" aria-pressed={view.types.includes(category)}
+            {page.categories.map(category => <Button key={category} variant={view.types.includes(category) ? 'default' : 'outline'} size="sm" aria-pressed={view.types.includes(category)}
               onClick={() => onViewChange({ ...view, types: toggleFilter(view.types, category) })}><FontAwesomeIcon icon={categoryButtons[category].icon} />{categoryButtons[category].label}</Button>)}
-            {streams && timelineMethods.map(method => <Button key={method} variant={view.methods.includes(method) ? 'secondary' : 'outline'} size="sm" aria-pressed={view.methods.includes(method)}
+            {streams && timelineMethods.map(method => <Button key={method} variant={view.methods.includes(method) ? 'default' : 'outline'} size="sm" aria-pressed={view.methods.includes(method)}
               onClick={() => onViewChange({ ...view, methods: toggleFilter(view.methods, method) })}><FontAwesomeIcon icon={methodButtons[method].icon} />{methodButtons[method].label}</Button>)}
             {canImport && <Button variant="outline" size="sm" disabled={importing || Boolean(importNote?.running)} onClick={() => void startImport()}><FontAwesomeIcon icon={faFileImport} />Import history</Button>}
             <DropdownMenu>

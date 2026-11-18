@@ -541,6 +541,7 @@ func (a *App) testSavedServer(w http.ResponseWriter, r *http.Request) {
 		domainError(w, err)
 		return
 	}
+	a.announceServerHealth(true)
 	if probeErr != nil {
 		fail(w, 502, "UPSTREAM_FAILED", probeErr.Error())
 		return

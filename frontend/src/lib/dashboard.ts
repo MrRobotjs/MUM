@@ -7,7 +7,8 @@ import { fetchActivityCurrent } from './activityHistory';
 
 // Dashboard cards keep their existing view models; these adapters build them
 // from current Go endpoints. Each hook mirrors useAdminApi's return shape.
-export function useDashboardData<T>(key: string | null, fetcher: () => Promise<T>) {
+// refreshInterval re-reads quietly in the background (milliseconds; off by default).
+export function useDashboardData<T>(key: string | null, fetcher: () => Promise<T>, refreshInterval = 0) {
   const { user, isAdministrator } = useAuth();
   const session = useSyncExternalStore(subscribeToAuthStore, getAuthSnapshot);
   const token = session.accessToken;
@@ -17,7 +18,7 @@ export function useDashboardData<T>(key: string | null, fetcher: () => Promise<T
     const value = await fetcher();
     if (token !== getAccessToken()) throw Error('Dashboard session changed. Refresh.');
     return value;
-  }, { revalidateOnFocus: false, keepPreviousData: false, shouldRetryOnError: false });
+  }, { revalidateOnFocus: false, keepPreviousData: false, shouldRetryOnError: false, refreshInterval });
   return { data: enabled && !error ? data ?? null : null, error: error ? (error as ApiError).message || 'Request failed' : null, loading: enabled && isLoading, mutate };
 }
 

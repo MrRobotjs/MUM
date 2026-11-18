@@ -1,5 +1,6 @@
 import { useAccountDisplay } from '../../hooks/useAccountDisplay';
 import { useEffect, useState } from 'react'
+import { subscribeToChannel } from '../../lib/realtimeSocket';
 import { Link } from '@tanstack/react-router';
 import { Button } from '@/components/ui/button';
 import { useDashboardData, fetchServerHealth, type ServerHealth, type ServerHealthStatus, type ServerHealthSummary } from '../../lib/dashboard';
@@ -27,7 +28,9 @@ const StatusPill = ({ status, children }: { status: ServerHealthStatus; children
 // The dashboard's Server Health card: a summary, then one tile per server
 // with its logo, version, status and last check. A tile opens the server.
 export const ServerStatusCard = () => {
-  const { data, loading, error, mutate } = useDashboardData<ServerStatusResponse>('dashboard:server-health', () => fetchServerHealth());
+  // MUM checks servers in the background and announces changes; the card
+  // also re-reads every 30 seconds so each "Checked …" stays current.
+  const { data, loading, error, mutate } = useDashboardData<ServerStatusResponse>('dashboard:server-health', () => fetchServerHealth(), 30_000);
   const { success, error: showError } = useAlerts();
   const { formatTimestamp, formatRelative } = useAccountDisplay();
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -40,6 +43,17 @@ export const ServerStatusCard = () => {
   useEffect(() => {
     if (generatedAt) setLastUpdatedAt(generatedAt);
   }, [generatedAt]);
+
+  useEffect(() => subscribeToChannel('system.server_health', envelope => {
+    if (envelope.type === 'ServerHealth') void mutate();
+  }), [mutate]);
+
+  // Re-render every 15 seconds so the relative times move on.
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const timer = window.setInterval(() => setTick(n => n + 1), 15_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const handleRefresh = async () => {
     if (isRefreshing) return;
@@ -79,7 +93,7 @@ export const ServerStatusCard = () => {
           <TabHeading icon={faHeartPulse} title="Server Health" description={description} />
           <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isRefreshing || loading}>
             {isRefreshing ? <Spinner className="size-4" /> : <FontAwesomeIcon icon={faRotate} />}
-            {isRefreshing ? 'Checking…' : 'Refresh'}
+            {isRefreshing ? 'Checking…' : 'Check now'}
           </Button>
         </div>
       </CardHeader>

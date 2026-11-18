@@ -15,6 +15,7 @@ type syncScheduler struct {
 	ctx              context.Context
 	cancel           context.CancelFunc
 	done             chan struct{}
+	healthDone       chan struct{} // closed when the server health monitor stops
 	started, closing bool
 	runner           string
 	checkpointErr    error
@@ -51,8 +52,12 @@ func (a *App) StartScheduler() error {
 	s.started = true
 	go a.superviseProviderSockets(s.ctx)
 	go func() {
+		defer close(s.healthDone)
+		a.runServerHealth(s.ctx)
+	}()
+	go func() {
 		defer close(s.done)
-		defer func() { s.cancel(); <-a.providerSockets.done }()
+		defer func() { s.cancel(); <-a.providerSockets.done; <-s.healthDone }()
 		ticker := time.NewTicker(time.Second)
 		defer ticker.Stop()
 		for {

@@ -262,7 +262,7 @@ func (h *realtimeHub) canSubscribe(ctx context.Context, p Principal, channel str
 	if channel == "chat.global" {
 		return true
 	}
-	if channel == "system.logs" || channel == "system.sync_status" {
+	if channel == "system.logs" || channel == "system.sync_status" || channel == serverHealthChannel {
 		return p.Admin
 	}
 	parts := strings.Split(channel, ".")

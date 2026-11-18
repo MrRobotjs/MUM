@@ -174,6 +174,11 @@ func (a *App) runOneActivityMonitor(parent context.Context) error {
 		}
 	}
 	if err == nil {
+		// A successful read proves the server is reachable: it counts as a
+		// health check (server_health.go).
+		if _, healthErr := a.markServerReachable(ctx, c.Server); healthErr != nil {
+			a.logger.Warn("Server health not recorded", "server_id", c.Server, "code", consoleErrorCode(healthErr))
+		}
 		a.logger.Info("Activity poll completed", "server_id", c.Server, "provider", c.Provider, "source", c.Source, "sessions", observed, "started", applied.Started, "updated", applied.Updated, "ended", applied.Ended, "duration_ms", time.Since(c.Started).Milliseconds())
 		return nil
 	}

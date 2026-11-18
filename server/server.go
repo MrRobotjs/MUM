@@ -83,7 +83,7 @@ func NewApp(store *Store, queue *LogQueue, assets fs.FS) (*App, error) {
 	}
 	a := &App{logger: slog.Default(), store: store, queue: queue, dummyHash: dummy, passwordSlots: make(chan struct{}, 4), attempts: make(map[string]attemptWindow)}
 	schedulerCtx, schedulerCancel := context.WithCancel(context.Background())
-	a.scheduler = &syncScheduler{ctx: schedulerCtx, cancel: schedulerCancel, done: make(chan struct{}), runner: newUUID()}
+	a.scheduler = &syncScheduler{ctx: schedulerCtx, cancel: schedulerCancel, done: make(chan struct{}), healthDone: make(chan struct{}), runner: newUUID()}
 	a.providerSockets = &providerSocketRuntime{workers: map[int64]*providerSocketWorker{}, done: make(chan struct{})}
 	a.provisionSlots = make(chan struct{}, 2)
 	a.signInSlots = make(chan struct{}, 8)

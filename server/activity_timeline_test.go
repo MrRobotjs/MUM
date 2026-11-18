@@ -270,3 +270,58 @@ func TestIdentityTimelineServiceSources(t *testing.T) {
 		t.Fatal("unknown source accepted", code)
 	}
 }
+
+// Each MUM play carries Tautulli's columns: platform, product, player, IP,
+// stop time, paused and watched time. The player (a device name) and the IP
+// are for administrators only; imported plays record none of them.
+func TestIdentityTimelinePlaybackDetails(t *testing.T) {
+	a, s, token, viewer, local := timelineFixture(t)
+	activityExec(t, s, `UPDATE media_activity_history SET platform='Chrome',device_name='Living room',ip_address='172.56.183.189',play_method='direct_play',
+		last_seen_at='2026-11-01T03:10:00.000000000Z',paused_seconds=60,ended_at='2026-11-01T03:11:00.000000000Z',end_reason='not_observed' WHERE title='MUM three'`)
+	type details struct {
+		Title    string  `json:"title"`
+		Platform *string `json:"platform"`
+		Client   *string `json:"client"`
+		Player   *string `json:"player"`
+		IP       *string `json:"ip_address"`
+		Stopped  *string `json:"stopped_at"`
+		Paused   *string `json:"paused_seconds"`
+		Watched  *string `json:"watched_seconds"`
+	}
+	read := func(token, scope string) map[string]details {
+		w := apiRequest(a, "GET", "/api/activity/identities/"+local+"/timeline?scope="+scope, token, nil, nil)
+		var out struct{ Data struct{ Items []details } }
+		if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &out) != nil {
+			t.Fatal(w.Code, w.Body.String())
+		}
+		rows := map[string]details{}
+		for _, item := range out.Data.Items {
+			rows[item.Title] = item
+		}
+		return rows
+	}
+	text := func(v *string) string {
+		if v == nil {
+			return "<nil>"
+		}
+		return *v
+	}
+	admin := read(token, "all")
+	got := admin["MUM three"]
+	if text(got.Platform) != "Chrome" || text(got.Client) != "Plex Web" || text(got.Player) != "Living room" || text(got.IP) != "172.56.183.189" ||
+		text(got.Stopped) != "2026-11-01T03:10:00.000000000Z" || text(got.Paused) != "60" || text(got.Watched) != "540" {
+		t.Fatalf("admin row %+v", got)
+	}
+	// A play recorded before paused time was kept has no paused time; its
+	// watched time is counted as the Profile tab counts it.
+	if old := admin["MUM one"]; old.Paused != nil || text(old.Stopped) != "2026-11-01T01:00:00.000000000Z" || text(old.Watched) != "0" || old.Platform != nil {
+		t.Fatalf("older row %+v", old)
+	}
+	if imported := admin["Plex four"]; imported.Platform != nil || imported.Player != nil || imported.IP != nil || imported.Stopped != nil || imported.Paused != nil || imported.Watched != nil {
+		t.Fatalf("imported row %+v", imported)
+	}
+	own := read(viewer, "own")["MUM three"]
+	if own.Player != nil || own.IP != nil || text(own.Platform) != "Chrome" || text(own.Watched) != "540" {
+		t.Fatalf("own row %+v", own)
+	}
+}

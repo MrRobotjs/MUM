@@ -458,6 +458,9 @@ const HistoryPoster = ({ url, title, className = 'w-12 h-18' }: { url?: string; 
   );
 };
 
+// Whole minutes, as Tautulli shows paused and watched time ("3 mins").
+const minutes=(seconds:string)=>{const n=Math.round(Number(BigInt(seconds))/60);return `${n.toLocaleString()} ${n===1?'min':'mins'}`;};
+
 const playMethodLabels: Record<string, string> = { direct_play: 'Direct Play', direct_stream: 'Direct Stream', transcode: 'Transcode' };
 
 // Provider positions are in 100 ns ticks; shown as Flask did ("12m 5s").
@@ -503,9 +506,15 @@ const HistoryTab=({history,target,source,onSourceChange}:{history:ReturnType<typ
                 <tr className="border-b border-border">
                   <th className="w-20 py-3 px-4 text-sm font-medium text-muted-foreground">Poster</th>
                   <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Media Title</th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Player / Platform</th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground" title="When MUM first observed this playback, or the time the server recorded for it">Started</th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground" title="Last observed position of the total length">Duration</th>
+                  <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Platform</th>
+                  <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground" title="The app they played on">Product</th>
+                  <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground" title="The device's name and how the server sent the stream">Player</th>
+                  <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Date</th>
+                  <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">IP Address</th>
+                  <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground" title="When MUM first saw the play, or the time the server recorded for it">Started</th>
+                  <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Paused</th>
+                  <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground" title="When MUM last saw the play">Stopped</th>
+                  <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground" title="Time watched: from start to stop, less paused time">Duration</th>
                   <th className="text-center py-3 px-4 text-sm font-medium text-muted-foreground">Progress</th>
                 </tr>
               </thead>
@@ -515,6 +524,8 @@ const HistoryTab=({history,target,source,onSourceChange}:{history:ReturnType<typ
                   const noLength=service!==null&&row.position_ticks===null;
                   const progress=observationProgress(row.position_ticks,row.duration_ticks)??0;
                   const percent=Math.min(Math.round(progress),100);
+                  // A column MUM didn't record for this play.
+                  const none=<span className="text-muted-foreground" title={service?`Not recorded by ${service}`:'Not recorded'}>—</span>;
                   return (
                     <tr key={row.id} className="border-b border-border/50 hover:bg-muted/50 transition-colors">
                       <td className="py-3 px-4"><HistoryPoster url={row.poster_url} title={row.title}/></td>
@@ -524,24 +535,20 @@ const HistoryTab=({history,target,source,onSourceChange}:{history:ReturnType<typ
                         {row.library_name&&<div className="text-xs text-muted-foreground/60"><FontAwesomeIcon icon={faFolder} className="mr-1 h-3 w-3"/>{row.library_name}</div>}
                         {service&&<span className="mt-1 inline-flex items-center rounded-md px-2.5 py-0.5 text-xs font-semibold bg-muted text-muted-foreground" title={`Imported from the ${service} server's own play history`}>{service} history</span>}
                       </td>
-                      <td className="py-3 px-4">
-                        {service?<div className="text-xs text-muted-foreground">Not recorded by {service}</div>:<>
-                          <div className="font-medium text-sm">{row.client||'Unknown Player'}</div>
-                          <div className="text-xs text-muted-foreground">{row.play_method?playMethodLabels[row.play_method]:'Unknown Platform'}</div>
-                        </>}
+                      <td className="py-3 px-4 text-sm">{row.platform??none}</td>
+                      <td className="py-3 px-4 text-sm">{row.client??none}</td>
+                      <td className="py-3 px-4 text-sm">
+                        {row.player??none}
+                        {row.play_method&&<div className="text-xs text-muted-foreground">{playMethodLabels[row.play_method]}</div>}
                       </td>
-                      <td className="py-3 px-4">
-                        <div className="text-sm">{formatTimestamp(row.played_at,'date')}</div>
-                        <div className="text-xs text-muted-foreground">{formatTimestamp(row.played_at,'time')}</div>
-                      </td>
-                      <td className="py-3 px-4">
-                        {noLength?<div className="text-xs text-muted-foreground">Not recorded</div>:<>
-                          <div className="text-sm font-medium">{formatTicks(row.position_ticks)}</div>
-                          {row.duration_ticks!==null&&<div className="text-xs text-muted-foreground">of {formatTicks(row.duration_ticks)}</div>}
-                        </>}
-                      </td>
+                      <td className="py-3 px-4 text-sm whitespace-nowrap">{formatTimestamp(row.played_at,'date')}</td>
+                      <td className="py-3 px-4 text-sm font-mono">{row.ip_address??none}</td>
+                      <td className="py-3 px-4 text-sm whitespace-nowrap">{formatTimestamp(row.played_at,'time')}</td>
+                      <td className="py-3 px-4 text-sm whitespace-nowrap">{row.paused_seconds!==null?minutes(row.paused_seconds):none}</td>
+                      <td className="py-3 px-4 text-sm whitespace-nowrap">{row.stopped_at!==null?formatTimestamp(row.stopped_at,'time'):none}</td>
+                      <td className="py-3 px-4 text-sm whitespace-nowrap">{row.watched_seconds!==null?minutes(row.watched_seconds):none}</td>
                       <td className="py-3 px-4 text-center">
-                        {noLength?<span className="text-xs text-muted-foreground">{row.source==='plex'?'Watched':'Played'}</span>:<div className="inline-flex items-center justify-center">
+                        {noLength?<span className="text-xs text-muted-foreground">{row.source==='plex'?'Watched':'Played'}</span>:<div className="inline-flex items-center justify-center" title={row.duration_ticks!==null?`${formatTicks(row.position_ticks)} of ${formatTicks(row.duration_ticks)}`:formatTicks(row.position_ticks)}>
                           <div className="relative size-12">
                             <svg className="size-12 transform -rotate-90">
                               <circle cx="24" cy="24" r="20" stroke="currentColor" strokeWidth="4" fill="none" className="text-muted/30"/>

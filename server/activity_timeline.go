@@ -40,14 +40,24 @@ type timelineItem struct {
 	PlayedAt string `json:"played_at"`
 	// Recorded by MUM only; null for imported plays. Position and duration
 	// are also known for plays imported from Audiobookshelf.
-	Client     *string `json:"client"`
+	Client     *string `json:"client"` // the app (Plex's product)
 	PlayMethod *string `json:"play_method"`
 	Position   *string `json:"position_ticks"`
 	Duration   *string `json:"duration_ticks"`
-	PosterURL  string  `json:"poster_url,omitempty"`
-	hasPoster  bool
-	sortKey    string
-	rowID      int64
+	// MUM's plays only, like Tautulli's columns: the platform, when MUM last
+	// saw the play, its paused time (null for plays recorded before MUM kept
+	// it) and its watched time, counted as on the Profile tab. The player (a
+	// device name) and IP address are for administrators only.
+	Platform  *string `json:"platform"`
+	Player    *string `json:"player"`
+	IP        *string `json:"ip_address"`
+	StoppedAt *string `json:"stopped_at"`
+	Paused    *string `json:"paused_seconds"`
+	Watched   *string `json:"watched_seconds"`
+	PosterURL string  `json:"poster_url,omitempty"`
+	hasPoster bool
+	sortKey   string
+	rowID     int64
 }
 
 type timelineCursor struct {
@@ -219,9 +229,10 @@ func timelineSortKey(at, source string, id int64) string {
 }
 
 func readTimelineMUM(ctx context.Context, tx *sql.Tx, actor string, q activityReadQuery, c timelineCursor) ([]timelineItem, error) {
-	query := `SELECT h.id,h.server_id,h.service_uuid,h.media_type,h.title,h.parent_title,h.library_name,h.first_seen_at,h.client,h.play_method,h.position_ticks,h.duration_ticks,h.poster_path IS NOT NULL
+	query := `SELECT h.id,h.server_id,h.service_uuid,h.media_type,h.title,h.parent_title,h.library_name,h.first_seen_at,h.client,h.play_method,h.position_ticks,h.duration_ticks,h.poster_path IS NOT NULL,
+	 h.platform,CASE WHEN ? THEN h.device_name END,CASE WHEN ? THEN h.ip_address END,h.last_seen_at,h.paused_seconds,` + mumWatchedSeconds + `
 	 FROM media_activity_history h WHERE (h.first_seen_at<? OR h.first_seen_at=? AND ('m'<? OR ?='m' AND h.id<?))`
-	args := []any{c.At, c.At, c.Source, c.Source, c.ID}
+	args := []any{q.All, q.All, c.At, c.At, c.Source, c.Source, c.ID}
 	filter, filterArgs := mumPlayFilter(actor, q)
 	query += filter
 	args = append(args, filterArgs...)
@@ -234,9 +245,19 @@ func readTimelineMUM(ctx context.Context, tx *sql.Tx, actor string, q activityRe
 	for rows.Next() {
 		item := timelineItem{Source: "mum"}
 		var server int64
-		var position, duration sql.NullInt64
-		if err := rows.Scan(&item.rowID, &server, &item.Service, &item.Kind, &item.Title, &item.ParentTitle, &item.LibraryName, &item.PlayedAt, &item.Client, &item.PlayMethod, &position, &duration, &item.hasPoster); err != nil {
+		var position, duration, paused sql.NullInt64
+		var stopped string
+		var watched int64
+		if err := rows.Scan(&item.rowID, &server, &item.Service, &item.Kind, &item.Title, &item.ParentTitle, &item.LibraryName, &item.PlayedAt, &item.Client, &item.PlayMethod, &position, &duration, &item.hasPoster,
+			&item.Platform, &item.Player, &item.IP, &stopped, &paused, &watched); err != nil {
 			return nil, err
+		}
+		item.StoppedAt = &stopped
+		watchedText := strconv.FormatInt(watched, 10)
+		item.Watched = &watchedText
+		if paused.Valid {
+			v := strconv.FormatInt(paused.Int64, 10)
+			item.Paused = &v
 		}
 		item.ID = "mum-" + strconv.FormatInt(item.rowID, 10)
 		item.Server = strconv.FormatInt(server, 10)

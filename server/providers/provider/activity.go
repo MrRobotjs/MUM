@@ -42,6 +42,9 @@ type ActivitySession struct {
 	// "Roku", "tvOS", "Chrome"), for the Profile tab's player logos. Other
 	// services report none, so it stays empty for them.
 	Platform string
+	// Address is the player's IP address as the server reported it, for the
+	// History tab's IP column (administrators only). Empty means unknown.
+	Address string
 	// Transcode4K is true only when the server reports that it is transcoding
 	// the video of a 4K source. Unknown counts as false, so a stream is never
 	// stopped on a guess.

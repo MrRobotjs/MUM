@@ -27,6 +27,14 @@ export type TimelineItem = Readonly<{
   play_method: 'direct_play' | 'direct_stream' | 'transcode' | null;
   position_ticks: string | null;
   duration_ticks: string | null;
+  // MUM's plays only (null on imported ones), like Tautulli's columns. The
+  // player (a device name) and IP address come to administrators only.
+  platform: string | null;
+  player: string | null;
+  ip_address: string | null;
+  stopped_at: string | null;
+  paused_seconds: string | null;
+  watched_seconds: string | null;
   poster_url?: string;
 }>;
 export type TimelinePage = Readonly<{ actor_uuid: string; scope: TimelineScope; target_uuid: string; source: TimelineSource; sources: readonly HistoryService[]; items: TimelineItem[]; next_before: string | null }>;
@@ -35,7 +43,9 @@ const uuid = (v: unknown): v is string => typeof v === 'string' && /^[0-9a-f]{8}
 const cursor = (v: unknown): v is string => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{9}Z_[mp]_[1-9]\d{0,18}$/.test(v);
 const text = (v: unknown) => typeof v === 'string';
 const optionalText = (v: unknown) => v === null || typeof v === 'string';
-const ticks = (v: unknown) => v === null || typeof v === 'string' && /^\d{1,19}$/.test(v);
+// A whole number of ticks or seconds, as a decimal string.
+const whole = (v: unknown) => v === null || typeof v === 'string' && /^\d{1,19}$/.test(v);
+const time = (v: unknown) => v === null || typeof v === 'string' && Number.isFinite(Date.parse(v));
 const sources: readonly string[] = ['all', 'mum', ...historyServices];
 const imported = (v: unknown): v is HistoryService => historyServices.includes(v as HistoryService);
 const methods = [null, 'direct_play', 'direct_stream', 'transcode'];
@@ -45,10 +55,13 @@ function item(value: unknown, seen: Set<string>): TimelineItem {
   const fromServer = imported(v?.source);
   if (!v || (v.source !== 'mum' && !fromServer) || !text(v.id) || !(v.id as string).startsWith(`${v.source}-`) || seen.has(v.id as string) || !text(v.server_id) || !uuid(v.service_uuid) ||
       !text(v.media_type) || !text(v.title) || !optionalText(v.parent_title) || !optionalText(v.library_name) || !text(v.played_at) || !Number.isFinite(Date.parse(v.played_at as string)) ||
-      !optionalText(v.client) || !methods.includes(v.play_method as string | null) || !ticks(v.position_ticks) || !ticks(v.duration_ticks) ||
+      !optionalText(v.client) || !methods.includes(v.play_method as string | null) || !whole(v.position_ticks) || !whole(v.duration_ticks) ||
       v.poster_url !== undefined && !text(v.poster_url) ||
+      !optionalText(v.platform) || !optionalText(v.player) || !optionalText(v.ip_address) || !time(v.stopped_at) || !whole(v.paused_seconds) || !whole(v.watched_seconds) ||
+      // MUM always knows when it last saw its own play and how long it was watched.
+      !fromServer && (v.stopped_at === null || v.watched_seconds === null) ||
       // Imported plays record no player or quality; only Audiobookshelf reports progress.
-      fromServer && (v.client !== null || v.play_method !== null || v.source !== 'audiobookshelf' && (v.position_ticks !== null || v.duration_ticks !== null) ||
+      fromServer && (v.client !== null || v.play_method !== null || v.platform !== null || v.player !== null || v.ip_address !== null || v.stopped_at !== null || v.paused_seconds !== null || v.watched_seconds !== null || v.source !== 'audiobookshelf' && (v.position_ticks !== null || v.duration_ticks !== null) ||
         v.poster_url !== undefined && !(v.poster_url as string).startsWith('/api/activity/imported-history-images/'))) throw new Error('Invalid history item');
   seen.add(v.id as string);
   return Object.freeze({ ...(v as TimelineItem) });

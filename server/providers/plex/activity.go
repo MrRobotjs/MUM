@@ -149,6 +149,7 @@ func ParseActivity(body []byte) (provider.ActivitySnapshot, error) {
 		}
 		session := provider.ActivitySession{Session: row.Session, User: row.Users[0].ID, UserName: provider.TruncateRunes(row.Users[0].Name, 128), Item: row.Item, Kind: kinds[row.Kind], Title: row.Title, Paused: player.State == "paused", Parent: row.Parent, ParentTitle: row.ParentTitle, Client: provider.TruncateRunes(player.Product, 128), Device: provider.TruncateRunes(player.Title, 256), Platform: provider.TruncateRunes(strings.TrimSpace(player.Platform), 64)}
 		session.Display = displays[index]
+		session.Address = session.Display.IP
 		if session.Display.Stream != "" && session.Display.Stream != "Unknown" {
 			session.PlayMethod = provider.PlayMethods[strings.ReplaceAll(session.Display.Stream, " ", "")]
 		}

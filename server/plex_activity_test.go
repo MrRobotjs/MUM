@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -133,5 +134,48 @@ func TestDelegatedServerCreationDoesNotInventOwnerAuthorization(t *testing.T) {
 	var authorized bool
 	if err := s.reader.QueryRow("SELECT enabled,authorized_by IS NOT NULL FROM activity_monitor_schedules WHERE server_id=?", server).Scan(&enabled, &authorized); err != nil || enabled || authorized {
 		t.Fatal("delegated creation invented owner authority", enabled, authorized, err)
+	}
+}
+
+// The player's address Plex reports is kept with the play, for the History
+// tab's IP column; a later reading without one keeps it, and the address is
+// recorded as an address only.
+func TestPlexActivityRecordsPlayerAddress(t *testing.T) {
+	a, store := testApp(t)
+	token, _ := bootstrapOwner(t, a)
+	owner, err := store.Authenticate(t.Context(), token)
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := createManagedServer(t, a, token, "plex", "http://127.0.0.1:1")
+	apply := func(player string) string {
+		claim, err := store.beginActivityRead(t.Context(), owner.UUID, token, server)
+		if err != nil {
+			t.Fatal(err)
+		}
+		snapshot, err := parseActivitySnapshot("plex", []byte(strings.Replace(plexPlaying, `product="Plex Web"`, `product="Plex Web"`+player, 1)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := store.write(t.Context(), func(tx *sql.Tx) error {
+			_, err := commitActivitySnapshot(t.Context(), tx, claim, snapshot)
+			return err
+		}); err != nil {
+			t.Fatal(err)
+		}
+		var ip sql.NullString
+		if err := store.reader.QueryRow(`SELECT ip_address FROM media_activity_history WHERE server_id=?`, server).Scan(&ip); err != nil {
+			t.Fatal(err)
+		}
+		return ip.String
+	}
+	if got := apply(` address="not an address"`); got != "" {
+		t.Fatalf("invalid address kept: %q", got)
+	}
+	if got := apply(` address="172.56.183.189:32400"`); got != "172.56.183.189" {
+		t.Fatalf("address = %q", got)
+	}
+	if got := apply(``); got != "172.56.183.189" {
+		t.Fatalf("address lost: %q", got)
 	}
 }

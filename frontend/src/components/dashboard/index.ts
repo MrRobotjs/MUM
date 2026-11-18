@@ -3,7 +3,6 @@ export * from "./ServerStatusCard";
 export * from "./ActiveStreamsCard";
 export * from "./WatchStatsCard";
 export * from "./HistoryCard";
-export * from './ServersModal';
 export * from "./StreamingTable";
 export * from './InvitesSummaryCard';
 export * from './StreamingSummaryCard';

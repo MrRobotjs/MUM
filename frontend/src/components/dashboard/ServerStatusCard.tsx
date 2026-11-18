@@ -4,7 +4,7 @@ import { Link } from '@tanstack/react-router';
 import { Button } from '@/components/ui/button';
 import { useDashboardData, fetchServerHealth, type ServerHealth, type ServerHealthStatus, type ServerHealthSummary } from '../../lib/dashboard';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faRotate, faEye, faHeartPulse } from '@fortawesome/free-solid-svg-icons';
+import { faRotate, faHeartPulse } from '@fortawesome/free-solid-svg-icons';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Spinner } from '@/components/ui/spinner'
 import { useAlerts } from '@/contexts';
@@ -17,10 +17,6 @@ type ServerStatusResponse = {
   meta: { generated_at: string };
 };
 
-type ServerStatusCardProps = {
-  onViewAll?: () => void;
-};
-
 const statusLabels: Record<ServerHealthStatus, string> = { online: 'Online', offline: 'Offline', disabled: 'Disabled', unchecked: 'Not checked' };
 const chipOrder: ServerHealthStatus[] = ['online', 'offline', 'disabled', 'unchecked'];
 
@@ -30,7 +26,7 @@ const StatusPill = ({ status, children }: { status: ServerHealthStatus; children
 
 // The dashboard's Server Health card: a summary, then one tile per server
 // with its logo, version, status and last check. A tile opens the server.
-export const ServerStatusCard = ({ onViewAll }: ServerStatusCardProps = {}) => {
+export const ServerStatusCard = () => {
   const { data, loading, error, mutate } = useDashboardData<ServerStatusResponse>('dashboard:server-health', () => fetchServerHealth());
   const { success, error: showError } = useAlerts();
   const { formatTimestamp, formatRelative } = useAccountDisplay();
@@ -81,18 +77,10 @@ export const ServerStatusCard = ({ onViewAll }: ServerStatusCardProps = {}) => {
       <CardHeader>
         <div className="flex flex-wrap items-start justify-between gap-4">
           <TabHeading icon={faHeartPulse} title="Server Health" description={description} />
-          <div className="flex flex-wrap items-center gap-2">
-            <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isRefreshing || loading}>
-              {isRefreshing ? <Spinner className="size-4" /> : <FontAwesomeIcon icon={faRotate} />}
-              {isRefreshing ? 'Checking…' : 'Refresh'}
-            </Button>
-            {onViewAll ? (
-              <Button variant="outline" size="sm" onClick={onViewAll}>
-                <FontAwesomeIcon icon={faEye} />
-                View all
-              </Button>
-            ) : null}
-          </div>
+          <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isRefreshing || loading}>
+            {isRefreshing ? <Spinner className="size-4" /> : <FontAwesomeIcon icon={faRotate} />}
+            {isRefreshing ? 'Checking…' : 'Refresh'}
+          </Button>
         </div>
       </CardHeader>
       <CardContent>

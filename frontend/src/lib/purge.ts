@@ -1,7 +1,7 @@
 import { requestJson } from '../util/apiClient';
 import { runEditOperation, type EditOperationsClient, type EditReceipt, type PurgeRule } from './editOperations';
 
-// The purge (PURGE_DESIGN.md): inactive Plex accounts listed by the server and
+// The purge: inactive Plex accounts listed by the server and
 // removed through one prepared delete edit carrying the rule. The server checks
 // each account against the rule again just before Plex is asked, and removes
 // the MUM record only after Plex confirms. Only the owner may purge.

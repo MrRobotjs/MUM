@@ -8,7 +8,7 @@ import { CardTitle } from '../ui/card';
 import { ResponsiveDialog } from '../ui/responsive-dialog';
 import './AccountSettings.css';
 
-// Building blocks for the account page (ACCOUNT_PAGE_DESIGN.md): each section
+// Building blocks for the account page: each section
 // is a title, its current state and one action. Explanations open from an (i)
 // button, and risky actions confirm in a dialog instead of a checkbox.
 

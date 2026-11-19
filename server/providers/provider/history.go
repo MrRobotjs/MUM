@@ -3,7 +3,7 @@ package provider
 import "time"
 
 // HistoryEntry is one play read from a server's own history, in the form MUM
-// imports from every service (HISTORY_IMPORT_DESIGN.md). Key is unique on its
+// imports from every service. Key is unique on its
 // server and is what makes a repeat import skip the play. Descriptive fields
 // may be empty, for example when the item was deleted.
 type HistoryEntry struct {

@@ -1,4 +1,4 @@
-/* The dashboard's Server Health card (user request 2026-11-17): a tile per
+/* The dashboard's Server Health card: a tile per
    server with its logo, version, status pill and last check. */
 .dashboard-health-grid {
   display: grid;
@@ -57,10 +57,10 @@
 .dashboard-health-status[data-status="unchecked"] { color: #b45309; background: rgb(245 158 11 / .14); }
 [data-theme=dark] .dashboard-health-status[data-status="online"] { color: #6ee7b7; background: rgb(16 185 129 / .18); }
 [data-theme=dark] .dashboard-health-status[data-status="unchecked"] { color: #fcd34d; background: rgb(245 158 11 / .18); }
-/* A server's Overview status tiles (SERVER_OVERVIEW_DESIGN.md): the tile style, not links. */
+/* A server's Overview status tiles: the tile style, not links. */
 .dashboard-overview-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: 1rem; }
 .dashboard-overview-tile:hover { border-color: var(--border); box-shadow: none; }
-/* Activity statistics, Tautulli-style: the leader's picture, then a ranked top five. */
+/* Activity statistics: the highlighted row's picture, then a ranked list. */
 .dashboard-stat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(24rem, 1fr)); gap: 1rem; }
 .dashboard-stat-card { display: grid; grid-template-columns: 5.5rem minmax(0, 1fr); gap: 1rem; min-width: 0; border: 1px solid var(--border); border-radius: .75rem; background: var(--card); padding: 1rem; }
 .dashboard-stat-visual { display: flex; width: 5.5rem; aspect-ratio: 2 / 3; align-self: center; align-items: center; justify-content: center; overflow: hidden; border-radius: .375rem; background: var(--muted); color: var(--muted-foreground); font-size: 2.25rem; }

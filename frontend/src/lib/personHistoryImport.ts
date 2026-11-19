@@ -1,7 +1,7 @@
 import { ApiError, requestJson } from '../util/apiClient';
 
-// Importing one person's history from one server, from the History tab
-// (HISTORY_TOOLBAR_DESIGN.md). Plex and Audiobookshelf import just the
+// Importing one person's history from one server, from the History tab.
+// Plex and Audiobookshelf import just the
 // person's plays; Jellyfin and Emby can only import the whole server, which
 // the History tab offers with the server import in playHistory.ts; Kavita,
 // Komga and RomM keep no history MUM can import.

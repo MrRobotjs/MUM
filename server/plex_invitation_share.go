@@ -9,12 +9,12 @@ import (
 	"time"
 )
 
-// Plex invitations follow the Flask flow (user decision 2026-11-07): the
+// Plex invitations: the
 // invitee signs in with Plex in the invite wizard, and MUM shares the invited
 // libraries with that verified Plex account using the server owner's token.
 // The invitee accepts the share in Plex themselves.
 //
-// The requests mirror plexapi 4.18 (the Flask reference):
+// The plex.tv requests:
 //   - not yet sharing this server: MyPlexAccount.inviteFriend, a POST to
 //     plex.tv/api/servers/{machine}/shared_servers with invited_email and
 //     sharing_settings;
@@ -128,7 +128,7 @@ func (p *serverConnection) sharePlexInvitation(ctx context.Context, account, use
 	}
 	if plan.Friend {
 		// A friend who does not share this server (for example after leaving
-		// it): plexapi's updateFriend adds the server by account ID. The
+		// it): the server is added back by account ID. The
 		// email-style invitation is only for people who are not friends.
 		if err := checkpoint("plex_share_adding", account); err != nil {
 			return false, err

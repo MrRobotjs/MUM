@@ -195,7 +195,7 @@ func commitAdminRoleChange(ctx context.Context, tx *sql.Tx, p adminRoleChange) (
 		}
 		if p.Operation == "delete" {
 			// Only the owner deletes a role that is still assigned; its members
-			// lose it (user decision 2026-11-15).
+			// lose it.
 			if previous.UserCount != 0 && !hierarchy.Owner {
 				return result, ErrConflict
 			}
@@ -238,8 +238,8 @@ func commitAdminRoleChange(ctx context.Context, tx *sql.Tx, p adminRoleChange) (
 			newJSON, _ := json.Marshal(p.Values.Permissions)
 			permissionChange := string(oldJSON) != string(newJSON)
 			// Only the owner gives out the full-access Administrator permission,
-			// whether by creating a role with it or adding it to one (user decision
-			// 2026-11-16). Delegated administrators may still remove it within rank.
+			// whether by creating a role with it or adding it to one. Delegated
+			// administrators may still remove it within rank.
 			if !hierarchy.Owner && slices.Contains(p.Values.Permissions, "admin") && !slices.Contains(oldIDs, "admin") {
 				return result, ErrForbidden
 			}

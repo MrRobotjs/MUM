@@ -101,7 +101,7 @@ type playbackOutcome struct {
 	Position    *int64 // the stop notification's position
 }
 
-// outcome follows Tautulli's rules for notifications: a pause runs from
+// outcome follows these rules for notifications: a pause runs from
 // "paused" to the next "playing" or "stopped", and buffering neither starts
 // nor ends one. The part of a pause before From was counted by the previous
 // read. A play that ended was last seen at its last notification (its stop),

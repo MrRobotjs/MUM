@@ -404,7 +404,7 @@ func (a *App) recordEditResult(b *editStored, index int, outcome, reason string,
 			if err := checkEditTarget(ctx, tx, current.Actor, "", current.Operation, target); err != nil {
 				return err
 			}
-			// Full administrators finish removals like the owner (2026-11-16);
+			// Full administrators finish removals like the owner;
 			// the role revision check below still catches any change of rank.
 			if err := editAuthorityTx(ctx, tx, current.Actor, b.liveAccess); err != nil {
 				return err

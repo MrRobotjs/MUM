@@ -44,7 +44,7 @@ func readServiceExpiry(ctx context.Context, tx *sql.Tx, actor, access, target st
 	}
 	// Full administrators edit server account expiry like the owner, within the
 	// role ranking: never on the owner's, their own or higher-ranked accounts
-	// (user decision 2026-11-16). Unlinked server accounts are open to them.
+	// Unlinked server accounts are open to them.
 	// The ranking check refuses the owner's and the actor's own accounts too.
 	if !authority.Owner && out.Owner != nil {
 		if err = checkAdminRoleHierarchyTarget(ctx, tx, authority, *out.Owner); err != nil {

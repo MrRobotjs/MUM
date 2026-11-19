@@ -113,7 +113,7 @@ func editServiceTarget(ctx context.Context, tx *sql.Tx, id string) (editTarget, 
 
 // protectedServiceSQL matches a server account linked to the owner, to the
 // acting account, or to an administrator unless the actor is the owner, who
-// stands above administrators (user decision 2026-11-15). Arguments: the
+// stands above administrators. Arguments: the
 // service account, then the actor twice.
 const protectedServiceSQL = `SELECT EXISTS(SELECT 1 FROM service_links l JOIN user_accounts u ON u.uuid=l.user_uuid WHERE l.service_uuid=? AND (u.kind='owner' OR u.uuid=?
  OR (EXISTS(SELECT 1 FROM admin_privileges WHERE user_uuid=u.uuid) AND NOT EXISTS(SELECT 1 FROM user_accounts o WHERE o.uuid=? AND o.kind='owner'))))`
@@ -293,7 +293,7 @@ func (a *App) prepareEdit(w http.ResponseWriter, r *http.Request) {
 		if result.Outcome == "pending" {
 			if target.Kind == "service" && (stored.Action == "delete_users" || stored.Action == "update_libraries") {
 				// Full administrators remove and update server accounts like the
-				// owner (user decision 2026-11-16), except the protected ones below.
+				// owner, except the protected ones below.
 				target, err = editServiceTarget(r.Context(), tx, id)
 				if err != nil {
 					domainError(w, err)

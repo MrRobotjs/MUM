@@ -179,7 +179,7 @@ func TestNotificationPagesAndResolution(t *testing.T) {
 	if w.Code != 201 {
 		t.Fatal(w.Code, w.Body.String())
 	}
-	// Adding a server raises no notification (user decision 2026-11-15).
+	// Adding a server raises no notification.
 	if produced := inboxSnapshot(t, a, token); produced["total"] != float64(101) || produced["unread_count"] != float64(0) {
 		t.Fatal("adding a server raised a notification", produced)
 	}

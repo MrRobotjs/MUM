@@ -56,7 +56,7 @@ test('play totals adapter', async t => {
   });
 });
 
-test('watched time reads like Tautulli', async () => {
+test('watched time reads in days, hours and minutes', async () => {
   const m = await load();
   const text = s => m.watchTime(s).map(([v, u]) => `${v} ${u}`).join(' ');
   assert.equal(text('0'), '0 mins');
@@ -99,7 +99,7 @@ test('now playing reads in plain words and only while the server is up to date',
   assert.equal(m.nowPlaying(mixed, target, names).title, 'Second');
 });
 
-test('recent plays are named like Tautulli', async () => {
+test('recent plays are named by series or title', async () => {
   const m = await load();
   const play = (media_type, title, parent_title) => ({ source: 'mum', media_type, title, parent_title, played_at: '2026-11-01T04:00:00Z' });
   assert.deepEqual(m.recentPlayText(play('Episode', 'Ozymandias', 'Breaking Bad')), { title: 'Breaking Bad', subtitle: 'Ozymandias', verb: 'Watched' });

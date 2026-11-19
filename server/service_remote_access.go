@@ -96,7 +96,7 @@ func readServiceRemote(ctx context.Context, tx *sql.Tx, actor, access, target st
 	}
 	// Delegated administrators act on unlinked accounts and on accounts
 	// primarily owned by a lower-ranked local human, never the owner's or their
-	// own (user decision 2026-11-16).
+	// own.
 	protection := ""
 	targetAdmin := false
 	if !authority.Owner {
@@ -176,7 +176,7 @@ func readServiceRemote(ctx context.Context, tx *sql.Tx, actor, access, target st
 	out.CanEnable = out.Enable == "available"
 	// Delete is irreversible: ID-addressed providers only, and only after MUM
 	// has verified the account disabled. Only the owner deletes an
-	// administrator's account, whatever the ranks (user decision 2026-11-16).
+	// administrator's account, whatever the ranks.
 	out.Delete = out.Reason
 	if out.Delete == "available" {
 		switch {

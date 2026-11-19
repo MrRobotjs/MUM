@@ -12,8 +12,8 @@ import (
 )
 
 // A person's play timeline for the user page's History tab: one server at a
-// time (HISTORY_TOOLBAR_DESIGN.md), with MUM's recorded plays and the plays
-// imported from that server's own history (HISTORY_IMPORT_DESIGN.md), newest
+// time, with MUM's recorded plays and the plays imported from that server's
+// own history, newest
 // first, each marked with where it came from: "mum" or the server's type. The
 // records choice picks both, MUM's only or the server's only; the type and
 // stream filters narrow it further. The reply lists every server the person
@@ -45,7 +45,7 @@ type timelineItem struct {
 	PlayMethod *string `json:"play_method"`
 	Position   *string `json:"position_ticks"`
 	Duration   *string `json:"duration_ticks"`
-	// MUM's plays only, like Tautulli's columns: the platform, when MUM last
+	// MUM's plays only: the platform, when MUM last
 	// saw the play, its paused time (null for plays recorded before MUM kept
 	// it) and its watched time, counted as on the Profile tab. The player (a
 	// device name) and IP address are for administrators only.

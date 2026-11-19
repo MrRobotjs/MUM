@@ -1,4 +1,4 @@
-// Choosing a service account to link (ACCOUNT_PAGE_DESIGN.md): first the
+// Choosing a service account to link: first the
 // server, then a user on it, found by name or email.
 
 export type PickableAccount = { uuid: string; service_type?: string; server_name?: string; external_username?: string; external_email?: string };

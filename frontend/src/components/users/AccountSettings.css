@@ -1,4 +1,4 @@
-/* Settings sections (ACCOUNT_PAGE_DESIGN.md), shared by the account page and the user profile
+/* Settings sections, shared by the account page and the user profile
    settings tab: a list of flattened cards, each a title with its (i), the current state and one action. */
 .account-settings-panels [data-slot="card"] {
   display: block;
@@ -45,7 +45,7 @@
   color: color-mix(in srgb, var(--logo) 70%, white);
   background-color: color-mix(in srgb, var(--logo) 22%, transparent);
 }
-/* The Players card's grid of tiles, like Tautulli's: a large logo beside the
+/* The Players card's grid of tiles: a large logo beside the
    app's name and play count. */
 .account-player-grid {
   display: grid;

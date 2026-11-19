@@ -11,7 +11,7 @@ import { ConfirmAction, SettingHeader, SettingIcon } from './AccountSettings';
 import { Spinner } from '../ui/spinner';
 import { AvatarName } from './AccountAvatar';
 
-// Linking a Discord account on the account page (DISCORD_SIGN_IN_DESIGN.md):
+// Linking a Discord account on the account page:
 // the same for admins and users. Discord sends the browser back here with the
 // outcome, which is shown once. Unlinking asks for confirmation first.
 const DISCORD_ICON = <SettingIcon className="bg-indigo-500/10 text-indigo-500"><FontAwesomeIcon icon={faDiscord} /></SettingIcon>;

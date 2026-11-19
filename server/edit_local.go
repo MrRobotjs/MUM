@@ -273,7 +273,7 @@ func prepareEditLocal(ctx context.Context, tx *sql.Tx, actor, access, target str
 		case deleted:
 			out.Reason = "already_deleted"
 		case admin && !ownerActor:
-			// Only the owner stands above administrators (user decision 2026-11-15).
+			// Only the owner stands above administrators.
 			out.Reason = "administrator"
 		case running:
 			out.Reason = "invite_in_progress"

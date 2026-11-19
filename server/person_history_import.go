@@ -11,8 +11,8 @@ import (
 	"app/server/providers/provider"
 )
 
-// Importing one person's history from one server, from the History tab
-// (HISTORY_TOOLBAR_DESIGN.md). Plex and Audiobookshelf can read one account's
+// Importing one person's history from one server, from the History tab.
+// Plex and Audiobookshelf can read one account's
 // history, so only the person's plays are read; Jellyfin and Emby can't, and
 // the History tab offers a full import of the server instead; Kavita, Komga
 // and RomM keep no history MUM can read. A person's import uses the server's

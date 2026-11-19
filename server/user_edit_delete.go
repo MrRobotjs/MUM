@@ -7,7 +7,7 @@ import (
 )
 
 // Users list edit changes go through prepared edit operations
-// (edit_operations.go, BULK_MANAGEMENT_DESIGN.md); the direct endpoint below
+// (edit_operations.go); the direct endpoint below
 // only refuses. The helpers here are the database part of deletion:
 //
 // Deleting a local account retires it: it cannot sign in, its sessions end,
@@ -79,8 +79,7 @@ func editDeleteOne(r *http.Request, tx *sql.Tx, actor, id, now string) (editUser
 		return skip("already_deleted")
 	case admin && !ownerActor:
 		// Administrators are changed through role management; only the owner,
-		// who stands above every administrator, deletes one directly (user
-		// decision 2026-11-15).
+		// who stands above every administrator, deletes one directly.
 		return skip("administrator")
 	case running:
 		// An invitation is being processed this moment; its result would be
@@ -116,7 +115,7 @@ func editDeleteOne(r *http.Request, tx *sql.Tx, actor, id, now string) (editUser
 
 // editDeleteService removes a service account, its play history (including a
 // session playing right now; the monitor no longer maps it) and its links
-// (user decision 2026-11-07: deleting takes priority).
+// (deleting takes priority).
 func editDeleteService(r *http.Request, tx *sql.Tx, actor, id string) (editUserResult, error) {
 	ctx := r.Context()
 	for _, statement := range []string{

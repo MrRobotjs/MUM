@@ -5,13 +5,13 @@ import {
 } from '@fortawesome/free-brands-svg-icons';
 import { faCirclePlay, faGamepad, faMusic, faNetworkWired, faTv, faUsers } from '@fortawesome/free-solid-svg-icons';
 
-// Player logos for the Profile tab's Players card, the way Tautulli picks
-// them (plexpy/common.py): a few exact platform names are renamed, then the
+// Player logos for the Profile tab's Players card: a few exact platform
+// names are renamed, then the
 // first keyword the lowercased platform contains names the logo, checking
 // keywords in reverse alphabetical order so "windows phone" wins over
 // "windows" and "chromecast" over "chrome". Plex reports the platform;
 // Jellyfin and Emby do not, so their app name ("Jellyfin Android", "Emby for
-// iOS") is checked the same way. Brand colours are Tautulli's; brands Font
+// iOS") is checked the same way. Each brand has its own colour; brands Font
 // Awesome has no logo for get a generic icon in their colour.
 
 export type PlayerLogo = Readonly<{ name: string; icon: IconDefinition; color: string }>;

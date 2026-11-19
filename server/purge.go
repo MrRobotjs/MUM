@@ -11,15 +11,14 @@ import (
 	"time"
 )
 
-// The purge (PURGE_DESIGN.md) removes Plex server accounts that have not
+// The purge removes Plex server accounts that have not
 // played anything for a chosen number of days, so their places can go to
 // someone else. The list comes from GET /api/users/eligible-for-purge; the
 // removal is Edit's prepared delete with the purge rule attached, so Plex
 // removes the share and MUM checks it is gone before removing its record. Each
 // account is checked against the rule again just before Plex is asked.
 // The owner and full administrators may purge; the owner's and every
-// administrator's server accounts are never purged, whoever runs it (user
-// decision 2026-11-16).
+// administrator's server accounts are never purged, whoever runs it.
 
 // editPurgeRule is the purge dialog's rule, carried by a delete_users edit.
 type editPurgeRule struct {

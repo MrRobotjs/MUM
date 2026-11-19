@@ -2,7 +2,7 @@ package main
 
 import "testing"
 
-// The peak follows Tautulli's rules: overlapping plays add up, a play that
+// Overlapping plays add up, a play that
 // stops as another starts doesn't overlap it, the latest of equal peaks is
 // kept, and plays without length count for nothing.
 func TestPeakConcurrent(t *testing.T) {

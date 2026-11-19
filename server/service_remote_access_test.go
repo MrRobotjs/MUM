@@ -772,7 +772,7 @@ func TestServiceRemoteDeleteRefusesRemoteChangesAndNeverReplays(t *testing.T) {
 			f := newRemoteFixture(t)
 			if mode == "delegated" {
 				// Only the owner deletes an administrator's server account, even a
-				// lower-ranked one (user decision 2026-11-16).
+				// lower-ranked one.
 				f.moveService(t, f.member(t, "remote-delete-target", "low"))
 			}
 			p := f.disabledByMUM(t)

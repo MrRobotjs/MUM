@@ -11,8 +11,8 @@ import (
 	"time"
 )
 
-// The dashboard's Activity card and a server's Overview (user decisions
-// 2026-11-18/19): Tautulli-style statistics across every server type, or on
+// The dashboard's Activity card and a server's Overview: statistics across
+// every server type, or on
 // one chosen server. Each server has one source, so nothing is counted twice:
 // MUM's recordings for the servers it monitors (Plex, Jellyfin, Emby), the
 // imported history for servers it can only import from (Audiobookshelf), and

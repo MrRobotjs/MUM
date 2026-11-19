@@ -16,7 +16,7 @@ import (
 )
 
 // Stopping a stream from the Streams page. Only the owner and full
-// administrators may (user decision 2026-11-15). MUM asks the stream's server
+// administrators may. MUM asks the stream's server
 // to stop it once, never retries, and records every attempt with its outcome
 // in the audit log. The server is contacted outside any transaction.
 

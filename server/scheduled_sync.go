@@ -123,7 +123,7 @@ func (a *App) CloseScheduler() { a.StopScheduler(); _ = a.WaitScheduler(context.
 func checkScheduledSyncClaim(ctx context.Context, tx *sql.Tx, c *scheduledSyncClaim) error {
 	var valid bool
 	// Scheduled syncs run on MUM's standing authority, the owner account, not
-	// on whoever configured them (user decision 2026-11-16): a schedule an
+	// on whoever configured them: a schedule an
 	// administrator set up keeps running if they later lose the role.
 	err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM server_sync_schedules s JOIN user_accounts u ON u.kind='owner' WHERE s.server_id=? AND s.revision=? AND s.claim_token=? AND s.run_state='running' AND s.enabled=1 AND julianday(s.lease_until)>julianday('now') AND u.uuid=? AND u.is_active=1 AND (u.access_expires_at IS NULL OR julianday(u.access_expires_at)>julianday('now')))`, c.Server, c.Revision, c.Token, c.Actor).Scan(&valid)
 	if err != nil {
@@ -326,7 +326,7 @@ func (a *App) configureScheduledSync(w http.ResponseWriter, r *http.Request) {
 	}
 	var revision int64
 	err := a.store.write(r.Context(), func(tx *sql.Tx) error {
-		// The owner and full administrators configure schedules (2026-11-16).
+		// The owner and full administrators configure schedules.
 		err := notificationAuthority(r.Context(), tx, actor.UUID, bearer(r))
 		if err != nil {
 			return err

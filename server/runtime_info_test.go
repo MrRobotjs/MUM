@@ -43,7 +43,7 @@ func TestRuntimeInfoAdministratorPathsAndRevocation(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &result); err != nil {
 		t.Fatal(err)
 	}
-	// Full administrators see the paths too (user decision 2026-11-16).
+	// Full administrators see the paths too.
 	if result.Data.Actor != f.user || result.Data.DatabaseFile == nil || result.Data.DataDirectory == nil || *result.Data.DataDirectory != f.store.dataDir {
 		t.Fatal(w.Body.String())
 	}

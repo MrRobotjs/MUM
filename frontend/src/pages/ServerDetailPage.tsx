@@ -342,7 +342,7 @@ export const ServerDetailPage = ({ section = 'overview' }: { section?: ServerTab
       </Card>
 
         {section === 'overview' ? (<div className="space-y-6">
-          {/* Status at a glance (SERVER_OVERVIEW_DESIGN.md) */}
+          {/* Status at a glance */}
           <div className="dashboard-overview-grid">
             <div className="dashboard-health-tile dashboard-overview-tile">
               <SettingIcon className="bg-primary/20 text-primary"><FontAwesomeIcon icon={faPlug} className="w-4 h-4" /></SettingIcon>

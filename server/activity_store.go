@@ -88,7 +88,7 @@ func endActivity(ctx context.Context, tx *sql.Tx, server int64, id string, curre
 	}
 	// A play that stopped (rather than changing owner) takes its stop time,
 	// final position and last pause from its notifications. A stop within
-	// 10 seconds of the end counts as the full length, as in Tautulli.
+	// 10 seconds of the end counts as the full length.
 	if reason == "not_observed" || reason == "item_changed" {
 		out := playbackStretch{From: current.LastSeen, Until: until, PausedSince: current.PausedSince, Events: stretchEvents(events, id, current.Item, current.LastSeen, until)}.outcome()
 		if _, err := tx.ExecContext(ctx, `UPDATE media_activity_history SET last_seen_at=?,paused_seconds=CASE WHEN paused_seconds IS NULL THEN NULL ELSE paused_seconds+? END,

@@ -449,8 +449,7 @@ func TestEditExpiryLeavesUsersWithoutOne(t *testing.T) {
 	}
 }
 
-// The owner may delete administrators' server accounts, never their own
-// (user decision 2026-11-15).
+// The owner may delete administrators' server accounts, never their own.
 func TestEditPrepareOwnerDeletesAdministratorServerAccounts(t *testing.T) {
 	a, s := testApp(t)
 	token, _ := bootstrapOwner(t, a)

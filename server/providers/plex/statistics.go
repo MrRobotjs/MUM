@@ -13,9 +13,9 @@ import (
 )
 
 // Server dashboard statistics: the bandwidth and resource graphs on Plex
-// Web's Status → Dashboard. Plex does not document these routes; plexapi
-// (Tautulli, Flask) reads them as /statistics/bandwidth and
-// /statistics/resources with the server owner's token.
+// Web's Status → Dashboard. Plex does not document these routes; they are
+// /statistics/bandwidth and /statistics/resources, read with the server
+// owner's token.
 
 // bandwidthTimespans are Plex's bin sizes.
 var bandwidthTimespans = map[string]string{"seconds": "6", "hours": "4", "days": "3", "weeks": "2", "months": "1"}

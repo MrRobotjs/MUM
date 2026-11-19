@@ -13,8 +13,8 @@ import (
 	"app/server/providers/provider"
 )
 
-// Importing a server's own play history (HISTORY_IMPORT_DESIGN.md,
-// PURGE_DESIGN.md) from Plex, Jellyfin, Emby or Audiobookshelf. The History
+// Importing a server's own play history from Plex, Jellyfin, Emby or
+// Audiobookshelf. The History
 // tab, Last Streamed and the Plex purge count these plays together with MUM's
 // own, so they cover times MUM was not running. The import only reads from the
 // server, one page at a time, and stores each page in its own short

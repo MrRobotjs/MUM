@@ -20,7 +20,7 @@ var ErrPlayHistory = errors.New("unusable play history")
 // entry each time a user stops playing an item (kept 30 days by default). Each
 // such entry is one play: its ID makes repeat imports skip it, its time is
 // when the play ended. The entry types are those the servers write
-// (HISTORY_IMPORT_DESIGN.md; not yet checked against a real server).
+// (not yet checked against a real server).
 var playbackStopped = map[string]bool{"VideoPlaybackStopped": true, "AudioPlaybackStopped": true, "playback.stop": true}
 
 // PlayHistory reads one page of the activity log, newest first, and looks up

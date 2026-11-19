@@ -307,7 +307,7 @@ func TestPlexAdvertisesInvitationsAndAllowsPlexInvites(t *testing.T) {
 }
 
 // A friend who left the server (still in the friends list, no share of this
-// server) is re-added by account ID, as plexapi's updateFriend does; the
+// server) is re-added by account ID; the
 // email-style invitation is only for people who are not friends.
 func TestPlexInvitationReAddsFriendWhoLeftTheServer(t *testing.T) {
 	a, s, token, proof, cookie, server, f := plexInviteSetup(t, "friend", "")

@@ -11,7 +11,7 @@ import (
 )
 
 // How one session's notifications between two reads become pause, stop and
-// position, following Tautulli's rules: a pause runs from "paused" to the
+// position: a pause runs from "paused" to the
 // next "playing" or "stopped", and buffering neither starts nor ends one.
 func TestPlaybackStretchOutcome(t *testing.T) {
 	base := time.Date(2026, 11, 17, 12, 0, 0, 0, time.UTC)

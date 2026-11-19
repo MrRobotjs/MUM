@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-// A server's Users page (SERVER_USERS_DESIGN.md): one page of the server's
+// A server's Users page: one page of the server's
 // accounts with their activity on this server only, for the chosen records:
 // all plays, MUM's recorded plays or the server's imported history. Counts and
 // the newest play are worked out in SQL, so sorting by plays or last streamed

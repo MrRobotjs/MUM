@@ -342,7 +342,7 @@ func TestIdentityTimelineServerAndFilters(t *testing.T) {
 	}
 }
 
-// Each MUM play carries Tautulli's columns: platform, product, player, IP,
+// Each MUM play carries its details: platform, product, player, IP,
 // stop time, paused and watched time. The player (a device name) and the IP
 // are for administrators only; imported plays record none of them.
 func TestIdentityTimelinePlaybackDetails(t *testing.T) {

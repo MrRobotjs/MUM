@@ -119,7 +119,7 @@ func (p *serverConnection) inspectPlexShare(ctx context.Context, account string,
 			foundReference = true
 			pending, known := plex.ExplicitBool(server.Pending)
 			// "owned" says whether the requesting account (the server owner) owns
-			// this server, as python-plexapi documents and real plex.tv data shows:
+			// this server, as real plex.tv data shows:
 			// it is 1 for the owner's own server, so an entry for this server
 			// must be owned.
 			owned, ownedKnown := plex.ExplicitBool(server.Owned)

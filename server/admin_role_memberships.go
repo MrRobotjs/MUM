@@ -72,8 +72,8 @@ func commitAdminRoleMembership(ctx context.Context, tx *sql.Tx, p adminRoleMembe
 		if p.Operation == "assign" && !permission.Implemented {
 			return result, ErrConflict
 		}
-		// Only the owner gives out the full-access Administrator permission
-		// (user decision 2026-11-16); removing it stays within rank.
+		// Only the owner gives out the full-access Administrator permission;
+		// removing it stays within rank.
 		if p.Operation == "assign" && permission.ID == "admin" && !hierarchy.Owner {
 			return result, ErrForbidden
 		}

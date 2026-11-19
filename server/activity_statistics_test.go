@@ -161,7 +161,7 @@ func TestActivityStatisticsAcrossServerTypes(t *testing.T) {
 	if len(d.Imported) != 1 || d.Imported[0].Name != "Books" || d.Imported[0].ImportedAt == nil {
 		t.Fatalf("imported %+v", d.Imported)
 	}
-	// Tautulli-style cards: most popular by people, recently played, most
+	// Most popular by people, recently played, most
 	// active users and libraries.
 	for _, kind := range []string{"popular_movies", "popular_shows", "popular_music", "recent", "users", "libraries"} {
 		if _, ok := sections[kind]; !ok {

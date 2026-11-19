@@ -1,6 +1,6 @@
 import { requestJson } from '../util/apiClient';
 
-// Importing a server's own play history (HISTORY_IMPORT_DESIGN.md) from Plex,
+// Importing a server's own play history from Plex,
 // Jellyfin, Emby or Audiobookshelf. The import only reads from the server and
 // can run again at any time: later runs add only plays MUM does not have yet.
 // The History tab and Last Streamed show these plays; the Plex purge counts

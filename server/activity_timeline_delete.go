@@ -12,11 +12,11 @@ import (
 	"time"
 )
 
-// Deleting plays from a person's History tab (HISTORY_TOOLBAR_DESIGN.md),
-// as Tautulli's delete mode does: MUM's recorded plays and imported plays, in
+// Deleting plays from a person's History tab: MUM's recorded plays and
+// imported plays, in
 // one transaction. Every play must belong to the person and none may still be
 // playing, or nothing is deleted. Deleted plays are not remembered, so an
-// import can bring them back (user decision).
+// import can bring them back.
 
 const maxTimelineDelete = 500
 

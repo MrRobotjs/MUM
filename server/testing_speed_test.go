@@ -10,7 +10,7 @@ import (
 	"testing"
 )
 
-// Test-only speed-ups (user decision 2026-11-16). Neither changes what the
+// Test-only speed-ups. Neither changes what the
 // application does; both apply only inside the test binary.
 //
 //  1. Passwords are hashed with a low PBKDF2 cost. Tests check that hashing

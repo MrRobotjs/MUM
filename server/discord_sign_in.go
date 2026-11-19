@@ -10,8 +10,8 @@ import (
 	"time"
 )
 
-// Linking a Discord account and signing in with it (DISCORD_SIGN_IN_DESIGN.md,
-// user decisions 2026-11-16). Every account, admin or user, links its own
+// Linking a Discord account and signing in with it. Every account, admin or
+// user, links its own
 // Discord account on the account page. With sign-in on, a linked account signs
 // in with Discord; a Discord account never creates a MUM account. The owner
 // always uses the MUM password, and accounts with admin access sign in this

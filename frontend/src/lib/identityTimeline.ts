@@ -4,8 +4,8 @@ import { historyServices, type HistoryService } from './playHistory';
 
 export { historyServiceName, type HistoryService } from './playHistory';
 
-// The user page's History tab shows one server at a time
-// (HISTORY_TOOLBAR_DESIGN.md): MUM's recorded plays, the plays imported from
+// The user page's History tab shows one server at a time: MUM's recorded
+// plays, the plays imported from
 // that server's own history, or both, with optional type and stream filters.
 // The reply lists every server the person has an account on and the
 // categories they have on the one shown. Imported plays have no player or
@@ -36,7 +36,7 @@ export type TimelineItem = Readonly<{
   play_method: TimelineMethod | null;
   position_ticks: string | null;
   duration_ticks: string | null;
-  // MUM's plays only (null on imported ones), like Tautulli's columns. The
+  // MUM's plays only (null on imported ones). The
   // player (a device name) and IP address come to administrators only.
   platform: string | null;
   player: string | null;

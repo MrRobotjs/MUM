@@ -2,14 +2,14 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { loadFrontend } from './frontendLoader.mjs';
 
-// The Players card's logos: Tautulli's platform keywords, then the app name for
+// The Players card's logos: platform keywords, then the app name for
 // services that report no platform.
 const load = () => loadFrontend("export * from './src/lib/playerPlatforms';");
 
 test('player logos', async () => {
   const { playerLogo } = await load();
   const name = (platform, client = '') => playerLogo(platform, client).name;
-  // Plex platforms, as Tautulli maps them.
+  // Plex platforms.
   assert.equal(name('Android'), 'Android');
   assert.equal(name('tvOS'), 'Apple TV');
   assert.equal(name('Roku'), 'Roku');

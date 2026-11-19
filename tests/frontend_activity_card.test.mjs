@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {loadFrontend} from './frontendLoader.mjs';
 
-// Activity statistics, Tautulli-style: a card per statistic with only the
+// Activity statistics: a card per statistic with only the
 // statistics that have plays, server badges and a picker on the dashboard,
 // the same cards fixed to one server on its Overview, and the servers that
 // report nothing named.

@@ -3,8 +3,8 @@ import test from 'node:test';
 import { loadFrontend } from './frontendLoader.mjs';
 const avatarMock = `export const AvatarName=p=>p.children??p.name;export const AccountAvatar=()=>'';`;
 
-// Linking a Discord account on the account page and signing in with it
-// (DISCORD_SIGN_IN_DESIGN.md). Answers are checked before use, a start goes
+// Linking a Discord account on the account page and signing in with it.
+// Answers are checked before use, a start goes
 // only to Discord's own authorize page, and every outcome MUM returns with
 // reads as plain words.
 const load = () => loadFrontend("export * from './src/lib/discordSignIn';export {setAccessToken} from './src/store/authStore';export {parseSignInMethods} from './src/lib/serviceSignIn';");

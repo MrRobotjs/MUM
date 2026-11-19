@@ -11,8 +11,8 @@ import (
 	"time"
 )
 
-// A person's play totals for the user page's Profile tab (user decisions
-// 2026-11-17), like Tautulli's user stats: plays and watched time in the last
+// A person's play totals for the user page's Profile tab: plays and watched
+// time in the last
 // 24 hours, 7 days, 30 days and all time, the recent plays, and the players MUM
 // saw them use. The source picker is the History tab's: everything, MUM's
 // plays, or one service's imported plays, counted with the same filters.

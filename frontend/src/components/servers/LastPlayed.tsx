@@ -5,7 +5,7 @@ import { faBook, faFilm, faMusic, faTv, type IconDefinition } from '@fortawesome
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import type { ServerAccountPlay } from '../../lib/serverAccounts';
 
-// What was played, as a small icon before its title, like Tautulli.
+// What was played, as a small icon before its title.
 export function mediaTypeIcon(type: string): IconDefinition | null {
   const t = type.toLowerCase();
   if (t.includes('movie')) return faFilm;
@@ -15,7 +15,7 @@ export function mediaTypeIcon(type: string): IconDefinition | null {
   return null;
 }
 
-// The last play's title shows its poster on hover, like Tautulli, and opens
+// The last play's title shows its poster on hover, and opens
 // its page in the library when the item has been catalogued.
 export function LastPlayed({ serverId, play }: { serverId: number; play: ServerAccountPlay }) {
   const [failed, setFailed] = useState(false);

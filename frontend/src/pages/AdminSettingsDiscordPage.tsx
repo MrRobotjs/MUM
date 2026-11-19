@@ -26,7 +26,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Switch } from '@/components/ui/switch'
 import { Spinner } from '@/components/ui/spinner'
 
-// Discord settings (DISCORD_SIGN_IN_DESIGN.md): the client ID and secret,
+// Discord settings: the client ID and secret,
 // the one redirect address to add in Discord, the optional Discord server
 // (found from its invite link), defaults for new invites and Sign in with
 // Discord. The bot is not available yet.

@@ -19,8 +19,8 @@ const discordAPIBase = "https://discord.com/api/v10"
 
 var discordSnowflake = regexp.MustCompile(`^[0-9]{17,20}$`)
 
-// The one Discord callback for invitations, linking and sign-in
-// (DISCORD_SIGN_IN_DESIGN.md). It is computed from APP_BASE_URL unless an
+// The one Discord callback for invitations, linking and sign-in. It is
+// computed from APP_BASE_URL unless an
 // explicit redirect is stored.
 const discordCallbackPath = "/api/discord/callback"
 

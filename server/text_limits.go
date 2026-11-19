@@ -3,7 +3,7 @@ package main
 import "unicode/utf8"
 
 // Length limits people see are in characters, so an accented letter or an
-// emoji counts once (user decision 2026-11-16). Where a limit protects stored
+// emoji counts once. Where a limit protects stored
 // size, the byte check stays as well; the message still talks in characters.
 
 // characters counts what a person would count.

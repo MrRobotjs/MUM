@@ -58,7 +58,7 @@ func readHumanActivation(ctx context.Context, tx *sql.Tx, actor, access, target 
 		return out, err
 	} else if !authority.Owner {
 		// Only the owner deactivates or reactivates an administrator, whatever
-		// the ranks (user decision 2026-11-16).
+		// the ranks.
 		var admin bool
 		if err = tx.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM admin_privileges WHERE user_uuid=?)", target).Scan(&admin); err != nil {
 			return out, err

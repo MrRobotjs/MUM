@@ -3,7 +3,7 @@ import test from 'node:test';
 import { loadFrontend } from './frontendLoader.mjs';
 
 // Linking a service account from a profile: pick the server, then search its
-// unlinked users (ACCOUNT_PAGE_DESIGN.md).
+// unlinked users.
 const accounts = [
   { uuid: 'a', service_type: 'plex', server_name: 'Main', external_username: 'AllGas', external_email: 'gas@example.test' },
   { uuid: 'b', service_type: 'jellyfin', server_name: 'Living Room', external_username: 'zed' },

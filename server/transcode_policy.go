@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-// 4K transcoding policy (user decision 2026-11-15). After each activity
+// 4K transcoding policy. After each activity
 // snapshot, a stream whose server is transcoding a 4K source for a server
 // account with 4K transcoding turned off is stopped, with a message to the
 // viewer. Each playback is attempted once: the attempt is recorded before the

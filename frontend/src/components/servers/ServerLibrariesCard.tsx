@@ -21,7 +21,7 @@ import { applyUpdater, createAppColumnHelper, useAppTable, useRememberedColumns 
 import { LastPlayed } from './LastPlayed';
 
 // A server's Libraries page: each library with its activity on this server
-// only, for the chosen records, Tautulli-style. A server has few libraries, so
+// only, for the chosen records. A server has few libraries, so
 // the whole list is read at once and sorted in the browser.
 
 type Column = 'library' | 'type' | 'items' | 'parents' | 'children' | 'lastStreamed' | 'lastPlayed' | 'plays' | 'watch';
@@ -44,7 +44,7 @@ const columnSort: Record<Column, { value: (library: ServerLibrary) => string | n
 const columnHelper = createAppColumnHelper<ServerLibrary>();
 const noLibraries: ServerLibrary[] = [];
 const typeLabel = (type: string | null) => type ? type.replace(/_/g, ' ') : 'Unknown';
-// The library's type as an icon, like Tautulli: films, TV, music, books, photos or videos.
+// The library's type as an icon: films, TV, music, books, photos or videos.
 export function libraryTypeIcon(type: string | null): IconDefinition {
   const t = (type ?? '').toLowerCase();
   if (t.includes('movie')) return faFilm;

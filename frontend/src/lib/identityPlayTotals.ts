@@ -5,8 +5,8 @@ import { historyServices, type HistoryService } from './playHistory';
 import type { TimelineSource } from './identityTimeline';
 import { byPlayback, playbackState } from './userNowPlaying';
 
-// The user page's Profile tab: plays and watched time per period, like
-// Tautulli, for the History tab's sources (everything, MUM's plays or one
+// The user page's Profile tab: plays and watched time per period, for the
+// History tab's sources (everything, MUM's plays or one
 // service's imported plays); the recent plays; and what the person plays now.
 // Watched time comes only from MUM's plays, so each period says how many of
 // its plays have time.
@@ -65,7 +65,7 @@ export async function fetchIdentityPlayTotals(actor: string, target: string, sco
 
 const videoKinds = ['movie', 'episode', 'video', 'musicvideo', 'trailer', 'clip'];
 
-// recentPlayText is how a recent play is named, like Tautulli: an episode
+// recentPlayText is how a recent play is named: an episode
 // leads with its series, anything else with its own title (a track then names
 // its album or artist); "Watched" for video, "Played" for the rest.
 export function recentPlayText(p: RecentPlay): Readonly<{ title: string; subtitle: string | null; verb: string }> {
@@ -75,7 +75,7 @@ export function recentPlayText(p: RecentPlay): Readonly<{ title: string; subtitl
   return { title, subtitle: p.parent_title || null, verb: videoKinds.includes(kind) ? 'Watched' : 'Played' };
 }
 
-// watchTime splits seconds into Tautulli's parts: days, hours and minutes,
+// watchTime splits seconds into days, hours and minutes,
 // leaving out leading zeros ("2 hrs 57 mins", "0 mins").
 export function watchTime(seconds: string): [string, string][] {
   const minutes = BigInt(seconds) / 60n, days = minutes / 1440n, hours = minutes % 1440n / 60n, mins = minutes % 60n;

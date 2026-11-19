@@ -82,7 +82,7 @@ func TestScheduledSyncRejectsInvalidConfigurationAndStaleAuthority(t *testing.T)
 			want := 409
 			switch mode {
 			case "delegate":
-				// Full administrators configure schedules (2026-11-16); a role
+				// Full administrators configure schedules; a role
 				// without the Administrator permission does not.
 				s.writer.Exec("DELETE FROM admin_role_permissions WHERE role_id='high'")
 				access = delegate

@@ -2,7 +2,7 @@ import { requestJson } from '../util/apiClient';
 import { avatarLink } from './accountAvatar';
 import type { TimelineRecords } from './identityTimeline';
 
-// A server's Users page (SERVER_USERS_DESIGN.md): one page of the server's
+// A server's Users page: one page of the server's
 // accounts with their activity on that server only, for the chosen records.
 // IP, platform, player and watch time come from MUM's recordings; IP,
 // platform and player are the newest ones known.

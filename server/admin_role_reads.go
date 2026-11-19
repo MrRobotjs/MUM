@@ -205,7 +205,7 @@ func projectAdminRoleCapabilities(ctx context.Context, tx *sql.Tx, roles []admin
 		role.CanUpdate = role.MemberAssignment && (hierarchy.Owner || !blocked[role.ID] && role.UserCount <= 10000)
 		role.CanDelete = role.MemberChanges && (hierarchy.Owner || role.UserCount == 0 && role.MemberAssignment)
 		role.CanReorder = !role.Protected && (hierarchy.Owner || role.CanUpdate)
-		// Only the owner gives out the Administrator permission (2026-11-16): a
+		// Only the owner gives out the Administrator permission: a
 		// delegated administrator may edit such a role within rank, not assign it.
 		if !hierarchy.Owner && roleGrantsAdministrator(*role) {
 			role.MemberAssignment = false

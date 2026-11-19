@@ -22,7 +22,7 @@ import { AvatarName } from '../users/AccountAvatar';
 import { LastPlayed } from './LastPlayed';
 import { applyUpdater, createAppColumnHelper, useAppTable, useRememberedColumns } from '../table/DataTable';
 
-// A server's Users page (SERVER_USERS_DESIGN.md): its accounts with their
+// A server's Users page: its accounts with their
 // activity on this server only, for the chosen records, with search, sorting,
 // paging, a column menu, user sync and history import. TanStack Table holds
 // the sorting, paging and column state; the server searches, sorts and pages.

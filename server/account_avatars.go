@@ -15,7 +15,7 @@ import (
 )
 
 // Profile pictures beside linked accounts on the account page and the admin
-// user page (user request 2026-11-18). Every picture goes through MUM on a
+// user page. Every picture goes through MUM on a
 // short-lived signed link, like posters: the browser never contacts Plex,
 // Discord or a media server, and no key reaches it. Each fetch rechecks that
 // the signing session may see the account: an administrator, the account

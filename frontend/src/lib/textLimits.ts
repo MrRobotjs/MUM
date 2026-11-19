@@ -1,5 +1,5 @@
 // Length limits people see are in characters, so an accented letter or an
-// emoji counts once (user decision 2026-11-16). Where a server limits stored
+// emoji counts once. Where a server limits stored
 // size (Audiobookshelf, Komga and RomM: 72; Kavita: 256), that byte limit is
 // still checked, and the message says accented letters and emoji take more room.
 

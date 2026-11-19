@@ -20,7 +20,7 @@ import { Poster, Tile } from '../library/LibraryOverview';
 import { libraryTypeIcon } from '../servers/ServerLibrariesCard';
 import './ServerHealth.css';
 
-// Activity statistics (user decisions 2026-11-18/19), Tautulli-style: tiles,
+// Activity statistics: tiles,
 // then a card per statistic with the leader's picture and a ranked top five,
 // by play count or play duration. On the dashboard it covers every server,
 // with a server picker and server badges; on a server's Overview it's fixed
@@ -35,7 +35,7 @@ const cardTitles: Record<ActivityKind, string> = {
 const cardOrder: ActivityKind[] = ['movies', 'popular_movies', 'shows', 'popular_shows', 'music', 'popular_music', 'audiobooks', 'recent', 'users', 'libraries'];
 // 0 is all time; any other number of days up to maxDays can be typed in.
 const periods = [7, 30, 90, 0];
-// Most concurrent streams' rows, Tautulli's order.
+// Most concurrent streams' rows, in order.
 const concurrentLabels: Record<ConcurrentKind, string> = { all: 'Streams', transcode: 'Transcodes', direct_stream: 'Direct streams', direct_play: 'Direct plays' };
 const maxDays = 3650;
 const periodLabel = (days: number) => days === 0 ? 'All time' : `Last ${days} days`;
@@ -64,8 +64,8 @@ const shortAgo = (at: string | null, now = Date.now()) => {
   return days < 365 ? `${Math.floor(days / 30)}mo ago` : `${Math.floor(days / 365)}y ago`;
 };
 
-// The server a row is from (user decision 2026-11-19, after trying text and
-// badges): its icon in the server's colour and its name in grey, the name
+// The server a row is from: its icon in the server's colour and its name in
+// grey, the name
 // turning the server's colour on the highlighted row. Subtle, but every row
 // shows its server. A person or platform used on several servers shows the
 // most used one and how many more, all named on hover.
@@ -92,7 +92,7 @@ const Avatar = ({ url, name }: { url: string | null; name: string }) => {
     : <span className="dashboard-stat-initial">{(name[0] ?? '?').toUpperCase()}</span>;
 };
 
-// One statistic, Tautulli-style: the highlighted row's picture beside a
+// One statistic: the highlighted row's picture beside a
 // ranked list of up to ten that scrolls (its scrollbar on the left, shown on
 // hover). Hovering or focusing a row shows that row's picture, and in
 // Recently played who played it beside the card's title. A row's own heading
@@ -173,7 +173,7 @@ export function ActivityStatistics({ fixedServer }: { fixedServer?: { id: number
   const ago = (at: string | null) => at ? formatRelative(at).replace(/^Just now$/, 'just now') : '—';
   // Figures follow the order the data was ranked by, not the toggle mid-load.
   const ranked = data?.order ?? order;
-  // Ranked by time, rows show H:MM and the heading says so, like Tautulli.
+  // Ranked by time, rows show H:MM and the heading says so.
   const figure = (item: ActivityTitle) => ranked === 'duration' ? clock(item.seconds) : item.plays.toLocaleString();
   const metric = ranked === 'duration' ? 'Time · HH:MM' : 'Plays';
 

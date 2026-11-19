@@ -1,4 +1,4 @@
-// A server's Overview wording (SERVER_OVERVIEW_DESIGN.md).
+// A server's Overview wording.
 
 /**
  * One Availability line for a server: whether its server type is turned on

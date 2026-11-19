@@ -224,7 +224,7 @@ func TestEditLocalProtectsOwnerAndExistingPrimary(t *testing.T) {
 }
 
 // The Users list Edit delete: the owner deletes an administrator; a full
-// administrator below the owner cannot (user decision 2026-11-15).
+// administrator below the owner cannot.
 func TestEditLocalOnlyOwnerDeletesAdministrators(t *testing.T) {
 	a, s := testApp(t)
 	token, _ := bootstrapOwner(t, a)

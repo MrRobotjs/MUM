@@ -6,15 +6,13 @@ import (
 	"sort"
 )
 
-// Most concurrent streams (user decision 2026-11-19), worked out as Tautulli
-// does (plexpy/datafactory.py, most_concurrent): every play becomes a start
-// (+1) and a stop (-1); walking them in time order, with a stop before a
-// start at the same moment, the highest running count is the peak, the
-// latest such peak when it repeats. It is taken for every play and again for
-// each play method. Unlike Tautulli, plays still going count (their last
-// sighting is their stop so far), and with every server shown the peak is
-// across all of them. Only MUM's recordings know when a play started and
-// stopped, so imported history never counts.
+// Most concurrent streams: every play becomes a start (+1) and a stop (-1);
+// walking them in time order, with a stop before a start at the same moment,
+// the highest running count is the peak, the latest such peak when it
+// repeats. It is taken for every play and again for each play method. Plays
+// still going count (their last sighting is their stop so far), and with
+// every server shown the peak is across all of them. Only MUM's recordings
+// know when a play started and stopped, so imported history never counts.
 
 type concurrentPeak struct {
 	Kind    string `json:"kind"` // all, transcode, direct_stream or direct_play
@@ -25,7 +23,7 @@ type concurrentPeak struct {
 
 type concurrentSpan struct{ start, stop, method string }
 
-// concurrentKinds are the card's rows, in Tautulli's order.
+// concurrentKinds are the card's rows, in order.
 var concurrentKinds = []string{"all", "transcode", "direct_stream", "direct_play"}
 
 // peakConcurrent is the highest number of spans that overlap, with when that

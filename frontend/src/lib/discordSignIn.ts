@@ -1,7 +1,7 @@
 import { avatarLink } from './accountAvatar';
 import { requestJson } from '../util/apiClient';
 
-// Linking a Discord account and signing in with it (DISCORD_SIGN_IN_DESIGN.md).
+// Linking a Discord account and signing in with it.
 // Every account links its own Discord account on the account page; with
 // Discord sign-in on, a linked account signs in with it. MUM sends the browser
 // only to Discord's own authorize page, and Discord sends it back to the

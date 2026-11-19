@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-// Server health in the background (user decision 2026-11-18): the dashboard's
+// Server health in the background: the dashboard's
 // Server Health card stays current without pressing Refresh. MUM checks each
 // active server about once a minute, with the same test as the Refresh
 // button, a few servers at a time and never holding the database writer

@@ -127,7 +127,7 @@ const CardHeading=({icon,title,description,children}:{icon:IconDefinition;title:
   </CardHeader>
 );
 
-// The Profile tab's period tiles, like Tautulli's user stats.
+// The Profile tab's period tiles.
 const periodTiles:Record<PlayPeriod['period'],{title:string;icon:IconDefinition;iconColor:string;gradient:string}>={
   day:{title:'Last 24 hours',icon:faClock,iconColor:'text-blue-600 dark:text-blue-300',gradient:'from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20'},
   week:{title:'Last 7 days',icon:faCalendarWeek,iconColor:'text-green-600 dark:text-green-300',gradient:'from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20'},
@@ -472,7 +472,7 @@ const HistoryPoster = ({ url, title, className = 'w-12 h-18' }: { url?: string; 
   );
 };
 
-// Whole minutes, as Tautulli shows paused and watched time ("3 mins").
+// Whole minutes, for paused and watched time ("3 mins").
 const minutes=(seconds:string)=>{const n=Math.round(Number(BigInt(seconds))/60);return `${n.toLocaleString()} ${n===1?'min':'mins'}`;};
 
 const playMethodLabels: Record<string, string> = { direct_play: 'Direct Play', direct_stream: 'Direct Stream', transcode: 'Transcode' };
@@ -498,8 +498,8 @@ const HistorySourcePicker=({source,services,onChange,label='History source'}:{so
   );
 };
 
-// The History tab shows one server at a time (HISTORY_TOOLBAR_DESIGN.md):
-// pickers for the server and the records, a Tautulli-style toolbar and the
+// The History tab shows one server at a time: pickers for the server and the
+// records, a toolbar and the
 // columns that server type reports.
 type HistoryView = Readonly<{ server?: string; records: TimelineRecords; types: readonly TimelineCategory[]; methods: readonly TimelineMethod[] }>;
 const initialHistoryView: HistoryView = { records: 'all', types: [], methods: [] };
@@ -769,7 +769,7 @@ const HistoryTab = ({ history, target, view, onViewChange, admin }: {
   );
 };
 
-// Laid out like the account page (ACCOUNT_PAGE_DESIGN.md): one panel of sections.
+// Laid out like the account page: one panel of sections.
 const SettingsTab = ({user,refreshUser}:{user:UserDetail;refreshUser:()=>Promise<unknown>}) => (
   <div className="space-y-8 rounded-xl border bg-card p-6 text-card-foreground shadow-sm">
   <TabHeading icon={faSliders} title="Settings" description={user.user_type==='service'?'Notes, expiry and access for this service account':'Notes, sign-in, access and roles for this person'} />

@@ -10,8 +10,7 @@ import (
 
 // Full administrators may do what the owner can, within the role ranking,
 // except: only the owner deletes, deactivates or removes the server accounts
-// of an administrator, and only the owner grants the Administrator permission
-// (user decisions 2026-11-16, Discord-style roles).
+// of an administrator, and only the owner grants the Administrator permission.
 
 // lowerAdmin creates a local account holding the 'low' role (ranked below the
 // fixture administrator's 'high' role) and a server account linked to it.

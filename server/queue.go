@@ -119,8 +119,8 @@ type QueueStats struct {
 // Enqueue acknowledges memory admission, NOT durability. Shutdown must complete
 // before closing Store.
 //
-// A persistence failure stalls the queue instead of stopping it (user decision,
-// DECISIONS.md 2026-11-05): the failed batch is kept and retried with backoff,
+// A persistence failure stalls the queue instead of stopping it: the failed
+// batch is kept and retried with backoff,
 // queued records stay in order, Err reports the stall, and Enqueue keeps
 // admitting until the buffer is full (ErrQueueFull). The first successful write
 // clears the stall and processing resumes without a restart. Only Shutdown can

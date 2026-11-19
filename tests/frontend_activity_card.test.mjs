@@ -15,7 +15,7 @@ export const renderFixed=()=>renderToString(React.createElement(ActivityStatisti
     filter: s => s === '@tanstack/react-router' || /lib\/dashboard$|hooks\/useAccountDisplay$/.test(s),
     module: s => s === '@tanstack/react-router' ? "import React from 'react';export const Link=p=>React.createElement('a',{href:p.to.replace(/[$](\\w+)/g,(_,k)=>p.params?.[k]??''),className:p.className},p.children);"
       : /lib\/dashboard$/.test(s) ? 'export const fetchActivityStats=async()=>null;export const useDashboardData=()=>globalThis.activityCard;'
-      : "export const useAccountDisplay=()=>({formatRelative:v=>'AGO:'+v,formatTimestamp:v=>'AT:'+v});",
+      : "export const useAccountDisplay=()=>({formatRelative:v=>'AGO:'+v,formatTimestamp:(v,style)=>(style==='date'?'DATE:':'AT:')+v});",
   }});
 }
 
@@ -31,6 +31,7 @@ const stats = extra => ({days: 30, order: 'plays', server_id: null, totals: {pla
     {kind: 'libraries', items: [item({title: 'Movies', subtitle: 'Plex++', library_id: 7, library_type: 'movie'})]},
   ],
   platforms: [{name: 'Roku', plays: 2, seconds: 600, server_ids: [2]}],
+  concurrent: [{kind: 'all', count: 3, started: '2026-11-14T20:00:00Z', stopped: '2026-11-14T21:00:00Z'}, {kind: 'transcode', count: 1, started: '2026-11-13T20:00:00Z', stopped: '2026-11-13T21:00:00Z'}],
   servers: [{server_id: 2, name: 'Plex++', service_type: 'plex', imported_at: null}, {server_id: 4, name: 'Books', service_type: 'audiobookshelf', imported_at: null}],
   unreported: [{server_id: 3, name: 'Comics', service_type: 'kavita', imported_at: null}, {server_id: 5, name: 'Games', service_type: 'romm', imported_at: null}],
   imported: [{server_id: 4, name: 'Books', service_type: 'audiobookshelf', imported_at: '2026-11-17T00:00:00Z'}], ...extra});
@@ -73,6 +74,10 @@ test('activity statistics', async t => {
     assert.match(html, /class="dashboard-stat-badges" style="--stat-server-color:var\(--color-plex\)" title="On Plex\+\+"><span class="dashboard-stat-server"><svg[^>]*dashboard-stat-server-icon/);
     assert.doesNotMatch(html, /Server tags|data-tag/);
     assert.match(html, /Last 30 days/);
+    // Most concurrent streams: "Streams" heads the card until a row is
+    // highlighted (its date then shows there); rows carry no dates.
+    assert.match(html, /Most concurrent streams<\/strong><\/span><span class="dashboard-stat-metric">Streams<.*?dashboard-stat-name">Streams<\/span><\/span><span class="dashboard-stat-value">3<.*?>Transcodes<.*?>1</s);
+    assert.doesNotMatch(html, /DATE:/);
     // The most active user's picture, in a circle.
     assert.match(html, /dashboard-stat-visual dashboard-stat-round"><img src="\/api\/service-avatars\/9[^"]*" alt="" class="dashboard-stat-avatar"/);
     // Rows are focusable so the picture can follow the keyboard too.
@@ -102,7 +107,7 @@ test('activity statistics', async t => {
   });
 
   await t.test('all time', () => {
-    globalThis.activityCard = {loading: false, error: null, data: stats({days: 0, totals: {plays: 0, seconds: 0, people: 0, titles: 0}, sections: [], platforms: [], unreported: []})};
+    globalThis.activityCard = {loading: false, error: null, data: stats({days: 0, totals: {plays: 0, seconds: 0, people: 0, titles: 0}, sections: [], platforms: [], concurrent: [], unreported: []})};
     assert.match(m.render().replace(/<!-- -->/g, ''), /Nothing played yet\./);
   });
 
@@ -115,8 +120,19 @@ test('activity statistics', async t => {
     assert.doesNotMatch(html, /w-56/);
   });
 
+  await t.test('imported history: an off switch with an explanation, only where it changes something', () => {
+    globalThis.activityCard = {loading: false, error: null, data: stats()};
+    const html = m.render().replace(/<!-- -->/g, '');
+    assert.match(html, /role="switch" aria-checked="false"[^>]*id="activity-imported"/);
+    assert.match(html, /for="activity-imported"[^>]*>Imported history</);
+    assert.match(html, /aria-label="About imported history"/);
+    // An Audiobookshelf-only view has nothing to add.
+    globalThis.activityCard = {loading: false, error: null, data: stats({servers: [{server_id: 4, name: 'Books', service_type: 'audiobookshelf', imported_at: null}]})};
+    assert.doesNotMatch(m.render(), /Imported history/);
+  });
+
   await t.test('nothing played', () => {
-    globalThis.activityCard = {loading: false, error: null, data: stats({totals: {plays: 0, seconds: 0, people: 0, titles: 0}, sections: [], platforms: [], unreported: []})};
+    globalThis.activityCard = {loading: false, error: null, data: stats({totals: {plays: 0, seconds: 0, people: 0, titles: 0}, sections: [], platforms: [], concurrent: [], unreported: []})};
     assert.match(m.render().replace(/<!-- -->/g, ''), /Nothing played in the last 30 days\./);
   });
 });

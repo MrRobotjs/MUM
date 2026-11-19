@@ -39,6 +39,11 @@ type activityStatsBody struct {
 				} `json:"link"`
 			} `json:"items"`
 		} `json:"sections"`
+		Concurrent []struct {
+			Kind    string `json:"kind"`
+			Count   int    `json:"count"`
+			Started string `json:"started"`
+		} `json:"concurrent"`
 		Platforms []struct {
 			Name    string  `json:"name"`
 			Plays   int64   `json:"plays"`
@@ -78,6 +83,9 @@ func TestActivityStatisticsAcrossServerTypes(t *testing.T) {
 	activityExec(t, f.store, "UPDATE media_activity_history SET parent_item_id='show1',parent_title='A Show' WHERE item_id IN ('e1','e2')")
 	activityExec(t, f.store, "UPDATE media_activity_history SET parent_item_id='album1',parent_title='An Album' WHERE item_id IN ('tr1','tr2')")
 	activityExec(t, f.store, "UPDATE media_activity_history SET platform='Roku' WHERE external_session_id IN ('a','b')")
+	// Plays a (2h ago, an hour long) and c (3h ago, 90 minutes) overlap.
+	activityExec(t, f.store, "UPDATE media_activity_history SET play_method='transcode' WHERE external_session_id IN ('a','d')")
+	activityExec(t, f.store, "UPDATE media_activity_history SET play_method='direct_play' WHERE external_session_id='c'")
 	activityExec(t, f.store, "UPDATE service_accounts SET external_user_id='0123456789abcdef0123456789abcdef' WHERE uuid=?", f.service)
 	// The catalogue holds the popular movie and the show with its pilot, so
 	// their rows open their pages; the other titles haven't been synced.
@@ -218,6 +226,16 @@ func TestActivityStatisticsAcrossServerTypes(t *testing.T) {
 			t.Fatalf("duration order %+v", section.Items)
 		}
 	}
+	// Most concurrent streams: a and c at once; one transcode and one direct
+	// play at a time; no direct streams, so no row for them.
+	peaks := map[string]int{}
+	for _, peak := range d.Concurrent {
+		peaks[peak.Kind] = peak.Count
+	}
+	if len(d.Concurrent) != 3 || d.Concurrent[0].Kind != "all" || peaks["all"] != 2 || peaks["transcode"] != 1 || peaks["direct_play"] != 1 ||
+		d.Concurrent[0].Started != utcTimestamp(now.Add(-2*time.Hour)) {
+		t.Fatalf("concurrent %+v", d.Concurrent)
+	}
 	// Each title names its server; the picker offers the servers that report.
 	if movies.Items[0].Server != f.server || audiobooks.Items[0].Server != books {
 		t.Fatalf("title servers %+v %+v", movies.Items[0], audiobooks.Items[0])
@@ -268,7 +286,47 @@ func TestActivityStatisticsAcrossServerTypes(t *testing.T) {
 	if all.Data.Days != 0 || all.Data.Totals.Plays != d.Totals.Plays+2 || !strings.Contains(wa.Body.String(), "Too Old") || !strings.Contains(wa.Body.String(), "Old Book") {
 		t.Fatalf("all time %+v", all.Data.Totals)
 	}
-	for _, bad := range []string{"?days=-1", "?days=3651", "?days=x", "?other=1", "?order=users"} {
+	// Imported history (off by default): a monitored server's imported plays
+	// from before MUM first recorded on it count; later ones would repeat
+	// MUM's recordings and don't. The Plex server has no recordings, so all of
+	// its imported plays count.
+	jellyfinAccount := "0123456789abcdef0123456789abcdef"
+	activityExec(t, f.store, `INSERT INTO history_imports(server_id,entry_key,account_id,viewed_at,media_type,item_id,title,poster_item,poster_path,imported_at) VALUES(?,?,?,?,?,?,?,?,?,?)`,
+		f.server, "j1", jellyfinAccount, utcTimestamp(now.AddDate(0, 0, -25)), "movie", "m9", "Backfilled Movie", "m9", "Primary/tag", utcTimestamp(now))
+	activityExec(t, f.store, `INSERT INTO history_imports(server_id,entry_key,account_id,viewed_at,media_type,item_id,title,parent_title,grandparent_title,imported_at) VALUES(?,?,?,?,?,?,?,?,?,?)`,
+		f.server, "j2", jellyfinAccount, utcTimestamp(now.AddDate(0, 0, -24)), "episode", "e0", "Prologue", "Season 1", "A Show", utcTimestamp(now))
+	activityExec(t, f.store, `INSERT INTO history_imports(server_id,entry_key,account_id,viewed_at,media_type,item_id,title,imported_at) VALUES(?,?,?,?,?,?,?,?)`,
+		f.server, "j3", jellyfinAccount, utcTimestamp(now.Add(-time.Hour)), "movie", "m1", "Overlap Movie", utcTimestamp(now))
+	if again := apiRequest(f.app, "GET", "/api/activity/statistics?days=0", f.ownerToken, nil, nil); strings.Contains(again.Body.String(), "Backfilled") {
+		t.Fatal("imported history counted without asking")
+	}
+	wi := apiRequest(f.app, "GET", "/api/activity/statistics?days=0&imported=1", f.ownerToken, nil, nil)
+	var with activityStatsBody
+	if err := json.Unmarshal(wi.Body.Bytes(), &with); err != nil || wi.Code != 200 {
+		t.Fatal(wi.Code, wi.Body.String())
+	}
+	withBody := wi.Body.String()
+	// Backfilled Movie, the prologue and the Plex server's movie; not the overlap.
+	if with.Data.Totals.Plays != all.Data.Totals.Plays+3 || !strings.Contains(withBody, "Backfilled Movie") || !strings.Contains(withBody, "Imported Plex Movie") ||
+		strings.Contains(withBody, "Overlap Movie") || !strings.Contains(withBody, `"with_imported":true`) {
+		t.Fatalf("with imported history %+v", with.Data.Totals)
+	}
+	// Imported plays have no length, and the same person is still one person.
+	if with.Data.Totals.Seconds != all.Data.Totals.Seconds || with.Data.Totals.People != all.Data.Totals.People+1 {
+		t.Fatalf("imported time and people %+v vs %+v", with.Data.Totals, all.Data.Totals)
+	}
+	for _, section := range with.Data.Sections {
+		for _, item := range section.Items {
+			// The imported prologue joins A Show's recorded episodes.
+			if section.Kind == "shows" && item.Title == "A Show" && item.Plays != 3 {
+				t.Fatalf("show with an imported episode %+v", item)
+			}
+		}
+	}
+	if !strings.Contains(withBody, "/api/activity/imported-history-images/") {
+		t.Fatal("imported poster not signed as imported", withBody)
+	}
+	for _, bad := range []string{"?days=-1", "?days=3651", "?days=x", "?other=1", "?order=users", "?imported=yes", "?imported=1&imported=1"} {
 		if w := apiRequest(f.app, "GET", "/api/activity/statistics"+bad, f.ownerToken, nil, nil); w.Code != 400 {
 			t.Fatal(bad, w.Code)
 		}

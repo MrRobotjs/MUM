@@ -107,11 +107,19 @@ export type ActivityTitle = {
   server_ids: number[];
 };
 export type ActivityLink = { library_id: number; media_id: number; episode_id: number | null };
+/** The most streams at once (all, or one play method), and when that peak began and ended. */
+export type ConcurrentKind = 'all' | 'transcode' | 'direct_stream' | 'direct_play';
+export type ConcurrentPeak = { kind: ConcurrentKind; count: number; started: string; stopped: string };
 export type ActivityServer = { server_id: number; name: string; service_type: string; imported_at: string | null };
 export type ActivityStats = {
   /** The chosen server, or null for every server; days 0 is all time. */
-  days: number; server_id: number | null; order: ActivityOrder; totals: { plays: number; seconds: number; people: number; titles: number };
+  days: number; server_id: number | null; order: ActivityOrder;
+  /** Whether monitored servers' imported history from before MUM's recordings is counted. */
+  with_imported: boolean;
+  totals: { plays: number; seconds: number; people: number; titles: number };
   sections: { kind: ActivityKind; items: ActivityTitle[] }[]; platforms: { name: string; plays: number; seconds: number; server_ids: number[] }[];
+  /** Most concurrent streams, from MUM's recordings; empty when nothing recorded overlaps. */
+  concurrent: ConcurrentPeak[];
   /** Servers that report activity: the card's server picker. */
   servers: ActivityServer[]; unreported: ActivityServer[]; imported: ActivityServer[];
 };
@@ -135,19 +143,24 @@ const activityLink = (v: unknown): ActivityLink | null => {
   if (typeof v !== 'object' || !integer(l.library_id) || !integer(l.media_id) || !(l.episode_id === null || l.episode_id === undefined || integer(l.episode_id))) throw invalidActivity();
   return { library_id: l.library_id as number, media_id: l.media_id as number, episode_id: (l.episode_id ?? null) as number | null };
 };
+const concurrentKinds: ConcurrentKind[] = ['all', 'transcode', 'direct_stream', 'direct_play'];
+const concurrentPeak = (v: Record<string, unknown>): ConcurrentPeak => {
+  if (!concurrentKinds.includes(v.kind as ConcurrentKind) || !integer(v.count) || !text(v.started, 64) || !text(v.stopped, 64)) throw invalidActivity();
+  return { kind: v.kind as ConcurrentKind, count: v.count as number, started: v.started as string, stopped: v.stopped as string };
+};
 const activityServer = (v: Record<string, unknown>): ActivityServer => {
   if (!integer(v.server_id) || !text(v.name) || !text(v.service_type, 64) || !(v.imported_at === null || typeof v.imported_at === 'string')) throw invalidActivity();
   return { server_id: v.server_id as number, name: v.name as string, service_type: v.service_type as string, imported_at: v.imported_at as string | null };
 };
 
-export async function fetchActivityStats(days = 7, server: number | null = null, order: ActivityOrder = 'plays'): Promise<ActivityStats> {
+export async function fetchActivityStats(days = 7, server: number | null = null, order: ActivityOrder = 'plays', withImported = false): Promise<ActivityStats> {
   if (server !== null && !integer(server) || !count(days) || days > 3650) throw invalidActivity();
-  const query = new URLSearchParams({ days: String(days), order, ...(server !== null ? { server: String(server) } : {}) });
+  const query = new URLSearchParams({ days: String(days), order, ...(server !== null ? { server: String(server) } : {}), ...(withImported ? { imported: '1' } : {}) });
   const { data } = await dashboardRequest<{ data: Record<string, unknown> }>(`/api/activity/statistics?${query}`);
   const t = data?.totals as Record<string, unknown> | undefined;
-  if (!data || data.days !== days || data.order !== order || (data.server_id ?? null) !== server || !t || !count(t.plays) || !count(t.seconds) || !count(t.people) || !count(t.titles)) throw invalidActivity();
+  if (!data || data.days !== days || data.order !== order || (data.server_id ?? null) !== server || (data.with_imported ?? false) !== withImported || !t || !count(t.plays) || !count(t.seconds) || !count(t.people) || !count(t.titles)) throw invalidActivity();
   return {
-    days, server_id: server, order, totals: { plays: t.plays as number, seconds: t.seconds as number, people: t.people as number, titles: t.titles as number },
+    days, server_id: server, order, with_imported: withImported, totals: { plays: t.plays as number, seconds: t.seconds as number, people: t.people as number, titles: t.titles as number },
     sections: activityList(data.sections, activityKinds.length, section => {
       if (!activityKinds.includes(section.kind as ActivityKind)) throw invalidActivity();
       return { kind: section.kind as ActivityKind, items: activityList(section.items, 10, item => {
@@ -164,6 +177,7 @@ export async function fetchActivityStats(days = 7, server: number | null = null,
       }) };
     }),
     platforms: activityList(data.platforms, 10, p => { if (!text(p.name) || !p.name || !count(p.plays) || !count(p.seconds)) throw invalidActivity(); return { name: p.name as string, plays: p.plays as number, seconds: p.seconds as number, server_ids: activityServerIDs(p.server_ids ?? []) }; }),
+    concurrent: activityList(data.concurrent, concurrentKinds.length, concurrentPeak),
     servers: activityList(data.servers, 100, activityServer),
     unreported: activityList(data.unreported, 100, activityServer),
     imported: activityList(data.imported, 100, activityServer),

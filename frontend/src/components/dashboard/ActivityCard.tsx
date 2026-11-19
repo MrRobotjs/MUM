@@ -1,16 +1,18 @@
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import { Link } from '@tanstack/react-router';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faChartLine, faCircleInfo, faClock, faLayerGroup, faPlay, faUsers } from '@fortawesome/free-solid-svg-icons';
+import { faChartLine, faCircleInfo, faClock, faLayerGroup, faPlay, faTowerBroadcast, faUsers } from '@fortawesome/free-solid-svg-icons';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Spinner } from '@/components/ui/spinner';
 import { getServiceMeta, getServicePalette } from '@/config/pluginMetadata';
 import { ServiceIcon } from '@/components/services/ServiceIcon';
 import { useAccountDisplay } from '../../hooks/useAccountDisplay';
-import { fetchActivityStats, useDashboardData, type ActivityKind, type ActivityLink, type ActivityOrder, type ActivityServer, type ActivityStats, type ActivityTitle } from '../../lib/dashboard';
+import { fetchActivityStats, useDashboardData, type ActivityKind, type ActivityLink, type ConcurrentKind, type ActivityOrder, type ActivityServer, type ActivityStats, type ActivityTitle } from '../../lib/dashboard';
 import { watchTime } from '../../lib/identityPlayTotals';
 import { playerLogo } from '../../lib/playerPlatforms';
 import { TabHeading } from '../users/AccountSettings';
@@ -33,6 +35,8 @@ const cardTitles: Record<ActivityKind, string> = {
 const cardOrder: ActivityKind[] = ['movies', 'popular_movies', 'shows', 'popular_shows', 'music', 'popular_music', 'audiobooks', 'recent', 'users', 'libraries'];
 // 0 is all time; any other number of days up to maxDays can be typed in.
 const periods = [7, 30, 90, 0];
+// Most concurrent streams' rows, Tautulli's order.
+const concurrentLabels: Record<ConcurrentKind, string> = { all: 'Streams', transcode: 'Transcodes', direct_stream: 'Direct streams', direct_play: 'Direct plays' };
 const maxDays = 3650;
 const periodLabel = (days: number) => days === 0 ? 'All time' : `Last ${days} days`;
 
@@ -91,23 +95,30 @@ const Avatar = ({ url, name }: { url: string | null; name: string }) => {
 // One statistic, Tautulli-style: the highlighted row's picture beside a
 // ranked list of up to ten that scrolls (its scrollbar on the left, shown on
 // hover). Hovering or focusing a row shows that row's picture, and in
-// Recently played who played it beside the card's title. A title and its
-// subtitle share the room evenly, each cut short when long, then the server.
-type Row = { key: string; title: ReactNode; subtitle?: ReactNode; who?: string | null; value: string; badges?: ActivityServer[]; visual: ReactNode };
+// Recently played who played it beside the card's title. A row's own heading
+// figure (Most concurrent streams: the peak's date) replaces the card's while
+// the row is hovered or focused, and goes back when the card is left. A title
+// and its subtitle share the room evenly, each cut short when long, then the
+// server.
+type Row = { key: string; title: ReactNode; subtitle?: ReactNode; who?: string | null; metric?: string; value: string; badges?: ActivityServer[]; visual: ReactNode };
 const StatCard = ({ title, metric, rows, round }: { title: string; metric: string; rows: Row[]; round?: boolean }) => {
   const [active, setActive] = useState(0);
+  // Whether a row is being pointed at or focused, rather than just leading.
+  const [engaged, setEngaged] = useState(false);
   const current = Math.min(active, rows.length - 1);
   const shown = rows[current];
-  return <div className="dashboard-stat-card" onMouseLeave={() => setActive(0)}>
+  const leave = () => { setActive(0); setEngaged(false); };
+  return <div className="dashboard-stat-card" onMouseLeave={leave}
+    onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) leave(); }}>
     <div className={round ? 'dashboard-stat-visual dashboard-stat-round' : 'dashboard-stat-visual'}>{shown?.visual}</div>
     <div className="min-w-0">
       <div className="dashboard-stat-head">
         <span className="dashboard-stat-heading"><strong>{title}</strong>{shown?.who && <span className="dashboard-stat-who">· {shown.who}</span>}</span>
-        <span className="dashboard-stat-metric">{metric}</span>
+        <span className="dashboard-stat-metric">{engaged && shown?.metric ? shown.metric : metric}</span>
       </div>
       <ol className="dashboard-stat-list">
         {rows.map((row, i) => <li key={row.key} className="dashboard-stat-row" data-active={i === active || undefined} tabIndex={0}
-          onMouseEnter={() => setActive(i)} onFocus={() => setActive(i)}>
+          onMouseEnter={() => { setActive(i); setEngaged(true); }} onFocus={() => { setActive(i); setEngaged(true); }}>
           <span className="dashboard-stat-rank">{i + 1}</span>
           <span className="dashboard-stat-title">
             <span className="dashboard-stat-name">{row.title}</span>
@@ -123,6 +134,8 @@ const StatCard = ({ title, metric, rows, round }: { title: string; metric: strin
 
 export function ActivityStatistics({ fixedServer }: { fixedServer?: { id: number; name: string } }) {
   const [days, setDays] = useState(30);
+  // Off by default: monitored servers' imported history from before MUM's recordings.
+  const [withImported, setWithImported] = useState(false);
   // The period picker's "Last [ ] days" box.
   const [periodOpen, setPeriodOpen] = useState(false);
   const [customDays, setCustomDays] = useState('');
@@ -137,8 +150,9 @@ export function ActivityStatistics({ fixedServer }: { fixedServer?: { id: number
   const [picked, setPicked] = useState<number | null>(null);
   const [order, setOrder] = useState<ActivityOrder>('plays');
   const server = fixedServer?.id ?? picked;
-  const { data, loading, error } = useDashboardData<ActivityStats>(`activity:${days}:${server ?? 'all'}:${order}`, () => fetchActivityStats(days, server, order), 60_000);
-  const { formatRelative } = useAccountDisplay();
+  const { data, loading, error } = useDashboardData<ActivityStats>(`activity:${days}:${server ?? 'all'}:${order}:${withImported ? 'imported' : 'recorded'}`,
+    () => fetchActivityStats(days, server, order, withImported), 60_000);
+  const { formatRelative, formatTimestamp } = useAccountDisplay();
   // Re-render every minute so the relative times move on.
   const [, setTick] = useState(0);
   useEffect(() => {
@@ -150,6 +164,9 @@ export function ActivityStatistics({ fixedServer }: { fixedServer?: { id: number
   const several = !fixedServer && reporting.length > 1;
   const byID = new Map(reporting.map(s => [s.server_id, s]));
   const chosen = server !== null ? byID.get(server) : undefined;
+  // Imported history only changes the servers MUM records itself.
+  const recordsItself = (s: ActivityServer) => ['plex', 'jellyfin', 'emby'].includes(s.service_type.toLowerCase());
+  const importToggle = server === null ? reporting.some(recordsItself) : chosen !== undefined && recordsItself(chosen);
   // Badges show which server something is from, when there's more than one to tell apart.
   const badgesFor = (ids: number[]) => several && server === null ? ids.flatMap(id => byID.get(id) ?? []) : undefined;
   const badgeFor = (item: ActivityTitle) => badgesFor(item.server_id ? [item.server_id] : []);
@@ -196,6 +213,12 @@ export function ActivityStatistics({ fixedServer }: { fixedServer?: { id: number
             visual: <FontAwesomeIcon icon={logo.icon} style={{ color: logo.color }} /> };
         })} />);
     }
+    // The most streams playing at once; the heading shows the highlighted peak's day.
+    if (data.concurrent.length > 0) {
+      cards.push(<StatCard key="concurrent" title="Most concurrent streams" metric="Streams"
+        rows={data.concurrent.map(peak => ({ key: peak.kind, title: concurrentLabels[peak.kind], metric: formatTimestamp(peak.started, 'date'),
+          value: peak.count.toLocaleString(), visual: <FontAwesomeIcon icon={faTowerBroadcast} /> }))} />);
+    }
   }
   // Labels follow the period the data covers, not the picker mid-load.
   const shownDays = data?.days ?? days;
@@ -208,6 +231,20 @@ export function ActivityStatistics({ fixedServer }: { fixedServer?: { id: number
           <TabHeading icon={faChartLine} title="Activity"
             description={fixedServer ? `What people watched, listened to and played on ${fixedServer.name}.` : 'What people watched, listened to and played across your servers.'} />
           <div className="flex flex-wrap items-center gap-2">
+            {importToggle && <div className="flex items-center gap-2">
+              <Switch id="activity-imported" checked={withImported} onCheckedChange={setWithImported} />
+              <label htmlFor="activity-imported" className="text-sm font-medium">Imported history</label>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button type="button" className="text-muted-foreground hover:text-foreground" aria-label="About imported history"><FontAwesomeIcon icon={faCircleInfo} /></button>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs space-y-2">
+                  <p>Adds the plays imported from each Plex, Jellyfin and Emby server’s own history, from before MUM started recording that server, so older activity shows up. From MUM’s first recorded play on a server, only MUM’s recordings count, so nothing is counted twice.</p>
+                  <p>Imported plays don’t say how long they lasted or what played them, so they count as plays but add no time (Time and Play duration leave them out), and Most active platforms only covers MUM’s recordings. While this is on, shows and albums are grouped by name.</p>
+                  <p>Audiobookshelf always uses its imported history.</p>
+                </TooltipContent>
+              </Tooltip>
+            </div>}
             <div className="flex items-center gap-1" role="group" aria-label="Rank by">
               <Button size="sm" variant={order === 'plays' ? 'default' : 'outline'} aria-pressed={order === 'plays'} onClick={() => setOrder('plays')}>Play count</Button>
               <Button size="sm" variant={order === 'duration' ? 'default' : 'outline'} aria-pressed={order === 'duration'} onClick={() => setOrder('duration')}>Play duration</Button>

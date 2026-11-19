@@ -82,6 +82,7 @@ test('dashboard adapters', async t => {
         { kind: 'audiobooks', items: [{ server_id: 4, title: 'A Book', subtitle: 'An Author', plays: 1, seconds: 1200, people: 1, played_at: null, user_uuid: null, library_id: null, library_type: null,  poster_url: '/api/activity/imported-history-images/9?s=a&e=1&g=b' }] },
       ],
       platforms: [{ name: 'Roku', plays: 2, seconds: 600, server_ids: [2] }], server_id: null, order: 'plays',
+      concurrent: [{ kind: 'all', count: 3, started: '2026-11-14T20:00:00.000000000Z', stopped: '2026-11-14T21:00:00.000000000Z' }, { kind: 'transcode', count: 1, started: '2026-11-13T20:00:00.000000000Z', stopped: '2026-11-13T21:00:00.000000000Z' }],
       servers: [{ server_id: 2, name: 'Plex++', service_type: 'plex', imported_at: null }, { server_id: 4, name: 'Books', service_type: 'audiobookshelf', imported_at: null }],
       unreported: [{ server_id: 3, name: 'Comics', service_type: 'kavita', imported_at: null }],
       imported: [{ server_id: 4, name: 'Books', service_type: 'audiobookshelf', imported_at: '2026-11-17T00:00:00Z' }] };
@@ -102,9 +103,20 @@ test('dashboard adapters', async t => {
     assert.deepEqual(activity.sections[1].items[0].server_ids, [2, 4]);
     assert.deepEqual(activity.sections[0].items[0].server_ids, []);
     assert.deepEqual(activity.platforms[0].server_ids, [2]);
+    assert.deepEqual(activity.concurrent.map(p => [p.kind, p.count]), [['all', 3], ['transcode', 1]]);
     // All time is days 0.
     route({ 'GET /api/activity/statistics': url => { assert.equal(url.searchParams.get('days'), '0'); return Response.json({ data: { ...stats, days: 0 } }); } });
     assert.equal((await m.fetchActivityStats(0)).days, 0);
+    // Imported history is asked for only when switched on, and the reply must say so.
+    let importedAsked;
+    route({ 'GET /api/activity/statistics': url => { importedAsked = url.searchParams.get('imported'); return Response.json({ data: { ...stats, with_imported: true } }); } });
+    assert.equal((await m.fetchActivityStats(7, null, 'plays', true)).with_imported, true);
+    assert.equal(importedAsked, '1');
+    await assert.rejects(m.fetchActivityStats(7), /Invalid activity statistics/);
+    route({ 'GET /api/activity/statistics': url => { importedAsked = url.searchParams.get('imported'); return Response.json({ data: stats }); } });
+    assert.equal((await m.fetchActivityStats(7)).with_imported, false);
+    assert.equal(importedAsked, null);
+    await assert.rejects(m.fetchActivityStats(7, null, 'plays', true), /Invalid activity statistics/);
     // A typed-in period, up to 3650 days.
     route({ 'GET /api/activity/statistics': url => Response.json({ data: { ...stats, days: Number(url.searchParams.get('days')) } }) });
     assert.equal((await m.fetchActivityStats(365)).days, 365);
@@ -123,7 +135,9 @@ test('dashboard adapters', async t => {
       { ...stats, sections: [{ kind: 'movies', items: [{ title: 'x', subtitle: null, plays: 1, seconds: 1, poster_url: 'https://plex.tv/p.jpg' }] }] },
       { ...stats, platforms: [{ name: 'x', plays: 'many', seconds: 1 }] }, { ...stats, order: 'duration' }, { ...stats, sections: [{ kind: 'movies', items: [{ server_id: 0, title: 'x', subtitle: null, plays: 1, seconds: 1, poster_url: null }] }] }, { ...stats, unreported: [{ server_id: 0, name: 'x', service_type: 'kavita', imported_at: null }] },
       { ...stats, sections: [{ kind: 'movies', items: [{ ...stats.sections[0].items[0], link: { library_id: 0, media_id: 1, episode_id: null } }] }] },
-      { ...stats, sections: [{ kind: 'users', items: [{ ...stats.sections[1].items[0], server_ids: ['2'] }] }] }]) {
+      { ...stats, sections: [{ kind: 'users', items: [{ ...stats.sections[1].items[0], server_ids: ['2'] }] }] },
+      { ...stats, concurrent: [{ kind: 'copy', count: 1, started: 'a', stopped: 'b' }] }, { ...stats, concurrent: [{ kind: 'all', count: 0, started: 'a', stopped: 'b' }] },
+      { ...stats, concurrent: undefined }]) {
       route({ 'GET /api/activity/statistics': () => Response.json({ data: bad }) });
       await assert.rejects(m.fetchActivityStats(7), /Invalid activity statistics/);
     }

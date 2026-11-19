@@ -32,6 +32,7 @@ import { ServiceIcon } from '../components';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Card, CardContent, CardHeader } from '../components/ui/card';
+import { Separator } from '../components/ui/separator';
 import { Skeleton } from '../components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
@@ -39,7 +40,7 @@ import { ACTIVITY_GRAPH_SERVICES, ActivityGraphs } from './GraphsPage';
 import { PlexResources } from '../components/servers/PlexResources';
 import { serverAvailability, connectionLabel } from '../lib/serverOverview';
 import { subscribeToChannel } from '../lib/realtimeSocket';
-import { SettingIcon, TabHeading } from '../components/users/AccountSettings';
+import { SettingHeader, SettingIcon, TabHeading } from '../components/users/AccountSettings';
 import '../components/dashboard/ServerHealth.css';
 
 type ServerTab = 'overview' | 'users' | 'libraries' | 'graphs' | 'resources';
@@ -386,86 +387,6 @@ export const ServerDetailPage = ({ section = 'overview' }: { section?: ServerTab
           </div>
 
           <Card>
-            <CardHeader><TabHeading icon={faPlug} title="Actions" description="Test the connection, sync users and libraries, and import play history." /></CardHeader>
-            <CardContent className="space-y-4">
-                <div className="grid gap-2 sm:grid-cols-3">
-                  <Button
-                    variant="outline"
-                    onClick={handleTestConnection}
-                    disabled={!testKey || testNeedsReadKey===testKey || syncNeedsReadKey===syncPageKey || testingConnection || syncingLibraries || syncingUsers}
-                  >
-                    {testingConnection ? (
-                      <>
-                        <Spinner className="mr-2 h-4 w-4" />
-                        Testing
-                      </>
-                    ) : (
-                      <>
-                        <FontAwesomeIcon icon={faPlug} className="mr-2 h-4 w-4" />
-                        Test
-                      </>
-                    )}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={()=>void handleSync('libraries')}
-                    disabled={syncUnavailable}
-                  >
-                    {syncingLibraries ? (
-                      <>
-                        <Spinner className="mr-2 h-4 w-4" />
-                        Syncing
-                      </>
-                    ) : (
-                      <>
-                        <FontAwesomeIcon icon={faDatabase} className="mr-2 h-4 w-4" />
-                        Sync Libraries
-                      </>
-                    )}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={()=>void handleSync('users')}
-                    disabled={syncUnavailable}
-                  >
-                    {syncingUsers ? (
-                      <>
-                        <Spinner className="mr-2 h-4 w-4" />
-                        Syncing
-                      </>
-                    ) : (
-                      <>
-                        <FontAwesomeIcon icon={faUsers} className="mr-2 h-4 w-4" />
-                        Sync Users
-                      </>
-                    )}
-                  </Button>
-                </div>
-                {(testNeedsReadKey===testKey||syncNeedsReadKey===syncPageKey)&&<p className="text-sm text-muted-foreground">Inspect saved state before another action.</p>}
-                <Button variant="outline" className="w-full" disabled={testingConnection||syncingLibraries||syncingUsers} onClick={()=>void refreshAll().catch(()=>showError('Saved state could not be refreshed. Reload the page before another action.'))}>
-                  <FontAwesomeIcon icon={faRotate} className="mr-2 h-4 w-4" />
-                  Refresh saved state
-                </Button>
-                {canImportHistory&&isAdministrator&&(
-                  <div className="space-y-2">
-                    <Button variant="outline" className="w-full" disabled={historyStarting||history?.state==='running'} onClick={()=>void handleImportHistory()}>
-                      {historyStarting||history?.state==='running' ? (
-                        <Spinner className="mr-2 h-4 w-4" />
-                      ) : (
-                        <FontAwesomeIcon icon={faClockRotateLeft} className="mr-2 h-4 w-4" />
-                      )}
-                      {history?.state==='running' ? 'Importing play history' : 'Import play history'}
-                    </Button>
-                    <p className="text-sm text-muted-foreground">
-                      {isPlex ? "Reads this server's play history so purges can count plays from before MUM was watching." : "Reads this server's play history."} Running it again adds only plays MUM doesn't have yet.{' '}
-                      {historyError ?? (history&&canImportHistory ? playHistorySummary(history,historyService) : '')}
-                    </p>
-                  </div>
-                )}
-            </CardContent>
-          </Card>
-
-          <Card>
             <CardHeader><TabHeading icon={faCircleInfo} title="Details" description="This server's settings and status." /></CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -532,6 +453,55 @@ export const ServerDetailPage = ({ section = 'overview' }: { section?: ServerTab
                   ) : null}
                 </div>
               </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <TabHeading icon={faPlug} title="Actions" description="Test the connection, sync users and libraries, and import play history." />
+                <Button variant="outline" size="sm" disabled={testingConnection||syncingLibraries||syncingUsers} onClick={()=>void refreshAll().catch(()=>showError('Saved state could not be refreshed. Reload the page before another action.'))}>
+                  <FontAwesomeIcon icon={faRotate} />
+                  Refresh saved state
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* One row per job, like the settings pages: what it does, then its buttons. */}
+              <SettingHeader title="Connection" icon={<SettingIcon className="bg-primary/20 text-primary"><FontAwesomeIcon icon={faPlug} className="w-4 h-4" /></SettingIcon>}
+                summary="Check that MUM can reach this server and read its version."
+                action={<Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleTestConnection}
+                  disabled={!testKey || testNeedsReadKey===testKey || syncNeedsReadKey===syncPageKey || testingConnection || syncingLibraries || syncingUsers}
+                >
+                  {testingConnection ? <><Spinner className="h-4 w-4" />Testing</> : <><FontAwesomeIcon icon={faPlug} />Test connection</>}
+                </Button>} />
+              <Separator />
+              <SettingHeader title="Sync" icon={<SettingIcon className="bg-primary/20 text-primary"><FontAwesomeIcon icon={faRotate} className="w-4 h-4" /></SettingIcon>}
+                summary="Fetch this server's users and libraries."
+                action={<>
+                  <Button variant="outline" size="sm" onClick={()=>void handleSync('users')} disabled={syncUnavailable}>
+                    {syncingUsers ? <><Spinner className="h-4 w-4" />Syncing</> : <><FontAwesomeIcon icon={faUsers} />Sync users</>}
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={()=>void handleSync('libraries')} disabled={syncUnavailable}>
+                    {syncingLibraries ? <><Spinner className="h-4 w-4" />Syncing</> : <><FontAwesomeIcon icon={faDatabase} />Sync libraries</>}
+                  </Button>
+                </>} />
+              {canImportHistory&&isAdministrator&&(<>
+                <Separator />
+                <SettingHeader title="Play history" icon={<SettingIcon className="bg-primary/20 text-primary"><FontAwesomeIcon icon={faClockRotateLeft} className="w-4 h-4" /></SettingIcon>}
+                  summary={<>
+                    {isPlex ? "Reads this server's play history so purges can count plays from before MUM was watching." : "Reads this server's play history."} Running it again adds only plays MUM doesn't have yet.{' '}
+                    {historyError ?? (history&&canImportHistory ? playHistorySummary(history,historyService) : '')}
+                  </>}
+                  action={<Button variant="outline" size="sm" disabled={historyStarting||history?.state==='running'} onClick={()=>void handleImportHistory()}>
+                    {historyStarting||history?.state==='running' ? <Spinner className="h-4 w-4" /> : <FontAwesomeIcon icon={faClockRotateLeft} />}
+                    {history?.state==='running' ? 'Importing history' : 'Import history'}
+                  </Button>} />
+              </>)}
+              {(testNeedsReadKey===testKey||syncNeedsReadKey===syncPageKey)&&<p className="text-sm text-muted-foreground">Inspect saved state before another action.</p>}
             </CardContent>
           </Card>
         </div>) : null}

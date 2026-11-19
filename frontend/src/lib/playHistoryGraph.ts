@@ -54,7 +54,7 @@ export function readPlayHistory(raw: unknown, days: number): PlayHistory {
   return { days, media: data.media as PlayHistory['media'], bucket: data.bucket as PlayHistory['bucket'], buckets, totals: readSeconds(data.totals, true), users };
 }
 
-/** "0s", "36m", "9.7h", "3.5d": the units Plex's play history uses. */
+/** "0s", "36m", "9.7h", "3.5d": seconds, minutes, then hours and days to one decimal. */
 export function playHistoryDuration(value: number): string {
   if (value < 60) return `${Math.round(value)}s`;
   if (value < 3600) return `${Math.round(value / 60)}m`;

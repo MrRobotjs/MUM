@@ -5,7 +5,6 @@ import { faChartLine, faCircleInfo, faClock, faLayerGroup, faPlay, faTowerBroadc
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Switch } from '@/components/ui/switch';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Spinner } from '@/components/ui/spinner';
@@ -230,15 +229,21 @@ export function ActivityStatistics({ fixedServer }: { fixedServer?: { id: number
             description={fixedServer ? `What people watched, listened to and played on ${fixedServer.name}.` : 'What people watched, listened to and played across your servers.'} />
           <div className="flex flex-wrap items-center gap-2">
             {importToggle && <div className="flex items-center gap-2">
-              <Switch id="activity-imported" checked={withImported} onCheckedChange={setWithImported} />
-              <label htmlFor="activity-imported" className="text-sm font-medium">Imported history</label>
+              {/* The same choice, in the same words, as the History table's records picker. */}
+              <Select value={withImported ? 'all' : 'mum'} onValueChange={value => setWithImported(value === 'all')}>
+                <SelectTrigger className="w-auto" aria-label="Records"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All plays</SelectItem>
+                  <SelectItem value="mum">Recorded by MUM</SelectItem>
+                </SelectContent>
+              </Select>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button type="button" className="text-muted-foreground hover:text-foreground" aria-label="About imported history"><FontAwesomeIcon icon={faCircleInfo} /></button>
                 </TooltipTrigger>
                 <TooltipContent className="max-w-xs space-y-2">
-                  <p>Adds the plays imported from each Plex, Jellyfin and Emby server’s own history, from before MUM started recording that server, so older activity shows up. From MUM’s first recorded play on a server, only MUM’s recordings count, so nothing is counted twice.</p>
-                  <p>Imported plays don’t say how long they lasted or what played them, so they count as plays but add no time (Time and Play duration leave them out), and Most active platforms only covers MUM’s recordings. While this is on, shows and albums are grouped by name.</p>
+                  <p>All plays adds the plays imported from each Plex, Jellyfin and Emby server’s own history, from before MUM started recording that server, so older activity shows up. From MUM’s first recorded play on a server, only MUM’s recordings count, so nothing is counted twice.</p>
+                  <p>Imported plays don’t say how long they lasted or what played them, so they count as plays but add no time (Time and Play duration leave them out), and Most active platforms only covers MUM’s recordings. With All plays, shows and albums are grouped by name.</p>
                   <p>Audiobookshelf always uses its imported history.</p>
                 </TooltipContent>
               </Tooltip>

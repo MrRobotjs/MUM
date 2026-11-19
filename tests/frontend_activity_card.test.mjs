@@ -120,15 +120,15 @@ test('activity statistics', async t => {
     assert.doesNotMatch(html, /w-56/);
   });
 
-  await t.test('imported history: an off switch with an explanation, only where it changes something', () => {
+  await t.test('imported history: a records picker (Recorded by MUM by default) with an explanation, only where it changes something', () => {
     globalThis.activityCard = {loading: false, error: null, data: stats()};
     const html = m.render().replace(/<!-- -->/g, '');
-    assert.match(html, /role="switch" aria-checked="false"[^>]*id="activity-imported"/);
-    assert.match(html, /for="activity-imported"[^>]*>Imported history</);
+    assert.match(html, /aria-label="Records"/);
+    assert.doesNotMatch(html, /role="switch"/);
     assert.match(html, /aria-label="About imported history"/);
     // An Audiobookshelf-only view has nothing to add.
     globalThis.activityCard = {loading: false, error: null, data: stats({servers: [{server_id: 4, name: 'Books', service_type: 'audiobookshelf', imported_at: null}]})};
-    assert.doesNotMatch(m.render(), /Imported history/);
+    assert.doesNotMatch(m.render(), /aria-label="Records"/);
   });
 
   await t.test('nothing played', () => {

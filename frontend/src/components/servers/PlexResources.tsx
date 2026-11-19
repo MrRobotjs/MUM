@@ -19,16 +19,16 @@ import {
   type ResourceSample,
 } from '../../lib/plexResources';
 
-// Real-time graphs refresh every few seconds while the page is open, as in
-// Plex Web's dashboard; longer bins are read once per change.
+// Real-time graphs refresh every few seconds while the page is open; longer
+// bins are read once per change.
 const REFRESH_MS = 5000;
 const REMOTE_COLOR = '#3b82f6';
 const LOCAL_COLOR = '#f59e0b';
-// Plex Web's own CPU and RAM colours (taken from its dashboard).
+// CPU and RAM line colours.
 const CPU_COLORS = { system: '#f1335e', plex: '#9ad186' };
 const MEMORY_COLORS = { system: '#bd86d1', plex: '#33f1c5' };
 
-// Real-time points are labelled by how long ago they were, like Plex Web.
+// Real-time points are labelled by how long ago they were.
 const secondsAgo = (at: string, latest: number) => {
   const seconds = Math.max(0, Math.round((latest - Date.parse(at)) / 1000));
   if (seconds === 0) return 'Now';
@@ -98,7 +98,7 @@ export const PlexResources = ({ serverId }: { serverId: number }) => {
   );
   const showRemote = network !== 'local';
   const showLocal = network !== 'remote';
-  // Hovering one series' bar dims the other in every bar and in the legend, as in Plex.
+  // Hovering one series' bar dims the other in every bar and in the legend.
   const [hoveredSeries, setHoveredSeries] = useState<'remote' | 'local' | null>(null);
   const barColor = (series: 'remote' | 'local', color: string) => (hoveredSeries && hoveredSeries !== series ? `${color}59` : color);
   const bandwidthLatest = bandwidthPoints.length ? Date.parse(bandwidthPoints[bandwidthPoints.length - 1].at) : 0;
@@ -143,7 +143,7 @@ export const PlexResources = ({ serverId }: { serverId: number }) => {
     const rows = payload.map((entry) => ({
       key: String(entry.dataKey), label: String(entry.name), value: formatBandwidth(Number(entry.value || 0)), dotColor: seriesColor[String(entry.dataKey)] ?? String(entry.color),
     }));
-    // A period's bar also shows its total, as in Plex.
+    // A period's bar also shows its total.
     if (!realTime && payload.length > 1) {
       rows.push({ key: 'total', label: 'Total', value: formatBytes(payload.reduce((total, entry) => total + Number(entry.value || 0), 0)), dotColor: 'var(--muted-foreground)' });
     }
@@ -161,7 +161,7 @@ export const PlexResources = ({ serverId }: { serverId: number }) => {
   type ResourceView = 'all' | 'plex' | 'system';
   const [cpuView, setCpuView] = useState<ResourceView>('all');
   const [memoryView, setMemoryView] = useState<ResourceView>('all');
-  // Hovering a line, or its legend entry, fades the other line, as in Plex.
+  // Hovering a line, or its legend entry, fades the other line.
   type ResourceLine = 'system' | 'plex';
   const [cpuFocus, setCpuFocus] = useState<ResourceLine | null>(null);
   const [memoryFocus, setMemoryFocus] = useState<ResourceLine | null>(null);
@@ -248,7 +248,7 @@ export const PlexResources = ({ serverId }: { serverId: number }) => {
           </Select>
         </>}
       >
-        {/* Real time is a rate over the last minutes; any period is stacked bars of data sent, as in Plex. */}
+        {/* Real time is a rate over the last minutes; any period is stacked bars of data sent. */}
         {realTime ? <ResponsiveContainer width="100%" height={300}>
           <AreaChart data={bandwidthPoints} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" opacity={0.35} />

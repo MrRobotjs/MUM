@@ -3,7 +3,7 @@ import test from 'node:test';
 import {loadFrontend} from './frontendLoader.mjs';
 
 // Play history: the reply is checked strictly, absent types read as zero, and
-// times and periods read the way Plex's play history writes them.
+// times and periods read in short units and full dates.
 const load = () => loadFrontend("export * from './src/lib/playHistoryGraph';");
 const reply = extra => ({data: {days: 30, server_id: null, media: 'all', user: null, bucket: 'week',
   buckets: [{start: '2026-10-21', end: '2026-10-27', seconds: {}}, {start: '2026-10-28', end: '2026-11-03', seconds: {movies: 31320, tv: 5040, music: 1680}}],

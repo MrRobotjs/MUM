@@ -9,8 +9,8 @@ import {
   type PlayHistory, type PlayHistoryMedia,
 } from '../../lib/playHistoryGraph';
 
-// Play history: watched time per period, stacked by media type, with Plex's
-// filters (media and person) and the page's period and server. Hovering a
+// Play history: watched time per period, stacked by media type, with media
+// and person filters and the page's period and server. Hovering a
 // type's part of a bar dims the other types in every bar and in the legend;
 // the tooltip gives the period's time per type and its total.
 

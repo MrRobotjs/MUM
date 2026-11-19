@@ -71,11 +71,15 @@ test('shared data tables', async t => {
     assert.match(m.users({users: [], columns: allColumns}), /colSpan="5"[^>]*>No users match the current filters\./);
   });
 
-  await t.test('activity: one row per play', () => {
+  await t.test('activity: the History tab layout, one row per play', () => {
     const html = m.activity({days: 7, onDaysChange() {}, page: 1, totalPages: 1, onPageChange() {}, loading: false, emptyMessage: 'Nothing here',
-      rows: [{id: 9, media_title: 'Arrival', user_display_name: 'alpha', started_at: '2026-11-01T00:00:00Z', duration_seconds: 3720, platform: 'Roku', player: 'TV'}]});
-    assert.deepEqual(headers(html), ['Content', 'User', 'Started', 'Duration', 'Player / Platform']);
-    assert.match(html, /Arrival/); assert.match(html, /1h 2m/); assert.match(html, /Roku/);
+      rows: [{id: 9, media_title: 'Arrival', user_display_name: 'alpha', user_uuid: 'u1', started_at: '2026-11-01T00:00:00Z', duration_seconds: 3720, platform: 'Roku', product: 'Plex for Roku', player: 'TV'},
+        {id: 10, media_title: 'Pilot', grandparent_title: 'A Show', user_display_name: 'beta', started_at: '2026-11-02T00:00:00Z', duration_seconds: 60}]});
+    assert.deepEqual(headers(html), ['Poster', 'Media Title', 'User', 'Date', 'Started', 'Duration', 'Platform', 'Product', 'Player']);
+    const [first, second] = rows(html);
+    assert.match(first, /Arrival/); assert.match(first, /62 mins/); assert.match(first, /Roku/); assert.match(first, /Plex for Roku/);
+    assert.match(second, /A Show/); assert.match(second, /1 min</); assert.match(second, /title="Not recorded"/);
+    assert.match(html, /Recent activity/);
     assert.match(m.activity({days: 7, onDaysChange() {}, page: 1, totalPages: 1, onPageChange() {}, loading: false, rows: [], emptyMessage: 'Nothing here'}), /Nothing here/);
   });
 

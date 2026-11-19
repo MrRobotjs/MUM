@@ -1,25 +1,32 @@
+import { Link } from '@tanstack/react-router';
+import { faClockRotateLeft } from '@fortawesome/free-solid-svg-icons';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faClockRotateLeft, faFilm } from '@fortawesome/free-solid-svg-icons';
 import { useAccountDisplay } from '../../hooks/useAccountDisplay';
+import { Card, CardContent, CardHeader } from '../ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Skeleton } from '../ui/skeleton';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { Pagination } from '../common/Pagination';
+import { TabHeading } from '../users/AccountSettings';
 import { createAppColumnHelper, useAppTable } from '../table/DataTable';
+import { Poster } from './LibraryOverview';
 
 // One play as the activity endpoints send it.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type ActivityRow = any;
+export type ActivityRow = {
+  id: number; media_title?: string | null; media_type?: string | null; grandparent_title?: string | null; parent_title?: string | null;
+  user_display_name?: string | null; user_uuid?: string | null; started_at?: string | null; duration_seconds?: number | null;
+  platform?: string | null; product?: string | null; player?: string | null; thumb_path?: string | null;
+};
 const columnHelper = createAppColumnHelper<ActivityRow>();
 
-const formatDuration = (seconds: number) => {
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  if (hours > 0) {
-    return `${hours}h ${minutes}m`;
-  }
-  return `${minutes}m`;
+// Whole minutes, as the History tab shows durations ("3 mins").
+const minutes = (seconds?: number | null) => {
+  const n = Math.round((seconds ?? 0) / 60);
+  return `${n.toLocaleString()} ${n === 1 ? 'min' : 'mins'}`;
 };
+const none = <span className="text-muted-foreground" title="Not recorded">—</span>;
+// The History tab's header and cell classes, so both tables look the same.
+const headClass = 'text-left py-3 px-4 text-sm font-medium text-muted-foreground';
+const cellClass = 'py-3 px-4 text-sm whitespace-nowrap';
 
 type ActivityTableProps = {
   days: number;
@@ -33,208 +40,83 @@ type ActivityTableProps = {
   emptyMessage: string;
 };
 
-/** The recent-plays table of a library's or a show's Activity tab: time
- * window, plays with poster, viewer, start, duration and player, and paging. */
+/** The Activity tab of a library or a show: plays in the chosen window, laid
+ * out like the profile History tab (poster, title, viewer, date and times,
+ * platform, product, player), with paging. */
 export const ActivityTable = ({ days, onDaysChange, page, totalPages, onPageChange, loading, rows, emptyMessage }: ActivityTableProps) => {
   const { formatTimestamp } = useAccountDisplay();
-  const formatDate = (dateStr: string) => formatTimestamp(dateStr, 'date');
-  const formatTime = (dateStr: string) => formatTimestamp(dateStr, 'time');
   const columns = [
-    columnHelper.display({ id: 'content', header: 'Content', cell: ({ row: { original: stream } }) => (
-      <div className="flex items-center gap-3">
-        {/* Poster Thumbnail */}
-        <div className="w-12 h-16 flex-shrink-0">
-          {stream.thumb_path ? (
-            <img
-              src={stream.thumb_path}
-              alt={stream.media_title || 'Unknown'}
-              className="w-full h-full object-cover rounded border border-border shadow-sm"
-              loading="lazy"
-              onError={(e) => {
-                e.currentTarget.style.display = 'none';
-                if (e.currentTarget.nextElementSibling) {
-                  (e.currentTarget.nextElementSibling as HTMLElement).style.display = 'flex';
-                }
-              }}
-            />
-          ) : null}
-          <div className={`w-full h-full bg-muted/50 rounded border border-border flex items-center justify-center ${stream.thumb_path ? 'hidden' : 'flex'}`}>
-            <FontAwesomeIcon icon={faFilm} className="h-6 w-6 text-muted-foreground opacity-40" />
-          </div>
-        </div>
-
-        {/* Content Info */}
-        <div className="flex flex-col min-w-0 flex-1">
-          <div className="font-medium truncate">{stream.media_title || 'Unknown'}</div>
-          {(stream.grandparent_title || stream.parent_title) && (
-            <div className="text-sm text-muted-foreground truncate">
-              {stream.grandparent_title}
-              {stream.grandparent_title && stream.parent_title && ' • '}
-              {stream.parent_title}
-            </div>
-          )}
-          {stream.media_type && (
-            <span className="inline-flex items-center rounded-md bg-blue-50 dark:bg-blue-400/10 px-2 py-1 text-xs font-medium text-blue-700 dark:text-blue-400 ring-1 ring-inset ring-blue-600/20 dark:ring-blue-500/20 gap-1 w-fit mt-1">
-              {stream.media_type}
-            </span>
-          )}
-        </div>
-      </div>
-    ) }),
-    columnHelper.display({ id: 'user', header: 'User', cell: ({ row: { original: stream } }) => (
-      <div className="flex items-center gap-3">
-        {/* User Avatar */}
-        <div className="w-8 h-8 flex-shrink-0">
-          {stream.user_avatar_url ? (
-            <img
-              src={stream.user_avatar_url}
-              alt={`${stream.user_display_name} avatar`}
-              className="w-full h-full object-cover rounded-full border border-border"
-              loading="lazy"
-              onError={(e) => {
-                e.currentTarget.style.display = 'none';
-                if (e.currentTarget.nextElementSibling) {
-                  (e.currentTarget.nextElementSibling as HTMLElement).style.display = 'flex';
-                }
-              }}
-            />
-          ) : null}
-          <div className={`w-full h-full rounded-full border border-border flex items-center justify-center text-white text-xs font-medium bg-primary ${stream.user_avatar_url ? 'hidden' : 'flex'}`}>
-            {stream.user_display_name?.[0]?.toUpperCase() || 'U'}
-          </div>
-        </div>
-
-        {/* User Name */}
-        <div className="flex flex-col">
-          <div className="font-medium truncate">{stream.user_display_name}</div>
-        </div>
-      </div>
-    ) }),
-    columnHelper.display({ id: 'started', header: 'Started', cell: ({ row: { original: stream } }) => (
-      <div className="flex flex-col">
-        <span className="font-medium">{stream.started_at ? formatDate(stream.started_at) : '—'}</span>
-        <span className="text-sm text-muted-foreground">{stream.started_at ? formatTime(stream.started_at) : ''}</span>
-      </div>
-    ) }),
-    columnHelper.display({ id: 'duration', header: 'Duration', cell: ({ row: { original: stream } }) => (
-      <span className="font-medium">
-        {stream.duration_seconds ? formatDuration(stream.duration_seconds) : '—'}
-      </span>
-    ) }),
-    columnHelper.display({ id: 'player', header: 'Player / Platform', cell: ({ row: { original: stream } }) => (
-      <div className="flex flex-col">
-        {stream.platform && (
-          <span className="font-medium">{stream.platform}</span>
-        )}
-        {stream.player && (
-          <span className="text-sm text-muted-foreground">{stream.player}</span>
-        )}
-        {!stream.platform && !stream.player && (
-          <span className="text-muted-foreground">Unknown</span>
-        )}
-      </div>
-    ) }),
+    columnHelper.display({ id: 'poster', header: 'Poster', meta: { headClassName: 'w-20 py-3 px-4 text-sm font-medium text-muted-foreground', cellClassName: 'py-3 px-4' },
+      cell: ({ row: { original: play } }) => <Poster url={play.thumb_path ?? null} title={play.media_title || 'Unknown'} className="w-12 h-18" /> }),
+    columnHelper.display({ id: 'title', header: 'Media Title', meta: { headClassName: headClass, cellClassName: 'account-history-title py-3 px-4' },
+      cell: ({ row: { original: play } }) => <>
+        <div className="font-medium">{play.media_title || 'Unknown'}</div>
+        {(play.grandparent_title || play.parent_title) && <div className="text-xs text-muted-foreground">{[play.grandparent_title, play.parent_title].filter(Boolean).join(' • ')}</div>}
+      </> }),
+    columnHelper.display({ id: 'user', header: 'User', meta: { headClassName: headClass, cellClassName: cellClass },
+      cell: ({ row: { original: play } }) => play.user_uuid
+        ? <Link to="/admin/users/$uuid" params={{ uuid: play.user_uuid }} className="account-profile-link"><span className="truncate">{play.user_display_name || 'Unknown'}</span></Link>
+        : play.user_display_name || none }),
+    columnHelper.display({ id: 'date', header: 'Date', meta: { headClassName: headClass, cellClassName: cellClass },
+      cell: ({ row: { original: play } }) => play.started_at ? formatTimestamp(play.started_at, 'date') : none }),
+    columnHelper.display({ id: 'started', header: 'Started', meta: { headClassName: headClass, cellClassName: cellClass },
+      cell: ({ row: { original: play } }) => play.started_at ? formatTimestamp(play.started_at, 'time') : none }),
+    columnHelper.display({ id: 'duration', header: 'Duration', meta: { headClassName: headClass, cellClassName: cellClass },
+      cell: ({ row: { original: play } }) => play.duration_seconds ? minutes(play.duration_seconds) : none }),
+    columnHelper.display({ id: 'platform', header: 'Platform', meta: { headClassName: headClass, cellClassName: cellClass }, cell: ({ row }) => row.original.platform || none }),
+    columnHelper.display({ id: 'product', header: 'Product', meta: { headClassName: headClass, cellClassName: cellClass }, cell: ({ row }) => row.original.product || none }),
+    columnHelper.display({ id: 'player', header: 'Player', meta: { headClassName: headClass, cellClassName: cellClass }, cell: ({ row }) => row.original.player || none }),
   ];
-  const table = useAppTable({ columns, data: rows, getRowId: stream => String(stream.id) });
+  const table = useAppTable({ columns, data: rows, getRowId: play => String(play.id) });
+
   return (
-    <>
-      {/* Time Range Selector */}
-      <div className="flex justify-between items-center">
-        <h3 className="text-lg font-semibold flex items-center">
-          <FontAwesomeIcon icon={faClockRotateLeft} className="mr-2 h-5 w-5" />
-          Recent Activity
-        </h3>
-        <Select value={days.toString()} onValueChange={(val) => onDaysChange(Number(val))}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="7">Last 7 Days</SelectItem>
-            <SelectItem value="30">Last 30 Days</SelectItem>
-            <SelectItem value="90">Last 90 Days</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="overflow-hidden rounded-xl border shadow-sm">
-        <Table>
-          <TableHeader>
-            {table.getHeaderGroups().map(group => <TableRow key={group.id}>
-              {group.headers.map(header => <TableHead key={header.id}><table.FlexRender header={header} /></TableHead>)}
-            </TableRow>)}
-          </TableHeader>
-          <TableBody>
-            {loading ? (
-              Array.from({ length: 10 }).map((_, idx) => (
-                <TableRow key={idx}>
-                  <TableCell>
-                    <div className="flex items-center gap-3">
-                      <Skeleton className="w-12 h-16 flex-shrink-0" />
-                      <div className="flex-1 space-y-2">
-                        <Skeleton className="h-4 w-48" />
-                        <Skeleton className="h-3 w-32" />
-                      </div>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-3">
-                      <Skeleton className="w-8 h-8 rounded-full" />
-                      <Skeleton className="h-4 w-24" />
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="space-y-1">
-                      <Skeleton className="h-4 w-24" />
-                      <Skeleton className="h-3 w-20" />
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Skeleton className="h-4 w-16" />
-                  </TableCell>
-                  <TableCell>
-                    <div className="space-y-1">
-                      <Skeleton className="h-4 w-20" />
-                      <Skeleton className="h-3 w-16" />
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))
-            ) : rows.length > 0 ? (
-              table.getRowModel().rows.map(row => (
-                <TableRow key={row.id} className="hover:bg-accent/50">
-                  {row.getVisibleCells().map(cell => <TableCell key={cell.id}><table.FlexRender cell={cell} /></TableCell>)}
-                </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell colSpan={5} className="py-12 text-center">
-                  <div className="flex flex-col items-center">
-                    <div className="w-16 h-16 rounded-full bg-accent flex items-center justify-center mb-4">
-                      <FontAwesomeIcon icon={faClockRotateLeft} className="h-8 w-8 text-muted-foreground" />
-                    </div>
-                    <h3 className="text-lg font-medium mb-2">No Recent Activity</h3>
-                    <p className="text-sm text-muted-foreground">
-                      {emptyMessage}
-                    </p>
-                  </div>
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-
-        {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="border-t">
-            <Pagination
-              currentPage={page}
-              totalPages={totalPages}
-              onPageChange={onPageChange}
-              loading={loading}
-            />
+    <Card>
+      <CardHeader>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <TabHeading icon={faClockRotateLeft} title="Recent activity" description="Plays MUM recorded in the chosen period, newest first." />
+          <Select value={days.toString()} onValueChange={(val) => onDaysChange(Number(val))}>
+            <SelectTrigger className="w-56" aria-label="Period"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="7">Last 7 Days</SelectItem>
+              <SelectItem value="30">Last 30 Days</SelectItem>
+              <SelectItem value="90">Last 90 Days</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {loading ? (
+          <div className="space-y-3">
+            {Array.from({ length: 6 }).map((_, idx) => <div key={idx} className="flex items-center gap-4">
+              <Skeleton className="w-12 h-16 flex-shrink-0" />
+              <div className="flex-1 space-y-2"><Skeleton className="h-4 w-48" /><Skeleton className="h-3 w-32" /></div>
+            </div>)}
+          </div>
+        ) : rows.length === 0 ? (
+          <div className="flex flex-col items-center gap-3 py-10 text-muted-foreground/60">
+            <FontAwesomeIcon icon={faClockRotateLeft} className="text-3xl" />
+            <p className="text-sm">{emptyMessage}</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                {table.getHeaderGroups().map(group => <tr key={group.id} className="border-b border-border">
+                  {group.headers.map(header => <th key={header.id} className={header.column.columnDef.meta?.headClassName}><table.FlexRender header={header} /></th>)}
+                </tr>)}
+              </thead>
+              <tbody>
+                {table.getRowModel().rows.map(row => <tr key={row.id} className="border-b border-border/50 hover:bg-muted/50 transition-colors">
+                  {row.getVisibleCells().map(cell => <td key={cell.id} className={cell.column.columnDef.meta?.cellClassName}><table.FlexRender cell={cell} /></td>)}
+                </tr>)}
+              </tbody>
+            </table>
           </div>
         )}
-      </div>
-    </>
+        {totalPages > 1 && (
+          <Pagination currentPage={page} totalPages={totalPages} onPageChange={onPageChange} loading={loading} />
+        )}
+      </CardContent>
+    </Card>
   );
 };

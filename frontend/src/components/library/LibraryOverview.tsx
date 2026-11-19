@@ -26,7 +26,8 @@ export type LibraryOverviewLibrary = {
   catalogue?: { synced_at?: string | null; item_count?: number | null };
 };
 
-const Poster = ({ url, title, className }: { url: string | null; title: string; className: string }) => {
+/** A poster with a film icon when there's none or it fails to load. */
+export const Poster = ({ url, title, className }: { url: string | null; title: string; className: string }) => {
   const [failed, setFailed] = useState(false);
   return <div className={cn(className, 'rounded bg-muted/30 flex items-center justify-center overflow-hidden')}>
     {url && !failed ? <img src={url} alt={title || 'Media poster'} className="w-full h-full object-cover" onError={() => setFailed(true)} />
@@ -34,7 +35,8 @@ const Poster = ({ url, title, className }: { url: string | null; title: string; 
   </div>;
 };
 
-const Tile = ({ icon, label, value, note }: { icon: IconDefinition; label: string; value: ReactNode; note?: ReactNode }) => (
+/** A status tile in the server Overview's style (also the library Stats tab's). */
+export const Tile = ({ icon, label, value, note }: { icon: IconDefinition; label: string; value: ReactNode; note?: ReactNode }) => (
   <div className="dashboard-health-tile dashboard-overview-tile">
     <SettingIcon className="bg-primary/20 text-primary"><FontAwesomeIcon icon={icon} className="w-4 h-4" /></SettingIcon>
     <div className="dashboard-health-body">

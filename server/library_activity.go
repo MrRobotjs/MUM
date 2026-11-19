@@ -20,6 +20,7 @@ import (
 const libraryActivityMatch = `SELECT h.id AS id,h.title AS title,h.media_type AS media_type,coalesce(h.parent_title,'') AS parent_title,h.first_seen_at AS first_seen_at,
  max(0,CAST(round((julianday(h.last_seen_at)-julianday(h.first_seen_at))*86400) AS INTEGER)) AS observed,
  coalesce(h.owner_uuid,h.service_uuid) AS viewer,i.id AS item,i.title AS item_title,coalesce(i.thumb_path,'') AS tag,
+ coalesce(h.platform,'') AS platform,coalesce(h.device_name,'') AS player,coalesce(h.client,'') AS product,
  coalesce((SELECT local_username FROM user_accounts WHERE uuid=h.owner_uuid),(SELECT external_username FROM service_accounts WHERE uuid=h.service_uuid),'') AS viewer_name
  FROM media_activity_history h JOIN media_items i ON i.library_id=? AND i.parent_id IS NULL AND i.external_id=coalesce(h.parent_item_id,h.item_id)
  WHERE h.server_id=? AND h.first_seen_at>=?`
@@ -175,6 +176,7 @@ func libraryChart(ctx context.Context, q libraryActivityRequest) ([]map[string]a
 const itemActivityMatch = `SELECT h.id AS id,h.title AS title,h.media_type AS media_type,coalesce(h.parent_title,'') AS parent_title,h.first_seen_at AS first_seen_at,
  max(0,CAST(round((julianday(h.last_seen_at)-julianday(h.first_seen_at))*86400) AS INTEGER)) AS observed,
  coalesce(h.owner_uuid,h.service_uuid) AS viewer,i.id AS item,i.title AS item_title,coalesce(i.thumb_path,'') AS tag,
+ coalesce(h.platform,'') AS platform,coalesce(h.device_name,'') AS player,coalesce(h.client,'') AS product,
  coalesce((SELECT local_username FROM user_accounts WHERE uuid=h.owner_uuid),(SELECT external_username FROM service_accounts WHERE uuid=h.service_uuid),'') AS viewer_name
  FROM media_items i JOIN media_activity_history h ON h.server_id=? AND h.first_seen_at>=? AND (h.parent_item_id=i.external_id OR (h.parent_item_id IS NULL AND h.item_id=i.external_id))
  WHERE i.id=?`
@@ -185,6 +187,7 @@ const itemActivityMatch = `SELECT h.id AS id,h.title AS title,h.media_type AS me
 const episodeActivityMatch = `SELECT h.id AS id,h.title AS title,h.media_type AS media_type,coalesce(h.parent_title,'') AS parent_title,h.first_seen_at AS first_seen_at,
  max(0,CAST(round((julianday(h.last_seen_at)-julianday(h.first_seen_at))*86400) AS INTEGER)) AS observed,
  coalesce(h.owner_uuid,h.service_uuid) AS viewer,i.id AS item,i.title AS item_title,coalesce(i.thumb_path,'') AS tag,
+ coalesce(h.platform,'') AS platform,coalesce(h.device_name,'') AS player,coalesce(h.client,'') AS product,
  coalesce((SELECT local_username FROM user_accounts WHERE uuid=h.owner_uuid),(SELECT external_username FROM service_accounts WHERE uuid=h.service_uuid),'') AS viewer_name
  FROM media_items i JOIN media_activity_history h ON h.server_id=? AND h.first_seen_at>=? AND h.item_id=i.external_id
  WHERE i.id=?`
@@ -286,7 +289,7 @@ func (a *App) writeActivityPage(w http.ResponseWriter, r *http.Request, q librar
 		domainError(w, err)
 		return
 	}
-	rows, err := q.tx.QueryContext(ctx, "SELECT id,title,media_type,parent_title,first_seen_at,observed,viewer_name,item,tag FROM ("+match+") ORDER BY first_seen_at DESC,id DESC LIMIT ? OFFSET ?", append(args, size, (page-1)*size)...)
+	rows, err := q.tx.QueryContext(ctx, "SELECT id,title,media_type,parent_title,first_seen_at,observed,viewer_name,item,tag,viewer,platform,player,product FROM ("+match+") ORDER BY first_seen_at DESC,id DESC LIMIT ? OFFSET ?", append(args, size, (page-1)*size)...)
 	if err != nil {
 		domainError(w, err)
 		return
@@ -296,13 +299,14 @@ func (a *App) writeActivityPage(w http.ResponseWriter, r *http.Request, q librar
 	items := []map[string]any{}
 	for rows.Next() {
 		var id, observed, item int64
-		var title, kind, parent, started, viewer, tag string
-		if err := rows.Scan(&id, &title, &kind, &parent, &started, &observed, &viewer, &item, &tag); err != nil {
+		var title, kind, parent, started, viewer, tag, viewerUUID, platform, player, product string
+		if err := rows.Scan(&id, &title, &kind, &parent, &started, &observed, &viewer, &item, &tag, &viewerUUID, &platform, &player, &product); err != nil {
 			domainError(w, err)
 			return
 		}
 		row := map[string]any{"id": id, "media_title": title, "media_type": kind, "grandparent_title": nullableText(parent), "parent_title": nil,
-			"user_display_name": viewer, "user_avatar_url": nil, "started_at": started, "duration_seconds": observed, "platform": nil, "player": nil, "thumb_path": nil}
+			"user_display_name": viewer, "user_uuid": nullableText(viewerUUID), "user_avatar_url": nil, "started_at": started, "duration_seconds": observed,
+			"platform": nullableText(platform), "player": nullableText(player), "product": nullableText(product), "thumb_path": nil}
 		if tag != "" && q.library.Active {
 			row["thumb_path"] = a.catalogueImageURL(q.session, item, now)
 		}

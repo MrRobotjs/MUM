@@ -49,6 +49,7 @@ import {
   faCompactDisc,
   faMusic,
   faChartBar,
+  faPlay,
   faClockRotateLeft,
   faServer,
   faTag,
@@ -58,6 +59,8 @@ import {
   faClock,
 } from '@fortawesome/free-solid-svg-icons';
 import { LibraryOverview } from '../components/library/LibraryOverview';
+import { Tile } from '../components/library/LibraryOverview';
+import { watchTime } from '../lib/identityPlayTotals';
 
 type ServiceType = 'plex' | 'jellyfin' | 'emby' | 'kavita' | 'audiobookshelf' | 'komga' | 'romm';
 
@@ -376,6 +379,12 @@ const LibraryDetailPageView = () => {
   const [statsData, setStatsData] = useState<any>(null);
   const [statsLoading, setStatsLoading] = useState(false);
   const [statsDays, setStatsDays] = useState(30);
+  // The Stats tab's tiles: the period in words and times like "3 days 4 hrs".
+  const statsPeriod = statsDays === 365 ? 'Last year' : `Last ${statsDays} days`;
+  const statsDuration = (seconds?: number | null) => {
+    const value = Math.max(0, Math.round(seconds ?? 0));
+    return value < 60 ? (value === 0 ? '0 mins' : '1 min') : watchTime(String(value)).map(([n, unit]) => `${n} ${unit}`).join(' ');
+  };
   const [activityData, setActivityData] = useState<any[]>([]);
   const [activityLoading, setActivityLoading] = useState(false);
   const [activityDays, setActivityDays] = useState(30);
@@ -1304,71 +1313,25 @@ const LibraryDetailPageView = () => {
           </div>
 
           {statsLoading ? (
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <div className="dashboard-overview-grid">
               {Array.from({ length: 4 }).map((_, idx) => (
-                <Card key={idx}>
-                  <CardContent className="p-6">
+                <div key={idx} className="dashboard-health-tile dashboard-overview-tile">
+                  <Skeleton className="h-10 w-10 rounded-full" />
+                  <div className="dashboard-health-body">
                     <Skeleton className="h-4 w-24 mb-2" />
                     <Skeleton className="h-8 w-16" />
-                  </CardContent>
-                </Card>
+                  </div>
+                </div>
               ))}
             </div>
           ) : statsData ? (
             <>
-              {/* Summary Stats */}
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                <Card>
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-muted-foreground">Total Streams</p>
-                        <p className="text-2xl font-bold text-primary">{statsData.stats.total_streams || 0}</p>
-                      </div>
-                      <FontAwesomeIcon icon={faEye} className="h-8 w-8 text-primary opacity-20" />
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-muted-foreground">Unique Users</p>
-                        <p className="text-2xl font-bold text-secondary">{statsData.stats.unique_users || 0}</p>
-                      </div>
-                      <FontAwesomeIcon icon={faUsers} className="h-8 w-8 text-secondary opacity-20" />
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-muted-foreground">Total Watch Time</p>
-                        <p className="text-2xl font-bold">
-                          {Math.floor((statsData.stats.total_duration || 0) / 3600)}h
-                        </p>
-                      </div>
-                      <FontAwesomeIcon icon={faClock} className="h-8 w-8 text-muted-foreground opacity-20" />
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-muted-foreground">Avg Session</p>
-                        <p className="text-2xl font-bold">
-                          {Math.floor((statsData.stats.average_session_length || 0) / 60)}m
-                        </p>
-                      </div>
-                      <FontAwesomeIcon icon={faChartBar} className="h-8 w-8 text-muted-foreground opacity-20" />
-                    </div>
-                  </CardContent>
-                </Card>
+              {/* Summary for the chosen period, in the Overview tiles' style */}
+              <div className="dashboard-overview-grid">
+                <Tile icon={faPlay} label="Plays" value={(statsData.stats.total_streams || 0).toLocaleString()} note={statsPeriod} />
+                <Tile icon={faUsers} label="Viewers" value={(statsData.stats.unique_users || 0).toLocaleString()} note="People who played something" />
+                <Tile icon={faClock} label="Watch time" value={statsDuration(statsData.stats.total_duration)} note="Recorded by MUM" />
+                <Tile icon={faChartBar} label="Average play" value={statsDuration(statsData.stats.average_session_length)} note="Per play" />
               </div>
 
               {/* Activity Chart */}

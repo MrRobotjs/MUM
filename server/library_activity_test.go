@@ -72,6 +72,7 @@ func TestLibraryStatsAndActivityAttributeThroughTheCatalogue(t *testing.T) {
 	observe("s4", "ep2", "Episode", "Unattributed", "", "", now.Add(-time.Hour), 600) // no parent: not attributable
 	observe("s5", "elsewhere", "Movie", "Not in library", "", "", now.Add(-time.Hour), 600)
 	observe("s6", "a0001", "Movie", "Movie 0001", "", "", now.AddDate(0, 0, -40), 1200) // outside 30 days
+	activityExec(t, f.s, "UPDATE media_activity_history SET platform='Roku',device_name='Living room',client='Plex for Roku' WHERE external_session_id='s3'")
 
 	stats := responseData(t, apiRequest(f.a, "GET", f.path("/stats?days=30"), f.token, nil, nil))
 	s := stats["stats"].(map[string]any)
@@ -126,6 +127,11 @@ func TestLibraryStatsAndActivityAttributeThroughTheCatalogue(t *testing.T) {
 	episode, movie := activity.Data[0], activity.Data[1]
 	if episode["media_title"] != "Pilot" || episode["grandparent_title"] != "The Show" || episode["user_display_name"] != "viewer" || episode["duration_seconds"].(float64) != 600 || episode["thumb_path"] != nil {
 		t.Fatal(episode)
+	}
+	// Who played it (for a link to their profile) and where, as recorded.
+	if episode["user_uuid"] != "svc-viewer" || episode["platform"] != "Roku" || episode["player"] != "Living room" || episode["product"] != "Plex for Roku" ||
+		movie["platform"] != nil || movie["player"] != nil {
+		t.Fatal("viewer and player", episode, movie)
 	}
 	if thumb, _ := movie["thumb_path"].(string); !strings.HasPrefix(thumb, "/api/media/images/") {
 		t.Fatal("attributed movie lacks a signed poster", movie)

@@ -5,11 +5,11 @@ import * as React from "react"
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome"
 import {
   faChartLine,
-  faGaugeHigh,
   faHouse,
   faUsers,
   faTicket,
   faTowerBroadcast,
+  faChartPie,
   faClockRotateLeft,
   faDesktop,
   faRotate,
@@ -238,7 +238,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               {
                 title: 'Graphs',
                 url: '/admin/graphs',
-                icon: faGaugeHigh,
+                icon: faChartPie,
                 isActive: isNavItemActive('/admin/graphs'),
               },
             ]

@@ -8,7 +8,7 @@ import {
   faGear,
   faLayerGroup,
   faGaugeHigh,
-  faChartLine,
+  faChartPie,
   faClockRotateLeft,
   faRotate,
   faServer,
@@ -23,6 +23,7 @@ import { SidebarCount } from "@/components/layout/SidebarCount"
 import { useSyncServerLibraries } from "@/hooks/useSyncServerLibraries"
 import { getServiceIcon } from "@/config/pluginMetadata"
 import { ACTIVITY_GRAPH_SERVICES } from "@/pages/GraphsPage"
+import { libraryTypeIcon } from "@/components/servers/ServerLibrariesCard"
 import { useAlerts } from "@/contexts/AlertContext"
 import {
   Collapsible,
@@ -63,7 +64,7 @@ const serverPages = [
   { title: "Users", suffix: "/users", to: "/admin/servers/$serverId/users", icon: faUsers, types: null },
   { title: "Libraries", suffix: "/libraries", to: "/admin/servers/$serverId/libraries", icon: faLayerGroup, types: null },
   { title: "History", suffix: "/history", to: "/admin/servers/$serverId/history", icon: faClockRotateLeft, types: HISTORY_SERVICES },
-  { title: "Graphs", suffix: "/graphs", to: "/admin/servers/$serverId/graphs", icon: faChartLine, types: ACTIVITY_GRAPH_SERVICES },
+  { title: "Graphs", suffix: "/graphs", to: "/admin/servers/$serverId/graphs", icon: faChartPie, types: ACTIVITY_GRAPH_SERVICES },
   { title: "Resources", suffix: "/resources", to: "/admin/servers/$serverId/resources", icon: faGaugeHigh, types: new Set(["plex"]) },
 ] as const
 
@@ -107,6 +108,12 @@ const ServerNavItem = ({ server, pathname, onNavigate }: ServerNavItemProps) => 
       requestLibraries()
     }
   }, [onServerPage, requestLibraries])
+  // A collapsed entry stands in for the page inside it: the server while it's
+  // closed (expanded or minimized sidebar), and Libraries while its list is
+  // closed on one of its library's pages.
+  const librariesPath = `${serverPath}/libraries`
+  const onLibraryPage = pathname.startsWith(`${librariesPath}/`)
+  const [librariesOpen, setLibrariesOpen] = React.useState(false)
 
   const handleSyncLibraries = React.useCallback(async () => {
     requestLibraries()
@@ -149,7 +156,7 @@ const ServerNavItem = ({ server, pathname, onNavigate }: ServerNavItemProps) => 
           icon through its page icons. */}
       <SidebarMenuItem className={open ? "group-data-[collapsible=icon]:rounded-md group-data-[collapsible=icon]:bg-sidebar-accent/50 group-data-[collapsible=icon]:pb-0.5" : undefined}>
         <CollapsibleTrigger asChild>
-          <SidebarMenuButton tooltip={server.server_nickname} className="pr-12">
+          <SidebarMenuButton tooltip={server.server_nickname} isActive={onServerPage && !open} className="pr-12">
             {serviceIcon}
             <span>{server.server_nickname}</span>
           </SidebarMenuButton>
@@ -203,8 +210,10 @@ const ServerNavItem = ({ server, pathname, onNavigate }: ServerNavItemProps) => 
             </SidebarMenuSubItem>
             <Collapsible
               asChild
-              onOpenChange={(open) => {
-                if (open) {
+              open={librariesOpen}
+              onOpenChange={(next) => {
+                setLibrariesOpen(next)
+                if (next) {
                   requestLibraries()
                 }
               }}
@@ -212,7 +221,7 @@ const ServerNavItem = ({ server, pathname, onNavigate }: ServerNavItemProps) => 
               <SidebarMenuSubItem className="relative">
                 {/* The label opens the server's Libraries page; the arrow
                     shows or hides its library list. */}
-                <SidebarMenuSubButton asChild isActive={pathname === `${serverPath}/libraries`} className="pr-8">
+                <SidebarMenuSubButton asChild isActive={pathname === librariesPath || (onLibraryPage && !librariesOpen)} className="pr-8">
                   <Link to="/admin/servers/$serverId/libraries" params={{ serverId: String(server.id) }} onClick={onNavigate}>
                     <FontAwesomeIcon icon={faLayerGroup} className="h-4 w-4" />
                     <span>Libraries</span>
@@ -282,8 +291,9 @@ const ServerNavItem = ({ server, pathname, onNavigate }: ServerNavItemProps) => 
                               params={{ serverId: String(server.id), libraryId: String(library.id) }}
                               onClick={onNavigate}
                             >
+                              {/* The library's type, as on the Libraries page; a folder when unknown. */}
                               <FontAwesomeIcon
-                                icon={faLayerGroup}
+                                icon={libraryTypeIcon(library.library_type ?? null)}
                                 className="h-3.5 w-3.5"
                               />
                               <span>{library.name || "Untitled Library"}</span>

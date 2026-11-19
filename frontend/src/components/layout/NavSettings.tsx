@@ -1,3 +1,4 @@
+import * as React from "react"
 "use client"
 
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome"
@@ -48,6 +49,16 @@ type NavSection = {
   icon: IconDefinition
   permission?: string
   items: NavItem[]
+}
+
+// A collapsible Settings section, open while one of its pages is shown. Its
+// title is highlighted when it stands in for that page: collapsed, or with
+// the sidebar minimized to icons (where sections show no page list).
+function SettingsSection({ active, children }: { active: boolean; children: (highlighted: boolean) => React.ReactElement }) {
+  const { state } = useSidebar()
+  const [open, setOpen] = React.useState(active)
+  React.useEffect(() => { if (active) setOpen(true) }, [active])
+  return <Collapsible asChild open={open} onOpenChange={setOpen}>{children(active && (!open || state === "collapsed"))}</Collapsible>
 }
 
 export function NavSettings() {
@@ -196,34 +207,36 @@ export function NavSettings() {
             const isAnySubItemActive = visibleItems.some((subItem) => isNavItemActive(subItem.url))
 
             return (
-              <Collapsible key={item.title} asChild defaultOpen={isAnySubItemActive}>
-                <SidebarMenuItem>
-                  <CollapsibleTrigger asChild>
-                    <SidebarMenuButton tooltip={item.title}>
-                      <FontAwesomeIcon icon={item.icon} className="h-4 w-4" />
-                      <span>{item.title}</span>
-                      <FontAwesomeIcon
-                        icon={faChevronRight}
-                        className="text-[11px] ml-auto h-4 w-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90 group-data-[state=open]/menu-item:rotate-90"
-                      />
-                    </SidebarMenuButton>
-                  </CollapsibleTrigger>
-                  <CollapsibleContent>
-                    <SidebarMenuSub>
-                      {visibleItems.map((subItem) => (
-                        <SidebarMenuSubItem key={subItem.title}>
-                          <SidebarMenuSubButton asChild isActive={isNavItemActive(subItem.url)}>
-                            <Link to={subItem.url} onClick={handleNavLinkClick}>
-                              <FontAwesomeIcon icon={subItem.icon} className="h-4 w-4" />
-                              <span>{subItem.title}</span>
-                            </Link>
-                          </SidebarMenuSubButton>
-                        </SidebarMenuSubItem>
-                      ))}
-                    </SidebarMenuSub>
-                  </CollapsibleContent>
-                </SidebarMenuItem>
-              </Collapsible>
+              <SettingsSection key={item.title} active={isAnySubItemActive}>
+                {(highlighted) => (
+                  <SidebarMenuItem>
+                    <CollapsibleTrigger asChild>
+                      <SidebarMenuButton tooltip={item.title} isActive={highlighted}>
+                        <FontAwesomeIcon icon={item.icon} className="h-4 w-4" />
+                        <span>{item.title}</span>
+                        <FontAwesomeIcon
+                          icon={faChevronRight}
+                          className="text-[11px] ml-auto h-4 w-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90 group-data-[state=open]/menu-item:rotate-90"
+                        />
+                      </SidebarMenuButton>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <SidebarMenuSub>
+                        {visibleItems.map((subItem) => (
+                          <SidebarMenuSubItem key={subItem.title}>
+                            <SidebarMenuSubButton asChild isActive={isNavItemActive(subItem.url)}>
+                              <Link to={subItem.url} onClick={handleNavLinkClick}>
+                                <FontAwesomeIcon icon={subItem.icon} className="h-4 w-4" />
+                                <span>{subItem.title}</span>
+                              </Link>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        ))}
+                      </SidebarMenuSub>
+                    </CollapsibleContent>
+                  </SidebarMenuItem>
+                )}
+              </SettingsSection>
             )
           } else {
             // Simple nav item

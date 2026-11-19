@@ -141,7 +141,7 @@ const activityServer = (v: Record<string, unknown>): ActivityServer => {
 };
 
 export async function fetchActivityStats(days = 7, server: number | null = null, order: ActivityOrder = 'plays'): Promise<ActivityStats> {
-  if (server !== null && !integer(server) || !count(days) || days > 90) throw invalidActivity();
+  if (server !== null && !integer(server) || !count(days) || days > 3650) throw invalidActivity();
   const query = new URLSearchParams({ days: String(days), order, ...(server !== null ? { server: String(server) } : {}) });
   const { data } = await dashboardRequest<{ data: Record<string, unknown> }>(`/api/activity/statistics?${query}`);
   const t = data?.totals as Record<string, unknown> | undefined;

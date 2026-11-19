@@ -50,6 +50,9 @@ func sqlList(kinds []string) string {
 	return strings.Join(quoted, ",")
 }
 
+// maxActivityDays is the longest period the cards can be asked for.
+const maxActivityDays = 3650
+
 type activityTitle struct {
 	Server      int64   `json:"server_id"` // 0 for a user, who may play on several servers
 	Title       string  `json:"title"`
@@ -86,7 +89,7 @@ func (a *App) activityStatistics(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	// days=0 is all time.
+	// days=0 is all time; up to about ten years can be asked for.
 	days, server, order := 7, int64(0), "plays"
 	for key, values := range r.URL.Query() {
 		valid := len(values) == 1
@@ -98,7 +101,7 @@ func (a *App) activityStatistics(w http.ResponseWriter, r *http.Request) {
 			valid = valid && err == nil
 			switch key {
 			case "days":
-				valid = valid && value >= 0 && value <= 90
+				valid = valid && value >= 0 && value <= maxActivityDays
 				days = int(value)
 			case "server":
 				valid = valid && value >= 1
@@ -108,7 +111,7 @@ func (a *App) activityStatistics(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if !valid {
-			fail(w, 400, "INVALID_STATISTICS_QUERY", "Use days=0 (all time) or 1–90, optionally server=<a server that reports activity> and order=plays or duration")
+			fail(w, 400, "INVALID_STATISTICS_QUERY", "Use days=0 (all time) or 1–3650, optionally server=<a server that reports activity> and order=plays or duration")
 			return
 		}
 	}

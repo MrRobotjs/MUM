@@ -106,6 +106,15 @@ test('activity statistics', async t => {
     assert.match(m.render().replace(/<!-- -->/g, ''), /Nothing played yet\./);
   });
 
+  await t.test('a typed-in period, and pickers only as wide as their choice', () => {
+    globalThis.activityCard = {loading: false, error: null, data: stats({days: 14})};
+    const html = m.render().replace(/<!-- -->/g, '');
+    assert.match(html, /Plays<\/p><p[^>]*>12<\/p><span class="dashboard-health-note">Last 14 days</);
+    assert.match(html, /w-auto" aria-label="Server"/);
+    assert.match(html, /w-auto" aria-label="Period"/);
+    assert.doesNotMatch(html, /w-56/);
+  });
+
   await t.test('nothing played', () => {
     globalThis.activityCard = {loading: false, error: null, data: stats({totals: {plays: 0, seconds: 0, people: 0, titles: 0}, sections: [], platforms: [], unreported: []})};
     assert.match(m.render().replace(/<!-- -->/g, ''), /Nothing played in the last 30 days\./);

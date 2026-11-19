@@ -254,6 +254,11 @@ func TestActivityStatisticsAcrossServerTypes(t *testing.T) {
 			t.Fatal("counted", hidden)
 		}
 	}
+	// A custom period: the last 25 days take in the 20-day-old play but not the 30-day-old book.
+	wc := apiRequest(f.app, "GET", "/api/activity/statistics?days=25", f.ownerToken, nil, nil)
+	if wc.Code != 200 || !strings.Contains(wc.Body.String(), "Too Old") || strings.Contains(wc.Body.String(), "Old Book") {
+		t.Fatal("custom period", wc.Code, wc.Body.String())
+	}
 	// All time takes in the older plays too.
 	wa := apiRequest(f.app, "GET", "/api/activity/statistics?days=0", f.ownerToken, nil, nil)
 	var all activityStatsBody
@@ -263,7 +268,7 @@ func TestActivityStatisticsAcrossServerTypes(t *testing.T) {
 	if all.Data.Days != 0 || all.Data.Totals.Plays != d.Totals.Plays+2 || !strings.Contains(wa.Body.String(), "Too Old") || !strings.Contains(wa.Body.String(), "Old Book") {
 		t.Fatalf("all time %+v", all.Data.Totals)
 	}
-	for _, bad := range []string{"?days=-1", "?days=91", "?days=x", "?other=1", "?order=users"} {
+	for _, bad := range []string{"?days=-1", "?days=3651", "?days=x", "?other=1", "?order=users"} {
 		if w := apiRequest(f.app, "GET", "/api/activity/statistics"+bad, f.ownerToken, nil, nil); w.Code != 400 {
 			t.Fatal(bad, w.Code)
 		}

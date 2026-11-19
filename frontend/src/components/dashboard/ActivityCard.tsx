@@ -4,7 +4,8 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faChartLine, faCircleInfo, faClock, faLayerGroup, faPlay, faUsers } from '@fortawesome/free-solid-svg-icons';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Spinner } from '@/components/ui/spinner';
 import { getServiceMeta, getServicePalette } from '@/config/pluginMetadata';
 import { ServiceIcon } from '@/components/services/ServiceIcon';
@@ -30,8 +31,9 @@ const cardTitles: Record<ActivityKind, string> = {
   users: 'Most active users', libraries: 'Most active libraries',
 };
 const cardOrder: ActivityKind[] = ['movies', 'popular_movies', 'shows', 'popular_shows', 'music', 'popular_music', 'audiobooks', 'recent', 'users', 'libraries'];
-// 0 is all time.
-const periods = [7, 30, 90, 0] as const;
+// 0 is all time; any other number of days up to maxDays can be typed in.
+const periods = [7, 30, 90, 0];
+const maxDays = 3650;
 const periodLabel = (days: number) => days === 0 ? 'All time' : `Last ${days} days`;
 
 // "3 days 4 hrs" without zero parts.
@@ -120,7 +122,18 @@ const StatCard = ({ title, metric, rows, round }: { title: string; metric: strin
 };
 
 export function ActivityStatistics({ fixedServer }: { fixedServer?: { id: number; name: string } }) {
-  const [days, setDays] = useState<(typeof periods)[number]>(30);
+  const [days, setDays] = useState(30);
+  // The period picker's "Last [ ] days" box.
+  const [periodOpen, setPeriodOpen] = useState(false);
+  const [customDays, setCustomDays] = useState('');
+  const custom = /^\d+$/.test(customDays) ? Number(customDays) : NaN;
+  const customValid = custom >= 1 && custom <= maxDays;
+  const applyCustom = () => {
+    if (!customValid) return;
+    setDays(custom);
+    setCustomDays('');
+    setPeriodOpen(false);
+  };
   const [picked, setPicked] = useState<number | null>(null);
   const [order, setOrder] = useState<ActivityOrder>('plays');
   const server = fixedServer?.id ?? picked;
@@ -200,7 +213,7 @@ export function ActivityStatistics({ fixedServer }: { fixedServer?: { id: number
               <Button size="sm" variant={order === 'duration' ? 'default' : 'outline'} aria-pressed={order === 'duration'} onClick={() => setOrder('duration')}>Play duration</Button>
             </div>
             {several && <Select value={picked === null ? 'all' : String(picked)} onValueChange={value => setPicked(value === 'all' ? null : Number(value))}>
-              <SelectTrigger className="w-56" aria-label="Server"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="w-auto" aria-label="Server"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All servers</SelectItem>
                 {reporting.map(s => <SelectItem key={s.server_id} value={String(s.server_id)}>
@@ -208,9 +221,22 @@ export function ActivityStatistics({ fixedServer }: { fixedServer?: { id: number
                 </SelectItem>)}
               </SelectContent>
             </Select>}
-            <Select value={String(days)} onValueChange={value => setDays(Number(value) as (typeof periods)[number])}>
-              <SelectTrigger className="w-56" aria-label="Period"><SelectValue /></SelectTrigger>
-              <SelectContent>{periods.map(p => <SelectItem key={p} value={String(p)}>{periodLabel(p)}</SelectItem>)}</SelectContent>
+            <Select open={periodOpen} onOpenChange={setPeriodOpen} value={String(days)} onValueChange={value => setDays(Number(value))}>
+              <SelectTrigger className="w-auto" aria-label="Period"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {periods.map(p => <SelectItem key={p} value={String(p)}>{periodLabel(p)}</SelectItem>)}
+                {!periods.includes(days) && <SelectItem value={String(days)}>{periodLabel(days)}</SelectItem>}
+                <SelectSeparator />
+                {/* Keys stay in the box rather than moving through the list. */}
+                <form className="flex items-center gap-2 px-2 py-1.5 text-sm" onKeyDown={e => e.stopPropagation()}
+                  onSubmit={e => { e.preventDefault(); applyCustom(); }}>
+                  Last
+                  <Input type="number" inputMode="numeric" min={1} max={maxDays} step={1} className="h-7 w-20" aria-label="Number of days"
+                    placeholder="14" value={customDays} onChange={e => setCustomDays(e.target.value)} />
+                  days
+                  <Button type="submit" size="sm" variant="outline" className="h-7" disabled={!customValid}>Show</Button>
+                </form>
+              </SelectContent>
             </Select>
           </div>
         </div>

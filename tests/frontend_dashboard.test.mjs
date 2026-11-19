@@ -105,6 +105,11 @@ test('dashboard adapters', async t => {
     // All time is days 0.
     route({ 'GET /api/activity/statistics': url => { assert.equal(url.searchParams.get('days'), '0'); return Response.json({ data: { ...stats, days: 0 } }); } });
     assert.equal((await m.fetchActivityStats(0)).days, 0);
+    // A typed-in period, up to 3650 days.
+    route({ 'GET /api/activity/statistics': url => Response.json({ data: { ...stats, days: Number(url.searchParams.get('days')) } }) });
+    assert.equal((await m.fetchActivityStats(365)).days, 365);
+    await assert.rejects(m.fetchActivityStats(3651), /Invalid activity statistics/);
+    await assert.rejects(m.fetchActivityStats(1.5), /Invalid activity statistics/);
     route({ 'GET /api/activity/statistics': url => { assert.equal(url.searchParams.get('order'), 'duration'); return Response.json({ data: { ...stats, order: 'duration' } }); } });
     assert.equal((await m.fetchActivityStats(7, null, 'duration')).order, 'duration');
     // One server: the filter is sent and the reply must be for that server.

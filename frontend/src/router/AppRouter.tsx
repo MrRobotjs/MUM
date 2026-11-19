@@ -22,7 +22,7 @@ import InvitesPage from '../pages/InvitesPage';
 import InviteWizardPage from '../pages/InviteWizardPage';
 import InviteLandingPage from '../pages/InviteLandingPage';
 import LoginPage from '../pages/LoginPage';
-import LibrariesPage from '../pages/LibrariesPage';
+import ServersPage from '../pages/ServersPage';
 import LibraryDetailPage from '../pages/LibraryDetailPage';
 import ServerDetailPage from '../pages/ServerDetailPage';
 import MediaDetailPage, { EpisodeDetailPage } from '../pages/MediaDetailPage';
@@ -143,7 +143,7 @@ const adminUserByUuid = createRoute({
   },
 })
 const adminInvites = createRoute({ getParentRoute: () => adminRoute, path: 'invites', component: InvitesPage })
-const adminServersList = createRoute({ getParentRoute: () => adminRoute, path: 'servers', component: LibrariesPage })
+const adminServersList = createRoute({ getParentRoute: () => adminRoute, path: 'servers', component: ServersPage })
 // A server's Overview, Users and Libraries are separate pages sharing the hero.
 const adminServerDetail = createRoute({ getParentRoute: () => adminRoute, path: 'servers/$serverId', component: () => <ServerDetailPage section="overview" /> })
 const adminServerUsers = createRoute({ getParentRoute: () => adminRoute, path: 'servers/$serverId/users', component: () => <ServerDetailPage section="users" /> })

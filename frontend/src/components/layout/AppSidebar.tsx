@@ -9,7 +9,6 @@ import {
   faHouse,
   faUsers,
   faTicket,
-  faLayerGroup,
   faTowerBroadcast,
   faDesktop,
   faRotate,
@@ -227,12 +226,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 url: '/admin/invites',
                 icon: faTicket,
                 isActive: isNavItemActive('/admin/invites'),
-              },
-              {
-                title: 'Servers',
-                url: '/admin/servers',
-                icon: faLayerGroup,
-                isActive: isNavItemActive('/admin/servers'),
               },
               {
                 title: 'Streaming',

@@ -60,3 +60,5 @@
 /* A server's Overview status tiles (SERVER_OVERVIEW_DESIGN.md): the tile style, not links. */
 .dashboard-overview-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: 1rem; }
 .dashboard-overview-tile:hover { border-color: var(--border); box-shadow: none; }
+/* The Media Servers page: one wider card per server. */
+.dashboard-servers-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(22rem, 1fr)); gap: 1rem; }

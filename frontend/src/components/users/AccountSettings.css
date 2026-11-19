@@ -117,6 +117,9 @@
 /* A server's Libraries page: library names are muted until hovered, then the primary colour. */
 .account-library-link { color: var(--muted-foreground); font-weight: 600; text-decoration: none; transition: color .15s; }
 .account-library-link:hover, .account-library-link:focus-visible { color: var(--primary); }
+/* The sidebar's "Media Servers" heading links to the Media Servers page. */
+.account-sidebar-heading-link { text-decoration: none; }
+.account-sidebar-heading-link:hover, .account-sidebar-heading-link[aria-current="page"] { color: var(--sidebar-foreground); }
 /* While the next History page loads, the current rows stay, dimmed. */
 .account-history-table { transition: opacity .15s ease; }
 .account-history-table[aria-busy="true"] { opacity: .55; }

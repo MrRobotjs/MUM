@@ -11,7 +11,8 @@ export const generateBreadcrumbs = (pathname: string) => {
     const parentPath = currentPath;
     currentPath += `/${segment}`;
     // Capitalize and format the segment
-    const label = segment
+    // The admin servers page is the sidebar's "Media Servers" page.
+    const label = segment === 'servers' && index === 0 && isAdminPath(pathname) ? 'Media Servers' : segment
       .split('-')
       .map(word => word.charAt(0).toUpperCase() + word.slice(1))
       .join(' ');

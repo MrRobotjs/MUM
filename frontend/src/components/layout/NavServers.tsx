@@ -358,7 +358,12 @@ export function NavServers() {
 
   return (
     <SidebarGroup>
-      <SidebarGroupLabel>Media Servers</SidebarGroupLabel>
+      {/* The heading opens the Media Servers page (/admin/servers). */}
+      <SidebarGroupLabel asChild>
+        <Link to="/admin/servers" className="account-sidebar-heading-link" aria-current={location.pathname === "/admin/servers" ? "page" : undefined} onClick={handleNavLinkClick}>
+          Media Servers
+        </Link>
+      </SidebarGroupLabel>
       <SidebarMenu>
         {sortedServers.map((server) => (
           <ServerNavItem

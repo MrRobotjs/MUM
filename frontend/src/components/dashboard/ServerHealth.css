@@ -60,5 +60,43 @@
 /* A server's Overview status tiles (SERVER_OVERVIEW_DESIGN.md): the tile style, not links. */
 .dashboard-overview-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: 1rem; }
 .dashboard-overview-tile:hover { border-color: var(--border); box-shadow: none; }
+/* Activity statistics, Tautulli-style: the leader's picture, then a ranked top five. */
+.dashboard-stat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(24rem, 1fr)); gap: 1rem; }
+.dashboard-stat-card { display: grid; grid-template-columns: 5.5rem minmax(0, 1fr); gap: 1rem; min-width: 0; border: 1px solid var(--border); border-radius: .75rem; background: var(--card); padding: 1rem; }
+.dashboard-stat-visual { display: flex; width: 5.5rem; aspect-ratio: 2 / 3; align-self: center; align-items: center; justify-content: center; overflow: hidden; border-radius: .375rem; background: var(--muted); color: var(--muted-foreground); font-size: 2.25rem; }
+.dashboard-stat-initial { font-size: 2.25rem; font-weight: 600; color: var(--primary); }
+.dashboard-stat-round { aspect-ratio: 1; border-radius: 9999px; }
+.dashboard-stat-avatar { width: 100%; height: 100%; object-fit: cover; }
+/* Up to ten rows, five in view; the list scrolls with its scrollbar on the left, shown on hover. */
+.dashboard-stat-list { max-height: 9.75rem; overflow-y: auto; direction: rtl; scrollbar-width: thin; scrollbar-color: transparent transparent; }
+.dashboard-stat-list > * { direction: ltr; }
+.dashboard-stat-card:hover .dashboard-stat-list { scrollbar-color: var(--border) transparent; }
+.dashboard-stat-row { cursor: default; border-radius: .25rem; outline: none; }
+.dashboard-stat-row[data-active] .dashboard-stat-name { color: var(--primary); }
+.dashboard-stat-link { color: inherit; text-decoration: none; }
+.dashboard-stat-link:hover, .dashboard-stat-link:focus-visible { text-decoration: underline; }
+/* Recently played's title names who played the highlighted title, as written. */
+.dashboard-stat-heading { display: flex; min-width: 0; gap: .375rem; white-space: nowrap; }
+.dashboard-stat-who { min-width: 0; overflow: hidden; text-overflow: ellipsis; text-transform: none; letter-spacing: normal; }
+.dashboard-stat-metric { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dashboard-stat-row:focus-visible { box-shadow: 0 0 0 2px var(--ring); }
+.dashboard-stat-head { display: flex; justify-content: space-between; gap: .5rem; margin-bottom: .375rem; border-bottom: 1px solid var(--border); padding-bottom: .375rem; font-size: .75rem; letter-spacing: .04em; text-transform: uppercase; color: var(--muted-foreground); }
+.dashboard-stat-head strong { color: var(--foreground); font-weight: 600; }
+.dashboard-stat-row { display: flex; height: 1.875rem; align-items: center; gap: .5rem; min-width: 0; font-size: .875rem; }
+.dashboard-stat-row:first-child { height: 2.25rem; font-size: 1.05rem; font-weight: 600; }
+.dashboard-stat-rank { width: 1rem; flex: none; font-size: .75rem; font-weight: 400; color: var(--muted-foreground); }
+/* Title and subtitle grow evenly until each fits, so when both are long they
+   share the room and both are cut short; the badges follow at full size. The
+   subtitle keeps the title's size so an even share holds as many characters. */
+.dashboard-stat-title { display: grid; flex: 1; grid-template-columns: minmax(0, max-content) minmax(0, max-content) max-content; align-items: center; min-width: 0; white-space: nowrap; }
+.dashboard-stat-name, .dashboard-stat-sub { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.dashboard-stat-sub { padding-left: .25rem; font-weight: 400; color: var(--muted-foreground); }
+.dashboard-stat-badges { display: inline-flex; grid-column: 3; align-items: center; gap: .25rem; padding-left: .5rem; font-size: .75rem; font-weight: 400; }
+.dashboard-stat-more { color: var(--muted-foreground); }
+/* A row's server: its icon in colour, its name grey until the row is highlighted. */
+.dashboard-stat-server { display: inline-flex; align-items: center; gap: .25rem; color: var(--muted-foreground); font-size: .75rem; transition: color .15s; }
+.dashboard-stat-server-icon { width: .875rem; height: .875rem; }
+.dashboard-stat-badges[data-lit] .dashboard-stat-server { color: var(--stat-server-color); }
+.dashboard-stat-value { flex: none; font-variant-numeric: tabular-nums; font-weight: 600; color: var(--primary); }
 /* The Media Servers page: one wider card per server. */
 .dashboard-servers-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(22rem, 1fr)); gap: 1rem; }

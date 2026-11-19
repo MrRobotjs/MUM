@@ -25,11 +25,24 @@ type activityStatsBody struct {
 				Subtitle *string `json:"subtitle"`
 				Plays    int64   `json:"plays"`
 				Seconds  int64   `json:"seconds"`
+				People   int64   `json:"people"`
+				PlayedAt *string `json:"played_at"`
+				UserUUID *string `json:"user_uuid"`
+				Library  *int64  `json:"library_id"`
+				Avatar   *string `json:"avatar_url"`
+				UserName *string `json:"user_name"`
+				Servers  []int64 `json:"server_ids"`
+				Link     *struct {
+					Library int64  `json:"library_id"`
+					Media   int64  `json:"media_id"`
+					Episode *int64 `json:"episode_id"`
+				} `json:"link"`
 			} `json:"items"`
 		} `json:"sections"`
 		Platforms []struct {
-			Name  string `json:"name"`
-			Plays int64  `json:"plays"`
+			Name    string  `json:"name"`
+			Plays   int64   `json:"plays"`
+			Servers []int64 `json:"server_ids"`
 		} `json:"platforms"`
 		Unreported []struct {
 			Name string `json:"name"`
@@ -65,6 +78,18 @@ func TestActivityStatisticsAcrossServerTypes(t *testing.T) {
 	activityExec(t, f.store, "UPDATE media_activity_history SET parent_item_id='show1',parent_title='A Show' WHERE item_id IN ('e1','e2')")
 	activityExec(t, f.store, "UPDATE media_activity_history SET parent_item_id='album1',parent_title='An Album' WHERE item_id IN ('tr1','tr2')")
 	activityExec(t, f.store, "UPDATE media_activity_history SET platform='Roku' WHERE external_session_id IN ('a','b')")
+	activityExec(t, f.store, "UPDATE service_accounts SET external_user_id='0123456789abcdef0123456789abcdef' WHERE uuid=?", f.service)
+	// The catalogue holds the popular movie and the show with its pilot, so
+	// their rows open their pages; the other titles haven't been synced.
+	activityExec(t, f.store, "INSERT INTO media_libraries(server_id,external_id,name,library_type) VALUES(?,'lib-v','Video','movie')", f.server)
+	var video int64
+	_ = f.store.reader.QueryRow("SELECT id FROM media_libraries WHERE external_id='lib-v'").Scan(&video)
+	activityExec(t, f.store, "INSERT INTO media_items(library_id,server_id,external_id,title,item_type) VALUES(?,?,'m1','Popular Movie','movie'),(?,?,'show1','A Show','show')", video, f.server, video, f.server)
+	activityExec(t, f.store, "INSERT INTO media_items(library_id,server_id,external_id,parent_id,title,item_type) VALUES(?,?,'e1','show1','Pilot','episode')", video, f.server)
+	var movieItem, showItem, pilotItem int64
+	_ = f.store.reader.QueryRow("SELECT id FROM media_items WHERE external_id='m1'").Scan(&movieItem)
+	_ = f.store.reader.QueryRow("SELECT id FROM media_items WHERE external_id='show1'").Scan(&showItem)
+	_ = f.store.reader.QueryRow("SELECT id FROM media_items WHERE external_id='e1'").Scan(&pilotItem)
 	// Audiobookshelf can't be monitored: its imported listening counts.
 	activityExec(t, f.store, `INSERT INTO media_servers(server_nickname,service_type,url) VALUES('Books','audiobookshelf','http://books.invalid'),('Comics','kavita','http://comics.invalid'),('Plex','plex','http://plex.invalid')`)
 	var books, plex int64
@@ -75,6 +100,8 @@ func TestActivityStatisticsAcrossServerTypes(t *testing.T) {
 	activityExec(t, f.store, `INSERT INTO history_imports(server_id,entry_key,account_id,viewed_at,media_type,item_id,title,imported_at,listened_seconds) VALUES(?,?,?,?,?,?,?,?,?)`,
 		books, "k2", "reader", utcTimestamp(now.AddDate(0, 0, -30)), "book", "b2", "Old Book", utcTimestamp(now), 600)
 	activityExec(t, f.store, "INSERT INTO history_import_runs(server_id,state,started_at,finished_at) VALUES(?,'completed',?,?)", books, utcTimestamp(now), utcTimestamp(now))
+	activityExec(t, f.store, "INSERT INTO media_libraries(server_id,external_id,name,library_type) VALUES(?,'lib-books','Audiobooks','book')", books)
+	activityExec(t, f.store, "UPDATE history_imports SET library_id='lib-books' WHERE server_id=?", books)
 	// A monitored server's imported history would repeat MUM's recordings: it isn't counted.
 	activityExec(t, f.store, `INSERT INTO history_imports(server_id,entry_key,account_id,viewed_at,media_type,item_id,title,imported_at) VALUES(?,?,?,?,?,?,?,?)`,
 		plex, "p1", "x", utcTimestamp(now.Add(-time.Hour)), "movie", "pm", "Imported Plex Movie", utcTimestamp(now))
@@ -126,6 +153,71 @@ func TestActivityStatisticsAcrossServerTypes(t *testing.T) {
 	if len(d.Imported) != 1 || d.Imported[0].Name != "Books" || d.Imported[0].ImportedAt == nil {
 		t.Fatalf("imported %+v", d.Imported)
 	}
+	// Tautulli-style cards: most popular by people, recently played, most
+	// active users and libraries.
+	for _, kind := range []string{"popular_movies", "popular_shows", "popular_music", "recent", "users", "libraries"} {
+		if _, ok := sections[kind]; !ok {
+			t.Fatalf("no %s section: %s", kind, w.Body.String())
+		}
+	}
+	popular := d.Sections[sections["popular_movies"]].Items[0]
+	if popular.People != 1 || (popular.Title != "Popular Movie" && popular.Title != "Other Movie") {
+		t.Fatalf("popular %+v", popular)
+	}
+	recent := d.Sections[sections["recent"]].Items
+	if len(recent) == 0 || recent[0].PlayedAt == nil || len(recent) > 10 {
+		t.Fatalf("recent %+v", recent)
+	}
+	users := d.Sections[sections["users"]].Items
+	if len(users) != 2 || users[0].UserUUID == nil || *users[0].UserUUID != f.user || users[0].Plays != recorded {
+		t.Fatalf("users %+v", users)
+	}
+	// The person's picture comes from their linked Jellyfin account; the
+	// unlinked reader has none.
+	if users[0].Avatar == nil || !strings.HasPrefix(*users[0].Avatar, "/api/service-avatars/") || users[1].Avatar != nil {
+		t.Fatalf("user pictures %+v %+v", users[0].Avatar, users[1].Avatar)
+	}
+	libraries := d.Sections[sections["libraries"]].Items
+	if len(libraries) != 2 || libraries[0].Library == nil {
+		t.Fatalf("libraries %+v", libraries)
+	}
+	// Catalogued titles link to their pages: the movie, the show, and in
+	// Recently played the pilot's episode page. Others don't.
+	if l := movies.Items[0].Link; l == nil || l.Library != video || l.Media != movieItem || l.Episode != nil || movies.Items[1].Link != nil {
+		t.Fatalf("movie links %+v %+v", movies.Items[0].Link, movies.Items[1].Link)
+	}
+	if l := shows.Items[0].Link; l == nil || l.Media != showItem || l.Episode != nil {
+		t.Fatalf("show link %+v", l)
+	}
+	pilot := false
+	for _, item := range recent {
+		// Recently played names who played each title.
+		if item.UserName == nil || *item.UserName == "" {
+			t.Fatalf("recent without a name %+v", item)
+		}
+		if item.Subtitle != nil && *item.Subtitle == "Pilot" {
+			pilot = item.Link != nil && item.Link.Media == showItem && item.Link.Episode != nil && *item.Link.Episode == pilotItem
+		}
+	}
+	if !pilot || *recent[0].UserName != users[0].Title {
+		t.Fatalf("recent links and names %+v", recent)
+	}
+	// People and platforms name the servers they used, for their badges.
+	if len(users[0].Servers) != 1 || users[0].Servers[0] != f.server || len(users[1].Servers) != 1 || users[1].Servers[0] != books ||
+		len(d.Platforms[0].Servers) != 1 || d.Platforms[0].Servers[0] != f.server {
+		t.Fatalf("servers used %+v %+v %+v", users[0].Servers, users[1].Servers, d.Platforms[0].Servers)
+	}
+	// Play duration ranks by time instead of plays.
+	wd := apiRequest(f.app, "GET", "/api/activity/statistics?days=7&order=duration", f.ownerToken, nil, nil)
+	var byTime activityStatsBody
+	if err := json.Unmarshal(wd.Body.Bytes(), &byTime); err != nil || wd.Code != 200 {
+		t.Fatal(wd.Code, wd.Body.String())
+	}
+	for _, section := range byTime.Data.Sections {
+		if section.Kind == "users" && section.Items[0].Seconds < section.Items[len(section.Items)-1].Seconds {
+			t.Fatalf("duration order %+v", section.Items)
+		}
+	}
 	// Each title names its server; the picker offers the servers that report.
 	if movies.Items[0].Server != f.server || audiobooks.Items[0].Server != books {
 		t.Fatalf("title servers %+v %+v", movies.Items[0], audiobooks.Items[0])
@@ -143,7 +235,11 @@ func TestActivityStatisticsAcrossServerTypes(t *testing.T) {
 	if err := json.Unmarshal(w1.Body.Bytes(), &only); err != nil || w1.Code != 200 {
 		t.Fatal(w1.Code, w1.Body.String())
 	}
-	if only.Data.Totals.Plays != 1 || only.Data.Totals.People != 1 || len(only.Data.Sections) != 1 || only.Data.Sections[0].Kind != "audiobooks" || len(only.Data.Platforms) != 0 {
+	kinds := []string{}
+	for _, section := range only.Data.Sections {
+		kinds = append(kinds, section.Kind)
+	}
+	if only.Data.Totals.Plays != 1 || only.Data.Totals.People != 1 || len(only.Data.Platforms) != 0 || strings.Join(kinds, ",") != "audiobooks,recent,users,libraries" {
 		t.Fatalf("one server %+v", only.Data)
 	}
 	var comics int64
@@ -158,7 +254,16 @@ func TestActivityStatisticsAcrossServerTypes(t *testing.T) {
 			t.Fatal("counted", hidden)
 		}
 	}
-	for _, bad := range []string{"?days=0", "?days=91", "?days=x", "?other=1"} {
+	// All time takes in the older plays too.
+	wa := apiRequest(f.app, "GET", "/api/activity/statistics?days=0", f.ownerToken, nil, nil)
+	var all activityStatsBody
+	if err := json.Unmarshal(wa.Body.Bytes(), &all); err != nil || wa.Code != 200 {
+		t.Fatal(wa.Code, wa.Body.String())
+	}
+	if all.Data.Days != 0 || all.Data.Totals.Plays != d.Totals.Plays+2 || !strings.Contains(wa.Body.String(), "Too Old") || !strings.Contains(wa.Body.String(), "Old Book") {
+		t.Fatalf("all time %+v", all.Data.Totals)
+	}
+	for _, bad := range []string{"?days=-1", "?days=91", "?days=x", "?other=1", "?order=users"} {
 		if w := apiRequest(f.app, "GET", "/api/activity/statistics"+bad, f.ownerToken, nil, nil); w.Code != 400 {
 			t.Fatal(bad, w.Code)
 		}

@@ -42,6 +42,7 @@ import { serverAvailability, connectionLabel } from '../lib/serverOverview';
 import { subscribeToChannel } from '../lib/realtimeSocket';
 import { SettingHeader, SettingIcon, TabHeading } from '../components/users/AccountSettings';
 import '../components/dashboard/ServerHealth.css';
+import { ActivityStatistics } from '../components/dashboard/ActivityCard';
 
 type ServerTab = 'overview' | 'users' | 'libraries' | 'graphs' | 'resources';
 
@@ -454,6 +455,10 @@ export const ServerDetailPage = ({ section = 'overview' }: { section?: ServerTab
               </div>
             </CardContent>
           </Card>
+
+          {numericServerId !== undefined && ['plex', 'jellyfin', 'emby', 'audiobookshelf'].includes(serviceType.toLowerCase()) && (
+            <ActivityStatistics fixedServer={{ id: numericServerId, name: server.server_nickname || 'this server' }} />
+          )}
 
           <Card>
             <CardHeader>

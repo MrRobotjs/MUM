@@ -11,14 +11,18 @@ import (
 	"time"
 )
 
-// The dashboard's Activity card (user decision 2026-11-18): what people used
-// across every server type, or on one chosen server. Each server has one
-// source, so nothing is counted twice: MUM's recordings for the servers it
-// monitors (Plex, Jellyfin, Emby), the imported history for servers it can
-// only import from (Audiobookshelf), and nothing for servers that report no
-// activity (Kavita, Komga, RomM), which are named so the card can say so.
-// Every title names its server, and the reply lists the servers that report,
-// for the card's server picker.
+// The dashboard's Activity card and a server's Overview (user decisions
+// 2026-11-18/19): Tautulli-style statistics across every server type, or on
+// one chosen server. Each server has one source, so nothing is counted twice:
+// MUM's recordings for the servers it monitors (Plex, Jellyfin, Emby), the
+// imported history for servers it can only import from (Audiobookshelf), and
+// nothing for servers that report no activity (Kavita, Komga, RomM), which are
+// named so the card can say so. Every title names its server, and the reply
+// lists the servers that report, for the card's server picker.
+//
+// Cards: most watched and most popular (by people) movies and shows, most
+// played and most popular albums, most listened audiobooks, recently played,
+// most active users and most active libraries, ranked by plays or by time.
 
 // monitoredActivity are the server types MUM records itself.
 var monitoredActivity = []string{"plex", "jellyfin", "emby"}
@@ -47,18 +51,33 @@ func sqlList(kinds []string) string {
 }
 
 type activityTitle struct {
-	Server    int64   `json:"server_id"`
-	Title     string  `json:"title"`
-	Subtitle  *string `json:"subtitle"`
-	Plays     int64   `json:"plays"`
-	Seconds   int64   `json:"seconds"`
-	PosterURL *string `json:"poster_url"`
-	poster    sql.NullInt64
-	imported  bool
+	Server      int64   `json:"server_id"` // 0 for a user, who may play on several servers
+	Title       string  `json:"title"`
+	Subtitle    *string `json:"subtitle"`
+	Plays       int64   `json:"plays"`
+	Seconds     int64   `json:"seconds"`
+	People      int64   `json:"people"`
+	PosterURL   *string `json:"poster_url"`
+	PlayedAt    *string `json:"played_at"`    // recently played: when; users: their latest play
+	UserUUID    *string `json:"user_uuid"`    // users: their profile, when known
+	LibraryID   *int64  `json:"library_id"`   // libraries
+	LibraryType *string `json:"library_type"` // libraries
+	AvatarURL   *string `json:"avatar_url"`   // users: a picture from their server account
+	UserName    *string `json:"user_name"`    // recently played: who played it
+	// Titles: the page in the library catalogue, when the item has been
+	// catalogued (a sync has run). Users: the servers they played on, most
+	// first, for the card's server badge.
+	Link     *serverAccountLink `json:"link"`
+	Servers  []int64            `json:"server_ids"`
+	poster   sql.NullInt64
+	imported bool
+	item     string // the played item, or for users the person
+	parent   string // the show or album
+	art      string // the item the poster was taken from
 }
 
 type activitySection struct {
-	Kind  string          `json:"kind"` // movies, shows, music or audiobooks
+	Kind  string          `json:"kind"`
 	Items []activityTitle `json:"items"`
 }
 
@@ -67,22 +86,29 @@ func (a *App) activityStatistics(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	days, server := 7, int64(0)
+	// days=0 is all time.
+	days, server, order := 7, int64(0), "plays"
 	for key, values := range r.URL.Query() {
-		value, err := strconv.ParseInt(values[0], 10, 64)
-		valid := len(values) == 1 && err == nil
-		switch key {
-		case "days":
-			valid = valid && value >= 1 && value <= 90
-			days = int(value)
-		case "server":
-			valid = valid && value >= 1
-			server = value
-		default:
-			valid = false
+		valid := len(values) == 1
+		if key == "order" {
+			valid = valid && (values[0] == "plays" || values[0] == "duration")
+			order = values[0]
+		} else {
+			value, err := strconv.ParseInt(values[0], 10, 64)
+			valid = valid && err == nil
+			switch key {
+			case "days":
+				valid = valid && value >= 0 && value <= 90
+				days = int(value)
+			case "server":
+				valid = valid && value >= 1
+				server = value
+			default:
+				valid = false
+			}
 		}
 		if !valid {
-			fail(w, 400, "INVALID_STATISTICS_QUERY", "Use days=1–90 and optionally server=<a server that reports activity>")
+			fail(w, 400, "INVALID_STATISTICS_QUERY", "Use days=0 (all time) or 1–90, optionally server=<a server that reports activity> and order=plays or duration")
 			return
 		}
 	}
@@ -110,7 +136,10 @@ func (a *App) activityStatistics(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	since := utcTimestamp(time.Now().AddDate(0, 0, -days))
+	since := ""
+	if days > 0 {
+		since = utcTimestamp(time.Now().AddDate(0, 0, -days))
+	}
 	// Each filter takes the window start and the server (0 for every server) twice.
 	recordedWhere := ` h.first_seen_at>=? AND (?=0 OR h.server_id=?)`
 	importedFrom := ` FROM history_imports im JOIN media_servers s ON s.id=im.server_id WHERE im.viewed_at>=? AND (?=0 OR im.server_id=?) AND s.service_type IN (` + imported + `)`
@@ -122,6 +151,15 @@ func (a *App) activityStatistics(w http.ResponseWriter, r *http.Request) {
 		}
 		return out
 	}
+	// The person behind an imported play: the linked MUM account, else the
+	// server account, else the server's account ID.
+	importedPerson := `coalesce((SELECT l.user_uuid FROM service_links l WHERE l.service_uuid=sa.uuid AND l.link_kind='owner'),sa.uuid,'import:'||im.server_id||':'||im.account_id)`
+	// A person's name: their MUM account, else their server account.
+	personName := func(person, fallback string) string {
+		return `coalesce((SELECT u.local_username FROM user_accounts u WHERE u.uuid=` + person + `),(SELECT a.external_username FROM service_accounts a WHERE a.uuid=` + person + `),` + fallback + `)`
+	}
+	importedPeople := ` FROM history_imports im JOIN media_servers s ON s.id=im.server_id LEFT JOIN service_accounts sa ON sa.server_id=im.server_id AND sa.external_user_id=im.account_id
+	 WHERE im.viewed_at>=? AND (?=0 OR im.server_id=?) AND s.service_type IN (` + imported + `)`
 
 	var totals struct{ plays, seconds, people, titles int64 }
 	err = tx.QueryRowContext(ctx, `SELECT
@@ -130,35 +168,73 @@ func (a *App) activityStatistics(w http.ResponseWriter, r *http.Request) {
 	 (SELECT count(DISTINCT h.server_id||':'||h.item_id) FROM media_activity_history h WHERE`+recordedWhere+`)+(SELECT count(DISTINCT im.server_id||':'||coalesce(im.item_id,im.title))`+importedFrom+`),
 	 (SELECT count(DISTINCT person) FROM (
 	  SELECT coalesce(h.owner_uuid,h.service_uuid) AS person FROM media_activity_history h WHERE`+recordedWhere+`
-	  UNION SELECT coalesce((SELECT l.user_uuid FROM service_links l WHERE l.service_uuid=sa.uuid AND l.link_kind='owner'),sa.uuid,'import:'||im.server_id||':'||im.account_id)
-	   FROM history_imports im JOIN media_servers s ON s.id=im.server_id LEFT JOIN service_accounts sa ON sa.server_id=im.server_id AND sa.external_user_id=im.account_id
-	   WHERE im.viewed_at>=? AND (?=0 OR im.server_id=?) AND s.service_type IN (`+imported+`)))`,
+	  UNION SELECT `+importedPerson+importedPeople+`))`,
 		args(8)...).Scan(&totals.plays, &totals.seconds, &totals.titles, &totals.people)
 	if err != nil {
 		domainError(w, err)
 		return
 	}
 
-	// Top titles per kind; recorded plays group by item, episodes by series
-	// and tracks by album, imported listening by item.
-	recorded := func(where, key, title string) string {
-		return `SELECT h.server_id,` + title + `,NULL,count(*),coalesce(sum(` + mumWatchedSeconds + `),0),max(CASE WHEN h.poster_path IS NOT NULL THEN h.id END)
+	// Every card query returns the same columns: server, title, subtitle,
+	// plays, seconds, people, poster row, time, user, library, library type,
+	// whether the poster row is an imported one, the played item, its show or
+	// album, the item its poster came from, and who played it.
+	rank := map[string]string{"plays": "plays DESC,secs DESC", "duration": "secs DESC,plays DESC"}[order]
+	recorded := func(where, key, title, item, parent string, popular bool) string {
+		ranking := rank
+		if popular {
+			ranking = "people DESC,plays DESC"
+		}
+		return `SELECT h.server_id,` + title + `,NULL,count(*) AS plays,coalesce(sum(` + mumWatchedSeconds + `),0) AS secs,count(DISTINCT coalesce(h.owner_uuid,h.service_uuid)) AS people,
+		 max(CASE WHEN h.poster_path IS NOT NULL THEN h.id END),NULL,NULL,NULL,NULL,0,` + item + `,` + parent + `,coalesce(max(h.poster_item),''),NULL
 		 FROM media_activity_history h WHERE` + recordedWhere + ` AND ` + where + ` GROUP BY h.server_id,` + key + `
-		 ORDER BY count(*) DESC,sum(` + mumWatchedSeconds + `) DESC,2 LIMIT 5`
+		 ORDER BY ` + ranking + `,2 LIMIT 10`
 	}
+	// Every play with its person and server, from both sources.
+	people := `SELECT coalesce(h.owner_uuid,h.service_uuid) AS person,h.server_id AS server,NULL AS fallback,` + mumWatchedSeconds + ` AS secs,h.first_seen_at AS at FROM media_activity_history h WHERE` + recordedWhere + `
+	  UNION ALL SELECT ` + importedPerson + `,im.server_id,im.account_id,coalesce(im.listened_seconds,0),im.viewed_at` + importedPeople
+	movies, episodes, tracks := `lower(h.media_type)='movie'`, `lower(h.media_type)='episode'`, `lower(h.media_type) IN ('track','audio')`
+	series, album := `coalesce(max(h.parent_title),min(h.title))`, `coalesce(h.parent_item_id,h.item_id)`
 	queries := []struct {
 		kind, query string
-		imported    bool
+		sets        int
 	}{
-		{"movies", recorded(`lower(h.media_type)='movie'`, `h.item_id`, `min(h.title)`), false},
-		{"shows", recorded(`lower(h.media_type)='episode'`, `coalesce(h.parent_item_id,h.item_id)`, `coalesce(max(h.parent_title),min(h.title))`), false},
-		{"music", recorded(`lower(h.media_type) IN ('track','audio')`, `coalesce(h.parent_item_id,h.item_id)`, `coalesce(max(h.parent_title),min(h.title))`), false},
-		{"audiobooks", `SELECT im.server_id,min(coalesce(im.title,'')),max(coalesce(im.grandparent_title,im.parent_title)),count(*),coalesce(sum(im.listened_seconds),0),max(CASE WHEN im.poster_path IS NOT NULL THEN im.rowid END)` +
-			importedFrom + ` GROUP BY im.server_id,coalesce(im.item_id,im.title) ORDER BY count(*) DESC,sum(im.listened_seconds) DESC,2 LIMIT 5`, true},
+		{"movies", recorded(movies, `h.item_id`, `min(h.title)`, `h.item_id`, `''`, false), 1},
+		{"popular_movies", recorded(movies, `h.item_id`, `min(h.title)`, `h.item_id`, `''`, true), 1},
+		{"shows", recorded(episodes, album, series, `''`, album, false), 1},
+		{"popular_shows", recorded(episodes, album, series, `''`, album, true), 1},
+		{"music", recorded(tracks, album, series, `''`, album, false), 1},
+		{"popular_music", recorded(tracks, album, series, `''`, album, true), 1},
+		{"audiobooks", `SELECT im.server_id,min(coalesce(im.title,'')),max(coalesce(im.grandparent_title,im.parent_title)),count(*) AS plays,coalesce(sum(im.listened_seconds),0) AS secs,count(DISTINCT im.account_id) AS people,
+		 max(CASE WHEN im.poster_path IS NOT NULL THEN im.rowid END),NULL,NULL,NULL,NULL,1,coalesce(max(im.item_id),''),'',coalesce(max(im.poster_item),''),NULL` +
+			importedFrom + ` GROUP BY im.server_id,coalesce(im.item_id,im.title) ORDER BY ` + rank + `,2 LIMIT 10`, 1},
+		// The latest plays: an episode shows its series with the episode beneath.
+		{"recent", `SELECT * FROM (
+		 SELECT h.server_id,CASE WHEN lower(h.media_type)='episode' AND h.parent_title IS NOT NULL THEN h.parent_title ELSE h.title END,
+		  CASE WHEN lower(h.media_type)='episode' AND h.parent_title IS NOT NULL THEN h.title END,1,` + mumWatchedSeconds + `,1,CASE WHEN h.poster_path IS NOT NULL THEN h.id END,h.first_seen_at,NULL,NULL,NULL,0,
+		  h.item_id,coalesce(h.parent_item_id,''),coalesce(h.poster_item,''),` + personName(`coalesce(h.owner_uuid,h.service_uuid)`, `NULL`) + `
+		  FROM media_activity_history h WHERE` + recordedWhere + `
+		 UNION ALL SELECT im.server_id,coalesce(im.title,''),coalesce(im.grandparent_title,im.parent_title),1,coalesce(im.listened_seconds,0),1,CASE WHEN im.poster_path IS NOT NULL THEN im.rowid END,im.viewed_at,NULL,NULL,NULL,1,
+		  coalesce(im.item_id,''),'',coalesce(im.poster_item,''),` + personName(importedPerson, `im.account_id`) + importedPeople + `)
+		 ORDER BY 8 DESC LIMIT 10`, 2},
+		// A person once across both sources, named by their MUM or server account.
+		{"users", `SELECT 0,` + personName(`x.person`, `coalesce(max(x.fallback),'Unknown')`) + `,
+		 NULL,count(*) AS plays,coalesce(sum(x.secs),0) AS secs,1,NULL,max(x.at),CASE WHEN x.person NOT LIKE 'import:%' THEN x.person END,NULL,NULL,0,x.person,'','',NULL
+		 FROM (` + people + `) x GROUP BY x.person ORDER BY ` + rank + `,2 LIMIT 10`, 2},
+		// A recorded play belongs to the library whose catalogue holds its item or
+		// series, else the uniquely named library it recorded; an imported play
+		// to its server library ID.
+		{"libraries", `SELECT l.server_id,l.name,(SELECT s2.server_nickname FROM media_servers s2 WHERE s2.id=l.server_id),count(*) AS plays,coalesce(sum(x.secs),0) AS secs,1,NULL,NULL,NULL,l.id,l.library_type,0,'','','',NULL
+		 FROM (SELECT ` + mumWatchedSeconds + ` AS secs,coalesce(
+		   (SELECT i.library_id FROM media_items i WHERE i.server_id=h.server_id AND i.parent_id IS NULL AND i.external_id=coalesce(h.parent_item_id,h.item_id) ORDER BY i.id LIMIT 1),
+		   (SELECT min(l2.id) FROM media_libraries l2 WHERE l2.server_id=h.server_id AND l2.name=h.library_name HAVING count(*)=1)) AS lib
+		   FROM media_activity_history h WHERE` + recordedWhere + `
+		  UNION ALL SELECT coalesce(im.listened_seconds,0),(SELECT l3.id FROM media_libraries l3 WHERE l3.server_id=im.server_id AND l3.external_id=im.library_id)` + importedFrom + `) x
+		 JOIN media_libraries l ON l.id=x.lib GROUP BY l.id ORDER BY ` + rank + `,2 LIMIT 10`, 2},
 	}
 	sections := []activitySection{}
 	for _, q := range queries {
-		items, err := readActivityTitles(ctx, tx, q.query, window, q.imported)
+		items, err := readActivityTitles(ctx, tx, q.query, args(q.sets))
 		if err != nil {
 			domainError(w, err)
 			return
@@ -168,21 +244,73 @@ func (a *App) activityStatistics(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Each person's and platform's servers, most used first, for their badges.
+	serverRank := map[string]string{"plays": "count(*) DESC,sum(secs) DESC", "duration": "sum(secs) DESC,count(*) DESC"}[order]
+	personServers, err := readActivityServerUse(ctx, tx, `SELECT x.person,x.server FROM (`+people+`) x GROUP BY 1,2 ORDER BY `+serverRank+`,2`, args(2))
+	if err != nil {
+		domainError(w, err)
+		return
+	}
+	platformServers, err := readActivityServerUse(ctx, tx, `SELECT h.platform,h.server_id FROM (SELECT h.*,`+mumWatchedSeconds+` AS secs FROM media_activity_history h) h
+	 WHERE`+recordedWhere+` AND h.platform IS NOT NULL AND h.platform<>'' GROUP BY 1,2 ORDER BY `+serverRank+`,2`, window)
+	if err != nil {
+		domainError(w, err)
+		return
+	}
+
+	// A user's picture: their own server account's, or for a MUM account the
+	// first of its linked server accounts that has one. A title's page in the
+	// library catalogue, found as for a server's Users page.
+	session, sessionErr := a.requestSession(ctx, r)
+	now := time.Now()
+	for i := range sections {
+		users := sections[i].Kind == "users"
+		for j := range sections[i].Items {
+			item := &sections[i].Items[j]
+			if users {
+				if used := personServers[item.item]; used != nil {
+					item.Servers = used
+				}
+				if item.UserUUID == nil || sessionErr != nil {
+					continue
+				}
+				if url, err := a.activityUserAvatar(ctx, tx, *item.UserUUID, session, now); err != nil {
+					domainError(w, err)
+					return
+				} else if url != "" {
+					item.AvatarURL = &url
+				}
+			} else if sections[i].Kind != "libraries" {
+				link, err := readServerPlayLink(ctx, tx, item.Server, &serverAccountPlay{item: item.item, parent: item.parent, poster: item.art})
+				if err != nil {
+					domainError(w, err)
+					return
+				}
+				item.Link = link
+			}
+		}
+	}
+
 	platforms := []map[string]any{}
-	rows, err := tx.QueryContext(ctx, `SELECT h.platform,count(*) FROM media_activity_history h WHERE`+recordedWhere+` AND h.platform IS NOT NULL AND h.platform<>'' GROUP BY h.platform ORDER BY count(*) DESC,h.platform LIMIT 5`, window...)
+	platformRank := map[string]string{"plays": "count(*) DESC", "duration": "sum(" + mumWatchedSeconds + ") DESC"}[order]
+	rows, err := tx.QueryContext(ctx, `SELECT h.platform,count(*),coalesce(sum(`+mumWatchedSeconds+`),0) FROM media_activity_history h WHERE`+recordedWhere+` AND h.platform IS NOT NULL AND h.platform<>'' GROUP BY h.platform ORDER BY `+platformRank+`,h.platform LIMIT 10`, window...)
 	if err != nil {
 		domainError(w, err)
 		return
 	}
 	for rows.Next() {
 		var name string
-		var plays int64
-		if err := rows.Scan(&name, &plays); err != nil {
+		var plays, seconds int64
+		if err := rows.Scan(&name, &plays, &seconds); err != nil {
 			rows.Close()
 			domainError(w, err)
 			return
 		}
-		platforms = append(platforms, map[string]any{"name": name, "plays": plays})
+		used := platformServers[name]
+		if used == nil {
+			used = []int64{}
+		}
+		platforms = append(platforms, map[string]any{"name": name, "plays": plays, "seconds": seconds, "server_ids": used})
 	}
 	rows.Close()
 
@@ -210,8 +338,7 @@ func (a *App) activityStatistics(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Posters use the History tab's signed links.
-	if session, err := a.requestSession(ctx, r); err == nil {
-		now := time.Now()
+	if sessionErr == nil {
 		for i := range sections {
 			for j := range sections[i].Items {
 				item := &sections[i].Items[j]
@@ -233,13 +360,13 @@ func (a *App) activityStatistics(w http.ResponseWriter, r *http.Request) {
 		chosen = server
 	}
 	respond(w, 200, map[string]any{
-		"days": days, "server_id": chosen,
+		"days": days, "server_id": chosen, "order": order,
 		"totals":   map[string]any{"plays": totals.plays, "seconds": totals.seconds, "people": totals.people, "titles": totals.titles},
 		"sections": sections, "platforms": platforms, "servers": servers, "unreported": unreported, "imported": importedServers,
 	})
 }
 
-func readActivityTitles(ctx context.Context, tx *sql.Tx, query string, args []any, imported bool) ([]activityTitle, error) {
+func readActivityTitles(ctx context.Context, tx *sql.Tx, query string, args []any) ([]activityTitle, error) {
 	rows, err := tx.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
@@ -248,17 +375,56 @@ func readActivityTitles(ctx context.Context, tx *sql.Tx, query string, args []an
 	items := []activityTitle{}
 	for rows.Next() {
 		var item activityTitle
-		var subtitle sql.NullString
-		if err := rows.Scan(&item.Server, &item.Title, &subtitle, &item.Plays, &item.Seconds, &item.poster); err != nil {
+		var subtitle, at, user, libraryType, name sql.NullString
+		var library sql.NullInt64
+		var imported int64
+		if err := rows.Scan(&item.Server, &item.Title, &subtitle, &item.Plays, &item.Seconds, &item.People, &item.poster, &at, &user, &library, &libraryType, &imported,
+			&item.item, &item.parent, &item.art, &name); err != nil {
 			return nil, err
 		}
+		if name.Valid && name.String != "" {
+			item.UserName = &name.String
+		}
+		item.Servers = []int64{}
 		if subtitle.Valid && subtitle.String != "" {
 			item.Subtitle = &subtitle.String
 		}
-		item.imported = imported
+		if at.Valid {
+			item.PlayedAt = &at.String
+		}
+		if user.Valid && user.String != "" {
+			item.UserUUID = &user.String
+		}
+		if library.Valid {
+			item.LibraryID = &library.Int64
+		}
+		if libraryType.Valid && libraryType.String != "" {
+			item.LibraryType = &libraryType.String
+		}
+		item.imported = imported == 1
 		items = append(items, item)
 	}
 	return items, rows.Err()
+}
+
+// readActivityServerUse maps a person or platform to the servers they used,
+// in the query's order.
+func readActivityServerUse(ctx context.Context, tx *sql.Tx, query string, args []any) (map[string][]int64, error) {
+	rows, err := tx.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string][]int64{}
+	for rows.Next() {
+		var key string
+		var server int64
+		if err := rows.Scan(&key, &server); err != nil {
+			return nil, err
+		}
+		out[key] = append(out[key], server)
+	}
+	return out, rows.Err()
 }
 
 // readActivityServers lists servers as id, name, type and an optional time
@@ -280,4 +446,28 @@ func readActivityServers(ctx context.Context, tx *sql.Tx, query string, args ...
 		out = append(out, map[string]any{"server_id": id, "name": name, "service_type": kind, "imported_at": nullableString(at)})
 	}
 	return out, rows.Err()
+}
+
+// activityUserAvatar signs a picture for a person: their own server account,
+// else a server account linked to their MUM account, whichever has one first.
+func (a *App) activityUserAvatar(ctx context.Context, tx *sql.Tx, person, session string, now time.Time) (string, error) {
+	rows, err := tx.QueryContext(ctx, `SELECT i.id,s.service_type,coalesce(sa.external_user_id,''),coalesce(sa.external_avatar_url,'')
+	 FROM service_accounts sa JOIN identities i ON i.uuid=sa.uuid JOIN media_servers s ON s.id=sa.server_id
+	 WHERE sa.uuid=? OR sa.uuid IN (SELECT l.service_uuid FROM service_links l WHERE l.user_uuid=? AND l.link_kind='owner')
+	 ORDER BY sa.uuid=? DESC,i.id`, person, person, person)
+	if err != nil {
+		return "", err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var identity int64
+		var kind, external, avatar string
+		if err := rows.Scan(&identity, &kind, &external, &avatar); err != nil {
+			return "", err
+		}
+		if serviceHasAvatar(kind, external, avatar) {
+			return a.serviceAvatarURL(session, identity, now), nil
+		}
+	}
+	return "", rows.Err()
 }

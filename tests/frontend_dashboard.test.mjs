@@ -77,22 +77,36 @@ test('dashboard adapters', async t => {
     }
     const stats = { days: 7, totals: { plays: 12, seconds: 7200, people: 3, titles: 9 },
       sections: [
-        { kind: 'movies', items: [{ server_id: 2, title: 'Popular', subtitle: null, plays: 2, seconds: 5400, poster_url: '/api/activity/history-images/4?s=a&e=1&g=b' }] },
-        { kind: 'audiobooks', items: [{ server_id: 4, title: 'A Book', subtitle: 'An Author', plays: 1, seconds: 1200, poster_url: '/api/activity/imported-history-images/9?s=a&e=1&g=b' }] },
+        { kind: 'movies', items: [{ server_id: 2, title: 'Popular', subtitle: null, plays: 2, seconds: 5400, people: 1, played_at: null, user_uuid: null, library_id: null, library_type: null,  poster_url: '/api/activity/history-images/4?s=a&e=1&g=b', link: { library_id: 7, media_id: 70, episode_id: null } }] },
+        { kind: 'users', items: [{ server_id: 0, title: 'viewer', subtitle: null, plays: 5, seconds: 900, people: 1, played_at: '2026-11-18T00:00:00Z', user_uuid: '11111111-1111-4111-8111-111111111111', library_id: null, library_type: null, poster_url: null, server_ids: [2, 4] }] },
+        { kind: 'audiobooks', items: [{ server_id: 4, title: 'A Book', subtitle: 'An Author', plays: 1, seconds: 1200, people: 1, played_at: null, user_uuid: null, library_id: null, library_type: null,  poster_url: '/api/activity/imported-history-images/9?s=a&e=1&g=b' }] },
       ],
-      platforms: [{ name: 'Roku', plays: 2 }], server_id: null,
+      platforms: [{ name: 'Roku', plays: 2, seconds: 600, server_ids: [2] }], server_id: null, order: 'plays',
       servers: [{ server_id: 2, name: 'Plex++', service_type: 'plex', imported_at: null }, { server_id: 4, name: 'Books', service_type: 'audiobookshelf', imported_at: null }],
       unreported: [{ server_id: 3, name: 'Comics', service_type: 'kavita', imported_at: null }],
       imported: [{ server_id: 4, name: 'Books', service_type: 'audiobookshelf', imported_at: '2026-11-17T00:00:00Z' }] };
     route({ 'GET /api/activity/statistics': url => { assert.equal(url.searchParams.get('days'), '7'); return Response.json({ data: stats }); } });
     const activity = await m.fetchActivityStats(7);
     assert.equal(activity.totals.plays, 12);
-    assert.deepEqual(activity.sections.map(s => s.kind), ['movies', 'audiobooks']);
-    assert.equal(activity.sections[1].items[0].subtitle, 'An Author');
+    assert.deepEqual(activity.sections.map(s => s.kind), ['movies', 'users', 'audiobooks']);
+    assert.equal(activity.sections[1].items[0].user_uuid, '11111111-1111-4111-8111-111111111111');
+    assert.equal(activity.platforms[0].seconds, 600);
+    assert.equal(activity.sections[2].items[0].subtitle, 'An Author');
     assert.equal(activity.unreported[0].name, 'Comics');
     assert.equal(activity.imported[0].imported_at, '2026-11-17T00:00:00Z');
     assert.equal(activity.sections[0].items[0].server_id, 2);
     assert.deepEqual(activity.servers.map(s => s.name), ['Plex++', 'Books']);
+    // Catalogue links, and the servers a person or platform used.
+    assert.deepEqual(activity.sections[0].items[0].link, { library_id: 7, media_id: 70, episode_id: null });
+    assert.equal(activity.sections[2].items[0].link, null);
+    assert.deepEqual(activity.sections[1].items[0].server_ids, [2, 4]);
+    assert.deepEqual(activity.sections[0].items[0].server_ids, []);
+    assert.deepEqual(activity.platforms[0].server_ids, [2]);
+    // All time is days 0.
+    route({ 'GET /api/activity/statistics': url => { assert.equal(url.searchParams.get('days'), '0'); return Response.json({ data: { ...stats, days: 0 } }); } });
+    assert.equal((await m.fetchActivityStats(0)).days, 0);
+    route({ 'GET /api/activity/statistics': url => { assert.equal(url.searchParams.get('order'), 'duration'); return Response.json({ data: { ...stats, order: 'duration' } }); } });
+    assert.equal((await m.fetchActivityStats(7, null, 'duration')).order, 'duration');
     // One server: the filter is sent and the reply must be for that server.
     let asked;
     route({ 'GET /api/activity/statistics': url => { asked = url.searchParams.get('server'); return Response.json({ data: { ...stats, server_id: 4 } }); } });
@@ -102,7 +116,9 @@ test('dashboard adapters', async t => {
     await assert.rejects(m.fetchActivityStats(7, 4), /Invalid activity statistics/);
     for (const bad of [{ ...stats, days: 30 }, { ...stats, totals: { ...stats.totals, plays: -1 } }, { ...stats, sections: [{ kind: 'games', items: [] }] },
       { ...stats, sections: [{ kind: 'movies', items: [{ title: 'x', subtitle: null, plays: 1, seconds: 1, poster_url: 'https://plex.tv/p.jpg' }] }] },
-      { ...stats, platforms: [{ name: 'x', plays: 'many' }] }, { ...stats, sections: [{ kind: 'movies', items: [{ server_id: 0, title: 'x', subtitle: null, plays: 1, seconds: 1, poster_url: null }] }] }, { ...stats, unreported: [{ server_id: 0, name: 'x', service_type: 'kavita', imported_at: null }] }]) {
+      { ...stats, platforms: [{ name: 'x', plays: 'many', seconds: 1 }] }, { ...stats, order: 'duration' }, { ...stats, sections: [{ kind: 'movies', items: [{ server_id: 0, title: 'x', subtitle: null, plays: 1, seconds: 1, poster_url: null }] }] }, { ...stats, unreported: [{ server_id: 0, name: 'x', service_type: 'kavita', imported_at: null }] },
+      { ...stats, sections: [{ kind: 'movies', items: [{ ...stats.sections[0].items[0], link: { library_id: 0, media_id: 1, episode_id: null } }] }] },
+      { ...stats, sections: [{ kind: 'users', items: [{ ...stats.sections[1].items[0], server_ids: ['2'] }] }] }]) {
       route({ 'GET /api/activity/statistics': () => Response.json({ data: bad }) });
       await assert.rejects(m.fetchActivityStats(7), /Invalid activity statistics/);
     }

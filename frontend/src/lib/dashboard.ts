@@ -80,23 +80,6 @@ export async function fetchServerHealth(probe = false) {
     meta: { generated_at: new Date().toISOString() } };
 }
 
-// Current activity across all servers (administrators), shaped for the card.
-export async function fetchActiveStreams(actor: string) {
-  const [page, servers] = await Promise.all([fetchActivityCurrent(actor, 'all'), readServers()]);
-  const byID = new Map(servers.map(s => [String(s.id), s]));
-  const sessions = page.items.map(item => {
-    const server = byID.get(item.server_id);
-    const position = item.position_ticks === null ? null : Number(BigInt(item.position_ticks));
-    const duration = item.duration_ticks === null ? null : Number(BigInt(item.duration_ticks));
-    return {
-      id: item.id, title: item.title, state: item.paused ? 'paused' : 'playing',
-      user: { name: item.owner_name ?? item.service_username ?? 'Unlinked account' },
-      server: { name: server?.server_nickname ?? `Server #${item.server_id}`, service_type: server?.service_type ?? '' },
-      ...(position !== null && duration ? { progress_percent: Math.min(100, (position / duration) * 100) } : {}),
-    };
-  });
-  return { data: { count: sessions.length, sessions } };
-}
 
 type AuditEvent = { id: number; timestamp: string | null; event_type: string | null; message: string };
 export async function fetchRecentEvents(limit = 5) {

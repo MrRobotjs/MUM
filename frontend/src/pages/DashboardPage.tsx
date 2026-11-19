@@ -1,4 +1,4 @@
-import { DashboardLayout, ActiveStreamsCard, ActivityCard, HistoryCard, InvitesSummaryCard, StreamingSummaryCard, ServerStatusCard } from '../components/dashboard';
+import { DashboardLayout, ActivityCard, AdminLogCard, InvitesSummaryCard, ServerStatusCard } from '../components/dashboard';
 
 export const DashboardPage = () => {
   return (
@@ -8,11 +8,7 @@ export const DashboardPage = () => {
         <ActivityCard />
         <div className="grid gap-6 md:grid-cols-2">
           <InvitesSummaryCard />
-          <StreamingSummaryCard />
-        </div>
-        <div className="grid gap-6 md:grid-cols-2">
-          <ActiveStreamsCard />
-          <HistoryCard />
+          <AdminLogCard />
         </div>
       </div>
     </DashboardLayout>

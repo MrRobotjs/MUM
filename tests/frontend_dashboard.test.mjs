@@ -66,22 +66,6 @@ test('dashboard adapters', async t => {
     }
   });
 
-  await t.test('active streams use administrator activity with names, servers and progress', async () => {
-    const m = await load();
-    const item = (id, extra = {}) => ({ id, server_id: '1', service_uuid: '22345678-1234-1234-1234-123456789abc', owner_uuid: actor, item_id: 'movie', media_type: 'Movie', title: `Title ${id}`, first_observed_at: '2026-11-05T00:00:00Z', last_observed_at: '2026-11-05T00:01:00Z', ended_observation_at: null, end_reason: null, paused: false, position_ticks: '300', duration_ticks: '1200', ...extra });
-    const calls = route({
-      'GET /api/activity/current': url => { assert.equal(url.searchParams.get('scope'), 'all'); return Response.json({ data: { actor_uuid: actor, scope: 'all', read_at: '2026-11-05T00:02:00Z', items: [item('9', { owner_name: 'viewer' }), item('8', { paused: true, owner_uuid: undefined, service_username: 'remote', duration_ticks: null })], servers: [{ server_id: '1', provider: 'jellyfin', observed_at: '2026-11-05T00:02:00Z', age_seconds: 1, freshness: 'fresh', pending: 'none', last_result: 'fresh' }], next_before: null } }); },
-      'GET /api/servers': () => Response.json({ data: [server(1)] }),
-    });
-    const streams = await m.fetchActiveStreams(actor);
-    assert.equal(streams.data.count, 2);
-    assert.deepEqual(streams.data.sessions[0], { id: '9', title: 'Title 9', state: 'playing', user: { name: 'viewer' }, server: { name: 'Server 1', service_type: 'jellyfin' }, progress_percent: 25 });
-    assert.equal(streams.data.sessions[1].user.name, 'remote');
-    assert.equal(streams.data.sessions[1].state, 'paused');
-    assert.equal('progress_percent' in streams.data.sessions[1], false);
-    assert.ok(calls.some(c => c.startsWith('GET /api/activity/current')));
-  });
-
   await t.test('recent events and watch statistics are validated', async () => {
     const m = await load();
     route({ 'GET /api/audit-events': () => Response.json({ data: [{ id: 3, timestamp: '2026-11-05T00:00:00Z', event_type: 'server.save', message: 'A media server was saved', details: { secret: 'x' } }] }) });

@@ -91,14 +91,36 @@ test('dashboard adapters', async t => {
       route({ 'GET /api/audit-events': () => Response.json({ data: bad }) });
       await assert.rejects(m.fetchRecentEvents(5), /Invalid recent activity/);
     }
-    const stats = { days: 7, top_movies: [{ title: 'Popular', plays: 2, duration: '1h 30m' }], top_shows: [], top_platforms: [], totals: { total_plays: 4, total_duration: '3h 00m', unique_titles: 3, unique_users: 1, avg_session_length: '45m', peak_day_streams: 3 } };
+    const stats = { days: 7, totals: { plays: 12, seconds: 7200, people: 3, titles: 9 },
+      sections: [
+        { kind: 'movies', items: [{ server_id: 2, title: 'Popular', subtitle: null, plays: 2, seconds: 5400, poster_url: '/api/activity/history-images/4?s=a&e=1&g=b' }] },
+        { kind: 'audiobooks', items: [{ server_id: 4, title: 'A Book', subtitle: 'An Author', plays: 1, seconds: 1200, poster_url: '/api/activity/imported-history-images/9?s=a&e=1&g=b' }] },
+      ],
+      platforms: [{ name: 'Roku', plays: 2 }], server_id: null,
+      servers: [{ server_id: 2, name: 'Plex++', service_type: 'plex', imported_at: null }, { server_id: 4, name: 'Books', service_type: 'audiobookshelf', imported_at: null }],
+      unreported: [{ server_id: 3, name: 'Comics', service_type: 'kavita', imported_at: null }],
+      imported: [{ server_id: 4, name: 'Books', service_type: 'audiobookshelf', imported_at: '2026-11-17T00:00:00Z' }] };
     route({ 'GET /api/activity/statistics': url => { assert.equal(url.searchParams.get('days'), '7'); return Response.json({ data: stats }); } });
-    const watch = await m.fetchWatchStats(7);
-    assert.equal(watch.data.totals.total_plays, 4);
-    assert.equal(watch.data.top_movies[0].title, 'Popular');
-    for (const bad of [{ ...stats, days: 30 }, { ...stats, totals: { ...stats.totals, total_plays: -1 } }, { ...stats, top_movies: [{ title: '', plays: 1, duration: '1m' }] }, { ...stats, top_platforms: [{ name: 'x', plays: 'many', duration: '1m' }] }]) {
+    const activity = await m.fetchActivityStats(7);
+    assert.equal(activity.totals.plays, 12);
+    assert.deepEqual(activity.sections.map(s => s.kind), ['movies', 'audiobooks']);
+    assert.equal(activity.sections[1].items[0].subtitle, 'An Author');
+    assert.equal(activity.unreported[0].name, 'Comics');
+    assert.equal(activity.imported[0].imported_at, '2026-11-17T00:00:00Z');
+    assert.equal(activity.sections[0].items[0].server_id, 2);
+    assert.deepEqual(activity.servers.map(s => s.name), ['Plex++', 'Books']);
+    // One server: the filter is sent and the reply must be for that server.
+    let asked;
+    route({ 'GET /api/activity/statistics': url => { asked = url.searchParams.get('server'); return Response.json({ data: { ...stats, server_id: 4 } }); } });
+    assert.equal((await m.fetchActivityStats(7, 4)).server_id, 4);
+    assert.equal(asked, '4');
+    route({ 'GET /api/activity/statistics': () => Response.json({ data: { ...stats, server_id: 2 } }) });
+    await assert.rejects(m.fetchActivityStats(7, 4), /Invalid activity statistics/);
+    for (const bad of [{ ...stats, days: 30 }, { ...stats, totals: { ...stats.totals, plays: -1 } }, { ...stats, sections: [{ kind: 'games', items: [] }] },
+      { ...stats, sections: [{ kind: 'movies', items: [{ title: 'x', subtitle: null, plays: 1, seconds: 1, poster_url: 'https://plex.tv/p.jpg' }] }] },
+      { ...stats, platforms: [{ name: 'x', plays: 'many' }] }, { ...stats, sections: [{ kind: 'movies', items: [{ server_id: 0, title: 'x', subtitle: null, plays: 1, seconds: 1, poster_url: null }] }] }, { ...stats, unreported: [{ server_id: 0, name: 'x', service_type: 'kavita', imported_at: null }] }]) {
       route({ 'GET /api/activity/statistics': () => Response.json({ data: bad }) });
-      await assert.rejects(m.fetchWatchStats(7), /Invalid watch statistics/);
+      await assert.rejects(m.fetchActivityStats(7), /Invalid activity statistics/);
     }
   });
 
@@ -112,7 +134,7 @@ test('dashboard adapters', async t => {
     await assert.rejects(pending, /session changed/);
     let requests = 0;
     globalThis.fetch = async () => { requests++; return Response.json({ error: { message: 'Sign in' } }, { status: 401 }); };
-    await assert.rejects(m.fetchWatchStats());
+    await assert.rejects(m.fetchActivityStats());
     assert.equal(requests, 1);
   });
 

@@ -1,11 +1,11 @@
-import { DashboardLayout, ActiveStreamsCard, WatchStatsCard, HistoryCard, InvitesSummaryCard, StreamingSummaryCard, ServerStatusCard } from '../components/dashboard';
+import { DashboardLayout, ActiveStreamsCard, ActivityCard, HistoryCard, InvitesSummaryCard, StreamingSummaryCard, ServerStatusCard } from '../components/dashboard';
 
 export const DashboardPage = () => {
   return (
     <DashboardLayout>
       <div className="space-y-6">
         <ServerStatusCard />
-        <WatchStatsCard />
+        <ActivityCard />
         <div className="grid gap-6 md:grid-cols-2">
           <InvitesSummaryCard />
           <StreamingSummaryCard />

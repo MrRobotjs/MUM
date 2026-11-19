@@ -383,7 +383,10 @@ const LibraryDetailPageView = () => {
   const statsPeriod = statsDays === 365 ? 'Last year' : `Last ${statsDays} days`;
   const statsDuration = (seconds?: number | null) => {
     const value = Math.max(0, Math.round(seconds ?? 0));
-    return value < 60 ? (value === 0 ? '0 mins' : '1 min') : watchTime(String(value)).map(([n, unit]) => `${n} ${unit}`).join(' ');
+    if (value < 60) return value === 0 ? '0 mins' : '1 min';
+    // Zero parts are dropped: "1 hr", not "1 hr 0 mins".
+    const parts = watchTime(String(value)).filter(([n]) => Number(n) !== 0);
+    return parts.length ? parts.map(([n, unit]) => `${n} ${unit}`).join(' ') : '0 mins';
   };
   const [activityData, setActivityData] = useState<any[]>([]);
   const [activityLoading, setActivityLoading] = useState(false);
@@ -1028,8 +1031,12 @@ const LibraryDetailPageView = () => {
                 </>
               )}
             </Button>
-            <Button onClick={refreshSavedState} disabled={syncing || purging} variant="outline">Refresh saved state</Button>
-            {needsInspection && <span>Inspect saved state before another action.</span>}
+            {/* Shown only when the last sync or purge couldn't be confirmed and the page's own
+                re-read didn't clear it: Sync stays locked until the saved state is read again. */}
+            {needsInspection && <>
+              <span>Inspect saved state before another action.</span>
+              <Button onClick={refreshSavedState} disabled={syncing || purging} variant="outline">Refresh saved state</Button>
+            </>}
             <Button onClick={handleSyncClick} disabled={syncing || purging || needsInspection || !library?.catalogue?.supported}>
               {syncing ? (
                 <>

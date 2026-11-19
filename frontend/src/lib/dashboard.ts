@@ -108,22 +108,51 @@ export async function fetchRecentEvents(limit = 5) {
   }) };
 }
 
-type WatchTitle = { title: string; plays: number; duration: string };
-type WatchStats = { top_movies: WatchTitle[]; top_shows: WatchTitle[]; top_platforms: { name: string; plays: number; duration: string }[];
-  totals: { total_plays: number; total_duration: string; unique_titles: number; unique_users: number; avg_session_length: string; peak_day_streams: number } };
+// The dashboard's Activity card: what people used across every server type,
+// from MUM's recordings (Plex, Jellyfin, Emby) and imported history
+// (Audiobookshelf); servers that report nothing are named.
+export type ActivityKind = 'movies' | 'shows' | 'music' | 'audiobooks';
+export type ActivityTitle = { server_id: number; title: string; subtitle: string | null; plays: number; seconds: number; poster_url: string | null };
+export type ActivityServer = { server_id: number; name: string; service_type: string; imported_at: string | null };
+export type ActivityStats = {
+  /** The chosen server, or null for every server. */
+  days: number; server_id: number | null; totals: { plays: number; seconds: number; people: number; titles: number };
+  sections: { kind: ActivityKind; items: ActivityTitle[] }[]; platforms: { name: string; plays: number }[];
+  /** Servers that report activity: the card's server picker. */
+  servers: ActivityServer[]; unreported: ActivityServer[]; imported: ActivityServer[];
+};
 const count = (v: unknown): v is number => Number.isSafeInteger(v) && (v as number) >= 0;
-const titles = (v: unknown): WatchTitle[] => {
-  if (!Array.isArray(v) || v.length > 10) throw new Error('Invalid watch statistics');
-  return v.map(t => { if (!t || !text(t.title) || !t.title || !count(t.plays) || !text(t.duration, 16)) throw new Error('Invalid watch statistics'); return { title: t.title, plays: t.plays, duration: t.duration }; });
+const activityKinds: ActivityKind[] = ['movies', 'shows', 'music', 'audiobooks'];
+const activityPosters = ['/api/activity/history-images/', '/api/activity/imported-history-images/'];
+const invalidActivity = () => new Error('Invalid activity statistics');
+const activityList = <T,>(v: unknown, max: number, read: (item: Record<string, unknown>) => T): T[] => {
+  if (!Array.isArray(v) || v.length > max) throw invalidActivity();
+  return v.map(item => { if (!item || typeof item !== 'object') throw invalidActivity(); return read(item as Record<string, unknown>); });
 };
-const platforms = (v: unknown) => {
-  if (!Array.isArray(v) || v.length > 10) throw new Error('Invalid watch statistics');
-  return v.map(p => { if (!p || !text(p.name) || !p.name || !count(p.plays) || !text(p.duration, 16)) throw new Error('Invalid watch statistics'); return { name: p.name as string, plays: p.plays as number, duration: p.duration as string }; });
+const activityServer = (v: Record<string, unknown>): ActivityServer => {
+  if (!integer(v.server_id) || !text(v.name) || !text(v.service_type, 64) || !(v.imported_at === null || typeof v.imported_at === 'string')) throw invalidActivity();
+  return { server_id: v.server_id as number, name: v.name as string, service_type: v.service_type as string, imported_at: v.imported_at as string | null };
 };
-export async function fetchWatchStats(days = 7) {
-  const { data } = await dashboardRequest<{ data: WatchStats & { days: number } }>(`/api/activity/statistics?days=${days}`);
-  const t = data?.totals;
-  if (!data || data.days !== days || !t || !count(t.total_plays) || !count(t.unique_titles) || !count(t.unique_users) || !count(t.peak_day_streams) || !text(t.total_duration, 16) || !text(t.avg_session_length, 16)) throw new Error('Invalid watch statistics');
-  return { data: { top_movies: titles(data.top_movies), top_shows: titles(data.top_shows), top_platforms: platforms(data.top_platforms),
-    totals: { total_plays: t.total_plays, total_duration: t.total_duration, unique_titles: t.unique_titles, unique_users: t.unique_users, avg_session_length: t.avg_session_length, peak_day_streams: t.peak_day_streams } } };
+
+export async function fetchActivityStats(days = 7, server: number | null = null): Promise<ActivityStats> {
+  if (server !== null && !integer(server)) throw invalidActivity();
+  const query = new URLSearchParams({ days: String(days), ...(server !== null ? { server: String(server) } : {}) });
+  const { data } = await dashboardRequest<{ data: Record<string, unknown> }>(`/api/activity/statistics?${query}`);
+  const t = data?.totals as Record<string, unknown> | undefined;
+  if (!data || data.days !== days || (data.server_id ?? null) !== server || !t || !count(t.plays) || !count(t.seconds) || !count(t.people) || !count(t.titles)) throw invalidActivity();
+  return {
+    days, server_id: server, totals: { plays: t.plays as number, seconds: t.seconds as number, people: t.people as number, titles: t.titles as number },
+    sections: activityList(data.sections, activityKinds.length, section => {
+      if (!activityKinds.includes(section.kind as ActivityKind)) throw invalidActivity();
+      return { kind: section.kind as ActivityKind, items: activityList(section.items, 10, item => {
+        if (!integer(item.server_id) || !text(item.title) || !(item.subtitle === null || text(item.subtitle)) || !count(item.plays) || !count(item.seconds) ||
+            !(item.poster_url === null || typeof item.poster_url === 'string' && activityPosters.some(p => (item.poster_url as string).startsWith(p)))) throw invalidActivity();
+        return { server_id: item.server_id as number, title: item.title as string, subtitle: item.subtitle as string | null, plays: item.plays as number, seconds: item.seconds as number, poster_url: item.poster_url as string | null };
+      }) };
+    }),
+    platforms: activityList(data.platforms, 10, p => { if (!text(p.name) || !p.name || !count(p.plays)) throw invalidActivity(); return { name: p.name as string, plays: p.plays as number }; }),
+    servers: activityList(data.servers, 100, activityServer),
+    unreported: activityList(data.unreported, 100, activityServer),
+    imported: activityList(data.imported, 100, activityServer),
+  };
 }

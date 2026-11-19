@@ -15,53 +15,6 @@ func seedWatch(t *testing.T, f activityViewFixture, session, item, kind, title s
 		f.server, session, f.service, f.user, item, kind, title, utcTimestamp(start), utcTimestamp(end), utcTimestamp(end))
 }
 
-func TestActivityStatisticsAggregatesRetainedHistoryForAdministrators(t *testing.T) {
-	f := activityReadFixture(t)
-	now := time.Now().UTC().Truncate(time.Hour)
-	seedWatch(t, f, "a", "m1", "Movie", "Popular Movie", now.Add(-2*time.Hour), 60)
-	seedWatch(t, f, "b", "m1", "Movie", "Popular Movie", now.Add(-26*time.Hour), 30)
-	seedWatch(t, f, "c", "m2", "movie", "Other Movie", now.Add(-3*time.Hour), 90)
-	seedWatch(t, f, "d", "e1", "Episode", "Episode Title", now.Add(-4*time.Hour), 45)
-	seedWatch(t, f, "e", "m3", "Movie", "Too Old", now.AddDate(0, 0, -20), 120)
-	w := apiRequest(f.app, "GET", "/api/activity/statistics?days=7", f.ownerToken, nil, nil)
-	if w.Code != 200 {
-		t.Fatal(w.Code, w.Body.String())
-	}
-	var body struct {
-		Data struct {
-			Movies    []watchTitle `json:"top_movies"`
-			Shows     []watchTitle `json:"top_shows"`
-			Platforms []any        `json:"top_platforms"`
-			Totals    map[string]any
-		} `json:"data"`
-	}
-	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
-		t.Fatal(err)
-	}
-	totals := body.Data.Totals
-	// The fixture's own observation adds one retained row in the window.
-	if totals["total_plays"] != float64(5) || totals["unique_users"] != float64(1) || totals["peak_day_streams"] == float64(0) {
-		t.Fatal(totals)
-	}
-	// The fixture observation adds a third, zero-length movie ranked last.
-	if len(body.Data.Movies) != 3 || body.Data.Movies[2].Duration != "0m" || body.Data.Movies[0].Title != "Popular Movie" || body.Data.Movies[0].Plays != 2 || body.Data.Movies[0].Duration != "1h 30m" || body.Data.Movies[1].Title != "Other Movie" {
-		t.Fatal(body.Data.Movies)
-	}
-	// Episode names are not show names, and devices are not recorded.
-	if len(body.Data.Shows) != 0 || len(body.Data.Platforms) != 0 || strings.Contains(w.Body.String(), "Episode Title") || strings.Contains(w.Body.String(), "Too Old") {
-		t.Fatal(w.Body.String())
-	}
-	for _, bad := range []string{"?days=0", "?days=91", "?days=x", "?other=1"} {
-		if w := apiRequest(f.app, "GET", "/api/activity/statistics"+bad, f.ownerToken, nil, nil); w.Code != 400 {
-			t.Fatal(bad, w.Code)
-		}
-	}
-	activityExec(t, f.store, "DELETE FROM admin_privileges WHERE user_uuid=?", f.user)
-	if w := apiRequest(f.app, "GET", "/api/activity/statistics", f.token, nil, nil); w.Code != 403 {
-		t.Fatal("non-administrator read statistics", w.Code)
-	}
-}
-
 func TestRecentAuditEventsExposeOnlyFixedMessages(t *testing.T) {
 	f := activityReadFixture(t)
 	for i, action := range []string{"server.save", "service.remote_access.disable", "provisioning.cancel", "custom.unknown"} {

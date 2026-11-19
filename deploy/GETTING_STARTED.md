@@ -131,7 +131,7 @@ Plain `http://` over the internet is **not encrypted**: passwords and invitation
 
 ### Option C: a reverse proxy with HTTPS (recommended for internet access)
 
-A reverse proxy such as Caddy, nginx or Traefik gives MUM a proper `https://` address and certificate. Keep MUM's `listen` on `127.0.0.1:5699` when the proxy runs on the same computer, and list the proxy in `trusted_proxies`. MUM then sees each visitor's real address (for login rate limits) and knows the connection was HTTPS.
+A reverse proxy such as Caddy, nginx or Traefik gives MUM a proper `https://` address and certificate. Keep MUM's `listen` on `127.0.0.1:5699` when the proxy runs on the same computer, and list the proxy in `trusted_proxies`. MUM then sees each visitor's real address (for login rate limits and the History tab) and knows the connection was HTTPS, so the login cookie is sent over HTTPS only. Logging in works through the proxy even before you list it.
 
 MUM needs its own domain or subdomain, such as `mum.example.com`. It cannot be served from a sub-path like `example.com/mum`.
 

@@ -161,6 +161,10 @@ export const PlexResources = ({ serverId }: { serverId: number }) => {
   type ResourceView = 'all' | 'plex' | 'system';
   const [cpuView, setCpuView] = useState<ResourceView>('all');
   const [memoryView, setMemoryView] = useState<ResourceView>('all');
+  // Hovering a line, or its legend entry, fades the other line, as in Plex.
+  type ResourceLine = 'system' | 'plex';
+  const [cpuFocus, setCpuFocus] = useState<ResourceLine | null>(null);
+  const [memoryFocus, setMemoryFocus] = useState<ResourceLine | null>(null);
   const averagePercent = (points: typeof cpu, key: 'system' | 'plex') => {
     const values = points.map((p) => p[key]).filter((v): v is number => v !== null);
     return values.length ? `${(values.reduce((a, b) => a + b, 0) / values.length).toFixed(2)}%` : '—';
@@ -180,19 +184,33 @@ export const PlexResources = ({ serverId }: { serverId: number }) => {
     </Select>
   );
 
-  const percentChart = (points: typeof cpu, colors: { system: string; plex: string }, view: ResourceView) => (
+  const percentChart = (points: typeof cpu, colors: { system: string; plex: string }, view: ResourceView,
+    focus: ResourceLine | null, setFocus: (line: ResourceLine | null) => void) => {
+    const faded = (line: ResourceLine) => focus !== null && focus !== line;
+    const lines: { key: ResourceLine; name: string }[] = [
+      ...(view !== 'plex' ? [{ key: 'system' as const, name: 'System' }] : []),
+      ...(view !== 'system' ? [{ key: 'plex' as const, name: 'Plex Media Server' }] : []),
+    ];
+    return (
     <ResponsiveContainer width="100%" height={300}>
-      <LineChart data={points} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
+      <LineChart data={points} margin={{ top: 10, right: 20, left: 0, bottom: 0 }} onMouseLeave={() => setFocus(null)}>
         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" opacity={0.35} />
         <XAxis dataKey="at" tickFormatter={(at) => secondsAgo(String(at), resourcesLatest)} tickLine={false} axisLine={false} tickMargin={6} tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }} minTickGap={24} />
         <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} tickLine={false} axisLine={false} tickMargin={6} tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }} width={44} />
         <Tooltip content={percentTooltip} />
-        <Legend {...legendProps} />
-        {view !== 'plex' && <Line type="monotone" dataKey="system" name="System" stroke={colors.system} strokeWidth={2} dot={false} connectNulls isAnimationActive={false} />}
-        {view !== 'system' && <Line type="monotone" dataKey="plex" name="Plex Media Server" stroke={colors.plex} strokeWidth={2} dot={false} connectNulls isAnimationActive={false} />}
+        <Legend {...legendProps}
+          onMouseEnter={(entry: { dataKey?: unknown }) => setFocus(entry.dataKey === 'system' || entry.dataKey === 'plex' ? entry.dataKey : null)}
+          onMouseLeave={() => setFocus(null)}
+          formatter={(value: string, entry: { dataKey?: unknown }) => <span style={{ opacity: faded(entry.dataKey as ResourceLine) ? 0.35 : 1, transition: 'opacity .15s' }}>{value}</span>} />
+        {lines.map(({ key, name }) => <Line key={key} type="monotone" dataKey={key} name={name} stroke={colors[key]} strokeWidth={2} strokeOpacity={faded(key) ? 0.2 : 1}
+          dot={false} connectNulls isAnimationActive={false} />)}
+        {/* Wider invisible twins catch the pointer near a thin line; they stay out of the legend and tooltip. */}
+        {lines.map(({ key }) => <Line key={`${key}-hover`} type="monotone" dataKey={key} stroke="transparent" strokeWidth={14} dot={false} activeDot={false}
+          connectNulls isAnimationActive={false} legendType="none" tooltipType="none" onMouseEnter={() => setFocus(key)} onMouseLeave={() => setFocus(null)} />)}
       </LineChart>
     </ResponsiveContainer>
-  );
+    );
+  };
   const resourceState = (points: typeof cpu) =>
     resources.error ? <ChartMessage error text={resources.error} />
       : !resources.loading && points.length === 0 ? <ChartMessage text="Plex reported no recent readings." /> : null;
@@ -261,12 +279,12 @@ export const PlexResources = ({ serverId }: { serverId: number }) => {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <ChartCard title="CPU" description={`Processor use over the last few minutes. Averages: ${resourceSummary(cpu, cpuView)}.`} icon={faMicrochip} loading={resources.loading}
           actions={viewPicker(cpuView, setCpuView, 'CPU lines')}>
-          {percentChart(cpu, CPU_COLORS, cpuView)}
+          {percentChart(cpu, CPU_COLORS, cpuView, cpuFocus, setCpuFocus)}
           {resourceState(cpu)}
         </ChartCard>
         <ChartCard title="Memory" description={`Memory use over the last few minutes. Averages: ${resourceSummary(memory, memoryView)}.`} icon={faMemory} loading={resources.loading}
           actions={viewPicker(memoryView, setMemoryView, 'Memory lines')}>
-          {percentChart(memory, MEMORY_COLORS, memoryView)}
+          {percentChart(memory, MEMORY_COLORS, memoryView, memoryFocus, setMemoryFocus)}
           {resourceState(memory)}
         </ChartCard>
       </div>

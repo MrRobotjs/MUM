@@ -13,7 +13,6 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
-	"net/url"
 	"path"
 	"strings"
 	"sync"
@@ -173,6 +172,7 @@ func NewApp(store *Store, queue *LogQueue, assets fs.FS) (*App, error) {
 	handle("GET /api/activity/history", a.activityRead)
 	handle("GET /api/activity/summary", a.activitySummary)
 	handle("GET /api/graphs/analytics", a.graphAnalytics)
+	handle("GET /api/graphs/play-history", a.graphPlayHistory)
 	handle("GET /api/activity/identities/{identity}/current", a.activityRead)
 	handle("GET /api/activity/identities/{identity}/history", a.activityRead)
 	handle("GET /api/activity/identities/{identity}/timeline", a.identityTimeline)
@@ -334,24 +334,21 @@ func NewApp(store *Store, queue *LogQueue, assets fs.FS) (*App, error) {
 	handle("/api/", func(w http.ResponseWriter, r *http.Request) { fail(w, 404, "NOT_FOUND", "API route not found") })
 	handle("/socket.io/", func(w http.ResponseWriter, r *http.Request) { fail(w, 404, "NOT_FOUND", "Route not found") })
 	mux.Handle("/", spaHandler(assets, func(r *http.Request) bool { return a.setting(r.Context(), "SETUP_COMPLETE", "") == "true" }))
+	crossOrigin := http.NewCrossOriginProtection()
 	a.handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		r = a.applyForwarded(r)
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		if strings.HasPrefix(r.URL.Path, "/api/") {
 			w.Header().Set("Cache-Control", "no-store")
 		}
-		if r.Method != "GET" && r.Method != "HEAD" && r.Method != "OPTIONS" {
-			if origin := r.Header.Get("Origin"); origin != "" {
-				u, err := url.Parse(origin)
-				scheme := "http"
-				if requestHTTPS(r) {
-					scheme = "https"
-				}
-				if err != nil || u.Host != r.Host || u.Scheme != scheme {
-					fail(w, 403, "ORIGIN_REJECTED", "Origin is not permitted")
-					return
-				}
-			}
+		// Requests that change something are refused when a browser sends them
+		// from another site: by its Sec-Fetch-Site header, or, without one, by an
+		// Origin naming another host. The scheme is not compared, so a sign-in
+		// through an HTTPS reverse proxy works before the proxy is trusted.
+		// Requests with neither header (tools, scripts) are allowed.
+		if err := crossOrigin.Check(r); err != nil {
+			fail(w, 403, "ORIGIN_REJECTED", "Origin is not permitted")
+			return
 		}
 		mux.ServeHTTP(w, r)
 	})

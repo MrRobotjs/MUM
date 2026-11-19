@@ -74,7 +74,7 @@ const ServerTag = ({ servers, lit }: { servers: ActivityServer[]; lit: boolean }
   const more = servers.length - 1;
   const colour = { '--stat-server-color': `var(${getServicePalette(first.service_type).avatar.replace(/^bg-/, '--color-')})` } as CSSProperties;
   return <span className="dashboard-stat-badges" data-lit={lit || undefined} style={colour} title={`On ${list(servers.map(s => s.name))}`}>
-    <span className="dashboard-stat-server"><ServiceIcon serviceType={first.service_type} className="dashboard-stat-server-icon" />{first.name}</span>
+    <span className="dashboard-stat-server"><ServiceIcon serviceType={first.service_type} className="dashboard-stat-server-icon" /><span className="dashboard-stat-server-name">{first.name}</span></span>
     {more > 0 && <span className="dashboard-stat-more">+{more}</span>}
   </span>;
 };
@@ -110,25 +110,23 @@ const StatCard = ({ title, metric, rows, round }: { title: string; metric: strin
   const leave = () => { setActive(0); setEngaged(false); };
   return <div className="dashboard-stat-card" onMouseLeave={leave}
     onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) leave(); }}>
-    <div className={round ? 'dashboard-stat-visual dashboard-stat-round' : 'dashboard-stat-visual'}>{shown?.visual}</div>
-    <div className="min-w-0">
-      <div className="dashboard-stat-head">
-        <span className="dashboard-stat-heading"><strong>{title}</strong>{shown?.who && <span className="dashboard-stat-who">· {shown.who}</span>}</span>
-        <span className="dashboard-stat-metric">{engaged && shown?.metric ? shown.metric : metric}</span>
-      </div>
-      <ol className="dashboard-stat-list">
-        {rows.map((row, i) => <li key={row.key} className="dashboard-stat-row" data-active={i === active || undefined} tabIndex={0}
-          onMouseEnter={() => { setActive(i); setEngaged(true); }} onFocus={() => { setActive(i); setEngaged(true); }}>
-          <span className="dashboard-stat-rank">{i + 1}</span>
-          <span className="dashboard-stat-title">
-            <span className="dashboard-stat-name">{row.title}</span>
-            {row.subtitle && <span className="dashboard-stat-sub">· {row.subtitle}</span>}
-            {row.badges && row.badges.length > 0 && <ServerTag servers={row.badges} lit={i === current} />}
-          </span>
-          <span className="dashboard-stat-value">{row.value}</span>
-        </li>)}
-      </ol>
+    <div className="dashboard-stat-head">
+      <span className="dashboard-stat-heading"><strong>{title}</strong>{shown?.who && <span className="dashboard-stat-who">· {shown.who}</span>}</span>
+      <span className="dashboard-stat-metric">{engaged && shown?.metric ? shown.metric : metric}</span>
     </div>
+    <div className={round ? 'dashboard-stat-visual dashboard-stat-round' : 'dashboard-stat-visual'}>{shown?.visual}</div>
+    <ol className="dashboard-stat-list">
+      {rows.map((row, i) => <li key={row.key} className="dashboard-stat-row" data-active={i === active || undefined} tabIndex={0}
+        onMouseEnter={() => { setActive(i); setEngaged(true); }} onFocus={() => { setActive(i); setEngaged(true); }}>
+        <span className="dashboard-stat-rank">{i + 1}</span>
+        <span className="dashboard-stat-title">
+          <span className="dashboard-stat-name">{row.title}</span>
+          {row.subtitle && <span className="dashboard-stat-sub">· {row.subtitle}</span>}
+          {row.badges && row.badges.length > 0 && <ServerTag servers={row.badges} lit={i === current} />}
+        </span>
+        <span className="dashboard-stat-value">{row.value}</span>
+      </li>)}
+    </ol>
   </div>;
 };
 

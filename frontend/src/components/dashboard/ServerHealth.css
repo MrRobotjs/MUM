@@ -61,14 +61,17 @@
 .dashboard-overview-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: 1rem; }
 .dashboard-overview-tile:hover { border-color: var(--border); box-shadow: none; }
 /* Activity statistics: the highlighted row's picture, then a ranked list. */
-.dashboard-stat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(24rem, 1fr)); gap: 1rem; }
-.dashboard-stat-card { display: grid; grid-template-columns: 5.5rem minmax(0, 1fr); gap: 1rem; min-width: 0; border: 1px solid var(--border); border-radius: .75rem; background: var(--card); padding: 1rem; }
-.dashboard-stat-visual { display: flex; width: 5.5rem; aspect-ratio: 2 / 3; align-self: center; align-items: center; justify-content: center; overflow: hidden; border-radius: .375rem; background: var(--muted); color: var(--muted-foreground); font-size: 2.25rem; }
+/* Cards are at least 24rem wide, or the whole width on a narrower screen. */
+.dashboard-stat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(24rem, 100%), 1fr)); gap: 1rem; }
+/* The picture beside the heading and the list; on phones the heading runs
+   across the top, over the picture. */
+.dashboard-stat-card { display: grid; grid-template-columns: 5.5rem minmax(0, 1fr); grid-template-rows: auto 1fr; grid-template-areas: "visual head" "visual list"; column-gap: 1rem; min-width: 0; border: 1px solid var(--border); border-radius: .75rem; background: var(--card); padding: 1rem; }
+.dashboard-stat-visual { grid-area: visual; display: flex; width: 5.5rem; aspect-ratio: 2 / 3; align-self: center; align-items: center; justify-content: center; overflow: hidden; border-radius: .375rem; background: var(--muted); color: var(--muted-foreground); font-size: 2.25rem; }
 .dashboard-stat-initial { font-size: 2.25rem; font-weight: 600; color: var(--primary); }
 .dashboard-stat-round { aspect-ratio: 1; border-radius: 9999px; }
 .dashboard-stat-avatar { width: 100%; height: 100%; object-fit: cover; }
 /* Up to ten rows, five in view; the list scrolls with its scrollbar on the left, shown on hover. */
-.dashboard-stat-list { max-height: 9.75rem; overflow-y: auto; direction: rtl; scrollbar-width: thin; scrollbar-color: transparent transparent; }
+.dashboard-stat-list { grid-area: list; min-width: 0; max-height: 9.75rem; overflow-y: auto; direction: rtl; scrollbar-width: thin; scrollbar-color: transparent transparent; }
 .dashboard-stat-list > * { direction: ltr; }
 .dashboard-stat-card:hover .dashboard-stat-list { scrollbar-color: var(--border) transparent; }
 .dashboard-stat-row { cursor: default; border-radius: .25rem; outline: none; }
@@ -77,10 +80,14 @@
 .dashboard-stat-link:hover, .dashboard-stat-link:focus-visible { text-decoration: underline; }
 /* Recently played's title names who played the highlighted title, as written. */
 .dashboard-stat-heading { display: flex; min-width: 0; gap: .375rem; white-space: nowrap; }
+/* A long title is cut short rather than running into the figure; who played
+   it gives way first. */
+.dashboard-stat-heading strong { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.dashboard-stat-heading .dashboard-stat-who { flex: 0 1000 auto; }
 .dashboard-stat-who { min-width: 0; overflow: hidden; text-overflow: ellipsis; text-transform: none; letter-spacing: normal; }
-.dashboard-stat-metric { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dashboard-stat-metric { flex: none; white-space: nowrap; }
 .dashboard-stat-row:focus-visible { box-shadow: 0 0 0 2px var(--ring); }
-.dashboard-stat-head { display: flex; justify-content: space-between; gap: .5rem; margin-bottom: .375rem; border-bottom: 1px solid var(--border); padding-bottom: .375rem; font-size: .75rem; letter-spacing: .04em; text-transform: uppercase; color: var(--muted-foreground); }
+.dashboard-stat-head { grid-area: head; min-width: 0; display: flex; justify-content: space-between; gap: .5rem; margin-bottom: .375rem; border-bottom: 1px solid var(--border); padding-bottom: .375rem; font-size: .75rem; letter-spacing: .04em; text-transform: uppercase; color: var(--muted-foreground); }
 .dashboard-stat-head strong { color: var(--foreground); font-weight: 600; }
 .dashboard-stat-row { display: flex; height: 1.875rem; align-items: center; gap: .5rem; min-width: 0; font-size: .875rem; }
 .dashboard-stat-row:first-child { height: 2.25rem; font-size: 1.05rem; font-weight: 600; }
@@ -97,6 +104,15 @@
 .dashboard-stat-server { display: inline-flex; align-items: center; gap: .25rem; color: var(--muted-foreground); font-size: .75rem; transition: color .15s; }
 .dashboard-stat-server-icon { width: .875rem; height: .875rem; }
 .dashboard-stat-badges[data-lit] .dashboard-stat-server { color: var(--stat-server-color); }
+/* Phones: a smaller picture and tighter card so titles keep their room; a
+   row's server shows as its icon only (named on hover or long press). */
+@media (max-width: 40rem) {
+  .dashboard-stat-card { grid-template-columns: 3.75rem minmax(0, 1fr); grid-template-rows: auto auto; grid-template-areas: "head head" "visual list"; column-gap: .75rem; padding: .75rem; }
+  .dashboard-stat-visual { width: 3.75rem; font-size: 1.5rem; }
+  .dashboard-stat-initial { font-size: 1.5rem; }
+  .dashboard-stat-row:first-child { font-size: .95rem; }
+  .dashboard-stat-server-name { display: none; }
+}
 .dashboard-stat-value { flex: none; font-variant-numeric: tabular-nums; font-weight: 600; color: var(--primary); }
 /* The Media Servers page: one wider card per server. */
 .dashboard-servers-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(22rem, 1fr)); gap: 1rem; }

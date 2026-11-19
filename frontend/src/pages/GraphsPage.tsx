@@ -1,6 +1,7 @@
 import { formatCalendarDate } from '../util/calendarDates';
 import { useAccountDisplay } from '../hooks/useAccountDisplay';
 import { graphEmptyMessage, graphUnavailable } from '../lib/graphs';
+import { PlayHistoryChart } from '../components/graphs/PlayHistoryChart';
 import { useEffect, useMemo, useState } from 'react';
 import {
   Area,
@@ -962,6 +963,10 @@ export const ActivityGraphs = ({ serverId: fixedServerId }: { serverId?: number 
               ) : null}
             </div>
           )}
+        </div>
+
+        <div className="md:col-span-2">
+          <PlayHistoryChart days={days} serverId={effectiveServerIdFilter} />
         </div>
 
         <div>

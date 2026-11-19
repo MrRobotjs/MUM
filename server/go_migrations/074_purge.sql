@@ -1,4 +1,4 @@
--- Purge and purge protection (user decision 2026-11-15, PURGE_DESIGN.md).
+-- Purge and purge protection.
 --
 -- Plays read from a Plex server's own history, kept apart from MUM's activity
 -- history because they have no length, player or quality. Only the purge reads

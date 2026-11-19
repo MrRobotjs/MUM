@@ -34,7 +34,7 @@ type releaseTarget struct {
 	GOOS, GOARCH, File string
 }
 
-// The distribution targets named in AGENTS.md: Windows amd64, Linux amd64 and
+// The distribution targets: Windows amd64, Linux amd64 and
 // macOS arm64, all with CGO disabled.
 var releaseTargets = []releaseTarget{
 	{"windows", "amd64", "mum-windows-amd64.exe"},

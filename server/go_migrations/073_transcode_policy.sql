@@ -1,4 +1,4 @@
--- 4K transcoding policy (user decision 2026-11-15). A server account with
+-- 4K transcoding policy. A server account with
 -- allow_4k_transcode=0 has its streams stopped when the server transcodes a
 -- 4K source. Each playback is stopped at most once: the attempt is recorded
 -- before the server is asked, so a failed or uncertain stop is never repeated,

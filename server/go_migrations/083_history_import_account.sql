@@ -1,4 +1,4 @@
--- Per-person imports (HISTORY_TOOLBAR_DESIGN.md): a run that imports one
+-- Per-person imports: a run that imports one
 -- account's history records that account; NULL is a full import of the server.
 -- Audiobookshelf sessions also bring how long they were listened to, for the
 -- History tab's Listened column; NULL when unknown or never reported.

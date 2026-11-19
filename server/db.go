@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"crypto/sha256"
 	"database/sql"
 	"embed"
 	"errors"
@@ -221,10 +220,16 @@ func (s *Store) migrate(ctx context.Context) error {
 			if err != nil {
 				return err
 			}
-			checksum := fmt.Sprintf("%x", sha256.Sum256(body))
+			checksum := migrationChecksum(body)
 			if previous, ok := applied[file.Name()]; ok {
-				if previous != checksum || missing {
+				if !migrationApplied(file.Name(), previous, body) || missing {
 					return fmt.Errorf("migration %s has changed or its history has a gap", file.Name())
+				}
+				// An earlier form of the fingerprint is replaced by the current one.
+				if previous != checksum {
+					if _, err := tx.ExecContext(ctx, "UPDATE schema_migrations SET checksum=? WHERE version=?", checksum, file.Name()); err != nil {
+						return err
+					}
 				}
 				continue
 			}
@@ -297,7 +302,7 @@ func (s *Store) verifyCurrentSchema(ctx context.Context) error {
 		if e != nil {
 			return e
 		}
-		if checksum != fmt.Sprintf("%x", sha256.Sum256(body)) {
+		if !migrationApplied(version, checksum, body) {
 			return errors.New("recovery refuses a changed migration checksum")
 		}
 		i++

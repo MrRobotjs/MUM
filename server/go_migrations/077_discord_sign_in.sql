@@ -1,5 +1,4 @@
--- Discord setup, linking and sign-in (DISCORD_SIGN_IN_DESIGN.md, user
--- decisions 2026-11-16).
+-- Discord setup, linking and sign-in.
 
 -- Sign in with Discord (off by default; administrators only with the second
 -- switch), defaults that pre-tick new invitations, and the name of the Discord

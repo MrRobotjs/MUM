@@ -1,5 +1,5 @@
--- Posters for plays imported from a Plex server's own history (user decision
--- 2026-11-16). The same reference MUM keeps with its own plays: the item whose
+-- Posters for plays imported from a Plex server's own history. The same
+-- reference MUM keeps with its own plays: the item whose
 -- poster it is (the movie, the show of an episode, the album of a track) and
 -- that item's own thumbnail path. Every import run fills in a missing poster
 -- and never replaces one already stored.

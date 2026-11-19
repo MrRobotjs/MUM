@@ -1,5 +1,5 @@
--- The Users page "Mass Edit" feature is called Edit everywhere (user decision
--- 2026-11-12): its tables, index and recorded audit actions are renamed from
+-- The Users page "Mass Edit" feature is called Edit everywhere: its tables,
+-- index and recorded audit actions are renamed from
 -- "bulk" to "edit". Foreign keys between these tables follow the rename.
 ALTER TABLE bulk_operations RENAME TO edit_operations;
 ALTER TABLE bulk_source_locks RENAME TO edit_source_locks;

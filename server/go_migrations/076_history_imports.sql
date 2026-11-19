@@ -1,5 +1,5 @@
--- Play history imported from every supported service (HISTORY_IMPORT_DESIGN.md,
--- user decision 2026-11-16). One store replaces the Plex-only tables of 074 and
+-- Play history imported from every supported service. One store replaces the
+-- Plex-only tables of 074 and
 -- 075; their rows and run status move here unchanged.
 --
 -- One row per entry of a server's own history; repeat imports skip stored keys.

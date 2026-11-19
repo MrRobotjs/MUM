@@ -12,6 +12,7 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Card, CardContent } from '../components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
+import { createAppColumnHelper, useAppTable } from '../components/table/DataTable';
 import { Button } from '../components/ui/button';
 import { ResponsiveDialog } from '../components/ui/responsive-dialog';
 import { Badge } from '../components/ui/badge';
@@ -44,6 +45,61 @@ const formatCount = (value?: number | null) => {
   if (value === null || value === undefined) return 'N/A';
   return value.toLocaleString();
 };
+
+const libraryColumnHelper = createAppColumnHelper<Library>();
+
+// One server's libraries.
+function ServerLibrariesTable({ libraries, formatDateTime, onRaw }: {
+  libraries: Library[]; formatDateTime: (value?: string | null) => string; onRaw: (library: Library) => void;
+}) {
+  const columns = [
+    libraryColumnHelper.display({ id: 'library', header: 'Library', meta: { headClassName: 'min-w-[200px]' }, cell: ({ row: { original: library } }) => (
+      <div className="space-y-1">
+        <Link
+          to="/admin/servers/$serverId/libraries/$libraryId"
+          params={{ serverId: String(library.server_id), libraryId: String(library.id) }}
+          search={{ tab: 'overview' }}
+          className="font-semibold text-primary hover:underline"
+        >
+          {library.name}
+        </Link>
+        <p className="text-xs text-muted-foreground">
+          ID {library.external_id}
+        </p>
+      </div>
+    ) }),
+    libraryColumnHelper.display({ id: 'type', header: 'Type', cell: ({ row: { original: library } }) => (
+      <Badge variant="secondary" className="capitalize">
+        {library.library_type?.replace(/_/g, ' ') || 'Unknown'}
+      </Badge>
+    ) }),
+    libraryColumnHelper.display({ id: 'items', header: 'Items', meta: { cellClassName: 'font-semibold' }, cell: ({ row }) => formatCount(row.original.item_count) }),
+    libraryColumnHelper.display({ id: 'scanned', header: 'Last Scanned', cell: ({ row }) => formatDateTime(row.original.last_scanned) }),
+    libraryColumnHelper.display({ id: 'actions', header: 'Actions', meta: { headClassName: 'text-right', cellClassName: 'text-right' }, cell: ({ row }) => (
+      <Button size="sm" variant="ghost" onClick={() => onRaw(row.original)}>
+        <FontAwesomeIcon icon={faCode} />
+        <span className="sr-only">View raw JSON</span>
+      </Button>
+    ) }),
+  ];
+  const table = useAppTable({ columns, data: libraries, getRowId: library => String(library.id) });
+  return (
+    <Table>
+      <TableHeader>
+        {table.getHeaderGroups().map(group => <TableRow key={group.id}>
+          {group.headers.map(header => <TableHead key={header.id} className={header.column.columnDef.meta?.headClassName}><table.FlexRender header={header} /></TableHead>)}
+        </TableRow>)}
+      </TableHeader>
+      <TableBody>
+        {table.getRowModel().rows.map((row) => (
+          <TableRow key={row.id}>
+            {row.getVisibleCells().map(cell => <TableCell key={cell.id} className={cell.column.columnDef.meta?.cellClassName}><table.FlexRender cell={cell} /></TableCell>)}
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  );
+}
 
 export const LibrariesPage = () => {
   const { formatTimestamp } = useAccountDisplay();
@@ -452,51 +508,7 @@ export const LibrariesPage = () => {
                       <Separator />
                       {serverLibraries.length > 0 ? (
                         <div className="overflow-x-auto">
-                          <Table>
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead className="min-w-[200px]">Library</TableHead>
-                                <TableHead>Type</TableHead>
-                                <TableHead>Items</TableHead>
-                                <TableHead>Last Scanned</TableHead>
-                                <TableHead className="text-right">Actions</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {serverLibraries.map((library) => (
-                                <TableRow key={library.id}>
-                                  <TableCell>
-                                    <div className="space-y-1">
-                                      <Link
-                                        to="/admin/servers/$serverId/libraries/$libraryId"
-                                        params={{ serverId: String(library.server_id), libraryId: String(library.id) }}
-                                        search={{ tab: 'overview' }}
-                                        className="font-semibold text-primary hover:underline"
-                                      >
-                                        {library.name}
-                                      </Link>
-                                      <p className="text-xs text-muted-foreground">
-                                        ID {library.external_id}
-                                      </p>
-                                    </div>
-                                  </TableCell>
-                                  <TableCell>
-                                    <Badge variant="secondary" className="capitalize">
-                                      {library.library_type?.replace(/_/g, ' ') || 'Unknown'}
-                                    </Badge>
-                                  </TableCell>
-                                  <TableCell className="font-semibold">{formatCount(library.item_count)}</TableCell>
-                                  <TableCell>{formatDateTime(library.last_scanned)}</TableCell>
-                                  <TableCell className="text-right">
-                                    <Button size="sm" variant="ghost" onClick={() => openRawModal(library)}>
-                                      <FontAwesomeIcon icon={faCode} />
-                                      <span className="sr-only">View raw JSON</span>
-                                    </Button>
-                                  </TableCell>
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
+                          <ServerLibrariesTable libraries={serverLibraries} formatDateTime={formatDateTime} onRaw={openRawModal} />
                         </div>
                       ) : (
                         <div className="p-4 text-sm text-muted-foreground">

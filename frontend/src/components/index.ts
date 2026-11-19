@@ -8,7 +8,6 @@ export * from './layout/NavSettings';
 export * from './layout/NavUser';
 export * from './common/Badge';
 export * from './common/PageHeader';
-export * from './common/Table';
 export * from './common/Tabs';
 export * from './common/Pagination';
 export * from './forms/FormField';

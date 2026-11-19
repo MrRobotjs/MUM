@@ -10,7 +10,8 @@ import {deleteTimelinePlays,historyServiceName,offeredSource,timelineMethods,typ
 import {fetchPersonHistoryImport,historyImportSupport,personImportSummary,startPersonHistoryImport} from '../lib/personHistoryImport';
 import {startPlayHistoryImport} from '../lib/playHistory';
 import {useAuth} from '../contexts/AuthContext';
-import {DropdownMenu,DropdownMenuCheckboxItem,DropdownMenuContent,DropdownMenuTrigger} from '@/components/ui/dropdown-menu';
+import type {RowSelectionState} from '@tanstack/react-table';
+import {applyUpdater,createAppColumnHelper,useAppTable,useRememberedColumns} from '../components/table/DataTable';
 import {Select,SelectContent,SelectItem,SelectTrigger,SelectValue} from '@/components/ui/select';
 import {observationProgress} from '../lib/activityHistory';
 import { useOverseerr } from '../hooks/useOverseerr';
@@ -84,7 +85,6 @@ import {
   faPodcast,
   faTrashCan,
   faFileImport,
-  faTableColumns,
   faCirclePlay,
   faBars,
   faGears,
@@ -520,16 +520,12 @@ const historyColumnHints: Partial<Record<HistoryColumn, string>> = {
 const historyColumns = (type: string): HistoryColumn[] => type === 'audiobookshelf' ? ['poster', 'title', 'author', 'date', 'listened', 'progress']
   : type === 'plex' ? ['poster', 'title', 'platform', 'product', 'player', 'decision', 'date', 'ip', 'started', 'paused', 'stopped', 'duration', 'progress']
   : ['poster', 'title', 'product', 'player', 'decision', 'date', 'started', 'paused', 'stopped', 'duration', 'progress'];
-const historyColumnKey = 'mum.history.columns';
 // Hidden columns per server type, remembered per browser.
-const readHiddenColumns = (): Record<string, HistoryColumn[]> => {
-  try {
-    const value: unknown = JSON.parse(localStorage.getItem(historyColumnKey) ?? '{}');
-    if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
-    return Object.fromEntries(Object.entries(value).filter(([, v]) => Array.isArray(v)).map(([k, v]) => [k, (v as unknown[]).filter((c): c is HistoryColumn => typeof c === 'string' && c in historyColumnLabels && c !== 'title')]));
-  } catch { return {}; }
-};
-const saveHiddenColumns = (value: Record<string, HistoryColumn[]>) => { try { localStorage.setItem(historyColumnKey, JSON.stringify(value)); } catch { /* not remembered */ } };
+const historyColumnKey = 'mum.history.columns';
+const historyHeadClass = (column: HistoryColumn) => column === 'poster' ? 'w-20 py-3 px-4 text-sm font-medium text-muted-foreground' : column === 'progress' ? 'text-center py-3 px-4 text-sm font-medium text-muted-foreground' : 'text-left py-3 px-4 text-sm font-medium text-muted-foreground';
+const historyCellClass = (column: HistoryColumn) => column === 'progress' ? 'py-3 px-4 text-center' : column === 'title' ? 'account-history-title py-3 px-4' : column === 'poster' ? 'py-3 px-4' : 'py-3 px-4 text-sm whitespace-nowrap';
+const historyColumnHelper = createAppColumnHelper<TimelineItem>();
+const noTimelineItems: TimelineItem[] = [];
 
 const categoryButtons: Record<TimelineCategory, { label: string; icon: IconDefinition }> = {
   movies: { label: 'Movies', icon: faFilm }, tv: { label: 'TV Shows', icon: faTv }, music: { label: 'Music', icon: faMusic },
@@ -550,12 +546,78 @@ const HistoryTab = ({ history, target, view, onViewChange, admin }: {
   const [marked, setMarked] = useState<ReadonlySet<string>>(new Set());
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [hidden, setHidden] = useState(readHiddenColumns);
   const [importNote, setImportNote] = useState<{ server: string; text: string; running: boolean } | null>(null);
   const [fullImport, setFullImport] = useState<TimelineServer | null>(null);
   const [importing, setImporting] = useState(false);
   const shown = page?.servers.find(s => s.server_id === page.server_id);
   const streams = Boolean(shown?.live) && view.records !== 'server';
+  const shownType = shown?.service_type ?? '';
+  const shownLive = Boolean(shown?.live);
+  const [columnVisibility, onColumnVisibilityChange] = useRememberedColumns(historyColumnKey, shownType, ['title']);
+
+  // The table's columns: the shown server type's, with a delete column in delete mode.
+  const columns = useMemo(() => {
+    const cell = (column: HistoryColumn, row: TimelineItem) => {
+      const service = row.source === 'mum' ? null : historyServiceName[row.source];
+      const none = <span className="text-muted-foreground" title={service ? `Not recorded by ${service}` : 'Not recorded'}>—</span>;
+      switch (column) {
+        case 'poster': return <HistoryPoster url={row.poster_url} title={row.title} />;
+        case 'title': return <>
+          <div className="font-medium">{row.title || (service ? 'Removed item' : 'Unknown Title')}</div>
+          {row.parent_title && shownType !== 'audiobookshelf' && <div className="text-xs text-muted-foreground">{row.parent_title}</div>}
+          {row.library_name && <div className="text-xs text-muted-foreground/60"><FontAwesomeIcon icon={faFolder} className="mr-1 h-3 w-3" />{row.library_name}</div>}
+          {service && view.records === 'all' && shownLive && <span className="mt-1 inline-flex items-center rounded-md px-2.5 py-0.5 text-xs font-semibold bg-muted text-muted-foreground" title={`Imported from the ${service} server's own play history`}>{service} history</span>}
+        </>;
+        case 'platform': return row.platform ?? none;
+        case 'product': return row.client ?? none;
+        case 'player': return row.player ?? none;
+        case 'decision': return row.play_method ? playMethodLabels[row.play_method] ?? none : none;
+        case 'date': return formatTimestamp(row.played_at, 'date');
+        case 'ip': return <span className="font-mono">{row.ip_address ?? none}</span>;
+        case 'started': return formatTimestamp(row.played_at, 'time');
+        case 'paused': return row.paused_seconds !== null ? minutes(row.paused_seconds) : none;
+        case 'stopped': return row.stopped_at !== null ? formatTimestamp(row.stopped_at, 'time') : none;
+        case 'duration': return row.watched_seconds !== null ? minutes(row.watched_seconds) : none;
+        case 'author': return row.parent_title ?? none;
+        case 'listened': return row.listened_seconds !== null ? minutes(row.listened_seconds) : none;
+        case 'progress': {
+          if (row.position_ticks === null) return <span className="text-xs text-muted-foreground">{row.source === 'plex' ? 'Watched' : 'Played'}</span>;
+          const percent = Math.min(Math.round(observationProgress(row.position_ticks, row.duration_ticks) ?? 0), 100);
+          return <div className="inline-flex items-center justify-center" title={row.duration_ticks !== null ? `${formatTicks(row.position_ticks)} of ${formatTicks(row.duration_ticks)}` : formatTicks(row.position_ticks)}>
+            <div className="relative size-12">
+              <svg className="size-12 transform -rotate-90">
+                <circle cx="24" cy="24" r="20" stroke="currentColor" strokeWidth="4" fill="none" className="text-muted/30" />
+                <circle cx="24" cy="24" r="20" stroke="currentColor" strokeWidth="4" fill="none" strokeDasharray={`${2 * Math.PI * 20}`} strokeDashoffset={`${2 * Math.PI * 20 * (1 - percent / 100)}`} className="text-primary transition-all" />
+              </svg>
+              <div className="absolute inset-0 flex items-center justify-center"><span className="text-xs font-mono font-semibold">{percent}%</span></div>
+            </div>
+          </div>;
+        }
+      }
+    };
+    const data = historyColumns(shownType).map(column => historyColumnHelper.display({
+      id: column, header: column === 'title' && shownType === 'audiobookshelf' ? 'Title' : historyColumnLabels[column], cell: info => cell(column, info.row.original),
+      enableHiding: column !== 'title',
+      meta: { label: column === 'title' && shownType === 'audiobookshelf' ? 'Title' : historyColumnLabels[column], headClassName: historyHeadClass(column), cellClassName: historyCellClass(column) },
+    }));
+    if (!deleteMode) return data;
+    // Delete mode: a button per play marks it; plays still being watched can't be marked.
+    return [historyColumnHelper.display({
+      id: 'delete', header: () => <span className="sr-only">Delete</span>, enableHiding: false,
+      meta: { headClassName: 'w-12 py-3 px-4', cellClassName: 'py-3 px-4' },
+      cell: ({ row }) => <Button variant={row.getIsSelected() ? 'destructive' : 'ghost'} size="icon-sm" disabled={!row.getCanSelect()} aria-pressed={row.getIsSelected()}
+        aria-label={`${row.getIsSelected() ? 'Keep' : 'Delete'} ${row.original.title || 'this play'}`} title={row.original.in_progress ? 'Still playing: it can be deleted once it ends' : undefined}
+        onClick={() => row.toggleSelected()}><FontAwesomeIcon icon={faTrashCan} /></Button>,
+    }), ...data];
+  }, [shownType, shownLive, view.records, deleteMode, formatTimestamp]);
+  const rowSelection = useMemo<RowSelectionState>(() => Object.fromEntries([...marked].map(id => [id, true])), [marked]);
+  const table = useAppTable({
+    columns, data: (page?.items as TimelineItem[] | undefined) ?? noTimelineItems, getRowId: row => row.id,
+    enableRowSelection: row => !row.original.in_progress,
+    state: { columnVisibility, rowSelection },
+    onColumnVisibilityChange,
+    onRowSelectionChange: updater => { const next = applyUpdater(updater, rowSelection); setMarked(new Set(Object.keys(next).filter(id => next[id]))); },
+  });
 
   // Filters the shown server and records don't offer are dropped, judged on
   // the page that answers the current view.
@@ -653,56 +715,10 @@ const HistoryTab = ({ history, target, view, onViewChange, admin }: {
   if (!shown) return <section className="space-y-4"><Card>{heading}<CardContent>{empty('They have no media server accounts.')}</CardContent></Card></section>;
   if (!shown.history) return <section className="space-y-4"><Card>{heading}<CardContent>{empty(`${serviceLabel(shown.service_type)} doesn’t share users’ history, so MUM has none to show for ${shown.name}.`)}</CardContent></Card></section>;
 
-  const columns = historyColumns(shown.service_type).filter(c => c === 'title' || !(hidden[shown.service_type] ?? []).includes(c));
-  const toggleColumn = (column: HistoryColumn) => setHidden(current => {
-    const list = current[shown.service_type] ?? [];
-    const updated = { ...current, [shown.service_type]: list.includes(column) ? list.filter(c => c !== column) : [...list, column] };
-    saveHiddenColumns(updated);
-    return updated;
-  });
   const toggleFilter = <T extends string>(list: readonly T[], value: T) => list.includes(value) ? list.filter(v => v !== value) : [...list, value];
   const canImport = admin && historyImportSupport(shown.service_type) !== 'none';
   const filtered = view.types.length > 0 || view.methods.length > 0;
 
-  const cell = (column: HistoryColumn, row: TimelineItem) => {
-    const service = row.source === 'mum' ? null : historyServiceName[row.source];
-    const none = <span className="text-muted-foreground" title={service ? `Not recorded by ${service}` : 'Not recorded'}>—</span>;
-    switch (column) {
-      case 'poster': return <HistoryPoster url={row.poster_url} title={row.title} />;
-      case 'title': return <>
-        <div className="font-medium">{row.title || (service ? 'Removed item' : 'Unknown Title')}</div>
-        {row.parent_title && shown.service_type !== 'audiobookshelf' && <div className="text-xs text-muted-foreground">{row.parent_title}</div>}
-        {row.library_name && <div className="text-xs text-muted-foreground/60"><FontAwesomeIcon icon={faFolder} className="mr-1 h-3 w-3" />{row.library_name}</div>}
-        {service && view.records === 'all' && shown.live && <span className="mt-1 inline-flex items-center rounded-md px-2.5 py-0.5 text-xs font-semibold bg-muted text-muted-foreground" title={`Imported from the ${service} server's own play history`}>{service} history</span>}
-      </>;
-      case 'platform': return row.platform ?? none;
-      case 'product': return row.client ?? none;
-      case 'player': return row.player ?? none;
-      case 'decision': return row.play_method ? playMethodLabels[row.play_method] ?? none : none;
-      case 'date': return formatTimestamp(row.played_at, 'date');
-      case 'ip': return <span className="font-mono">{row.ip_address ?? none}</span>;
-      case 'started': return formatTimestamp(row.played_at, 'time');
-      case 'paused': return row.paused_seconds !== null ? minutes(row.paused_seconds) : none;
-      case 'stopped': return row.stopped_at !== null ? formatTimestamp(row.stopped_at, 'time') : none;
-      case 'duration': return row.watched_seconds !== null ? minutes(row.watched_seconds) : none;
-      case 'author': return row.parent_title ?? none;
-      case 'listened': return row.listened_seconds !== null ? minutes(row.listened_seconds) : none;
-      case 'progress': {
-        if (row.position_ticks === null) return <span className="text-xs text-muted-foreground">{row.source === 'plex' ? 'Watched' : 'Played'}</span>;
-        const percent = Math.min(Math.round(observationProgress(row.position_ticks, row.duration_ticks) ?? 0), 100);
-        return <div className="inline-flex items-center justify-center" title={row.duration_ticks !== null ? `${formatTicks(row.position_ticks)} of ${formatTicks(row.duration_ticks)}` : formatTicks(row.position_ticks)}>
-          <div className="relative size-12">
-            <svg className="size-12 transform -rotate-90">
-              <circle cx="24" cy="24" r="20" stroke="currentColor" strokeWidth="4" fill="none" className="text-muted/30" />
-              <circle cx="24" cy="24" r="20" stroke="currentColor" strokeWidth="4" fill="none" strokeDasharray={`${2 * Math.PI * 20}`} strokeDashoffset={`${2 * Math.PI * 20 * (1 - percent / 100)}`} className="text-primary transition-all" />
-            </svg>
-            <div className="absolute inset-0 flex items-center justify-center"><span className="text-xs font-mono font-semibold">{percent}%</span></div>
-          </div>
-        </div>;
-      }
-    }
-  };
-  const cellClass = (column: HistoryColumn) => column === 'progress' ? 'py-3 px-4 text-center' : column === 'title' ? 'account-history-title py-3 px-4' : column === 'poster' ? 'py-3 px-4' : 'py-3 px-4 text-sm whitespace-nowrap';
 
   return (
     <section className="space-y-4">
@@ -716,13 +732,7 @@ const HistoryTab = ({ history, target, view, onViewChange, admin }: {
             {streams && timelineMethods.map(method => <Button key={method} variant={view.methods.includes(method) ? 'default' : 'outline'} size="sm" aria-pressed={view.methods.includes(method)}
               onClick={() => onViewChange({ ...view, methods: toggleFilter(view.methods, method) })}><FontAwesomeIcon icon={methodButtons[method].icon} />{methodButtons[method].label}</Button>)}
             {canImport && <Button variant="outline" size="sm" disabled={importing || Boolean(importNote?.running)} onClick={() => void startImport()}><FontAwesomeIcon icon={faFileImport} />Import history</Button>}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild><Button variant="outline" size="sm"><FontAwesomeIcon icon={faTableColumns} />Select columns</Button></DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {historyColumns(shown.service_type).map(column => <DropdownMenuCheckboxItem key={column} checked={columns.includes(column)} disabled={column === 'title'}
-                  onCheckedChange={() => toggleColumn(column)} onSelect={e => e.preventDefault()}>{column === 'title' && shown.service_type === 'audiobookshelf' ? 'Title' : historyColumnLabels[column]}</DropdownMenuCheckboxItem>)}
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <table.AppTable><table.ColumnsMenu /></table.AppTable>
             {pending && <Spinner className="size-4 text-muted-foreground" role="status" aria-label="Loading history" />}
           </div>
           {deleteMode && <p className="text-sm text-muted-foreground" role="status">Select rows to delete. They’re deleted when you leave delete mode{marked.size > 0 ? ` (${marked.size} selected)` : ''}.</p>}
@@ -731,20 +741,14 @@ const HistoryTab = ({ history, target, view, onViewChange, admin }: {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-border">
-                  {deleteMode && <th className="w-12 py-3 px-4"><span className="sr-only">Delete</span></th>}
-                  {columns.map(column => <th key={column} className={column === 'poster' ? 'w-20 py-3 px-4 text-sm font-medium text-muted-foreground' : column === 'progress' ? 'text-center py-3 px-4 text-sm font-medium text-muted-foreground' : 'text-left py-3 px-4 text-sm font-medium text-muted-foreground'}
-                    title={historyColumnHints[column]}>{column === 'title' && shown.service_type === 'audiobookshelf' ? 'Title' : historyColumnLabels[column]}</th>)}
+                  {table.getHeaderGroups()[0]?.headers.map(header => <th key={header.id} className={header.column.columnDef.meta?.headClassName}
+                    title={historyColumnHints[header.column.id as HistoryColumn]}><table.FlexRender header={header} /></th>)}
                 </tr>
               </thead>
               <tbody>
-                {page.items.map(row => (
+                {table.getRowModel().rows.map(row => (
                   <tr key={row.id} className="border-b border-border/50 hover:bg-muted/50 transition-colors">
-                    {deleteMode && <td className="py-3 px-4">
-                      <Button variant={marked.has(row.id) ? 'destructive' : 'ghost'} size="icon-sm" disabled={row.in_progress} aria-pressed={marked.has(row.id)}
-                        aria-label={`${marked.has(row.id) ? 'Keep' : 'Delete'} ${row.title || 'this play'}`} title={row.in_progress ? 'Still playing: it can be deleted once it ends' : undefined}
-                        onClick={() => toggleMark(row.id)}><FontAwesomeIcon icon={faTrashCan} /></Button>
-                    </td>}
-                    {columns.map(column => <td key={column} className={cellClass(column)}>{cell(column, row)}</td>)}
+                    {row.getVisibleCells().map(cell => <td key={cell.id} className={cell.column.columnDef.meta?.cellClassName}><table.FlexRender cell={cell} /></td>)}
                   </tr>
                 ))}
               </tbody>

@@ -42,6 +42,7 @@ import {
   faCircleInfo,
   faList,
 } from '@fortawesome/free-solid-svg-icons'
+import { createAppColumnHelper, useAppTable } from '../components/table/DataTable'
 
 type AdminRole = {
   id: string
@@ -71,6 +72,8 @@ type AdminRoleOption = {
   color?: string | null
   icon?: string | null
 }
+
+const adminColumnHelper = createAppColumnHelper<Admin>()
 
 const AdminSettingsAdminManagementPage = () => {
   const [admins, setAdmins] = useState<Admin[]>([])
@@ -309,6 +312,121 @@ const AdminSettingsAdminManagementPage = () => {
     setShowCreateModal(true)
   }
 
+  const adminColumns = [
+    adminColumnHelper.display({ id: 'id', header: 'ID', cell: ({ row: { original: admin } }) => <>
+          <div className="flex items-center gap-2">
+            <div
+              className={`flex size-6 items-center justify-center rounded-full ${
+                isOwner(admin) ? 'bg-amber-100/20' : 'bg-blue-100/20'
+              }`}
+            >
+              {isOwner(admin) ? (
+                <FontAwesomeIcon icon={faCrown} className="text-xs text-amber-600 dark:text-amber-400" />
+              ) : (
+                <FontAwesomeIcon icon={faUserTie} className="text-xs text-blue-600 dark:text-blue-400" />
+              )}
+            </div>
+            <span className="font-mono text-sm">{admin.id}</span>
+          </div>
+    </> }),
+    adminColumnHelper.display({ id: 'administrator', header: 'Administrator', cell: ({ row: { original: admin } }) => <>
+          <div className="flex items-center gap-3">
+            <Avatar className={isOwner(admin) ? 'bg-amber-100/20 text-amber-600 dark:text-amber-400' : 'bg-primary/20 text-primary'}>
+              <AvatarFallback>
+                {isOwner(admin) ? (
+                  <FontAwesomeIcon icon={faCrown} />
+                ) : (
+                  getInitials(admin.username)
+                )}
+              </AvatarFallback>
+            </Avatar>
+            <div>
+              <div className="font-medium">{admin.username}</div>
+              {admin.email && <div className="text-sm text-muted-foreground">{admin.email}</div>}
+            </div>
+          </div>
+    </> }),
+    adminColumnHelper.display({ id: 'type', header: 'Account Type', cell: ({ row: { original: admin } }) => <>
+          <UiBadge
+            variant="outline"
+            style={{
+              backgroundColor: isOwner(admin) ? '#faa61a20' : '#5865f220',
+              color: isOwner(admin) ? '#faa61a' : '#5865f2',
+              borderColor: isOwner(admin) ? '#faa61a40' : '#5865f240'
+            }}
+          >
+            <FontAwesomeIcon icon={isOwner(admin) ? faCrown : faUserTie} className="mr-1 size-3" />
+            {isOwner(admin) ? 'Owner' : 'Staff'}
+          </UiBadge>
+    </> }),
+    adminColumnHelper.display({ id: 'roles', header: 'Assigned Roles', cell: ({ row: { original: admin } }) => <>
+          {isOwner(admin) ? (
+            <UiBadge
+              variant="outline"
+              style={{
+                backgroundColor: '#faa61a20',
+                color: '#faa61a',
+                borderColor: '#faa61a40'
+              }}
+            >
+              <FontAwesomeIcon icon={faKey} className="mr-1 size-3" />
+              All Permissions
+            </UiBadge>
+          ) : admin.admin_roles.length > 0 ? (
+            <div className="flex flex-wrap gap-1">
+              {admin.admin_roles.map((role) => (
+                <RoleBadge key={role.id} role={role} kind="admin" />
+              ))}
+            </div>
+          ) : (
+            <span className="text-xs italic text-muted-foreground">No admin roles assigned</span>
+          )}
+    </> }),
+    adminColumnHelper.display({ id: 'actions', header: 'Actions', meta: { headClassName: 'text-right', cellClassName: 'text-right' }, cell: ({ row: { original: admin } }) => <>
+          <div className="flex items-center justify-end gap-2">
+            {isOwner(admin) ? (
+              <Button variant="ghost" size="sm" disabled>
+                <FontAwesomeIcon icon={faShield} className="mr-1 size-4" />
+                <span className="hidden md:inline">Protected</span>
+              </Button>
+            ) : isCurrentUser(admin) ? (
+              <Button variant="ghost" size="sm" disabled>
+                <FontAwesomeIcon icon={faLock} className="mr-1 size-4" />
+                <span className="hidden md:inline">Locked</span>
+              </Button>
+            ) : (
+              <>
+                <Button variant="ghost" size="sm" onClick={() => openEditModal(admin)} title="Edit Administrator">
+                  <FontAwesomeIcon icon={faPen} className="mr-1 size-4" />
+                  <span className="hidden md:inline">Edit</span>
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:bg-amber-400/10"
+                  onClick={() => openResetPasswordModal(admin)}
+                  title="Reset Password"
+                >
+                  <FontAwesomeIcon icon={faKey} className="mr-1 size-4" />
+                  <span className="hidden md:inline">Reset</span>
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-destructive hover:bg-destructive/10"
+                  onClick={() => handleDeleteAdmin(admin)}
+                  title="Delete Administrator"
+                >
+                  <FontAwesomeIcon icon={faTrash} className="mr-1 size-4" />
+                  <span className="hidden md:inline">Delete</span>
+                </Button>
+              </>
+            )}
+          </div>
+    </> }),
+  ]
+  const adminTable = useAppTable({ columns: adminColumns, data: filteredAdmins, getRowId: admin => String(admin.id) })
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -383,13 +501,9 @@ const AdminSettingsAdminManagementPage = () => {
             <div className="w-full min-w-0 rounded-lg border">
               <Table>
                 <TableHeader>
-                  <TableRow>
-                    <TableHead>ID</TableHead>
-                    <TableHead>Administrator</TableHead>
-                    <TableHead>Account Type</TableHead>
-                    <TableHead>Assigned Roles</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
+                  {adminTable.getHeaderGroups().map(group => <TableRow key={group.id}>
+                    {group.headers.map(header => <TableHead key={header.id} className={header.column.columnDef.meta?.headClassName}><adminTable.FlexRender header={header} /></TableHead>)}
+                  </TableRow>)}
                 </TableHeader>
                 <TableBody>
                   {filteredAdmins.length === 0 ? (
@@ -404,128 +518,9 @@ const AdminSettingsAdminManagementPage = () => {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredAdmins.map((admin) => (
-                      <TableRow key={admin.id}>
-                        {/* ID */}
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <div
-                              className={`flex size-6 items-center justify-center rounded-full ${
-                                isOwner(admin) ? 'bg-amber-100/20' : 'bg-blue-100/20'
-                              }`}
-                            >
-                              {isOwner(admin) ? (
-                                <FontAwesomeIcon icon={faCrown} className="text-xs text-amber-600 dark:text-amber-400" />
-                              ) : (
-                                <FontAwesomeIcon icon={faUserTie} className="text-xs text-blue-600 dark:text-blue-400" />
-                              )}
-                            </div>
-                            <span className="font-mono text-sm">{admin.id}</span>
-                          </div>
-                        </TableCell>
-
-                        {/* Administrator */}
-                        <TableCell>
-                          <div className="flex items-center gap-3">
-                            <Avatar className={isOwner(admin) ? 'bg-amber-100/20 text-amber-600 dark:text-amber-400' : 'bg-primary/20 text-primary'}>
-                              <AvatarFallback>
-                                {isOwner(admin) ? (
-                                  <FontAwesomeIcon icon={faCrown} />
-                                ) : (
-                                  getInitials(admin.username)
-                                )}
-                              </AvatarFallback>
-                            </Avatar>
-                            <div>
-                              <div className="font-medium">{admin.username}</div>
-                              {admin.email && <div className="text-sm text-muted-foreground">{admin.email}</div>}
-                            </div>
-                          </div>
-                        </TableCell>
-
-                        {/* Account Type */}
-                        <TableCell>
-                          <UiBadge
-                            variant="outline"
-                            style={{
-                              backgroundColor: isOwner(admin) ? '#faa61a20' : '#5865f220',
-                              color: isOwner(admin) ? '#faa61a' : '#5865f2',
-                              borderColor: isOwner(admin) ? '#faa61a40' : '#5865f240'
-                            }}
-                          >
-                            <FontAwesomeIcon icon={isOwner(admin) ? faCrown : faUserTie} className="mr-1 size-3" />
-                            {isOwner(admin) ? 'Owner' : 'Staff'}
-                          </UiBadge>
-                        </TableCell>
-
-                        {/* Assigned Roles */}
-                        <TableCell>
-                          {isOwner(admin) ? (
-                            <UiBadge
-                              variant="outline"
-                              style={{
-                                backgroundColor: '#faa61a20',
-                                color: '#faa61a',
-                                borderColor: '#faa61a40'
-                              }}
-                            >
-                              <FontAwesomeIcon icon={faKey} className="mr-1 size-3" />
-                              All Permissions
-                            </UiBadge>
-                          ) : admin.admin_roles.length > 0 ? (
-                            <div className="flex flex-wrap gap-1">
-                              {admin.admin_roles.map((role) => (
-                                <RoleBadge key={role.id} role={role} kind="admin" />
-                              ))}
-                            </div>
-                          ) : (
-                            <span className="text-xs italic text-muted-foreground">No admin roles assigned</span>
-                          )}
-                        </TableCell>
-
-                        {/* Actions */}
-                        <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            {isOwner(admin) ? (
-                              <Button variant="ghost" size="sm" disabled>
-                                <FontAwesomeIcon icon={faShield} className="mr-1 size-4" />
-                                <span className="hidden md:inline">Protected</span>
-                              </Button>
-                            ) : isCurrentUser(admin) ? (
-                              <Button variant="ghost" size="sm" disabled>
-                                <FontAwesomeIcon icon={faLock} className="mr-1 size-4" />
-                                <span className="hidden md:inline">Locked</span>
-                              </Button>
-                            ) : (
-                              <>
-                                <Button variant="ghost" size="sm" onClick={() => openEditModal(admin)} title="Edit Administrator">
-                                  <FontAwesomeIcon icon={faPen} className="mr-1 size-4" />
-                                  <span className="hidden md:inline">Edit</span>
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:bg-amber-400/10"
-                                  onClick={() => openResetPasswordModal(admin)}
-                                  title="Reset Password"
-                                >
-                                  <FontAwesomeIcon icon={faKey} className="mr-1 size-4" />
-                                  <span className="hidden md:inline">Reset</span>
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="text-destructive hover:bg-destructive/10"
-                                  onClick={() => handleDeleteAdmin(admin)}
-                                  title="Delete Administrator"
-                                >
-                                  <FontAwesomeIcon icon={faTrash} className="mr-1 size-4" />
-                                  <span className="hidden md:inline">Delete</span>
-                                </Button>
-                              </>
-                            )}
-                          </div>
-                        </TableCell>
+                    adminTable.getRowModel().rows.map((row) => (
+                      <TableRow key={row.id}>
+                        {row.getVisibleCells().map(cell => <TableCell key={cell.id} className={cell.column.columnDef.meta?.cellClassName}><adminTable.FlexRender cell={cell} /></TableCell>)}
                       </TableRow>
                     ))
                   )}

@@ -1,17 +1,15 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import useSWR from 'swr';
 import { Link } from '@tanstack/react-router';
-import { columnVisibilityFeature, createColumnHelper, rowPaginationFeature, rowSortingFeature, tableFeatures, useTable,
-  type ColumnVisibilityState, type PaginationState, type SortingState, type Updater } from '@tanstack/react-table';
+import type { PaginationState, SortingState } from '@tanstack/react-table';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faUsers, faRotate, faFileImport, faTableColumns, faSort, faSortUp, faSortDown, faMagnifyingGlass, faChevronLeft, faChevronRight } from '@fortawesome/free-solid-svg-icons';
+import { faUsers, faRotate, faFileImport, faMagnifyingGlass, faChevronLeft, faChevronRight } from '@fortawesome/free-solid-svg-icons';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAccountDisplay } from '../../hooks/useAccountDisplay';
@@ -22,6 +20,7 @@ import { watchTime } from '../../lib/identityPlayTotals';
 import type { TimelineRecords } from '../../lib/identityTimeline';
 import { TabHeading } from '../users/AccountSettings';
 import { AvatarName } from '../users/AccountAvatar';
+import { applyUpdater, createAppColumnHelper, useAppTable, useRememberedColumns } from '../table/DataTable';
 
 // A server's Users page (SERVER_USERS_DESIGN.md): its accounts with their
 // activity on this server only, for the chosen records, with search, sorting,
@@ -37,14 +36,6 @@ const mumOnly: readonly Column[] = ['lastIp', 'lastPlatform', 'lastPlayer', 'wat
 // Each column's first click sorts the way people usually want it: names A–Z,
 // times and counts newest or highest first, expiry soonest first.
 const descFirst: readonly Column[] = ['lastStreamed', 'plays', 'watch', 'libraries'];
-const columnKey = 'mum.server-users.columns';
-const readHidden = (): Column[] => {
-  try {
-    const value: unknown = JSON.parse(localStorage.getItem(columnKey) ?? '[]');
-    return Array.isArray(value) ? value.filter((c): c is Column => typeof c === 'string' && allColumns.includes(c as Column) && c !== 'user') : [];
-  } catch { return []; }
-};
-const saveHidden = (value: Column[]) => { try { localStorage.setItem(columnKey, JSON.stringify(value)); } catch { /* not remembered */ } };
 const pageSizeKey = 'mum.server-users.page-size';
 const readPageSize = (): ServerAccountPageSize => {
   try {
@@ -52,12 +43,10 @@ const readPageSize = (): ServerAccountPageSize => {
     return serverAccountPageSizes.find(size => size === value) ?? 25;
   } catch { return 25; }
 };
-const apply = <T,>(updater: Updater<T>, current: T): T => typeof updater === 'function' ? (updater as (old: T) => T)(current) : updater;
 
 const recordsLabels: Record<TimelineRecords, string> = { all: 'All plays', mum: 'Recorded by MUM', server: 'From server history' };
 
-const features = tableFeatures({ rowSortingFeature, rowPaginationFeature, columnVisibilityFeature });
-const columnHelper = createColumnHelper<typeof features, ServerAccount>();
+const columnHelper = createAppColumnHelper<ServerAccount>();
 const noAccounts: ServerAccount[] = [];
 
 export function ServerUsersCard({ serverId, serviceType, onSync, syncing, syncDisabled }: {
@@ -71,7 +60,7 @@ export function ServerUsersCard({ serverId, serviceType, onSync, syncing, syncDi
   const [search, setSearch] = useState('');
   const [sorting, setSorting] = useState<SortingState>([{ id: 'user', desc: false }]);
   const [pagination, setPagination] = useState<PaginationState>(() => ({ pageIndex: 0, pageSize: readPageSize() }));
-  const [hidden, setHidden] = useState(readHidden);
+  const [columnVisibility, onColumnVisibilityChange] = useRememberedColumns('mum.server-users.columns', undefined, ['user']);
   const [importStatus, setImportStatus] = useState<PlayHistoryStatus | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
@@ -108,9 +97,8 @@ export function ServerUsersCard({ serverId, serviceType, onSync, syncing, syncDi
   }, [importStatus?.state, serverId, mutate]);
 
   const live = data?.live ?? ['plex', 'jellyfin', 'emby'].includes(serviceType);
-  // A column the chosen records can't fill stays hidden whatever the menu says.
-  const columnVisibility = useMemo<ColumnVisibilityState>(() => Object.fromEntries(allColumns.map(c =>
-    [c, !hidden.includes(c) && !(mumOnly.includes(c) && (!live || records === 'server'))])), [hidden, live, records]);
+  // Columns the chosen records can't fill are left out of the table.
+  const mumColumns = live && records !== 'server';
   const startImport = async () => {
     setImporting(true);
     setImportError(null);
@@ -145,31 +133,24 @@ export function ServerUsersCard({ serverId, serviceType, onSync, syncing, syncDi
       }
     };
     // The accessor value is only sorting's bookkeeping: the server sorts.
-    return allColumns.map(id => columnHelper.accessor(account => account.uuid, {
+    return allColumns.filter(id => mumColumns || !mumOnly.includes(id)).map(id => columnHelper.accessor(account => account.uuid, {
       id, header: columnLabels[id], cell: info => cell(id, info.row.original), sortDescFirst: descFirst.includes(id), enableHiding: id !== 'user',
+      meta: { label: columnLabels[id], cellClassName: id === 'user' || id === 'lastPlayed' ? 'account-history-title' : 'whitespace-nowrap' },
     }));
-  }, [serverId, formatTimestamp, formatRelative]);
+  }, [serverId, formatTimestamp, formatRelative, mumColumns]);
 
-  const table = useTable({
-    features, columns, data: (data?.items as ServerAccount[] | undefined) ?? noAccounts, getRowId: account => account.uuid,
+  const table = useAppTable({
+    columns, data: (data?.items as ServerAccount[] | undefined) ?? noAccounts, getRowId: account => account.uuid,
     manualSorting: true, manualPagination: true, enableMultiSort: false, enableSortingRemoval: false, rowCount: data?.total_items ?? 0,
     state: { sorting, pagination, columnVisibility },
-    onSortingChange: updater => { setSorting(current => apply(updater, current)); firstPage(); },
+    onSortingChange: updater => { setSorting(current => applyUpdater(updater, current)); firstPage(); },
     onPaginationChange: updater => setPagination(current => {
-      const next = apply(updater, current);
+      const next = applyUpdater(updater, current);
       if (next.pageSize === current.pageSize) return next;
       try { localStorage.setItem(pageSizeKey, String(next.pageSize)); } catch { /* not remembered */ }
       return { pageIndex: 0, pageSize: next.pageSize };
     }),
-    // The menu asks for a column by the viewer's choice; the choice is what's remembered.
-    onColumnVisibilityChange: updater => {
-      const next = apply(updater, columnVisibility);
-      setHidden(current => {
-        const updated = allColumns.filter(c => c !== 'user' && (next[c] === columnVisibility[c] ? current.includes(c) : !next[c]));
-        saveHidden(updated);
-        return updated;
-      });
-    },
+    onColumnVisibilityChange,
   });
   const total = data?.total_items ?? 0;
 
@@ -189,13 +170,7 @@ export function ServerUsersCard({ serverId, serviceType, onSync, syncing, syncDi
             {importsHistory(serviceType) && <Button variant="outline" size="sm" onClick={() => void startImport()} disabled={importing || importStatus?.state === 'running'}>
               {importStatus?.state === 'running' ? <Spinner className="size-4" /> : <FontAwesomeIcon icon={faFileImport} />}Import history
             </Button>}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild><Button variant="outline" size="sm"><FontAwesomeIcon icon={faTableColumns} />Select columns</Button></DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {table.getAllLeafColumns().map(column => <DropdownMenuCheckboxItem key={column.id} checked={!hidden.includes(column.id as Column)} disabled={!column.getCanHide()}
-                  onCheckedChange={() => column.toggleVisibility(hidden.includes(column.id as Column))} onSelect={e => e.preventDefault()}>{columnLabels[column.id as Column]}</DropdownMenuCheckboxItem>)}
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <table.AppTable><table.ColumnsMenu /></table.AppTable>
           </div>
         </div>
       </CardHeader>
@@ -213,20 +188,15 @@ export function ServerUsersCard({ serverId, serviceType, onSync, syncing, syncDi
               <Table>
                 <TableHeader>
                   {table.getHeaderGroups().map(group => <TableRow key={group.id}>
-                    {group.headers.map(header => {
+                    {group.headers.map(h => <table.AppHeader key={h.id} header={h}>{header => {
                       const sorted = header.column.getIsSorted();
-                      return <TableHead key={header.id} className="whitespace-nowrap" aria-sort={sorted === 'asc' ? 'ascending' : sorted === 'desc' ? 'descending' : undefined}>
-                        <button type="button" className="inline-flex items-center font-medium" onClick={header.column.getToggleSortingHandler()}>
-                          <table.FlexRender header={header} />
-                          <FontAwesomeIcon icon={sorted === 'asc' ? faSortUp : sorted === 'desc' ? faSortDown : faSort} className="ml-1 h-3 w-3 opacity-60" />
-                        </button>
-                      </TableHead>;
-                    })}
+                      return <TableHead className="whitespace-nowrap" aria-sort={sorted === 'asc' ? 'ascending' : sorted === 'desc' ? 'descending' : undefined}><header.SortButton /></TableHead>;
+                    }}</table.AppHeader>)}
                   </TableRow>)}
                 </TableHeader>
                 <TableBody>
                   {table.getRowModel().rows.map(row => <TableRow key={row.id}>
-                    {row.getVisibleCells().map(cell => <TableCell key={cell.id} className={cell.column.id === 'user' || cell.column.id === 'lastPlayed' ? 'account-history-title' : 'whitespace-nowrap'}>
+                    {row.getVisibleCells().map(cell => <TableCell key={cell.id} className={cell.column.columnDef.meta?.cellClassName}>
                       <table.FlexRender cell={cell} />
                     </TableCell>)}
                   </TableRow>)}

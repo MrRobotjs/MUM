@@ -1,6 +1,8 @@
 import { historyServiceName, type HistoryService } from '../../lib/playHistory';
 import { useAccountDisplay } from '../../hooks/useAccountDisplay';
-import { useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
+import type { ColumnVisibilityState, RowSelectionState } from '@tanstack/react-table';
+import { createAppColumnHelper, useAppTable } from '../table/DataTable';
 import { Pagination } from '../common/Pagination';
 import { useNavigate } from '@tanstack/react-router';
 import { buildUserProfilePath } from '../../util/routes';
@@ -110,6 +112,16 @@ export type SelectionModifiers = {
   metaKey?: boolean;
   source?: 'row' | 'card' | 'checkbox';
 };
+
+// The table's columns in order; the profile picture and name both follow the
+// "name" choice, and the checkbox column appears when rows can be selected.
+type UserColumnId = 'select' | 'avatar' | keyof UserColumns;
+const columnChoice: Record<Exclude<UserColumnId, 'select'>, keyof UserColumns> = {
+  avatar: 'name', name: 'name', email: 'email', serviceJoinDate: 'serviceJoinDate', lastKnownIp: 'lastKnownIp', totalPlays: 'totalPlays', totalDuration: 'totalDuration',
+  type: 'type', roles: 'roles', libraries: 'libraries', lastStreamed: 'lastStreamed', mumAddedDate: 'mumAddedDate', lastPlayed: 'lastPlayed', lastPlatform: 'lastPlatform',
+  lastPlayer: 'lastPlayer', linked: 'linked', lastLogin: 'lastLogin', actions: 'actions',
+};
+const columnHelper = createAppColumnHelper<UserRow>();
 
 type UsersTableProps = {
   users: UserRow[];
@@ -242,305 +254,147 @@ export const UsersTable = ({
     );
   };
 
+  // What each column shows, its header and its loading placeholder.
+  const columnDefs: Array<{ id: UserColumnId; header: ReactNode; headClassName?: string; cellClassName?: string; title?: (user: UserRow) => string | undefined; skeleton: ReactNode; cell: (user: UserRow) => ReactNode }> = [
+    { id: 'select', headClassName: 'w-12', skeleton: <Skeleton className="h-4 w-4" />,
+      header: <Checkbox
+        checked={selectAllState === 'all'}
+        ref={(input) => {
+          if (input) {
+            (input as unknown as HTMLInputElement).indeterminate = selectAllState === 'some';
+          }
+        }}
+        onCheckedChange={onToggleSelectAll}
+        title={selectAllState === 'all' ? 'Deselect All' : 'Select All'}
+      />,
+      cell: (user) => <Checkbox
+        checked={selectedUserIds.has(user.uuid)}
+        onClick={(e) => {
+          e.stopPropagation();
+          onToggleSelection?.(user.uuid, {
+            shiftKey: e.shiftKey,
+            ctrlKey: e.ctrlKey,
+            metaKey: e.metaKey,
+            source: 'checkbox',
+          });
+        }}
+      /> },
+    { id: 'avatar', header: null, headClassName: 'w-12', skeleton: <Skeleton className="h-8 w-8 rounded-full" />, cell: (user) => <UserAvatar user={user} /> },
+    { id: 'name', header: 'User', cellClassName: 'font-medium', skeleton: <Skeleton className="h-4 w-32" />,
+      cell: (user) => <a
+        href={buildUserProfilePath(user)}
+        className="text-foreground hover:underline group-hover:text-primary"
+        onClick={(event) => event.stopPropagation()}
+      >
+        {user.display_name || user.username || 'Unnamed User'}
+      </a> },
+    { id: 'email', header: 'Email', cellClassName: 'text-muted-foreground', skeleton: <Skeleton className="h-4 w-40" />, cell: (user) => user.external_email ?? user.email ?? '-' },
+    { id: 'serviceJoinDate', header: 'Service Join', cellClassName: 'text-xs text-muted-foreground', skeleton: <Skeleton className="h-4 w-24" />, cell: (user) => formatDate(user.service_join_date) },
+    { id: 'lastKnownIp', header: 'Last Known IP', cellClassName: 'text-xs text-muted-foreground', skeleton: <Skeleton className="h-4 w-24" />, cell: (user) => user.last_known_ip ?? '-' },
+    { id: 'totalPlays', header: 'Total Plays', cellClassName: 'text-xs text-muted-foreground', skeleton: <Skeleton className="h-4 w-12" />, cell: (user) => user.total_plays ?? 0 },
+    { id: 'totalDuration', header: 'Total Duration', cellClassName: 'text-xs text-muted-foreground', skeleton: <Skeleton className="h-4 w-16" />, cell: (user) => formatDuration(user.total_duration) },
+    { id: 'type', header: 'Type', cellClassName: 'capitalize text-muted-foreground', skeleton: <Skeleton className="h-4 w-20" />, cell: (user) => user.user_type },
+    { id: 'roles', header: 'Roles', skeleton: <div className="flex gap-1">
+        <Skeleton className="h-6 w-16" />
+        <Skeleton className="h-6 w-16" />
+      </div>,
+      cell: (user) => <div className="flex flex-wrap gap-1">
+        {getAdminRoleBadges(user).map((role) => (
+          <RoleBadge key={role.name} role={role} kind="admin" />
+        ))}
+        {user.user_roles.map((role) => (
+          <RoleBadge key={`user-role-${role.name}`} role={role} kind="user" />
+        ))}
+      </div> },
+    { id: 'libraries', header: 'Libraries', cellClassName: 'text-muted-foreground', skeleton: <Skeleton className="h-4 w-32" />, cell: (user) => renderLibraries(user) },
+    { id: 'lastStreamed', header: 'Last Streamed', cellClassName: 'text-xs text-muted-foreground', skeleton: <Skeleton className="h-4 w-28" />,
+      title: (user) => user.last_streamed_source && user.last_streamed_source !== 'mum' ? `From ${historyServiceName[user.last_streamed_source]} history` : undefined,
+      cell: (user) => formatDateTime(user.last_streamed_at) },
+    { id: 'mumAddedDate', header: 'MUM Added', cellClassName: 'text-xs text-muted-foreground', skeleton: <Skeleton className="h-4 w-20" />, cell: (user) => formatDate(user.created_at) },
+    { id: 'lastPlayed', header: 'Last Played', cellClassName: 'text-xs text-muted-foreground', skeleton: <Skeleton className="h-4 w-32" />,
+      title: (user) => user.last_played?.started_at ? formatTimestamp(user.last_played.started_at) : undefined,
+      cell: (user) => user.last_played?.media_title ?? 'Never' },
+    { id: 'lastPlatform', header: 'Last Platform', cellClassName: 'text-xs text-muted-foreground', skeleton: <Skeleton className="h-4 w-24" />, cell: (user) => formatTextValue(user.last_platform) },
+    { id: 'lastPlayer', header: 'Last Player', cellClassName: 'text-xs text-muted-foreground', skeleton: <Skeleton className="h-4 w-24" />, cell: (user) => formatTextValue(user.last_player) },
+    { id: 'linked', header: 'Linked Services', cellClassName: 'text-muted-foreground', skeleton: <Skeleton className="h-4 w-8" />, cell: (user) => user.linked_service_count },
+    { id: 'lastLogin', header: 'Last Login', cellClassName: 'text-xs text-muted-foreground', skeleton: <Skeleton className="h-4 w-32" />, cell: (user) => user.last_login_at ? formatTimestamp(user.last_login_at) : '-' },
+    { id: 'actions', header: 'Actions', headClassName: 'text-right', cellClassName: 'text-right', skeleton: <div className="flex justify-end gap-1">
+        <Skeleton className="h-8 w-8" />
+        <Skeleton className="h-8 w-8" />
+      </div>,
+      cell: (user) => <div className="flex items-center justify-end gap-1">
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          title="Show Raw User Data"
+          onClick={(e) => {
+            e.stopPropagation();
+            setDebugUserUuid(user.uuid);
+          }}
+        >
+          <FontAwesomeIcon icon={faCircleInfo} />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          title="View User Profile"
+          onClick={(e) => {
+            e.stopPropagation();
+            navigate({ to: buildUserProfilePath(user), state: { userUuid: user.uuid } });
+          }}
+        >
+          <FontAwesomeIcon icon={faUser} />
+        </Button>
+      </div> },
+  ];
+  const tableColumns = columnDefs.map(def => columnHelper.display({
+    id: def.id, header: () => def.header, cell: ({ row }) => def.cell(row.original), meta: { headClassName: def.headClassName, cellClassName: def.cellClassName },
+  }));
+  const skeletons = Object.fromEntries(columnDefs.map(def => [def.id, def.skeleton])) as Record<UserColumnId, ReactNode>;
+  const titles = Object.fromEntries(columnDefs.map(def => [def.id, def.title])) as Record<UserColumnId, ((user: UserRow) => string | undefined) | undefined>;
+  // The page chooses the columns; selection follows the page's own rules (shift and ctrl).
+  const columnVisibility = useMemo<ColumnVisibilityState>(() => ({
+    select: Boolean(onToggleSelection),
+    ...Object.fromEntries(Object.entries(columnChoice).map(([id, choice]) => [id, columns[choice]])),
+  }), [columns, onToggleSelection]);
+  const rowSelection = useMemo<RowSelectionState>(() => Object.fromEntries([...selectedUserIds].map(id => [id, true])), [selectedUserIds]);
+  const table = useAppTable({
+    columns: tableColumns, data: users, getRowId: user => user.uuid,
+    state: { columnVisibility, rowSelection },
+  });
+  const visibleColumns = table.getVisibleLeafColumns();
+
   return (
     <div className="overflow-x-auto rounded-xl border shadow-sm">
       <Table className="min-w-max bg-card">
         <TableHeader>
-          <TableRow>
-            {onToggleSelection && (
-              <TableHead className="w-12">
-                <Checkbox
-                  checked={selectAllState === 'all'}
-                  ref={(input) => {
-                    if (input) {
-                      (input as unknown as HTMLInputElement).indeterminate = selectAllState === 'some';
-                    }
-                  }}
-                  onCheckedChange={onToggleSelectAll}
-                  title={selectAllState === 'all' ? 'Deselect All' : 'Select All'}
-                />
-              </TableHead>
-            )}
-            {columns.name ? <TableHead className="w-12"></TableHead> : null}
-            {columns.name ? <TableHead>User</TableHead> : null}
-            {columns.email ? <TableHead>Email</TableHead> : null}
-            {columns.serviceJoinDate ? <TableHead>Service Join</TableHead> : null}
-            {columns.lastKnownIp ? <TableHead>Last Known IP</TableHead> : null}
-            {columns.totalPlays ? <TableHead>Total Plays</TableHead> : null}
-            {columns.totalDuration ? <TableHead>Total Duration</TableHead> : null}
-            {columns.type ? <TableHead>Type</TableHead> : null}
-            {columns.roles ? <TableHead>Roles</TableHead> : null}
-            {columns.libraries ? <TableHead>Libraries</TableHead> : null}
-            {columns.lastStreamed ? <TableHead>Last Streamed</TableHead> : null}
-            {columns.mumAddedDate ? <TableHead>MUM Added</TableHead> : null}
-            {columns.lastPlayed ? <TableHead>Last Played</TableHead> : null}
-            {columns.lastPlatform ? <TableHead>Last Platform</TableHead> : null}
-            {columns.lastPlayer ? <TableHead>Last Player</TableHead> : null}
-            {columns.linked ? <TableHead>Linked Services</TableHead> : null}
-            {columns.lastLogin ? <TableHead>Last Login</TableHead> : null}
-            {columns.actions ? <TableHead className="text-right">Actions</TableHead> : null}
-          </TableRow>
+          {table.getHeaderGroups().map(group => <TableRow key={group.id}>
+            {group.headers.map(header => <TableHead key={header.id} className={header.column.columnDef.meta?.headClassName}><table.FlexRender header={header} /></TableHead>)}
+          </TableRow>)}
         </TableHeader>
         <TableBody className="cursor-pointer">
           {loading ? (
             Array.from({ length: 5 }).map((_, idx) => (
               <TableRow key={idx}>
-                {onToggleSelection && (
-                  <TableCell>
-                    <Skeleton className="h-4 w-4" />
-                  </TableCell>
-                )}
-                {columns.name ? (
-                  <TableCell>
-                    <Skeleton className="h-8 w-8 rounded-full" />
-                  </TableCell>
-                ) : null}
-                {columns.name ? (
-                  <TableCell>
-                    <Skeleton className="h-4 w-32" />
-                  </TableCell>
-                ) : null}
-                {columns.email ? (
-                  <TableCell>
-                    <Skeleton className="h-4 w-40" />
-                  </TableCell>
-                ) : null}
-                {columns.serviceJoinDate ? (
-                  <TableCell>
-                    <Skeleton className="h-4 w-24" />
-                  </TableCell>
-                ) : null}
-                {columns.lastKnownIp ? (
-                  <TableCell>
-                    <Skeleton className="h-4 w-24" />
-                  </TableCell>
-                ) : null}
-                {columns.totalPlays ? (
-                  <TableCell>
-                    <Skeleton className="h-4 w-12" />
-                  </TableCell>
-                ) : null}
-                {columns.totalDuration ? (
-                  <TableCell>
-                    <Skeleton className="h-4 w-16" />
-                  </TableCell>
-                ) : null}
-                {columns.type ? (
-                  <TableCell>
-                    <Skeleton className="h-4 w-20" />
-                  </TableCell>
-                ) : null}
-                {columns.roles ? (
-                  <TableCell>
-                    <div className="flex gap-1">
-                      <Skeleton className="h-6 w-16" />
-                      <Skeleton className="h-6 w-16" />
-                    </div>
-                  </TableCell>
-                ) : null}
-                {columns.libraries ? (
-                  <TableCell>
-                    <Skeleton className="h-4 w-32" />
-                  </TableCell>
-                ) : null}
-                {columns.lastStreamed ? (
-                  <TableCell>
-                    <Skeleton className="h-4 w-28" />
-                  </TableCell>
-                ) : null}
-                {columns.mumAddedDate ? (
-                  <TableCell>
-                    <Skeleton className="h-4 w-20" />
-                  </TableCell>
-                ) : null}
-                {columns.lastPlayed ? (
-                  <TableCell>
-                    <Skeleton className="h-4 w-32" />
-                  </TableCell>
-                ) : null}
-                {columns.lastPlatform ? (
-                  <TableCell>
-                    <Skeleton className="h-4 w-24" />
-                  </TableCell>
-                ) : null}
-                {columns.lastPlayer ? (
-                  <TableCell>
-                    <Skeleton className="h-4 w-24" />
-                  </TableCell>
-                ) : null}
-                {columns.linked ? (
-                  <TableCell>
-                    <Skeleton className="h-4 w-8" />
-                  </TableCell>
-                ) : null}
-                {columns.lastLogin ? (
-                  <TableCell>
-                    <Skeleton className="h-4 w-32" />
-                  </TableCell>
-                ) : null}
-                {columns.actions ? (
-                  <TableCell>
-                    <div className="flex justify-end gap-1">
-                      <Skeleton className="h-8 w-8" />
-                      <Skeleton className="h-8 w-8" />
-                    </div>
-                  </TableCell>
-                ) : null}
+                {visibleColumns.map(column => <TableCell key={column.id}>{skeletons[column.id as UserColumnId]}</TableCell>)}
               </TableRow>
             ))
           ) : (
             <>
-              {users.map((user) => {
-                const isSelected = selectedUserIds.has(user.uuid);
-                return (
-                  <TableRow
-                    key={user.uuid}
-                    className={cn('group', isSelected && 'bg-primary/10')}
-                    onClick={(e) => handleRowClick(e, user)}
-                  >
-                    {onToggleSelection && (
-                      <TableCell>
-                        <Checkbox
-                          checked={isSelected}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onToggleSelection(user.uuid, {
-                              shiftKey: e.shiftKey,
-                              ctrlKey: e.ctrlKey,
-                              metaKey: e.metaKey,
-                              source: 'checkbox',
-                            });
-                          }}
-                        />
-                      </TableCell>
-                    )}
-                    {columns.name ? (
-                      <TableCell>
-                        <UserAvatar user={user} />
-                      </TableCell>
-                    ) : null}
-                    {columns.name ? (
-                      <TableCell className="font-medium">
-                        <a
-                          href={buildUserProfilePath(user)}
-                          className="text-foreground hover:underline group-hover:text-primary"
-                          onClick={(event) => event.stopPropagation()}
-                        >
-                          {user.display_name || user.username || 'Unnamed User'}
-                        </a>
-                      </TableCell>
-                    ) : null}
-                    {columns.email ? (
-                      <TableCell className="text-muted-foreground">
-                        {user.external_email ?? user.email ?? '-'}
-                      </TableCell>
-                    ) : null}
-                    {columns.serviceJoinDate ? (
-                      <TableCell className="text-xs text-muted-foreground">
-                        {formatDate(user.service_join_date)}
-                      </TableCell>
-                    ) : null}
-                    {columns.lastKnownIp ? (
-                      <TableCell className="text-xs text-muted-foreground">
-                        {user.last_known_ip ?? '-'}
-                      </TableCell>
-                    ) : null}
-                    {columns.totalPlays ? (
-                      <TableCell className="text-xs text-muted-foreground">
-                        {user.total_plays ?? 0}
-                      </TableCell>
-                    ) : null}
-                    {columns.totalDuration ? (
-                      <TableCell className="text-xs text-muted-foreground">
-                        {formatDuration(user.total_duration)}
-                      </TableCell>
-                    ) : null}
-                    {columns.type ? <TableCell className="capitalize text-muted-foreground">{user.user_type}</TableCell> : null}
-                    {columns.roles ? (
-                      <TableCell>
-                        <div className="flex flex-wrap gap-1">
-                          {getAdminRoleBadges(user).map((role) => (
-                            <RoleBadge key={role.name} role={role} kind="admin" />
-                          ))}
-                          {user.user_roles.map((role) => (
-                            <RoleBadge key={`user-role-${role.name}`} role={role} kind="user" />
-                          ))}
-                        </div>
-                      </TableCell>
-                    ) : null}
-                    {columns.libraries ? (
-                      <TableCell className="text-muted-foreground">
-                        {renderLibraries(user)}
-                      </TableCell>
-                    ) : null}
-                    {columns.lastStreamed ? (
-                      <TableCell className="text-xs text-muted-foreground" title={user.last_streamed_source && user.last_streamed_source !== 'mum' ? `From ${historyServiceName[user.last_streamed_source]} history` : undefined}>
-                        {formatDateTime(user.last_streamed_at)}
-                      </TableCell>
-                    ) : null}
-                    {columns.mumAddedDate ? (
-                      <TableCell className="text-xs text-muted-foreground">
-                        {formatDate(user.created_at)}
-                      </TableCell>
-                    ) : null}
-                    {columns.lastPlayed ? (
-                      <TableCell
-                        className="text-xs text-muted-foreground"
-                        title={user.last_played?.started_at ? formatTimestamp(user.last_played.started_at) : undefined}
-                      >
-                        {user.last_played?.media_title ?? 'Never'}
-                      </TableCell>
-                    ) : null}
-                    {columns.lastPlatform ? (
-                      <TableCell className="text-xs text-muted-foreground">
-                        {formatTextValue(user.last_platform)}
-                      </TableCell>
-                    ) : null}
-                    {columns.lastPlayer ? (
-                      <TableCell className="text-xs text-muted-foreground">
-                        {formatTextValue(user.last_player)}
-                      </TableCell>
-                    ) : null}
-                    {columns.linked ? <TableCell className="text-muted-foreground">{user.linked_service_count}</TableCell> : null}
-                    {columns.lastLogin ? (
-                      <TableCell className="text-xs text-muted-foreground">
-                        {user.last_login_at ? formatTimestamp(user.last_login_at) : '-'}
-                      </TableCell>
-                    ) : null}
-                    {columns.actions ? (
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            title="Show Raw User Data"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setDebugUserUuid(user.uuid);
-                            }}
-                          >
-                            <FontAwesomeIcon icon={faCircleInfo} />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            title="View User Profile"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              navigate({ to: buildUserProfilePath(user), state: { userUuid: user.uuid } });
-                            }}
-                          >
-                            <FontAwesomeIcon icon={faUser} />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    ) : null}
-                  </TableRow>
-                );
-              })}
+              {table.getRowModel().rows.map((row) => (
+                <TableRow
+                  key={row.id}
+                  className={cn('group', row.getIsSelected() && 'bg-primary/10')}
+                  onClick={(e) => handleRowClick(e, row.original)}
+                >
+                  {row.getVisibleCells().map(cell => <TableCell key={cell.id} className={cell.column.columnDef.meta?.cellClassName} title={titles[cell.column.id as UserColumnId]?.(row.original)}>
+                    <table.FlexRender cell={cell} />
+                  </TableCell>)}
+                </TableRow>
+              ))}
               {users.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={(Object.values(columns).filter(Boolean).length || 1) + (onToggleSelection ? 1 : 0) + (columns.name ? 1 : 0)} className="py-12 text-center text-sm text-muted-foreground">
+                  <TableCell colSpan={visibleColumns.length || 1} className="py-12 text-center text-sm text-muted-foreground">
                     No users match the current filters.
                   </TableCell>
                 </TableRow>

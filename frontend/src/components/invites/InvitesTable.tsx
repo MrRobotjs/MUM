@@ -3,6 +3,9 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '../ui/checkbox';
 import { Badge } from '../ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
+import { useMemo } from 'react';
+import type { RowSelectionState } from '@tanstack/react-table';
+import { createAppColumnHelper, useAppTable } from '../table/DataTable';
 
 export type InviteServer = {
   id: number;
@@ -73,6 +76,8 @@ export type InviteRow = {
   server_features?: InviteServerFeature[];
 };
 
+const columnHelper = createAppColumnHelper<InviteRow>();
+
 type InvitesTableProps = {
   invites: InviteRow[];
   selectedIds: Set<number>;
@@ -109,70 +114,67 @@ export const InvitesTable = ({
     return { label: 'Active', variant: 'default' as const };
   };
 
+  // The page keeps the selection; the table shows it.
+  const rowSelection = useMemo<RowSelectionState>(() => Object.fromEntries([...selectedIds].map(id => [String(id), true])), [selectedIds]);
+  const columns = [
+    columnHelper.display({ id: 'select', meta: { headClassName: 'w-12' },
+      header: () => <Checkbox
+        checked={selectedIds.size > 0 && selectedIds.size === invites.length}
+        onCheckedChange={(checked) => onSelectAll(!!checked)}
+      />,
+      cell: ({ row }) => <Checkbox
+        checked={row.getIsSelected()}
+        onCheckedChange={() => onToggleSelect(row.original.id)}
+      /> }),
+    columnHelper.display({ id: 'token', header: 'Token / Path', cell: ({ row }) => <>
+      <div className="font-medium break-words">{row.original.custom_path || row.original.token}</div>
+      <div className="text-xs text-muted-foreground break-all">{row.original.token}</div>
+    </> }),
+    columnHelper.display({ id: 'expires', header: 'Expires', meta: { cellClassName: 'text-muted-foreground' },
+      cell: ({ row }) => row.original.expires_at ? formatTimestamp(row.original.expires_at) : 'Never' }),
+    columnHelper.display({ id: 'uses', header: 'Uses', meta: { cellClassName: 'text-muted-foreground' },
+      cell: ({ row }) => <>{row.original.current_uses} / {row.original.max_uses ?? '∞'}{row.original.reserved_uses ? ` (+${row.original.reserved_uses} reserved)` : ''}</> }),
+    columnHelper.display({ id: 'status', header: 'Status', cell: ({ row }) => {
+      const status = getStatusLabel(row.original);
+      return <Badge variant={status.variant}>{status.label}</Badge>;
+    } }),
+    columnHelper.display({ id: 'actions', header: () => null, meta: { headClassName: 'text-right', cellClassName: 'text-right' }, cell: ({ row }) => {
+      const invite = row.original;
+      return <div className="flex justify-end gap-2">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => onOpen?.(invite)}
+        >
+          Open
+        </Button>
+        {onViewDetail ? (
+          <Button variant="ghost" size="sm" onClick={() => onViewDetail(invite)}>
+            Detail
+          </Button>
+        ) : null}
+        {onEdit ? (
+          <Button variant="ghost" size="sm" disabled={invite.is_archived} title={invite.is_archived ? 'Archived invites cannot be edited' : undefined} onClick={() => onEdit(invite)}>
+            Edit
+          </Button>
+        ) : null}
+      </div>;
+    } }),
+  ];
+  const table = useAppTable({ columns, data: invites, getRowId: invite => String(invite.id), state: { rowSelection } });
+
   return (
   <div className="overflow-hidden rounded-xl border shadow-sm">
     <Table>
       <TableHeader>
-        <TableRow>
-          <TableHead className="w-12">
-            <Checkbox
-              checked={selectedIds.size > 0 && selectedIds.size === invites.length}
-              onCheckedChange={(checked) => onSelectAll(!!checked)}
-            />
-          </TableHead>
-          <TableHead>Token / Path</TableHead>
-          <TableHead>Expires</TableHead>
-          <TableHead>Uses</TableHead>
-          <TableHead>Status</TableHead>
-          <TableHead className="text-right"></TableHead>
-        </TableRow>
+        {table.getHeaderGroups().map(group => <TableRow key={group.id}>
+          {group.headers.map(header => <TableHead key={header.id} className={header.column.columnDef.meta?.headClassName}><table.FlexRender header={header} /></TableHead>)}
+        </TableRow>)}
       </TableHeader>
       <TableBody>
-        {invites.map((invite) => (
-          <TableRow key={invite.id}>
-            <TableCell>
-              <Checkbox
-                checked={selectedIds.has(invite.id)}
-                onCheckedChange={() => onToggleSelect(invite.id)}
-              />
-            </TableCell>
-            <TableCell>
-              <div className="font-medium break-words">{invite.custom_path || invite.token}</div>
-              <div className="text-xs text-muted-foreground break-all">{invite.token}</div>
-            </TableCell>
-            <TableCell className="text-muted-foreground">
-              {invite.expires_at ? formatTimestamp(invite.expires_at) : 'Never'}
-            </TableCell>
-            <TableCell className="text-muted-foreground">
-              {invite.current_uses} / {invite.max_uses ?? '∞'}{invite.reserved_uses ? ` (+${invite.reserved_uses} reserved)` : ''}
-            </TableCell>
-            <TableCell>
-              {(() => {
-                const status = getStatusLabel(invite);
-                return <Badge variant={status.variant}>{status.label}</Badge>;
-              })()}
-            </TableCell>
-            <TableCell className="text-right">
-              <div className="flex justify-end gap-2">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => onOpen?.(invite)}
-                >
-                  Open
-                </Button>
-                {onViewDetail ? (
-                  <Button variant="ghost" size="sm" onClick={() => onViewDetail(invite)}>
-                    Detail
-                  </Button>
-                ) : null}
-                {onEdit ? (
-                  <Button variant="ghost" size="sm" disabled={invite.is_archived} title={invite.is_archived ? 'Archived invites cannot be edited' : undefined} onClick={() => onEdit(invite)}>
-                    Edit
-                  </Button>
-                ) : null}
-              </div>
-            </TableCell>
+        {table.getRowModel().rows.map((row) => (
+          <TableRow key={row.id}>
+            {row.getVisibleCells().map(cell => <TableCell key={cell.id} className={cell.column.columnDef.meta?.cellClassName}><table.FlexRender cell={cell} /></TableCell>)}
           </TableRow>
         ))}
         {!loading && invites.length === 0 ? (

@@ -5,6 +5,21 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Skeleton } from '../ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { Pagination } from '../common/Pagination';
+import { createAppColumnHelper, useAppTable } from '../table/DataTable';
+
+// One play as the activity endpoints send it.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type ActivityRow = any;
+const columnHelper = createAppColumnHelper<ActivityRow>();
+
+const formatDuration = (seconds: number) => {
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  if (hours > 0) {
+    return `${hours}h ${minutes}m`;
+  }
+  return `${minutes}m`;
+};
 
 type ActivityTableProps = {
   days: number;
@@ -13,7 +28,7 @@ type ActivityTableProps = {
   totalPages: number;
   onPageChange: (page: number) => void;
   loading: boolean;
-  rows: any[];
+  rows: ActivityRow[];
   /** Shown when the window has no plays, e.g. "... for this library ...". */
   emptyMessage: string;
 };
@@ -22,6 +37,105 @@ type ActivityTableProps = {
  * window, plays with poster, viewer, start, duration and player, and paging. */
 export const ActivityTable = ({ days, onDaysChange, page, totalPages, onPageChange, loading, rows, emptyMessage }: ActivityTableProps) => {
   const { formatTimestamp } = useAccountDisplay();
+  const formatDate = (dateStr: string) => formatTimestamp(dateStr, 'date');
+  const formatTime = (dateStr: string) => formatTimestamp(dateStr, 'time');
+  const columns = [
+    columnHelper.display({ id: 'content', header: 'Content', cell: ({ row: { original: stream } }) => (
+      <div className="flex items-center gap-3">
+        {/* Poster Thumbnail */}
+        <div className="w-12 h-16 flex-shrink-0">
+          {stream.thumb_path ? (
+            <img
+              src={stream.thumb_path}
+              alt={stream.media_title || 'Unknown'}
+              className="w-full h-full object-cover rounded border border-border shadow-sm"
+              loading="lazy"
+              onError={(e) => {
+                e.currentTarget.style.display = 'none';
+                if (e.currentTarget.nextElementSibling) {
+                  (e.currentTarget.nextElementSibling as HTMLElement).style.display = 'flex';
+                }
+              }}
+            />
+          ) : null}
+          <div className={`w-full h-full bg-muted/50 rounded border border-border flex items-center justify-center ${stream.thumb_path ? 'hidden' : 'flex'}`}>
+            <FontAwesomeIcon icon={faFilm} className="h-6 w-6 text-muted-foreground opacity-40" />
+          </div>
+        </div>
+
+        {/* Content Info */}
+        <div className="flex flex-col min-w-0 flex-1">
+          <div className="font-medium truncate">{stream.media_title || 'Unknown'}</div>
+          {(stream.grandparent_title || stream.parent_title) && (
+            <div className="text-sm text-muted-foreground truncate">
+              {stream.grandparent_title}
+              {stream.grandparent_title && stream.parent_title && ' • '}
+              {stream.parent_title}
+            </div>
+          )}
+          {stream.media_type && (
+            <span className="inline-flex items-center rounded-md bg-blue-50 dark:bg-blue-400/10 px-2 py-1 text-xs font-medium text-blue-700 dark:text-blue-400 ring-1 ring-inset ring-blue-600/20 dark:ring-blue-500/20 gap-1 w-fit mt-1">
+              {stream.media_type}
+            </span>
+          )}
+        </div>
+      </div>
+    ) }),
+    columnHelper.display({ id: 'user', header: 'User', cell: ({ row: { original: stream } }) => (
+      <div className="flex items-center gap-3">
+        {/* User Avatar */}
+        <div className="w-8 h-8 flex-shrink-0">
+          {stream.user_avatar_url ? (
+            <img
+              src={stream.user_avatar_url}
+              alt={`${stream.user_display_name} avatar`}
+              className="w-full h-full object-cover rounded-full border border-border"
+              loading="lazy"
+              onError={(e) => {
+                e.currentTarget.style.display = 'none';
+                if (e.currentTarget.nextElementSibling) {
+                  (e.currentTarget.nextElementSibling as HTMLElement).style.display = 'flex';
+                }
+              }}
+            />
+          ) : null}
+          <div className={`w-full h-full rounded-full border border-border flex items-center justify-center text-white text-xs font-medium bg-primary ${stream.user_avatar_url ? 'hidden' : 'flex'}`}>
+            {stream.user_display_name?.[0]?.toUpperCase() || 'U'}
+          </div>
+        </div>
+
+        {/* User Name */}
+        <div className="flex flex-col">
+          <div className="font-medium truncate">{stream.user_display_name}</div>
+        </div>
+      </div>
+    ) }),
+    columnHelper.display({ id: 'started', header: 'Started', cell: ({ row: { original: stream } }) => (
+      <div className="flex flex-col">
+        <span className="font-medium">{stream.started_at ? formatDate(stream.started_at) : '—'}</span>
+        <span className="text-sm text-muted-foreground">{stream.started_at ? formatTime(stream.started_at) : ''}</span>
+      </div>
+    ) }),
+    columnHelper.display({ id: 'duration', header: 'Duration', cell: ({ row: { original: stream } }) => (
+      <span className="font-medium">
+        {stream.duration_seconds ? formatDuration(stream.duration_seconds) : '—'}
+      </span>
+    ) }),
+    columnHelper.display({ id: 'player', header: 'Player / Platform', cell: ({ row: { original: stream } }) => (
+      <div className="flex flex-col">
+        {stream.platform && (
+          <span className="font-medium">{stream.platform}</span>
+        )}
+        {stream.player && (
+          <span className="text-sm text-muted-foreground">{stream.player}</span>
+        )}
+        {!stream.platform && !stream.player && (
+          <span className="text-muted-foreground">Unknown</span>
+        )}
+      </div>
+    ) }),
+  ];
+  const table = useAppTable({ columns, data: rows, getRowId: stream => String(stream.id) });
   return (
     <>
       {/* Time Range Selector */}
@@ -45,13 +159,9 @@ export const ActivityTable = ({ days, onDaysChange, page, totalPages, onPageChan
       <div className="overflow-hidden rounded-xl border shadow-sm">
         <Table>
           <TableHeader>
-            <TableRow>
-              <TableHead>Content</TableHead>
-              <TableHead>User</TableHead>
-              <TableHead>Started</TableHead>
-              <TableHead>Duration</TableHead>
-              <TableHead>Player / Platform</TableHead>
-            </TableRow>
+            {table.getHeaderGroups().map(group => <TableRow key={group.id}>
+              {group.headers.map(header => <TableHead key={header.id}><table.FlexRender header={header} /></TableHead>)}
+            </TableRow>)}
           </TableHeader>
           <TableBody>
             {loading ? (
@@ -90,118 +200,11 @@ export const ActivityTable = ({ days, onDaysChange, page, totalPages, onPageChan
                 </TableRow>
               ))
             ) : rows.length > 0 ? (
-              rows.map((stream: any) => {
-                const formatDuration = (seconds: number) => {
-                  const hours = Math.floor(seconds / 3600);
-                  const minutes = Math.floor((seconds % 3600) / 60);
-                  if (hours > 0) {
-                    return `${hours}h ${minutes}m`;
-                  }
-                  return `${minutes}m`;
-                };
-
-                const formatDate = (dateStr: string) => formatTimestamp(dateStr, 'date');
-                const formatTime = (dateStr: string) => formatTimestamp(dateStr, 'time');
-
-                return (
-                  <TableRow key={stream.id} className="hover:bg-accent/50">
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        {/* Poster Thumbnail */}
-                        <div className="w-12 h-16 flex-shrink-0">
-                          {stream.thumb_path ? (
-                            <img
-                              src={stream.thumb_path}
-                              alt={stream.media_title || 'Unknown'}
-                              className="w-full h-full object-cover rounded border border-border shadow-sm"
-                              loading="lazy"
-                              onError={(e) => {
-                                e.currentTarget.style.display = 'none';
-                                if (e.currentTarget.nextElementSibling) {
-                                  (e.currentTarget.nextElementSibling as HTMLElement).style.display = 'flex';
-                                }
-                              }}
-                            />
-                          ) : null}
-                          <div className={`w-full h-full bg-muted/50 rounded border border-border flex items-center justify-center ${stream.thumb_path ? 'hidden' : 'flex'}`}>
-                            <FontAwesomeIcon icon={faFilm} className="h-6 w-6 text-muted-foreground opacity-40" />
-                          </div>
-                        </div>
-
-                        {/* Content Info */}
-                        <div className="flex flex-col min-w-0 flex-1">
-                          <div className="font-medium truncate">{stream.media_title || 'Unknown'}</div>
-                          {(stream.grandparent_title || stream.parent_title) && (
-                            <div className="text-sm text-muted-foreground truncate">
-                              {stream.grandparent_title}
-                              {stream.grandparent_title && stream.parent_title && ' • '}
-                              {stream.parent_title}
-                            </div>
-                          )}
-                          {stream.media_type && (
-                            <span className="inline-flex items-center rounded-md bg-blue-50 dark:bg-blue-400/10 px-2 py-1 text-xs font-medium text-blue-700 dark:text-blue-400 ring-1 ring-inset ring-blue-600/20 dark:ring-blue-500/20 gap-1 w-fit mt-1">
-                              {stream.media_type}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        {/* User Avatar */}
-                        <div className="w-8 h-8 flex-shrink-0">
-                          {stream.user_avatar_url ? (
-                            <img
-                              src={stream.user_avatar_url}
-                              alt={`${stream.user_display_name} avatar`}
-                              className="w-full h-full object-cover rounded-full border border-border"
-                              loading="lazy"
-                              onError={(e) => {
-                                e.currentTarget.style.display = 'none';
-                                if (e.currentTarget.nextElementSibling) {
-                                  (e.currentTarget.nextElementSibling as HTMLElement).style.display = 'flex';
-                                }
-                              }}
-                            />
-                          ) : null}
-                          <div className={`w-full h-full rounded-full border border-border flex items-center justify-center text-white text-xs font-medium bg-primary ${stream.user_avatar_url ? 'hidden' : 'flex'}`}>
-                            {stream.user_display_name?.[0]?.toUpperCase() || 'U'}
-                          </div>
-                        </div>
-
-                        {/* User Name */}
-                        <div className="flex flex-col">
-                          <div className="font-medium truncate">{stream.user_display_name}</div>
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-col">
-                        <span className="font-medium">{stream.started_at ? formatDate(stream.started_at) : '—'}</span>
-                        <span className="text-sm text-muted-foreground">{stream.started_at ? formatTime(stream.started_at) : ''}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <span className="font-medium">
-                        {stream.duration_seconds ? formatDuration(stream.duration_seconds) : '—'}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-col">
-                        {stream.platform && (
-                          <span className="font-medium">{stream.platform}</span>
-                        )}
-                        {stream.player && (
-                          <span className="text-sm text-muted-foreground">{stream.player}</span>
-                        )}
-                        {!stream.platform && !stream.player && (
-                          <span className="text-muted-foreground">Unknown</span>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                );
-              })
+              table.getRowModel().rows.map(row => (
+                <TableRow key={row.id} className="hover:bg-accent/50">
+                  {row.getVisibleCells().map(cell => <TableCell key={cell.id}><table.FlexRender cell={cell} /></TableCell>)}
+                </TableRow>
+              ))
             ) : (
               <TableRow>
                 <TableCell colSpan={5} className="py-12 text-center">

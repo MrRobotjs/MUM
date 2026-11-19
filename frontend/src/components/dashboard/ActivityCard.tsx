@@ -40,6 +40,8 @@ const duration = (seconds: number) => {
   const parts = watchTime(String(Math.round(seconds))).filter(([n]) => Number(n) !== 0);
   return parts.length ? parts.map(([n, unit]) => `${n} ${unit}`).join(' ') : '0 mins';
 };
+// "6:09": hours (as many as it takes) and minutes.
+const clock = (seconds: number) => `${Math.floor(seconds / 3600)}:${String(Math.floor(seconds % 3600 / 60)).padStart(2, '0')}`;
 const list = (names: string[]) => names.length <= 1 ? names.join('') : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
 
 // "11m ago", "3hrs ago": short, so titles keep the room.
@@ -141,8 +143,9 @@ export function ActivityStatistics({ fixedServer }: { fixedServer?: { id: number
   const ago = (at: string | null) => at ? formatRelative(at).replace(/^Just now$/, 'just now') : '—';
   // Figures follow the order the data was ranked by, not the toggle mid-load.
   const ranked = data?.order ?? order;
-  const figure = (item: ActivityTitle) => ranked === 'duration' ? duration(item.seconds) : item.plays.toLocaleString();
-  const metric = ranked === 'duration' ? 'Time' : 'Plays';
+  // Ranked by time, rows show H:MM and the heading says so, like Tautulli.
+  const figure = (item: ActivityTitle) => ranked === 'duration' ? clock(item.seconds) : item.plays.toLocaleString();
+  const metric = ranked === 'duration' ? 'Time · HH:MM' : 'Plays';
 
   const cards: ReactNode[] = [];
   if (data) {
@@ -176,7 +179,7 @@ export function ActivityStatistics({ fixedServer }: { fixedServer?: { id: number
       cards.push(<StatCard key="platforms" title="Most active platforms" metric={metric}
         rows={data.platforms.map(p => {
           const logo = playerLogo(p.name, p.name);
-          return { key: p.name, title: p.name, value: ranked === 'duration' ? duration(p.seconds) : p.plays.toLocaleString(), badges: badgesFor(p.server_ids),
+          return { key: p.name, title: p.name, value: ranked === 'duration' ? clock(p.seconds) : p.plays.toLocaleString(), badges: badgesFor(p.server_ids),
             visual: <FontAwesomeIcon icon={logo.icon} style={{ color: logo.color }} /> };
         })} />);
     }

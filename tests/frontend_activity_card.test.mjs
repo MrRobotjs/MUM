@@ -86,7 +86,10 @@ test('activity statistics', async t => {
   await t.test('play duration ranks and labels by time', () => {
     globalThis.activityCard = {loading: false, error: null, data: stats({order: 'duration'})};
     const html = m.render().replace(/<!-- -->/g, '');
-    assert.match(html, /Most watched movies<\/strong><\/span><span class="dashboard-stat-metric">Time<\/span>.*1 hr 30 mins/s);
+    assert.match(html, /Most watched movies<\/strong><\/span><span class="dashboard-stat-metric">Time · HH:MM<\/span>.*>1:30<\/span>.*>0:20<\/span>/s);
+    // The Time tile keeps its words; Recently played keeps "When".
+    assert.match(html, /Time<\/p><p[^>]*>1 day 2 hrs</);
+    assert.match(html, /Recently played<\/strong>.*?dashboard-stat-metric">When</s);
   });
 
   await t.test('a server overview: fixed to the server, no picker, badges or unreported note', () => {

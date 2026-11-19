@@ -148,6 +148,7 @@ const adminServersList = createRoute({ getParentRoute: () => adminRoute, path: '
 const adminServerDetail = createRoute({ getParentRoute: () => adminRoute, path: 'servers/$serverId', component: () => <ServerDetailPage section="overview" /> })
 const adminServerUsers = createRoute({ getParentRoute: () => adminRoute, path: 'servers/$serverId/users', component: () => <ServerDetailPage section="users" /> })
 const adminServerLibraries = createRoute({ getParentRoute: () => adminRoute, path: 'servers/$serverId/libraries', component: () => <ServerDetailPage section="libraries" /> })
+const adminServerGraphs = createRoute({ getParentRoute: () => adminRoute, path: 'servers/$serverId/graphs', component: () => <ServerDetailPage section="graphs" /> })
 const adminServerResources = createRoute({ getParentRoute: () => adminRoute, path: 'servers/$serverId/resources', component: () => <ServerDetailPage section="resources" /> })
 const adminLibraryDetail = createRoute({
   getParentRoute: () => adminRoute,
@@ -292,6 +293,7 @@ const routeTree = rootRoute.addChildren([
     adminServerDetail,
     adminServerUsers,
     adminServerLibraries,
+    adminServerGraphs,
     adminServerResources,
     adminLibraryDetail,
     adminMediaDetail,

@@ -57,3 +57,6 @@
 .dashboard-health-status[data-status="unchecked"] { color: #b45309; background: rgb(245 158 11 / .14); }
 [data-theme=dark] .dashboard-health-status[data-status="online"] { color: #6ee7b7; background: rgb(16 185 129 / .18); }
 [data-theme=dark] .dashboard-health-status[data-status="unchecked"] { color: #fcd34d; background: rgb(245 158 11 / .18); }
+/* A server's Overview status tiles (SERVER_OVERVIEW_DESIGN.md): the tile style, not links. */
+.dashboard-overview-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: 1rem; }
+.dashboard-overview-tile:hover { border-color: var(--border); box-shadow: none; }

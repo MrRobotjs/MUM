@@ -19,7 +19,6 @@ import {
   faCheckCircle,
   faXmarkCircle,
   faLink,
-  faClock,
   faDatabase,
   faClockRotateLeft,
 } from '@fortawesome/free-solid-svg-icons';
@@ -32,14 +31,18 @@ import { getServiceMeta } from '@/config/pluginMetadata';
 import { ServiceIcon } from '../components';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
-import { Card, CardContent } from '../components/ui/card';
+import { Card, CardContent, CardHeader } from '../components/ui/card';
 import { Skeleton } from '../components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { ACTIVITY_GRAPH_SERVICES, ActivityGraphs } from './GraphsPage';
 import { PlexResources } from '../components/servers/PlexResources';
+import { serverAvailability, connectionLabel } from '../lib/serverOverview';
+import { subscribeToChannel } from '../lib/realtimeSocket';
+import { SettingIcon, TabHeading } from '../components/users/AccountSettings';
+import '../components/dashboard/ServerHealth.css';
 
-type ServerTab = 'overview' | 'users' | 'libraries' | 'resources';
+type ServerTab = 'overview' | 'users' | 'libraries' | 'graphs' | 'resources';
 
 type ServerStatusPayload = {
   online?: boolean;
@@ -103,7 +106,7 @@ const formatUrlHost = (value?: string | null) => {
 // Overview, Users and Libraries are separate pages (/admin/servers/<id>,
 // /users, /libraries) sharing the server hero; the sidebar links between them.
 export const ServerDetailPage = ({ section = 'overview' }: { section?: ServerTab }) => {
-  const { formatTimestamp } = useAccountDisplay();
+  const { formatTimestamp, formatRelative } = useAccountDisplay();
   const formatDateTime = (value?: string | null) => formatTimestamp(value, 'datetime', 'Not available');
   const { serverId } = useParams({ strict: false }) as { serverId: string };
   const { success, error: showError } = useAlerts();
@@ -111,12 +114,15 @@ export const ServerDetailPage = ({ section = 'overview' }: { section?: ServerTab
   const parsedServerId = Number(serverId);
   const numericServerId = Number.isSafeInteger(parsedServerId) && parsedServerId > 0 && String(parsedServerId) === serverId ? parsedServerId : undefined;
 
-  const { server, loading, error, refresh } = useServerDetail(numericServerId) as {
+  const { server, loading, error, refresh, refreshQuietly } = useServerDetail(numericServerId) as {
     server: ServerDetail | null;
     loading: boolean;
     error: unknown;
     refresh: () => Promise<unknown>;
+    refreshQuietly: () => Promise<void>;
   };
+  const quietRefresh = useRef(refreshQuietly);
+  quietRefresh.current = refreshQuietly;
   const {
     libraries,
     loading: librariesLoading,
@@ -193,6 +199,11 @@ export const ServerDetailPage = ({ section = 'overview' }: { section?: ServerTab
   const statusOnline = server?.status?.online ?? server?.last_status ?? null;
   const statusVersion = server?.status?.version ?? server?.last_version ?? null;
   const statusError = server?.status?.error_message ?? server?.status?.error ?? null;
+  const availability = serverAvailability({ provider_enabled: server?.provider_enabled, is_active: server?.is_active }, getServiceMeta(server?.service_type ?? undefined).label);
+  // MUM checks servers in the background; re-read this one when it announces a change.
+  useEffect(() => subscribeToChannel('system.server_health', envelope => {
+    if (envelope.type === 'ServerHealth') void quietRefresh.current();
+  }), []);
   const serverHost = formatUrlHost(server?.url);
   const publicHost = formatUrlHost(server?.public_url);
   const totalItems = useMemo(
@@ -330,112 +341,54 @@ export const ServerDetailPage = ({ section = 'overview' }: { section?: ServerTab
       </Card>
 
         {section === 'overview' ? (<div className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card>
-              <CardContent className="p-6 space-y-4">
-                <h3 className="text-lg font-semibold flex items-center">
-                  <FontAwesomeIcon icon={faCircleInfo} className="mr-2 h-5 w-5 text-blue-500" />
-                  Server Details
-                </h3>
-                <div className="space-y-3">
-                  <div className="flex justify-between gap-4">
-                    <span className="text-muted-foreground">Nickname:</span>
-                    <span className="font-medium text-right">{server.server_nickname || '—'}</span>
-                  </div>
-                  <div className="flex justify-between gap-4">
-                    <span className="text-muted-foreground">Server Name:</span>
-                    <span className="font-medium text-right">{server.server_name || server.server_nickname || '—'}</span>
-                  </div>
-                  <div className="flex justify-between gap-4">
-                    <span className="text-muted-foreground">Service:</span>
-                    <span className="font-medium text-right">{serviceMeta.label}</span>
-                  </div>
-                  <div className="flex justify-between gap-4">
-                    <span className="text-muted-foreground">URL:</span>
-                    <span className="font-medium text-right break-all">{server.url || '—'}</span>
-                  </div>
-                  <div className="flex justify-between gap-4">
-                    <span className="text-muted-foreground">Public URL:</span>
-                    <span className="font-medium text-right break-all">{server.public_url || 'Not configured'}</span>
-                  </div>
-                  <div className="flex justify-between gap-4">
-                    <span className="text-muted-foreground">Created:</span>
-                    <span className="font-medium text-right">{formatDateTime(server.created_at)}</span>
-                  </div>
-                  <div className="flex justify-between gap-4">
-                    <span className="text-muted-foreground">Updated:</span>
-                    <span className="font-medium text-right">{formatDateTime(server.updated_at)}</span>
-                  </div>
-                  <div className="flex justify-between gap-4">
-                    <span className="text-muted-foreground">Last Sync:</span>
-                    <span className="font-medium text-right">{formatDateTime(server.last_sync_at)}</span>
-                  </div>
-                  {typeof server.websocket_refresh_interval === 'number' ? (
-                    <div className="flex justify-between gap-4">
-                      <span className="text-muted-foreground">WS Refresh Interval:</span>
-                      <span className="font-medium text-right">{server.websocket_refresh_interval}s</span>
-                    </div>
-                  ) : null}
-                  <div className="flex justify-between gap-4">
-                    <span className="text-muted-foreground">Overseerr:</span>
-                    <span className="font-medium text-right">
-                      {server.overseerr_enabled ? `Enabled${publicHost && server.overseerr_url ? ` (${formatUrlHost(server.overseerr_url)})` : ''}` : 'Disabled'}
-                    </span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+          {/* Status at a glance (SERVER_OVERVIEW_DESIGN.md) */}
+          <div className="dashboard-overview-grid">
+            <div className="dashboard-health-tile dashboard-overview-tile">
+              <SettingIcon className="bg-primary/20 text-primary"><FontAwesomeIcon icon={faPlug} className="w-4 h-4" /></SettingIcon>
+              <div className="dashboard-health-body">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">Connection</p>
+                <div><span className="dashboard-health-status" data-status={!availability.active ? 'disabled' : statusOnline === null ? 'unchecked' : statusOnline ? 'online' : 'offline'}>{availability.active ? connectionLabel(statusOnline) : 'Off'}</span></div>
+                <span className="dashboard-health-note">{server.last_status_check ? `Checked ${formatRelative(server.last_status_check).replace(/^Just now$/, 'just now')}` : 'Never checked'}</span>
+              </div>
+            </div>
+            <div className="dashboard-health-tile dashboard-overview-tile">
+              <SettingIcon className="bg-primary/20 text-primary"><FontAwesomeIcon icon={faCircleInfo} className="w-4 h-4" /></SettingIcon>
+              <div className="dashboard-health-body">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">Version</p>
+                <p className="text-lg font-semibold">{statusVersion || 'Not available'}</p>
+                <span className="dashboard-health-note">{serviceMeta.label}</span>
+              </div>
+            </div>
+            <div className="dashboard-health-tile dashboard-overview-tile">
+              <SettingIcon className="bg-primary/20 text-primary"><FontAwesomeIcon icon={faUsers} className="w-4 h-4" /></SettingIcon>
+              <div className="dashboard-health-body">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">Users</p>
+                <p className="text-lg font-semibold">{userCount.toLocaleString()}</p>
+                <span className="dashboard-health-note">Accounts on this server</span>
+              </div>
+            </div>
+            <div className="dashboard-health-tile dashboard-overview-tile">
+              <SettingIcon className="bg-primary/20 text-primary"><FontAwesomeIcon icon={faDatabase} className="w-4 h-4" /></SettingIcon>
+              <div className="dashboard-health-body">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">Libraries</p>
+                <p className="text-lg font-semibold">{libraries.length.toLocaleString()}</p>
+                <span className="dashboard-health-note">{totalItems.toLocaleString()} items</span>
+              </div>
+            </div>
+            <div className="dashboard-health-tile dashboard-overview-tile">
+              <SettingIcon className="bg-primary/20 text-primary"><FontAwesomeIcon icon={faRotate} className="w-4 h-4" /></SettingIcon>
+              <div className="dashboard-health-body">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">Last sync</p>
+                <p className="text-lg font-semibold">{server.last_sync_at ? formatRelative(server.last_sync_at) : 'Never'}</p>
+                <span className="dashboard-health-note">{formatDateTime(server.last_sync_at)}</span>
+              </div>
+            </div>
+          </div>
 
-            <Card>
-              <CardContent className="p-6 space-y-4">
-                <h3 className="text-lg font-semibold flex items-center">
-                  <FontAwesomeIcon icon={faPlug} className="mr-2 h-5 w-5 text-emerald-500" />
-                  Status & Actions
-                </h3>
-                <div className="space-y-3">
-                  <div className="flex justify-between gap-4">
-                    <span className="text-muted-foreground">Provider Enabled:</span>
-                    <span className="font-medium text-right inline-flex items-center gap-1.5">
-                      <FontAwesomeIcon icon={server.provider_enabled ? faCheckCircle : faXmarkCircle} className={server.provider_enabled ? 'text-emerald-500' : 'text-destructive'} />
-                      {server.provider_enabled ? 'Yes' : 'No'}
-                    </span>
-                  </div>
-                  <div className="flex justify-between gap-4">
-                    <span className="text-muted-foreground">Server Active:</span>
-                    <span className="font-medium text-right inline-flex items-center gap-1.5">
-                      <FontAwesomeIcon icon={server.is_active ? faCheckCircle : faXmarkCircle} className={server.is_active ? 'text-emerald-500' : 'text-destructive'} />
-                      {server.is_active ? 'Yes' : 'No'}
-                    </span>
-                  </div>
-                  <div className="flex justify-between gap-4">
-                    <span className="text-muted-foreground">Effective Active:</span>
-                    <span className="font-medium text-right inline-flex items-center gap-1.5">
-                      <FontAwesomeIcon icon={server.effective_active ? faCheckCircle : faXmarkCircle} className={server.effective_active ? 'text-emerald-500' : 'text-destructive'} />
-                      {server.effective_active ? 'Yes' : 'No'}
-                    </span>
-                  </div>
-                  <div className="flex justify-between gap-4">
-                    <span className="text-muted-foreground">Connection:</span>
-                    <span className="font-medium text-right">
-                      {statusOnline === null ? 'Unknown' : statusOnline ? 'Online' : 'Offline'}
-                    </span>
-                  </div>
-                  <div className="flex justify-between gap-4">
-                    <span className="text-muted-foreground">Version:</span>
-                    <span className="font-medium text-right">{statusVersion || 'Not available'}</span>
-                  </div>
-                  <div className="flex justify-between gap-4">
-                    <span className="text-muted-foreground">Last Status Check:</span>
-                    <span className="font-medium text-right">{formatDateTime(server.last_status_check)}</span>
-                  </div>
-                  {statusError ? (
-                    <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
-                      {statusError}
-                    </div>
-                  ) : null}
-                </div>
-
-                <div className="grid gap-2 pt-2 sm:grid-cols-3">
+          <Card>
+            <CardHeader><TabHeading icon={faPlug} title="Actions" description="Test the connection, sync users and libraries, and import play history." /></CardHeader>
+            <CardContent className="space-y-4">
+                <div className="grid gap-2 sm:grid-cols-3">
                   <Button
                     variant="outline"
                     onClick={handleTestConnection}
@@ -509,40 +462,90 @@ export const ServerDetailPage = ({ section = 'overview' }: { section?: ServerTab
                     </p>
                   </div>
                 )}
-              </CardContent>
-            </Card>
-          </div>
+            </CardContent>
+          </Card>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Card>
-              <CardContent className="p-4">
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">Users</p>
-                <p className="mt-1 text-2xl font-semibold">{userCount.toLocaleString()}</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4">
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">Libraries</p>
-                <p className="mt-1 text-2xl font-semibold">
-                  {libraries.length.toLocaleString()}
-                  <span className="ml-2 text-sm font-normal text-muted-foreground">
-                    ({totalItems.toLocaleString()} items)
-                  </span>
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <FontAwesomeIcon icon={faClock} className="h-4 w-4" />
-            Use the sync actions above to refresh server health, users, and libraries.
-          </div>
-
-          {/* The Graphs page's charts, for this server's recorded plays */}
-          {numericServerId !== undefined && ACTIVITY_GRAPH_SERVICES.has(serviceType.toLowerCase()) && (
-            <ActivityGraphs key={numericServerId} serverId={numericServerId} />
-          )}
+          <Card>
+            <CardHeader><TabHeading icon={faCircleInfo} title="Details" description="This server's settings and status." /></CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="space-y-3">
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">Server</p>
+                  <div className="flex justify-between gap-4">
+                    <span className="text-muted-foreground">Nickname:</span>
+                    <span className="font-medium text-right">{server.server_nickname || '—'}</span>
+                  </div>
+                  <div className="flex justify-between gap-4">
+                    <span className="text-muted-foreground">Server Name:</span>
+                    <span className="font-medium text-right">{server.server_name || server.server_nickname || '—'}</span>
+                  </div>
+                  <div className="flex justify-between gap-4">
+                    <span className="text-muted-foreground">Service:</span>
+                    <span className="font-medium text-right">{serviceMeta.label}</span>
+                  </div>
+                  <div className="flex justify-between gap-4">
+                    <span className="text-muted-foreground">URL:</span>
+                    <span className="font-medium text-right break-all">{server.url || '—'}</span>
+                  </div>
+                  <div className="flex justify-between gap-4">
+                    <span className="text-muted-foreground">Public URL:</span>
+                    <span className="font-medium text-right break-all">{server.public_url || 'Not configured'}</span>
+                  </div>
+                  <div className="flex justify-between gap-4">
+                    <span className="text-muted-foreground">Created:</span>
+                    <span className="font-medium text-right">{formatDateTime(server.created_at)}</span>
+                  </div>
+                  <div className="flex justify-between gap-4">
+                    <span className="text-muted-foreground">Updated:</span>
+                    <span className="font-medium text-right">{formatDateTime(server.updated_at)}</span>
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">Status</p>
+                  <div className="flex justify-between gap-4">
+                    <span className="text-muted-foreground">Availability:</span>
+                    <span className="font-medium text-right inline-flex items-center gap-1.5">
+                      <FontAwesomeIcon icon={availability.active ? faCheckCircle : faXmarkCircle} className={availability.active ? 'text-emerald-500' : 'text-destructive'} />
+                      {availability.text}
+                    </span>
+                  </div>
+                  <div className="flex justify-between gap-4">
+                    <span className="text-muted-foreground">Last Status Check:</span>
+                    <span className="font-medium text-right">{formatDateTime(server.last_status_check)}</span>
+                  </div>
+                  {typeof server.websocket_refresh_interval === 'number' ? (
+                    <div className="flex justify-between gap-4">
+                      <span className="text-muted-foreground">WS Refresh Interval:</span>
+                      <span className="font-medium text-right">{server.websocket_refresh_interval}s</span>
+                    </div>
+                  ) : null}
+                  <div className="flex justify-between gap-4">
+                    <span className="text-muted-foreground">Overseerr:</span>
+                    <span className="font-medium text-right">
+                      {server.overseerr_enabled ? `Enabled${publicHost && server.overseerr_url ? ` (${formatUrlHost(server.overseerr_url)})` : ''}` : 'Disabled'}
+                    </span>
+                  </div>
+                  {statusError ? (
+                    <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+                      {statusError}
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>) : null}
+
+        {/* The Graphs page's charts, for this server's recorded plays */}
+        {section === 'graphs' ? (
+          numericServerId !== undefined && ACTIVITY_GRAPH_SERVICES.has(serviceType.toLowerCase()) ? (
+            <ActivityGraphs key={numericServerId} serverId={numericServerId} />
+          ) : (
+            <Card>
+              <CardContent className="p-6 text-sm text-muted-foreground">Graphs are available for Plex, Jellyfin and Emby servers.</CardContent>
+            </Card>
+          )
+        ) : null}
 
         {section === 'users' && numericServerId !== undefined ? (
           <ServerUsersCard serverId={numericServerId} serviceType={serviceType.toLowerCase()} onSync={() => void handleSync('users')} syncing={syncingUsers} syncDisabled={syncUnavailable} />

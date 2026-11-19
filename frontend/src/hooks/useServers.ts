@@ -68,7 +68,7 @@ export const useServerDetail = (serverId?: number) => {
   const session=useSyncExternalStore(subscribeToAuthStore,getAuthSnapshot),token=session.accessToken;
   const actor=isAdministrator&&token?user?.uuid:undefined;
   const url=Number.isSafeInteger(serverId)&&Number(serverId)>0?`/api/servers/${serverId}`:null;
-  const state=useSWR(actor&&url?[url,actor,token]:null,async()=>{
+  const read=async()=>{
     if(token!==getAccessToken())throw Error('Session changed. Refresh the server.');
     const abort=new AbortController(),timer=setTimeout(()=>abort.abort(),15000);
     try{
@@ -76,6 +76,14 @@ export const useServerDetail = (serverId?: number) => {
       if(token!==getAccessToken()||!data||data.id!==serverId||!Number.isSafeInteger(data.revision)||data.revision<0)throw Error('Invalid server detail. Refresh.');
       return data;
     }finally{clearTimeout(timer);}
-  },{keepPreviousData:false,shouldRetryOnError:false});
-  return {server:actor&&!state.error&&state.data?.id===serverId?state.data:null,loading:state.isLoading,error:state.error,refresh:state.mutate};
+  };
+  const state=useSWR(actor&&url?[url,actor,token]:null,read,{keepPreviousData:false,shouldRetryOnError:false});
+  // A background re-read (a health announcement): a fresh server replaces the
+  // shown one, a failure keeps it. SWR receives the read as data rather than
+  // revalidating, so a passing failure never becomes the page's error.
+  const refreshQuietly=async()=>{
+    if(!actor||!url||!state.data)return;
+    await state.mutate(read(),{revalidate:false}).then(()=>undefined,()=>undefined);
+  };
+  return {server:actor&&!state.error&&state.data?.id===serverId?state.data:null,loading:state.isLoading,error:state.error,refresh:state.mutate,refreshQuietly};
 };

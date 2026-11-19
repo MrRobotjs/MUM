@@ -8,6 +8,7 @@ import {
   faGear,
   faLayerGroup,
   faGaugeHigh,
+  faChartLine,
   faRotate,
   faServer,
   faUsers,
@@ -20,6 +21,7 @@ import { useUserTotal } from "@/hooks/useUserTotal"
 import { SidebarCount } from "@/components/layout/SidebarCount"
 import { useSyncServerLibraries } from "@/hooks/useSyncServerLibraries"
 import { getServiceIcon } from "@/config/pluginMetadata"
+import { ACTIVITY_GRAPH_SERVICES } from "@/pages/GraphsPage"
 import { useAlerts } from "@/contexts/AlertContext"
 import {
   Collapsible,
@@ -53,11 +55,17 @@ type ServerNavItemProps = {
 // A server's own pages, in sidebar order. Resources (the server's dashboard
 // graphs) is offered for Plex servers only.
 const serverPages = [
-  { title: "Overview", suffix: "", to: "/admin/servers/$serverId", icon: faCircleInfo, plexOnly: false },
-  { title: "Users", suffix: "/users", to: "/admin/servers/$serverId/users", icon: faUsers, plexOnly: false },
-  { title: "Libraries", suffix: "/libraries", to: "/admin/servers/$serverId/libraries", icon: faLayerGroup, plexOnly: false },
-  { title: "Resources", suffix: "/resources", to: "/admin/servers/$serverId/resources", icon: faGaugeHigh, plexOnly: true },
+  { title: "Overview", suffix: "", to: "/admin/servers/$serverId", icon: faCircleInfo, types: null },
+  { title: "Users", suffix: "/users", to: "/admin/servers/$serverId/users", icon: faUsers, types: null },
+  { title: "Libraries", suffix: "/libraries", to: "/admin/servers/$serverId/libraries", icon: faLayerGroup, types: null },
+  { title: "Graphs", suffix: "/graphs", to: "/admin/servers/$serverId/graphs", icon: faChartLine, types: ACTIVITY_GRAPH_SERVICES },
+  { title: "Resources", suffix: "/resources", to: "/admin/servers/$serverId/resources", icon: faGaugeHigh, types: new Set(["plex"]) },
 ] as const
+
+/** The pages a server of this type has, in sidebar order. */
+export function serverPagesFor(serviceType: string) {
+  return serverPages.filter((page) => page.types === null || page.types.has(serviceType))
+}
 
 const ServerNavItem = ({ server, pathname, onNavigate }: ServerNavItemProps) => {
   const { success, error } = useAlerts()
@@ -283,16 +291,16 @@ const ServerNavItem = ({ server, pathname, onNavigate }: ServerNavItemProps) => 
                 </CollapsibleContent>
               </SidebarMenuSubItem>
             </Collapsible>
-            {server.service_type === "plex" && (
-              <SidebarMenuSubItem>
-                <SidebarMenuSubButton asChild isActive={pathname === `${serverPath}/resources`}>
-                  <Link to="/admin/servers/$serverId/resources" params={{ serverId: String(server.id) }} onClick={onNavigate}>
-                    <FontAwesomeIcon icon={faGaugeHigh} className="h-4 w-4" />
-                    <span>Resources</span>
+            {serverPagesFor(server.service_type).filter((page) => page.title === "Graphs" || page.title === "Resources").map((page) => (
+              <SidebarMenuSubItem key={page.title}>
+                <SidebarMenuSubButton asChild isActive={pathname === `${serverPath}${page.suffix}`}>
+                  <Link to={page.to} params={{ serverId: String(server.id) }} onClick={onNavigate}>
+                    <FontAwesomeIcon icon={page.icon} className="h-4 w-4" />
+                    <span>{page.title}</span>
                   </Link>
                 </SidebarMenuSubButton>
               </SidebarMenuSubItem>
-            )}
+            ))}
           </SidebarMenuSub>
         </CollapsibleContent>
         {/* Collapsed to icons (desktop only): an open server shows its pages
@@ -302,7 +310,7 @@ const ServerNavItem = ({ server, pathname, onNavigate }: ServerNavItemProps) => 
             shows these pages. */}
         {open && (
           <div className="mt-0.5 hidden flex-col items-center gap-0.5 group-data-[collapsible=icon]:flex">
-            {serverPages.filter((page) => !page.plexOnly || server.service_type === "plex").map((page) => (
+            {serverPagesFor(server.service_type).map((page) => (
               <SidebarMenuButton
                 key={page.title}
                 asChild

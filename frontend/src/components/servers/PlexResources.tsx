@@ -150,8 +150,10 @@ export const PlexResources = ({ serverId }: { serverId: number }) => {
     return renderGraphsTooltipCard(bandwidthTitle(String(label ?? '')), rows);
   };
   const percentTooltip = ({ active, payload, label }: { active?: boolean; payload?: ReadonlyArray<any>; label?: string | number }) => {
-    if (!active || !payload?.length) return null;
-    return renderGraphsTooltipCard(secondsAgo(String(label ?? ''), resourcesLatest), payload.map((entry) => ({
+    // The lines' invisible hover twins are drawn transparent; only the real lines are listed.
+    const lines = (payload ?? []).filter((entry) => entry.type !== 'none' && entry.stroke !== 'transparent');
+    if (!active || !lines.length) return null;
+    return renderGraphsTooltipCard(secondsAgo(String(label ?? ''), resourcesLatest), lines.map((entry) => ({
       key: String(entry.dataKey), label: String(entry.name), value: entry.value == null ? '—' : `${Number(entry.value).toFixed(1)}%`, dotColor: String(entry.color),
     })));
   };

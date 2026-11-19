@@ -21,16 +21,14 @@ import {
   type PieSectorShapeProps,
 } from 'recharts';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faChartLine, faCircleNodes, faHeartPulse, faRotate } from '@fortawesome/free-solid-svg-icons';
+import { faChartLine, faCircleNodes, faHeartPulse } from '@fortawesome/free-solid-svg-icons';
 import { IconDefinition } from '@fortawesome/fontawesome-svg-core';
 
 import { PageHeader } from '../components';
 import { useServers } from '../hooks/useServers';
 import { useAdminApi } from '../hooks/useAdminApi';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
-import { Button } from '../components/ui/button';
-import { Input } from '../components/ui/input';
-import { Label } from '../components/ui/label';
+import { PeriodPicker } from '../components/common/PeriodPicker';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Spinner } from '@/components/ui/spinner';
 import { ServiceIcon } from '@/components/services/ServiceIcon';
@@ -342,9 +340,14 @@ export const ChartCard = ({ title, description, icon, loading, actions, children
     </Card>
 );
 
+// The period presets; any whole number of days up to a year can be typed in.
+const GRAPH_PERIODS = [1, 7, 30, 90, 180, 365];
+// How often the charts read their data again while the page is open.
+export const GRAPH_REFRESH_MS = 15_000;
+
 /**
  * The activity graphs: on the Graphs page for any or all servers, or on a
- * server's overview fixed to that server (serverId), without the server picker.
+ * server's Graphs tab fixed to that server (serverId), without the server picker.
  */
 export const ActivityGraphs = ({ serverId: fixedServerId }: { serverId?: number } = {}) => {
   const { formatTimestamp } = useAccountDisplay();
@@ -361,7 +364,6 @@ export const ActivityGraphs = ({ serverId: fixedServerId }: { serverId?: number 
       return 30;
     }
   });
-  const [daysInput, setDaysInput] = useState(String(days));
   const [serverId, setServerId] = useState<string>(() => {
     if (fixed) return String(fixedServerId);
     try {
@@ -401,10 +403,6 @@ export const ActivityGraphs = ({ serverId: fixedServerId }: { serverId?: number 
   }, [days, serverId, fixed, storageKey]);
 
   useEffect(() => {
-    setDaysInput(String(days));
-  }, [days]);
-
-  useEffect(() => {
     if (typeof window === 'undefined') return;
     const onResize = () => setIsMobileViewport(window.innerWidth < 640);
     window.addEventListener('resize', onResize);
@@ -416,7 +414,8 @@ export const ActivityGraphs = ({ serverId: fixedServerId }: { serverId?: number 
       `/graphs/analytics?days=${days}&server_id=${encodeURIComponent(effectiveServerIdFilter || 'all')}&server_mode=${serverMode}`,
     [days, effectiveServerIdFilter, serverMode]
   );
-  const { data, loading, error, mutate } = useAdminApi<GraphsAnalyticsResponse>(analyticsPath);
+  // The charts update live: their data is read again every 15 seconds while the tab is open.
+  const { data, loading, error } = useAdminApi<GraphsAnalyticsResponse>(analyticsPath, true, GRAPH_REFRESH_MS);
 
   const hourlyChartData = useMemo(
     () =>
@@ -539,13 +538,6 @@ export const ActivityGraphs = ({ serverId: fixedServerId }: { serverId?: number 
     }
   }, [activeDeviceIndex, deviceChartData.length]);
 
-  const applyDaysFilter = () => {
-    const parsed = Number(daysInput);
-    if (!Number.isFinite(parsed)) return;
-    const clamped = Math.max(1, Math.min(365, Math.floor(parsed)));
-    setDays(clamped);
-  };
-
   const totalPlaybackSessions = playbackChartData.reduce((sum, item) => sum + (item.value || 0), 0);
   const totalWatchTimeMinutes = watchTimeActivityChartData.reduce((sum, item) => sum + (item.value || 0), 0);
   const separatedPlaybackTotal = useMemo(
@@ -617,45 +609,16 @@ export const ActivityGraphs = ({ serverId: fixedServerId }: { serverId?: number 
         />
       )}
 
+      {/* One toolbar: the period (presets or a typed number of days), the
+          server on the Graphs page, when the data was generated and refresh. */}
       <Card className="border shadow-sm">
-        <CardContent>
-          <div className="flex items-center justify-between gap-2">
-            <div className="text-sm font-medium">Filters</div>
-            <Button variant="outline" size="sm" onClick={() => void mutate()} disabled={loading}>
-              <FontAwesomeIcon icon={faRotate} className="mr-2 h-4 w-4" />
-              Refresh
-            </Button>
-          </div>
-
-          <div className={fixed ? 'grid gap-4' : 'grid gap-4 md:grid-cols-2'}>
-            <div className="space-y-2">
-              <Label htmlFor="graphs-days">Time Range (Days)</Label>
-              <div className="flex gap-2">
-                <Input
-                  id="graphs-days"
-                  type="number"
-                  min={1}
-                  max={365}
-                  value={daysInput}
-                  onChange={(e) => setDaysInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      applyDaysFilter();
-                    }
-                  }}
-                />
-                <Button type="button" variant="outline" onClick={applyDaysFilter}>
-                  Apply
-                </Button>
-              </div>
-            </div>
-
-            {!fixed && <div className="space-y-2">
-              <Label htmlFor="graphs-server">Server</Label>
-              <Select value={serverId} onValueChange={setServerId}>
-                <SelectTrigger id="graphs-server">
-                  <SelectValue placeholder="All Servers (Combined)" />
-                </SelectTrigger>
+        <CardContent className="space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <PeriodPicker value={days} onChange={setDays} presets={GRAPH_PERIODS} max={365} />
+            {!fixed && <Select value={serverId} onValueChange={setServerId}>
+              <SelectTrigger className="w-auto" aria-label="Server">
+                <SelectValue placeholder="All Servers (Combined)" />
+              </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">
                     <span className="flex items-center gap-2">
@@ -689,14 +652,11 @@ export const ActivityGraphs = ({ serverId: fixedServerId }: { serverId?: number 
                     </SelectItem>
                   ))}
                 </SelectContent>
-              </Select>
-            </div>}
+            </Select>}
+            <span className="ml-auto text-xs text-muted-foreground">{generatedAtLabel ? `Updated ${generatedAtLabel}` : 'Waiting for analytics data...'}</span>
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-            <span>{generatedAtLabel ? `Generated ${generatedAtLabel}` : 'Waiting for analytics data...'}</span>
-            {playbackNote ? <span>{playbackNote}</span> : null}
-          </div>
+          {playbackNote ? <p className="text-xs text-muted-foreground">{playbackNote}</p> : null}
 
           {error ? (
             <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">

@@ -4,9 +4,9 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faChartLine, faCircleInfo, faClock, faLayerGroup, faPlay, faTowerBroadcast, faUsers } from '@fortawesome/free-solid-svg-icons';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { PeriodPicker, periodLabel } from '../common/PeriodPicker';
 import { Spinner } from '@/components/ui/spinner';
 import { getServiceMeta, getServicePalette } from '@/config/pluginMetadata';
 import { ServiceIcon } from '@/components/services/ServiceIcon';
@@ -37,7 +37,6 @@ const periods = [7, 30, 90, 0];
 // Most concurrent streams' rows, in order.
 const concurrentLabels: Record<ConcurrentKind, string> = { all: 'Streams', transcode: 'Transcodes', direct_stream: 'Direct streams', direct_play: 'Direct plays' };
 const maxDays = 3650;
-const periodLabel = (days: number) => days === 0 ? 'All time' : `Last ${days} days`;
 
 // "3 days 4 hrs" without zero parts.
 const duration = (seconds: number) => {
@@ -133,17 +132,6 @@ export function ActivityStatistics({ fixedServer }: { fixedServer?: { id: number
   const [days, setDays] = useState(30);
   // Off by default: monitored servers' imported history from before MUM's recordings.
   const [withImported, setWithImported] = useState(false);
-  // The period picker's "Last [ ] days" box.
-  const [periodOpen, setPeriodOpen] = useState(false);
-  const [customDays, setCustomDays] = useState('');
-  const custom = /^\d+$/.test(customDays) ? Number(customDays) : NaN;
-  const customValid = custom >= 1 && custom <= maxDays;
-  const applyCustom = () => {
-    if (!customValid) return;
-    setDays(custom);
-    setCustomDays('');
-    setPeriodOpen(false);
-  };
   const [picked, setPicked] = useState<number | null>(null);
   const [order, setOrder] = useState<ActivityOrder>('plays');
   const server = fixedServer?.id ?? picked;
@@ -261,23 +249,7 @@ export function ActivityStatistics({ fixedServer }: { fixedServer?: { id: number
                 </SelectItem>)}
               </SelectContent>
             </Select>}
-            <Select open={periodOpen} onOpenChange={setPeriodOpen} value={String(days)} onValueChange={value => setDays(Number(value))}>
-              <SelectTrigger className="w-auto" aria-label="Period"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {periods.map(p => <SelectItem key={p} value={String(p)}>{periodLabel(p)}</SelectItem>)}
-                {!periods.includes(days) && <SelectItem value={String(days)}>{periodLabel(days)}</SelectItem>}
-                <SelectSeparator />
-                {/* Keys stay in the box rather than moving through the list. */}
-                <form className="flex items-center gap-2 px-2 py-1.5 text-sm" onKeyDown={e => e.stopPropagation()}
-                  onSubmit={e => { e.preventDefault(); applyCustom(); }}>
-                  Last
-                  <Input type="number" inputMode="numeric" min={1} max={maxDays} step={1} className="h-7 w-20" aria-label="Number of days"
-                    placeholder="14" value={customDays} onChange={e => setCustomDays(e.target.value)} />
-                  days
-                  <Button type="submit" size="sm" variant="outline" className="h-7" disabled={!customValid}>Show</Button>
-                </form>
-              </SelectContent>
-            </Select>
+            <PeriodPicker value={days} onChange={setDays} presets={periods} max={maxDays} />
           </div>
         </div>
       </CardHeader>

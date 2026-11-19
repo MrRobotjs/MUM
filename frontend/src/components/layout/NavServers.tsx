@@ -9,6 +9,7 @@ import {
   faLayerGroup,
   faGaugeHigh,
   faChartLine,
+  faClockRotateLeft,
   faRotate,
   faServer,
   faUsers,
@@ -52,12 +53,16 @@ type ServerNavItemProps = {
   onNavigate: () => void
 }
 
+// Server types with play history: recorded by MUM or imported from the server.
+export const HISTORY_SERVICES = new Set(["plex", "jellyfin", "emby", "audiobookshelf"])
+
 // A server's own pages, in sidebar order. Resources (the server's dashboard
 // graphs) is offered for Plex servers only.
 const serverPages = [
   { title: "Overview", suffix: "", to: "/admin/servers/$serverId", icon: faCircleInfo, types: null },
   { title: "Users", suffix: "/users", to: "/admin/servers/$serverId/users", icon: faUsers, types: null },
   { title: "Libraries", suffix: "/libraries", to: "/admin/servers/$serverId/libraries", icon: faLayerGroup, types: null },
+  { title: "History", suffix: "/history", to: "/admin/servers/$serverId/history", icon: faClockRotateLeft, types: HISTORY_SERVICES },
   { title: "Graphs", suffix: "/graphs", to: "/admin/servers/$serverId/graphs", icon: faChartLine, types: ACTIVITY_GRAPH_SERVICES },
   { title: "Resources", suffix: "/resources", to: "/admin/servers/$serverId/resources", icon: faGaugeHigh, types: new Set(["plex"]) },
 ] as const
@@ -291,7 +296,8 @@ const ServerNavItem = ({ server, pathname, onNavigate }: ServerNavItemProps) => 
                 </CollapsibleContent>
               </SidebarMenuSubItem>
             </Collapsible>
-            {serverPagesFor(server.service_type).filter((page) => page.title === "Graphs" || page.title === "Resources").map((page) => (
+            {/* The pages after Libraries (History, Graphs, Resources); the ones above are listed with their counts. */}
+            {serverPagesFor(server.service_type).filter((page) => !["Overview", "Users", "Libraries"].includes(page.title)).map((page) => (
               <SidebarMenuSubItem key={page.title}>
                 <SidebarMenuSubButton asChild isActive={pathname === `${serverPath}${page.suffix}`}>
                   <Link to={page.to} params={{ serverId: String(server.id) }} onClick={onNavigate}>

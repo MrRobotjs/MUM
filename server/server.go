@@ -177,6 +177,8 @@ func NewApp(store *Store, queue *LogQueue, assets fs.FS) (*App, error) {
 	handle("GET /api/activity/identities/{identity}/history", a.activityRead)
 	handle("GET /api/activity/identities/{identity}/timeline", a.identityTimeline)
 	handle("POST /api/activity/identities/{identity}/timeline/delete", a.deleteTimelinePlays)
+	handle("GET /api/activity/timeline", a.serverTimeline)
+	handle("POST /api/activity/servers/{server}/timeline/delete", a.deleteServerTimelinePlays)
 	handle("GET /api/activity/identities/{identity}/history-import", a.personHistoryImportStatus)
 	handle("POST /api/activity/identities/{identity}/history-import", a.startPersonHistoryImport)
 	handle("GET /api/activity/identities/{identity}/plays", a.identityPlayTotals)

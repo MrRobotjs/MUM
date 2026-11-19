@@ -33,7 +33,10 @@ test('streaming settings entry and independent current operations',async t=>{
  });
  // Only the owner and full administrators are offered Terminate Stream (the server checks too).
  await t.test('Terminate Stream is offered to administrators only',async()=>{const m=await setup();let card=children(m.StreamingPage()).find(n=>n.type==='ActiveStreamsCard');assert.equal(typeof card.props.onTerminateSession,'function');assert.ok(children(m.StreamingPage()).some(n=>n.type==='TerminateSessionModal'));globalThis.streamingView.auth={user:{uuid:actor},isAdministrator:false};card=children(m.StreamingPage()).find(n=>n.type==='ActiveStreamsCard');assert.equal(card.props.onTerminateSession,undefined);});
- await t.test('Streams mounts the original active cards and map rather than replacement panels',async()=>{const m=await setup();const page=m.StreamingPage();assert.ok(children(page).some(n=>n.type==='ActiveStreamsCard'));assert.ok(children(page).some(n=>n.type==='StreamingSessionsMap'));assert.equal(children(page).some(n=>n.type==='CurrentActivityObservations'),false);});
+ await t.test('Streams mounts the original active cards and map rather than replacement panels',async()=>{const m=await setup();const page=m.StreamingPage();assert.ok(children(page).some(n=>n.type==='ActiveStreamsCard'));assert.ok(children(page).some(n=>n.type==='StreamingSessionsMap'));assert.equal(children(page).some(n=>n.type==='CurrentActivityObservations'),false);
+  // The overview, per-server and per-type placeholders and the raw history table are gone: History has its own page.
+  for(const removed of ['StreamingSummaryCard','StreamingHistoryFilters','StreamingHistoricalData'])assert.equal(children(page).some(n=>n.type===removed),false,removed);
+  assert.equal(JSON.stringify(page).includes('Streams by server'),false);});
  await t.test('Streams page action opens the dialog and its close callback resets visibility',async()=>{
   const m=await setup();let page=m.StreamingPage();const header=children(page).find(n=>n.type==='PageHeader');header.props.actions.props.onClick();page=m.StreamingPage();const dialog=children(page).find(n=>n.type===m.StreamingSettingsModal);assert.equal(dialog.props.open,true);dialog.props.onClose();assert.equal(globalThis.streamingView.open,false);
  });

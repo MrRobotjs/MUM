@@ -18,6 +18,7 @@ import HomePage from '../pages/HomePage';
 import UsersListPage from '../pages/UsersListPage';
 import UserDetailPage from '../pages/UserDetailPage';
 import StreamingPage from '../pages/StreamingPage';
+import HistoryPage from '../pages/HistoryPage';
 import InvitesPage from '../pages/InvitesPage';
 import InviteWizardPage from '../pages/InviteWizardPage';
 import InviteLandingPage from '../pages/InviteLandingPage';
@@ -116,6 +117,7 @@ const accountRoute = createRoute({
   },
 })
 const adminStreaming = createRoute({ getParentRoute: () => adminRoute, path: 'streaming', component: StreamingPage })
+const adminHistory = createRoute({ getParentRoute: () => adminRoute, path: 'history', component: HistoryPage })
 const adminUsers = createRoute({ getParentRoute: () => adminRoute, path: 'users', component: UsersListPage })
 const userTabs = ['profile', 'history', 'settings', 'linked-accounts', 'overseerr', 'security'] as const
 type UserTab = typeof userTabs[number]
@@ -149,6 +151,7 @@ const adminServerDetail = createRoute({ getParentRoute: () => adminRoute, path: 
 const adminServerUsers = createRoute({ getParentRoute: () => adminRoute, path: 'servers/$serverId/users', component: () => <ServerDetailPage section="users" /> })
 const adminServerLibraries = createRoute({ getParentRoute: () => adminRoute, path: 'servers/$serverId/libraries', component: () => <ServerDetailPage section="libraries" /> })
 const adminServerGraphs = createRoute({ getParentRoute: () => adminRoute, path: 'servers/$serverId/graphs', component: () => <ServerDetailPage section="graphs" /> })
+const adminServerHistory = createRoute({ getParentRoute: () => adminRoute, path: 'servers/$serverId/history', component: () => <ServerDetailPage section="history" /> })
 const adminServerResources = createRoute({ getParentRoute: () => adminRoute, path: 'servers/$serverId/resources', component: () => <ServerDetailPage section="resources" /> })
 const adminLibraryDetail = createRoute({
   getParentRoute: () => adminRoute,
@@ -285,6 +288,7 @@ const routeTree = rootRoute.addChildren([
     adminGraphs,
     adminNotifications,
     adminStreaming,
+    adminHistory,
     adminUsers,
     adminUserByNick,
     adminUserByUuid,
@@ -294,6 +298,7 @@ const routeTree = rootRoute.addChildren([
     adminServerUsers,
     adminServerLibraries,
     adminServerGraphs,
+    adminServerHistory,
     adminServerResources,
     adminLibraryDetail,
     adminMediaDetail,

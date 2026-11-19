@@ -12,11 +12,11 @@ import (
 	"time"
 )
 
-// Deleting plays from a person's History tab: MUM's recorded plays and
-// imported plays, in
-// one transaction. Every play must belong to the person and none may still be
-// playing, or nothing is deleted. Deleted plays are not remembered, so an
-// import can bring them back.
+// Deleting plays from a person's History tab, or from a server's History tab
+// and the History page: MUM's recorded plays and imported plays, in one
+// transaction. Every play must belong to the person or the server and none
+// may still be playing, or nothing is deleted. Deleted plays are not
+// remembered, so an import can bring them back.
 
 const maxTimelineDelete = 500
 
@@ -37,11 +37,29 @@ func timelinePlayID(id string) (string, int64, bool) {
 }
 
 func (a *App) deleteTimelinePlays(w http.ResponseWriter, r *http.Request) {
+	a.deletePlays(w, r, r.PathValue("identity"), 0)
+}
+
+func (a *App) deleteServerTimelinePlays(w http.ResponseWriter, r *http.Request) {
+	a.deletePlays(w, r, "", -1)
+}
+
+// deletePlays deletes the plays of one person (target) or, when server is not
+// zero, on the server named in the path. The caller's session is checked
+// before anything in the request.
+func (a *App) deletePlays(w http.ResponseWriter, r *http.Request, target string, server int64) {
 	actor, ok := a.principal(w, r, true)
 	if !ok {
 		return
 	}
-	target := r.PathValue("identity")
+	if server != 0 {
+		if server, ok = pathID(w, r, "server"); !ok {
+			return
+		}
+	} else if !validAdminMemberCursor(target) {
+		fail(w, 400, "INVALID_HISTORY_DELETE", "Send 1 to 500 different play IDs from this person's history")
+		return
+	}
 	var body struct {
 		IDs []string `json:"ids"`
 	}
@@ -53,7 +71,7 @@ func (a *App) deleteTimelinePlays(w http.ResponseWriter, r *http.Request) {
 		row    int64
 	}
 	plays := make([]play, 0, len(body.IDs))
-	valid := validAdminMemberCursor(target) && len(body.IDs) >= 1 && len(body.IDs) <= maxTimelineDelete
+	valid := len(body.IDs) >= 1 && len(body.IDs) <= maxTimelineDelete
 	for i, id := range body.IDs {
 		source, row, ok := timelinePlayID(id)
 		if !valid || !ok || slices.Contains(body.IDs[:i], id) {
@@ -63,7 +81,7 @@ func (a *App) deleteTimelinePlays(w http.ResponseWriter, r *http.Request) {
 		plays = append(plays, play{source, row})
 	}
 	if !valid {
-		fail(w, 400, "INVALID_HISTORY_DELETE", "Send 1 to 500 different play IDs from this person's history")
+		fail(w, 400, "INVALID_HISTORY_DELETE", "Send 1 to 500 different play IDs from this history")
 		return
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
@@ -79,6 +97,10 @@ func (a *App) deleteTimelinePlays(w http.ResponseWriter, r *http.Request) {
 		}
 		mumFilter, mumArgs := mumPlayFilter(actor.UUID, q)
 		importedFilter, importedArgs := importedPlayFilter(actor.UUID, q)
+		if server != 0 {
+			mumFilter, mumArgs = mumFilter+` AND h.server_id=?`, append(mumArgs, server)
+			importedFilter, importedArgs = importedFilter+` AND i.server_id=?`, append(importedArgs, server)
+		}
 		for _, p := range plays {
 			var mine, active bool
 			var err error
@@ -110,9 +132,10 @@ func (a *App) deleteTimelinePlays(w http.ResponseWriter, r *http.Request) {
 			deleted++
 		}
 		details, _ := json.Marshal(struct {
-			Target  string `json:"target_uuid"`
+			Target  string `json:"target_uuid,omitempty"`
+			Server  int64  `json:"server_id,omitempty"`
 			Deleted int    `json:"deleted"`
-		}{target, deleted})
+		}{target, server, deleted})
 		_, err := tx.ExecContext(ctx, `INSERT INTO audit_events(actor_uuid,action,details,occurred_at) VALUES(?,'activity.history.delete',?,?)`, actor.UUID, string(details), utcTimestamp(time.Now()))
 		return err
 	})

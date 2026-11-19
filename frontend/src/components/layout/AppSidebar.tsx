@@ -10,6 +10,7 @@ import {
   faUsers,
   faTicket,
   faTowerBroadcast,
+  faClockRotateLeft,
   faDesktop,
   faRotate,
   faCheck,
@@ -199,12 +200,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 isActive: isNavItemActive('/admin/dashboard'),
               },
               {
-                title: 'Graphs',
-                url: '/admin/graphs',
-                icon: faGaugeHigh,
-                isActive: isNavItemActive('/admin/graphs'),
-              },
-              {
                 title: 'Users',
                 url: '/admin/users',
                 icon: faUsers,
@@ -233,6 +228,18 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 icon: faTowerBroadcast,
                 isActive: isNavItemActive('/admin/streaming'),
                 statusIndicator: streamBadgeIndicator,
+              },
+              {
+                title: 'History',
+                url: '/admin/history',
+                icon: faClockRotateLeft,
+                isActive: isNavItemActive('/admin/history'),
+              },
+              {
+                title: 'Graphs',
+                url: '/admin/graphs',
+                icon: faGaugeHigh,
+                isActive: isNavItemActive('/admin/graphs'),
               },
             ]
       )

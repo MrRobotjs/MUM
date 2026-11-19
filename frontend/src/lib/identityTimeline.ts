@@ -48,6 +48,9 @@ export type TimelineItem = Readonly<{
   listened_seconds: string | null;
   // A MUM play still being watched; it can't be deleted until it ends.
   in_progress: boolean;
+  // Who played it: their MUM account, else the server account, and its name.
+  person_uuid: string;
+  person_name: string;
   poster_url?: string;
 }>;
 export type TimelinePage = Readonly<{
@@ -85,6 +88,7 @@ function item(value: unknown, seen: Set<string>): TimelineItem {
       v.poster_url !== undefined && !text(v.poster_url) ||
       !optionalText(v.platform) || !optionalText(v.player) || !optionalText(v.ip_address) || !time(v.stopped_at) || !whole(v.paused_seconds) || !whole(v.watched_seconds) ||
       !whole(v.listened_seconds) || v.source !== 'audiobookshelf' && v.listened_seconds !== null || typeof v.in_progress !== 'boolean' || fromServer && v.in_progress ||
+      !uuid(v.person_uuid) || !text(v.person_name) ||
       // MUM always knows when it last saw its own play and how long it was watched.
       !fromServer && (v.stopped_at === null || v.watched_seconds === null) ||
       // Imported plays record no player or quality; only Audiobookshelf reports progress.
@@ -131,15 +135,67 @@ export async function fetchIdentityTimeline(actor: string, target: string, scope
     categories: Object.freeze([...categories]), items: data.items.map(value => item(value, seen)), next_before: data.next_before as string | null });
 }
 
+// A server's history (its History tab and the History page): everyone's plays
+// on one server, with an optional person. Administrators only.
+export type TimelinePerson = Readonly<{ uuid: string; name: string }>;
+export type ServerTimelineRequest = Readonly<{ server?: string; user?: string; records: TimelineRecords; filters: TimelineFilters; before?: string }>;
+export type ServerTimelinePage = Readonly<{
+  actor_uuid: string; user: string | null; server_id: string | null; records: TimelineRecords;
+  servers: readonly TimelineServer[]; categories: readonly TimelineCategory[]; people: readonly TimelinePerson[]; items: TimelineItem[]; next_before: string | null;
+}>;
+
+export async function fetchServerTimeline(actor: string, request: ServerTimelineRequest): Promise<ServerTimelinePage> {
+  const { server: chosen, user, records, filters, before } = request;
+  if (chosen !== undefined && !serverID(chosen) || user !== undefined && !uuid(user) || !recordsChoices.includes(records) || before !== undefined && !cursor(before)) throw new Error('Invalid history request');
+  const types = ordered(filters.types, timelineCategories), streams = ordered(filters.methods, timelineMethods);
+  const token = getAccessToken();
+  const query = new URLSearchParams();
+  if (chosen) query.set('server', chosen);
+  if (user) query.set('user', user);
+  query.set('records', records);
+  if (types.length) query.set('types', types.join(','));
+  if (streams.length) query.set('methods', streams.join(','));
+  if (before) query.set('before', before);
+  const { data } = await requestJson<{ data?: Record<string, unknown> }>(`/api/activity/timeline?${query}`, { retryAuthentication: false });
+  if (!token || token !== getAccessToken()) throw new Error('The session changed. Refresh history.');
+  if (!data || data.actor_uuid !== actor || (data.user ?? null) !== (user ?? null) || data.records !== records || !Array.isArray(data.items) || !Array.isArray(data.people) ||
+      !(data.next_before === null || cursor(data.next_before)) || !Array.isArray(data.servers) || !Array.isArray(data.categories)) throw new Error('Invalid history page');
+  const servers = data.servers.map(server);
+  const categories = data.categories as TimelineCategory[];
+  const people = data.people.map((value: unknown) => {
+    const p = value as Record<string, unknown>;
+    if (!p || !uuid(p.uuid) || !text(p.name)) throw new Error('Invalid history page');
+    return Object.freeze({ uuid: p.uuid as string, name: p.name as string });
+  });
+  if (new Set(servers.map(s => s.server_id)).size !== servers.length || new Set(people.map(p => p.uuid)).size !== people.length ||
+      categories.some(c => !timelineCategories.includes(c)) || categories.join() !== timelineCategories.filter(c => categories.includes(c)).join() ||
+      (data.server_id === null ? servers.some(s => s.history) : !servers.some(s => s.server_id === data.server_id)) || chosen !== undefined && data.server_id !== chosen) throw new Error('Invalid history page');
+  const seen = new Set<string>();
+  const items = data.items.map(value => item(value, seen));
+  if (items.some(i => i.server_id !== data.server_id || user !== undefined && i.person_uuid !== user)) throw new Error('Invalid history page');
+  return Object.freeze({ actor_uuid: actor, user: user ?? null, server_id: data.server_id as string | null, records, servers: Object.freeze(servers),
+    categories: Object.freeze([...categories]), people: Object.freeze(people), items, next_before: data.next_before as string | null });
+}
+
 export const maxTimelineDelete = 500;
 
 // Deletes the plays permanently. Sent once: a failed request is reported,
 // never repeated.
 export async function deleteTimelinePlays(target: string, ids: readonly string[]): Promise<number> {
-  if (!uuid(target) || ids.length < 1 || ids.length > maxTimelineDelete || new Set(ids).size !== ids.length ||
+  if (!uuid(target)) throw new Error('Invalid history delete');
+  return deletePlays(`/api/activity/identities/${target}/timeline/delete`, ids);
+}
+
+// Deletes plays on one server, from its History tab or the History page.
+export async function deleteServerTimelinePlays(server: string, ids: readonly string[]): Promise<number> {
+  if (!serverID(server)) throw new Error('Invalid history delete');
+  return deletePlays(`/api/activity/servers/${server}/timeline/delete`, ids);
+}
+
+async function deletePlays(path: string, ids: readonly string[]): Promise<number> {
+  if (ids.length < 1 || ids.length > maxTimelineDelete || new Set(ids).size !== ids.length ||
       ids.some(id => !/^(mum|plex|jellyfin|emby|audiobookshelf)-[1-9]\d{0,18}$/.test(id))) throw new Error('Invalid history delete');
-  const { data } = await requestJson<{ data?: { deleted?: unknown } }>(`/api/activity/identities/${target}/timeline/delete`,
-    { method: 'POST', body: JSON.stringify({ ids }), retryAuthentication: false });
+  const { data } = await requestJson<{ data?: { deleted?: unknown } }>(path, { method: 'POST', body: JSON.stringify({ ids }), retryAuthentication: false });
   if (!Number.isInteger(data?.deleted) || (data!.deleted as number) !== ids.length) throw new Error('The server returned an unexpected answer');
   return data!.deleted as number;
 }

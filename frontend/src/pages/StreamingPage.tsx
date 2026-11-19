@@ -6,7 +6,6 @@ import {terminateStream} from '../lib/streamTerminate';
 import type {ActiveSession} from '../types/streaming';
 import {Button} from '../components/ui/button';
 import {StreamingSettingsModal} from '../components/dashboard/StreamingSettingsModal';
-import {StreamingSummaryCard} from '../components/dashboard/StreamingSummaryCard';
 import {PageHeader} from '../components';
 import {ActiveStreamsCard} from '../components/streaming/ActiveStreamsCard';
 import {StreamingSessionsMap} from '../components/streaming/StreamingSessionsMap';
@@ -14,8 +13,6 @@ import {useLiveStreams} from '../hooks/useLiveStreams';
 import {usePlaybackClock} from '../hooks/usePlaybackClock';
 import {readStreamDisplayDefaults} from '../lib/liveStreams';
 import type {ViewMode,StreamCardStyle} from '../types/streaming';
-import {StreamingHistoryFilters} from '../components/streaming/StreamingHistoryFilters';
-import {Card,CardContent,CardDescription,CardHeader,CardTitle} from '@/components/ui/card';
 
 export const StreamingPage=()=> {
  const [settingsOpen,setSettingsOpen]=useState(false);
@@ -43,9 +40,6 @@ export const StreamingPage=()=> {
    {Boolean(streams.data?.unavailable_sources.length)&&<p className="text-sm text-muted-foreground">Sources without fresh observations: {streams.data?.unavailable_sources.join(', ')}. Check activity monitoring in Streaming Settings.</p>}
   </div>
   <div className="space-y-4"><StreamingSessionsMap key={streams.scopeKey} sessions={streams.data?.sessions??[]}/></div>
-  <StreamingSummaryCard scope="all"/>
-  <div className="grid gap-4 md:grid-cols-2">{['Streams by server','Streams by service type'].map(title=><Card key={title}><CardHeader><CardTitle className="text-base font-semibold">{title}</CardTitle><CardDescription>Aggregate data is unavailable.</CardDescription></CardHeader><CardContent><p className="text-sm text-muted-foreground">Scoped aggregate statistics have not been implemented.</p></CardContent></Card>)}</div>
-  <StreamingHistoryFilters/>
   <StreamingSettingsModal open={settingsOpen} onClose={()=>setSettingsOpen(false)}/>
   <TerminateSessionModal open={terminating!==null} session={terminating} message={terminateMessage} onMessageChange={setTerminateMessage} onClose={()=>{if(!stopping)setTerminating(null);}} onConfirm={()=>{void confirmTerminate();}}/>
 </div>;

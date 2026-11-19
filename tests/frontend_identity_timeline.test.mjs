@@ -14,10 +14,12 @@ const target = '22222222-2222-4222-8222-222222222222';
 const service = '33333333-3333-4333-8333-333333333333';
 const mum = {source: 'mum', id: 'mum-7', server_id: '1', service_uuid: service, media_type: 'movie', title: 'Film', parent_title: null, library_name: 'Movies',
   played_at: '2026-11-10T20:00:00.000000000Z', client: 'Plex Web', play_method: 'direct_play', position_ticks: '600', duration_ticks: '1200',
-  platform: 'Chrome', player: 'Living room', ip_address: '172.56.183.189', stopped_at: '2026-11-10T20:10:00.000000000Z', paused_seconds: '60', watched_seconds: '540', listened_seconds: null, in_progress: false};
+  platform: 'Chrome', player: 'Living room', ip_address: '172.56.183.189', stopped_at: '2026-11-10T20:10:00.000000000Z', paused_seconds: '60', watched_seconds: '540', listened_seconds: null, in_progress: false,
+  person_uuid: target, person_name: 'viewer'};
 const plex = {source: 'plex', id: 'plex-3', server_id: '1', service_uuid: service, media_type: 'episode', title: 'Pilot', parent_title: 'A Show', library_name: null,
   played_at: '2024-04-30T18:00:00.000000000Z', client: null, play_method: null, position_ticks: null, duration_ticks: null,
-  platform: null, player: null, ip_address: null, stopped_at: null, paused_seconds: null, watched_seconds: null, listened_seconds: null, in_progress: false};
+  platform: null, player: null, ip_address: null, stopped_at: null, paused_seconds: null, watched_seconds: null, listened_seconds: null, in_progress: false,
+  person_uuid: target, person_name: 'viewer'};
 const jelly = {...plex, source: 'jellyfin', id: 'jellyfin-4', server_id: '2', title: 'Film', parent_title: null};
 const book = {...plex, source: 'audiobookshelf', id: 'audiobookshelf-5', server_id: '3', media_type: 'book', title: 'A Book', parent_title: 'An Author', position_ticks: '900000000', duration_ticks: '36000000000', listened_seconds: '3600'};
 const servers = [
@@ -97,7 +99,8 @@ test('identity timeline adapter', async t => {
       page({items: [{...plex, poster_url: 'http://plex.test/library/metadata/1/thumb'}]}), page({items: [{...jelly, position_ticks: '5'}]}), page({items: [{...jelly, client: 'Web'}]}),
       page({items: [{...plex, platform: 'Chrome'}]}), page({items: [{...plex, stopped_at: '2024-04-30T18:00:00.000000000Z'}]}), page({items: [{...mum, stopped_at: null}]}),
       page({items: [{...mum, stopped_at: 'later'}]}), page({items: [{...mum, paused_seconds: '-1'}]}), page({items: [{...mum, watched_seconds: null}]}), page({items: [{...mum, ip_address: 7}]}),
-      page({items: [{...plex, listened_seconds: '5'}]}), page({items: [{...plex, in_progress: true}]}), page({items: [{...mum, in_progress: 'no'}]}), page({items: [{...jelly, source: 'kavita', id: 'kavita-4'}]})]) {
+      page({items: [{...plex, listened_seconds: '5'}]}), page({items: [{...plex, in_progress: true}]}), page({items: [{...mum, in_progress: 'no'}]}), page({items: [{...jelly, source: 'kavita', id: 'kavita-4'}]}),
+      page({items: [{...mum, person_uuid: 'someone'}]}), page({items: [{...mum, person_name: null}]})]) {
       globalThis.fetch = async () => Response.json({data: bad});
       await assert.rejects(m.fetchIdentityTimeline(actor, target, 'all', {...all, server: '1'}), /Invalid history/);
     }
@@ -115,5 +118,65 @@ test('identity timeline adapter', async t => {
     assert.equal(calls.length, 1);
     globalThis.fetch = async () => Response.json({data: {deleted: 5}});
     await assert.rejects(m.deleteTimelinePlays(target, ['mum-7']));
+  });
+});
+
+// A server's history (its History tab and the History page): everyone's plays
+// on one server, with an optional person, people for the picker, and deletes
+// that stay on the server.
+const other = '44444444-4444-4444-8444-444444444444';
+const serverPage = (extra = {}) => ({actor_uuid: actor, user: null, server_id: '1', records: 'all', servers, categories: ['movies', 'tv'],
+  people: [{uuid: target, name: 'viewer'}, {uuid: other, name: 'guest'}], items: [mum, {...plex, person_uuid: other, person_name: 'guest'}], next_before: null, ...extra});
+
+test('server timeline adapter', async t => {
+  const before = {fetch: globalThis.fetch, window: globalThis.window};
+  t.after(() => { globalThis.fetch = before.fetch; globalThis.window = before.window; });
+  globalThis.window = {location: {origin: 'http://localhost', pathname: '/admin/history', href: 'http://localhost/admin/history'}, addEventListener() {}, removeEventListener() {}};
+
+  await t.test('reads one server, everyone or one person', async () => {
+    const m = await load(); m.setAccessToken('session');
+    let seen;
+    globalThis.fetch = async req => { seen = new URL(req.url); return Response.json({data: serverPage()}); };
+    const page = await m.fetchServerTimeline(actor, {...all, server: '1'});
+    assert.equal(seen.pathname, '/api/activity/timeline');
+    assert.equal(seen.searchParams.get('server'), '1');
+    assert.equal(seen.searchParams.get('user'), null);
+    assert.deepEqual(page.people.map(p => p.name), ['viewer', 'guest']);
+    assert.deepEqual(page.items.map(i => i.person_name), ['viewer', 'guest']);
+    globalThis.fetch = async req => { seen = new URL(req.url); return Response.json({data: serverPage({user: target, items: [mum]})}); };
+    const mine = await m.fetchServerTimeline(actor, {...all, server: '1', user: target, filters: {types: ['tv', 'movies'], methods: ['transcode']}});
+    assert.equal(seen.searchParams.get('user'), target);
+    assert.equal(seen.searchParams.get('types'), 'movies,tv');
+    assert.equal(mine.user, target);
+    // Without a server named, the reply picks one.
+    globalThis.fetch = async req => { seen = new URL(req.url); return Response.json({data: serverPage()}); };
+    assert.equal((await m.fetchServerTimeline(actor, all)).server_id, '1');
+    assert.equal(seen.searchParams.get('server'), null);
+  });
+
+  await t.test('rejects pages that do not match the request', async () => {
+    const m = await load(); m.setAccessToken('session');
+    for (const [request, bad] of [
+      [{...all, server: '1'}, serverPage({actor_uuid: target})], [{...all, server: '1'}, serverPage({server_id: '2'})], [{...all, server: '1'}, serverPage({records: 'mum'})],
+      [{...all, server: '1'}, serverPage({user: target})], [{...all, server: '1', user: target}, serverPage({user: target})],
+      [{...all, server: '1'}, serverPage({people: [{uuid: 'x', name: 'x'}]})], [{...all, server: '1'}, serverPage({people: [{uuid: target, name: 'a'}, {uuid: target, name: 'b'}]})],
+      [{...all, server: '1'}, serverPage({items: [{...jelly}]})], [all, serverPage({server_id: null})], [{...all, server: '1'}, serverPage({people: undefined})],
+    ]) {
+      globalThis.fetch = async () => Response.json({data: bad});
+      await assert.rejects(m.fetchServerTimeline(actor, request), /Invalid history/);
+    }
+    await assert.rejects(m.fetchServerTimeline(actor, {...all, server: 'x'}), /Invalid history request/);
+    await assert.rejects(m.fetchServerTimeline(actor, {...all, user: 'someone'}), /Invalid history request/);
+  });
+
+  await t.test('deletes plays on the server once, with no retry', async () => {
+    const m = await load(); m.setAccessToken('session');
+    const calls = [];
+    globalThis.fetch = async req => { calls.push([req.method, new URL(req.url).pathname]); return Response.json({data: {deleted: 1}}); };
+    assert.equal(await m.deleteServerTimelinePlays('1', ['plex-3']), 1);
+    assert.deepEqual(calls, [['POST', '/api/activity/servers/1/timeline/delete']]);
+    await assert.rejects(m.deleteServerTimelinePlays('x', ['plex-3']));
+    await assert.rejects(m.deleteServerTimelinePlays('1', []));
+    assert.equal(calls.length, 1);
   });
 });

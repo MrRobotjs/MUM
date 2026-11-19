@@ -37,6 +37,8 @@ import { Separator } from '../components/ui/separator';
 import { Skeleton } from '../components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
 import { ACTIVITY_GRAPH_SERVICES, ActivityGraphs } from './GraphsPage';
+import { ServerHistory } from '../components/history/ServerHistory';
+import { HISTORY_SERVICES } from '../components/layout/NavServers';
 import { PlexResources } from '../components/servers/PlexResources';
 import { serverAvailability, connectionLabel } from '../lib/serverOverview';
 import { subscribeToChannel } from '../lib/realtimeSocket';
@@ -44,7 +46,7 @@ import { SettingHeader, SettingIcon, TabHeading } from '../components/users/Acco
 import '../components/dashboard/ServerHealth.css';
 import { ActivityStatistics } from '../components/dashboard/ActivityCard';
 
-type ServerTab = 'overview' | 'users' | 'libraries' | 'graphs' | 'resources';
+type ServerTab = 'overview' | 'users' | 'libraries' | 'history' | 'graphs' | 'resources';
 
 type ServerStatusPayload = {
   online?: boolean;
@@ -509,6 +511,17 @@ export const ServerDetailPage = ({ section = 'overview' }: { section?: ServerTab
             </CardContent>
           </Card>
         </div>) : null}
+
+        {/* Everyone's plays on this server, as on the History page */}
+        {section === 'history' ? (
+          numericServerId !== undefined && HISTORY_SERVICES.has(serviceType.toLowerCase()) ? (
+            <ServerHistory key={numericServerId} serverId={String(numericServerId)} description={`Everyone’s plays on ${server.server_nickname || 'this server'}, newest first.`} />
+          ) : (
+            <Card>
+              <CardContent className="p-6 text-sm text-muted-foreground">Play history is available for Plex, Jellyfin, Emby and Audiobookshelf servers.</CardContent>
+            </Card>
+          )
+        ) : null}
 
         {/* The Graphs page's charts, for this server's recorded plays */}
         {section === 'graphs' ? (

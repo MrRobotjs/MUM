@@ -57,6 +57,7 @@ import {
   faUsers,
   faClock,
 } from '@fortawesome/free-solid-svg-icons';
+import { LibraryOverview } from '../components/library/LibraryOverview';
 
 type ServiceType = 'plex' | 'jellyfin' | 'emby' | 'kavita' | 'audiobookshelf' | 'komga' | 'romm';
 
@@ -100,14 +101,8 @@ interface MediaItem {
   stream_count?: number;
 }
 
-interface PopularContent {
-  media_title: string;
-  play_count: number;
-}
-
 interface LibraryStats {
   library_type: string;
-  popular_content: PopularContent[];
 }
 
 // API response types for stronger typing
@@ -708,11 +703,7 @@ const LibraryDetailPageView = () => {
       if (response.data) {
         setLibrary(response.data);
         setError(null);
-        // Load mock stats (in real app, would come from API)
-        setLibraryStats({
-          library_type: response.data.library_type || 'Mixed',
-          popular_content: []
-        });
+        setLibraryStats({ library_type: response.data.library_type || 'Mixed' });
       }
       return true;
     } catch (err) {
@@ -959,76 +950,8 @@ const LibraryDetailPageView = () => {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="overview" className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Library Details */}
-            <Card>
-              <CardContent className="p-6 space-y-4">
-                <h3 className="text-lg font-semibold flex items-center">
-                  <FontAwesomeIcon icon={faCircleInfo} className="mr-2 h-5 w-5 text-blue-500" />
-                  Library Details
-                </h3>
-                <div className="space-y-3">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Name:</span>
-                    <span className="font-medium">{library.name}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Type:</span>
-                    <span className="font-medium">{libraryStats?.library_type || 'Mixed'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Server Nickname:</span>
-                    <span className="font-medium">{library.server?.server_nickname}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Server:</span>
-                    <span className="font-medium">{library.server?.server_name || library.server?.server_nickname}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Service:</span>
-                    <span className="font-medium capitalize">{serviceType}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">External ID:</span>
-                    <span className="font-medium font-mono text-sm">{library.external_id}</span>
-                  </div>
-                  {library.last_scanned && (
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Last Scanned:</span>
-                      <span className="font-medium">
-                        {formatTimestamp(library.last_scanned)}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Popular Content */}
-            <Card>
-              <CardContent className="p-6 space-y-4">
-                <h3 className="text-lg font-semibold flex items-center">
-                  <FontAwesomeIcon icon={faStar} className="mr-2 h-5 w-5 text-yellow-500" />
-                  Most Popular Content
-                </h3>
-                {libraryStats?.popular_content && libraryStats.popular_content.length > 0 ? (
-                  <div className="space-y-3">
-                    {libraryStats.popular_content.map((content, idx) => (
-                      <div key={idx} className="flex justify-between items-center">
-                        <span className="font-medium truncate mr-2">{content.media_title}</span>
-                        <span className="text-sm bg-primary/20 text-primary px-2 py-1 rounded-full">
-                          {content.play_count} plays
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-muted-foreground text-center py-4">No streaming activity yet</p>
-                )}
-              </CardContent>
-            </Card>
-          </div>
+        <TabsContent value="overview" className="space-y-6 mt-3">
+          <LibraryOverview serverId={Number(library.server_id ?? serverId)} serviceLabel={getServiceMeta(serviceType).label} library={library} />
         </TabsContent>
 
         <TabsContent value="media" className="space-y-6 mt-3">

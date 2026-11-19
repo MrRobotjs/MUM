@@ -87,7 +87,7 @@ func (a *App) libraryStats(w http.ResponseWriter, r *http.Request) {
 		domainError(w, err)
 		return
 	}
-	trending, err := libraryTrending(ctx, q)
+	trending, err := a.libraryTrending(ctx, q)
 	if err != nil {
 		domainError(w, err)
 		return
@@ -114,8 +114,10 @@ func (a *App) libraryStats(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func libraryTrending(ctx context.Context, q libraryActivityRequest) ([]map[string]any, error) {
-	rows, err := q.tx.QueryContext(ctx, "SELECT item_title,count(*) AS n FROM ("+libraryActivityMatch+") GROUP BY item ORDER BY n DESC,item_title COLLATE NOCASE,item LIMIT 10", q.args()...)
+// libraryTrending lists the window's most played catalogue items, each with
+// its catalogue ID and, when it has one, a signed poster link.
+func (a *App) libraryTrending(ctx context.Context, q libraryActivityRequest) ([]map[string]any, error) {
+	rows, err := q.tx.QueryContext(ctx, "SELECT item_title,count(*) AS n,item,max(tag) FROM ("+libraryActivityMatch+") GROUP BY item ORDER BY n DESC,item_title COLLATE NOCASE,item LIMIT 10", q.args()...)
 	if err != nil {
 		return nil, err
 	}
@@ -123,11 +125,16 @@ func libraryTrending(ctx context.Context, q libraryActivityRequest) ([]map[strin
 	out := []map[string]any{}
 	for rows.Next() {
 		var title string
-		var n int64
-		if err := rows.Scan(&title, &n); err != nil {
+		var n, item int64
+		var tag string
+		if err := rows.Scan(&title, &n, &item, &tag); err != nil {
 			return nil, err
 		}
-		out = append(out, map[string]any{"title": title, "streams": n})
+		entry := map[string]any{"title": title, "streams": n, "item_id": item, "poster_url": nil}
+		if tag != "" && q.library.Active {
+			entry["poster_url"] = a.catalogueImageURL(q.session, item, time.Now())
+		}
+		out = append(out, entry)
 	}
 	return out, rows.Err()
 }

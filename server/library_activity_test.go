@@ -83,6 +83,14 @@ func TestLibraryStatsAndActivityAttributeThroughTheCatalogue(t *testing.T) {
 	if len(trending) != 2 || first["title"] != "Movie 0000" || first["streams"].(float64) != 2 || second["title"] != "The Show" {
 		t.Fatal(trending)
 	}
+	// Each entry names its catalogue item, so the Overview can link to it; a
+	// poster link comes with items that have one.
+	if id, _ := first["item_id"].(float64); id < 1 {
+		t.Fatal("no item id", first)
+	}
+	if poster, _ := first["poster_url"].(string); !strings.HasPrefix(poster, "/api/media/images/") || second["poster_url"] != nil {
+		t.Fatal("posters", first, second)
+	}
 	chart := stats["chart_data"].([]any)
 	last := chart[len(chart)-1].(map[string]any)
 	// The observations start one to three hours ago, which can straddle UTC

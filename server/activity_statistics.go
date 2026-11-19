@@ -317,6 +317,18 @@ func (a *App) activityStatistics(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 				item.Link = link
+				// The title's poster: the one poster link every play view uses.
+				if sessionErr == nil {
+					url, err := a.playPosterURL(ctx, tx, session, playPoster{server: item.Server, item: item.item, parent: item.parent, art: item.art,
+						row: item.poster.Int64, imported: item.imported, stored: item.poster.Valid}, now)
+					if err != nil {
+						domainError(w, err)
+						return
+					}
+					if url != "" {
+						item.PosterURL = &url
+					}
+				}
 			}
 		}
 	}
@@ -374,24 +386,6 @@ func (a *App) activityStatistics(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Posters use the History tab's signed links.
-	if sessionErr == nil {
-		for i := range sections {
-			for j := range sections[i].Items {
-				item := &sections[i].Items[j]
-				if !item.poster.Valid {
-					continue
-				}
-				var url string
-				if item.imported {
-					url = a.signedImageURL(importedHistoryPosterPurpose, "/api/activity/imported-history-images", session, item.poster.Int64, now)
-				} else {
-					url = a.signedImageURL(activityHistoryPosterPurpose, "/api/activity/history-images", session, item.poster.Int64, now)
-				}
-				item.PosterURL = &url
-			}
-		}
-	}
 	var chosen any
 	if server != 0 {
 		chosen = server

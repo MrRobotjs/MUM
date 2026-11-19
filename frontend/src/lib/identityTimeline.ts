@@ -1,4 +1,5 @@
 import { requestJson } from '../util/apiClient';
+import { isPlayPoster } from './playPosters';
 import { getAccessToken } from '../store/authStore';
 import { historyServices, type HistoryService } from './playHistory';
 
@@ -93,7 +94,9 @@ function item(value: unknown, seen: Set<string>): TimelineItem {
       !fromServer && (v.stopped_at === null || v.watched_seconds === null) ||
       // Imported plays record no player or quality; only Audiobookshelf reports progress.
       fromServer && (v.client !== null || v.play_method !== null || v.platform !== null || v.player !== null || v.ip_address !== null || v.stopped_at !== null || v.paused_seconds !== null || v.watched_seconds !== null || v.source !== 'audiobookshelf' && (v.position_ticks !== null || v.duration_ticks !== null) ||
-        v.poster_url !== undefined && !(v.poster_url as string).startsWith('/api/activity/imported-history-images/'))) throw new Error('Invalid history item');
+        v.poster_url !== undefined && !isPlayPoster(v.poster_url, 'imported')) ||
+      // A MUM play's poster is its catalogue poster or the one MUM stored with it.
+      !fromServer && v.poster_url !== undefined && !isPlayPoster(v.poster_url, 'mum')) throw new Error('Invalid history item');
   seen.add(v.id as string);
   return Object.freeze({ ...(v as TimelineItem) });
 }

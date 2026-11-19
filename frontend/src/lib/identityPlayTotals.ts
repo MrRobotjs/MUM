@@ -1,4 +1,5 @@
 import { requestJson } from '../util/apiClient';
+import { isPlayPoster } from './playPosters';
 import { getAccessToken } from '../store/authStore';
 import { observationPosition, observationProgress, type ActivityHistoryPage, type ActivityScope } from './activityHistory';
 import { historyServices, type HistoryService } from './playHistory';
@@ -41,7 +42,7 @@ const recentValid = (v: unknown): v is RecentPlay => {
   const r = v as Record<string, unknown> | null;
   return !!r && (r.source === 'mum' || service(r.source)) && typeof r.media_type === 'string' && typeof r.title === 'string' &&
     (r.parent_title === null || typeof r.parent_title === 'string') && typeof r.played_at === 'string' && Number.isFinite(Date.parse(r.played_at)) &&
-    (r.poster_url === undefined || typeof r.poster_url === 'string' && r.poster_url.startsWith(r.source === 'mum' ? '/api/activity/history-images/' : '/api/activity/imported-history-images/'));
+    (r.poster_url === undefined || isPlayPoster(r.poster_url, r.source === 'mum' ? 'mum' : 'imported'));
 };
 
 export async function fetchIdentityPlayTotals(actor: string, target: string, scope: ActivityScope, source: TimelineSource): Promise<IdentityPlayTotals> {

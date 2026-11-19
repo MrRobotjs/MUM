@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { getAccessToken, getAuthSnapshot, subscribeToAuthStore } from '../store/authStore';
 import { requestJson, ApiError, type ApiRequestInit } from '../util/apiClient';
 import { fetchActivityCurrent } from './activityHistory';
+import { isPlayPoster } from './playPosters';
 
 // Dashboard cards keep their existing view models; these adapters build them
 // from current Go endpoints. Each hook mirrors useAdminApi's return shape.
@@ -127,7 +128,6 @@ const count = (v: unknown): v is number => Number.isSafeInteger(v) && (v as numb
 const activityKinds: ActivityKind[] = ['movies', 'popular_movies', 'shows', 'popular_shows', 'music', 'popular_music', 'audiobooks', 'recent', 'users', 'libraries'];
 const uuid = (v: unknown) => typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(v);
 const optionalText = (v: unknown) => v === null || text(v);
-const activityPosters = ['/api/activity/history-images/', '/api/activity/imported-history-images/'];
 const invalidActivity = () => new Error('Invalid activity statistics');
 const activityList = <T,>(v: unknown, max: number, read: (item: Record<string, unknown>) => T): T[] => {
   if (!Array.isArray(v) || v.length > max) throw invalidActivity();
@@ -169,7 +169,7 @@ export async function fetchActivityStats(days = 7, server: number | null = null,
             !count(item.people) || !optionalText(item.played_at) || !(item.user_uuid === null || uuid(item.user_uuid)) || !(item.library_id === null || integer(item.library_id)) || !optionalText(item.library_type) ||
             !(item.avatar_url === null || item.avatar_url === undefined || typeof item.avatar_url === 'string' && item.avatar_url.startsWith('/api/service-avatars/')) ||
             !(item.user_name === null || item.user_name === undefined || text(item.user_name)) ||
-            !(item.poster_url === null || typeof item.poster_url === 'string' && activityPosters.some(p => (item.poster_url as string).startsWith(p)))) throw invalidActivity();
+            !(item.poster_url === null || isPlayPoster(item.poster_url))) throw invalidActivity();
         return { server_id: item.server_id as number, title: item.title as string, subtitle: item.subtitle as string | null, plays: item.plays as number, seconds: item.seconds as number,
           people: item.people as number, poster_url: item.poster_url as string | null, played_at: item.played_at as string | null, user_uuid: item.user_uuid as string | null,
           library_id: item.library_id as number | null, library_type: item.library_type as string | null, avatar_url: (item.avatar_url ?? null) as string | null,

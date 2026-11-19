@@ -47,6 +47,10 @@ type activityReadItem struct {
 	PlayMethod  *string `json:"play_method,omitempty"`
 	PosterURL   string  `json:"poster_url,omitempty"`
 	hasPoster   bool
+	// For its poster (playPosterURL): the server, its show or album, and the
+	// item a stored poster came from.
+	serverID    int64
+	parent, art string
 }
 type activityReadStatus struct {
 	Source     string  `json:"observation_source"`
@@ -213,9 +217,9 @@ func readActivityItems(ctx context.Context, tx *sql.Tx, actor string, q activity
 	}
 	// Current rows carry the series or album too, so a status can say what an
 	// episode or track belongs to; the other details are history-only.
-	presentation := `,h.parent_title,NULL,NULL,NULL,0`
+	presentation := `,h.parent_title,NULL,NULL,NULL,0,'',''`
 	if q.History {
-		presentation = `,h.parent_title,h.library_name,h.client,h.play_method,h.poster_path IS NOT NULL`
+		presentation = `,h.parent_title,h.library_name,h.client,h.play_method,h.poster_path IS NOT NULL,coalesce(h.parent_item_id,''),coalesce(h.poster_item,'')`
 	}
 	query := `SELECT h.id,h.server_id,h.service_uuid,h.owner_uuid,h.item_id,h.media_type,h.title,h.first_seen_at,h.last_seen_at,h.ended_at,h.end_reason,h.paused,h.position_ticks,h.duration_ticks,(SELECT coalesce(local_username,deleted_username) FROM user_accounts WHERE uuid=h.owner_uuid),(SELECT external_username FROM service_accounts WHERE uuid=h.service_uuid),` + displayColumn + presentation + ` FROM media_activity_history h`
 	if !q.History {
@@ -245,7 +249,7 @@ func readActivityItems(ctx context.Context, tx *sql.Tx, actor string, q activity
 		var position, duration sql.NullInt64
 		var ownerName, serviceName sql.NullString
 		var display string
-		if err := rows.Scan(&id, &server, &item.Service, &item.Owner, &item.Item, &item.Kind, &item.Title, &item.First, &item.Last, &item.Ended, &item.Reason, &item.Paused, &position, &duration, &ownerName, &serviceName, &display, &item.ParentTitle, &item.LibraryName, &item.Client, &item.PlayMethod, &item.hasPoster); err != nil {
+		if err := rows.Scan(&id, &server, &item.Service, &item.Owner, &item.Item, &item.Kind, &item.Title, &item.First, &item.Last, &item.Ended, &item.Reason, &item.Paused, &position, &duration, &ownerName, &serviceName, &display, &item.ParentTitle, &item.LibraryName, &item.Client, &item.PlayMethod, &item.hasPoster, &item.parent, &item.art); err != nil {
 			return nil, nil, err
 		}
 		if q.All && !q.History && display != "{}" {
@@ -254,7 +258,7 @@ func readActivityItems(ctx context.Context, tx *sql.Tx, actor string, q activity
 			}
 		}
 		item.ID = strconv.FormatInt(id, 10)
-		item.Server = strconv.FormatInt(server, 10)
+		item.Server, item.serverID = strconv.FormatInt(server, 10), server
 		if !q.All {
 			item.Owner = nil
 		} else {
@@ -359,22 +363,24 @@ func (a *App) activityRead(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	// Retained history posters: signed, administrator-only links to the
-	// stored reference, rechecked by the history image proxy on every fetch.
+	// Retained history posters (playPosterURL): signed, administrator-only
+	// links, rechecked by their image route on every fetch.
 	if err == nil && q.History && q.All {
 		var session string
 		for i := range result.Items {
-			if !result.Items[i].hasPoster {
-				continue
-			}
+			it := &result.Items[i]
 			if session == "" {
 				if session, err = readCatalogueAuthority(ctx, tx, actor.UUID, bearer(r)); err != nil {
 					domainError(w, err)
 					return
 				}
 			}
-			id, _ := strconv.ParseInt(result.Items[i].ID, 10, 64)
-			result.Items[i].PosterURL = a.signedImageURL(activityHistoryPosterPurpose, "/api/activity/history-images", session, id, now)
+			id, _ := strconv.ParseInt(it.ID, 10, 64)
+			if it.PosterURL, err = a.playPosterURL(ctx, tx, session, playPoster{server: it.serverID, item: it.Item, parent: it.parent, art: it.art,
+				row: id, stored: it.hasPoster}, now); err != nil {
+				domainError(w, err)
+				return
+			}
 		}
 	}
 	if err == nil {

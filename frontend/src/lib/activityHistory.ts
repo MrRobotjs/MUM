@@ -1,4 +1,5 @@
 import {requestJson} from '../util/apiClient';
+import {isPlayPoster} from './playPosters';
 import {getAccessToken} from '../store/authStore';
 import {readActivityDisplay,type ActivityStreamDisplay} from './activityDisplay';
 
@@ -46,7 +47,7 @@ async function readActivityPage(kind: 'history'|'current', actor: string, scope:
     for(const key of ['parent_title','library_name','client'] as const){const v=row[key];if(v!==undefined){if(kind!=='history'&&key!=='parent_title'||!text(v,1024))throw Error('Invalid history record.');presentation[key]=v;}}
     if(row.play_method!==undefined){if(kind!=='history'||!['direct_play','direct_stream','transcode'].includes(row.play_method))throw Error('Invalid history record.');presentation.play_method=row.play_method;}
     // Posters are signed administrator links to this exact row.
-    if(row.poster_url!==undefined){if(kind!=='history'||scope!=='all'||typeof row.poster_url!=='string'||row.poster_url.length>2048||!row.poster_url.startsWith(`/api/activity/history-images/${row.id}?`)||/[#\s]/.test(row.poster_url))throw Error('Invalid history poster.');presentation.poster_url=row.poster_url;}
+    if(row.poster_url!==undefined){if(kind!=='history'||scope!=='all'||typeof row.poster_url!=='string'||row.poster_url.length>2048||!(row.poster_url.startsWith(`/api/activity/history-images/${row.id}?`)||row.poster_url.startsWith('/api/media/images/')&&isPlayPoster(row.poster_url,'mum'))||/[#\s]/.test(row.poster_url))throw Error('Invalid history poster.');presentation.poster_url=row.poster_url;}
     items.push({...(row.display!==undefined?{display:readActivityDisplay(row.display)}:{}),id:row.id,server_id:row.server_id,service_uuid:row.service_uuid,...(row.owner_uuid ? {owner_uuid:row.owner_uuid} : {}),...(row.owner_name ? {owner_name:row.owner_name} : {}),...(row.service_username ? {service_username:row.service_username} : {}),item_id:row.item_id,media_type:row.media_type,title:row.title,first_observed_at:row.first_observed_at,last_observed_at:row.last_observed_at,ended_observation_at:row.ended_observation_at,end_reason:row.end_reason,paused:row.paused,position_ticks:row.position_ticks,duration_ticks:row.duration_ticks,...presentation});
   }
   if (p.next_before !== null && (items.length !== 100 || p.next_before !== items[99].id)) throw Error('Invalid history cursor.');

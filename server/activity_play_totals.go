@@ -49,6 +49,9 @@ type recentPlay struct {
 	PosterURL   string  `json:"poster_url,omitempty"`
 	rowID       int64
 	hasPoster   bool
+	// For its poster (playPosterURL).
+	serverID          int64
+	item, parent, art string
 }
 
 type identityPlayTotals struct {
@@ -103,21 +106,16 @@ func (a *App) identityPlayTotals(w http.ResponseWriter, r *http.Request) {
 	if err == nil {
 		out.Sources, err = readTimelineSources(ctx, tx, q.Target)
 	}
-	// Posters of the recent plays: signed administrator links, as on the
-	// History tab.
-	if err == nil && q.All && slices.ContainsFunc(out.Recent, func(p recentPlay) bool { return p.hasPoster }) {
+	// Posters of the recent plays (playPosterURL), signed for administrators.
+	if err == nil && q.All && len(out.Recent) > 0 {
 		var session string
 		if session, err = readCatalogueAuthority(ctx, tx, actor.UUID, bearer(r)); err == nil {
 			now := time.Now().UTC()
 			for i := range out.Recent {
 				p := &out.Recent[i]
-				if !p.hasPoster {
-					continue
-				}
-				if p.Source == "mum" {
-					p.PosterURL = a.signedImageURL(activityHistoryPosterPurpose, "/api/activity/history-images", session, p.rowID, now)
-				} else {
-					p.PosterURL = a.signedImageURL(importedHistoryPosterPurpose, "/api/activity/imported-history-images", session, p.rowID, now)
+				if p.PosterURL, err = a.playPosterURL(ctx, tx, session, playPoster{server: p.serverID, item: p.item, parent: p.parent, art: p.art,
+					row: p.rowID, imported: p.Source != "mum", stored: p.hasPoster}, now); err != nil {
+					break
 				}
 			}
 		}
@@ -190,9 +188,9 @@ func queryPlayTotals(ctx context.Context, tx *sql.Tx, actor string, q activityRe
 		defer rows.Close()
 		for rows.Next() {
 			p := recentPlay{Source: source}
-			dest := []any{&p.rowID, &p.Kind, &p.Title, &p.ParentTitle, &p.PlayedAt, &p.hasPoster}
+			dest := []any{&p.rowID, &p.Kind, &p.Title, &p.ParentTitle, &p.PlayedAt, &p.hasPoster, &p.serverID, &p.item, &p.parent, &p.art}
 			if source == "" {
-				dest = []any{&p.rowID, &p.Source, &p.Kind, &p.Title, &p.ParentTitle, &p.PlayedAt, &p.hasPoster}
+				dest = []any{&p.rowID, &p.Source, &p.Kind, &p.Title, &p.ParentTitle, &p.PlayedAt, &p.hasPoster, &p.serverID, &p.item, &p.parent, &p.art}
 			}
 			if err := rows.Scan(dest...); err != nil {
 				return err
@@ -202,13 +200,13 @@ func queryPlayTotals(ctx context.Context, tx *sql.Tx, actor string, q activityRe
 		return rows.Err()
 	}
 	if withMUM {
-		if err := read(`SELECT h.id,h.media_type,h.title,h.parent_title,h.first_seen_at,h.poster_path IS NOT NULL FROM media_activity_history h WHERE 1=1`+mumFilter+
+		if err := read(`SELECT h.id,h.media_type,h.title,h.parent_title,h.first_seen_at,h.poster_path IS NOT NULL,h.server_id,h.item_id,coalesce(h.parent_item_id,''),coalesce(h.poster_item,'') FROM media_activity_history h WHERE 1=1`+mumFilter+
 			` ORDER BY h.first_seen_at DESC,h.id DESC LIMIT ?`, mumArgs, "mum"); err != nil {
 			return identityPlayTotals{}, err
 		}
 	}
 	if withImported {
-		if err := read(`SELECT i.rowid,ms.service_type,coalesce(i.media_type,''),coalesce(i.title,''),coalesce(i.grandparent_title,i.parent_title),i.viewed_at,i.poster_path IS NOT NULL`+importedFrom+
+		if err := read(`SELECT i.rowid,ms.service_type,coalesce(i.media_type,''),coalesce(i.title,''),coalesce(i.grandparent_title,i.parent_title),i.viewed_at,i.poster_path IS NOT NULL,i.server_id,coalesce(i.item_id,''),'',coalesce(i.poster_item,'')`+importedFrom+
 			` ORDER BY i.viewed_at DESC,i.rowid DESC LIMIT ?`, importArgs, ""); err != nil {
 			return identityPlayTotals{}, err
 		}

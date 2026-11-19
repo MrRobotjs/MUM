@@ -67,6 +67,10 @@ type timelineItem struct {
 	hasPoster  bool
 	sortKey    string
 	rowID      int64
+	// For its poster: the server, played item, its show or album, and the
+	// item a stored poster came from.
+	serverID          int64
+	item, parent, art string
 }
 
 // timelineServer is one server the person has an account on. Live servers are
@@ -283,26 +287,22 @@ func readTimelinePage(ctx context.Context, tx *sql.Tx, actor string, q activityR
 	return items, categories, next, nil
 }
 
-// signTimelinePosters gives each play with a poster its signed,
-// administrator-only link, as on the history list; an imported play uses its
-// own route.
+// signTimelinePosters gives each play its poster link (playPosterURL),
+// signed for administrators.
 func (a *App) signTimelinePosters(ctx context.Context, tx *sql.Tx, actor, token string, items []timelineItem) error {
+	if len(items) == 0 {
+		return nil
+	}
+	session, err := readCatalogueAuthority(ctx, tx, actor, token)
+	if err != nil {
+		return err
+	}
 	now := time.Now().UTC()
-	var session string
 	for i := range items {
-		if !items[i].hasPoster {
-			continue
-		}
-		if session == "" {
-			var err error
-			if session, err = readCatalogueAuthority(ctx, tx, actor, token); err != nil {
-				return err
-			}
-		}
-		if items[i].Source != "mum" {
-			items[i].PosterURL = a.signedImageURL(importedHistoryPosterPurpose, "/api/activity/imported-history-images", session, items[i].rowID, now)
-		} else {
-			items[i].PosterURL = a.signedImageURL(activityHistoryPosterPurpose, "/api/activity/history-images", session, items[i].rowID, now)
+		it := &items[i]
+		if it.PosterURL, err = a.playPosterURL(ctx, tx, session, playPoster{server: it.serverID, item: it.item, parent: it.parent, art: it.art,
+			row: it.rowID, imported: it.Source != "mum", stored: it.hasPoster}, now); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -344,7 +344,8 @@ func timelineSortKey(at, source string, id int64) string {
 func readTimelineMUM(ctx context.Context, tx *sql.Tx, actor string, q activityReadQuery, c timelineCursor, f timelineFilter) ([]timelineItem, error) {
 	query := `SELECT h.id,h.server_id,h.service_uuid,h.media_type,h.title,h.parent_title,h.library_name,h.first_seen_at,h.client,h.play_method,h.position_ticks,h.duration_ticks,h.poster_path IS NOT NULL,
 	 h.platform,CASE WHEN ? THEN h.device_name END,CASE WHEN ? THEN h.ip_address END,h.last_seen_at,h.paused_seconds,` + mumWatchedSeconds + `,EXISTS(SELECT 1 FROM media_activity_current c WHERE c.history_id=h.id),
-	 coalesce(h.owner_uuid,h.service_uuid),` + timelinePersonName("coalesce(h.owner_uuid,h.service_uuid)") + `
+	 coalesce(h.owner_uuid,h.service_uuid),` + timelinePersonName("coalesce(h.owner_uuid,h.service_uuid)") + `,
+	 h.item_id,coalesce(h.parent_item_id,''),coalesce(h.poster_item,'')
 	 FROM media_activity_history h WHERE (h.first_seen_at<? OR h.first_seen_at=? AND ('m'<? OR ?='m' AND h.id<?))`
 	args := []any{q.All, q.All, c.At, c.At, c.Source, c.Source, c.ID}
 	filter, filterArgs := mumPlayFilter(actor, q)
@@ -371,7 +372,8 @@ func readTimelineMUM(ctx context.Context, tx *sql.Tx, actor string, q activityRe
 		var stopped string
 		var watched int64
 		if err := rows.Scan(&item.rowID, &server, &item.Service, &item.Kind, &item.Title, &item.ParentTitle, &item.LibraryName, &item.PlayedAt, &item.Client, &item.PlayMethod, &position, &duration, &item.hasPoster,
-			&item.Platform, &item.Player, &item.IP, &stopped, &paused, &watched, &item.InProgress, &item.PersonUUID, &item.PersonName); err != nil {
+			&item.Platform, &item.Player, &item.IP, &stopped, &paused, &watched, &item.InProgress, &item.PersonUUID, &item.PersonName,
+			&item.item, &item.parent, &item.art); err != nil {
 			return nil, err
 		}
 		item.StoppedAt = &stopped
@@ -383,6 +385,7 @@ func readTimelineMUM(ctx context.Context, tx *sql.Tx, actor string, q activityRe
 		}
 		item.ID = "mum-" + strconv.FormatInt(item.rowID, 10)
 		item.Server = strconv.FormatInt(server, 10)
+		item.serverID = server
 		if position.Valid {
 			v := strconv.FormatInt(position.Int64, 10)
 			item.Position = &v
@@ -453,7 +456,8 @@ func timelinePersonName(person string) string {
 func readTimelineImported(ctx context.Context, tx *sql.Tx, actor string, q activityReadQuery, c timelineCursor, f timelineFilter) ([]timelineItem, error) {
 	query := `SELECT i.rowid,i.server_id,s.uuid,ms.service_type,coalesce(i.media_type,''),coalesce(i.title,''),coalesce(i.grandparent_title,i.parent_title),
 	 (SELECT l.name FROM media_libraries l WHERE l.server_id=i.server_id AND l.external_id=i.library_id),i.viewed_at,i.poster_path IS NOT NULL,i.position_seconds,i.duration_seconds,i.listened_seconds,
-	 ` + timelineImportedPerson + `,` + timelinePersonName(timelineImportedPerson) + `
+	 ` + timelineImportedPerson + `,` + timelinePersonName(timelineImportedPerson) + `,
+	 coalesce(i.item_id,''),'',coalesce(i.poster_item,'')
 	 FROM history_imports i JOIN media_servers ms ON ms.id=i.server_id JOIN service_accounts s ON s.server_id=i.server_id AND s.external_user_id=i.account_id
 	 WHERE (i.viewed_at<? OR i.viewed_at=? AND ?='p' AND i.rowid<?)`
 	args := []any{c.At, c.At, c.Source, c.ID, f.Server}
@@ -476,7 +480,7 @@ func readTimelineImported(ctx context.Context, tx *sql.Tx, actor string, q activ
 		var server int64
 		var position, duration, listened sql.NullInt64
 		if err := rows.Scan(&item.rowID, &server, &item.Service, &item.Source, &item.Kind, &item.Title, &item.ParentTitle, &item.LibraryName, &item.PlayedAt, &item.hasPoster, &position, &duration, &listened,
-			&item.PersonUUID, &item.PersonName); err != nil {
+			&item.PersonUUID, &item.PersonName, &item.item, &item.parent, &item.art); err != nil {
 			return nil, err
 		}
 		ticks := func(v sql.NullInt64) *string {
@@ -493,6 +497,7 @@ func readTimelineImported(ctx context.Context, tx *sql.Tx, actor string, q activ
 		}
 		item.ID = item.Source + "-" + strconv.FormatInt(item.rowID, 10)
 		item.Server = strconv.FormatInt(server, 10)
+		item.serverID = server
 		item.sortKey = timelineSortKey(item.PlayedAt, "p", item.rowID)
 		out = append(out, item)
 	}

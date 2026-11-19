@@ -345,19 +345,16 @@ func readServerPlayLink(ctx context.Context, tx *sql.Tx, server int64, play *ser
 }
 
 // finishServerPlay adds a shown play's catalogue page and, with a session, its
-// poster link signed as on the History tab.
+// poster link (playPosterURL).
 func (a *App) finishServerPlay(ctx context.Context, tx *sql.Tx, server int64, play *serverAccountPlay, session string, signed bool, now time.Time) error {
 	link, err := readServerPlayLink(ctx, tx, server, play)
 	if err != nil {
 		return err
 	}
 	play.Link = link
-	if play.hasPoster && signed {
-		if play.Source == "mum" {
-			play.PosterURL = a.signedImageURL(activityHistoryPosterPurpose, "/api/activity/history-images", session, play.rowID, now)
-		} else {
-			play.PosterURL = a.signedImageURL(importedHistoryPosterPurpose, "/api/activity/imported-history-images", session, play.rowID, now)
-		}
+	if signed {
+		play.PosterURL, err = a.playPosterURL(ctx, tx, session, playPoster{server: server, item: play.item, parent: play.parent, art: play.poster,
+			row: play.rowID, imported: play.Source != "mum", stored: play.hasPoster}, now)
 	}
-	return nil
+	return err
 }

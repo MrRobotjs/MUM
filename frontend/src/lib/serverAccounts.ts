@@ -1,4 +1,5 @@
 import { requestJson } from '../util/apiClient';
+import { isPlayPoster } from './playPosters';
 import { avatarLink } from './accountAvatar';
 import type { TimelineRecords } from './identityTimeline';
 
@@ -44,7 +45,6 @@ const sources = ['mum', 'plex', 'jellyfin', 'emby', 'audiobookshelf'];
 
 const id = (v: unknown): v is number => Number.isSafeInteger(v) && (v as number) >= 1;
 // Posters are the History tab's signed links: MUM's plays or imported ones.
-const posters = ['/api/activity/history-images/', '/api/activity/imported-history-images/'];
 
 function link(value: unknown): ServerAccountLink | null {
   if (value === null || value === undefined) return null;
@@ -58,7 +58,7 @@ export function serverPlay(value: unknown): ServerAccountPlay | null {
   if (value === null) return null;
   const v = value as Record<string, unknown>;
   if (!v || !text(v.title) || !optional(v.parent_title) || !text(v.media_type) || !sources.includes(v.source as string) ||
-      !(v.poster_url === undefined || typeof v.poster_url === 'string' && posters.some(p => (v.poster_url as string).startsWith(p)))) throw new Error('Invalid server account');
+      !(v.poster_url === undefined || isPlayPoster(v.poster_url))) throw new Error('Invalid server account');
   return Object.freeze({ title: v.title as string, parent_title: v.parent_title as string | null, media_type: v.media_type as string, source: v.source as string,
     poster_url: (v.poster_url ?? null) as string | null, link: link(v.link) });
 }

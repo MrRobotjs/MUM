@@ -1,4 +1,5 @@
 import { requestJson } from '../util/apiClient';
+import { formatDisplayTimestamp, type DisplayValues } from './accountDisplay';
 import { runEditOperation, type EditOperationsClient, type EditReceipt, type PurgeRule } from './editOperations';
 
 // The purge: inactive Plex accounts listed by the server and
@@ -47,13 +48,11 @@ export async function readPurgeCandidates(rule: PurgeRule): Promise<PurgeCandida
   return data.users.map(user => candidate(user, seen));
 }
 
-const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-// "Last played 12 Mar 2026 (Plex history)" or "Never played".
-export function lastPlayLabel(user: PurgeCandidate): string {
-  const at = user.last_streamed_at ? new Date(user.last_streamed_at) : null;
-  if (!at || !Number.isFinite(at.getTime())) return 'Never played';
-  return `Last played ${at.getUTCDate()} ${months[at.getUTCMonth()]} ${at.getUTCFullYear()} (${user.last_play_source === 'plex_history' ? 'Plex history' : 'MUM'})`;
+// "Last played Mar 12, 2026 (Plex history)", the day in the account's
+// timezone, or "Never played".
+export function lastPlayLabel(user: PurgeCandidate, settings: DisplayValues | undefined): string {
+  if (!user.last_streamed_at) return 'Never played';
+  return `Last played ${formatDisplayTimestamp(user.last_streamed_at, settings, 'date')} (${user.last_play_source === 'plex_history' ? 'Plex history' : 'MUM'})`;
 }
 
 // Removes the chosen accounts: one prepare and one run, never resent.

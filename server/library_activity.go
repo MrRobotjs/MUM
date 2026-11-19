@@ -29,7 +29,8 @@ type libraryActivityRequest struct {
 	tx      *sql.Tx
 	library catalogueLibrary
 	days    int
-	cutoff  time.Time
+	cutoff  time.Time      // midnight in zone, days-1 days ago
+	zone    *time.Location // the viewer's zone, for daily buckets
 	session string
 }
 
@@ -52,9 +53,17 @@ func (a *App) beginLibraryActivity(w http.ResponseWriter, r *http.Request) (libr
 		}
 		q.days = n
 	}
-	// Truncate to a UTC day so the chart has exactly `days` buckets.
-	today := time.Now().UTC().Truncate(24 * time.Hour)
-	q.cutoff = today.AddDate(0, 0, -(q.days - 1))
+	q.zone = time.UTC
+	if raw := r.URL.Query().Get("tz"); raw != "" {
+		var err error
+		if q.zone, err = loadViewerZone(raw); err != nil {
+			fail(w, 400, "INVALID_TIMEZONE", "Use an IANA timezone name")
+			return q, false
+		}
+	}
+	// The window starts at midnight in the viewer's zone so the chart has
+	// exactly `days` daily buckets.
+	q.cutoff = zoneMidnight(zoneToday(time.Now(), q.zone).AddDate(0, 0, -(q.days-1)), q.zone)
 	tx, err := a.store.beginActivityView(r.Context(), p.UUID, bearer(r), true)
 	if err != nil {
 		domainError(w, err)
@@ -140,9 +149,10 @@ func (a *App) libraryTrending(ctx context.Context, q libraryActivityRequest) ([]
 	return out, rows.Err()
 }
 
-// libraryChart returns one bucket per UTC day in the window, including empty days.
+// libraryChart returns one bucket per day (in the viewer's zone) in the
+// window, including empty days.
 func libraryChart(ctx context.Context, q libraryActivityRequest) ([]map[string]any, error) {
-	rows, err := q.tx.QueryContext(ctx, "SELECT substr(first_seen_at,1,10) AS day,count(*),coalesce(sum(observed),0) FROM ("+libraryActivityMatch+") GROUP BY day", q.args()...)
+	rows, err := q.tx.QueryContext(ctx, "SELECT "+zoneQuarterColumns("first_seen_at")+",count(*),coalesce(sum(observed),0) FROM ("+libraryActivityMatch+") GROUP BY 1,2", q.args()...)
 	if err != nil {
 		return nil, err
 	}
@@ -150,12 +160,18 @@ func libraryChart(ctx context.Context, q libraryActivityRequest) ([]map[string]a
 	type bucket struct{ plays, seconds int64 }
 	byDay := map[string]bucket{}
 	for rows.Next() {
-		var day string
+		var hour string
+		var quarter int64
 		var b bucket
-		if err := rows.Scan(&day, &b.plays, &b.seconds); err != nil {
+		if err := rows.Scan(&hour, &quarter, &b.plays, &b.seconds); err != nil {
 			return nil, err
 		}
-		byDay[day] = b
+		at, err := zoneQuarter(hour, quarter, q.zone)
+		if err != nil {
+			return nil, ErrConflict
+		}
+		day := at.Format("2006-01-02")
+		byDay[day] = bucket{byDay[day].plays + b.plays, byDay[day].seconds + b.seconds}
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

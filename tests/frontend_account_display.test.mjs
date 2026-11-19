@@ -20,6 +20,27 @@ test('account display adapters and timestamp consumers', async t => {
     assert.deepEqual(a.displayRecord({ ...state(), secret: 'private' }, user), state());
     for (const invalid of [{ ...state(), user_uuid: other }, state(0), state(1, values('local')), state(1, values('named', '24', 'Local')), state(1, values('named', '24', '../etc/passwd')), state(1, values('named', '24', 'Missing/Zone')), state(1, values('utc', '24', 'UTC')), state(1, values('device', 'auto'))]) assert.throws(() => a.displayRecord(invalid, user));
   });
+  await t.test('the zone charts group by, hour labels and the timezone list follow the settings', async () => {
+    const a = await load();
+    const device = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    assert.equal(a.displayTimeZone(values('device')), device);
+    assert.equal(a.displayTimeZone(values('utc')), 'UTC');
+    assert.equal(a.displayTimeZone(values('named', '24', 'Asia/Kolkata')), 'Asia/Kolkata');
+    assert.equal(a.displayTimeZone(undefined), null);
+    assert.equal(a.displayTimeZone(values('named', '24', '../etc/passwd')), null);
+    assert.deepEqual([0, 9, 12, 15, 23].map(h => a.formatDisplayHour(h, values('utc', '12'))), ['12 AM', '9 AM', '12 PM', '3 PM', '11 PM']);
+    assert.deepEqual([0, 9, 15].map(h => a.formatDisplayHour(h, values('utc', '24'))), ['00:00', '09:00', '15:00']);
+    const zones = a.timeZoneChoices();
+    assert.equal(zones[0], 'UTC');
+    assert.equal(zones.filter(z => z === 'UTC').length, 1);
+    assert.ok(zones.includes('America/New_York') && zones.includes('Europe/London'));
+    // Month and day labels from any instant use the account's zone, not the browser's.
+    const options = {year: 'numeric', month: 'long'};
+    assert.equal(a.formatInDisplayZone('2026-01-31T23:30:00Z', values('utc'), options, '-', 'en-US'), 'January 2026');
+    assert.equal(a.formatInDisplayZone('2026-01-31T23:30:00Z', values('named', '24', 'Asia/Tokyo'), options, '-', 'en-US'), 'February 2026');
+    assert.equal(a.formatInDisplayZone('2026-01-31T23:30:00Z', undefined, options, '-'), '-');
+    assert.equal(a.formatInDisplayZone('2026-01-31', values('utc'), options, '-'), '-');
+  });
   await t.test('UTC rollover, named winter/summer DST and 12/24 clocks affect real instants', async () => {
     const a = await load(), format = (instant, v, style = 'datetime') => a.formatDisplayTimestamp(instant, v, style, 'missing', 'en-US');
     assert.equal(format('2026-01-15T02:05:06Z', values('utc', '24')), 'Jan 15, 2026, 02:05:06');

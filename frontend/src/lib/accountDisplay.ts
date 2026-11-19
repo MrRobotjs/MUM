@@ -47,6 +47,42 @@ export async function saveOwnDisplay(current: AccountDisplay, values: DisplayVal
   } finally { clearTimeout(timer); saving.delete(original.user_uuid); }
 }
 
+/** The browser's own IANA timezone, or null when it cannot say. */
+export function deviceTimeZone(): string | null {
+  try { return Intl.DateTimeFormat().resolvedOptions().timeZone || null; } catch { return null; }
+}
+
+// The Intl timeZone option for settings: undefined is the browser's own zone.
+const intlZone = (v: DisplayValues) => v.mode === 'utc' ? 'UTC' : v.mode === 'named' ? v.time_zone! : undefined;
+
+/**
+ * The IANA timezone the account shows dates in (the browser's own for device
+ * mode). Charts send it so the server groups plays by the viewer's hours and days.
+ */
+export function displayTimeZone(settings: DisplayValues | undefined): string | null {
+  if (!settings) return null;
+  try { return intlZone(displayValues(settings)) ?? deviceTimeZone() ?? 'UTC'; } catch { return null; }
+}
+
+/** Every timezone this browser can show, UTC first, for the preferences list. */
+export function timeZoneChoices(): string[] {
+  let zones: string[] = [];
+  try { zones = Intl.supportedValuesOf('timeZone'); } catch { /* Older browsers list none; UTC and the saved zone remain. */ }
+  return ['UTC', ...zones.filter(zone => zone !== 'UTC')];
+}
+
+/** An hour of the day (0-23) in the account's clock style: "15:00" or "3 PM". */
+export function formatDisplayHour(hour: number, settings: DisplayValues | undefined): string {
+  return settings?.time_format === '12' ? `${hour % 12 || 12} ${hour < 12 ? 'AM' : 'PM'}` : `${String(hour).padStart(2, '0')}:00`;
+}
+
+/** An instant formatted with any Intl date options in the account's timezone. */
+export function formatInDisplayZone(value: string | null | undefined, settings: DisplayValues | undefined, options: Intl.DateTimeFormatOptions, fallback = '—', locale?: string): string {
+  const date = value ? parseOffsetTimestamp(value) : null;
+  if (!settings || !date) return fallback;
+  try { return new Intl.DateTimeFormat(locale, { ...options, timeZone: intlZone(displayValues(settings)) }).format(date); } catch { return fallback; }
+}
+
 export type TimestampStyle = 'datetime' | 'date' | 'time';
 // Instants require an explicit offset. Calendar-only dates retain their calendar
 // meaning and are never shifted across a timezone boundary.
@@ -59,7 +95,7 @@ export function formatDisplayTimestamp(value: string | null | undefined, setting
   try {
     const v = displayValues(settings);
     const options: Intl.DateTimeFormatOptions = {
-      timeZone: calendar || v.mode === 'utc' ? 'UTC' : v.mode === 'named' ? v.time_zone! : undefined,
+      timeZone: calendar ? 'UTC' : intlZone(v),
       ...(style !== 'time' ? { year: 'numeric', month: 'short', day: 'numeric' } : {}),
       ...(style !== 'date' ? { hour: 'numeric', minute: '2-digit', second: '2-digit', hourCycle: v.time_format === '12' ? 'h12' : 'h23' } : {}),
     };
@@ -72,7 +108,7 @@ export function displayCalendarDayDifference(value: string, now: string, setting
   if (!settings || !target || !origin) return null;
   try {
     const v = displayValues(settings);
-    const formatter = new Intl.DateTimeFormat('en-US', { calendar: 'gregory', numberingSystem: 'latn', timeZone: v.mode === 'utc' ? 'UTC' : v.mode === 'named' ? v.time_zone! : undefined, year: 'numeric', month: 'numeric', day: 'numeric' });
+    const formatter = new Intl.DateTimeFormat('en-US', { calendar: 'gregory', numberingSystem: 'latn', timeZone: intlZone(v), year: 'numeric', month: 'numeric', day: 'numeric' });
     const calendarDayNumber = (date: Date) => {
       const parts = formatter.formatToParts(date);
       const part = (type: string) => Number(parts.find(p => p.type === type)?.value);

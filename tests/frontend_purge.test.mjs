@@ -29,9 +29,14 @@ test('purge adapter', async t => {
     assert.equal(url.pathname, '/api/users/eligible-for-purge');
     assert.deepEqual(Object.fromEntries(url.searchParams), {inactive_days: '90', exclude_sharers: 'true', exclude_whitelisted: 'false', ignore_creation_date: 'true'});
     assert.deepEqual(users.map(u => u.uuid), ['u-1', 'u-2']);
-    assert.equal(m.lastPlayLabel(users[0]), 'Last played 12 Mar 2026 (Plex history)');
-    assert.equal(m.lastPlayLabel(users[1]), 'Never played');
-    assert.equal(m.lastPlayLabel({...users[0], last_play_source: 'mum'}), 'Last played 12 Mar 2026 (MUM)');
+    // The day is shown in the account's timezone: 20:00 UTC is already the next day in Tokyo.
+    const day = zone => new Intl.DateTimeFormat(undefined, {year: 'numeric', month: 'short', day: 'numeric', timeZone: zone}).format(new Date('2026-03-12T20:00:00Z'));
+    const utc = {mode: 'utc', time_format: '24', time_zone: null}, tokyo = {mode: 'named', time_format: '24', time_zone: 'Asia/Tokyo'};
+    assert.equal(m.lastPlayLabel(users[0], utc), `Last played ${day('UTC')} (Plex history)`);
+    assert.equal(m.lastPlayLabel(users[0], tokyo), `Last played ${day('Asia/Tokyo')} (Plex history)`);
+    assert.notEqual(day('UTC'), day('Asia/Tokyo'));
+    assert.equal(m.lastPlayLabel(users[1], utc), 'Never played');
+    assert.equal(m.lastPlayLabel({...users[0], last_play_source: 'mum'}, utc), `Last played ${day('UTC')} (MUM)`);
   });
 
   await t.test('rejects an invalid rule before any request', async () => {

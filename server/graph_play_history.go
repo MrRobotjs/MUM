@@ -15,8 +15,8 @@ import (
 // Play history on the Graphs pages: watched time per period, stacked by media
 // type, from MUM's recordings on the servers in scope (imported history has no
 // length). Periods are days for up to two weeks, weeks counted back from today
-// for up to 120 days, and calendar months beyond that, all in UTC like the
-// other graphs. The media and person filters narrow the bars and totals; the
+// for up to 120 days, and calendar months beyond that, in the viewer's zone
+// like the other graphs. The media and person filters narrow the bars and totals; the
 // people list covers everyone who played something in the window, for the
 // picker.
 
@@ -67,7 +67,7 @@ func parsePlayHistoryQuery(r *http.Request) (playHistoryQuery, error) {
 			if list[0] != "all" {
 				q.person = list[0]
 			}
-		case "days", "server_id":
+		case "days", "server_id", "tz":
 			graph.Set(key, list[0])
 		default:
 			return q, ErrConflict
@@ -143,8 +143,7 @@ func (a *App) graphPlayHistory(w http.ResponseWriter, r *http.Request) {
 	for id, fence := range fences {
 		active[id] = fence.Active
 	}
-	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
-	kind, buckets := playHistoryBuckets(today, query.graph.Days)
+	kind, buckets := playHistoryBuckets(zoneToday(now, query.graph.Zone), query.graph.Days)
 	for i := range buckets {
 		buckets[i].Seconds = map[string]int64{}
 	}
@@ -152,7 +151,8 @@ func (a *App) graphPlayHistory(w http.ResponseWriter, r *http.Request) {
 	for _, media := range playHistoryMedia {
 		totals[media] = 0
 	}
-	people, err := readPlayHistory(ctx, tx, query, buckets, totals, active)
+	first, _ := time.Parse("2006-01-02", buckets[0].Start)
+	people, err := readPlayHistory(ctx, tx, query, utcTimestamp(zoneMidnight(first, query.graph.Zone)), buckets, totals, active)
 	if err == nil {
 		err = tx.Commit()
 	}
@@ -178,26 +178,32 @@ func (a *App) graphPlayHistory(w http.ResponseWriter, r *http.Request) {
 		"bucket": kind, "buckets": buckets, "totals": totals, "users": people})
 }
 
-// readPlayHistory adds each recorded play's watched time to its period and
-// type, and lists the people who played something in the window.
-func readPlayHistory(ctx context.Context, tx *sql.Tx, q playHistoryQuery, buckets []playHistoryBucket, totals map[string]int64, active map[int64]bool) ([]playHistoryPerson, error) {
-	rows, err := tx.QueryContext(ctx, `SELECT h.server_id,substr(h.first_seen_at,1,10),
+// readPlayHistory adds the watched time of each play recorded since the
+// window start to its period (by its day in the query's zone) and type, and
+// lists the people who played something in the window.
+func readPlayHistory(ctx context.Context, tx *sql.Tx, q playHistoryQuery, since string, buckets []playHistoryBucket, totals map[string]int64, active map[int64]bool) ([]playHistoryPerson, error) {
+	rows, err := tx.QueryContext(ctx, `SELECT h.server_id,`+zoneQuarterColumns("h.first_seen_at")+`,
 	 CASE lower(h.media_type) WHEN 'movie' THEN 'movies' WHEN 'episode' THEN 'tv' WHEN 'track' THEN 'music' WHEN 'audio' THEN 'music' WHEN 'photo' THEN 'photos' ELSE 'other' END,
 	 `+mumWatchedSeconds+`,coalesce(h.owner_uuid,h.service_uuid),
 	 coalesce((SELECT u.local_username FROM user_accounts u WHERE u.uuid=coalesce(h.owner_uuid,h.service_uuid)),
 	  (SELECT a.external_username FROM service_accounts a WHERE a.uuid=coalesce(h.owner_uuid,h.service_uuid)),'Unknown')
-	 FROM media_activity_history h WHERE h.first_seen_at>=? AND (?=0 OR h.server_id=?)`, buckets[0].Start, q.graph.Server, q.graph.Server)
+	 FROM media_activity_history h WHERE h.first_seen_at>=? AND (?=0 OR h.server_id=?)`, since, q.graph.Server, q.graph.Server)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	names := map[string]string{}
 	for rows.Next() {
-		var server, seconds int64
-		var day, media, person, name string
-		if err := rows.Scan(&server, &day, &media, &seconds, &person, &name); err != nil {
+		var server, quarter, seconds int64
+		var hour, media, person, name string
+		if err := rows.Scan(&server, &hour, &quarter, &media, &seconds, &person, &name); err != nil {
 			return nil, err
 		}
+		at, err := zoneQuarter(hour, quarter, q.graph.Zone)
+		if err != nil {
+			return nil, ErrConflict
+		}
+		day := at.Format("2006-01-02")
 		if !active[server] {
 			continue
 		}

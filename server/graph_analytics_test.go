@@ -141,8 +141,8 @@ func TestGraphAnalyticsUnrecordedDatasetsAreUnavailableNotZero(t *testing.T) {
 			shown = strings.ToLower(note) // the page displays only this note
 		}
 	}
-	if !strings.Contains(joined, "playback health") || !strings.Contains(shown, "utc") {
-		t.Fatal("notes must explain unavailable playback health and UTC hours", got.Meta.Notes)
+	if !strings.Contains(joined, "playback health") || !strings.Contains(shown, "your timezone") {
+		t.Fatal("notes must explain unavailable playback health and the hours' timezone", got.Meta.Notes)
 	}
 	if got.Meta.GeneratedAt == "" || got.Data.Separated != nil {
 		t.Fatal(got.Meta, got.Data.Separated)

@@ -110,7 +110,7 @@ const formatUrlHost = (value?: string | null) => {
 // Overview, Users and Libraries are separate pages (/admin/servers/<id>,
 // /users, /libraries) sharing the server hero; the sidebar links between them.
 export const ServerDetailPage = ({ section = 'overview' }: { section?: ServerTab }) => {
-  const { formatTimestamp, formatRelative } = useAccountDisplay();
+  const { formatTimestamp, formatRelative, current: display } = useAccountDisplay();
   const formatDateTime = (value?: string | null) => formatTimestamp(value, 'datetime', 'Not available');
   const { serverId } = useParams({ strict: false }) as { serverId: string };
   const { success, error: showError } = useAlerts();
@@ -500,7 +500,7 @@ export const ServerDetailPage = ({ section = 'overview' }: { section?: ServerTab
                 <SettingHeader title="Play history" icon={<SettingIcon className="bg-primary/20 text-primary"><FontAwesomeIcon icon={faClockRotateLeft} className="w-4 h-4" /></SettingIcon>}
                   summary={<>
                     {isPlex ? "Reads this server's play history so purges can count plays from before MUM was watching." : "Reads this server's play history."} Running it again adds only plays MUM doesn't have yet.{' '}
-                    {historyError ?? (history&&canImportHistory ? playHistorySummary(history,historyService) : '')}
+                    {historyError ?? (history&&canImportHistory ? playHistorySummary(history,historyService,display?.display) : '')}
                   </>}
                   action={<Button variant="outline" size="sm" disabled={historyStarting||history?.state==='running'} onClick={()=>void handleImportHistory()}>
                     {historyStarting||history?.state==='running' ? <Spinner className="h-4 w-4" /> : <FontAwesomeIcon icon={faClockRotateLeft} />}

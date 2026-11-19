@@ -5,6 +5,7 @@ import { readPurgeCandidates, purgeUsers, lastPlayLabel, type PurgeCandidate } f
 import { EditOperationsClient, editOutcomeMessage } from '../../lib/editOperations';
 import { readPlayHistory, startPlayHistoryImport, playHistoryNotice, type PlayHistoryStatus } from '../../lib/playHistory';
 import { useServers } from '../../hooks/useServers';
+import { useAccountDisplay } from '../../hooks/useAccountDisplay';
 import { useAlerts } from '../../contexts/AlertContext';
 import { Input } from '../ui/input';
 import { Checkbox } from '../ui/checkbox';
@@ -19,6 +20,7 @@ import { Spinner } from '@/components/ui/spinner'
 // never blocked: someone who has run MUM for a long time may not need it.
 const PlexHistoryNotices = () => {
   const { servers } = useServers({ serviceType: 'plex' });
+  const { current: display } = useAccountDisplay();
   const { success, error } = useAlerts();
   const [statuses, setStatuses] = useState<Record<number, PlayHistoryStatus>>({});
   const [starting, setStarting] = useState<number | null>(null);
@@ -58,7 +60,7 @@ const PlexHistoryNotices = () => {
 
   const notices = active.flatMap(server => {
     const status = statuses[server.id];
-    const notice = status ? playHistoryNotice(status, server.server_nickname) : null;
+    const notice = status ? playHistoryNotice(status, server.server_nickname, display?.display) : null;
     return notice && status ? [{ server, status, notice }] : [];
   });
   if (!notices.length) return null;
@@ -92,6 +94,7 @@ export const PurgeUsersModal = ({ onClose, onPurgeComplete }: PurgeUsersModalPro
   const [step, setStep] = useState<'criteria' | 'preview' | 'confirm'>('criteria');
   const [loading, setLoading] = useState(false);
   const [purging, setPurging] = useState(false);
+  const { current: display } = useAccountDisplay();
   const { success, error } = useAlerts();
 
   // Criteria state
@@ -305,7 +308,7 @@ export const PurgeUsersModal = ({ onClose, onPurgeComplete }: PurgeUsersModalPro
                     <span className="badge badge-ghost badge-xs">{user.server_name}</span>
                   )}
                   <span>{user.days_since_activity} days inactive</span>
-                  <span>{lastPlayLabel(user)}</span>
+                  <span>{lastPlayLabel(user, display?.display)}</span>
                 </div>
               </div>
             </Label>

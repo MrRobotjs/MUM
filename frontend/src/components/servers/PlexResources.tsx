@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { faMemory, faMicrochip, faNetworkWired } from '@fortawesome/free-solid-svg-icons';
 import { useAccountDisplay } from '../../hooks/useAccountDisplay';
+import { formatInDisplayZone } from '../../lib/accountDisplay';
 import { ChartCard, renderGraphsTooltipCard } from '../../pages/GraphsPage';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import {
@@ -74,7 +75,7 @@ const ChartMessage = ({ text, error }: { text: string; error?: boolean }) => (
 
 /** A Plex server's dashboard graphs: bandwidth, CPU and memory. */
 export const PlexResources = ({ serverId }: { serverId: number }) => {
-  const { formatTimestamp } = useAccountDisplay();
+  const { formatTimestamp, current: display } = useAccountDisplay();
   const [rangeValue, setRangeValue] = useState('realtime');
   const [account, setAccount] = useState<string>('all');
   const [network, setNetwork] = useState<BandwidthNetwork>('all');
@@ -105,7 +106,7 @@ export const PlexResources = ({ serverId }: { serverId: number }) => {
   // Month bins are labelled by their month; the mid-month point keeps a
   // server's local month start from reading as the month before.
   const monthLabel = (at: string, style: 'short' | 'long') =>
-    new Date(Date.parse(at) + 15 * 86400 * 1000).toLocaleDateString(undefined, style === 'short' ? { month: 'short', year: '2-digit' } : { month: 'long', year: 'numeric' });
+    formatInDisplayZone(new Date(Date.parse(at) + 15 * 86400 * 1000).toISOString(), display?.display, style === 'short' ? { month: 'short', year: '2-digit' } : { month: 'long', year: 'numeric' });
   const bandwidthLabel = (at: string) => {
     if (realTime) return secondsAgo(at, bandwidthLatest);
     if (range.timespan === 'months') return monthLabel(at, 'short');

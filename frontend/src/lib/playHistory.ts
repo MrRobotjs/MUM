@@ -1,4 +1,5 @@
 import { requestJson } from '../util/apiClient';
+import { formatDisplayTimestamp, type DisplayValues } from './accountDisplay';
 
 // Importing a server's own play history from Plex,
 // Jellyfin, Emby or Audiobookshelf. The import only reads from the server and
@@ -50,20 +51,21 @@ export async function startPlayHistoryImport(serverId: number): Promise<void> {
   if (data?.state !== 'running') throw new Error('The server returned an unexpected answer');
 }
 
-const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const number = (n: number) => n.toLocaleString('en-US');
 const reasons = (name: string): Record<string, string> => ({
   server_read_failed: `${name} could not be read`, page_mismatch: `${name} returned an unexpected page`, store_failed: 'MUM could not save the plays',
   server_removed: 'the server was removed', interrupted: 'was interrupted when MUM stopped', shutdown: 'was interrupted when MUM stopped',
 });
 
-export function playHistorySummary(s: PlayHistoryStatus, service: HistoryService): string {
+// A day in the account's timezone, or null before the display settings are read.
+const day = (value: string | null, settings: DisplayValues | undefined) => formatDisplayTimestamp(value, settings, 'date', '') || null;
+
+export function playHistorySummary(s: PlayHistoryStatus, service: HistoryService, settings?: DisplayValues): string {
   const name = historyServiceName[service];
   if (s.state === 'never') return 'Not imported yet.';
   if (s.state === 'running') return `Importing: ${number(s.read)} of ${number(s.total)} entries read.`;
-  const oldest = s.oldest_play ? new Date(s.oldest_play) : null;
-  const held = s.stored_plays && oldest && Number.isFinite(oldest.getTime())
-    ? ` MUM holds ${number(s.stored_plays)} ${name} plays from ${oldest.getUTCDate()} ${months[oldest.getUTCMonth()]} ${oldest.getUTCFullYear()}.` : '';
+  const oldest = day(s.oldest_play, settings);
+  const held = s.stored_plays && oldest ? ` MUM holds ${number(s.stored_plays)} ${name} plays from ${oldest}.` : '';
   const plays = (n: number) => `${number(n)} play${n === 1 ? '' : 's'}`;
   if (s.state === 'completed') {
     const recorded = s.already_recorded ? ` (${number(s.already_recorded)} already recorded by MUM)` : '';
@@ -74,17 +76,12 @@ export function playHistorySummary(s: PlayHistoryStatus, service: HistoryService
   return `${why}; ${plays(s.added)} ${s.added === 1 ? 'was' : 'were'} added before that.${held}`;
 }
 
-const day = (value: string | null) => {
-  const at = value ? new Date(value) : null;
-  return at && Number.isFinite(at.getTime()) ? `${at.getUTCDate()} ${months[at.getUTCMonth()]} ${at.getUTCFullYear()}` : null;
-};
-
 // The purge dialog's notice for a Plex server whose history has not been
 // imported (never, or the last run did not finish); null when none is needed.
-export function playHistoryNotice(s: PlayHistoryStatus, serverName: string): { title: string; body: string } | null {
+export function playHistoryNotice(s: PlayHistoryStatus, serverName: string, settings?: DisplayValues): { title: string; body: string } | null {
   if (s.state === 'completed') return null;
   if (s.state === 'running') return { title: `${serverName}: importing play history`, body: playHistorySummary(s, 'plex') };
-  const since = day(s.mum_since);
+  const since = day(s.mum_since, settings);
   const known = since ? `MUM only knows plays it has seen since ${since}` : 'MUM has not recorded any plays on this server yet';
   const title = s.state === 'never' ? `${serverName}: play history not imported` : `${serverName}: play history import did not finish`;
   return { title, body: `${known}, so people who watched before then may look inactive. Importing the server's own play history fixes this; it only reads from Plex.` };

@@ -22,10 +22,11 @@ type graphQuery struct {
 	Days      int
 	Server    int64
 	Separated bool
+	Zone      *time.Location // hours and days are grouped in this zone
 }
 
 func parseGraphQuery(r *http.Request) (graphQuery, error) {
-	q := graphQuery{Days: 30}
+	q := graphQuery{Days: 30, Zone: time.UTC}
 	values, err := url.ParseQuery(r.URL.RawQuery)
 	if err != nil {
 		return q, ErrConflict
@@ -56,6 +57,10 @@ func parseGraphQuery(r *http.Request) (graphQuery, error) {
 				return q, ErrConflict
 			}
 			q.Separated = value == "separated"
+		case "tz":
+			if q.Zone, err = loadViewerZone(value); err != nil {
+				return q, err
+			}
 		default:
 			return q, ErrConflict
 		}
@@ -184,24 +189,24 @@ func graphTopBuckets(counts map[string]int64, limit int) ([]string, bool) {
 }
 
 // readGraphHourly counts observations first seen inside the window per
-// active source and UTC hour. Timestamps are fixed-width UTC, so the window
-// is a string comparison and the hour is characters 12-13.
+// active source and hour of the day in the query's zone. Timestamps are
+// fixed-width UTC, so the window is a string comparison.
 func readGraphHourly(ctx context.Context, tx *sql.Tx, q graphQuery, since string, active map[int64]bool) (map[int64]*[24]int64, error) {
-	rows, err := tx.QueryContext(ctx, `SELECT h.server_id,substr(h.first_seen_at,12,2),count(*) FROM media_activity_history h
-	 WHERE h.first_seen_at>=? AND (?=0 OR h.server_id=?) GROUP BY h.server_id,substr(h.first_seen_at,12,2)`, since, q.Server, q.Server)
+	rows, err := tx.QueryContext(ctx, `SELECT h.server_id,`+zoneQuarterColumns("h.first_seen_at")+`,count(*) FROM media_activity_history h
+	 WHERE h.first_seen_at>=? AND (?=0 OR h.server_id=?) GROUP BY 1,2,3`, since, q.Server, q.Server)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	counts := map[int64]*[24]int64{}
 	for rows.Next() {
-		var server, count int64
-		var hourText string
-		if err := rows.Scan(&server, &hourText, &count); err != nil {
+		var server, quarter, count int64
+		var hour string
+		if err := rows.Scan(&server, &hour, &quarter, &count); err != nil {
 			return nil, err
 		}
-		hour, err := strconv.Atoi(hourText)
-		if err != nil || len(hourText) != 2 || hour < 0 || hour > 23 || count < 0 {
+		at, err := zoneQuarter(hour, quarter, q.Zone)
+		if err != nil || count < 0 {
 			return nil, ErrConflict
 		}
 		if !active[server] {
@@ -210,42 +215,44 @@ func readGraphHourly(ctx context.Context, tx *sql.Tx, q graphQuery, since string
 		if counts[server] == nil {
 			counts[server] = &[24]int64{}
 		}
-		counts[server][hour] = count
+		counts[server][at.Hour()] += count
 	}
 	return counts, rows.Err()
 }
 
-// readGraphWatchTime sums watch seconds per active source and UTC day for
-// plays that started on or after startDay, matching the Flask chart: a play
-// counts its observed span (last minus first observation), or its last
-// recorded position when it was observed only once.
-func readGraphWatchTime(ctx context.Context, tx *sql.Tx, q graphQuery, startDay string, active map[int64]bool) (map[int64]map[string]float64, error) {
-	rows, err := tx.QueryContext(ctx, `SELECT h.server_id,substr(h.first_seen_at,1,10),
+// readGraphWatchTime sums watch seconds per active source and day (in the
+// query's zone) for plays that started at or after since: a play counts its
+// observed span (last minus first observation), or its last recorded
+// position when it was observed only once.
+func readGraphWatchTime(ctx context.Context, tx *sql.Tx, q graphQuery, since string, active map[int64]bool) (map[int64]map[string]float64, error) {
+	rows, err := tx.QueryContext(ctx, `SELECT h.server_id,`+zoneQuarterColumns("h.first_seen_at")+`,
 	 sum(CASE WHEN julianday(h.last_seen_at)>julianday(h.first_seen_at) THEN (julianday(h.last_seen_at)-julianday(h.first_seen_at))*86400.0
 	  WHEN h.position_ticks>0 THEN h.position_ticks/10000000.0 ELSE 0 END)
-	 FROM media_activity_history h WHERE h.first_seen_at>=? AND (?=0 OR h.server_id=?) GROUP BY 1,2`, startDay, q.Server, q.Server)
+	 FROM media_activity_history h WHERE h.first_seen_at>=? AND (?=0 OR h.server_id=?) GROUP BY 1,2,3`, since, q.Server, q.Server)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	seconds := map[int64]map[string]float64{}
 	for rows.Next() {
-		var server int64
-		var day string
+		var server, quarter int64
+		var hour string
 		var total float64
-		if err := rows.Scan(&server, &day, &total); err != nil {
+		if err := rows.Scan(&server, &hour, &quarter, &total); err != nil {
 			return nil, err
 		}
-		if _, err := time.Parse("2006-01-02", day); err != nil || total < 0 || math.IsNaN(total) || math.IsInf(total, 0) {
+		at, err := zoneQuarter(hour, quarter, q.Zone)
+		if err != nil || total < 0 || math.IsNaN(total) || math.IsInf(total, 0) {
 			return nil, ErrConflict
 		}
+		day := at.Format("2006-01-02")
 		if !active[server] {
 			continue
 		}
 		if seconds[server] == nil {
 			seconds[server] = map[string]float64{}
 		}
-		seconds[server][day] = total
+		seconds[server][day] += total
 	}
 	return seconds, rows.Err()
 }
@@ -313,14 +320,15 @@ func (a *App) graphAnalytics(w http.ResponseWriter, r *http.Request) {
 	if err == nil {
 		devices, err = readGraphDevices(ctx, tx, query, since, active)
 	}
-	// Watch time uses whole UTC days: today and the days-1 before it.
+	// Watch time uses whole days in the query's zone: today and the days-1 before it.
+	today := zoneToday(now, query.Zone)
 	days := make([]string, query.Days)
 	for i := range days {
-		days[i] = now.AddDate(0, 0, i-query.Days+1).Format("2006-01-02")
+		days[i] = today.AddDate(0, 0, i-query.Days+1).Format("2006-01-02")
 	}
 	var watch map[int64]map[string]float64
 	if err == nil {
-		watch, err = readGraphWatchTime(ctx, tx, query, days[0], active)
+		watch, err = readGraphWatchTime(ctx, tx, query, utcTimestamp(zoneMidnight(today.AddDate(0, 0, 1-query.Days), query.Zone)), active)
 	}
 	if err == nil {
 		err = tx.Commit()
@@ -370,9 +378,9 @@ func (a *App) graphAnalytics(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	notes := []string{
-		"Hourly Activity counts recorded activity observations by the UTC hour they were first seen. An observation is one continuous playback record, not a distinct viewer or a completed watch.",
-		"Hours are shown in UTC. Client Device Mix and playback health use the client and delivery mode reported by the provider; observations without them (including all recorded before this version) are not counted.",
-		"Watch Time Activity sums, per UTC day a play started, its observed duration (from first to last observation, including pauses), or its last position when it was observed only once.",
+		"Hourly Activity counts recorded activity observations by the hour they were first seen, in your timezone. An observation is one continuous playback record, not a distinct viewer or a completed watch.",
+		"Hours are shown in your timezone. Client Device Mix and playback health use the client and delivery mode reported by the provider; observations without them (including all recorded before this version) are not counted.",
+		"Watch Time Activity sums, per day a play started (in your timezone), its observed duration (from first to last observation, including pauses), or its last position when it was observed only once.",
 	}
 	unavailable := []string{}
 	if scoped > 0 {
@@ -467,11 +475,11 @@ func (a *App) graphAnalytics(w http.ResponseWriter, r *http.Request) {
 	}
 	meta := graphMeta{
 		GeneratedAt: utcTimestamp(now),
-		Filters:     map[string]any{"days": query.Days, "server_id": server, "server_mode": mode, "scoped_server_count": scoped},
-		Sources: map[string]string{"hourly_activity": "media_activity_history.first_seen_at (UTC)",
+		Filters:     map[string]any{"days": query.Days, "server_id": server, "server_mode": mode, "scoped_server_count": scoped, "tz": query.Zone.String()},
+		Sources: map[string]string{"hourly_activity": "media_activity_history.first_seen_at (hours in the tz filter's zone)",
 			"device_preferences":  "media_activity_history.client and device_name (classified; device names are not returned)",
 			"playback_health":     "media_activity_history.play_method (last reported per observation)",
-			"watch_time_activity": "media_activity_history first_seen_at/last_seen_at span, else position_ticks (UTC days)"},
+			"watch_time_activity": "media_activity_history first_seen_at/last_seen_at span, else position_ticks (days in the tz filter's zone)"},
 		Notes:       notes,
 		Unavailable: unavailable,
 		Playback:    map[string]int64{"total_rows_considered": devices.Considered, "rows_with_playback_mode": methodRows, "rows_with_device": deviceRows},

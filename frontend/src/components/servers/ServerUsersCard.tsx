@@ -54,7 +54,7 @@ export function ServerUsersCard({ serverId, serviceType, onSync, syncing, syncDi
 }) {
   const { user, isAdministrator } = useAuth();
   const session = useSyncExternalStore(subscribeToAuthStore, getAuthSnapshot, getAuthSnapshot);
-  const { formatTimestamp, formatRelative } = useAccountDisplay();
+  const { formatTimestamp, formatRelative, current: display } = useAccountDisplay();
   const [records, setRecords] = useState<TimelineRecords>('all');
   const [typed, setTyped] = useState('');
   const [search, setSearch] = useState('');
@@ -179,7 +179,7 @@ export function ServerUsersCard({ serverId, serviceType, onSync, syncing, syncDi
           <FontAwesomeIcon icon={faMagnifyingGlass} className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input value={typed} onChange={e => setTyped(e.target.value)} placeholder="Search username or email" className="pl-9" maxLength={200} aria-label="Search users" />
         </div>
-        {importStatus && importsHistory(serviceType) && <p className="text-sm text-muted-foreground" role="status">{playHistorySummary(importStatus, serviceType)}</p>}
+        {importStatus && importsHistory(serviceType) && <p className="text-sm text-muted-foreground" role="status">{playHistorySummary(importStatus, serviceType, display?.display)}</p>}
         {importError && <p className="text-sm text-destructive" role="status">{importError}</p>}
         {error ? <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">Failed to load users for this server.</div>
           : isLoading && !data ? <div className="flex items-center gap-2 text-sm text-muted-foreground"><Spinner className="h-4 w-4" />Loading users...</div>

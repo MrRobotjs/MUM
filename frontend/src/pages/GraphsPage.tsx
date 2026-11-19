@@ -350,7 +350,7 @@ export const GRAPH_REFRESH_MS = 15_000;
  * server's Graphs tab fixed to that server (serverId), without the server picker.
  */
 export const ActivityGraphs = ({ serverId: fixedServerId }: { serverId?: number } = {}) => {
-  const { formatTimestamp } = useAccountDisplay();
+  const { formatTimestamp, formatHour, timeZone } = useAccountDisplay();
   const formatGeneratedAt = (value?: string) => value ? formatTimestamp(value) : null;
   const fixed = fixedServerId !== undefined;
   const storageKey = fixed ? SERVER_STORAGE_KEY : STORAGE_KEY;
@@ -411,19 +411,20 @@ export const ActivityGraphs = ({ serverId: fixedServerId }: { serverId?: number 
 
   const analyticsPath = useMemo(
     () =>
-      `/graphs/analytics?days=${days}&server_id=${encodeURIComponent(effectiveServerIdFilter || 'all')}&server_mode=${serverMode}`,
-    [days, effectiveServerIdFilter, serverMode]
+      `/graphs/analytics?days=${days}&server_id=${encodeURIComponent(effectiveServerIdFilter || 'all')}&server_mode=${serverMode}&tz=${encodeURIComponent(timeZone ?? '')}`,
+    [days, effectiveServerIdFilter, serverMode, timeZone]
   );
   // The charts update live: their data is read again every 15 seconds while the tab is open.
-  const { data, loading, error } = useAdminApi<GraphsAnalyticsResponse>(analyticsPath, true, GRAPH_REFRESH_MS);
+  // Hours and days are the account's timezone, so the read waits until it is known.
+  const { data, loading, error } = useAdminApi<GraphsAnalyticsResponse>(analyticsPath, Boolean(timeZone), GRAPH_REFRESH_MS);
 
   const hourlyChartData = useMemo(
     () =>
       (data?.data.hourly_activity ?? []).map((item) => ({
-        hour: `${String(item.hour).padStart(2, '0')}:00`,
+        hour: formatHour(item.hour),
         value: item.plays ?? 0,
       })),
-    [data]
+    [data, formatHour]
   );
   const watchTimeActivityChartData = useMemo(
     () =>
@@ -440,8 +441,8 @@ export const ActivityGraphs = ({ serverId: fixedServerId }: { serverId?: number 
   const playbackNote =
     data?.meta?.notes?.find((note) => note.toLowerCase().includes('playback health')) ?? null;
   const hourlyXAxisTicks = useMemo(
-    () => (isMobileViewport ? ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00'] : undefined),
-    [isMobileViewport]
+    () => (isMobileViewport ? [0, 4, 8, 12, 16, 20].map(formatHour) : undefined),
+    [isMobileViewport, formatHour]
   );
   const isSeparatedModeActive = Boolean(isAllServersSeparated && separatedData?.enabled);
   const separatedServerLabelMaxChars = isMobileViewport ? 12 : 18;
@@ -459,14 +460,14 @@ export const ActivityGraphs = ({ serverId: fixedServerId }: { serverId?: number 
     if (!separatedData?.hourly_activity) return [];
     return separatedData.hourly_activity.map((point) => {
       const flattened: Record<string, number | string> = {
-        hour: point.label || `${String(point.hour).padStart(2, '0')}:00`,
+        hour: formatHour(point.hour),
       };
       for (const [seriesKey, value] of Object.entries(point.values || {})) {
         flattened[seriesKey] = Number(value || 0);
       }
       return flattened;
     });
-  }, [separatedData?.hourly_activity]);
+  }, [separatedData?.hourly_activity, formatHour]);
   const separatedWatchTimeChartData = useMemo(() => {
     if (!separatedData?.watch_time_activity) return [];
     return separatedData.watch_time_activity.map((point) => {

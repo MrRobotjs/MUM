@@ -334,7 +334,7 @@ export const LibraryDetailPage = () => {
 };
 
 const LibraryDetailPageView = () => {
-  const { formatTimestamp } = useAccountDisplay();
+  const { formatTimestamp, timeZone } = useAccountDisplay();
   // Use TanStack Router APIs for params and search
   const { serverId, libraryId } = useParams({ from: '/admin/servers/$serverId/libraries/$libraryId' });
   const search = useSearch({ strict: false }) as { tab?: TabType };
@@ -398,7 +398,7 @@ const LibraryDetailPageView = () => {
     library: String(libraryId),
     media: JSON.stringify([libraryId, activeTab, currentPage, pageSize, sortBy, searchQuery]),
     collections: JSON.stringify([libraryId, activeTab]),
-    stats: JSON.stringify([libraryId, activeTab, statsDays]),
+    stats: JSON.stringify([libraryId, activeTab, statsDays, timeZone]),
     activity: JSON.stringify([libraryId, activeTab, activityDays, activityPage]),
   };
   const view = useCatalogueView(queries);
@@ -420,7 +420,7 @@ const LibraryDetailPageView = () => {
     } else if (activeTab === 'activity') {
       loadActivity();
     }
-  }, [libraryId, activeTab, currentPage, pageSize, sortBy, searchQuery, statsDays, activityDays, activityPage, library?.server?.service_type, library?.catalogue?.collections_supported]);
+  }, [libraryId, activeTab, currentPage, pageSize, sortBy, searchQuery, statsDays, timeZone, activityDays, activityPage, library?.server?.service_type, library?.catalogue?.collections_supported]);
 
   // A TV library syncs shows and their episodes; a music library its albums
   // and their tracks. These are the words each uses.
@@ -499,7 +499,9 @@ const LibraryDetailPageView = () => {
     if (!read.current()) return false;
     try {
       setStatsLoading(true);
-      const response = await requestJson<StatsApi>(`/api/libraries/${libraryId}/stats?days=${statsDays}`, { signal: read.signal, retryAuthentication: false });
+      // Days are counted in the account's timezone; the read waits until it is known.
+      if (!timeZone) return false;
+      const response = await requestJson<StatsApi>(`/api/libraries/${libraryId}/stats?days=${statsDays}&tz=${encodeURIComponent(timeZone)}`, { signal: read.signal, retryAuthentication: false });
       if (!read.current()) return false;
       setStatsData(response.data);
       return true;

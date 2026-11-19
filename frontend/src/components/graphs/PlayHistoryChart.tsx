@@ -3,6 +3,7 @@ import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxi
 import { faChartColumn } from '@fortawesome/free-solid-svg-icons';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAdminApi } from '../../hooks/useAdminApi';
+import { useAccountDisplay } from '../../hooks/useAccountDisplay';
 import { ChartCard, GRAPH_REFRESH_MS, renderGraphsTooltipCard } from '../../pages/GraphsPage';
 import {
   playHistoryAxisLabel, playHistoryColors, playHistoryDuration, playHistoryLabels, playHistoryMedia, playHistoryTitle, readPlayHistory,
@@ -20,8 +21,10 @@ export function PlayHistoryChart({ days, serverId }: { days: number; serverId: s
   const [media, setMedia] = useState<'all' | PlayHistoryMedia>('all');
   const [user, setUser] = useState('all');
   const [hovered, setHovered] = useState<PlayHistoryMedia | null>(null);
-  const path = `/graphs/play-history?days=${days}&server_id=${encodeURIComponent(serverId || 'all')}&media=${media}&user=${encodeURIComponent(user)}`;
-  const { data: raw, loading, error } = useAdminApi<unknown>(path, true, GRAPH_REFRESH_MS);
+  // Periods are days in the account's timezone; the read waits until it is known.
+  const { timeZone } = useAccountDisplay();
+  const path = `/graphs/play-history?days=${days}&server_id=${encodeURIComponent(serverId || 'all')}&media=${media}&user=${encodeURIComponent(user)}&tz=${encodeURIComponent(timeZone ?? '')}`;
+  const { data: raw, loading, error } = useAdminApi<unknown>(path, Boolean(timeZone), GRAPH_REFRESH_MS);
   const { data, invalid } = useMemo(() => {
     if (!raw) return { data: null as PlayHistory | null, invalid: false };
     try {

@@ -1,17 +1,24 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '../ui/button';
 import { Card, CardContent } from '../ui/card';
 import { SettingHeader } from './AccountSettings';
-import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { useAccountDisplay } from '../../hooks/useAccountDisplay';
 import { useAlerts } from '../../contexts/AlertContext';
 import { getAccessToken } from '../../store/authStore';
-import { saveOwnDisplay, type DisplayValues } from '../../lib/accountDisplay';
+import { deviceTimeZone, saveOwnDisplay, timeZoneChoices, type DisplayValues } from '../../lib/accountDisplay';
 
-function detectedZone(): string | null {
-  try { return Intl.DateTimeFormat().resolvedOptions().timeZone || null; } catch { return null; }
+// The timezone list's value for following this device.
+const DEVICE = 'device';
+
+// "America/New York (GMT-5)": the zone's name and its offset today.
+function zoneLabel(zone: string): string {
+  if (zone === 'UTC') return zone;
+  let offset = '';
+  try { offset = new Intl.DateTimeFormat('en-US', { timeZone: zone, timeZoneName: 'shortOffset' }).formatToParts(new Date()).find(p => p.type === 'timeZoneName')?.value ?? ''; } catch { /* The name alone. */ }
+  const name = zone.replaceAll('_', ' ');
+  return offset && offset !== name ? `${name} (${offset})` : name;
 }
 
 export function AccountDisplayCard() {
@@ -60,29 +67,34 @@ export function AccountDisplayCard() {
       }
     } finally { if (scoped()) { pending.current = false; setBusy(false); } }
   };
-  const zone = detectedZone();
+  const zone = deviceTimeZone();
+  const saved = values?.mode === 'named' ? values.time_zone : null;
+  const zones = useMemo(() => {
+    const list = timeZoneChoices();
+    if (saved && !list.includes(saved)) list.push(saved);
+    return list.map(value => ({ value, label: zoneLabel(value) }));
+  }, [saved]);
+  const chosen = !values || values.mode === 'device' ? DEVICE : values.mode === 'utc' ? 'UTC' : values.time_zone ?? DEVICE;
+  const choose = (value: string) => values && edit(value === DEVICE ? { ...values, mode: 'device', time_zone: null }
+    : value === 'UTC' ? { ...values, mode: 'utc', time_zone: null } : { ...values, mode: 'named', time_zone: value });
   return (
     <Card>
       <SettingHeader title="Time & timezone" info={<>
         <p>Choose how dates and times appear throughout MUM. These settings are saved to your account.</p>
-        <p>This device's timezone follows the browser you are using. UTC or a named timezone keeps the same time display on every device.</p>
+        <p>This device's timezone follows the browser you are using. Choosing a timezone from the list keeps the same time display on every device.</p>
       </>} />
       <CardContent>
         <form className="space-y-5" onSubmit={e => void submit(e)}>
           <div className="space-y-2">
-            <Label htmlFor="display-timezone-mode">Timezone</Label>
-            <Select disabled={disabled} value={values?.mode ?? 'device'} onValueChange={(mode: DisplayValues['mode']) => values && edit({ ...values, mode, time_zone: mode === 'named' ? zone ?? 'UTC' : null })}>
-              <SelectTrigger id="display-timezone-mode" className="w-full"><SelectValue /></SelectTrigger>
-              <SelectContent><SelectItem value="device">This Device's Timezone</SelectItem><SelectItem value="utc">UTC</SelectItem><SelectItem value="named">Named Timezone</SelectItem></SelectContent>
+            <Label htmlFor="display-timezone">Timezone</Label>
+            <Select disabled={disabled} value={chosen} onValueChange={choose}>
+              <SelectTrigger id="display-timezone" className="w-full"><SelectValue /></SelectTrigger>
+              <SelectContent className="max-h-72">
+                <SelectItem value={DEVICE}>{zone ? `This Device's Timezone (${zone.replaceAll('_', ' ')})` : "This Device's Timezone"}</SelectItem>
+                {zones.map(z => <SelectItem key={z.value} value={z.value}>{z.label}</SelectItem>)}
+              </SelectContent>
             </Select>
           </div>
-          {values?.mode === 'named' ? (
-            <div className="space-y-2">
-              <Label htmlFor="local-timezone">Named timezone</Label>
-              <Input id="local-timezone" placeholder="e.g. America/New_York" value={values.time_zone ?? ''} disabled={disabled} maxLength={128} onChange={e => edit({ ...values, time_zone: e.target.value })} required />
-              {zone ? <button type="button" disabled={disabled} className="text-sm text-primary underline-offset-4 hover:underline" onClick={() => edit({ ...values, time_zone: zone })}>Use detected timezone ({zone})</button> : null}
-            </div>
-          ) : null}
           <div className="space-y-2">
             <Label htmlFor="display-time-format">Time format</Label>
             <Select disabled={disabled} value={values?.time_format ?? '12'} onValueChange={(time_format: DisplayValues['time_format']) => values && edit({ ...values, time_format })}>

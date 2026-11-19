@@ -53,7 +53,8 @@ function link(value: unknown): ServerAccountLink | null {
   return Object.freeze({ library_id: v.library_id, media_id: v.media_id, episode_id: (v.episode_id ?? null) as number | null });
 }
 
-function play(value: unknown): ServerAccountPlay | null {
+/** A server's last play (Users and Libraries pages), validated; null when there's none. */
+export function serverPlay(value: unknown): ServerAccountPlay | null {
   if (value === null) return null;
   const v = value as Record<string, unknown>;
   if (!v || !text(v.title) || !optional(v.parent_title) || !text(v.media_type) || !sources.includes(v.source as string) ||
@@ -72,7 +73,7 @@ function account(value: unknown, seen: Set<string>): ServerAccount {
   seen.add(v.uuid);
   return Object.freeze({
     uuid: v.uuid, username: v.username as string, email: v.email as string | null, is_active: v.is_active, access_expires_at: v.access_expires_at as string | null,
-    plays: v.plays, watch_seconds: v.watch_seconds as number | null, last_streamed_at: v.last_streamed_at as string | null, last_played: play(v.last_played),
+    plays: v.plays, watch_seconds: v.watch_seconds as number | null, last_streamed_at: v.last_streamed_at as string | null, last_played: serverPlay(v.last_played),
     last_ip: v.last_ip as string | null, last_platform: v.last_platform as string | null, last_player: v.last_player as string | null,
     linked_profile: linked ? Object.freeze({ uuid: linked.uuid as string, name: linked.name as string }) : null,
     libraries: Object.freeze([...(v.libraries as string[])]), has_all_libraries: v.has_all_libraries, avatar_url: avatarLink(v.avatar_url, 'service'),

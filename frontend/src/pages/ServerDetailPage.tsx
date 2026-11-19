@@ -1,4 +1,5 @@
 import { ServerUsersCard } from '../components/servers/ServerUsersCard';
+import { ServerLibrariesCard } from '../components/servers/ServerLibrariesCard';
 import { useAccountDisplay } from '../hooks/useAccountDisplay';
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import {useAuth} from '../contexts/AuthContext';
@@ -35,7 +36,6 @@ import { Card, CardContent, CardHeader } from '../components/ui/card';
 import { Separator } from '../components/ui/separator';
 import { Skeleton } from '../components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { ACTIVITY_GRAPH_SERVICES, ActivityGraphs } from './GraphsPage';
 import { PlexResources } from '../components/servers/PlexResources';
 import { serverAvailability, connectionLabel } from '../lib/serverOverview';
@@ -126,8 +126,6 @@ export const ServerDetailPage = ({ section = 'overview' }: { section?: ServerTab
   quietRefresh.current = refreshQuietly;
   const {
     libraries,
-    loading: librariesLoading,
-    error: librariesError,
     refresh: refreshLibraries,
   } = useLibraries({ serverId: numericServerId, includeServer: true });
   const {
@@ -208,7 +206,8 @@ export const ServerDetailPage = ({ section = 'overview' }: { section?: ServerTab
   const serverHost = formatUrlHost(server?.url);
   const publicHost = formatUrlHost(server?.public_url);
   const totalItems = useMemo(
-    () => libraries.reduce((sum, lib) => sum + (lib.item_count ?? 0), 0),
+    // The server's count, else the synced catalogue's (Plex reports none).
+    () => libraries.reduce((sum, lib) => sum + (lib.item_count ?? (lib.catalogue?.synced_at ? lib.catalogue.item_count ?? 0 : 0)), 0),
     [libraries]
   );
   const userCount = usersPagination?.total_items ?? users.length;
@@ -532,76 +531,9 @@ export const ServerDetailPage = ({ section = 'overview' }: { section?: ServerTab
           )
         ) : null}
 
-        {section === 'libraries' ? (<div className="space-y-6">
-          <Card>
-            <CardContent className="p-6 space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <h3 className="text-lg font-semibold flex items-center">
-                    <FontAwesomeIcon icon={faDatabase} className="mr-2 h-5 w-5 text-violet-500" />
-                    Libraries
-                  </h3>
-                  <p className="text-sm text-muted-foreground">
-                    {libraries.length} librar{libraries.length === 1 ? 'y' : 'ies'} • {totalItems.toLocaleString()} items
-                  </p>
-                </div>
-                <Button variant="ghost" size="sm" onClick={() => void refreshLibraries()}>
-                  <FontAwesomeIcon icon={faRotate} className="mr-2 h-4 w-4" />
-                  Refresh
-                </Button>
-              </div>
-
-              {librariesError ? (
-                <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
-                  Failed to load libraries for this server.
-                </div>
-              ) : librariesLoading ? (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Spinner className="h-4 w-4" />
-                  Loading libraries...
-                </div>
-              ) : libraries.length > 0 ? (
-                <div className="overflow-hidden rounded-xl border shadow-sm">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Library</TableHead>
-                        <TableHead>Type</TableHead>
-                        <TableHead>Items</TableHead>
-                        <TableHead>Last Scanned</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {libraries.map((library) => (
-                        <TableRow key={library.id}>
-                          <TableCell>
-                            <Link
-                              to="/admin/servers/$serverId/libraries/$libraryId"
-                              params={{ serverId: String(library.server_id ?? numericServerId), libraryId: String(library.id) }}
-                              search={{ tab: 'overview' }}
-                              className="font-semibold text-primary hover:underline"
-                            >
-                              {library.name}
-                            </Link>
-                          </TableCell>
-                          <TableCell className="capitalize">
-                            {library.library_type?.replace(/_/g, ' ') || 'Unknown'}
-                          </TableCell>
-                          <TableCell>{(library.item_count ?? 0).toLocaleString()}</TableCell>
-                          <TableCell>{formatDateTime(library.last_scanned)}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              ) : (
-                <div className="rounded-lg border bg-muted/20 p-6 text-center text-sm text-muted-foreground">
-                  No libraries are currently associated with this server.
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>) : null}
+        {section === 'libraries' && numericServerId !== undefined ? (
+          <ServerLibrariesCard serverId={numericServerId} serviceType={serviceType.toLowerCase()} onSync={() => void handleSync('libraries')} syncing={syncingLibraries} syncDisabled={syncUnavailable} />
+        ) : null}
     </div>
   );
 };

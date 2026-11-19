@@ -114,6 +114,9 @@
 .account-avatar-name { display: inline-flex; min-width: 0; max-width: 100%; align-items: center; gap: .5rem; vertical-align: middle; }
 /* The History table's title column keeps a readable width; the table scrolls sideways instead. */
 .account-history-title { min-width: 12rem; }
+/* A server's Libraries page: library names are muted until hovered, then the primary colour. */
+.account-library-link { color: var(--muted-foreground); font-weight: 600; text-decoration: none; transition: color .15s; }
+.account-library-link:hover, .account-library-link:focus-visible { color: var(--primary); }
 /* While the next History page loads, the current rows stay, dimmed. */
 .account-history-table { transition: opacity .15s ease; }
 .account-history-table[aria-busy="true"] { opacity: .55; }

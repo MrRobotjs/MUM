@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import {
-  columnVisibilityFeature, createTableHook, metaHelper, rowPaginationFeature, rowSelectionFeature, rowSortingFeature, tableFeatures,
+  columnVisibilityFeature, createSortedRowModel, createTableHook, metaHelper, rowPaginationFeature, rowSelectionFeature, rowSortingFeature, tableFeatures,
   type ColumnVisibilityState, type Updater,
 } from '@tanstack/react-table';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -20,8 +20,11 @@ export type DataColumnMeta = {
   cellClassName?: string;
 };
 
+// Small tables sort in the browser (sortedRowModel); tables the server sorts
+// set manualSorting and pass the server's order through.
 export const dataTableFeatures = tableFeatures({
   rowSortingFeature, rowPaginationFeature, columnVisibilityFeature, rowSelectionFeature,
+  sortedRowModel: createSortedRowModel(),
   columnMeta: metaHelper<DataColumnMeta>(),
 });
 

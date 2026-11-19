@@ -269,16 +269,9 @@ func (a *App) serverAccounts(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if newest != nil {
-			if newest.Link, err = readServerPlayLink(ctx, tx, server, newest); err != nil {
+			if err := a.finishServerPlay(ctx, tx, server, newest, session, sessionErr == nil, now); err != nil {
 				domainError(w, err)
 				return
-			}
-			if newest.hasPoster && sessionErr == nil {
-				if newest.Source == "mum" {
-					newest.PosterURL = a.signedImageURL(activityHistoryPosterPurpose, "/api/activity/history-images", session, newest.rowID, now)
-				} else {
-					newest.PosterURL = a.signedImageURL(importedHistoryPosterPurpose, "/api/activity/imported-history-images", session, newest.rowID, now)
-				}
 			}
 			r.item["last_played"] = newest
 		}
@@ -349,4 +342,22 @@ func readServerPlayLink(ctx context.Context, tx *sql.Tx, server int64, play *ser
 		}
 	}
 	return nil, nil
+}
+
+// finishServerPlay adds a shown play's catalogue page and, with a session, its
+// poster link signed as on the History tab.
+func (a *App) finishServerPlay(ctx context.Context, tx *sql.Tx, server int64, play *serverAccountPlay, session string, signed bool, now time.Time) error {
+	link, err := readServerPlayLink(ctx, tx, server, play)
+	if err != nil {
+		return err
+	}
+	play.Link = link
+	if play.hasPoster && signed {
+		if play.Source == "mum" {
+			play.PosterURL = a.signedImageURL(activityHistoryPosterPurpose, "/api/activity/history-images", session, play.rowID, now)
+		} else {
+			play.PosterURL = a.signedImageURL(importedHistoryPosterPurpose, "/api/activity/imported-history-images", session, play.rowID, now)
+		}
+	}
+	return nil
 }

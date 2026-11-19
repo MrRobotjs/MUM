@@ -21,6 +21,8 @@ export type Library = {
   };
   created_at?: string | null;
   updated_at?: string | null;
+  /** The library catalogue MUM keeps: its item count once synced. */
+  catalogue?: { synced_at?: string | null; item_count?: number | null };
 };
 
 type LibrariesResponse = {

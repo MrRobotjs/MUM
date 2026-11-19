@@ -9,17 +9,17 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAccountDisplay } from '../../hooks/useAccountDisplay';
 import { getAuthSnapshot, subscribeToAuthStore } from '../../store/authStore';
-import { fetchServerAccounts, serverAccountPageSizes, serverAccountSort, type ServerAccount, type ServerAccountColumn, type ServerAccountPageSize, type ServerAccountPlay } from '../../lib/serverAccounts';
+import { fetchServerAccounts, serverAccountPageSizes, serverAccountSort, type ServerAccount, type ServerAccountColumn, type ServerAccountPageSize } from '../../lib/serverAccounts';
 import { importsHistory, playHistorySummary, readPlayHistory, startPlayHistoryImport, type PlayHistoryStatus } from '../../lib/playHistory';
 import { watchTime } from '../../lib/identityPlayTotals';
 import type { TimelineRecords } from '../../lib/identityTimeline';
 import { TabHeading } from '../users/AccountSettings';
 import { AvatarName } from '../users/AccountAvatar';
+import { LastPlayed } from './LastPlayed';
 import { applyUpdater, createAppColumnHelper, useAppTable, useRememberedColumns } from '../table/DataTable';
 
 // A server's Users page (SERVER_USERS_DESIGN.md): its accounts with their
@@ -223,23 +223,4 @@ export function ServerUsersCard({ serverId, serviceType, onSync, syncing, syncDi
       </CardContent>
     </Card>
   );
-}
-
-// The last play's title shows its poster on hover, like Tautulli, and opens
-// its page in the library when the item has been catalogued.
-function LastPlayed({ serverId, play }: { serverId: number; play: ServerAccountPlay }) {
-  const [failed, setFailed] = useState(false);
-  const text = <span className="block"><span className="block">{play.title || 'Removed item'}</span>{play.parent_title && <span className="block text-xs text-muted-foreground">{play.parent_title}</span>}</span>;
-  const target = play.link
-    ? play.link.episode_id === null
-      ? <Link to="/admin/servers/$serverId/libraries/$libraryId/$mediaId" params={{ serverId: String(serverId), libraryId: String(play.link.library_id), mediaId: String(play.link.media_id) }} className="account-last-played-link">{text}</Link>
-      : <Link to="/admin/servers/$serverId/libraries/$libraryId/$mediaId/episodes/$episodeId" params={{ serverId: String(serverId), libraryId: String(play.link.library_id), mediaId: String(play.link.media_id), episodeId: String(play.link.episode_id) }} className="account-last-played-link">{text}</Link>
-    : text;
-  if (!play.poster_url || failed) return target;
-  return <Tooltip>
-    <TooltipTrigger asChild>{play.link ? target : <span tabIndex={0} className="account-last-played-link">{text}</span>}</TooltipTrigger>
-    <TooltipContent side="right" className="account-poster-tip">
-      <img src={play.poster_url} alt={play.title || 'Media poster'} onError={() => setFailed(true)} />
-    </TooltipContent>
-  </Tooltip>;
 }

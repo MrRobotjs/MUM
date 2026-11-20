@@ -35,3 +35,21 @@ export async function fetchLibraryRecentlyAdded(library: number, size = 12): Pro
       thumb: (v.thumb || null) as string | null, added_at: typeof v.added_at === 'string' ? v.added_at : null });
   }));
 }
+
+/** A title's plays on its server, for its Overview: MUM's recordings and imported history. */
+export type ItemPlays = Readonly<{
+  plays: number; recorded_plays: number; imported_plays: number; watch_seconds: number; viewers: number;
+  last_played_at: string | null; last_played_title: string | null; last_viewer: string | null;
+}>;
+
+/** A title's play summary from its item read, or null when it's missing or malformed. */
+export function readItemPlays(value: unknown): ItemPlays | null {
+  const v = value as Record<string, unknown> | null;
+  const text = (x: unknown) => x === null || typeof x === 'string' && x.length <= 1024;
+  if (!v || typeof v !== 'object' || !['plays', 'recorded_plays', 'imported_plays', 'watch_seconds', 'viewers'].every(k => count(v[k]))
+    || (v.recorded_plays as number) + (v.imported_plays as number) !== v.plays || (v.viewers as number) > (v.plays as number)
+    || !text(v.last_played_at) || !text(v.last_played_title) || !text(v.last_viewer) || (v.plays === 0) !== (v.last_played_at === null)) return null;
+  return Object.freeze({ plays: v.plays as number, recorded_plays: v.recorded_plays as number, imported_plays: v.imported_plays as number,
+    watch_seconds: v.watch_seconds as number, viewers: v.viewers as number, last_played_at: v.last_played_at as string | null,
+    last_played_title: v.last_played_title as string | null, last_viewer: v.last_viewer as string | null });
+}

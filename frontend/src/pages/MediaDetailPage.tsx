@@ -11,7 +11,12 @@ import { purgeChildCatalogue, syncChildCatalogue } from '../lib/libraryCatalogue
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { Card, CardContent } from '../components/ui/card';
+import { Card, CardContent, CardHeader } from '../components/ui/card';
+import { Row, Tile } from '../components/library/LibraryOverview';
+import { TabHeading } from '../components/users/AccountSettings';
+import { getServiceMeta } from '@/config/pluginMetadata';
+import { readItemPlays } from '../lib/libraryOverview';
+import { watchTime } from '../lib/identityPlayTotals';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Skeleton } from '../components/ui/skeleton';
@@ -50,6 +55,9 @@ import {
   faVideo,
   faXmark,
   faTrash,
+  faPlay,
+  faUsers,
+  faClockRotateLeft,
 } from '@fortawesome/free-solid-svg-icons';
 
 type ServiceType = 'plex' | 'jellyfin' | 'emby' | 'kavita' | 'audiobookshelf' | 'komga' | 'romm';
@@ -66,7 +74,11 @@ interface MediaItem {
   summary?: string;
   thumb?: string;
   added_at?: string;
+  last_synced?: string;
   stream_count?: number;
+  episode_count?: number | null;
+  // Every play on the server (readItemPlays checks it).
+  plays?: unknown;
   catalogue_supported?: boolean;
   episode_catalogue_supported?: boolean;
   track_catalogue_supported?: boolean;
@@ -126,7 +138,7 @@ export const EpisodeDetailPage = () => {
 };
 
 const MediaDetailPageView = () => {
-  const { formatTimestamp } = useAccountDisplay();
+  const { formatTimestamp, formatRelative } = useAccountDisplay();
   const { success, error: showError, info } = useAlerts();
   // On an episode's page mediaId is its show and episodeId the episode.
   const { serverId, libraryId, mediaId, episodeId } = useParams({ strict: false }) as {
@@ -468,6 +480,11 @@ const MediaDetailPageView = () => {
     return hours > 0 ? `${hours}:${String(minutes).padStart(2, '0')}:${seconds}` : `${minutes}:${seconds}`;
   };
 
+  // The Overview's figures, and watch time as "3 hrs 20 mins".
+  const plays = readItemPlays(mediaItem?.plays);
+  const watchedFor = (seconds: number) => seconds < 60 ? (seconds === 0 ? '0 mins' : '1 min')
+    : watchTime(String(seconds)).filter(([n]) => Number(n) !== 0).map(([n, unit]) => `${n} ${unit}`).join(' ') || '0 mins';
+
   const formatDuration = (ms?: number) => {
     if (!ms) return null;
     const hours = Math.floor(ms / 3600000);
@@ -642,99 +659,63 @@ const MediaDetailPageView = () => {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="overview" className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Media Information */}
+        <TabsContent value="overview" className="space-y-6 mt-3">
+          {/* Figures in the library Overview's tiles: every play on this server, from MUM's recordings and imported history. */}
+          <div className="dashboard-overview-grid">
+            {(isTVShow || isAlbum) && mediaItem.episode_count != null && (
+              <Tile icon={isAlbum ? faMusic : faList} label={isAlbum ? 'Tracks' : 'Episodes'} value={mediaItem.episode_count.toLocaleString()} note="In MUM’s catalogue" />
+            )}
+            <Tile icon={faPlay} label="Plays" value={plays ? plays.plays.toLocaleString() : '—'}
+              note={plays && plays.imported_plays > 0 ? `${plays.recorded_plays.toLocaleString()} recorded by MUM · ${plays.imported_plays.toLocaleString()} imported` : 'All plays on this server'} />
+            <Tile icon={faClock} label="Watch time" value={plays ? watchedFor(plays.watch_seconds) : '—'} note="Recorded by MUM" />
+            <Tile icon={faUsers} label="Viewers" value={plays ? plays.viewers.toLocaleString() : '—'} note={plays?.viewers === 1 ? 'Person who played it' : 'People who played it'} />
+            <Tile icon={faClockRotateLeft} label="Last played" value={plays?.last_played_at ? formatRelative(plays.last_played_at) : 'Never'}
+              note={plays?.last_played_at ? [isTVShow || isAlbum ? plays.last_played_title : null, plays.last_viewer].filter(Boolean).join(' · ') || formatTimestamp(plays.last_played_at) : undefined} />
+          </div>
+
+          {mediaItem.summary && (
             <Card>
-              <CardContent className="p-6 space-y-4">
-                <h3 className="text-lg font-semibold flex items-center gap-2">
-                  <FontAwesomeIcon icon={faCircleInfo} className="h-5 w-5 text-primary" />
-                  Media Information
-                </h3>
-                <div className="space-y-3">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground mr-2">Title:</span>
-                    <span className="font-medium">{mediaItem.title}</span>
-                  </div>
-                  {isEpisode && mediaItem.show && (
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground mr-2">Show:</span>
-                      <Link to={MEDIA_ROUTE} params={{ serverId, libraryId, mediaId }} search={{ tab: 'episodes' }} className="font-medium text-primary hover:underline">
-                        {mediaItem.show.title}
-                      </Link>
-                    </div>
-                  )}
-                  {isEpisode && mediaItem.season_number != null && mediaItem.episode_number != null && (
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground mr-2">Episode:</span>
-                      <span className="font-medium">Season {mediaItem.season_number}, Episode {mediaItem.episode_number}</span>
-                    </div>
-                  )}
-                  {(mediaItem as any).type && (
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Type:</span>
-                      <span className="font-medium capitalize">{(mediaItem as any).type}</span>
-                    </div>
-                  )}
-                  {mediaItem.year && (
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Year:</span>
-                      <span className="font-medium">{mediaItem.year}</span>
-                    </div>
-                  )}
-                  {mediaItem.rating && (
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Rating:</span>
-                      <span className="font-medium">{mediaItem.rating.toFixed(1)}/10</span>
-                    </div>
-                  )}
-                  {mediaItem.duration && (
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Duration:</span>
-                      <span className="font-medium">{formatDuration(mediaItem.duration)}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Library:</span>
-                    <span className="font-medium">{mediaItem.library?.name}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Server:</span>
-                    <span className="font-medium">{mediaItem.library?.server?.server_nickname}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Service:</span>
-                    <span className="font-medium capitalize">{serviceType}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">External ID:</span>
-                    <span className="font-medium font-mono text-sm">{mediaItem.external_id}</span>
-                  </div>
-                  {mediaItem.added_at && (
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Added:</span>
-                      <span className="font-medium">
-                        {formatTimestamp(mediaItem.added_at)}
-                      </span>
-                    </div>
-                  )}
-                </div>
+              <CardHeader><TabHeading icon={faFileLines} title="Summary" description={`From ${mediaItem.library?.server?.server_nickname || 'the server'}.`} /></CardHeader>
+              <CardContent>
+                <ExpandableText text={mediaItem.summary} limit={600} className="text-sm text-muted-foreground leading-relaxed" />
               </CardContent>
             </Card>
+          )}
 
-            {/* Summary */}
-            {mediaItem.summary && (
-              <Card>
-                <CardContent className="p-6 space-y-4">
-                  <h3 className="text-lg font-semibold flex items-center gap-2">
-                    <FontAwesomeIcon icon={faFileLines} className="text-primary" />
-                    Summary
-                  </h3>
-                  <ExpandableText text={mediaItem.summary} limit={600} className="text-sm text-muted-foreground leading-relaxed" />
-                </CardContent>
-              </Card>
-            )}
-          </div>
+          <Card>
+            <CardHeader><TabHeading icon={faCircleInfo} title="Details" description={`This ${isEpisode ? 'episode' : isAlbum ? 'album' : isTVShow ? 'show' : 'title'} and its catalogue entry in MUM.`} /></CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="space-y-3">
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">{isEpisode ? 'Episode' : isAlbum ? 'Album' : isTVShow ? 'Show' : 'Title'}</p>
+                  <Row label="Title">{mediaItem.title}</Row>
+                  {isEpisode && mediaItem.show && (
+                    <Row label="Show">
+                      <Link to={MEDIA_ROUTE} params={{ serverId, libraryId, mediaId }} search={{ tab: 'episodes' }} className="text-primary hover:underline">{mediaItem.show.title}</Link>
+                    </Row>
+                  )}
+                  {isEpisode && mediaItem.season_number != null && mediaItem.episode_number != null && (
+                    <Row label="Episode">Season {mediaItem.season_number}, Episode {mediaItem.episode_number}</Row>
+                  )}
+                  {(mediaItem as any).type && <Row label="Type"><span className="capitalize">{(mediaItem as any).type}</span></Row>}
+                  {mediaItem.year && <Row label="Year">{mediaItem.year}</Row>}
+                  {mediaItem.rating && <Row label="Rating">{mediaItem.rating.toFixed(1)}/10</Row>}
+                  {mediaItem.duration && <Row label="Duration">{formatDuration(mediaItem.duration)}</Row>}
+                </div>
+                <div className="space-y-3">
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">Catalogue</p>
+                  <Row label="Library">
+                    <Link to="/admin/servers/$serverId/libraries/$libraryId" params={{ serverId, libraryId }} className="text-primary hover:underline">{mediaItem.library?.name}</Link>
+                  </Row>
+                  <Row label="Server">{mediaItem.library?.server?.server_name || mediaItem.library?.server?.server_nickname || '—'}</Row>
+                  <Row label="Service">{serviceType ? getServiceMeta(serviceType).label : '—'}</Row>
+                  <Row label="External ID"><span className="font-mono text-sm">{mediaItem.external_id}</span></Row>
+                  <Row label="Added">{mediaItem.added_at ? formatTimestamp(mediaItem.added_at) : '—'}</Row>
+                  <Row label="Last synced">{mediaItem.last_synced ? formatTimestamp(mediaItem.last_synced) : 'Not synced yet'}</Row>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="episodes" className="space-y-6">

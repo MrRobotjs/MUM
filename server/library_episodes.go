@@ -436,10 +436,15 @@ func (a *App) catalogueEpisodeItem(w http.ResponseWriter, r *http.Request) {
 		domainError(w, err)
 		return
 	}
+	plays, err := readCatalogueItemPlays(r.Context(), tx, library.Server, library.ID, external, true)
+	if err != nil {
+		domainError(w, err)
+		return
+	}
 	episode := map[string]any{"id": id, "external_id": external, "title": title, "sort_title": sortTitle, "item_type": "episode",
 		"season_number": nullableCount(season), "episode_number": nullableCount(number), "year": nullableCount(year), "rating": nil, "duration": nullableCount(duration),
 		"summary": summary.String, "thumb": "", "added_at": added, "last_synced": synced, "stream_count": streams,
-		"show": map[string]any{"id": show.ID, "title": showTitle}, "library": libraryInfo}
+		"show": map[string]any{"id": show.ID, "title": showTitle}, "library": libraryInfo, "plays": plays}
 	if rating.Valid {
 		episode["rating"] = rating.Float64
 	}

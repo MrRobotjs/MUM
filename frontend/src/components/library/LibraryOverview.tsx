@@ -47,10 +47,11 @@ export const Tile = ({ icon, label, value, note }: { icon: IconDefinition; label
   </div>
 );
 
-const Row = ({ label, children }: { label: string; children: ReactNode }) => (
+/** A label and value line in a Details card. */
+export const Row = ({ label, children }: { label: string; children: ReactNode }) => (
   <div className="flex justify-between gap-4">
-    <span className="text-muted-foreground">{label}:</span>
-    <span className="font-medium text-right break-all">{children}</span>
+    <span className="text-muted-foreground whitespace-nowrap">{label}:</span>
+    <span className="font-medium text-right break-words min-w-0">{children}</span>
   </div>
 );
 

@@ -46,3 +46,17 @@ test('library overview adapter', async t => {
     await assert.rejects(m.fetchLibraryMostPlayed(0), /Invalid/);
   });
 });
+
+// A title's Overview figures come from its item read's play summary; a
+// summary that doesn't add up is shown as unknown rather than trusted.
+test('title play summary', async () => {
+  const m = await load();
+  const good = {plays: 4, recorded_plays: 2, imported_plays: 2, watch_seconds: 5400, viewers: 1, last_played_at: '2026-11-19T10:00:00.000000000Z', last_played_title: 'Pilot', last_viewer: 'alex'};
+  assert.deepEqual(m.readItemPlays(good), good);
+  const none = {plays: 0, recorded_plays: 0, imported_plays: 0, watch_seconds: 0, viewers: 0, last_played_at: null, last_played_title: null, last_viewer: null};
+  assert.deepEqual(m.readItemPlays(none), none);
+  for (const bad of [null, undefined, 'x', {...good, plays: 5}, {...good, viewers: 9}, {...good, watch_seconds: -1}, {...good, plays: 1.5, recorded_plays: 1.5, imported_plays: 0},
+    {...good, last_played_at: null}, {...none, last_played_at: '2026-11-19T10:00:00Z'}, {...good, last_viewer: 7}, {...good, last_played_title: 'x'.repeat(2000)}]) {
+    assert.equal(m.readItemPlays(bad), null, JSON.stringify(bad)?.slice(0, 60));
+  }
+});

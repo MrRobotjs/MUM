@@ -797,13 +797,18 @@ func (a *App) libraryCatalogueItem(w http.ResponseWriter, r *http.Request) {
 		domainError(w, err)
 		return
 	}
+	plays, err := readCatalogueItemPlays(r.Context(), tx, library.Server, library.ID, item.External, false)
+	if err != nil {
+		domainError(w, err)
+		return
+	}
 	respond(w, 200, map[string]any{"id": item.ID, "external_id": item.External, "title": item.Title, "sort_title": item.SortTitle, "item_type": item.Type,
 		"year": item.Year, "rating": item.Rating, "duration": item.DurationMS, "summary": item.Summary, "thumb": item.Thumb, "added_at": item.AddedAt, "last_synced": item.LastSynced, "stream_count": item.StreamCount,
 		"catalogue_revision": library.Revision, "catalogue_supported": catalogueLibrarySupported(library.Provider, library.Kind, library.External),
 		"episode_catalogue_supported": childCatalogueSupported(library.Provider, episodeChildren) && item.Type == episodeChildren.Parent,
 		"track_catalogue_supported":   childCatalogueSupported(library.Provider, trackChildren) && item.Type == trackChildren.Parent,
 		"episode_revision":            episodeRevision, "episodes_synced_at": nullableText(episodesSynced.String), "episode_count": nullableCount(episodeCount),
-		"library": libraryInfo})
+		"library": libraryInfo, "plays": plays})
 }
 
 // catalogueLibraryInfo is the library and server summary item and episode

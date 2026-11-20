@@ -9,13 +9,15 @@ import { requestJson } from '../util/apiClient';
 import { useAlerts } from '../contexts/AlertContext';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
-import { Label } from '../components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Skeleton } from '../components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { Pagination } from '../components/common/Pagination';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../components/ui/dropdown-menu';
+import { TabHeading } from '../components/users/AccountSettings';
+import { libraryTypeIcon } from '../components/servers/ServerLibrariesCard';
 import { ActivityTable } from '../components/library/ActivityTable';
 import { Progress } from '../components/ui/progress';
 import { ResponsiveDialog } from '../components/ui/responsive-dialog';
@@ -55,6 +57,7 @@ import {
   faTag,
   faEye,
   faTrash,
+  faEllipsis,
   faUsers,
   faClock,
 } from '@fortawesome/free-solid-svg-icons';
@@ -363,7 +366,6 @@ const LibraryDetailPageView = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
-  const [pageInput, setPageInput] = useState('');
   const [pageSize, setPageSize] = useState(24);
 
   // Filter state
@@ -376,6 +378,7 @@ const LibraryDetailPageView = () => {
   const [showSyncDialog, setShowSyncDialog] = useState(false);
   const [collections, setCollections] = useState<LibraryCollection[]>([]);
   const [collectionsLoading, setCollectionsLoading] = useState(false);
+  const [collectionSearch, setCollectionSearch] = useState('');
   const [statsData, setStatsData] = useState<any>(null);
   const [statsLoading, setStatsLoading] = useState(false);
   const [statsDays, setStatsDays] = useState(30);
@@ -796,45 +799,6 @@ const LibraryDetailPageView = () => {
     loadMediaItems();
   };
 
-  const handlePageChange = (page: number) => {
-    setCurrentPage(page);
-    setPageInput('');
-  };
-
-  const getPaginationRange = (current: number, total: number) => {
-    if (total <= 1) {
-      return { pages: [1], start: 1, end: 1 };
-    }
-
-    const windowSize = 5;
-    const half = Math.floor(windowSize / 2);
-    let start = Math.max(1, current - half);
-    let end = Math.min(total, current + half);
-
-    if (end - start + 1 < windowSize) {
-      if (start === 1) {
-        end = Math.min(total, start + windowSize - 1);
-      } else if (end === total) {
-        start = Math.max(1, end - windowSize + 1);
-      }
-    }
-
-    const pages: number[] = [];
-    for (let page = start; page <= end; page += 1) {
-      pages.push(page);
-    }
-
-    return { pages, start, end };
-  };
-
-  const handlePageInputSubmit = () => {
-    if (!pageInput.trim()) return;
-    const parsed = Number(pageInput);
-    if (!Number.isFinite(parsed)) return;
-    const target = Math.min(Math.max(1, parsed), totalPages);
-    handlePageChange(target);
-  };
-
   if (loading) {
     return (
       <div className="container mx-auto space-y-6">
@@ -909,6 +873,17 @@ const LibraryDetailPageView = () => {
   }
   progressValue = Math.min(100, Math.max(0, progressValue));
 
+  // The tab headings' summary lines.
+  const query = searchQuery.trim();
+  const range = totalItems > pageSize ? ` · showing ${((currentPage - 1) * pageSize + 1).toLocaleString()}–${Math.min(currentPage * pageSize, totalItems).toLocaleString()}` : '';
+  const mediaSummary = mediaLoading && totalItems === 0 ? `Titles in ${library.name}`
+    : query ? `${totalItems.toLocaleString()} ${totalItems === 1 ? 'match' : 'matches'} for “${query}”${range}`
+    : `${totalItems.toLocaleString()} ${totalItems === 1 ? 'title' : 'titles'}${range}`;
+  const collectionQuery = collectionSearch.trim().toLowerCase();
+  const shownCollections = collectionQuery ? collections.filter(c => c.title.toLowerCase().includes(collectionQuery)) : collections;
+  const collectionsSummary = `${collections.length.toLocaleString()} ${collections.length === 1 ? 'collection' : 'collections'} in ${library.name}`
+    + (collectionQuery ? ` · ${shownCollections.length.toLocaleString()} shown` : '');
+
   
 
   return (
@@ -968,160 +943,102 @@ const LibraryDetailPageView = () => {
           <LibraryOverview serverId={Number(library.server_id ?? serverId)} serviceLabel={getServiceMeta(serviceType).label} library={library} />
         </TabsContent>
 
-        <TabsContent value="media" className="space-y-6 mt-3">
-          {/* Sync Progress Bar */}
-          {effectiveIsSyncing && (
-            <Card className="border-primary/50 bg-primary/5">
-              <CardContent>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <div className="flex items-center gap-2">
-                      <Spinner className="h-4 w-4 text-primary" />
-                      <span className="font-medium">
-                        {(backendSyncing && libSyncStatus?.progress?.message) || (
-                          phase === 'episodes'
-                            ? <>Syncing {words.children}…</>
-                            : <>Syncing library content from {library?.server?.server_nickname || 'server'}...</>
-                        )}
-                      </span>
-                    </div>
-                    <span className="text-xs text-muted-foreground min-w-[3ch] text-right">
-                      {phase === 'episodes' && showsTotal > 0 ? (
-                        <>{showsCurrent} / {showsTotal} {words.parents}</>
-                      ) : pagesTotal > 0 ? (
-                        <>Page {pagesDone} / {pagesTotal}</>
-                      ) : (
-                        <>{Math.round(progressValue)}%</>
-                      )}
-                    </span>
-                  </div>
-                  <Progress value={progressValue} className="h-2" />
-                  {phase === 'episodes' && (
-                    <div className="flex items-center justify-between">
-                      <p className="text-xs text-muted-foreground">
-                        Syncing {words.children} across {words.parents}
-                      </p>
-                    </div>
-                  )}
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs text-muted-foreground">
-                      This may take a few moments...
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
+        <TabsContent value="media" className="space-y-4 mt-3">
+          {/* The heading, toolbar and sync progress share one panel above the posters. */}
+          <div className="space-y-4 rounded-lg border border-border/70 bg-muted/40 p-4">
+            {/* Heading and actions: the same layout as the server's Libraries and Users tabs. */}
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <TabHeading icon={libraryTypeIcon(library.library_type ?? null)} title="Media" description={mediaSummary} />
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={handleSyncClick} disabled={syncing || purging || needsInspection || !library?.catalogue?.supported}>
+                  <FontAwesomeIcon icon={faRotate} className={syncing ? 'animate-spin' : undefined} />
+                  {syncing ? 'Syncing…' : 'Sync library'}
+                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" aria-label="More library actions"><FontAwesomeIcon icon={faEllipsis} /></Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem variant="destructive" onClick={handlePurgeLibrary} disabled={purging || syncing || needsInspection || !library?.catalogue?.supported}>
+                      <FontAwesomeIcon icon={faTrash} />
+                      {purging ? 'Purging…' : 'Purge DB'}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            </div>
 
-          {/* Action Buttons */}
-          <div className="flex flex-wrap justify-end gap-2">
-            <Button
-              variant="destructive"
-              onClick={handlePurgeLibrary}
-              disabled={purging || syncing || needsInspection || !library?.catalogue?.supported}
-              title="Delete all cached items for this library from database"
-            >
-              {purging ? (
-                <>
-                  <FontAwesomeIcon icon={faTrash} className="mr-2 h-4 w-4 animate-spin" />
-                  Purging...
-                </>
-              ) : (
-                <>
-                  <FontAwesomeIcon icon={faTrash} className="mr-2 h-4 w-4" />
-                  Purge DB
-                </>
-              )}
-            </Button>
             {/* Shown only when the last sync or purge couldn't be confirmed and the page's own
                 re-read didn't clear it: Sync stays locked until the saved state is read again. */}
-            {needsInspection && <>
-              <span>Inspect saved state before another action.</span>
-              <Button onClick={refreshSavedState} disabled={syncing || purging} variant="outline">Refresh saved state</Button>
-            </>}
-            <Button onClick={handleSyncClick} disabled={syncing || purging || needsInspection || !library?.catalogue?.supported}>
-              {syncing ? (
-                <>
-                  <FontAwesomeIcon icon={faRotate} className="mr-2 h-4 w-4 animate-spin" />
-                  Syncing...
-                </>
-              ) : (
-                <>
-                  <FontAwesomeIcon icon={faRotate} className="mr-2 h-4 w-4" />
-                  Sync Library
-                </>
-              )}
-            </Button>
+            {needsInspection && (
+              <div className="flex flex-wrap items-center gap-3 text-sm">
+                <span>Inspect saved state before another action.</span>
+                <Button onClick={refreshSavedState} disabled={syncing || purging} variant="outline" size="sm">Refresh saved state</Button>
+              </div>
+            )}
+
+            {/* One toolbar: search, then sort and page size; on a phone the search takes the whole row. */}
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <form onSubmit={handleSearch} className="relative w-full sm:max-w-md">
+                <FontAwesomeIcon icon={faMagnifyingGlass} className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  type="text"
+                  placeholder="Search this library"
+                  aria-label="Search this library"
+                  className="pl-9"
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                />
+              </form>
+              <div className="flex gap-2">
+                <Select value={sortBy} onValueChange={setSortBy}>
+                  <SelectTrigger className="w-[180px]" aria-label="Sort"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="title_asc">Title (A-Z)</SelectItem>
+                    <SelectItem value="title_desc">Title (Z-A)</SelectItem>
+                    <SelectItem value="year_desc">Year (Newest)</SelectItem>
+                    <SelectItem value="year_asc">Year (Oldest)</SelectItem>
+                    <SelectItem value="total_streams_desc">Streams (Most)</SelectItem>
+                    <SelectItem value="total_streams_asc">Streams (Least)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={pageSize.toString()} onValueChange={(val) => { setPageSize(Number(val)); setCurrentPage(1); }}>
+                  <SelectTrigger className="w-32" aria-label="Titles per page"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {[12, 24, 48, 96].map(size => <SelectItem key={size} value={String(size)}>{size} per page</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Sync progress, only while a sync runs. */}
+            {effectiveIsSyncing && (
+              <div className="space-y-2" role="status">
+                <div className="flex items-center justify-between gap-3 text-sm">
+                  <span className="flex items-center gap-2 font-medium">
+                    <Spinner className="h-4 w-4 text-primary" />
+                    {(backendSyncing && libSyncStatus?.progress?.message) || (
+                      phase === 'episodes'
+                        ? <>Syncing {words.children} across {words.parents}…</>
+                        : <>Syncing library content from {library?.server?.server_nickname || 'server'}…</>
+                    )}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {phase === 'episodes' && showsTotal > 0 ? <>{showsCurrent} / {showsTotal} {words.parents}</>
+                      : pagesTotal > 0 ? <>Page {pagesDone} / {pagesTotal}</>
+                      : <>{Math.round(progressValue)}%</>}
+                  </span>
+                </div>
+                <Progress value={progressValue} className="h-2" />
+              </div>
+            )}
           </div>
 
-          {/* Search and Controls */}
-          <Card>
-            <CardContent>
-              <div className="flex flex-col sm:flex-row gap-4">
-                <form onSubmit={handleSearch} className="flex-1">
-                  <div className="relative">
-                    <FontAwesomeIcon icon={faMagnifyingGlass} className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      type="text"
-                      placeholder="Search library content..."
-                      className="pl-10"
-                      value={searchQuery}
-                      onChange={(e) => {
-                        setSearchQuery(e.target.value);
-                        setCurrentPage(1);
-                        setPageInput('');
-                      }}
-                    />
-                  </div>
-                </form>
-
-                <div className="flex items-center gap-2">
-                  <Label className="text-sm whitespace-nowrap">Sort:</Label>
-                  <Select value={sortBy} onValueChange={setSortBy}>
-                    <SelectTrigger className="w-[180px]">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="title_asc">Title (A-Z)</SelectItem>
-                      <SelectItem value="title_desc">Title (Z-A)</SelectItem>
-                      <SelectItem value="year_desc">Year (Newest)</SelectItem>
-                      <SelectItem value="year_asc">Year (Oldest)</SelectItem>
-                      <SelectItem value="total_streams_desc">Streams (Most)</SelectItem>
-                      <SelectItem value="total_streams_asc">Streams (Least)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <Label className="text-sm whitespace-nowrap">Per page:</Label>
-                  <Select value={pageSize.toString()} onValueChange={(val) => {
-                    setPageSize(Number(val));
-                    setCurrentPage(1);
-                  }}>
-                    <SelectTrigger className="w-[100px]">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="12">12</SelectItem>
-                      <SelectItem value="24">24</SelectItem>
-                      <SelectItem value="48">48</SelectItem>
-                      <SelectItem value="96">96</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Results Info */}
-          {totalItems > 0 && (
-            <div className="text-sm text-muted-foreground">
-              Showing {((currentPage - 1) * pageSize) + 1}-{Math.min(currentPage * pageSize, totalItems)} of {totalItems}
-            </div>
-          )}
-
-  {/* Media Grid */}
-  {mediaLoading ? (
+          {/* Media Grid */}
+          {mediaLoading ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4">
               {Array.from({ length: pageSize }).map((_, idx) => (
                 <div key={idx} className="space-y-2">
@@ -1154,103 +1071,10 @@ const LibraryDetailPageView = () => {
             </Card>
           )}
 
-          {/* Pagination */}
-          {totalPages > 1 && (() => {
-            const { pages, start, end } = getPaginationRange(currentPage, totalPages);
-            return (
-              <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-center sm:gap-4">
-                <div className="flex flex-wrap items-center justify-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handlePageChange(currentPage - 1)}
-                    disabled={currentPage <= 1}
-                  >
-                    <FontAwesomeIcon icon={faChevronLeft} />
-                  </Button>
-
-                  {start > 1 && (
-                    <>
-                      <Button
-                        key={1}
-                        variant={currentPage === 1 ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => handlePageChange(1)}
-                      >
-                        1
-                      </Button>
-                      {start > 2 && (
-                        <span className="px-2 text-sm text-muted-foreground">…</span>
-                      )}
-                    </>
-                  )}
-
-                  {pages.map((page) => (
-                    <Button
-                      key={page}
-                      variant={page === currentPage ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => handlePageChange(page)}
-                    >
-                      {page}
-                    </Button>
-                  ))}
-
-                  {end < totalPages && (
-                    <>
-                      {end < totalPages - 1 && (
-                        <span className="px-2 text-sm text-muted-foreground">…</span>
-                      )}
-                      <Button
-                        key={totalPages}
-                        variant={currentPage === totalPages ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => handlePageChange(totalPages)}
-                      >
-                        {totalPages}
-                      </Button>
-                    </>
-                  )}
-
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handlePageChange(currentPage + 1)}
-                    disabled={currentPage >= totalPages}
-                  >
-                    <FontAwesomeIcon icon={faChevronRight} />
-                  </Button>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground">
-                    Page {currentPage} of {totalPages}
-                  </span>
-                  <Input
-                    type="number"
-                    min={1}
-                    max={totalPages}
-                    value={pageInput}
-                    onChange={(e) => setPageInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        handlePageInputSubmit();
-                      }
-                    }}
-                    placeholder="Go"
-                    className="h-8 w-20 text-center"
-                  />
-                  <Button variant="outline" size="sm" onClick={handlePageInputSubmit}>
-                    Go
-                  </Button>
-                </div>
-              </div>
-            );
-          })()}
+          <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} loading={mediaLoading} />
         </TabsContent>
 
-        <TabsContent value="collections" className="space-y-6">
+        <TabsContent value="collections" className="space-y-4 mt-3">
           {library?.catalogue?.collections_supported !== true ? (
             <Card>
               <CardContent className="p-12 text-center">
@@ -1261,47 +1085,47 @@ const LibraryDetailPageView = () => {
                 <p className="text-muted-foreground">Collection browsing is not implemented for this library.</p>
               </CardContent>
             </Card>
-          ) : collectionsLoading ? (
+          ) : (
             <>
-              <Skeleton className="h-8 w-64" />
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4">
-                {Array.from({ length: 24 }).map((_, idx) => (
-                  <div key={idx} className="space-y-2">
-                    <Skeleton className="aspect-[2/3] w-full rounded-lg" />
-                    <Skeleton className="h-4 w-3/4 mx-auto" />
-                    <Skeleton className="h-3 w-1/2 mx-auto" />
+              {/* The heading and search share one panel above the collections. */}
+              <div className="space-y-4 rounded-lg border border-border/70 bg-muted/40 p-4">
+                <TabHeading icon={faLayerGroup} title="Collections" description={collectionsLoading ? `Collections in ${library.name}` : collectionsSummary} />
+                {collections.length > 0 && (
+                  <div className="relative w-full sm:max-w-md">
+                    <FontAwesomeIcon icon={faMagnifyingGlass} className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input value={collectionSearch} onChange={e => setCollectionSearch(e.target.value)} placeholder="Search collections" aria-label="Search collections" className="pl-9" maxLength={200} />
                   </div>
-                ))}
-              </div>
-            </>
-          ) : collections.length > 0 ? (
-            <>
-              <div>
-                <h3 className="text-lg font-semibold mb-2 flex items-center">
-                  <FontAwesomeIcon icon={faLayerGroup} className="mr-2 h-5 w-5" />
-                  Collections in {library.name}
-                </h3>
-                <p className="text-muted-foreground">
-                  Found {collections.length} collection{collections.length === 1 ? '' : 's'}
-                </p>
+                )}
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4">
-                {collections.map((collection) => (
-                  <CollectionCard key={collection.id} collection={collection} />
-                ))}
-              </div>
-            </>
-          ) : (
-            <Card>
-              <CardContent className="p-12 text-center">
-                <div className="w-16 h-16 rounded-full bg-accent flex items-center justify-center mx-auto mb-4">
-                  <FontAwesomeIcon icon={faLayerGroup} className="h-8 w-8 text-muted-foreground" />
+              {collectionsLoading ? (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4">
+                  {Array.from({ length: 24 }).map((_, idx) => (
+                    <div key={idx} className="space-y-2">
+                      <Skeleton className="aspect-[2/3] w-full rounded-lg" />
+                      <Skeleton className="h-4 w-3/4 mx-auto" />
+                      <Skeleton className="h-3 w-1/2 mx-auto" />
+                    </div>
+                  ))}
                 </div>
-                <h3 className="text-lg font-medium mb-2">No Collections Found</h3>
-                <p className="text-muted-foreground">This library doesn't have any collections yet.</p>
-              </CardContent>
-            </Card>
+              ) : shownCollections.length > 0 ? (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4">
+                  {shownCollections.map((collection) => (
+                    <CollectionCard key={collection.id} collection={collection} />
+                  ))}
+                </div>
+              ) : (
+                <Card>
+                  <CardContent className="p-12 text-center">
+                    <div className="w-16 h-16 rounded-full bg-accent flex items-center justify-center mx-auto mb-4">
+                      <FontAwesomeIcon icon={faLayerGroup} className="h-8 w-8 text-muted-foreground" />
+                    </div>
+                    <h3 className="text-lg font-medium mb-2">No Collections Found</h3>
+                    <p className="text-muted-foreground">{collections.length > 0 ? 'No collections match this search.' : "This library doesn't have any collections yet."}</p>
+                  </CardContent>
+                </Card>
+              )}
+            </>
           )}
         </TabsContent>
 

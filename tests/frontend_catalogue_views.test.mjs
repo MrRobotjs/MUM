@@ -33,7 +33,7 @@ async function load(h){
  const m=await loadFrontend("export {LibraryDetailPage} from './src/pages/LibraryDetailPage';export {MediaDetailPage} from './src/pages/MediaDetailPage';export {setAccessToken} from './src/store/authStore';export {useLibrarySyncStatus} from './src/hooks/useLibrarySyncStatus';",{mock:{filter:p=>p==='react'||p==='react/jsx-runtime'||stubs.has(p)||p.endsWith('/AuthContext'),module:path=>(a=>{
   if(a.path==='react/jsx-runtime')return {contents:'export const jsx=(type,props,key)=>({type,props,key});export const jsxs=jsx;export const Fragment="fragment";'};
   if(a.path==='react')return {contents:'export const useState=v=>globalThis.catalogueView.useState(v);export const useRef=v=>globalThis.catalogueView.useRef(v);export const useEffect=(f,d)=>globalThis.catalogueView.useEffect(f,d);export const useMemo=(f,d)=>f();export const useSyncExternalStore=(s,r)=>r();'};
-  const special={useParams:'()=>globalThis.catalogueView.params',useSearch:'()=>({tab:globalThis.catalogueView.tab})',useNavigate:'()=>()=>{}',useAuth:'()=>globalThis.catalogueView.auth',useAccountDisplay:'()=>({formatTimestamp:v=>v})',useAlerts:'()=>Object.fromEntries(["success","error","info"].map(k=>[k,v=>globalThis.catalogueView.alerts.push([k,v])]))',useLibrarySyncStatus:'()=>({status:{is_syncing:false},refetch:async()=>{}})',getServicePalette:'()=>({})',getServiceMeta:'()=>({label:"Jellyfin"})',formatCalendarDate:'v=>v'};
+  const special={useParams:'()=>globalThis.catalogueView.params',useSearch:'()=>({tab:globalThis.catalogueView.tab})',useNavigate:'()=>()=>{}',useAuth:'()=>globalThis.catalogueView.auth',useAccountDisplay:'()=>({formatTimestamp:v=>v})',libraryTypeIcon:'()=>"libraryTypeIcon"',useAlerts:'()=>Object.fromEntries(["success","error","info"].map(k=>[k,v=>globalThis.catalogueView.alerts.push([k,v])]))',useLibrarySyncStatus:'()=>({status:{is_syncing:false},refetch:async()=>{}})',getServicePalette:'()=>({})',getServiceMeta:'()=>({label:"Jellyfin"})',formatCalendarDate:'v=>v'};
   return {contents:(stubs.get(a.path)??['useAuth']).map(n=>`export const ${n}=${special[n]??JSON.stringify(n)};`).join('')};
  })({path}).contents}});m.setAccessToken('session-a');return m;
 }
@@ -97,7 +97,7 @@ test('catalogue page async boundaries',async t=>{
  await t.test('a library sync finishing after navigation does not refresh the new library',async()=>{
   const h=harness(),m=await load(h),pending=deferred(),calls=[];t.after(h.close);h.tab='overview';
   globalThis.fetch=async req=>{calls.push(req.method+' '+req.url);if(req.method==='POST')return pending.promise;return Response.json(req.url.includes('/media?')?{data:[],meta:{pagination:{total_pages:1,total_items:0}}}:{data:{id:Number(h.params.libraryId),name:'Library '+h.params.libraryId,library_type:'movies',catalogue:{supported:true,revision:1},server:{service_type:'jellyfin'}}});};
-  h.render(m.LibraryDetailPage);await flush();const page=h.render(m.LibraryDetailPage);button(page,'Sync Library')?.props.onClick();
+  h.render(m.LibraryDetailPage);await flush();const page=h.render(m.LibraryDetailPage);button(page,'Sync library')?.props.onClick();
   // The existing label is "Sync" on this toolbar.
   if(!calls.some(v=>v.startsWith('POST')))button(page,'Sync').props.onClick();await flush();h.params={serverId:'1',libraryId:'2'};h.render(m.LibraryDetailPage);await flush();const count=calls.length;pending.resolve(Response.json({data:{success:true,library_id:1,source_revision:1,revision:2,message:'done',result:{added:1,updated:0,removed:0,total:1}}}));await flush();assert.equal(calls.length,count);assert.deepEqual(h.alerts,[]);
  });
@@ -124,7 +124,7 @@ test('catalogue page async boundaries',async t=>{
   const h=harness(),m=await load(h),calls=[];t.after(h.close);h.tab='collections';
   globalThis.fetch=async req=>{const path=new URL(req.url).pathname;calls.push(path);return Response.json(path.endsWith('/collections')?{data:{collections:[collection],catalogue_revision:1}}:plexLibrary);};
   h.render(m.LibraryDetailPage);await flush();h.render(m.LibraryDetailPage);await flush();const page=h.render(m.LibraryDetailPage);
-  assert.equal(calls.filter(p=>p==='/api/libraries/1/collections').length,1);assert.match(text(page),/Collections in\s+Plex Movies/);assert.equal(nodes(page).filter(n=>n?.props?.collection).length,1);
+  assert.equal(calls.filter(p=>p==='/api/libraries/1/collections').length,1);assert.equal(nodes(page).find(n=>n?.type==='TabHeading'&&n.props.title==='Collections')?.props.description,'1 collection in Plex Movies');assert.equal(nodes(page).filter(n=>n?.props?.collection).length,1);
   const card=nodes(page).find(n=>n?.props?.collection);assert.equal(card.key,7);
   const view=harness();globalThis.catalogueView=view;const tree=view.render(()=>card);
   assert.equal(nodes(tree).find(n=>n?.type==='img').props.src,collection.thumb);assert.ok(nodes(tree).some(n=>Array.isArray(n?.props?.children)&&n.props.children[0]===3&&n.props.children[1]===' item'));assert.match(text(tree),/Smart/);

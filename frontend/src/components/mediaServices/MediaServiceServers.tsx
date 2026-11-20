@@ -108,7 +108,7 @@ export const MediaServiceServers = ({ service, setup = false }: MediaServiceServ
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-xs uppercase tracking-wide text-muted-foreground">What MUM can do with {service.name}</p>
-          <MediaServiceFeatures features={service.features} />
+          <MediaServiceFeatures features={service.features} columns />
           {!service.enabled ? (
             <p className="text-xs text-muted-foreground">
               {serviceServers.length ? `${service.name} is off: MUM doesn’t sync, monitor or invite to its servers until it’s turned on.` : `Add a server to turn ${service.name} on.`}

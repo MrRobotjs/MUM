@@ -19,7 +19,7 @@ import { Badge } from '@/components/ui/badge';
 import { ServiceIcon } from '@/components/services/ServiceIcon';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
-import { getServiceMeta } from '@/config/pluginMetadata';
+import { getServiceMeta } from '@/config/mediaServiceMetadata';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useMediaQuery } from '@/store/mediaQueryStore';
 import type { ActiveSession } from '@/types/streaming';

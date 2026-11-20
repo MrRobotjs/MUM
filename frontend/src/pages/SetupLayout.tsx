@@ -8,7 +8,7 @@ import { Alert, AlertDescription } from '../components/ui/alert'
 import { cn } from '../lib/utils'
 import { useSetupStatus, SetupStatus } from '../hooks/useSetupStatus'
 
-type SetupStepId = 'account' | 'plugins' | 'app' | 'finish'
+type SetupStepId = 'account' | 'media-servers' | 'app' | 'finish'
 
 type StepDefinition = {
   id: SetupStepId
@@ -20,7 +20,7 @@ type StepDefinition = {
 
 const steps: StepDefinition[] = [
   { id: 'account', label: 'Owner Account', description: 'Create administrator credentials', href: '/setup/account', icon: <FontAwesomeIcon icon={faShield} className="h-4 w-4" /> },
-  { id: 'plugins', label: 'Media Servers', description: 'Enable Plex, Jellyfin, Emby…', href: '/setup/media-servers', icon: <FontAwesomeIcon icon={faServer} className="h-4 w-4" /> },
+  { id: 'media-servers', label: 'Media Servers', description: 'Enable Plex, Jellyfin, Emby…', href: '/setup/media-servers', icon: <FontAwesomeIcon icon={faServer} className="h-4 w-4" /> },
   { id: 'app', label: 'App Config', description: 'Branding & base URL', href: '/setup/app', icon: <FontAwesomeIcon icon={faGear} className="h-4 w-4" /> },
   { id: 'finish', label: 'Finish', description: 'You are all set', icon: <FontAwesomeIcon icon={faCheck} className="h-4 w-4" /> },
 ]

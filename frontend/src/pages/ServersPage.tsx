@@ -5,7 +5,7 @@ import { faPlus } from '@fortawesome/free-solid-svg-icons';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Spinner } from '@/components/ui/spinner';
-import { getServiceMeta } from '@/config/pluginMetadata';
+import { getServiceMeta } from '@/config/mediaServiceMetadata';
 import { PageHeader } from '../components/common/PageHeader';
 import { ServiceSettingIcon } from '../components/users/AccountSettings';
 import { serverPagesFor } from '../components/layout/NavServers';

@@ -15,11 +15,11 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { requestJson } from '@/util/apiClient';
 import { useAlerts } from '@/contexts/AlertContext';
-import { getServiceMeta } from '@/config/pluginMetadata';
+import { getServiceMeta } from '@/config/mediaServiceMetadata';
 import { Badge } from '@/components/ui/badge';
 import { useNavigate } from '@tanstack/react-router';
 import { buildUserProfilePath } from '@/util/routes';
-import type { ActiveSession, PluginMetaResponse, StreamCardStyle } from '@/types/streaming';
+import type { ActiveSession, MediaServiceFeaturesResponse, StreamCardStyle } from '@/types/streaming';
 import { ServiceIcon } from '@/components/services/ServiceIcon';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
@@ -156,7 +156,7 @@ interface StreamingSessionCardProps {
   cardStyle?: StreamCardStyle;
   /** Stops the stream; without it the card offers no Terminate Stream. */
   onTerminate?: (session: ActiveSession) => void;
-  pluginFeaturesByService?: PluginMetaResponse['data'] | null;
+  serviceFeatures?: MediaServiceFeaturesResponse['data'] | null;
 }
 
 const getStateColor = (state?: string) => {
@@ -314,7 +314,7 @@ export const StreamingSessionCard = ({
   session,
   cardStyle = 'detailed',
   onTerminate,
-  pluginFeaturesByService
+  serviceFeatures
 }: StreamingSessionCardProps) => {
   const [showStreamInfo, setShowStreamInfo] = useState(false);
   const [showSendMessage, setShowSendMessage] = useState(false);
@@ -344,7 +344,7 @@ export const StreamingSessionCard = ({
   const isAudiobookshelf = normalizedServiceType === 'audiobookshelf';
   const supportsSessionMessage = Boolean(
     normalizedServiceType &&
-    pluginFeaturesByService?.[normalizedServiceType]?.features?.includes('session_message')
+    serviceFeatures?.[normalizedServiceType]?.features?.includes('session_message')
   );
 
   const jellyfinAudioTranscodeLabel =

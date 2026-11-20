@@ -22,7 +22,7 @@ type providerHTTPError = provider.HTTPError
 
 // mediaModule is one compiled media service module (server/providers/<id>).
 // Adding a service means adding its package and one entry here, plus its
-// icon and colours in frontend/src/config/pluginMetadata.tsx.
+// icon and colours in frontend/src/config/mediaServiceMetadata.tsx.
 type mediaModule struct {
 	Definition provider.Definition
 	New        func(provider.Config) any

@@ -18,7 +18,7 @@ import (
 var Definition = provider.Definition{
 	ID:             "jellyfin",
 	Name:           "Jellyfin",
-	Description:    "Jellyfin server connection, library and user synchronization",
+	Description:    "Movies, TV shows and music on your Jellyfin server.",
 	DownloadLabels: true,
 }
 

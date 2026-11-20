@@ -23,7 +23,7 @@ import (
 var Definition = provider.Definition{
 	ID:             "plex",
 	Name:           "Plex",
-	Description:    "Plex library discovery and cloud sharing synchronization",
+	Description:    "Movies, TV shows and music on Plex Media Server. Invites share libraries through Plex.",
 	DownloadLabels: true,
 }
 

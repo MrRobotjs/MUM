@@ -21,7 +21,7 @@ import { useServerLibraries } from "@/hooks/useServerLibraries"
 import { useUserTotal } from "@/hooks/useUserTotal"
 import { SidebarCount } from "@/components/layout/SidebarCount"
 import { useSyncServerLibraries } from "@/hooks/useSyncServerLibraries"
-import { getServiceIcon } from "@/config/pluginMetadata"
+import { getServiceIcon } from "@/config/mediaServiceMetadata"
 import { ACTIVITY_GRAPH_SERVICES } from "@/pages/GraphsPage"
 import { libraryTypeIcon } from "@/components/servers/ServerLibrariesCard"
 import { useAlerts } from "@/contexts/AlertContext"
@@ -83,7 +83,7 @@ const ServerNavItem = ({ server, pathname, onNavigate }: ServerNavItemProps) => 
     onError: (message) => error(message),
   })
 
-  const pluginId = server.service_type
+  const serviceId = server.service_type
   const serviceIcon =
     getServiceIcon(server.service_type, "h-4 w-4") ?? (
       <FontAwesomeIcon icon={faServer} className="h-4 w-4" />
@@ -169,8 +169,8 @@ const ServerNavItem = ({ server, pathname, onNavigate }: ServerNavItemProps) => 
           aria-label={`Edit ${server.server_nickname} settings`}
         >
           <Link
-            to="/admin/settings/media-servers/$pluginId/servers/$serverId"
-            params={{ pluginId, serverId: String(server.id) }}
+            to="/admin/settings/media-servers/$serviceId/servers/$serverId"
+            params={{ serviceId, serverId: String(server.id) }}
             onClick={onNavigate}
           >
             <FontAwesomeIcon icon={faGear} className="text-[11px]" />

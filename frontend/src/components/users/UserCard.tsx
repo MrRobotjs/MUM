@@ -12,7 +12,7 @@ import { Card, CardContent, CardFooter } from '../ui/card';
 import { UserDebugModal } from './UserDebugModal';
 import { cn } from '@/lib/utils';
 import { Badge, RoleBadge } from '../common/Badge';
-import { getServicePalette } from '@/config/pluginMetadata';
+import { getServicePalette } from '@/config/mediaServiceMetadata';
 import { ServiceIcon } from '@/components/services/ServiceIcon';
 import { UserAvatar } from './UserAvatar';
 import { requestJson } from '@/util/apiClient';

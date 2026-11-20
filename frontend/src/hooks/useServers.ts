@@ -13,7 +13,7 @@ export type Server = {
   public_url: string | null;
   jellyfin_owner_user_id?: string | null;
   is_active: boolean;
-  plugin_enabled?: boolean;
+  provider_enabled?: boolean;
   effective_active?: boolean;
   created_at: string;
   updated_at: string;
@@ -24,7 +24,6 @@ export type Server = {
   overseerr_enabled?: boolean;
   has_overseerr_api_key?: boolean;
   overseerr_url?: string | null;
-  plugin_data?: Record<string, unknown>;
   websocket_refresh_interval?: number;
 };
 

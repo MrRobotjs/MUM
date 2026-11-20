@@ -211,10 +211,10 @@ export const InviteCard = ({
 
                     const serverUnavailable = server.effective_active === false;
                     const serverIsActive = server.is_active !== false;
-                    const pluginEnabled = server.plugin_enabled !== false;
+                    const serviceEnabled = server.service_enabled !== false;
                     const overlayLabel = !serverIsActive
                       ? 'Server Disabled'
-                      : !pluginEnabled
+                      : !serviceEnabled
                         ? 'Service Disabled'
                         : null;
                     const showOverlay = serverUnavailable && overlayLabel;

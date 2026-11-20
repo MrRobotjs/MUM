@@ -28,7 +28,7 @@ import { useAlerts } from '../contexts';
 import { useLibraries } from '../hooks/useLibraries';
 import { useServerDetail } from '../hooks/useServers';
 import { useUsersPaginated } from '../hooks/useUsersPaginated';
-import { getServiceMeta } from '@/config/pluginMetadata';
+import { getServiceMeta } from '@/config/mediaServiceMetadata';
 import { ServiceIcon } from '../components';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';

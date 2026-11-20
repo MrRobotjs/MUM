@@ -2,7 +2,7 @@
  * The media services compiled into MUM's server (server/provider_registry.go),
  * in display order. This is the frontend's one list: data adapters reject any
  * other service type. Adding a service means adding it here and its icon and
- * colours in pluginMetadata.tsx.
+ * colours in mediaServiceMetadata.tsx.
  */
 export const SERVICE_TYPES = [
   { value: 'plex', label: 'Plex' },

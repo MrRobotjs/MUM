@@ -1,7 +1,7 @@
 import { useMemo, useEffect } from 'react'
 import { useNavigate, useParams } from '@tanstack/react-router'
-import { usePlugins } from '../hooks/usePlugins'
-import { PluginConfiguration } from '../components/plugins/PluginConfiguration'
+import { useMediaServices } from '../hooks/useMediaServices'
+import { MediaServiceServers } from '../components/mediaServices'
 import { SetupLayout } from './SetupLayout'
 import { ApiError } from '../util/apiClient'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -10,24 +10,24 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faCircleExclamation } from '@fortawesome/free-solid-svg-icons'
 import { Spinner } from '@/components/ui/spinner'
 
-function SetupPluginConfigContent() {
-  const { pluginId } = useParams({ from: '/setup/media-servers/$pluginId' })
-  const resolvedPluginId = pluginId ?? ''
+function SetupMediaServiceContent() {
+  const { serviceId } = useParams({ from: '/setup/media-servers/$serviceId' })
+  const resolvedServiceId = serviceId ?? ''
   const navigate = useNavigate()
-  const { plugins, loading: pluginsLoading, error: pluginsError } = usePlugins()
-  const plugin = useMemo(
-    () => plugins.find((item) => item.pluginId === resolvedPluginId),
-    [plugins, resolvedPluginId]
+  const { services, loading: servicesLoading, error: servicesError } = useMediaServices()
+  const service = useMemo(
+    () => services.find((item) => item.id === resolvedServiceId),
+    [services, resolvedServiceId]
   )
 
   // Handle authentication errors by redirecting to login
   useEffect(() => {
-    if (pluginsError && pluginsError instanceof ApiError && pluginsError.status === 401) {
-      window.location.href = `/login?next=/setup/media-servers/${resolvedPluginId}`
+    if (servicesError && servicesError instanceof ApiError && servicesError.status === 401) {
+      window.location.href = `/login?next=/setup/media-servers/${resolvedServiceId}`
     }
-  }, [pluginsError, resolvedPluginId])
+  }, [servicesError, resolvedServiceId])
 
-  if (pluginsLoading) {
+  if (servicesLoading) {
     return (
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <Spinner className="size-4 text-muted-foreground" />
@@ -36,17 +36,17 @@ function SetupPluginConfigContent() {
     )
   }
 
-  if (pluginsError && !(pluginsError instanceof ApiError && pluginsError.status === 401)) {
+  if (servicesError && !(servicesError instanceof ApiError && servicesError.status === 401)) {
     return (
       <Alert variant="destructive">
         <FontAwesomeIcon icon={faCircleExclamation} className="h-4 w-4" />
         <AlertTitle>Failed to load media services</AlertTitle>
-        <AlertDescription>{(pluginsError as Error).message}</AlertDescription>
+        <AlertDescription>{(servicesError as Error).message}</AlertDescription>
       </Alert>
     )
   }
 
-  if (!plugin) {
+  if (!service) {
     return (
       <div className="space-y-4">
         <Button variant="ghost" onClick={() => navigate({ to: '/setup/media-servers' })}>
@@ -55,7 +55,7 @@ function SetupPluginConfigContent() {
         <Alert variant="destructive">
           <FontAwesomeIcon icon={faCircleExclamation} className="h-4 w-4" />
           <AlertTitle>Media service not found</AlertTitle>
-          <AlertDescription>Media service "{resolvedPluginId}" could not be located.</AlertDescription>
+          <AlertDescription>Media service "{resolvedServiceId}" could not be located.</AlertDescription>
         </Alert>
       </div>
     )
@@ -63,12 +63,7 @@ function SetupPluginConfigContent() {
 
   return (
     <div className="space-y-6">
-      <PluginConfiguration
-        plugin={plugin}
-        pluginId={resolvedPluginId}
-        showEditButton={false}
-        addServerPath="/setup/media-servers/$pluginId/servers/add"
-      />
+      <MediaServiceServers service={service} setup />
 
       <div className="flex justify-between">
         <Button variant="outline" onClick={() => navigate({ to: '/setup/media-servers' })}>
@@ -82,21 +77,21 @@ function SetupPluginConfigContent() {
   )
 }
 
-export default function SetupPluginConfigPage() {
-  const { pluginId } = useParams({ from: '/setup/media-servers/$pluginId' })
-  const { plugins } = usePlugins()
-  const plugin = useMemo(
-    () => plugins.find((item) => item.pluginId === pluginId),
-    [plugins, pluginId]
+export default function SetupMediaServicePage() {
+  const { serviceId } = useParams({ from: '/setup/media-servers/$serviceId' })
+  const { services } = useMediaServices()
+  const service = useMemo(
+    () => services.find((item) => item.id === serviceId),
+    [services, serviceId]
   )
 
   return (
     <SetupLayout
-      stepId="plugins"
-      title={plugin ? `Configure ${plugin.name}` : 'Configure Plugin'}
-      subtitle="Add and configure servers for this media service plugin."
+      stepId="media-servers"
+      title={service ? `Configure ${service.name}` : 'Configure Media Service'}
+      subtitle="Add and configure servers for this media service."
     >
-      <SetupPluginConfigContent />
+      <SetupMediaServiceContent />
     </SetupLayout>
   )
 }

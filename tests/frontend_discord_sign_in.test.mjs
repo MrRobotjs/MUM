@@ -108,7 +108,7 @@ test('the account card links, explains, and unlinks only through a confirmation'
 
 test('a confirmation runs its action from Confirm only, and cannot be dismissed while running', async () => {
   const dialog = `export const ResponsiveDialog=p=>({type:'dialog',props:p});export const Button='button';export const CardTitle='h3';`;
-  const m = await loadFrontend(`export {ConfirmAction} from './src/components/users/AccountSettings';`, { mock: { filter: s => /components\/ui|ui\/|@fortawesome|config\/pluginMetadata/.test(s), module: s => /pluginMetadata/.test(s) ? `export const getServiceMeta=()=>({icon:null});` : dialog + `export const FontAwesomeIcon='i';export const faCircleInfo={};` } });
+  const m = await loadFrontend(`export {ConfirmAction} from './src/components/users/AccountSettings';`, { mock: { filter: s => /components\/ui|ui\/|@fortawesome|config\/mediaServiceMetadata/.test(s), module: s => /mediaServiceMetadata/.test(s) ? `export const getServiceMeta=()=>({icon:null});` : dialog + `export const FontAwesomeIcon='i';export const faCircleInfo={};` } });
   let confirmed = 0; const changes = [];
   const props = busy => ({ open: true, onOpenChange: v => changes.push(v), title: 'Unlink Discord?', confirmLabel: 'Unlink', busy, destructive: true, onConfirm: () => { confirmed++; } });
   const idle = m.ConfirmAction(props(false));

@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { getServiceMeta } from '@/config/pluginMetadata';
+import { getServiceMeta } from '@/config/mediaServiceMetadata';
 import { ServiceIcon } from '@/components/services/ServiceIcon';
 import { useAccountDisplay } from '../../hooks/useAccountDisplay';
 import { useAlerts } from '../../contexts/AlertContext';

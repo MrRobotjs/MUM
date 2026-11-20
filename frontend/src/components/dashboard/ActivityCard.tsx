@@ -8,7 +8,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { PeriodPicker, periodLabel } from '../common/PeriodPicker';
 import { Spinner } from '@/components/ui/spinner';
-import { getServiceMeta, getServicePalette } from '@/config/pluginMetadata';
+import { getServiceMeta, getServicePalette } from '@/config/mediaServiceMetadata';
 import { ServiceIcon } from '@/components/services/ServiceIcon';
 import { useAccountDisplay } from '../../hooks/useAccountDisplay';
 import { fetchActivityStats, useDashboardData, type ActivityKind, type ActivityLink, type ConcurrentKind, type ActivityOrder, type ActivityServer, type ActivityStats, type ActivityTitle } from '../../lib/dashboard';

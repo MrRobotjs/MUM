@@ -1,7 +1,6 @@
-import { useMemo } from 'react';
 import { useNavigate, useParams } from '@tanstack/react-router';
-import { usePlugins } from '../hooks/usePlugins';
-import { PluginConfiguration } from '../components/plugins';
+import { useMediaServices } from '../hooks/useMediaServices';
+import { MediaServiceServers } from '../components/mediaServices';
 import { PageHeader } from '../components';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -9,42 +8,42 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faCircleExclamation } from '@fortawesome/free-solid-svg-icons';
 import { Spinner } from '@/components/ui/spinner'
 
-export const AdminSettingsPluginsDetailPage = () => {
-  const { pluginId } = useParams({ from: '/admin/settings/media-servers/$pluginId' });
-  const resolvedPluginId = pluginId ?? '';
+/** One media service's page under Media Servers: its servers. */
+export const AdminSettingsMediaServicePage = () => {
+  const { serviceId } = useParams({ from: '/admin/settings/media-servers/$serviceId' });
   const navigate = useNavigate();
-  const { plugins, loading: pluginsLoading, error: pluginsError, refresh: refreshPlugins } = usePlugins();
-  const plugin = useMemo(() => plugins.find((item) => item.pluginId === resolvedPluginId), [plugins, resolvedPluginId]);
+  const { services, loading, error } = useMediaServices();
+  const service = services.find((item) => item.id === serviceId);
 
-  if (pluginsLoading) {
+  if (loading) {
     return (
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <Spinner className="size-4 text-muted-foreground" />
-        Loading plugin details…
+        Loading media service…
       </div>
     );
   }
 
-  if (pluginsError) {
+  if (error) {
     return (
       <Alert variant="destructive">
         <FontAwesomeIcon icon={faCircleExclamation} className="h-4 w-4" />
         <AlertTitle>Failed to load media services</AlertTitle>
-        <AlertDescription>{(pluginsError as Error).message}</AlertDescription>
+        <AlertDescription>{error.message}</AlertDescription>
       </Alert>
     );
   }
 
-  if (!plugin) {
+  if (!service) {
     return (
       <div className="space-y-4">
         <Button variant="ghost" onClick={() => navigate({ to: '/admin/settings/media-servers' })}>
-          ← Back to Plugins
+          ← Back to Media Servers
         </Button>
         <Alert variant="destructive">
           <FontAwesomeIcon icon={faCircleExclamation} className="h-4 w-4" />
           <AlertTitle>Media service not found</AlertTitle>
-          <AlertDescription>Media service "{resolvedPluginId}" could not be located.</AlertDescription>
+          <AlertDescription>Media service "{serviceId}" could not be located.</AlertDescription>
         </Alert>
       </div>
     );
@@ -52,19 +51,10 @@ export const AdminSettingsPluginsDetailPage = () => {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title={`${plugin.name} Servers`}
-        description="Configure media servers linked to this plugin."
-      />
-
-      <PluginConfiguration
-        plugin={plugin}
-        pluginId={resolvedPluginId}
-        onServerAdded={() => refreshPlugins()}
-        showEditButton={true}
-      />
+      <PageHeader title={service.name} description={`Turn ${service.name} on or off, see what MUM can do with it, and manage its servers.`} />
+      <MediaServiceServers service={service} />
     </div>
   );
 };
 
-export default AdminSettingsPluginsDetailPage;
+export default AdminSettingsMediaServicePage;

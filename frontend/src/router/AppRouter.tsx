@@ -34,10 +34,10 @@ import AdminSettingsUserRolesEditPage from '../pages/AdminSettingsUserRolesEditP
 import AdminSettingsGeneralPage from '../pages/AdminSettingsGeneralPage';
 import AdminSettingsUserGeneralPage from '../pages/AdminSettingsUserGeneralPage';
 import AdminSettingsAdminManagementPage from '../pages/AdminSettingsAdminManagementPage';
-import AdminSettingsPluginsPage from '../pages/AdminSettingsPluginsPage';
-import AdminSettingsPluginsDetailPage from '../pages/AdminSettingsPluginsDetailPage';
-import { AdminSettingsPluginsServerAddPage } from '../pages/AdminSettingsPluginsServerAddPage';
-import { AdminSettingsPluginsServerEditPage } from '../pages/AdminSettingsPluginsServerEditPage';
+import AdminSettingsMediaServersPage from '../pages/AdminSettingsMediaServersPage';
+import AdminSettingsMediaServicePage from '../pages/AdminSettingsMediaServicePage';
+import { AdminSettingsMediaServerAddPage } from '../pages/AdminSettingsMediaServerAddPage';
+import { AdminSettingsMediaServerEditPage } from '../pages/AdminSettingsMediaServerEditPage';
 import AdminSettingsDiscordPage from '../pages/AdminSettingsDiscordPage';
 import AdminSettingsAdvancedPage from '../pages/AdminSettingsAdvancedPage';
 import AdminSettingsApiDebugPage from '../pages/AdminSettingsApiDebugPage';
@@ -47,8 +47,8 @@ const ApiDocsPage = lazy(() => import('../pages/ApiDocsPage'));
 import AccountPage from '../pages/AccountPage';
 import SetupAccountPage from '../pages/SetupAccountPage';
 import SetupAppConfigPage from '../pages/SetupAppConfigPage';
-import SetupPluginsPage from '../pages/SetupPluginsPage';
-import SetupPluginConfigPage from '../pages/SetupPluginConfigPage';
+import SetupMediaServersPage from '../pages/SetupMediaServersPage';
+import SetupMediaServicePage from '../pages/SetupMediaServicePage';
 import SetupServerAddPage from '../pages/SetupServerAddPage';
 import SetupFinishPage from '../pages/SetupFinishPage';
 
@@ -202,10 +202,10 @@ const adminAdminRoles = createRoute({ getParentRoute: () => adminRoute, path: 's
 const adminAdminRoleEdit = createRoute({ getParentRoute: () => adminRoute, path: 'settings/admin-roles/$roleId/edit', component: AdminSettingsAdminRolesEditPage })
 const adminUserRoles = createRoute({ getParentRoute: () => adminRoute, path: 'settings/user-roles', component: AdminSettingsUserRolesPage })
 const adminUserRoleEdit = createRoute({ getParentRoute: () => adminRoute, path: 'settings/user-roles/$roleId/edit', component: AdminSettingsUserRolesEditPage })
-const adminPlugins = createRoute({ getParentRoute: () => adminRoute, path: 'settings/media-servers', component: AdminSettingsPluginsPage })
-const adminPluginDetail = createRoute({ getParentRoute: () => adminRoute, path: 'settings/media-servers/$pluginId', component: AdminSettingsPluginsDetailPage })
-const adminServerAdd = createRoute({ getParentRoute: () => adminRoute, path: 'settings/media-servers/$pluginId/servers/add', component: AdminSettingsPluginsServerAddPage })
-const adminServerEdit = createRoute({ getParentRoute: () => adminRoute, path: 'settings/media-servers/$pluginId/servers/$serverId', component: AdminSettingsPluginsServerEditPage })
+const adminMediaServers = createRoute({ getParentRoute: () => adminRoute, path: 'settings/media-servers', component: AdminSettingsMediaServersPage })
+const adminMediaService = createRoute({ getParentRoute: () => adminRoute, path: 'settings/media-servers/$serviceId', component: AdminSettingsMediaServicePage })
+const adminServerAdd = createRoute({ getParentRoute: () => adminRoute, path: 'settings/media-servers/$serviceId/servers/add', component: AdminSettingsMediaServerAddPage })
+const adminServerEdit = createRoute({ getParentRoute: () => adminRoute, path: 'settings/media-servers/$serviceId/servers/$serverId', component: AdminSettingsMediaServerEditPage })
 const adminDiscord = createRoute({ getParentRoute: () => adminRoute, path: 'settings/discord', component: AdminSettingsDiscordPage })
 const adminAdvanced = createRoute({ getParentRoute: () => adminRoute, path: 'settings/advanced', component: AdminSettingsAdvancedPage })
 const adminApiDebug = createRoute({ getParentRoute: () => adminRoute, path: 'settings/api-debug', component: AdminSettingsApiDebugPage })
@@ -266,9 +266,9 @@ const accountIndex = createRoute({ getParentRoute: () => accountRoute, path: '/'
 const setupRoute = createRoute({ getParentRoute: () => rootRoute, path: 'setup' })
 const setupAccount = createRoute({ getParentRoute: () => setupRoute, path: 'account', component: SetupAccountPage })
 const setupApp = createRoute({ getParentRoute: () => setupRoute, path: 'app', component: SetupAppConfigPage })
-const setupPlugins = createRoute({ getParentRoute: () => setupRoute, path: 'media-servers', component: SetupPluginsPage })
-const setupPluginConfig = createRoute({ getParentRoute: () => setupRoute, path: 'media-servers/$pluginId', component: SetupPluginConfigPage })
-const setupServerAdd = createRoute({ getParentRoute: () => setupRoute, path: 'media-servers/$pluginId/servers/add', component: SetupServerAddPage })
+const setupMediaServers = createRoute({ getParentRoute: () => setupRoute, path: 'media-servers', component: SetupMediaServersPage })
+const setupMediaService = createRoute({ getParentRoute: () => setupRoute, path: 'media-servers/$serviceId', component: SetupMediaServicePage })
+const setupServerAdd = createRoute({ getParentRoute: () => setupRoute, path: 'media-servers/$serviceId/servers/add', component: SetupServerAddPage })
 const setupFinish = createRoute({ getParentRoute: () => setupRoute, path: 'finish', component: SetupFinishPage })
 const setupRootRedirect = createRoute({ getParentRoute: () => setupRoute, path: '/', component: () => <Navigate to="/setup/account" replace /> })
 const setupWildcardRedirect = createRoute({ getParentRoute: () => setupRoute, path: '*', component: () => <Navigate to="/setup/account" replace /> })
@@ -309,8 +309,8 @@ const routeTree = rootRoute.addChildren([
     adminAdminRoleEdit,
     adminUserRoles,
     adminUserRoleEdit,
-    adminPlugins,
-    adminPluginDetail,
+    adminMediaServers,
+    adminMediaService,
     adminServerAdd,
     adminServerEdit,
     adminDiscord,
@@ -322,7 +322,7 @@ const routeTree = rootRoute.addChildren([
   apiDocsStandalone,
   adminApiDocsStandalone,
   inviteRoute.addChildren([inviteLanding, inviteWizard]),
-  setupRoute.addChildren([setupAccount, setupApp, setupPlugins, setupPluginConfig, setupServerAdd, setupFinish, setupRootRedirect, setupWildcardRedirect]),
+  setupRoute.addChildren([setupAccount, setupApp, setupMediaServers, setupMediaService, setupServerAdd, setupFinish, setupRootRedirect, setupWildcardRedirect]),
   rootIndexRedirect,
   rootWildcardRedirect,
 ])

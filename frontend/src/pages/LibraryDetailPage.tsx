@@ -31,7 +31,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { getServicePalette, getServiceMeta } from '@/config/pluginMetadata';
+import { getServicePalette, getServiceMeta } from '@/config/mediaServiceMetadata';
 // Catalogue posters use signed session-bound URLs.
 import { useLibrarySyncStatus } from '../hooks/useLibrarySyncStatus';
 import { purgeLibraryCatalogue, syncLibraryCatalogue } from '../lib/libraryCatalogue';

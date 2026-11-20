@@ -607,9 +607,9 @@ func (a *App) setupStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if providersConfigured {
-		steps = append(steps, "plugins")
+		steps = append(steps, "media-servers")
 	}
-	respond(w, 200, map[string]any{"account_complete": account, "app_complete": configured, "plugins_complete": providersConfigured, "discord_complete": false, "setup_complete": complete, "completed_steps": steps})
+	respond(w, 200, map[string]any{"account_complete": account, "app_complete": configured, "media_servers_complete": providersConfigured, "discord_complete": false, "setup_complete": complete, "completed_steps": steps})
 }
 func (a *App) setupConfig(w http.ResponseWriter, r *http.Request) {
 	p, ok := a.principal(w, r, true)

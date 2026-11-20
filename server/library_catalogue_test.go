@@ -393,7 +393,6 @@ func TestProviderMetadataAdvertisesCompiledProvidersAndCatalogueOnlyWhereImpleme
 	var out struct {
 		Data []struct {
 			ID           string   `json:"id"`
-			PluginType   string   `json:"plugin_type"`
 			Capabilities []string `json:"capabilities"`
 		} `json:"data"`
 	}
@@ -404,10 +403,6 @@ func TestProviderMetadataAdvertisesCompiledProvidersAndCatalogueOnlyWhereImpleme
 		t.Fatal("provider count", len(out.Data))
 	}
 	for _, p := range out.Data {
-		// Compiled providers cannot be uninstalled; the page hides Uninstall for "core".
-		if p.PluginType != "core" {
-			t.Fatal(p.ID, "plugin_type", p.PluginType)
-		}
 		advertised := false
 		for _, c := range p.Capabilities {
 			advertised = advertised || c == "libraries.items.sync"

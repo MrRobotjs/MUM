@@ -21,7 +21,7 @@ import (
 var Definition = provider.Definition{
 	ID:             "romm",
 	Name:           "RomM",
-	Description:    "RomM sync and all-platform/download provisioning/recovery; creation starts enabled in its default group, and full session termination is not verified",
+	Description:    "Retro game collections on your RomM server. A new account starts active in its default group.",
 	DownloadLabels: true,
 }
 

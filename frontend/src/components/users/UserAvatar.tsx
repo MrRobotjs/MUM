@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
-import { getServicePalette } from '@/config/pluginMetadata';
+import { getServicePalette } from '@/config/mediaServiceMetadata';
 import { Skeleton } from '../ui/skeleton';
 
 type AvatarDisplayUser = {

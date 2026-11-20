@@ -54,7 +54,7 @@ export function invitationRow(record: InvitationRecord, catalog: InvitationCatal
   const servers = record.grants.map(g => {
     const server = catalog.servers.find(s => s.id === g.server_id);
     return { id: g.server_id, server_nickname: server?.server_nickname ?? `Server #${g.server_id}`, service_type: server?.service_type ?? '',
-      is_active: server?.is_active ?? false, plugin_enabled: server?.provider_enabled ?? false, effective_active: server?.effective_active ?? false };
+      is_active: server?.is_active ?? false, service_enabled: server?.provider_enabled ?? false, effective_active: server?.effective_active ?? false };
   });
   const selected = catalog.libraries.filter(l => record.grants.some(g => g.server_id === l.server_id && (g.all_libraries || g.library_ids.includes(l.external_id))));
   const expired = record.expires_at !== null && Date.parse(record.expires_at) <= Date.now();
@@ -192,7 +192,7 @@ export async function invitationDetail(id: number) {
   const row = invitationRow(record, catalog);
   const servers = record.grants.map(g => {
     const server = catalog.servers.find(s => s.id === g.server_id);
-    return { ...server, id: g.server_id, service_type: server?.service_type ?? '', is_active: server?.is_active ?? false, effective_active: server?.effective_active ?? false, plugin_enabled: server?.provider_enabled ?? false,
+    return { ...server, id: g.server_id, service_type: server?.service_type ?? '', is_active: server?.is_active ?? false, effective_active: server?.effective_active ?? false, service_enabled: server?.provider_enabled ?? false,
       libraries: catalog.libraries.filter(l => l.server_id === g.server_id).map(l => ({ id: l.external_id, name: l.name, library_type: l.library_type, selected: g.all_libraries || g.library_ids.includes(l.external_id) })) };
   });
   return { ...row, is_expired: Boolean(row.is_expired), has_reached_max_uses: Boolean(row.has_reached_max_uses), is_usable: Boolean(row.is_usable), servers, disabled_servers: servers.filter(s => !s.effective_active), remaining_uses: record.max_uses === null ? null : Math.max(0, record.max_uses - record.current_uses - record.reserved_uses), library_selection_mode: row.grants_all_libraries ? 'all' as const : 'custom' as const,

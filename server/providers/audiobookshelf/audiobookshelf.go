@@ -19,7 +19,7 @@ import (
 var Definition = provider.Definition{
 	ID:             "audiobookshelf",
 	Name:           "Audiobookshelf",
-	Description:    "Audiobookshelf library/user synchronization, restricted provisioning and recorded-account recovery",
+	Description:    "Audiobooks and podcasts on your Audiobookshelf server.",
 	DownloadLabels: true,
 }
 

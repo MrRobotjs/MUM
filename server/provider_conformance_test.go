@@ -99,7 +99,7 @@ func TestRegisteredModulesAreWiredEverywhere(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	metadata, err := os.ReadFile("../frontend/src/config/pluginMetadata.tsx")
+	metadata, err := os.ReadFile("../frontend/src/config/mediaServiceMetadata.tsx")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -115,7 +115,7 @@ func TestRegisteredModulesAreWiredEverywhere(t *testing.T) {
 			t.Errorf("%s: missing from frontend/src/config/serviceTypes.ts", id)
 		}
 		if !strings.Contains(string(metadata), "\n  "+id+": {") {
-			t.Errorf("%s: missing from SERVICE_META in frontend/src/config/pluginMetadata.tsx", id)
+			t.Errorf("%s: missing from SERVICE_META in frontend/src/config/mediaServiceMetadata.tsx", id)
 		}
 	}
 }

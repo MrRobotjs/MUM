@@ -52,10 +52,10 @@ test('a media server sign-in posts to the server sign-in route only', async t =>
 });
 
 async function loginPage() {
-  return loadFrontend(`export {default as Login} from './src/pages/LoginPage';`, { mock: { filter: s => s === 'react' || /components\/ui|@fortawesome\/react-fontawesome|lib\/plexSignIn|lib\/serviceSignIn|hooks\/useSignInMethods|config\/pluginMetadata|hooks\/useSession|util\/tokenStore|util\/apiClient|@tanstack\/react-router/.test(s), module: s => {
+  return loadFrontend(`export {default as Login} from './src/pages/LoginPage';`, { mock: { filter: s => s === 'react' || /components\/ui|@fortawesome\/react-fontawesome|lib\/plexSignIn|lib\/serviceSignIn|hooks\/useSignInMethods|config\/mediaServiceMetadata|hooks\/useSession|util\/tokenStore|util\/apiClient|@tanstack\/react-router/.test(s), module: s => {
     if (/components\/ui|@fortawesome\/react-fontawesome/.test(s)) return uiMock;
     if (s === 'react') return `export const useState=v=>[v==='mum'?(globalThis.__login.target??v):v,()=>{}];export const useRef=v=>({current:v});export const useEffect=()=>{};export default {};`;
-    if (s.includes('pluginMetadata')) return `export const getServiceIcon=t=>'icon:'+t;export const getServiceMeta=t=>({label:{jellyfin:'Jellyfin',emby:'Emby'}[t]??t});`;
+    if (s.includes('mediaServiceMetadata')) return `export const getServiceIcon=t=>'icon:'+t;export const getServiceMeta=t=>({label:{jellyfin:'Jellyfin',emby:'Emby'}[t]??t});`;
     if (s.includes('useSignInMethods')) return `export const useSignInMethods=()=>globalThis.__login.methods;`;
     if (s.includes('serviceSignIn')) return `export const serviceSignIn=async(id,u,p,r)=>{globalThis.__login.events.push('service:'+id+':'+u+':'+r);return 'fixture'};export const startQuickConnect=async(id,r)=>{globalThis.__login.events.push('qc-start:'+id+':'+r);return {id:'0b0b0b0b-0000-4000-8000-000000000001',code:'123456',expiresAt:new Date(Date.now()+60000).toISOString()}};export const checkQuickConnect=async()=>{globalThis.__login.events.push('qc-check');return globalThis.__login.qc.shift()??{status:'pending'}};`;
     if (s.includes('plexSignIn')) return `export const startPlexSignIn=async()=>({});export const checkPlexSignIn=async()=>({});`;
@@ -220,8 +220,8 @@ test('linked accounts are offered for unlinking only while another sign-in remai
 
 test("a service account's profile lists every account owned by the same MUM profile, marking the one viewed", async () => {
   const header = `export const SettingHeader=({title,summary,action})=>({type:'section',props:{children:[title,'|',summary,'|',action]}});export const SettingIcon=p=>p.children;export const ServiceSettingIcon=()=>null;`;
-  const m = await loadFrontend(`export {ServiceAccountsCard} from './src/components/users/ServiceAccountsCard';${renderer}`, { mock: { filter: s => /AccountAvatar|@tanstack\/react-router|components\/ui|ui\/|@fortawesome|AccountSettings|config\/pluginMetadata/.test(s), module: s => /AccountAvatar/.test(s) ? avatarMock : /react-router/.test(s) ? `export const Link=p=>p.children;` :
-    /AccountSettings/.test(s) ? header : /pluginMetadata/.test(s) ? `export const getServiceMeta=t=>({label:t==='plex'?'Plex':'Jellyfin'});` : /@fortawesome/.test(s) ? `export const FontAwesomeIcon='i';export const faServer={};` : uiMock } });
+  const m = await loadFrontend(`export {ServiceAccountsCard} from './src/components/users/ServiceAccountsCard';${renderer}`, { mock: { filter: s => /AccountAvatar|@tanstack\/react-router|components\/ui|ui\/|@fortawesome|AccountSettings|config\/mediaServiceMetadata/.test(s), module: s => /AccountAvatar/.test(s) ? avatarMock : /react-router/.test(s) ? `export const Link=p=>p.children;` :
+    /AccountSettings/.test(s) ? header : /mediaServiceMetadata/.test(s) ? `export const getServiceMeta=t=>({label:t==='plex'?'Plex':'Jellyfin'});` : /@fortawesome/.test(s) ? `export const FontAwesomeIcon='i';export const faServer={};` : uiMock } });
   const accounts = [
     { uuid: 'jellyfin-1', service_type: 'jellyfin', server_name: 'Living Room', external_username: 'AllBass' },
     { uuid: 'plex-1', service_type: 'plex', server_name: 'Main', external_username: 'AllGas' },

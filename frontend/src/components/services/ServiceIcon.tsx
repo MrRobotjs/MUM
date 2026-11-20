@@ -1,5 +1,5 @@
 import { type ReactElement } from 'react'
-import { getServiceIcon } from '@/config/pluginMetadata'
+import { getServiceIcon } from '@/config/mediaServiceMetadata'
 
 export type ServiceIconProps = {
   serviceType?: string

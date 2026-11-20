@@ -6,5 +6,3 @@ export type { AlertContextValue, AlertType } from './AlertContext';
 
 export { ThemeProvider, useTheme } from './ThemeContext';
 
-export { PluginCapabilitiesProvider, usePluginCapabilities } from './PluginCapabilitiesContext';
-export type { PluginCapabilitiesContextValue } from './PluginCapabilitiesContext';

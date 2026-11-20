@@ -107,10 +107,11 @@ func (a *App) providers(w http.ResponseWriter, r *http.Request) {
 		if def.ID == "plex" {
 			capabilities = append(capabilities, "integrations.overseerr")
 		}
+		features := []mediaServiceFeature{}
 		if m, ok := findMediaModule(def.ID); ok {
-			capabilities = moduleCapabilities(m)
+			capabilities, features = moduleCapabilities(m), moduleFeatures(m)
 		}
-		items = append(items, map[string]any{"id": def.ID, "name": def.Name, "description": def.Description, "enabled": enabled, "server_count": count, "capabilities": capabilities, "plugin_type": "core"})
+		items = append(items, map[string]any{"id": def.ID, "name": def.Name, "description": def.Description, "enabled": enabled, "server_count": count, "capabilities": capabilities, "features": features})
 	}
 	respond(w, 200, items)
 }

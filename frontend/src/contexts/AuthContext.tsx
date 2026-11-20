@@ -1,6 +1,6 @@
 import { createContext, useContext, ReactNode, useEffect, useRef } from 'react';
 import { useSession } from '../hooks/useSession';
-import { prefetchPluginConfigCache } from '../cache/pluginsCache';
+import { prefetchMediaServices } from '../cache/mediaServicesCache';
 
 export type Permission = string;
 
@@ -72,7 +72,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
 
     prefetchedForUserRef.current = user.id;
-    void prefetchPluginConfigCache();
+    void prefetchMediaServices();
   }, [loading, isAuthenticated, user, hasAdminAccess]);
 
   const hasPermission = (permission: Permission): boolean => {

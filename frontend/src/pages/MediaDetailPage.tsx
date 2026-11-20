@@ -14,7 +14,7 @@ import { Label } from '../components/ui/label';
 import { Card, CardContent, CardHeader } from '../components/ui/card';
 import { Row, Tile } from '../components/library/LibraryOverview';
 import { TabHeading } from '../components/users/AccountSettings';
-import { getServiceMeta } from '@/config/pluginMetadata';
+import { getServiceMeta } from '@/config/mediaServiceMetadata';
 import { readItemPlays } from '../lib/libraryOverview';
 import { watchTime } from '../lib/identityPlayTotals';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';

@@ -112,7 +112,8 @@ export type StreamDisplaySettings = {
   default_grouping: ViewMode;
 };
 
-export type PluginMetaResponse = {
+/** Per media service, the features its streams support. */
+export type MediaServiceFeaturesResponse = {
   data: Record<
     string,
     {

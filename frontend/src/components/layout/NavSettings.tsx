@@ -10,7 +10,7 @@ import {
   faUserCircle,
   faShield,
   faShieldHalved,
-  faPuzzlePiece,
+  faServer,
   faCode,
   faGauge,
   faChevronRight,
@@ -77,7 +77,7 @@ export function NavSettings() {
     // Exact match
     if (location.pathname === url) return true
 
-    // For settings pages with sub-routes (e.g., /admin/settings/media-servers/[pluginId])
+    // For settings pages with sub-routes (e.g., /admin/settings/media-servers/[serviceId])
     if (location.pathname.startsWith(url + '/')) return true
 
     return false
@@ -133,8 +133,7 @@ export function NavSettings() {
     {
       title: 'Media Servers',
       url: '/admin/settings/media-servers',
-      icon: faPuzzlePiece,
-      permission: 'manage_plugins',
+      icon: faServer,
     },
     {
       title: 'Discord',

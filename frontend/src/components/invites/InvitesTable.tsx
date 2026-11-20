@@ -13,7 +13,7 @@ export type InviteServer = {
   name?: string | null;
   service_type: string;
   is_active?: boolean;
-  plugin_enabled?: boolean;
+  service_enabled?: boolean;
   effective_active?: boolean;
 };
 

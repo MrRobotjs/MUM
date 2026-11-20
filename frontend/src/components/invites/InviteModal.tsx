@@ -75,7 +75,7 @@ type Server = {
   server_nickname: string;
   service_type: string;
   is_active: boolean;
-  plugin_enabled?: boolean;
+  service_enabled?: boolean;
   effective_active?: boolean;
   invite_capabilities?: {
     supports_library_scoped_grants?: boolean;

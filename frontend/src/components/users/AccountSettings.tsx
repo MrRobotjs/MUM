@@ -1,7 +1,7 @@
 import { cloneElement, useState, type ReactNode } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faCircleInfo, type IconDefinition } from '@fortawesome/free-solid-svg-icons';
-import { getServiceMeta } from '@/config/pluginMetadata';
+import { getServiceMeta } from '@/config/mediaServiceMetadata';
 import { cn } from '@/lib/utils';
 import { Button } from '../ui/button';
 import { CardTitle } from '../ui/card';

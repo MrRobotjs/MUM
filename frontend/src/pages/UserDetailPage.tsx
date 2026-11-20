@@ -35,7 +35,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import {Button} from '@/components/ui/button';
 import { Badge, RoleBadge } from '@/components/common/Badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { getServiceMeta } from '@/config/pluginMetadata';
+import { getServiceMeta } from '@/config/mediaServiceMetadata';
 import type { UnifiedSession } from '@/types/realtime';
 import type { UserNowPlaying } from '@/components/users/UserCard';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';

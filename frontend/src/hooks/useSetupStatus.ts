@@ -4,7 +4,7 @@ import { requestJson } from '../util/apiClient'
 export type SetupStatus = {
   account_complete: boolean
   app_complete: boolean
-  plugins_complete: boolean
+  media_servers_complete: boolean
   discord_complete: boolean
   setup_complete: boolean
   completed_steps: string[]

@@ -21,7 +21,7 @@ import (
 var Definition = provider.Definition{
 	ID:             "kavita",
 	Name:           "Kavita",
-	Description:    "Kavita synchronization, username-only provisioning with selected libraries and recorded-account recovery",
+	Description:    "Comics, manga and books on your Kavita server. Invites create accounts by username.",
 	DownloadLabels: true,
 }
 

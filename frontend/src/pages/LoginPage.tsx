@@ -10,7 +10,7 @@ import { checkQuickConnect, serviceSignIn, startQuickConnect } from '../lib/serv
 import { discordOutcome, startDiscordSignIn } from '../lib/discordSignIn';
 import { faDiscord } from '@fortawesome/free-brands-svg-icons';
 import { useSignInMethods } from '../hooks/useSignInMethods';
-import { getServiceIcon, getServiceMeta } from '../config/pluginMetadata';
+import { getServiceIcon, getServiceMeta } from '../config/mediaServiceMetadata';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Input } from '../components/ui/input';

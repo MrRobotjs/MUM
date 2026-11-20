@@ -1,5 +1,5 @@
 /**
- * Plugin metadata configuration - Frontend presentation layer
+ * Media service metadata: how each service looks in the frontend
  * Icons and visual elements are defined here, while metadata is fetched from backend
  */
 
@@ -248,7 +248,7 @@ export const getServiceMeta = (serviceType?: string): ServiceMeta => {
 }
 
 /**
- * Get the icon for a specific service (for plugin cards)
+ * Get the icon for a specific service (for media service cards)
  */
 const appendIconClassName = (icon: IconElement, className?: string): IconElement => {
   const extra = className?.trim()
@@ -257,61 +257,61 @@ const appendIconClassName = (icon: IconElement, className?: string): IconElement
   return cloneElement(icon, { className: cn(existing, extra) })
 }
 
-export const getServiceIcon = (pluginId?: string, className?: string): IconElement => {
-  return appendIconClassName(getServiceMeta(pluginId).icon, className)
+export const getServiceIcon = (serviceId?: string, className?: string): IconElement => {
+  return appendIconClassName(getServiceMeta(serviceId).icon, className)
 }
 
 /**
  * Get the gradient for a specific service
  */
-export const getServiceGradient = (pluginId?: string): string => {
-  return getServiceMeta(pluginId).gradient
+export const getServiceGradient = (serviceId?: string): string => {
+  return getServiceMeta(serviceId).gradient
 }
 
 /**
  * Get the badge class for a specific service
  */
-export const getServiceBadgeClass = (pluginId?: string): string => {
-  return getServiceMeta(pluginId).badgeClass
+export const getServiceBadgeClass = (serviceId?: string): string => {
+  return getServiceMeta(serviceId).badgeClass
 }
 
 /**
  * Get the library gradient for a specific service
  */
-export const getServiceLibraryGradient = (pluginId?: string): string => {
-  const meta = getServiceMeta(pluginId)
+export const getServiceLibraryGradient = (serviceId?: string): string => {
+  const meta = getServiceMeta(serviceId)
   return meta.libraryGradient || meta.gradient
 }
 
 /**
  * Get the library badge class for a specific service
  */
-export const getServiceLibraryBadgeClass = (pluginId?: string): string => {
-  const meta = getServiceMeta(pluginId)
+export const getServiceLibraryBadgeClass = (serviceId?: string): string => {
+  const meta = getServiceMeta(serviceId)
   return meta.libraryBadgeClass || meta.badgeClass
 }
 
 /**
  * Get the chip class for a specific service
  */
-export const getServiceChipClass = (pluginId?: string): string => {
-  const meta = getServiceMeta(pluginId)
+export const getServiceChipClass = (serviceId?: string): string => {
+  const meta = getServiceMeta(serviceId)
   return meta.chipClass || meta.badgeClass
 }
 
 /**
  * Get the detail gradient for a specific service
  */
-export const getServiceDetailGradient = (pluginId?: string): string => {
-  const meta = getServiceMeta(pluginId)
+export const getServiceDetailGradient = (serviceId?: string): string => {
+  const meta = getServiceMeta(serviceId)
   return meta.detailGradient || meta.gradient
 }
 
 /**
  * Get the theme palette for a specific service
  */
-export const getServicePalette = (pluginId?: string): ThemePalette => {
-  const meta = getServiceMeta(pluginId)
+export const getServicePalette = (serviceId?: string): ThemePalette => {
+  const meta = getServiceMeta(serviceId)
   return meta.palette || {
     bg: 'bg-gray-50',
     bgDark: 'dark:bg-gray-400/10',

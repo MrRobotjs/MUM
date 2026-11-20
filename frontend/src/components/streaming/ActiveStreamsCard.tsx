@@ -94,7 +94,7 @@ export const ActiveStreamsCard = ({
   const [showDisplaySettings, setShowDisplaySettings] = useState(false);
   const [defaultViewModeDraft, setDefaultViewModeDraft] = useState<ViewMode>(defaultViewMode);
   const [defaultStreamCardStyleDraft, setDefaultStreamCardStyleDraft] = useState<StreamCardStyle>(defaultStreamCardStyle);
-  const { data: pluginFeaturesByService } = useProviderFeatures();
+  const { data: serviceFeatures } = useProviderFeatures();
   const isCompact = streamCardStyle === 'compact';
   const sessionGridClass = isCompact
     ? 'grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3'
@@ -114,7 +114,7 @@ export const ActiveStreamsCard = ({
       session={session}
       cardStyle={streamCardStyle}
       onTerminate={onTerminateSession}
-      pluginFeaturesByService={pluginFeaturesByService}
+      serviceFeatures={serviceFeatures}
     />
   );
 

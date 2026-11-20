@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faWifi, faCheck, faXmark, faCircleExclamation } from '@fortawesome/free-solid-svg-icons';
 import { FormField } from '../';
-import { useAlerts, usePluginCapabilities } from '../../contexts';
+import { useAlerts } from '../../contexts';
+import { useMediaServiceCapabilities } from '../../hooks/useMediaServices';
 import { requestJson } from '../../util/apiClient';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -12,7 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { SERVICE_TYPES } from '@/config/pluginMetadata';
+import { SERVICE_TYPES } from '@/config/mediaServiceMetadata';
 import { Spinner } from '@/components/ui/spinner'
 
 type ConnectionTestStatus = 'idle' | 'testing' | 'success' | 'error';
@@ -40,12 +41,12 @@ export type ServerFormValues = {
 
 const normalizeServerPayload = (
   values: ServerFormValues,
-  pluginId: string,
+  serviceId: string,
   capabilityFlags: ServerCapabilityFlags
 ) => {
   const payload: Record<string, unknown> = {
     server_nickname: values.server_nickname,
-    service_type: pluginId,
+    service_type: serviceId,
     url: values.url,
     public_url: values.public_url || '',
     is_active: values.is_active,
@@ -84,24 +85,24 @@ const normalizeServerPayload = (
 };
 
 export interface ServerAddFormProps {
-  pluginId: string;
+  serviceId: string;
   onSuccess: () => void;
   onCancel: () => void;
   submitEndpoint?: string;
 }
 
-export const ServerAddForm = ({ pluginId, onSuccess, onCancel, submitEndpoint }: ServerAddFormProps) => {
+export const ServerAddForm = ({ serviceId, onSuccess, onCancel, submitEndpoint }: ServerAddFormProps) => {
   const { success, error: showError } = useAlerts();
-  const { hasCapability } = usePluginCapabilities();
+  const { hasCapability } = useMediaServiceCapabilities();
 
-  const requiresUsernamePasswordAuth = hasCapability(pluginId, 'auth.username_password');
-  const supportsWebsocketRefreshInterval = hasCapability(pluginId, 'sessions.websocket.refresh_interval');
-  const supportsOwnerUserContext = hasCapability(pluginId, 'auth.owner_user_context');
-  const supportsOverseerr = hasCapability(pluginId, 'integrations.overseerr');
+  const requiresUsernamePasswordAuth = hasCapability(serviceId, 'auth.username_password');
+  const supportsWebsocketRefreshInterval = hasCapability(serviceId, 'sessions.websocket.refresh_interval');
+  const supportsOwnerUserContext = hasCapability(serviceId, 'auth.owner_user_context');
+  const supportsOverseerr = hasCapability(serviceId, 'integrations.overseerr');
 
   const [values, setValues] = useState<ServerFormValues>({
     server_nickname: '',
-    service_type: pluginId || 'plex',
+    service_type: serviceId || 'plex',
     url: '',
     api_key: '',
     username: '',
@@ -211,7 +212,7 @@ export const ServerAddForm = ({ pluginId, onSuccess, onCancel, submitEndpoint }:
       }
     }
 
-    const payload = normalizeServerPayload(values, pluginId, {
+    const payload = normalizeServerPayload(values, serviceId, {
       supportsWebsocketRefreshInterval,
       supportsOwnerUserContext,
     });
@@ -224,7 +225,7 @@ export const ServerAddForm = ({ pluginId, onSuccess, onCancel, submitEndpoint }:
         body: JSON.stringify(payload)
       });
       // A new Plex server can import its own play history from its server page.
-      success(pluginId === 'plex'
+      success(serviceId === 'plex'
         ? `Server "${values.server_nickname}" added. Import its play history from the server's page so purges count plays from before MUM.`
         : `Server "${values.server_nickname}" added`);
       onSuccess();

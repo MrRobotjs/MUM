@@ -9,7 +9,7 @@ import { faRotate, faHeartPulse } from '@fortawesome/free-solid-svg-icons';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Spinner } from '@/components/ui/spinner'
 import { useAlerts } from '@/contexts';
-import { getServiceMeta } from '@/config/pluginMetadata';
+import { getServiceMeta } from '@/config/mediaServiceMetadata';
 import { ServiceSettingIcon, TabHeading } from '../users/AccountSettings';
 import './ServerHealth.css';
 

@@ -20,7 +20,7 @@ import (
 var Definition = provider.Definition{
 	ID:             "komga",
 	Name:           "Komga",
-	Description:    "Komga synchronization, email-identity provisioning and media-access revocation/recovery; login can remain available",
+	Description:    "Comics and manga on your Komga server. Invites create accounts by email; removing access leaves the sign-in in place.",
 	DownloadLabels: true,
 }
 

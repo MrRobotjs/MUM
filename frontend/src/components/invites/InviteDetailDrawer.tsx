@@ -43,7 +43,7 @@ type InviteServer = {
   url?: string | null;
   public_url?: string | null;
   is_active: boolean;
-  plugin_enabled?: boolean;
+  service_enabled?: boolean;
   effective_active?: boolean;
   libraries: InviteServerLibrary[];
 };
@@ -299,7 +299,7 @@ export const InviteDetailDrawer = ({ inviteId, onClose }: InviteDetailDrawerProp
                           </span>
                           {server.effective_active === false ? (
                             <span className="text-xs text-muted-foreground">
-                              {server.is_active === false ? 'Server disabled' : server.plugin_enabled === false ? 'Service disabled' : 'Unavailable'}
+                              {server.is_active === false ? 'Server disabled' : server.service_enabled === false ? 'Service disabled' : 'Unavailable'}
                             </span>
                           ) : null}
                           {server.public_url ? (

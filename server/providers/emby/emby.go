@@ -17,7 +17,7 @@ import (
 var Definition = provider.Definition{
 	ID:             "emby",
 	Name:           "Emby",
-	Description:    "Emby synchronization and local-user provisioning; newly created accounts may be accessible before password and policy setup",
+	Description:    "Movies, TV shows and music on your Emby server. A new account can sign in before its password and settings are applied.",
 	DownloadLabels: true,
 }
 

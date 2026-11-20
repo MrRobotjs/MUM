@@ -5,8 +5,8 @@ import { faWifi, faCheck, faXmark, faCircleExclamation } from '@fortawesome/free
 import { PageHeader } from '../components';
 import { FormField } from '../components';
 import { useServers, useServerDetail } from '../hooks/useServers';
-import { usePlugins } from '../hooks/usePlugins';
-import { useAlerts, usePluginCapabilities } from '../contexts';
+import { useMediaServiceCapabilities, useMediaServices } from '../hooks/useMediaServices';
+import { useAlerts } from '../contexts';
 import { requestJson } from '../util/apiClient';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -16,7 +16,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { SERVICE_TYPES } from '@/config/pluginMetadata';
+import { SERVICE_TYPES } from '@/config/mediaServiceMetadata';
 import { Spinner } from '@/components/ui/spinner'
 
 type ConnectionTestStatus = 'idle' | 'testing' | 'success' | 'error';
@@ -44,12 +44,12 @@ type ServerFormValues = {
 
 const normalizeServerPayload = (
   values: ServerFormValues,
-  pluginId: string,
+  serviceId: string,
   capabilityFlags: ServerCapabilityFlags
 ) => {
   const payload: Record<string, unknown> = {
     server_nickname: values.server_nickname,
-    service_type: pluginId,
+    service_type: serviceId,
     url: values.url,
     public_url: values.public_url || '',
     is_active: values.is_active,
@@ -85,25 +85,25 @@ const normalizeServerPayload = (
   return payload;
 };
 
-export const AdminSettingsPluginsServerEditPage = () => {
-  const { pluginId, serverId } = useParams({ from: '/admin/settings/media-servers/$pluginId/servers/$serverId' });
+export const AdminSettingsMediaServerEditPage = () => {
+  const { serviceId, serverId } = useParams({ from: '/admin/settings/media-servers/$serviceId/servers/$serverId' });
   const navigate = useNavigate();
   const { success, error: showError } = useAlerts();
-  const { hasCapability } = usePluginCapabilities();
-  const { plugins } = usePlugins();
-  const { refresh: refreshServers } = useServers({ serviceType: pluginId || undefined });
+  const { hasCapability } = useMediaServiceCapabilities();
+  const { services } = useMediaServices();
+  const { refresh: refreshServers } = useServers({ serviceType: serviceId || undefined });
   const { server, loading: serverLoading, error: serverError } = useServerDetail(serverId ? Number(serverId) : undefined);
 
-  const plugin = useMemo(() => plugins.find((item) => item.pluginId === pluginId), [plugins, pluginId]);
-  const isPluginEnabled = plugin?.enabledByUser ?? server?.plugin_enabled ?? true;
-  const requiresUsernamePasswordAuth = hasCapability(pluginId, 'auth.username_password');
-  const supportsWebsocketRefreshInterval = hasCapability(pluginId, 'sessions.websocket.refresh_interval');
-  const supportsOwnerUserContext = hasCapability(pluginId, 'auth.owner_user_context');
-  const supportsOverseerr = hasCapability(pluginId, 'integrations.overseerr');
+  const service = useMemo(() => services.find((item) => item.id === serviceId), [services, serviceId]);
+  const isServiceEnabled = service?.enabled ?? server?.provider_enabled ?? true;
+  const requiresUsernamePasswordAuth = hasCapability(serviceId, 'auth.username_password');
+  const supportsWebsocketRefreshInterval = hasCapability(serviceId, 'sessions.websocket.refresh_interval');
+  const supportsOwnerUserContext = hasCapability(serviceId, 'auth.owner_user_context');
+  const supportsOverseerr = hasCapability(serviceId, 'integrations.overseerr');
 
   const [values, setValues] = useState<ServerFormValues>({
     server_nickname: '',
-    service_type: pluginId || 'plex',
+    service_type: serviceId || 'plex',
     url: '',
     api_key: '',
     username: '',
@@ -240,7 +240,7 @@ export const AdminSettingsPluginsServerEditPage = () => {
       }
     }
 
-    const payload = normalizeServerPayload(values, pluginId, {
+    const payload = normalizeServerPayload(values, serviceId, {
       supportsWebsocketRefreshInterval,
       supportsOwnerUserContext,
     });
@@ -253,7 +253,7 @@ export const AdminSettingsPluginsServerEditPage = () => {
       });
       success(`Server "${values.server_nickname}" updated`);
       await refreshServers();
-      navigate({ to: '/admin/settings/media-servers/$pluginId', params: { pluginId } } as any);
+      navigate({ to: '/admin/settings/media-servers/$serviceId', params: { serviceId } } as any);
     } catch (err) {
       setError((err as Error).message || 'Failed to save server');
       showError(`Failed to save server: ${(err as Error).message}`);
@@ -288,7 +288,7 @@ export const AdminSettingsPluginsServerEditPage = () => {
   };
 
   const handleCancel = () => {
-    navigate({ to: '/admin/settings/media-servers/$pluginId', params: { pluginId } } as any);
+    navigate({ to: '/admin/settings/media-servers/$serviceId', params: { serviceId } } as any);
   };
 
   if (serverLoading) {
@@ -360,7 +360,7 @@ export const AdminSettingsPluginsServerEditPage = () => {
     <div className="space-y-6">
       <PageHeader
         title={`Edit Server: ${server.server_nickname}`}
-        description={`Modify settings for this ${plugin?.name || pluginId} server`}
+        description={`Modify settings for this ${service?.name || serviceId} server`}
       />
 
       <form id="server-edit-form" onSubmit={handleSubmit} className="space-y-6">
@@ -514,13 +514,13 @@ export const AdminSettingsPluginsServerEditPage = () => {
                           id="is_active"
                           checked={values.is_active}
                           onCheckedChange={(checked) => setValues({ ...values, is_active: checked })}
-                          disabled={!isPluginEnabled}
+                          disabled={!isServiceEnabled}
                         />
                         <Label htmlFor="is_active" className="cursor-pointer">
                           Active
                         </Label>
                       </div>
-                      {!isPluginEnabled ? (
+                      {!isServiceEnabled ? (
                         <p className="text-xs text-muted-foreground">
                           Enable this media service to change server status.
                         </p>
@@ -607,4 +607,4 @@ export const AdminSettingsPluginsServerEditPage = () => {
   );
 };
 
-export default AdminSettingsPluginsServerEditPage;
+export default AdminSettingsMediaServerEditPage;

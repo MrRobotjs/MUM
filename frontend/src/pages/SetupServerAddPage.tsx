@@ -1,32 +1,32 @@
 import { useMemo } from 'react';
 import { useNavigate, useParams } from '@tanstack/react-router';
 import { ServerAddForm } from '../components/servers';
-import { usePlugins } from '../hooks/usePlugins';
+import { useMediaServices } from '../hooks/useMediaServices';
 import { useServers } from '../hooks/useServers';
 import { SetupLayout } from './SetupLayout';
 
 function SetupServerAddContent() {
-  const { pluginId } = useParams({ from: '/setup/media-servers/$pluginId/servers/add' });
+  const { serviceId } = useParams({ from: '/setup/media-servers/$serviceId/servers/add' });
   const navigate = useNavigate();
-  const { refresh: refreshServers } = useServers({ serviceType: pluginId || undefined });
+  const { refresh: refreshServers } = useServers({ serviceType: serviceId || undefined });
 
   const handleSuccess = async () => {
     await refreshServers();
-    navigate({ to: '/setup/media-servers/$pluginId', params: { pluginId } });
+    navigate({ to: '/setup/media-servers/$serviceId', params: { serviceId } });
   };
 
   const handleCancel = () => {
-    navigate({ to: '/setup/media-servers/$pluginId', params: { pluginId } });
+    navigate({ to: '/setup/media-servers/$serviceId', params: { serviceId } });
   };
 
-  const submitEndpoint = pluginId
-    ? `/api/providers/${pluginId}/servers`
+  const submitEndpoint = serviceId
+    ? `/api/providers/${serviceId}/servers`
     : '/api/servers';
 
   return (
     <div className="space-y-6">
       <ServerAddForm
-        pluginId={pluginId}
+        serviceId={serviceId}
         submitEndpoint={submitEndpoint}
         onSuccess={handleSuccess}
         onCancel={handleCancel}
@@ -36,18 +36,18 @@ function SetupServerAddContent() {
 }
 
 export default function SetupServerAddPage() {
-  const { pluginId } = useParams({ from: '/setup/media-servers/$pluginId/servers/add' });
-  const { plugins } = usePlugins();
-  const plugin = useMemo(
-    () => plugins.find((item) => item.pluginId === pluginId),
-    [plugins, pluginId]
+  const { serviceId } = useParams({ from: '/setup/media-servers/$serviceId/servers/add' });
+  const { services } = useMediaServices();
+  const service = useMemo(
+    () => services.find((item) => item.id === serviceId),
+    [services, serviceId]
   );
 
   return (
     <SetupLayout
-      stepId="plugins"
-      title={plugin ? `Add ${plugin.name} Server` : 'Add Server'}
-      subtitle="Configure a new server for this media service plugin."
+      stepId="media-servers"
+      title={service ? `Add ${service.name} Server` : 'Add Server'}
+      subtitle="Configure a new server for this media service."
     >
       <SetupServerAddContent />
     </SetupLayout>

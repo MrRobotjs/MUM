@@ -3,7 +3,7 @@ import { useState, useMemo, useEffect, type FormEvent, type ReactElement } from 
 import { useAlerts } from '../contexts/AlertContext';
 import { useInvites } from '../hooks/useInvites';
 import { useAdminApi } from '../hooks/useAdminApi';
-import { usePlugins } from '../hooks/usePlugins';
+import { useMediaServices } from '../hooks/useMediaServices';
 import { useInviteSummary } from '../hooks/useInviteSummary';
 import { useDiscordSettings } from '../hooks/useSettings';
 import { InvitesTable, InviteRow, InviteModal, InviteFormValues, InviteDetailDrawer, InviteCard, FeatureMeta } from '../components/invites';
@@ -47,7 +47,7 @@ import {
   faTv,
 } from '@fortawesome/free-solid-svg-icons';
 import type { InviteLibrary, InviteServer } from '../components/invites/InvitesTable';
-import { getServiceBadgeClass as getServiceBadgeMeta, getServiceIcon } from '../config/pluginMetadata';
+import { getServiceBadgeClass as getServiceBadgeMeta, getServiceIcon } from '../config/mediaServiceMetadata';
 import { Spinner } from '@/components/ui/spinner'
 
 // Helper function to get service-specific styling
@@ -62,15 +62,6 @@ const renderServiceIcon = (serviceType: string, className?: string): ReactElemen
 };
 
 type FeatureKey = 'allow_downloads' | 'invite_to_plex_home' | 'allow_live_tv' | 'allow_4k_transcode';
-
-type PluginMetaResponse = {
-  data: Record<
-    string,
-    {
-      invite_features?: string[];
-    }
-  >;
-};
 
 type FeatureMetaConfig = {
   key: FeatureKey;
@@ -192,8 +183,8 @@ export const InvitesPage = () => {
   const [inviteSettingsDirty, setInviteSettingsDirty] = useState(false);
   const [inviteSettingsSaving, setInviteSettingsSaving] = useState(false);
   const { data: serversData } = useAdminApi<{ data: { id: number; server_nickname: string }[] }>('/servers', true);
-  // Shares the reshaped /api/providers cache; a raw read of the same key would get whichever shape loaded first.
-  const { plugins: providerPlugins } = usePlugins();
+  // Shares the media services cache; a raw read of the same key would get whichever shape loaded first.
+  const { services: mediaServices } = useMediaServices();
   const { summary } = useInviteSummary();
   // Discord defaults pre-tick new invites; readiness decides which Discord
   // requirements the invite form offers.
@@ -222,11 +213,11 @@ export const InvitesPage = () => {
   }, [settingsOpen, discordSettings]);
 
   const inviteFeatureSupport = useMemo(() => {
-    return providerPlugins.reduce<Record<string, string[]>>((acc, provider) => {
-      acc[provider.id] = provider.capabilities.includes('invitations.redeem') ? ['allow_downloads'] : [];
+    return mediaServices.reduce<Record<string, string[]>>((acc, service) => {
+      acc[service.id] = service.capabilities.includes('invitations.redeem') ? ['allow_downloads'] : [];
       return acc;
     }, {});
-  }, [providerPlugins]);
+  }, [mediaServices]);
 
   const featureMeta = useMemo(() => buildFeatureMeta(inviteFeatureSupport), [inviteFeatureSupport]);
 

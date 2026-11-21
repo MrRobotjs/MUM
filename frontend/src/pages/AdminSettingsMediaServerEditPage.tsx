@@ -3,6 +3,7 @@ import { useNavigate, useParams } from '@tanstack/react-router';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faWifi, faCheck, faXmark, faCircleExclamation } from '@fortawesome/free-solid-svg-icons';
 import { PageHeader } from '../components';
+import { UnsavedChangesBar } from '../components/common/UnsavedChangesBar';
 import { FormField } from '../components';
 import { useServers, useServerDetail } from '../hooks/useServers';
 import { useMediaServiceCapabilities, useMediaServices } from '../hooks/useMediaServices';
@@ -117,6 +118,9 @@ export const AdminSettingsMediaServerEditPage = () => {
     websocket_refresh_interval: 30,
   });
 
+  // The values as saved: the save bar shows while the form differs from them.
+  const [baseline, setBaseline] = useState<ServerFormValues | null>(null);
+  const [leaving, setLeaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [connectionTestStatus, setConnectionTestStatus] = useState<ConnectionTestStatus>('idle');
@@ -124,7 +128,7 @@ export const AdminSettingsMediaServerEditPage = () => {
 
   useEffect(() => {
     if (server) {
-      setValues({
+      const loaded: ServerFormValues = {
         server_nickname: server.server_nickname,
         service_type: server.service_type,
         url: server.url,
@@ -141,9 +145,19 @@ export const AdminSettingsMediaServerEditPage = () => {
           supportsWebsocketRefreshInterval
             ? server.websocket_refresh_interval ?? 30
             : undefined,
-      });
+      };
+      setValues(loaded);
+      setBaseline(loaded);
     }
   }, [server, supportsWebsocketRefreshInterval]);
+
+  const dirty = baseline !== null && JSON.stringify(values) !== JSON.stringify(baseline);
+  const backToService = () => navigate({ to: '/admin/settings/media-servers/$serviceId', params: { serviceId } } as any);
+  // After a save the page goes back to the service once the bar has gone, so
+  // leaving isn't held as unsaved.
+  useEffect(() => {
+    if (leaving && !dirty) backToService();
+  }, [leaving, dirty]);
 
   const handleTestConnection = async () => {
     setConnectionTestStatus('testing');
@@ -253,7 +267,8 @@ export const AdminSettingsMediaServerEditPage = () => {
       });
       success(`Server "${values.server_nickname}" updated`);
       await refreshServers();
-      navigate({ to: '/admin/settings/media-servers/$serviceId', params: { serviceId } } as any);
+      setBaseline(values);
+      setLeaving(true);
     } catch (err) {
       setError((err as Error).message || 'Failed to save server');
       showError(`Failed to save server: ${(err as Error).message}`);
@@ -287,9 +302,6 @@ export const AdminSettingsMediaServerEditPage = () => {
     });
   };
 
-  const handleCancel = () => {
-    navigate({ to: '/admin/settings/media-servers/$serviceId', params: { serviceId } } as any);
-  };
 
   if (serverLoading) {
     return (
@@ -309,7 +321,7 @@ export const AdminSettingsMediaServerEditPage = () => {
   if (serverError || !server) {
     return (
       <div className="space-y-6">
-        <Button variant="ghost" onClick={handleCancel}>
+        <Button variant="ghost" onClick={backToService}>
           ← Back
         </Button>
         <Alert variant="destructive">
@@ -507,6 +519,19 @@ export const AdminSettingsMediaServerEditPage = () => {
                     </div>
                   ) : null}
 
+                  <div className="flex flex-wrap items-center gap-3">
+                    <Button
+                      variant={connectionTestStatus === 'success' ? 'default' : connectionTestStatus === 'error' ? 'destructive' : 'outline'}
+                      onClick={handleTestConnection}
+                      disabled={connectionTestStatus === 'testing' || submitting}
+                      type="button"
+                      size="sm"
+                    >
+                      {getTestButtonContent()}
+                    </Button>
+                    <span className="text-xs text-muted-foreground">Checks the address and credentials above without saving them.</span>
+                  </div>
+
                   <FormField id="is_active" label="Status">
                     <div className="flex flex-col gap-1">
                       <div className="flex items-center gap-3">
@@ -586,22 +611,7 @@ export const AdminSettingsMediaServerEditPage = () => {
           )}
         </Tabs>
 
-        <div className="flex items-center justify-end gap-3">
-          <Button variant="ghost" onClick={handleCancel} type="button">
-            Cancel
-          </Button>
-          <Button
-            variant={connectionTestStatus === 'success' ? 'default' : connectionTestStatus === 'error' ? 'destructive' : 'outline'}
-            onClick={handleTestConnection}
-            disabled={connectionTestStatus === 'testing' || submitting}
-            type="button"
-          >
-            {getTestButtonContent()}
-          </Button>
-          <Button type="submit" disabled={submitting}>
-            {submitting ? 'Saving…' : 'Save Changes'}
-          </Button>
-        </div>
+        <UnsavedChangesBar dirty={dirty} saving={submitting} onReset={() => baseline && setValues(baseline)} formId="server-edit-form" />
       </form>
     </div>
   );

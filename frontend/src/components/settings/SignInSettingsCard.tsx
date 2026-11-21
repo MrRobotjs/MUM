@@ -1,11 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faRightToBracket } from '@fortawesome/free-solid-svg-icons';
 
-import { useAlerts } from '../../contexts';
 import { getSignInSettings, saveSignInSettings, type SignInSettings } from '../../lib/serviceSignIn';
 import { Alert, AlertDescription } from '../ui/alert';
-import { Button } from '../ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Label } from '../ui/label';
 import { Switch } from '../ui/switch';
@@ -53,12 +51,17 @@ export const SignInSettingsFields = ({ value, saved, disabled, onChange }: { val
   </div>
 );
 
-export const SignInSettingsCard = () => {
-  const { success, error: showError } = useAlerts();
+export type SignInSettingsForm = ReturnType<typeof useSignInSettingsForm>;
+
+/**
+ * The sign-in settings as part of a page's form: what's saved, what's
+ * chosen, whether they differ, and saving or resetting the choice. The page
+ * that holds it saves it with the rest of its settings.
+ */
+export const useSignInSettingsForm = () => {
   const [saved, setSaved] = useState<SignInSettings | null>(null);
   const [value, setValue] = useState<SignInChoice>({ serviceSignIn: false, admins: false });
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     let current = true;
@@ -72,20 +75,22 @@ export const SignInSettingsCard = () => {
 
   const changed = saved !== null && (value.serviceSignIn !== saved.serviceSignIn || value.admins !== saved.serviceSignInAdmins);
 
-  const save = async () => {
-    setSaving(true);
-    try {
-      const settings = await saveSignInSettings(value.serviceSignIn, value.admins);
-      setSaved(settings);
-      setValue({ serviceSignIn: settings.serviceSignIn, admins: settings.serviceSignInAdmins });
-      success('Sign-in settings saved');
-    } catch (err) {
-      showError(`Failed to save sign-in settings: ${(err as Error).message}`);
-    } finally {
-      setSaving(false);
-    }
-  };
+  // Saves the choice; a failure is thrown to the page, which reports it.
+  const save = useCallback(async () => {
+    const settings = await saveSignInSettings(value.serviceSignIn, value.admins);
+    setSaved(settings);
+    setValue({ serviceSignIn: settings.serviceSignIn, admins: settings.serviceSignInAdmins });
+  }, [value]);
+  const reset = useCallback(() => {
+    if (saved) setValue({ serviceSignIn: saved.serviceSignIn, admins: saved.serviceSignInAdmins });
+  }, [saved]);
 
+  return { saved, value, setValue, loadError, changed, save, reset };
+};
+
+/** The Sign-in card; its changes are saved by the page's save bar. */
+export const SignInSettingsCard = ({ form, disabled }: { form: SignInSettingsForm; disabled: boolean }) => {
+  const { saved, value, setValue, loadError } = form;
   return (
     <Card>
       <CardHeader>
@@ -105,13 +110,7 @@ export const SignInSettingsCard = () => {
         ) : saved === null ? (
           <div className="flex items-center gap-2 text-sm text-muted-foreground"><Spinner className="h-4 w-4" />Loading sign-in settings...</div>
         ) : (
-          <>
-            <SignInSettingsFields value={value} saved={saved} disabled={saving} onChange={setValue} />
-            <div className="flex items-center justify-end gap-3">
-              <Button type="button" variant="ghost" disabled={!changed || saving} onClick={() => setValue({ serviceSignIn: saved.serviceSignIn, admins: saved.serviceSignInAdmins })}>Reset</Button>
-              <Button type="button" disabled={!changed || saving} onClick={save}>{saving ? 'Saving...' : 'Save Sign-in Settings'}</Button>
-            </div>
-          </>
+          <SignInSettingsFields value={value} saved={saved} disabled={disabled} onChange={setValue} />
         )}
       </CardContent>
     </Card>

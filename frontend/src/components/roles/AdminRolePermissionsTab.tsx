@@ -6,7 +6,7 @@ import { AdminRole, AdminPermission } from '../../hooks/useAdminRoles'
 import { useAlerts } from '../../contexts'
 import { requestJson } from '../../util/apiClient'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { Button } from '@/components/ui/button'
+import { UnsavedChangesBar } from '@/components/common/UnsavedChangesBar'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
@@ -15,7 +15,6 @@ import type { IconDefinition } from '@fortawesome/fontawesome-svg-core'
 import {
   faBook,
   faCircleInfo,
-  faFloppyDisk,
   faTriangleExclamation,
   faLock,
   faPlay,
@@ -181,6 +180,10 @@ export const AdminRolePermissionsTab = ({ role, permissions, onUpdate }: AdminRo
 
   const isCategoryChecked = (_category: string) => false
 
+  // Saved: whether the role holds Administrator now; the save bar shows while the switch differs.
+  const savedAdministrator = (role.permissions || []).some((p) => (p.name || '').toLowerCase() === 'administrator')
+  const dirty = role.mutations_available && isAdministrator !== savedAdministrator
+
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
     if (!role.mutations_available) return
@@ -205,7 +208,7 @@ export const AdminRolePermissionsTab = ({ role, permissions, onUpdate }: AdminRo
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form id="admin-role-permissions-form" onSubmit={handleSubmit} className="space-y-6">
       {/* Permissions Overview Section */}
       <div className="rounded-lg border border-border bg-card p-6">
         <div className="mb-6 flex items-center gap-3">
@@ -319,13 +322,7 @@ export const AdminRolePermissionsTab = ({ role, permissions, onUpdate }: AdminRo
         })}
       </div>
 
-      {/* Save Button */}
-      <div className="flex items-center justify-end gap-3 border-t border-border pt-6">
-        <Button type="submit" disabled={submitting} size="lg">
-          <FontAwesomeIcon icon={faFloppyDisk} className="mr-2 size-4" />
-          {submitting ? 'Saving...' : 'Save Permissions'}
-        </Button>
-      </div>
+      <UnsavedChangesBar dirty={dirty} saving={submitting} onReset={() => setIsAdministrator(savedAdministrator)} formId="admin-role-permissions-form" saveLabel="Save permissions" />
     </form>
   )
 }

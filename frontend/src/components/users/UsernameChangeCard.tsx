@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { CardActions } from '../common/CardActions';
 import { Card, CardContent } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -64,7 +65,7 @@ export function UsernameChangeCard() {
         <div className="space-y-2"><Label htmlFor="account-new-username">New username</Label><Input id="account-new-username" autoComplete="username" value={username} onChange={e => setUsername(e.target.value)} minLength={1} maxLength={255} disabled={busy || Boolean(error)} required /></div>
         <div className="space-y-2"><Label htmlFor="username-current-password">Current password</Label><Input id="username-current-password" type="password" autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} minLength={12} maxLength={1024} disabled={busy || Boolean(error)} required /></div>
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
-        <Button type="submit" className="w-full sm:w-auto" disabled={busy || Boolean(error) || username.trim() === profile?.username}>{busy ? 'Saving…' : 'Save username'}</Button>
+        <CardActions><Button type="submit" disabled={busy || Boolean(error) || username.trim() === profile?.username}>{busy ? 'Saving…' : 'Save username'}</Button></CardActions>
       </form> : null}
       {error ? <div className="account-setting-error flex flex-wrap items-center gap-3">{open ? null : <p className="text-sm text-destructive">{error}</p>}<Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => void refresh()}>Refresh</Button></div> : null}
     </CardContent> : null}

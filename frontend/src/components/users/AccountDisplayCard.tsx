@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { CardActions } from '../common/CardActions';
 import { Button } from '../ui/button';
 import { Card, CardContent } from '../ui/card';
 import { SettingHeader } from './AccountSettings';
@@ -103,7 +104,7 @@ export function AccountDisplayCard() {
             </Select>
           </div>
           {error || readError ? <div className="account-setting-error flex flex-wrap items-center gap-3"><p className="text-sm text-destructive">{error ?? 'Could not read display settings.'}</p><Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => void refresh()}>Refresh</Button></div> : null}
-          <Button type="submit" disabled={disabled || Boolean(error) || !form} className="w-full sm:w-auto">{busy ? 'Saving…' : 'Save'}</Button>
+          <CardActions><Button type="submit" disabled={disabled || Boolean(error) || !form}>{busy ? 'Saving…' : 'Save'}</Button></CardActions>
         </form>
       </CardContent>
     </Card>

@@ -1,4 +1,5 @@
 import {useEffect,useMemo,useRef,useState,useSyncExternalStore} from 'react';
+import { CardActions } from '../common/CardActions';
 import {useAuth} from '../../contexts/AuthContext';
 import {getAuthSnapshot,subscribeToAuthStore} from '../../store/authStore';
 import {HumanExpiryController,validNewExpiry} from '../../lib/humanExpiry';
@@ -44,7 +45,7 @@ export function HumanExpiryCard({target,refreshUser}:{target:string;refreshUser:
     {(open&&page?.can_edit||shownNotice)&&<CardContent>
       {open&&page?.can_edit&&<form className="space-y-4" onSubmit={event=>{event.preventDefault();if(validNewExpiry(candidate)&&candidate!==page.access_expires_at)setConfirming({expires:candidate});}}>
         <div className="space-y-2"><Label htmlFor={`local-expiry-${target}`}>New expiry (UTC)</Label><Input id={`local-expiry-${target}`} type="datetime-local" step="1" value={value} disabled={controller.busy||controller.needsRead} onChange={event=>setDraft({controller,value:event.target.value})}/></div>
-        <div className="flex flex-wrap gap-2"><Button type="submit" disabled={controller.busy||controller.needsRead||!validNewExpiry(candidate)||candidate===page.access_expires_at}>Save expiry</Button>{page.access_expires_at!==null&&<Button type="button" variant="outline" disabled={controller.busy||controller.needsRead} onClick={()=>setConfirming({expires:null})}>Remove expiry</Button>}</div>
+        <CardActions>{page.access_expires_at!==null&&<Button type="button" variant="outline" disabled={controller.busy||controller.needsRead} onClick={()=>setConfirming({expires:null})}>Remove expiry</Button>}<Button type="submit" disabled={controller.busy||controller.needsRead||!validNewExpiry(candidate)||candidate===page.access_expires_at}>Save expiry</Button></CardActions>
       </form>}
       <SettingNotice notice={shownNotice} busy={controller.busy||!actor} onRetry={()=>void read()}/>
     </CardContent>}

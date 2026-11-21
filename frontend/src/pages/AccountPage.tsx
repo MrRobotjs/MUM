@@ -1,4 +1,5 @@
 import { UsernameChangeCard } from '../components/users/UsernameChangeCard';
+import { CardActions } from '../components/common/CardActions';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearch } from '@tanstack/react-router';
 
@@ -196,9 +197,11 @@ const InitialCredentialsForm = ({ initialUsername, onSuccess }: InitialCredentia
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           ) : null}
-          <Button type="submit" disabled={submitting || (verifyServers !== null && verifyServers.length > 0 && !verifyServer)} className="w-full sm:w-auto">
-            {submitting ? 'Saving…' : 'Save'}
-          </Button>
+          <CardActions>
+            <Button type="submit" disabled={submitting || (verifyServers !== null && verifyServers.length > 0 && !verifyServer)}>
+              {submitting ? 'Saving…' : 'Save'}
+            </Button>
+          </CardActions>
         </form>
       </CardContent>
     </Card>

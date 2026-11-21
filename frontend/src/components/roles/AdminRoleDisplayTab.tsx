@@ -3,11 +3,12 @@ import {changeAdminRole, valuesFromRole} from '../../lib/adminRoleChanges'
 import {useAuth} from '../../contexts/AuthContext'
 import { useState, useEffect, useRef, useMemo, lazy, Suspense } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faCog, faPalette, faFloppyDisk, faCircleInfo, faXmark, faPaintbrush, faGrip, faCheck } from '@fortawesome/free-solid-svg-icons'
+import { faCog, faPalette, faCircleInfo, faXmark, faPaintbrush, faGrip, faCheck } from '@fortawesome/free-solid-svg-icons'
 import { AdminRole } from '../../hooks/useAdminRoles'
 import { useAlerts, useTheme } from '../../contexts'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
+import { UnsavedChangesBar } from '@/components/common/UnsavedChangesBar'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -18,7 +19,6 @@ import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
 import { getReadableTextColor, resolveCssVarHex } from '@/lib/themeColors'
 import { PRESET_ROLE_COLORS, ROLE_BADGE_STYLE_OPTIONS } from '@/components/roles/roleFormConstants'
-import { Spinner } from '@/components/ui/spinner'
 
 import type { FontAwesomeBrowserIcon } from '@/components/icons/FontAwesomeIconBrowser'
 
@@ -81,12 +81,15 @@ export const AdminRoleDisplayTab = ({ role, onUpdate }: AdminRoleDisplayTabProps
     setIconBrowseOpen(false)
   }
 
+  // The saved display; the save bar shows while the form differs from it.
+  const saved = { name: baseRole.name, description: baseRole.description || '', color: baseRole.color || themePrimaryHex, icon: baseRole.icon || '', badge_style: baseRole.badge_style || 'default' }
+  const dirty = role.mutations_available && (Object.keys(saved) as Array<keyof typeof saved>).some((key) => saved[key] !== formValues[key])
+
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
     if (!role.mutations_available) return
     // The server refuses an unchanged save; say so instead of sending it.
-    const saved = { name: baseRole.name, description: baseRole.description || '', color: baseRole.color || themePrimaryHex, icon: baseRole.icon || '', badge_style: baseRole.badge_style || 'default' }
-    if ((Object.keys(saved) as Array<keyof typeof saved>).every((key) => saved[key] === formValues[key])) {
+    if (!dirty) {
       info('No changes to save')
       return
     }
@@ -133,7 +136,7 @@ export const AdminRoleDisplayTab = ({ role, onUpdate }: AdminRoleDisplayTabProps
       </div>
 
       {/* Settings Form */}
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form id="admin-role-display-form" onSubmit={handleSubmit} className="space-y-6">
         <Card>
           <CardHeader>
             <div className="flex items-center gap-3">
@@ -393,22 +396,7 @@ export const AdminRoleDisplayTab = ({ role, onUpdate }: AdminRoleDisplayTabProps
           </CardContent>
         </Card>
 
-        {/* Save Button */}
-        <div className="flex items-center justify-end gap-3">
-          <Button type="submit" disabled={submitting || !role.mutations_available}>
-            {submitting ? (
-              <>
-                <Spinner className="mr-2 size-4 text-background" />
-                Saving...
-              </>
-            ) : (
-              <>
-                <FontAwesomeIcon icon={faFloppyDisk} className="mr-2 size-4" />
-                Save Changes
-              </>
-            )}
-          </Button>
-        </div>
+        <UnsavedChangesBar dirty={dirty} saving={submitting} onReset={() => setFormValues(saved)} formId="admin-role-display-form" />
       </form>
     </div>
   )

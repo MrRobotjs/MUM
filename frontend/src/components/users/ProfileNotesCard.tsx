@@ -1,4 +1,5 @@
 import {useEffect,useMemo,useRef,useState,useSyncExternalStore} from 'react';
+import { CardActions } from '../common/CardActions';
 import {useAuth} from '../../contexts/AuthContext';
 import {getAuthSnapshot,subscribeToAuthStore} from '../../store/authStore';
 import {ProfileNotesEditor,validNotes} from '../../lib/profileNotes';
@@ -50,7 +51,7 @@ export function ProfileNotesCard({target,refreshUser}:{target:string;refreshUser
       {bound&&<form className="space-y-4" onSubmit={event=>void save(event)}>
         <div className="space-y-2"><Label htmlFor="profile-notes" className="sr-only">Notes</Label><Textarea id="profile-notes" rows={4} value={editor.draft} disabled={editor.busy||editor.needsRead} onChange={event=>{if(editor.current()&&!editor.busy&&!editor.needsRead){editor.draft=event.target.value;update();}}} placeholder="e.g., Prefers 1080p remux, invited from Discord, local-only for now..."/></div>
         {!validNotes(editor.draft)&&<p className="text-sm text-destructive">Notes exceed the 16 KB limit or contain unsupported characters.</p>}
-        <Button type="submit" disabled={editor.busy||editor.needsRead||!validNotes(editor.draft)||editor.draft===editor.base?.notes}>{editor.busy?'Saving…':'Save notes'}</Button>
+        <CardActions><Button type="submit" disabled={editor.busy||editor.needsRead||!validNotes(editor.draft)||editor.draft===editor.base?.notes}>{editor.busy?'Saving…':'Save notes'}</Button></CardActions>
       </form>}
       <SettingNotice notice={notice?.editor===editor?notice.value:editor.needsRead?{text:'Read the saved notes before editing again.',error:true}:null} busy={editor.busy||!actor} onRetry={read}/>
     </CardContent>

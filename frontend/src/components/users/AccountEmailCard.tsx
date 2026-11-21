@@ -1,4 +1,5 @@
 import {useEffect,useRef,useState} from 'react';
+import { CardActions } from '../common/CardActions';
 import {Card,CardContent} from '../ui/card';
 import {Button} from '../ui/button';import {Input} from '../ui/input';import {Label} from '../ui/label';
 import {useAuth} from '../../contexts/AuthContext';import {useAlerts} from '../../contexts/AlertContext';
@@ -32,7 +33,7 @@ export function AccountEmailCard({onChanged}:{onChanged?:()=>Promise<void>}){
     <div className="space-y-2"><Label htmlFor="account-email">Email</Label><Input id="account-email" type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@example.com" maxLength={254} disabled={busy || !available}/></div>
     <div className="space-y-2"><Label htmlFor="email-current-password">Current password</Label><Input id="email-current-password" type="password" autoComplete="current-password" value={password} onChange={e=>setPassword(e.target.value)} disabled={busy || !available} required/></div>
     {error?<p className="text-sm text-destructive">{error}</p>:null}
-    <Button type="submit" className="w-full sm:w-auto" disabled={busy || !available}>{busy?'Saving...':clearing?'Clear email':'Save email'}</Button>
+    <CardActions><Button type="submit" disabled={busy || !available}>{busy?'Saving...':clearing?'Clear email':'Save email'}</Button></CardActions>
    </form> : null}
    {error && !open ? <div className="account-setting-error flex flex-wrap items-center gap-3"><p className="text-sm text-destructive">{error}</p><Button type="button" variant="outline" size="sm" disabled={busy} onClick={()=>void refresh()}>Refresh</Button></div> : null}
   </CardContent> : null}

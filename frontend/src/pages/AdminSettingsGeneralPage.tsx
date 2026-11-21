@@ -7,13 +7,13 @@ import { PageHeader } from '../components';
 import { requestJson } from '../util/apiClient';
 import { generalSettingsPayload } from '../lib/generalSettings';
 import { useAlerts } from '../contexts';
-import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Switch } from '../components/ui/switch';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Spinner } from '@/components/ui/spinner'
-import { SignInSettingsCard } from '../components/settings/SignInSettingsCard';
+import { SignInSettingsCard, useSignInSettingsForm, type SignInSettingsForm } from '../components/settings/SignInSettingsCard';
+import { UnsavedChangesBar } from '../components/common/UnsavedChangesBar';
 
 const buildGeneralFormValues = (settings: GeneralSettings | null): GeneralSettings => ({
   app_name: '',
@@ -31,33 +31,52 @@ const buildGeneralFormValues = (settings: GeneralSettings | null): GeneralSettin
 type GeneralSettingsFormProps = {
   initialValues: GeneralSettings;
   refresh: () => Promise<unknown>;
+  signIn: SignInSettingsForm;
 };
 
-const GeneralSettingsForm = ({ initialValues, refresh }: GeneralSettingsFormProps) => {
+// The General page is one form: the application, session and sign-in
+// settings, saved together from the save bar.
+const GeneralSettingsForm = ({ initialValues, refresh, signIn }: GeneralSettingsFormProps) => {
   const { success, error: showError } = useAlerts();
   const [formValues, setFormValues] = useState<GeneralSettings>(initialValues);
   const [submitting, setSubmitting] = useState(false);
-  const [hasChanges, setHasChanges] = useState(false);
+  // Changed when the form differs from what's saved; changing a field back clears it.
+  const generalChanged = (Object.keys(initialValues) as (keyof GeneralSettings)[]).some(key => String(formValues[key]) !== String(initialValues[key]));
+  const hasChanges = generalChanged || signIn.changed;
 
   const handleChange = (field: keyof GeneralSettings, value: string | boolean | number) => {
     setFormValues((prev) => ({ ...prev, [field]: value }));
-    setHasChanges(true);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
-
+    // Each part saves on its own; a failure names its part and leaves the other saved.
+    let saved = 0, failed = false;
     try {
-      await requestJson('/api/settings/general', {
-        method: 'PATCH',
-        body: JSON.stringify(generalSettingsPayload(formValues)),
-      });
-      success('Settings saved successfully');
-      setHasChanges(false);
-      await refresh();
-    } catch (err) {
-      showError(`Failed to save settings: ${(err as Error).message}`);
+      if (signIn.changed) {
+        try {
+          await signIn.save();
+          saved++;
+        } catch (err) {
+          failed = true;
+          showError(`Couldn’t save the sign-in settings: ${(err as Error).message}`);
+        }
+      }
+      if (generalChanged) {
+        try {
+          await requestJson('/api/settings/general', {
+            method: 'PATCH',
+            body: JSON.stringify(generalSettingsPayload(formValues)),
+          });
+          saved++;
+          await refresh();
+        } catch (err) {
+          failed = true;
+          showError(`Couldn’t save the general settings: ${(err as Error).message}`);
+        }
+      }
+      if (saved && !failed) success('Settings saved');
     } finally {
       setSubmitting(false);
     }
@@ -65,11 +84,11 @@ const GeneralSettingsForm = ({ initialValues, refresh }: GeneralSettingsFormProp
 
   const handleReset = () => {
     setFormValues(initialValues);
-    setHasChanges(false);
+    signIn.reset();
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form id="general-settings-form" onSubmit={handleSubmit} className="space-y-6">
       <Card>
         <CardHeader>
           <div className="flex items-center gap-3">
@@ -204,25 +223,17 @@ const GeneralSettingsForm = ({ initialValues, refresh }: GeneralSettingsFormProp
         </CardContent>
       </Card>
 
-      <div className="flex items-center justify-end gap-3">
-        <Button
-          type="button"
-          variant="ghost"
-          onClick={handleReset}
-          disabled={!hasChanges || submitting}
-        >
-          Reset
-        </Button>
-        <Button type="submit" variant="default" disabled={!hasChanges || submitting}>
-          {submitting ? 'Saving...' : 'Save Changes'}
-        </Button>
-      </div>
+      <SignInSettingsCard form={signIn} disabled={submitting} />
+
+      <UnsavedChangesBar dirty={hasChanges} saving={submitting} onReset={handleReset} formId="general-settings-form" />
     </form>
   );
 };
 
 export const AdminSettingsGeneralPage = () => {
   const { settings, loading, error, refresh } = useGeneralSettings();
+  // Held by the page so a refresh of the general settings keeps the sign-in choice.
+  const signIn = useSignInSettingsForm();
 
   if (loading) {
     return (
@@ -250,8 +261,7 @@ export const AdminSettingsGeneralPage = () => {
         title="General Settings"
         description="Configure application-wide settings"
       />
-      <GeneralSettingsForm key={settingsKey} initialValues={initialValues} refresh={refresh} />
-      <SignInSettingsCard />
+      <GeneralSettingsForm key={settingsKey} initialValues={initialValues} refresh={refresh} signIn={signIn} />
     </div>
   );
 };

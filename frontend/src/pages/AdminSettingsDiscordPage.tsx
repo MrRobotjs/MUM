@@ -4,10 +4,8 @@ import {
   faCircleExclamation,
   faTriangleExclamation,
   faCopy,
-  faFloppyDisk,
   faCircleInfo,
   faKey,
-  faRotate,
   faRobot,
   faFlask,
   faUsers,
@@ -23,6 +21,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { UnsavedChangesBar } from '@/components/common/UnsavedChangesBar'
 import { Switch } from '@/components/ui/switch'
 import { Spinner } from '@/components/ui/spinner'
 
@@ -80,11 +79,9 @@ const DiscordSettingsForm = ({ initialState, refresh }: DiscordSettingsFormProps
   const formMeta = initialState.meta
   const [submitting, setSubmitting] = useState(false)
   const [testing, setTesting] = useState(false)
-  const [hasChanges, setHasChanges] = useState(false)
 
   const handleChange = (field: 'client_id' | 'client_secret' | 'server_invite_url' | 'guild_id', value: string) => {
     setFormValues((prev) => ({ ...prev, [field]: value }))
-    setHasChanges(true)
   }
 
   const handleToggle = (
@@ -98,7 +95,6 @@ const DiscordSettingsForm = ({ initialState, refresh }: DiscordSettingsFormProps
       if (field === 'sign_in_enabled' && !value) next.sign_in_admins = false
       return next
     })
-    setHasChanges(true)
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -110,7 +106,6 @@ const DiscordSettingsForm = ({ initialState, refresh }: DiscordSettingsFormProps
         body: JSON.stringify(discordSettingsPayload(formValues, formMeta.revision)),
       })
       success('Discord settings saved successfully')
-      setHasChanges(false)
       await refresh()
     } catch (err) {
       showError(`Failed to save settings: ${(err as Error).message}`)
@@ -140,7 +135,6 @@ const DiscordSettingsForm = ({ initialState, refresh }: DiscordSettingsFormProps
 
   const handleReset = () => {
     setFormValues(initialState.values)
-    setHasChanges(false)
   }
 
   const handleCopy = async (label: string, value: string) => {
@@ -156,6 +150,8 @@ const DiscordSettingsForm = ({ initialState, refresh }: DiscordSettingsFormProps
     }
   }
 
+  // Changed when the form differs from what's saved; changing a field back clears it.
+  const hasChanges = JSON.stringify(formValues) !== JSON.stringify(initialState.values)
   const clientSecretConfigured = formMeta.client_secret_set || formValues.client_secret.length > 0
   const requireClientSecret = formValues.enable_oauth && !formMeta.client_secret_set
   const oauthDisabled = !formValues.enable_oauth
@@ -192,7 +188,7 @@ const DiscordSettingsForm = ({ initialState, refresh }: DiscordSettingsFormProps
         </AlertDescription>
       </Alert>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form id="discord-settings-form" onSubmit={handleSubmit} className="space-y-6">
         <Card className='gap-4'>
           <CardHeader>
             <div className="flex items-center justify-between gap-4">
@@ -205,6 +201,16 @@ const DiscordSettingsForm = ({ initialState, refresh }: DiscordSettingsFormProps
                   <CardDescription>Discord sign-in on invites, linking Discord accounts and Sign in with Discord.</CardDescription>
                 </div>
               </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => void handleTest()}
+                disabled={testing || !formMeta.client_secret_set || !formValues.client_id}
+              >
+                {testing ? <Spinner className="size-4 text-muted-foreground" /> : <FontAwesomeIcon icon={faFlask} className="size-4" />}
+                {testing ? 'Testing…' : 'Test connection'}
+              </Button>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -458,48 +464,7 @@ const DiscordSettingsForm = ({ initialState, refresh }: DiscordSettingsFormProps
           </CardContent>
         </Card>
 
-        <div className="flex items-center justify-end gap-3">
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => void handleTest()}
-            disabled={testing || !formMeta.client_secret_set || !formValues.client_id}
-          >
-            {testing ? (
-              <>
-                <Spinner className="mr-2 size-4 text-muted-foreground" />
-                Testing...
-              </>
-            ) : (
-              <>
-                <FontAwesomeIcon icon={faFlask} className="mr-2 size-4" />
-                Test Connection
-              </>
-            )}
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={handleReset}
-            disabled={!hasChanges || submitting}
-          >
-            <FontAwesomeIcon icon={faRotate} className="mr-2 size-4" />
-            Reset
-          </Button>
-          <Button type="submit" disabled={!hasChanges || submitting}>
-            {submitting ? (
-              <>
-                <Spinner className="mr-2 size-4 text-background" />
-                Saving...
-              </>
-            ) : (
-              <>
-                <FontAwesomeIcon icon={faFloppyDisk} className="mr-2 size-4" />
-                Save Changes
-              </>
-            )}
-          </Button>
-        </div>
+        <UnsavedChangesBar dirty={hasChanges} saving={submitting} onReset={handleReset} formId="discord-settings-form" />
       </form>
     </div>
   )

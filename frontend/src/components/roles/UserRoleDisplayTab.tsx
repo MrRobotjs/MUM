@@ -1,12 +1,13 @@
 import { useState, useRef, useEffect, useMemo, lazy, Suspense } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faCog, faPalette, faFloppyDisk, faCircleInfo, faXmark, faPaintbrush, faGrip, faCheck } from '@fortawesome/free-solid-svg-icons'
+import { faCog, faPalette, faCircleInfo, faXmark, faPaintbrush, faGrip, faCheck } from '@fortawesome/free-solid-svg-icons'
 import { UserRole } from '../../hooks/useUserRoles'
 import { useAlerts, useTheme } from '../../contexts'
 import {changeUserRoleCatalog,type UserRoleCatalog} from '../../lib/userRoleCatalog'
 import {getAccessToken} from '../../store/authStore'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
+import { UnsavedChangesBar } from '@/components/common/UnsavedChangesBar'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -19,7 +20,6 @@ import { Badge as CommonBadge, RoleBadge } from '@/components/common/Badge'
 import { PRESET_ROLE_COLORS, ROLE_BADGE_STYLE_OPTIONS } from '@/components/roles/roleFormConstants'
  
 import type { FontAwesomeBrowserIcon } from '@/components/icons/FontAwesomeIconBrowser'
-import { Spinner } from '@/components/ui/spinner'
 
 const FontAwesomeIconBrowser = lazy(() => import('@/components/icons/FontAwesomeIconBrowser'))
 
@@ -50,6 +50,9 @@ export const UserRoleDisplayTab = ({ role, catalog, onUpdate }: UserRoleDisplayT
     badge_style: role.badge_style || 'default',
   })
   const [submitting, setSubmitting] = useState(false)
+  // The saved display; the save bar shows while the form differs from it.
+  const saved = { name: role.name, description: role.description || '', color: role.color || themePrimaryHex, icon: role.icon || '', badge_style: role.badge_style || 'default' }
+  const dirty = Boolean(role.can_update) && (Object.keys(saved) as Array<keyof typeof saved>).some((key) => saved[key] !== formValues[key])
   const isDefaultColorSelected = formValues.color.toLowerCase() === themePrimaryHex.toLowerCase()
 
   // Icon Browser State
@@ -115,7 +118,7 @@ export const UserRoleDisplayTab = ({ role, catalog, onUpdate }: UserRoleDisplayT
       </div>
 
       {/* Settings Form */}
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form id="user-role-display-form" onSubmit={handleSubmit} className="space-y-6">
         <Card>
           <CardHeader>
             <div className="flex items-center gap-3">
@@ -375,22 +378,7 @@ export const UserRoleDisplayTab = ({ role, catalog, onUpdate }: UserRoleDisplayT
           </CardContent>
         </Card>
 
-        {/* Save Button */}
-        <div className="flex items-center justify-end gap-3">
-          <Button type="submit" disabled={submitting||!role.can_update}>
-            {submitting ? (
-              <>
-                <Spinner className="mr-2 size-4 text-background" />
-                Saving...
-              </>
-            ) : (
-              <>
-                <FontAwesomeIcon icon={faFloppyDisk} className="mr-2 size-4" />
-                Save Changes
-              </>
-            )}
-          </Button>
-        </div>
+        <UnsavedChangesBar dirty={dirty} saving={submitting} onReset={() => setFormValues(saved)} formId="user-role-display-form" />
       </form>
     </div>
   )

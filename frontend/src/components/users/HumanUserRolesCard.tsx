@@ -1,4 +1,5 @@
 import {useEffect,useMemo,useRef,useState,useSyncExternalStore} from 'react';
+import { CardActions } from '../common/CardActions';
 import {useAuth} from '../../contexts/AuthContext';
 import {getAuthSnapshot,subscribeToAuthStore} from '../../store/authStore';
 import {HumanUserRolesController,manualRoleIDs,validUserRoleName} from '../../lib/humanUserRoles';
@@ -44,7 +45,7 @@ export function HumanUserRolesCard({target,refreshUser}:{target:string;refreshUs
       {open&&page&&<>
         {page.roles.length===0?<p className="text-sm text-muted-foreground">No roles are set up yet.</p>:
           <div className="space-y-2">{page.roles.map(role=><div key={role.id} className="flex items-center gap-2"><Checkbox id={`human-role-${target}-${role.id}`} checked={role.is_auto_managed?role.assigned:ids.includes(role.id)} disabled={controller.busy||controller.needsRead||!page.can_edit||role.is_auto_managed} onCheckedChange={checked=>setDraft({controller,name,ids:checked===true?[...ids.filter(id=>id!==role.id),role.id]:ids.filter(id=>id!==role.id)})}/><Label htmlFor={`human-role-${target}-${role.id}`}>{role.name}{role.is_auto_managed?' (automatic)':''}</Label></div>)}</div>}
-        {page.can_edit&&<div><Button type="button" disabled={controller.busy||controller.needsRead||!changed} onClick={()=>setAsking('save')}>Save roles</Button></div>}
+        {page.can_edit&&<CardActions><Button type="button" disabled={controller.busy||controller.needsRead||!changed} onClick={()=>setAsking('save')}>Save roles</Button></CardActions>}
         {page.can_create&&<form className="space-y-4" onSubmit={event=>{event.preventDefault();if(!changed&&validUserRoleName(name))setAsking('create');}}>
           <div className="space-y-2"><Label htmlFor={`new-user-role-${target}`}>New role</Label><Input id={`new-user-role-${target}`} value={name} disabled={controller.busy||controller.needsRead} onChange={event=>setDraft({controller,ids,name:event.target.value})}/></div>
           <Button type="submit" variant="outline" disabled={controller.busy||controller.needsRead||changed||!validUserRoleName(name)}>Create role</Button>

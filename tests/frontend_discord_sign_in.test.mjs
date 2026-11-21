@@ -72,7 +72,7 @@ test('discord sign-in adapter', async t => {
   await t.test('says what is wrong with the redirect address', async () => {
     const m = await load();
     assert.equal(m.discordRedirectHint(null), null);
-    assert.match(m.discordRedirectHint('missing'), /App Base URL/);
+    assert.match(m.discordRedirectHint('missing'), /Public Address/);
     assert.match(m.discordRedirectHint('not_https'), /https/);
   });
 });

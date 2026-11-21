@@ -14,11 +14,12 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../co
 import { Spinner } from '@/components/ui/spinner'
 import { SignInSettingsCard, useSignInSettingsForm, type SignInSettingsForm } from '../components/settings/SignInSettingsCard';
 import { UnsavedChangesBar } from '../components/common/UnsavedChangesBar';
+import { Button } from '../components/ui/button';
+import { addressReach, publicAddressNotes } from '../lib/publicAddress';
 
 const buildGeneralFormValues = (settings: GeneralSettings | null): GeneralSettings => ({
   app_name: '',
-  app_base_url: '',
-  app_local_url: '',
+  public_address: '',
   enable_navbar_stream_badge: false, // Not editable here - managed in streaming settings
   session_monitoring_interval: 30, // Not editable here - managed in streaming settings
   api_timeout_seconds: 3, // Not editable here - managed in advanced settings
@@ -82,6 +83,11 @@ const GeneralSettingsForm = ({ initialValues, refresh, signIn }: GeneralSettings
     }
   };
 
+  // The address this page is open on, offered when it's an https:// address
+  // people outside could reach and differs from the saved one.
+  const origin = typeof window === 'undefined' ? '' : window.location.origin;
+  const currentAddress = origin.startsWith('https://') && addressReach(origin) !== 'local' ? origin : '';
+
   const handleReset = () => {
     setFormValues(initialValues);
     signIn.reset();
@@ -120,36 +126,30 @@ const GeneralSettingsForm = ({ initialValues, refresh, signIn }: GeneralSettings
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="app_base_url">
-              Application Base URL <span className="text-destructive">*</span>
-            </Label>
+            <Label htmlFor="public_address">Public Address</Label>
             <Input
-              id="app_base_url"
+              id="public_address"
               type="url"
-              value={formValues.app_base_url}
-              onChange={(e) => handleChange('app_base_url', e.target.value)}
-              required
+              value={formValues.public_address}
+              onChange={(e) => handleChange('public_address', e.target.value)}
               placeholder="https://mum.example.com"
             />
             <p className="text-xs text-muted-foreground">
-              Public URL for generating invite links and OAuth redirects
+              The address people outside your network use to reach MUM. Invite links and Discord sign-in use it. Optional: without it, invite links use the address you're browsing on, and Discord sign-in stays off.
             </p>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="app_local_url">
-              Application Local URL (Optional)
-            </Label>
-            <Input
-              id="app_local_url"
-              type="url"
-              value={formValues.app_local_url || ''}
-              onChange={(e) => handleChange('app_local_url', e.target.value)}
-              placeholder="http://192.168.1.100:5696"
-            />
-            <p className="text-xs text-muted-foreground">
-              Internal network URL for local access (optional)
-            </p>
+            {currentAddress && currentAddress !== formValues.public_address.trim().replace(/\/+$/, '') ? (
+              <Button type="button" variant="outline" size="sm" onClick={() => handleChange('public_address', currentAddress)}>
+                Use {currentAddress} (this address)
+              </Button>
+            ) : null}
+            {publicAddressNotes(formValues.public_address).map(note => (
+              <p key={note} className="text-xs text-amber-600 dark:text-amber-400">{note}</p>
+            ))}
+            <div className="space-y-1 rounded-lg border border-border/70 bg-muted/40 p-3 text-xs text-muted-foreground">
+              <p className="font-medium text-foreground">Making MUM reachable from outside</p>
+              <p>A domain name such as https://mum.example.com is the best choice. It usually points to a reverse proxy (Caddy, Nginx, Traefik and the like), which forwards visitors to MUM and gives you the https:// address Discord sign-in needs.</p>
+              <p>Without a domain, people outside your network can only reach MUM if your router forwards MUM's port to this computer (port forwarding). Your internet provider may change your IP address, and sharing it shows it to everyone you invite.</p>
+            </div>
           </div>
 
         </CardContent>

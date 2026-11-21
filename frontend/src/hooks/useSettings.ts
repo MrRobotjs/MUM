@@ -3,8 +3,8 @@ import { requestJson } from '../util/apiClient';
 
 export type GeneralSettings = {
   app_name: string;
-  app_base_url: string;
-  app_local_url?: string;
+  /** The address people outside the server's network use to reach MUM; "" when not set. */
+  public_address: string;
   enable_navbar_stream_badge: boolean;
   session_monitoring_interval: number;
   api_timeout_seconds: number;

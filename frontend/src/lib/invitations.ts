@@ -165,11 +165,14 @@ export async function saveInvitation(values: InviteFormValues, existing?: { id: 
 }
 
 export async function invitationShareURL(id: number): Promise<string> {
-  const response = await requestJson<{ data: { id: number; token: string; path: string } }>(`/api/invitations/${id}/share-link`);
+  const response = await requestJson<{ data: { id: number; token: string; path: string; public_address?: string | null } }>(`/api/invitations/${id}/share-link`);
   const { token, path } = response.data;
   const custom = path.startsWith('/invite/') ? path.slice('/invite/'.length) : '';
   if (response.data.id !== id || !/^[A-Za-z0-9_-]{43}$/.test(token) || (custom !== token && !/^[A-Za-z0-9_-]{3,100}$/.test(custom))) throw new Error('Invalid invitation share link');
-  return new URL(response.data.path, window.location.origin).href;
+  // Shared from the public address when one is set, so a link copied on the
+  // home network still opens for invitees; otherwise from this page's address.
+  const base = typeof response.data.public_address === 'string' && /^https?:\/\/[^\s/?#@]+$/.test(response.data.public_address) ? response.data.public_address : window.location.origin;
+  return new URL(response.data.path, base).href;
 }
 
 export async function openInvitation(id: number) {

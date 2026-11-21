@@ -73,8 +73,8 @@ export function discordOutcome(page: DiscordPage, outcome: string | undefined): 
 
 // discordRedirectHint explains why the redirect address will not work.
 export function discordRedirectHint(problem: string | null | undefined): string | null {
-  if (problem === 'missing') return 'Set App Base URL in General settings first; the address is built from it.';
-  if (problem === 'not_https') return 'Discord only accepts an address starting with https:// (or one on this computer). Set an https:// App Base URL in General settings.';
+  if (problem === 'missing') return 'Set a Public Address in Settings → General first; the address is built from it.';
+  if (problem === 'not_https') return 'Discord only accepts an address starting with https:// (or one on this computer). Set an https:// Public Address in Settings → General.';
   return null;
 }
 

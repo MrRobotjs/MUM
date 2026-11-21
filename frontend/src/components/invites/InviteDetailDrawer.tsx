@@ -1,4 +1,5 @@
 import { useAccountDisplay } from '../../hooks/useAccountDisplay';
+import { inviteLinkWarning } from '../../lib/publicAddress';
 import { useEffect, useRef, useState } from 'react';
 import { mutate as mutateSWR } from 'swr';
 import { ProvisioningReviewDialog } from './ProvisioningReviewDialog';
@@ -98,7 +99,7 @@ type ApiResponse = {
 
 export const InviteDetailDrawer = ({ inviteId, onClose }: InviteDetailDrawerProps) => {
   const { formatTimestamp } = useAccountDisplay();
-  const { success, error: showError } = useAlerts();
+  const { success, warning, error: showError } = useAlerts();
   const [reviewJobId, setReviewJobId] = useState<string | null>(null);
   const activeInvite = useRef(inviteId);
   activeInvite.current = inviteId;
@@ -143,7 +144,8 @@ export const InviteDetailDrawer = ({ inviteId, onClose }: InviteDetailDrawerProp
     if (!detail?.share_url) return;
     try {
       await navigator.clipboard.writeText(detail.share_url);
-      success('Link copied');
+      const caution = inviteLinkWarning(detail.share_url);
+      if (caution) warning(`Link copied. ${caution}`, 10000); else success('Link copied');
     } catch (err) {
       showError('Copy failed: ' + String(err));
     }
@@ -261,6 +263,7 @@ export const InviteDetailDrawer = ({ inviteId, onClose }: InviteDetailDrawerProp
                       <Button variant="ghost" size="sm" onClick={handleCopyShareUrl}>
                         Copy
                       </Button>
+                      {inviteLinkWarning(detail.share_url) ? <p className="w-full text-xs text-amber-600 dark:text-amber-400">{inviteLinkWarning(detail.share_url)}</p> : null}
                     </div>
                   ) : null}
                   <div className="flex flex-wrap gap-2">

@@ -1,4 +1,5 @@
 import { FormEvent, useState } from 'react'
+import { addressReach, publicAddressNotes } from '../lib/publicAddress'
 import { requestJson } from '../util/apiClient'
 import { useNavigate } from '@tanstack/react-router'
 import { Button } from '../components/ui/button'
@@ -17,8 +18,12 @@ function SetupAppContent() {
   const { status, refresh } = useSetupStatusContext()
   const appComplete = status?.completed_steps?.includes('app')
   const [appName, setAppName] = useState('Multimedia User Manager')
-  const [appBaseUrl, setAppBaseUrl] = useState('')
-  const [appLocalUrl, setAppLocalUrl] = useState('')
+  // Starts as the address setup is open on when people outside could reach it;
+  // a home-network address is left out, since invite links would then keep it.
+  const [publicAddress, setPublicAddress] = useState(() => {
+    const origin = typeof window === 'undefined' ? '' : window.location.origin
+    return addressReach(origin) === 'local' ? '' : origin
+  })
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -26,14 +31,14 @@ function SetupAppContent() {
     e.preventDefault()
     setError(null)
 
-    if (!appName || !appBaseUrl) {
-      setError('App name and public URL are required.')
+    if (!appName) {
+      setError('The application name is required.')
       return
     }
 
     setSubmitting(true)
     try {
-      const settings = { app_name: appName, app_base_url: appBaseUrl, app_local_url: appLocalUrl }
+      const settings = { app_name: appName, public_address: publicAddress.trim() }
 
       await requestJson('/api/setup/app', {
         method: 'POST',
@@ -67,7 +72,7 @@ function SetupAppContent() {
               <FontAwesomeIcon icon={faCheck} className="h-8 w-8 text-primary" />
             </div>
             <CardTitle className="text-xl">Configuration Saved</CardTitle>
-            <CardDescription>Your branding and URLs are set.</CardDescription>
+            <CardDescription>Your application name and public address are set.</CardDescription>
           </CardHeader>
           <CardContent className="text-center">
             <Button onClick={() => navigate({ to: '/setup/finish', replace: true })}>Continue to Finish</Button>
@@ -96,25 +101,15 @@ function SetupAppContent() {
                 <Input id="setup-app-name" value={appName} onChange={(e) => setAppName(e.target.value)} required />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="setup-app-base">Public URL</Label>
+                <Label htmlFor="setup-public-address">Public Address (optional)</Label>
                 <Input
-                  id="setup-app-base"
+                  id="setup-public-address"
                   type="url"
                   placeholder="https://mum.example.com"
-                  value={appBaseUrl}
-                  onChange={(e) => setAppBaseUrl(e.target.value)}
-                  required
+                  value={publicAddress}
+                  onChange={(e) => setPublicAddress(e.target.value)}
                 />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="setup-app-local">Local URL (optional)</Label>
-                <Input
-                  id="setup-app-local"
-                  type="url"
-                  placeholder="http://192.168.1.100:5000"
-                  value={appLocalUrl}
-                  onChange={(e) => setAppLocalUrl(e.target.value)}
-                />
+                {publicAddressNotes(publicAddress).map(note => <p key={note} className="text-xs text-amber-600 dark:text-amber-400">{note}</p>)}
               </div>
               <Button type="submit" className="w-full" disabled={submitting}>
                 {submitting && <Spinner className="mr-2 h-4 w-4" />}
@@ -131,14 +126,18 @@ function SetupAppContent() {
             <FontAwesomeIcon icon={faGlobe} className="h-5 w-5" />
           </div>
           <div>
-            <CardTitle>Why two URLs?</CardTitle>
-            <CardDescription>Public URL is required; Local URL improves LAN redirects.</CardDescription>
+            <CardTitle>What is the public address?</CardTitle>
+            <CardDescription>The address people outside your network use to reach MUM.</CardDescription>
           </div>
         </CardHeader>
-        <CardContent className="text-sm text-muted-foreground leading-relaxed">
+        <CardContent className="space-y-2 text-sm text-muted-foreground leading-relaxed">
           <p>
-            Invite emails and the dashboard use the public URL. If your admins access MUM on the LAN with a different hostname,
-            specify the Local URL so redirects remain fast and do not leave your network.
+            Invite links and Discord sign-in use it. You can leave it empty and set it later in Settings → General: invite
+            links then use the address you're browsing on, and Discord sign-in stays off.
+          </p>
+          <p>
+            A domain name such as https://mum.example.com is best, usually through a reverse proxy that also provides https://.
+            Without a domain, people outside your network can only reach MUM if your router forwards MUM's port to this computer.
           </p>
         </CardContent>
       </Card>
@@ -148,7 +147,7 @@ function SetupAppContent() {
 
 export default function SetupAppConfigPage() {
   return (
-    <SetupLayout stepId="app" title="Application Configuration" subtitle="Set your app identity, base URL, and LAN URL.">
+    <SetupLayout stepId="app" title="Application Configuration" subtitle="Set your application name and public address.">
       <SetupAppContent />
     </SetupLayout>
   )

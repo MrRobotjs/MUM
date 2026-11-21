@@ -621,14 +621,14 @@ func (a *App) setupConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var input struct {
-		Name  string `json:"app_name"`
-		Base  string `json:"app_base_url"`
-		Local string `json:"app_local_url"`
+		Name   string `json:"app_name"`
+		Public string `json:"public_address"`
 	}
 	if !decodeBody(w, r, &input) {
 		return
 	}
-	if code, message, valid := validAppSettings(input.Name, input.Base, input.Local); !valid {
+	input.Public = strings.TrimRight(strings.TrimSpace(input.Public), "/")
+	if code, message, valid := validAppSettings(input.Name, input.Public); !valid {
 		fail(w, 400, code, message)
 		return
 	}
@@ -640,7 +640,7 @@ func (a *App) setupConfig(w http.ResponseWriter, r *http.Request) {
 		if closed {
 			return ErrConflict
 		}
-		for key, value := range map[string]string{"APP_NAME": input.Name, "APP_BASE_URL": input.Base, "APP_LOCAL_URL": input.Local, "APP_CONFIGURED": "true"} {
+		for key, value := range map[string]string{"APP_NAME": input.Name, "APP_BASE_URL": input.Public, "APP_CONFIGURED": "true"} {
 			if err := putSetting(r.Context(), tx, key, value); err != nil {
 				return err
 			}
@@ -677,7 +677,7 @@ func (a *App) setupComplete(w http.ResponseWriter, r *http.Request) {
 	respond(w, 200, map[string]any{"setup_complete": true})
 }
 func (a *App) generalSettings(w http.ResponseWriter, r *http.Request) {
-	respond(w, 200, map[string]any{"app_name": a.setting(r.Context(), "APP_NAME", "MUM"), "app_base_url": a.setting(r.Context(), "APP_BASE_URL", ""), "app_local_url": a.setting(r.Context(), "APP_LOCAL_URL", ""),
+	respond(w, 200, map[string]any{"app_name": a.setting(r.Context(), "APP_NAME", "MUM"), "public_address": a.publicAddress(r.Context()),
 		// Read-only: fixed by this build (see saveGeneralSettings).
 		"jwt_access_token_expires_minutes": int(accessTokenLifetime / time.Minute), "jwt_refresh_token_expires_days": int(refreshSessionLifetime / (24 * time.Hour)), "jwt_cookie_secure": a.SecureCookies})
 }

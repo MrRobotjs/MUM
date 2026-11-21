@@ -94,7 +94,12 @@ func (a *App) invitationShareLink(w http.ResponseWriter, r *http.Request) {
 	if customPath.Valid {
 		path = "/invite/" + customPath.String
 	}
-	respond(w, 200, map[string]any{"id": id, "token": token, "path": path})
+	// Links are shared from the public address when one is set.
+	var public any
+	if address := a.publicAddress(r.Context()); address != "" {
+		public = address
+	}
+	respond(w, 200, map[string]any{"id": id, "token": token, "path": path, "public_address": public})
 }
 
 // resolveInvitationPath turns a custom invite path into the invitation's link

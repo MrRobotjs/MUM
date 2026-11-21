@@ -1,4 +1,5 @@
 import { invitationExpiryFields } from '../util/calendarDates';
+import { inviteLinkWarning } from '../lib/publicAddress';
 import { useState, useMemo, useEffect, type FormEvent, type ReactElement } from 'react';
 import { useAlerts } from '../contexts/AlertContext';
 import { useInvites } from '../hooks/useInvites';
@@ -159,7 +160,7 @@ const mapInviteToForm = (invite: InviteRow): InviteFormValues => {
 };
 
 export const InvitesPage = () => {
-  const { success, error: showError } = useAlerts();
+  const { success, warning, error: showError } = useAlerts();
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [serverFilter, setServerFilter] = useState<string>('all');
   const [page, setPage] = useState(1);
@@ -349,8 +350,11 @@ export const InvitesPage = () => {
 
   const handleCopyLink = async (invite: InviteRow) => {
     try {
-      await navigator.clipboard.writeText(await invitationShareURL(invite.id));
-      success('Invite link copied!');
+      const link = await invitationShareURL(invite.id);
+      await navigator.clipboard.writeText(link);
+      // A link only reachable at home, or showing the server's IP, is copied with a warning.
+      const caution = inviteLinkWarning(link);
+      if (caution) warning(`Invite link copied. ${caution}`, 10000); else success('Invite link copied!');
     } catch (error) { showError('Unable to copy invite link: ' + String(error)); }
   };
   const handleOpenLink = async (invite: InviteRow) => {

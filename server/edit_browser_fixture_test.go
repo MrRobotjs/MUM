@@ -36,7 +36,7 @@ func TestEditBrowserFixture(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if w := apiRequest(a, "POST", "/api/setup/app", token, map[string]string{"app_name": "Disposable edit fixture", "app_base_url": "http://localhost"}, nil); w.Code != 200 {
+	if w := apiRequest(a, "POST", "/api/setup/app", token, map[string]string{"app_name": "Disposable edit fixture", "public_address": "http://localhost"}, nil); w.Code != 200 {
 		t.Fatalf("setup %d %s", w.Code, w.Body.String())
 	}
 	if w := apiRequest(a, "POST", "/api/setup/complete", token, map[string]any{}, nil); w.Code != 200 {

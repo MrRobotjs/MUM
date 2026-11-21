@@ -158,7 +158,7 @@ const DiscordSettingsForm = ({ initialState, refresh }: DiscordSettingsFormProps
   const redirectHint = discordRedirectHint(formMeta.redirect_problem)
   const serverKnown = formValues.server_invite_url.trim() !== '' || formValues.guild_id.trim() !== ''
   const checklist: { done: boolean; text: string }[] = [
-    { done: formMeta.redirect_problem === null && formMeta.redirect_uri !== '', text: formMeta.redirect_uri ? 'Redirect URL ready to add in Discord' : 'Redirect URL needs an App Base URL' },
+    { done: formMeta.redirect_problem === null && formMeta.redirect_uri !== '', text: formMeta.redirect_uri ? 'Redirect URL ready to add in Discord' : 'Redirect URL needs a Public Address (Settings → General)' },
     { done: formMeta.verified, text: formMeta.verified ? 'Client ID and secret checked by Discord' : 'Client ID and secret not checked yet (turn on Discord and save)' },
     { done: formMeta.guild_id !== '', text: formMeta.guild_id ? `Discord server: ${formMeta.guild_name || formMeta.guild_id}` : 'No Discord server yet (only needed to require server membership)' },
   ]
@@ -217,7 +217,7 @@ const DiscordSettingsForm = ({ initialState, refresh }: DiscordSettingsFormProps
             <div className="rounded-lg border border-border/70 bg-background p-3 space-y-2">
               {checklist.map((item) => (
                 <p key={item.text} className="text-sm flex items-center gap-2">
-                  <FontAwesomeIcon icon={item.done ? faCircleInfo : faCircleExclamation} className={item.done ? 'size-4 text-primary' : 'size-4 text-warning'} />
+                  <FontAwesomeIcon icon={item.done ? faCircleInfo : faCircleExclamation} className={item.done ? 'size-4 text-primary' : 'size-4 text-amber-600 dark:text-amber-400'} />
                   {item.text}
                 </p>
               ))}
@@ -303,7 +303,7 @@ const DiscordSettingsForm = ({ initialState, refresh }: DiscordSettingsFormProps
                   <p className="text-xs text-muted-foreground">
                     Add this address to Redirects under OAuth2 in the Discord Developer Portal. It serves invites, linking and Sign in with Discord.
                   </p>
-                  {redirectHint && <p className="text-xs text-warning">{redirectHint}</p>}
+                  {redirectHint && <p className="text-xs text-amber-600 dark:text-amber-400">{redirectHint}</p>}
                 </div>
               </div>
             </div>

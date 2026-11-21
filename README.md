@@ -85,11 +85,11 @@ The current MUM is a fresh Go/SQLite application. It does not read the old Postg
 MUM provides comprehensive configuration management through an intuitive web interface. All settings are accessible post-setup and include:
 
 *   **General Settings:** 
-    *   Application branding (name, description, base URL)
+    *   Application name and public address (the address invite links and Discord sign-in use)
     *   Timezone configuration and localization preferences
     *   Global feature toggles and operational modes
-*   **Plugin Management:**
-    *   Enable, disable, and configure individual media service plugins
+*   **Media Servers:**
+    *   See which media services MUM supports and what each can do, and turn each one on or off
     *   Per-service connection testing and validation
     *   Service-specific settings and authentication methods
     *   Library synchronization and access control policies

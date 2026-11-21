@@ -97,7 +97,7 @@ func TestFreshRuntimeAuthSetupRotationAndRevocation(t *testing.T) {
 	if w := apiRequest(a, "GET", "/api/auth/session", token, nil, nil); w.Code != 200 || responseData(t, w)["user"] == nil {
 		t.Fatal(w.Code, w.Body.String())
 	}
-	if w := apiRequest(a, "POST", "/api/setup/app", token, map[string]string{"app_name": "MUM Go", "app_base_url": "http://localhost:5699"}, nil); w.Code != 200 {
+	if w := apiRequest(a, "POST", "/api/setup/app", token, map[string]string{"app_name": "MUM Go", "public_address": "http://localhost:5699"}, nil); w.Code != 200 {
 		t.Fatal(w.Code, w.Body.String())
 	}
 	if w := apiRequest(a, "POST", "/api/setup/complete", token, map[string]any{}, nil); w.Code != 200 {

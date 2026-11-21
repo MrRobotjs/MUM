@@ -20,7 +20,7 @@ const discordAPIBase = "https://discord.com/api/v10"
 var discordSnowflake = regexp.MustCompile(`^[0-9]{17,20}$`)
 
 // The one Discord callback for invitations, linking and sign-in. It is
-// computed from APP_BASE_URL unless an
+// built from the public address unless an
 // explicit redirect is stored.
 const discordCallbackPath = "/api/discord/callback"
 
@@ -171,8 +171,8 @@ func (a *App) discordRedirect(ctx context.Context, s discordSettings) string {
 	if s.RedirectURI != "" {
 		return s.RedirectURI
 	}
-	if base := strings.TrimRight(a.setting(ctx, "APP_BASE_URL", ""), "/"); base != "" {
-		return base + discordCallbackPath
+	if public := a.publicAddress(ctx); public != "" {
+		return public + discordCallbackPath
 	}
 	return ""
 }

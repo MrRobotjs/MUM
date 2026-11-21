@@ -113,6 +113,12 @@ test('current admin invitation adapters', async t => {
     await api.openInvitation(20);
     assert.equal(popup.opener, null);
     assert.equal(opened, 'http://mum.test/invite/' + token);
+    // With a public address set, the link uses it instead of this page's address.
+    globalThis.fetch = async () => Response.json({ data: { id: 20, token, path: '/invite/' + token, public_address: 'https://mum.example.com' } });
+    assert.equal(await api.invitationShareURL(20), 'https://mum.example.com/invite/' + token);
+    // Anything that isn't a plain address is ignored.
+    globalThis.fetch = async () => Response.json({ data: { id: 20, token, path: '/invite/' + token, public_address: 'https://evil.example/@x' } });
+    assert.equal(await api.invitationShareURL(20), 'http://mum.test/invite/' + token);
     globalThis.fetch = async () => Response.json({ data: { id: 20, token, path: 'https://unexpected.invalid' } });
     await assert.rejects(api.openInvitation(20), /Invalid invitation share link/);
     assert.equal(closed, true);

@@ -97,3 +97,23 @@ test('real SWR: a confirmed session survives only a renewal for the same account
   else{assert.equal(during.session,null,'a renewal for another account must not show the previous account');assert.equal(during.loading,true);}
  }
 });
+
+test('background refresh does not mark activity and interactions during a refresh are retained', async t => {
+  const previousFetch = globalThis.fetch, previousWindow = globalThis.window;
+  const handlers = new Map(), headers = [];
+  t.after(() => { globalThis.fetch = previousFetch; globalThis.window = previousWindow; });
+  globalThis.window = { addEventListener: (name, handler) => handlers.set(name, handler) };
+  const api = await loadFrontend("export * from './src/store/authStore';");
+  api.setAccessToken('initial');
+  let release;
+  globalThis.fetch = async (_url, init) => {
+    headers.push(init.headers['X-MUM-Background']);
+    if (headers.length === 2) await new Promise(resolve => { release = resolve; });
+    return Response.json({ data: { access_token: 'rotated', user: { uuid: 'fixture' } } });
+  };
+  await api.refreshAccessToken();
+  const background = api.refreshAccessToken();
+  await Promise.resolve(); handlers.get('pointerdown')(); release(); await background;
+  await api.refreshAccessToken();
+  assert.deepEqual(headers, [undefined, '1', undefined]);
+});

@@ -5,16 +5,12 @@ export type GeneralSettings = {
   app_name: string;
   /** The address people outside the server's network use to reach MUM; "" when not set. */
   public_address: string;
-  enable_navbar_stream_badge: boolean;
-  session_monitoring_interval: number;
-  api_timeout_seconds: number;
-  jwt_cookie_secure: boolean;
-  jwt_access_token_expires_minutes?: number;
-  jwt_refresh_token_expires_days?: number;
-  // Legacy fields (deprecated but still sent by backend for compatibility)
-  app_url?: string;
-  require_email?: boolean;
-  auto_approve_invites?: boolean;
+  /** A sign-in ends after this many days without use. */
+  session_idle_days: number;
+  /** A sign-in ends this many days after it began, however active. */
+  session_max_days: number;
+  /** Whether this visit reached MUM over HTTPS as MUM sees it, and whether cookies are always marked secure. */
+  sessions?: { https_detected: boolean; secure_cookies_forced: boolean };
 };
 
 export type DiscordSettings = {

@@ -580,16 +580,14 @@ const LoginPage = () => {
                   open={showInactivityInfo}
                   onOpenChange={setShowInactivityInfo}
                   title="Why did this happen?"
-                  description="Your session can only refresh when the app makes API requests."
+                  description="Your session has ended for security."
                 >
                   <div className="space-y-3 text-sm text-muted-foreground">
                     <p>
-                      For security, sessions expire after inactivity. If you browse a page that doesn’t make API calls,
-                      the app has no chance to refresh your session, so it can expire even while you’re on the site.
+                      For security, sessions end after the inactivity period or the maximum sign-in length set by your administrator.
                     </p>
                     <p>
-                      Selecting "Remember this device" keeps you signed in longer by extending the refresh token
-                      lifetime to 30 days.
+                      Selecting "Remember this device" keeps your sign-in after the browser closes, subject to the inactivity and maximum session limits.
                     </p>
                   </div>
                 </ResponsiveDialog>

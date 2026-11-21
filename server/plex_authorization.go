@@ -35,8 +35,8 @@ func plexConnectionPurpose(id, owner, account string) string {
 	return "connection:" + id + ":" + owner + ":" + account
 }
 func plexCookieName(id string) string { return "mum_plex_" + id }
-func (a *App) plexCookie(w http.ResponseWriter, id, value string, maxAge int) {
-	http.SetCookie(w, &http.Cookie{Name: plexCookieName(id), Value: value, Path: "/api/plex/authorizations/" + id, HttpOnly: true, Secure: a.SecureCookies, SameSite: http.SameSiteStrictMode, MaxAge: maxAge})
+func (a *App) plexCookie(w http.ResponseWriter, r *http.Request, id, value string, maxAge int) {
+	http.SetCookie(w, &http.Cookie{Name: plexCookieName(id), Value: value, Path: "/api/plex/authorizations/" + id, HttpOnly: true, Secure: a.secureCookie(r), SameSite: http.SameSiteStrictMode, MaxAge: maxAge})
 }
 func plexSessionOwner(ctx context.Context, tx *sql.Tx, access, owner string) error {
 	now := utcTimestamp(time.Now())
@@ -183,7 +183,7 @@ func (a *App) startPlexAuthorization(w http.ResponseWriter, r *http.Request) {
 	committed = true
 	row.Status = "pending"
 	row.Revision++
-	a.plexCookie(w, row.ID, browser, int(time.Until(pin.Expires).Seconds()))
+	a.plexCookie(w, r, row.ID, browser, int(time.Until(pin.Expires).Seconds()))
 	view := plexAuthorizationView(row)
 	view["authorization_url"] = pin.AuthorizationURL
 	respond(w, 201, view)
@@ -413,7 +413,7 @@ func (a *App) confirmPlexAuthorization(w http.ResponseWriter, r *http.Request) {
 		plexAuthorizationError(w, err)
 		return
 	}
-	a.plexCookie(w, id, "", -1)
+	a.plexCookie(w, r, id, "", -1)
 	onServer, err := plexAccountOnServer(r.Context(), a.store.reader, owner, row.AccountID)
 	if err != nil {
 		plexAuthorizationError(w, err)

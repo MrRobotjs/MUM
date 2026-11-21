@@ -1,4 +1,5 @@
 import { UsernameChangeCard } from '../components/users/UsernameChangeCard';
+import { AccountSessionsCard } from '../components/users/AccountSessionsCard';
 import { CardActions } from '../components/common/CardActions';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearch } from '@tanstack/react-router';
@@ -347,6 +348,7 @@ const AccountPage = () => {
             {showInitialCredentialsCard && <InitialCredentialsForm key={`credentials-${accountKey}`} initialUsername={account.user.username ?? ''} onSuccess={handleCredentialsSuccess} />}
             <PasswordChangeCard key={`password-${accountKey}`} />
             <UsernameChangeCard key={`username-${accountKey}`} />
+            <AccountSessionsCard key={`sessions-${accountKey}`} />
           </div>
         </TabsContent>
 

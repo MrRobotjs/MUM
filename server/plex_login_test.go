@@ -114,8 +114,9 @@ func TestPlexSignInSignsInTheLinkedAccountOnce(t *testing.T) {
 			refresh = c
 		}
 	}
-	if refresh == nil || !refresh.HttpOnly || time.Until(refresh.Expires) < 29*24*time.Hour {
-		t.Fatal("remembered session cookie missing", refresh)
+	// The cookie lasts until the inactivity timeout (renewals extend it).
+	if refresh == nil || !refresh.HttpOnly || time.Until(refresh.Expires) < 6*24*time.Hour || time.Until(refresh.Expires) > 8*24*time.Hour {
+		t.Fatal("session cookie missing or not lasting the inactivity timeout", refresh)
 	}
 	// The access token works like a password session's.
 	if w := apiRequest(a, "GET", "/api/auth/session", data["access_token"].(string), nil, nil); w.Code != 200 {

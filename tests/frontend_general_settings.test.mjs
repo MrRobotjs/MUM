@@ -11,8 +11,8 @@ async function load() {
 
 test('general settings save sends only the editable application fields', async () => {
   const { generalSettingsPayload } = await load();
-  const form = { app_name: 'Family Media', public_address: ' https://media.example.test ', jwt_cookie_secure: true, jwt_access_token_expires_minutes: 60, jwt_refresh_token_expires_days: 30, api_timeout_seconds: 9, enable_navbar_stream_badge: true, session_monitoring_interval: 5 };
-  assert.deepEqual(generalSettingsPayload(form), { app_name: 'Family Media', public_address: 'https://media.example.test' });
+  const form = { session_idle_days: 7, session_max_days: 30, app_name: 'Family Media', public_address: ' https://media.example.test ', jwt_cookie_secure: true, jwt_access_token_expires_minutes: 60, jwt_refresh_token_expires_days: 30, api_timeout_seconds: 9, enable_navbar_stream_badge: true, session_monitoring_interval: 5 };
+  assert.deepEqual(generalSettingsPayload(form), { app_name: 'Family Media', public_address: 'https://media.example.test', session_idle_days: 7, session_max_days: 30 });
 });
 
 // Where an address can be reached from decides the warnings on invite links

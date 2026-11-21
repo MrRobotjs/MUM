@@ -106,6 +106,8 @@ func TestFreshRuntimeAuthSetupRotationAndRevocation(t *testing.T) {
 	if w := apiRequest(a, "POST", "/api/setup/app", token, map[string]string{"app_name": "reopen"}, nil); w.Code != 409 {
 		t.Fatal("setup reopened", w.Code)
 	}
+	// Renewals racing with one key: one rotates it and sets the new cookie; the
+	// others, within the grace period, get an access key and no cookie.
 	var successes atomic.Int64
 	var wg sync.WaitGroup
 	var nextToken string
@@ -116,20 +118,22 @@ func TestFreshRuntimeAuthSetupRotationAndRevocation(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			w := apiRequest(a, "POST", "/api/auth/refresh", "", nil, cookie)
-			if w.Code == 200 {
+			if w.Code == 200 && len(w.Result().Cookies()) == 1 {
 				successes.Add(1)
 				mu.Lock()
 				nextToken = responseData(t, w)["access_token"].(string)
 				nextCookie = w.Result().Cookies()[0]
 				mu.Unlock()
-			} else if w.Code != 401 {
+			} else if w.Code == 200 && len(w.Result().Cookies()) != 0 {
+				t.Errorf("a renewal within the grace period set a cookie")
+			} else if w.Code != 200 && w.Code != 401 {
 				t.Errorf("refresh status %d", w.Code)
 			}
 		}()
 	}
 	wg.Wait()
 	if successes.Load() != 1 {
-		t.Fatal("refresh replay succeeded", successes.Load())
+		t.Fatal("refresh key rotated more than once", successes.Load())
 	}
 	// Logout using the earlier access token must revoke its whole rotated session.
 	if w := apiRequest(a, "POST", "/api/auth/logout", token, nil, cookie); w.Code != 200 {
@@ -150,7 +154,7 @@ func TestFreshRuntimeAuthSetupRotationAndRevocation(t *testing.T) {
 		t.Fatal(login.Code, login.Body.String())
 	}
 	var storedHash string
-	if err := s.reader.QueryRow("SELECT password_hash FROM user_accounts WHERE local_username='owner'").Scan(&storedHash); err != nil || !strings.HasPrefix(storedHash, "mum-pbkdf2-sha256$") {
+	if err := s.reader.QueryRow("SELECT password_hash FROM user_accounts WHERE local_username='owner'").Scan(&storedHash); err != nil || !strings.HasPrefix(storedHash, "$argon2id$v=19$") {
 		t.Fatal(err, storedHash)
 	}
 	if verifyPassword("pbkdf2:sha256:600000$salt$hash", "password") {

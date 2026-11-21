@@ -24,6 +24,7 @@ import {
 import {ProfileAccountLinks} from '../components/users/ProfileAccountLinks';
 import {useProfileAccountSnapshot} from '../hooks/useProfileAccountSnapshot';
 import {ProfileNotesCard} from '../components/users/ProfileNotesCard';
+import { AdminSessionsCard } from '../components/users/AdminSessionsCard';
 import {HumanActivationCard} from '../components/users/HumanActivationCard';
 import {HumanCredentialsCard} from '../components/users/HumanCredentialsCard';
 import {ServiceExpiryCard} from '../components/users/ServiceExpiryCard';
@@ -464,6 +465,7 @@ const SettingsTab = ({user,refreshUser}:{user:UserDetail;refreshUser:()=>Promise
   <div className="account-settings-panels">
     <ProfileNotesCard target={user.uuid} refreshUser={refreshUser}/>
     {user.user_type!=='service'&&<HumanActivationCard target={user.uuid} refreshUser={refreshUser}/>}
+    {user.user_type!=='service'&&<AdminSessionsCard target={user.uuid} name={user.username || 'this person'} owner={user.user_type==='owner'}/>}
     {user.user_type==='service'&&<ServiceExpiryCard target={user.uuid} refreshUser={refreshUser}/>}
     {user.user_type==='service'&&<ServiceRemoteAccessCard target={user.uuid} refreshUser={refreshUser}/>}
     {user.user_type!=='service'&&<HumanExpiryCard target={user.uuid} refreshUser={refreshUser}/>}

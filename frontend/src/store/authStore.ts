@@ -10,6 +10,15 @@ let generation = 0;
 let principal: { generation: number; uuid: string } | null = null;
 let bootstrapPromise: Promise<void> | null = null;
 let refreshPromise: Promise<string | null> | null = null;
+// Background polling must not keep an unattended browser signed in.
+let activityRevision = 1;
+let acknowledgedActivity = 0;
+if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+  for (const event of ['pointerdown', 'keydown', 'touchstart', 'wheel']) {
+    window.addEventListener(event, () => { activityRevision++; }, { passive: true });
+  }
+}
+
 const listeners = new Set<() => void>();
 let snapshot: AuthSnapshot = { status: 'bootstrapping', accessToken: null, generation, credentialRevision: authRevision };
 const update = (status: AuthStatus) => {
@@ -43,7 +52,10 @@ export const refreshAccessToken = (): Promise<string | null> => {
   const revision = authRevision;
   refreshPromise = (async () => {
     try {
-      const response = await fetch('/api/auth/refresh', { method: 'POST', credentials: 'include', headers: { Accept: 'application/json' } });
+      const observedActivity = activityRevision;
+      const active = observedActivity !== acknowledgedActivity;
+      const response = await fetch('/api/auth/refresh', { method: 'POST', credentials: 'include', headers: { Accept: 'application/json', ...(active ? {} : { 'X-MUM-Background': '1' }) } });
+      if (response.ok && active) acknowledgedActivity = observedActivity;
       if (revision !== authRevision) return getAccessToken();
       if (!response.ok) { clearAccessToken(); return null; }
       const json = await response.json();

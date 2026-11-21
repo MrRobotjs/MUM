@@ -20,12 +20,8 @@ import { addressReach, publicAddressNotes } from '../lib/publicAddress';
 const buildGeneralFormValues = (settings: GeneralSettings | null): GeneralSettings => ({
   app_name: '',
   public_address: '',
-  enable_navbar_stream_badge: false, // Not editable here - managed in streaming settings
-  session_monitoring_interval: 30, // Not editable here - managed in streaming settings
-  api_timeout_seconds: 3, // Not editable here - managed in advanced settings
-  jwt_cookie_secure: false,
-  jwt_access_token_expires_minutes: 10,
-  jwt_refresh_token_expires_days: 14,
+  session_idle_days: 7,
+  session_max_days: 30,
   ...(settings ?? {}),
 });
 
@@ -51,6 +47,10 @@ const GeneralSettingsForm = ({ initialValues, refresh, signIn }: GeneralSettings
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (sessionLengthProblem) {
+      showError(sessionLengthProblem);
+      return;
+    }
     setSubmitting(true);
     // Each part saves on its own; a failure names its part and leaves the other saved.
     let saved = 0, failed = false;
@@ -82,6 +82,20 @@ const GeneralSettingsForm = ({ initialValues, refresh, signIn }: GeneralSettings
       setSubmitting(false);
     }
   };
+
+  // The session limits as entered: whole days in range, inactivity no longer than the maximum.
+  const idleDays = Number(formValues.session_idle_days), maxDays = Number(formValues.session_max_days);
+  const sessionLengthProblem = !Number.isInteger(idleDays) || idleDays < 1 || idleDays > 90 ? 'Use 1 to 90 whole days for inactivity.'
+    : !Number.isInteger(maxDays) || maxDays < 1 || maxDays > 365 ? 'Use 1 to 365 whole days for the maximum length.'
+    : idleDays > maxDays ? 'The inactivity limit can’t be longer than the maximum length.' : null;
+  // Whether sign-in cookies are marked secure for this visit, and what to do when they should be but aren't.
+  const status = initialValues.sessions;
+  const pageHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
+  const secureStatus = status?.https_detected || status?.secure_cookies_forced
+    ? { ok: true, text: 'Sign-in cookies are marked secure: this visit uses HTTPS.' }
+    : pageHttps
+      ? { ok: false, text: 'You opened MUM with https://, but MUM sees this visit as plain http, so sign-in cookies aren’t marked secure. If MUM is behind a reverse proxy, start it with --trusted-proxies set to the proxy’s address (or MUM_TRUSTED_PROXIES), or with --secure-cookies.' }
+      : { ok: true, text: 'This visit uses plain http (fine on your own network), so sign-in cookies can’t be marked secure. Visits over https:// mark them secure automatically.' };
 
   // The address this page is open on, offered when it's an https:// address
   // people outside could reach and differs from the saved one.
@@ -162,63 +176,48 @@ const GeneralSettingsForm = ({ initialValues, refresh, signIn }: GeneralSettings
               <FontAwesomeIcon icon={faShieldHalved} className="size-5 text-primary" />
             </div>
             <div>
-              <CardTitle className="mb-1 text-xl font-semibold">Security</CardTitle>
-              <CardDescription>Authentication and session security settings</CardDescription>
+              <CardTitle className="mb-1 text-xl font-semibold">Sessions</CardTitle>
+              <CardDescription>How long people stay signed in</CardDescription>
             </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <p className="text-xs text-muted-foreground">
-            These session settings are fixed by this MUM build and cannot be changed here: access tokens last 15 minutes and sign-in sessions 14 days. The Secure cookie flag is set automatically over direct HTTPS; behind an HTTPS reverse proxy, start MUM with --secure-cookies.
-          </p>
-
-          <div className="space-y-2">
-            <Label htmlFor="jwt_cookie_secure">JWT Refresh Cookie Security</Label>
-            <div className="flex items-center gap-3">
-              <Switch
-                id="jwt_cookie_secure"
-                checked={formValues.jwt_cookie_secure}
-                disabled
-                onCheckedChange={(checked) => handleChange('jwt_cookie_secure', checked)}
-              />
-              <Label htmlFor="jwt_cookie_secure" className="font-normal cursor-pointer">
-                Enable Secure flag for refresh tokens (required for HTTPS)
-              </Label>
-            </div>
-          </div>
-
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="jwt_access_token_expires_minutes">Access Token Expiration (minutes)</Label>
+              <Label htmlFor="session_idle_days">Sign out after inactivity (days)</Label>
               <Input
-                id="jwt_access_token_expires_minutes"
+                id="session_idle_days"
                 type="number"
                 min={1}
-                max={1440}
-                value={formValues.jwt_access_token_expires_minutes}
-                disabled
-                onChange={(e) => handleChange('jwt_access_token_expires_minutes', Number(e.target.value))}
+                max={90}
+                value={formValues.session_idle_days}
+                onChange={(e) => handleChange('session_idle_days', Number(e.target.value))}
               />
               <p className="text-xs text-muted-foreground">
-                Shorter values require more frequent refreshes. Range: 1-1440 minutes.
+                A device that isn't used for this long is signed out. 1 to 90 days.
               </p>
             </div>
-
             <div className="space-y-2">
-              <Label htmlFor="jwt_refresh_token_expires_days">Refresh Token Expiration (days)</Label>
+              <Label htmlFor="session_max_days">Maximum sign-in length (days)</Label>
               <Input
-                id="jwt_refresh_token_expires_days"
+                id="session_max_days"
                 type="number"
                 min={1}
                 max={365}
-                value={formValues.jwt_refresh_token_expires_days}
-                disabled
-                onChange={(e) => handleChange('jwt_refresh_token_expires_days', Number(e.target.value))}
+                value={formValues.session_max_days}
+                onChange={(e) => handleChange('session_max_days', Number(e.target.value))}
               />
               <p className="text-xs text-muted-foreground">
-                Controls how long users stay signed in without logging in again. Range: 1-365 days.
+                Even an active device signs in again after this long. 1 to 365 days, and at least the inactivity limit.
               </p>
             </div>
+          </div>
+          {sessionLengthProblem ? <p className="text-xs text-destructive">{sessionLengthProblem}</p> : null}
+          <p className="text-xs text-muted-foreground">
+            Changes apply to devices already signed in. People can see and sign out their devices on their Account page, and administrators can sign a user out from the user's Settings tab.
+          </p>
+          <div className={secureStatus.ok ? 'rounded-lg border border-border/70 bg-muted/40 p-3 text-xs text-muted-foreground' : 'rounded-lg border border-border/70 bg-muted/40 p-3 text-xs text-amber-600 dark:text-amber-400'} role="status">
+            {secureStatus.text}
           </div>
         </CardContent>
       </Card>

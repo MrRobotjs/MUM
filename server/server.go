@@ -135,6 +135,10 @@ func NewApp(store *Store, queue *LogQueue, assets fs.FS) (*App, error) {
 	handle("GET /api/account/preferences", a.accountPreferences)
 	handle("PUT /api/account/preferences", a.saveAccountPreferences)
 	handle("GET /api/account/display", a.accountDisplay)
+	handle("GET /api/account/sessions", a.accountSessions)
+	handle("DELETE /api/account/sessions/{session}", a.endAccountSessions)
+	handle("POST /api/account/sessions/sign-out-others", a.endAccountSessions)
+	handle("POST /api/account/sessions/sign-out-all", a.endAccountSessions)
 	handle("PUT /api/account/display", a.saveAccountDisplay)
 	handle("GET /api/account/username", a.accountUsername)
 	handle("PATCH /api/account/username", a.changeAccountUsername)
@@ -272,6 +276,7 @@ func NewApp(store *Store, queue *LogQueue, assets fs.FS) (*App, error) {
 	handle("PUT /api/users/{user}/notes", a.profileNotes)
 	handle("GET /api/users/{user}/activation", a.humanActivation)
 	handle("PUT /api/users/{user}/activation", a.humanActivation)
+	handle("POST /api/users/{user}/sessions/sign-out", a.endUserSessions)
 	handle("GET /api/users/{user}/local-credentials", a.humanCredentials)
 	handle("PUT /api/users/{user}/local-credentials", a.humanCredentials)
 	handle("GET /api/users/{user}/expiry", a.humanExpiry)
@@ -338,7 +343,7 @@ func NewApp(store *Store, queue *LogQueue, assets fs.FS) (*App, error) {
 	mux.Handle("/", spaHandler(assets, func(r *http.Request) bool { return a.setting(r.Context(), "SETUP_COMPLETE", "") == "true" }))
 	crossOrigin := http.NewCrossOriginProtection()
 	a.handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		r = a.applyForwarded(r)
+		r = withSessionDevice(a.applyForwarded(r))
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		if strings.HasPrefix(r.URL.Path, "/api/") {
 			w.Header().Set("Cache-Control", "no-store")
@@ -458,7 +463,12 @@ func (a *App) passwordAdmission(w http.ResponseWriter, r *http.Request) bool {
 }
 
 func (a *App) setRefreshCookie(w http.ResponseWriter, r *http.Request, t sessionTokens) {
-	http.SetCookie(w, &http.Cookie{Name: "mum_refresh", Value: t.Refresh, Path: "/api/auth", HttpOnly: true, Secure: a.secureCookie(r), SameSite: http.SameSiteStrictMode, Expires: t.RefreshExpires, MaxAge: int(time.Until(t.RefreshExpires).Seconds())})
+	cookie := &http.Cookie{Name: "mum_refresh", Value: t.Refresh, Path: "/api/auth", HttpOnly: true, Secure: a.secureCookie(r), SameSite: http.SameSiteStrictMode}
+	if t.Remember {
+		cookie.Expires = t.RefreshExpires
+		cookie.MaxAge = int(time.Until(t.RefreshExpires).Seconds())
+	}
+	http.SetCookie(w, cookie)
 }
 
 func (a *App) setupAccount(w http.ResponseWriter, r *http.Request) {
@@ -525,7 +535,15 @@ func (a *App) login(w http.ResponseWriter, r *http.Request) {
 		fail(w, 401, "INVALID_CREDENTIALS", "Invalid username or password")
 		return
 	}
-	tokens, err := a.store.issuePasswordSession(r.Context(), uuid, hash, revision, input.Remember)
+	var upgraded string
+	if passwordNeedsRehash(hash) {
+		upgraded, err = newPasswordHash(input.Password)
+		if err != nil {
+			fail(w, 500, "SIGN_IN_FAILED", "Sign-in is temporarily unavailable")
+			return
+		}
+	}
+	tokens, err := a.store.issuePasswordSessionWithUpgrade(r.Context(), uuid, hash, revision, input.Remember, upgraded)
 	if err != nil {
 		fail(w, 401, "INVALID_CREDENTIALS", "Account is unavailable")
 		return
@@ -544,12 +562,25 @@ func (a *App) refresh(w http.ResponseWriter, r *http.Request) {
 		fail(w, 401, "UNAUTHENTICATED", "Sign in required")
 		return
 	}
-	tokens, p, err := a.store.refreshSession(r.Context(), cookie.Value)
+	ctx := context.WithValue(r.Context(), backgroundRefreshKey{}, r.Header.Get("X-MUM-Background") == "1")
+	tokens, p, err := a.store.refreshSession(ctx, cookie.Value)
+	if errors.Is(err, errRefreshReused) {
+		// Someone else used a copy of this sign-in; it has been ended.
+		a.hub.closeAccountConnections(p.UUID)
+		a.logger.Warn("Sign-in session ended: a replaced refresh key was used again", "user", p.UUID)
+		http.SetCookie(w, &http.Cookie{Name: "mum_refresh", Path: "/api/auth", Value: "", MaxAge: -1, HttpOnly: true, Secure: a.secureCookie(r), SameSite: http.SameSiteStrictMode})
+		fail(w, 401, "SESSION_ENDED", "This sign-in was ended because it was used from somewhere else. Sign in again.")
+		return
+	}
 	if err != nil {
 		fail(w, 401, "UNAUTHENTICATED", "Session expired")
 		return
 	}
-	a.setRefreshCookie(w, r, tokens)
+	// Two tabs renewing at once: the slower one gets an access key and keeps
+	// the cookie the faster one received.
+	if tokens.Refresh != "" {
+		a.setRefreshCookie(w, r, tokens)
+	}
 	respond(w, 200, map[string]any{"access_token": tokens.Access, "user": p})
 }
 func (a *App) logout(w http.ResponseWriter, r *http.Request) {
@@ -677,9 +708,9 @@ func (a *App) setupComplete(w http.ResponseWriter, r *http.Request) {
 	respond(w, 200, map[string]any{"setup_complete": true})
 }
 func (a *App) generalSettings(w http.ResponseWriter, r *http.Request) {
+	idle, max := sessionLimits(r.Context(), a.store.reader)
 	respond(w, 200, map[string]any{"app_name": a.setting(r.Context(), "APP_NAME", "MUM"), "public_address": a.publicAddress(r.Context()),
-		// Read-only: fixed by this build (see saveGeneralSettings).
-		"jwt_access_token_expires_minutes": int(accessTokenLifetime / time.Minute), "jwt_refresh_token_expires_days": int(refreshSessionLifetime / (24 * time.Hour)), "jwt_cookie_secure": a.SecureCookies})
+		"session_idle_days": int(idle / (24 * time.Hour)), "session_max_days": int(max / (24 * time.Hour)), "sessions": a.sessionsSecureStatus(r)})
 }
 func (a *App) health(w http.ResponseWriter, r *http.Request) {
 	if a.store.reader.PingContext(r.Context()) != nil || a.queue.Err() != nil {

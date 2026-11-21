@@ -13,9 +13,11 @@ import (
 // Test-only speed-ups. Neither changes what the
 // application does; both apply only inside the test binary.
 //
-//  1. Passwords are hashed with a low PBKDF2 cost. Tests check that hashing
-//     and checking agree and that hashes are never exposed, not how slow they
-//     are; the application keeps 600,000 iterations.
+//  1. Passwords are hashed at a low cost (Argon2id, and PBKDF2 for hashes made
+//     before it). Tests check that hashing and checking agree and that hashes
+//     are never exposed, not how slow they are; the application keeps the
+//     OWASP Argon2id cost (19 MiB, 2 iterations, 1 thread).
+//     TestPasswordHashCost checks those values.
 //  2. Each test database is a copy of one database migrated once per run,
 //     instead of applying every migration again. OpenStore still opens the
 //     copy and verifies every migration checksum. Tests of migrations
@@ -23,7 +25,10 @@ import (
 
 const testPasswordIterations = 1_000
 
-func init() { passwordIterations = testPasswordIterations }
+func init() {
+	passwordIterations = testPasswordIterations
+	argon2Params = argon2Cost{memory: 64, time: 1, threads: 1}
+}
 
 var migratedTemplateDB struct {
 	once sync.Once

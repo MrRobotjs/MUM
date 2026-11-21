@@ -6,8 +6,6 @@ import { useScheduledTasks } from '../hooks/useScheduledTasks';
 import { useSystemConfig } from '../hooks/useSystemConfig';
 import { PageHeader } from '../components';
 import { Button } from '../components/ui/button';
-import { Input } from '../components/ui/input';
-import { Label } from '../components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import {
   Alert,
@@ -288,33 +286,6 @@ const ScheduledTaskRow = ({ task, onClick }: ScheduledTaskRowProps) => {
   );
 };
 
-const AdvancedSettingsForm = () => (
-  <form className="space-y-6" onSubmit={e => e.preventDefault()}>
-    <Card>
-      <CardHeader>
-        <div className="flex items-center gap-3">
-          <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/20">
-            <FontAwesomeIcon icon={faShield} className="size-5 text-primary" />
-          </div>
-          <div>
-            <CardTitle className="mb-1 text-xl font-semibold">API Requests</CardTitle>
-            <CardDescription>External service connection timeouts</CardDescription>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-2">
-        <Label htmlFor="api_timeout_seconds">API Timeout</Label>
-        <Input id="api_timeout_seconds" value="Provider-specific" disabled readOnly />
-        <p className="text-xs text-muted-foreground">Each provider uses a bounded timeout. Global timeout editing is unavailable.</p>
-      </CardContent>
-    </Card>
-    <div className="flex items-center justify-end gap-3">
-      <Button type="button" variant="ghost" disabled>Reset</Button>
-      <Button type="submit" variant="default" disabled>Save Changes</Button>
-    </div>
-  </form>
-);
-
 export const AdminSettingsAdvancedPage = () => {
   const { formatTimestamp } = useAccountDisplay();
   const { actor:taskActor,tasks,loading:tasksLoading,error:tasksError,runtimeAvailable,checkpointError,refresh:refreshTasks } = useScheduledTasks();
@@ -348,11 +319,9 @@ export const AdminSettingsAdvancedPage = () => {
         <FontAwesomeIcon icon={faShieldHalved} className="h-4 w-4" />
         <AlertTitle>Performance & Monitoring</AlertTitle>
         <AlertDescription>
-          Monitoring consent and intervals are configured per server below. Global timeout editing is unavailable.
+          Monitoring consent and intervals are configured per server below.
         </AlertDescription>
       </Alert>
-
-      <AdvancedSettingsForm />
 
       {/* MUM Configuration Section */}
       <Card>

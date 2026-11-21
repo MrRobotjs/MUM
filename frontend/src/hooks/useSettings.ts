@@ -50,10 +50,6 @@ export type DiscordSettings = {
   } | null;
 };
 
-export type AdvancedSettings = {
-  api_timeout_seconds: number;
-};
-
 export type UserAccountSettings = {
   allow_user_accounts: boolean;
 };
@@ -83,20 +79,6 @@ export const useDiscordSettings = () => {
   const { data, error, isLoading, mutate } = useSWR<SettingsResponse<DiscordSettings>>(
     '/api/settings/discord',
     (url: string) => requestJson<SettingsResponse<DiscordSettings>>(url)
-  );
-
-  return {
-    settings: data?.data ?? null,
-    loading: isLoading,
-    error,
-    refresh: mutate,
-  };
-};
-
-export const useAdvancedSettings = () => {
-  const { data, error, isLoading, mutate } = useSWR<SettingsResponse<AdvancedSettings>>(
-    '/api/settings/advanced',
-    (url: string) => requestJson<SettingsResponse<AdvancedSettings>>(url)
   );
 
   return {

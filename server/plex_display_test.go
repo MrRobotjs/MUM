@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 const plexRichPlaying = `<MediaContainer size="1"><Video sessionKey="10" ratingKey="123" type="movie" title="Fixture movie" year="2026" editionTitle="Web-DL" librarySectionTitle="Movies" thumb="/library/metadata/123/thumb/7" duration="10000" viewOffset="2000"><User id="42" title="Viewer"/><Player state="playing" product="Plex Web" title="Chrome" platform="Chrome" address="127.0.0.1" local="1"/><Session bandwidth="12400" location="lan"/><Media selected="1" container="mkv" bitrate="6900" videoCodec="hevc" videoResolution="1080" height="1080" audioCodec="eac3" audioChannels="6"><Part selected="1"><Stream streamType="1" codec="hevc" height="1080"/><Stream streamType="2" codec="eac3" displayTitle="English (EAC3 5.1)" selected="1"/></Part></Media><TranscodeSession videoDecision="copy" audioDecision="transcode" videoCodec="hevc" audioCodec="mp3" audioChannels="2" container="mpegts" throttled="1" speed="2.5"/></Video></MediaContainer>`
@@ -101,6 +102,50 @@ func TestPlexActivityPostersRecheckAuthorizationAndCurrentSource(t *testing.T) {
 				t.Fatal("image delivered after revocation")
 			}
 		})
+	}
+}
+
+func TestQuietConnectedActivityPosterRemainsAvailable(t *testing.T) {
+	a, s := testApp(t)
+	token, _ := bootstrapOwner(t, a)
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/status/sessions":
+			fmt.Fprint(w, plexRichPlaying)
+		case "/library/metadata/123":
+			fmt.Fprint(w, plexSingleOriginalSource)
+		case "/library/metadata/123/thumb/7":
+			w.Header().Set("Content-Type", "image/png")
+			fmt.Fprint(w, "PNG fixture")
+		default:
+			w.WriteHeader(404)
+		}
+	}))
+	defer upstream.Close()
+	server := createManagedServer(t, a, token, "plex", upstream.URL)
+	if err := a.runOneActivityMonitor(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	at := time.Now().UTC().Add(-2 * time.Minute)
+	activityExec(t, s, "UPDATE media_activity_state SET observed_at=? WHERE server_id=?", utcTimestamp(at), server)
+	worker := &providerSocketWorker{state: "connected", connectedAt: at.Add(-time.Second)}
+	a.providerSockets.mu.Lock()
+	a.providerSockets.workers[server] = worker
+	a.providerSockets.mu.Unlock()
+	view := apiRequest(a, "GET", "/api/activity/current?scope=all", token, nil, nil)
+	var data struct{ Data activityReadResponse }
+	if err := json.Unmarshal(view.Body.Bytes(), &data); err != nil || len(data.Data.Items) != 1 {
+		t.Fatal(view.Body.String(), err)
+	}
+	link := data.Data.Items[0].Display.Thumb
+	if image := apiRequest(a, "GET", link, "", nil, nil); image.Code != 200 {
+		t.Fatal(image.Code, image.Body.String())
+	}
+	worker.mu.Lock()
+	worker.state = "backoff"
+	worker.mu.Unlock()
+	if image := apiRequest(a, "GET", link, "", nil, nil); image.Code != 404 {
+		t.Fatal(image.Code, image.Body.String())
 	}
 }
 

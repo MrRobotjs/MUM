@@ -488,6 +488,7 @@ export const StreamingSessionCard = ({
           <div className="relative h-[92px] w-[62px] shrink-0 overflow-hidden rounded-md bg-muted ring-1 ring-border/60 shadow-sm">
             {session.thumb_url ? (
               <img
+                key={session.thumb_url}
                 src={session.thumb_url}
                 alt={session.media_title}
                 className="h-full w-full object-cover"
@@ -746,6 +747,7 @@ export const StreamingSessionCard = ({
           <div className="relative h-24 w-16 shrink-0 overflow-hidden rounded-md bg-muted shadow-md sm:h-32 sm:w-24">
             {session.thumb_url ? (
               <img
+                key={session.thumb_url}
                 src={session.thumb_url}
                 alt={session.media_title}
                 className="h-full w-full object-cover opacity-90 transition-opacity hover:opacity-100"

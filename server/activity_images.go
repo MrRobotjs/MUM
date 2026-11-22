@@ -36,17 +36,35 @@ func (a *App) readActivityPictureSource(ctx context.Context, session string, ite
 		externalColumn = `''`
 		tagColumn = `coalesce(json_extract(c.display_json,'$.avatar_path'),'')`
 	}
-	err = tx.QueryRowContext(ctx, `SELECT s.service_type,s.url,coalesce(s.api_key,''),`+externalColumn+`,`+tagColumn+`,s.id,s.config_revision,a.mapping_revision
+	var observed string
+	var pending sql.NullString
+	err = tx.QueryRowContext(ctx, `SELECT s.service_type,s.url,coalesce(s.api_key,''),`+externalColumn+`,`+tagColumn+`,s.id,s.config_revision,a.mapping_revision,a.observed_at,a.pending_until
 	FROM media_activity_current c JOIN media_activity_history h ON h.id=c.history_id
 	JOIN media_servers s ON s.id=c.server_id JOIN provider_settings p ON p.provider_id=s.service_type JOIN media_activity_state a ON a.server_id=s.id
 	WHERE h.id=? AND s.service_type='plex' AND s.is_active=1 AND p.enabled=1 AND a.last_result='fresh'
-	AND a.observed_config_revision=s.config_revision AND a.observed_mapping_revision=a.mapping_revision
-	AND julianday(a.observed_at)>julianday('now','-60 seconds')`, item).Scan(&source.Provider, &source.URL, &source.APIKey, &source.External, &source.Tag, &source.Server, &source.ConfigRevision, &source.ActivityMappingRevision)
+	AND a.observed_config_revision=s.config_revision AND a.observed_mapping_revision=a.mapping_revision`, item).Scan(&source.Provider, &source.URL, &source.APIKey, &source.External, &source.Tag, &source.Server, &source.ConfigRevision, &source.ActivityMappingRevision, &observed, &pending)
+	if errors.Is(err, sql.ErrNoRows) {
+		return source, ErrNotFound
+	}
+	if err != nil {
+		return source, err
+	}
+	now := time.Now().UTC()
+	at, parseErr := time.Parse(time.RFC3339Nano, observed)
+	if parseErr != nil || at.After(now.Add(time.Second)) || now.Sub(at) >= time.Minute && !a.activitySocketConnected(source.Server, at) {
+		return source, ErrNotFound
+	}
+	if pending.Valid {
+		until, err := time.Parse(time.RFC3339Nano, pending.String)
+		if err != nil || !until.After(now) {
+			return source, ErrNotFound
+		}
+	}
 	valid := validPlexCataloguePoster(source.External, source.Tag)
 	if avatar {
 		valid = source.Tag != "" && plex.ActivityAvatar(source.Tag) == source.Tag
 	}
-	if errors.Is(err, sql.ErrNoRows) || err == nil && !valid {
+	if !valid {
 		return source, ErrNotFound
 	}
 	return source, err

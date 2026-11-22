@@ -33,6 +33,7 @@ func TestAutomaticRolesExistFromTheStart(t *testing.T) {
 		"Downloads|#3b82f6|fa-solid fa-download|true|downloads",
 		"Home User|#a855f7|fa-solid fa-house|true|home_user",
 		"Shares Back|#22c55e|fa-solid fa-share|true|shares_back",
+		"Owner|#f59e0b|fa-solid fa-crown|true|",
 	}
 	if !slices.Equal(got, want) {
 		t.Fatalf("automatic roles %v, want %v", got, want)
@@ -135,8 +136,8 @@ func TestPlexSyncKeepsAutomaticRolesInStep(t *testing.T) {
 	if got := labels("2"); got != "Can Download,Family Home,Sharing With Me" {
 		t.Fatalf("friend labels %q", got)
 	}
-	// The owner can always download, and is neither a Home User nor sharing back.
-	if got := labels("1"); got != "Can Download" {
+	// The owner can always download; Home status is unknown in this fixture.
+	if got := labels("1"); got != "Can Download,Owner" {
 		t.Fatalf("owner labels %q", got)
 	}
 

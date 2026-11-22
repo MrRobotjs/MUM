@@ -368,7 +368,7 @@ func TestHumanUserRolesCatalogBoundAndCreateConcurrency(t *testing.T) {
 // roles or that exercise creating Downloads on first sync.
 func removeAutomaticRoles(t *testing.T, s *Store) {
 	t.Helper()
-	for _, query := range []string{"DELETE FROM relationship_roles", "DELETE FROM download_role", "DELETE FROM user_roles WHERE is_auto_managed=1 AND name IN ('Downloads','Home User','Shares Back')"} {
+	for _, query := range []string{"DELETE FROM relationship_roles", "DELETE FROM download_role", "DELETE FROM plex_owner_role", "DELETE FROM user_roles WHERE is_auto_managed=1 AND name IN ('Downloads','Home User','Shares Back','Owner')"} {
 		if _, err := s.writer.Exec(query); err != nil {
 			t.Fatal(query, err)
 		}

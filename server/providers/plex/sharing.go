@@ -97,6 +97,7 @@ type Account struct {
 	Title    string   `xml:"title,attr"`
 	Email    string   `xml:"email,attr"`
 	Thumb    string   `xml:"thumb,attr"`
+	Home     string   `xml:"home,attr"`
 }
 
 // CloudServers is plex.tv's record of a server, with the cloud IDs of its

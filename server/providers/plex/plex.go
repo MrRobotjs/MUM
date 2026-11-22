@@ -251,6 +251,9 @@ func (s *Server) Users(ctx context.Context) ([]provider.User, error) {
 	// The owner has every library and can always download; plex.tv supplies
 	// no share date for it.
 	result := []provider.User{{ID: OwnerAccountID, AltID: AccountUUID(owner.UUID, owner.Thumb), AccountID: ownerAccountID(owner.ID), Name: ownerName, Email: owner.Email, Active: true, AllLibraries: true, LibraryIDs: []string{}, Access: &provider.UserAccess{LibrariesKnown: true, DownloadsKnown: true, AllowDownloads: true}, Profile: &provider.UserProfile{AvatarURL: UserAvatar(owner.Thumb)}}}
+	if home, known := ExplicitBool(owner.Home); known {
+		result[0].Relationship = &provider.UserRelationship{Home: home}
+	}
 	seenUsers := map[string]bool{OwnerAccountID: true}
 	for _, u := range users.Users {
 		id := u.Attr("id")

@@ -725,6 +725,10 @@ func (a *App) syncServerClaimed(ctx context.Context, actor, access string, s Man
 			if err != nil {
 				return err
 			}
+			var plexOwnerRole string
+			if err := tx.QueryRowContext(ctx, `SELECT coalesce((SELECT r.role_id FROM plex_owner_role r JOIN user_roles u ON u.id=r.role_id AND u.is_auto_managed=1),'')`).Scan(&plexOwnerRole); err != nil {
+				return err
+			}
 			seen := make([]string, 0, len(accounts))
 			for _, account := range accounts {
 				seen = append(seen, account.ID)
@@ -806,6 +810,19 @@ func (a *App) syncServerClaimed(ctx context.Context, actor, access string, s Man
 					}
 					if change != nil {
 						downloadChanges = append(downloadChanges, *change)
+					}
+				}
+				if s.Type == "plex" && account.ID == plexOwnerAccountID && plexOwnerRole != "" {
+					result, err := tx.ExecContext(ctx, `INSERT INTO identity_user_roles(user_uuid,role_id) VALUES(?,?) ON CONFLICT DO NOTHING`, uuid, plexOwnerRole)
+					if err != nil {
+						return err
+					}
+					count, err := result.RowsAffected()
+					if err != nil {
+						return err
+					}
+					if count > 0 {
+						relationshipChanges = append(relationshipChanges, relationshipLabelChange{Service: uuid, Label: "plex_server_owner", Added: true})
 					}
 				}
 				changed, err := reconcileRelationshipRoles(ctx, tx, relationships, uuid, account.Relationship)

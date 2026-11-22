@@ -134,7 +134,7 @@ func (a *App) graphPlayHistory(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback()
 	now := time.Now().UTC()
-	_, fences, err := readActivityStatuses(ctx, tx, actor.UUID, scope, now)
+	_, fences, err := readActivityStatuses(ctx, tx, actor.UUID, scope, now, a.store.activitySocketConnected)
 	if err != nil {
 		domainError(w, err)
 		return

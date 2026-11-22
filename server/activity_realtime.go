@@ -23,7 +23,7 @@ func (s *Store) activitySignal(ctx context.Context, actor, access string, all bo
 		return empty, err
 	}
 	defer tx.Rollback()
-	statuses, fences, err := readActivityStatuses(ctx, tx, actor, activityReadQuery{All: all}, time.Now().UTC())
+	statuses, fences, err := readActivityStatuses(ctx, tx, actor, activityReadQuery{All: all}, time.Now().UTC(), s.activitySocketConnected)
 	if err != nil {
 		return empty, err
 	}

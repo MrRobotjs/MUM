@@ -279,7 +279,7 @@ func (a *App) graphAnalytics(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback()
 	now := time.Now().UTC()
-	statuses, fences, err := readActivityStatuses(ctx, tx, actor.UUID, scope, now)
+	statuses, fences, err := readActivityStatuses(ctx, tx, actor.UUID, scope, now, a.store.activitySocketConnected)
 	if err != nil {
 		domainError(w, err)
 		return

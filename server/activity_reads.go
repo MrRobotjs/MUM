@@ -128,7 +128,7 @@ func (s *Store) beginActivityView(ctx context.Context, actor, access string, all
 	}
 	return tx, nil
 }
-func readActivityStatuses(ctx context.Context, tx *sql.Tx, actor string, q activityReadQuery, now time.Time) ([]activityReadStatus, map[int64]activityReadFence, error) {
+func readActivityStatuses(ctx context.Context, tx *sql.Tx, actor string, q activityReadQuery, now time.Time, connected ...func(int64, time.Time) bool) ([]activityReadStatus, map[int64]activityReadFence, error) {
 	if err := checkActivityTarget(ctx, tx, actor, q); err != nil {
 		return nil, nil, err
 	}
@@ -183,7 +183,7 @@ func readActivityStatuses(ctx context.Context, tx *sql.Tx, actor string, q activ
 			item.Observed = &observed.String
 			item.Age = &age
 			item.Freshness = "fresh"
-			if age >= 60 {
+			if age >= 60 && !(len(connected) > 0 && connected[0] != nil && connected[0](id, at)) {
 				item.Freshness = "stale"
 			}
 			if !configRevision.Valid || !mappingRevision.Valid || configRevision.Int64 != fence.ConfigRevision || mappingRevision.Int64 != fence.Mapping {
@@ -300,7 +300,7 @@ func (s *Store) checkActivityDelivery(ctx context.Context, actor, access string,
 		return err
 	}
 	defer tx.Rollback()
-	_, actual, err := readActivityStatuses(ctx, tx, actor, q, time.Now().UTC())
+	_, actual, err := readActivityStatuses(ctx, tx, actor, q, time.Now().UTC(), s.activitySocketConnected)
 	if err != nil {
 		return err
 	}
@@ -338,7 +338,7 @@ func (a *App) activityRead(w http.ResponseWriter, r *http.Request) {
 		result.Scope = "all"
 	}
 	var fences map[int64]activityReadFence
-	result.Servers, fences, err = readActivityStatuses(ctx, tx, actor.UUID, q, now)
+	result.Servers, fences, err = readActivityStatuses(ctx, tx, actor.UUID, q, now, a.store.activitySocketConnected)
 	if err == nil {
 		result.Items, result.Next, err = readActivityItems(ctx, tx, actor.UUID, q)
 	}

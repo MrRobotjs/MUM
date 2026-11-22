@@ -34,18 +34,23 @@ export function readStreamDisplayDefaults(actor?:string):StreamDisplaySettings {
  try{const value=JSON.parse(window.localStorage.getItem(`streamDisplaySettings:${actor}`)??'null');return{default_card_style:['detailed','compact'].includes(value?.default_card_style)?value.default_card_style:fallback.default_card_style,default_grouping:['merged','categorized','service'].includes(value?.default_grouping)?value.default_grouping:fallback.default_grouping};}catch{return fallback;}
 }
 
-// As in Flask, playing sessions advance locally once a second between updates
-// and every update resets them to the reported position. A new position up to
-// 3 s behind the running clock keeps the clock, so it never jumps backwards.
-export type PlaybackBaseline={received_at:number;seconds:Map<string,number>};
+// A server can repeat the same position on many snapshots while another
+// session triggers refreshes. Keep an independent estimate for each session
+// rather than treating each repeated value as a new playback observation.
+export type PlaybackBaseline={received_at:number;seconds:Map<string,number>;reported:Map<string,number>;states:Map<string,string>};
 const playing=(s:ActiveSession)=>s.state==='playing'&&s.position_seconds!==undefined;
 export function playbackBaseline(data:LiveStreamsData,previous?:PlaybackBaseline):PlaybackBaseline{
- const seconds=new Map<string,number>();
+ const seconds=new Map<string,number>(),reported=new Map<string,number>(),states=new Map<string,string>();
  for(const s of data.sessions){if(s.position_seconds===undefined)continue;
   let value=s.position_seconds+(s.state==='playing'?(s.observed_age_ms??0)/1000:0);const before=previous?.seconds.get(s.session_key);
-  if(playing(s)&&before!==undefined&&previous){const predicted=before+(data.received_at-previous.received_at)/1000;if(predicted>value&&predicted-value<=3)value=predicted;}
-  seconds.set(s.session_key,value);}
- return{received_at:data.received_at,seconds};
+  if(playing(s)&&before!==undefined&&previous?.states.get(s.session_key)==='playing'){
+   const predicted=before+Math.max(0,data.received_at-previous.received_at)/1000;
+   const lastReported=previous.reported.get(s.session_key);
+   if(lastReported===s.position_seconds||(lastReported!==undefined&&s.position_seconds>=lastReported&&predicted>value&&predicted-value<=12))value=predicted;
+  }
+  if(s.duration_seconds!==undefined&&s.duration_seconds>0)value=Math.min(value,s.duration_seconds);
+  seconds.set(s.session_key,value);reported.set(s.session_key,s.position_seconds);states.set(s.session_key,s.state);}
+ return{received_at:data.received_at,seconds,reported,states};
 }
 const clock=(total:number)=>{const t=Math.floor(total);return `${Math.floor(t/3600)}:${String(Math.floor(t%3600/60)).padStart(2,'0')}:${String(t%60).padStart(2,'0')}`;};
 export function advanceLiveStreams(data:LiveStreamsData,baseline:PlaybackBaseline,now:number):LiveStreamsData{

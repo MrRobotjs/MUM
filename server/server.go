@@ -90,6 +90,7 @@ func NewApp(store *Store, queue *LogQueue, assets fs.FS) (*App, error) {
 	a.scheduler = &syncScheduler{ctx: schedulerCtx, cancel: schedulerCancel, done: make(chan struct{}), healthDone: make(chan struct{}), refreshDone: make(chan struct{}), runner: newUUID()}
 	a.refreshListSlot = make(chan struct{}, 1)
 	a.providerSockets = &providerSocketRuntime{workers: map[int64]*providerSocketWorker{}, done: make(chan struct{}), dialSlots: make(chan struct{}, 8)}
+	store.activitySocketConnected = a.activitySocketConnected
 	a.provisionSlots = make(chan struct{}, 2)
 	a.signInSlots = make(chan struct{}, 8)
 	a.catalogueRuns = map[int64]*catalogueProgress{}

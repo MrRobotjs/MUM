@@ -99,7 +99,13 @@ func (a *App) StartScheduler() error {
 	go func() {
 		defer close(s.done)
 		defer func() { s.cancel(); <-a.providerSockets.done; <-s.healthDone; <-s.refreshDone }()
-		if err := a.store.write(s.ctx, func(tx *sql.Tx) error { return reconcileAutomaticActivity(s.ctx, tx) }); err != nil && s.ctx.Err() == nil {
+		if err := a.store.write(s.ctx, func(tx *sql.Tx) error {
+			if err := reconcileAutomaticActivity(s.ctx, tx); err != nil {
+				return err
+			}
+			_, err := tx.ExecContext(s.ctx, `UPDATE activity_monitor_schedules SET next_run_at=strftime('%Y-%m-%dT%H:%M:%fZ','now'),revision=revision+1 WHERE enabled=1 AND run_state<>'running' AND server_id IN (SELECT id FROM media_servers WHERE service_type IN ('plex','jellyfin','emby'))`)
+			return err
+		}); err != nil && s.ctx.Err() == nil {
 			s.mu.Lock()
 			s.checkpointErr = err
 			s.mu.Unlock()

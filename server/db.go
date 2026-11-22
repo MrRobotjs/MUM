@@ -22,11 +22,12 @@ var migrationFiles embed.FS
 // Store owns the only writable connection pool. Callers must not open another
 // writable handle to this file. Read queries use a separate query-only pool.
 type Store struct {
-	writer        *sql.DB
-	reader        *sql.DB
-	dataDir       string
-	secretsMu     sync.Mutex
-	directoryLock *dataDirectoryLock
+	writer                  *sql.DB
+	reader                  *sql.DB
+	dataDir                 string
+	secretsMu               sync.Mutex
+	directoryLock           *dataDirectoryLock
+	activitySocketConnected func(int64, time.Time) bool
 }
 
 func sqliteDSN(path string, readOnly bool) string {

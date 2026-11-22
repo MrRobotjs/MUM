@@ -16,7 +16,7 @@ export function socketMonitoringStatus(task:MonitorTask):string {
   if (task.state === 'paused') return 'Unavailable';
   if (task.state === 'recovering') return 'Recovering';
   if (task.socket_state === 'connected') return 'Active · WebSocket';
-  if (task.state === 'scheduled' || task.state === 'running') return 'HTTP fallback';
+  if (task.state === 'scheduled' || task.state === 'running') return task.socket_enabled ? 'Reconnecting' : 'HTTP fallback';
   return 'Unavailable';
 }
 

@@ -110,7 +110,7 @@ func (a *App) activitySummary(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback()
 	now := time.Now().UTC()
-	statuses, fences, err := readActivityStatuses(ctx, tx, actor.UUID, q, now)
+	statuses, fences, err := readActivityStatuses(ctx, tx, actor.UUID, q, now, a.store.activitySocketConnected)
 	var total activityCountValues
 	var servers []activityServerSummary
 	if err == nil {

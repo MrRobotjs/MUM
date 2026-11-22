@@ -67,7 +67,7 @@ func finishActivityMonitor(ctx context.Context, tx *sql.Tx, c activityReadClaim,
 	if code == "CANCELLED" {
 		state = "cancelled"
 	}
-	result, err := tx.ExecContext(ctx, `UPDATE activity_monitor_schedules SET run_state=?,last_code=?,finished_at=?,claim_token=NULL,runner_id=NULL,lease_until=NULL,next_run_at=CASE WHEN enabled=1 THEN strftime('%Y-%m-%dT%H:%M:%fZ','now','+'||interval_seconds||' seconds') ELSE NULL END,revision=revision+1 WHERE server_id=? AND revision=? AND claim_token=? AND run_state='running'`, state, code, utcTimestamp(time.Now()), c.Server, c.MonitorRevision, c.Token)
+	result, err := tx.ExecContext(ctx, `UPDATE activity_monitor_schedules SET run_state=?,last_code=?,finished_at=?,claim_token=NULL,runner_id=NULL,lease_until=NULL,next_run_at=CASE WHEN enabled=1 AND NOT (socket_enabled=1 AND ?='SUCCEEDED') THEN strftime('%Y-%m-%dT%H:%M:%fZ','now','+'||interval_seconds||' seconds') ELSE NULL END,revision=revision+1 WHERE server_id=? AND revision=? AND claim_token=? AND run_state='running'`, state, code, utcTimestamp(time.Now()), code, c.Server, c.MonitorRevision, c.Token)
 	if err != nil {
 		return err
 	}

@@ -26,6 +26,7 @@ type providerSocketWorker struct {
 	lastNudge   time.Time // Supervisor only.
 	mu          sync.Mutex
 	state, code string
+	connectedAt time.Time
 }
 type providerSocketRuntime struct {
 	mu        sync.Mutex
@@ -40,6 +41,7 @@ func (w *providerSocketWorker) status(state, code string) {
 	w.state = state
 	if state == "connected" {
 		w.code = ""
+		w.connectedAt = time.Now().UTC()
 	}
 	if code != "" {
 		w.code = code
@@ -170,7 +172,7 @@ func (a *App) runProviderSocket(ctx context.Context, w *providerSocketWorker, se
 			break
 		}
 		w.status("backoff", "TRANSPORT_FAILED")
-		a.logger.Warn("Provider socket unavailable; HTTP polling remains active", "server_id", server.ID, "provider", server.Type, "retry_seconds", backoff.Seconds())
+		a.logger.Warn("Provider socket unavailable; reconnecting", "server_id", server.ID, "provider", server.Type, "retry_seconds", backoff.Seconds())
 		if errors.Is(err, ErrQueueFull) || errors.Is(err, ErrQueueClosed) || errors.Is(err, ErrQueueFailed) {
 			w.status("backoff", "QUEUE_REJECTED")
 		}

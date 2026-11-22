@@ -27,4 +27,15 @@ test('current streams feed original presentation',async t=>{
   // Paused sessions stand still.
   const paused={...data,sessions:[{...s,state:'paused'}]};assert.equal(m.advanceLiveStreams(paused,m.playbackBaseline(paused),data.received_at+5000).sessions[0].current_time,'0:00:02');});
  await t.test('reported current Plex buffering state overrides the paused-only fallback',async()=>{const m=await load();m.setAccessToken('token');const p=page();p.items[0].display={state:'buffering',container_detail:'Converting (MKV → MKV)'};feed(p);const stream=(await m.fetchLiveStreams(actor,'token')).sessions[0];assert.equal(stream.state,'buffering');assert.equal(stream.container_detail,'Converting (MKV → MKV)');p.items[0].display={state:'paused'};p.items[0].paused=true;assert.equal((await m.fetchLiveStreams(actor,'token')).sessions[0].state,'paused');p.items[0].display={};p.items[0].paused=false;assert.equal((await m.fetchLiveStreams(actor,'token')).sessions[0].state,'playing');p.items[0].display={state:'made-up'};await assert.rejects(m.fetchLiveStreams(actor,'token'));});
+ await t.test('reconciles independent stale positions, real seeks and playback state changes',async()=>{const m=await load();m.setAccessToken('token');feed(page());const data=await m.fetchLiveStreams(actor,'token');const s={...data.sessions[0],duration_seconds:1000,position_seconds:100,observed_age_ms:0};const other={...s,session_key:'other',position_seconds:400};const sample=(at,rows)=>({...data,received_at:at,sessions:rows});const start=data.received_at;
+  let base=m.playbackBaseline(sample(start,[s,other]));
+  base=m.playbackBaseline(sample(start+6000,[s,{...other,position_seconds:406}]),base);assert.equal(base.seconds.get(s.session_key),106);assert.equal(base.seconds.get('other'),406);
+  base=m.playbackBaseline(sample(start+12000,[{...s,position_seconds:110},{...other,position_seconds:412}]),base);assert.equal(base.seconds.get(s.session_key),112);
+  base=m.playbackBaseline(sample(start+22000,[{...s,position_seconds:111},other]),base);assert.equal(base.seconds.get(s.session_key),122);
+  base=m.playbackBaseline(sample(start+23000,[{...s,position_seconds:40},other]),base);assert.equal(base.seconds.get(s.session_key),40);
+  base=m.playbackBaseline(sample(start+24000,[{...s,state:'paused',position_seconds:41}]),base);assert.equal(base.seconds.get(s.session_key),41);
+  base=m.playbackBaseline(sample(start+34000,[{...s,state:'paused',position_seconds:41}]),base);assert.equal(base.seconds.get(s.session_key),41);
+  base=m.playbackBaseline(sample(start+35000,[{...s,state:'playing',position_seconds:41}]),base);assert.equal(base.seconds.get(s.session_key),41);
+  base=m.playbackBaseline(sample(start+36000,[{...s,state:'buffering',position_seconds:42}]),base);assert.equal(base.seconds.get(s.session_key),42);
+ });
 });

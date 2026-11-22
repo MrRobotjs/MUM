@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 const plexPlaying = `<MediaContainer size="1"><Video sessionKey="10" ratingKey="123" type="movie" title="Fixture movie" duration="10000" viewOffset="2000"><User id="42" title="Viewer"/><Player state="playing" product="Plex Web" title="Private device"/></Video></MediaContainer>`
@@ -29,6 +30,88 @@ func TestPlexActivityParser(t *testing.T) {
 			t.Fatal("incomplete Plex sessions accepted")
 		}
 	}
+}
+
+func TestPlexActivityMonitoringWaitsForSocketAfterSuccessfulRead(t *testing.T) {
+	a, s := testApp(t)
+	token, _ := bootstrapOwner(t, a)
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `<MediaContainer size="0"/>`)
+	}))
+	defer upstream.Close()
+	server := createManagedServer(t, a, token, "plex", upstream.URL)
+	activityExec(t, s, `UPDATE activity_monitor_schedules SET socket_enabled=1, next_run_at='2000-01-01T00:00:00Z' WHERE server_id=?`, server)
+	if err := a.runOneActivityMonitor(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	var next sql.NullString
+	if err := s.reader.QueryRow("SELECT next_run_at FROM activity_monitor_schedules WHERE server_id=?", server).Scan(&next); err != nil || next.Valid {
+		t.Fatalf("successful Plex observation scheduled another poll: %v %v", next, err)
+	}
+}
+
+func TestSocketScheduleMigrationPreservesExistingMonitor(t *testing.T) {
+	a, s := testApp(t)
+	token, _ := bootstrapOwner(t, a)
+	server := createManagedServer(t, a, token, "plex", "http://127.0.0.1:1")
+	activityExec(t, s, `UPDATE activity_monitor_schedules SET interval_seconds=97, socket_pending=1 WHERE server_id=?`, server)
+	migration, err := migrationFiles.ReadFile("go_migrations/090_activity_socket_schedule.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.write(t.Context(), func(tx *sql.Tx) error { _, err := tx.ExecContext(t.Context(), string(migration)); return err }); err != nil {
+		t.Fatal(err)
+	}
+	var interval int
+	var enabled, pending bool
+	if err := s.reader.QueryRow(`SELECT enabled,interval_seconds,socket_pending FROM activity_monitor_schedules WHERE server_id=?`, server).Scan(&enabled, &interval, &pending); err != nil || !enabled || interval != 97 || !pending {
+		t.Fatal(enabled, interval, pending, err)
+	}
+	other := createManagedServer(t, a, token, "jellyfin", "http://127.0.0.1:2")
+	var count int
+	if err := s.reader.QueryRow(`SELECT count(*) FROM activity_monitor_schedules WHERE server_id=?`, other).Scan(&count); err != nil || count != 1 {
+		t.Fatal(count, err)
+	}
+}
+
+func TestQuietPlexActivityFreshOnlyAfterCurrentSocketReconciliation(t *testing.T) {
+	a, s := testApp(t)
+	token, _ := bootstrapOwner(t, a)
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, `<MediaContainer size="0"/>`) }))
+	defer upstream.Close()
+	server := createManagedServer(t, a, token, "plex", upstream.URL)
+	if err := a.runOneActivityMonitor(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	at := time.Now().UTC().Add(-2 * time.Minute)
+	activityExec(t, s, "UPDATE media_activity_state SET observed_at=? WHERE server_id=?", utcTimestamp(at), server)
+	w := &providerSocketWorker{state: "connected", connectedAt: at.Add(-time.Second)}
+	a.providerSockets.mu.Lock()
+	a.providerSockets.workers[server] = w
+	a.providerSockets.mu.Unlock()
+	check := func(want string) {
+		t.Helper()
+		response := apiRequest(a, "GET", "/api/activity/current?scope=all", token, nil, nil)
+		if response.Code != 200 {
+			t.Fatal(response.Code, response.Body.String())
+		}
+		status := responseData(t, response)["servers"].([]any)[0].(map[string]any)
+		if status["freshness"] != want {
+			t.Fatal(status)
+		}
+	}
+	check("fresh")
+	activityExec(t, s, "UPDATE media_activity_state SET last_result='failed' WHERE server_id=?", server)
+	check("failed")
+	activityExec(t, s, "UPDATE media_activity_state SET last_result='fresh' WHERE server_id=?", server)
+	w.mu.Lock()
+	w.connectedAt = time.Now().UTC()
+	w.mu.Unlock()
+	check("stale")
+	w.mu.Lock()
+	w.state = "backoff"
+	w.mu.Unlock()
+	check("stale")
 }
 func TestPlexMonitoringObservesUnlinkedIdentityWithoutAdoption(t *testing.T) {
 	a, s := testApp(t)

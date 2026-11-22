@@ -4,9 +4,10 @@ import {loadFrontend} from './frontendLoader.mjs';
 
 test('provider socket status and subscription descriptions are truthful',async()=>{
  const m=await loadFrontend("export * from './src/lib/providerSocketDetails'");
- const task={provider:'plex',state:'scheduled',socket_state:'connected'};
+ const task={provider:'plex',state:'scheduled',socket_state:'connected',socket_enabled:true};
  assert.equal(m.socketMonitoringStatus(task),'Active · WebSocket');
- assert.equal(m.socketMonitoringStatus({...task,socket_state:'backoff'}),'HTTP fallback');
+ assert.equal(m.socketMonitoringStatus({...task,socket_state:'backoff'}),'Reconnecting');
+ assert.equal(m.socketMonitoringStatus({...task,socket_enabled:false,socket_state:'disabled'}),'HTTP fallback');
  assert.equal(m.socketMonitoringStatus({...task,state:'stopped'}),'Stopped');
  assert.equal(m.isSocketConnected(task),true);
  assert.equal(m.isSocketConnected({...task,socket_state:'backoff'}),false);

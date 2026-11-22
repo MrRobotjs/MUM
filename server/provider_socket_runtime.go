@@ -149,3 +149,18 @@ func (a *App) providerSocketStatus(id int64, enabled, eligible, running bool) (s
 	defer w.mu.Unlock()
 	return w.state, w.code
 }
+
+// Only a live worker for the current configured revision can keep a quiet
+// snapshot current. A new connection requests a full reconciliation.
+func (a *App) activitySocketConnected(id int64, observed time.Time) bool {
+	r := a.providerSockets
+	r.mu.Lock()
+	w, code := r.workers[id], r.code
+	r.mu.Unlock()
+	if w == nil || code != "" {
+		return false
+	}
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.state == "connected" && w.code == "" && !w.connectedAt.IsZero() && !observed.Before(w.connectedAt)
+}

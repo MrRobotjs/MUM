@@ -5,7 +5,7 @@ import { getAccessToken } from '../store/authStore';
 // a query invalidates its old result even when fetch ignores AbortSignal.
 export class CatalogueView {
   private active = true;
-  private reads = new Map<string, { key: string; abort: AbortController; timer: ReturnType<typeof setTimeout> }>();
+  private reads = new Map<string, { key: string; abort: AbortController; timer: ReturnType<typeof setTimeout>; finished: boolean }>();
   private queries: Record<string, string> = {};
   private mutation: object | null = null;
   private blocked = false;
@@ -14,7 +14,7 @@ export class CatalogueView {
   current = () => this.active && !!this.token && getAccessToken() === this.token;
   update(queries: Record<string, string>) {
     for (const [channel, run] of this.reads) {
-      if (queries[channel] !== run.key) { run.abort.abort(); clearTimeout(run.timer); this.reads.delete(channel); }
+      if (queries[channel] !== run.key) { if (!run.finished) run.abort.abort(); clearTimeout(run.timer); this.reads.delete(channel); }
     }
     this.queries = queries;
   }
@@ -24,12 +24,12 @@ export class CatalogueView {
       return {signal: abort.signal, current: () => false, finish: () => {}};
     }
     const old = this.reads.get(channel);
-    if (old) { old.abort.abort(); clearTimeout(old.timer); }
+    if (old) { if (!old.finished) old.abort.abort(); clearTimeout(old.timer); }
     const abort = new AbortController();
-    const run = {key, abort, timer: setTimeout(() => abort.abort(), 15000)};
+    const run = {key, abort, timer: setTimeout(() => abort.abort(), 15000), finished: false};
     this.reads.set(channel, run);
     return {signal: abort.signal, current: () => this.current() && this.reads.get(channel) === run,
-      finish: () => clearTimeout(run.timer)};
+      finish: () => { run.finished = true; clearTimeout(run.timer); }};
   }
   beginMutation() {
     if (!this.current() || this.mutation || this.blocked) return null;
@@ -46,7 +46,7 @@ export class CatalogueView {
   activate() { this.active = true; }
   dispose() {
     this.active = false;
-    for (const run of this.reads.values()) { run.abort.abort(); clearTimeout(run.timer); }
+    for (const run of this.reads.values()) { if (!run.finished) run.abort.abort(); clearTimeout(run.timer); }
     this.reads.clear();
   }
 }

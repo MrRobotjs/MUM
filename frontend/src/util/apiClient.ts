@@ -33,7 +33,8 @@ export const apiFetch = async (input: RequestInfo, init: ApiRequestInit = {}): P
   const token = getAccessToken();
   if (token) headers.set('Authorization', `Bearer ${token}`);
   const original = new Request(typeof input === 'string' ? url.href : input, { ...requestInit, credentials: 'include', headers });
-  let response = await fetch(original.clone());
+  // Keep an unused clone only when an authentication retry may need it.
+  let response = await fetch(retryAuthentication ? original.clone() : original);
   const isAuthentication = url.pathname.startsWith('/api/auth/') || url.pathname === '/api/setup/account';
   if (response.status === 401 && !isAuthentication && retryAuthentication) {
     const refreshed = await refreshAccessToken();

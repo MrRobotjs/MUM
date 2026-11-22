@@ -1,0 +1,30 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import {loadFrontend} from './frontendLoader.mjs';
+
+test('catalogue reads cancel only while in flight and cannot overwrite newer reads',async()=>{
+ const m=await loadFrontend("export {CatalogueView} from './src/lib/catalogueView';export {setAccessToken} from './src/store/authStore';");
+ m.setAccessToken('fixture-token');
+ const view=new m.CatalogueView('fixture-token');
+ view.update({media:'one'});
+ const completed=view.begin('media');
+ completed.finish();
+ assert.equal(completed.current(),true);
+ const old=view.begin('media');
+ assert.equal(completed.signal.aborted,false,'a finished request must not be aborted');
+ const rejected=new Promise((resolve,reject)=>old.signal.addEventListener('abort',()=>reject(old.signal.reason),{once:true}));
+ const handled=assert.rejects(rejected,{name:'AbortError'});
+ const next=view.begin('media');
+ await handled;
+ assert.equal(old.current(),false);
+ assert.equal(next.current(),true);
+ next.finish();
+ view.update({media:'two'});
+ assert.equal(next.signal.aborted,false,'a finished request must not be aborted on query change');
+ assert.equal(next.current(),false);
+ const final=view.begin('media');
+ final.finish();
+ view.dispose();
+ assert.equal(final.signal.aborted,false,'a finished request must not be aborted on unmount');
+ assert.equal(final.current(),false);
+});

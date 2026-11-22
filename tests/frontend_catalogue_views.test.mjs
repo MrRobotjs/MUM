@@ -73,6 +73,15 @@ test('catalogue page async boundaries',async t=>{
   h.render(m.LibraryDetailPage);h.params={serverId:'1',libraryId:'2'};h.render(m.LibraryDetailPage);await flush();pending.resolve(Response.json({data:{id:1,name:'Stale Library A',library_type:'movies',server:{service_type:'jellyfin'}}}));await flush();const page=text(h.render(m.LibraryDetailPage));assert.match(page,/Library B/);assert.doesNotMatch(page,/Stale Library A/);
  });
 
+ await t.test('opening directly on media does not restart its pending read when library details arrive',async()=>{
+  const h=harness(),m=await load(h),pending=deferred(),media=[];t.after(h.close);h.tab='media';
+  globalThis.fetch=async req=>{const path=new URL(req.url).pathname;if(path.endsWith('/media')){media.push(req);return pending.promise;}return Response.json({data:{id:1,name:'Movies',library_type:'movie',catalogue:{supported:true,revision:1,collections_supported:true},server:{service_type:'plex'}}});};
+  h.render(m.LibraryDetailPage);await flush();h.render(m.LibraryDetailPage);await flush();
+  assert.equal(media.length,1,'library details should not restart the media request');
+  assert.equal(media[0].signal.aborted,false);
+  pending.resolve(Response.json({data:[],meta:{pagination:{total_pages:1,total_items:0}}}));await flush();
+ });
+
  await t.test('mutation reconciliation does not reload a superseded episode sort',async()=>{
   const h=harness(),m=await load(h),pending=deferred(),calls=[];t.after(h.close);
   globalThis.fetch=async req=>{calls.push(req.method+' '+req.url);return req.method==='POST'?pending.promise:Response.json(req.url.includes('/episodes')?episodes('A'):show(10,'Show A'));};

@@ -414,16 +414,20 @@ const LibraryDetailPageView = () => {
   // no timer fallback
 
   useEffect(() => {
-    if (activeTab === 'media') {
-      loadMediaItems();
-    } else if (activeTab === 'collections' && library?.catalogue?.collections_supported === true) {
-      loadCollections();
-    } else if (activeTab === 'stats') {
-      loadStats();
-    } else if (activeTab === 'activity') {
-      loadActivity();
-    }
-  }, [libraryId, activeTab, currentPage, pageSize, sortBy, searchQuery, statsDays, timeZone, activityDays, activityPage, library?.server?.service_type, library?.catalogue?.collections_supported]);
+    if (activeTab === 'media') void loadMediaItems();
+  }, [libraryId, activeTab, currentPage, pageSize, sortBy, searchQuery]);
+
+  useEffect(() => {
+    if (activeTab === 'collections' && library?.catalogue?.collections_supported === true) void loadCollections();
+  }, [libraryId, activeTab, library?.catalogue?.collections_supported]);
+
+  useEffect(() => {
+    if (activeTab === 'stats') void loadStats();
+  }, [libraryId, activeTab, statsDays, timeZone]);
+
+  useEffect(() => {
+    if (activeTab === 'activity') void loadActivity();
+  }, [libraryId, activeTab, activityDays, activityPage]);
 
   // A TV library syncs shows and their episodes; a music library its albums
   // and their tracks. These are the words each uses.
@@ -796,7 +800,6 @@ const LibraryDetailPageView = () => {
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     setCurrentPage(1);
-    loadMediaItems();
   };
 
   if (loading) {

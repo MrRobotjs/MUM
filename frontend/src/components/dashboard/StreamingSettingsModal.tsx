@@ -1,8 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { getAuthSnapshot, subscribeToAuthStore } from '../../store/authStore';
-import { UserPreferencesCard } from '../users/UserPreferencesCard';
-import { ActivityMonitoringSettings } from '../settings/ActivityMonitoringSettings';
 import { ResponsiveDialog } from '../ui/responsive-dialog';
 import { Button } from '../ui/button';
 import { StreamingMapSettings } from '../settings/StreamingMapSettings';
@@ -19,13 +17,12 @@ export const StreamingSettingsModal = ({ open, onClose }: StreamingSettingsModal
     key={`${user.uuid}:${session.accessToken}:${isAdministrator}`}
     open={open} onOpenChange={value => { if (!value) onClose(); }}
     title="Streaming Settings"
-    description="Save display preferences and per-server monitoring separately. Closing does not undo saved changes."
+    description="Manage the Live User Map."
     footer={<Button variant="outline" onClick={onClose}>Close</Button>}
     contentClassName="max-w-lg" bodyClassName="space-y-4"
   >
-    <UserPreferencesCard />
-    {isAdministrator && <ActivityMonitoringSettings />}
     {isAdministrator && <StreamingMapSettings />}
+    {!isAdministrator && <p className="text-sm text-muted-foreground">No streaming settings are available for this account.</p>}
   </ResponsiveDialog>;
 };
 

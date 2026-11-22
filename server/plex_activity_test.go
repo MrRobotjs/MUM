@@ -57,8 +57,8 @@ func TestPlexMonitoringObservesUnlinkedIdentityWithoutAdoption(t *testing.T) {
 	if err := a.runOneActivityMonitor(t.Context()); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(logs.String(), "Activity poll completed") || !strings.Contains(logs.String(), "sessions=1") || strings.Contains(logs.String(), "Private device") || strings.Contains(logs.String(), "fixture-secret") {
-		t.Fatal("missing safe poll summary", logs.String())
+	if !strings.Contains(logs.String(), "Stream session updated") || !strings.Contains(logs.String(), "position_ms=2000") || !strings.Contains(logs.String(), "transport=http") || !strings.Contains(logs.String(), `title="Fixture movie"`) || strings.Contains(logs.String(), "Activity poll completed") || strings.Contains(logs.String(), "Private device") || strings.Contains(logs.String(), "fixture-secret") {
+		t.Fatal("missing safe stream update", logs.String())
 	}
 	var current, links int
 	s.reader.QueryRow("SELECT count(*) FROM media_activity_current WHERE server_id=?", server).Scan(&current)

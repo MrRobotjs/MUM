@@ -61,6 +61,12 @@ func TestProviderSocketRuntimeQueuesRedactedHintsAndReconcilesCompleteHTTP(t *te
 					json.NewEncoder(w).Encode([]any{map[string]any{"Id": "only-session", "UserId": service, "NowPlayingItem": map[string]string{"Id": "item", "Name": "Private authoritative title", "Type": "Movie"}, "PlayState": map[string]bool{"IsPaused": false}}})
 					return
 				}
+				// Startup synchronization may also reach this fixture. It is not
+				// part of this socket test and must not be mistaken for an upgrade.
+				if !strings.EqualFold(r.Header.Get("Upgrade"), "websocket") {
+					http.NotFound(w, r)
+					return
+				}
 				want := "/"
 				if provider == "jellyfin" {
 					want = "/socket"

@@ -25,7 +25,6 @@ import { fetchPersonalProfile } from '../lib/plexConnection';
 import { useAlerts } from '../contexts/AlertContext';
 import { AccountDisplayCard } from '../components/users/AccountDisplayCard';
 import { useAccountDisplay } from '../hooks/useAccountDisplay';
-import { UserPreferencesCard } from '../components/users/UserPreferencesCard';
 import { faKey, faLink, faSliders, faUser } from '@fortawesome/free-solid-svg-icons';
 import './AccountPage.css';
 
@@ -362,10 +361,9 @@ const AccountPage = () => {
         </TabsContent>
 
         <TabsContent value="preferences" className="space-y-8 rounded-xl border bg-card p-6 text-card-foreground shadow-sm">
-          <TabHeading icon={faSliders} title="Preferences" description="How dates, times and badges appear for you" />
+          <TabHeading icon={faSliders} title="Preferences" description="How dates and times appear for you" />
           <div className="account-settings-panels">
             <AccountDisplayCard />
-            <UserPreferencesCard />
           </div>
         </TabsContent>
       </Tabs>

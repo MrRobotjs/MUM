@@ -146,8 +146,6 @@ func (a *App) runOneActivityMonitor(parent context.Context) error {
 	}
 	a.logger.Debug("Activity poll started", "server_id", c.Server, "provider", c.Provider)
 	stage := "load_source"
-	observed := 0
-	var applied activityApplyResult
 	server, err := a.loadServer(ctx, c.Server)
 	if err == nil && (server.ConfigRevision != c.ConfigRevision || !server.EffectiveActive) {
 		err = ErrConflict
@@ -161,9 +159,8 @@ func (a *App) runOneActivityMonitor(parent context.Context) error {
 			provider.locations = &a.locationCache
 			snapshot, err = provider.readActivitySnapshot(ctx)
 			if err == nil {
-				observed = len(snapshot.Sessions)
 				stage = "persist_snapshot"
-				applied, err = a.saveActivity(ctx, *c, snapshot)
+				_, err = a.saveActivity(ctx, *c, snapshot)
 				if err == nil {
 					// Its own budget: the poll's may be nearly spent.
 					policy, cancel := context.WithTimeout(parent, 30*time.Second)
@@ -179,7 +176,6 @@ func (a *App) runOneActivityMonitor(parent context.Context) error {
 		if _, healthErr := a.markServerReachable(ctx, c.Server); healthErr != nil {
 			a.logger.Warn("Server health not recorded", "server_id", c.Server, "code", consoleErrorCode(healthErr))
 		}
-		a.logger.Info("Activity poll completed", "server_id", c.Server, "provider", c.Provider, "source", c.Source, "sessions", observed, "started", applied.Started, "updated", applied.Updated, "ended", applied.Ended, "duration_ms", time.Since(c.Started).Milliseconds())
 		return nil
 	}
 	a.logger.Warn("Activity poll failed", "server_id", c.Server, "provider", c.Provider, "stage", stage, "code", consoleErrorCode(err), "duration_ms", time.Since(c.Started).Milliseconds())

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"app/server/providers/provider"
 	"bytes"
 	"context"
 	"errors"
@@ -9,6 +10,26 @@ import (
 	"strings"
 	"testing"
 )
+
+func TestSocketPlaybackDiagnosticRedactsIdentifiers(t *testing.T) {
+	var output bytes.Buffer
+	a := &App{logger: slog.New(slog.NewTextHandler(&output, nil)), imageKey: []byte("fixture-key")}
+	position := int64(25000000)
+	a.logSocketPlaybackEvent(5, "plex", provider.PlaybackEvent{Session: "private-session", Item: "private-title", State: "playing", Position: &position})
+	a.logActivitySnapshot(activityReadClaim{Server: 5, Provider: "plex", Source: "ws"}, activitySnapshot{Sessions: []activitySession{{Session: "private-session", Title: "Fixture movie", Position: &position}}})
+	got := output.String()
+	for _, expected := range []string{"WebSocket playback notification", "Stream session updated", `title="Fixture movie"`, "transport=http", "trigger=ws", "position_ms=2500", "state=playing", "session_ref="} {
+		if !strings.Contains(got, expected) {
+			t.Fatalf("missing %s: %s", expected, got)
+		}
+	}
+	if strings.Contains(got, "private-session") || strings.Contains(got, "private-title") {
+		t.Fatal(got)
+	}
+	if strings.Count(got, "session_ref="+a.activitySessionReference(5, "private-session")) != 2 {
+		t.Fatal("socket and HTTP updates did not correlate", got)
+	}
+}
 
 func TestConsoleLogLevelsAndSafeErrors(t *testing.T) {
 	var output bytes.Buffer

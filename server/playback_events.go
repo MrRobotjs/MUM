@@ -204,6 +204,7 @@ func (a *App) saveActivity(ctx context.Context, c activityReadClaim, snapshot ac
 	result, err := a.store.applyActivitySnapshot(ctx, c, snapshot)
 	if err == nil {
 		a.playback.discard(c.Server, snapshot.ObservedAt)
+		a.logActivitySnapshot(c, snapshot)
 	}
 	return result, err
 }

@@ -132,6 +132,9 @@ func (a *App) runProviderSocket(ctx context.Context, w *providerSocketWorker, se
 				if reader, ok := live.(playbackEventReader); ok && hint != "" {
 					if events, playbackErr := reader.LivePlayback(data); playbackErr == nil {
 						a.playback.record(server.ID, events, received)
+						for _, event := range events {
+							a.logSocketPlaybackEvent(server.ID, server.Type, event)
+						}
 					} else {
 						a.logger.Debug("Provider socket playback states unreadable", "server_id", server.ID, "provider", server.Type)
 					}

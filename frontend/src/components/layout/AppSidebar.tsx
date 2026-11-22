@@ -38,7 +38,6 @@ import { useSyncStatus } from "@/hooks/useSyncStatus"
 import { USER_TOTAL_KEY_PREFIX, useUserTotal } from "@/hooks/useUserTotal"
 import { SidebarCount } from "@/components/layout/SidebarCount"
 import { useSWRConfig } from "swr"
-import { useUserPreferences } from "@/hooks/useUserPreferences"
 import { useStreamingSummary } from "@/hooks/useStreamingSummary"
 import { Badge } from "@/components/ui/badge"
 
@@ -47,12 +46,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { isMobile, setOpenMobile } = useSidebar()
   const { success, error } = useAlerts()
   const { syncStatus } = useSyncStatus({ enabled: hasAdminAccess })
-  const { getPreference, dbPreferences, syncEnabled } = useUserPreferences()
-  const [streamBadgeEnabled, setStreamBadgeEnabled] = React.useState(() =>
-    getPreference('stream_counter', false)
-  )
   // A badge is a complete fresh supported-source observation count, not live playback.
-  const { summary: observationSummary } = useStreamingSummary('all', streamBadgeEnabled && isAdministrator)
+  const { summary: observationSummary } = useStreamingSummary('all', isAdministrator)
   const observedCount = observationSummary?.servers.length && observationSummary.servers.every(s => s.freshness === 'fresh') ? observationSummary.fresh_current_observations : null
   const [isStartingSync, setIsStartingSync] = React.useState(false)
   const [showSyncComplete, setShowSyncComplete] = React.useState(false)
@@ -98,10 +93,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       setIsStartingSync(false)
     }
   }, [syncStatus.is_syncing])
-
-  React.useEffect(() => {
-    setStreamBadgeEnabled(getPreference('stream_counter', false))
-  }, [getPreference, dbPreferences, syncEnabled])
 
 
   React.useEffect(() => {
@@ -149,10 +140,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       )
     : null
 
-  // Stream badge indicator - show when enabled and there are active streams
-  const streamBadgeIndicator = streamBadgeEnabled && observedCount !== null && BigInt(observedCount) > 0n
+  // Show a badge when all monitored sources are fresh and report activity.
+  const streamBadgeIndicator = isAdministrator && observedCount !== null && BigInt(observedCount) > 0n
     ? (
-        <Badge variant="default" className="h-5 min-w-5 px-1.5 text-[10px] font-semibold" title="Fresh Jellyfin/Emby observations; not a live playback total">
+        <Badge variant="default" className="h-5 min-w-5 px-1.5 text-[10px] font-semibold" title="Fresh activity observations across monitored servers">
           {observedCount}
         </Badge>
       )

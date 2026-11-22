@@ -225,7 +225,7 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
         title={isRemoving ? `Removing ${library}...` : `Remove ${library}`}
       >
         <Badge
-          color="bg-blue-500"
+          color={palette.avatar}
           hover={false}
           icon={
           <button
@@ -570,7 +570,7 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
             {displayHasAllLibraries ? (
               <>
                 <div className="flex flex-wrap items-center gap-2">
-                  <Badge color="bg-blue-500" icon={faLayerGroup} hover={false}>All Libraries</Badge>
+                  <Badge color={palette.avatar} icon={faLayerGroup} hover={false}>All Libraries</Badge>
                   {displayLibraries.length > 0 && (
                     <Button
                       variant="ghost"
@@ -581,7 +581,7 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
                         setShowAllLibraries((prev) => !prev);
                       }}
                     >
-                      <Badge color="bg-blue-500" hover={false}>
+                      <Badge color={palette.avatar} hover={false}>
                         {showAllLibraries ? '-' : '+'}{displayLibraries.length}
                       </Badge>
                     </Button>
@@ -613,7 +613,7 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
                       setShowAllLibraries((prev) => !prev);
                     }}
                   >
-                    <Badge color="bg-blue-500" hover={false}>
+                    <Badge color={palette.avatar} hover={false}>
                       {showAllLibraries ? '-' : '+'}{displayLibraries.length - maxVisibleLibraries}
                     </Badge>
                   </Button>

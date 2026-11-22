@@ -32,6 +32,25 @@ test('server account cards show MUM sign-in and linked accounts', async t => {
     assert.doesNotMatch(m.render({...base, user_type: 'local'}, () => {}), /title="Edit User"/);
     assert.doesNotMatch(m.render(base), /title="Edit User"/);
   });
+  await t.test('library badges use the service color for partial and all-library access', () => {
+    for (const service of ['plex', 'jellyfin']) {
+      const color = `--badge-color:var(--color-${service}, var(--primary))`;
+      const partial = m.render({...base, service_type: service, libraries: ['Movies', 'TV', 'Music', 'Anime', 'Books', 'Kids', 'More']}).replaceAll('<!-- -->', '');
+      for (const label of ['Movies', '+1']) {
+        const index = partial.indexOf(`>${label}</span>`);
+        assert.notEqual(index, -1, `${service}: missing ${label}`);
+        const before = partial.slice(0, index);
+        assert.equal(before.lastIndexOf(color), before.lastIndexOf('--badge-color:'), `${service}: ${label}`);
+      }
+      const all = m.render({...base, service_type: service, has_all_libraries: true, libraries: ['Movies']}).replaceAll('<!-- -->', '');
+      for (const label of ['All Libraries', '+1']) {
+        const index = all.indexOf(`>${label}</span>`);
+        assert.notEqual(index, -1, `${service}: missing ${label}`);
+        const before = all.slice(0, index);
+        assert.equal(before.lastIndexOf(color), before.lastIndexOf('--badge-color:'), `${service}: ${label}`);
+      }
+    }
+  });
   await t.test('signed-in owner with another server account', () => {
     const html = m.render({...base, mum_last_login_at: '2026-11-15T10:00:00Z',
       linked_local_user: {uuid: '22222222-2222-4222-8222-222222222222', username: '', display_name: 'Jelly'},

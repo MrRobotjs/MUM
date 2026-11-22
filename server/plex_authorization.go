@@ -429,15 +429,16 @@ func (a *App) confirmPlexAuthorization(w http.ResponseWriter, r *http.Request) {
 // self-service link. Accounts owned by someone else stay theirs, and servers
 // with an account change underway are left alone.
 func claimPlexShares(ctx context.Context, tx *sql.Tx, user, account string) error {
-	if account == "" || account == plexOwnerAccountID {
+	if account == "" {
 		return nil
 	}
 	if enabled, _ := serviceSignInSettings(ctx, tx); !enabled {
 		return nil
 	}
 	rows, err := tx.QueryContext(ctx, `SELECT sa.uuid,sa.server_id FROM service_accounts sa JOIN media_servers m ON m.id=sa.server_id
-	 WHERE m.service_type='plex' AND sa.external_user_id=? AND sa.removed_at IS NULL
-	 AND NOT EXISTS(SELECT 1 FROM service_links l WHERE l.service_uuid=sa.uuid AND l.link_kind='owner') ORDER BY sa.server_id,sa.uuid`, account)
+	 WHERE m.service_type='plex' AND sa.removed_at IS NULL
+	 AND ((sa.external_user_id<>? AND sa.external_user_id=?) OR (sa.external_user_id=? AND sa.external_account_id=?))
+	 AND NOT EXISTS(SELECT 1 FROM service_links l WHERE l.service_uuid=sa.uuid AND l.link_kind='owner') ORDER BY sa.server_id,sa.uuid`, plexOwnerAccountID, account, plexOwnerAccountID, account)
 	if err != nil {
 		return err
 	}
@@ -479,19 +480,20 @@ func claimPlexShares(ctx context.Context, tx *sql.Tx, user, account string) erro
 // claimSyncedPlexShares links the unowned accounts on Plex server serverID
 // to the MUM accounts whose connected Plex account they are, as connecting
 // would have if the account had been on the server then. The same rules
-// apply: the media server sign-in switch, never the server owner's account,
-// never an account someone already owns.
+// apply: the media server sign-in switch and never an account someone already
+// owns. The owner record matches only its verified cloud account ID, never
+// the server-local ID 1.
 func claimSyncedPlexShares(ctx context.Context, tx *sql.Tx, serverID int64) error {
 	if enabled, _ := serviceSignInSettings(ctx, tx); !enabled {
 		return nil
 	}
 	rows, err := tx.QueryContext(ctx, `INSERT INTO service_links(user_uuid,service_uuid,link_kind,created_by,created_at)
 	 SELECT c.owner_uuid,sa.uuid,'owner',c.owner_uuid,? FROM service_accounts sa
-	 JOIN plex_connections c ON c.account_id=sa.external_user_id AND c.status='active'
+	 JOIN plex_connections c ON c.status='active' AND ((sa.external_user_id<>? AND c.account_id=sa.external_user_id) OR (sa.external_user_id=? AND c.account_id=sa.external_account_id))
 	 JOIN user_accounts u ON u.uuid=c.owner_uuid AND u.deleted_at IS NULL
-	 WHERE sa.server_id=? AND sa.removed_at IS NULL AND sa.external_user_id<>?
+	 WHERE sa.server_id=? AND sa.removed_at IS NULL
 	 AND NOT EXISTS(SELECT 1 FROM service_links l WHERE l.service_uuid=sa.uuid AND l.link_kind='owner')
-	 RETURNING user_uuid`, utcTimestamp(time.Now()), serverID, plexOwnerAccountID)
+	 RETURNING user_uuid`, utcTimestamp(time.Now()), plexOwnerAccountID, plexOwnerAccountID, serverID)
 	if err != nil {
 		return err
 	}

@@ -36,7 +36,7 @@ test('server account cards show MUM sign-in and linked accounts', async t => {
     const html = m.render({...base, mum_last_login_at: '2026-11-15T10:00:00Z',
       linked_local_user: {uuid: '22222222-2222-4222-8222-222222222222', username: '', display_name: 'Jelly'},
       linked_accounts: [{uuid: '33333333-3333-4333-8333-333333333333', service_type: 'plex', server_nickname: 'Plex++', username: 'jelly_plex'}]});
-    assert.match(html, />MUM account</);
+    assert.match(html, /title="This person has signed in to MUM"[^>]*>[\s\S]*?Jelly<\/span>/);
     assert.match(html, /Signed in:.*DATE:2026-11-15/);
     assert.match(html, />jelly_plex</);
     assert.match(html, /on Plex\+\+/);
@@ -47,6 +47,10 @@ test('server account cards show MUM sign-in and linked accounts', async t => {
     assert.match(html, /Linked to/);
     assert.match(html, />jelly-mum</);
     assert.doesNotMatch(html, /MUM account|Signed in:/);
+  });
+  await t.test('signed-in badge uses the MUM username, not display name', () => {
+    const html = m.render({...base, mum_last_login_at: '2026-11-15T10:00:00Z', linked_local_user: {uuid: '22222222-2222-4222-8222-222222222222', username: 'admin', display_name: 'Administrator'}});
+    assert.match(html, /title="This person has signed in to MUM"[^>]*>[\s\S]*?admin<\/span>/);
   });
   await t.test('unowned account has neither', () => {
     const html = m.render({...base, linked_local_user: null, mum_last_login_at: null, linked_accounts: []});

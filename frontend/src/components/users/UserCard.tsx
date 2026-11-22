@@ -361,7 +361,7 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
                   {user.server_nickname || 'Service Account'}
                 </Badge>
                 {user.mum_last_login_at && (
-                  <Badge color="bg-primary" icon={faUser} hover={false} title="This person has signed in to MUM">MUM account</Badge>
+                  <Badge color="bg-primary" icon={faUser} hover={false} title="This person has signed in to MUM">{user.linked_local_user?.username || user.linked_local_user?.display_name || 'MUM account'}</Badge>
                 )}
               </>) : user.user_type.toLowerCase() === 'owner' ? (
                 <Badge color="bg-amber-500" icon={faCrown} hover={false}>Owner</Badge>

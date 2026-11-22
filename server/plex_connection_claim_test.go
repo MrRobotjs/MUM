@@ -5,6 +5,77 @@ import (
 	"testing"
 )
 
+func TestPlexConnectionClaimsMatchingServerOwner(t *testing.T) {
+	a, s, owner, _ := plexLoginFixture(t, "")
+	_, serverOwner := plexShareServer(t, s, "Owned Plex", "1")
+	if _, err := s.writer.Exec(`UPDATE service_accounts SET external_account_id='2' WHERE uuid=?`, serverOwner); err != nil {
+		t.Fatal(err)
+	}
+	_, differentOwner := plexShareServer(t, s, "Different Plex", "1")
+	if _, err := s.writer.Exec(`UPDATE service_accounts SET external_account_id='9' WHERE uuid=?`, differentOwner); err != nil {
+		t.Fatal(err)
+	}
+	_, unknownOwner := plexShareServer(t, s, "Unknown Plex", "1")
+	_, takenOwner := plexShareServer(t, s, "Taken Plex", "1")
+	principal, err := s.Authenticate(t.Context(), owner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	other, err := s.CreateAccount(t.Context(), principal.UUID, "other-owner", "fixture-hash", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.writer.Exec(`UPDATE service_accounts SET external_account_id='2' WHERE uuid=?`, takenOwner); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.writer.Exec(`INSERT INTO service_links(user_uuid,service_uuid,link_kind,created_at) VALUES(?,?,'owner','2026-11-15T00:00:00Z')`, other, takenOwner); err != nil {
+		t.Fatal(err)
+	}
+	token, member := plexMemberToken(t, a, s, owner)
+	linkPlexForTest(t, a, token)
+	if countRows(t, s, `SELECT count(*) FROM service_links WHERE user_uuid=? AND service_uuid=?`, member, serverOwner) != 1 {
+		t.Fatal("verified Plex owner was not linked")
+	}
+	if countRows(t, s, `SELECT count(*) FROM service_links WHERE service_uuid=?`, differentOwner) != 0 {
+		t.Fatal("different Plex owner was linked")
+	}
+	if countRows(t, s, `SELECT count(*) FROM service_links WHERE service_uuid=?`, unknownOwner) != 0 {
+		t.Fatal("unknown Plex owner was linked")
+	}
+	if countRows(t, s, `SELECT count(*) FROM service_links WHERE user_uuid=? AND service_uuid=?`, other, takenOwner) != 1 {
+		t.Fatal("existing ownership was overwritten")
+	}
+}
+
+func TestPlexSyncClaimsConnectedServerOwner(t *testing.T) {
+	upstream, client, _ := extendedProviderFixture(t, "plex")
+	a, s := testApp(t)
+	a.ProviderHTTP = client
+	token, _ := bootstrapOwner(t, a)
+	owner, err := s.Authenticate(t.Context(), token)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.writer.Exec(`INSERT INTO plex_connections(id,owner_uuid,account_id,username,status,created_at,verified_at) VALUES(?,?,'9001','ServerOwner','active',?,?)`, newUUID(), owner.UUID, "2026-11-15T00:00:00Z", "2026-11-15T00:00:00Z"); err != nil {
+		t.Fatal(err)
+	}
+	id := createManagedServer(t, a, token, "plex", upstream.URL+"/proxy")
+	setSignInSwitches(t, s, false, false)
+	if w := apiRequest(a, "POST", fmt.Sprintf("/api/servers/%d/sync", id), token, nil, nil); w.Code != 200 {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	if countRows(t, s, `SELECT count(*) FROM service_links l JOIN service_accounts sa ON sa.uuid=l.service_uuid WHERE l.user_uuid=? AND sa.server_id=? AND sa.external_user_id='1'`, owner.UUID, id) != 0 {
+		t.Fatal("server owner linked while service sign-in was disabled")
+	}
+	setSignInSwitches(t, s, true, false)
+	if w := apiRequest(a, "POST", fmt.Sprintf("/api/servers/%d/sync", id), token, nil, nil); w.Code != 200 {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	if countRows(t, s, `SELECT count(*) FROM service_links l JOIN service_accounts sa ON sa.uuid=l.service_uuid WHERE l.user_uuid=? AND sa.server_id=? AND sa.external_user_id='1'`, owner.UUID, id) != 1 {
+		t.Fatal("connected Plex owner not linked after sync")
+	}
+}
+
 // Connecting a Plex account on the account page links the caller's unowned
 // accounts for it on Plex servers, so the Users list shows them together.
 // Accounts owned by someone else stay theirs.

@@ -934,6 +934,8 @@ func (a *App) serveSignedImage(w http.ResponseWriter, r *http.Request, param, pu
 			fail(w, 502, avatarError.Code, "The Plex avatar could not be retrieved")
 			return
 		}
+		code, upstreamStatus := imageFailureDetails(err)
+		a.logger.Warn("Provider image fetch failed", "server_id", source.Server, "provider", source.Provider, "image_id", itemID, "purpose", purpose, "code", code, "upstream_status", upstreamStatus)
 		fail(w, 502, "IMAGE_UNAVAILABLE", "The provider image could not be retrieved")
 		return
 	}

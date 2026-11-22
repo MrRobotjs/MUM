@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/xml"
 	"errors"
+	"fmt"
 	"io"
 	"math"
 	"net/http"
@@ -73,11 +74,11 @@ func (s *Server) catalogueGet(ctx context.Context, path, accept string, start in
 	kind, body, err := s.transport.Fetch(req, max, allowType)
 	switch {
 	case errors.Is(err, provider.ErrRequestFailed):
-		return "", nil, errors.New("Plex catalogue request failed or timed out")
+		return "", nil, fmt.Errorf("Plex catalogue request failed or timed out: %w", err)
 	case errors.Is(err, provider.ErrUnreadableBody):
-		return "", nil, errors.New("Plex catalogue response is empty, oversized or unreadable")
+		return "", nil, fmt.Errorf("Plex catalogue response is empty, oversized or unreadable: %w", err)
 	case errors.Is(err, provider.ErrUnsupportedType):
-		return "", nil, errors.New("unsupported Plex catalogue image type")
+		return "", nil, fmt.Errorf("unsupported Plex catalogue image type: %w", err)
 	case err != nil:
 		return "", nil, err
 	}
@@ -453,7 +454,7 @@ func (s *Server) CatalogueImage(ctx context.Context, item, poster string) (strin
 	if !ValidPoster(item, poster) {
 		return "", nil, errors.New("invalid Plex catalogue poster identity")
 	}
-	return s.catalogueGet(ctx, poster, "image/*", -1, provider.CatalogueImageMax, provider.ImageType)
+	return s.cataloguePoster(ctx, poster)
 }
 
 // CollectionImage fetches a collection's poster.
@@ -461,7 +462,62 @@ func (s *Server) CollectionImage(ctx context.Context, collection, poster string)
 	if !validCollectionPoster(collection, poster) {
 		return "", nil, errors.New("invalid Plex collection poster identity")
 	}
-	return s.catalogueGet(ctx, poster, "image/*", -1, provider.CatalogueImageMax, provider.ImageType)
+	return s.cataloguePoster(ctx, poster)
+}
+
+// Plex may redirect metadata artwork to its public image service. Never send
+// the Plex token, browser cookies or other credentials to that service.
+func (s *Server) cataloguePoster(ctx context.Context, path string) (string, []byte, error) {
+	origin, err := url.Parse(s.url)
+	if err != nil {
+		return "", nil, errors.New("invalid Plex poster origin")
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, s.url+path, nil)
+	if err != nil {
+		return "", nil, errors.New("invalid Plex poster request")
+	}
+	req.Header.Set("Accept", "image/*")
+	req.Header.Set("X-Plex-Token", s.token)
+	req.Header.Set("X-Plex-Client-Identifier", DefaultClientID)
+	client := *s.transport.Client
+	client.Jar = nil
+	client.CheckRedirect = func(next *http.Request, via []*http.Request) error {
+		if len(via) > 3 || next.URL == nil || next.URL.User != nil || next.URL.Fragment != "" || next.URL.Opaque != "" {
+			return errors.New("invalid Plex poster redirect")
+		}
+		if s.transport.Guard != nil {
+			if err := s.transport.Guard(next.Context()); err != nil {
+				return err
+			}
+		}
+		local := len(via) > 0 && sameOrigin(next.URL, origin) && sameOrigin(via[len(via)-1].URL, origin)
+		cloud := next.URL.Scheme == "https" && strings.EqualFold(next.URL.Hostname(), "images.plex.tv") && (next.URL.Port() == "" || next.URL.Port() == "443")
+		if !local && !cloud {
+			return errors.New("unapproved Plex poster redirect")
+		}
+		if !local && s.token != "" {
+			value := next.URL.String()
+			for i := 0; i < 3; i++ {
+				if strings.Contains(value, s.token) {
+					return errors.New("credential in Plex poster redirect")
+				}
+				decoded, err := url.QueryUnescape(value)
+				if err != nil || decoded == value {
+					break
+				}
+				value = decoded
+			}
+		}
+		next.Header = make(http.Header)
+		next.Header.Set("Accept", "image/*")
+		if local {
+			next.Header.Set("X-Plex-Token", s.token)
+			next.Header.Set("X-Plex-Client-Identifier", DefaultClientID)
+		}
+		return nil
+	}
+	transport := provider.Transport{Client: &client, Guard: s.transport.Guard}
+	return transport.Fetch(req, provider.CatalogueImageMax, provider.ImageType)
 }
 
 // Read fetches a server path as XML with the catalogue's headers and bounds.

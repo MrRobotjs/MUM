@@ -11,6 +11,25 @@ import (
 	"testing"
 )
 
+func TestImageFailureDiagnosticsAreRedacted(t *testing.T) {
+	for _, tc := range []struct {
+		err    error
+		code   string
+		status int
+	}{
+		{provider.ErrUnsupportedType, "UNSUPPORTED_IMAGE_TYPE", 0},
+		{provider.ErrUnreadableBody, "INVALID_IMAGE_BODY", 0},
+		{provider.ErrRequestFailed, "UPSTREAM_UNREACHABLE", 0},
+		{&provider.HTTPError{StatusCode: 404}, "UPSTREAM_HTTP_ERROR", 404},
+		{errors.New("private url and token"), "IMAGE_FETCH_FAILED", 0},
+	} {
+		code, status := imageFailureDetails(tc.err)
+		if code != tc.code || status != tc.status {
+			t.Fatal(code, status)
+		}
+	}
+}
+
 func TestSocketPlaybackDiagnosticRedactsIdentifiers(t *testing.T) {
 	var output bytes.Buffer
 	a := &App{logger: slog.New(slog.NewTextHandler(&output, nil)), imageKey: []byte("fixture-key")}

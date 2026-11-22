@@ -1,12 +1,30 @@
 package main
 
 import (
+	"app/server/providers/provider"
 	"context"
 	"errors"
 	"io"
 	"log/slog"
 	"strings"
 )
+
+// Never log raw upstream errors: they may contain URLs or credentials.
+func imageFailureDetails(err error) (string, int) {
+	var status *provider.HTTPError
+	switch {
+	case errors.Is(err, provider.ErrUnsupportedType):
+		return "UNSUPPORTED_IMAGE_TYPE", 0
+	case errors.Is(err, provider.ErrUnreadableBody):
+		return "INVALID_IMAGE_BODY", 0
+	case errors.Is(err, provider.ErrRequestFailed):
+		return "UPSTREAM_UNREACHABLE", 0
+	case errors.As(err, &status):
+		return "UPSTREAM_HTTP_ERROR", status.StatusCode
+	default:
+		return "IMAGE_FETCH_FAILED", 0
+	}
+}
 
 func newConsoleLogger(out io.Writer, level string) (*slog.Logger, error) {
 	var value slog.Level

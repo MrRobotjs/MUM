@@ -16,6 +16,7 @@ interface UserCardsGridProps {
   totalPages?: number;
   onPageChange?: (page: number) => void;
   onLibraryChanged?: () => void;
+  onEdit?: (userId: string) => void;
 }
 
 const UserCardSkeleton = () => (
@@ -49,7 +50,8 @@ export const UserCardsGrid = ({
   currentPage = 1,
   totalPages = 1,
   onPageChange,
-  onLibraryChanged
+  onLibraryChanged,
+  onEdit
 }: UserCardsGridProps) => {
   // Live playback comes from the administrator current-activity read the
   // Streaming page uses (same cache, refreshed by realtime events). Only fresh
@@ -80,6 +82,7 @@ export const UserCardsGrid = ({
                   onToggleSelection={onToggleSelection}
                   nowPlaying={nowPlaying.get(user.uuid) ?? null}
                   onLibraryChanged={onLibraryChanged}
+                  onEdit={onEdit}
                 />
               ))}
             </div>

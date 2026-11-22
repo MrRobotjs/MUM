@@ -8,7 +8,7 @@ import {loadFrontend} from './frontendLoader.mjs';
 async function load() {
   return loadFrontend(`
 import React from 'react';import {renderToString} from 'react-dom/server';import {UserCard} from './src/components/users/UserCard';
-export const render=user=>renderToString(React.createElement(UserCard,{user}));
+export const render=(user,onEdit)=>renderToString(React.createElement(UserCard,{user,onEdit}));
 `, {mock: {
     filter: s => /hooks\/useAccountDisplay$/.test(s) || s === '@tanstack/react-router' || /contexts(\/AlertContext)?$/.test(s),
     module: s => s === '@tanstack/react-router' ? 'export const useNavigate=()=>()=>{};'
@@ -26,6 +26,12 @@ test('server account cards show MUM sign-in and linked accounts', async t => {
   globalThis.MessageChannel = class extends Original { constructor() { super(); channels.push(this); } };
   t.after(() => { globalThis.MessageChannel = Original; for (const c of channels) { c.port1.close(); c.port2.close(); } });
   const m = await load();
+  await t.test('only service cards expose editing between info and profile', () => {
+    const html = m.render(base, () => {});
+    assert.match(html, /title="Show Raw User Data"[\s\S]*title="Edit User"[\s\S]*title="View User Profile"/);
+    assert.doesNotMatch(m.render({...base, user_type: 'local'}, () => {}), /title="Edit User"/);
+    assert.doesNotMatch(m.render(base), /title="Edit User"/);
+  });
   await t.test('signed-in owner with another server account', () => {
     const html = m.render({...base, mum_last_login_at: '2026-11-15T10:00:00Z',
       linked_local_user: {uuid: '22222222-2222-4222-8222-222222222222', username: '', display_name: 'Jelly'},

@@ -32,6 +32,7 @@ import {
   faLink,
   faMusic,
   faPause,
+  faPenToSquare,
   faPlay,
   faRightToBracket,
   faServer,
@@ -61,6 +62,7 @@ interface UserCardProps {
   onToggleSelection?: (userId: string, modifiers?: SelectionModifiers) => void;
   nowPlaying?: UserNowPlaying | null;
   onLibraryChanged?: () => void;
+  onEdit?: (userId: string) => void;
 }
 
 interface UserDisplaySettings {
@@ -75,7 +77,7 @@ interface UserDisplaySettings {
 }
 
 
-export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlaying, onLibraryChanged }: UserCardProps) => {
+export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlaying, onLibraryChanged, onEdit }: UserCardProps) => {
   const { formatTimestamp, current: displaySettings } = useAccountDisplay();
   const navigate = useNavigate();
   const { success, error } = useAlerts();
@@ -666,6 +668,14 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
         >
           <FontAwesomeIcon icon={faCircleInfo} className="h-4 w-4" />
         </Button>
+        {isService && onEdit && (
+          <Button variant="ghost" size="sm" title="Edit User" aria-label="Edit User" onClick={(e) => {
+            e.stopPropagation();
+            onEdit(user.uuid);
+          }}>
+            <FontAwesomeIcon icon={faPenToSquare} className="h-4 w-4" />
+          </Button>
+        )}
         <Button
           variant="ghost"
           size="sm"

@@ -104,6 +104,7 @@ export const UsersListPage = () => {
   const [showPurgeModal, setShowPurgeModal] = useState(false);
   const [showDisplaySettingsModal, setShowDisplaySettingsModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [singleEditUserId, setSingleEditUserId] = useState<string | null>(null);
   const [showFilterDrawer, setShowFilterDrawer] = useState(false);
   const [syncingServerId, setSyncingServerId] = useState<number | null>(null);
   const [selectionAnchorUserId, setSelectionAnchorUserId] = useState<string | null>(null);
@@ -113,6 +114,7 @@ export const UsersListPage = () => {
 
   // Selection state
   const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
+  const editUserIds = useMemo(() => singleEditUserId ? new Set([singleEditUserId]) : selectedUserIds, [singleEditUserId, selectedUserIds]);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [userType, setUserType] = useState('all');
@@ -796,7 +798,7 @@ export const UsersListPage = () => {
       {selectedUserIds.size > 0 && (
         <Card className="mb-4 sticky top-0 z-1">
           <CardContent className="flex items-center gap-2">
-            <Button variant="default" onClick={() => setShowEditModal(true)}>
+            <Button variant="default" onClick={() => { setSingleEditUserId(null); setShowEditModal(true); }}>
               <FontAwesomeIcon icon={faPenToSquare} className="mr-0 sm:mr-2" />
               <span className="hidden sm:inline">Edit ({selectedUserIds.size} selected)</span>
               <span className="inline sm:hidden">({selectedUserIds.size})</span>
@@ -853,6 +855,7 @@ export const UsersListPage = () => {
           loading={loading}
           selectedUserIds={selectedUserIds}
           onToggleSelection={toggleUserSelection}
+          onEdit={(userId) => { setSingleEditUserId(userId); setShowEditModal(true); }}
           currentPage={pagination?.page || 1}
           totalPages={pagination?.total_pages || 1}
           onPageChange={setPage}
@@ -878,8 +881,8 @@ export const UsersListPage = () => {
 
       <EditUsersModal
         isOpen={showEditModal}
-        onClose={() => setShowEditModal(false)}
-        selectedUserIds={selectedUserIds}
+        onClose={() => { setShowEditModal(false); setSingleEditUserId(null); }}
+        selectedUserIds={editUserIds}
         onComplete={() => {
           mutate();
         }}

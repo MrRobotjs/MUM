@@ -891,25 +891,42 @@ func (a *App) serveSignedImage(w http.ResponseWriter, r *http.Request, param, pu
 		}
 		return
 	}
-	select {
-	case a.imageSlots <- struct{}{}:
-		defer func() { <-a.imageSlots }()
-	default:
-		w.Header().Set("Retry-After", "1")
-		fail(w, 503, "IMAGE_PROXY_BUSY", "Too many image requests are in progress")
-		return
-	}
-	// An image not kept on a media server (a Discord avatar) has no provider.
-	var client *serverConnection
-	if source.Provider != "" {
-		if client, err = newServerConnection(ProviderConfig{source.Provider, source.URL, source.APIKey}, a.ProviderHTTP); err != nil {
-			domainError(w, ErrConflict)
-			return
-		}
-	}
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
-	kind, body, err := fetch(ctx, client, source)
+	enabled, err := a.imageCacheEnabled(ctx, source.Server)
+	if err != nil {
+		domainError(w, err)
+		return
+	}
+	// Hash source descriptors so cache keys never retain URLs or credentials.
+	digest := sha256.Sum256([]byte(fmt.Sprintf("%q|%q|%q|%q|%q", source.Provider, source.External, source.Tag, source.Kind, source.LibraryExternal)))
+	key := imageCacheKey{server: source.Server, revision: source.ConfigRevision, purpose: purpose, external: base64.RawURLEncoding.EncodeToString(digest[:])}
+	version := a.imageCache.generation(source.Server)
+	var kind string
+	var body []byte
+	hit := false
+	if enabled {
+		kind, body, hit = a.imageCache.get(key, time.Now())
+	}
+	if !hit {
+		select {
+		case a.imageSlots <- struct{}{}:
+			defer func() { <-a.imageSlots }()
+		default:
+			w.Header().Set("Retry-After", "1")
+			fail(w, 503, "IMAGE_PROXY_BUSY", "Too many image requests are in progress")
+			return
+		}
+		// An image not kept on a media server (a Discord avatar) has no provider.
+		var client *serverConnection
+		if source.Provider != "" {
+			if client, err = newServerConnection(ProviderConfig{source.Provider, source.URL, source.APIKey}, a.ProviderHTTP); err != nil {
+				domainError(w, ErrConflict)
+				return
+			}
+		}
+		kind, body, err = fetch(ctx, client, source)
+	}
 	if err != nil {
 		var avatarError *plexAvatarError
 		if errors.As(err, &avatarError) {
@@ -936,6 +953,18 @@ func (a *App) serveSignedImage(w http.ResponseWriter, r *http.Request, param, pu
 	if current != source {
 		domainError(w, ErrConflict)
 		return
+	}
+	stillEnabled, err := a.imageCacheEnabled(ctx, source.Server)
+	if err != nil {
+		domainError(w, err)
+		return
+	}
+	if hit && !stillEnabled {
+		domainError(w, ErrConflict)
+		return
+	}
+	if !hit && enabled && stillEnabled {
+		a.imageCache.put(key, kind, body, time.Now(), version)
 	}
 	w.Header().Set("Content-Type", kind)
 	w.Header().Set("Content-Length", strconv.Itoa(len(body)))

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -146,6 +147,80 @@ func TestQuietConnectedActivityPosterRemainsAvailable(t *testing.T) {
 	worker.mu.Unlock()
 	if image := apiRequest(a, "GET", link, "", nil, nil); image.Code != 404 {
 		t.Fatal(image.Code, image.Body.String())
+	}
+}
+
+func TestImageCacheHonorsServerSettingClearAndAuthorization(t *testing.T) {
+	a, s := testApp(t)
+	token, _ := bootstrapOwner(t, a)
+	var imageReads atomic.Int64
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/status/sessions":
+			fmt.Fprint(w, plexRichPlaying)
+		case "/library/metadata/123":
+			fmt.Fprint(w, plexSingleOriginalSource)
+		case "/library/metadata/123/thumb/7":
+			imageReads.Add(1)
+			w.Header().Set("Content-Type", "image/png")
+			fmt.Fprint(w, "PNG fixture")
+		default:
+			w.WriteHeader(404)
+		}
+	}))
+	defer upstream.Close()
+	server := createManagedServer(t, a, token, "plex", upstream.URL)
+	var enabled bool
+	if err := s.reader.QueryRow("SELECT cache_images FROM media_servers WHERE id=?", server).Scan(&enabled); err != nil || !enabled {
+		t.Fatal(enabled, err)
+	}
+	if err := a.runOneActivityMonitor(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	view := apiRequest(a, "GET", "/api/activity/current?scope=all", token, nil, nil)
+	var data struct{ Data activityReadResponse }
+	if err := json.Unmarshal(view.Body.Bytes(), &data); err != nil || len(data.Data.Items) != 1 {
+		t.Fatal(view.Body.String(), err)
+	}
+	link := data.Data.Items[0].Display.Thumb
+	read := func() {
+		t.Helper()
+		if w := apiRequest(a, "GET", link, "", nil, nil); w.Code != 200 {
+			t.Fatal(w.Code, w.Body.String())
+		}
+	}
+	read()
+	read()
+	if imageReads.Load() != 1 {
+		t.Fatal("cache did not reuse image", imageReads.Load())
+	}
+	clear := fmt.Sprintf("/api/servers/%d/image-cache/clear", server)
+	if w := apiRequest(a, "POST", clear, "", nil, nil); w.Code != 401 {
+		t.Fatal("anonymous cache clear", w.Code)
+	}
+	if w := apiRequest(a, "POST", clear, token, nil, nil); w.Code != 200 {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	read()
+	if imageReads.Load() != 2 {
+		t.Fatal("clear failed", imageReads.Load())
+	}
+	// A cached response still requires the signing session on every request.
+	activityExec(t, s, "UPDATE app_sessions SET refresh_expires_at='2000-01-01T00:00:00Z'")
+	if w := apiRequest(a, "GET", link, "", nil, nil); w.Code != 403 {
+		t.Fatal("cache bypassed session expiry", w.Code)
+	}
+	activityExec(t, s, "UPDATE app_sessions SET refresh_expires_at='2099-01-01T00:00:00Z'")
+	activityExec(t, s, "UPDATE media_servers SET cache_images=0 WHERE id=?", server)
+	read()
+	read()
+	if imageReads.Load() != 4 {
+		t.Fatal("disabled cache reused images", imageReads.Load())
+	}
+	activityExec(t, s, "UPDATE media_servers SET cache_images=1 WHERE id=?", server)
+	activityExec(t, s, "DELETE FROM media_activity_current WHERE server_id=?", server)
+	if w := apiRequest(a, "GET", link, "", nil, nil); w.Code != 404 {
+		t.Fatal("cache bypassed current session check", w.Code)
 	}
 }
 

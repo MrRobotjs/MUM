@@ -16,6 +16,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { SERVICE_TYPES } from '@/config/mediaServiceMetadata';
@@ -41,6 +42,7 @@ type ServerFormValues = {
   overseerr_api_key?: string;
   overseerr_enabled?: boolean;
   is_active: boolean;
+  cache_images: boolean;
   websocket_refresh_interval?: number;
 };
 
@@ -55,6 +57,7 @@ const normalizeServerPayload = (
     url: values.url,
     public_url: values.public_url || '',
     is_active: values.is_active,
+    cache_images: values.cache_images,
     overseerr_enabled: values.overseerr_enabled ?? false,
     overseerr_url: values.overseerr_url || null
   };
@@ -116,6 +119,7 @@ export const AdminSettingsMediaServerEditPage = () => {
     overseerr_api_key: '',
     overseerr_enabled: false,
     is_active: true,
+    cache_images: true,
     websocket_refresh_interval: 30,
   });
 
@@ -123,6 +127,7 @@ export const AdminSettingsMediaServerEditPage = () => {
   const [baseline, setBaseline] = useState<ServerFormValues | null>(null);
   const [leaving, setLeaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [clearingImages, setClearingImages] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [connectionTestStatus, setConnectionTestStatus] = useState<ConnectionTestStatus>('idle');
   const [activeTab, setActiveTab] = useState<'details' | 'overseerr'>('details');
@@ -142,6 +147,7 @@ export const AdminSettingsMediaServerEditPage = () => {
         overseerr_api_key: '',
         overseerr_enabled: server.overseerr_enabled ?? false,
         is_active: server.is_active,
+        cache_images: server.cache_images,
         websocket_refresh_interval:
           supportsWebsocketRefreshInterval
             ? server.websocket_refresh_interval ?? 30
@@ -410,6 +416,15 @@ export const AdminSettingsMediaServerEditPage = () => {
                       Friendly name for this server (used in UI)
                     </p>
                   </FormField>
+
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Checkbox id="cache_images" checked={values.cache_images} onCheckedChange={checked => setValues({...values, cache_images: checked === true})}/>
+                      <Label htmlFor="cache_images">Cache images</Label>
+                    </div>
+                    <p className="text-xs text-muted-foreground">Keep recently used images in memory to reduce requests to this server. The cache clears when MUM restarts.</p>
+                    <Button type="button" variant="outline" disabled={clearingImages} onClick={async()=>{setClearingImages(true); try {await requestJson(`/api/servers/${serverId}/image-cache/clear`,{method:'POST',retryAuthentication:false});success('Image cache cleared');} catch {showError('Could not clear the image cache.');} finally {setClearingImages(false);}}}>{clearingImages ? 'Clearing...' : 'Clear image cache'}</Button>
+                  </div>
 
                   <FormField id="service_type" label="Service Type" required>
                     <div className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-xs md:text-sm">

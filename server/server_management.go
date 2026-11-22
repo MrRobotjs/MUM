@@ -22,6 +22,7 @@ type ManagedServer struct {
 	URL             string `json:"url"`
 	PublicURL       string `json:"public_url"`
 	Active          bool   `json:"is_active"`
+	CacheImages     bool   `json:"cache_images"`
 	ProviderEnabled bool   `json:"provider_enabled"`
 	EffectiveActive bool   `json:"effective_active"`
 	HasAPIKey       bool   `json:"has_api_key"`
@@ -42,14 +43,14 @@ type ManagedServer struct {
 
 const serverSelect = `SELECT s.id,s.server_nickname,coalesce(s.server_name,''),s.service_type,s.url,
  coalesce(s.public_url,''),s.is_active,coalesce(p.enabled,0),coalesce(s.api_key,''),
- coalesce(s.last_version,''),coalesce(s.last_sync_at,''),coalesce(s.created_at,''),coalesce(s.updated_at,''),s.revision,s.last_status,coalesce(s.last_status_check,''),s.config_revision,s.overseerr_enabled,coalesce(s.overseerr_url,''),coalesce(s.overseerr_api_key,'')
+ coalesce(s.last_version,''),coalesce(s.last_sync_at,''),coalesce(s.created_at,''),coalesce(s.updated_at,''),s.revision,s.last_status,coalesce(s.last_status_check,''),s.config_revision,s.overseerr_enabled,coalesce(s.overseerr_url,''),coalesce(s.overseerr_api_key,''),s.cache_images
  FROM media_servers s LEFT JOIN provider_settings p ON p.provider_id=s.service_type`
 
 type rowScanner interface{ Scan(...any) error }
 
 func scanServer(row rowScanner) (ManagedServer, error) {
 	var s ManagedServer
-	err := row.Scan(&s.ID, &s.Name, &s.ServerName, &s.Type, &s.URL, &s.PublicURL, &s.Active, &s.ProviderEnabled, &s.apiKey, &s.Version, &s.LastSync, &s.Created, &s.Updated, &s.Revision, &s.LastStatus, &s.LastStatusCheck, &s.ConfigRevision, &s.Overseerr, &s.OverseerrURL, &s.overseerrKey)
+	err := row.Scan(&s.ID, &s.Name, &s.ServerName, &s.Type, &s.URL, &s.PublicURL, &s.Active, &s.ProviderEnabled, &s.apiKey, &s.Version, &s.LastSync, &s.Created, &s.Updated, &s.Revision, &s.LastStatus, &s.LastStatusCheck, &s.ConfigRevision, &s.Overseerr, &s.OverseerrURL, &s.overseerrKey, &s.CacheImages)
 	s.HasAPIKey = s.apiKey != ""
 	s.HasOverseerrKey = s.overseerrKey != ""
 	s.EffectiveActive = s.Active && s.ProviderEnabled
@@ -212,6 +213,7 @@ type serverInput struct {
 	APIKey       *string `json:"api_key"`
 	PublicURL    *string `json:"public_url"`
 	Active       *bool   `json:"is_active"`
+	CacheImages  *bool   `json:"cache_images"`
 	Revision     *int64  `json:"revision"`
 	Overseerr    *bool   `json:"overseerr_enabled"`
 	OverseerrURL *string `json:"overseerr_url"`
@@ -235,7 +237,7 @@ func (a *App) saveServer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	create := r.Method == "POST"
-	s := ManagedServer{Active: true}
+	s := ManagedServer{Active: true, CacheImages: true}
 	if !create {
 		id, ok := pathID(w, r, "server")
 		if !ok {
@@ -276,6 +278,9 @@ func (a *App) saveServer(w http.ResponseWriter, r *http.Request) {
 	}
 	if input.Active != nil {
 		s.Active = *input.Active
+	}
+	if input.CacheImages != nil {
+		s.CacheImages = *input.CacheImages
 	}
 	if s.Name == "" || len(s.Name) > 100 || len(s.URL) > 512 || !validPublicURL(s.PublicURL) {
 		fail(w, 400, "INVALID_SERVER", "Valid server name and URLs required")
@@ -333,7 +338,7 @@ func (a *App) saveServer(w http.ResponseWriter, r *http.Request) {
 			return ErrConflict
 		}
 		if create {
-			result, err := tx.ExecContext(r.Context(), `INSERT INTO media_servers(server_nickname,service_type,url,api_key,public_url,is_active,created_at,updated_at,overseerr_enabled,overseerr_url,overseerr_api_key) VALUES(?,?,?,?,?,?,?,?,?,nullif(?,''),nullif(?,''))`, s.Name, s.Type, s.URL, s.apiKey, s.PublicURL, s.Active, now, now, s.Overseerr, s.OverseerrURL, s.overseerrKey)
+			result, err := tx.ExecContext(r.Context(), `INSERT INTO media_servers(server_nickname,service_type,url,api_key,public_url,is_active,created_at,updated_at,overseerr_enabled,overseerr_url,overseerr_api_key,cache_images) VALUES(?,?,?,?,?,?,?,?,?,nullif(?,''),nullif(?,''),?)`, s.Name, s.Type, s.URL, s.apiKey, s.PublicURL, s.Active, now, now, s.Overseerr, s.OverseerrURL, s.overseerrKey, s.CacheImages)
 			if err != nil {
 				return err
 			}
@@ -366,7 +371,7 @@ func (a *App) saveServer(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		} else {
-			result, err := tx.ExecContext(r.Context(), `UPDATE media_servers SET server_nickname=?,url=?,api_key=?,public_url=?,is_active=?,overseerr_enabled=?,overseerr_url=nullif(?,''),overseerr_api_key=nullif(?,''),updated_at=?,revision=revision+1,last_status=NULL,last_status_check=NULL,last_status_error=NULL WHERE id=? AND revision=?`, s.Name, s.URL, s.apiKey, s.PublicURL, s.Active, s.Overseerr, s.OverseerrURL, s.overseerrKey, now, s.ID, s.Revision)
+			result, err := tx.ExecContext(r.Context(), `UPDATE media_servers SET server_nickname=?,url=?,api_key=?,public_url=?,is_active=?,overseerr_enabled=?,overseerr_url=nullif(?,''),overseerr_api_key=nullif(?,''),cache_images=?,updated_at=?,revision=revision+1,last_status=NULL,last_status_check=NULL,last_status_error=NULL WHERE id=? AND revision=?`, s.Name, s.URL, s.apiKey, s.PublicURL, s.Active, s.Overseerr, s.OverseerrURL, s.overseerrKey, s.CacheImages, now, s.ID, s.Revision)
 			if err != nil {
 				return err
 			}
@@ -388,6 +393,9 @@ func (a *App) saveServer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a.logger.Info("Server saved", "server_id", s.ID, "provider", s.Type, "created", create)
+	if !create {
+		a.imageCache.clear(s.ID)
+	}
 	if monitoringDefault {
 		a.logger.Info("Activity monitoring enabled by default", "server_id", s.ID, "provider", s.Type, "interval_seconds", 30)
 	}

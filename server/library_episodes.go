@@ -237,6 +237,10 @@ var (
 // the show's episode revision. Any failure leaves the saved episodes as they
 // were. audit records the change; a library-wide run records one summary instead.
 func (a *App) syncChildren(ctx context.Context, c childCatalogue, actor, access string, library catalogueLibrary, provider *serverConnection, show catalogueShow, audit bool) (episodeSyncResult, error) {
+	return a.syncChildrenForRefresh(ctx, c, actor, access, library, provider, show, audit, nil)
+}
+
+func (a *App) syncChildrenForRefresh(ctx context.Context, c childCatalogue, actor, access string, library catalogueLibrary, provider *serverConnection, show catalogueShow, audit bool, claim *serverRefreshClaim) (episodeSyncResult, error) {
 	var result episodeSyncResult
 	read, cancel := context.WithTimeout(ctx, time.Minute)
 	defer cancel()
@@ -247,7 +251,11 @@ func (a *App) syncChildren(ctx context.Context, c childCatalogue, actor, access 
 	result.Total = len(episodes)
 	result.SyncedAt = utcTimestamp(time.Now())
 	err = a.store.write(ctx, func(tx *sql.Tx) error {
-		if _, err := readCatalogueAuthority(ctx, tx, actor, access); err != nil {
+		if claim != nil {
+			if err := checkServerRefreshClaim(ctx, tx, claim); err != nil {
+				return err
+			}
+		} else if _, err := readCatalogueAuthority(ctx, tx, actor, access); err != nil {
 			return err
 		}
 		current, err := loadCatalogueLibrary(ctx, tx, library.ID)

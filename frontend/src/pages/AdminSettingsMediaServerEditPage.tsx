@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
+import {ServerRefreshSettings} from '../components/settings/ServerRefreshSettings';
 import { useNavigate, useParams } from '@tanstack/react-router';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faWifi, faCheck, faXmark, faCircleExclamation } from '@fortawesome/free-solid-svg-icons';
@@ -613,6 +614,7 @@ export const AdminSettingsMediaServerEditPage = () => {
 
         <UnsavedChangesBar dirty={dirty} saving={submitting} onReset={() => baseline && setValues(baseline)} formId="server-edit-form" />
       </form>
+      <ServerRefreshSettings serverId={Number(serverId)} />
     </div>
   );
 };

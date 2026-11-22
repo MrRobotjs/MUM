@@ -28,10 +28,11 @@ type providerSocketWorker struct {
 	state, code string
 }
 type providerSocketRuntime struct {
-	mu      sync.Mutex
-	workers map[int64]*providerSocketWorker
-	done    chan struct{}
-	code    string
+	mu        sync.Mutex
+	workers   map[int64]*providerSocketWorker
+	done      chan struct{}
+	code      string
+	dialSlots chan struct{}
 }
 
 func (w *providerSocketWorker) status(state, code string) {
@@ -73,9 +74,15 @@ func (a *App) runProviderSocket(ctx context.Context, w *providerSocketWorker, se
 	for ctx.Err() == nil {
 		w.status("connecting", "")
 		a.logger.Debug("Provider socket connecting", "server_id", server.ID, "provider", server.Type)
+		select {
+		case a.providerSockets.dialSlots <- struct{}{}:
+		case <-ctx.Done():
+			return
+		}
 		dial, cancel := context.WithTimeout(ctx, 5*time.Second)
 		conn, response, err := websocket.Dial(dial, spec.URL, &websocket.DialOptions{HTTPClient: &clone, HTTPHeader: spec.Header.Clone()})
 		cancel()
+		<-a.providerSockets.dialSlots
 		if response != nil && response.Body != nil {
 			response.Body.Close()
 		}

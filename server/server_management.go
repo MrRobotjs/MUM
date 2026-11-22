@@ -136,6 +136,9 @@ func (a *App) setProviderEnabled(w http.ResponseWriter, r *http.Request) {
 		if _, err := tx.ExecContext(r.Context(), "UPDATE media_servers SET revision=revision+1 WHERE service_type=?", id); err != nil {
 			return err
 		}
+		if err := reconcileAutomaticActivity(r.Context(), tx); err != nil {
+			return err
+		}
 		return auditAction(r.Context(), tx, p.UUID, "provider.state.change")
 	})
 	if err != nil {
@@ -375,6 +378,9 @@ func (a *App) saveServer(w http.ResponseWriter, r *http.Request) {
 				return ErrConflict
 			}
 		}
+		if err := reconcileAutomaticActivity(r.Context(), tx); err != nil {
+			return err
+		}
 		return auditAction(r.Context(), tx, p.UUID, "server.save")
 	})
 	if err != nil {
@@ -550,7 +556,7 @@ func (a *App) testSavedServer(w http.ResponseWriter, r *http.Request) {
 	respond(w, 200, map[string]any{"success": true, "server": info, "server_id": s.ID, "revision": s.Revision, "checked_at": checkedAt})
 }
 
-func checkServerSyncAuthority(ctx context.Context, tx *sql.Tx, actor, access string, claim *scheduledSyncClaim) error {
+func checkServerSyncAuthority(ctx context.Context, tx *sql.Tx, actor, access string, claim *serverRefreshClaim) error {
 	if busy, err := editSourceBusy(ctx, tx, 0, ""); err != nil {
 		return err
 	} else if busy {
@@ -560,7 +566,7 @@ func checkServerSyncAuthority(ctx context.Context, tx *sql.Tx, actor, access str
 		if actor != claim.Actor || access != "" {
 			return ErrForbidden
 		}
-		if err := checkScheduledSyncClaim(ctx, tx, claim); err != nil {
+		if err := checkServerRefreshClaim(ctx, tx, claim); err != nil {
 			return err
 		}
 	} else if err := accountPreferenceAuthority(ctx, tx, actor, access); err != nil {
@@ -568,7 +574,7 @@ func checkServerSyncAuthority(ctx context.Context, tx *sql.Tx, actor, access str
 	}
 	return requirePermission(ctx, tx, actor, "administrator")
 }
-func (a *App) readServerSyncAuthority(ctx context.Context, actor, access string, s ManagedServer, users bool, claim *scheduledSyncClaim) (int64, error) {
+func (a *App) readServerSyncAuthority(ctx context.Context, actor, access string, s ManagedServer, users bool, claim *serverRefreshClaim) (int64, error) {
 	if claim != nil && claim.Server != s.ID {
 		return 0, ErrForbidden
 	}
@@ -591,7 +597,7 @@ func (a *App) readServerSyncAuthority(ctx context.Context, actor, access string,
 func (a *App) syncServer(ctx context.Context, actor, access string, s ManagedServer, libraries, users bool) (map[string]int, error) {
 	return a.syncServerClaimed(ctx, actor, access, s, libraries, users, nil)
 }
-func (a *App) syncServerClaimed(ctx context.Context, actor, access string, s ManagedServer, libraries, users bool, claim *scheduledSyncClaim) (receipt map[string]int, outcome error) {
+func (a *App) syncServerClaimed(ctx context.Context, actor, access string, s ManagedServer, libraries, users bool, claim *serverRefreshClaim) (receipt map[string]int, outcome error) {
 	started := time.Now()
 	a.logger.Debug("Provider sync started", "server_id", s.ID, "provider", s.Type, "libraries", libraries, "users", users)
 	defer func() {
@@ -860,11 +866,6 @@ func (a *App) syncServerClaimed(ctx context.Context, actor, access string, s Man
 		}
 		if _, err := tx.ExecContext(ctx, "UPDATE media_servers SET last_sync_at=?,updated_at=?,revision=revision+1 WHERE id=?", now, now, s.ID); err != nil {
 			return err
-		}
-		if claim != nil {
-			if err := finishScheduledSync(ctx, tx, claim, "SUCCEEDED"); err != nil {
-				return err
-			}
 		}
 		return auditAction(ctx, tx, actor, "server.sync")
 	})

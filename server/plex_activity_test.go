@@ -127,13 +127,13 @@ func TestOwnerServerCreationEnablesMonitoringByDefault(t *testing.T) {
 	}
 }
 
-func TestDelegatedServerCreationDoesNotInventOwnerAuthorization(t *testing.T) {
+func TestDelegatedServerCreationUsesCurrentOwnerForAutomaticMonitoring(t *testing.T) {
 	a, s, _, token, _ := roleReadFixture(t)
 	server := createManagedServer(t, a, token, "plex", "http://127.0.0.1:1")
 	var enabled bool
 	var authorized bool
-	if err := s.reader.QueryRow("SELECT enabled,authorized_by IS NOT NULL FROM activity_monitor_schedules WHERE server_id=?", server).Scan(&enabled, &authorized); err != nil || enabled || authorized {
-		t.Fatal("delegated creation invented owner authority", enabled, authorized, err)
+	if err := s.reader.QueryRow("SELECT enabled,EXISTS(SELECT 1 FROM user_accounts WHERE uuid=authorized_by AND kind='owner' AND is_active=1) FROM activity_monitor_schedules WHERE server_id=?", server).Scan(&enabled, &authorized); err != nil || !enabled || !authorized {
+		t.Fatal("delegated creation did not schedule under current owner", enabled, authorized, err)
 	}
 }
 

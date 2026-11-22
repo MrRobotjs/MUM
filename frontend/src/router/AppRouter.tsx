@@ -40,6 +40,7 @@ import { AdminSettingsMediaServerAddPage } from '../pages/AdminSettingsMediaServ
 import { AdminSettingsMediaServerEditPage } from '../pages/AdminSettingsMediaServerEditPage';
 import AdminSettingsDiscordPage from '../pages/AdminSettingsDiscordPage';
 import AdminSettingsAdvancedPage from '../pages/AdminSettingsAdvancedPage';
+import AdminSettingsInfoPage from '../pages/AdminSettingsInfoPage';
 import AdminSettingsApiDebugPage from '../pages/AdminSettingsApiDebugPage';
 import AdminSettingsPage from '../pages/AdminSettingsPage';
 import AdminNotificationsPage from '../pages/AdminNotificationsPage';
@@ -198,6 +199,7 @@ const adminSettings = createRoute({
   component: AdminSettingsPage,
 })
 const adminSettingsGeneral = createRoute({ getParentRoute: () => adminRoute, path: 'settings/general', component: AdminSettingsGeneralPage })
+const adminSettingsInfo = createRoute({ getParentRoute: () => adminRoute, path: 'settings/info', component: AdminSettingsInfoPage })
 const adminAdminRoles = createRoute({ getParentRoute: () => adminRoute, path: 'settings/admin-roles', component: AdminSettingsAdminRolesPage })
 const adminAdminRoleEdit = createRoute({ getParentRoute: () => adminRoute, path: 'settings/admin-roles/$roleId/edit', component: AdminSettingsAdminRolesEditPage })
 const adminUserRoles = createRoute({ getParentRoute: () => adminRoute, path: 'settings/user-roles', component: AdminSettingsUserRolesPage })
@@ -305,6 +307,7 @@ const routeTree = rootRoute.addChildren([
     adminEpisodeDetail,
     adminSettings,
     adminSettingsGeneral,
+    adminSettingsInfo,
     adminAdminRoles,
     adminAdminRoleEdit,
     adminUserRoles,

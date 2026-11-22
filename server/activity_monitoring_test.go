@@ -110,7 +110,7 @@ func TestActivityMonitorDurableConsentAndObservationOutcomes(t *testing.T) {
 	}
 }
 func TestActivityMonitorConfigurationGuards(t *testing.T) {
-	for _, mode := range []string{"delegate", "actor", "revision", "server-revision", "visibility", "interval", "missing-enabled", "unknown", "inactive", "session"} {
+	for _, mode := range []string{"delegate", "actor", "revision", "server-revision", "visibility", "interval", "unknown", "inactive", "session"} {
 		t.Run(mode, func(t *testing.T) {
 			a, s, owner, delegate, user := roleReadFixture(t)
 			id := seedServer(t, s)
@@ -136,9 +136,6 @@ func TestActivityMonitorConfigurationGuards(t *testing.T) {
 				want = 400
 			case "interval":
 				body["interval_seconds"] = 1
-				want = 400
-			case "missing-enabled":
-				delete(body, "enabled")
 				want = 400
 			case "unknown":
 				body["token"] = "must-not-bind-worker"

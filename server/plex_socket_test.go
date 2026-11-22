@@ -167,8 +167,8 @@ func TestPlexSocketMigrationPreservesDisabledChoices(t *testing.T) {
 	plex := createManagedServer(t, a, token, "plex", "http://127.0.0.1:1")
 	activityExec(t, s, "UPDATE media_servers SET server_nickname='Enabled Plex' WHERE id=?", plex)
 	disabled := createManagedServer(t, a, token, "plex", "http://127.0.0.1:2")
-	configureTestMonitor(t, a, token, disabled, false)
 	other := createManagedServer(t, a, token, "jellyfin", "http://127.0.0.1:3")
+	configureTestMonitor(t, a, token, disabled, false)
 	configureTestMonitor(t, a, token, other, true) // preserves an explicit sockets-off choice
 	migration, err := migrationFiles.ReadFile("go_migrations/059_plex_sockets.sql")
 	if err != nil {

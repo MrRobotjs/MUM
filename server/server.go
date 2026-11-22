@@ -40,22 +40,26 @@ type App struct {
 	// signInSlots bounds media server sign-ins in flight, apart from provisioning.
 	signInSlots chan struct{}
 	// quickConnect holds Jellyfin Quick Connect sign-ins in progress.
-	quickConnect     quickConnectAttempts
-	provisionMu      sync.Mutex
-	provisionClosing bool
-	provisionWG      sync.WaitGroup
-	provisionCtx     context.Context
-	provisionCancel  context.CancelFunc
-	loginMu          sync.Mutex
-	attempts         map[string]attemptWindow
-	SecureCookies    bool
-	TrustedProxies   []netip.Prefix // Reverse proxies whose X-Forwarded-* headers are honoured.
-	ProviderHTTP     *http.Client
-	DiscordAPI       string // test-only override of the fixed Discord API base
-	DiscordCDN       string // test-only override of Discord's image server
-	syncRun          sync.Mutex
-	syncMu           sync.Mutex
-	syncState        map[string]any
+	quickConnect        quickConnectAttempts
+	provisionMu         sync.Mutex
+	provisionClosing    bool
+	provisionWG         sync.WaitGroup
+	provisionCtx        context.Context
+	provisionCancel     context.CancelFunc
+	loginMu             sync.Mutex
+	attempts            map[string]attemptWindow
+	SecureCookies       bool
+	TrustedProxies      []netip.Prefix // Reverse proxies whose X-Forwarded-* headers are honoured.
+	ProviderHTTP        *http.Client
+	DiscordAPI          string // test-only override of the fixed Discord API base
+	DiscordCDN          string // test-only override of Discord's image server
+	syncRun             sync.Mutex
+	refreshRun          sync.Mutex
+	refreshUsersRun     sync.Mutex
+	refreshLibrariesRun sync.Mutex
+	refreshListSlot     chan struct{}
+	syncMu              sync.Mutex
+	syncState           map[string]any
 	// Library item catalogue runs (bounded) and the per-process image URL key.
 	// API route patterns, recorded at registration for the OpenAPI document.
 	apiRoutes     []apiRoute
@@ -83,8 +87,9 @@ func NewApp(store *Store, queue *LogQueue, assets fs.FS) (*App, error) {
 	}
 	a := &App{logger: slog.Default(), store: store, queue: queue, dummyHash: dummy, passwordSlots: make(chan struct{}, 4), attempts: make(map[string]attemptWindow)}
 	schedulerCtx, schedulerCancel := context.WithCancel(context.Background())
-	a.scheduler = &syncScheduler{ctx: schedulerCtx, cancel: schedulerCancel, done: make(chan struct{}), healthDone: make(chan struct{}), runner: newUUID()}
-	a.providerSockets = &providerSocketRuntime{workers: map[int64]*providerSocketWorker{}, done: make(chan struct{})}
+	a.scheduler = &syncScheduler{ctx: schedulerCtx, cancel: schedulerCancel, done: make(chan struct{}), healthDone: make(chan struct{}), refreshDone: make(chan struct{}), runner: newUUID()}
+	a.refreshListSlot = make(chan struct{}, 1)
+	a.providerSockets = &providerSocketRuntime{workers: map[int64]*providerSocketWorker{}, done: make(chan struct{}), dialSlots: make(chan struct{}, 8)}
 	a.provisionSlots = make(chan struct{}, 2)
 	a.signInSlots = make(chan struct{}, 8)
 	a.catalogueRuns = map[int64]*catalogueProgress{}
@@ -222,7 +227,8 @@ func NewApp(store *Store, queue *LogQueue, assets fs.FS) (*App, error) {
 	handle("PATCH /api/settings/discord", a.saveDiscordSettings)
 	handle("POST /api/settings/discord/test", a.testDiscordSettings)
 	handle("GET /api/settings/scheduled-tasks", a.scheduledTasks)
-	handle("PUT /api/settings/scheduled-tasks/{server}", a.configureScheduledSync)
+	handle("GET /api/servers/{server}/refresh-settings", a.serverRefreshSettings)
+	handle("PUT /api/servers/{server}/refresh-settings", a.serverRefreshSettings)
 	handle("POST /api/events", a.ingestEvents)
 	handle("POST /api/chat", a.postChat)
 	handle("GET /api/chat", a.getChat)

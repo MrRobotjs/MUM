@@ -175,21 +175,19 @@ func TestAdministratorConfiguresScheduledSyncThatOutlivesTheirRole(t *testing.T)
 	a, s, ownerToken, token, actor := roleReadFixture(t)
 	upstream, _ := providerFixture(t, "jellyfin")
 	id := createManagedServer(t, a, ownerToken, "jellyfin", upstream.URL)
-	snapshot := taskSnapshot(t, a, token)
-	if snapshot["configuration_available"] != true {
-		t.Fatal("administrator cannot configure", snapshot)
-	}
-	task := snapshot["tasks"].([]any)[0].(map[string]any)
-	if w := apiRequest(a, "PUT", "/api/settings/scheduled-tasks/"+strconv.FormatInt(id, 10), token, taskConfig(actor, task, true, 60), nil); w.Code != 200 {
+	path := "/api/servers/" + strconv.FormatInt(id, 10) + "/refresh-settings"
+	snapshot := responseData(t, apiRequest(a, "GET", path, token, nil, nil))
+	body := map[string]any{"revision": snapshot["revision"], "server_revision": snapshot["server_revision"], "users_interval_hours": 1, "libraries_interval_hours": 1, "users_on_startup": true, "libraries_on_startup": true, "include_episodes_and_tracks": true}
+	if w := apiRequest(a, "PUT", path, token, body, nil); w.Code != 200 {
 		t.Fatal(w.Code, w.Body.String())
 	}
-	// The schedule runs on MUM's own authority, even after the administrator loses the role.
 	activityExec(t, s, "DELETE FROM admin_privileges WHERE user_uuid=?", actor)
-	if err := a.runOneScheduledSync(t.Context()); err != nil {
+	activityExec(t, s, "UPDATE server_refresh_schedules SET next_run_at=CASE WHEN scope='users' THEN '2000-01-01T00:00:00Z' ELSE '2099-01-01T00:00:00Z' END WHERE server_id=?", id)
+	if err := a.runOneServerRefresh(t.Context()); err != nil {
 		t.Fatal(err)
 	}
 	var state string
-	if err := s.reader.QueryRow("SELECT run_state FROM server_sync_schedules WHERE server_id=?", id).Scan(&state); err != nil || state != "succeeded" {
+	if err := s.reader.QueryRow("SELECT run_state FROM server_refresh_schedules WHERE server_id=? AND scope='users'", id).Scan(&state); err != nil || state != "succeeded" {
 		t.Fatal(state, err)
 	}
 }

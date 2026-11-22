@@ -15,6 +15,7 @@ import {
   faGauge,
   faChevronRight,
   faBook,
+  faCircleInfo,
 } from "@fortawesome/free-solid-svg-icons"
 import { faDiscord } from "@fortawesome/free-brands-svg-icons"
 import { Link, useLocation } from "@tanstack/react-router"
@@ -86,6 +87,12 @@ export function NavSettings() {
   type SettingsItem = NavItem | NavSection
 
   const settingsItems: SettingsItem[] = [
+    {
+      title: 'Info',
+      url: '/admin/settings/info',
+      icon: faCircleInfo,
+      permission: 'manage_advanced_settings',
+    },
     {
       title: 'General',
       url: '/admin/settings/general',

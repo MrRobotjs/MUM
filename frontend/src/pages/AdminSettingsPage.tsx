@@ -9,6 +9,7 @@ import {
   faShieldHalved,
   faCode,
   faChevronRight,
+  faCircleInfo,
 } from '@fortawesome/free-solid-svg-icons';
 import { faDiscord } from '@fortawesome/free-brands-svg-icons';
 import { PageHeader } from '../components';
@@ -57,6 +58,7 @@ export const AdminSettingsPage = () => {
       />
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <SettingsCategory title="Info" description="View runtime information and background tasks" icon={<FontAwesomeIcon icon={faCircleInfo} className="size-6" />} href="/admin/settings/info" />
         {/* General Settings */}
         <SettingsCategory
           title="General"

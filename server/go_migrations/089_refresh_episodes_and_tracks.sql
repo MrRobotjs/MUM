@@ -1,0 +1,1 @@
+ALTER TABLE server_refresh_settings RENAME COLUMN include_episodes TO include_episodes_and_tracks;

@@ -281,8 +281,13 @@ func (a *App) configureActivityMonitor(w http.ResponseWriter, r *http.Request) {
 		domainError(w, ErrForbidden)
 		return
 	}
-	socketEnabled := input.SocketEnabled != nil && *input.SocketEnabled
-	if r.URL.RawQuery != "" || input.Enabled == nil || input.Revision < 1 || input.ServerRevision < 0 || input.Interval < 15 || input.Interval > 3600 || *input.Enabled && !input.CompleteVisibility || socketEnabled && !*input.Enabled {
+	intervalOnly := input.Enabled == nil && input.SocketEnabled == nil
+	if intervalOnly {
+		enabled := true
+		input.Enabled = &enabled
+	}
+	socketEnabled := intervalOnly || input.SocketEnabled != nil && *input.SocketEnabled
+	if r.URL.RawQuery != "" || input.Enabled == nil || input.Revision < 1 || input.ServerRevision < 0 || input.Interval < 15 || input.Interval > 3600 || !intervalOnly && *input.Enabled && !input.CompleteVisibility || socketEnabled && !*input.Enabled {
 		fail(w, 400, "INVALID_ACTIVITY_MONITOR", "Use exact revisions, enabled, 15–3600 seconds and acknowledge complete administrative session visibility before enabling")
 		return
 	}

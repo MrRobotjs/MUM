@@ -1,19 +1,18 @@
 import {useEffect, useRef, useState} from 'react';
 import {useActivityMonitoring} from '../../hooks/useActivityMonitoring';
-import {configureActivityMonitoring, type MonitorSnapshot, type MonitorTask} from '../../lib/activityMonitoring';
+import {configureActivityMonitoringInterval, type MonitorSnapshot, type MonitorTask} from '../../lib/activityMonitoring';
 import {getAccessToken} from '../../store/authStore';
 import {useAccountDisplay} from '../../hooks/useAccountDisplay';
 import {Button} from '../ui/button';
 import {Card, CardContent, CardDescription, CardHeader, CardTitle} from '../ui/card';
-import {Checkbox} from '../ui/checkbox';
 import {Input} from '../ui/input';
 import {Label} from '../ui/label';
 import {ResponsiveDialog} from '../ui/responsive-dialog';
 import {Table, TableBody, TableCell, TableHead, TableHeader, TableRow} from '../ui/table';
 
 function MonitorControls({base, task, onSaved}: {base: MonitorSnapshot; task: MonitorTask; onSaved: () => Promise<void>}) {
-  const [enabled, setEnabled] = useState(task.enabled), [interval, setInterval] = useState(task.interval_seconds),[sockets,setSockets]=useState(task.socket_enabled);
-  const [consent, setConsent] = useState(false), [pending, setPending] = useState(false), [error, setError] = useState<string | null>(null);
+  const [interval, setInterval] = useState(task.interval_seconds);
+  const [pending, setPending] = useState(false), [error, setError] = useState<string | null>(null);
   const active = useRef(true), admitted = useRef(false), controller = useRef<AbortController | null>(null);
   useEffect(() => { active.current = true; return () => { active.current = false; controller.current?.abort(); }; }, []);
   const save = async () => {
@@ -21,21 +20,18 @@ function MonitorControls({base, task, onSaved}: {base: MonitorSnapshot; task: Mo
     admitted.current = true; setPending(true); setError(null);
     const token = getAccessToken(); controller.current = new AbortController();
     try {
-      await configureActivityMonitoring(base, task, enabled, interval, consent, controller.current.signal,sockets);
+      await configureActivityMonitoringInterval(base, task, interval, controller.current.signal);
       if (active.current && token === getAccessToken()) await onSaved();
     } catch {
       if (active.current && token === getAccessToken()) setError('Change could not be confirmed. Close, refresh and inspect monitoring before another attempt.');
     } finally { admitted.current = false; if (active.current) setPending(false); }
   };
   return <div className="space-y-4">
-    <div className="flex items-center gap-2"><Checkbox id="activity-monitor-enabled" checked={enabled} disabled={pending} onCheckedChange={value => {setEnabled(value === true);if(value!==true)setSockets(false); setConsent(false);}}/><Label htmlFor="activity-monitor-enabled">Enable activity monitoring</Label></div>
-    <div className="flex items-center gap-2"><Checkbox id="activity-monitor-socket" checked={sockets} disabled={pending||!enabled} onCheckedChange={value=>{setSockets(value===true);setConsent(false);}}/><Label htmlFor="activity-monitor-socket">Use provider sockets for faster activity updates</Label></div>
-    <Label htmlFor="activity-monitor-interval">Interval in seconds (15–3600)</Label>
+    <Label htmlFor="activity-monitor-interval">HTTP refresh interval in seconds (15–3600)</Label>
     <Input id="activity-monitor-interval" type="number" min={15} max={3600} value={interval} disabled={pending} onChange={event => setInterval(Number(event.target.value))}/>
-    <p className="text-sm text-muted-foreground">Jellyfin, Emby and Plex native WebSocket notifications trigger complete session refreshes, with periodic HTTP polling for recovery. Saving enabled monitoring renews consent and schedules an immediate observation. Changed server settings require renewed consent. Observations older than 60 seconds are marked stale.</p>
-    {enabled && <div className="flex items-center gap-2"><Checkbox id="activity-monitor-consent" checked={consent} disabled={pending} onCheckedChange={value => setConsent(value === true)}/><Label htmlFor="activity-monitor-consent">I confirm this server credential can read all sessions and consent to storing activity history.</Label></div>}
+    <p className="text-sm text-muted-foreground">WebSocket notifications trigger session refreshes. HTTP refreshes also run periodically to reconcile activity and recover from connection interruptions.</p>
     {error && <p className="text-sm text-destructive">{error}</p>}
-    <Button type="button" disabled={pending || Boolean(error) || !Number.isSafeInteger(interval) || interval < 15 || interval > 3600 || enabled && !consent} onClick={() => void save()}>{pending ? 'Saving...' : 'Save monitoring'}</Button>
+    <Button type="button" disabled={pending || Boolean(error) || !Number.isSafeInteger(interval) || interval < 15 || interval > 3600} onClick={() => void save()}>{pending ? 'Saving...' : 'Save monitoring'}</Button>
   </div>;
 }
 

@@ -14,12 +14,13 @@ import (
 
 // catalogueUpstream is a disposable Jellyfin fixture with one movie library.
 type catalogueUpstream struct {
-	mu       sync.Mutex
-	items    []map[string]any
-	episodes map[string][]map[string]any // series ID -> episodes
-	onPage   func(start int)             // called before serving a page
-	pages    int
-	imageHit int
+	mu          sync.Mutex
+	libraryType string
+	items       []map[string]any
+	episodes    map[string][]map[string]any // series ID -> episodes
+	onPage      func(start int)             // called before serving a page
+	pages       int
+	imageHit    int
 }
 
 func (u *catalogueUpstream) setItems(n int, prefix string) {
@@ -36,7 +37,7 @@ func (u *catalogueUpstream) setItems(n int, prefix string) {
 }
 
 func newCatalogueUpstream(t *testing.T) (*catalogueUpstream, *httptest.Server) {
-	u := &catalogueUpstream{}
+	u := &catalogueUpstream{libraryType: "movies"}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("X-Emby-Token") != "fixture-secret" {
 			w.WriteHeader(401)
@@ -46,7 +47,10 @@ func newCatalogueUpstream(t *testing.T) (*catalogueUpstream, *httptest.Server) {
 		case r.URL.Path == "/System/Info":
 			_ = json.NewEncoder(w).Encode(map[string]string{"ServerName": "Catalogue fixture", "Version": "10.10"})
 		case r.URL.Path == "/Library/VirtualFolders":
-			_ = json.NewEncoder(w).Encode([]map[string]string{{"ItemId": "movies", "Name": "Movies", "CollectionType": "movies"}})
+			u.mu.Lock()
+			kind := u.libraryType
+			u.mu.Unlock()
+			_ = json.NewEncoder(w).Encode([]map[string]string{{"ItemId": "movies", "Name": "Movies", "CollectionType": kind}})
 		case r.URL.Path == "/Users":
 			_ = json.NewEncoder(w).Encode([]any{})
 		case r.URL.Path == "/Items":

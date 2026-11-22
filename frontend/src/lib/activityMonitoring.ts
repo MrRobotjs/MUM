@@ -47,7 +47,7 @@ function refresh(actor: string) {
   try { if (typeof window !== 'undefined' && window.dispatchEvent) window.dispatchEvent(new CustomEvent(MONITORING_EVENT, {detail: {actor_uuid: actor}})); } catch { /* Optional read signal. */ }
 }
 const pending = new Set<string>();
-export async function configureActivityMonitoring(base: MonitorSnapshot, task: MonitorTask, enabled: boolean, interval: number, consent: boolean, signal?: AbortSignal,sockets=task.socket_enabled) {
+export async function configureActivityMonitoring(base: MonitorSnapshot, task: MonitorTask, enabled: boolean, interval: number, consent: boolean, signal?: AbortSignal,sockets=task.socket_enabled, intervalOnly=false) {
   if (!base.configuration_available || !base.tasks.some(row => row.server_id === task.server_id && row.revision === task.revision && row.server_revision === task.server_revision) ||
       typeof enabled !== 'boolean' || typeof sockets!=='boolean'||sockets&&!enabled|| !Number.isSafeInteger(interval) || interval < 15 || interval > 3600 || typeof consent !== 'boolean' || enabled && !consent || signal?.aborted) throw Error('Refresh owner monitoring settings and confirm visibility before enabling.');
   if (pending.has(base.actor_uuid)) throw Error('A monitoring change is pending.');
@@ -59,7 +59,7 @@ export async function configureActivityMonitoring(base: MonitorSnapshot, task: M
     if (!fresh.configuration_available || token !== getAccessToken() || abort.signal.aborted || current?.revision !== task.revision || current.server_revision !== task.server_revision) throw Error('Monitoring configuration changed');
     const {data: result} = await requestJson<{data: {actor_uuid: string; server_id: string; revision: number}}>(`/api/settings/activity-monitoring/${task.server_id}`, {
       method: 'PUT', retryAuthentication: false, signal: abort.signal,
-      body: JSON.stringify({expected_actor_uuid: base.actor_uuid, revision: task.revision, server_revision: task.server_revision,
+      body: JSON.stringify(intervalOnly ? {expected_actor_uuid: base.actor_uuid, revision: task.revision, server_revision: task.server_revision, interval_seconds: interval} : {expected_actor_uuid: base.actor_uuid, revision: task.revision, server_revision: task.server_revision,
         enabled,socket_enabled:sockets, interval_seconds: interval, acknowledge_complete_session_visibility: consent}),
     });
     if (token !== getAccessToken() || abort.signal.aborted || result?.actor_uuid !== base.actor_uuid || result.server_id !== task.server_id || !positive(result.revision) || result.revision <= task.revision) throw Error('Unconfirmed monitoring result');
@@ -68,4 +68,8 @@ export async function configureActivityMonitoring(base: MonitorSnapshot, task: M
     if (token === getAccessToken()) refresh(base.actor_uuid);
     throw Error('Monitoring change could not be confirmed. Refresh and inspect before another attempt. No request was replayed.');
   } finally { clearTimeout(timer); signal?.removeEventListener('abort', cancel); pending.delete(base.actor_uuid); }
+}
+
+export function configureActivityMonitoringInterval(base: MonitorSnapshot, task: MonitorTask, interval: number, signal?: AbortSignal) {
+  return configureActivityMonitoring(base, task, true, interval, true, signal, true, true);
 }

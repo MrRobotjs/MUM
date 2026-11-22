@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -14,6 +15,22 @@ import (
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
 )
+
+func TestProviderSocketTargetsIncludeEverySupportedServer(t *testing.T) {
+	a, _ := testApp(t)
+	token, _ := bootstrapOwner(t, a)
+	for i := 0; i < 18; i++ {
+		w := apiRequest(a, "POST", "/api/servers", token, map[string]any{"server_nickname": fmt.Sprintf("Plex %d", i), "service_type": "plex", "url": "http://example.invalid", "api_key": "fixture-secret"}, nil)
+		if w.Code != http.StatusCreated {
+			t.Fatal(w.Code, w.Body.String())
+		}
+	}
+	createManagedServer(t, a, token, "kavita", "http://example.invalid")
+	targets, err := a.providerSocketTargets(t.Context())
+	if err != nil || len(targets) != 18 {
+		t.Fatalf("got %d targets, want 18: %v", len(targets), err)
+	}
+}
 
 func waitProviderSocket(t *testing.T, predicate func() bool) {
 	t.Helper()

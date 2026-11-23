@@ -31,7 +31,7 @@ export async function fetchActivityMonitoring(actor: string, signal?: AbortSigna
         !date(task.next_run_at) || !date(task.started_at) || !date(task.finished_at) ||
         !Number.isSafeInteger(task.attempts) || task.attempts < 0 ||
         (task.state === 'disabled' && task.enabled) || (task.state !== 'disabled' && !task.enabled) ||
-        (task.state === 'scheduled' && task.next_run_at === null) ||
+        (task.state === 'scheduled' && !task.socket_enabled && task.next_run_at === null) ||
         (['running', 'recovering'].includes(task.state) && task.started_at === null)) throw Error('Invalid monitoring status. Refresh.');
     seen.add(task.server_id);
     tasks.push({server_id: task.server_id, server_name: task.server_name, provider: task.provider, revision: task.revision, server_revision: task.server_revision,

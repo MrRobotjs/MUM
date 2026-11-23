@@ -6,7 +6,7 @@ import {loadFrontend} from './frontendLoader.mjs';
 // times and periods read in short units and full dates.
 const load = () => loadFrontend("export * from './src/lib/playHistoryGraph';");
 const reply = extra => ({data: {days: 30, server_id: null, media: 'all', user: null, bucket: 'week',
-  buckets: [{start: '2026-10-21', end: '2026-10-27', seconds: {}}, {start: '2026-10-28', end: '2026-11-03', seconds: {movies: 31320, tv: 5040, music: 1680}}],
+  buckets: [{start: '2026-10-21', end: '2026-10-27', seconds: {}, plays: {}}, {start: '2026-10-28', end: '2026-11-03', seconds: {movies: 31320, tv: 5040, music: 1680}, plays: {movies: 2, tv: 1}}],
   totals: {movies: 31320, tv: 5040, music: 1680, photos: 0, other: 0},
   users: [{uuid: '11111111-1111-4111-8111-111111111111', name: 'viewer'}], ...extra}});
 
@@ -16,6 +16,7 @@ test('play history reply', async () => {
   assert.equal(history.bucket, 'week');
   assert.deepEqual(history.buckets[0].seconds, {movies: 0, tv: 0, music: 0, photos: 0, other: 0});
   assert.equal(history.buckets[1].seconds.tv, 5040);
+  assert.equal(history.buckets[1].plays.movies, 2);
   assert.equal(history.users[0].name, 'viewer');
   const bad = [
     {days: 7}, {bucket: 'year'}, {media: 'books'}, {buckets: []},
@@ -40,4 +41,16 @@ test('play history wording', async () => {
   assert.match(m.playHistoryTitle('day', {start: '2026-11-23', end: '2026-11-23'}), /^November 23rd$/);
   assert.match(m.playHistoryAxisLabel('week', week), /^Nov 9 - Nov 16$/);
   assert.match(m.playHistoryAxisLabel('month', {start: '2026-11-01', end: '2026-11-19'}), /^Nov 2026$/);
+});
+
+test('daily history groups play counts by weekday and media type', async () => {
+  const m = await load();
+  const history = m.readPlayHistory(reply({bucket:'day', buckets:[
+    {start:'2026-11-01',end:'2026-11-01',seconds:{movies:30},plays:{movies:1}},
+    {start:'2026-11-08',end:'2026-11-08',seconds:{tv:60},plays:{tv:2}},
+  ]}),30);
+  const weekdays = m.playHistoryWeekdays(history, 'plays');
+  assert.equal(weekdays[0].movies,1);
+  assert.equal(weekdays[0].tv,2);
+  assert.equal(weekdays[1].movies,0);
 });

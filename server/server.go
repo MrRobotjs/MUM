@@ -186,6 +186,7 @@ func NewApp(store *Store, queue *LogQueue, assets fs.FS) (*App, error) {
 	handle("GET /api/activity/history", a.activityRead)
 	handle("GET /api/activity/summary", a.activitySummary)
 	handle("GET /api/graphs/analytics", a.graphAnalytics)
+	handle("GET /api/graphs/breakdowns", a.graphBreakdowns)
 	handle("GET /api/graphs/play-history", a.graphPlayHistory)
 	handle("GET /api/activity/identities/{identity}/current", a.activityRead)
 	handle("GET /api/activity/identities/{identity}/history", a.activityRead)

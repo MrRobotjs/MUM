@@ -87,6 +87,9 @@ var PlaybackStates = map[string]bool{"playing": true, "paused": true, "buffering
 // details. Avatar and poster descriptors stay private and are replaced by
 // signed application URLs in MUM's DTO. MUM clears it when the session ends.
 type ActivityDisplay struct {
+	// Retained graph dimensions; never part of current-session JSON.
+	SourceResolution      string   `json:"-"`
+	StreamResolution      string   `json:"-"`
 	State                 string   `json:"state,omitempty"`
 	RawDataJSON           string   `json:"raw_data_json,omitempty"`
 	MediaPath             string   `json:"media_path,omitempty"`

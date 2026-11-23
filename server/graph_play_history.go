@@ -25,15 +25,17 @@ var playHistoryMedia = []string{"movies", "tv", "music", "photos", "other"}
 var uuidPattern = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
 
 type playHistoryQuery struct {
-	graph  graphQuery
-	media  string // "" for every type
-	person string // "" for everyone
+	graph    graphQuery
+	media    string // "" for every type
+	person   string // "" for everyone
+	interval string
 }
 
 type playHistoryBucket struct {
 	Start   string           `json:"start"` // first day, YYYY-MM-DD
 	End     string           `json:"end"`   // last day, inclusive
 	Seconds map[string]int64 `json:"seconds"`
+	Plays   map[string]int64 `json:"plays"`
 }
 
 type playHistoryPerson struct {
@@ -53,6 +55,11 @@ func parsePlayHistoryQuery(r *http.Request) (playHistoryQuery, error) {
 			return q, ErrConflict
 		}
 		switch key {
+		case "interval":
+			if list[0] != "day" && list[0] != "month" {
+				return q, ErrConflict
+			}
+			q.interval = list[0]
 		case "media":
 			if list[0] != "all" && !slices.Contains(playHistoryMedia, list[0]) {
 				return q, ErrConflict
@@ -80,16 +87,20 @@ func parsePlayHistoryQuery(r *http.Request) (playHistoryQuery, error) {
 
 // playHistoryBuckets splits the window ending today into periods.
 func playHistoryBuckets(today time.Time, days int) (string, []playHistoryBucket) {
+	return playHistoryBucketsInterval(today, days, "")
+}
+
+func playHistoryBucketsInterval(today time.Time, days int, interval string) (string, []playHistoryBucket) {
 	first := today.AddDate(0, 0, 1-days)
 	day := func(t time.Time) string { return t.Format("2006-01-02") }
 	buckets := []playHistoryBucket{}
 	switch {
-	case days <= 14:
+	case interval == "day" || interval == "" && days <= 14:
 		for d := first; !d.After(today); d = d.AddDate(0, 0, 1) {
 			buckets = append(buckets, playHistoryBucket{Start: day(d), End: day(d)})
 		}
 		return "day", buckets
-	case days <= 120:
+	case interval == "" && days <= 120:
 		// Weeks end today and go back seven days at a time; the oldest may be shorter.
 		for end := today; !end.Before(first); end = end.AddDate(0, 0, -7) {
 			start := end.AddDate(0, 0, -6)
@@ -143,9 +154,10 @@ func (a *App) graphPlayHistory(w http.ResponseWriter, r *http.Request) {
 	for id, fence := range fences {
 		active[id] = fence.Active
 	}
-	kind, buckets := playHistoryBuckets(zoneToday(now, query.graph.Zone), query.graph.Days)
+	kind, buckets := playHistoryBucketsInterval(zoneToday(now, query.graph.Zone), query.graph.Days, query.interval)
 	for i := range buckets {
 		buckets[i].Seconds = map[string]int64{}
+		buckets[i].Plays = map[string]int64{}
 	}
 	totals := map[string]int64{}
 	for _, media := range playHistoryMedia {
@@ -225,6 +237,7 @@ func readPlayHistory(ctx context.Context, tx *sql.Tx, q playHistoryQuery, since 
 			continue
 		}
 		buckets[i].Seconds[media] += seconds
+		buckets[i].Plays[media]++
 		totals[media] += seconds
 	}
 	if err := rows.Err(); err != nil {

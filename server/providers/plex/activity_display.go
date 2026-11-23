@@ -19,6 +19,7 @@ import (
 // DisplayStream, DisplayPart, DisplayMedia and DisplayRow decode the session
 // and library metadata fields the display uses.
 type DisplayStream struct {
+	Decision    string `xml:"decision,attr"`
 	Width       int    `xml:"width,attr"`
 	AspectRatio string `xml:"aspectRatio,attr"`
 	FrameRate   string `xml:"frameRate,attr"`
@@ -152,6 +153,11 @@ func ParseDisplays(body []byte) ([]*provider.ActivityDisplay, error) {
 	rawPayloads := parseRawPayloads(body)
 	for index, row := range page.Rows {
 		d := &provider.ActivityDisplay{Library: displayText(row.Library), Year: displayText(row.Year), Edition: displayText(row.Edition), ParentTitle: displayText(row.ParentTitle), GrandparentTitle: displayText(row.GrandparentTitle), PlayerTitle: displayText(row.Player.Title), PlayerPlatform: displayText(row.Player.Platform), Product: displayText(row.Player.Product), PosterItem: row.Item, PosterPath: row.Poster}
+		if row.Kind != "track" && row.Transcode != nil && row.Transcode.VideoDecision == "transcode" {
+			if resolution := resolutionLabel("", row.Transcode.Height); resolution != "Unknown" {
+				d.StreamResolution = resolution
+			}
+		}
 		d.AvatarPath = ActivityAvatar(row.User.Thumb)
 		switch row.Player.State {
 		case "playing", "paused", "buffering":

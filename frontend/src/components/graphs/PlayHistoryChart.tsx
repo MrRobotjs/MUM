@@ -6,7 +6,7 @@ import { useAdminApi } from '../../hooks/useAdminApi';
 import { useAccountDisplay } from '../../hooks/useAccountDisplay';
 import { ChartCard, GRAPH_REFRESH_MS, renderGraphsTooltipCard } from '../../pages/GraphsPage';
 import {
-  playHistoryAxisLabel, playHistoryColors, playHistoryDuration, playHistoryLabels, playHistoryMedia, playHistoryTitle, readPlayHistory,
+  playHistoryAxisLabel, playHistoryColors, playHistoryDuration, playHistoryLabels, playHistoryMedia, playHistoryTitle, playHistoryWeekdays, readPlayHistory,
   type PlayHistory, type PlayHistoryMedia,
 } from '../../lib/playHistoryGraph';
 
@@ -17,13 +17,15 @@ import {
 
 const mediaChoices: PlayHistoryMedia[] = ['movies', 'tv', 'music', 'photos'];
 
-export function PlayHistoryChart({ days, serverId }: { days: number; serverId: string }) {
+export function PlayHistoryChart({ days, serverId, initialInterval = 'auto', initialMetric = 'seconds', weekday = false }: { days: number; serverId: string; initialInterval?: 'auto' | 'day' | 'month'; initialMetric?: 'seconds' | 'plays'; weekday?: boolean }) {
   const [media, setMedia] = useState<'all' | PlayHistoryMedia>('all');
   const [user, setUser] = useState('all');
+  const [metric, setMetric] = useState<'seconds' | 'plays'>(initialMetric);
+  const [interval, setInterval] = useState<'auto' | 'day' | 'month'>(weekday ? 'day' : initialInterval);
   const [hovered, setHovered] = useState<PlayHistoryMedia | null>(null);
   // Periods are days in the account's timezone; the read waits until it is known.
   const { timeZone } = useAccountDisplay();
-  const path = `/graphs/play-history?days=${days}&server_id=${encodeURIComponent(serverId || 'all')}&media=${media}&user=${encodeURIComponent(user)}&tz=${encodeURIComponent(timeZone ?? '')}`;
+  const path = `/graphs/play-history?days=${days}&server_id=${encodeURIComponent(serverId || 'all')}&media=${media}&user=${encodeURIComponent(user)}&tz=${encodeURIComponent(timeZone ?? '')}${interval === 'auto' ? '' : `&interval=${interval}`}`;
   const { data: raw, loading, error } = useAdminApi<unknown>(path, Boolean(timeZone), GRAPH_REFRESH_MS);
   const { data, invalid } = useMemo(() => {
     if (!raw) return { data: null as PlayHistory | null, invalid: false };
@@ -43,28 +45,38 @@ export function PlayHistoryChart({ days, serverId }: { days: number; serverId: s
   // Music and Photos always, Other only when something else was played).
   const shown = useMemo(() => {
     if (media !== 'all') return [media];
-    return playHistoryMedia.filter(m => m !== 'other' || (data?.totals.other ?? 0) > 0);
-  }, [media, data]);
-  const points = useMemo(() => (data?.buckets ?? []).map(b => ({ ...b.seconds, start: b.start, end: b.end })), [data]);
-  const empty = data !== null && shown.every(m => data.totals[m] === 0);
+    return playHistoryMedia.filter(m => m !== 'other' || (data?.buckets.some(b => b[metric].other > 0) ?? false));
+  }, [media, data, metric]);
+  const points = useMemo(() => weekday && data ? playHistoryWeekdays(data, metric).map(b => ({ ...b, start: b.label, end: b.label })) : (data?.buckets ?? []).map(b => ({ ...b[metric], start: b.start, end: b.end })), [data, metric, weekday]);
+  const totals = useMemo(() => Object.fromEntries(playHistoryMedia.map(m => [m, data?.buckets.reduce((sum, b) => sum + b[metric][m], 0) ?? 0])) as Record<PlayHistoryMedia, number>, [data, metric]);
+  const displayValue = (v: number) => metric === 'seconds' ? playHistoryDuration(v) : String(v);
+  const empty = data !== null && shown.every(m => totals[m] === 0);
   const fill = (m: PlayHistoryMedia) => (hovered && hovered !== m ? `${playHistoryColors[m]}59` : playHistoryColors[m]);
 
   const tooltip = ({ active, payload }: { active?: boolean; payload?: ReadonlyArray<any> }) => {
     if (!active || !payload?.length || !data) return null;
     const point = payload[0].payload as { start: string; end: string } & Record<PlayHistoryMedia, number>;
-    const rows: { key: string; label: string; value: string; dotColor: string }[] = shown.filter(m => point[m] > 0).map(m => ({ key: m, label: playHistoryLabels[m], value: playHistoryDuration(point[m]), dotColor: playHistoryColors[m] }));
+    const rows: { key: string; label: string; value: string; dotColor: string }[] = shown.filter(m => point[m] > 0).map(m => ({ key: m, label: playHistoryLabels[m], value: displayValue(point[m]), dotColor: playHistoryColors[m] }));
     const total = shown.reduce((sum, m) => sum + point[m], 0);
-    if (rows.length !== 1) rows.push({ key: 'total', label: 'Total', value: playHistoryDuration(total), dotColor: 'var(--muted-foreground)' });
-    return renderGraphsTooltipCard(playHistoryTitle(data.bucket, point), rows);
+    if (rows.length !== 1) rows.push({ key: 'total', label: 'Total', value: displayValue(total), dotColor: 'var(--muted-foreground)' });
+    return renderGraphsTooltipCard(weekday ? point.start : playHistoryTitle(data.bucket, point), rows);
   };
 
   return (
     <ChartCard
-      title="Play History"
-      description="Watched time per period by media type, from MUM's recorded plays."
+      title={weekday ? 'Plays by Day of Week' : 'Play History'}
+      description="Recorded plays or watched time per period by media type."
       icon={faChartColumn}
       loading={loading}
       actions={<>
+        {!weekday && <Select value={interval} onValueChange={value => setInterval(value as typeof interval)}>
+          <SelectTrigger className="w-auto" aria-label="Graph interval"><SelectValue /></SelectTrigger>
+          <SelectContent><SelectItem value="auto">Automatic</SelectItem><SelectItem value="day">Daily</SelectItem><SelectItem value="month">Monthly</SelectItem></SelectContent>
+        </Select>}
+        <Select value={metric} onValueChange={value => setMetric(value as typeof metric)}>
+          <SelectTrigger className="w-auto" aria-label="Metric"><SelectValue /></SelectTrigger>
+          <SelectContent><SelectItem value="seconds">Watch Time</SelectItem><SelectItem value="plays">Play Count</SelectItem></SelectContent>
+        </Select>
         <Select value={media} onValueChange={value => setMedia(value as typeof media)}>
           <SelectTrigger className="w-auto" aria-label="Media"><SelectValue /></SelectTrigger>
           <SelectContent>
@@ -86,9 +98,9 @@ export function PlayHistoryChart({ days, serverId }: { days: number; serverId: s
           <BarChart data={points} margin={{ top: 10, right: 6, left: 4, bottom: 0 }} onMouseLeave={() => setHovered(null)}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" opacity={0.35} />
             <XAxis dataKey="start" tickLine={false} axisLine={false} tickMargin={8} minTickGap={12} tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
-              tickFormatter={(start: string) => { const b = data?.buckets.find(x => x.start === start); return b && data ? playHistoryAxisLabel(data.bucket, b) : start; }} />
+              tickFormatter={(start: string) => { const b = data?.buckets.find(x => x.start === start); return !weekday && b && data ? playHistoryAxisLabel(data.bucket, b) : start; }} />
             <YAxis tickLine={false} axisLine={false} tickMargin={6} width={48} tickCount={5} tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
-              tickFormatter={(v: number) => playHistoryDuration(Number(v))} />
+              tickFormatter={(v: number) => displayValue(Number(v))} />
             <Tooltip content={tooltip} cursor={{ fill: 'var(--muted)', opacity: 0.4 }} />
             {shown.map(m => <Bar key={m} dataKey={m} name={playHistoryLabels[m]} stackId="play-history" fill={fill(m)} isAnimationActive={false}
               onMouseEnter={() => setHovered(m)} onMouseLeave={() => setHovered(null)} />)}
@@ -105,7 +117,7 @@ export function PlayHistoryChart({ days, serverId }: { days: number; serverId: s
           </span>)}
         </div>
         <span className="text-muted-foreground">
-          Totals: {shown.map(m => `${playHistoryLabels[m]} — ${playHistoryDuration(data.totals[m])}`).join(' | ')}
+          Totals: {shown.map(m => `${playHistoryLabels[m]} — ${displayValue(totals[m])}`).join(' | ')}
         </span>
       </div>}
     </ChartCard>

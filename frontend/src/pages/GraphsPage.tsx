@@ -2,6 +2,7 @@ import { formatCalendarDate } from '../util/calendarDates';
 import { useAccountDisplay } from '../hooks/useAccountDisplay';
 import { graphEmptyMessage, graphUnavailable } from '../lib/graphs';
 import { PlayHistoryChart } from '../components/graphs/PlayHistoryChart';
+import { PlaybackBreakdowns } from '../components/graphs/PlaybackBreakdowns';
 import { useEffect, useMemo, useState } from 'react';
 import {
   Area,
@@ -30,6 +31,7 @@ import { useAdminApi } from '../hooks/useAdminApi';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { PeriodPicker } from '../components/common/PeriodPicker';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Spinner } from '@/components/ui/spinner';
 import { ServiceIcon } from '@/components/services/ServiceIcon';
 
@@ -350,6 +352,8 @@ export const GRAPH_REFRESH_MS = 15_000;
  * server's Graphs tab fixed to that server (serverId), without the server picker.
  */
 export const ActivityGraphs = ({ serverId: fixedServerId }: { serverId?: number } = {}) => {
+  const [graphTab, setGraphTab] = useState('media');
+  const [hoveredSeparated, setHoveredSeparated] = useState<{ graph: string; series: string } | null>(null);
   const { formatTimestamp, formatHour, timeZone } = useAccountDisplay();
   const formatGeneratedAt = (value?: string) => value ? formatTimestamp(value) : null;
   const fixed = fixedServerId !== undefined;
@@ -584,6 +588,7 @@ export const ActivityGraphs = ({ serverId: fixedServerId }: { serverId?: number 
     itemSorter: null,
     iconType: 'circle' as const,
     iconSize: isMobileViewport ? 8 : 10,
+    formatter: (value: string) => <span className="uppercase tracking-wide">{value}</span>,
     wrapperStyle: {
       fontSize: isMobileViewport ? '11px' : '12px',
       lineHeight: isMobileViewport ? '16px' : '18px',
@@ -667,8 +672,22 @@ export const ActivityGraphs = ({ serverId: fixedServerId }: { serverId?: number 
         </CardContent>
       </Card>
 
+      <Tabs value={graphTab} onValueChange={setGraphTab}>
+        <TabsList aria-label="Graph categories" className="w-full sm:w-fit">
+          <TabsTrigger value="media">Media Type</TabsTrigger>
+          <TabsTrigger value="stream">Stream Type</TabsTrigger>
+          <TabsTrigger value="totals">Play Totals</TabsTrigger>
+        </TabsList>
+      <TabsContent value={graphTab} className="space-y-6">
+      {(graphTab === 'media' || graphTab === 'stream') && <PlaybackBreakdowns days={days} serverId={effectiveServerIdFilter} tab={graphTab} separated={isAllServersSeparated} />}
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-        <div className="md:col-span-2">
+        {graphTab === 'media' && <div className="md:col-span-2">
+          <PlayHistoryChart days={days} serverId={effectiveServerIdFilter} initialInterval="day" initialMetric="plays" />
+        </div>}
+        {graphTab === 'media' && <div className="md:col-span-2">
+          <PlayHistoryChart days={days} serverId={effectiveServerIdFilter} initialMetric="plays" weekday />
+        </div>}
+        {graphTab === 'media' && <div className="md:col-span-2">
           {renderChartCard(
             'Activity by Hour',
             'Play counts grouped by hour across the selected stream history window.',
@@ -795,9 +814,8 @@ export const ActivityGraphs = ({ serverId: fixedServerId }: { serverId?: number 
               ) : null}
             </div>
           )}
-        </div>
-
-        <div className="md:col-span-2">
+        </div>}
+        {graphTab === 'totals' && <div className="md:col-span-2">
           {renderChartCard(
             'Watch Time Activity',
             'Watch time trend across all libraries for the selected server scope.',
@@ -924,13 +942,13 @@ export const ActivityGraphs = ({ serverId: fixedServerId }: { serverId?: number 
               ) : null}
             </div>
           )}
-        </div>
+        </div>}
 
-        <div className="md:col-span-2">
-          <PlayHistoryChart days={days} serverId={effectiveServerIdFilter} />
-        </div>
+        {graphTab === 'totals' && <div className="md:col-span-2">
+          <PlayHistoryChart days={days} serverId={effectiveServerIdFilter} initialInterval="month" initialMetric="plays" />
+        </div>}
 
-        <div>
+        {graphTab === 'media' && <div>
           {renderChartCard(
             'Client Device Mix',
             'Distribution of playback sessions by detected client device/app name.',
@@ -947,6 +965,7 @@ export const ActivityGraphs = ({ serverId: fixedServerId }: { serverId?: number 
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
                     data={separatedDeviceChartData}
+                    onMouseLeave={() => setHoveredSeparated(null)}
                     layout="vertical"
                     margin={{ top: 8, right: 4, left: 0, bottom: 18 }}
                     barCategoryGap={8}
@@ -974,7 +993,7 @@ export const ActivityGraphs = ({ serverId: fixedServerId }: { serverId?: number 
                           : text;
                       }}
                     />
-                    <Tooltip content={renderSeparatedStackedTooltip} cursor={false} />
+                    <Tooltip content={renderSeparatedStackedTooltip} cursor={{ fill: 'var(--muted)', opacity: 0.4 }} />
                     <Legend verticalAlign="bottom" {...legendProps} />
                     {(separatedData?.device_preferences?.categories ?? []).map((category) => (
                       <Bar
@@ -983,6 +1002,9 @@ export const ActivityGraphs = ({ serverId: fixedServerId }: { serverId?: number 
                         name={category.label}
                         stackId="device-mix"
                         fill={category.color || DEVICE_COLORS[0]}
+                        fillOpacity={hoveredSeparated?.graph === 'devices' && hoveredSeparated.series !== category.key ? 0.35 : 1}
+                        onMouseEnter={() => setHoveredSeparated({ graph: 'devices', series: category.key })}
+                        onMouseLeave={() => setHoveredSeparated(null)}
                         radius={[0, 0, 0, 0]}
                       />
                     ))}
@@ -1025,9 +1047,9 @@ export const ActivityGraphs = ({ serverId: fixedServerId }: { serverId?: number 
               ) : null}
             </div>
           )}
-        </div>
+        </div>}
 
-        <div>
+        {graphTab === 'stream' && <div>
           {renderChartCard(
             'Playback Delivery Modes',
             'Historical split of direct play, direct stream, and transcode sessions.',
@@ -1044,6 +1066,7 @@ export const ActivityGraphs = ({ serverId: fixedServerId }: { serverId?: number 
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
                     data={separatedPlaybackChartData}
+                    onMouseLeave={() => setHoveredSeparated(null)}
                     layout="vertical"
                     margin={{ top: 8, right: 4, left: 0, bottom: 18 }}
                     barCategoryGap={8}
@@ -1071,7 +1094,7 @@ export const ActivityGraphs = ({ serverId: fixedServerId }: { serverId?: number 
                           : text;
                       }}
                     />
-                    <Tooltip content={renderSeparatedStackedTooltip} cursor={false} />
+                    <Tooltip content={renderSeparatedStackedTooltip} cursor={{ fill: 'var(--muted)', opacity: 0.4 }} />
                     <Legend verticalAlign="bottom" {...legendProps} />
                     {(separatedData?.playback_health?.categories ?? []).map((category) => (
                       <Bar
@@ -1080,6 +1103,9 @@ export const ActivityGraphs = ({ serverId: fixedServerId }: { serverId?: number 
                         name={category.label}
                         stackId="playback-health"
                         fill={category.color || DEVICE_COLORS[0]}
+                        fillOpacity={hoveredSeparated?.graph === 'playback' && hoveredSeparated.series !== category.key ? 0.35 : 1}
+                        onMouseEnter={() => setHoveredSeparated({ graph: 'playback', series: category.key })}
+                        onMouseLeave={() => setHoveredSeparated(null)}
                         radius={[0, 0, 0, 0]}
                       />
                     ))}
@@ -1116,8 +1142,10 @@ export const ActivityGraphs = ({ serverId: fixedServerId }: { serverId?: number 
               ) : null}
             </div>
           )}
-        </div>
+        </div>}
       </div>
+      </TabsContent>
+      </Tabs>
     </div>
   );
 };

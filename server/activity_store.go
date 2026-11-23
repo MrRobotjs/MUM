@@ -303,7 +303,7 @@ func commitActivitySnapshot(ctx context.Context, tx *sql.Tx, c activityReadClaim
 			if len(library) > 1024 {
 				library = ""
 			}
-			if _, err := tx.ExecContext(ctx, `UPDATE media_activity_history SET poster_item=CASE WHEN ?<>'' THEN ? ELSE poster_item END,poster_path=CASE WHEN ?<>'' THEN ? ELSE poster_path END,library_name=coalesce(nullif(?,''),library_name) WHERE id=?`, posterPath, posterItem, posterPath, posterPath, library, historyID); err != nil {
+			if _, err := tx.ExecContext(ctx, `UPDATE media_activity_history SET poster_item=CASE WHEN ?<>'' THEN ? ELSE poster_item END,poster_path=CASE WHEN ?<>'' THEN ? ELSE poster_path END,library_name=coalesce(nullif(?,''),library_name),source_resolution=coalesce(nullif(?,''),source_resolution),stream_resolution=coalesce(nullif(?,''),stream_resolution) WHERE id=?`, posterPath, posterItem, posterPath, posterPath, library, activityResolution(session.Display.SourceResolution), activityResolution(session.Display.StreamResolution), historyID); err != nil {
 				return result, err
 			}
 		}

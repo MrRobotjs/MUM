@@ -16,6 +16,7 @@ type playHistoryBody struct {
 			Start   string           `json:"start"`
 			End     string           `json:"end"`
 			Seconds map[string]int64 `json:"seconds"`
+			Plays   map[string]int64 `json:"plays"`
 		} `json:"buckets"`
 		Totals map[string]int64 `json:"totals"`
 		Users  []struct {
@@ -65,6 +66,9 @@ func TestGraphPlayHistory(t *testing.T) {
 	if last := d.Buckets[4].Seconds; last["movies"] != 3600 || last["tv"] != 1800 || last["music"] != 0 {
 		t.Fatalf("this week %+v", last)
 	}
+	if last := d.Buckets[4].Plays; last["movies"] != 1 || last["tv"] != 1 {
+		t.Fatalf("play counts %+v", last)
+	}
 	if prior := d.Buckets[3].Seconds; prior["music"] != 600 {
 		t.Fatalf("last week %+v", prior)
 	}
@@ -87,6 +91,12 @@ func TestGraphPlayHistory(t *testing.T) {
 	}
 	if _, year := read("?days=365"); year.Data.Bucket != "month" || year.Data.Totals["movies"] != 3600+5400 || year.Data.Buckets[len(year.Data.Buckets)-1].End != today {
 		t.Fatalf("months %s %+v", year.Data.Bucket, year.Data.Totals)
+	}
+	if _, daily := read("?days=30&interval=day"); daily.Data.Bucket != "day" || len(daily.Data.Buckets) != 30 {
+		t.Fatalf("daily interval %+v", daily.Data)
+	}
+	if _, monthly := read("?days=30&interval=month"); monthly.Data.Bucket != "month" {
+		t.Fatalf("monthly interval %+v", monthly.Data)
 	}
 	if _, one := read("?days=30&server_id=" + strconv.FormatInt(f.server, 10)); one.Data.Totals["movies"] != 3600 {
 		t.Fatalf("one server %+v", one.Data.Totals)

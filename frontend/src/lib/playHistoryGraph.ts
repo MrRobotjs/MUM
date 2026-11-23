@@ -2,7 +2,7 @@
 // type, from MUM's recorded plays, with media and person filters.
 
 export type PlayHistoryMedia = 'movies' | 'tv' | 'music' | 'photos' | 'other';
-export type PlayHistoryBucket = { start: string; end: string; seconds: Record<PlayHistoryMedia, number> };
+export type PlayHistoryBucket = { start: string; end: string; seconds: Record<PlayHistoryMedia, number>; plays: Record<PlayHistoryMedia, number> };
 export type PlayHistory = {
   days: number;
   media: PlayHistoryMedia | 'all';
@@ -15,6 +15,17 @@ export type PlayHistory = {
 export const playHistoryMedia: PlayHistoryMedia[] = ['movies', 'tv', 'music', 'photos', 'other'];
 export const playHistoryLabels: Record<PlayHistoryMedia, string> = { movies: 'Movies', tv: 'TV', music: 'Music', photos: 'Photos', other: 'Other' };
 export const playHistoryColors: Record<PlayHistoryMedia, string> = { movies: '#9ad186', tv: '#f1335e', music: '#4a7cf0', photos: '#e5a00d', other: '#9ca3af' };
+
+export function playHistoryWeekdays(history: PlayHistory, metric: 'plays' | 'seconds') {
+  const labels = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const result = labels.map(label => ({ label, movies: 0, tv: 0, music: 0, photos: 0, other: 0 }));
+  if (history.bucket !== 'day') return result;
+  for (const bucket of history.buckets) {
+    const weekday = new Date(`${bucket.start}T00:00:00Z`).getUTCDay();
+    for (const media of playHistoryMedia) result[weekday][media] += bucket[metric][media];
+  }
+  return result;
+}
 
 const invalid = () => new Error('Invalid play history');
 const day = (v: unknown): v is string => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) && Number.isFinite(Date.parse(`${v}T00:00:00Z`));
@@ -43,7 +54,7 @@ export function readPlayHistory(raw: unknown, days: number): PlayHistory {
   const buckets = data.buckets.map((b: unknown) => {
     const item = b as Record<string, unknown>;
     if (!item || !day(item.start) || !day(item.end) || item.start > item.end) throw invalid();
-    return { start: item.start, end: item.end, seconds: readSeconds(item.seconds, false) };
+    return { start: item.start, end: item.end, seconds: readSeconds(item.seconds, false), plays: readSeconds(item.plays, false) };
   });
   for (let i = 1; i < buckets.length; i++) if (buckets[i].start <= buckets[i - 1].end) throw invalid();
   const users = data.users.map((u: unknown) => {

@@ -191,6 +191,23 @@ func ApplySourceDisplay(d *provider.ActivityDisplay, live, original DisplayRow) 
 		}
 	}
 	resolution := resolutionLabel(media.Resolution, videoHeight)
+	if live.Kind != "track" && resolution != "Unknown" {
+		d.SourceResolution = resolution
+		videoCopy := live.Transcode != nil && (live.Transcode.VideoDecision == "copy" || live.Transcode.VideoDecision == "directplay")
+		if live.Transcode == nil {
+			selected := 0
+			for _, stream := range livePart.Streams {
+				if stream.Type == 1 && stream.Selected == "1" {
+					selected++
+					videoCopy = stream.Decision == "copy" || stream.Decision == "directplay"
+				}
+			}
+			videoCopy = selected == 1 && videoCopy
+		}
+		if videoCopy {
+			d.StreamResolution = resolution
+		}
+	}
 	hasVideoSource := videoCodec != "" || resolution != "Unknown"
 	if videoCodec == "" {
 		videoCodec = "Unknown"

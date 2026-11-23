@@ -664,6 +664,8 @@ export const ActivityGraphs = ({ serverId: fixedServerId }: { serverId?: number 
 
           {playbackNote ? <p className="text-xs text-muted-foreground">{playbackNote}</p> : null}
 
+          {isAllServersSeparated ? <p className="text-xs text-muted-foreground">Only charts that clearly show each server separately are displayed in this view. Select All Servers (Combined) or an individual server to see the other charts.</p> : null}
+
           {error ? (
             <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
               Failed to load analytics graphs: {error}
@@ -679,12 +681,12 @@ export const ActivityGraphs = ({ serverId: fixedServerId }: { serverId?: number 
           <TabsTrigger value="totals">Play Totals</TabsTrigger>
         </TabsList>
       <TabsContent value={graphTab} className="space-y-6">
-      {(graphTab === 'media' || graphTab === 'stream') && <PlaybackBreakdowns days={days} serverId={effectiveServerIdFilter} tab={graphTab} separated={isAllServersSeparated} />}
+      {!isAllServersSeparated && (graphTab === 'media' || graphTab === 'stream') && <PlaybackBreakdowns days={days} serverId={effectiveServerIdFilter} tab={graphTab} separated={isAllServersSeparated} />}
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-        {graphTab === 'media' && <div className="md:col-span-2">
+        {!isAllServersSeparated && graphTab === 'media' && <div className="md:col-span-2">
           <PlayHistoryChart days={days} serverId={effectiveServerIdFilter} initialInterval="day" initialMetric="plays" />
         </div>}
-        {graphTab === 'media' && <div className="md:col-span-2">
+        {!isAllServersSeparated && graphTab === 'media' && <div className="md:col-span-2">
           <PlayHistoryChart days={days} serverId={effectiveServerIdFilter} initialMetric="plays" weekday />
         </div>}
         {graphTab === 'media' && <div className="md:col-span-2">
@@ -944,7 +946,7 @@ export const ActivityGraphs = ({ serverId: fixedServerId }: { serverId?: number 
           )}
         </div>}
 
-        {graphTab === 'totals' && <div className="md:col-span-2">
+        {!isAllServersSeparated && graphTab === 'totals' && <div className="md:col-span-2">
           <PlayHistoryChart days={days} serverId={effectiveServerIdFilter} initialInterval="month" initialMetric="plays" />
         </div>}
 

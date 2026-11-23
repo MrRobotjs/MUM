@@ -1,4 +1,4 @@
-import {formatNextRunTime} from '../lib/scheduledTaskDisplay';
+import {formatNextRunTime, formatTaskInterval} from '../lib/scheduledTaskDisplay';
 import type {DisplayValues} from '../lib/accountDisplay';
 import {useActivityMonitoring} from '../hooks/useActivityMonitoring';
 import type {MonitorTask} from '../lib/activityMonitoring';
@@ -111,16 +111,9 @@ const getTaskDetails = (task: any, formatTimestamp: (value: string) => string) =
   }
 
   if (task.interval_seconds) {
-    const hours = Math.floor(task.interval_seconds / 3600);
-    const minutes = Math.floor((task.interval_seconds % 3600) / 60);
-    const seconds = task.interval_seconds % 60;
-    let intervalStr = '';
-    if (hours > 0) intervalStr += `${hours}h `;
-    if (minutes > 0) intervalStr += `${minutes}m `;
-    if (seconds > 0) intervalStr += `${seconds}s`;
     details.push({
       label: 'Interval',
-      value: intervalStr.trim(),
+      value: formatTaskInterval(task.interval_seconds),
       description: 'How often this task runs'
     });
   }
@@ -229,7 +222,7 @@ const ScheduledTaskRow = ({ task, onClick, display }: ScheduledTaskRowProps) => 
     >
       <TableCell className="font-medium"><div className="flex flex-wrap items-center gap-2"><span>{displayName}</span><span className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs font-semibold ${getServiceBadgeClass(task.provider)}`}>{getServiceIcon(task.provider, 'size-3')}<span className="sr-only">{task.provider}: </span>{task.server_name}</span></div></TableCell>
       <TableCell><TaskState state={scheduledTaskState(task.state)} /></TableCell>
-      <TableCell>{task.interval_seconds ? `${task.interval_seconds}s` : '—'}</TableCell>
+      <TableCell>{task.interval_seconds ? formatTaskInterval(task.interval_seconds) : '—'}</TableCell>
       <NextRunCells value={task.type === 'WebSocket' ? null : task.next_run_time} display={display} empty={task.type === 'WebSocket' ? 'N/A' : 'Not scheduled'} />
     </TableRow>
   );
@@ -369,7 +362,7 @@ export const AdminSettingsInfoPage = () => {
                   {activity.error ? <TableRow><TableCell colSpan={5}>Activity monitoring status is unavailable. <Button variant="outline" onClick={() => void activity.refresh().catch(() => {})}>Refresh monitoring</Button></TableCell></TableRow> : activity.loading ? <TableRow><TableCell colSpan={5}>Loading activity monitoring...</TableCell></TableRow> : activity.snapshot?.tasks.slice().sort((a, b) => a.provider.localeCompare(b.provider) || a.server_name.localeCompare(b.server_name)).map(task => <TableRow key={`activity-${task.server_id}`} className="cursor-pointer hover:bg-muted/50" onClick={()=>{if(activity.actor&&activity.sessionToken)setSocketSelection({id:task.server_id,actor:activity.actor,token:activity.sessionToken})}}>
                     <TableCell><div className="flex flex-wrap items-center gap-2"><button type="button" className="text-left hover:underline focus-visible:ring-2 ring-sidebar-ring" onClick={event=>{event.stopPropagation();if(activity.actor&&activity.sessionToken)setSocketSelection({id:task.server_id,actor:activity.actor,token:activity.sessionToken})}}>Check for active sessions</button><span className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs font-semibold ${getServiceBadgeClass(task.provider)}`}>{getServiceIcon(task.provider, 'size-3')}<span className="sr-only">{task.provider}: </span>{task.server_name}</span></div></TableCell>
                     <TableCell><TaskState state={isSocketConnected(task)?'active':'inactive'} label="WebSocket" />{socketMonitoringStatus(task)==='HTTP fallback' && <div className="text-xs text-muted-foreground">HTTP fallback</div>}</TableCell>
-                    <TableCell>{task.socket_enabled ? 'N/A' : task.state==='scheduled'||task.state==='running' ? `${task.interval_seconds}s (HTTP)` : 'N/A'}</TableCell><NextRunCells value={!task.socket_enabled && (task.state==='scheduled'||task.state==='running') ? task.next_run_at : null} display={displaySettings?.display} />
+                    <TableCell>{task.socket_enabled ? 'N/A' : task.state==='scheduled'||task.state==='running' ? `${formatTaskInterval(task.interval_seconds)} (HTTP)` : 'N/A'}</TableCell><NextRunCells value={!task.socket_enabled && (task.state==='scheduled'||task.state==='running') ? task.next_run_at : null} display={displaySettings?.display} />
                   </TableRow>)}
                   <TableRow><TableCell>Check local account expiry</TableCell><TableCell><TaskState state={maintenanceState}/></TableCell><TableCell>Scheduler loop</TableCell><TableCell>Not recorded</TableCell><TableCell>Not recorded</TableCell></TableRow>
                   <TableRow><TableCell>Check service account expiry</TableCell><TableCell><TaskState state={maintenanceState}/></TableCell><TableCell>Scheduler loop</TableCell><TableCell>Not recorded</TableCell><TableCell>Not recorded</TableCell></TableRow>

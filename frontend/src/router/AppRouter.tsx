@@ -150,6 +150,16 @@ const adminServersList = createRoute({ getParentRoute: () => adminRoute, path: '
 // A server's Overview, Users and Libraries are separate pages sharing the hero.
 const adminServerDetail = createRoute({ getParentRoute: () => adminRoute, path: 'servers/$serverId', component: () => <ServerDetailPage section="overview" /> })
 const adminServerUsers = createRoute({ getParentRoute: () => adminRoute, path: 'servers/$serverId/users', component: () => <ServerDetailPage section="users" /> })
+const adminServerUserProfile = createRoute({
+  getParentRoute: () => adminRoute,
+  path: 'servers/$serverId/users/$uuid',
+  component: UserDetailPage,
+  validateSearch: (search): { tab?: UserTab } => {
+    const tabVal = typeof search.tab === 'string' && (userTabs as readonly string[]).includes(search.tab)
+      ? (search.tab as UserTab) : undefined
+    return { tab: tabVal }
+  },
+})
 const adminServerLibraries = createRoute({ getParentRoute: () => adminRoute, path: 'servers/$serverId/libraries', component: () => <ServerDetailPage section="libraries" /> })
 const adminServerGraphs = createRoute({ getParentRoute: () => adminRoute, path: 'servers/$serverId/graphs', component: () => <ServerDetailPage section="graphs" /> })
 const adminServerHistory = createRoute({ getParentRoute: () => adminRoute, path: 'servers/$serverId/history', component: () => <ServerDetailPage section="history" /> })
@@ -298,6 +308,7 @@ const routeTree = rootRoute.addChildren([
     adminServersList,
     adminServerDetail,
     adminServerUsers,
+    adminServerUserProfile,
     adminServerLibraries,
     adminServerGraphs,
     adminServerHistory,

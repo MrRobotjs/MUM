@@ -12,6 +12,8 @@ import {useAuth} from '../contexts/AuthContext';
 import {Select,SelectContent,SelectItem,SelectTrigger,SelectValue} from '@/components/ui/select';
 import { useOverseerr } from '../hooks/useOverseerr';
 import { useServers } from '../hooks/useServers';
+import { useServerRoutes } from '../lib/serverRoutes';
+import { serverProfileMatches } from '../lib/serverNickname';
 import { useUserUuidBySlug } from '../hooks/useUserUuidBySlug';
 import {useIdentityPlayTotals} from '../hooks/useIdentityPlayTotals';
 import {nowPlaying,recentPlayText,watchTime,type PlayPeriod} from '../lib/identityPlayTotals';
@@ -596,8 +598,9 @@ export const UserDetailPage = () => {
   const location = useLocation();
   const navigate = useNavigate();
   // Read params from TanStack Router (route matches: /admin/users/$uuid or /admin/users/$serverNickname/$username)
-  const { uuid: uuidParam, serverNickname, username } = (useParams({ strict: false }) as {
+  const { uuid: uuidParam, serverId: serverSlug, serverNickname, username } = (useParams({ strict: false }) as {
     uuid?: string;
+    serverId?: string;
     serverNickname?: string;
     username?: string;
   });
@@ -631,6 +634,7 @@ export const UserDetailPage = () => {
     error: overseerrError
   } = useOverseerr(effectiveUuid,Boolean(user?.capabilities.overseerr));
   const { servers: plexServers } = useServers({ serviceType: 'plex', activeOnly: true });
+  const routes = useServerRoutes();
 
 
 
@@ -684,6 +688,15 @@ export const UserDetailPage = () => {
 
   if (!user) {
     return <div className="text-sm text-muted-foreground">User not found.</div>;
+  }
+
+  if (serverSlug) {
+    if (routes.loading) return <div className="flex items-center gap-2 text-sm text-muted-foreground"><Spinner className="size-4" />Checking the server…</div>;
+    if (routes.error) return <div className="rounded border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">Could not verify the server. Refresh and try again.</div>;
+    const source = routes.serverFor(serverSlug);
+    if (!serverProfileMatches(source, user)) {
+      return <div className="rounded border border-border bg-background p-4 text-sm text-muted-foreground">This account does not belong to the selected server.</div>;
+    }
   }
 
   const isServiceUser = user.user_type.toLowerCase() === 'service';

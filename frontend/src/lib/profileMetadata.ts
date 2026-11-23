@@ -35,6 +35,7 @@ export type UserDetail = {
   discord_user_id?: string | null;
   discord_email?: string | null;
   service_type?: string | null;
+  server_id: number | null;
   service_types: string[];
   linked_service_count: number;
   server_nickname?: string | null;
@@ -112,7 +113,7 @@ export async function fetchProfileMetadata(actor:string,target:string,signal?:Ab
   let parent:UserDetail['linked_local_user']=null;
   if(p.linked_local_user!==null){const q=p.linked_local_user as Record<string,unknown>;if(!service||!q||!uuid(q.uuid)||!text(q.username,255)||!text(q.display_name,255))throw Error('Invalid primary account');parent={uuid:q.uuid,username:q.username,display_name:q.display_name};}
   return {uuid:target,user_type:p.user_type as string,username:p.username||null,display_name:p.display_name||null,email:p.email||null,is_active:p.is_active,created_at:p.created_at,notes:p.notes,
-   local_username:service?null:p.username||null,external_username:service?p.username||null:null,external_email:service?p.email||null:null,external_user_id:externalUserId,external_user_alt_id:externalUserAltId,avatar_url:(p.avatar_url as string|null|undefined)??null,service_type:service?p.service_type:null,server_nickname:service?p.server_nickname:null,service_types:service?[p.service_type]:[],server_names:service&&p.server_nickname?[p.server_nickname]:[],linked_local_user:parent,libraries:p.libraries,has_all_libraries:p.has_all_libraries,
+   local_username:service?null:p.username||null,external_username:service?p.username||null:null,external_email:service?p.email||null:null,external_user_id:externalUserId,external_user_alt_id:externalUserAltId,avatar_url:(p.avatar_url as string|null|undefined)??null,service_type:service?p.service_type:null,server_id:service?p.server_id as number:null,server_nickname:service?p.server_nickname:null,service_types:service?[p.service_type]:[],server_names:service&&p.server_nickname?[p.server_nickname]:[],linked_local_user:parent,libraries:p.libraries,has_all_libraries:p.has_all_libraries,
    linked_service_count:p.linked_service_count as number,roles:{admin_roles:p.admin_roles,user_roles:roles.map(r=>r.name)},admin_roles_detail:adminRoles,user_roles_detail:roles,
    allow_downloads:null,allow_4k_transcode:p.allow_4k_transcode as boolean|null,is_purge_whitelisted:p.is_purge_whitelisted as boolean|null,is_discord_bot_whitelisted:null,is_home_user:null,shares_back:null,has_password:null,used_invite:null,force_password_change:null,
    last_login_at:null,last_activity_at:null,access_expires_at:p.access_expires_at,capabilities:{resetPassword:false,editSettings:false,resync:false,manageLinks:false,overseerr:service&&p.service_type==='plex'}};

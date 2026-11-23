@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {loadFrontend} from './frontendLoader.mjs';
 
 test('server URL nicknames allow plus and detect invalid names', async () => {
- const m=await loadFrontend("export {serverNicknameSlug,serverNicknameIssue,findServerBySlug,serverSettingsSlug,findServerBySettingsSlug} from './src/lib/serverNickname';");
+ const m=await loadFrontend("export {serverNicknameSlug,serverNicknameIssue,findServerBySlug,serverSettingsSlug,findServerBySettingsSlug,serverProfileMatches} from './src/lib/serverNickname';");
  assert.equal(m.serverNicknameSlug(' Hello  World '),'hello-world');
  assert.equal(m.serverNicknameSlug('Plex++'),'plex++');
  assert.equal(m.serverNicknameSlug('hello-world'),m.serverNicknameSlug('hello world'));
@@ -17,4 +17,8 @@ test('server URL nicknames allow plus and detect invalid names', async () => {
  assert.equal(m.serverSettingsSlug(conflicts,conflicts[1]),'~2');
  assert.equal(m.findServerBySettingsSlug(conflicts,'~2').id,2);
  assert.equal(m.findServerBySettingsSlug(conflicts,m.serverSettingsSlug(conflicts,conflicts[2])).id,3);
+ assert.equal(m.serverProfileMatches({id:5},{user_type:'service',server_id:5}),true);
+ assert.equal(m.serverProfileMatches({id:5},{user_type:'service',server_id:7}),false);
+ assert.equal(m.serverProfileMatches({id:5},{user_type:'local',server_id:null}),false);
+ assert.equal(m.serverProfileMatches(undefined,{user_type:'service',server_id:5}),false);
 });

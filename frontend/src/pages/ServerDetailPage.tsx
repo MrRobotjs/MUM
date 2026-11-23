@@ -536,7 +536,7 @@ export const ServerDetailPage = ({ section = 'overview' }: { section?: ServerTab
         ) : null}
 
         {section === 'users' && numericServerId !== undefined ? (
-          <ServerUsersCard serverId={numericServerId} serviceType={serviceType.toLowerCase()} onSync={() => void handleSync('users')} syncing={syncingUsers} syncDisabled={syncUnavailable} />
+          <ServerUsersCard serverId={numericServerId} serverSlug={serverId} serviceType={serviceType.toLowerCase()} onSync={() => void handleSync('users')} syncing={syncingUsers} syncDisabled={syncUnavailable} />
         ) : null}
 
         {/* The server's own dashboard graphs (Plex only for now) */}

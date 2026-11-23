@@ -49,8 +49,8 @@ const recordsLabels: Record<TimelineRecords, string> = { all: 'All plays', mum: 
 const columnHelper = createAppColumnHelper<ServerAccount>();
 const noAccounts: ServerAccount[] = [];
 
-export function ServerUsersCard({ serverId, serviceType, onSync, syncing, syncDisabled }: {
-  serverId: number; serviceType: string; onSync: () => void; syncing: boolean; syncDisabled: boolean;
+export function ServerUsersCard({ serverId, serverSlug, serviceType, onSync, syncing, syncDisabled }: {
+  serverId: number; serverSlug: string; serviceType: string; onSync: () => void; syncing: boolean; syncDisabled: boolean;
 }) {
   const { user, isAdministrator } = useAuth();
   const session = useSyncExternalStore(subscribeToAuthStore, getAuthSnapshot, getAuthSnapshot);
@@ -116,7 +116,7 @@ export function ServerUsersCard({ serverId, serviceType, onSync, syncing, syncDi
     const watch = (seconds: number | null) => seconds === null ? '—' : watchTime(String(seconds)).map(([value, unit]) => `${value} ${unit}`).join(' ');
     const cell = (column: Column, account: ServerAccount) => {
       switch (column) {
-        case 'user': return <Link to="/admin/users/$uuid" params={{ uuid: account.uuid }} className="account-profile-link font-medium">
+        case 'user': return <Link to="/admin/servers/$serverId/users/$uuid" params={{ serverId: serverSlug, uuid: account.uuid }} className="account-profile-link font-medium">
           <AvatarName key={account.uuid} url={account.avatar_url} name={account.username || 'Unnamed account'} />
         </Link>;
         case 'username': return account.username || '—';
@@ -137,7 +137,7 @@ export function ServerUsersCard({ serverId, serviceType, onSync, syncing, syncDi
       id, header: columnLabels[id], cell: info => cell(id, info.row.original), sortDescFirst: descFirst.includes(id), enableHiding: id !== 'user',
       meta: { label: columnLabels[id], cellClassName: id === 'user' || id === 'lastPlayed' ? 'account-history-title' : 'whitespace-nowrap' },
     }));
-  }, [serverId, formatTimestamp, formatRelative, mumColumns]);
+  }, [serverId, serverSlug, formatTimestamp, formatRelative, mumColumns]);
 
   const table = useAppTable({
     columns, data: (data?.items as ServerAccount[] | undefined) ?? noAccounts, getRowId: account => account.uuid,

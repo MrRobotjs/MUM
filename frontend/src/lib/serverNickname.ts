@@ -1,6 +1,7 @@
 // The URL key mirrors the nickname normalization enforced by the server.
 export const serverNicknameSlug=(name:string)=>name.trim().split(/ +/).join('-').toLowerCase();
 export const serverNicknameIssue=(name:string)=>/^[A-Za-z0-9 _+-]+$/.test(name.trim()) && /[A-Za-z0-9]/.test(name) ? '' : 'Use letters, numbers, spaces, hyphens, underscores or plus signs, including at least one letter or number.';
+export const serverProfileMatches=(server:{id:number}|undefined, user:{user_type:string;server_id:number|null})=>Boolean(server && user.user_type==='service' && user.server_id===server.id);
 export function findServerBySlug<T extends {server_nickname:string}>(servers:readonly T[], slug:string):T|undefined {
  const matches=servers.filter(server=>serverNicknameSlug(server.server_nickname)===slug);
  return matches.length===1?matches[0]:undefined;

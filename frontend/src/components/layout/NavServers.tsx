@@ -1,3 +1,4 @@
+import { appPaths, appLinks, serverRoutePath } from '../../router/appLinks';
 import { serverNicknameSlug } from '../../lib/serverNickname';
 import { useServerRoutes } from '../../lib/serverRoutes';
 "use client"
@@ -62,12 +63,12 @@ export const HISTORY_SERVICES = new Set(["plex", "jellyfin", "emby", "audiobooks
 // A server's own pages, in sidebar order. Resources (the server's dashboard
 // graphs) is offered for Plex servers only.
 const serverPages = [
-  { title: "Overview", suffix: "", to: "/admin/servers/$serverId", icon: faCircleInfo, types: null },
-  { title: "Users", suffix: "/users", to: "/admin/servers/$serverId/users", icon: faUsers, types: null },
-  { title: "Libraries", suffix: "/libraries", to: "/admin/servers/$serverId/libraries", icon: faLayerGroup, types: null },
-  { title: "History", suffix: "/history", to: "/admin/servers/$serverId/history", icon: faClockRotateLeft, types: HISTORY_SERVICES },
-  { title: "Graphs", suffix: "/graphs", to: "/admin/servers/$serverId/graphs", icon: faChartPie, types: ACTIVITY_GRAPH_SERVICES },
-  { title: "Resources", suffix: "/resources", to: "/admin/servers/$serverId/resources", icon: faGaugeHigh, types: new Set(["plex"]) },
+  { title: "Overview", suffix: "", to: appPaths.server, icon: faCircleInfo, types: null },
+  { title: "Users", suffix: "/users", to: appPaths.serverUsers, icon: faUsers, types: null },
+  { title: "Libraries", suffix: "/libraries", to: appPaths.serverLibraries, icon: faLayerGroup, types: null },
+  { title: "History", suffix: "/history", to: appPaths.serverHistory, icon: faClockRotateLeft, types: HISTORY_SERVICES },
+  { title: "Graphs", suffix: "/graphs", to: appPaths.serverGraphs, icon: faChartPie, types: ACTIVITY_GRAPH_SERVICES },
+  { title: "Resources", suffix: "/resources", to: appPaths.serverResources, icon: faGaugeHigh, types: new Set(["plex"]) },
 ] as const
 
 /** The pages a server of this type has, in sidebar order. */
@@ -94,7 +95,7 @@ const ServerNavItem = ({ server, pathname, onNavigate }: ServerNavItemProps) => 
     )
 
   const isLibraryActive = (libraryId: number) => {
-    const libraryPath = `/admin/servers/${serverSlug}/libraries/${libraryId}`
+    const libraryPath = serverRoutePath(appPaths.library, serverSlug).replace("$libraryId", String(libraryId))
     return pathname === libraryPath || pathname.startsWith(`${libraryPath}/`)
   }
 
@@ -103,7 +104,7 @@ const ServerNavItem = ({ server, pathname, onNavigate }: ServerNavItemProps) => 
   }, [])
 
   // The server being viewed opens by itself (it can still be closed).
-  const serverPath = `/admin/servers/${serverSlug}`
+  const serverPath = serverRoutePath(appPaths.server, serverSlug)
   const onServerPage = pathname === serverPath || pathname.startsWith(`${serverPath}/`)
   const [open, setOpen] = React.useState(onServerPage)
   React.useEffect(() => {
@@ -115,7 +116,7 @@ const ServerNavItem = ({ server, pathname, onNavigate }: ServerNavItemProps) => 
   // A collapsed entry stands in for the page inside it: the server while it's
   // closed (expanded or minimized sidebar), and Libraries while its list is
   // closed on one of its library's pages.
-  const librariesPath = `${serverPath}/libraries`
+  const librariesPath = serverRoutePath(appPaths.serverLibraries, serverSlug)
   const onLibraryPage = pathname.startsWith(`${librariesPath}/`)
   const [librariesOpen, setLibrariesOpen] = React.useState(false)
 
@@ -173,8 +174,7 @@ const ServerNavItem = ({ server, pathname, onNavigate }: ServerNavItemProps) => 
           aria-label={`Edit ${server.server_nickname} settings`}
         >
           <Link
-            to="/admin/settings/media-servers/$serviceId/servers/$serverId/edit"
-            params={{ serviceId, serverId: routes.settingsSlug(server) }}
+            {...appLinks.serverEdit(serviceId, routes.settingsSlug(server))}
             onClick={onNavigate}
           >
             <FontAwesomeIcon icon={faGear} className="text-[11px]" />
@@ -192,16 +192,16 @@ const ServerNavItem = ({ server, pathname, onNavigate }: ServerNavItemProps) => 
           <SidebarMenuSub>
             {/* The server's own pages; Libraries below expands its library list. */}
             <SidebarMenuSubItem>
-              <SidebarMenuSubButton asChild isActive={pathname === `/admin/servers/${serverSlug}`}>
-                <Link to="/admin/servers/$serverId" params={{ serverId: serverSlug }} activeOptions={{ exact: true }} onClick={onNavigate}>
+              <SidebarMenuSubButton asChild isActive={pathname === serverRoutePath(appPaths.server, serverSlug)}>
+                <Link {...appLinks.server(serverSlug)} activeOptions={{ exact: true }} onClick={onNavigate}>
                   <FontAwesomeIcon icon={faCircleInfo} className="h-4 w-4" />
                   <span>Overview</span>
                 </Link>
               </SidebarMenuSubButton>
             </SidebarMenuSubItem>
             <SidebarMenuSubItem>
-              <SidebarMenuSubButton asChild isActive={pathname === `/admin/servers/${serverSlug}/users`}>
-                <Link to="/admin/servers/$serverId/users" params={{ serverId: serverSlug }} onClick={onNavigate}>
+              <SidebarMenuSubButton asChild isActive={pathname === serverRoutePath(appPaths.serverUsers, serverSlug)}>
+                <Link {...appLinks.serverUsers(serverSlug)} onClick={onNavigate}>
                   <FontAwesomeIcon icon={faUsers} className="h-4 w-4" />
                   <span>Users</span>
                   {userTotal !== null && (
@@ -226,7 +226,7 @@ const ServerNavItem = ({ server, pathname, onNavigate }: ServerNavItemProps) => 
                 {/* The label opens the server's Libraries page; the arrow
                     shows or hides its library list. */}
                 <SidebarMenuSubButton asChild isActive={pathname === librariesPath || (onLibraryPage && !librariesOpen)} className="pr-8">
-                  <Link to="/admin/servers/$serverId/libraries" params={{ serverId: serverSlug }} onClick={onNavigate}>
+                  <Link {...appLinks.serverLibraries(serverSlug)} onClick={onNavigate}>
                     <FontAwesomeIcon icon={faLayerGroup} className="h-4 w-4" />
                     <span>Libraries</span>
                     {libraryMeta && (
@@ -291,8 +291,7 @@ const ServerNavItem = ({ server, pathname, onNavigate }: ServerNavItemProps) => 
                             isActive={isLibraryActive(library.id)}
                           >
                             <Link
-                              to="/admin/servers/$serverId/libraries/$libraryId"
-                              params={{ serverId: serverSlug, libraryId: String(library.id) }}
+                              {...appLinks.library(serverSlug, library.id)}
                               onClick={onNavigate}
                             >
                               {/* The library's type, as on the Libraries page; a folder when unknown. */}
@@ -313,7 +312,7 @@ const ServerNavItem = ({ server, pathname, onNavigate }: ServerNavItemProps) => 
             {/* The pages after Libraries (History, Graphs, Resources); the ones above are listed with their counts. */}
             {serverPagesFor(server.service_type).filter((page) => !["Overview", "Users", "Libraries"].includes(page.title)).map((page) => (
               <SidebarMenuSubItem key={page.title}>
-                <SidebarMenuSubButton asChild isActive={pathname === `${serverPath}${page.suffix}`}>
+                <SidebarMenuSubButton asChild isActive={pathname === serverRoutePath(page.to, serverSlug)}>
                   <Link to={page.to} params={{ serverId: serverSlug }} onClick={onNavigate}>
                     <FontAwesomeIcon icon={page.icon} className="h-4 w-4" />
                     <span>{page.title}</span>
@@ -335,7 +334,7 @@ const ServerNavItem = ({ server, pathname, onNavigate }: ServerNavItemProps) => 
                 key={page.title}
                 asChild
                 tooltip={`${server.server_nickname} · ${page.title}`}
-                isActive={pathname === `${serverPath}${page.suffix}` || (page.suffix === "/libraries" && pathname.startsWith(`${serverPath}/libraries/`))}
+                isActive={pathname === serverRoutePath(page.to, serverSlug) || (page.suffix === "/libraries" && pathname.startsWith(`${librariesPath}/`))}
                 className="text-sidebar-foreground/70 data-[active=true]:text-sidebar-accent-foreground [&>svg]:size-3.5"
               >
                 <Link

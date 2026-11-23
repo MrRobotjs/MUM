@@ -1,3 +1,4 @@
+import { appPaths, appLinks } from '../../router/appLinks';
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import useSWR from 'swr';
 import { Link } from '@tanstack/react-router';
@@ -98,7 +99,7 @@ export function LibraryOverview({ serverId, serverSlug, serviceLabel, library }:
   const row = figures.data?.items.find(item => item.id === library.id);
   const type = (library.library_type ?? '').replace(/_/g, ' ');
   const shows = row?.parent_count !== null && row?.parent_count !== undefined && /show|tv|series/i.test(library.library_type ?? '');
-  const mediaLink = (id: number) => ({ to: '/admin/servers/$serverId/libraries/$libraryId/$mediaId' as const, params: { serverId: serverSlug, libraryId: String(library.id), mediaId: String(id) } });
+  const mediaLink = (id: number) => appLinks.media(serverSlug, library.id, id);
   const watch = (seconds: number | null | undefined) => seconds === null || seconds === undefined ? '—' : watchTime(String(seconds)).map(([value, unit]) => `${value} ${unit}`).join(' ');
 
   return <div className="space-y-6">

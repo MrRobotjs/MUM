@@ -1,3 +1,4 @@
+import { appPaths, appLinks } from '../../router/appLinks';
 import { Link } from '@tanstack/react-router';
 import { faClockRotateLeft } from '@fortawesome/free-solid-svg-icons';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -55,7 +56,7 @@ export const ActivityTable = ({ days, onDaysChange, page, totalPages, onPageChan
       </> }),
     columnHelper.display({ id: 'user', header: 'User', meta: { headClassName: headClass, cellClassName: cellClass },
       cell: ({ row: { original: play } }) => play.user_uuid
-        ? <Link to="/admin/users/$uuid" params={{ uuid: play.user_uuid }} className="account-profile-link"><span className="truncate">{play.user_display_name || 'Unknown'}</span></Link>
+        ? <Link {...appLinks.user(play.user_uuid)} className="account-profile-link"><span className="truncate">{play.user_display_name || 'Unknown'}</span></Link>
         : play.user_display_name || none }),
     columnHelper.display({ id: 'date', header: 'Date', meta: { headClassName: headClass, cellClassName: cellClass },
       cell: ({ row: { original: play } }) => play.started_at ? formatTimestamp(play.started_at, 'date') : none }),

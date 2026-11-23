@@ -1,3 +1,4 @@
+import { appPaths, appLinks } from '../router/appLinks';
 import { useNavigate, useParams } from '@tanstack/react-router';
 import { PageHeader } from '../components';
 import { ServerAddForm } from '../components/servers';
@@ -6,13 +7,13 @@ import { useServers } from '../hooks/useServers';
 
 /** Adds a server to one media service. */
 export const AdminSettingsMediaServerAddPage = () => {
-  const { serviceId } = useParams({ from: '/admin/settings/media-servers/$serviceId/servers/add' });
+  const { serviceId } = useParams({ from: appPaths.serverAdd });
   const navigate = useNavigate();
   const { services } = useMediaServices();
   const { refresh: refreshServers } = useServers({ serviceType: serviceId || undefined });
   const service = services.find((item) => item.id === serviceId);
 
-  const backToService = () => navigate({ to: '/admin/settings/media-servers/$serviceId', params: { serviceId } });
+  const backToService = () => navigate(appLinks.mediaService(serviceId));
   const handleSuccess = async () => {
     await refreshServers();
     backToService();

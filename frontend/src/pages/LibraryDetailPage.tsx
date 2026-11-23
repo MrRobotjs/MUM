@@ -1,3 +1,4 @@
+import { appPaths, appLinks } from '../router/appLinks';
 import { formatCalendarDate } from '../util/calendarDates';
 import { useAccountDisplay } from '../hooks/useAccountDisplay';
 import { serverNicknameSlug } from '../lib/serverNickname';
@@ -201,7 +202,7 @@ const MediaPosterCard = ({ item, serverId, libraryId }: { item: MediaItem; serve
   const [imageError, setImageError] = useState(false);
 
   return (
-    <Link to="/admin/servers/$serverId/libraries/$libraryId/$mediaId" params={{ serverId, libraryId: String(libraryId), mediaId: String(item.id) }} className="group cursor-pointer">
+    <Link {...appLinks.media(serverId, libraryId, item.id)} className="group cursor-pointer">
       <div className="relative aspect-[2/3] bg-accent rounded-lg overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 group-hover:scale-105">
         {item.thumb && !imageError ? (
           <>
@@ -330,7 +331,7 @@ const CollectionCard = ({ collection }: { collection: LibraryCollection }) => {
 };
 
 export const LibraryDetailPage = () => {
-  const { libraryId } = useParams({ from: '/admin/servers/$serverId/libraries/$libraryId' });
+  const { libraryId } = useParams({ from: appPaths.library });
   const { user, isAdministrator } = useAuth();
   const auth = useSyncExternalStore(subscribeToAuthStore, getAuthSnapshot, getAuthSnapshot);
   if (!user || !isAdministrator || !auth.accessToken) return null;
@@ -340,11 +341,11 @@ export const LibraryDetailPage = () => {
 const LibraryDetailPageView = () => {
   const { formatTimestamp, timeZone } = useAccountDisplay();
   // Use TanStack Router APIs for params and search
-  const { serverId, libraryId } = useParams({ from: '/admin/servers/$serverId/libraries/$libraryId' });
+  const { serverId, libraryId } = useParams({ from: appPaths.library });
   const search = useSearch({ strict: false }) as { tab?: TabType };
   const activeTab: TabType = search.tab ?? 'overview';
   
-  const navigate = useNavigate({ from: '/admin/servers/$serverId/libraries/$libraryId' });
+  const navigate = useNavigate({ from: appPaths.library });
   const { success, error: showError, info } = useAlerts();
 
   const [library, setLibrary] = useState<Library | null>(null);
@@ -721,7 +722,7 @@ const LibraryDetailPageView = () => {
       const ownServerSlug = response.data.server?.server_nickname ? serverNicknameSlug(response.data.server.server_nickname) : '';
       if (!ownServerSlug) throw new Error('The library server could not be resolved.');
       if (ownServerSlug && ownServerSlug !== serverId) {
-        navigate({ to: '/admin/servers/$serverId/libraries/$libraryId', params: { serverId: ownServerSlug, libraryId }, search: (prev: { tab?: TabType }) => prev, replace: true });
+        navigate({ ...appLinks.library(ownServerSlug, libraryId), search: (prev: { tab?: TabType }) => prev, replace: true });
         return false;
       }
       if (response.data) {

@@ -1,3 +1,4 @@
+import { appPaths, appLinks } from '../../router/appLinks';
 import { useServerRoutes } from '../../lib/serverRoutes';
 import { useState } from 'react';
 import { Link } from '@tanstack/react-router';
@@ -26,8 +27,8 @@ export function LastPlayed({ serverId, play }: { serverId: number; play: ServerA
   const text = <span className="block"><span className="block">{icon && <FontAwesomeIcon icon={icon} className="mr-1 h-3 w-3 text-muted-foreground" aria-hidden="true" />}{play.title || 'Removed item'}</span>{play.parent_title && <span className="block text-xs text-muted-foreground">{play.parent_title}</span>}</span>;
   const target = play.link && slug
     ? play.link.episode_id === null
-      ? <Link to="/admin/servers/$serverId/libraries/$libraryId/$mediaId" params={{ serverId: slug, libraryId: String(play.link.library_id), mediaId: String(play.link.media_id) }} className="account-last-played-link">{text}</Link>
-      : <Link to="/admin/servers/$serverId/libraries/$libraryId/$mediaId/episodes/$episodeId" params={{ serverId: slug, libraryId: String(play.link.library_id), mediaId: String(play.link.media_id), episodeId: String(play.link.episode_id) }} className="account-last-played-link">{text}</Link>
+      ? <Link {...appLinks.media(slug, play.link.library_id, play.link.media_id)} className="account-last-played-link">{text}</Link>
+      : <Link {...appLinks.episode(slug, play.link.library_id, play.link.media_id, play.link.episode_id)} className="account-last-played-link">{text}</Link>
     : text;
   if (!play.poster_url || failed) return target;
   return <Tooltip>

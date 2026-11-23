@@ -1,3 +1,4 @@
+import { appPaths, appLinks } from '../../router/appLinks';
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import { Link } from '@tanstack/react-router';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -84,8 +85,8 @@ const TitleLink = ({ server, link, children }: { server: number; link: ActivityL
   const slug = slugFor(server);
   return !link || !slug ? <>{children}</>
   : link.episode_id === null
-    ? <Link to="/admin/servers/$serverId/libraries/$libraryId/$mediaId" params={{ serverId: slug, libraryId: String(link.library_id), mediaId: String(link.media_id) }} className="dashboard-stat-link">{children}</Link>
-    : <Link to="/admin/servers/$serverId/libraries/$libraryId/$mediaId/episodes/$episodeId" params={{ serverId: slug, libraryId: String(link.library_id), mediaId: String(link.media_id), episodeId: String(link.episode_id) }} className="dashboard-stat-link">{children}</Link>;
+    ? <Link {...appLinks.media(slug, link.library_id, link.media_id)} className="dashboard-stat-link">{children}</Link>
+    : <Link {...appLinks.episode(slug, link.library_id, link.media_id, link.episode_id)} className="dashboard-stat-link">{children}</Link>;
 };
 
 // A person's picture in a circle, or their first letter.
@@ -177,12 +178,12 @@ export function ActivityStatistics({ fixedServer }: { fixedServer?: { id: number
       if (kind === 'users') {
         cards.push(<StatCard key={kind} title={cardTitles[kind]} metric={metric} round
           rows={items.map(item => ({ key: item.user_uuid ?? item.title, value: figure(item), visual: <Avatar url={item.avatar_url} name={item.title} />, badges: badgesFor(item.server_ids),
-            title: item.user_uuid ? <Link to="/admin/users/$uuid" params={{ uuid: item.user_uuid }} className="dashboard-stat-link">{item.title}</Link> : item.title }))} />);
+            title: item.user_uuid ? <Link {...appLinks.user(item.user_uuid)} className="dashboard-stat-link">{item.title}</Link> : item.title }))} />);
       } else if (kind === 'libraries') {
         cards.push(<StatCard key={kind} title={cardTitles[kind]} metric={metric}
           rows={items.map(item => ({ key: String(item.library_id), value: figure(item), badges: badgeFor(item),
             visual: <FontAwesomeIcon icon={libraryTypeIcon(item.library_type)} />,
-            title: item.library_id && routes.slugFor(item.server_id) ? <Link to="/admin/servers/$serverId/libraries/$libraryId" params={{ serverId: routes.slugFor(item.server_id)!, libraryId: String(item.library_id) }} search={{ tab: 'overview' }} className="dashboard-stat-link">{item.title}</Link> : item.title }))} />);
+            title: item.library_id && routes.slugFor(item.server_id) ? <Link {...appLinks.library(routes.slugFor(item.server_id)!, item.library_id)} search={{ tab: 'overview' }} className="dashboard-stat-link">{item.title}</Link> : item.title }))} />);
       } else if (kind === 'recent') {
         cards.push(<StatCard key={kind} title={cardTitles[kind]} metric="When"
           rows={items.map((item, i) => ({ key: `${item.played_at}-${i}`, title: <TitleLink server={item.server_id} link={item.link}>{item.title}</TitleLink>, subtitle: item.subtitle, who: item.user_name,

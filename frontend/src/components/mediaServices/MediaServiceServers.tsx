@@ -1,3 +1,4 @@
+import { appPaths, appLinks } from '../../router/appLinks';
 import { serverNicknameSlug } from '../../lib/serverNickname';
 import { useServerRoutes } from '../../lib/serverRoutes';
 import { useMemo, useState } from 'react'
@@ -53,7 +54,7 @@ export const MediaServiceServers = ({ service, setup = false }: MediaServiceServ
 
   const addServer = () => setup
     ? navigate({ to: '/setup/media-servers/$serviceId/servers/add', params: { serviceId: service.id } })
-    : navigate({ to: '/admin/settings/media-servers/$serviceId/servers/add', params: { serviceId: service.id } })
+    : navigate(appLinks.serverAdd(service.id))
 
   const toggleServer = async (server: Server) => {
     if (!service.enabled || pending !== null) return
@@ -172,9 +173,9 @@ export const MediaServiceServers = ({ service, setup = false }: MediaServiceServ
                       {!setup ? (
                         <>
                           <Button asChild size="sm" variant="outline">
-                            <Link to="/admin/servers/$serverId" params={{ serverId: serverNicknameSlug(server.server_nickname) }}><FontAwesomeIcon icon={faArrowUpRightFromSquare} />Open server</Link>
+                            <Link {...appLinks.server(serverNicknameSlug(server.server_nickname))}><FontAwesomeIcon icon={faArrowUpRightFromSquare} />Open server</Link>
                           </Button>
-                          <Button size="sm" variant="outline" onClick={() => navigate({ to: '/admin/settings/media-servers/$serviceId/servers/$serverId/edit', params: { serviceId: service.id, serverId: routes.settingsSlug(server) } })}>
+                          <Button size="sm" variant="outline" onClick={() => navigate(appLinks.serverEdit(service.id, routes.settingsSlug(server)))}>
                             <FontAwesomeIcon icon={faPen} />Edit
                           </Button>
                         </>

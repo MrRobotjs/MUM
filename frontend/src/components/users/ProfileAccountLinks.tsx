@@ -1,3 +1,4 @@
+import { appPaths, appLinks } from '../../router/appLinks';
 import {useEffect,useMemo,useRef,useState} from 'react';
 import {getAccessToken} from '../../store/authStore';
 import type {UserDetail} from '../../lib/profileMetadata';
@@ -74,7 +75,7 @@ export function ProfileAccountLinks({user,refreshUser}:{user:UserDetail;refreshU
   </>;
   return <>
     {service?<><Card>
-      <SettingHeader title="MUM profile" icon={<SettingIcon className="bg-primary/20 text-primary"><FontAwesomeIcon icon={faUser} /></SettingIcon>} summary={state.error?'Unavailable':!page?'Loading…':linked&&user.linked_local_user?<Link to="/admin/users/$uuid" params={{uuid:user.linked_local_user.uuid}} className="account-profile-link"><AvatarName key={user.linked_local_user.uuid} url={null} name={user.linked_local_user.display_name||user.linked_local_user.username||'Local account'}/></Link>:linked?'Local account':'Not linked'}
+      <SettingHeader title="MUM profile" icon={<SettingIcon className="bg-primary/20 text-primary"><FontAwesomeIcon icon={faUser} /></SettingIcon>} summary={state.error?'Unavailable':!page?'Loading…':linked&&user.linked_local_user?<Link {...appLinks.user(user.linked_local_user.uuid)} className="account-profile-link"><AvatarName key={user.linked_local_user.uuid} url={null} name={user.linked_local_user.display_name||user.linked_local_user.username||'Local account'}/></Link>:linked?'Local account':'Not linked'}
         info={<><p>The MUM profile that owns this service account. Unlinking changes ownership in MUM only; access on the server doesn't change.</p>{linked&&user.linked_local_user?.email&&<p>Email: {user.linked_local_user.email}</p>}</>}
 />
       {(message||context.controller.uncertain||state.error)&&<CardContent className="space-y-3">{state.error&&<p className="text-sm text-destructive">Current ownership is unavailable.</p>}{status}</CardContent>}

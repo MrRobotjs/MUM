@@ -4,7 +4,7 @@ import { useAccountDisplay } from '../../hooks/useAccountDisplay';
 
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { buildUserProfilePath } from '../../util/routes';
+import { buildUserProfilePath } from '../../router/appLinks';
 import type { UserRow, SelectionModifiers } from './UsersTable';
 import { Checkbox } from '../ui/checkbox';
 import { Button } from '../ui/button';

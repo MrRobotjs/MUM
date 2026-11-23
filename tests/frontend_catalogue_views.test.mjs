@@ -25,7 +25,7 @@ async function load(h){
  for(const name of ['LibraryDetailPage','MediaDetailPage']){
   const source=await readFile(new URL(`../frontend/src/pages/${name}.tsx`,import.meta.url),'utf8');
   for(const match of source.matchAll(/import\s*\{([^}]+)\}\s*from\s*['"]([^'"]+)['"]/g)){
-   const path=match[2];if(/apiClient|libraryCatalogue|catalogueView|authStore/.test(path)||path==='react')continue;
+   const path=match[2];if(/apiClient|libraryCatalogue|catalogueView|authStore|appLinks/.test(path)||path==='react')continue;
    stubs.set(path,[...new Set([...(stubs.get(path)??[]),...match[1].split(',').map(v=>v.trim()).filter(Boolean)])]);
   }
  }

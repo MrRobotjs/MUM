@@ -5,7 +5,7 @@ import type { ColumnVisibilityState, RowSelectionState } from '@tanstack/react-t
 import { createAppColumnHelper, useAppTable } from '../table/DataTable';
 import { Pagination } from '../common/Pagination';
 import { useNavigate } from '@tanstack/react-router';
-import { buildUserProfilePath } from '../../util/routes';
+import { buildUserProfilePath } from '../../router/appLinks';
 import { Checkbox } from '../ui/checkbox';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { Skeleton } from '../ui/skeleton';

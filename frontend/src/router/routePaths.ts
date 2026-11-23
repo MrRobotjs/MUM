@@ -1,6 +1,5 @@
-export const LOGIN_PATH = '/login';
-export const HOME_PATH = '/home';
-export const ACCOUNT_PATH = '/account';
+import { LOGIN_PATH, HOME_PATH } from './appLinks';
+export { LOGIN_PATH, HOME_PATH, ACCOUNT_PATH } from './appLinks';
 
 function canonicalPath(input: unknown): { pathname: string; path: string } | null {
   if (typeof input !== 'string' || input.length > 2048 || !input.startsWith('/') || input.startsWith('//')) return null;

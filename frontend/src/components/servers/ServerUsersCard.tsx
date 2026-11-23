@@ -1,3 +1,4 @@
+import { appPaths, appLinks } from '../../router/appLinks';
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import useSWR from 'swr';
 import { Link } from '@tanstack/react-router';
@@ -116,7 +117,7 @@ export function ServerUsersCard({ serverId, serverSlug, serviceType, onSync, syn
     const watch = (seconds: number | null) => seconds === null ? '—' : watchTime(String(seconds)).map(([value, unit]) => `${value} ${unit}`).join(' ');
     const cell = (column: Column, account: ServerAccount) => {
       switch (column) {
-        case 'user': return <Link to="/admin/servers/$serverId/users/$uuid" params={{ serverId: serverSlug, uuid: account.uuid }} className="account-profile-link font-medium">
+        case 'user': return <Link {...appLinks.serverUser(serverSlug, account.uuid)} className="account-profile-link font-medium">
           <AvatarName key={account.uuid} url={account.avatar_url} name={account.username || 'Unnamed account'} />
         </Link>;
         case 'username': return account.username || '—';

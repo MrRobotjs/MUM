@@ -1,3 +1,4 @@
+import { appPaths, serverRoutePath } from '../../router/appLinks';
 "use client"
 
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome"
@@ -19,9 +20,9 @@ import { serverNicknameSlug } from "@/lib/serverNickname"
 type ServerPage = { to: string; suffix: string; title: string; icon: IconDefinition }
 
 const serverPages: ServerPage[] = [
-  { to: "/admin/servers/$serverId", suffix: "", title: "Overview", icon: faCircleInfo },
-  { to: "/admin/servers/$serverId/users", suffix: "/users", title: "Users", icon: faUsers },
-  { to: "/admin/servers/$serverId/libraries", suffix: "/libraries", title: "Libraries", icon: faDatabase },
+  { to: appPaths.server, suffix: "", title: "Overview", icon: faCircleInfo },
+  { to: appPaths.serverUsers, suffix: "/users", title: "Users", icon: faUsers },
+  { to: appPaths.serverLibraries, suffix: "/libraries", title: "Libraries", icon: faDatabase },
 ]
 
 // Sidebar group shown on a server's page, like the settings sidebar: the
@@ -42,7 +43,7 @@ export function NavServerDetail({ serverId }: { serverId: number }) {
       <SidebarMenu>
         {serverPages.map((item) => (
           <SidebarMenuItem key={item.title}>
-            <SidebarMenuButton asChild tooltip={item.title} isActive={path === `/admin/servers/${slug}${item.suffix}`}>
+            <SidebarMenuButton asChild tooltip={item.title} isActive={path === serverRoutePath(item.to, slug)}>
               <Link
                 to={item.to}
                 params={{ serverId: slug }}

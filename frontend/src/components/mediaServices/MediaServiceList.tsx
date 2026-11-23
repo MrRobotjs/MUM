@@ -1,3 +1,4 @@
+import { appPaths, appLinks } from '../../router/appLinks';
 import { useMemo } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { type MediaService } from '../../hooks/useMediaServices'
@@ -43,10 +44,10 @@ export const MediaServiceList = ({ services, loading, setup = false }: { service
 
   const manage = (serviceId: string) => setup
     ? navigate({ to: '/setup/media-servers/$serviceId', params: { serviceId } })
-    : navigate({ to: '/admin/settings/media-servers/$serviceId', params: { serviceId } })
+    : navigate(appLinks.mediaService(serviceId))
   const addServer = (serviceId: string) => setup
     ? navigate({ to: '/setup/media-servers/$serviceId/servers/add', params: { serviceId } })
-    : navigate({ to: '/admin/settings/media-servers/$serviceId/servers/add', params: { serviceId } })
+    : navigate(appLinks.serverAdd(serviceId))
 
   if (loading) return <div className={grid}>{Array.from({ length: 3 }).map((_, i) => <MediaServiceCardSkeleton key={i} />)}</div>
   if (services.length === 0) {

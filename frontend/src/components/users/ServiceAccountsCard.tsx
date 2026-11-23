@@ -1,3 +1,4 @@
+import { appPaths, appLinks } from '../../router/appLinks';
 import { Button } from '@/components/ui/button'
 import type { ReactNode } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
@@ -57,7 +58,7 @@ export const ServiceAccountsCard = ({ accounts, loading, error, onUnlink, onLink
                         <AvatarName key={account.uuid} url={account.avatar_url ?? null} name={account.external_username ?? 'Service Account'}>{account.external_username ?? 'Service Account'}<span className="text-xs font-normal text-muted-foreground"> · This account</span></AvatarName>
                       ) : (
                         // Another account opens its own profile.
-                        <Link to="/admin/users/$uuid" params={{ uuid: account.uuid }} className="account-profile-link">
+                        <Link {...appLinks.user(account.uuid)} className="account-profile-link">
                           <AvatarName key={account.uuid} url={account.avatar_url ?? null} name={account.external_username ?? 'Service Account'} />
                         </Link>
                       )}

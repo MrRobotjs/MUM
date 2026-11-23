@@ -1,3 +1,4 @@
+import { appPaths, appLinks } from '../../router/appLinks';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link } from '@tanstack/react-router';
 import type { RowSelectionState } from '@tanstack/react-table';
@@ -155,7 +156,7 @@ export const HistoryTable = ({ history, mode, view, onViewChange, admin, descrip
           {row.library_name && <div className="text-xs text-muted-foreground/60"><FontAwesomeIcon icon={faFolder} className="mr-1 h-3 w-3" />{row.library_name}</div>}
           {service && view.records === 'all' && shownLive && <span className="mt-1 inline-flex items-center rounded-md px-2.5 py-0.5 text-xs font-semibold bg-muted text-muted-foreground" title={`Imported from the ${service} server's own play history`}>{service} history</span>}
         </>;
-        case 'user': return <Link to="/admin/users/$uuid" params={{ uuid: row.person_uuid }} className="account-library-link">{row.person_name}</Link>;
+        case 'user': return <Link {...appLinks.user(row.person_uuid)} className="account-library-link">{row.person_name}</Link>;
         case 'platform': return row.platform ?? none;
         case 'product': return row.client ?? none;
         case 'player': return row.player ?? none;

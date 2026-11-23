@@ -18,7 +18,7 @@ import { useAlerts } from '@/contexts/AlertContext';
 import { getServiceMeta } from '@/config/mediaServiceMetadata';
 import { Badge } from '@/components/ui/badge';
 import { useNavigate } from '@tanstack/react-router';
-import { buildUserProfilePath } from '@/util/routes';
+import { buildUserProfilePath } from '@/router/appLinks';
 import type { ActiveSession, MediaServiceFeaturesResponse, StreamCardStyle } from '@/types/streaming';
 import { ServiceIcon } from '@/components/services/ServiceIcon';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';

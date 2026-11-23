@@ -1,3 +1,4 @@
+import { appPaths } from '../router/appLinks';
 import { useNavigate, useParams } from '@tanstack/react-router';
 import { useMediaServices } from '../hooks/useMediaServices';
 import { MediaServiceServers } from '../components/mediaServices';
@@ -10,7 +11,7 @@ import { Spinner } from '@/components/ui/spinner'
 
 /** One media service's page under Media Servers: its servers. */
 export const AdminSettingsMediaServicePage = () => {
-  const { serviceId } = useParams({ from: '/admin/settings/media-servers/$serviceId' });
+  const { serviceId } = useParams({ from: appPaths.mediaService });
   const navigate = useNavigate();
   const { services, loading, error } = useMediaServices();
   const service = services.find((item) => item.id === serviceId);

@@ -1,3 +1,4 @@
+import { appPaths, appLinks } from '../router/appLinks';
 import { serverNicknameIssue } from '../lib/serverNickname';
 import { useServerRoutes } from '../lib/serverRoutes';
 import { useState, useMemo, useEffect } from 'react';
@@ -93,7 +94,7 @@ const normalizeServerPayload = (
 };
 
 export const AdminSettingsMediaServerEditPage = () => {
-  const { serviceId, serverId } = useParams({ from: '/admin/settings/media-servers/$serviceId/servers/$serverId/edit' });
+  const { serviceId, serverId } = useParams({ from: appPaths.serverEdit });
   const navigate = useNavigate();
   const { success, error: showError } = useAlerts();
   const { hasCapability } = useMediaServiceCapabilities();
@@ -165,7 +166,7 @@ export const AdminSettingsMediaServerEditPage = () => {
   }, [server, supportsWebsocketRefreshInterval]);
 
   const dirty = baseline !== null && JSON.stringify(values) !== JSON.stringify(baseline);
-  const backToService = () => navigate({ to: '/admin/settings/media-servers/$serviceId', params: { serviceId } } as any);
+  const backToService = () => navigate(appLinks.mediaService(serviceId));
   // After a save the page goes back to the service once the bar has gone, so
   // leaving isn't held as unsaved.
   useEffect(() => {

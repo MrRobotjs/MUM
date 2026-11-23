@@ -1,3 +1,4 @@
+import { appPaths, appLinks } from '../../router/appLinks';
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import useSWR from 'swr';
 import { Link } from '@tanstack/react-router';
@@ -84,7 +85,7 @@ export function ServerLibrariesCard({ serverId, serverSlug, serviceType, onSync,
     const watch = (seconds: number | null) => seconds === null ? '—' : watchTime(String(seconds)).map(([value, unit]) => `${value} ${unit}`).join(' ');
     const cell = (column: Column, library: ServerLibrary) => {
       switch (column) {
-        case 'library': return <Link to="/admin/servers/$serverId/libraries/$libraryId" params={{ serverId: serverSlug, libraryId: String(library.id) }}
+        case 'library': return <Link {...appLinks.library(serverSlug, library.id)}
           search={{ tab: 'overview' }} className="account-library-link">{library.name}</Link>;
         case 'type': return <span className="capitalize">{typeLabel(library.library_type)}</span>;
         case 'items': return library.item_count?.toLocaleString() ?? '—';

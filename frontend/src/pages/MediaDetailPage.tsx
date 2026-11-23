@@ -1,3 +1,4 @@
+import { appPaths, appLinks } from '../router/appLinks';
 import { useAccountDisplay } from '../hooks/useAccountDisplay';
 import { serverNicknameSlug } from '../lib/serverNickname';
 import { useState, useEffect, useSyncExternalStore } from 'react';
@@ -118,8 +119,8 @@ interface Episode {
   stream_count?: number;
 }
 
-const MEDIA_ROUTE = '/admin/servers/$serverId/libraries/$libraryId/$mediaId';
-const EPISODE_ROUTE = '/admin/servers/$serverId/libraries/$libraryId/$mediaId/episodes/$episodeId';
+const MEDIA_ROUTE = appPaths.media;
+const EPISODE_ROUTE = appPaths.episode;
 
 export const MediaDetailPage = () => {
   const { libraryId, mediaId } = useParams({ from: MEDIA_ROUTE });
@@ -261,9 +262,9 @@ const MediaDetailPageView = () => {
       if (!ownServerSlug) throw new Error('The media server could not be resolved.');
       if (ownServerSlug && ownServerSlug !== serverId) {
         if (isEpisode) {
-          navigate({ to: EPISODE_ROUTE, params: { serverId: ownServerSlug, libraryId, mediaId, episodeId: episodeId! }, search: (prev: { tab?: 'overview' | 'activity' }) => prev, replace: true });
+          navigate({ ...appLinks.episode(ownServerSlug, libraryId, mediaId, episodeId!), search: (prev: { tab?: 'overview' | 'activity' }) => prev, replace: true });
         } else {
-          navigate({ to: MEDIA_ROUTE, params: { serverId: ownServerSlug, libraryId, mediaId }, search: (prev: { tab?: TabType }) => prev, replace: true });
+          navigate({ ...appLinks.media(ownServerSlug, libraryId, mediaId), search: (prev: { tab?: TabType }) => prev, replace: true });
         }
         return false;
       }
@@ -517,7 +518,7 @@ const MediaDetailPageView = () => {
             <span className="text-destructive">{error || 'Media item not found'}</span>
           </CardContent>
         </Card>
-        <Link to="/admin/servers/$serverId/libraries/$libraryId" params={{ serverId, libraryId }} search={{ tab: 'media' }}>
+        <Link {...appLinks.library(serverId, libraryId)} search={{ tab: 'media' }}>
           <Button>
             <FontAwesomeIcon icon={faArrowLeft} className="mr-2 h-4 w-4" />
             Back to Library
@@ -566,7 +567,7 @@ const MediaDetailPageView = () => {
                   {mediaItem.library?.server?.server_nickname}
                 </span>
 
-                <Link to="/admin/servers/$serverId/libraries/$libraryId" params={{ serverId, libraryId }}>
+                <Link {...appLinks.library(serverId, libraryId)}>
                   <span className="inline-flex items-center rounded-md bg-blue-50 dark:bg-blue-400/10 px-2 py-1 text-xs font-medium text-blue-700 dark:text-blue-400 ring-1 ring-inset ring-blue-600/20 dark:ring-blue-500/20 gap-1 hover:bg-blue-100 dark:hover:bg-blue-400/20 transition-colors cursor-pointer">
                     <FontAwesomeIcon icon={faFolder} className="w-3 h-3" />
                     {mediaItem.library?.name}
@@ -574,7 +575,7 @@ const MediaDetailPageView = () => {
                 </Link>
 
                 {isEpisode && mediaItem.show && (
-                  <Link to={MEDIA_ROUTE} params={{ serverId, libraryId, mediaId }} search={{ tab: 'episodes' }}>
+                  <Link {...appLinks.media(serverId, libraryId, mediaId)} search={{ tab: 'episodes' }}>
                     <span className="inline-flex items-center rounded-md bg-blue-50 dark:bg-blue-400/10 px-2 py-1 text-xs font-medium text-blue-700 dark:text-blue-400 ring-1 ring-inset ring-blue-600/20 dark:ring-blue-500/20 gap-1 hover:bg-blue-100 dark:hover:bg-blue-400/20 transition-colors cursor-pointer">
                       <FontAwesomeIcon icon={faTv} className="w-3 h-3" />
                       {mediaItem.show.title}
@@ -694,7 +695,7 @@ const MediaDetailPageView = () => {
                   <Row label="Title">{mediaItem.title}</Row>
                   {isEpisode && mediaItem.show && (
                     <Row label="Show">
-                      <Link to={MEDIA_ROUTE} params={{ serverId, libraryId, mediaId }} search={{ tab: 'episodes' }} className="text-primary hover:underline">{mediaItem.show.title}</Link>
+                      <Link {...appLinks.media(serverId, libraryId, mediaId)} search={{ tab: 'episodes' }} className="text-primary hover:underline">{mediaItem.show.title}</Link>
                     </Row>
                   )}
                   {isEpisode && mediaItem.season_number != null && mediaItem.episode_number != null && (
@@ -708,7 +709,7 @@ const MediaDetailPageView = () => {
                 <div className="space-y-3">
                   <p className="text-xs uppercase tracking-wide text-muted-foreground">Catalogue</p>
                   <Row label="Library">
-                    <Link to="/admin/servers/$serverId/libraries/$libraryId" params={{ serverId, libraryId }} className="text-primary hover:underline">{mediaItem.library?.name}</Link>
+                    <Link {...appLinks.library(serverId, libraryId)} className="text-primary hover:underline">{mediaItem.library?.name}</Link>
                   </Row>
                   <Row label="Server">{mediaItem.library?.server?.server_name || mediaItem.library?.server?.server_nickname || '—'}</Row>
                   <Row label="Service">{serviceType ? getServiceMeta(serviceType).label : '—'}</Row>
@@ -865,7 +866,7 @@ const MediaDetailPageView = () => {
                 <>
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4">
                     {episodes.map((episode) => (
-                      <Link key={episode.id} to={EPISODE_ROUTE} params={{ serverId, libraryId, mediaId, episodeId: String(episode.id) }} className="group cursor-pointer block">
+                      <Link key={episode.id} {...appLinks.episode(serverId, libraryId, mediaId, episode.id)} className="group cursor-pointer block">
                         {/* Episode Poster Container */}
                         <div className="relative aspect-[2/3] bg-accent rounded-lg overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 group-hover:scale-105">
                           {episode.thumb ? (
@@ -1176,14 +1177,14 @@ const MediaDetailPageView = () => {
 
       {/* Back Button */}
       {isEpisode ? (
-        <Link to={MEDIA_ROUTE} params={{ serverId, libraryId, mediaId }} search={{ tab: 'episodes' }}>
+        <Link {...appLinks.media(serverId, libraryId, mediaId)} search={{ tab: 'episodes' }}>
           <Button variant="ghost">
             <FontAwesomeIcon icon={faArrowLeft} className="mr-2 h-4 w-4" />
             Back to Show
           </Button>
         </Link>
       ) : (
-        <Link to="/admin/servers/$serverId/libraries/$libraryId" params={{ serverId, libraryId }} search={{ tab: 'media' }}>
+        <Link {...appLinks.library(serverId, libraryId)} search={{ tab: 'media' }}>
           <Button variant="ghost">
             <FontAwesomeIcon icon={faArrowLeft} className="mr-2 h-4 w-4" />
             Back to Library

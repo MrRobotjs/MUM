@@ -1,3 +1,4 @@
+import { appPaths, appLinks } from '../router/appLinks';
 import { serverNicknameSlug } from '../lib/serverNickname';
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from '@tanstack/react-router';
@@ -36,7 +37,7 @@ function ServerCard({ health, lastSync, libraries, items }: { health: ServerHeal
     <ServiceSettingIcon serviceType={health.service_type} />
     <div className="dashboard-health-body">
       <div className="dashboard-health-name">
-        <Link to="/admin/servers/$serverId" params={{ serverId: serverNicknameSlug(health.name) }} className="account-library-link">{health.name}</Link>
+        <Link {...appLinks.server(serverNicknameSlug(health.name))} className="account-library-link">{health.name}</Link>
         <span className="dashboard-health-status" data-status={health.status}>{statusLabels[health.status]}</span>
       </div>
       <span className="text-sm text-muted-foreground">{meta.label}{health.version ? ` ${health.version}` : ''} · {checked}</span>

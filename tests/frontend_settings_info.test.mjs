@@ -10,6 +10,10 @@ test('Info settings has a route, navigation and real monitoring status', () => {
   const info = read('pages/AdminSettingsInfoPage.tsx');
   assert.match(info, /MUM Configuration/);
   assert.match(info, /Scheduled Tasks/);
+  assert.match(info, /<TableHead>Next Run In<\/TableHead>/);
+  assert.match(info, /<TableHead>Next Run Time<\/TableHead>/);
+  assert.doesNotMatch(info, /<TableHead>Next Execution<\/TableHead>/);
+  assert.match(info, /colSpan=\{5\}/);
   assert.match(info, /useActivityMonitoring/);
   assert.match(info, /Check for active sessions/);
   const hook = read('hooks/useScheduledTasks.ts');
@@ -19,6 +23,8 @@ test('Info settings has a route, navigation and real monitoring status', () => {
   assert.match(info, /getServiceBadgeClass\(task\.provider\)/);
   assert.doesNotMatch(info, /<TableHead>Channels<\/TableHead>/);
   assert.doesNotMatch(info, /<TableHead>Type<\/TableHead>/);
+  assert.doesNotMatch(info, /<TableHead>Side<\/TableHead>/);
+  assert.doesNotMatch(info, /getSideBadge/);
   assert.match(info, /Provider subscription/);
   assert.match(info, /socketMonitoringStatus\(task\)/);
   assert.match(info, /<TaskState state=\{isSocketConnected\(task\)\?'active':'inactive'\} label="WebSocket"/);

@@ -1,3 +1,5 @@
+import {formatNextRunTime} from '../lib/scheduledTaskDisplay';
+import type {DisplayValues} from '../lib/accountDisplay';
 import {useActivityMonitoring} from '../hooks/useActivityMonitoring';
 import type {MonitorTask} from '../lib/activityMonitoring';
 import {isSocketConnected, providerSocketSubscriptions, scheduledTaskState, socketMonitoringStatus} from '../lib/providerSocketDetails';
@@ -80,6 +82,12 @@ const useCountdown = (nextRunTime: string | null) => {
 
   return countdown;
 };
+
+// A shared pair of cells keeps the countdown and the viewer-local calendar time consistent.
+function NextRunCells({value, display, empty = 'N/A'}:{value:string|null;display:DisplayValues|undefined;empty?:string}) {
+  const countdown = useCountdown(value);
+  return <><TableCell className="font-mono text-sm">{value ? countdown : empty}</TableCell><TableCell className="text-sm">{value ? formatNextRunTime(value,new Date().toISOString(),display) : empty}</TableCell></>;
+}
 
 // Function to get detailed task information
 const getTaskDetails = (task: any, formatTimestamp: (value: string) => string) => {
@@ -204,31 +212,15 @@ const getTaskDescription = (task: any): string => {
 interface ScheduledTaskRowProps {
   task: any;
   onClick: (task: any) => void;
+  display: DisplayValues | undefined;
 }
 
-const ScheduledTaskRow = ({ task, onClick }: ScheduledTaskRowProps) => {
-  const countdown = useCountdown(task.next_run_time);
+const ScheduledTaskRow = ({ task, onClick, display }: ScheduledTaskRowProps) => {
   const displayName = useMemo(() => {
     // Strip any suffix like " (...)" that we used to append for channels
     const name: string = task.name || '';
     return name.replace(/\s*\(.*\)$/, '');
   }, [task.name]);
-
-  const getSideBadge = () => {
-    if (task.side === 'Server') {
-      return (
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">
-          <FontAwesomeIcon icon={faServer} className="text-[10px]" /> Server
-        </span>
-      );
-    } else {
-      return (
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-700 dark:bg-sky-900/30 dark:text-sky-400">
-          <FontAwesomeIcon icon={faDesktop} className="text-[10px]" /> Client
-        </span>
-      );
-    }
-  };
 
   return (
     <TableRow
@@ -237,18 +229,15 @@ const ScheduledTaskRow = ({ task, onClick }: ScheduledTaskRowProps) => {
     >
       <TableCell className="font-medium"><div className="flex flex-wrap items-center gap-2"><span>{displayName}</span><span className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs font-semibold ${getServiceBadgeClass(task.provider)}`}>{getServiceIcon(task.provider, 'size-3')}<span className="sr-only">{task.provider}: </span>{task.server_name}</span></div></TableCell>
       <TableCell><TaskState state={scheduledTaskState(task.state)} /></TableCell>
-      <TableCell>{getSideBadge()}</TableCell>
       <TableCell>{task.interval_seconds ? `${task.interval_seconds}s` : '—'}</TableCell>
-      <TableCell className="font-mono text-sm">
-        {task.type === 'WebSocket' ? 'N/A' : countdown}
-      </TableCell>
+      <NextRunCells value={task.type === 'WebSocket' ? null : task.next_run_time} display={display} empty={task.type === 'WebSocket' ? 'N/A' : 'Not scheduled'} />
     </TableRow>
   );
 };
 
 export const AdminSettingsInfoPage = () => {
   const activity = useActivityMonitoring();
-  const { formatTimestamp } = useAccountDisplay();
+  const { formatTimestamp, current: displaySettings } = useAccountDisplay();
   const { actor:taskActor,tasks,loading:tasksLoading,error:tasksError,runtimeAvailable,checkpointError,refresh:refreshTasks } = useScheduledTasks();
   const maintenanceState = tasksError || tasksLoading ? 'unavailable' : runtimeAvailable ? 'active' : 'inactive';
   const { config, loading: configLoading, error: configError } = useSystemConfig();
@@ -371,21 +360,21 @@ export const AdminSettingsInfoPage = () => {
                   <TableRow>
                     <TableHead>Task Name</TableHead>
                   <TableHead>State</TableHead>
-                  <TableHead>Side</TableHead>
                   <TableHead>Interval</TableHead>
-                  <TableHead>Next Execution</TableHead>
+                  <TableHead>Next Run In</TableHead>
+                  <TableHead>Next Run Time</TableHead>
                 </TableRow>
               </TableHeader>
                 <TableBody>
                   {activity.error ? <TableRow><TableCell colSpan={5}>Activity monitoring status is unavailable. <Button variant="outline" onClick={() => void activity.refresh().catch(() => {})}>Refresh monitoring</Button></TableCell></TableRow> : activity.loading ? <TableRow><TableCell colSpan={5}>Loading activity monitoring...</TableCell></TableRow> : activity.snapshot?.tasks.slice().sort((a, b) => a.provider.localeCompare(b.provider) || a.server_name.localeCompare(b.server_name)).map(task => <TableRow key={`activity-${task.server_id}`} className="cursor-pointer hover:bg-muted/50" onClick={()=>{if(activity.actor&&activity.sessionToken)setSocketSelection({id:task.server_id,actor:activity.actor,token:activity.sessionToken})}}>
                     <TableCell><div className="flex flex-wrap items-center gap-2"><button type="button" className="text-left hover:underline focus-visible:ring-2 ring-sidebar-ring" onClick={event=>{event.stopPropagation();if(activity.actor&&activity.sessionToken)setSocketSelection({id:task.server_id,actor:activity.actor,token:activity.sessionToken})}}>Check for active sessions</button><span className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs font-semibold ${getServiceBadgeClass(task.provider)}`}>{getServiceIcon(task.provider, 'size-3')}<span className="sr-only">{task.provider}: </span>{task.server_name}</span></div></TableCell>
                     <TableCell><TaskState state={isSocketConnected(task)?'active':'inactive'} label="WebSocket" />{socketMonitoringStatus(task)==='HTTP fallback' && <div className="text-xs text-muted-foreground">HTTP fallback</div>}</TableCell>
-                    <TableCell>Server</TableCell><TableCell>{task.socket_enabled ? 'N/A' : task.state==='scheduled'||task.state==='running' ? `${task.interval_seconds}s (HTTP)` : 'N/A'}</TableCell><TableCell>{task.socket_enabled ? 'N/A' : task.next_run_at && (task.state==='scheduled'||task.state==='running') ? formatTimestamp(task.next_run_at) : 'N/A'}</TableCell>
+                    <TableCell>{task.socket_enabled ? 'N/A' : task.state==='scheduled'||task.state==='running' ? `${task.interval_seconds}s (HTTP)` : 'N/A'}</TableCell><NextRunCells value={!task.socket_enabled && (task.state==='scheduled'||task.state==='running') ? task.next_run_at : null} display={displaySettings?.display} />
                   </TableRow>)}
-                  <TableRow><TableCell>Check local account expiry</TableCell><TableCell><TaskState state={maintenanceState}/></TableCell><TableCell>Server</TableCell><TableCell>Scheduler loop</TableCell><TableCell>Next check not recorded</TableCell></TableRow>
-                  <TableRow><TableCell>Check service account expiry</TableCell><TableCell><TaskState state={maintenanceState}/></TableCell><TableCell>Server</TableCell><TableCell>Scheduler loop</TableCell><TableCell>Next check not recorded</TableCell></TableRow>
-                  <TableRow><TableCell>Check server health</TableCell><TableCell><TaskState state={maintenanceState}/></TableCell><TableCell>Server</TableCell><TableCell>15s sweep</TableCell><TableCell>Next check not recorded</TableCell></TableRow>
-                  {tasks.map(task => <ScheduledTaskRow key={task.id} task={task} onClick={handleTaskClick} />)}
+                  <TableRow><TableCell>Check local account expiry</TableCell><TableCell><TaskState state={maintenanceState}/></TableCell><TableCell>Scheduler loop</TableCell><TableCell>Not recorded</TableCell><TableCell>Not recorded</TableCell></TableRow>
+                  <TableRow><TableCell>Check service account expiry</TableCell><TableCell><TaskState state={maintenanceState}/></TableCell><TableCell>Scheduler loop</TableCell><TableCell>Not recorded</TableCell><TableCell>Not recorded</TableCell></TableRow>
+                  <TableRow><TableCell>Check server health</TableCell><TableCell><TaskState state={maintenanceState}/></TableCell><TableCell>15s sweep</TableCell><TableCell>Not recorded</TableCell><TableCell>Not recorded</TableCell></TableRow>
+                  {tasks.map(task => <ScheduledTaskRow key={task.id} task={task} onClick={handleTaskClick} display={displaySettings?.display} />)}
                 </TableBody>
               </Table>
             </div>

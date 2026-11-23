@@ -59,6 +59,10 @@ func activityMonitorAudit(ctx context.Context, tx *sql.Tx, actor, action string,
 	_, err := tx.ExecContext(ctx, `INSERT INTO audit_events(actor_uuid,action,details,occurred_at) VALUES(?,?,?,?)`, actor, action, string(details), utcTimestamp(time.Now()))
 	return err
 }
+
+// activityReadRetrySeconds is independent of any previously configured polling interval.
+const activityReadRetrySeconds = 30
+
 func finishActivityMonitor(ctx context.Context, tx *sql.Tx, c activityReadClaim, code string) error {
 	state := "failed"
 	if code == "SUCCEEDED" {
@@ -67,7 +71,7 @@ func finishActivityMonitor(ctx context.Context, tx *sql.Tx, c activityReadClaim,
 	if code == "CANCELLED" {
 		state = "cancelled"
 	}
-	result, err := tx.ExecContext(ctx, `UPDATE activity_monitor_schedules SET run_state=?,last_code=?,finished_at=?,claim_token=NULL,runner_id=NULL,lease_until=NULL,next_run_at=CASE WHEN enabled=1 AND NOT (socket_enabled=1 AND ?='SUCCEEDED') THEN strftime('%Y-%m-%dT%H:%M:%fZ','now','+'||interval_seconds||' seconds') ELSE NULL END,revision=revision+1 WHERE server_id=? AND revision=? AND claim_token=? AND run_state='running'`, state, code, utcTimestamp(time.Now()), code, c.Server, c.MonitorRevision, c.Token)
+	result, err := tx.ExecContext(ctx, `UPDATE activity_monitor_schedules SET run_state=?,last_code=?,finished_at=?,claim_token=NULL,runner_id=NULL,lease_until=NULL,next_run_at=CASE WHEN enabled=1 AND NOT (socket_enabled=1 AND ?='SUCCEEDED') THEN strftime('%Y-%m-%dT%H:%M:%fZ','now','+'||CASE WHEN ?='SUCCEEDED' THEN interval_seconds ELSE ? END||' seconds') ELSE NULL END,revision=revision+1 WHERE server_id=? AND revision=? AND claim_token=? AND run_state='running'`, state, code, utcTimestamp(time.Now()), code, code, activityReadRetrySeconds, c.Server, c.MonitorRevision, c.Token)
 	if err != nil {
 		return err
 	}
@@ -92,7 +96,7 @@ func (a *App) claimActivityMonitor(ctx context.Context) (*activityReadClaim, err
 		if _, err := tx.ExecContext(ctx, `INSERT INTO audit_events(actor_uuid,action,details,occurred_at) SELECT authorized_by,'activity.monitor.interrupted',json_object('server_id',server_id,'code','INTERRUPTED'),? FROM activity_monitor_schedules WHERE server_id IN (`+expired+`)`, utcTimestamp(time.Now())); err != nil {
 			return err
 		}
-		if _, err := tx.ExecContext(ctx, `UPDATE activity_monitor_schedules SET run_state='interrupted',last_code='INTERRUPTED',finished_at=?,claim_token=NULL,runner_id=NULL,lease_until=NULL,next_run_at=CASE WHEN enabled=1 THEN strftime('%Y-%m-%dT%H:%M:%fZ','now','+'||interval_seconds||' seconds') ELSE NULL END,revision=revision+1 WHERE server_id IN (`+expired+`)`, utcTimestamp(time.Now())); err != nil {
+		if _, err := tx.ExecContext(ctx, `UPDATE activity_monitor_schedules SET run_state='interrupted',last_code='INTERRUPTED',finished_at=?,claim_token=NULL,runner_id=NULL,lease_until=NULL,next_run_at=CASE WHEN enabled=1 THEN strftime('%Y-%m-%dT%H:%M:%fZ','now','+'||?||' seconds') ELSE NULL END,revision=revision+1 WHERE server_id IN (`+expired+`)`, utcTimestamp(time.Now()), activityReadRetrySeconds); err != nil {
 			return err
 		}
 		c := activityReadClaim{Token: newUUID(), Started: time.Now().UTC()}

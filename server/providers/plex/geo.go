@@ -141,6 +141,12 @@ func (s *Server) geo(ctx context.Context, ip netip.Addr) (*provider.Location, er
 // maxGeoLookups bounds the plex.tv requests made for one snapshot.
 const maxGeoLookups = 16
 
+// EnrichLocations uses this Plex account's GeoIP service for observed sessions.
+// Callers must select and revalidate the Plex account's current configuration.
+func (s *Server) EnrichLocations(ctx context.Context, snapshot *provider.ActivitySnapshot) {
+	s.enrichLocations(ctx, snapshot)
+}
+
 // enrichLocations adds coordinates to sessions from public (WAN) addresses.
 // It is optional: a failed or skipped lookup only leaves the location out,
 // and failures are remembered briefly so a down service is not asked every

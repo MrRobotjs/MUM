@@ -2,10 +2,65 @@ package main
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
 )
+
+func TestMediaBrowserHistoryRetainsSignedArtwork(t *testing.T) {
+	for _, kind := range []string{"jellyfin", "emby"} {
+		t.Run(kind, func(t *testing.T) {
+			a, store := testApp(t)
+			token, _ := bootstrapOwner(t, a)
+			owner, err := store.Authenticate(t.Context(), token)
+			if err != nil {
+				t.Fatal(err)
+			}
+			server := createManagedServer(t, a, token, kind, "http://127.0.0.1:1")
+			service := seedService(t, store, server)
+			apply := func(body []byte) {
+				t.Helper()
+				claim, err := store.beginActivityRead(t.Context(), owner.UUID, token, server)
+				if err != nil {
+					t.Fatal(err)
+				}
+				snapshot, err := parseActivitySnapshot(kind, body)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err = store.write(t.Context(), func(tx *sql.Tx) error { _, e := commitActivitySnapshot(t.Context(), tx, claim, snapshot); return e }); err != nil {
+					t.Fatal(err)
+				}
+			}
+			row := activityFixtureRow()
+			row["UserId"] = service
+			row["NowPlayingItem"].(map[string]any)["ImageTags"] = map[string]string{"Primary": "tag"}
+			body, _ := json.Marshal([]any{row})
+			apply(body)
+			apply([]byte(`[]`))
+			w := apiRequest(a, "GET", "/api/activity/history?scope=all", token, nil, nil)
+			if w.Code != 200 {
+				t.Fatal(w.Code, w.Body.String())
+			}
+			items := responseData(t, w)["items"].([]any)
+			if len(items) != 1 {
+				t.Fatal(w.Body.String())
+			}
+			item := items[0].(map[string]any)
+			poster, _ := item["poster_url"].(string)
+			if !strings.HasPrefix(poster, fmt.Sprintf("/api/activity/history-images/%s?", item["id"])) {
+				t.Fatalf("missing signed poster: %s", w.Body.String())
+			}
+			if got := apiRequest(a, "GET", poster, "", nil, nil).Code; got != 502 {
+				t.Fatalf("poster was not resolved to provider: %d", got)
+			}
+			if got := apiRequest(a, "GET", poster+"tampered", "", nil, nil).Code; got == 200 || got == 502 {
+				t.Fatal("tampered URL reached provider")
+			}
+		})
+	}
+}
 
 const plexTrack = `<MediaContainer size="1"><Track sessionKey="11" ratingKey="501" parentRatingKey="500" grandparentRatingKey="499" type="track" title="We Don't Talk Anymore" parentTitle="Nine Track Mind" grandparentTitle="Charlie Puth" librarySectionTitle="Music" thumb="/library/metadata/500/thumb/1700" parentThumb="/library/metadata/500/thumb/1700" duration="217000" viewOffset="60000"><User id="42" title="Viewer"/><Player state="playing" product="Plexamp" title="Private device"/></Track></MediaContainer>`
 

@@ -159,6 +159,7 @@ func (a *App) runOneActivityMonitor(parent context.Context) error {
 			provider.locations = &a.locationCache
 			snapshot, err = provider.readActivitySnapshot(ctx)
 			if err == nil {
+				a.enrichMediaBrowserLocations(ctx, &snapshot)
 				stage = "persist_snapshot"
 				_, err = a.saveActivity(ctx, *c, snapshot)
 				if err == nil {

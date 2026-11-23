@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"app/server/providers/provider"
@@ -24,6 +25,22 @@ func ValidToken(v string) bool {
 		}
 	}
 	return true
+}
+
+// ActivityAvatarImage reads a validated provider user image, never an arbitrary URL.
+func (s *Server) ActivityAvatarImage(ctx context.Context, descriptor string) (string, []byte, error) {
+	parts := strings.Split(descriptor, ":")
+	if len(parts) != 2 || !ValidToken(parts[0]) || !ValidToken(parts[1]) {
+		return "", nil, provider.ErrCatalogueUnsupported
+	}
+	target := s.base + "/Users/" + parts[0] + "/Images/Primary?" + url.Values{"tag": {parts[1]}}.Encode()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
+	if err != nil {
+		return "", nil, provider.ErrCatalogueUnsupported
+	}
+	req.Header.Set("Accept", "image/*")
+	s.authorize(req.Header)
+	return s.transport.Fetch(req, provider.CatalogueImageMax, provider.ImageType)
 }
 
 var catalogueKinds = map[string]string{"Movie": "movie", "Series": "show", "MusicAlbum": "album", "Book": "book", "AudioBook": "audiobook", "MusicVideo": "music_video", "Video": "video"}

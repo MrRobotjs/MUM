@@ -14,6 +14,63 @@ import (
 func activityFixtureRow() map[string]any {
 	return map[string]any{"Id": "session", "UserId": "user", "NowPlayingItem": map[string]any{"Id": "item", "Name": "A film", "Type": "Movie", "RunTimeTicks": int64(100000000)}, "PlayState": map[string]any{"IsPaused": false, "PositionTicks": int64(10000000)}, "AdditionalUsers": []any{}}
 }
+
+func TestMediaBrowserStreamCardDetails(t *testing.T) {
+	for _, kind := range []string{"jellyfin", "emby"} {
+		t.Run(kind, func(t *testing.T) {
+			row := activityFixtureRow()
+			row["Client"], row["DeviceName"] = "Jellyfin Web", "Browser"
+			row["PlayState"].(map[string]any)["PlayMethod"] = "Transcode"
+			row["NowPlayingItem"] = map[string]any{"Id": "episode", "Name": "Episode", "Type": "Episode", "SeriesId": "series", "SeriesName": "A show", "RunTimeTicks": int64(100000000), "Container": "mkv", "SeriesPrimaryImageTag": "tag", "MediaStreams": []any{map[string]any{"Type": "Video", "Codec": "hevc", "Height": 1080}, map[string]any{"Type": "Audio", "Codec": "aac", "DisplayTitle": "English AAC", "IsDefault": true}}}
+			row["TranscodingInfo"] = map[string]any{"Container": "ts", "VideoCodec": "h264", "AudioCodec": "aac", "Bitrate": 5000000, "Height": 720, "IsVideoDirect": false, "IsAudioDirect": true}
+			row["AccessToken"] = "do-not-expose-this-token"
+			row["UserPrimaryImageTag"] = "avatarTag"
+			body, _ := json.Marshal([]any{row})
+			snapshot, err := parseActivitySnapshot(kind, body)
+			if err != nil || len(snapshot.Sessions) != 1 || snapshot.Sessions[0].Display == nil {
+				t.Fatalf("missing display: %+v %v", snapshot, err)
+			}
+			d := snapshot.Sessions[0].Display
+			if d.PlayerTitle != "Browser" || d.ParentTitle != "A show" || d.PosterItem != "series" || d.PosterPath != "tag" || !strings.Contains(d.Container, "MKV") || !strings.Contains(d.Video, "H264") || d.Bandwidth == "" {
+				t.Fatalf("incomplete display: %+v", d)
+			}
+			if d.AvatarPath != "user:avatarTag" || d.RawDataJSON == "" || strings.Contains(d.RawDataJSON, "do-not-expose-this-token") {
+				t.Fatalf("unsafe or absent diagnostics/avatar: %+v", d)
+			}
+		})
+	}
+}
+
+func TestMediaBrowserActivityAvatarUsesBoundedProviderPath(t *testing.T) {
+	for _, kind := range []string{"jellyfin", "emby"} {
+		t.Run(kind, func(t *testing.T) {
+			var calls int
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				calls++
+				expected := "/Users/user/Images/Primary"
+				if kind == "emby" {
+					expected = "/emby" + expected
+				}
+				if r.URL.Path != expected || r.URL.Query().Get("tag") != "tag" || r.Header.Get("X-Emby-Token") != "fixture-key" {
+					t.Errorf("wrong avatar request: %s", r.URL.Path)
+				}
+				w.Header().Set("Content-Type", "image/png")
+				_, _ = w.Write([]byte("fixture image"))
+			}))
+			defer upstream.Close()
+			p, err := newServerConnection(ProviderConfig{kind, upstream.URL, "fixture-key"}, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, _, err = p.activityAvatar(t.Context(), "user:tag"); err != nil || calls != 1 {
+				t.Fatalf("avatar: %v calls=%d", err, calls)
+			}
+			if _, _, err = p.activityAvatar(t.Context(), "../user:tag"); err == nil || calls != 1 {
+				t.Fatal("invalid avatar descriptor reached provider")
+			}
+		})
+	}
+}
 func TestActivityProviderStrictCompleteResponse(t *testing.T) {
 	for _, kind := range []string{"jellyfin", "emby"} {
 		t.Run(kind, func(t *testing.T) {

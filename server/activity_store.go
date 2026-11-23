@@ -296,7 +296,7 @@ func commitActivitySnapshot(ctx context.Context, tx *sql.Tx, c activityReadClaim
 		// snapshot without them never erases known values.
 		if session.Display != nil {
 			posterItem, posterPath := session.Display.PosterItem, session.Display.PosterPath
-			if !validPlexCataloguePoster(posterItem, posterPath) {
+			if !validHistoryPoster(c.Provider, posterItem, posterPath) {
 				posterItem, posterPath = "", ""
 			}
 			library := session.Display.Library
@@ -386,6 +386,9 @@ func (a *App) captureProviderActivity(ctx context.Context, actor, access string,
 		if err == nil {
 			provider.locations = &a.locationCache
 			snapshot, err = provider.readActivitySnapshot(ctx)
+			if err == nil {
+				a.enrichMediaBrowserLocations(ctx, &snapshot)
+			}
 		}
 	}
 	var result activityApplyResult

@@ -1,11 +1,13 @@
 package main
 
 import (
+	"app/server/providers/mediabrowser"
 	"app/server/providers/plex"
 	"context"
 	"database/sql"
 	"errors"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -41,7 +43,7 @@ func (a *App) readActivityPictureSource(ctx context.Context, session string, ite
 	err = tx.QueryRowContext(ctx, `SELECT s.service_type,s.url,coalesce(s.api_key,''),`+externalColumn+`,`+tagColumn+`,s.id,s.config_revision,a.mapping_revision,a.observed_at,a.pending_until
 	FROM media_activity_current c JOIN media_activity_history h ON h.id=c.history_id
 	JOIN media_servers s ON s.id=c.server_id JOIN provider_settings p ON p.provider_id=s.service_type JOIN media_activity_state a ON a.server_id=s.id
-	WHERE h.id=? AND s.service_type='plex' AND s.is_active=1 AND p.enabled=1 AND a.last_result='fresh'
+	WHERE h.id=? AND s.service_type IN ('plex','jellyfin','emby') AND s.is_active=1 AND p.enabled=1 AND a.last_result='fresh'
 	AND a.observed_config_revision=s.config_revision AND a.observed_mapping_revision=a.mapping_revision`, item).Scan(&source.Provider, &source.URL, &source.APIKey, &source.External, &source.Tag, &source.Server, &source.ConfigRevision, &source.ActivityMappingRevision, &observed, &pending)
 	if errors.Is(err, sql.ErrNoRows) {
 		return source, ErrNotFound
@@ -61,8 +63,15 @@ func (a *App) readActivityPictureSource(ctx context.Context, session string, ite
 		}
 	}
 	valid := validPlexCataloguePoster(source.External, source.Tag)
+	if source.Provider == "jellyfin" || source.Provider == "emby" {
+		valid = mediabrowser.ValidToken(source.External) && mediabrowser.ValidToken(source.Tag)
+	}
 	if avatar {
-		valid = source.Tag != "" && plex.ActivityAvatar(source.Tag) == source.Tag
+		valid = source.Provider == "plex" && source.Tag != "" && plex.ActivityAvatar(source.Tag) == source.Tag
+		if source.Provider == "jellyfin" || source.Provider == "emby" {
+			parts := strings.Split(source.Tag, ":")
+			valid = len(parts) == 2 && mediabrowser.ValidToken(parts[0]) && mediabrowser.ValidToken(parts[1])
+		}
 	}
 	if !valid {
 		return source, ErrNotFound
@@ -85,7 +94,7 @@ const activityHistoryPosterPurpose = "activity-history-poster"
 
 // readActivityHistoryImageSource resolves the poster stored with a retained
 // play. Unlike live posters it does not require current playback, but the
-// administrator session, active Plex server and enabled provider are rechecked
+// administrator session, active server and enabled provider are rechecked
 // on every fetch, and only a validated catalogue reference is ever used.
 func (a *App) readActivityHistoryImageSource(ctx context.Context, session string, item int64) (catalogueImageSource, error) {
 	var source catalogueImageSource
@@ -105,8 +114,8 @@ func (a *App) readActivityHistoryImageSource(ctx context.Context, session string
 	}
 	err = tx.QueryRowContext(ctx, `SELECT s.service_type,s.url,coalesce(s.api_key,''),coalesce(h.poster_item,''),coalesce(h.poster_path,''),s.id,s.config_revision
 	FROM media_activity_history h JOIN media_servers s ON s.id=h.server_id JOIN provider_settings p ON p.provider_id=s.service_type
-	WHERE h.id=? AND s.service_type='plex' AND s.is_active=1 AND p.enabled=1`, item).Scan(&source.Provider, &source.URL, &source.APIKey, &source.External, &source.Tag, &source.Server, &source.ConfigRevision)
-	if errors.Is(err, sql.ErrNoRows) || err == nil && !validPlexCataloguePoster(source.External, source.Tag) {
+	WHERE h.id=? AND s.is_active=1 AND p.enabled=1`, item).Scan(&source.Provider, &source.URL, &source.APIKey, &source.External, &source.Tag, &source.Server, &source.ConfigRevision)
+	if errors.Is(err, sql.ErrNoRows) || err == nil && !validHistoryPoster(source.Provider, source.External, source.Tag) {
 		return source, ErrNotFound
 	}
 	return source, err

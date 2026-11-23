@@ -154,6 +154,10 @@ func ParseSessions(kind string, body []byte) (provider.ActivitySnapshot, error) 
 		if !provider.ValidActivitySession(session) {
 			return result, bad
 		}
+		session.Display = streamDisplay(row, item, session)
+		if session.Display != nil {
+			session.Address = session.Display.IP
+		}
 		validated = append(validated, session)
 	}
 	result.Sessions = validated

@@ -33,7 +33,7 @@ export function NavServerDetail({ serverId }: { serverId: number }) {
   const { server } = useServerDetail(serverId)
   const path = useLocation().pathname.replace(/\/$/, "")
   const label = server?.server_nickname || `Server ${serverId}`
-  const slug = server?.server_nickname ? serverNicknameSlug(server.server_nickname) : ""
+  const slug = server?.server_nickname ? `${server.service_type}/${serverNicknameSlug(server.server_nickname)}` : ""
 
   return (
     <SidebarGroup>
@@ -46,7 +46,7 @@ export function NavServerDetail({ serverId }: { serverId: number }) {
             <SidebarMenuButton asChild tooltip={item.title} isActive={path === serverRoutePath(item.to, slug)}>
               <Link
                 to={item.to}
-                params={{ serverId: slug }}
+                params={{ serverType: server?.service_type ?? "", serverId: server?.server_nickname ? serverNicknameSlug(server.server_nickname) : "" }}
                 onClick={() => {
                   if (isMobile) setOpenMobile(false)
                 }}

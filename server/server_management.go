@@ -366,7 +366,7 @@ func (a *App) saveServer(w http.ResponseWriter, r *http.Request) {
 				break
 			}
 			existing, valid := serverNicknameSlug(name)
-			if valid && validNickname && existing == slug {
+			if valid && validNickname && kind == s.Type && existing == slug {
 				conflict = &nicknameConflict{name, kind}
 				break
 			}

@@ -10,7 +10,7 @@ import React from 'react';import {renderToString} from 'react-dom/server';import
 export const render=()=>renderToString(React.createElement(ServersPage));
 `, {mock: {
     filter: s => s === '@tanstack/react-router' || /lib\/dashboard$|lib\/realtimeSocket$|hooks\/(useServers|useLibraries|useUserTotal|useAccountDisplay)$/.test(s),
-    module: s => s === '@tanstack/react-router' ? "import React from 'react';export const Link=p=>React.createElement('a',{href:p.to.replace('$serverId',p.params?.serverId??''),className:p.className},p.children);export const useLocation=()=>({pathname:'/'});export const useNavigate=()=>()=>{};"
+    module: s => s === '@tanstack/react-router' ? "import React from 'react';export const Link=p=>React.createElement('a',{href:p.to.replace('$serverType',p.params?.serverType??'').replace('$serverId',p.params?.serverId??''),className:p.className},p.children);export const useLocation=()=>({pathname:'/'});export const useNavigate=()=>()=>{};"
       : /lib\/dashboard$/.test(s) ? 'export const fetchServerHealth=async()=>null;export const useDashboardData=()=>globalThis.serversPage.health;'
       : /realtimeSocket$/.test(s) ? 'export const subscribeToChannel=()=>()=>{};'
       : /useServers$/.test(s) ? 'export const useServers=()=>({servers:globalThis.serversPage.servers});'
@@ -47,9 +47,9 @@ test('media servers page', async t => {
     assert.match(html, /0 users · 0 libraries · 0 items\s*· never synced/);
     assert.match(html, /not checked yet/);
     // Plex has Graphs and Resources; Audiobookshelf has neither.
-    assert.match(html, /href="\/admin\/servers\/plex\+\+\/resources"/);
-    assert.match(html, /href="\/admin\/servers\/plex\+\+\/graphs"/);
-    assert.doesNotMatch(html, /href="\/admin\/servers\/audiobooks\/graphs"/);
+    assert.match(html, /href="\/admin\/servers\/plex\/plex\+\+\/resources"/);
+    assert.match(html, /href="\/admin\/servers\/plex\/plex\+\+\/graphs"/);
+    assert.doesNotMatch(html, /href="\/admin\/servers\/audiobookshelf\/audiobooks\/graphs"/);
     assert.match(html, /href="\/admin\/settings\/media-servers"[^>]*>.*Add server/s);
   });
 

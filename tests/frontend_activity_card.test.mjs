@@ -12,8 +12,9 @@ import React from 'react';import {renderToString} from 'react-dom/server';import
 export const render=()=>renderToString(React.createElement(ActivityCard));
 export const renderFixed=()=>renderToString(React.createElement(ActivityStatistics,{fixedServer:{id:2,name:'Plex++'}}));
 `, {mock: {
-    filter: s => s === '@tanstack/react-router' || /lib\/dashboard$|hooks\/useAccountDisplay$/.test(s),
+    filter: s => s === '@tanstack/react-router' || /lib\/dashboard$|lib\/serverRoutes$|hooks\/useAccountDisplay$/.test(s),
     module: s => s === '@tanstack/react-router' ? "import React from 'react';export const Link=p=>React.createElement('a',{href:p.to.replace(/[$](\\w+)/g,(_,k)=>p.params?.[k]??''),className:p.className},p.children);"
+      : /lib\/serverRoutes$/.test(s) ? 'export const useServerRoutes=()=>({slugFor:id=>id===2?"plex/plex++":undefined});'
       : /lib\/dashboard$/.test(s) ? 'export const fetchActivityStats=async()=>null;export const useDashboardData=()=>globalThis.activityCard;'
       : "export const useAccountDisplay=()=>({formatRelative:v=>'AGO:'+v,formatTimestamp:(v,style)=>(style==='date'?'DATE:':'AT:')+v});",
   }});
@@ -58,11 +59,11 @@ test('activity statistics', async t => {
     // Who played the highlighted title sits beside the card's title.
     assert.match(html, /Recently played<\/strong><span class="dashboard-stat-who">· Viewer<\/span><\/span><span class="dashboard-stat-metric">When</);
     assert.match(html, /href="\/admin\/users\/11111111-1111-4111-8111-111111111111"[^>]*>viewer/);
-    assert.match(html, /href="\/admin\/servers\/2\/libraries\/7"[^>]*>Movies/);
+    assert.match(html, /href="\/admin\/servers\/plex\/plex\+\+\/libraries\/7"[^>]*>Movies/);
     assert.match(html, /title="On Plex\+\+"/);
     // Catalogued titles open their pages; an episode its episode page.
-    assert.match(html, /href="\/admin\/servers\/2\/libraries\/7\/70" class="dashboard-stat-link">Popular</);
-    assert.match(html, /href="\/admin\/servers\/2\/libraries\/7\/71\/episodes\/72" class="dashboard-stat-link">A Show</);
+    assert.match(html, /href="\/admin\/servers\/plex\/plex\+\+\/libraries\/7\/70" class="dashboard-stat-link">Popular</);
+    assert.match(html, /href="\/admin\/servers\/plex\/plex\+\+\/libraries\/7\/71\/episodes\/72" class="dashboard-stat-link">A Show</);
     assert.doesNotMatch(html, /dashboard-stat-link">Second</);
     // Title, subtitle and the server sit together.
     assert.match(html, /dashboard-stat-name">.*A Show.*dashboard-stat-sub">· Pilot<\/span><span class="dashboard-stat-badges"[^>]*title="On Plex\+\+">/s);

@@ -37,7 +37,7 @@ function ServerCard({ health, lastSync, libraries, items }: { health: ServerHeal
     <ServiceSettingIcon serviceType={health.service_type} />
     <div className="dashboard-health-body">
       <div className="dashboard-health-name">
-        <Link {...appLinks.server(serverNicknameSlug(health.name))} className="account-library-link">{health.name}</Link>
+        <Link {...appLinks.server(`${health.service_type}/${serverNicknameSlug(health.name)}`)} className="account-library-link">{health.name}</Link>
         <span className="dashboard-health-status" data-status={health.status}>{statusLabels[health.status]}</span>
       </div>
       <span className="text-sm text-muted-foreground">{meta.label}{health.version ? ` ${health.version}` : ''} · {checked}</span>
@@ -47,7 +47,7 @@ function ServerCard({ health, lastSync, libraries, items }: { health: ServerHeal
       </span>
       <div className="flex flex-wrap gap-1 pt-2">
         {serverPagesFor(health.service_type).map(page => <Button key={page.title} variant="ghost" size="sm" asChild>
-          <Link to={page.to} params={{ serverId: serverNicknameSlug(health.name) }}><FontAwesomeIcon icon={page.icon} />{page.title}</Link>
+          <Link to={page.to} params={{ serverType: health.service_type, serverId: serverNicknameSlug(health.name) }}><FontAwesomeIcon icon={page.icon} />{page.title}</Link>
         </Button>)}
       </div>
     </div>

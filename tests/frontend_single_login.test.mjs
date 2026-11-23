@@ -23,6 +23,11 @@ test('real TanStack tree keeps shared pages and removes split login routes',asyn
  const account=router.matchRoutes('/account',{tab:'credentials'}).at(-1);assert.equal(account.search.tab,'credentials');
  for(const tab of ['overview','credentials','linked-accounts','preferences'])assert.equal(router.matchRoutes('/account',{tab}).at(-1).search.tab,tab);
  for(const tab of ['profile','history','settings','linked-accounts','overseerr','security'])assert.equal(router.matchRoutes('/admin/users/12345678-1234-1234-1234-000000000002',{tab}).at(-1).search.tab,tab,tab);
+ for(const type of ['plex','jellyfin']) {
+  const url=`/admin/servers/${type}/media-server/users/12345678-1234-1234-1234-000000000002`;
+  const matched=router.matchRoutes(url).at(-1);assert.equal(matched.params.serverType,type);assert.equal(matched.params.serverId,'media-server');
+ }
+ const built=router.buildLocation({to:'/admin/servers/$serverType/$serverId/libraries/$libraryId',params:{serverType:'plex',serverId:'plex++',libraryId:'9'}});assert.equal(built.pathname,'/admin/servers/plex/plex++/libraries/9');
  const returned=router.buildLocation({href:'/account?tab=credentials#security'});assert.equal(returned.pathname,'/account');assert.equal(returned.search.tab,'credentials');assert.equal(returned.hash,'security');
  router.history.destroy();delete globalThis.window;delete globalThis.self;
 });

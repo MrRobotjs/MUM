@@ -14,7 +14,6 @@ import { useOverseerr } from '../hooks/useOverseerr';
 import { useServers } from '../hooks/useServers';
 import { useServerRoutes } from '../lib/serverRoutes';
 import { serverProfileMatches } from '../lib/serverNickname';
-import { useUserUuidBySlug } from '../hooks/useUserUuidBySlug';
 import {useIdentityPlayTotals} from '../hooks/useIdentityPlayTotals';
 import {nowPlaying,recentPlayText,watchTime,type PlayPeriod} from '../lib/identityPlayTotals';
 import {playerLogo} from '../lib/playerPlatforms';
@@ -598,23 +597,16 @@ export const UserDetailPage = () => {
   const location = useLocation();
   const navigate = useNavigate();
   // Read params from TanStack Router (route matches: /admin/users/$uuid or /admin/users/$serverNickname/$username)
-  const { uuid: uuidParam, serverId: serverSlug, serverNickname, username } = (useParams({ strict: false }) as {
+  const { uuid: uuidParam, serverId: serverSlug, serverType } = (useParams({ strict: false }) as {
     uuid?: string;
     serverId?: string;
-    serverNickname?: string;
-    username?: string;
+    serverType?: string;
   });
 
   const locationState = location.state as { userUuid?: string } | undefined;
   const stateUuid = locationState?.userUuid;
 
-  const needsSlugLookup = !uuidParam && !stateUuid && serverNickname && username;
-  const {
-    uuid: slugUuid,
-    loading: slugLoading,
-    error: slugError
-  } = useUserUuidBySlug(needsSlugLookup ? serverNickname : undefined, needsSlugLookup ? username : undefined);
-  const effectiveUuid = uuidParam ?? stateUuid ?? slugUuid ?? undefined;
+  const effectiveUuid = uuidParam ?? stateUuid ?? undefined;
 
   const search = useSearch({ strict: false }) as { tab?: TabKey; page?: number };
   const activeTab: TabKey = search.tab ?? 'profile';
@@ -639,35 +631,7 @@ export const UserDetailPage = () => {
 
 
 
-  if (!effectiveUuid) {
-    if (slugLoading) {
-      return (
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Spinner className="size-4" />
-          Resolving user path…
-        </div>
-      );
-    }
-
-    if (slugError) {
-      return (
-        <div className="rounded border border-red-500/40 bg-red-50 dark:bg-red-400/10 p-4 text-sm text-red-600 dark:text-red-400">
-          Failed to resolve user path: {String(slugError)}
-        </div>
-      );
-    }
-
-    if (serverNickname && username) {
-      return (
-        <div className="rounded border border-border bg-background p-4 text-sm text-muted-foreground">
-          Could not locate a user for <span className="font-semibold">{serverNickname}</span> /{' '}
-          <span className="font-semibold">{username}</span>.
-        </div>
-      );
-    }
-
-    return <div className="text-sm text-muted-foreground">No user selected.</div>;
-  }
+  if (!effectiveUuid) return <div className="text-sm text-muted-foreground">No user selected.</div>;
 
   if (loading) {
     return (
@@ -693,7 +657,7 @@ export const UserDetailPage = () => {
   if (serverSlug) {
     if (routes.loading) return <div className="flex items-center gap-2 text-sm text-muted-foreground"><Spinner className="size-4" />Checking the server…</div>;
     if (routes.error) return <div className="rounded border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">Could not verify the server. Refresh and try again.</div>;
-    const source = routes.serverFor(serverSlug);
+    const source = routes.serverFor(`${serverType}/${serverSlug}`);
     if (!serverProfileMatches(source, user)) {
       return <div className="rounded border border-border bg-background p-4 text-sm text-muted-foreground">This account does not belong to the selected server.</div>;
     }

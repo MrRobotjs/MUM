@@ -8,7 +8,7 @@ import {loadFrontend} from './frontendLoader.mjs';
 async function load() {
   return loadFrontend(`
 import React from 'react';import {renderToString} from 'react-dom/server';import {ServerLibrariesCard} from './src/components/servers/ServerLibrariesCard';
-export const render=(serviceType='plex')=>renderToString(React.createElement(ServerLibrariesCard,{serverId:2,serviceType,onSync(){},syncing:false,syncDisabled:false}));
+export const render=(serviceType='plex')=>renderToString(React.createElement(ServerLibrariesCard,{serverId:2,serverSlug:'plex/plex++',serviceType,onSync(){},syncing:false,syncDisabled:false}));
 export {setAccessToken} from './src/store/authStore';
 `, {mock: {
     filter: s => s === 'swr' || s === '@tanstack/react-router' || /contexts\/AuthContext$|hooks\/useAccountDisplay$/.test(s),

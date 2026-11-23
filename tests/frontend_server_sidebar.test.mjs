@@ -18,15 +18,15 @@ const text=n=>typeof n==='string'?n:[n?.props?.children].flat().filter(Boolean).
 
 test('server sidebar names the server and links its pages',async()=>{
  const m=await load();
- globalThis.serverSidebar={path:'/admin/servers/plex++/users',server:{id:4,server_nickname:'Plex++'}};
+ globalThis.serverSidebar={path:'/admin/servers/plex/plex++/users',server:{id:4,service_type:'plex',server_nickname:'Plex++'}};
  let tree=m.NavServerDetail({serverId:4});
  assert.equal(globalThis.serverSidebar.requested,4);
  assert.equal(text(walk(tree).find(n=>n.type==='SidebarGroupLabel')),'Plex++');
  const links=walk(tree).filter(n=>n.type==='Link');
- assert.deepEqual(links.map(l=>[text(l),l.props.to,l.props.params.serverId,l.props.search]),[['Overview','/admin/servers/$serverId','plex++',undefined],['Users','/admin/servers/$serverId/users','plex++',undefined],['Libraries','/admin/servers/$serverId/libraries','plex++',undefined]]);
+ assert.deepEqual(links.map(l=>[text(l),l.props.to,l.props.params.serverId,l.props.search]),[['Overview','/admin/servers/$serverType/$serverId','plex++',undefined],['Users','/admin/servers/$serverType/$serverId/users','plex++',undefined],['Libraries','/admin/servers/$serverType/$serverId/libraries','plex++',undefined]]);
  assert.deepEqual(walk(tree).filter(n=>n.type==='SidebarMenuButton').map(b=>b.props.isActive),[false,true,false]);
  // The server's base page is Overview; the label falls back until the server loads.
- globalThis.serverSidebar={path:'/admin/servers/plex++/',server:null};
+ globalThis.serverSidebar={path:'/admin/servers/plex/plex++/',server:null};
  tree=m.NavServerDetail({serverId:4});
  assert.equal(text(walk(tree).find(n=>n.type==='SidebarGroupLabel')),'Server 4');
  assert.deepEqual(walk(tree).filter(n=>n.type==='SidebarMenuButton').map(b=>b.props.isActive),[false,false,false]);

@@ -17,9 +17,12 @@ func TestServerNicknameURLConflictsAndValidation(t *testing.T) {
 	if got := save("hello-world", "jellyfin"); got != 201 {
 		t.Fatal(got)
 	}
-	w := apiRequest(a, "POST", "/api/servers", token, map[string]any{"server_nickname": "Hello World", "service_type": "plex", "url": "http://fixture.test", "api_key": "fixture-secret"}, nil)
+	w := apiRequest(a, "POST", "/api/servers", token, map[string]any{"server_nickname": "Hello World", "service_type": "jellyfin", "url": "http://fixture.test", "api_key": "fixture-secret"}, nil)
 	if w.Code != 409 || !strings.Contains(w.Body.String(), "hello-world") || !strings.Contains(strings.ToLower(w.Body.String()), "jellyfin") {
 		t.Fatalf("conflict does not identify server: %d %s", w.Code, w.Body.String())
+	}
+	if got := save("hello-world", "plex"); got != 201 {
+		t.Fatalf("cross-provider duplicate: %d", got)
 	}
 	for _, name := range []string{"bad/name", "only?", "+++"} {
 		if got := save(name, "plex"); got != 400 {
@@ -29,7 +32,7 @@ func TestServerNicknameURLConflictsAndValidation(t *testing.T) {
 	if got := save("Plex++", "plex"); got != 201 {
 		t.Fatal(got)
 	}
-	if got := save("Other", "emby"); got != 201 {
+	if got := save("Other", "jellyfin"); got != 201 {
 		t.Fatal(got)
 	}
 	var id int64
@@ -41,7 +44,7 @@ func TestServerNicknameURLConflictsAndValidation(t *testing.T) {
 	if got := save("second server", "jellyfin"); got != 201 {
 		t.Fatal(got)
 	}
-	if got := save("SECOND-SERVER", "emby"); got != 409 {
+	if got := save("SECOND-SERVER", "jellyfin"); got != 409 {
 		t.Fatal("reverse collision", got)
 	}
 	unchanged := apiRequest(a, "PATCH", fmt.Sprintf("/api/servers/%d", id), token, map[string]any{"server_nickname": "Other"}, nil)

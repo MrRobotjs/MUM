@@ -7,7 +7,7 @@ import {loadFrontend} from './frontendLoader.mjs';
 async function load() {
   return loadFrontend(`
 import React from 'react';import {renderToString} from 'react-dom/server';import {LibraryOverview} from './src/components/library/LibraryOverview';
-export const render=library=>renderToString(React.createElement(LibraryOverview,{serverId:2,serviceLabel:'Plex',library}));
+export const render=library=>renderToString(React.createElement(LibraryOverview,{serverId:2,serverSlug:'plex/plex++',serviceLabel:'Plex',library}));
 export {setAccessToken} from './src/store/authStore';
 `, {mock: {
     filter: s => s === 'swr' || s === '@tanstack/react-router' || /contexts\/AuthContext$|hooks\/useAccountDisplay$/.test(s),

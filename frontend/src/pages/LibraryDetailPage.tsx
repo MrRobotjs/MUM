@@ -341,7 +341,8 @@ export const LibraryDetailPage = () => {
 const LibraryDetailPageView = () => {
   const { formatTimestamp, timeZone } = useAccountDisplay();
   // Use TanStack Router APIs for params and search
-  const { serverId, libraryId } = useParams({ from: appPaths.library });
+  const { serverType: routeServerType, serverId: routeServerId, libraryId } = useParams({ from: appPaths.library });
+  const serverId = `${routeServerType}/${routeServerId}`;
   const search = useSearch({ strict: false }) as { tab?: TabType };
   const activeTab: TabType = search.tab ?? 'overview';
   
@@ -719,7 +720,7 @@ const LibraryDetailPageView = () => {
       if (response.data?.id !== Number(libraryId)) throw new Error('Library detail does not match this route');
       // The library's own server decides its address; a different server in
       // the address is replaced with the right one.
-      const ownServerSlug = response.data.server?.server_nickname ? serverNicknameSlug(response.data.server.server_nickname) : '';
+      const ownServerSlug = response.data.server?.server_nickname && response.data.server?.service_type ? `${response.data.server.service_type}/${serverNicknameSlug(response.data.server.server_nickname)}` : '';
       if (!ownServerSlug) throw new Error('The library server could not be resolved.');
       if (ownServerSlug && ownServerSlug !== serverId) {
         navigate({ ...appLinks.library(ownServerSlug, libraryId), search: (prev: { tab?: TabType }) => prev, replace: true });

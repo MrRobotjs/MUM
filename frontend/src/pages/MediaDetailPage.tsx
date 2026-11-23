@@ -143,12 +143,14 @@ const MediaDetailPageView = () => {
   const { formatTimestamp, formatRelative } = useAccountDisplay();
   const { success, error: showError, info } = useAlerts();
   // On an episode's page mediaId is its show and episodeId the episode.
-  const { serverId, libraryId, mediaId, episodeId } = useParams({ strict: false }) as {
+  const { serverType: routeServerType, serverId: routeServerId, libraryId, mediaId, episodeId } = useParams({ strict: false }) as {
+    serverType: string
     serverId: string
     libraryId: string
     mediaId: string
     episodeId?: string
   };
+  const serverId = `${routeServerType}/${routeServerId}`;
   const isEpisode = episodeId !== undefined;
   const search = useSearch({ strict: false }) as { tab?: TabType };
   const navigate = useNavigate();
@@ -258,7 +260,7 @@ const MediaDetailPageView = () => {
       // The library's own server decides the address; a different server in
       // the address is replaced with the right one.
       const ownServer = response.data!.library?.server?.server_nickname;
-      const ownServerSlug = ownServer ? serverNicknameSlug(ownServer) : '';
+      const ownServerSlug = ownServer && response.data!.library?.server?.service_type ? `${response.data!.library.server.service_type}/${serverNicknameSlug(ownServer)}` : '';
       if (!ownServerSlug) throw new Error('The media server could not be resolved.');
       if (ownServerSlug && ownServerSlug !== serverId) {
         if (isEpisode) {

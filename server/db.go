@@ -184,7 +184,8 @@ func (s *Store) migrate(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	return s.write(ctx, func(tx *sql.Tx) error {
+	pendingRebuild := false
+	err = s.write(ctx, func(tx *sql.Tx) error {
 		if _, err := tx.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS schema_migrations (
 			version TEXT PRIMARY KEY, checksum TEXT NOT NULL, applied_at TEXT NOT NULL)`); err != nil {
 			return err
@@ -235,6 +236,13 @@ func (s *Store) migrate(ctx context.Context) error {
 				continue
 			}
 			missing = true
+			if pendingRebuild {
+				break
+			}
+			if file.Name() == "094_provider_server_nicknames.sql" {
+				pendingRebuild = true
+				continue
+			}
 			if _, err := tx.ExecContext(ctx, string(body)); err != nil {
 				return fmt.Errorf("migration %s: %w", file.Name(), err)
 			}
@@ -244,6 +252,13 @@ func (s *Store) migrate(ctx context.Context) error {
 		}
 		return nil
 	})
+	if err != nil || !pendingRebuild {
+		return err
+	}
+	if err = s.migrateServerNicknames(ctx); err != nil {
+		return err
+	}
+	return s.migrate(ctx)
 }
 
 // Fixed fractional width preserves lexical ordering for newly stored UTC times.

@@ -173,9 +173,9 @@ export const MediaServiceServers = ({ service, setup = false }: MediaServiceServ
                       {!setup ? (
                         <>
                           <Button asChild size="sm" variant="outline">
-                            <Link {...appLinks.server(serverNicknameSlug(server.server_nickname))}><FontAwesomeIcon icon={faArrowUpRightFromSquare} />Open server</Link>
+                            <Link {...appLinks.server(`${service.id}/${serverNicknameSlug(server.server_nickname)}`)}><FontAwesomeIcon icon={faArrowUpRightFromSquare} />Open server</Link>
                           </Button>
-                          <Button size="sm" variant="outline" onClick={() => navigate(appLinks.serverEdit(service.id, routes.settingsSlug(server)))}>
+                          <Button size="sm" variant="outline" onClick={() => navigate(appLinks.serverEdit(service.id, routes.settingsSlug({...server, service_type: service.id})))}>
                             <FontAwesomeIcon icon={faPen} />Edit
                           </Button>
                         </>

@@ -19,13 +19,13 @@ export const generateBreadcrumbs = (pathname: string) => {
 
     // An episode's address has no page at ".../<show>/episodes"; that crumb
     // opens the show's Episodes tab instead.
-    if (segment === 'episodes' && paths[0] === 'servers' && paths[2] === 'libraries' && index === 5) {
+    if (segment === 'episodes' && paths[0] === 'servers' && paths[3] === 'libraries' && index === 6) {
       breadcrumbs.push({ label, href: parentPath, search: { tab: 'episodes' } });
       return;
     }
     breadcrumbs.push({
       label,
-      href: currentPath,
+      href: paths[0] === 'servers' && index === 1 ? '/admin/servers' : currentPath,
     });
   });
 

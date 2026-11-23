@@ -113,7 +113,8 @@ const formatUrlHost = (value?: string | null) => {
 export const ServerDetailPage = ({ section = 'overview' }: { section?: ServerTab }) => {
   const { formatTimestamp, formatRelative, current: display } = useAccountDisplay();
   const formatDateTime = (value?: string | null) => formatTimestamp(value, 'datetime', 'Not available');
-  const { serverId } = useParams({ strict: false }) as { serverId: string };
+  const { serverType, serverId: serverNickname } = useParams({ strict: false }) as { serverType: string; serverId: string };
+  const serverId = `${serverType}/${serverNickname}`;
   const { success, error: showError } = useAlerts();
 
   const routes = useServerRoutes();

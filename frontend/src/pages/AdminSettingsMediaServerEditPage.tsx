@@ -101,7 +101,7 @@ export const AdminSettingsMediaServerEditPage = () => {
   const { services } = useMediaServices();
   const { refresh: refreshServers } = useServers({ serviceType: serviceId || undefined });
   const routes = useServerRoutes();
-  const matchingServer = routes.settingsServerFor(serverId);
+  const matchingServer = routes.settingsServerFor(serverId, serviceId);
   const numericServerId = matchingServer?.service_type === serviceId ? matchingServer.id : undefined;
   const { server, loading: serverLoading, error: serverError } = useServerDetail(numericServerId);
 

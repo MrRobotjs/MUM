@@ -123,17 +123,6 @@ const adminUsers = createRoute({ getParentRoute: () => adminRoute, path: 'users'
 const userTabs = ['profile', 'history', 'settings', 'linked-accounts', 'overseerr', 'security'] as const
 type UserTab = typeof userTabs[number]
 
-const adminUserByNick = createRoute({
-  getParentRoute: () => adminRoute,
-  path: 'users/$serverNickname/$username',
-  component: UserDetailPage,
-  validateSearch: (search): { tab?: UserTab } => {
-    const tabVal = typeof search.tab === 'string' && (userTabs as readonly string[]).includes(search.tab)
-      ? (search.tab as UserTab)
-      : undefined
-    return { tab: tabVal }
-  },
-})
 const adminUserByUuid = createRoute({
   getParentRoute: () => adminRoute,
   path: 'users/$uuid',
@@ -148,11 +137,11 @@ const adminUserByUuid = createRoute({
 const adminInvites = createRoute({ getParentRoute: () => adminRoute, path: 'invites', component: InvitesPage })
 const adminServersList = createRoute({ getParentRoute: () => adminRoute, path: 'servers', component: ServersPage })
 // A server's Overview, Users and Libraries are separate pages sharing the hero.
-const adminServerDetail = createRoute({ getParentRoute: () => adminRoute, path: 'servers/$serverId', component: () => <ServerDetailPage section="overview" /> })
-const adminServerUsers = createRoute({ getParentRoute: () => adminRoute, path: 'servers/$serverId/users', component: () => <ServerDetailPage section="users" /> })
+const adminServerDetail = createRoute({ getParentRoute: () => adminRoute, path: 'servers/$serverType/$serverId', component: () => <ServerDetailPage section="overview" /> })
+const adminServerUsers = createRoute({ getParentRoute: () => adminRoute, path: 'servers/$serverType/$serverId/users', component: () => <ServerDetailPage section="users" /> })
 const adminServerUserProfile = createRoute({
   getParentRoute: () => adminRoute,
-  path: 'servers/$serverId/users/$uuid',
+  path: 'servers/$serverType/$serverId/users/$uuid',
   component: UserDetailPage,
   validateSearch: (search): { tab?: UserTab } => {
     const tabVal = typeof search.tab === 'string' && (userTabs as readonly string[]).includes(search.tab)
@@ -160,14 +149,14 @@ const adminServerUserProfile = createRoute({
     return { tab: tabVal }
   },
 })
-const adminServerLibraries = createRoute({ getParentRoute: () => adminRoute, path: 'servers/$serverId/libraries', component: () => <ServerDetailPage section="libraries" /> })
-const adminServerGraphs = createRoute({ getParentRoute: () => adminRoute, path: 'servers/$serverId/graphs', component: () => <ServerDetailPage section="graphs" /> })
-const adminServerHistory = createRoute({ getParentRoute: () => adminRoute, path: 'servers/$serverId/history', component: () => <ServerDetailPage section="history" /> })
-const adminServerResources = createRoute({ getParentRoute: () => adminRoute, path: 'servers/$serverId/resources', component: () => <ServerDetailPage section="resources" /> })
+const adminServerLibraries = createRoute({ getParentRoute: () => adminRoute, path: 'servers/$serverType/$serverId/libraries', component: () => <ServerDetailPage section="libraries" /> })
+const adminServerGraphs = createRoute({ getParentRoute: () => adminRoute, path: 'servers/$serverType/$serverId/graphs', component: () => <ServerDetailPage section="graphs" /> })
+const adminServerHistory = createRoute({ getParentRoute: () => adminRoute, path: 'servers/$serverType/$serverId/history', component: () => <ServerDetailPage section="history" /> })
+const adminServerResources = createRoute({ getParentRoute: () => adminRoute, path: 'servers/$serverType/$serverId/resources', component: () => <ServerDetailPage section="resources" /> })
 const adminLibraryDetail = createRoute({
   getParentRoute: () => adminRoute,
   // A library lives under its server: /admin/servers/<server>/libraries/<library>.
-  path: 'servers/$serverId/libraries/$libraryId',
+  path: 'servers/$serverType/$serverId/libraries/$libraryId',
   component: LibraryDetailPage,
   // Validate search param "tab" for stronger typing
   validateSearch: (search): { tab?: 'overview' | 'media' | 'collections' | 'stats' | 'activity' } => {
@@ -180,7 +169,7 @@ const mediaTabs = ['overview', 'episodes', 'tracks', 'activity'] as const
 type MediaTab = typeof mediaTabs[number]
 const adminMediaDetail = createRoute({
   getParentRoute: () => adminRoute,
-  path: 'servers/$serverId/libraries/$libraryId/$mediaId',
+  path: 'servers/$serverType/$serverId/libraries/$libraryId/$mediaId',
   component: MediaDetailPage,
   validateSearch: (search): { tab?: MediaTab } => {
     const tabVal = typeof search.tab === 'string' && (mediaTabs as readonly string[]).includes(search.tab)
@@ -194,7 +183,7 @@ const episodeTabs = ['overview', 'activity'] as const
 type EpisodeTab = typeof episodeTabs[number]
 const adminEpisodeDetail = createRoute({
   getParentRoute: () => adminRoute,
-  path: 'servers/$serverId/libraries/$libraryId/$mediaId/episodes/$episodeId',
+  path: 'servers/$serverType/$serverId/libraries/$libraryId/$mediaId/episodes/$episodeId',
   component: EpisodeDetailPage,
   validateSearch: (search): { tab?: EpisodeTab } => {
     const tabVal = typeof search.tab === 'string' && (episodeTabs as readonly string[]).includes(search.tab)
@@ -302,7 +291,6 @@ const routeTree = rootRoute.addChildren([
     adminStreaming,
     adminHistory,
     adminUsers,
-    adminUserByNick,
     adminUserByUuid,
     adminInvites,
     adminServersList,

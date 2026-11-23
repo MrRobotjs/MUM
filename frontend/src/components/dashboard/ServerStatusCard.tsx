@@ -118,7 +118,7 @@ export const ServerStatusCard = () => {
             </div>
             <div className="dashboard-health-grid">
               {servers.map(server => (
-                <Link key={server.id} {...appLinks.server(serverNicknameSlug(server.name))} className="dashboard-health-tile"
+                <Link key={server.id} {...appLinks.server(`${server.service_type}/${serverNicknameSlug(server.name)}`)} className="dashboard-health-tile"
                   aria-label={`${server.name}: ${statusLabels[server.status]}`}>
                   <ServiceSettingIcon serviceType={server.service_type} />
                   <div className="dashboard-health-body">

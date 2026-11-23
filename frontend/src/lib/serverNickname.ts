@@ -15,3 +15,9 @@ export function findServerBySettingsSlug<T extends {id:number;server_nickname:st
  const server=servers.find(item=>String(item.id)===slug.slice(1));
  return server && serverSettingsSlug(servers,server)===slug ? server : undefined;
 }
+
+// Resolve provider-qualified URLs only when they identify exactly one server.
+export function findServerByTypeSlug<T extends {service_type:string;server_nickname:string}>(servers:readonly T[], type:string, slug:string):T|undefined {
+ const matches=servers.filter(server=>server.service_type===type && serverNicknameSlug(server.server_nickname)===slug);
+ return matches.length===1?matches[0]:undefined;
+}

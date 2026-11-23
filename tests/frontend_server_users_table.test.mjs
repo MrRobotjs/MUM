@@ -8,12 +8,12 @@ import {loadFrontend} from './frontendLoader.mjs';
 async function load() {
   return loadFrontend(`
 import React from 'react';import {renderToString} from 'react-dom/server';import {ServerUsersCard} from './src/components/servers/ServerUsersCard';
-export const render=()=>renderToString(React.createElement(ServerUsersCard,{serverId:2,serverSlug:'plex++',serviceType:'plex',onSync(){},syncing:false,syncDisabled:false}));
+export const render=()=>renderToString(React.createElement(ServerUsersCard,{serverId:2,serverSlug:'plex/plex++',serviceType:'plex',onSync(){},syncing:false,syncDisabled:false}));
 export {serverAccountSort} from './src/lib/serverAccounts';export {setAccessToken} from './src/store/authStore';
 `, {mock: {
     filter: s => s === 'swr' || s === '@tanstack/react-router' || /contexts\/AuthContext$|hooks\/useAccountDisplay$|users\/AccountAvatar$/.test(s),
     module: s => s === 'swr' ? 'export default (key)=>{globalThis.usersTable.key=key;return {data:globalThis.usersTable.data,isLoading:false,mutate:async()=>{}};};'
-      : s === '@tanstack/react-router' ? `import React from 'react';export const Link=p=>React.createElement('a',{href:p.to.replace('$serverId',p.params?.serverId??'').replace('$uuid',p.params?.uuid??'')},p.children);`
+      : s === '@tanstack/react-router' ? `import React from 'react';export const Link=p=>React.createElement('a',{href:p.to.replace('$serverType',p.params?.serverType??'').replace('$serverId',p.params?.serverId??'').replace('$uuid',p.params?.uuid??'')},p.children);`
       : /AuthContext$/.test(s) ? "export const useAuth=()=>({user:{uuid:'admin'},isAdministrator:true});"
       : /AccountAvatar$/.test(s) ? "import React from 'react';export const AvatarName=p=>React.createElement('span',null,p.name);"
       : "export const useAccountDisplay=()=>({formatTimestamp:v=>'AT:'+v,formatRelative:v=>'AGO:'+v});",
@@ -42,7 +42,7 @@ test('server users table', async t => {
     assert.deepEqual(headers(html), ['User', 'Username', 'Email', 'Last Streamed', 'Last Played', 'Last Known IP', 'Last Platform', 'Last Player', 'Plays', 'Watch Time', 'Libraries', 'Access Expires']);
     assert.match(html, /<th[^>]*aria-sort="ascending"[^>]*>.*?User/);
     assert.match(html, /alpha@example\.test.*beta@example\.test/s);
-    assert.match(html, /href="\/admin\/servers\/plex\+\+\/users\/11111111-1111-4111-8111-111111111111"/);
+    assert.match(html, /href="\/admin\/servers\/plex\/plex\+\+\/users\/11111111-1111-4111-8111-111111111111"/);
     assert.match(html, /10\.0\.0\.1/);
     const [, , , server, records, search, sort, number, size] = globalThis.usersTable.key;
     assert.deepEqual({server, records, search, sort, number, size}, {server: 2, records: 'all', search: '', sort: 'username_asc', number: 1, size: 25});

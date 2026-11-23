@@ -87,7 +87,7 @@ const ServerNavItem = ({ server, pathname, onNavigate }: ServerNavItemProps) => 
     onError: (message) => error(message),
   })
 
-  const serverSlug = serverNicknameSlug(server.server_nickname)
+  const serverSlug = `${server.service_type}/${serverNicknameSlug(server.server_nickname)}`
   const serviceId = server.service_type
   const serviceIcon =
     getServiceIcon(server.service_type, "h-4 w-4") ?? (
@@ -313,7 +313,7 @@ const ServerNavItem = ({ server, pathname, onNavigate }: ServerNavItemProps) => 
             {serverPagesFor(server.service_type).filter((page) => !["Overview", "Users", "Libraries"].includes(page.title)).map((page) => (
               <SidebarMenuSubItem key={page.title}>
                 <SidebarMenuSubButton asChild isActive={pathname === serverRoutePath(page.to, serverSlug)}>
-                  <Link to={page.to} params={{ serverId: serverSlug }} onClick={onNavigate}>
+                  <Link to={page.to} params={{ serverType: server.service_type, serverId: serverNicknameSlug(server.server_nickname) }} onClick={onNavigate}>
                     <FontAwesomeIcon icon={page.icon} className="h-4 w-4" />
                     <span>{page.title}</span>
                   </Link>
@@ -339,7 +339,7 @@ const ServerNavItem = ({ server, pathname, onNavigate }: ServerNavItemProps) => 
               >
                 <Link
                   to={page.to}
-                  params={{ serverId: serverSlug }}
+                  params={{ serverType: server.service_type, serverId: serverNicknameSlug(server.server_nickname) }}
                   activeOptions={{ exact: true }}
                   onClick={onNavigate}
                   aria-label={`${server.server_nickname} ${page.title}`}

@@ -15,11 +15,12 @@ type serverAccountsPage struct {
 	TotalItems int    `json:"total_items"`
 	TotalPages int    `json:"total_pages"`
 	Items      []struct {
-		UUID         string  `json:"uuid"`
-		Username     string  `json:"username"`
-		Active       bool    `json:"is_active"`
-		LastStreamed *string `json:"last_streamed_at"`
-		LastPlayed   *struct {
+		UUID              string  `json:"uuid"`
+		Username          string  `json:"username"`
+		DuplicateUsername bool    `json:"duplicate_username"`
+		Active            bool    `json:"is_active"`
+		LastStreamed      *string `json:"last_streamed_at"`
+		LastPlayed        *struct {
 			Title     string `json:"title"`
 			Source    string `json:"source"`
 			PosterURL string `json:"poster_url"`
@@ -195,5 +196,63 @@ func TestServerAccountsLastPlayedPosterAndPage(t *testing.T) {
 	}
 	if w := apiRequest(a, "GET", strings.Replace(top.PosterURL, "s=", "s=x", 1), "", nil, nil); w.Code != 403 && w.Code != 401 {
 		t.Fatalf("a tampered poster link was accepted: %d", w.Code)
+	}
+}
+
+func TestServerAccountUsernameLookupScopesAndRejectsAmbiguity(t *testing.T) {
+	a, s, token, server := serverAccountsFixture(t)
+	var name string
+	if err := s.reader.QueryRow("SELECT external_username FROM service_accounts WHERE server_id=? AND external_username IS NOT NULL LIMIT 1", server).Scan(&name); err != nil {
+		t.Fatal(err)
+	}
+	activityExec(t, s, `UPDATE service_accounts SET external_username='unique-test-name' WHERE uuid=(SELECT uuid FROM service_accounts WHERE server_id=? LIMIT 1)`, server)
+	name = "unique-test-name"
+	lookup := func() int {
+		return apiRequest(a, "GET", fmt.Sprintf("/api/servers/%d/accounts/lookup?username=%s", server, url.QueryEscape(name)), token, nil, nil).Code
+	}
+	if got := apiRequest(a, "GET", fmt.Sprintf("/api/servers/%d/accounts/lookup?username=%s", server, url.QueryEscape(name)), "", nil, nil).Code; got != 401 {
+		t.Fatalf("anonymous lookup %d", got)
+	}
+	var other int64
+	if err := s.reader.QueryRow("SELECT id FROM media_servers WHERE server_nickname='Other'").Scan(&other); err != nil {
+		t.Fatal(err)
+	}
+	if got := apiRequest(a, "GET", fmt.Sprintf("/api/servers/%d/accounts/lookup?username=%s", other, url.QueryEscape(name)), token, nil, nil).Code; got != 404 {
+		t.Fatalf("wrong server lookup %d", got)
+	}
+	wrongServer := apiRequest(a, "GET", fmt.Sprintf("/api/servers/%d/accounts/lookup?username=%s&id=invalid", server, url.QueryEscape(name)), token, nil, nil)
+	if wrongServer.Code != 400 {
+		t.Fatalf("invalid id: %d", wrongServer.Code)
+	}
+	if got := lookup(); got != 200 {
+		t.Fatalf("lookup %d", got)
+	}
+	activityExec(t, s, `UPDATE service_accounts SET external_username=? WHERE uuid=(SELECT uuid FROM service_accounts WHERE server_id=? AND external_username!=? LIMIT 1)`, name, server, name)
+	w := apiRequest(a, "GET", fmt.Sprintf("/api/servers/%d/accounts/lookup?username=%s", server, url.QueryEscape(name)), token, nil, nil)
+	if w.Code != 200 {
+		t.Fatalf("ambiguous lookup: %d %s", w.Code, w.Body.String())
+	}
+	var reply struct {
+		Data struct {
+			Matches []struct {
+				UUID string `json:"uuid"`
+			} `json:"matches"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &reply); err != nil || len(reply.Data.Matches) != 2 {
+		t.Fatalf("choices: %s %v", w.Body.String(), err)
+	}
+	code, page := readServerAccounts(t, a, token, server, url.Values{"search": {name}, "page_size": {"1"}})
+	if code != 200 || len(page.Items) != 1 || !page.Items[0].DuplicateUsername {
+		t.Fatalf("duplicate across pages: %+v", page.Items)
+	}
+	pick := reply.Data.Matches[0].UUID
+	w = apiRequest(a, "GET", fmt.Sprintf("/api/servers/%d/accounts/lookup?username=%s&id=%s", server, url.QueryEscape(name), pick), token, nil, nil)
+	if w.Code != 200 || !strings.Contains(w.Body.String(), pick) {
+		t.Fatalf("selection: %d %s", w.Code, w.Body.String())
+	}
+	w = apiRequest(a, "GET", fmt.Sprintf("/api/servers/%d/accounts/lookup?username=%s&id=11111111-1111-4111-8111-111111111119", server, url.QueryEscape(name)), token, nil, nil)
+	if w.Code != 404 {
+		t.Fatalf("unrelated id accepted: %d %s", w.Code, w.Body.String())
 	}
 }

@@ -257,6 +257,7 @@ func NewApp(store *Store, queue *LogQueue, assets fs.FS) (*App, error) {
 	handle("POST /api/servers/{server}/sync-users", a.syncServerEndpoint)
 	handle("GET /api/servers/{server}/play-history", a.playHistoryStatus)
 	handle("GET /api/servers/{server}/accounts", a.serverAccounts)
+	handle("GET /api/servers/{server}/accounts/lookup", a.lookupServerAccount)
 	handle("GET /api/servers/{server}/library-activity", a.serverLibraryActivity)
 	handle("POST /api/servers/{server}/play-history/import", a.startPlayHistoryImport)
 	handle("GET /api/libraries", a.listLibraries)

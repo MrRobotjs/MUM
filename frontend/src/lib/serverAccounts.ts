@@ -27,7 +27,7 @@ export type ServerAccountsRequest = Readonly<{ records: TimelineRecords; search:
 export type ServerAccountLink = Readonly<{ library_id: number; media_id: number; episode_id: number | null }>;
 export type ServerAccountPlay = Readonly<{ title: string; parent_title: string | null; media_type: string; source: string; poster_url: string | null; link: ServerAccountLink | null }>;
 export type ServerAccount = Readonly<{
-  uuid: string; username: string; email: string | null; is_active: boolean; access_expires_at: string | null;
+  uuid: string; username: string; duplicate_username: boolean; email: string | null; is_active: boolean; access_expires_at: string | null;
   plays: number; watch_seconds: number | null; last_streamed_at: string | null; last_played: ServerAccountPlay | null;
   last_ip: string | null; last_platform: string | null; last_player: string | null;
   linked_profile: Readonly<{ uuid: string; name: string }> | null; libraries: readonly string[]; has_all_libraries: boolean; avatar_url: string | null;
@@ -66,13 +66,13 @@ export function serverPlay(value: unknown): ServerAccountPlay | null {
 function account(value: unknown, seen: Set<string>): ServerAccount {
   const v = value as Record<string, unknown>;
   const linked = v?.linked_profile as Record<string, unknown> | null | undefined;
-  if (!v || !uuid(v.uuid) || seen.has(v.uuid) || !text(v.username) || !optional(v.email) || typeof v.is_active !== 'boolean' || !optional(v.access_expires_at) ||
+  if (!v || !uuid(v.uuid) || seen.has(v.uuid) || !text(v.username) || typeof v.duplicate_username !== 'boolean' || !optional(v.email) || typeof v.is_active !== 'boolean' || !optional(v.access_expires_at) ||
       !count(v.plays) || !(v.watch_seconds === null || count(v.watch_seconds)) || !optional(v.last_streamed_at) || !optional(v.last_ip) || !optional(v.last_platform) ||
       !optional(v.last_player) || !(linked === null || linked && uuid(linked.uuid) && text(linked.name)) || !Array.isArray(v.libraries) || !v.libraries.every(text) ||
       typeof v.has_all_libraries !== 'boolean') throw new Error('Invalid server account');
   seen.add(v.uuid);
   return Object.freeze({
-    uuid: v.uuid, username: v.username as string, email: v.email as string | null, is_active: v.is_active, access_expires_at: v.access_expires_at as string | null,
+    uuid: v.uuid, username: v.username as string, duplicate_username: v.duplicate_username, email: v.email as string | null, is_active: v.is_active, access_expires_at: v.access_expires_at as string | null,
     plays: v.plays, watch_seconds: v.watch_seconds as number | null, last_streamed_at: v.last_streamed_at as string | null, last_played: serverPlay(v.last_played),
     last_ip: v.last_ip as string | null, last_platform: v.last_platform as string | null, last_player: v.last_player as string | null,
     linked_profile: linked ? Object.freeze({ uuid: linked.uuid as string, name: linked.name as string }) : null,

@@ -174,6 +174,7 @@ func (a *App) serverAccounts(w http.ResponseWriter, r *http.Request) {
 	}
 	query := `SELECT a.uuid,i.id,coalesce(a.external_username,''),coalesce(a.external_email,''),a.is_active,coalesce(a.allowed_library_ids,'[]'),coalesce(a.service_settings,'{}'),
  a.access_expires_at,coalesce(a.external_user_id,''),coalesce(a.external_avatar_url,''),coalesce(parent.uuid,''),coalesce(parent.local_username,''),
+ EXISTS(SELECT 1 FROM service_accounts dup WHERE dup.server_id=a.server_id AND dup.removed_at IS NULL AND dup.external_username=a.external_username AND dup.uuid<>a.uuid),
  coalesce(m.plays,0)+coalesce(h.plays,0) AS plays,CASE WHEN ? THEN coalesce(m.secs,0) END AS watch,
  CASE WHEN m.last IS NULL THEN h.last WHEN h.last IS NULL OR m.last>=h.last THEN m.last ELSE h.last END AS last_streamed` +
 		from + where + " ORDER BY " + serverAccountSorts[sort] + " LIMIT ? OFFSET ?"
@@ -194,11 +195,11 @@ func (a *App) serverAccounts(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var r row
 		var username, email, libraries, settings, parentUUID, parentName string
-		var active bool
+		var active, duplicateUsername bool
 		var expires, last sql.NullString
 		var plays int
 		var watch sql.NullInt64
-		if err := rows.Scan(&r.uuid, &r.identity, &username, &email, &active, &libraries, &settings, &expires, &r.external, &r.avatar, &parentUUID, &parentName, &plays, &watch, &last); err != nil {
+		if err := rows.Scan(&r.uuid, &r.identity, &username, &email, &active, &libraries, &settings, &expires, &r.external, &r.avatar, &parentUUID, &parentName, &duplicateUsername, &plays, &watch, &last); err != nil {
 			rows.Close()
 			domainError(w, err)
 			return
@@ -211,7 +212,7 @@ func (a *App) serverAccounts(w http.ResponseWriter, r *http.Request) {
 		}
 		r.allLibraries = policy["all_libraries"] == true
 		r.kind = kind
-		item := map[string]any{"uuid": r.uuid, "username": username, "email": nullableText(email), "is_active": active, "access_expires_at": nullableString(expires),
+		item := map[string]any{"uuid": r.uuid, "username": username, "duplicate_username": duplicateUsername, "email": nullableText(email), "is_active": active, "access_expires_at": nullableString(expires),
 			"plays": plays, "watch_seconds": nil, "last_streamed_at": nullableString(last), "last_played": nil, "last_ip": nil, "last_platform": nil, "last_player": nil,
 			"linked_profile": nil, "libraries": []string{}, "has_all_libraries": r.allLibraries}
 		if watch.Valid {
@@ -357,4 +358,75 @@ func (a *App) finishServerPlay(ctx context.Context, tx *sql.Tx, server int64, pl
 			row: play.rowID, imported: play.Source != "mum", stored: play.hasPoster}, now)
 	}
 	return err
+}
+
+func (a *App) lookupServerAccount(w http.ResponseWriter, r *http.Request) {
+	actor, ok := a.principal(w, r, true)
+	if !ok {
+		return
+	}
+	server, ok := pathID(w, r, "server")
+	if !ok {
+		return
+	}
+	values, err := url.ParseQuery(r.URL.RawQuery)
+	if err != nil || len(values["username"]) != 1 || len(values.Get("username")) == 0 || len(values.Get("username")) > 800 || len(values) > 2 || (len(values) == 2 && len(values["id"]) != 1) || (len(values["id"]) == 1 && !uuidPattern.MatchString(values.Get("id"))) {
+		fail(w, 400, "INVALID_USERNAME", "A valid username and optional account ID are required")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+	tx, err := a.store.reader.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		domainError(w, err)
+		return
+	}
+	defer tx.Rollback()
+	if err = accountPreferenceAuthority(ctx, tx, actor.UUID, bearer(r)); err != nil {
+		domainError(w, err)
+		return
+	}
+	if err = requirePermission(ctx, tx, actor.UUID, "administrator"); err != nil {
+		domainError(w, err)
+		return
+	}
+	query := `SELECT uuid,external_username,coalesce(external_email,''),coalesce(external_user_id,'') FROM service_accounts WHERE server_id=? AND external_username=? AND removed_at IS NULL`
+	args := []any{server, values.Get("username")}
+	if id := values.Get("id"); id != "" {
+		query += ` AND uuid=?`
+		args = append(args, id)
+	}
+	query += ` ORDER BY uuid LIMIT 101`
+	rows, err := tx.QueryContext(ctx, query, args...)
+	if err != nil {
+		domainError(w, err)
+		return
+	}
+	matches := []map[string]any{}
+	for rows.Next() {
+		var uuid, name, email, external string
+		if err = rows.Scan(&uuid, &name, &email, &external); err != nil {
+			break
+		}
+		matches = append(matches, map[string]any{"uuid": uuid, "username": name, "email": nullableText(email), "external_id": external})
+	}
+	err = errors.Join(err, rows.Err(), rows.Close())
+	if err != nil {
+		domainError(w, err)
+		return
+	}
+	if len(matches) == 0 {
+		domainError(w, ErrNotFound)
+		return
+	}
+	if len(matches) > 100 {
+		fail(w, 422, "TOO_MANY_MATCHES", "Too many matching accounts to display. Choose an account from the server Users list.")
+		return
+	}
+	if len(matches) == 1 {
+		respond(w, 200, matches[0])
+		return
+	}
+	respond(w, 200, map[string]any{"matches": matches})
 }

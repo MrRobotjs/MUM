@@ -117,8 +117,9 @@ export function ServerUsersCard({ serverId, serverSlug, serviceType, onSync, syn
     const watch = (seconds: number | null) => seconds === null ? '—' : watchTime(String(seconds)).map(([value, unit]) => `${value} ${unit}`).join(' ');
     const cell = (column: Column, account: ServerAccount) => {
       switch (column) {
-        case 'user': return <Link {...appLinks.serverUser(serverSlug, account.uuid)} className="account-profile-link font-medium">
+        case 'user': return <Link {...(account.username && account.username !== '.' && account.username !== '..' ? {...appLinks.serverUser(serverSlug, account.username), search: account.duplicate_username ? {id: account.uuid} : {}} : appLinks.user(account.uuid))} className="account-profile-link font-medium">
           <AvatarName key={account.uuid} url={account.avatar_url} name={account.username || 'Unnamed account'} />
+          {account.duplicate_username && <span className="ml-2 text-xs text-muted-foreground">ID: {account.uuid}</span>}
         </Link>;
         case 'username': return account.username || '—';
         case 'email': return account.email ?? '—';

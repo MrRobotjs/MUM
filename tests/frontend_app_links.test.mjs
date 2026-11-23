@@ -5,7 +5,7 @@ import {loadFrontend} from './frontendLoader.mjs';
 test('shared destinations retain route parameters and profile context', async () => {
  const {appLinks}=await loadFrontend("export {appLinks} from './src/router/appLinks';");
  assert.deepEqual(appLinks.server('plex/plex++'),{to:'/admin/servers/$serverType/$serverId',params:{serverType:'plex',serverId:'plex++'}});
- assert.deepEqual(appLinks.serverUser('plex/plex++','user-uuid'),{to:'/admin/servers/$serverType/$serverId/users/$uuid',params:{serverType:'plex',serverId:'plex++',uuid:'user-uuid'}});
+ assert.deepEqual(appLinks.serverUser('plex/plex++','Jane Doe'),{to:'/admin/servers/$serverType/$serverId/users/$username',params:{serverType:'plex',serverId:'plex++',username:'Jane Doe'}});
  assert.deepEqual(appLinks.user('user-uuid'),{to:'/admin/users/$uuid',params:{uuid:'user-uuid'}});
  assert.deepEqual(appLinks.library('plex/plex++',12),{to:'/admin/servers/$serverType/$serverId/libraries/$libraryId',params:{serverType:'plex',serverId:'plex++',libraryId:'12'}});
  assert.deepEqual(appLinks.media('plex/plex++',12,5),{to:'/admin/servers/$serverType/$serverId/libraries/$libraryId/$mediaId',params:{serverType:'plex',serverId:'plex++',libraryId:'12',mediaId:'5'}});

@@ -22,6 +22,8 @@ import { Link, useLocation } from "@tanstack/react-router"
 import { useServerOptions } from "@/hooks/useServerOptions"
 import { useServerLibraries } from "@/hooks/useServerLibraries"
 import { useUserTotal } from "@/hooks/useUserTotal"
+import { useServerUsername } from "@/hooks/useServerUsername"
+import { serverUserNav } from "@/lib/serverUserNav"
 import { SidebarCount } from "@/components/layout/SidebarCount"
 import { useSyncServerLibraries } from "@/hooks/useSyncServerLibraries"
 import { getServiceIcon } from "@/config/mediaServiceMetadata"
@@ -55,6 +57,7 @@ type ServerNavItemProps = {
   }
   pathname: string
   onNavigate: () => void
+  userId?: string
 }
 
 // Server types with play history: recorded by MUM or imported from the server.
@@ -76,7 +79,7 @@ export function serverPagesFor(serviceType: string) {
   return serverPages.filter((page) => page.types === null || page.types.has(serviceType))
 }
 
-const ServerNavItem = ({ server, pathname, onNavigate }: ServerNavItemProps) => {
+const ServerNavItem = ({ server, pathname, onNavigate, userId }: ServerNavItemProps) => {
   const routes = useServerRoutes()
   const { success, error } = useAlerts()
   const [librariesRequested, setLibrariesRequested] = React.useState(false)
@@ -119,6 +122,12 @@ const ServerNavItem = ({ server, pathname, onNavigate }: ServerNavItemProps) => 
   const librariesPath = serverRoutePath(appPaths.serverLibraries, serverSlug)
   const onLibraryPage = pathname.startsWith(`${librariesPath}/`)
   const [librariesOpen, setLibrariesOpen] = React.useState(false)
+  const usersPath = serverRoutePath(appPaths.serverUsers, serverSlug)
+  const selectedUsername = serverUserNav(usersPath, pathname, true).username
+  const currentUser = useServerUsername(selectedUsername ? server.id : undefined, selectedUsername || undefined, selectedUsername ? userId : undefined)
+  const [usersOpen, setUsersOpen] = React.useState(Boolean(selectedUsername))
+  React.useEffect(() => { if (selectedUsername) setUsersOpen(true) }, [selectedUsername])
+
 
   const handleSyncLibraries = React.useCallback(async () => {
     requestLibraries()
@@ -199,19 +208,18 @@ const ServerNavItem = ({ server, pathname, onNavigate }: ServerNavItemProps) => 
                 </Link>
               </SidebarMenuSubButton>
             </SidebarMenuSubItem>
-            <SidebarMenuSubItem>
-              <SidebarMenuSubButton asChild isActive={pathname === serverRoutePath(appPaths.serverUsers, serverSlug)}>
-                <Link {...appLinks.serverUsers(serverSlug)} onClick={onNavigate}>
-                  <FontAwesomeIcon icon={faUsers} className="h-4 w-4" />
-                  <span>Users</span>
-                  {userTotal !== null && (
-                    <span className="flex items-center justify-center">
-                      <SidebarCount value={userTotal} singular="user" plural="users" />
-                    </span>
-                  )}
-                </Link>
-              </SidebarMenuSubButton>
-            </SidebarMenuSubItem>
+            <Collapsible asChild open={usersOpen} onOpenChange={setUsersOpen}>
+              <SidebarMenuSubItem className="relative">
+                <SidebarMenuSubButton asChild isActive={serverUserNav(usersPath, pathname, usersOpen).usersActive} className="pr-8">
+                  <Link {...appLinks.serverUsers(serverSlug)} onClick={onNavigate}>
+                    <FontAwesomeIcon icon={faUsers} className="h-4 w-4" /><span>Users</span>
+                    {userTotal !== null && <span className="flex items-center justify-center"><SidebarCount value={userTotal} singular="user" plural="users" /></span>}
+                  </Link>
+                </SidebarMenuSubButton>
+                {selectedUsername && <CollapsibleTrigger asChild><button type="button" aria-label={`Show ${server.server_nickname} current user`} className="absolute right-1 top-3.5 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"><FontAwesomeIcon icon={faChevronRight} className="text-[10px] transition-transform duration-200 group-data-[state=open]/menu-sub-item:rotate-90" /></button></CollapsibleTrigger>}
+                {selectedUsername && <CollapsibleContent><SidebarMenuSub><SidebarMenuSubItem><SidebarMenuSubButton asChild isActive><Link {...appLinks.serverUser(serverSlug, selectedUsername)} search={userId ? {id:userId} : {}} onClick={onNavigate}><FontAwesomeIcon icon={faUsers} className="h-3.5 w-3.5" /><span>{currentUser.username ?? selectedUsername}</span></Link></SidebarMenuSubButton></SidebarMenuSubItem></SidebarMenuSub></CollapsibleContent>}
+              </SidebarMenuSubItem>
+            </Collapsible>
             <Collapsible
               asChild
               open={librariesOpen}
@@ -334,7 +342,7 @@ const ServerNavItem = ({ server, pathname, onNavigate }: ServerNavItemProps) => 
                 key={page.title}
                 asChild
                 tooltip={`${server.server_nickname} · ${page.title}`}
-                isActive={pathname === serverRoutePath(page.to, serverSlug) || (page.suffix === "/libraries" && pathname.startsWith(`${librariesPath}/`))}
+                isActive={pathname === serverRoutePath(page.to, serverSlug) || (page.suffix === "/libraries" && pathname.startsWith(`${librariesPath}/`)) || (page.suffix === "/users" && serverUserNav(usersPath, pathname, usersOpen).iconActive)}
                 className="text-sidebar-foreground/70 data-[active=true]:text-sidebar-accent-foreground [&>svg]:size-3.5"
               >
                 <Link
@@ -389,6 +397,7 @@ export function NavServers() {
             key={server.id}
             server={server}
             pathname={location.pathname}
+            userId={(location.search as {id?: string} | undefined)?.id}
             onNavigate={handleNavLinkClick}
           />
         ))}

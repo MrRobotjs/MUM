@@ -8,7 +8,7 @@ async function load() {
   return loadFrontend("export * from './src/lib/serverAccounts';export {setAccessToken} from './src/store/authStore';");
 }
 
-const account = (extra = {}) => ({uuid: '33333333-3333-4333-8333-333333333333', username: 'AllGas', email: 'a@example.test', is_active: true, access_expires_at: null,
+const account = (extra = {}) => ({uuid: '33333333-3333-4333-8333-333333333333', username: 'AllGas', duplicate_username: false, email: 'a@example.test', is_active: true, access_expires_at: null,
   plays: 4, watch_seconds: 2400, last_streamed_at: '2026-11-01T04:00:00.000000000Z', last_played: {title: 'Plex four', parent_title: 'A Show', media_type: 'episode', source: 'plex'},
   last_ip: '172.56.183.189', last_platform: 'Roku', last_player: 'Living room', linked_profile: {uuid: '44444444-4444-4444-8444-444444444444', name: 'allbass'},
   libraries: ['Movies'], has_all_libraries: false, avatar_url: '/api/service-avatars/9?s=a&e=1&g=b', ...extra});

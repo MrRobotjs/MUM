@@ -1,3 +1,4 @@
+import { ServerAccountChoices } from '../components/users/ServerAccountChoices';
 import { useAccountDisplay } from '../hooks/useAccountDisplay';
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { cn } from '@/lib/utils';
@@ -14,6 +15,7 @@ import { useOverseerr } from '../hooks/useOverseerr';
 import { useServers } from '../hooks/useServers';
 import { useServerRoutes } from '../lib/serverRoutes';
 import { serverProfileMatches } from '../lib/serverNickname';
+import { useServerUsername } from '../hooks/useServerUsername';
 import {useIdentityPlayTotals} from '../hooks/useIdentityPlayTotals';
 import {nowPlaying,recentPlayText,watchTime,type PlayPeriod} from '../lib/identityPlayTotals';
 import {playerLogo} from '../lib/playerPlatforms';
@@ -597,18 +599,22 @@ export const UserDetailPage = () => {
   const location = useLocation();
   const navigate = useNavigate();
   // Read params from TanStack Router (route matches: /admin/users/$uuid or /admin/users/$serverNickname/$username)
-  const { uuid: uuidParam, serverId: serverSlug, serverType } = (useParams({ strict: false }) as {
+  const { uuid: uuidParam, serverId: serverSlug, serverType, username } = (useParams({ strict: false }) as {
     uuid?: string;
     serverId?: string;
     serverType?: string;
+    username?: string;
   });
 
   const locationState = location.state as { userUuid?: string } | undefined;
   const stateUuid = locationState?.userUuid;
 
-  const effectiveUuid = uuidParam ?? stateUuid ?? undefined;
+  const serverRoutes = useServerRoutes();
+  const selectedServer = serverSlug && serverType ? serverRoutes.serverFor(`${serverType}/${serverSlug}`) : undefined;
+  const search = useSearch({ strict: false }) as { tab?: TabKey; page?: number; id?: string };
+  const lookup = useServerUsername(selectedServer?.id, username, search.id);
+  const effectiveUuid = username ? lookup.uuid : uuidParam ?? stateUuid ?? undefined;
 
-  const search = useSearch({ strict: false }) as { tab?: TabKey; page?: number };
   const activeTab: TabKey = search.tab ?? 'profile';
   const [resyncing, setResyncing] = useState(false);
 
@@ -631,6 +637,9 @@ export const UserDetailPage = () => {
 
 
 
+  if (username && (serverRoutes.loading || lookup.loading)) return <Spinner className="size-4" />;
+  if (username && (serverRoutes.error || lookup.error)) return <div className="text-sm text-destructive">{lookup.error instanceof Error ? lookup.error.message : "Unable to resolve this user on the selected server."}</div>;
+  if (username && lookup.matches.length > 1 && serverSlug && serverType) return <ServerAccountChoices server={`${serverType}/${serverSlug}`} username={username} matches={lookup.matches} />;
   if (!effectiveUuid) return <div className="text-sm text-muted-foreground">No user selected.</div>;
 
   if (loading) {
@@ -658,7 +667,7 @@ export const UserDetailPage = () => {
     if (routes.loading) return <div className="flex items-center gap-2 text-sm text-muted-foreground"><Spinner className="size-4" />Checking the server…</div>;
     if (routes.error) return <div className="rounded border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">Could not verify the server. Refresh and try again.</div>;
     const source = routes.serverFor(`${serverType}/${serverSlug}`);
-    if (!serverProfileMatches(source, user)) {
+    if (!serverProfileMatches(source, user) || (username && user.username !== username)) {
       return <div className="rounded border border-border bg-background p-4 text-sm text-muted-foreground">This account does not belong to the selected server.</div>;
     }
   }

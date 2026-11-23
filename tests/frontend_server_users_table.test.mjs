@@ -13,7 +13,7 @@ export {serverAccountSort} from './src/lib/serverAccounts';export {setAccessToke
 `, {mock: {
     filter: s => s === 'swr' || s === '@tanstack/react-router' || /contexts\/AuthContext$|hooks\/useAccountDisplay$|users\/AccountAvatar$/.test(s),
     module: s => s === 'swr' ? 'export default (key)=>{globalThis.usersTable.key=key;return {data:globalThis.usersTable.data,isLoading:false,mutate:async()=>{}};};'
-      : s === '@tanstack/react-router' ? `import React from 'react';export const Link=p=>React.createElement('a',{href:p.to.replace('$serverType',p.params?.serverType??'').replace('$serverId',p.params?.serverId??'').replace('$uuid',p.params?.uuid??'')},p.children);`
+      : s === '@tanstack/react-router' ? `import React from 'react';export const Link=p=>React.createElement('a',{href:p.to.replace('$serverType',p.params?.serverType??'').replace('$serverId',p.params?.serverId??'').replace('$username',p.params?.username??'')+(p.search?.id?'?id='+p.search.id:'')},p.children);`
       : /AuthContext$/.test(s) ? "export const useAuth=()=>({user:{uuid:'admin'},isAdministrator:true});"
       : /AccountAvatar$/.test(s) ? "import React from 'react';export const AvatarName=p=>React.createElement('span',null,p.name);"
       : "export const useAccountDisplay=()=>({formatTimestamp:v=>'AT:'+v,formatRelative:v=>'AGO:'+v});",
@@ -42,10 +42,19 @@ test('server users table', async t => {
     assert.deepEqual(headers(html), ['User', 'Username', 'Email', 'Last Streamed', 'Last Played', 'Last Known IP', 'Last Platform', 'Last Player', 'Plays', 'Watch Time', 'Libraries', 'Access Expires']);
     assert.match(html, /<th[^>]*aria-sort="ascending"[^>]*>.*?User/);
     assert.match(html, /alpha@example\.test.*beta@example\.test/s);
-    assert.match(html, /href="\/admin\/servers\/plex\/plex\+\+\/users\/11111111-1111-4111-8111-111111111111"/);
+    assert.match(html, /href="\/admin\/servers\/plex\/plex\+\+\/users\/alpha"/);
     assert.match(html, /10\.0\.0\.1/);
     const [, , , server, records, search, sort, number, size] = globalThis.usersTable.key;
     assert.deepEqual({server, records, search, sort, number, size}, {server: 2, records: 'all', search: '', sort: 'username_asc', number: 1, size: 25});
+  });
+
+  await t.test('only duplicate usernames include an account ID', () => {
+    storage([]); const row=account('11111111-1111-4111-8111-111111111111','alpha');
+    globalThis.usersTable={data:page({items:[{...row,duplicate_username:true}]})};
+    assert.match(m.render(), /users\/alpha\?id=11111111-1111-4111-8111-111111111111/);
+    assert.match(m.render().replace(/<!-- -->/g, ''), /ID: 11111111-1111-4111-8111-111111111111/);
+    globalThis.usersTable={data:page({items:[{...row,duplicate_username:false}]})};
+    assert.doesNotMatch(m.render(), /users\/alpha\?id=/);
   });
 
   await t.test('hides the columns only MUM fills when the server isn’t recorded live', () => {

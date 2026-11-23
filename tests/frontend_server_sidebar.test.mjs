@@ -31,3 +31,13 @@ test('server sidebar names the server and links its pages',async()=>{
  assert.equal(text(walk(tree).find(n=>n.type==='SidebarGroupLabel')),'Server 4');
  assert.deepEqual(walk(tree).filter(n=>n.type==='SidebarMenuButton').map(b=>b.props.isActive),[false,false,false]);
 });
+
+test('contextual user navigation keeps the correct active row', async () => {
+ const {serverUserNav}=await loadFrontend("export {serverUserNav} from './src/lib/serverUserNav';");
+ const base='/admin/servers/plex/plex++/users';
+ assert.deepEqual(serverUserNav(base,base+'/Jane%20Doe',true),{username:'Jane Doe',usersActive:false,iconActive:true});
+ assert.deepEqual(serverUserNav(base,base+'/Jane%20Doe',false),{username:'Jane Doe',usersActive:true,iconActive:true});
+ assert.deepEqual(serverUserNav(base,base,false),{username:'',usersActive:true,iconActive:false});
+ assert.equal(serverUserNav(base,base+'/100%',true).username,'100%');
+ assert.equal(serverUserNav(base,base+'/bad/extra',true).username,'');
+});

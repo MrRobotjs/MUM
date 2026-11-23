@@ -141,12 +141,12 @@ const adminServerDetail = createRoute({ getParentRoute: () => adminRoute, path: 
 const adminServerUsers = createRoute({ getParentRoute: () => adminRoute, path: 'servers/$serverType/$serverId/users', component: () => <ServerDetailPage section="users" /> })
 const adminServerUserProfile = createRoute({
   getParentRoute: () => adminRoute,
-  path: 'servers/$serverType/$serverId/users/$uuid',
+  path: 'servers/$serverType/$serverId/users/$username',
   component: UserDetailPage,
-  validateSearch: (search): { tab?: UserTab } => {
+  validateSearch: (search): { tab?: UserTab; id?: string } => {
     const tabVal = typeof search.tab === 'string' && (userTabs as readonly string[]).includes(search.tab)
       ? (search.tab as UserTab) : undefined
-    return { tab: tabVal }
+    return { tab: tabVal, id: typeof search.id === 'string' ? search.id : undefined }
   },
 })
 const adminServerLibraries = createRoute({ getParentRoute: () => adminRoute, path: 'servers/$serverType/$serverId/libraries', component: () => <ServerDetailPage section="libraries" /> })

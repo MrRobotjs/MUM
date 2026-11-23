@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Spinner } from '@/components/ui/spinner';
 import { useAccountDisplay } from '../../hooks/useAccountDisplay';
 import { useInviteSummary } from '../../hooks/useInviteSummary';
+import { inviteSummaryStatus } from '../../lib/inviteStatus';
 import { TabHeading } from '../users/AccountSettings';
 import { Tile } from '../library/LibraryOverview';
 import './ServerHealth.css';
@@ -49,8 +50,8 @@ export const InvitesSummaryCard = () => {
                             {invite.created_at ? `Created ${formatRelative(invite.created_at).replace(/^Just now$/, 'just now')}` : 'Created at an unknown time'} · {invite.current_uses} / {invite.max_uses ?? '∞'} uses
                           </p>
                         </div>
-                        <Badge variant={invite.is_paused || invite.is_expired || invite.has_reached_max_uses ? 'warning' : 'success'}>
-                          {invite.is_paused ? 'Paused' : invite.is_expired ? 'Expired' : invite.has_reached_max_uses ? 'Used up' : invite.is_active ? 'Active' : 'Disabled'}
+                        <Badge variant={inviteSummaryStatus(invite).variant}>
+                          {inviteSummaryStatus(invite).label}
                         </Badge>
                       </Link>
                     </li>

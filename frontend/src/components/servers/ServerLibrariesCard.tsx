@@ -56,8 +56,8 @@ export function libraryTypeIcon(type: string | null): IconDefinition {
   return faFolder;
 }
 
-export function ServerLibrariesCard({ serverId, serviceType, onSync, syncing, syncDisabled }: {
-  serverId: number; serviceType: string; onSync: () => void; syncing: boolean; syncDisabled: boolean;
+export function ServerLibrariesCard({ serverId, serverSlug, serviceType, onSync, syncing, syncDisabled }: {
+  serverId: number; serverSlug: string; serviceType: string; onSync: () => void; syncing: boolean; syncDisabled: boolean;
 }) {
   const { user, isAdministrator } = useAuth();
   const session = useSyncExternalStore(subscribeToAuthStore, getAuthSnapshot, getAuthSnapshot);
@@ -84,7 +84,7 @@ export function ServerLibrariesCard({ serverId, serviceType, onSync, syncing, sy
     const watch = (seconds: number | null) => seconds === null ? '—' : watchTime(String(seconds)).map(([value, unit]) => `${value} ${unit}`).join(' ');
     const cell = (column: Column, library: ServerLibrary) => {
       switch (column) {
-        case 'library': return <Link to="/admin/servers/$serverId/libraries/$libraryId" params={{ serverId: String(serverId), libraryId: String(library.id) }}
+        case 'library': return <Link to="/admin/servers/$serverId/libraries/$libraryId" params={{ serverId: serverSlug, libraryId: String(library.id) }}
           search={{ tab: 'overview' }} className="account-library-link">{library.name}</Link>;
         case 'type': return <span className="capitalize">{typeLabel(library.library_type)}</span>;
         case 'items': return library.item_count?.toLocaleString() ?? '—';
@@ -104,7 +104,7 @@ export function ServerLibrariesCard({ serverId, serviceType, onSync, syncing, sy
       sortFn: columnSort[id].text ? sortFn_text : sortFn_basic, sortUndefined: 'last', sortDescFirst: columnSort[id].descFirst ?? false,
       meta: { label: columnLabels[id], cellClassName: id === 'lastPlayed' ? 'account-history-title' : 'whitespace-nowrap' },
     }))];
-  }, [serverId, formatTimestamp, formatRelative, mumColumns]);
+  }, [serverSlug, serverId, formatTimestamp, formatRelative, mumColumns]);
 
   const shown = useMemo(() => {
     const needle = search.trim().toLowerCase();

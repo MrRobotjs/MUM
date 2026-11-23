@@ -1,5 +1,6 @@
 import { formatCalendarDate } from '../util/calendarDates';
 import { useAccountDisplay } from '../hooks/useAccountDisplay';
+import { serverNicknameSlug } from '../lib/serverNickname';
 import { useState, useEffect, useSyncExternalStore, useMemo, useRef } from 'react';
 import { useNavigate, Link, useParams, useSearch } from '@tanstack/react-router';
 import { useAuth } from '../contexts/AuthContext';
@@ -717,8 +718,10 @@ const LibraryDetailPageView = () => {
       if (response.data?.id !== Number(libraryId)) throw new Error('Library detail does not match this route');
       // The library's own server decides its address; a different server in
       // the address is replaced with the right one.
-      if (typeof response.data.server_id === 'number' && response.data.server_id !== Number(serverId)) {
-        navigate({ to: '/admin/servers/$serverId/libraries/$libraryId', params: { serverId: String(response.data.server_id), libraryId }, search: (prev: { tab?: TabType }) => prev, replace: true });
+      const ownServerSlug = response.data.server?.server_nickname ? serverNicknameSlug(response.data.server.server_nickname) : '';
+      if (!ownServerSlug) throw new Error('The library server could not be resolved.');
+      if (ownServerSlug && ownServerSlug !== serverId) {
+        navigate({ to: '/admin/servers/$serverId/libraries/$libraryId', params: { serverId: ownServerSlug, libraryId }, search: (prev: { tab?: TabType }) => prev, replace: true });
         return false;
       }
       if (response.data) {
@@ -943,7 +946,7 @@ const LibraryDetailPageView = () => {
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6 mt-3">
-          <LibraryOverview serverId={Number(library.server_id ?? serverId)} serviceLabel={getServiceMeta(serviceType).label} library={library} />
+          <LibraryOverview serverId={library.server_id} serverSlug={serverId} serviceLabel={getServiceMeta(serviceType).label} library={library} />
         </TabsContent>
 
         <TabsContent value="media" className="space-y-4 mt-3">

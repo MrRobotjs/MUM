@@ -1,4 +1,5 @@
 import { ServerUsersCard } from '../components/servers/ServerUsersCard';
+import { useServerRoutes } from '../lib/serverRoutes';
 import { ServerLibrariesCard } from '../components/servers/ServerLibrariesCard';
 import { useAccountDisplay } from '../hooks/useAccountDisplay';
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
@@ -115,8 +116,8 @@ export const ServerDetailPage = ({ section = 'overview' }: { section?: ServerTab
   const { serverId } = useParams({ strict: false }) as { serverId: string };
   const { success, error: showError } = useAlerts();
 
-  const parsedServerId = Number(serverId);
-  const numericServerId = Number.isSafeInteger(parsedServerId) && parsedServerId > 0 && String(parsedServerId) === serverId ? parsedServerId : undefined;
+  const routes = useServerRoutes();
+  const numericServerId = routes.serverFor(serverId)?.id;
 
   const { server, loading, error, refresh, refreshQuietly } = useServerDetail(numericServerId) as {
     server: ServerDetail | null;
@@ -257,13 +258,13 @@ export const ServerDetailPage = ({ section = 'overview' }: { section?: ServerTab
   };
   const syncUnavailable=!testKey||!server?.effective_active||testingConnection||syncingLibraries||syncingUsers||syncNeedsReadKey===syncPageKey||testNeedsReadKey===testKey;
 
-  if (!serverId || !numericServerId) {
+  if (!routes.loading && (!serverId || !numericServerId)) {
     return (
       <div className="container mx-auto space-y-6">
         <Card className="border-destructive">
           <CardContent className="p-6 flex items-center gap-3">
             <FontAwesomeIcon icon={faTriangleExclamation} className="text-destructive" />
-            <span className="text-destructive">Invalid server ID.</span>
+            <span className="text-destructive">Server not found or its URL conflicts with another server. Check the server nicknames in settings.</span>
           </CardContent>
         </Card>
         <Link to="/admin/servers">
@@ -276,7 +277,7 @@ export const ServerDetailPage = ({ section = 'overview' }: { section?: ServerTab
     );
   }
 
-  if (loading) {
+  if (loading || routes.loading) {
     return (
       <div className="container mx-auto space-y-6">
         <Skeleton className="h-48 w-full rounded-xl" />
@@ -550,7 +551,7 @@ export const ServerDetailPage = ({ section = 'overview' }: { section?: ServerTab
         ) : null}
 
         {section === 'libraries' && numericServerId !== undefined ? (
-          <ServerLibrariesCard serverId={numericServerId} serviceType={serviceType.toLowerCase()} onSync={() => void handleSync('libraries')} syncing={syncingLibraries} syncDisabled={syncUnavailable} />
+          <ServerLibrariesCard serverId={numericServerId} serverSlug={serverId} serviceType={serviceType.toLowerCase()} onSync={() => void handleSync('libraries')} syncing={syncingLibraries} syncDisabled={syncUnavailable} />
         ) : null}
     </div>
   );

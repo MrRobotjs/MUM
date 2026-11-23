@@ -14,6 +14,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar"
 import { useServerDetail } from "@/hooks/useServers"
+import { serverNicknameSlug } from "@/lib/serverNickname"
 
 type ServerPage = { to: string; suffix: string; title: string; icon: IconDefinition }
 
@@ -31,6 +32,7 @@ export function NavServerDetail({ serverId }: { serverId: number }) {
   const { server } = useServerDetail(serverId)
   const path = useLocation().pathname.replace(/\/$/, "")
   const label = server?.server_nickname || `Server ${serverId}`
+  const slug = server?.server_nickname ? serverNicknameSlug(server.server_nickname) : ""
 
   return (
     <SidebarGroup>
@@ -40,10 +42,10 @@ export function NavServerDetail({ serverId }: { serverId: number }) {
       <SidebarMenu>
         {serverPages.map((item) => (
           <SidebarMenuItem key={item.title}>
-            <SidebarMenuButton asChild tooltip={item.title} isActive={path === `/admin/servers/${serverId}${item.suffix}`}>
+            <SidebarMenuButton asChild tooltip={item.title} isActive={path === `/admin/servers/${slug}${item.suffix}`}>
               <Link
                 to={item.to}
-                params={{ serverId: String(serverId) }}
+                params={{ serverId: slug }}
                 onClick={() => {
                   if (isMobile) setOpenMobile(false)
                 }}

@@ -1,3 +1,4 @@
+import { serverNicknameIssue } from '../../lib/serverNickname';
 import { useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faWifi, faCheck, faXmark, faCircleExclamation } from '@fortawesome/free-solid-svg-icons';
@@ -118,6 +119,7 @@ export const ServerAddForm = ({ serviceId, onSuccess, onCancel, submitEndpoint }
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [nicknameError, setNicknameError] = useState('');
   const [connectionTestStatus, setConnectionTestStatus] = useState<ConnectionTestStatus>('idle');
   const [activeTab, setActiveTab] = useState<'details' | 'overseerr'>('details');
 
@@ -198,6 +200,9 @@ export const ServerAddForm = ({ serviceId, onSuccess, onCancel, submitEndpoint }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const issue = serverNicknameIssue(values.server_nickname);
+    if (issue) { setNicknameError(issue); return; }
+    setNicknameError('');
 
     if (requiresUsernamePasswordAuth && (!values.username?.trim() || !values.password)) {
       showError('This provider requires both username and password.');
@@ -230,7 +235,9 @@ export const ServerAddForm = ({ serviceId, onSuccess, onCancel, submitEndpoint }
         : `Server "${values.server_nickname}" added`);
       onSuccess();
     } catch (err) {
-      setError((err as Error).message || 'Failed to save server');
+      const message = (err as Error).message || 'Failed to save server';
+      if (message.includes('nickname') || message.includes('Nickname')) setNicknameError(message);
+      setError(message);
       showError(`Failed to save server: ${(err as Error).message}`);
     } finally {
       setSubmitting(false);
@@ -322,13 +329,16 @@ export const ServerAddForm = ({ serviceId, onSuccess, onCancel, submitEndpoint }
                   <Input
                     id="server_nickname"
                     type="text"
+                    maxLength={100}
                     value={values.server_nickname}
-                    onChange={(e) => setValues({ ...values, server_nickname: e.target.value })}
+                    onChange={(e) => { setNicknameError(''); setValues({ ...values, server_nickname: e.target.value }); }}
+                    aria-invalid={Boolean(nicknameError)}
+                    aria-describedby="server-nickname-help"
                     required
                     placeholder="My Plex Server"
                   />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Friendly name for this server (used in UI)
+                  <p id="server-nickname-help" className={nicknameError ? "text-xs text-destructive mt-1" : "text-xs text-muted-foreground mt-1"}>
+                      {nicknameError || 'Letters, numbers, spaces, hyphens, underscores and + are allowed. Spaces become hyphens in the URL.'}
                   </p>
                 </FormField>
 

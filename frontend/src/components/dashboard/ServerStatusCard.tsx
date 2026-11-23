@@ -1,3 +1,4 @@
+import { serverNicknameSlug } from '../../lib/serverNickname';
 import { useAccountDisplay } from '../../hooks/useAccountDisplay';
 import { useEffect, useState } from 'react'
 import { subscribeToChannel } from '../../lib/realtimeSocket';
@@ -116,7 +117,7 @@ export const ServerStatusCard = () => {
             </div>
             <div className="dashboard-health-grid">
               {servers.map(server => (
-                <Link key={server.id} to="/admin/servers/$serverId" params={{ serverId: String(server.id) }} className="dashboard-health-tile"
+                <Link key={server.id} to="/admin/servers/$serverId" params={{ serverId: serverNicknameSlug(server.name) }} className="dashboard-health-tile"
                   aria-label={`${server.name}: ${statusLabels[server.status]}`}>
                   <ServiceSettingIcon serviceType={server.service_type} />
                   <div className="dashboard-health-body">

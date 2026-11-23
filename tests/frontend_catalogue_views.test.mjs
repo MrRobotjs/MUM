@@ -33,14 +33,14 @@ async function load(h){
  const m=await loadFrontend("export {LibraryDetailPage} from './src/pages/LibraryDetailPage';export {MediaDetailPage} from './src/pages/MediaDetailPage';export {setAccessToken} from './src/store/authStore';export {useLibrarySyncStatus} from './src/hooks/useLibrarySyncStatus';",{mock:{filter:p=>p==='react'||p==='react/jsx-runtime'||stubs.has(p)||p.endsWith('/AuthContext'),module:path=>(a=>{
   if(a.path==='react/jsx-runtime')return {contents:'export const jsx=(type,props,key)=>({type,props,key});export const jsxs=jsx;export const Fragment="fragment";'};
   if(a.path==='react')return {contents:'export const useState=v=>globalThis.catalogueView.useState(v);export const useRef=v=>globalThis.catalogueView.useRef(v);export const useEffect=(f,d)=>globalThis.catalogueView.useEffect(f,d);export const useMemo=(f,d)=>f();export const useSyncExternalStore=(s,r)=>r();'};
-  const special={useParams:'()=>globalThis.catalogueView.params',useSearch:'()=>({tab:globalThis.catalogueView.tab})',useNavigate:'()=>()=>{}',useAuth:'()=>globalThis.catalogueView.auth',useAccountDisplay:'()=>({formatTimestamp:v=>v})',libraryTypeIcon:'()=>"libraryTypeIcon"',readItemPlays:'()=>null',watchTime:'()=>[]',useAlerts:'()=>Object.fromEntries(["success","error","info"].map(k=>[k,v=>globalThis.catalogueView.alerts.push([k,v])]))',useLibrarySyncStatus:'()=>({status:{is_syncing:false},refetch:async()=>{}})',getServicePalette:'()=>({})',getServiceMeta:'()=>({label:"Jellyfin"})',formatCalendarDate:'v=>v'};
+  const special={serverNicknameSlug:'s=>s.trim().split(/ +/).join("-").toLowerCase()',useParams:'()=>globalThis.catalogueView.params',useSearch:'()=>({tab:globalThis.catalogueView.tab})',useNavigate:'()=>()=>{}',useAuth:'()=>globalThis.catalogueView.auth',useAccountDisplay:'()=>({formatTimestamp:v=>v})',libraryTypeIcon:'()=>"libraryTypeIcon"',readItemPlays:'()=>null',watchTime:'()=>[]',useAlerts:'()=>Object.fromEntries(["success","error","info"].map(k=>[k,v=>globalThis.catalogueView.alerts.push([k,v])]))',useLibrarySyncStatus:'()=>({status:{is_syncing:false},refetch:async()=>{}})',getServicePalette:'()=>({})',getServiceMeta:'()=>({label:"Jellyfin"})',formatCalendarDate:'v=>v'};
   return {contents:(stubs.get(a.path)??['useAuth']).map(n=>`export const ${n}=${special[n]??JSON.stringify(n)};`).join('')};
  })({path}).contents}});m.setAccessToken('session-a');return m;
 }
 const nodes=node=>[node,...(Array.isArray(node?.props?.children)?node.props.children:[node?.props?.children]).filter(Boolean).flatMap(nodes)];
 const button=(node,label)=>nodes(node).find(n=>n?.type==='Button'&&text(n).trim()===label);
 const text=node=>typeof node==='string'?node:Array.isArray(node)?node.map(text).join(' '):text(node?.props?.children??'');
-const show=(id,title)=>({data:{id,title,item_type:'show',episode_revision:1,catalogue_supported:true,episode_catalogue_supported:true,library:{id:1,name:'TV',library_type:'series',server:{service_type:'jellyfin'}}}});
+const show=(id,title)=>({data:{id,title,item_type:'show',episode_revision:1,catalogue_supported:true,episode_catalogue_supported:true,library:{id:1,name:'TV',library_type:'series',server:{server_nickname:'1',service_type:'jellyfin'}}}});
 const episodes=title=>({data:{episodes:[{id:1,title,season_number:1,episode_number:1}]},meta:{pagination:{total_pages:1,total_items:1}}});
 
 test('catalogue page async boundaries',async t=>{
@@ -69,13 +69,13 @@ test('catalogue page async boundaries',async t=>{
  });
  await t.test('library detail discards a late read from another library',async()=>{
   const h=harness(),m=await load(h),pending=deferred();t.after(h.close);h.tab='overview';
-  globalThis.fetch=async req=>req.url.includes('/libraries/1?')?pending.promise:Response.json({data:{id:2,name:'Library B',library_type:'movies',catalogue:{supported:true,revision:1},server:{service_type:'jellyfin'}}});
-  h.render(m.LibraryDetailPage);h.params={serverId:'1',libraryId:'2'};h.render(m.LibraryDetailPage);await flush();pending.resolve(Response.json({data:{id:1,name:'Stale Library A',library_type:'movies',server:{service_type:'jellyfin'}}}));await flush();const page=text(h.render(m.LibraryDetailPage));assert.match(page,/Library B/);assert.doesNotMatch(page,/Stale Library A/);
+  globalThis.fetch=async req=>req.url.includes('/libraries/1?')?pending.promise:Response.json({data:{id:2,name:'Library B',library_type:'movies',catalogue:{supported:true,revision:1},server:{server_nickname:'1',service_type:'jellyfin'}}});
+  h.render(m.LibraryDetailPage);h.params={serverId:'1',libraryId:'2'};h.render(m.LibraryDetailPage);await flush();pending.resolve(Response.json({data:{id:1,name:'Stale Library A',library_type:'movies',server:{server_nickname:'1',service_type:'jellyfin'}}}));await flush();const page=text(h.render(m.LibraryDetailPage));assert.match(page,/Library B/);assert.doesNotMatch(page,/Stale Library A/);
  });
 
  await t.test('opening directly on media does not restart its pending read when library details arrive',async()=>{
   const h=harness(),m=await load(h),pending=deferred(),media=[];t.after(h.close);h.tab='media';
-  globalThis.fetch=async req=>{const path=new URL(req.url).pathname;if(path.endsWith('/media')){media.push(req);return pending.promise;}return Response.json({data:{id:1,name:'Movies',library_type:'movie',catalogue:{supported:true,revision:1,collections_supported:true},server:{service_type:'plex'}}});};
+  globalThis.fetch=async req=>{const path=new URL(req.url).pathname;if(path.endsWith('/media')){media.push(req);return pending.promise;}return Response.json({data:{id:1,name:'Movies',library_type:'movie',catalogue:{supported:true,revision:1,collections_supported:true},server:{server_nickname:'1',service_type:'plex'}}});};
   h.render(m.LibraryDetailPage);await flush();h.render(m.LibraryDetailPage);await flush();
   assert.equal(media.length,1,'library details should not restart the media request');
   assert.equal(media[0].signal.aborted,false);
@@ -105,7 +105,7 @@ test('catalogue page async boundaries',async t=>{
  });
  await t.test('a library sync finishing after navigation does not refresh the new library',async()=>{
   const h=harness(),m=await load(h),pending=deferred(),calls=[];t.after(h.close);h.tab='overview';
-  globalThis.fetch=async req=>{calls.push(req.method+' '+req.url);if(req.method==='POST')return pending.promise;return Response.json(req.url.includes('/media?')?{data:[],meta:{pagination:{total_pages:1,total_items:0}}}:{data:{id:Number(h.params.libraryId),name:'Library '+h.params.libraryId,library_type:'movies',catalogue:{supported:true,revision:1},server:{service_type:'jellyfin'}}});};
+  globalThis.fetch=async req=>{calls.push(req.method+' '+req.url);if(req.method==='POST')return pending.promise;return Response.json(req.url.includes('/media?')?{data:[],meta:{pagination:{total_pages:1,total_items:0}}}:{data:{id:Number(h.params.libraryId),name:'Library '+h.params.libraryId,library_type:'movies',catalogue:{supported:true,revision:1},server:{server_nickname:'1',service_type:'jellyfin'}}});};
   h.render(m.LibraryDetailPage);await flush();const page=h.render(m.LibraryDetailPage);button(page,'Sync library')?.props.onClick();
   // The existing label is "Sync" on this toolbar.
   if(!calls.some(v=>v.startsWith('POST')))button(page,'Sync').props.onClick();await flush();h.params={serverId:'1',libraryId:'2'};h.render(m.LibraryDetailPage);await flush();const count=calls.length;pending.resolve(Response.json({data:{success:true,library_id:1,source_revision:1,revision:2,message:'done',result:{added:1,updated:0,removed:0,total:1}}}));await flush();assert.equal(calls.length,count);assert.deepEqual(h.alerts,[]);
@@ -123,11 +123,11 @@ test('catalogue page async boundaries',async t=>{
  });
  await t.test('unimplemented Plex collections are visibly unavailable without a request',async()=>{
   const h=harness(),m=await load(h),calls=[];t.after(h.close);h.tab='collections';
-  globalThis.fetch=async req=>{calls.push(new URL(req.url).pathname);return Response.json({data:{id:1,name:'Plex Movies',library_type:'movie',catalogue:{supported:true,revision:1,collections_supported:false},server:{service_type:'plex'}}});};
+  globalThis.fetch=async req=>{calls.push(new URL(req.url).pathname);return Response.json({data:{id:1,name:'Plex Movies',library_type:'movie',catalogue:{supported:true,revision:1,collections_supported:false},server:{server_nickname:'1',service_type:'plex'}}});};
   h.render(m.LibraryDetailPage);await flush();h.render(m.LibraryDetailPage);await flush();assert.equal(calls.some(p=>p.endsWith('/collections')),false);assert.match(text(h.render(m.LibraryDetailPage)),/Collections Not Available/);
  });
 
- const plexLibrary={data:{id:1,name:'Plex Movies',library_type:'movie',catalogue:{supported:true,revision:1,collections_supported:true},server:{service_type:'plex'}}};
+ const plexLibrary={data:{id:1,name:'Plex Movies',library_type:'movie',catalogue:{supported:true,revision:1,collections_supported:true},server:{server_nickname:'1',service_type:'plex'}}};
  const collection={id:7,title:'Heists',child_count:3,smart:true,thumb:'/api/media/collections/images/7?s=a&e=1&g=x',added_at:'2026-01-01T00:00:00Z'};
  await t.test('supported Plex collections render saved rows with signed posters',async()=>{
   const h=harness(),m=await load(h),calls=[];t.after(h.close);h.tab='collections';

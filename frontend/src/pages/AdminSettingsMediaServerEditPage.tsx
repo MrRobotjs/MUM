@@ -1,3 +1,5 @@
+import { serverNicknameIssue } from '../lib/serverNickname';
+import { useServerRoutes } from '../lib/serverRoutes';
 import { useState, useMemo, useEffect } from 'react';
 import {ServerRefreshSettings} from '../components/settings/ServerRefreshSettings';
 import { useNavigate, useParams } from '@tanstack/react-router';
@@ -91,13 +93,16 @@ const normalizeServerPayload = (
 };
 
 export const AdminSettingsMediaServerEditPage = () => {
-  const { serviceId, serverId } = useParams({ from: '/admin/settings/media-servers/$serviceId/servers/$serverId' });
+  const { serviceId, serverId } = useParams({ from: '/admin/settings/media-servers/$serviceId/servers/$serverId/edit' });
   const navigate = useNavigate();
   const { success, error: showError } = useAlerts();
   const { hasCapability } = useMediaServiceCapabilities();
   const { services } = useMediaServices();
   const { refresh: refreshServers } = useServers({ serviceType: serviceId || undefined });
-  const { server, loading: serverLoading, error: serverError } = useServerDetail(serverId ? Number(serverId) : undefined);
+  const routes = useServerRoutes();
+  const matchingServer = routes.settingsServerFor(serverId);
+  const numericServerId = matchingServer?.service_type === serviceId ? matchingServer.id : undefined;
+  const { server, loading: serverLoading, error: serverError } = useServerDetail(numericServerId);
 
   const service = useMemo(() => services.find((item) => item.id === serviceId), [services, serviceId]);
   const isServiceEnabled = service?.enabled ?? server?.provider_enabled ?? true;
@@ -129,6 +134,7 @@ export const AdminSettingsMediaServerEditPage = () => {
   const [submitting, setSubmitting] = useState(false);
   const [clearingImages, setClearingImages] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [nicknameError, setNicknameError] = useState('');
   const [connectionTestStatus, setConnectionTestStatus] = useState<ConnectionTestStatus>('idle');
   const [activeTab, setActiveTab] = useState<'details' | 'overseerr'>('details');
 
@@ -243,6 +249,9 @@ export const AdminSettingsMediaServerEditPage = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const issue = serverNicknameIssue(values.server_nickname);
+    if (issue && values.server_nickname !== baseline?.server_nickname) { setNicknameError(issue); return; }
+    setNicknameError('');
 
     if (requiresUsernamePasswordAuth) {
       const hasUsername = Boolean(values.username?.trim());
@@ -268,16 +277,18 @@ export const AdminSettingsMediaServerEditPage = () => {
 
     try {
       setSubmitting(true);
-      await requestJson(`/api/servers/${serverId}`, {
+      await requestJson(`/api/servers/${numericServerId}`, {
         method: 'PATCH',
         body: JSON.stringify(payload)
       });
       success(`Server "${values.server_nickname}" updated`);
-      await refreshServers();
+      await Promise.all([refreshServers(), routes.refresh()]);
       setBaseline(values);
       setLeaving(true);
     } catch (err) {
-      setError((err as Error).message || 'Failed to save server');
+      const message = (err as Error).message || 'Failed to save server';
+      if (message.includes('nickname') || message.includes('Nickname')) setNicknameError(message);
+      setError(message);
       showError(`Failed to save server: ${(err as Error).message}`);
     } finally {
       setSubmitting(false);
@@ -310,7 +321,7 @@ export const AdminSettingsMediaServerEditPage = () => {
   };
 
 
-  if (serverLoading) {
+  if (serverLoading || routes.loading) {
     return (
       <div className="space-y-6">
         <PageHeader
@@ -407,13 +418,16 @@ export const AdminSettingsMediaServerEditPage = () => {
                     <Input
                       id="server_nickname"
                       type="text"
+                      maxLength={100}
                       value={values.server_nickname}
-                      onChange={(e) => setValues({ ...values, server_nickname: e.target.value })}
+                      onChange={(e) => { setNicknameError(''); setValues({ ...values, server_nickname: e.target.value }); }}
+                    aria-invalid={Boolean(nicknameError)}
+                    aria-describedby="server-nickname-help"
                       required
                       placeholder="My Plex Server"
                     />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Friendly name for this server (used in UI)
+                    <p id="server-nickname-help" className={nicknameError ? "text-xs text-destructive mt-1" : "text-xs text-muted-foreground mt-1"}>
+                      {nicknameError || 'Letters, numbers, spaces, hyphens, underscores and + are allowed. Spaces become hyphens in the URL.'}
                     </p>
                   </FormField>
 
@@ -423,7 +437,7 @@ export const AdminSettingsMediaServerEditPage = () => {
                       <Label htmlFor="cache_images">Cache images</Label>
                     </div>
                     <p className="text-xs text-muted-foreground">Keep recently used images in memory to reduce requests to this server. The cache clears when MUM restarts.</p>
-                    <Button type="button" variant="outline" disabled={clearingImages} onClick={async()=>{setClearingImages(true); try {await requestJson(`/api/servers/${serverId}/image-cache/clear`,{method:'POST',retryAuthentication:false});success('Image cache cleared');} catch {showError('Could not clear the image cache.');} finally {setClearingImages(false);}}}>{clearingImages ? 'Clearing...' : 'Clear image cache'}</Button>
+                    <Button type="button" variant="outline" disabled={clearingImages} onClick={async()=>{setClearingImages(true); try {await requestJson(`/api/servers/${numericServerId}/image-cache/clear`,{method:'POST',retryAuthentication:false});success('Image cache cleared');} catch {showError('Could not clear the image cache.');} finally {setClearingImages(false);}}}>{clearingImages ? 'Clearing...' : 'Clear image cache'}</Button>
                   </div>
 
                   <FormField id="service_type" label="Service Type" required>
@@ -629,7 +643,7 @@ export const AdminSettingsMediaServerEditPage = () => {
 
         <UnsavedChangesBar dirty={dirty} saving={submitting} onReset={() => baseline && setValues(baseline)} formId="server-edit-form" />
       </form>
-      <ServerRefreshSettings serverId={Number(serverId)} />
+      <ServerRefreshSettings serverId={numericServerId!} />
     </div>
   );
 };

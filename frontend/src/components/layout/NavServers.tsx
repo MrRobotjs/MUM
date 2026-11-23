@@ -1,3 +1,5 @@
+import { serverNicknameSlug } from '../../lib/serverNickname';
+import { useServerRoutes } from '../../lib/serverRoutes';
 "use client"
 
 import * as React from "react"
@@ -74,6 +76,7 @@ export function serverPagesFor(serviceType: string) {
 }
 
 const ServerNavItem = ({ server, pathname, onNavigate }: ServerNavItemProps) => {
+  const routes = useServerRoutes()
   const { success, error } = useAlerts()
   const [librariesRequested, setLibrariesRequested] = React.useState(false)
   const { libraries, loading, error: librariesError, refresh, hasLoaded } =
@@ -83,6 +86,7 @@ const ServerNavItem = ({ server, pathname, onNavigate }: ServerNavItemProps) => 
     onError: (message) => error(message),
   })
 
+  const serverSlug = serverNicknameSlug(server.server_nickname)
   const serviceId = server.service_type
   const serviceIcon =
     getServiceIcon(server.service_type, "h-4 w-4") ?? (
@@ -90,7 +94,7 @@ const ServerNavItem = ({ server, pathname, onNavigate }: ServerNavItemProps) => 
     )
 
   const isLibraryActive = (libraryId: number) => {
-    const libraryPath = `/admin/servers/${server.id}/libraries/${libraryId}`
+    const libraryPath = `/admin/servers/${serverSlug}/libraries/${libraryId}`
     return pathname === libraryPath || pathname.startsWith(`${libraryPath}/`)
   }
 
@@ -99,7 +103,7 @@ const ServerNavItem = ({ server, pathname, onNavigate }: ServerNavItemProps) => 
   }, [])
 
   // The server being viewed opens by itself (it can still be closed).
-  const serverPath = `/admin/servers/${server.id}`
+  const serverPath = `/admin/servers/${serverSlug}`
   const onServerPage = pathname === serverPath || pathname.startsWith(`${serverPath}/`)
   const [open, setOpen] = React.useState(onServerPage)
   React.useEffect(() => {
@@ -169,8 +173,8 @@ const ServerNavItem = ({ server, pathname, onNavigate }: ServerNavItemProps) => 
           aria-label={`Edit ${server.server_nickname} settings`}
         >
           <Link
-            to="/admin/settings/media-servers/$serviceId/servers/$serverId"
-            params={{ serviceId, serverId: String(server.id) }}
+            to="/admin/settings/media-servers/$serviceId/servers/$serverId/edit"
+            params={{ serviceId, serverId: routes.settingsSlug(server) }}
             onClick={onNavigate}
           >
             <FontAwesomeIcon icon={faGear} className="text-[11px]" />
@@ -188,16 +192,16 @@ const ServerNavItem = ({ server, pathname, onNavigate }: ServerNavItemProps) => 
           <SidebarMenuSub>
             {/* The server's own pages; Libraries below expands its library list. */}
             <SidebarMenuSubItem>
-              <SidebarMenuSubButton asChild isActive={pathname === `/admin/servers/${server.id}`}>
-                <Link to="/admin/servers/$serverId" params={{ serverId: String(server.id) }} activeOptions={{ exact: true }} onClick={onNavigate}>
+              <SidebarMenuSubButton asChild isActive={pathname === `/admin/servers/${serverSlug}`}>
+                <Link to="/admin/servers/$serverId" params={{ serverId: serverSlug }} activeOptions={{ exact: true }} onClick={onNavigate}>
                   <FontAwesomeIcon icon={faCircleInfo} className="h-4 w-4" />
                   <span>Overview</span>
                 </Link>
               </SidebarMenuSubButton>
             </SidebarMenuSubItem>
             <SidebarMenuSubItem>
-              <SidebarMenuSubButton asChild isActive={pathname === `/admin/servers/${server.id}/users`}>
-                <Link to="/admin/servers/$serverId/users" params={{ serverId: String(server.id) }} onClick={onNavigate}>
+              <SidebarMenuSubButton asChild isActive={pathname === `/admin/servers/${serverSlug}/users`}>
+                <Link to="/admin/servers/$serverId/users" params={{ serverId: serverSlug }} onClick={onNavigate}>
                   <FontAwesomeIcon icon={faUsers} className="h-4 w-4" />
                   <span>Users</span>
                   {userTotal !== null && (
@@ -222,7 +226,7 @@ const ServerNavItem = ({ server, pathname, onNavigate }: ServerNavItemProps) => 
                 {/* The label opens the server's Libraries page; the arrow
                     shows or hides its library list. */}
                 <SidebarMenuSubButton asChild isActive={pathname === librariesPath || (onLibraryPage && !librariesOpen)} className="pr-8">
-                  <Link to="/admin/servers/$serverId/libraries" params={{ serverId: String(server.id) }} onClick={onNavigate}>
+                  <Link to="/admin/servers/$serverId/libraries" params={{ serverId: serverSlug }} onClick={onNavigate}>
                     <FontAwesomeIcon icon={faLayerGroup} className="h-4 w-4" />
                     <span>Libraries</span>
                     {libraryMeta && (
@@ -288,7 +292,7 @@ const ServerNavItem = ({ server, pathname, onNavigate }: ServerNavItemProps) => 
                           >
                             <Link
                               to="/admin/servers/$serverId/libraries/$libraryId"
-                              params={{ serverId: String(server.id), libraryId: String(library.id) }}
+                              params={{ serverId: serverSlug, libraryId: String(library.id) }}
                               onClick={onNavigate}
                             >
                               {/* The library's type, as on the Libraries page; a folder when unknown. */}
@@ -310,7 +314,7 @@ const ServerNavItem = ({ server, pathname, onNavigate }: ServerNavItemProps) => 
             {serverPagesFor(server.service_type).filter((page) => !["Overview", "Users", "Libraries"].includes(page.title)).map((page) => (
               <SidebarMenuSubItem key={page.title}>
                 <SidebarMenuSubButton asChild isActive={pathname === `${serverPath}${page.suffix}`}>
-                  <Link to={page.to} params={{ serverId: String(server.id) }} onClick={onNavigate}>
+                  <Link to={page.to} params={{ serverId: serverSlug }} onClick={onNavigate}>
                     <FontAwesomeIcon icon={page.icon} className="h-4 w-4" />
                     <span>{page.title}</span>
                   </Link>
@@ -336,7 +340,7 @@ const ServerNavItem = ({ server, pathname, onNavigate }: ServerNavItemProps) => 
               >
                 <Link
                   to={page.to}
-                  params={{ serverId: String(server.id) }}
+                  params={{ serverId: serverSlug }}
                   activeOptions={{ exact: true }}
                   onClick={onNavigate}
                   aria-label={`${server.server_nickname} ${page.title}`}

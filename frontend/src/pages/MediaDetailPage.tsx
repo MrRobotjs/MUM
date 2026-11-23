@@ -1,4 +1,5 @@
 import { useAccountDisplay } from '../hooks/useAccountDisplay';
+import { serverNicknameSlug } from '../lib/serverNickname';
 import { useState, useEffect, useSyncExternalStore } from 'react';
 import { useParams, Link, useSearch, useNavigate } from '@tanstack/react-router';
 import { useAuth } from '../contexts/AuthContext';
@@ -255,12 +256,14 @@ const MediaDetailPageView = () => {
       if (!matches || response.data?.library?.id !== Number(libraryId)) throw new Error('Media detail does not match this route');
       // The library's own server decides the address; a different server in
       // the address is replaced with the right one.
-      const ownServer = response.data!.library?.server_id;
-      if (typeof ownServer === 'number' && ownServer !== Number(serverId)) {
+      const ownServer = response.data!.library?.server?.server_nickname;
+      const ownServerSlug = ownServer ? serverNicknameSlug(ownServer) : '';
+      if (!ownServerSlug) throw new Error('The media server could not be resolved.');
+      if (ownServerSlug && ownServerSlug !== serverId) {
         if (isEpisode) {
-          navigate({ to: EPISODE_ROUTE, params: { serverId: String(ownServer), libraryId, mediaId, episodeId: episodeId! }, search: (prev: { tab?: 'overview' | 'activity' }) => prev, replace: true });
+          navigate({ to: EPISODE_ROUTE, params: { serverId: ownServerSlug, libraryId, mediaId, episodeId: episodeId! }, search: (prev: { tab?: 'overview' | 'activity' }) => prev, replace: true });
         } else {
-          navigate({ to: MEDIA_ROUTE, params: { serverId: String(ownServer), libraryId, mediaId }, search: (prev: { tab?: TabType }) => prev, replace: true });
+          navigate({ to: MEDIA_ROUTE, params: { serverId: ownServerSlug, libraryId, mediaId }, search: (prev: { tab?: TabType }) => prev, replace: true });
         }
         return false;
       }

@@ -87,7 +87,7 @@ function PosterCarousel({ icon, title, description, label, children, empty }: {
   </Card>;
 }
 
-export function LibraryOverview({ serverId, serviceLabel, library }: { serverId: number; serviceLabel: string; library: LibraryOverviewLibrary }) {
+export function LibraryOverview({ serverId, serverSlug, serviceLabel, library }: { serverId: number; serverSlug: string; serviceLabel: string; library: LibraryOverviewLibrary }) {
   const { user, isAdministrator } = useAuth();
   const session = useSyncExternalStore(subscribeToAuthStore, getAuthSnapshot, getAuthSnapshot);
   const { formatTimestamp, formatRelative } = useAccountDisplay();
@@ -98,7 +98,7 @@ export function LibraryOverview({ serverId, serviceLabel, library }: { serverId:
   const row = figures.data?.items.find(item => item.id === library.id);
   const type = (library.library_type ?? '').replace(/_/g, ' ');
   const shows = row?.parent_count !== null && row?.parent_count !== undefined && /show|tv|series/i.test(library.library_type ?? '');
-  const mediaLink = (id: number) => ({ to: '/admin/servers/$serverId/libraries/$libraryId/$mediaId' as const, params: { serverId: String(serverId), libraryId: String(library.id), mediaId: String(id) } });
+  const mediaLink = (id: number) => ({ to: '/admin/servers/$serverId/libraries/$libraryId/$mediaId' as const, params: { serverId: serverSlug, libraryId: String(library.id), mediaId: String(id) } });
   const watch = (seconds: number | null | undefined) => seconds === null || seconds === undefined ? '—' : watchTime(String(seconds)).map(([value, unit]) => `${value} ${unit}`).join(' ');
 
   return <div className="space-y-6">

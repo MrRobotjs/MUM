@@ -47,9 +47,9 @@ test('media servers page', async t => {
     assert.match(html, /0 users · 0 libraries · 0 items\s*· never synced/);
     assert.match(html, /not checked yet/);
     // Plex has Graphs and Resources; Audiobookshelf has neither.
-    assert.match(html, /href="\/admin\/servers\/2\/resources"/);
-    assert.match(html, /href="\/admin\/servers\/2\/graphs"/);
-    assert.doesNotMatch(html, /href="\/admin\/servers\/4\/graphs"/);
+    assert.match(html, /href="\/admin\/servers\/plex\+\+\/resources"/);
+    assert.match(html, /href="\/admin\/servers\/plex\+\+\/graphs"/);
+    assert.doesNotMatch(html, /href="\/admin\/servers\/audiobooks\/graphs"/);
     assert.match(html, /href="\/admin\/settings\/media-servers"[^>]*>.*Add server/s);
   });
 

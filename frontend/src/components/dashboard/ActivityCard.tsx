@@ -11,6 +11,7 @@ import { Spinner } from '@/components/ui/spinner';
 import { getServiceMeta, getServicePalette } from '@/config/mediaServiceMetadata';
 import { ServiceIcon } from '@/components/services/ServiceIcon';
 import { useAccountDisplay } from '../../hooks/useAccountDisplay';
+import { useServerRoutes } from '../../lib/serverRoutes';
 import { fetchActivityStats, useDashboardData, type ActivityKind, type ActivityLink, type ConcurrentKind, type ActivityOrder, type ActivityServer, type ActivityStats, type ActivityTitle } from '../../lib/dashboard';
 import { watchTime } from '../../lib/identityPlayTotals';
 import { playerLogo } from '../../lib/playerPlatforms';
@@ -78,10 +79,14 @@ const ServerTag = ({ servers, lit }: { servers: ActivityServer[]; lit: boolean }
 };
 
 // A title opens its page in the library catalogue once a sync has catalogued it.
-const TitleLink = ({ server, link, children }: { server: number; link: ActivityLink | null; children: ReactNode }) => !link ? <>{children}</>
+const TitleLink = ({ server, link, children }: { server: number; link: ActivityLink | null; children: ReactNode }) => {
+  const {slugFor} = useServerRoutes();
+  const slug = slugFor(server);
+  return !link || !slug ? <>{children}</>
   : link.episode_id === null
-    ? <Link to="/admin/servers/$serverId/libraries/$libraryId/$mediaId" params={{ serverId: String(server), libraryId: String(link.library_id), mediaId: String(link.media_id) }} className="dashboard-stat-link">{children}</Link>
-    : <Link to="/admin/servers/$serverId/libraries/$libraryId/$mediaId/episodes/$episodeId" params={{ serverId: String(server), libraryId: String(link.library_id), mediaId: String(link.media_id), episodeId: String(link.episode_id) }} className="dashboard-stat-link">{children}</Link>;
+    ? <Link to="/admin/servers/$serverId/libraries/$libraryId/$mediaId" params={{ serverId: slug, libraryId: String(link.library_id), mediaId: String(link.media_id) }} className="dashboard-stat-link">{children}</Link>
+    : <Link to="/admin/servers/$serverId/libraries/$libraryId/$mediaId/episodes/$episodeId" params={{ serverId: slug, libraryId: String(link.library_id), mediaId: String(link.media_id), episodeId: String(link.episode_id) }} className="dashboard-stat-link">{children}</Link>;
+};
 
 // A person's picture in a circle, or their first letter.
 const Avatar = ({ url, name }: { url: string | null; name: string }) => {
@@ -129,6 +134,7 @@ const StatCard = ({ title, metric, rows, round }: { title: string; metric: strin
 };
 
 export function ActivityStatistics({ fixedServer }: { fixedServer?: { id: number; name: string } }) {
+  const routes = useServerRoutes();
   const [days, setDays] = useState(30);
   // Off by default: monitored servers' imported history from before MUM's recordings.
   const [withImported, setWithImported] = useState(false);
@@ -176,7 +182,7 @@ export function ActivityStatistics({ fixedServer }: { fixedServer?: { id: number
         cards.push(<StatCard key={kind} title={cardTitles[kind]} metric={metric}
           rows={items.map(item => ({ key: String(item.library_id), value: figure(item), badges: badgeFor(item),
             visual: <FontAwesomeIcon icon={libraryTypeIcon(item.library_type)} />,
-            title: item.library_id ? <Link to="/admin/servers/$serverId/libraries/$libraryId" params={{ serverId: String(item.server_id), libraryId: String(item.library_id) }} search={{ tab: 'overview' }} className="dashboard-stat-link">{item.title}</Link> : item.title }))} />);
+            title: item.library_id && routes.slugFor(item.server_id) ? <Link to="/admin/servers/$serverId/libraries/$libraryId" params={{ serverId: routes.slugFor(item.server_id)!, libraryId: String(item.library_id) }} search={{ tab: 'overview' }} className="dashboard-stat-link">{item.title}</Link> : item.title }))} />);
       } else if (kind === 'recent') {
         cards.push(<StatCard key={kind} title={cardTitles[kind]} metric="When"
           rows={items.map((item, i) => ({ key: `${item.played_at}-${i}`, title: <TitleLink server={item.server_id} link={item.link}>{item.title}</TitleLink>, subtitle: item.subtitle, who: item.user_name,

@@ -1,3 +1,5 @@
+import { serverNicknameSlug } from '../../lib/serverNickname';
+import { useServerRoutes } from '../../lib/serverRoutes';
 import { useMemo, useState } from 'react'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
@@ -34,6 +36,7 @@ const ExternalLink = ({ href }: { href: string }) => (
  * Edit and Remove.
  */
 export const MediaServiceServers = ({ service, setup = false }: MediaServiceServersProps) => {
+  const routes = useServerRoutes()
   const { formatTimestamp, formatRelative } = useAccountDisplay()
   const navigate = useNavigate()
   const { success, error: showError } = useAlerts()
@@ -169,9 +172,9 @@ export const MediaServiceServers = ({ service, setup = false }: MediaServiceServ
                       {!setup ? (
                         <>
                           <Button asChild size="sm" variant="outline">
-                            <Link to="/admin/servers/$serverId" params={{ serverId: String(server.id) }}><FontAwesomeIcon icon={faArrowUpRightFromSquare} />Open server</Link>
+                            <Link to="/admin/servers/$serverId" params={{ serverId: serverNicknameSlug(server.server_nickname) }}><FontAwesomeIcon icon={faArrowUpRightFromSquare} />Open server</Link>
                           </Button>
-                          <Button size="sm" variant="outline" onClick={() => navigate({ to: '/admin/settings/media-servers/$serviceId/servers/$serverId', params: { serviceId: service.id, serverId: String(server.id) } })}>
+                          <Button size="sm" variant="outline" onClick={() => navigate({ to: '/admin/settings/media-servers/$serviceId/servers/$serverId/edit', params: { serviceId: service.id, serverId: routes.settingsSlug(server) } })}>
                             <FontAwesomeIcon icon={faPen} />Edit
                           </Button>
                         </>

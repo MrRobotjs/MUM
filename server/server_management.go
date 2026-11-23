@@ -220,6 +220,25 @@ type serverInput struct {
 	OverseerrKey *string `json:"overseerr_api_key"`
 }
 
+type nicknameConflict struct{ name, kind string }
+
+func (e *nicknameConflict) Error() string { return "server URL nickname already in use" }
+
+func serverNicknameSlug(name string) (string, bool) {
+	name = strings.TrimSpace(name)
+	hasAlphanumeric := false
+	for _, c := range name {
+		switch {
+		case c >= 'a' && c <= 'z', c >= 'A' && c <= 'Z', c >= '0' && c <= '9':
+			hasAlphanumeric = true
+		case c == ' ', c == '-', c == '_', c == '+':
+		default:
+			return "", false
+		}
+	}
+	return strings.ToLower(strings.Join(strings.Fields(name), "-")), hasAlphanumeric
+}
+
 func validPublicURL(raw string) bool {
 	if raw == "" {
 		return true
@@ -250,6 +269,7 @@ func (a *App) saveServer(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	previousName := s.Name
 	if input.Name != nil {
 		s.Name = strings.TrimSpace(*input.Name)
 	}
@@ -284,6 +304,11 @@ func (a *App) saveServer(w http.ResponseWriter, r *http.Request) {
 	}
 	if s.Name == "" || len(s.Name) > 100 || len(s.URL) > 512 || !validPublicURL(s.PublicURL) {
 		fail(w, 400, "INVALID_SERVER", "Valid server name and URLs required")
+		return
+	}
+	slug, validNickname := serverNicknameSlug(s.Name)
+	if !validNickname && (create || s.Name != previousName) {
+		fail(w, 400, "INVALID_SERVER_NICKNAME", "Use letters, numbers, spaces, hyphens, underscores or plus signs, including at least one letter or number.")
 		return
 	}
 	if err := validateProviderConfig(ProviderConfig{s.Type, s.URL, s.apiKey}); err != nil {
@@ -330,12 +355,27 @@ func (a *App) saveServer(w http.ResponseWriter, r *http.Request) {
 		if err := requirePermission(r.Context(), tx, p.UUID, "administrator"); err != nil {
 			return err
 		}
-		var duplicate bool
-		if err := tx.QueryRowContext(r.Context(), "SELECT EXISTS(SELECT 1 FROM media_servers WHERE server_nickname=? AND id!=?)", s.Name, s.ID).Scan(&duplicate); err != nil {
+		rows, err := tx.QueryContext(r.Context(), "SELECT server_nickname,service_type FROM media_servers WHERE id!=?", s.ID)
+		if err != nil {
 			return err
 		}
-		if duplicate {
-			return ErrConflict
+		var conflict *nicknameConflict
+		for rows.Next() {
+			var name, kind string
+			if err = rows.Scan(&name, &kind); err != nil {
+				break
+			}
+			existing, valid := serverNicknameSlug(name)
+			if valid && validNickname && existing == slug {
+				conflict = &nicknameConflict{name, kind}
+				break
+			}
+		}
+		if closeErr := errors.Join(err, rows.Err(), rows.Close()); closeErr != nil {
+			return closeErr
+		}
+		if conflict != nil && (create || s.Name != previousName) {
+			return conflict
 		}
 		if create {
 			result, err := tx.ExecContext(r.Context(), `INSERT INTO media_servers(server_nickname,service_type,url,api_key,public_url,is_active,created_at,updated_at,overseerr_enabled,overseerr_url,overseerr_api_key,cache_images) VALUES(?,?,?,?,?,?,?,?,?,nullif(?,''),nullif(?,''),?)`, s.Name, s.Type, s.URL, s.apiKey, s.PublicURL, s.Active, now, now, s.Overseerr, s.OverseerrURL, s.overseerrKey, s.CacheImages)
@@ -389,6 +429,15 @@ func (a *App) saveServer(w http.ResponseWriter, r *http.Request) {
 		return auditAction(r.Context(), tx, p.UUID, "server.save")
 	})
 	if err != nil {
+		var conflict *nicknameConflict
+		if errors.As(err, &conflict) {
+			kind := conflict.kind
+			if def, ok := providerDefinition(kind); ok {
+				kind = def.Name
+			}
+			fail(w, 409, "SERVER_NICKNAME_CONFLICT", fmt.Sprintf("This nickname would use the same URL as %q (%s). Choose a different nickname.", conflict.name, kind))
+			return
+		}
 		domainError(w, err)
 		return
 	}

@@ -51,6 +51,59 @@ func serverTimelineTitles(page serverTimelineTestPage) string {
 	return strings.Join(out, ",")
 }
 
+func TestServerTimelineAllServersAndServiceNameFallback(t *testing.T) {
+	a, s, token, viewer, local := timelineFixture(t)
+	activityExec(t, s, `INSERT INTO media_servers(server_nickname,service_type,url,api_key) VALUES('Jelly++','jellyfin','http://jelly.test','fixture-secret')`)
+	var server int64
+	if err := s.reader.QueryRow(`SELECT id FROM media_servers WHERE server_nickname='Jelly++'`).Scan(&server); err != nil {
+		t.Fatal(err)
+	}
+	service := seedExternalService(t, s, server, "jf-user")
+	activityExec(t, s, `UPDATE service_accounts SET external_username='Jelly Viewer' WHERE uuid=?`, service)
+	activityExec(t, s, `UPDATE user_accounts SET local_username=NULL WHERE uuid=?`, local)
+	activityExec(t, s, `INSERT INTO media_activity_history(server_id,external_session_id,service_uuid,owner_uuid,item_id,media_type,title,first_seen_at,last_seen_at,paused) VALUES(?,?,?,?,?,'episode','Jelly play','2026-11-01T06:00:00.000000000Z','2026-11-01T06:01:00.000000000Z',0)`, server, "jf-session", service, local, "jf-item")
+	code, page := readServerTimeline(t, a, token, url.Values{"server": {"all"}})
+	if code != 200 || page.Server == nil || *page.Server != "all" || len(page.Items) != 7 || page.Items[0].Title != "Jelly play" || page.Items[0].PersonName != "Jelly Viewer" {
+		t.Fatalf("combined history %d %+v", code, page)
+	}
+	if code, recorded := readServerTimeline(t, a, token, url.Values{"server": {"all"}, "records": {"mum"}}); code != 200 || len(recorded.Items) != 3 {
+		t.Fatalf("combined MUM filter %d %+v", code, recorded)
+	}
+	if code, mine := readServerTimeline(t, a, token, url.Values{"server": {"all"}, "user": {local}}); code != 200 || len(mine.Items) != 6 {
+		t.Fatalf("combined user filter %d %+v", code, mine)
+	}
+	timelinePageSize = 2
+	t.Cleanup(func() { timelinePageSize = 100 })
+	query := url.Values{"server": {"all"}}
+	seen := map[string]bool{}
+	for range 5 {
+		code, result := readServerTimeline(t, a, token, query)
+		if code != 200 {
+			t.Fatal(code)
+		}
+		for _, item := range result.Items {
+			if seen[item.ID] {
+				t.Fatalf("duplicate %s", item.ID)
+			}
+			seen[item.ID] = true
+		}
+		if result.Next == nil {
+			break
+		}
+		query.Set("before", *result.Next)
+	}
+	if len(seen) != 7 {
+		t.Fatalf("paging skipped plays: %v", seen)
+	}
+	if w := apiRequest(a, "POST", "/api/activity/servers/all/timeline/delete", viewer, map[string]any{"ids": []string{page.Items[0].ID}}, nil); w.Code != 403 {
+		t.Fatal("non-admin deleted combined history", w.Code)
+	}
+	w := apiRequest(a, "POST", "/api/activity/servers/all/timeline/delete", token, map[string]any{"ids": []string{page.Items[0].ID, page.Items[1].ID}}, nil)
+	if w.Code != 200 || responseData(t, w)["deleted"] != float64(2) {
+		t.Fatalf("combined delete %d %s", w.Code, w.Body.String())
+	}
+}
+
 // A server's history shows everyone's plays on it, recorded and imported,
 // newest first, each with who played it; a person filter narrows it to them.
 func TestServerTimelineEveryonesPlays(t *testing.T) {

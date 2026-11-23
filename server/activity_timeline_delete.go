@@ -53,7 +53,9 @@ func (a *App) deletePlays(w http.ResponseWriter, r *http.Request, target string,
 		return
 	}
 	if server != 0 {
-		if server, ok = pathID(w, r, "server"); !ok {
+		if r.PathValue("server") == "all" {
+			server = 0
+		} else if server, ok = pathID(w, r, "server"); !ok {
 			return
 		}
 	} else if !validAdminMemberCursor(target) {

@@ -169,6 +169,17 @@ test('server timeline adapter', async t => {
     await assert.rejects(m.fetchServerTimeline(actor, {...all, user: 'someone'}), /Invalid history request/);
   });
 
+  await t.test('accepts all servers while rejecting rows from unknown servers', async () => {
+    const m = await load(); m.setAccessToken('session');
+    let query;
+    globalThis.fetch = async req => { query = new URL(req.url); return Response.json({data: serverPage({server_id: 'all', items: [mum, jelly]})}); };
+    const page = await m.fetchServerTimeline(actor, {...all, server: 'all'});
+    assert.equal(query.searchParams.get('server'), 'all');
+    assert.deepEqual(page.items.map(row => row.server_id), ['1', '2']);
+    globalThis.fetch = async () => Response.json({data: serverPage({server_id: 'all', items: [{...jelly, server_id: '999'}]})});
+    await assert.rejects(m.fetchServerTimeline(actor, {...all, server: 'all'}), /Invalid history/);
+  });
+
   await t.test('deletes plays on the server once, with no retry', async () => {
     const m = await load(); m.setAccessToken('session');
     const calls = [];

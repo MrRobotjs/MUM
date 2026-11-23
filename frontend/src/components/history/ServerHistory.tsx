@@ -11,7 +11,7 @@ const lastServerKey = 'mum.history.server';
 const rememberedServer = () => {
   try {
     const value = window.localStorage.getItem(lastServerKey);
-    return value && /^[1-9]\d{0,18}$/.test(value) ? value : undefined;
+    return value && (value === 'all' || /^[1-9]\d{0,18}$/.test(value)) ? value : undefined;
   } catch {
     return undefined;
   }
@@ -20,7 +20,7 @@ const rememberedServer = () => {
 export function ServerHistory({ serverId, description }: { serverId?: string; description: string }) {
   const { isAdministrator } = useAuth();
   const pinned = serverId !== undefined;
-  const [view, setView] = useState<HistoryView>(() => ({ ...initialHistoryView, server: serverId ?? rememberedServer() }));
+  const [view, setView] = useState<HistoryView>(() => ({ ...initialHistoryView, server: serverId ?? rememberedServer() ?? 'all' }));
   useEffect(() => { if (pinned) setView({ ...initialHistoryView, server: serverId }); }, [pinned, serverId]);
   const history = useServerTimeline(view.server, view.user, view.records, { types: view.types, methods: view.methods });
   // A remembered server that no longer exists falls back to the newest one.

@@ -97,7 +97,8 @@ const historyColumns = (type: string, people: boolean): HistoryColumn[] => {
   const columns = typeColumns(type);
   return people ? [...columns.slice(0, 2), 'user', ...columns.slice(2)] : columns;
 };
-const typeColumns = (type: string): HistoryColumn[] => type === 'audiobookshelf' ? ['poster', 'title', 'author', 'date', 'listened', 'progress']
+const typeColumns = (type: string): HistoryColumn[] => type === 'all' ? ['poster', 'title', 'platform', 'product', 'player', 'decision', 'date', 'ip', 'started', 'paused', 'stopped', 'duration', 'author', 'listened', 'progress']
+  : type === 'audiobookshelf' ? ['poster', 'title', 'author', 'date', 'listened', 'progress']
   : type === 'plex' ? ['poster', 'title', 'platform', 'product', 'player', 'decision', 'date', 'ip', 'started', 'paused', 'stopped', 'duration', 'progress']
   : ['poster', 'title', 'product', 'player', 'decision', 'date', 'started', 'paused', 'stopped', 'duration', 'progress'];
 // Hidden columns per server type, remembered per browser; a server's history
@@ -133,7 +134,8 @@ export const HistoryTable = ({ history, mode, view, onViewChange, admin, descrip
   const [importNote, setImportNote] = useState<{ server: string; text: string; running: boolean } | null>(null);
   const [fullImport, setFullImport] = useState<TimelineServer | null>(null);
   const [importing, setImporting] = useState(false);
-  const shown = page?.servers.find(s => s.server_id === page.server_id);
+  const allServers = everyone && page?.server_id === 'all';
+  const shown = allServers ? {server_id:'all',name:'All Servers',service_type:'all',live:page?.servers.some(s=>s.live) ?? false,history:true} : page?.servers.find(s => s.server_id === page.server_id);
   const streams = Boolean(shown?.live) && view.records !== 'server';
   const shownType = shown?.service_type ?? '';
   const shownLive = Boolean(shown?.live);
@@ -148,6 +150,7 @@ export const HistoryTable = ({ history, mode, view, onViewChange, admin, descrip
         case 'poster': return <HistoryPoster url={row.poster_url} title={row.title} />;
         case 'title': return <>
           <div className="font-medium">{row.title || (service ? 'Removed item' : 'Unknown Title')}</div>
+          {allServers && (() => { const source = page?.servers.find(s => s.server_id === row.server_id); return source ? <div className="mt-1 inline-flex items-center gap-1 text-xs text-muted-foreground"><ServiceIcon serviceType={source.service_type} className="h-3 w-3" />{source.name}</div> : null; })()}
           {row.parent_title && shownType !== 'audiobookshelf' && <div className="text-xs text-muted-foreground">{row.parent_title}</div>}
           {row.library_name && <div className="text-xs text-muted-foreground/60"><FontAwesomeIcon icon={faFolder} className="mr-1 h-3 w-3" />{row.library_name}</div>}
           {service && view.records === 'all' && shownLive && <span className="mt-1 inline-flex items-center rounded-md px-2.5 py-0.5 text-xs font-semibold bg-muted text-muted-foreground" title={`Imported from the ${service} server's own play history`}>{service} history</span>}
@@ -194,7 +197,7 @@ export const HistoryTable = ({ history, mode, view, onViewChange, admin, descrip
         aria-label={`${row.getIsSelected() ? 'Keep' : 'Delete'} ${row.original.title || 'this play'}`} title={row.original.in_progress ? 'Still playing: it can be deleted once it ends' : undefined}
         onClick={() => row.toggleSelected()}><FontAwesomeIcon icon={faTrashCan} /></Button>,
     }), ...data];
-  }, [shownType, shownLive, everyone, view.records, deleteMode, formatTimestamp]);
+  }, [shownType, shownLive, everyone, view.records, deleteMode, formatTimestamp, allServers, page?.servers]);
   const rowSelection = useMemo<RowSelectionState>(() => Object.fromEntries([...marked].map(id => [id, true])), [marked]);
   const table = useAppTable({
     columns, data: (page?.items as TimelineItem[] | undefined) ?? noTimelineItems, getRowId: row => row.id,
@@ -232,6 +235,7 @@ export const HistoryTable = ({ history, mode, view, onViewChange, admin, descrip
     setDeleteMode(false);
     if (marked.size > 0) setConfirmDelete(true);
   };
+  useEffect(() => { setDeleteMode(false); setMarked(new Set()); setConfirmDelete(false); }, [page?.server_id]);
   const toggleMark = (id: string) => setMarked(current => { const next = new Set(current); if (!next.delete(id)) next.add(id); return next; });
   const finishDelete = () => { setConfirmDelete(false); setMarked(new Set()); };
   const deleteMarked = async () => {
@@ -288,7 +292,7 @@ export const HistoryTable = ({ history, mode, view, onViewChange, admin, descrip
   const pickers = page && <>
     {showServers && <Select value={page.server_id ?? undefined} onValueChange={server => onViewChange({ ...initialHistoryView, server })}>
       <SelectTrigger className="w-auto" aria-label="Server"><SelectValue /></SelectTrigger>
-      <SelectContent>{offered.map(s => <SelectItem key={s.server_id} value={s.server_id}>
+      <SelectContent>{everyone && <SelectItem value="all">All Servers</SelectItem>}{offered.map(s => <SelectItem key={s.server_id} value={s.server_id}>
         <span className="inline-flex items-center gap-2"><ServiceIcon serviceType={s.service_type} />{s.name}</span>
       </SelectItem>)}</SelectContent>
     </Select>}
@@ -321,7 +325,7 @@ export const HistoryTable = ({ history, mode, view, onViewChange, admin, descrip
   if (!shown.history) return <section className="space-y-4"><Card>{heading}<CardContent>{empty(`${serviceLabel(shown.service_type)} doesn’t share ${everyone ? 'play' : 'users’'} history, so MUM has none to show for ${shown.name}.`)}</CardContent></Card></section>;
 
   const toggleFilter = <T extends string>(list: readonly T[], value: T) => list.includes(value) ? list.filter(v => v !== value) : [...list, value];
-  const canImport = admin && historyImportSupport(shown.service_type) !== 'none';
+  const canImport = admin && !allServers && historyImportSupport(shown.service_type) !== 'none';
   const filtered = view.types.length > 0 || view.methods.length > 0 || Boolean(view.user);
 
 

@@ -344,13 +344,17 @@ func timelineSortKey(at, source string, id int64) string {
 func readTimelineMUM(ctx context.Context, tx *sql.Tx, actor string, q activityReadQuery, c timelineCursor, f timelineFilter) ([]timelineItem, error) {
 	query := `SELECT h.id,h.server_id,h.service_uuid,h.media_type,h.title,h.parent_title,h.library_name,h.first_seen_at,h.client,h.play_method,h.position_ticks,h.duration_ticks,h.poster_path IS NOT NULL,
 	 h.platform,CASE WHEN ? THEN h.device_name END,CASE WHEN ? THEN h.ip_address END,h.last_seen_at,h.paused_seconds,` + mumWatchedSeconds + `,EXISTS(SELECT 1 FROM media_activity_current c WHERE c.history_id=h.id),
-	 coalesce(h.owner_uuid,h.service_uuid),` + timelinePersonName("coalesce(h.owner_uuid,h.service_uuid)") + `,
+	 coalesce(h.owner_uuid,h.service_uuid),` + timelinePersonNameForService("coalesce(h.owner_uuid,h.service_uuid)", "h.service_uuid") + `,
 	 h.item_id,coalesce(h.parent_item_id,''),coalesce(h.poster_item,'')
 	 FROM media_activity_history h WHERE (h.first_seen_at<? OR h.first_seen_at=? AND ('m'<? OR ?='m' AND h.id<?))`
 	args := []any{q.All, q.All, c.At, c.At, c.Source, c.Source, c.ID}
 	filter, filterArgs := mumPlayFilter(actor, q)
-	query += filter + ` AND h.server_id=?`
-	args = append(append(args, filterArgs...), f.Server)
+	query += filter
+	args = append(args, filterArgs...)
+	if f.Server != 0 {
+		query += ` AND h.server_id=?`
+		args = append(args, f.Server)
+	}
 	if len(f.Types) > 0 {
 		in, inArgs := inList(historyCategory("h.media_type"), f.Types)
 		query, args = query+in, append(args, inArgs...)
@@ -448,7 +452,11 @@ const timelineImportedPerson = `coalesce((SELECT l.user_uuid FROM service_links 
 // timelinePersonName names a person: their MUM username, else their server
 // account's name.
 func timelinePersonName(person string) string {
-	return `coalesce((SELECT u.local_username FROM user_accounts u WHERE u.uuid=` + person + `),(SELECT a.external_username FROM service_accounts a WHERE a.uuid=` + person + `),'Unknown')`
+	return `coalesce((SELECT nullif(trim(u.local_username),'') FROM user_accounts u WHERE u.uuid=` + person + `),(SELECT nullif(trim(a.external_username),'') FROM service_accounts a WHERE a.uuid=` + person + `),(SELECT nullif(trim(a.external_username),'') FROM service_links l JOIN service_accounts a ON a.uuid=l.service_uuid WHERE l.user_uuid=` + person + ` AND l.link_kind='owner' AND nullif(trim(a.external_username),'') IS NOT NULL ORDER BY a.uuid LIMIT 1),'Unknown')`
+}
+
+func timelinePersonNameForService(person, service string) string {
+	return `coalesce((SELECT nullif(trim(u.local_username),'') FROM user_accounts u WHERE u.uuid=` + person + `),(SELECT nullif(trim(a.external_username),'') FROM service_accounts a WHERE a.uuid=` + service + `),` + timelinePersonName(person) + `)`
 }
 
 // readTimelineImported reads plays imported from the servers' own histories,
@@ -456,12 +464,15 @@ func timelinePersonName(person string) string {
 func readTimelineImported(ctx context.Context, tx *sql.Tx, actor string, q activityReadQuery, c timelineCursor, f timelineFilter) ([]timelineItem, error) {
 	query := `SELECT i.rowid,i.server_id,s.uuid,ms.service_type,coalesce(i.media_type,''),coalesce(i.title,''),coalesce(i.grandparent_title,i.parent_title),
 	 (SELECT l.name FROM media_libraries l WHERE l.server_id=i.server_id AND l.external_id=i.library_id),i.viewed_at,i.poster_path IS NOT NULL,i.position_seconds,i.duration_seconds,i.listened_seconds,
-	 ` + timelineImportedPerson + `,` + timelinePersonName(timelineImportedPerson) + `,
+	 ` + timelineImportedPerson + `,` + timelinePersonNameForService(timelineImportedPerson, "s.uuid") + `,
 	 coalesce(i.item_id,''),'',coalesce(i.poster_item,'')
 	 FROM history_imports i JOIN media_servers ms ON ms.id=i.server_id JOIN service_accounts s ON s.server_id=i.server_id AND s.external_user_id=i.account_id
 	 WHERE (i.viewed_at<? OR i.viewed_at=? AND ?='p' AND i.rowid<?)`
-	args := []any{c.At, c.At, c.Source, c.ID, f.Server}
-	query += ` AND i.server_id=?`
+	args := []any{c.At, c.At, c.Source, c.ID}
+	if f.Server != 0 {
+		query += ` AND i.server_id=?`
+		args = append(args, f.Server)
+	}
 	if len(f.Types) > 0 {
 		in, inArgs := inList(historyCategory("i.media_type"), f.Types)
 		query, args = query+in, append(args, inArgs...)
@@ -573,13 +584,23 @@ func readTimelineCategories(ctx context.Context, tx *sql.Tx, actor string, q act
 	var args [][]any
 	if f.includesMUM(server) {
 		filter, filterArgs := mumPlayFilter(actor, q)
-		reads = append(reads, `SELECT DISTINCT `+historyCategory("h.media_type")+` FROM media_activity_history h WHERE h.server_id=?`+filter)
-		args = append(args, append([]any{f.Server}, filterArgs...))
+		where, values := "", []any{}
+		if f.Server != 0 {
+			where = ` AND h.server_id=?`
+			values = append(values, f.Server)
+		}
+		reads = append(reads, `SELECT DISTINCT `+historyCategory("h.media_type")+` FROM media_activity_history h WHERE 1=1`+where+filter)
+		args = append(args, append(values, filterArgs...))
 	}
 	if f.Records != "mum" && server.History {
 		filter, filterArgs := importedPlayFilter(actor, q)
-		reads = append(reads, `SELECT DISTINCT `+historyCategory("i.media_type")+` FROM history_imports i JOIN service_accounts s ON s.server_id=i.server_id AND s.external_user_id=i.account_id WHERE i.server_id=?`+filter)
-		args = append(args, append([]any{f.Server}, filterArgs...))
+		where, values := "", []any{}
+		if f.Server != 0 {
+			where = ` AND i.server_id=?`
+			values = append(values, f.Server)
+		}
+		reads = append(reads, `SELECT DISTINCT `+historyCategory("i.media_type")+` FROM history_imports i JOIN service_accounts s ON s.server_id=i.server_id AND s.external_user_id=i.account_id WHERE 1=1`+where+filter)
+		args = append(args, append(values, filterArgs...))
 	}
 	for i, query := range reads {
 		rows, err := tx.QueryContext(ctx, query, args[i]...)

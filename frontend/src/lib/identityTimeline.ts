@@ -149,7 +149,7 @@ export type ServerTimelinePage = Readonly<{
 
 export async function fetchServerTimeline(actor: string, request: ServerTimelineRequest): Promise<ServerTimelinePage> {
   const { server: chosen, user, records, filters, before } = request;
-  if (chosen !== undefined && !serverID(chosen) || user !== undefined && !uuid(user) || !recordsChoices.includes(records) || before !== undefined && !cursor(before)) throw new Error('Invalid history request');
+  if (chosen !== undefined && chosen !== 'all' && !serverID(chosen) || user !== undefined && !uuid(user) || !recordsChoices.includes(records) || before !== undefined && !cursor(before)) throw new Error('Invalid history request');
   const types = ordered(filters.types, timelineCategories), streams = ordered(filters.methods, timelineMethods);
   const token = getAccessToken();
   const query = new URLSearchParams();
@@ -172,10 +172,10 @@ export async function fetchServerTimeline(actor: string, request: ServerTimeline
   });
   if (new Set(servers.map(s => s.server_id)).size !== servers.length || new Set(people.map(p => p.uuid)).size !== people.length ||
       categories.some(c => !timelineCategories.includes(c)) || categories.join() !== timelineCategories.filter(c => categories.includes(c)).join() ||
-      (data.server_id === null ? servers.some(s => s.history) : !servers.some(s => s.server_id === data.server_id)) || chosen !== undefined && data.server_id !== chosen) throw new Error('Invalid history page');
+      (data.server_id === null ? servers.some(s => s.history) : data.server_id !== 'all' && !servers.some(s => s.server_id === data.server_id)) || chosen !== undefined && data.server_id !== chosen) throw new Error('Invalid history page');
   const seen = new Set<string>();
   const items = data.items.map(value => item(value, seen));
-  if (items.some(i => i.server_id !== data.server_id || user !== undefined && i.person_uuid !== user)) throw new Error('Invalid history page');
+  if (items.some(i => data.server_id === 'all' ? !servers.some(s => s.server_id === i.server_id) || user !== undefined && i.person_uuid !== user : i.server_id !== data.server_id || user !== undefined && i.person_uuid !== user)) throw new Error('Invalid history page');
   return Object.freeze({ actor_uuid: actor, user: user ?? null, server_id: data.server_id as string | null, records, servers: Object.freeze(servers),
     categories: Object.freeze([...categories]), people: Object.freeze(people), items, next_before: data.next_before as string | null });
 }
@@ -191,7 +191,7 @@ export async function deleteTimelinePlays(target: string, ids: readonly string[]
 
 // Deletes plays on one server, from its History tab or the History page.
 export async function deleteServerTimelinePlays(server: string, ids: readonly string[]): Promise<number> {
-  if (!serverID(server)) throw new Error('Invalid history delete');
+  if (server !== 'all' && !serverID(server)) throw new Error('Invalid history delete');
   return deletePlays(`/api/activity/servers/${server}/timeline/delete`, ids);
 }
 

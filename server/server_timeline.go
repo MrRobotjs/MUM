@@ -34,6 +34,7 @@ func (a *App) serverTimeline(w http.ResponseWriter, r *http.Request) {
 	cursor := timelineCursor{At: "9999", Source: "p", ID: 1 << 62}
 	values, err := url.ParseQuery(r.URL.RawQuery)
 	valid := err == nil
+	allServers := false
 	for key, list := range values {
 		if !valid || len(list) != 1 {
 			valid = false
@@ -41,6 +42,10 @@ func (a *App) serverTimeline(w http.ResponseWriter, r *http.Request) {
 		}
 		switch key {
 		case "server":
+			if list[0] == "all" {
+				allServers = true
+				break
+			}
 			id, err := strconv.ParseInt(list[0], 10, 64)
 			valid = err == nil && id > 0 && strconv.FormatInt(id, 10) == list[0]
 			filter.Server = id
@@ -84,7 +89,13 @@ func (a *App) serverTimeline(w http.ResponseWriter, r *http.Request) {
 	// The server shown: the one asked for, else the one with the newest play,
 	// else the first by name that has history.
 	var shown *timelineServer
+	if allServers {
+		shown = &timelineServer{ID: "all", Name: "All Servers", Live: true, History: true}
+	}
 	for i := range servers {
+		if allServers {
+			break
+		}
 		if filter.Server != 0 {
 			if servers[i].id == filter.Server {
 				shown = &servers[i]
@@ -162,10 +173,10 @@ func readAllTimelineServers(ctx context.Context, tx *sql.Tx) ([]timelineServer, 
 // readTimelinePeople lists, by name, the people with a play on the server,
 // recorded or imported, each once.
 func readTimelinePeople(ctx context.Context, tx *sql.Tx, server int64) ([]timelinePerson, error) {
-	rows, err := tx.QueryContext(ctx, `SELECT person,`+timelinePersonName("person")+` FROM (
-	 SELECT coalesce(h.owner_uuid,h.service_uuid) AS person FROM media_activity_history h WHERE h.server_id=?
-	 UNION SELECT `+timelineImportedPerson+` FROM history_imports i JOIN service_accounts s ON s.server_id=i.server_id AND s.external_user_id=i.account_id WHERE i.server_id=?)
-	 LIMIT 5000`, server, server)
+	rows, err := tx.QueryContext(ctx, `SELECT person,coalesce(min(nullif(name,'Unknown')),'Unknown') FROM (
+	 SELECT coalesce(h.owner_uuid,h.service_uuid) AS person,`+timelinePersonNameForService("coalesce(h.owner_uuid,h.service_uuid)", "h.service_uuid")+` AS name FROM media_activity_history h WHERE (?=0 OR h.server_id=?)
+	 UNION ALL SELECT `+timelineImportedPerson+`,`+timelinePersonNameForService(timelineImportedPerson, "s.uuid")+` FROM history_imports i JOIN service_accounts s ON s.server_id=i.server_id AND s.external_user_id=i.account_id WHERE (?=0 OR i.server_id=?))
+	 GROUP BY person LIMIT 5000`, server, server, server, server)
 	if err != nil {
 		return nil, err
 	}

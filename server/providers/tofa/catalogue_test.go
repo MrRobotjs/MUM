@@ -119,6 +119,9 @@ func TestCatalogueRejectsChangingOrDuplicatePages(t *testing.T) {
 			if mode == "changed" && revisionReads > 1 {
 				revision = 2
 			}
+			if mode == "always_changed" {
+				revision = revisionReads
+			}
 			fmt.Fprintf(w, `{"latest_revision":%d}`, revision)
 		case "/api/v1/media":
 			p := r.URL.Query().Get("page")
@@ -133,11 +136,11 @@ func TestCatalogueRejectsChangingOrDuplicatePages(t *testing.T) {
 	}))
 	defer upstream.Close()
 	s := New(provider.Config{URL: upstream.URL, Transport: provider.Transport{Client: upstream.Client()}})
-	for _, m := range []string{"good", "duplicate", "changed"} {
+	for _, m := range []string{"good", "duplicate", "changed", "always_changed"} {
 		mode = m
 		revisionReads = 0
 		items, err := s.CatalogueItems(context.Background(), library, "movie", nil)
-		if m == "good" {
+		if m == "good" || m == "changed" {
 			if err != nil || len(items) != 2 {
 				t.Fatal(items, err)
 			}

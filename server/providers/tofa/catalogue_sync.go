@@ -12,6 +12,10 @@ import (
 	"app/server/providers/provider"
 )
 
+var errCatalogueChanged = errors.New("Tofa catalogue changed during synchronization")
+
+const catalogueSnapshotAttempts = 3
+
 func (s *Server) CatalogueLibrarySupported(kind, library string) bool {
 	return uuid.MatchString(library) && (kind == "movie" || kind == "show" || kind == "mixed" || kind == "other")
 }
@@ -75,6 +79,16 @@ func (s *Server) catalogueFence(ctx context.Context, library string) (int, int64
 }
 
 func (s *Server) CatalogueItems(ctx context.Context, library, kind string, progress func(int, int)) ([]provider.CatalogueItem, error) {
+	for attempt := 0; attempt < catalogueSnapshotAttempts; attempt++ {
+		items, err := s.catalogueItemsOnce(ctx, library, kind, progress)
+		if !errors.Is(err, errCatalogueChanged) || ctx.Err() != nil || attempt == catalogueSnapshotAttempts-1 {
+			return items, err
+		}
+	}
+	return nil, errCatalogueChanged
+}
+
+func (s *Server) catalogueItemsOnce(ctx context.Context, library, kind string, progress func(int, int)) ([]provider.CatalogueItem, error) {
 	if !s.CatalogueLibrarySupported(kind, library) {
 		return nil, provider.ErrCatalogueUnsupported
 	}
@@ -163,7 +177,7 @@ func (s *Server) CatalogueItems(ctx context.Context, library, kind string, progr
 		return nil, err
 	}
 	if afterCount != count || afterRevision != revision {
-		return nil, errors.New("Tofa catalogue changed during synchronization")
+		return nil, errCatalogueChanged
 	}
 	return rows, nil
 }

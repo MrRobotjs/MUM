@@ -7,17 +7,15 @@ import (
 )
 
 // userLibraryName is one of a server's libraries as stored by the last sync.
-// Grants name libraries by the provider's external ID; internal_id is an
-// older unique key that is accepted as a fallback.
+// Grants name libraries by the provider's external ID.
 type userLibraryName struct {
 	ExternalID string
-	InternalID string
 	Name       string
 }
 
 // readUserLibraryNames lists a server's libraries in name order.
 func readUserLibraryNames(ctx context.Context, tx *sql.Tx, server int64) ([]userLibraryName, error) {
-	rows, err := tx.QueryContext(ctx, `SELECT external_id,coalesce(internal_id,''),name FROM media_libraries WHERE server_id=? ORDER BY name COLLATE NOCASE,id`, server)
+	rows, err := tx.QueryContext(ctx, `SELECT external_id,name FROM media_libraries WHERE server_id=? ORDER BY name COLLATE NOCASE,id`, server)
 	if err != nil {
 		return nil, err
 	}
@@ -25,7 +23,7 @@ func readUserLibraryNames(ctx context.Context, tx *sql.Tx, server int64) ([]user
 	list := []userLibraryName{}
 	for rows.Next() {
 		var library userLibraryName
-		if err := rows.Scan(&library.ExternalID, &library.InternalID, &library.Name); err != nil {
+		if err := rows.Scan(&library.ExternalID, &library.Name); err != nil {
 			return nil, err
 		}
 		list = append(list, library)
@@ -51,14 +49,6 @@ func userLibraryDisplayNames(libraries []userLibraryName, ids []string, all bool
 			if library.ExternalID == id {
 				name = library.Name
 				break
-			}
-		}
-		if name == "" {
-			for _, library := range libraries {
-				if library.InternalID != "" && library.InternalID == id {
-					name = library.Name
-					break
-				}
 			}
 		}
 		if name == "" {

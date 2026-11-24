@@ -302,31 +302,6 @@ func TestPlexCheckpointBlocksGenericCompletionEvenWithCompletedSteps(t *testing.
 	}
 }
 
-func TestPlexCheckpointUpgradeNeverAssumesExistingCredentialsWereUnsent(t *testing.T) {
-	_, s, job, server, _ := plexCheckpointFixture(t)
-	migration, err := migrationFiles.ReadFile("go_migrations/014_plex_share_checkpoints.sql")
-	if err != nil {
-		t.Fatal(err)
-	}
-	// Recreate the pre-014 table boundary in this disposable store, preserving the
-	// already-consumed proof/job credential that an upgrade must not replay.
-	if err := s.write(t.Context(), func(tx *sql.Tx) error {
-		if _, err := tx.Exec("DROP TABLE plex_share_checkpoints"); err != nil {
-			return err
-		}
-		_, err := tx.Exec(string(migration))
-		return err
-	}); err != nil {
-		t.Fatal(err)
-	}
-	p := readPlexCheckpoint(t, s, job, server)
-	if p.State != "send_uncertain" || p.Machine != "" || p.Share != "" || p.token != "" {
-		t.Fatal("upgrade inferred remote state", p)
-	}
-	if _, err := s.claimPlexShare(t.Context(), job, server, p.Revision, "send", checkpointPlan()); err == nil {
-		t.Fatal("upgrade allowed mutation replay")
-	}
-}
 func TestPlexCheckpointCredentialIsRetainedUntilEveryUnsentShareIsCancelled(t *testing.T) {
 	_, s, job, first, _ := plexCheckpointFixture(t)
 	r, err := s.writer.Exec(`INSERT INTO media_servers(server_nickname,service_type,url) VALUES('second-checkpoint','plex','http://fixture.invalid')`)

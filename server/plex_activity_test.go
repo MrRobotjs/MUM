@@ -50,30 +50,6 @@ func TestPlexActivityMonitoringWaitsForSocketAfterSuccessfulRead(t *testing.T) {
 	}
 }
 
-func TestSocketScheduleMigrationPreservesExistingMonitor(t *testing.T) {
-	a, s := testApp(t)
-	token, _ := bootstrapOwner(t, a)
-	server := createManagedServer(t, a, token, "plex", "http://127.0.0.1:1")
-	activityExec(t, s, `UPDATE activity_monitor_schedules SET interval_seconds=97, socket_pending=1 WHERE server_id=?`, server)
-	migration, err := migrationFiles.ReadFile("go_migrations/090_activity_socket_schedule.sql")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := s.write(t.Context(), func(tx *sql.Tx) error { _, err := tx.ExecContext(t.Context(), string(migration)); return err }); err != nil {
-		t.Fatal(err)
-	}
-	var interval int
-	var enabled, pending bool
-	if err := s.reader.QueryRow(`SELECT enabled,interval_seconds,socket_pending FROM activity_monitor_schedules WHERE server_id=?`, server).Scan(&enabled, &interval, &pending); err != nil || !enabled || interval != 97 || !pending {
-		t.Fatal(enabled, interval, pending, err)
-	}
-	other := createManagedServer(t, a, token, "jellyfin", "http://127.0.0.1:2")
-	var count int
-	if err := s.reader.QueryRow(`SELECT count(*) FROM activity_monitor_schedules WHERE server_id=?`, other).Scan(&count); err != nil || count != 1 {
-		t.Fatal(count, err)
-	}
-}
-
 func TestQuietPlexActivityFreshOnlyAfterCurrentSocketReconciliation(t *testing.T) {
 	a, s := testApp(t)
 	token, _ := bootstrapOwner(t, a)

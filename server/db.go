@@ -123,6 +123,11 @@ func openStore(ctx context.Context, path string, recovery bool) (_ *Store, err e
 	if count > 0 && versioned == 0 {
 		return nil, errors.New("unrecognized database: select a new Go application data directory")
 	}
+	if !recovery && versioned != 0 {
+		if err = s.verifyKnownMigrationHistory(ctx); err != nil {
+			return nil, err
+		}
+	}
 	if recovery {
 		if err = s.verifyCurrentSchema(ctx); err != nil {
 			return nil, err
@@ -156,6 +161,44 @@ func openStore(ctx context.Context, path string, recovery bool) (_ *Store, err e
 	return s, nil
 }
 
+// Refuse unknown, altered or incomplete histories before changing database settings.
+func (s *Store) verifyKnownMigrationHistory(ctx context.Context) error {
+	files, err := migrationFiles.ReadDir("go_migrations")
+	if err != nil {
+		return err
+	}
+	rows, err := s.writer.QueryContext(ctx, "SELECT version,checksum FROM schema_migrations ORDER BY version")
+	if err != nil {
+		return fmt.Errorf("unrecognized migration history: %w", err)
+	}
+	defer rows.Close()
+	i := 0
+	for rows.Next() {
+		var version, checksum string
+		if err := rows.Scan(&version, &checksum); err != nil {
+			return err
+		}
+		if i >= len(files) || version != files[i].Name() {
+			return fmt.Errorf("database has unsupported migration %q; use a fresh database", version)
+		}
+		body, err := migrationFiles.ReadFile("go_migrations/" + version)
+		if err != nil {
+			return err
+		}
+		if checksum != migrationChecksum(body) {
+			return fmt.Errorf("migration %s has changed", version)
+		}
+		i++
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	if i == 0 {
+		return errors.New("database has no recognized migration history; use a fresh database")
+	}
+	return nil
+}
+
 func (s *Store) Close() error {
 	var readErr, writeErr error
 	if s.reader != nil {
@@ -184,8 +227,7 @@ func (s *Store) migrate(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	pendingRebuild := false
-	err = s.write(ctx, func(tx *sql.Tx) error {
+	return s.write(ctx, func(tx *sql.Tx) error {
 		if _, err := tx.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS schema_migrations (
 			version TEXT PRIMARY KEY, checksum TEXT NOT NULL, applied_at TEXT NOT NULL)`); err != nil {
 			return err
@@ -224,25 +266,12 @@ func (s *Store) migrate(ctx context.Context) error {
 			}
 			checksum := migrationChecksum(body)
 			if previous, ok := applied[file.Name()]; ok {
-				if !migrationApplied(file.Name(), previous, body) || missing {
+				if previous != checksum || missing {
 					return fmt.Errorf("migration %s has changed or its history has a gap", file.Name())
-				}
-				// An earlier form of the fingerprint is replaced by the current one.
-				if previous != checksum {
-					if _, err := tx.ExecContext(ctx, "UPDATE schema_migrations SET checksum=? WHERE version=?", checksum, file.Name()); err != nil {
-						return err
-					}
 				}
 				continue
 			}
 			missing = true
-			if pendingRebuild {
-				break
-			}
-			if file.Name() == "094_provider_server_nicknames.sql" {
-				pendingRebuild = true
-				continue
-			}
 			if _, err := tx.ExecContext(ctx, string(body)); err != nil {
 				return fmt.Errorf("migration %s: %w", file.Name(), err)
 			}
@@ -252,13 +281,6 @@ func (s *Store) migrate(ctx context.Context) error {
 		}
 		return nil
 	})
-	if err != nil || !pendingRebuild {
-		return err
-	}
-	if err = s.migrateServerNicknames(ctx); err != nil {
-		return err
-	}
-	return s.migrate(ctx)
 }
 
 // Fixed fractional width preserves lexical ordering for newly stored UTC times.
@@ -318,7 +340,7 @@ func (s *Store) verifyCurrentSchema(ctx context.Context) error {
 		if e != nil {
 			return e
 		}
-		if !migrationApplied(version, checksum, body) {
+		if checksum != migrationChecksum(body) {
 			return errors.New("recovery refuses a changed migration checksum")
 		}
 		i++

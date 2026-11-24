@@ -71,7 +71,7 @@ func TestRecoveryStoreRefusesMissingOrInvalidHistoryWithoutMigration(t *testing.
 			if err != nil {
 				t.Fatal(err)
 			}
-			query := map[string]string{"gap": "DELETE FROM schema_migrations WHERE version='039_human_credential_revision.sql'", "checksum": "UPDATE schema_migrations SET checksum='changed' WHERE version='001_identity.sql'", "future": "INSERT INTO schema_migrations VALUES('999_future.sql','future','now')"}[mode]
+			query := map[string]string{"gap": "DELETE FROM schema_migrations WHERE version='001_baseline.sql'", "checksum": "UPDATE schema_migrations SET checksum='changed' WHERE version='001_baseline.sql'", "future": "INSERT INTO schema_migrations VALUES('999_future.sql','future','now')"}[mode]
 			if _, err = s.writer.Exec(query); err != nil {
 				t.Fatal(err)
 			}

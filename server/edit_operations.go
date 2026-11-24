@@ -535,7 +535,7 @@ func (a *App) editProviderRequest(ctx context.Context, op editOperationInput, ta
 func resolveEditLibraryIDs(ctx context.Context, tx *sql.Tx, server int64, ids []string) ([]string, error) {
 	out := []string{}
 	for _, id := range ids {
-		rows, err := tx.QueryContext(ctx, `SELECT external_id FROM media_libraries WHERE server_id=? AND is_available=1 AND (external_id=? OR internal_id=?) LIMIT 2`, server, id, id)
+		rows, err := tx.QueryContext(ctx, `SELECT external_id FROM media_libraries WHERE server_id=? AND is_available=1 AND external_id=? LIMIT 2`, server, id)
 		if err != nil {
 			return nil, err
 		}

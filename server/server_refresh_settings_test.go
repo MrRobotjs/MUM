@@ -330,30 +330,6 @@ func TestServerRefreshFailedTracksPreservePreviousTracks(t *testing.T) {
 	}
 }
 
-func TestRefreshChildrenMigrationPreservesExistingChoice(t *testing.T) {
-	a, s := testApp(t)
-	token, _ := bootstrapOwner(t, a)
-	id := createManagedServer(t, a, token, "jellyfin", "http://example.invalid")
-	activityExec(t, s, "UPDATE server_refresh_settings SET include_episodes_and_tracks=0 WHERE server_id=?", id)
-	migration, err := migrationFiles.ReadFile("go_migrations/089_refresh_episodes_and_tracks.sql")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := s.write(t.Context(), func(tx *sql.Tx) error {
-		if _, err := tx.ExecContext(t.Context(), "ALTER TABLE server_refresh_settings RENAME COLUMN include_episodes_and_tracks TO include_episodes"); err != nil {
-			return err
-		}
-		_, err := tx.ExecContext(t.Context(), string(migration))
-		return err
-	}); err != nil {
-		t.Fatal(err)
-	}
-	var value bool
-	if err := s.reader.QueryRow("SELECT include_episodes_and_tracks FROM server_refresh_settings WHERE server_id=?", id).Scan(&value); err != nil || value {
-		t.Fatal(value, err)
-	}
-}
-
 func TestServerRefreshEpisodeFailurePreservesPreviousEpisodes(t *testing.T) {
 	f := newCatalogueFixture(t, 0)
 	var server int64

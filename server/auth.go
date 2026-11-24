@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"crypto/pbkdf2"
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/subtle"
@@ -24,10 +23,8 @@ const accessTokenLifetime = 15 * time.Minute
 // Passwords are stored with Argon2id at the OWASP Password Storage Cheat
 // Sheet minimum: 19 MiB of memory, 2 iterations, 1 degree of parallelism, a
 // 16-byte random salt and a 32-byte key, in the standard PHC string format
-// ($argon2id$v=19$m=19456,t=2,p=1$salt$key). Hashes made before Argon2id
-// (PBKDF2-SHA256, 600,000 iterations) still verify, and a successful sign-in
-// replaces them, or any Argon2id hash with other parameters, with the
-// current one.
+// ($argon2id$v=19$m=19456,t=2,p=1$salt$key). Successful sign-ins upgrade
+// Argon2id hashes with other parameters to the current cost.
 
 // owaspArgon2 is the OWASP minimum cost; argon2Params is the cost of every
 // new hash. argon2Params is a variable only so the test binary can lower it
@@ -47,10 +44,6 @@ const (
 	argon2SaltLen = 16
 	argon2KeyLen  = 32
 )
-
-// passwordIterations is the PBKDF2 cost of a hash made before Argon2id. It is
-// a variable only so the test binary can lower it.
-var passwordIterations = 600000
 
 func hashPassword(password string) (string, error) {
 	if !passwordLongEnough(password) || len(password) > 1024 {
@@ -121,28 +114,12 @@ func verifyPassword(encoded, password string) bool {
 	if len(password) > 1024 {
 		return false
 	}
-	if strings.HasPrefix(encoded, "$argon2id$") {
-		cost, salt, want, ok := parseArgon2id(encoded)
-		if !ok {
-			return false
-		}
-		got := argon2.IDKey([]byte(password), salt, cost.time, cost.memory, cost.threads, uint32(len(want)))
-		return subtle.ConstantTimeCompare(got, want) == 1
-	}
-	parts := strings.Split(encoded, "$")
-	if len(parts) != 3 || parts[0] != "mum-pbkdf2-sha256" {
+	cost, salt, want, ok := parseArgon2id(encoded)
+	if !ok {
 		return false
 	}
-	salt, err := base64.RawStdEncoding.DecodeString(parts[1])
-	if err != nil || len(salt) != 32 {
-		return false
-	}
-	want, err := base64.RawStdEncoding.DecodeString(parts[2])
-	if err != nil || len(want) != 32 {
-		return false
-	}
-	got, err := pbkdf2.Key(sha256.New, password, salt, passwordIterations, 32)
-	return err == nil && subtle.ConstantTimeCompare(got, want) == 1
+	got := argon2.IDKey([]byte(password), salt, cost.time, cost.memory, cost.threads, uint32(len(want)))
+	return subtle.ConstantTimeCompare(got, want) == 1
 }
 
 func randomToken() string {

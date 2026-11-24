@@ -1,7 +1,6 @@
 package main
 
 import (
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -159,41 +158,4 @@ func TestPlexSocketFailureKeepsHTTPPolling(t *testing.T) {
 		s.reader.QueryRow("SELECT observed_source FROM media_activity_state WHERE server_id=?", server).Scan(&source)
 		return count == 1 && source == "http" && attempts.Load() >= 2
 	})
-}
-
-func TestPlexSocketMigrationPreservesDisabledChoices(t *testing.T) {
-	a, s := testApp(t)
-	token, _ := bootstrapOwner(t, a)
-	plex := createManagedServer(t, a, token, "plex", "http://127.0.0.1:1")
-	activityExec(t, s, "UPDATE media_servers SET server_nickname='Enabled Plex' WHERE id=?", plex)
-	disabled := createManagedServer(t, a, token, "plex", "http://127.0.0.1:2")
-	other := createManagedServer(t, a, token, "jellyfin", "http://127.0.0.1:3")
-	configureTestMonitor(t, a, token, disabled, false)
-	configureTestMonitor(t, a, token, other, true) // preserves an explicit sockets-off choice
-	migration, err := migrationFiles.ReadFile("go_migrations/059_plex_sockets.sql")
-	if err != nil {
-		t.Fatal(err)
-	}
-	// Reconstruct only the previous schema inside this disposable store's
-	// serialized writer transaction, then exercise the real migration SQL.
-	err = s.write(t.Context(), func(tx *sql.Tx) error {
-		for _, q := range []string{`UPDATE activity_monitor_schedules SET socket_enabled=0`, `ALTER TABLE activity_monitor_schedules DROP COLUMN socket_pending`, `ALTER TABLE media_activity_state DROP COLUMN observed_source`, string(migration)} {
-			if _, err := tx.ExecContext(t.Context(), q); err != nil {
-				return err
-			}
-		}
-		return nil
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, tc := range []struct {
-		id   int64
-		want bool
-	}{{plex, true}, {disabled, false}, {other, false}} {
-		var enabled bool
-		if err := s.reader.QueryRow("SELECT socket_enabled FROM activity_monitor_schedules WHERE server_id=?", tc.id).Scan(&enabled); err != nil || enabled != tc.want {
-			t.Fatal(tc.id, enabled, err)
-		}
-	}
 }

@@ -112,11 +112,11 @@ func TestMigrationReopenAndRejectTampering(t *testing.T) {
 			}
 			switch mode {
 			case "checksum":
-				_, err = s.writer.Exec("UPDATE schema_migrations SET checksum='changed' WHERE version='001_identity.sql'")
+				_, err = s.writer.Exec("UPDATE schema_migrations SET checksum='changed' WHERE version='001_baseline.sql'")
 			case "future":
 				_, err = s.writer.Exec("INSERT INTO schema_migrations VALUES('999_future.sql','unknown','now')")
 			case "gap":
-				_, err = s.writer.Exec("DELETE FROM schema_migrations WHERE version='001_identity.sql'")
+				_, err = s.writer.Exec("DELETE FROM schema_migrations WHERE version='001_baseline.sql'")
 			}
 			if err != nil {
 				t.Fatal(err)

@@ -35,7 +35,7 @@ func legacyHash(t *testing.T, password string) string {
 	t.Helper()
 	salt := make([]byte, 32)
 	_, _ = rand.Read(salt)
-	key, err := pbkdf2.Key(sha256.New, password, salt, passwordIterations, 32)
+	key, err := pbkdf2.Key(sha256.New, password, salt, 1000, 32)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,8 +44,8 @@ func legacyHash(t *testing.T, password string) string {
 
 func TestPasswordHashFormats(t *testing.T) {
 	old := legacyHash(t, "an older password 1")
-	if !verifyPassword(old, "an older password 1") || verifyPassword(old, "an older password 2") || !passwordNeedsRehash(old) {
-		t.Fatal("PBKDF2 hashes keep verifying and are due for replacement")
+	if verifyPassword(old, "an older password 1") {
+		t.Fatal("PBKDF2 hashes must not verify")
 	}
 	current, _ := hashPassword("a current password")
 	weaker := strings.Replace(current, "t=1", "t=3", 1)
@@ -68,12 +68,23 @@ func TestPasswordHashFormats(t *testing.T) {
 	}
 }
 
-// Signing in with a password stored the older way replaces its hash with an
-// Argon2id one; the session works and the next sign-in uses the new hash.
+// A successful sign-in upgrades an Argon2id hash with different parameters.
+func differentCostHash(t *testing.T, password string) string {
+	t.Helper()
+	old := argon2Params
+	argon2Params.time = old.time + 1
+	hash, err := newPasswordHash(password)
+	argon2Params = old
+	if err != nil {
+		t.Fatal(err)
+	}
+	return hash
+}
+
 func TestSignInUpgradesPasswordHash(t *testing.T) {
 	a, s := testApp(t)
 	_, _ = bootstrapOwner(t, a)
-	activityExec(t, s, "UPDATE user_accounts SET password_hash=? WHERE kind='owner'", legacyHash(t, "a-strong-new-password"))
+	activityExec(t, s, "UPDATE user_accounts SET password_hash=? WHERE kind='owner'", differentCostHash(t, "a-strong-new-password"))
 	var username string
 	_ = s.reader.QueryRow("SELECT local_username FROM user_accounts WHERE kind='owner'").Scan(&username)
 	for round := 0; round < 2; round++ {
@@ -96,13 +107,14 @@ func TestSignInUpgradesPasswordHash(t *testing.T) {
 		}
 	}
 	// A wrong password changes nothing.
-	activityExec(t, s, "UPDATE user_accounts SET password_hash=? WHERE kind='owner'", legacyHash(t, "a-strong-new-password"))
+	old := differentCostHash(t, "a-strong-new-password")
+	activityExec(t, s, "UPDATE user_accounts SET password_hash=? WHERE kind='owner'", old)
 	if w := apiRequest(a, "POST", "/api/auth/login", "", map[string]any{"username": username, "password": "not the password at all"}, nil); w.Code != 401 {
 		t.Fatal(w.Code)
 	}
 	var stored string
 	_ = s.reader.QueryRow("SELECT password_hash FROM user_accounts WHERE kind='owner'").Scan(&stored)
-	if !strings.HasPrefix(stored, "mum-pbkdf2-sha256$") {
+	if stored != old {
 		t.Fatal("a failed sign-in replaced the hash")
 	}
 }
@@ -110,7 +122,7 @@ func TestSignInUpgradesPasswordHash(t *testing.T) {
 func TestPasswordUpgradeFailureDoesNotIssueSession(t *testing.T) {
 	a, s := testApp(t)
 	bootstrapOwner(t, a)
-	activityExec(t, s, "UPDATE user_accounts SET password_hash=? WHERE kind='owner'", legacyHash(t, "a-strong-new-password"))
+	activityExec(t, s, "UPDATE user_accounts SET password_hash=? WHERE kind='owner'", differentCostHash(t, "a-strong-new-password"))
 	activityExec(t, s, "CREATE TRIGGER reject_hash_upgrade BEFORE UPDATE OF password_hash ON user_accounts BEGIN SELECT RAISE(ABORT, 'upgrade failed'); END")
 	before := countRows(t, s, "SELECT count(*) FROM app_sessions")
 	w := apiRequest(a, "POST", "/api/auth/login", "", map[string]any{"username": "owner", "password": "a-strong-new-password"}, nil)

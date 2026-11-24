@@ -1,7 +1,5 @@
 export * from './layout/AppLayout';
 export * from './layout/EnhancedAppLayout';
-// DEPRECATED: Old DaisyUI sidebar - replaced by AppSidebar (shadcn/ui)
-// export * from './layout/Sidebar';
 export * from './layout/AppSidebar';
 export * from './layout/NavMain';
 export * from './layout/NavSettings';

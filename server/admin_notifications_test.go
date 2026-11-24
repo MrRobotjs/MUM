@@ -215,32 +215,3 @@ func TestServerAddAndSyncRaiseNoNotification(t *testing.T) {
 	}
 	empty("after a sync")
 }
-
-// Migration 072 clears stored "not synced" notifications and their receipts.
-func TestMigrationClearsServerSyncNotifications(t *testing.T) {
-	a, s, token, _, _ := roleReadFixture(t)
-	server := seedServer(t, s)
-	if _, err := s.writer.Exec("INSERT INTO admin_notifications(notification_type,audience,server_id) VALUES('SERVER_NOT_SYNCED','administrators',?)", server); err != nil {
-		t.Fatal(err)
-	}
-	if snapshot := inboxSnapshot(t, a, token); snapshot["total"] != float64(1) {
-		t.Fatal("fixture", snapshot)
-	}
-	if _, err := s.writer.Exec("INSERT INTO admin_notification_receipts(user_uuid,notification_id,is_read) SELECT uuid,(SELECT max(id) FROM admin_notifications),1 FROM user_accounts WHERE kind='owner'"); err != nil {
-		t.Fatal(err)
-	}
-	migration, err := migrationFiles.ReadFile("go_migrations/072_no_server_sync_notice.sql")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := s.writer.Exec(string(migration)); err != nil {
-		t.Fatal(err)
-	}
-	var left int
-	if err := s.reader.QueryRow("SELECT (SELECT count(*) FROM admin_notifications)+(SELECT count(*) FROM admin_notification_receipts)").Scan(&left); err != nil || left != 0 {
-		t.Fatal(left, err)
-	}
-	if snapshot := inboxSnapshot(t, a, token); snapshot["total"] != float64(0) {
-		t.Fatal(snapshot)
-	}
-}

@@ -43,43 +43,6 @@ func TestPlexOwnerIsManagedCatalogRole(t *testing.T) {
 	}
 }
 
-func TestPlexOwnerRoleMigrationBackfillsAndAvoidsManualCollision(t *testing.T) {
-	for _, collision := range []bool{false, true} {
-		t.Run(fmt.Sprint(collision), func(t *testing.T) {
-			path, db := openSchemaBefore(t, "092")
-			for _, q := range []string{`INSERT INTO media_servers(id,server_nickname,service_type,url) VALUES(1,'fixture','plex','http://fixture.invalid')`, `INSERT INTO identities(uuid,kind) VALUES('plex-owner','service'),('plex-friend','service')`, `INSERT INTO service_accounts(uuid,server_id,external_user_id,created_at,updated_at) VALUES('plex-owner',1,'1','2026','2026'),('plex-friend',1,'2','2026','2026')`} {
-				if _, err := db.Exec(q); err != nil {
-					t.Fatal(err)
-				}
-			}
-			if collision {
-				if _, err := db.Exec(`INSERT INTO user_roles(id,name,is_auto_managed) VALUES('manual-owner','Owner',0)`); err != nil {
-					t.Fatal(err)
-				}
-			}
-			if err := db.Close(); err != nil {
-				t.Fatal(err)
-			}
-			s, err := OpenStore(t.Context(), path)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer s.Close()
-			var roles, owner, friend int
-			if err := s.reader.QueryRow(`SELECT (SELECT count(*) FROM plex_owner_role),(SELECT count(*) FROM identity_user_roles WHERE user_uuid='plex-owner'),(SELECT count(*) FROM identity_user_roles WHERE user_uuid='plex-friend')`).Scan(&roles, &owner, &friend); err != nil {
-				t.Fatal(err)
-			}
-			want := 1
-			if collision {
-				want = 0
-			}
-			if roles != want || owner != want || friend != 0 {
-				t.Fatalf("roles=%d owner=%d friend=%d", roles, owner, friend)
-			}
-		})
-	}
-}
-
 func TestPlexOwnerHomeStatusFollowsExplicitAccountFlag(t *testing.T) {
 	upstream, client, _ := extendedProviderFixture(t, "plex")
 	base := client.Transport

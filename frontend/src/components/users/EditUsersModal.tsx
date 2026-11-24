@@ -366,7 +366,7 @@ export const EditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplete, i
             const normalizedAllowedSets = usersForServer.map((serviceUser) =>
               serviceUser.hasAllLibraries
                 ? new Set(allLibraryIds)
-                : new Set(librariesForServer.filter(library => serviceUser.allowedLibraryIds.some(id => id === String(library.external_id) || id === String(library.internal_id))).map(library => String(library.id)))
+                : new Set(librariesForServer.filter(library => serviceUser.allowedLibraryIds.some(id => id === String(library.external_id))).map(library => String(library.id)))
             );
 
             let intersection = new Set<string>();

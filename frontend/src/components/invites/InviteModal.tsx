@@ -67,7 +67,6 @@ type Library = {
   id: string;
   name: string;
   external_id?: string;
-  internal_id?: string;
 };
 
 type Server = {
@@ -128,7 +127,7 @@ const supportsPerLibraryAccess = (server?: Server | null): boolean =>
   server?.invite_capabilities?.supports_library_scoped_grants !== false;
 
 const getLibraryId = (library: Library): string | null => {
-  const id = library.id || library.external_id || library.internal_id;
+  const id = library.id;
   return id ? String(id) : null;
 };
 

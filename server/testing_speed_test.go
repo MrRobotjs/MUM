@@ -13,8 +13,7 @@ import (
 // Test-only speed-ups. Neither changes what the
 // application does; both apply only inside the test binary.
 //
-//  1. Passwords are hashed at a low cost (Argon2id, and PBKDF2 for hashes made
-//     before it). Tests check that hashing and checking agree and that hashes
+//  1. Passwords are hashed at a low Argon2id cost. Tests check that hashing and checking agree and that hashes
 //     are never exposed, not how slow they are; the application keeps the
 //     OWASP Argon2id cost (19 MiB, 2 iterations, 1 thread).
 //     TestPasswordHashCost checks those values.
@@ -23,10 +22,7 @@ import (
 //     copy and verifies every migration checksum. Tests of migrations
 //     themselves build their own databases and are unaffected.
 
-const testPasswordIterations = 1_000
-
 func init() {
-	passwordIterations = testPasswordIterations
 	argon2Params = argon2Cost{memory: 64, time: 1, threads: 1}
 }
 

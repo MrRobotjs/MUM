@@ -40,33 +40,8 @@ func TestAutomaticRolesExistFromTheStart(t *testing.T) {
 	}
 }
 
-// A role someone already created under one of the names is never taken over.
-func TestAutomaticRolesNeverAdoptExistingRoles(t *testing.T) {
-	path, db := openSchemaBefore(t, "068")
-	if _, err := db.Exec("INSERT INTO user_roles(id,name,is_auto_managed) VALUES('mine','home user',0)"); err != nil {
-		t.Fatal(err)
-	}
-	if err := db.Close(); err != nil {
-		t.Fatal(err)
-	}
-	s, err := OpenStore(t.Context(), path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer s.Close()
-	var kinds string
-	var mine bool
-	if err := s.reader.QueryRow("SELECT coalesce(group_concat(kind),''),(SELECT is_auto_managed=0 FROM user_roles WHERE id='mine') FROM (SELECT kind FROM relationship_roles ORDER BY kind)").Scan(&kinds, &mine); err != nil {
-		t.Fatal(err)
-	}
-	if kinds != "shares_back" || !mine {
-		t.Fatalf("registry %q, own role kept manual %t", kinds, mine)
-	}
-}
-
-// The Plex user sync gives each account exactly the Downloads, Home User and
-// Shares Back roles plex.tv reports, and leaves them alone when it does not
-// report them.
+// The Plex user sync gives each account the roles Plex reports and preserves
+// those roles when Plex does not report them.
 func TestPlexSyncKeepsAutomaticRolesInStep(t *testing.T) {
 	upstream, client, _ := extendedProviderFixture(t, "plex")
 	base := client.Transport
@@ -161,34 +136,5 @@ func TestPlexSyncKeepsAutomaticRolesInStep(t *testing.T) {
 	var audits int
 	if err := s.reader.QueryRow("SELECT count(*) FROM audit_events WHERE action='provider.relationship_labels.reconcile'").Scan(&audits); err != nil || audits != 3 {
 		t.Fatal("relationship label changes not audited once per changing sync", audits, err)
-	}
-}
-
-// A Downloads role created by a sync before migration 068 had no colour or
-// icon; migration 069 gives it the Flask style, and leaves other roles alone.
-func TestDownloadsRoleStyleMigration(t *testing.T) {
-	path, db := openSchemaBefore(t, "069")
-	for _, statement := range []string{
-		"UPDATE user_roles SET color='#808080',icon=NULL WHERE id IN (SELECT role_id FROM download_role)",
-		"INSERT INTO user_roles(id,name,color,is_auto_managed) VALUES('grey','Grey','#808080',0)",
-	} {
-		if _, err := db.Exec(statement); err != nil {
-			t.Fatal(statement, err)
-		}
-	}
-	if err := db.Close(); err != nil {
-		t.Fatal(err)
-	}
-	s, err := OpenStore(t.Context(), path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer s.Close()
-	var style, grey string
-	if err := s.reader.QueryRow("SELECT (SELECT color||' '||icon FROM user_roles WHERE id IN (SELECT role_id FROM download_role)),(SELECT color||' '||coalesce(icon,'none') FROM user_roles WHERE id='grey')").Scan(&style, &grey); err != nil {
-		t.Fatal(err)
-	}
-	if style != "#3b82f6 fa-solid fa-download" || grey != "#808080 none" {
-		t.Fatalf("Downloads %q, other role %q", style, grey)
 	}
 }

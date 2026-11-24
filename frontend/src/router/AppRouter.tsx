@@ -212,29 +212,7 @@ const adminAdvanced = createRoute({ getParentRoute: () => adminRoute, path: 'set
 const adminApiDebug = createRoute({ getParentRoute: () => adminRoute, path: 'settings/api-debug', component: AdminSettingsApiDebugPage })
 const adminUsersGeneral = createRoute({ getParentRoute: () => adminRoute, path: 'settings/users/general', component: AdminSettingsUserGeneralPage })
 const adminAdmins = createRoute({ getParentRoute: () => adminRoute, path: 'settings/admins', component: AdminSettingsAdminManagementPage })
-// API Docs should be a standalone page, not wrapped in the admin app layout
-const apiDocsStandalone = createRoute({
-  getParentRoute: () => rootRoute,
-  path: 'api-docs',
-  component: () => (
-    <AdminGuard>
-      <Suspense
-        fallback={
-          <div className="flex min-h-[50vh] items-center justify-center px-6 py-10 text-muted-foreground">
-            <div className="flex items-center gap-3 text-base sm:text-lg">
-              <Spinner className="size-5 sm:size-6 text-muted-foreground" />
-              <span>Loading API docs...</span>
-            </div>
-          </div>
-        }
-      >
-        <ApiDocsPage />
-      </Suspense>
-    </AdminGuard>
-  ),
-})
-
-// Legacy/admin-prefixed path so servers that serve SPA under /admin/* will still resolve
+// API Docs is a standalone administrator page.
 const adminApiDocsStandalone = createRoute({
   getParentRoute: () => rootRoute,
   path: 'admin/api-docs',
@@ -321,7 +299,6 @@ const routeTree = rootRoute.addChildren([
     adminUsersGeneral,
     adminAdmins,
   ]),
-  apiDocsStandalone,
   adminApiDocsStandalone,
   inviteRoute.addChildren([inviteLanding, inviteWizard]),
   setupRoute.addChildren([setupAccount, setupApp, setupMediaServers, setupMediaService, setupServerAdd, setupFinish, setupRootRedirect, setupWildcardRedirect]),

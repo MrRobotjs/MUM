@@ -26,10 +26,9 @@ func humanEmailSQL(alias string) string {
  WHERE l.user_uuid=` + alias + `.uuid AND l.link_kind='owner' AND coalesce(sa.external_email,'')<>'' ORDER BY sa.removed_at IS NOT NULL,l.created_at,sa.uuid LIMIT 1)`
 }
 
-// lastSignInSQL is when the MUM account alias last signed in. Sign-ins
-// before last_login_at was recorded fall back to the newest session.
+// lastSignInSQL is when the MUM account alias last signed in.
 func lastSignInSQL(alias string) string {
-	return `coalesce(` + alias + `.last_login_at,(SELECT max(created_at) FROM app_sessions WHERE user_uuid=` + alias + `.uuid))`
+	return alias + `.last_login_at`
 }
 
 // signInOnlySQL matches a MUM account created by media server sign-in that

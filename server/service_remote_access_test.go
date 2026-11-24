@@ -3,14 +3,13 @@ package main
 import (
 	"app/server/providers/romm"
 	"context"
-	"crypto/sha256"
-	"database/sql"
+
 	"encoding/json"
 	"errors"
-	"fmt"
+
 	"io"
 	"net/http"
-	"path/filepath"
+
 	"slices"
 	"strings"
 	"sync/atomic"
@@ -609,98 +608,6 @@ func TestRecordedEnableAdaptersPreserveAccess(t *testing.T) {
 	})
 }
 
-// openSchemaBefore applies the embedded migrations that sort before prefix to a
-// raw database, as an earlier executable would have left it.
-func openSchemaBefore(t *testing.T, prefix string) (string, *sql.DB) {
-	t.Helper()
-	path := filepath.Join(t.TempDir(), "mum.db")
-	db, err := sql.Open("sqlite", sqliteDSN(path, false))
-	if err != nil {
-		t.Fatal(err)
-	}
-	db.SetMaxOpenConns(1)
-	for _, statement := range []string{"PRAGMA foreign_keys=ON", "CREATE TABLE schema_migrations (version TEXT PRIMARY KEY, checksum TEXT NOT NULL, applied_at TEXT NOT NULL)"} {
-		if _, err = db.Exec(statement); err != nil {
-			t.Fatal(err)
-		}
-	}
-	files, err := migrationFiles.ReadDir("go_migrations")
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, file := range files {
-		if file.Name() >= prefix {
-			break
-		}
-		body, err := migrationFiles.ReadFile("go_migrations/" + file.Name())
-		if err != nil {
-			t.Fatal(err)
-		}
-		if _, err = db.Exec(string(body)); err != nil {
-			t.Fatal(file.Name(), err)
-		}
-		if _, err = db.Exec("INSERT INTO schema_migrations VALUES(?,?,?)", file.Name(), fmt.Sprintf("%x", sha256.Sum256(body)), utcTimestamp(time.Now())); err != nil {
-			t.Fatal(err)
-		}
-	}
-	return path, db
-}
-
-func TestServiceRemoteEnableMigrationKeepsOutcomesAndResolvesLeases(t *testing.T) {
-	path, db := openSchemaBefore(t, "047")
-	now := utcTimestamp(time.Now())
-	for _, statement := range []string{
-		"INSERT INTO identities(uuid,kind) VALUES('11111111-1111-1111-1111-111111111111','owner')",
-		"INSERT INTO user_accounts(uuid,kind,local_username,created_at,updated_at) VALUES('11111111-1111-1111-1111-111111111111','owner','owner','" + now + "','" + now + "')",
-		"INSERT INTO media_servers(id,server_nickname,service_type,url) VALUES(1,'fixture','jellyfin','http://fixture.invalid')",
-		"INSERT INTO identities(uuid,kind) VALUES('22222222-2222-2222-2222-222222222222','service'),('33333333-3333-3333-3333-333333333333','service')",
-		"INSERT INTO service_accounts(uuid,server_id,external_user_id,created_at,updated_at) VALUES('22222222-2222-2222-2222-222222222222',1,'done','" + now + "','" + now + "'),('33333333-3333-3333-3333-333333333333',1,'lease','" + now + "','" + now + "')",
-		"UPDATE service_remote_access SET state='disabled',checked_at='" + now + "',revision=3 WHERE service_uuid='22222222-2222-2222-2222-222222222222'",
-		"UPDATE service_remote_access SET state='running',operation_token='lease',actor_uuid='11111111-1111-1111-1111-111111111111',access_hash='x',role_revision=1,config_revision=1,link_revision=1,provider_fingerprint='x',external_user_id='lease',operation_expires_at='2999-01-01T00:00:00Z',revision=5 WHERE service_uuid='33333333-3333-3333-3333-333333333333'",
-	} {
-		if _, err := db.Exec(statement); err != nil {
-			t.Fatal(statement, err)
-		}
-	}
-	if err := db.Close(); err != nil {
-		t.Fatal(err)
-	}
-	s, err := OpenStore(t.Context(), path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer s.Close()
-	read := func(service string) string {
-		var value string
-		if err := s.reader.QueryRow("SELECT state||'/'||coalesce(error_code,'')||'/'||revision||'/'||(operation_token IS NULL)||'/'||(operation_kind IS NULL) FROM service_remote_access WHERE service_uuid=?", service).Scan(&value); err != nil {
-			t.Fatal(err)
-		}
-		return value
-	}
-	if got := read("22222222-2222-2222-2222-222222222222"); got != "disabled//3/1/1" {
-		t.Fatal("completed outcome changed", got)
-	}
-	if got := read("33333333-3333-3333-3333-333333333333"); got != "unknown/INTERRUPTED_RECONCILIATION_REQUIRED/6/1/1" {
-		t.Fatal("pre-migration lease survived as live", got)
-	}
-	// The recreated insert trigger still seeds rows, and a lease without a kind is refused.
-	if _, err := s.writer.Exec("INSERT INTO identities(uuid,kind) VALUES('44444444-4444-4444-4444-444444444444','service')"); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := s.writer.Exec("INSERT INTO service_accounts(uuid,server_id,external_user_id,created_at,updated_at) VALUES('44444444-4444-4444-4444-444444444444',1,'new',?,?)", now, now); err != nil {
-		t.Fatal(err)
-	}
-	if got := read("44444444-4444-4444-4444-444444444444"); got != "none//1/1/1" {
-		t.Fatal("insert trigger lost", got)
-	}
-	if _, err := s.writer.Exec("UPDATE service_remote_access SET state='running',operation_token='t',actor_uuid='11111111-1111-1111-1111-111111111111',access_hash='x',role_revision=1,config_revision=1,link_revision=1,provider_fingerprint='x',external_user_id='new',operation_expires_at='2999-01-01T00:00:00Z' WHERE service_uuid='44444444-4444-4444-4444-444444444444'"); err == nil {
-		t.Fatal("lease without operation kind accepted")
-	}
-	if err := s.CheckIntegrity(t.Context()); err != nil {
-		t.Fatal(err)
-	}
-}
-
 func (f *remoteFixture) remove(t *testing.T, p map[string]any, name string) (int, map[string]any) {
 	t.Helper()
 	body := remoteBody(p)
@@ -844,49 +751,5 @@ func TestRecordedDeleteAdaptersUseRecordedIDs(t *testing.T) {
 		if serviceRemoteDeletable(kind) || (&serverConnection{config: ProviderConfig{Type: kind}}).deleteRecordedUser(t.Context(), remoteReview{ID: "1", Disabled: true}) == nil {
 			t.Fatal(kind, "delete allowed")
 		}
-	}
-}
-
-func TestServiceRemoteDeleteMigrationCarriesEveryColumn(t *testing.T) {
-	path, db := openSchemaBefore(t, "048")
-	now := utcTimestamp(time.Now())
-	for _, statement := range []string{
-		"INSERT INTO identities(uuid,kind) VALUES('11111111-1111-1111-1111-111111111111','owner'),('22222222-2222-2222-2222-222222222222','service'),('33333333-3333-3333-3333-333333333333','service')",
-		"INSERT INTO user_accounts(uuid,kind,local_username,created_at,updated_at) VALUES('11111111-1111-1111-1111-111111111111','owner','owner','" + now + "','" + now + "')",
-		"INSERT INTO media_servers(id,server_nickname,service_type,url) VALUES(1,'fixture','jellyfin','http://fixture.invalid')",
-		"INSERT INTO service_accounts(uuid,server_id,external_user_id,created_at,updated_at) VALUES('22222222-2222-2222-2222-222222222222',1,'done','" + now + "','" + now + "'),('33333333-3333-3333-3333-333333333333',1,'lease','" + now + "','" + now + "')",
-		"UPDATE service_remote_access SET state='enabled',checked_at='" + now + "',revision=4 WHERE service_uuid='22222222-2222-2222-2222-222222222222'",
-		"UPDATE service_remote_access SET state='running',operation_token='lease',operation_kind='enable',actor_uuid='11111111-1111-1111-1111-111111111111',access_hash='x',role_revision=1,config_revision=1,link_revision=1,provider_fingerprint='x',external_user_id='lease',operation_expires_at='2999-01-01T00:00:00Z',revision=5 WHERE service_uuid='33333333-3333-3333-3333-333333333333'",
-	} {
-		if _, err := db.Exec(statement); err != nil {
-			t.Fatal(statement, err)
-		}
-	}
-	snapshot := func(q interface {
-		QueryRow(string, ...any) *sql.Row
-	}) string {
-		var value string
-		if err := q.QueryRow("SELECT json_group_array(json_array(service_uuid,revision,state,error_code,checked_at,operation_token,operation_kind,actor_uuid,access_hash,role_revision,config_revision,link_revision,provider_fingerprint,external_user_id,operation_expires_at)) FROM (SELECT * FROM service_remote_access ORDER BY service_uuid)").Scan(&value); err != nil {
-			t.Fatal(err)
-		}
-		return value
-	}
-	before := snapshot(db)
-	if err := db.Close(); err != nil {
-		t.Fatal(err)
-	}
-	s, err := OpenStore(t.Context(), path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer s.Close()
-	if after := snapshot(s.reader); after != before {
-		t.Fatal("migration 048 changed rows", before, after)
-	}
-	if _, err := s.writer.Exec("UPDATE service_remote_access SET state='deleted' WHERE service_uuid='22222222-2222-2222-2222-222222222222'"); err != nil {
-		t.Fatal("deleted state rejected", err)
-	}
-	if err := s.CheckIntegrity(t.Context()); err != nil {
-		t.Fatal(err)
 	}
 }

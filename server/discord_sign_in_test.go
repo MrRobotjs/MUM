@@ -4,7 +4,6 @@ import (
 	"net/http"
 	"net/url"
 	"testing"
-	"time"
 )
 
 // discordSignInApp turns on verified Discord with the fixture and returns the
@@ -216,42 +215,4 @@ func refreshCookie(cookies []*http.Cookie) *http.Cookie {
 		}
 	}
 	return nil
-}
-
-// Migration 077 rebuilds the sessions table for the new origin; everyone stays
-// signed in, and an account's sessions and access tokens still go with it.
-func TestDiscordMigrationKeepsSessions(t *testing.T) {
-	db, path := databaseBefore(t, "077")
-	now := utcTimestamp(time.Now())
-	later := utcTimestamp(time.Now().Add(time.Hour))
-	for _, statement := range []string{
-		"INSERT INTO identities(uuid,kind) VALUES('11111111-1111-4111-8111-111111111111','local')",
-		"INSERT INTO user_accounts(uuid,kind,local_username,created_at,updated_at) VALUES('11111111-1111-4111-8111-111111111111','local','kept','" + now + "','" + now + "')",
-		"INSERT INTO app_sessions(id,user_uuid,access_hash,refresh_hash,access_expires_at,refresh_expires_at,created_at) VALUES('s1','11111111-1111-4111-8111-111111111111','a1','r1','" + later + "','" + later + "','" + now + "')",
-		"INSERT INTO session_access_tokens VALUES('a1','s1','" + later + "')",
-	} {
-		if _, err := db.Exec(statement); err != nil {
-			t.Fatal(statement, err)
-		}
-	}
-	if err := db.Close(); err != nil {
-		t.Fatal(err)
-	}
-	s, err := OpenStore(t.Context(), path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer s.Close()
-	var origin string
-	var tokens int
-	if err := s.reader.QueryRow("SELECT s.sign_in_origin,(SELECT count(*) FROM session_access_tokens WHERE session_id=s.id) FROM app_sessions s WHERE s.id='s1'").Scan(&origin, &tokens); err != nil || origin != "password" || tokens != 1 {
-		t.Fatal("session", origin, tokens, err)
-	}
-	if _, err := s.writer.Exec("DELETE FROM user_accounts WHERE uuid='11111111-1111-4111-8111-111111111111'"); err != nil {
-		t.Fatal(err)
-	}
-	var left int
-	if err := s.reader.QueryRow("SELECT (SELECT count(*) FROM app_sessions)+(SELECT count(*) FROM session_access_tokens)").Scan(&left); err != nil || left != 0 {
-		t.Fatal("sessions outlived their account", left, err)
-	}
 }

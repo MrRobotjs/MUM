@@ -4,6 +4,7 @@ import (
 	"app/server/providers/audiobookshelf"
 	"app/server/providers/mediabrowser"
 	"app/server/providers/plex"
+	"app/server/providers/tofa"
 	"context"
 	"database/sql"
 	"errors"
@@ -44,7 +45,7 @@ func (a *App) readActivityPictureSource(ctx context.Context, session string, ite
 	err = tx.QueryRowContext(ctx, `SELECT s.service_type,s.url,coalesce(s.api_key,''),`+externalColumn+`,`+tagColumn+`,s.id,s.config_revision,a.mapping_revision,a.observed_at,a.pending_until
 	FROM media_activity_current c JOIN media_activity_history h ON h.id=c.history_id
 	JOIN media_servers s ON s.id=c.server_id JOIN provider_settings p ON p.provider_id=s.service_type JOIN media_activity_state a ON a.server_id=s.id
-	WHERE h.id=? AND s.service_type IN ('plex','jellyfin','emby') AND s.is_active=1 AND p.enabled=1 AND a.last_result='fresh'
+	WHERE h.id=? AND s.service_type IN ('plex','jellyfin','emby','tofa') AND s.is_active=1 AND p.enabled=1 AND a.last_result='fresh'
 	AND a.observed_config_revision=s.config_revision AND a.observed_mapping_revision=a.mapping_revision`, item).Scan(&source.Provider, &source.URL, &source.APIKey, &source.External, &source.Tag, &source.Server, &source.ConfigRevision, &source.ActivityMappingRevision, &observed, &pending)
 	if errors.Is(err, sql.ErrNoRows) {
 		return source, ErrNotFound
@@ -66,6 +67,9 @@ func (a *App) readActivityPictureSource(ctx context.Context, session string, ite
 	valid := validPlexCataloguePoster(source.External, source.Tag)
 	if source.Provider == "jellyfin" || source.Provider == "emby" {
 		valid = mediabrowser.ValidToken(source.External) && mediabrowser.ValidToken(source.Tag)
+	}
+	if source.Provider == "tofa" {
+		valid = tofa.ValidMediaID(source.External) && source.Tag == "poster"
 	}
 	if avatar {
 		valid = source.Provider == "plex" && source.Tag != "" && plex.ActivityAvatar(source.Tag) == source.Tag

@@ -25,7 +25,7 @@ import (
 // most active users and most active libraries, ranked by plays or by time.
 
 // monitoredActivity are the server types MUM records itself.
-var monitoredActivity = []string{"plex", "jellyfin", "emby"}
+var monitoredActivity = []string{"plex", "jellyfin", "emby", "tofa"}
 
 // importedActivity are the server types whose activity comes from imported history.
 func importedActivity() []string {

@@ -49,6 +49,7 @@ const SERVICE_COLORS: Record<string, string> = {
   plex: 'var(--color-plex)',
   jellyfin: 'var(--color-jellyfin)',
   emby: 'var(--color-emby)',
+  tofa: 'var(--color-primary)',
   kavita: 'var(--color-kavita)',
   audiobookshelf: 'var(--color-audiobookshelf)',
   komga: 'var(--color-komga)',

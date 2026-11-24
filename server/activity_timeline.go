@@ -535,7 +535,7 @@ func readTimelineServers(ctx context.Context, tx *sql.Tx, actor string, q activi
 			return nil, err
 		}
 		server.ID = strconv.FormatInt(server.id, 10)
-		server.Live = server.Type == "plex" || server.Type == "jellyfin" || server.Type == "emby"
+		server.Live = server.Type == "plex" || server.Type == "jellyfin" || server.Type == "emby" || server.Type == "tofa"
 		server.History = server.Live || slices.Contains(importableHistory, server.Type)
 		index[server.id] = len(servers)
 		servers = append(servers, server)

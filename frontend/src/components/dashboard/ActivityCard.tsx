@@ -168,7 +168,7 @@ export function ActivityStatistics({ fixedServer }: { fixedServer?: { id: number
   const byID = new Map(reporting.map(s => [s.server_id, s]));
   const chosen = server !== null ? byID.get(server) : undefined;
   // Imported history only changes the servers MUM records itself.
-  const recordsItself = (s: ActivityServer) => ['plex', 'jellyfin', 'emby'].includes(s.service_type.toLowerCase());
+  const recordsItself = (s: ActivityServer) => ['plex', 'jellyfin', 'emby', 'tofa'].includes(s.service_type.toLowerCase());
   const importToggle = server === null ? reporting.some(recordsItself) : chosen !== undefined && recordsItself(chosen);
   // Badges show which server something is from, when there's more than one to tell apart.
   const badgesFor = (ids: number[]) => several && server === null ? ids.flatMap(id => byID.get(id) ?? []) : undefined;

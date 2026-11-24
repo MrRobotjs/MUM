@@ -15,7 +15,7 @@ test('server sidebar pages', async () => {
   assert.deepEqual(titles('emby'), ['Overview', 'Users', 'Libraries', 'History', 'Graphs']);
   assert.deepEqual(titles('audiobookshelf'), ['Overview', 'Users', 'Libraries', 'History']);
   assert.deepEqual(titles('kavita'), ['Overview', 'Users', 'Libraries']);
-  assert.deepEqual(titles('tofa'), ['Overview', 'Users', 'Libraries']);
+  assert.deepEqual(titles('tofa'), ['Overview', 'Users', 'Libraries', 'History', 'Graphs']);
   const graphs = m.serverPagesFor('plex').find(p => p.title === 'Graphs');
   assert.equal(graphs.to, '/admin/servers/$serverType/$serverId/graphs');
   assert.equal(graphs.suffix, '/graphs');

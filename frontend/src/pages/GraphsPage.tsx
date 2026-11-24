@@ -88,7 +88,7 @@ const STORAGE_KEY = 'mum_graphs_filters';
 // A server overview remembers only its time range, separately from the Graphs page.
 const SERVER_STORAGE_KEY = 'mum_server_graphs_days';
 // Servers whose plays MUM records, so their overviews show these graphs.
-export const ACTIVITY_GRAPH_SERVICES = new Set(['plex', 'jellyfin', 'emby']);
+export const ACTIVITY_GRAPH_SERVICES = new Set(['plex', 'jellyfin', 'emby', 'tofa']);
 const DEVICE_COLORS = ['#06b6d4', '#3b82f6', '#8b5cf6', '#64748b', '#f59e0b', '#ec4899'];
 const PLAYBACK_HEALTH_UNSUPPORTED_SERVICES = new Set(['kavita', 'komga', 'romm']);
 const SERVICE_LINE_COLORS: Record<string, string> = {

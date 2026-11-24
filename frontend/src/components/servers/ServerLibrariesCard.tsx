@@ -78,7 +78,7 @@ export function ServerLibrariesCard({ serverId, serverSlug, serviceType, onSync,
     wasSyncing.current = syncing;
   }, [syncing, mutate]);
 
-  const live = data?.live ?? ['plex', 'jellyfin', 'emby'].includes(serviceType);
+  const live = data?.live ?? ['plex', 'jellyfin', 'emby', 'tofa'].includes(serviceType);
   // Watch time comes from MUM's recordings; it's left out when they aren't shown.
   const mumColumns = live && records !== 'server';
   const columns = useMemo(() => {

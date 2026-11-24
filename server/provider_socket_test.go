@@ -234,3 +234,99 @@ func TestProviderSocketWorkerReportsRejectedAdmission(t *testing.T) {
 		t.Fatal("rejected metadata reported as accepted")
 	}
 }
+
+func TestTofaSocketWaitsForAuthentication(t *testing.T) {
+	a, _ := testApp(t)
+	received := make(chan struct{})
+	release := make(chan struct{})
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c, err := websocket.Accept(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer c.CloseNow()
+		var auth map[string]string
+		if wsjson.Read(r.Context(), c, &auth) != nil {
+			return
+		}
+		if auth["type"] != "auth" || auth["token"] != "fixture-secret" {
+			return
+		}
+		close(received)
+		select {
+		case <-release:
+		case <-r.Context().Done():
+			return
+		}
+		_ = wsjson.Write(r.Context(), c, map[string]string{"type": "auth_ok"})
+		<-r.Context().Done()
+	}))
+	defer upstream.Close()
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	w := &providerSocketWorker{done: make(chan struct{}), state: "connecting"}
+	go a.runProviderSocket(ctx, w, ManagedServer{ID: 1, Type: "tofa", URL: upstream.URL, apiKey: "fixture-secret"})
+	select {
+	case <-received:
+	case <-time.After(3 * time.Second):
+		t.Fatal("authentication not sent")
+	}
+	w.mu.Lock()
+	state := w.state
+	w.mu.Unlock()
+	if state == "connected" {
+		t.Fatal("connected before auth acknowledgement")
+	}
+	close(release)
+	waitProviderSocket(t, func() bool { w.mu.Lock(); defer w.mu.Unlock(); return w.state == "connected" })
+	cancel()
+	select {
+	case <-w.done:
+	case <-time.After(3 * time.Second):
+		t.Fatal("socket worker did not stop")
+	}
+}
+
+func TestTofaSocketRejectsFailedAuthentication(t *testing.T) {
+	a, _ := testApp(t)
+	received := make(chan struct{}, 1)
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c, err := websocket.Accept(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer c.CloseNow()
+		var auth map[string]string
+		if wsjson.Read(r.Context(), c, &auth) != nil {
+			return
+		}
+		_ = wsjson.Write(r.Context(), c, map[string]string{"error": "unauthorized"})
+		select {
+		case received <- struct{}{}:
+		default:
+		}
+	}))
+	defer upstream.Close()
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	worker := &providerSocketWorker{done: make(chan struct{}), state: "connecting"}
+	go a.runProviderSocket(ctx, worker, ManagedServer{ID: 1, Type: "tofa", URL: upstream.URL, apiKey: "fixture-secret"})
+	select {
+	case <-received:
+	case <-time.After(3 * time.Second):
+		t.Fatal("authentication not attempted")
+	}
+	waitProviderSocket(t, func() bool { worker.mu.Lock(); defer worker.mu.Unlock(); return worker.state == "backoff" })
+	worker.mu.Lock()
+	state := worker.state
+	worker.mu.Unlock()
+	if state == "connected" || worker.dirty.Load() {
+		t.Fatal("unauthenticated socket reported connected")
+	}
+	cancel()
+	select {
+	case <-worker.done:
+	case <-time.After(3 * time.Second):
+		t.Fatal("worker did not stop")
+	}
+}

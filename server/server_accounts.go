@@ -148,7 +148,7 @@ func (a *App) serverAccounts(w http.ResponseWriter, r *http.Request) {
 		domainError(w, err)
 		return
 	}
-	live := kind == "plex" || kind == "jellyfin" || kind == "emby"
+	live := kind == "plex" || kind == "jellyfin" || kind == "emby" || kind == "tofa"
 	withMUM, withImported := live && records != "server", records != "mum" && slices.Contains(importableHistory, kind)
 
 	where := " WHERE a.server_id=? AND a.removed_at IS NULL"

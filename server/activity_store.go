@@ -135,7 +135,7 @@ func commitActivitySnapshot(ctx context.Context, tx *sql.Tx, c activityReadClaim
 			return result, errActivitySnapshot
 		}
 		seen[session.Session] = true
-		if c.Provider == "plex" {
+		if c.Provider == "plex" || c.Provider == "tofa" {
 			var exists bool
 			if err := tx.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM service_accounts WHERE server_id=? AND external_user_id=?)", c.Server, session.User).Scan(&exists); err != nil {
 				return result, err
@@ -150,10 +150,17 @@ func commitActivitySnapshot(ctx context.Context, tx *sql.Tx, c activityReadClaim
 				}
 				id := newUUID()
 				now := utcTimestamp(time.Now())
+				settings := `{"activity_observed":true}`
+				if c.Provider == "tofa" {
+					settings = `{"activity_observed":true,"library_policy_known":false}`
+					if session.UserName == "" {
+						session.UserName = "Unknown user"
+					}
+				}
 				if _, err := tx.ExecContext(ctx, "INSERT INTO identities(uuid,kind) VALUES(?,'service')", id); err != nil {
 					return result, err
 				}
-				if _, err := tx.ExecContext(ctx, `INSERT INTO service_accounts(uuid,server_id,external_user_id,external_username,service_settings,created_at,updated_at) VALUES(?,?,?,?,?, ?,?)`, id, c.Server, session.User, session.UserName, `{"activity_observed":true}`, now, now); err != nil {
+				if _, err := tx.ExecContext(ctx, `INSERT INTO service_accounts(uuid,server_id,external_user_id,external_username,service_settings,created_at,updated_at) VALUES(?,?,?,?,?, ?,?)`, id, c.Server, session.User, session.UserName, settings, now, now); err != nil {
 					return result, err
 				}
 				if err := auditAction(ctx, tx, c.Actor, "activity.identity.observe"); err != nil {
@@ -167,7 +174,7 @@ func commitActivitySnapshot(ctx context.Context, tx *sql.Tx, c activityReadClaim
 			// owner never appears in the cloud user list). It only fills an empty
 			// avatar, so a cloud profile from user sync is never overwritten, and it
 			// commits or rolls back with the rest of this validated snapshot.
-			if session.Display != nil && session.Display.AvatarPath != "" && plex.UserAvatar(session.Display.AvatarPath) == session.Display.AvatarPath {
+			if c.Provider == "plex" && session.Display != nil && session.Display.AvatarPath != "" && plex.UserAvatar(session.Display.AvatarPath) == session.Display.AvatarPath {
 				if _, err := tx.ExecContext(ctx, `UPDATE service_accounts SET external_avatar_url=? WHERE server_id=? AND external_user_id=? AND coalesce(external_avatar_url,'')=''`, session.Display.AvatarPath, c.Server, session.User); err != nil {
 					return result, err
 				}

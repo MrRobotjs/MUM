@@ -103,7 +103,7 @@ func (a *App) StartScheduler() error {
 			if err := reconcileAutomaticActivity(s.ctx, tx); err != nil {
 				return err
 			}
-			_, err := tx.ExecContext(s.ctx, `UPDATE activity_monitor_schedules SET next_run_at=strftime('%Y-%m-%dT%H:%M:%fZ','now'),revision=revision+1 WHERE enabled=1 AND run_state<>'running' AND server_id IN (SELECT id FROM media_servers WHERE service_type IN ('plex','jellyfin','emby'))`)
+			_, err := tx.ExecContext(s.ctx, `UPDATE activity_monitor_schedules SET next_run_at=strftime('%Y-%m-%dT%H:%M:%fZ','now'),revision=revision+1 WHERE enabled=1 AND run_state<>'running' AND server_id IN (SELECT id FROM media_servers WHERE service_type IN ('plex','jellyfin','emby','tofa'))`)
 			return err
 		}); err != nil && s.ctx.Err() == nil {
 			s.mu.Lock()

@@ -10,6 +10,7 @@ func TestAutomaticMonitoringReconcilesOnlySupportedSources(t *testing.T) {
 	a, s := testApp(t)
 	token, _ := bootstrapOwner(t, a)
 	plex := createManagedServer(t, a, token, "plex", "http://example.invalid")
+	tofa := createManagedServer(t, a, token, "tofa", "http://example.invalid")
 	kavita := createManagedServer(t, a, token, "kavita", "http://example.invalid")
 	configureTestMonitor(t, a, token, plex, false)
 	if err := s.write(t.Context(), func(tx *sql.Tx) error { return reconcileAutomaticActivity(t.Context(), tx) }); err != nil {
@@ -18,6 +19,9 @@ func TestAutomaticMonitoringReconcilesOnlySupportedSources(t *testing.T) {
 	var enabled, sockets bool
 	if err := s.reader.QueryRow("SELECT enabled,socket_enabled FROM activity_monitor_schedules WHERE server_id=?", plex).Scan(&enabled, &sockets); err != nil || !enabled || !sockets {
 		t.Fatal(enabled, sockets, err)
+	}
+	if err := s.reader.QueryRow("SELECT enabled,socket_enabled FROM activity_monitor_schedules WHERE server_id=?", tofa).Scan(&enabled, &sockets); err != nil || !enabled || !sockets {
+		t.Fatal("Tofa monitoring not enabled", enabled, sockets, err)
 	}
 	var count int
 	if err := s.reader.QueryRow("SELECT count(*) FROM activity_monitor_schedules WHERE server_id=? AND enabled=1", kavita).Scan(&count); err != nil || count != 0 {

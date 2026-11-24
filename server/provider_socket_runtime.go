@@ -7,7 +7,7 @@ import (
 )
 
 func (a *App) providerSocketTargets(ctx context.Context) ([]providerSocketTarget, error) {
-	rows, err := a.store.reader.QueryContext(ctx, `SELECT q.server_id,q.socket_revision,s.config_revision,q.authorized_by FROM activity_monitor_schedules q JOIN media_servers s ON s.id=q.server_id JOIN provider_settings p ON p.provider_id=s.service_type JOIN user_accounts u ON u.uuid=q.authorized_by WHERE q.enabled=1 AND q.socket_enabled=1 AND s.config_revision=q.configured_server_revision AND s.is_active=1 AND p.enabled=1 AND s.service_type IN ('jellyfin','emby','plex') AND u.kind='owner' AND u.is_active=1 AND (u.access_expires_at IS NULL OR julianday(u.access_expires_at)>julianday('now')) ORDER BY q.server_id`)
+	rows, err := a.store.reader.QueryContext(ctx, `SELECT q.server_id,q.socket_revision,s.config_revision,q.authorized_by FROM activity_monitor_schedules q JOIN media_servers s ON s.id=q.server_id JOIN provider_settings p ON p.provider_id=s.service_type JOIN user_accounts u ON u.uuid=q.authorized_by WHERE q.enabled=1 AND q.socket_enabled=1 AND s.config_revision=q.configured_server_revision AND s.is_active=1 AND p.enabled=1 AND s.service_type IN ('jellyfin','emby','plex','tofa') AND u.kind='owner' AND u.is_active=1 AND (u.access_expires_at IS NULL OR julianday(u.access_expires_at)>julianday('now')) ORDER BY q.server_id`)
 	if err != nil {
 		return nil, err
 	}

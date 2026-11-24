@@ -18,7 +18,7 @@ func reconcileAutomaticActivity(ctx context.Context, tx *sql.Tx) error {
 	if err != nil {
 		return err
 	}
-	stale := `SELECT q.server_id FROM activity_monitor_schedules q JOIN media_servers s ON s.id=q.server_id JOIN provider_settings p ON p.provider_id=s.service_type WHERE s.is_active=1 AND p.enabled=1 AND s.service_type IN ('plex','jellyfin','emby') AND (q.enabled=0 OR q.socket_enabled=0 OR q.authorized_by IS NOT ? OR q.configured_server_revision IS NOT s.config_revision)`
+	stale := `SELECT q.server_id FROM activity_monitor_schedules q JOIN media_servers s ON s.id=q.server_id JOIN provider_settings p ON p.provider_id=s.service_type WHERE s.is_active=1 AND p.enabled=1 AND s.service_type IN ('plex','jellyfin','emby','tofa') AND (q.enabled=0 OR q.socket_enabled=0 OR q.authorized_by IS NOT ? OR q.configured_server_revision IS NOT s.config_revision)`
 	if _, err := tx.ExecContext(ctx, `UPDATE media_activity_state SET pending_token=NULL,pending_at=NULL,pending_until=NULL,last_result='failed',revision=revision+1 WHERE server_id IN (`+stale+`) AND pending_token IS NOT NULL AND pending_token=(SELECT claim_token FROM activity_monitor_schedules q WHERE q.server_id=media_activity_state.server_id)`, owner); err != nil {
 		return err
 	}

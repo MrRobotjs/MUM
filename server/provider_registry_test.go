@@ -59,7 +59,7 @@ func TestRegisteredModulesAreConsistent(t *testing.T) {
 			t.Fatalf("%s: recovering module has no remote access scope", id)
 		}
 		// Only the services MUM monitors read live sessions.
-		if want := id == "plex" || id == "jellyfin" || id == "emby"; activitySupported(id) != want {
+		if want := id == "plex" || id == "jellyfin" || id == "emby" || id == "tofa"; activitySupported(id) != want {
 			t.Fatalf("%s: session monitoring support is %v", id, !want)
 		}
 		// A live connection only nudges session reads, so it needs them.

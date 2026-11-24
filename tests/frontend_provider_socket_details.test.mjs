@@ -22,4 +22,6 @@ test('provider socket status and subscription descriptions are truthful',async()
  assert.ok(m.providerSocketSubscriptions(task).events.includes('playing'));
  assert.match(m.providerSocketSubscriptions({...task,provider:'jellyfin'}).subscription,/SessionsStart/);
  assert.ok(m.providerSocketSubscriptions({...task,provider:'emby'}).events.includes('Sessions'));
+ assert.ok(m.providerSocketSubscriptions({...task,provider:'tofa'}).events.includes('StreamProgress'));
+ assert.ok(m.providerSocketSubscriptions({...task,provider:'tofa'}).events.includes('EventsMissed'));
 });

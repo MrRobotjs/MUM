@@ -8,7 +8,7 @@ import (
 // enrichMediaBrowserLocations uses only a configured active Plex credential.
 // Failure is optional and must never discard a valid media-session snapshot.
 func (a *App) enrichMediaBrowserLocations(ctx context.Context, snapshot *activitySnapshot) {
-	if snapshot.Provider != "jellyfin" && snapshot.Provider != "emby" {
+	if snapshot.Provider != "jellyfin" && snapshot.Provider != "emby" && snapshot.Provider != "tofa" {
 		return
 	}
 	found := false

@@ -22,5 +22,6 @@ export function socketMonitoringStatus(task:MonitorTask):string {
 
 export function providerSocketSubscriptions(task:MonitorTask):{subscription:string;events:string[]} {
   if (task.provider === 'plex') return {subscription:'Plex provides a notification stream; it does not use a separate channel subscription here.',events:['playing','timeline','activity','transcodeSession.start','transcodeSession.end']};
+  if (task.provider === 'tofa') return {subscription:'Tofa sends playback events after MUM authenticates the connection.',events:['StreamStarted','StreamUpdated','StreamProgress','StreamStopped','EventsMissed']};
   return {subscription:'MUM requests session updates every 5 seconds with SessionsStart; it does not verify a subscription acknowledgement.',events:['Sessions','SessionStart','SessionEnded','PlaybackStart','PlaybackStopped','PlaybackProgress']};
 }

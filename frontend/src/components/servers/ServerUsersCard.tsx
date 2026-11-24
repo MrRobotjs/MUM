@@ -97,7 +97,7 @@ export function ServerUsersCard({ serverId, serverSlug, serviceType, onSync, syn
     return () => window.clearInterval(timer);
   }, [importStatus?.state, serverId, mutate]);
 
-  const live = data?.live ?? ['plex', 'jellyfin', 'emby'].includes(serviceType);
+  const live = data?.live ?? ['plex', 'jellyfin', 'emby', 'tofa'].includes(serviceType);
   // Columns the chosen records can't fill are left out of the table.
   const mumColumns = live && records !== 'server';
   const startImport = async () => {

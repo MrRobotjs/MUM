@@ -102,6 +102,18 @@ func (a *App) runProviderSocket(ctx context.Context, w *providerSocketWorker, se
 				err = conn.Write(write, websocket.MessageText, spec.Start)
 				stop()
 			}
+			if auth, ok := live.(liveAuthenticator); err == nil && ok {
+				read, stop := context.WithTimeout(ctx, 5*time.Second)
+				kind, frame, readErr := conn.Read(read)
+				stop()
+				if readErr != nil {
+					err = readErr
+				} else if kind != websocket.MessageText {
+					err = errActivitySnapshot
+				} else {
+					err = auth.LiveAuthAccepted(frame)
+				}
+			}
 			if err == nil {
 				w.status("connected", "")
 				a.logger.Info("Provider socket connected", "server_id", server.ID, "provider", server.Type)

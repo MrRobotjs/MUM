@@ -81,7 +81,7 @@ func (a *App) serverLibraryActivity(w http.ResponseWriter, r *http.Request) {
 		domainError(w, err)
 		return
 	}
-	live := kind == "plex" || kind == "jellyfin" || kind == "emby"
+	live := kind == "plex" || kind == "jellyfin" || kind == "emby" || kind == "tofa"
 	withMUM, withImported := live && records != "server", records != "mum" && slices.Contains(importableHistory, kind)
 
 	mum := map[int64]*serverLibraryActivity{}

@@ -55,6 +55,7 @@ export const SERVICE_META: Record<string, ServiceMeta> = {
   tofa: {
     icon: <FontAwesomeIcon icon={faCirclePlay} className="text-primary" />,
     label: 'Tofa', gradient: 'from-primary/10 via-primary/10 to-primary/20',
+    streamingGradient: 'bg-gradient-to-br via-card to-card from-primary/30',
     badgeClass: 'bg-primary/10 text-primary ring-primary/30',
     libraryGradient: 'from-card to-primary/10', libraryBadgeClass: 'bg-primary/10 text-primary ring-primary/30',
     chipClass: 'bg-primary/10 text-primary ring-primary/30', detailGradient: 'from-primary/10 via-primary/10 to-primary/20',

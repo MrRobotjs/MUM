@@ -2,7 +2,7 @@ import {requestJson} from '../util/apiClient';
 import {getAccessToken} from '../store/authStore';
 
 export type MonitorTask = {
-  server_id: string; server_name: string; provider: 'jellyfin' | 'emby' | 'plex'; revision: number; server_revision: number; enabled: boolean;
+  server_id: string; server_name: string; provider: 'jellyfin' | 'emby' | 'plex' | 'tofa'; revision: number; server_revision: number; enabled: boolean;
   socket_enabled:boolean;socket_state:string;socket_error:string;interval_seconds: number; state: string; last_code: string; next_run_at: string | null;
   started_at: string | null; finished_at: string | null; attempts: number;
 };
@@ -23,7 +23,7 @@ export async function fetchActivityMonitoring(actor: string, signal?: AbortSigna
   const seen = new Set<string>();
   const tasks: MonitorTask[] = [];
   for (const task of value.tasks) {
-    if (!task || typeof task.server_name !== 'string' || !task.server_name.trim() || !['jellyfin', 'emby', 'plex'].includes(task.provider) || !id(task.server_id) || seen.has(task.server_id) || !positive(task.revision) ||
+    if (!task || typeof task.server_name !== 'string' || !task.server_name.trim() || !['jellyfin', 'emby', 'plex', 'tofa'].includes(task.provider) || !id(task.server_id) || seen.has(task.server_id) || !positive(task.revision) ||
         !Number.isSafeInteger(task.server_revision) || task.server_revision < 0 || typeof task.enabled !== 'boolean' || typeof task.socket_enabled!=='boolean'||task.socket_enabled&&!task.enabled||!task.socket_enabled&&task.socket_state!=='disabled'||!['disabled','stopped','paused','waiting','connecting','connected','backoff','failed'].includes(task.socket_state)||!['','INVALID_SOURCE','TRANSPORT_FAILED','QUEUE_REJECTED','CHECKPOINT_FAILED','STATE_UNAVAILABLE'].includes(task.socket_error)||
         !Number.isSafeInteger(task.interval_seconds) || task.interval_seconds < 15 || task.interval_seconds > 3600 ||
         !['disabled', 'stopped', 'paused', 'scheduled', 'running', 'recovering'].includes(task.state) ||

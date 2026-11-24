@@ -11,6 +11,7 @@ import (
 	"app/server/providers/audiobookshelf"
 	"app/server/providers/mediabrowser"
 	"app/server/providers/provider"
+	"app/server/providers/tofa"
 )
 
 // Importing a server's own play history from Plex, Jellyfin, Emby or
@@ -345,6 +346,8 @@ func resolveHistoryAccount(ctx context.Context, tx *sql.Tx, server int64, kind, 
 // fetch from that kind of server.
 func validHistoryPoster(kind, item, path string) bool {
 	switch kind {
+	case "tofa":
+		return tofa.ValidMediaID(item) && path == "poster"
 	case "plex":
 		return validPlexCataloguePoster(item, path)
 	case "jellyfin", "emby":

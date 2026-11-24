@@ -460,7 +460,7 @@ export const ServerDetailPage = ({ section = 'overview' }: { section?: ServerTab
             </CardContent>
           </Card>
 
-          {numericServerId !== undefined && ['plex', 'jellyfin', 'emby', 'audiobookshelf'].includes(serviceType.toLowerCase()) && (
+          {numericServerId !== undefined && ['plex', 'jellyfin', 'emby', 'audiobookshelf', 'tofa'].includes(serviceType.toLowerCase()) && (
             <ActivityStatistics fixedServer={{ id: numericServerId, name: server.server_nickname || 'this server' }} />
           )}
 

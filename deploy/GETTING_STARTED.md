@@ -67,6 +67,7 @@ The folder contains:
 - `mum.sqlite` (with `mum.sqlite-wal` and `mum.sqlite-shm`): the database.
 - `mum-config.json`: network settings (see below).
 - `invitation.key` and `plex.key`: encryption keys. **These cannot be recreated.** Without them, encrypted invitation links and Plex credentials are lost.
+- `Image Cache`: cached server images, organized by service and server. Configure the shared or per-server disk limit under **Settings → Advanced**; the default shared limit is 1 GiB. Cached images can be removed and fetched again when available.
 - `.mum.lock`: stops two copies of MUM from using the same folder. Leave it alone.
 
 ### Backups

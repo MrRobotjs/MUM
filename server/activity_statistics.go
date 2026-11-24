@@ -54,19 +54,20 @@ func sqlList(kinds []string) string {
 const maxActivityDays = 3650
 
 type activityTitle struct {
-	Server      int64   `json:"server_id"` // 0 for a user, who may play on several servers
-	Title       string  `json:"title"`
-	Subtitle    *string `json:"subtitle"`
-	Plays       int64   `json:"plays"`
-	Seconds     int64   `json:"seconds"`
-	People      int64   `json:"people"`
-	PosterURL   *string `json:"poster_url"`
-	PlayedAt    *string `json:"played_at"`    // recently played: when; users: their latest play
-	UserUUID    *string `json:"user_uuid"`    // users: their profile, when known
-	LibraryID   *int64  `json:"library_id"`   // libraries
-	LibraryType *string `json:"library_type"` // libraries
-	AvatarURL   *string `json:"avatar_url"`   // users: a picture from their server account
-	UserName    *string `json:"user_name"`    // recently played: who played it
+	Server       int64   `json:"server_id"` // 0 for a user, who may play on several servers
+	Title        string  `json:"title"`
+	Subtitle     *string `json:"subtitle"`
+	Plays        int64   `json:"plays"`
+	Seconds      int64   `json:"seconds"`
+	People       int64   `json:"people"`
+	PosterURL    *string `json:"poster_url"`
+	NotInLibrary bool    `json:"not_in_library"`
+	PlayedAt     *string `json:"played_at"`    // recently played: when; users: their latest play
+	UserUUID     *string `json:"user_uuid"`    // users: their profile, when known
+	LibraryID    *int64  `json:"library_id"`   // libraries
+	LibraryType  *string `json:"library_type"` // libraries
+	AvatarURL    *string `json:"avatar_url"`   // users: a picture from their server account
+	UserName     *string `json:"user_name"`    // recently played: who played it
 	// Titles: the page in the library catalogue, when the item has been
 	// catalogued (a sync has run). Users: the servers they played on, most
 	// first, for the card's server badge.
@@ -116,7 +117,7 @@ func (a *App) activityStatistics(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if !valid {
-			fail(w, 400, "INVALID_STATISTICS_QUERY", "Use days=0 (all time) or 1–3650, optionally server=<a server that reports activity>, order=plays or duration and imported=0 or 1")
+			fail(w, 400, "INVALID_STATISTICS_QUERY", "Use days=0 (all time) or 1â€“3650, optionally server=<a server that reports activity>, order=plays or duration and imported=0 or 1")
 			return
 		}
 	}
@@ -211,7 +212,7 @@ func (a *App) activityStatistics(w http.ResponseWriter, r *http.Request) {
 			ranking = "people DESC,plays DESC"
 		}
 		return `SELECT h.server_id,` + title + `,NULL,count(*) AS plays,coalesce(sum(` + mumWatchedSeconds + `),0) AS secs,count(DISTINCT coalesce(h.owner_uuid,h.service_uuid)) AS people,
-		 max(CASE WHEN h.poster_path IS NOT NULL THEN h.id END),NULL,NULL,NULL,NULL,0,` + item + `,` + parent + `,coalesce(max(h.poster_item),''),NULL
+		 coalesce(max(CASE WHEN h.poster_path IS NOT NULL THEN h.id END),max(h.id)),NULL,NULL,NULL,NULL,0,` + item + `,` + parent + `,coalesce(max(h.poster_item),''),NULL
 		 FROM ` + history + ` h WHERE` + recordedWhere + ` AND ` + where + ` GROUP BY h.server_id,` + key + `
 		 ORDER BY ` + ranking + `,2 LIMIT 10`
 	}
@@ -236,15 +237,15 @@ func (a *App) activityStatistics(w http.ResponseWriter, r *http.Request) {
 		{"music", recorded(tracks, album, series, `''`, albumPage, false), 1},
 		{"popular_music", recorded(tracks, album, series, `''`, albumPage, true), 1},
 		{"audiobooks", `SELECT im.server_id,min(coalesce(im.title,'')),max(coalesce(im.grandparent_title,im.parent_title)),count(*) AS plays,coalesce(sum(im.listened_seconds),0) AS secs,count(DISTINCT im.account_id) AS people,
-		 max(CASE WHEN im.poster_path IS NOT NULL THEN im.rowid END),NULL,NULL,NULL,NULL,1,coalesce(max(im.item_id),''),'',coalesce(max(im.poster_item),''),NULL` +
+		 coalesce(max(CASE WHEN im.poster_path IS NOT NULL THEN im.rowid END),max(im.rowid)),NULL,NULL,NULL,NULL,1,coalesce(max(im.item_id),''),'',coalesce(max(im.poster_item),''),NULL` +
 			importedFrom + ` GROUP BY im.server_id,coalesce(im.item_id,im.title) ORDER BY ` + rank + `,2 LIMIT 10`, 1},
 		// The latest plays: an episode shows its series with the episode beneath.
 		{"recent", `SELECT * FROM (
 		 SELECT h.server_id,CASE WHEN lower(h.media_type)='episode' AND h.parent_title IS NOT NULL THEN h.parent_title ELSE h.title END,
-		  CASE WHEN lower(h.media_type)='episode' AND h.parent_title IS NOT NULL THEN h.title END,1,` + mumWatchedSeconds + `,1,CASE WHEN h.poster_path IS NOT NULL THEN h.id END,h.first_seen_at,NULL,NULL,NULL,0,
+		  CASE WHEN lower(h.media_type)='episode' AND h.parent_title IS NOT NULL THEN h.title END,1,` + mumWatchedSeconds + `,1,h.id,h.first_seen_at,NULL,NULL,NULL,0,
 		  h.item_id,coalesce(h.parent_item_id,''),coalesce(h.poster_item,''),` + personName(`coalesce(h.owner_uuid,h.service_uuid)`, `NULL`) + `
 		  FROM ` + history + ` h WHERE` + recordedWhere + `
-		 UNION ALL SELECT im.server_id,coalesce(im.title,''),coalesce(im.grandparent_title,im.parent_title),1,coalesce(im.listened_seconds,0),1,CASE WHEN im.poster_path IS NOT NULL THEN im.rowid END,im.viewed_at,NULL,NULL,NULL,1,
+		 UNION ALL SELECT im.server_id,coalesce(im.title,''),coalesce(im.grandparent_title,im.parent_title),1,coalesce(im.listened_seconds,0),1,im.rowid,im.viewed_at,NULL,NULL,NULL,1,
 		  coalesce(im.item_id,''),'',coalesce(im.poster_item,''),` + personName(importedPerson, `im.account_id`) + importedPeople + `)
 		 ORDER BY 8 DESC LIMIT 10`, 2},
 		// A person once across both sources, named by their MUM or server account.
@@ -317,6 +318,13 @@ func (a *App) activityStatistics(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 				item.Link = link
+				if link == nil {
+					item.NotInLibrary, err = activityMissingFromLibrary(ctx, tx, item.Server, item.item, item.parent)
+					if err != nil {
+						domainError(w, err)
+						return
+					}
+				}
 				// The title's poster: the one poster link every play view uses.
 				if sessionErr == nil {
 					url, err := a.playPosterURL(ctx, tx, session, playPoster{server: item.Server, item: item.item, parent: item.parent, art: item.art,
@@ -395,6 +403,45 @@ func (a *App) activityStatistics(w http.ResponseWriter, r *http.Request) {
 		"totals":   map[string]any{"plays": totals.plays, "seconds": totals.seconds, "people": totals.people, "titles": totals.titles},
 		"sections": sections, "platforms": platforms, "concurrent": concurrent, "servers": servers, "unreported": unreported, "imported": importedServers,
 	})
+}
+
+// Absence is reported only when history identifies one supported library and
+// a complete catalogue sync exists for it; unknown or ambiguous is not missing.
+func activityMissingFromLibrary(ctx context.Context, tx *sql.Tx, server int64, item, parent string) (bool, error) {
+	if server <= 0 || item == "" && parent == "" {
+		return false, nil
+	}
+	rows, err := tx.QueryContext(ctx, `SELECT l.id,l.catalogue_synced_at,coalesce(l.library_type,''),l.external_id,s.service_type
+		FROM media_libraries l JOIN media_servers s ON s.id=l.server_id
+		WHERE l.server_id=? AND l.is_available=1 AND (
+		l.name IN (SELECT h.library_name FROM media_activity_history h WHERE h.server_id=? AND h.library_name IS NOT NULL AND ((?<>'' AND h.item_id=?) OR (?<>'' AND h.parent_item_id=?)))
+		OR l.external_id IN (SELECT i.library_id FROM history_imports i WHERE i.server_id=? AND i.library_id IS NOT NULL AND ((?<>'' AND i.item_id=?) OR (?<>'' AND i.item_id=?)))) LIMIT 2`, server, server, item, item, parent, parent, server, item, item, parent, parent)
+	if err != nil {
+		return false, err
+	}
+	type candidate struct {
+		id                       int64
+		synced                   sql.NullString
+		kind, external, provider string
+	}
+	var found []candidate
+	for rows.Next() {
+		var c candidate
+		if err := rows.Scan(&c.id, &c.synced, &c.kind, &c.external, &c.provider); err != nil {
+			rows.Close()
+			return false, err
+		}
+		found = append(found, c)
+	}
+	if err := errors.Join(rows.Err(), rows.Close()); err != nil {
+		return false, err
+	}
+	if len(found) != 1 || !found[0].synced.Valid || !catalogueLibrarySupported(found[0].provider, found[0].kind, found[0].external) {
+		return false, nil
+	}
+	var exists bool
+	err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM media_items WHERE library_id=? AND ((?<>'' AND external_id=?) OR (?<>'' AND external_id=?)))`, found[0].id, item, item, parent, parent).Scan(&exists)
+	return !exists, err
 }
 
 func readActivityTitles(ctx context.Context, tx *sql.Tx, query string, args []any) ([]activityTitle, error) {

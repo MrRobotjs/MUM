@@ -444,6 +444,11 @@ func (a *App) saveServer(w http.ResponseWriter, r *http.Request) {
 	a.logger.Info("Server saved", "server_id", s.ID, "provider", s.Type, "created", create)
 	if !create {
 		a.imageCache.clear(s.ID)
+		if a.diskImages != nil {
+			if err := a.diskImages.renameServer(s.ID, s.Type, s.Name); err != nil {
+				a.logger.Warn("Could not rename image cache folder", "server_id", s.ID, "error", err)
+			}
+		}
 	}
 	if monitoringDefault {
 		a.logger.Info("Activity monitoring enabled by default", "server_id", s.ID, "provider", s.Type, "interval_seconds", 30)
@@ -504,6 +509,12 @@ func (a *App) deleteServer(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		domainError(w, err)
 		return
+	}
+	a.imageCache.clear(id)
+	if a.diskImages != nil {
+		if err := a.diskImages.clear(id); err != nil {
+			a.logger.Warn("Could not clear removed server image cache", "server_id", id, "error", err)
+		}
 	}
 	respond(w, 200, map[string]bool{"success": true})
 }

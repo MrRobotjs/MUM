@@ -77,6 +77,7 @@ type App struct {
 	imageKey         []byte
 	imageSlots       chan struct{}
 	imageCache       imageCache
+	diskImages       *diskImageCache
 	// statisticsSlots bounds concurrent server statistics reads.
 	statisticsSlots chan struct{}
 }
@@ -101,6 +102,16 @@ func NewApp(store *Store, queue *LogQueue, assets fs.FS) (*App, error) {
 	a.imageSlots = make(chan struct{}, 8)
 	a.imageCache.limit = 64 << 20
 	a.imageCache.ttl = 30 * time.Minute
+	if a.diskImages, err = openDiskImageCache(store.dataDir); err != nil {
+		a.logger.Warn("Image cache unavailable", "error", err)
+	} else {
+		if err := a.reconcileImageCacheFolders(context.Background()); err != nil {
+			a.logger.Warn("Could not reconcile image cache folders", "error", err)
+		}
+		if err := a.applyImageCachePolicy(); err != nil {
+			a.logger.Warn("Could not enforce image cache limit", "error", err)
+		}
+	}
 	a.statisticsSlots = make(chan struct{}, 4)
 	a.imageKey = make([]byte, 32)
 	if _, err := rand.Read(a.imageKey); err != nil {
@@ -129,6 +140,10 @@ func NewApp(store *Store, queue *LogQueue, assets fs.FS) (*App, error) {
 	handle("GET /api/openapi/openapi.json", a.openAPIDocument)
 	handle("GET /api/activity/images/{item}", a.activityImageProxy)
 	handle("POST /api/servers/{server}/image-cache/clear", a.clearServerImageCache)
+	handle("GET /api/settings/image-cache", a.getImageCacheSettings)
+	handle("PUT /api/settings/image-cache", a.saveImageCacheSettings)
+	handle("PUT /api/servers/{server}/image-cache/limit", a.saveServerImageCacheLimit)
+	handle("POST /api/settings/image-cache/clear", a.clearAllImageCache)
 	handle("GET /api/activity/history-images/{item}", a.activityHistoryImageProxy)
 	handle("GET /api/activity/imported-history-images/{item}", a.importedHistoryImageProxy)
 	handle("GET /api/activity/avatars/{item}", a.activityAvatarProxy)

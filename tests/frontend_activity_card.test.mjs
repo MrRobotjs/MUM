@@ -43,6 +43,25 @@ test('activity statistics', async t => {
   t.after(() => { globalThis.MessageChannel = Original; for (const c of channels) { c.port1.close(); c.port2.close(); } delete globalThis.activityCard; });
   const m = await load();
 
+  await t.test('missing artwork is labeled without claiming the title was removed', () => {
+    globalThis.activityCard = {loading: false, error: null, data: stats()};
+    const html = m.render();
+    assert.match(html, /Poster unavailable/);
+    assert.match(html, /Artwork could not be displayed/);
+    assert.doesNotMatch(html, /Not in library/);
+  });
+
+  await t.test('confirmed missing items show a concise overlay and guidance', () => {
+    const data = stats();
+    data.sections[0].items[0].not_in_library = true;
+    globalThis.activityCard = {loading: false, error: null, data};
+    const html = m.render();
+    assert.match(html, /Not in library/);
+    assert.match(html, /Sync library items or check Plex\+\+\./);
+    data.sections[0].items[0].not_in_library = false;
+    assert.doesNotMatch(m.render(), /Not in library/);
+  });
+
   await t.test('dashboard: tiles, a card per statistic with plays, badges, picker and notes', () => {
     globalThis.activityCard = {loading: false, error: null, data: stats()};
     const html = m.render().replace(/<!-- -->/g, '');

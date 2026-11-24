@@ -89,6 +89,17 @@ const TitleLink = ({ server, link, children }: { server: number; link: ActivityL
     : <Link {...appLinks.episode(slug, link.library_id, link.media_id, link.episode_id)} className="dashboard-stat-link">{children}</Link>;
 };
 
+const ActivityPoster = ({item,serverName}:{item:ActivityTitle;serverName:string}) => {
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
+  const unavailable = !item.poster_url || failedUrl === item.poster_url;
+  const label = item.not_in_library ? 'Not in library' : unavailable ? 'Poster unavailable' : null;
+  const detail = item.not_in_library ? `Sync library items or check ${serverName}.` : `Artwork could not be displayed. Check ${serverName} or sync its library.`;
+  return <div className="relative h-full w-full">
+    <Poster key={item.poster_url ?? item.title} url={item.poster_url} title={item.title} className="w-full h-full" onError={() => setFailedUrl(item.poster_url)} />
+    {label && <span tabIndex={0} className="absolute inset-x-0 bottom-0 rounded-b bg-black/80 px-1 py-1 text-center text-[10px] leading-tight text-white" title={detail} aria-label={`${label}. ${detail}`}>{label}</span>}
+  </div>;
+};
+
 // A person's picture in a circle, or their first letter.
 const Avatar = ({ url, name }: { url: string | null; name: string }) => {
   const [failed, setFailed] = useState(false);
@@ -188,13 +199,13 @@ export function ActivityStatistics({ fixedServer }: { fixedServer?: { id: number
         cards.push(<StatCard key={kind} title={cardTitles[kind]} metric="When"
           rows={items.map((item, i) => ({ key: `${item.played_at}-${i}`, title: <TitleLink server={item.server_id} link={item.link}>{item.title}</TitleLink>, subtitle: item.subtitle, who: item.user_name,
             value: shortAgo(item.played_at), badges: badgeFor(item),
-            visual: <Poster url={item.poster_url} title={item.title} className="w-full h-full" /> }))} />);
+            visual: <ActivityPoster key={`${item.server_id}:${item.title}:${item.poster_url ?? ''}`} item={item} serverName={byID.get(item.server_id)?.name ?? 'the server'} /> }))} />);
       } else {
         const popular = kind.startsWith('popular_');
         cards.push(<StatCard key={kind} title={cardTitles[kind]} metric={popular ? 'Users' : metric}
           rows={items.map((item, i) => ({ key: `${item.server_id}-${item.title}-${i}`, title: <TitleLink server={item.server_id} link={item.link}>{item.title}</TitleLink>, subtitle: item.subtitle,
             value: popular ? item.people.toLocaleString() : figure(item), badges: badgeFor(item),
-            visual: <Poster url={item.poster_url} title={item.title} className="w-full h-full" /> }))} />);
+            visual: <ActivityPoster key={`${item.server_id}:${item.title}:${item.poster_url ?? ''}`} item={item} serverName={byID.get(item.server_id)?.name ?? 'the server'} /> }))} />);
       }
     }
     if (data.platforms.length > 0) {

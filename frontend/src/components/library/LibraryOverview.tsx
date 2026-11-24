@@ -28,10 +28,10 @@ export type LibraryOverviewLibrary = {
 };
 
 /** A poster with a film icon when there's none or it fails to load. */
-export const Poster = ({ url, title, className }: { url: string | null; title: string; className: string }) => {
+export const Poster = ({ url, title, className, onError }: { url: string | null; title: string; className: string; onError?: () => void }) => {
   const [failed, setFailed] = useState(false);
   return <div className={cn(className, 'rounded bg-muted/30 flex items-center justify-center overflow-hidden')}>
-    {url && !failed ? <img src={url} alt={title || 'Media poster'} className="w-full h-full object-cover" onError={() => setFailed(true)} />
+    {url && !failed ? <img src={url} alt={title || 'Media poster'} className="w-full h-full object-cover" onError={() => { setFailed(true); onError?.(); }} />
       : <FontAwesomeIcon icon={faFilm} className="text-muted-foreground/40 text-sm" />}
   </div>;
 };

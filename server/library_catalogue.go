@@ -824,6 +824,7 @@ func catalogueLibraryInfo(ctx context.Context, tx *sql.Tx, library catalogueLibr
 
 type catalogueImageSource struct {
 	Actor, Provider, URL, APIKey, External, Tag, Kind, LibraryExternal string
+	CacheAlternative                                                   string
 	Library, Server, ConfigRevision                                    int64
 	ActivityMappingRevision                                            int64
 }
@@ -899,16 +900,64 @@ func (a *App) serveSignedImage(w http.ResponseWriter, r *http.Request, param, pu
 		return
 	}
 	// Hash source descriptors so cache keys never retain URLs or credentials.
-	digest := sha256.Sum256([]byte(fmt.Sprintf("%q|%q|%q|%q|%q", source.Provider, source.External, source.Tag, source.Kind, source.LibraryExternal)))
-	key := imageCacheKey{server: source.Server, revision: source.ConfigRevision, purpose: purpose, external: base64.RawURLEncoding.EncodeToString(digest[:])}
+	cachePurpose := purpose
+	if purpose == itemImagePurpose || purpose == "activity-poster" || purpose == activityHistoryPosterPurpose || purpose == importedHistoryPosterPurpose {
+		cachePurpose = "media-poster"
+	}
+	descriptor := fmt.Sprintf("%q|%q|%q|%q|%q", source.Provider, source.External, source.Tag, source.Kind, source.LibraryExternal)
+	if cachePurpose == "media-poster" {
+		descriptor = fmt.Sprintf("%q|%q|%q", source.Provider, source.External, source.Tag)
+	}
+	mediaIdentity := ""
+	cacheNamespace := ""
+	// An ID may be reused after server deletion. A random per-server namespace
+	// prevents the new server from inheriting the deleted server's cache.
+	if source.Server > 0 {
+		if err := a.store.reader.QueryRowContext(ctx, `SELECT namespace FROM image_cache_server_identity WHERE server_id=?`, source.Server).Scan(&cacheNamespace); err != nil {
+			domainError(w, err)
+			return
+		}
+		descriptor += "|" + cacheNamespace
+		if cachePurpose == "media-poster" {
+			mediaIdentity = mediaCacheIdentity(source.Provider, source.External, cacheNamespace)
+		}
+	}
+	digest := sha256.Sum256([]byte(descriptor))
+	key := imageCacheKey{server: source.Server, revision: source.ConfigRevision, purpose: cachePurpose, external: base64.RawURLEncoding.EncodeToString(digest[:])}
 	version := a.imageCache.generation(source.Server)
+	var diskVersion uint64
+	if a.diskImages != nil {
+		diskVersion = a.diskImages.generation(source.Server)
+	}
 	var kind string
 	var body []byte
+	var staleKind string
+	var staleBody []byte
 	hit := false
 	if enabled {
 		kind, body, hit = a.imageCache.get(key, time.Now())
+		if !hit && a.diskImages != nil {
+			var stored time.Time
+			staleKind, staleBody, stored, hit = a.diskImages.getWithAge(key, time.Now())
+			if !hit && (purpose == activityHistoryPosterPurpose || purpose == importedHistoryPosterPurpose) {
+				staleKind, staleBody, stored, hit = a.diskImages.getMedia(source.Server, source.ConfigRevision, mediaIdentity, time.Now())
+				if !hit && source.CacheAlternative != "" {
+					alternate := mediaCacheIdentity(source.Provider, source.CacheAlternative, cacheNamespace)
+					staleKind, staleBody, stored, hit = a.diskImages.getMedia(source.Server, source.ConfigRevision, alternate, time.Now())
+				}
+			}
+			if hit && (cachePurpose == "media-poster" && source.Tag == "" || time.Since(stored) < a.imageCache.ttl) {
+				kind, body = staleKind, staleBody
+			} else {
+				hit = false
+			}
+		}
 	}
 	if !hit {
+		if source.Tag == "" && (purpose == activityHistoryPosterPurpose || purpose == importedHistoryPosterPurpose) {
+			fail(w, 404, "IMAGE_UNAVAILABLE", "The poster is not cached")
+			return
+		}
 		select {
 		case a.imageSlots <- struct{}{}:
 			defer func() { <-a.imageSlots }()
@@ -926,6 +975,9 @@ func (a *App) serveSignedImage(w http.ResponseWriter, r *http.Request, param, pu
 			}
 		}
 		kind, body, err = fetch(ctx, client, source)
+		if err != nil && len(staleBody) > 0 {
+			kind, body, err, hit = staleKind, staleBody, nil, true
+		}
 	}
 	if err != nil {
 		var avatarError *plexAvatarError
@@ -956,6 +1008,13 @@ func (a *App) serveSignedImage(w http.ResponseWriter, r *http.Request, param, pu
 		domainError(w, ErrConflict)
 		return
 	}
+	if source.Server > 0 {
+		var currentNamespace string
+		if err := a.store.reader.QueryRowContext(ctx, `SELECT namespace FROM image_cache_server_identity WHERE server_id=?`, source.Server).Scan(&currentNamespace); err != nil || currentNamespace != cacheNamespace {
+			domainError(w, ErrConflict)
+			return
+		}
+	}
 	stillEnabled, err := a.imageCacheEnabled(ctx, source.Server)
 	if err != nil {
 		domainError(w, err)
@@ -967,6 +1026,17 @@ func (a *App) serveSignedImage(w http.ResponseWriter, r *http.Request, param, pu
 	}
 	if !hit && enabled && stillEnabled {
 		a.imageCache.put(key, kind, body, time.Now(), version)
+		if a.diskImages != nil {
+			server, serverErr := a.loadServer(ctx, source.Server)
+			policy, policyErr := a.imageCachePolicy(ctx)
+			if serverErr == nil && policyErr == nil {
+				if err := a.diskImages.putMedia(key, source.Provider, server.Name, kind, body, time.Now(), policy, diskVersion, mediaIdentity); err != nil {
+					a.logger.Warn("Image cache write failed", "server_id", source.Server, "error", err)
+				}
+			} else {
+				a.logger.Warn("Image cache settings unavailable", "server_id", source.Server, "server_error", serverErr, "policy_error", policyErr)
+			}
+		}
 	}
 	w.Header().Set("Content-Type", kind)
 	w.Header().Set("Content-Length", strconv.Itoa(len(body)))
@@ -974,6 +1044,11 @@ func (a *App) serveSignedImage(w http.ResponseWriter, r *http.Request, param, pu
 	w.Header().Set("Content-Security-Policy", "default-src 'none'")
 	w.WriteHeader(200)
 	_, _ = w.Write(body)
+}
+
+func mediaCacheIdentity(provider, external, namespace string) string {
+	key := sha256.Sum256([]byte(fmt.Sprintf("%q|%q|%q", provider, external, namespace)))
+	return base64.RawURLEncoding.EncodeToString(key[:])
 }
 
 // upsertCatalogueItems writes one validated snapshot under parent ("" for

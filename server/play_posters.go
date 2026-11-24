@@ -42,6 +42,31 @@ func (a *App) playPosterURL(ctx context.Context, tx *sql.Tx, session string, p p
 			}
 		}
 	}
+	if p.stored && p.art == "" {
+		if a.diskImages == nil {
+			return "", nil
+		}
+		external := p.parent
+		if external == "" {
+			external = p.item
+		}
+		if external == "" {
+			return "", nil
+		}
+		var provider, namespace string
+		var revision int64
+		var enabled bool
+		err := tx.QueryRowContext(ctx, `SELECT s.service_type,s.config_revision,s.cache_images,c.namespace FROM media_servers s JOIN image_cache_server_identity c ON c.server_id=s.id WHERE s.id=?`, p.server).Scan(&provider, &revision, &enabled, &namespace)
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", nil
+		}
+		if err != nil {
+			return "", err
+		}
+		if !enabled || !a.diskImages.hasMedia(p.server, revision, mediaCacheIdentity(provider, external, namespace)) {
+			return "", nil
+		}
+	}
 	switch {
 	case !p.stored:
 		return "", nil

@@ -3,6 +3,7 @@ import { serverNicknameIssue } from '../lib/serverNickname';
 import { useServerRoutes } from '../lib/serverRoutes';
 import { useState, useMemo, useEffect } from 'react';
 import {ServerRefreshSettings} from '../components/settings/ServerRefreshSettings';
+import {ImageCacheSettings} from '../components/settings/ImageCacheSettings';
 import { useNavigate, useParams } from '@tanstack/react-router';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faWifi, faCheck, faXmark, faCircleExclamation } from '@fortawesome/free-solid-svg-icons';
@@ -134,6 +135,7 @@ export const AdminSettingsMediaServerEditPage = () => {
   const [leaving, setLeaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [clearingImages, setClearingImages] = useState(false);
+  const [imageCacheRefresh, setImageCacheRefresh] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [nicknameError, setNicknameError] = useState('');
   const [connectionTestStatus, setConnectionTestStatus] = useState<ConnectionTestStatus>('idle');
@@ -437,8 +439,9 @@ export const AdminSettingsMediaServerEditPage = () => {
                       <Checkbox id="cache_images" checked={values.cache_images} onCheckedChange={checked => setValues({...values, cache_images: checked === true})}/>
                       <Label htmlFor="cache_images">Cache images</Label>
                     </div>
-                    <p className="text-xs text-muted-foreground">Keep recently used images in memory to reduce requests to this server. The cache clears when MUM restarts.</p>
-                    <Button type="button" variant="outline" disabled={clearingImages} onClick={async()=>{setClearingImages(true); try {await requestJson(`/api/servers/${numericServerId}/image-cache/clear`,{method:'POST',retryAuthentication:false});success('Image cache cleared');} catch {showError('Could not clear the image cache.');} finally {setClearingImages(false);}}}>{clearingImages ? 'Clearing...' : 'Clear image cache'}</Button>
+                    <p className="text-xs text-muted-foreground">Keep images on disk to reduce requests and retain them after MUM restarts.</p>
+                    <Button type="button" variant="outline" disabled={clearingImages} onClick={async()=>{setClearingImages(true); try {await requestJson(`/api/servers/${numericServerId}/image-cache/clear`,{method:'POST',retryAuthentication:false});setImageCacheRefresh(n=>n+1);success('Image cache cleared');} catch {showError('Could not clear the image cache.');} finally {setClearingImages(false);}}}>{clearingImages ? 'Clearing...' : 'Clear image cache'}</Button>
+                    {numericServerId && <ImageCacheSettings serverId={numericServerId} refreshKey={imageCacheRefresh} />}
                   </div>
 
                   <FormField id="service_type" label="Service Type" required>

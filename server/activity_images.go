@@ -1,6 +1,7 @@
 package main
 
 import (
+	"app/server/providers/audiobookshelf"
 	"app/server/providers/mediabrowser"
 	"app/server/providers/plex"
 	"context"
@@ -112,10 +113,10 @@ func (a *App) readActivityHistoryImageSource(ctx context.Context, session string
 	if err := requirePermission(ctx, tx, source.Actor, "administrator"); err != nil {
 		return source, err
 	}
-	err = tx.QueryRowContext(ctx, `SELECT s.service_type,s.url,coalesce(s.api_key,''),coalesce(h.poster_item,''),coalesce(h.poster_path,''),s.id,s.config_revision
+	err = tx.QueryRowContext(ctx, `SELECT s.service_type,s.url,coalesce(s.api_key,''),coalesce(nullif(h.poster_item,''),nullif(h.parent_item_id,''),h.item_id,''),coalesce(h.poster_path,''),s.id,s.config_revision,coalesce(h.parent_item_id,'')
 	FROM media_activity_history h JOIN media_servers s ON s.id=h.server_id JOIN provider_settings p ON p.provider_id=s.service_type
-	WHERE h.id=? AND s.is_active=1 AND p.enabled=1`, item).Scan(&source.Provider, &source.URL, &source.APIKey, &source.External, &source.Tag, &source.Server, &source.ConfigRevision)
-	if errors.Is(err, sql.ErrNoRows) || err == nil && !validHistoryPoster(source.Provider, source.External, source.Tag) {
+	WHERE h.id=? AND s.is_active=1 AND p.enabled=1`, item).Scan(&source.Provider, &source.URL, &source.APIKey, &source.External, &source.Tag, &source.Server, &source.ConfigRevision, &source.CacheAlternative)
+	if errors.Is(err, sql.ErrNoRows) || err == nil && !validRetainedImageReference(source) {
 		return source, ErrNotFound
 	}
 	return source, err
@@ -149,10 +150,10 @@ func (a *App) readImportedHistoryImageSource(ctx context.Context, session string
 	if err := requirePermission(ctx, tx, source.Actor, "administrator"); err != nil {
 		return source, err
 	}
-	err = tx.QueryRowContext(ctx, `SELECT s.service_type,s.url,coalesce(s.api_key,''),coalesce(i.poster_item,''),coalesce(i.poster_path,''),s.id,s.config_revision
+	err = tx.QueryRowContext(ctx, `SELECT s.service_type,s.url,coalesce(s.api_key,''),coalesce(nullif(i.poster_item,''),i.item_id,''),coalesce(i.poster_path,''),s.id,s.config_revision
 	FROM history_imports i JOIN media_servers s ON s.id=i.server_id JOIN provider_settings p ON p.provider_id=s.service_type
 	WHERE i.rowid=? AND s.is_active=1 AND p.enabled=1`, item).Scan(&source.Provider, &source.URL, &source.APIKey, &source.External, &source.Tag, &source.Server, &source.ConfigRevision)
-	if errors.Is(err, sql.ErrNoRows) || err == nil && !validHistoryPoster(source.Provider, source.External, source.Tag) {
+	if errors.Is(err, sql.ErrNoRows) || err == nil && !validRetainedImageReference(source) {
 		return source, ErrNotFound
 	}
 	return source, err
@@ -162,4 +163,21 @@ func (a *App) importedHistoryImageProxy(w http.ResponseWriter, r *http.Request) 
 	a.serveSignedImage(w, r, "item", importedHistoryPosterPurpose, a.readImportedHistoryImageSource, func(ctx context.Context, p *serverConnection, s catalogueImageSource) (string, []byte, error) {
 		return p.catalogueImage(ctx, s.External, s.Tag)
 	})
+}
+
+// Without an image path, a recorded item can only look up an already-cached
+// poster; it cannot trigger a provider request with an unvalidated path.
+func validRetainedImageReference(source catalogueImageSource) bool {
+	if source.Tag != "" {
+		return validHistoryPoster(source.Provider, source.External, source.Tag)
+	}
+	switch source.Provider {
+	case "plex":
+		return plex.NumericID(source.External)
+	case "jellyfin", "emby":
+		return mediabrowser.ValidToken(source.External)
+	case "audiobookshelf":
+		return audiobookshelf.ValidItemID(source.External)
+	}
+	return false
 }

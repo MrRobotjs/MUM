@@ -25,6 +25,7 @@ type imageCache struct {
 	entries     map[imageCacheKey]*list.Element
 	order       list.List
 	versions    map[int64]uint64
+	global      uint64
 	size, limit int
 	ttl         time.Duration
 }
@@ -32,7 +33,7 @@ type imageCache struct {
 func (c *imageCache) generation(server int64) uint64 {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	return c.versions[server]
+	return c.versions[server] + c.global
 }
 func (c *imageCache) remove(e *list.Element) {
 	entry := e.Value.(*cachedImage)
@@ -58,7 +59,7 @@ func (c *imageCache) get(key imageCacheKey, now time.Time) (string, []byte, bool
 func (c *imageCache) put(key imageCacheKey, kind string, body []byte, now time.Time, version uint64) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if c.limit <= 0 || c.ttl <= 0 || len(body) == 0 || len(body) > c.limit || c.versions[key.server] != version {
+	if c.limit <= 0 || c.ttl <= 0 || len(body) == 0 || len(body) > c.limit || c.versions[key.server]+c.global != version {
 		return
 	}
 	if c.entries == nil {
@@ -80,10 +81,14 @@ func (c *imageCache) clear(server int64) {
 	if c.versions == nil {
 		c.versions = make(map[int64]uint64)
 	}
-	c.versions[server]++
+	if server == 0 {
+		c.global++
+	} else {
+		c.versions[server]++
+	}
 	for e := c.order.Back(); e != nil; {
 		prev := e.Prev()
-		if e.Value.(*cachedImage).key.server == server {
+		if server == 0 || e.Value.(*cachedImage).key.server == server {
 			c.remove(e)
 		}
 		e = prev
@@ -128,6 +133,14 @@ func (a *App) clearServerImageCache(w http.ResponseWriter, r *http.Request) {
 		domainError(w, err)
 		return
 	}
+	if a.diskImages == nil {
+		fail(w, 503, "IMAGE_CACHE_UNAVAILABLE", "The disk image cache is unavailable")
+		return
+	}
 	a.imageCache.clear(id)
+	if err := a.diskImages.clear(id); err != nil {
+		domainError(w, err)
+		return
+	}
 	respond(w, http.StatusOK, map[string]bool{"cleared": true})
 }

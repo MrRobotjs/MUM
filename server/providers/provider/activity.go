@@ -113,6 +113,7 @@ type ActivityDisplay struct {
 	GrandparentTitle      string   `json:"grandparent_title,omitempty"`
 	PlayerTitle           string   `json:"player_title,omitempty"`
 	PlayerPlatform        string   `json:"player_platform,omitempty"`
+	ProfileName           string   `json:"profile_name,omitempty"`
 	Product               string   `json:"product,omitempty"`
 	Quality               string   `json:"quality_detail,omitempty"`
 	Stream                string   `json:"stream_detail,omitempty"`

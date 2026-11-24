@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -17,7 +18,7 @@ func TestActivitySnapshotUsesTofaSessions(t *testing.T) {
 		}
 		switch r.URL.Path {
 		case "/api/v1/system/playback/sessions":
-			fmt.Fprint(w, `[{"session_id":"01234567-89ab-4cde-8fab-0123456789ab","user_id":"11234567-89ab-4cde-8fab-0123456789ab","media_id":"21234567-89ab-4cde-8fab-0123456789ab","media_file_id":"31234567-89ab-4cde-8fab-0123456789ab","media_title":"Movie","username":"Viewer","play_method":"Transcode","position_ms":3000,"duration_ms":9000,"is_paused":false,"video_codec":"hevc","output_video_codec":"h264","observed_bitrate_kbps":5000,"client_ip":"127.0.0.1"}]`)
+			fmt.Fprint(w, `[{"session_id":"01234567-89ab-4cde-8fab-0123456789ab","user_id":"11234567-89ab-4cde-8fab-0123456789ab","media_id":"21234567-89ab-4cde-8fab-0123456789ab","media_file_id":"31234567-89ab-4cde-8fab-0123456789ab","media_title":"Movie","username":"Viewer","profile_name":"Household member","play_method":"Transcode","position_ms":3000,"duration_ms":9000,"is_paused":false,"video_codec":"hevc","output_video_codec":"h264","observed_bitrate_kbps":5000,"client_ip":"127.0.0.1"}]`)
 		case "/api/v1/media/21234567-89ab-4cde-8fab-0123456789ab":
 			fmt.Fprint(w, `{"id":"21234567-89ab-4cde-8fab-0123456789ab","media_type":"movie","title":"Movie","poster_path":"present","files":[{"id":"31234567-89ab-4cde-8fab-0123456789ab","container":"mkv"}]}`)
 		default:
@@ -34,7 +35,7 @@ func TestActivitySnapshotUsesTofaSessions(t *testing.T) {
 	if p.Kind != "Movie" || p.PlayMethod != "transcode" || p.Position == nil || *p.Position != 30000000 || p.Display == nil || p.Display.PosterPath != "poster" {
 		t.Fatal(p)
 	}
-	if p.Display.Container != "Source: MKV" || p.Display.Video != "HEVC → H264" || p.Display.Bandwidth != "5.0 Mbps" || p.Display.LocationType != "LAN" {
+	if p.Display.Container != "Source: MKV" || p.Display.Video != "HEVC → H264" || p.Display.Bandwidth != "5.0 Mbps" || p.Display.LocationType != "LAN" || p.Display.ProfileName != "Household member" {
 		t.Fatal("incorrect stream details", p.Display)
 	}
 }
@@ -99,5 +100,74 @@ func TestActivitySnapshotAllowsSessionWithoutMediaID(t *testing.T) {
 	}
 	if v.Sessions[0].Item != "31234567-89ab-4cde-8fab-0123456789ab" || v.Sessions[0].Kind != "Video" || v.Sessions[0].Title != "Unknown title" || v.Sessions[0].Display.PosterPath != "" {
 		t.Fatal(v.Sessions[0])
+	}
+}
+
+func TestActivityDiagnosticsAllowlistExcludesSecrets(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/system/playback/sessions":
+			fmt.Fprint(w, `[{"session_id":"01234567-89ab-4cde-8fab-0123456789ab","user_id":"11234567-89ab-4cde-8fab-0123456789ab","media_id":"21234567-89ab-4cde-8fab-0123456789ab","media_file_id":"31234567-89ab-4cde-8fab-0123456789ab","media_title":"Movie","play_method":"Transcode","position_ms":1234,"is_paused":false,"video_codec":"hevc","output_video_codec":"h264","api_key":"secret-value","stream_dir":"secret-path"}]`)
+		case "/api/v1/media/21234567-89ab-4cde-8fab-0123456789ab":
+			fmt.Fprint(w, `{"id":"21234567-89ab-4cde-8fab-0123456789ab","media_type":"movie","title":"Movie"}`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer upstream.Close()
+	s := New(provider.Config{URL: upstream.URL, Transport: provider.Transport{Client: upstream.Client()}})
+	v, err := s.ActivitySnapshot(context.Background())
+	if err != nil || len(v.Sessions) != 1 {
+		t.Fatal(v, err)
+	}
+	raw := v.Sessions[0].Display.RawDataJSON
+	if !strings.Contains(raw, `"video_codec":"hevc"`) || !strings.Contains(raw, `"position_ms":1234`) || strings.Contains(raw, "secret") {
+		t.Fatal("unsafe or missing diagnostics", raw)
+	}
+}
+
+func TestActivityProfileAvatarRequiresMatchingUserAndProfile(t *testing.T) {
+	mode := "match"
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/system/playback/sessions":
+			fmt.Fprint(w, `[{"session_id":"01234567-89ab-4cde-8fab-0123456789ab","user_id":"11234567-89ab-4cde-8fab-0123456789ab","profile_id":"41234567-89ab-4cde-8fab-0123456789ab","profile_name":"Profile","media_id":"21234567-89ab-4cde-8fab-0123456789ab","media_file_id":"31234567-89ab-4cde-8fab-0123456789ab","media_title":"Movie","play_method":"DirectPlay","is_paused":false}]`)
+		case "/api/v1/media/21234567-89ab-4cde-8fab-0123456789ab":
+			fmt.Fprint(w, `{"id":"21234567-89ab-4cde-8fab-0123456789ab","media_type":"movie","title":"Movie"}`)
+		case "/api/v1/users/11234567-89ab-4cde-8fab-0123456789ab/profiles":
+			u := "11234567-89ab-4cde-8fab-0123456789ab"
+			if mode == "wrong_user" {
+				u = "51234567-89ab-4cde-8fab-0123456789ab"
+			}
+			ref := "preset:blue"
+			if mode == "unsafe" {
+				ref = "preset:../secret"
+			}
+			fmt.Fprintf(w, `[{"id":"41234567-89ab-4cde-8fab-0123456789ab","user_id":%q,"avatar_ref":%q}]`, u, ref)
+		case "/api/v1/profiles/avatars/blue.png":
+			w.Header().Set("Content-Type", "image/png")
+			fmt.Fprint(w, "fixture")
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer upstream.Close()
+	s := New(provider.Config{URL: upstream.URL, Transport: provider.Transport{Client: upstream.Client()}})
+	v, err := s.ActivitySnapshot(context.Background())
+	if err != nil || v.Sessions[0].Display.AvatarPath != "preset:blue" {
+		t.Fatal(v, err)
+	}
+	kind, image, err := s.ActivityAvatarImage(context.Background(), "preset:blue")
+	if err != nil || kind != "image/png" || string(image) != "fixture" {
+		t.Fatal(kind, err)
+	}
+	for _, mode = range []string{"wrong_user", "unsafe"} {
+		v, err = s.ActivitySnapshot(context.Background())
+		if err != nil || v.Sessions[0].Display.AvatarPath != "" {
+			t.Fatal(mode, v, err)
+		}
+	}
+	if _, _, err = s.ActivityAvatarImage(context.Background(), "preset:../secret"); err == nil {
+		t.Fatal("accepted unsafe avatar")
 	}
 }

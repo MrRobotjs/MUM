@@ -73,6 +73,9 @@ func (a *App) readActivityPictureSource(ctx context.Context, session string, ite
 	}
 	if avatar {
 		valid = source.Provider == "plex" && source.Tag != "" && plex.ActivityAvatar(source.Tag) == source.Tag
+		if source.Provider == "tofa" {
+			valid = tofa.ValidActivityAvatar(source.Tag)
+		}
 		if source.Provider == "jellyfin" || source.Provider == "emby" {
 			parts := strings.Split(source.Tag, ":")
 			valid = len(parts) == 2 && mediabrowser.ValidToken(parts[0]) && mediabrowser.ValidToken(parts[1])

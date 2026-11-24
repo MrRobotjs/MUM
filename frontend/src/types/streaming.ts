@@ -3,6 +3,7 @@ export type ActiveSession = {
   session_key: string;
   user: string;
   user_avatar_url?: string;
+  profile_name?: string;
   mum_user_id?: number;
   mum_user_uuid?: string;
 

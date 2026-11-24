@@ -534,6 +534,7 @@ export const StreamingSessionCard = ({
               ) : (
                 <span className="truncate">{session.user}</span>
               )}
+              {session.profile_name && session.profile_name !== session.user ? <span className="truncate" title="Tofa profile">· {session.profile_name}</span> : null}
             </div>
 
             <div className="mt-1 flex items-center gap-2 text-[10px]">
@@ -1136,6 +1137,7 @@ export const StreamingSessionCard = ({
                   {session.user}
                 </span>
               )}
+              {session.profile_name && session.profile_name !== session.user ? <span className="truncate text-xs text-muted-foreground">Profile: {session.profile_name}</span> : null}
               <div className="flex flex-col text-xs text-muted-foreground sm:text-sm">
                 <div className="flex items-center gap-1 truncate">
                   <span className="text-muted-foreground/80" title="Player">{session.player_title}</span>

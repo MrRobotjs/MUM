@@ -20,6 +20,8 @@ type activityRow struct {
 	Item             *string  `json:"media_id"`
 	Title            *string  `json:"media_title"`
 	UserName         *string  `json:"username"`
+	ProfileName      *string  `json:"profile_name"`
+	ProfileID        *string  `json:"profile_id"`
 	Method           string   `json:"play_method"`
 	Paused           *bool    `json:"is_paused"`
 	Position         *int64   `json:"position_ms"`
@@ -152,7 +154,37 @@ func (s *Server) ActivitySnapshot(ctx context.Context) (provider.ActivitySnapsho
 			title = "Unknown title"
 		}
 		session := provider.ActivitySession{Session: r.Session, User: r.User, Item: itemID, UserName: safeLabel(r.UserName, 128), Title: title, Kind: kind, Paused: *r.Paused, Position: pos, Duration: duration, Client: safeLabel(r.Client, 128), Device: safeLabel(r.Device, 256), Platform: safeLabel(r.Platform, 64), PlayMethod: provider.PlayMethods[r.Method]}
-		display := &provider.ActivityDisplay{PlayerTitle: session.Device, PlayerPlatform: session.Platform, Product: session.Client, SourceResolution: safeLabel(r.SourceResolution, 8), StreamResolution: safeLabel(r.Resolution, 8), MediaVideoCodec: safeLabel(r.SourceVideo, 64), MediaAudioCodec: safeLabel(r.SourceAudio, 64)}
+		display := &provider.ActivityDisplay{PlayerTitle: session.Device, PlayerPlatform: session.Platform, ProfileName: safeLabel(r.ProfileName, 128), Product: session.Client, SourceResolution: safeLabel(r.SourceResolution, 8), StreamResolution: safeLabel(r.Resolution, 8), MediaVideoCodec: safeLabel(r.SourceVideo, 64), MediaAudioCodec: safeLabel(r.SourceAudio, 64)}
+		if r.ProfileID != nil && uuid.MatchString(*r.ProfileID) {
+			avatar, avatarErr := s.profileAvatar(ctx, r.User, *r.ProfileID)
+			if avatarErr != nil {
+				return result, avatarErr
+			}
+			display.AvatarPath = avatar
+		}
+		// Keep only playback diagnostics, never provider URLs, tokens or file paths.
+		method := "Unknown"
+		if session.PlayMethod != "" {
+			method = r.Method
+		}
+		diagnostics := map[string]any{
+			"play_method":           method,
+			"is_paused":             r.Paused,
+			"position_ms":           r.Position,
+			"duration_ms":           r.Duration,
+			"video_codec":           safeLabel(r.SourceVideo, 64),
+			"output_video_codec":    safeLabel(r.OutputVideo, 64),
+			"audio_codec":           safeLabel(r.SourceAudio, 64),
+			"output_audio_codec":    safeLabel(r.OutputAudio, 64),
+			"source_resolution":     safeLabel(r.SourceResolution, 64),
+			"resolution":            safeLabel(r.Resolution, 64),
+			"observed_bitrate_kbps": r.Bitrate,
+			"source_bitrate_kbps":   r.SourceBitrate,
+			"max_bitrate_kbps":      r.MaxBitrate,
+		}
+		if encoded, err := json.Marshal(diagnostics); err == nil && len(encoded) <= 8192 {
+			display.RawDataJSON = string(encoded)
+		}
 		for _, f := range media.Files {
 			if strings.EqualFold(f.ID, r.File) {
 				display.Container = strings.ToUpper(safeLabel(f.Container, 64))

@@ -298,7 +298,9 @@ const ProfileTab = ({ user,target }: { user: UserDetail;target:string }) => {
             {user.libraries.length > 0 || isServiceUser ? (
               <div className="border-t border-border pt-4">
                 <div className="text-sm font-semibold text-foreground">Libraries</div>
-                {user.has_all_libraries ? (
+                {!user.library_policy_known && isServiceUser ? (
+                  <p className="mt-2 text-sm text-muted-foreground">Library access unavailable.</p>
+                ) : user.has_all_libraries ? (
                   <p className="mt-2 text-sm text-muted-foreground">Can see every library.</p>
                 ) : user.libraries.length === 0 ? (
                   <p className="mt-2 text-sm text-muted-foreground">No libraries shared.</p>

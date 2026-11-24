@@ -18,7 +18,7 @@ export const render=(user,onEdit)=>renderToString(React.createElement(UserCard,{
 }
 
 const base = {uuid: '11111111-1111-4111-8111-111111111111', user_type: 'service', username: 'Jelly', display_name: 'Jelly', is_active: true,
-  admin_roles: [], user_roles: [], linked_service_count: 0, service_type: 'jellyfin', server_nickname: 'Jelly++', server_id: 1, libraries: [], has_all_libraries: false};
+  admin_roles: [], user_roles: [], linked_service_count: 0, service_type: 'jellyfin', server_nickname: 'Jelly++', server_id: 1, libraries: [], has_all_libraries: false, library_policy_known: true};
 
 test('server account cards show MUM sign-in and linked accounts', async t => {
   // React keeps MessageChannels open after rendering; close them so the run ends.
@@ -26,6 +26,12 @@ test('server account cards show MUM sign-in and linked accounts', async t => {
   globalThis.MessageChannel = class extends Original { constructor() { super(); channels.push(this); } };
   t.after(() => { globalThis.MessageChannel = Original; for (const c of channels) { c.port1.close(); c.port2.close(); } });
   const m = await load();
+  await t.test('unknown library access is not described as an empty share', () => {
+    const html = m.render({...base, service_type: 'tofa', library_policy_known: false});
+    assert.match(html, /Library access unavailable/);
+    assert.doesNotMatch(html, /No libraries shared/);
+    assert.match(m.render({...base, library_policy_known: true}), /No libraries shared/);
+  });
   await t.test('only service cards expose editing between info and profile', () => {
     const html = m.render(base, () => {});
     assert.match(html, /title="Show Raw User Data"[\s\S]*title="Edit User"[\s\S]*title="View User Profile"/);

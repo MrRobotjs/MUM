@@ -79,6 +79,10 @@ func TestConsoleLogLevelsAndSafeErrors(t *testing.T) {
 	}{
 		{&providerHTTPError{StatusCode: 401}, "UPSTREAM_AUTH_REJECTED"},
 		{errActivitySnapshot, "INVALID_ACTIVITY_SNAPSHOT"},
+		{errors.New("invalid Tofa media page"), "TOFA_INVALID_MEDIA_PAGE"},
+		{errors.New("incomplete Tofa catalogue page"), "TOFA_INCOMPLETE_CATALOGUE_PAGE"},
+		{errors.New("Tofa library count mismatch"), "TOFA_LIBRARY_COUNT_MISMATCH"},
+		{errors.New("Tofa catalogue changed during synchronization"), "TOFA_CATALOGUE_CHANGED"},
 		{context.DeadlineExceeded, "TIMEOUT"},
 		{&url.Error{Op: "Get", URL: "https://secret-user:secret-password@fixture/?token=secret-token", Err: errors.New("secret-response")}, "OPERATION_FAILED"},
 	} {

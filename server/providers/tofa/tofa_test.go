@@ -73,3 +73,25 @@ func TestConnectionRequiresAdminUserRead(t *testing.T) {
 		t.Fatal(info, err)
 	}
 }
+
+func TestLibrariesRequireCompleteServerWideSnapshot(t *testing.T) {
+	body := `[{"id":"01234567-89ab-4cde-8fab-0123456789ab","name":"Films","media_type":"movie"},{"id":"11234567-89ab-4cde-8fab-0123456789ab","name":"Shows","media_type":"tv"}]`
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/libraries" || r.URL.Query().Get("all") != "true" || r.Header.Get("Authorization") != "Bearer key" {
+			t.Error("incorrect library request")
+		}
+		fmt.Fprint(w, body)
+	}))
+	defer srv.Close()
+	s := New(provider.Config{URL: srv.URL, APIKey: "key", Transport: provider.Transport{Client: srv.Client()}})
+	rows, err := s.Libraries(context.Background())
+	if err != nil || len(rows) != 2 || rows[0].Name != "Films" || rows[1].Type != "show" {
+		t.Fatal(rows, err)
+	}
+	for _, bad := range []string{`null`, `{}`, `[{"id":"x","name":"Films","media_type":"movie"}]`, `[{"id":"01234567-89ab-4cde-8fab-0123456789ab","name":"Films"}]`, `[{"id":"01234567-89ab-4cde-8fab-0123456789ab","name":"Films","media_type":"movie"},{"id":"01234567-89ab-4cde-8fab-0123456789ab","name":"Other","media_type":"tv"}]`} {
+		body = bad
+		if _, err = s.Libraries(context.Background()); err == nil {
+			t.Fatal("accepted invalid library snapshot", bad)
+		}
+	}
+}

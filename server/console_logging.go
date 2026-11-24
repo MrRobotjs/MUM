@@ -47,6 +47,19 @@ func newConsoleLogger(out io.Writer, level string) (*slog.Logger, error) {
 // upstream response bodies or personal data. Never print their raw text here.
 func consoleErrorCode(err error) string {
 	var upstream *providerHTTPError
+	// These are fixed adapter errors; never print arbitrary provider error text.
+	if err != nil {
+		switch err.Error() {
+		case "Tofa library count mismatch":
+			return "TOFA_LIBRARY_COUNT_MISMATCH"
+		case "invalid Tofa media page":
+			return "TOFA_INVALID_MEDIA_PAGE"
+		case "incomplete Tofa catalogue page":
+			return "TOFA_INCOMPLETE_CATALOGUE_PAGE"
+		case "Tofa catalogue changed during synchronization":
+			return "TOFA_CATALOGUE_CHANGED"
+		}
+	}
 	switch {
 	case errors.Is(err, context.DeadlineExceeded):
 		return "TIMEOUT"

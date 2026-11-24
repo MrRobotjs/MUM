@@ -19,6 +19,21 @@ func TestTofaUserSyncAndScheduledRefresh(t *testing.T) {
 		switch r.URL.Path {
 		case "/api/v1/system/info":
 			fmt.Fprint(w, `{"version":"0.14.0"}`)
+		case "/api/v1/libraries":
+			if r.URL.Query().Get("all") != "true" {
+				t.Error("server-wide library list not requested")
+			}
+			if mode.Load() == 3 {
+				fmt.Fprint(w, `null`)
+				return
+			}
+			fmt.Fprint(w, `[{"id":"21234567-89ab-4cde-8fab-0123456789ab","name":"Movies","media_type":"movie","stats":{"item_count":0}}]`)
+		case "/api/v1/profiles":
+			fmt.Fprint(w, `[{"is_primary":true,"is_kids":false,"library_ids":null,"max_content_rating":null}]`)
+		case "/api/v1/media/changes":
+			fmt.Fprint(w, `{"latest_revision":1}`)
+		case "/api/v1/media":
+			fmt.Fprint(w, `{"items":[],"page":1,"per_page":200,"total":0,"total_pages":0}`)
 		case "/api/v1/users":
 			if mode.Load() == 1 {
 				fmt.Fprint(w, `null`)
@@ -53,6 +68,21 @@ func TestTofaUserSyncAndScheduledRefresh(t *testing.T) {
 	if !active || name != "Reader" || joined == "" || !strings.Contains(policy, `"library_policy_known":false`) {
 		t.Fatal(name, active, joined, policy)
 	}
+	var libraries int
+	if err := s.reader.QueryRow(`SELECT count(*) FROM media_libraries WHERE server_id=? AND name='Movies' AND is_available=1`, id).Scan(&libraries); err != nil || libraries != 1 {
+		t.Fatal("library sync", libraries, err)
+	}
+	mode.Store(3)
+	if w := apiRequest(a, "POST", path+"/sync-libraries", token, nil, nil); w.Code != 502 {
+		t.Fatal("invalid library snapshot accepted", w.Code)
+	}
+	if err := s.reader.QueryRow(`SELECT count(*) FROM media_libraries WHERE server_id=? AND name='Movies' AND is_available=1`, id).Scan(&libraries); err != nil || libraries != 1 {
+		t.Fatal("invalid library snapshot changed saved libraries", libraries, err)
+	}
+	mode.Store(0)
+	if w := apiRequest(a, "GET", "/api/users/"+uuid, token, nil, nil); w.Code != 200 || responseData(t, w)["library_policy_known"] != false {
+		t.Fatal("unknown library access not represented", w.Code, w.Body.String())
+	}
 	if w := apiRequest(a, "POST", "/api/users/sync-all", token, nil, nil); w.Code != 200 || responseData(t, w)["summary"].(map[string]any)["failed"] != float64(0) {
 		t.Fatal("global user sync", w.Code, w.Body.String())
 	}
@@ -78,7 +108,7 @@ func TestTofaUserSyncAndScheduledRefresh(t *testing.T) {
 		t.Fatal("scheduled sync did not preserve account identity and disabled state")
 	}
 	var state string
-	if err := s.reader.QueryRow(`SELECT run_state FROM server_refresh_schedules WHERE server_id=? AND scope='libraries'`, id).Scan(&state); err != nil || state == "failed" || state == "running" {
+	if err := s.reader.QueryRow(`SELECT run_state FROM server_refresh_schedules WHERE server_id=? AND scope='libraries'`, id).Scan(&state); err != nil || state != "succeeded" {
 		t.Fatal(state, err)
 	}
 }

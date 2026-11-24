@@ -62,7 +62,7 @@ type ServerNavItemProps = {
 
 // Server types with play history: recorded by MUM or imported from the server.
 export const HISTORY_SERVICES = new Set(["plex", "jellyfin", "emby", "audiobookshelf"])
-const LIBRARY_SERVICES = new Set(["plex", "jellyfin", "emby", "kavita", "audiobookshelf", "komga", "romm"])
+const LIBRARY_SERVICES = new Set(["plex", "jellyfin", "emby", "kavita", "audiobookshelf", "komga", "romm", "tofa"])
 
 // A server's own pages, in sidebar order. Resources (the server's dashboard
 // graphs) is offered for Plex servers only.

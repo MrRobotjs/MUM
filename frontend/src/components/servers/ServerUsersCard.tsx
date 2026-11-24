@@ -130,7 +130,7 @@ export function ServerUsersCard({ serverId, serverSlug, serviceType, onSync, syn
         case 'lastPlayer': return account.last_player ?? '—';
         case 'plays': return account.plays.toLocaleString();
         case 'watch': return watch(account.watch_seconds);
-        case 'libraries': return <span title={account.libraries.join(', ')}>{account.has_all_libraries ? 'All libraries' : `${account.libraries.length} selected`}</span>;
+        case 'libraries': return <span title={account.libraries.join(', ')}>{!account.library_policy_known ? 'Library access unavailable' : account.has_all_libraries ? 'All libraries' : `${account.libraries.length} selected`}</span>;
         case 'expires': return account.access_expires_at ? formatTimestamp(account.access_expires_at, 'date') : 'Never';
       }
     };

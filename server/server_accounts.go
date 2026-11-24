@@ -214,7 +214,7 @@ func (a *App) serverAccounts(w http.ResponseWriter, r *http.Request) {
 		r.kind = kind
 		item := map[string]any{"uuid": r.uuid, "username": username, "duplicate_username": duplicateUsername, "email": nullableText(email), "is_active": active, "access_expires_at": nullableString(expires),
 			"plays": plays, "watch_seconds": nil, "last_streamed_at": nullableString(last), "last_played": nil, "last_ip": nil, "last_platform": nil, "last_player": nil,
-			"linked_profile": nil, "libraries": []string{}, "has_all_libraries": r.allLibraries}
+			"linked_profile": nil, "libraries": []string{}, "has_all_libraries": r.allLibraries, "library_policy_known": policy["library_policy_known"] == true}
 		if watch.Valid {
 			item["watch_seconds"] = watch.Int64
 		}

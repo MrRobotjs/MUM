@@ -21,7 +21,7 @@ export {serverAccountSort} from './src/lib/serverAccounts';export {setAccessToke
 }
 
 const account = (uuid, username) => ({uuid, username, email: `${username}@example.test`, is_active: true, access_expires_at: null, plays: 3, watch_seconds: 600,
-  last_streamed_at: null, last_played: null, last_ip: '10.0.0.1', last_platform: 'Roku', last_player: 'TV', linked_profile: null, libraries: [], has_all_libraries: true, avatar_url: null});
+  last_streamed_at: null, last_played: null, last_ip: '10.0.0.1', last_platform: 'Roku', last_player: 'TV', linked_profile: null, libraries: [], has_all_libraries: true, library_policy_known: true, avatar_url: null});
 const page = (extra = {}) => ({server_id: 2, server_name: 'Plex++', service_type: 'plex', live: true, records: 'all', page: 1, page_size: 25, total_items: 2, total_pages: 1,
   items: [account('11111111-1111-4111-8111-111111111111', 'alpha'), account('22222222-2222-4222-8222-222222222222', 'beta')], ...extra});
 const headers = html => [...html.matchAll(/<th[^>]*>.*?<\/th>/g)].map(h => h[0].replace(/<[^>]+>/g, '').replace(/<!-- -->/g, ''));
@@ -55,6 +55,12 @@ test('server users table', async t => {
     assert.match(m.render().replace(/<!-- -->/g, ''), /ID: 11111111-1111-4111-8111-111111111111/);
     globalThis.usersTable={data:page({items:[{...row,duplicate_username:false}]})};
     assert.doesNotMatch(m.render(), /users\/alpha\?id=/);
+  });
+
+  await t.test('does not describe an unknown library policy as zero libraries', () => {
+    storage([]);
+    globalThis.usersTable={data:page({items:[{...account('11111111-1111-4111-8111-111111111111','alpha'),has_all_libraries:false,library_policy_known:false}]})};
+    const html=m.render(); assert.match(html,/Library access unavailable/); assert.doesNotMatch(html,/0 selected/);
   });
 
   await t.test('hides the columns only MUM fills when the server isn’t recorded live', () => {

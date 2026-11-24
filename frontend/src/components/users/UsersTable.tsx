@@ -57,6 +57,7 @@ export type UserRow = {
   service_type?: string;
   libraries?: string[];
   has_all_libraries?: boolean;
+  library_policy_known: boolean;
   access_expires_at?: string | null;
   linked_local_user?: {
     uuid: string;
@@ -212,6 +213,9 @@ export const UsersTable = ({
     value && value.trim() ? value : '-';
 
   const renderLibraries = (user: UserRow) => {
+    if (!user.library_policy_known) {
+      return <Badge color="bg-muted" icon={faFolderOpen} hover={false}>Library access unavailable</Badge>;
+    }
     if (user.has_all_libraries) {
       return (
         <Badge color="bg-blue-500" icon={faLayerGroup} hover={false}>

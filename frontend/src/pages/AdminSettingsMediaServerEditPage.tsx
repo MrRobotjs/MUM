@@ -647,7 +647,7 @@ export const AdminSettingsMediaServerEditPage = () => {
 
         <UnsavedChangesBar dirty={dirty} saving={submitting} onReset={() => baseline && setValues(baseline)} formId="server-edit-form" />
       </form>
-      <ServerRefreshSettings serverId={numericServerId!} supportsLibraries={values.service_type !== 'tofa'} />
+      <ServerRefreshSettings serverId={numericServerId!} />
     </div>
   );
 };

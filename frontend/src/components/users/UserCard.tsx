@@ -564,10 +564,10 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
           <div>
             <div className="text-[10px] uppercase tracking-wider font-semibold mb-2 flex items-center gap-1.5">
               <FontAwesomeIcon icon={faBook} className="h-3 w-3 text-blue-400" />
-              Libraries <span className="text-muted-foreground/60 font-normal">({displayHasAllLibraries ? 'All' : displayLibraries.length})</span>
+              Libraries <span className="text-muted-foreground/60 font-normal">({!user.library_policy_known ? 'Unknown' : displayHasAllLibraries ? 'All' : displayLibraries.length})</span>
             </div>
 
-            {displayHasAllLibraries ? (
+            {!user.library_policy_known ? <span className="text-[10px] text-muted-foreground italic pl-1">Library access unavailable</span> : displayHasAllLibraries ? (
               <>
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge color={palette.avatar} icon={faLayerGroup} hover={false}>All Libraries</Badge>

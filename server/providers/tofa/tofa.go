@@ -51,6 +51,45 @@ func (s *Server) Test(ctx context.Context) (provider.Info, error) {
 	return info, nil
 }
 
+// Libraries requests all server libraries rather than the administrator's
+// active profile, whose access may be narrower than the server's catalogue.
+func (s *Server) Libraries(ctx context.Context) ([]provider.Library, error) {
+	var rows []struct {
+		ID          string `json:"id"`
+		Name        string `json:"name"`
+		MediaType   string `json:"media_type"`
+		LibraryKind string `json:"library_kind"`
+	}
+	if err := s.get(ctx, "/api/v1/libraries?all=true", &rows); err != nil {
+		return nil, err
+	}
+	if rows == nil || len(rows) > 10000 {
+		return nil, errors.New("invalid Tofa library snapshot")
+	}
+	result := make([]provider.Library, 0, len(rows))
+	seen := make(map[string]bool, len(rows))
+	for _, row := range rows {
+		id := strings.ToLower(row.ID)
+		if !uuid.MatchString(row.ID) || !provider.ValidText(row.Name, 255) || seen[id] {
+			return nil, errors.New("invalid Tofa library snapshot")
+		}
+		kind := row.MediaType
+		switch kind {
+		case "movie", "other":
+		case "tv":
+			kind = "show"
+		default:
+			return nil, errors.New("unsupported Tofa library type")
+		}
+		if row.LibraryKind == "mixed" {
+			kind = "mixed"
+		}
+		seen[id] = true
+		result = append(result, provider.Library{ID: id, Name: row.Name, Type: kind})
+	}
+	return result, nil
+}
+
 func (s *Server) Users(ctx context.Context) ([]provider.User, error) {
 	var rows []struct {
 		ID          string          `json:"id"`

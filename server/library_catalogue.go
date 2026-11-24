@@ -268,6 +268,11 @@ func (a *App) syncLibraryCatalogue(w http.ResponseWriter, r *http.Request) {
 		collections, err = provider.catalogueCollections(ctx, library.External, library.Kind)
 	}
 	if err != nil {
+		a.logger.Warn("Provider catalogue synchronization failed", "server_id", library.Server, "library_id", id, "provider", library.Provider, "code", consoleErrorCode(err))
+		if library.Provider == "tofa" && err.Error() == "Tofa library count mismatch" {
+			fail(w, 502, "CATALOGUE_SYNC_FAILED", "Tofa reports different item counts for this library. Previous catalogue retained.")
+			return
+		}
 		fail(w, 502, "CATALOGUE_SYNC_FAILED", "Provider catalogue synchronization failed; previous catalogue retained")
 		return
 	}

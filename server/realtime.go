@@ -27,6 +27,7 @@ type liveClient struct {
 	channels               map[string]bool
 	notificationGeneration uint64
 	activityGeneration     uint64
+	historyGeneration      uint64
 }
 type realtimeHub struct {
 	store   *Store
@@ -97,6 +98,7 @@ func (h *realtimeHub) serve(w http.ResponseWriter, r *http.Request) {
 		var signal notificationSignal
 		var generation uint64
 		var ownActivity, allActivity activityRealtimeCursor
+		var ownHistory, allHistory activityRealtimeCursor
 		for {
 			select {
 			case <-ctx.Done():
@@ -108,6 +110,9 @@ func (h *realtimeHub) serve(w http.ResponseWriter, r *http.Request) {
 				if !h.activityUpdate(ctx, c, false, &ownActivity) || !h.activityUpdate(ctx, c, true, &allActivity) {
 					return
 				}
+				if !h.historyUpdate(ctx, c, false, &ownHistory) || !h.historyUpdate(ctx, c, true, &allHistory) {
+					return
+				}
 			case message := <-c.send:
 				p, err := h.store.Authenticate(ctx, c.accessToken())
 				if err != nil {
@@ -116,7 +121,7 @@ func (h *realtimeHub) serve(w http.ResponseWriter, r *http.Request) {
 				if envelope, ok := message.(map[string]any); ok && envelope["type"] == "event" {
 					event, _ := envelope["event"].(map[string]any)
 					channel, _ := event["channel"].(string)
-					if strings.HasPrefix(channel, "notifications.") || strings.HasPrefix(channel, "activity.") {
+					if strings.HasPrefix(channel, "notifications.") || strings.HasPrefix(channel, "activity.") || strings.HasPrefix(channel, "history.") {
 						c.mu.RLock()
 						subscribed := c.channels[channel]
 						c.mu.RUnlock()
@@ -173,6 +178,7 @@ func (h *realtimeHub) serve(w http.ResponseWriter, r *http.Request) {
 			c.channels = make(map[string]bool)
 			c.notificationGeneration++
 			c.activityGeneration++
+			c.historyGeneration++
 			c.mu.Unlock()
 			if !h.deliver(c, map[string]string{"type": "authenticated"}) {
 				return
@@ -190,6 +196,9 @@ func (h *realtimeHub) serve(w http.ResponseWriter, r *http.Request) {
 					if strings.HasPrefix(channel, "activity."+c.owner+".") {
 						c.activityGeneration++
 					}
+					if strings.HasPrefix(channel, "history."+c.owner+".") {
+						c.historyGeneration++
+					}
 					if channel == "notifications."+c.owner {
 						c.notificationGeneration++
 					}
@@ -205,6 +214,9 @@ func (h *realtimeHub) serve(w http.ResponseWriter, r *http.Request) {
 					c.channels[channel] = true
 					if strings.HasPrefix(channel, "activity."+c.owner+".") {
 						c.activityGeneration++
+					}
+					if strings.HasPrefix(channel, "history."+c.owner+".") {
+						c.historyGeneration++
 					}
 					if channel == "notifications."+c.owner {
 						c.notificationGeneration++
@@ -250,6 +262,12 @@ func (h *realtimeHub) deliver(c *liveClient, message any) bool {
 	}
 }
 func (h *realtimeHub) canSubscribe(ctx context.Context, p Principal, channel string) bool {
+	if channel == "history."+p.UUID+".own" {
+		return true
+	}
+	if channel == "history."+p.UUID+".all" {
+		return p.Admin
+	}
 	if channel == "activity."+p.UUID+".own" {
 		return true
 	}

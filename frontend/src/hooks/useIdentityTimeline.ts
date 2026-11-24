@@ -3,6 +3,11 @@ import useSWR from 'swr';
 import {useAuth} from '../contexts/AuthContext';
 import {getAuthSnapshot,subscribeToAuthStore} from '../store/authStore';
 import {fetchIdentityTimeline,type TimelineFilters,type TimelineRecords} from '../lib/identityTimeline';
+import {watchHistory} from '../lib/historyRealtime';
+import {getRealtimeState,onConnectionChange} from '../lib/realtimeSocket';
+
+const subscribeConnection=(changed:()=>void)=>onConnectionChange(()=>changed());
+const readConnection=()=>getRealtimeState().connected;
 
 // One person's play timeline on one server with Newer/Older paging. Changing
 // the person, server, records, filters or session starts from the newest.
@@ -11,6 +16,7 @@ import {fetchIdentityTimeline,type TimelineFilters,type TimelineRecords} from '.
 export function useIdentityTimeline(target:string|undefined,server:string|undefined,records:TimelineRecords,filters:TimelineFilters,enabled=true){
   const {user,isAdministrator}=useAuth();
   const session=useSyncExternalStore(subscribeToAuthStore,getAuthSnapshot);
+  const connected=useSyncExternalStore(subscribeConnection,readConnection,()=>false);
   const scope=isAdministrator?'all':'own';
   const actor=enabled&&target&&session.accessToken?user?.uuid:undefined;
   const types=filters.types.join(','),methods=filters.methods.join(',');
@@ -31,7 +37,8 @@ export function useIdentityTimeline(target:string|undefined,server:string|undefi
       page:await fetchIdentityTimeline(identity,selectedTarget,selectedScope,{server:selectedServer||undefined,records:selectedRecords,
         filters:{types:selectedTypes?selectedTypes.split(',') as TimelineFilters['types']:[],methods:selectedMethods?selectedMethods.split(',') as TimelineFilters['methods']:[]},
         before:selectedBefore||undefined})}),
-    {refreshInterval:5000,keepPreviousData:true});
+    {refreshInterval:connected?0:30000,keepPreviousData:true});
+  useEffect(()=>{if(actor&&session.accessToken)return watchHistory(actor,scope,()=>{void state.mutate().catch(()=>{});});},[actor,session.accessToken,scope,state.mutate]);
   const reply=state.data;
   const page=!state.error&&reply&&reply.page.actor_uuid===actor&&reply.page.target_uuid===target?reply.page:undefined;
   // True while the page shown answers an earlier request.

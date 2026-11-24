@@ -1,5 +1,6 @@
 export type MessageType =
 	| 'ActivityInvalidated'
+	| 'HistoryInvalidated'
 	| 'NotificationInvalidated'
 	| 'ServerHealth'
   | 'ChatMessage'

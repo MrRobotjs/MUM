@@ -1,5 +1,5 @@
 import { appPaths, appLinks } from '../../router/appLinks';
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link } from '@tanstack/react-router';
 import type { RowSelectionState } from '@tanstack/react-table';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -25,6 +25,7 @@ import { startPlayHistoryImport } from '../../lib/playHistory';
 import { observationProgress } from '../../lib/activityHistory';
 import { applyUpdater, createAppColumnHelper, useAppTable, useRememberedColumns } from '../table/DataTable';
 import { ConfirmAction, TabHeading } from '../users/AccountSettings';
+import { stableHistoryPosterURL } from '../../lib/historyPosterURL';
 
 // The History table shared by a person's History tab, a server's History tab
 // and the History page: one server at a time, MUM's recorded plays and the
@@ -37,11 +38,14 @@ import { ConfirmAction, TabHeading } from '../users/AccountSettings';
 // Poster cell: a signed history image when the play kept one, otherwise the
 // play icon (also when the image fails to load).
 export const HistoryPoster = ({ url, title, className = 'w-12 h-18' }: { url?: string; title: string; className?: string }) => {
-  const [failed, setFailed] = useState(false);
+  const [failed, setFailed] = useState<string | undefined>(undefined);
+  const previous = useRef<string | undefined>(undefined);
+  const stableUrl = stableHistoryPosterURL(previous.current, url);
+  previous.current = stableUrl;
   return (
     <div className={cn(className, 'rounded bg-muted/30 flex items-center justify-center overflow-hidden')}>
-      {url && !failed ? (
-        <img src={url} alt={title || 'Media poster'} className="w-full h-full object-cover" onError={() => setFailed(true)} />
+      {stableUrl && failed !== stableUrl ? (
+        <img src={stableUrl} alt={title || 'Media poster'} className="w-full h-full object-cover" onError={() => { previous.current = undefined; setFailed(stableUrl); }} />
       ) : (
         <FontAwesomeIcon icon={faPlay} className="text-muted-foreground/40 text-sm" />
       )}
@@ -80,8 +84,8 @@ export type HistorySource = Readonly<{
   hasPrevious: boolean; previous: () => void; next: () => void;
 }>;
 
-type HistoryColumn = 'poster' | 'title' | 'user' | 'platform' | 'product' | 'player' | 'decision' | 'date' | 'ip' | 'started' | 'paused' | 'stopped' | 'duration' | 'author' | 'listened' | 'progress';
-const historyColumnLabels: Record<HistoryColumn, string> = { poster: 'Poster', title: 'Media Title', user: 'User', platform: 'Platform', product: 'Product', player: 'Player', decision: 'Transcode Decision', date: 'Date', ip: 'IP Address',
+type HistoryColumn = 'poster' | 'title' | 'library' | 'source' | 'user' | 'platform' | 'product' | 'player' | 'decision' | 'date' | 'ip' | 'started' | 'paused' | 'stopped' | 'duration' | 'author' | 'listened' | 'progress';
+const historyColumnLabels: Record<HistoryColumn, string> = { poster: 'Poster', title: 'Media Title', library: 'Library', source: 'History Source', user: 'User', platform: 'Platform', product: 'Product', player: 'Player', decision: 'Transcode Decision', date: 'Date', ip: 'IP Address',
   started: 'Started', paused: 'Paused', stopped: 'Stopped', duration: 'Duration', author: 'Author', listened: 'Listened', progress: 'Progress' };
 const historyColumnHints: Partial<Record<HistoryColumn, string>> = {
   product: 'The app they played on',
@@ -95,7 +99,8 @@ const historyColumnHints: Partial<Record<HistoryColumn, string>> = {
 // Columns each server type reports; the title can't be hidden. A server's
 // history adds who played each play after the title.
 const historyColumns = (type: string, people: boolean): HistoryColumn[] => {
-  const columns = typeColumns(type);
+  const base = typeColumns(type);
+  const columns: HistoryColumn[] = [...base.slice(0, 2), 'library', 'source', ...base.slice(2)];
   return people ? [...columns.slice(0, 2), 'user', ...columns.slice(2)] : columns;
 };
 const typeColumns = (type: string): HistoryColumn[] => type === 'all' ? ['poster', 'title', 'platform', 'product', 'player', 'decision', 'date', 'ip', 'started', 'paused', 'stopped', 'duration', 'author', 'listened', 'progress']
@@ -139,7 +144,8 @@ export const HistoryTable = ({ history, mode, view, onViewChange, admin, descrip
   const shown = allServers ? {server_id:'all',name:'All Servers',service_type:'all',live:page?.servers.some(s=>s.live) ?? false,history:true} : page?.servers.find(s => s.server_id === page.server_id);
   const streams = Boolean(shown?.live) && view.records !== 'server';
   const shownType = shown?.service_type ?? '';
-  const shownLive = Boolean(shown?.live);
+  const serverSignature = JSON.stringify((page?.servers ?? []).map(s => [s.server_id, s.service_type, s.name]));
+  const serverNames = useMemo(() => JSON.parse(serverSignature) as [string, string, string][], [serverSignature]);
   const [columnVisibility, onColumnVisibilityChange] = useRememberedColumns(everyone ? serverHistoryColumnKey : historyColumnKey, shownType, ['title']);
 
   // The table's columns: the shown server type's, with a delete column in delete mode.
@@ -151,11 +157,11 @@ export const HistoryTable = ({ history, mode, view, onViewChange, admin, descrip
         case 'poster': return <HistoryPoster url={row.poster_url} title={row.title} />;
         case 'title': return <>
           <div className="font-medium">{row.title || (service ? 'Removed item' : 'Unknown Title')}</div>
-          {allServers && (() => { const source = page?.servers.find(s => s.server_id === row.server_id); return source ? <div className="mt-1 inline-flex items-center gap-1 text-xs text-muted-foreground"><ServiceIcon serviceType={source.service_type} className="h-3 w-3" />{source.name}</div> : null; })()}
+          {allServers && (() => { const source = serverNames.find(s => s[0] === row.server_id); return source ? <div className="mt-1 inline-flex items-center gap-1 text-xs text-muted-foreground"><ServiceIcon serviceType={source[1]} className="h-3 w-3" />{source[2]}</div> : null; })()}
           {row.parent_title && shownType !== 'audiobookshelf' && <div className="text-xs text-muted-foreground">{row.parent_title}</div>}
-          {row.library_name && <div className="text-xs text-muted-foreground/60"><FontAwesomeIcon icon={faFolder} className="mr-1 h-3 w-3" />{row.library_name}</div>}
-          {service && view.records === 'all' && shownLive && <span className="mt-1 inline-flex items-center rounded-md px-2.5 py-0.5 text-xs font-semibold bg-muted text-muted-foreground" title={`Imported from the ${service} server's own play history`}>{service} history</span>}
         </>;
+        case 'library': return row.library_name ? <span><FontAwesomeIcon icon={faFolder} className="mr-1 h-3 w-3" />{row.library_name}</span> : none;
+        case 'source': return service ? <span className="inline-flex items-center rounded-md px-2.5 py-0.5 text-xs font-semibold bg-muted text-muted-foreground" title={`Imported from the ${service} server's own play history`}>{service} history</span> : <span>Recorded by MUM</span>;
         case 'user': return <Link {...appLinks.user(row.person_uuid)} className="account-library-link">{row.person_name}</Link>;
         case 'platform': return row.platform ?? none;
         case 'product': return row.client ?? none;
@@ -198,7 +204,7 @@ export const HistoryTable = ({ history, mode, view, onViewChange, admin, descrip
         aria-label={`${row.getIsSelected() ? 'Keep' : 'Delete'} ${row.original.title || 'this play'}`} title={row.original.in_progress ? 'Still playing: it can be deleted once it ends' : undefined}
         onClick={() => row.toggleSelected()}><FontAwesomeIcon icon={faTrashCan} /></Button>,
     }), ...data];
-  }, [shownType, shownLive, everyone, view.records, deleteMode, formatTimestamp, allServers, page?.servers]);
+  }, [shownType, everyone, deleteMode, formatTimestamp, allServers, serverNames]);
   const rowSelection = useMemo<RowSelectionState>(() => Object.fromEntries([...marked].map(id => [id, true])), [marked]);
   const table = useAppTable({
     columns, data: (page?.items as TimelineItem[] | undefined) ?? noTimelineItems, getRowId: row => row.id,

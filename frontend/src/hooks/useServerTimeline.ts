@@ -3,6 +3,11 @@ import useSWR from 'swr';
 import {useAuth} from '../contexts/AuthContext';
 import {getAuthSnapshot,subscribeToAuthStore} from '../store/authStore';
 import {fetchServerTimeline,type TimelineFilters,type TimelineRecords} from '../lib/identityTimeline';
+import {watchHistory} from '../lib/historyRealtime';
+import {getRealtimeState,onConnectionChange} from '../lib/realtimeSocket';
+
+const subscribeConnection=(changed:()=>void)=>onConnectionChange(()=>changed());
+const readConnection=()=>getRealtimeState().connected;
 
 // Everyone's plays on one server with Newer/Older paging, for a server's
 // History tab and the History page. Changing the server, person, records,
@@ -12,6 +17,7 @@ import {fetchServerTimeline,type TimelineFilters,type TimelineRecords} from '../
 export function useServerTimeline(server:string|undefined,user:string|undefined,records:TimelineRecords,filters:TimelineFilters,enabled=true){
   const {user:me,isAdministrator}=useAuth();
   const session=useSyncExternalStore(subscribeToAuthStore,getAuthSnapshot);
+  const connected=useSyncExternalStore(subscribeConnection,readConnection,()=>false);
   const actor=enabled&&isAdministrator&&session.accessToken?me?.uuid:undefined;
   const types=filters.types.join(','),methods=filters.methods.join(',');
   const key=`${actor}|${session.accessToken}|${server??''}|${user??''}|${records}|${types}|${methods}`;
@@ -27,7 +33,8 @@ export function useServerTimeline(server:string|undefined,user:string|undefined,
       page:await fetchServerTimeline(identity,{server:selectedServer||undefined,user:selectedUser||undefined,records:selectedRecords,
         filters:{types:selectedTypes?selectedTypes.split(',') as TimelineFilters['types']:[],methods:selectedMethods?selectedMethods.split(',') as TimelineFilters['methods']:[]},
         before:selectedBefore||undefined})}),
-    {refreshInterval:5000,keepPreviousData:true});
+    {refreshInterval:connected?0:30000,keepPreviousData:true});
+  useEffect(()=>{if(actor&&session.accessToken)return watchHistory(actor,'all',()=>{void state.mutate().catch(()=>{});});},[actor,session.accessToken,state.mutate]);
   const reply=state.data;
   // A page is never shown for another session.
   const page=!state.error&&reply&&reply.page.actor_uuid===actor?reply.page:undefined;

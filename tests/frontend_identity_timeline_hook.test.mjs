@@ -6,9 +6,11 @@ import {loadFrontend} from './frontendLoader.mjs';
 // filter, records, server or paging change loads, instead of collapsing to a
 // loading line; another person's page is never shown.
 const mocks = {
-  filter: /^(react|swr)$|contexts\/AuthContext$|lib\/identityTimeline$/,
+  filter: /^(react|swr)$|contexts\/AuthContext$|lib\/identityTimeline$|lib\/realtimeSocket$|lib\/historyRealtime$/,
   module: p => p === 'react' ? 'export const useSyncExternalStore=(s,r)=>r();export const useEffect=()=>{};export const useState=v=>[v,()=>{}];'
     : p === 'swr' ? 'export default (key,fetcher,options)=>{globalThis.timelineHarness={key,fetcher,options};return globalThis.timelineState;};'
+    : /realtimeSocket$/.test(p) ? 'export const getRealtimeState=()=>({connected:!!globalThis.historyConnected});export const onConnectionChange=()=>()=>{};'
+    : /historyRealtime$/.test(p) ? 'export const watchHistory=()=>()=>{};'
     : /AuthContext$/.test(p) ? "export const useAuth=()=>({user:{uuid:'admin'},isAdministrator:true});"
     : 'export const fetchIdentityTimeline=async(...args)=>({args});',
 };
@@ -19,7 +21,15 @@ const page = (target = 'person') => ({actor_uuid: 'admin', target_uuid: target, 
 test('identity timeline keeps the previous page while the next loads', async t => {
   const m = await load();
   m.setAccessToken('session');
-  t.after(() => { delete globalThis.timelineState; delete globalThis.timelineHarness; });
+  t.after(() => { delete globalThis.timelineState; delete globalThis.timelineHarness; delete globalThis.historyConnected; });
+
+  await t.test('polls only as a disconnected safety net', () => {
+    globalThis.timelineState = {isLoading: false, mutate: async () => {}};
+    globalThis.historyConnected = false; m.useIdentityTimeline('person', undefined, 'all', view());
+    assert.equal(globalThis.timelineHarness.options.refreshInterval, 30000);
+    globalThis.historyConnected = true; m.useIdentityTimeline('person', undefined, 'all', view());
+    assert.equal(globalThis.timelineHarness.options.refreshInterval, 0);
+  });
 
   await t.test('keeps previous data and tags each reply with its request', async () => {
     globalThis.timelineState = {isLoading: true, mutate: async () => {}};

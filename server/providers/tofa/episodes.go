@@ -25,6 +25,7 @@ type tofaShow struct {
 			SeasonID string  `json:"season_id"`
 			Number   *int64  `json:"episode_number"`
 			Title    *string `json:"title"`
+			Still    *string `json:"still_path"`
 			Overview *string `json:"overview"`
 			Runtime  *int64  `json:"runtime_minutes"`
 			Files    *[]struct {
@@ -103,6 +104,7 @@ func (s *Server) catalogueEpisodesOnce(ctx context.Context, show string) ([]prov
 			return nil, errors.New("Tofa merged show identity unavailable")
 		}
 		ids := map[string]bool{strings.ToLower(show): true}
+		unknown := map[string]bool{}
 		after := ""
 		cursors := map[string]bool{}
 		fileCount := 0
@@ -134,7 +136,9 @@ func (s *Server) catalogueEpisodesOnce(ctx context.Context, show string) ([]prov
 					return nil, errors.New("invalid Tofa file snapshot")
 				}
 				if f.MediaType == "tv" && f.TMDB == nil {
-					return nil, errors.New("Tofa file show identity unavailable")
+					if !strings.EqualFold(f.MediaID, show) {
+						unknown[strings.ToLower(f.MediaID)] = true
+					}
 				}
 				if f.MediaType == "tv" && f.TMDB != nil && *f.TMDB == *primary.TMDB {
 					ids[strings.ToLower(f.MediaID)] = true
@@ -149,6 +153,33 @@ func (s *Server) catalogueEpisodesOnce(ctx context.Context, show string) ([]prov
 			}
 			cursors[next] = true
 			after = next
+		}
+		if len(unknown) > 0 {
+			// A separately visible show is not an omitted version of this one.
+			visible, err := s.CatalogueItems(ctx, primary.Library, "show", nil)
+			if err != nil {
+				return nil, err
+			}
+			for _, item := range visible {
+				delete(unknown, strings.ToLower(item.ID))
+			}
+			for id := range unknown {
+				var detail struct {
+					ID      string `json:"id"`
+					Library string `json:"library_id"`
+					Type    string `json:"media_type"`
+					TMDB    *int64 `json:"tmdb_id"`
+				}
+				if err := s.get(ctx, "/api/v1/media/"+id, &detail); err != nil {
+					return nil, err
+				}
+				if !strings.EqualFold(detail.ID, id) || !strings.EqualFold(detail.Library, primary.Library) || detail.Type != "tv" || detail.TMDB == nil {
+					return nil, errors.New("Tofa file show identity unavailable")
+				}
+				if *detail.TMDB == *primary.TMDB {
+					ids[id] = true
+				}
+			}
 		}
 		var extra []string
 		for id := range ids {
@@ -202,6 +233,9 @@ func (s *Server) catalogueEpisodesOnce(ctx context.Context, show string) ([]prov
 					title = *ep.Title
 				}
 				row := provider.CatalogueItem{ID: id, Title: title, SortTitle: title, Type: "episode", Season: season.Number, Episode: ep.Number}
+				if ep.Still != nil && episodeStillPath.MatchString(*ep.Still) {
+					row.ImageTag = *ep.Still
+				}
 				if ep.Overview != nil {
 					row.Summary = provider.TruncateRunes(*ep.Overview, 4096)
 				}

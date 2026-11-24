@@ -6,16 +6,23 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 
 	"app/server/providers/provider"
 )
 
+var episodeStillPath = regexp.MustCompile(`^images/stills/[A-Za-z0-9_-]{1,128}\.(jpg|jpeg|png|webp|gif)$`)
+
 func (s *Server) CatalogueImage(ctx context.Context, item, tag string) (string, []byte, error) {
-	if !uuid.MatchString(item) || tag != "poster" {
+	if !uuid.MatchString(item) || (tag != "poster" && !episodeStillPath.MatchString(tag)) {
 		return "", nil, provider.ErrCatalogueUnsupported
 	}
-	target, err := url.Parse(s.url + "/api/v1/artwork/" + item + "/poster")
+	path := "/api/v1/artwork/" + item + "/poster"
+	if tag != "poster" {
+		path = "/cache/" + tag
+	}
+	target, err := url.Parse(s.url + path)
 	if err != nil || target.User != nil {
 		return "", nil, errors.New("invalid Tofa image request")
 	}

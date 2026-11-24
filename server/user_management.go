@@ -405,7 +405,8 @@ func (a *App) syncAllUsers(w http.ResponseWriter, r *http.Request) {
 	summary := map[string]int{"total_servers": len(servers), "successful": 0, "failed": 0, "total_added": 0, "total_updated": 0, "total_removed": 0}
 	for index, s := range servers {
 		a.setSyncProgress(true, p, index+1, len(servers), s.Name)
-		counts, err := a.syncServer(ctx, p.UUID, bearer(r), s, true, true)
+		_, libraries := moduleRules(s.Type).(libraryReader)
+		counts, err := a.syncServer(ctx, p.UUID, bearer(r), s, libraries, true)
 		result := map[string]any{"server_id": s.ID, "server_name": s.Name, "service_type": s.Type, "success": err == nil}
 		if err != nil {
 			summary["failed"]++

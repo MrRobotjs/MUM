@@ -19,7 +19,7 @@ func TestModuleCapabilitiesMatchPreviousLists(t *testing.T) {
 	plexList := []string{"auth.api_key", "server.test", "libraries.read", "libraries.sync", "users.read", "users.sync", "users.libraries.update", "libraries.items.sync", "users.provision", "invitations.redeem", "labels.downloads.sync", "integrations.overseerr"}
 	// RomM cannot edit library access: its grants cover every platform.
 	romm := []string{"auth.api_key", "server.test", "libraries.read", "libraries.sync", "users.read", "users.sync", "users.provision", "invitations.redeem", "labels.downloads.sync"}
-	for id, want := range map[string][]string{"komga": recovering, "audiobookshelf": recovering, "kavita": recovering, "romm": romm, "jellyfin": catalogued, "emby": catalogued, "plex": plexList} {
+	for id, want := range map[string][]string{"komga": recovering, "audiobookshelf": recovering, "kavita": recovering, "romm": romm, "jellyfin": catalogued, "emby": catalogued, "plex": plexList, "tofa": {"auth.api_key", "server.test", "users.read", "users.sync"}} {
 		m, ok := findMediaModule(id)
 		if !ok {
 			t.Fatalf("%s module not registered", id)

@@ -14,6 +14,7 @@ import (
 	"app/server/providers/plex"
 	"app/server/providers/provider"
 	"app/server/providers/romm"
+	"app/server/providers/tofa"
 )
 
 // providerHTTPError is the transport's HTTP status error, so existing
@@ -36,6 +37,7 @@ var mediaModules = []mediaModule{
 	{audiobookshelf.Definition, func(c provider.Config) any { return audiobookshelf.New(c) }},
 	{komga.Definition, func(c provider.Config) any { return komga.New(c) }},
 	{romm.Definition, func(c provider.Config) any { return romm.New(c) }},
+	{tofa.Definition, func(c provider.Config) any { return tofa.New(c) }},
 }
 
 func findMediaModule(kind string) (mediaModule, bool) {
@@ -94,6 +96,9 @@ func (p *serverConnection) guard(ctx context.Context) error {
 type (
 	connectionTester interface {
 		Test(context.Context) (provider.Info, error)
+	}
+	healthChecker interface {
+		Health(context.Context) (provider.Info, error)
 	}
 	libraryReader interface {
 		Libraries(context.Context) ([]provider.Library, error)

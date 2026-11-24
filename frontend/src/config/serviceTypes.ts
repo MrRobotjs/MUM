@@ -12,6 +12,7 @@ export const SERVICE_TYPES = [
   { value: 'audiobookshelf', label: 'AudioBookshelf' },
   { value: 'komga', label: 'Komga' },
   { value: 'romm', label: 'RomM' },
+  { value: 'tofa', label: 'Tofa' },
 ] as const;
 
 export type ServiceType = (typeof SERVICE_TYPES)[number]['value'];

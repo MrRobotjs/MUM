@@ -62,13 +62,14 @@ type ServerNavItemProps = {
 
 // Server types with play history: recorded by MUM or imported from the server.
 export const HISTORY_SERVICES = new Set(["plex", "jellyfin", "emby", "audiobookshelf"])
+const LIBRARY_SERVICES = new Set(["plex", "jellyfin", "emby", "kavita", "audiobookshelf", "komga", "romm"])
 
 // A server's own pages, in sidebar order. Resources (the server's dashboard
 // graphs) is offered for Plex servers only.
 const serverPages = [
   { title: "Overview", suffix: "", to: appPaths.server, icon: faCircleInfo, types: null },
   { title: "Users", suffix: "/users", to: appPaths.serverUsers, icon: faUsers, types: null },
-  { title: "Libraries", suffix: "/libraries", to: appPaths.serverLibraries, icon: faLayerGroup, types: null },
+  { title: "Libraries", suffix: "/libraries", to: appPaths.serverLibraries, icon: faLayerGroup, types: LIBRARY_SERVICES },
   { title: "History", suffix: "/history", to: appPaths.serverHistory, icon: faClockRotateLeft, types: HISTORY_SERVICES },
   { title: "Graphs", suffix: "/graphs", to: appPaths.serverGraphs, icon: faChartPie, types: ACTIVITY_GRAPH_SERVICES },
   { title: "Resources", suffix: "/resources", to: appPaths.serverResources, icon: faGaugeHigh, types: new Set(["plex"]) },
@@ -220,7 +221,7 @@ const ServerNavItem = ({ server, pathname, onNavigate, userId }: ServerNavItemPr
                 {selectedUsername && <CollapsibleContent><SidebarMenuSub><SidebarMenuSubItem><SidebarMenuSubButton asChild isActive><Link {...appLinks.serverUser(serverSlug, selectedUsername)} search={userId ? {id:userId} : {}} onClick={onNavigate}><FontAwesomeIcon icon={faUsers} className="h-3.5 w-3.5" /><span>{currentUser.username ?? selectedUsername}</span></Link></SidebarMenuSubButton></SidebarMenuSubItem></SidebarMenuSub></CollapsibleContent>}
               </SidebarMenuSubItem>
             </Collapsible>
-            <Collapsible
+            {LIBRARY_SERVICES.has(server.service_type) && <Collapsible
               asChild
               open={librariesOpen}
               onOpenChange={(next) => {
@@ -316,7 +317,7 @@ const ServerNavItem = ({ server, pathname, onNavigate, userId }: ServerNavItemPr
                   )}
                 </CollapsibleContent>
               </SidebarMenuSubItem>
-            </Collapsible>
+            </Collapsible>}
             {/* The pages after Libraries (History, Graphs, Resources); the ones above are listed with their counts. */}
             {serverPagesFor(server.service_type).filter((page) => !["Overview", "Users", "Libraries"].includes(page.title)).map((page) => (
               <SidebarMenuSubItem key={page.title}>

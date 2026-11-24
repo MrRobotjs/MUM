@@ -222,12 +222,46 @@ func (s *Store) write(ctx context.Context, action func(*sql.Tx) error) error {
 	return tx.Commit()
 }
 
-func (s *Store) migrate(ctx context.Context) error {
+func (s *Store) migrate(ctx context.Context) (result error) {
 	files, err := migrationFiles.ReadDir("go_migrations")
 	if err != nil {
 		return err
 	}
-	return s.write(ctx, func(tx *sql.Tx) error {
+	// SQLite requires foreign keys to be disabled outside the transaction while
+	// rebuilding a referenced table. This is the only startup connection; check
+	// the complete graph before commit and restore enforcement before release.
+	conn, err := s.writer.Conn(ctx)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	var versioned, applied int
+	if err = conn.QueryRowContext(ctx, `SELECT count(*) FROM sqlite_schema WHERE type='table' AND name='schema_migrations'`).Scan(&versioned); err != nil {
+		return err
+	}
+	if versioned != 0 {
+		if err = conn.QueryRowContext(ctx, `SELECT count(*) FROM schema_migrations WHERE version='005_tofa.sql'`).Scan(&applied); err != nil {
+			return err
+		}
+	}
+	rebuild := applied == 0
+	if rebuild {
+		if _, err = conn.ExecContext(ctx, `PRAGMA foreign_keys=OFF`); err != nil {
+			return err
+		}
+		defer func() {
+			cleanup, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			_, e := conn.ExecContext(cleanup, `PRAGMA foreign_keys=ON`)
+			result = errors.Join(result, e)
+		}()
+	}
+	tx, err := conn.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	err = func(tx *sql.Tx) error {
 		if _, err := tx.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS schema_migrations (
 			version TEXT PRIMARY KEY, checksum TEXT NOT NULL, applied_at TEXT NOT NULL)`); err != nil {
 			return err
@@ -279,8 +313,26 @@ func (s *Store) migrate(ctx context.Context) error {
 				return err
 			}
 		}
+		if rebuild {
+			rows, err := tx.QueryContext(ctx, `PRAGMA foreign_key_check`)
+			if err != nil {
+				return err
+			}
+			invalid := rows.Next()
+			err = errors.Join(rows.Err(), rows.Close())
+			if err != nil {
+				return err
+			}
+			if invalid {
+				return errors.New("migration violates foreign key integrity")
+			}
+		}
 		return nil
-	})
+	}(tx)
+	if err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // Fixed fractional width preserves lexical ordering for newly stored UTC times.

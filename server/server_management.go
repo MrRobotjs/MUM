@@ -826,11 +826,16 @@ func (a *App) syncServerClaimed(ctx context.Context, actor, access string, s Man
 				}
 				settings, _ := json.Marshal(policy)
 				avatar, joined := "", ""
-				if account.Profile != nil && s.Type == "plex" {
-					avatar = plex.UserAvatar(account.Profile.AvatarURL)
+				if account.Profile != nil {
+					if s.Type == "plex" {
+						avatar = plex.UserAvatar(account.Profile.AvatarURL)
+					}
 					if value, err := time.Parse(time.RFC3339, account.Profile.JoinDate); err == nil {
 						joined = value.UTC().Format(time.RFC3339)
 					}
+				}
+				if s.Type == "tofa" && account.Email == "" && stored.Email.Valid {
+					account.Email = stored.Email.String
 				}
 				// Only Plex reports other IDs: the plex.tv account UUID, and the
 				// owner's plex.tv account ID (the server calls the owner 1).
@@ -1008,6 +1013,9 @@ func (a *App) syncServerEndpoint(w http.ResponseWriter, r *http.Request) {
 	a.setSyncProgress(true, p, 1, 1, s.Name)
 	defer a.setSyncProgress(false, p, 0, 0, "")
 	libraries, users := true, true
+	if _, supported := moduleRules(s.Type).(libraryReader); !supported && !strings.HasSuffix(r.URL.Path, "/sync-libraries") {
+		libraries = false
+	}
 	if strings.HasSuffix(r.URL.Path, "/sync-libraries") {
 		users = false
 	}

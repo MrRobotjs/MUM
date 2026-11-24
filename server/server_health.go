@@ -118,7 +118,13 @@ func (a *App) checkServerHealth(ctx context.Context, id int64) (written, changed
 		return false, false, nil
 	}
 	probe, cancel := context.WithTimeout(ctx, serverHealthTimeout)
-	info, probeErr := connection.Test(probe)
+	var info ProviderInfo
+	var probeErr error
+	if checker, ok := connection.module().(healthChecker); ok {
+		info, probeErr = checker.Health(probe)
+	} else {
+		info, probeErr = connection.Test(probe)
+	}
 	cancel()
 	if ctx.Err() != nil {
 		return false, false, nil // shutting down: no verdict

@@ -88,7 +88,7 @@ export function watchTime(seconds: string): [string, string][] {
   return out;
 }
 
-const serviceNames: Readonly<Record<string, string>> = { plex: 'Plex', jellyfin: 'Jellyfin', emby: 'Emby', audiobookshelf: 'Audiobookshelf', kavita: 'Kavita', komga: 'Komga', romm: 'RomM' };
+const serviceNames: Readonly<Record<string, string>> = { plex: 'Plex', jellyfin: 'Jellyfin', emby: 'Emby', audiobookshelf: 'Audiobookshelf', kavita: 'Kavita', komga: 'Komga', romm: 'RomM', tofa: 'Tofa' };
 
 export type NowPlaying = Readonly<{
   title: string; subtitle: string | null;

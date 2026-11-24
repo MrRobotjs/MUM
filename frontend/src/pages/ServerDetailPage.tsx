@@ -488,14 +488,14 @@ export const ServerDetailPage = ({ section = 'overview' }: { section?: ServerTab
                 </Button>} />
               <Separator />
               <SettingHeader title="Sync" icon={<SettingIcon className="bg-primary/20 text-primary"><FontAwesomeIcon icon={faRotate} className="w-4 h-4" /></SettingIcon>}
-                summary="Fetch this server's users and libraries."
+                summary={serviceType.toLowerCase()==='tofa' ? "Fetch this server's users." : "Fetch this server's users and libraries."}
                 action={<>
                   <Button variant="outline" size="sm" onClick={()=>void handleSync('users')} disabled={syncUnavailable}>
                     {syncingUsers ? <><Spinner className="h-4 w-4" />Syncing</> : <><FontAwesomeIcon icon={faUsers} />Sync users</>}
                   </Button>
-                  <Button variant="outline" size="sm" onClick={()=>void handleSync('libraries')} disabled={syncUnavailable}>
+                  {serviceType.toLowerCase()!=='tofa' && <Button variant="outline" size="sm" onClick={()=>void handleSync('libraries')} disabled={syncUnavailable}>
                     {syncingLibraries ? <><Spinner className="h-4 w-4" />Syncing</> : <><FontAwesomeIcon icon={faDatabase} />Sync libraries</>}
-                  </Button>
+                  </Button>}
                 </>} />
               {canImportHistory&&isAdministrator&&(<>
                 <Separator />

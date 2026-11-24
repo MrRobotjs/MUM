@@ -199,6 +199,11 @@ func (a *App) scheduledTasks(w http.ResponseWriter, r *http.Request) {
 		if err = rows.Scan(&task.Server, &task.Revision, &task.ServerRevision, &task.Name, &task.Provider, &task.Scope, &task.Interval, &task.State, &task.Next, &task.Started, &task.Finished, &task.Code, &task.Attempts, &runner, &eligible); err != nil {
 			break
 		}
+		if task.Scope == "libraries" {
+			if _, supported := moduleRules(task.Provider).(libraryReader); !supported {
+				continue
+			}
+		}
 		task.Enabled = true
 		if task.State == "running" {
 			if runner != a.scheduler.runner {

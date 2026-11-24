@@ -81,7 +81,7 @@ func TestFreshBaselinePreservesSchemaAndDefaults(t *testing.T) {
 	if err := s.reader.QueryRow(`SELECT count(*) FROM user_roles WHERE is_auto_managed=1`).Scan(&roles); err != nil || roles != 4 {
 		t.Fatalf("automatic roles=%d: %v", roles, err)
 	}
-	if err := s.reader.QueryRow(`SELECT count(*) FROM provider_settings`).Scan(&providers); err != nil || providers != 7 {
+	if err := s.reader.QueryRow(`SELECT count(*) FROM provider_settings`).Scan(&providers); err != nil || providers != 8 {
 		t.Fatalf("providers=%d: %v", providers, err)
 	}
 	if err := s.verifyCurrentSchema(t.Context()); err != nil {

@@ -52,6 +52,14 @@ interface ServiceMeta {
 
 // Icon mappings for each service
 export const SERVICE_META: Record<string, ServiceMeta> = {
+  tofa: {
+    icon: <FontAwesomeIcon icon={faCirclePlay} className="text-primary" />,
+    label: 'Tofa', gradient: 'from-primary/10 via-primary/10 to-primary/20',
+    badgeClass: 'bg-primary/10 text-primary ring-primary/30',
+    libraryGradient: 'from-card to-primary/10', libraryBadgeClass: 'bg-primary/10 text-primary ring-primary/30',
+    chipClass: 'bg-primary/10 text-primary ring-primary/30', detailGradient: 'from-primary/10 via-primary/10 to-primary/20',
+    palette: {bg:'bg-primary/10',bgDark:'dark:bg-primary/10',text:'text-primary',textDark:'dark:text-primary',accent:'bg-primary/10',accentDark:'dark:bg-primary/20',ring:'ring-primary/20',ringDark:'dark:ring-primary/20',avatar:'bg-primary'}
+  },
   plex: {
     icon: plexIcon,
     label: 'Plex',

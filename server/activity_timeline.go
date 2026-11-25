@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"net/http"
 	"net/url"
 	"slices"
@@ -61,9 +62,10 @@ type timelineItem struct {
 	Listened *string `json:"listened_seconds"`
 	// Who played it: the MUM account owning the server account, else the
 	// server account itself, with that account's name.
-	PersonUUID string `json:"person_uuid"`
-	PersonName string `json:"person_name"`
-	PosterURL  string `json:"poster_url,omitempty"`
+	PersonUUID string             `json:"person_uuid"`
+	PersonName string             `json:"person_name"`
+	PosterURL  string             `json:"poster_url,omitempty"`
+	Link       *serverAccountLink `json:"link,omitempty"`
 	hasPoster  bool
 	sortKey    string
 	rowID      int64
@@ -300,12 +302,68 @@ func (a *App) signTimelinePosters(ctx context.Context, tx *sql.Tx, actor, token 
 	now := time.Now().UTC()
 	for i := range items {
 		it := &items[i]
+		if it.Link, err = readTimelineItemLink(ctx, tx, it.serverID, it.item); err != nil {
+			return err
+		}
 		if it.PosterURL, err = a.playPosterURL(ctx, tx, session, playPoster{server: it.serverID, item: it.item, parent: it.parent, art: it.art,
 			row: it.rowID, imported: it.Source != "mum", stored: it.hasPoster}, now); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// A history title links only when its provider item ID identifies exactly one
+// synced item. An episode also needs one uniquely matched parent show.
+func readTimelineItemLink(ctx context.Context, tx *sql.Tx, server int64, external string) (*serverAccountLink, error) {
+	if external == "" {
+		return nil, nil
+	}
+	rows, err := tx.QueryContext(ctx, `SELECT id,library_id,parent_id,item_type FROM media_items WHERE server_id=? AND external_id=? LIMIT 2`, server, external)
+	if err != nil {
+		return nil, err
+	}
+	type match struct {
+		id, library int64
+		parent      sql.NullString
+		kind        string
+	}
+	var matches []match
+	for rows.Next() {
+		var m match
+		if err = rows.Scan(&m.id, &m.library, &m.parent, &m.kind); err != nil {
+			break
+		}
+		matches = append(matches, m)
+	}
+	err = errors.Join(err, rows.Err(), rows.Close())
+	if err != nil || len(matches) != 1 {
+		return nil, err
+	}
+	m := matches[0]
+	if !m.parent.Valid || m.parent.String == "" {
+		return &serverAccountLink{Library: m.library, Media: m.id}, nil
+	}
+	if m.kind != "episode" {
+		return nil, nil
+	}
+	parents, err := tx.QueryContext(ctx, `SELECT id FROM media_items WHERE server_id=? AND library_id=? AND external_id=? AND parent_id IS NULL AND item_type='show' LIMIT 2`, server, m.library, m.parent.String)
+	if err != nil {
+		return nil, err
+	}
+	var ids []int64
+	for parents.Next() {
+		var id int64
+		if err = parents.Scan(&id); err != nil {
+			break
+		}
+		ids = append(ids, id)
+	}
+	err = errors.Join(err, parents.Err(), parents.Close())
+	if err != nil || len(ids) != 1 {
+		return nil, err
+	}
+	return &serverAccountLink{Library: m.library, Media: ids[0], Episode: &m.id}, nil
 }
 
 // mumPlayFilter limits MUM's plays (h) to the target and, in the own scope,

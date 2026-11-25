@@ -107,6 +107,10 @@ func (a *App) terminateStream(w http.ResponseWriter, r *http.Request) {
 		domainError(w, err)
 		return
 	}
+	if kind == "tofa" && message != "" {
+		fail(w, 400, "MESSAGE_UNSUPPORTED", "Tofa does not support a message when stopping a stream.")
+		return
+	}
 	ctx, done, ok := a.startStreamOperation(w, r)
 	if !ok {
 		return
@@ -147,6 +151,8 @@ func (a *App) terminateStream(w http.ResponseWriter, r *http.Request) {
 		hint := "The server refused to stop this stream."
 		if kind == "plex" {
 			hint += " Plex only allows this when the server owner has Plex Pass."
+		} else if kind == "tofa" {
+			hint += " Use a full-admin key or a read-only key allowed to stop streams."
 		}
 		fail(w, 409, "TERMINATE_REFUSED", hint)
 	default:

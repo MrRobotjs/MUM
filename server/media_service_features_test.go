@@ -41,6 +41,7 @@ func TestMediaServiceFeatures(t *testing.T) {
 		"plex": {"users.sync": true, "users.invites": true, "users.library_access": true, "libraries.titles": true, "libraries.collections": true,
 			"activity.live": true, "activity.stop": true, "activity.history_import": true, "extras.overseerr": true, "extras.resources": true},
 		"jellyfin": {"users.sync": true, "activity.live": true, "activity.stop": true, "activity.history_import": true, "extras.overseerr": false, "extras.resources": false},
+		"tofa":     {"users.sync": true, "activity.live": true, "activity.stop": true},
 		// Audiobookshelf can't be watched live, but its listening history can be imported.
 		"audiobookshelf": {"activity.live": false, "activity.stop": false, "activity.history_import": true},
 		"kavita":         {"activity.live": false, "activity.history_import": false, "extras.overseerr": false},

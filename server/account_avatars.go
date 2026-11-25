@@ -12,6 +12,7 @@ import (
 
 	"app/server/providers/mediabrowser"
 	"app/server/providers/plex"
+	"app/server/providers/tofa"
 )
 
 // Profile pictures beside linked accounts on the account page and the admin
@@ -45,6 +46,8 @@ func serviceHasAvatar(kind, external, avatar string) bool {
 		return avatar != "" && plex.UserAvatar(avatar) == avatar
 	case "jellyfin", "emby":
 		return mediabrowser.ValidToken(external)
+	case "tofa":
+		return tofa.ValidMediaID(external)
 	}
 	return false
 }
@@ -98,7 +101,7 @@ func (a *App) readServiceAvatarSource(ctx context.Context, session string, item 
 	source.Actor = actor
 	err = tx.QueryRowContext(ctx, `SELECT s.service_type,s.url,coalesce(s.api_key,''),coalesce(a.external_user_id,''),coalesce(a.external_avatar_url,''),s.id,s.config_revision
 	 FROM identities i JOIN service_accounts a ON a.uuid=i.uuid JOIN media_servers s ON s.id=a.server_id JOIN provider_settings p ON p.provider_id=s.service_type
-	 WHERE i.id=? AND i.kind='service' AND s.is_active=1 AND p.enabled=1 AND s.service_type IN ('plex','jellyfin','emby')
+	 WHERE i.id=? AND i.kind='service' AND s.is_active=1 AND p.enabled=1 AND s.service_type IN ('plex','jellyfin','emby','tofa')
 	 AND (? OR a.uuid=? OR EXISTS(SELECT 1 FROM service_links l WHERE l.service_uuid=a.uuid AND l.user_uuid=? AND l.link_kind='owner')
 	  OR s.service_type='plex' AND EXISTS(SELECT 1 FROM plex_connections c WHERE c.owner_uuid=? AND c.status='active' AND c.account_id IN (a.external_user_id,coalesce(a.external_account_id,''))))`,
 		item, admin, actor, actor, actor).Scan(&source.Provider, &source.URL, &source.APIKey, &source.External, &source.Tag, &source.Server, &source.ConfigRevision)

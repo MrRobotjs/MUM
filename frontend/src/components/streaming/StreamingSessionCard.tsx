@@ -354,7 +354,7 @@ export const StreamingSessionCard = ({
       ? session.audio_detail
       : jellyfinAudioTranscodeLabel ?? session.audio_detail;
   const { success, error: showError } = useAlerts();
-  const canNavigateToUserProfile = Boolean(session.mum_user_uuid?.trim());
+  const canNavigateToUserProfile = Boolean(session.service_user_uuid?.trim() || session.mum_user_uuid?.trim());
   const avatarBgClass = serviceMeta.palette?.avatar ?? 'bg-muted-foreground/20';
   const avatarTextClass = serviceMeta.palette?.avatar ? 'text-white' : 'text-muted-foreground';
   const sessionSource = session.source === 'ws' ? 'ws' : 'http';
@@ -392,7 +392,7 @@ export const StreamingSessionCard = ({
     e.preventDefault();
     e.stopPropagation();
 
-    const uuid = session.mum_user_uuid?.trim();
+    const uuid = session.service_user_uuid?.trim() || session.mum_user_uuid?.trim();
     if (!uuid) {
       showError('User profile not available for this session.');
       return;
@@ -521,7 +521,7 @@ export const StreamingSessionCard = ({
               {canNavigateToUserProfile ? (
                 <a
                   href={buildUserProfilePath({
-                    uuid: session.mum_user_uuid ?? '',
+                    uuid: session.service_user_uuid ?? session.mum_user_uuid ?? '',
                     username: session.user,
                     server_nickname: session.server_name,
                   })}
@@ -1122,7 +1122,7 @@ export const StreamingSessionCard = ({
               {canNavigateToUserProfile ? (
                 <a
                   href={buildUserProfilePath({
-                    uuid: session.mum_user_uuid ?? '',
+                    uuid: session.service_user_uuid ?? session.mum_user_uuid ?? '',
                     username: session.user,
                     server_nickname: session.server_name,
                   })}

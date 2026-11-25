@@ -1,4 +1,5 @@
 import { serverNicknameIssue } from '../../lib/serverNickname';
+import { TofaKeyNote } from './TofaKeyNote';
 import { useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faWifi, faCheck, faXmark, faCircleExclamation } from '@fortawesome/free-solid-svg-icons';
@@ -394,6 +395,7 @@ export const ServerAddForm = ({ serviceId, onSuccess, onCancel, submitEndpoint }
                       onChange={(e) => handleFieldChange('api_key', e.target.value)}
                       placeholder="Enter API key"
                     />
+                    {serviceId === 'tofa' && <TofaKeyNote />}
                   </FormField>
                 )}
 

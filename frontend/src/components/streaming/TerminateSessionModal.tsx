@@ -28,7 +28,7 @@ export const TerminateSessionModal = ({
   onConfirm
 }: TerminateSessionModalProps) => {
   const serviceType = session?.service_type?.toLowerCase();
-  const supportsTerminationMessage = serviceType !== 'audiobookshelf';
+  const supportsTerminationMessage = serviceType !== 'audiobookshelf' && serviceType !== 'tofa';
 
   return (
     <ResponsiveDialog
@@ -85,7 +85,7 @@ export const TerminateSessionModal = ({
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">
-              Messages are not supported for AudioBookshelf session termination.
+              Messages are not supported for {serviceType === 'tofa' ? 'Tofa' : 'AudioBookshelf'} session termination.
             </p>
           )}
         </div>

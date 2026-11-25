@@ -76,6 +76,39 @@ func terminate(a *App, token, history, message string) *httptest.ResponseRecorde
 	return apiRequest(a, "POST", "/api/activity/current/"+history+"/terminate", token, map[string]any{"message": message}, nil)
 }
 
+func TestTofaStreamTerminationUsesCurrentSessionAndAudits(t *testing.T) {
+	calls := 0
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		if r.Method != http.MethodDelete || r.URL.Path != "/api/v1/system/playback/sessions/01234567-89ab-4cde-8fab-0123456789ab" || r.Header.Get("Authorization") != "Bearer fixture-secret" {
+			t.Error("incorrect request")
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer upstream.Close()
+	a, s := testApp(t)
+	a.ProviderHTTP = upstream.Client()
+	token, _ := bootstrapOwner(t, a)
+	server := createManagedServer(t, a, token, "tofa", upstream.URL)
+	viewer := seedExternalService(t, s, server, "11234567-89ab-4cde-8fab-0123456789ab")
+	now := utcTimestamp(time.Now())
+	activityExec(t, s, `INSERT INTO media_activity_history(server_id,external_session_id,service_uuid,item_id,media_type,title,first_seen_at,last_seen_at,paused) VALUES(?,?,?,?,?,?,?,?,0)`, server, "01234567-89ab-4cde-8fab-0123456789ab", viewer, "item", "movie", "Film", now, now)
+	activityExec(t, s, `INSERT INTO media_activity_current(server_id,external_session_id,history_id) SELECT server_id,external_session_id,id FROM media_activity_history WHERE server_id=?`, server)
+	var history string
+	if err := s.reader.QueryRow("SELECT CAST(history_id AS TEXT) FROM media_activity_current WHERE server_id=?", server).Scan(&history); err != nil {
+		t.Fatal(err)
+	}
+	if w := terminate(a, token, history, "unsupported message"); w.Code != 400 || calls != 0 {
+		t.Fatal(w.Code, calls)
+	}
+	if w := terminate(a, token, history, ""); w.Code != 200 || calls != 1 {
+		t.Fatal(w.Code, calls, w.Body.String())
+	}
+	if got := terminateOutcomes(t, s); len(got) != 1 || got[0] != "terminated" {
+		t.Fatal(got)
+	}
+}
+
 func terminateOutcomes(t *testing.T, s *Store) []string {
 	t.Helper()
 	rows, err := s.reader.Query("SELECT json_extract(details,'$.outcome') FROM audit_events WHERE action='stream.terminate' ORDER BY id")

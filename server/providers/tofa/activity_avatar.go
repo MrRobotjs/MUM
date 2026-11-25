@@ -8,6 +8,39 @@ import (
 	"strings"
 )
 
+// UserAvatarImage uses the account's primary profile, not an arbitrary
+// household member's playback profile.
+func (s *Server) UserAvatarImage(ctx context.Context, user string) (string, []byte, error) {
+	if !uuid.MatchString(user) {
+		return "", nil, provider.ErrCatalogueUnsupported
+	}
+	var profiles []struct {
+		User    string  `json:"user_id"`
+		Primary *bool   `json:"is_primary"`
+		Avatar  *string `json:"avatar_ref"`
+	}
+	if err := s.get(ctx, "/api/v1/users/"+user+"/profiles", &profiles); err != nil {
+		return "", nil, err
+	}
+	if profiles == nil || len(profiles) > 1000 {
+		return "", nil, provider.ErrCatalogueUnsupported
+	}
+	avatar := ""
+	found := false
+	for _, p := range profiles {
+		if p.Primary != nil && *p.Primary {
+			if found || !strings.EqualFold(p.User, user) {
+				return "", nil, provider.ErrCatalogueUnsupported
+			}
+			found = true
+			if p.Avatar != nil {
+				avatar = *p.Avatar
+			}
+		}
+	}
+	return s.ActivityAvatarImage(ctx, avatar)
+}
+
 var presetAvatar = regexp.MustCompile(`^preset:[A-Za-z0-9_-]{1,64}$`)
 
 func ValidActivityAvatar(descriptor string) bool { return presetAvatar.MatchString(descriptor) }

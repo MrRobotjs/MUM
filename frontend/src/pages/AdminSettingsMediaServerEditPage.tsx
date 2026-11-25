@@ -1,4 +1,5 @@
 import { appPaths, appLinks } from '../router/appLinks';
+import { TofaKeyNote } from '../components/servers/TofaKeyNote';
 import { serverNicknameIssue } from '../lib/serverNickname';
 import { useServerRoutes } from '../lib/serverRoutes';
 import { useState, useMemo, useEffect } from 'react';
@@ -500,6 +501,7 @@ export const AdminSettingsMediaServerEditPage = () => {
                       <p className="text-xs text-muted-foreground mt-1">
                         Leave blank to keep existing key
                       </p>
+                      {values.service_type === 'tofa' && <TofaKeyNote />}
                     </FormField>
                   )}
 

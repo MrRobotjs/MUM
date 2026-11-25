@@ -36,6 +36,15 @@ test('identity timeline adapter', async t => {
   t.after(() => { globalThis.fetch = before.fetch; globalThis.window = before.window; });
   globalThis.window = {location: {origin: 'http://mum.test'}};
 
+  await t.test('accepts only valid catalogue destinations', async () => {
+    const m = await load(); m.setAccessToken('session');
+    let link = {library_id: 1, media_id: 2, episode_id: 3};
+    globalThis.fetch = async () => Response.json({data: page({items: [{...mum, link}]})});
+    assert.deepEqual((await m.fetchIdentityTimeline(actor, target, 'all', all)).items[0].link, link);
+    link = {library_id: 1, media_id: 0, episode_id: null};
+    await assert.rejects(m.fetchIdentityTimeline(actor, target, 'all', all));
+  });
+
   await t.test('reads one server with records, filters and a cursor', async () => {
     const m = await load(); m.setAccessToken('session');
     let seen;

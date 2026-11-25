@@ -53,13 +53,13 @@ interface ServiceMeta {
 // Icon mappings for each service
 export const SERVICE_META: Record<string, ServiceMeta> = {
   tofa: {
-    icon: <FontAwesomeIcon icon={faCirclePlay} className="text-primary" />,
-    label: 'Tofa', gradient: 'from-primary/10 via-primary/10 to-primary/20',
-    streamingGradient: 'bg-gradient-to-br via-card to-card from-primary/30',
-    badgeClass: 'bg-primary/10 text-primary ring-primary/30',
-    libraryGradient: 'from-card to-primary/10', libraryBadgeClass: 'bg-primary/10 text-primary ring-primary/30',
-    chipClass: 'bg-primary/10 text-primary ring-primary/30', detailGradient: 'from-primary/10 via-primary/10 to-primary/20',
-    palette: {bg:'bg-primary/10',bgDark:'dark:bg-primary/10',text:'text-primary',textDark:'dark:text-primary',accent:'bg-primary/10',accentDark:'dark:bg-primary/20',ring:'ring-primary/20',ringDark:'dark:ring-primary/20',avatar:'bg-primary'}
+    icon: <FontAwesomeIcon icon={faCirclePlay} className="text-tofa" />,
+    label: 'Tofa', gradient: 'from-tofa/10 via-tofa/10 to-tofa/20',
+    streamingGradient: 'bg-gradient-to-br via-card to-card from-tofa/30',
+    badgeClass: 'bg-tofa/10 text-tofa ring-tofa/30',
+    libraryGradient: 'from-card to-tofa/10', libraryBadgeClass: 'bg-tofa/10 text-tofa ring-tofa/30',
+    chipClass: 'bg-tofa/10 text-tofa ring-tofa/30', detailGradient: 'from-tofa/10 via-tofa/10 to-tofa/20',
+    palette: {bg:'bg-tofa/10',bgDark:'dark:bg-tofa/10',text:'text-tofa',textDark:'dark:text-tofa',accent:'bg-tofa/10',accentDark:'dark:bg-tofa/20',ring:'ring-tofa/20',ringDark:'dark:ring-tofa/20',avatar:'bg-tofa'}
   },
   plex: {
     icon: plexIcon,

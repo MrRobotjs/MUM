@@ -40,6 +40,32 @@ func TestActivitySnapshotUsesTofaSessions(t *testing.T) {
 	}
 }
 
+func TestUserAvatarUsesOnlyMatchingPrimaryProfile(t *testing.T) {
+	user := "11234567-89ab-4cde-8fab-0123456789ab"
+	body := `[{"user_id":"` + user + `","is_primary":true,"avatar_ref":"preset:blue"}]`
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/users/" + user + "/profiles":
+			fmt.Fprint(w, body)
+		case "/api/v1/profiles/avatars/blue.png":
+			w.Header().Set("Content-Type", "image/png")
+			fmt.Fprint(w, "image")
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+	s := New(provider.Config{URL: srv.URL, APIKey: "key", Transport: provider.Transport{Client: srv.Client()}})
+	_, image, err := s.UserAvatarImage(context.Background(), user)
+	if err != nil || string(image) != "image" {
+		t.Fatal(err)
+	}
+	body = `[{"user_id":"21234567-89ab-4cde-8fab-0123456789ab","is_primary":true,"avatar_ref":"preset:blue"}]`
+	if _, _, err = s.UserAvatarImage(context.Background(), user); err == nil {
+		t.Fatal("accepted a different user's profile")
+	}
+}
+
 func TestActivitySnapshotRejectsInvalidOrPartialReplies(t *testing.T) {
 	body := `null`
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, body) }))
@@ -169,5 +195,17 @@ func TestActivityProfileAvatarRequiresMatchingUserAndProfile(t *testing.T) {
 	}
 	if _, _, err = s.ActivityAvatarImage(context.Background(), "preset:../secret"); err == nil {
 		t.Fatal("accepted unsafe avatar")
+	}
+}
+
+func TestActivityAvatarRejectsRedirectWithoutLeakingCredentials(t *testing.T) {
+	leaked := false
+	other := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { leaked = true }))
+	defer other.Close()
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { http.Redirect(w, r, other.URL, http.StatusFound) }))
+	defer upstream.Close()
+	s := New(provider.Config{URL: upstream.URL, APIKey: "secret", Transport: provider.Transport{Client: upstream.Client()}})
+	if _, _, err := s.ActivityAvatarImage(context.Background(), "preset:blue"); err == nil || leaked {
+		t.Fatal("followed an unsafe redirect")
 	}
 }

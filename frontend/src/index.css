@@ -7,6 +7,7 @@
 @theme static {
   --color-plex: oklch(74.22% 0.18 80.28);
   --color-jellyfin: oklch(0.63 0.27 304.24);
+  --color-tofa: #2dd4bf;
   --color-emby: oklch(73.4% 0.19 150.17);
   --color-kavita: oklch(0.74 0.13 163.11);
   --color-audiobookshelf: oklch(68% 0.11 77.62);

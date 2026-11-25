@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { TofaKeyNote } from './TofaKeyNote';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faWifi, faCheck, faXmark, faCircleExclamation } from '@fortawesome/free-solid-svg-icons';
 import { FormField } from '../';
@@ -450,6 +451,7 @@ export const ServerModal = ({
             <p className="mt-1 text-xs text-muted-foreground">
               {initialValues ? 'Leave blank to keep existing key' : 'Required for most services'}
             </p>
+            {values.service_type === 'tofa' && <TofaKeyNote />}
           </FormField>
         )}
 

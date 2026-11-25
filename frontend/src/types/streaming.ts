@@ -6,6 +6,7 @@ export type ActiveSession = {
   profile_name?: string;
   mum_user_id?: number;
   mum_user_uuid?: string;
+  service_user_uuid?: string;
 
   // Media info
   media_title: string;

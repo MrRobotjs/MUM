@@ -2,6 +2,7 @@ package main
 
 import (
 	"app/server/providers/plex"
+	"app/server/providers/tofa"
 	"context"
 	"database/sql"
 	"errors"
@@ -30,9 +31,9 @@ func (a *App) readUserAvatarSource(ctx context.Context, session string, item int
 	err = tx.QueryRowContext(ctx, `SELECT s.service_type,s.url,coalesce(s.api_key,''),coalesce(a.external_user_id,''),coalesce(a.external_avatar_url,''),s.id,s.config_revision
 	 FROM identities i JOIN service_accounts a ON a.uuid=i.uuid
 	 JOIN media_servers s ON s.id=a.server_id JOIN provider_settings p ON p.provider_id=s.service_type
-	 WHERE i.id=? AND i.kind='service' AND a.is_active=1 AND s.service_type='plex' AND s.is_active=1 AND p.enabled=1`, item).Scan(
+	 WHERE i.id=? AND i.kind='service' AND a.is_active=1 AND s.service_type IN ('plex','tofa') AND s.is_active=1 AND p.enabled=1`, item).Scan(
 		&source.Provider, &source.URL, &source.APIKey, &source.External, &source.Tag, &source.Server, &source.ConfigRevision)
-	if errors.Is(err, sql.ErrNoRows) || err == nil && (source.Tag == "" || plex.UserAvatar(source.Tag) != source.Tag) {
+	if errors.Is(err, sql.ErrNoRows) || err == nil && !((source.Provider == "plex" && source.Tag != "" && plex.UserAvatar(source.Tag) == source.Tag) || (source.Provider == "tofa" && tofa.ValidMediaID(source.External))) {
 		return source, ErrNotFound
 	}
 	return source, err
@@ -40,6 +41,9 @@ func (a *App) readUserAvatarSource(ctx context.Context, session string, item int
 
 func (a *App) userAvatarProxy(w http.ResponseWriter, r *http.Request) {
 	a.serveSignedImage(w, r, "item", "user-avatar", a.readUserAvatarSource, func(ctx context.Context, p *serverConnection, s catalogueImageSource) (string, []byte, error) {
+		if s.Provider == "tofa" {
+			return p.userAvatar(ctx, s.External)
+		}
 		return p.userAvatar(ctx, s.Tag)
 	})
 }

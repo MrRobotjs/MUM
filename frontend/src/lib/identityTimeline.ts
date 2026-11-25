@@ -53,6 +53,7 @@ export type TimelineItem = Readonly<{
   person_uuid: string;
   person_name: string;
   poster_url?: string;
+  link?: { library_id: number; media_id: number; episode_id: number | null };
 }>;
 export type TimelinePage = Readonly<{
   actor_uuid: string; scope: TimelineScope; target_uuid: string; server_id: string | null; records: TimelineRecords;
@@ -87,6 +88,7 @@ function item(value: unknown, seen: Set<string>): TimelineItem {
       !text(v.media_type) || !text(v.title) || !optionalText(v.parent_title) || !optionalText(v.library_name) || !text(v.played_at) || !Number.isFinite(Date.parse(v.played_at as string)) ||
       !optionalText(v.client) || !methods.includes(v.play_method as TimelineMethod | null) || !whole(v.position_ticks) || !whole(v.duration_ticks) ||
       v.poster_url !== undefined && !text(v.poster_url) ||
+      v.link !== undefined && (!v.link || typeof v.link !== 'object' || !Number.isSafeInteger((v.link as Record<string,unknown>).library_id) || Number((v.link as Record<string,unknown>).library_id) < 1 || !Number.isSafeInteger((v.link as Record<string,unknown>).media_id) || Number((v.link as Record<string,unknown>).media_id) < 1 || ((v.link as Record<string,unknown>).episode_id !== null && (!Number.isSafeInteger((v.link as Record<string,unknown>).episode_id) || Number((v.link as Record<string,unknown>).episode_id) < 1))) ||
       !optionalText(v.platform) || !optionalText(v.player) || !optionalText(v.ip_address) || !time(v.stopped_at) || !whole(v.paused_seconds) || !whole(v.watched_seconds) ||
       !whole(v.listened_seconds) || v.source !== 'audiobookshelf' && v.listened_seconds !== null || typeof v.in_progress !== 'boolean' || fromServer && v.in_progress ||
       !uuid(v.person_uuid) || !text(v.person_name) ||

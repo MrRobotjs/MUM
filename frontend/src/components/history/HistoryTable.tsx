@@ -26,6 +26,7 @@ import { observationProgress } from '../../lib/activityHistory';
 import { applyUpdater, createAppColumnHelper, useAppTable, useRememberedColumns } from '../table/DataTable';
 import { ConfirmAction, TabHeading } from '../users/AccountSettings';
 import { stableHistoryPosterURL } from '../../lib/historyPosterURL';
+import { useServerRoutes } from '../../lib/serverRoutes';
 
 // The History table shared by a person's History tab, a server's History tab
 // and the History page: one server at a time, MUM's recorded plays and the
@@ -131,6 +132,7 @@ export const HistoryTable = ({ history, mode, view, onViewChange, admin, descrip
   const target = mode.kind === 'person' ? mode.target : '';
   const everyone = mode.kind === 'server';
   const { formatTimestamp } = useAccountDisplay();
+  const routes = useServerRoutes();
   const { success, error: showError } = useAlerts();
   const { page, pending, loading, error, refresh, hasPrevious, previous, next } = history;
   const [deleteMode, setDeleteMode] = useState(false);
@@ -155,11 +157,17 @@ export const HistoryTable = ({ history, mode, view, onViewChange, admin, descrip
       const none = <span className="text-muted-foreground" title={service ? `Not recorded by ${service}` : 'Not recorded'}>—</span>;
       switch (column) {
         case 'poster': return <HistoryPoster url={row.poster_url} title={row.title} />;
-        case 'title': return <>
-          <div className="font-medium">{row.title || (service ? 'Removed item' : 'Unknown Title')}</div>
+        case 'title': {
+          const title = row.title || (service ? 'Removed item' : 'Unknown Title');
+          const slug = row.link ? routes.slugFor(row.server_id) : undefined;
+          const destination = row.link && slug ? (row.link.episode_id === null
+            ? appLinks.media(slug, row.link.library_id, row.link.media_id)
+            : appLinks.episode(slug, row.link.library_id, row.link.media_id, row.link.episode_id)) : undefined;
+          return <>
+          <div className="font-medium">{destination ? <Link {...destination} className="account-library-link">{title}</Link> : title}</div>
           {allServers && (() => { const source = serverNames.find(s => s[0] === row.server_id); return source ? <div className="mt-1 inline-flex items-center gap-1 text-xs text-muted-foreground"><ServiceIcon serviceType={source[1]} className="h-3 w-3" />{source[2]}</div> : null; })()}
           {row.parent_title && shownType !== 'audiobookshelf' && <div className="text-xs text-muted-foreground">{row.parent_title}</div>}
-        </>;
+        </>; }
         case 'library': return row.library_name ? <span><FontAwesomeIcon icon={faFolder} className="mr-1 h-3 w-3" />{row.library_name}</span> : none;
         case 'source': return service ? <span className="inline-flex items-center rounded-md px-2.5 py-0.5 text-xs font-semibold bg-muted text-muted-foreground" title={`Imported from the ${service} server's own play history`}>{service} history</span> : <span>Recorded by MUM</span>;
         case 'user': return <Link {...appLinks.user(row.person_uuid)} className="account-library-link">{row.person_name}</Link>;
@@ -204,7 +212,7 @@ export const HistoryTable = ({ history, mode, view, onViewChange, admin, descrip
         aria-label={`${row.getIsSelected() ? 'Keep' : 'Delete'} ${row.original.title || 'this play'}`} title={row.original.in_progress ? 'Still playing: it can be deleted once it ends' : undefined}
         onClick={() => row.toggleSelected()}><FontAwesomeIcon icon={faTrashCan} /></Button>,
     }), ...data];
-  }, [shownType, everyone, deleteMode, formatTimestamp, allServers, serverNames]);
+  }, [shownType, everyone, deleteMode, formatTimestamp, allServers, serverNames, routes.servers]);
   const rowSelection = useMemo<RowSelectionState>(() => Object.fromEntries([...marked].map(id => [id, true])), [marked]);
   const table = useAppTable({
     columns, data: (page?.items as TimelineItem[] | undefined) ?? noTimelineItems, getRowId: row => row.id,

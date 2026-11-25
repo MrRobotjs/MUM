@@ -12,15 +12,53 @@ import (
 )
 
 type timelineTestItem struct {
-	Source      string  `json:"source"`
-	ID          string  `json:"id"`
-	Title       string  `json:"title"`
-	ParentTitle *string `json:"parent_title"`
-	PlayedAt    string  `json:"played_at"`
-	Client      *string `json:"client"`
-	Position    *string `json:"position_ticks"`
-	Listened    *string `json:"listened_seconds"`
-	Poster      string  `json:"poster_url"`
+	Source      string             `json:"source"`
+	ID          string             `json:"id"`
+	Title       string             `json:"title"`
+	ParentTitle *string            `json:"parent_title"`
+	PlayedAt    string             `json:"played_at"`
+	Client      *string            `json:"client"`
+	Position    *string            `json:"position_ticks"`
+	Listened    *string            `json:"listened_seconds"`
+	Poster      string             `json:"poster_url"`
+	Link        *serverAccountLink `json:"link"`
+}
+
+func TestTimelineLinksOnlyUniqueCataloguedItems(t *testing.T) {
+	a, s, token, member, local := timelineFixture(t)
+	var server int64
+	if err := s.reader.QueryRow("SELECT id FROM media_servers WHERE server_nickname='Plex++'").Scan(&server); err != nil {
+		t.Fatal(err)
+	}
+	activityExec(t, s, "INSERT INTO media_libraries(server_id,external_id,name) VALUES(?,'lib','Movies')", server)
+	var library int64
+	if err := s.reader.QueryRow("SELECT id FROM media_libraries WHERE server_id=?", server).Scan(&library); err != nil {
+		t.Fatal(err)
+	}
+	activityExec(t, s, "INSERT INTO media_items(library_id,server_id,external_id,title,item_type) VALUES(?,?,'item','Movie','movie')", library, server)
+	activityExec(t, s, "INSERT INTO media_items(library_id,server_id,external_id,title,item_type) VALUES(?,?,'show','Show','show')", library, server)
+	activityExec(t, s, "INSERT INTO media_items(library_id,server_id,external_id,parent_id,title,item_type) VALUES(?,?,'episode','show','Episode','episode')", library, server)
+	activityExec(t, s, "UPDATE history_imports SET item_id='episode' WHERE entry_key='/h/4'")
+	code, page := readTimeline(t, a, token, local, url.Values{"scope": {"all"}})
+	if code != 200 || page.Items[2].Link == nil || page.Items[2].Link.Library != library {
+		t.Fatal(code, page.Items)
+	}
+	if page.Items[0].Link == nil || page.Items[0].Link.Episode == nil {
+		t.Fatal("imported episode has no episode link", page.Items[0])
+	}
+	if page.Items[1].Link != nil {
+		t.Fatal("unmatched title received a link")
+	}
+	_, own := readTimeline(t, a, member, local, url.Values{"scope": {"own"}})
+	if own.Items[2].Link != nil {
+		t.Fatal("member received administrator catalogue link")
+	}
+	activityExec(t, s, "INSERT INTO media_libraries(server_id,external_id,name) VALUES(?,'lib2','Other')", server)
+	activityExec(t, s, "INSERT INTO media_items(library_id,server_id,external_id,title,item_type) SELECT id,?,'item','Other','movie' FROM media_libraries WHERE server_id=? AND external_id='lib2'", server, server)
+	_, page = readTimeline(t, a, token, local, url.Values{"scope": {"all"}})
+	if page.Items[2].Link != nil {
+		t.Fatal("ambiguous item got a link")
+	}
 }
 
 type timelineTestServer struct {

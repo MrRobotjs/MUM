@@ -1,7 +1,6 @@
 package main
 
 import (
-	"app/server/providers/plex"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -66,7 +65,7 @@ var userProjection = `SELECT i.id,i.uuid,i.kind,coalesce(u.local_username,a.exte
  (SELECT json_group_array(json_object('uuid',x.uuid,'service_type',x.service_type,'server_nickname',x.server_nickname,'username',x.external_username)) FROM (
   SELECT sa.uuid,ms.service_type,ms.server_nickname,coalesce(sa.external_username,'') external_username FROM service_links l JOIN service_accounts sa ON sa.uuid=l.service_uuid JOIN media_servers ms ON ms.id=sa.server_id
   WHERE l.user_uuid=owner.user_uuid AND l.link_kind='owner' AND sa.uuid<>a.uuid AND sa.removed_at IS NULL ORDER BY l.created_at,sa.uuid LIMIT 20) x),
- coalesce(a.is_active=1 AND s.service_type='plex' AND s.is_active=1 AND EXISTS(SELECT 1 FROM provider_settings p WHERE p.provider_id='plex' AND p.enabled=1),0),
+ coalesce(a.is_active=1 AND s.service_type IN ('plex','tofa') AND s.is_active=1 AND EXISTS(SELECT 1 FROM provider_settings p WHERE p.provider_id=s.service_type AND p.enabled=1),0),
  ` + lastStreamSQL + ` AS last_stream,
  CASE WHEN s.service_type IN ('plex','jellyfin','emby') THEN a.allow_4k_transcode END,
  a.is_purge_whitelisted,coalesce(u.discord_user_id,''),coalesce(u.discord_username,''),coalesce(a.external_account_id,a.external_user_id,''),coalesce(a.external_user_alt_id,'')
@@ -283,7 +282,7 @@ func (a *App) listUsers(w http.ResponseWriter, r *http.Request) {
 		}
 		// The raw provider image address stays server-side; only a signed,
 		// session-bound proxy link (rechecked on every fetch) is returned.
-		if avatarServed && avatarTag != "" && plex.UserAvatar(avatarTag) == avatarTag {
+		if avatarServed && serviceHasAvatar(provider, externalID, avatarTag) {
 			avatarRows = append(avatarRows, item)
 		}
 	}

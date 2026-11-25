@@ -278,6 +278,8 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
         return 'bg-gradient-to-br from-card to-komga/20';
       case 'romm':
         return 'bg-gradient-to-br from-card to-romm/20';
+      case 'tofa':
+        return 'bg-gradient-to-br from-card to-tofa/20';
       default:
         return 'bg-card';
     }

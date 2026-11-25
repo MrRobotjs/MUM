@@ -309,6 +309,7 @@ var purgeInvitationSQL = []string{
 	"DELETE FROM plex_job_completions WHERE job_id IN (SELECT id FROM provisioning_jobs WHERE invite_id=?1)",
 	"DELETE FROM plex_share_checkpoints WHERE job_id IN (SELECT id FROM provisioning_jobs WHERE invite_id=?1)",
 	"DELETE FROM plex_invitation_credentials WHERE job_id IN (SELECT id FROM provisioning_jobs WHERE invite_id=?1) OR proof_id IN (SELECT id FROM plex_invitation_authorizations WHERE invite_id=?1)",
+	"DELETE FROM tofa_invitation_receipts WHERE job_id IN (SELECT id FROM provisioning_jobs WHERE invite_id=?1)",
 	"DELETE FROM provisioning_steps WHERE job_id IN (SELECT id FROM provisioning_jobs WHERE invite_id=?1)",
 	"DELETE FROM invitation_discord_proofs WHERE invite_id=?1 OR job_id IN (SELECT id FROM provisioning_jobs WHERE invite_id=?1)",
 	"DELETE FROM provisioning_jobs WHERE invite_id=?1",

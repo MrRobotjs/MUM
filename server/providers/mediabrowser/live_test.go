@@ -4,6 +4,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"app/server/providers/provider"
 )
@@ -40,8 +41,14 @@ func TestLiveEnvelopeAndURLBoundaries(t *testing.T) {
 			t.Fatal(err)
 		}
 		u, _ := url.Parse(spec.URL)
-		if u.Scheme != "wss" || u.Path != want || u.Query().Get("api_key") != "private +&?" || u.Query().Get("deviceId") != "device" || spec.ReadTimeout <= 0 || len(spec.Start) == 0 {
+		if u.Scheme != "wss" || u.Path != want || u.Query().Get("api_key") != "private +&?" || u.Query().Get("deviceId") != "device" || len(spec.Start) == 0 {
 			t.Fatal("incorrect endpoint", spec.URL)
+		}
+		if !emby && (spec.ReadTimeout != 0 || spec.PingInterval != 30*time.Second) {
+			t.Fatal("idle Jellyfin must use ping/pong, not an application-frame timeout")
+		}
+		if emby && spec.ReadTimeout <= 0 {
+			t.Fatal("Emby timeout changed")
 		}
 	}
 	for _, address := range []string{"http://user:pass@example.test", "ftp://example.test", "http://example.test/?a=1"} {

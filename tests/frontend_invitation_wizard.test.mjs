@@ -415,3 +415,46 @@ test('invitation wizard shows the 4K transcoding choice', async () => {
  assert.equal(view.invite.allow_4k_transcode, false);
  assert.throws(() => new InvitationDraft('token', {...data, grants: [{...data.grants[0], allow_4k_transcode: 'no'}, data.grants[1]]}, storagePort()), /grant/);
 });
+
+
+test('Tofa invitations require a valid email and omit per-server credentials', async t => {
+ const before = globalThis.fetch; t.after(() => globalThis.fetch = before);
+ const { InvitationDraft } = await loadModule();
+ const tofaInvite = () => {
+  const data = invitation();
+  data.servers[1] = { ...data.servers[1], provider: 'tofa', name: 'Tofa Media', libraries: [{ id: '21234567-89ab-4cde-8fab-0123456789ab', name: 'Movies' }] };
+  data.grants[1] = { ...data.grants[1], all_libraries: false, library_ids: ['21234567-89ab-4cde-8fab-0123456789ab'], allow_downloads: false };
+  return data;
+ };
+ const withDownloads = tofaInvite();
+ withDownloads.grants[1].allow_downloads = true;
+ assert.throws(() => new InvitationDraft('token', withDownloads, storagePort()), /download permissions/);
+
+ const draft = new InvitationDraft('token', tofaInvite(), storagePort());
+ assert.throws(() => draft.saveAccount(account({ email: '' })), /valid email/);
+ assert.throws(() => draft.saveAccount(account({ email: 'not-an-email' })), /valid email/);
+ draft.saveAccount(account());
+ const view = draft.view();
+ assert.deepEqual(view.steps.map(s => s.id), ['user_account', 'server_access_11']);
+ assert.equal(view.servers[1].service_type, 'TOFA');
+ assert.equal(view.servers[1].completed, true);
+ assert.equal(view.servers[1].credentials, null);
+
+ globalThis.fetch = async (_path, options) => {
+  const body = JSON.parse(options.body);
+  assert.equal(body.email, 'recipient@example.invalid');
+  assert.deepEqual(body.server_credentials.map(entry => entry.server_id), [11]);
+  return Response.json({
+   data: {
+    id: 'job-1', status: 'completed', requires_review: false,
+    steps: [
+     { server_id: 11, status: 'completed', stage: 'completed' },
+     { server_id: 12, status: 'completed', stage: 'completed', tofa: { state: 'queued', requires_review: false } },
+    ],
+   },
+  });
+ };
+ const result = await draft.redeem();
+ assert.equal(result.status, 'completed');
+ assert.equal(result.steps[1].tofa.state, 'queued');
+});

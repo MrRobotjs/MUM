@@ -499,9 +499,10 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
 
     const serverFeaturePayload = Array.from(selectedServerIds).map((serverId) => {
       const features = getServerFeature(serverId);
+      const isTofa = serverById.get(serverId)?.service_type.toLowerCase() === 'tofa';
       return {
         server_id: serverId,
-        allow_downloads: features.allow_downloads ?? false,
+        allow_downloads: isTofa ? false : (features.allow_downloads ?? false),
         invite_to_plex_home: features.invite_to_plex_home ?? false,
         allow_live_tv: features.allow_live_tv ?? false,
         allow_4k_transcode: features.allow_4k_transcode ?? true
@@ -862,6 +863,11 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
                                 )}
 
                                 <div className="space-y-3">
+                                    {server.service_type?.toLowerCase() === 'tofa' ? (
+                                      <div className="rounded-md border border-dashed bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+                                        Tofa onboarding invites send by email and configure library access only.
+                                      </div>
+                                    ) : (
                                     <div className="rounded-md border bg-background px-3 py-2">
                                       <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-2 text-sm font-medium">
@@ -879,6 +885,7 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
                                       </div>
                                       <p className="text-[11px] text-muted-foreground mt-1">Users can download media.</p>
                                     </div>
+                                    )}
 
                                     {server.service_type?.toLowerCase() === 'plex' ? (
                                       <>

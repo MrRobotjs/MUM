@@ -26,7 +26,7 @@ type DraftAccount = {
 type Credentials = { username: string; email: string; password: string; password_confirm: string };
 export type RedemptionReceipt = {
   id: string; status: 'running' | 'completed' | 'failed' | 'cancelled'; requires_review: boolean;
-  steps: { server_id: number; status: string; stage: string; error_code?: string }[];
+  steps: { server_id: number; status: string; stage: string; error_code?: string; tofa?: { state: string; requires_review: boolean } }[];
 };
 type RedemptionRequest = {
   invitation_revision: number;
@@ -53,6 +53,7 @@ function newRequestID() {
 }
 const validPassword = (value: string) => newPasswordFits(value);
 const validUsername = (value: string) => value.trim().length > 0 && new TextEncoder().encode(value.trim()).length <= 255;
+const validInviteEmail = (value: string) => /^[^\s@<>"(),;:]+@[^\s@<>"(),;:]+\.[^\s@<>"(),;:]+$/.test(value) && new TextEncoder().encode(value).length <= 320;
 
 // Cache an explicit public allowlist. Never persist profile/server credentials,
 // email addresses, passwords, hashes, receipts or authenticated response bodies.
@@ -85,6 +86,7 @@ function publicSnapshot(value: unknown): PublicInvitation {
         g.all_libraries && g.library_ids.length > 0 || !g.all_libraries && g.library_ids.length === 0) throw new Error('Invalid invitation grant');
     const provider = servers.find(server => server.id === g.server_id)!.provider;
     if (provider === 'romm' && (!g.all_libraries || g.library_ids.length || !g.allow_downloads)) throw new Error('RomM requires explicit all-platform access including downloads');
+    if (provider === 'tofa' && g.allow_downloads) throw new Error('Tofa onboarding invites do not support download permissions');
     if (provider === 'kavita' && (g.all_libraries || g.library_ids.some(id => !/^[1-9]\d*$/.test(id) || Number(id) > 2147483647))) throw new Error('Kavita requires selected libraries with valid IDs');
     if (new Set(g.library_ids).size !== g.library_ids.length) throw new Error('Invalid invitation grant');
     granted.add(g.server_id);
@@ -237,6 +239,10 @@ export class InvitationDraft {
     return this.invitation.servers.some(server => server.provider === 'plex');
   }
 
+  private hasTofa() {
+    return this.invitation.servers.some(server => server.provider === 'tofa');
+  }
+
   private plexConfirmed() {
     return this.plex?.status === 'confirmed' && this.plex.account !== null;
   }
@@ -281,6 +287,7 @@ export class InvitationDraft {
   saveAccount(account: DraftAccount) {
     this.mutable();
     if (!validUsername(account.username)) throw new Error('Enter a username of 1 to 255 characters');
+    if (this.hasTofa() && !validInviteEmail(account.email.trim())) throw new Error('Enter a valid email address for Tofa invitations');
     if (!validPassword(account.password)) throw new Error('The password must be 12 to 1024 characters');
     if (account.password !== account.confirm_password) throw new Error('Passwords do not match');
     this.account = { ...account, username: account.username.trim(), email: account.email.trim() };
@@ -315,10 +322,12 @@ export class InvitationDraft {
       const grant = this.invitation.grants.find(g => g.server_id === s.id)!;
       const credentials = this.formFor(s.id);
       // Plex access comes from the invitee's Plex sign-in, not a username/password.
+      // Tofa sends an onboarding invite to the account's validated email.
       const plex = s.provider === 'plex';
+      const tofa = s.provider === 'tofa';
       return { id: s.id, name: s.name, service_type: s.provider.toUpperCase(), access_url: s.access_url,
-        completed: plex ? this.plexConfirmed() : Boolean(a && !invitationCredentialError(s.provider, credentials.username, credentials.password)), all_libraries: grant.all_libraries,
-        credentials: a && !plex ? { username: credentials.username, email: ['kavita','audiobookshelf','romm'].includes(s.provider) ? '' : credentials.email } : null, libraries: s.libraries,
+        completed: plex ? this.plexConfirmed() : tofa ? Boolean(a && validInviteEmail(a.email)) : Boolean(a && !invitationCredentialError(s.provider, credentials.username, credentials.password)), all_libraries: grant.all_libraries,
+        credentials: a && !plex && !tofa ? { username: credentials.username, email: ['kavita','audiobookshelf','romm'].includes(s.provider) ? '' : credentials.email } : null, libraries: s.libraries,
         features: { allow_downloads: grant.allow_downloads, invite_to_plex_home: false, allow_live_tv: false, allow_4k_transcode: grant.allow_4k_transcode !== false } };
     });
     const discordRequired = this.invitation.discord.required;
@@ -326,7 +335,7 @@ export class InvitationDraft {
       { id: 'user_account', name: 'Account', icon: 'user-plus', required: true, completed: Boolean(a) },
       // One Plex sign-in step covers the invitation's Plex server, as in Flask.
       ...(this.hasPlex() ? [{ id: 'plex', name: `${servers.find(s => s.service_type === 'PLEX')!.name} Access`, icon: 'plex', required: true, completed: this.plexConfirmed() }] : []),
-      ...servers.filter(s => s.service_type !== 'PLEX').map(s => ({ id: `server_access_${s.id}`, name: s.name, icon: 'server', required: true, completed: s.completed, server_id: s.id, server_name: s.name, server_type: s.service_type }))];
+      ...servers.filter(s => s.service_type !== 'PLEX' && s.service_type !== 'TOFA').map(s => ({ id: `server_access_${s.id}`, name: s.name, icon: 'server', required: true, completed: s.completed, server_id: s.id, server_name: s.name, server_type: s.service_type }))];
     return {
       invite: { id: this.invitation.id, token: this.token, custom_path: null, expires_at: this.invitation.expires_at,
         max_uses: this.invitation.max_uses, current_uses: this.invitation.current_uses + this.invitation.reserved_uses,
@@ -352,7 +361,7 @@ export class InvitationDraft {
     if (!this.frozen) {
       if (!this.account || this.view().steps.some(s => s.required && !s.completed)) return Promise.reject(new Error('Complete your account and every server first'));
       this.frozen = { invitation_revision: this.invitation.revision, request_id: this.requestID, username: this.account.username, password: this.account.password, email: this.account.email,
-        server_credentials: this.invitation.servers.filter(s => s.provider !== 'plex').map(s => { const c = this.formFor(s.id); return { server_id: s.id, username: c.username, password: c.password }; }),
+        server_credentials: this.invitation.servers.filter(s => s.provider !== 'plex' && s.provider !== 'tofa').map(s => { const c = this.formFor(s.id); return { server_id: s.id, username: c.username, password: c.password }; }),
         ...(this.invitation.discord.required && this.discord ? { discord_authorization_id: this.discord.authorization_id } : {}),
         ...(this.hasPlex() && this.plex ? { plex_authorization_id: this.plex.id } : {}) };
       try { this.storage?.setItem(storageKey(this.token), JSON.stringify({ version: 1, requestID: this.requestID, invitation: publicSnapshot(this.invitation) } satisfies SavedAttempt)); } catch { /* In-tab retries still use the frozen request. */ }

@@ -46,9 +46,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { isMobile, setOpenMobile } = useSidebar()
   const { success, error } = useAlerts()
   const { syncStatus } = useSyncStatus({ enabled: hasAdminAccess })
-  // A badge is a complete fresh supported-source observation count, not live playback.
+  // Count only fresh observations; mark the number as partial if any source is unavailable.
   const { summary: observationSummary } = useStreamingSummary('all', isAdministrator)
-  const observedCount = observationSummary?.servers.length && observationSummary.servers.every(s => s.freshness === 'fresh') ? observationSummary.fresh_current_observations : null
+  const observedCount = observationSummary?.servers.some(s => s.freshness === 'fresh') ? observationSummary.fresh_current_observations : null
+  const incompleteCount = Boolean(observationSummary?.servers.some(s => s.freshness !== 'fresh'))
   const [isStartingSync, setIsStartingSync] = React.useState(false)
   const [showSyncComplete, setShowSyncComplete] = React.useState(false)
   const userTotal = useUserTotal({ enabled: isAdministrator })
@@ -140,11 +141,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       )
     : null
 
-  // Show a badge when all monitored sources are fresh and report activity.
+  // A plus sign indicates that unavailable sources could add more streams.
   const streamBadgeIndicator = isAdministrator && observedCount !== null && BigInt(observedCount) > 0n
     ? (
-        <Badge variant="default" className="h-5 min-w-5 px-1.5 text-[10px] font-semibold" title="Fresh activity observations across monitored servers">
-          {observedCount}
+        <Badge variant="default" className="h-5 min-w-5 px-1.5 text-[10px] font-semibold" title={incompleteCount ? 'At least this many streams; some servers are unavailable or not fresh.' : 'Fresh activity observations across monitored servers'}>
+          {observedCount + (incompleteCount ? '+' : '')}
         </Badge>
       )
     : null

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"app/server/providers/tofa"
 	"context"
 	"crypto/sha256"
 	"database/sql"
@@ -181,11 +182,16 @@ func (a *App) reviewTargets(ctx context.Context, job redemptionJob) ([]reviewTar
 		if err := a.store.reader.QueryRowContext(ctx, "SELECT coalesce(provider_fingerprint,'') FROM provisioning_steps WHERE job_id=? AND server_id=?", job.ID, s.ID).Scan(&fingerprint); err != nil {
 			return nil, err
 		}
-		knownID := validProvisionedID(step.RemoteID)
-		if m := moduleRules(s.Type); m != nil {
-			knownID = moduleIdentityValid(m, step.RemoteID, step.RemoteName)
+		var manual bool
+		if s.Type == "tofa" {
+			manual = step.Stage != "pending" && (step.Tofa == nil || step.Tofa.RemoteInviteID == "" || fingerprint == "" || fingerprint != providerFingerprint(s) || !s.EffectiveActive)
+		} else {
+			knownID := validProvisionedID(step.RemoteID)
+			if m := moduleRules(s.Type); m != nil {
+				knownID = moduleIdentityValid(m, step.RemoteID, step.RemoteName)
+			}
+			manual = step.Stage != "pending" && (!knownID || step.RemoteName == "" || fingerprint == "" || fingerprint != providerFingerprint(s) || !s.EffectiveActive || !supportsRecordedRecovery(s.Type))
 		}
-		manual := step.Stage != "pending" && (!knownID || step.RemoteName == "" || fingerprint == "" || fingerprint != providerFingerprint(s) || !s.EffectiveActive || !supportsRecordedRecovery(s.Type))
 		targets = append(targets, reviewTarget{s, step, fingerprint, manual})
 	}
 	return targets, nil
@@ -354,6 +360,39 @@ func (a *App) reviewProvisioningJob(w http.ResponseWriter, r *http.Request) {
 			}
 			client := provider
 			client.reviewAuthority = &reviewRequestAuthority{a.store, p.UUID, jobID, token}
+			if target.Server.Type == "tofa" {
+				m, ok := client.module().(*tofa.Server)
+				if !ok {
+					_ = a.reviewCheckpoint(ctx, p.UUID, jobID, token, target, "failed", "REMOTE_RECONCILIATION_REQUIRED")
+					continue
+				}
+				invite, remoteErr := m.InspectOnboardingInvite(ctx, target.Step.Tofa.RemoteInviteID)
+				if remoteErr == nil {
+					remoteErr = a.updateTofaReceiptState(ctx, p.UUID, jobID, token, target, invite.State)
+				}
+				if remoteErr == nil && !cancelJob && (invite.State == "queued" || invite.State == "waiting" || invite.State == "invited") {
+					remoteErr = a.reviewCheckpoint(ctx, p.UUID, jobID, token, target, "running", "")
+					if remoteErr == nil {
+						invite, remoteErr = m.RevokeOnboardingInvite(ctx, target.Step.Tofa.RemoteInviteID)
+					}
+					if remoteErr == nil {
+						invite, remoteErr = m.InspectOnboardingInvite(ctx, target.Step.Tofa.RemoteInviteID)
+					}
+					if remoteErr == nil {
+						remoteErr = a.updateTofaReceiptState(ctx, p.UUID, jobID, token, target, invite.State)
+					}
+				}
+				if remoteErr != nil || (invite.State != "revoked" && invite.State != "failed") {
+					_ = a.reviewCheckpoint(ctx, p.UUID, jobID, token, target, "failed", "REMOTE_RECONCILIATION_REQUIRED")
+					continue
+				}
+				err = a.reviewCheckpoint(ctx, p.UUID, jobID, token, target, "absent", "")
+				if err != nil {
+					break
+				}
+				proofs[target.Server.ID] = "absent"
+				continue
+			}
 			user, remoteErr := client.inspectProvisionedUser(ctx, target.Step.RemoteID, target.Step.RemoteName)
 			if remoteErr == nil && !user.Absent && !user.Disabled && !cancelJob {
 				remoteErr = a.reviewCheckpoint(ctx, p.UUID, jobID, token, target, "running", "")

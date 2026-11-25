@@ -486,8 +486,9 @@ type redemptionCredentials struct {
 	Password string `json:"password"`
 }
 type redemptionStep struct {
-	Plex              *plexShareReceipt `json:"plex,omitempty"`
-	PasswordASCIIOnly bool              `json:"password_ascii_only"`
+	Plex              *plexShareReceipt  `json:"plex,omitempty"`
+	Tofa              *tofaInviteReceipt `json:"tofa,omitempty"`
+	PasswordASCIIOnly bool               `json:"password_ascii_only"`
 	CleanupScope      string            `json:"cleanup_scope"`
 	PasswordMaxBytes  int               `json:"password_max_bytes"`
 	ServerID          int64             `json:"server_id"`
@@ -550,6 +551,16 @@ func (a *App) loadRedemption(ctx context.Context, id string) (redemptionJob, err
 	}
 	if err := attachPlexJobReceipts(&j, receipts); err != nil {
 		return j, err
+	}
+	tofaReceipts, err := readTofaReceiptsForJob(ctx, tx, id)
+	if err != nil {
+		return j, err
+	}
+	for i := range j.Steps {
+		if r, ok := tofaReceipts[j.Steps[i].ServerID]; ok {
+			rc := r
+			j.Steps[i].Tofa = &rc
+		}
 	}
 	return j, tx.Commit()
 }
@@ -705,6 +716,7 @@ func (a *App) redeemInvitation(w http.ResponseWriter, r *http.Request) {
 		if len(grants) == 0 {
 			return ErrConflict
 		}
+		hasTofa := false
 		for _, g := range grants {
 			s, err := validateInvitationGrant(ctx, tx, g)
 			if err != nil {
@@ -718,6 +730,12 @@ func (a *App) redeemInvitation(w http.ResponseWriter, r *http.Request) {
 					return errPlexAuthRequired
 				}
 			}
+			if s.Type == "tofa" {
+				if _, typed := credentials[s.ID]; typed {
+					return ErrConflict
+				}
+				hasTofa = true
+			}
 			if checker, ok := moduleRules(s.Type).(credentialChecker); ok {
 				c := credentials[s.ID]
 				if c.Username == "" {
@@ -728,6 +746,9 @@ func (a *App) redeemInvitation(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 			servers[s.ID] = s
+		}
+		if hasTofa && input.Email == "" {
+			return errTofaEmailRequired
 		}
 		for id := range credentials {
 			if _, invited := servers[id]; !invited {
@@ -798,6 +819,10 @@ func (a *App) redeemInvitation(w http.ResponseWriter, r *http.Request) {
 			fail(w, 400, "PLEX_AUTH_REQUIRED", "Sign in with Plex for this invitation first. No provisioning job was created.")
 			return
 		}
+		if errors.Is(err, errTofaEmailRequired) {
+			fail(w, 400, "INVALID_EMAIL", "Provide a valid email address for Tofa invitations")
+			return
+		}
 		if errors.Is(err, errPlexAccountOwned) {
 			fail(w, 409, "PLEX_ACCOUNT_IN_USE", "That Plex account already belongs to another user. No provisioning job was created.")
 			return
@@ -829,6 +854,12 @@ func (a *App) redeemInvitation(w http.ResponseWriter, r *http.Request) {
 				break
 			}
 			if err = a.commitPlexInvitationStep(ctx, jobID, userUUID, inviteID, s, g, plexUsername, accepted); err != nil {
+				break
+			}
+			continue
+		}
+		if s.Type == "tofa" {
+			if err = a.sendTofaInvitation(ctx, jobID, inviteID, s, input.Email, g); err != nil {
 				break
 			}
 			continue
@@ -880,6 +911,9 @@ func publicRedemption(j redemptionJob) map[string]any {
 		step := map[string]any{"server_id": s.ServerID, "status": s.Status, "stage": s.Stage, "error_code": s.Error}
 		if s.Plex != nil {
 			step["plex"] = s.Plex
+		}
+		if s.Tofa != nil {
+			step["tofa"] = map[string]any{"state": s.Tofa.State, "requires_review": s.Tofa.RequiresReview}
 		}
 		steps = append(steps, step)
 	}
@@ -1038,6 +1072,11 @@ func (a *App) recoverProvisioning(ctx context.Context) error {
 		// An interrupted remote disable stays unresolved; a later explicit
 		// operation inspects first and never replays the write.
 		if _, err := tx.ExecContext(ctx, `UPDATE service_remote_access SET state='unknown',error_code='INTERRUPTED_RECONCILIATION_REQUIRED',checked_at=?,operation_token=NULL,operation_kind=NULL,actor_uuid=NULL,access_hash=NULL,role_revision=NULL,config_revision=NULL,link_revision=NULL,provider_fingerprint=NULL,external_user_id=NULL,operation_expires_at=NULL,revision=revision+1 WHERE operation_token IS NOT NULL`, utcTimestamp(time.Now())); err != nil {
+			return err
+		}
+		// Interrupted Tofa invite submissions stay uncertain after restart;
+		// inspection or manual review is required before retrying or cancelling.
+		if _, err := tx.ExecContext(ctx, "UPDATE tofa_invitation_receipts SET state='unknown',revision=revision+1,updated_at=? WHERE state='submitting'", utcTimestamp(time.Now())); err != nil {
 			return err
 		}
 		if _, err := tx.ExecContext(ctx, "UPDATE provisioning_steps SET resume_state='unknown',resume_error_code='INTERRUPTED_REVIEW_REQUIRED' WHERE resume_state='running' AND job_id IN (SELECT id FROM provisioning_jobs WHERE review_token IS NOT NULL AND review_operation='resume')"); err != nil {

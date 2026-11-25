@@ -16,6 +16,10 @@ export function invitationServerLimits(provider: string) {
       // Plex access comes from the invitee's Plex sign-in, so no username or
       // password is ever typed for it; selected or all libraries are allowed.
       return { asciiOnly: false, passwordMaxBytes: 1024, usernameWithoutAt: false, allLibraries: true, emailIdentity: false };
+    case 'tofa':
+      // Tofa sends onboarding invites by email; no per-server username or
+      // password is entered in MUM.
+      return { asciiOnly: false, passwordMaxBytes: 1024, usernameWithoutAt: false, allLibraries: true, emailIdentity: true };
     default:
       throw new Error('Unsupported invitation server');
   }

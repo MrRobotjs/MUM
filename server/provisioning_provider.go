@@ -9,7 +9,7 @@ import (
 // account (plex_invitation_share.go), not by creating a local account, so it
 // has no recorded-account recovery.
 func supportsProvisioning(kind string) bool {
-	return kind == "plex" || supportsRecordedRecovery(kind)
+	return kind == "plex" || kind == "tofa" || supportsRecordedRecovery(kind)
 }
 
 func supportsRecordedRecovery(kind string) bool {

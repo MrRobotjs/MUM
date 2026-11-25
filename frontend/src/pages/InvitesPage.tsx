@@ -215,7 +215,7 @@ export const InvitesPage = () => {
 
   const inviteFeatureSupport = useMemo(() => {
     return mediaServices.reduce<Record<string, string[]>>((acc, service) => {
-      acc[service.id] = service.capabilities.includes('invitations.redeem') ? ['allow_downloads'] : [];
+      acc[service.id] = service.capabilities.includes('invitations.redeem') && service.id !== 'tofa' ? ['allow_downloads'] : [];
       return acc;
     }, {});
   }, [mediaServices]);

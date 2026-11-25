@@ -1217,7 +1217,7 @@ export const InviteWizardPage = () => {
 
                     {/* Shared credentials only apply to servers where an account is created
                         for the invitee; Plex access comes from their own Plex sign-in. */}
-                    {state.servers.some((server) => server.service_type !== 'PLEX') && (
+                    {state.servers.some((server) => server.service_type !== 'PLEX' && server.service_type !== 'TOFA') && (
                     <div className="bg-blue-50 dark:bg-blue-400/10 border border-blue-200 dark:border-blue-500/20 rounded-lg p-4 mt-6">
                       <div className="flex items-start gap-3 mb-4">
                         <div className="w-6 h-6 rounded-full bg-blue-100/20 flex items-center justify-center flex-shrink-0 mt-0.5">

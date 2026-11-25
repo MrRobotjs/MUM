@@ -271,7 +271,7 @@ func moduleCapabilities(m mediaModule) []string {
 	if _, ok := instance.(catalogueReader); ok {
 		capabilities = append(capabilities, "libraries.items.sync")
 	}
-	if moduleRecovers(instance) || plexSharing {
+	if moduleRecovers(instance) || plexSharing || m.Definition.ID == "tofa" {
 		capabilities = append(capabilities, "users.provision", "invitations.redeem")
 	}
 	if m.Definition.DownloadLabels {

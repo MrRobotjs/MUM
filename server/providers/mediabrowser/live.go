@@ -11,7 +11,8 @@ import (
 // Live describes the server's session socket at suffix (Jellyfin "/socket",
 // Emby the configured address itself). The API key and device ID go in the
 // query, as both servers require. Once connected, MUM subscribes to session
-// updates every 5 seconds; a silent socket is dropped after 45 seconds.
+// updates every 5 seconds. Jellyfin can be silent when no sessions change,
+// so a WebSocket ping tests liveness without requiring application frames.
 func (s *Server) Live(device, suffix string) (provider.LiveConnection, error) {
 	if s.apiKey == "" {
 		return provider.LiveConnection{}, provider.ErrLiveSource
@@ -21,6 +22,9 @@ func (s *Server) Live(device, suffix string) (provider.LiveConnection, error) {
 		return provider.LiveConnection{}, err
 	}
 	start, _ := json.Marshal(map[string]string{"MessageType": "SessionsStart", "Data": "0,5000"})
+	if suffix == "/socket" {
+		return provider.LiveConnection{URL: endpoint, Start: start, PingInterval: 30 * time.Second}, nil
+	}
 	return provider.LiveConnection{URL: endpoint, Start: start, ReadTimeout: 45 * time.Second}, nil
 }
 

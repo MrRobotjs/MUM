@@ -74,6 +74,8 @@ type ActivitySnapshot struct {
 // received it, set by the core.
 type PlaybackEvent struct {
 	Session, Item, State string
+	User                 string
+	Barrier              bool
 	Position             *int64
 	At                   time.Time
 }

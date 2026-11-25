@@ -115,6 +115,9 @@ func (a *App) runProviderSocket(ctx context.Context, w *providerSocketWorker, se
 				}
 			}
 			if err == nil {
+				if server.Type == "tofa" {
+					a.playback.record(server.ID, []provider.PlaybackEvent{{Barrier: true}}, time.Now().UTC())
+				}
 				w.status("connected", "")
 				a.logger.Info("Provider socket connected", "server_id", server.ID, "provider", server.Type)
 				w.dirty.Store(true)
@@ -147,9 +150,14 @@ func (a *App) runProviderSocket(ctx context.Context, w *providerSocketWorker, se
 					if events, playbackErr := reader.LivePlayback(data); playbackErr == nil {
 						a.playback.record(server.ID, events, received)
 						for _, event := range events {
-							a.logSocketPlaybackEvent(server.ID, server.Type, event)
+							if !event.Barrier {
+								a.logSocketPlaybackEvent(server.ID, server.Type, event)
+							}
 						}
 					} else {
+						if server.Type == "tofa" {
+							a.playback.record(server.ID, []provider.PlaybackEvent{{Barrier: true}}, received)
+						}
 						a.logger.Debug("Provider socket playback states unreadable", "server_id", server.ID, "provider", server.Type)
 					}
 				}
@@ -175,6 +183,9 @@ func (a *App) runProviderSocket(ctx context.Context, w *providerSocketWorker, se
 				} else {
 					w.status("backoff", "QUEUE_REJECTED")
 				}
+			}
+			if server.Type == "tofa" {
+				a.playback.record(server.ID, []provider.PlaybackEvent{{Barrier: true}}, time.Now().UTC())
 			}
 			conn.CloseNow()
 			stopHeartbeat()

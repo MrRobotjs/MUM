@@ -23,12 +23,13 @@ type resolvedActivity struct {
 	Owner   *string
 }
 type activeActivity struct {
-	History     int64
-	Service     string
-	Owner       *string
-	Item, Kind  string
-	LastSeen    time.Time
-	PausedSince *time.Time // a running pause, from paused_since (or paused)
+	History      int64
+	Service      string
+	ExternalUser string
+	Owner        *string
+	Item, Kind   string
+	LastSeen     time.Time
+	PausedSince  *time.Time // a running pause, from paused_since (or paused)
 }
 type activityApplyResult struct {
 	Started, Updated, Ended int
@@ -187,7 +188,7 @@ func commitActivitySnapshot(ctx context.Context, tx *sql.Tx, c activityReadClaim
 		}
 		resolved = append(resolved, row)
 	}
-	rows, err := tx.QueryContext(ctx, `SELECT c.external_session_id,h.id,h.service_uuid,h.owner_uuid,h.item_id,h.media_type,h.last_seen_at,CASE WHEN h.paused_since IS NOT NULL THEN h.paused_since WHEN h.paused=1 THEN h.last_seen_at END FROM media_activity_current c JOIN media_activity_history h ON h.id=c.history_id WHERE c.server_id=? ORDER BY c.external_session_id LIMIT 1001`, c.Server)
+	rows, err := tx.QueryContext(ctx, `SELECT c.external_session_id,h.id,h.service_uuid,h.owner_uuid,h.item_id,h.media_type,h.last_seen_at,CASE WHEN h.paused_since IS NOT NULL THEN h.paused_since WHEN h.paused=1 THEN h.last_seen_at END,coalesce(sa.external_user_id,'') FROM media_activity_current c JOIN media_activity_history h ON h.id=c.history_id LEFT JOIN service_accounts sa ON sa.uuid=h.service_uuid WHERE c.server_id=? ORDER BY c.external_session_id LIMIT 1001`, c.Server)
 	if err != nil {
 		return result, err
 	}
@@ -196,7 +197,7 @@ func commitActivitySnapshot(ctx context.Context, tx *sql.Tx, c activityReadClaim
 		var key, lastSeen string
 		var pausedSince *string
 		var row activeActivity
-		if err = rows.Scan(&key, &row.History, &row.Service, &row.Owner, &row.Item, &row.Kind, &lastSeen, &pausedSince); err != nil {
+		if err = rows.Scan(&key, &row.History, &row.Service, &row.Owner, &row.Item, &row.Kind, &lastSeen, &pausedSince, &row.ExternalUser); err != nil {
 			break
 		}
 		if row.LastSeen, err = time.Parse(time.RFC3339Nano, lastSeen); err != nil {
@@ -242,7 +243,11 @@ func commitActivitySnapshot(ctx context.Context, tx *sql.Tx, c activityReadClaim
 				reason = "item_changed"
 			}
 			if reason != "" {
-				if err := endActivity(ctx, tx, c.Server, session.Session, old, observed, reason, snapshot.Events, snapshot.ObservedAt); err != nil {
+				events := snapshot.Events
+				if c.Provider == "tofa" {
+					events = nil
+				}
+				if err := endActivity(ctx, tx, c.Server, session.Session, old, observed, reason, events, snapshot.ObservedAt); err != nil {
 					return result, err
 				}
 				result.Ended++
@@ -252,7 +257,24 @@ func commitActivitySnapshot(ctx context.Context, tx *sql.Tx, c activityReadClaim
 		}
 		historyID := old.History
 		if exists {
-			out := playbackStretch{From: old.LastSeen, Until: snapshot.ObservedAt, PausedSince: old.PausedSince, Events: stretchEvents(snapshot.Events, session.Session, session.Item, old.LastSeen, snapshot.ObservedAt), Observed: true, Paused: session.Paused}.outcome()
+			events := stretchEvents(snapshot.Events, session.Session, session.Item, old.LastSeen, snapshot.ObservedAt)
+			if c.Provider == "tofa" {
+				events = tofaStretchEvents(snapshot.Events, session.Session, old.ExternalUser, session.Item, old.LastSeen, snapshot.ObservedAt)
+				for _, event := range events {
+					if event.State == "stopped" {
+						events = nil
+						break
+					}
+				}
+				if len(events) > 0 {
+					state := "playing"
+					if session.Paused {
+						state = "paused"
+					}
+					events = append(events, provider.PlaybackEvent{State: state, At: snapshot.ObservedAt})
+				}
+			}
+			out := playbackStretch{From: old.LastSeen, Until: snapshot.ObservedAt, PausedSince: old.PausedSince, Events: events, Observed: true, Paused: session.Paused}.outcome()
 			if _, err := tx.ExecContext(ctx, `UPDATE media_activity_history SET paused_seconds=CASE WHEN paused_seconds IS NOT NULL THEN paused_seconds+? END,paused_since=?,title=?,last_seen_at=?,paused=?,position_ticks=?,duration_ticks=?,client=coalesce(nullif(?,''),client),device_name=coalesce(nullif(?,''),device_name),play_method=coalesce(nullif(?,''),play_method),platform=coalesce(nullif(?,''),platform),ip_address=coalesce(nullif(?,''),ip_address) WHERE id=?`, wholeSeconds(out.PausedFor), optionalTimestamp(out.PausedSince), session.Title, observed, session.Paused, session.Position, session.Duration, session.Client, session.Device, session.PlayMethod, session.Platform, session.Address, old.History); err != nil {
 				return result, err
 			}
@@ -316,7 +338,14 @@ func commitActivitySnapshot(ctx context.Context, tx *sql.Tx, c activityReadClaim
 		}
 	}
 	for id, old := range current {
-		if err := endActivity(ctx, tx, c.Server, id, old, observed, "not_observed", snapshot.Events, snapshot.ObservedAt); err != nil {
+		events := snapshot.Events
+		if c.Provider == "tofa" {
+			events = tofaStretchEvents(events, id, old.ExternalUser, old.Item, old.LastSeen, snapshot.ObservedAt)
+			if len(events) > 0 && events[len(events)-1].State != "stopped" {
+				events = nil
+			}
+		}
+		if err := endActivity(ctx, tx, c.Server, id, old, observed, "not_observed", events, snapshot.ObservedAt); err != nil {
 			return result, err
 		}
 		result.Ended++

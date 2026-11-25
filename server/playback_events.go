@@ -4,6 +4,7 @@ import (
 	"context"
 	"math"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -38,15 +39,60 @@ func (b *playbackEvents) record(server int64, events []provider.PlaybackEvent, a
 	}
 	list := b.servers[server]
 	cutoff := at.Add(-playbackEventAge)
+	isTofa := false
+	for _, e := range events {
+		if e.User != "" || e.Barrier {
+			isTofa = true
+			break
+		}
+	}
+	if !isTofa {
+		for _, e := range list {
+			if e.User != "" || e.Barrier {
+				isTofa = true
+				break
+			}
+		}
+	}
+	previous := len(list)
 	list = slices.DeleteFunc(list, func(e provider.PlaybackEvent) bool { return e.At.Before(cutoff) })
+	if isTofa && len(list) != previous {
+		list = append([]provider.PlaybackEvent{{Barrier: true, At: cutoff}}, list...)
+	}
 	for _, e := range events {
 		e.At = at
 		list = append(list, e)
 	}
 	if extra := len(list) - playbackEventLimit; extra > 0 {
+		boundary := list[extra-1].At
 		list = slices.Delete(list, 0, extra)
+		if isTofa {
+			list[0] = provider.PlaybackEvent{Barrier: true, At: boundary}
+		}
 	}
 	b.servers[server] = list
+}
+
+// Item-less notifications are used only for the same observed account and
+// when no session restart or notification gap intervened.
+func tofaStretchEvents(events []provider.PlaybackEvent, session, user, item string, from, until time.Time) []provider.PlaybackEvent {
+	var out []provider.PlaybackEvent
+	for _, e := range events {
+		if !e.At.After(from) || e.At.After(until) {
+			continue
+		}
+		if e.Barrier && (e.Session == "" || strings.EqualFold(e.Session, session)) {
+			return nil
+		}
+		if strings.EqualFold(e.Session, session) && e.User != "" && !strings.EqualFold(e.User, user) {
+			return nil
+		}
+		if strings.EqualFold(e.Session, session) && strings.EqualFold(e.User, user) && user != "" {
+			e.Item = item
+			out = append(out, e)
+		}
+	}
+	return out
 }
 
 // peek copies the events received up to until, oldest first.
@@ -200,10 +246,11 @@ func optionalTimestamp(t *time.Time) any {
 // saveActivity saves a read with the notifications received up to it, and
 // drops them once saved. A failed save keeps them for the next read.
 func (a *App) saveActivity(ctx context.Context, c activityReadClaim, snapshot activitySnapshot) (activityApplyResult, error) {
-	snapshot.Events = a.playback.peek(c.Server, snapshot.ObservedAt)
+	until := snapshot.ObservedAt
+	snapshot.Events = a.playback.peek(c.Server, until)
 	result, err := a.store.applyActivitySnapshot(ctx, c, snapshot)
 	if err == nil {
-		a.playback.discard(c.Server, snapshot.ObservedAt)
+		a.playback.discard(c.Server, until)
 		a.logActivitySnapshot(c, snapshot)
 	}
 	return result, err

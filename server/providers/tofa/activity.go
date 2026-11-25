@@ -74,6 +74,7 @@ func (s *Server) ActivitySnapshot(ctx context.Context) (provider.ActivitySnapsho
 	if err := s.get(ctx, "/api/v1/system/playback/sessions", &raw); err != nil {
 		return result, provider.ActivityReadError(err)
 	}
+	result.ObservedAt = time.Now().UTC()
 	if len(raw) > 2<<20 {
 		return result, provider.ErrActivitySnapshot
 	}
@@ -301,6 +302,5 @@ func (s *Server) ActivitySnapshot(ctx context.Context) (provider.ActivitySnapsho
 		}
 		result.Sessions = append(result.Sessions, session)
 	}
-	result.ObservedAt = time.Now().UTC()
 	return result, nil
 }

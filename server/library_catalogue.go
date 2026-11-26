@@ -29,6 +29,7 @@ const (
 	catalogueMaxEpisodes = provider.CatalogueMaxEpisodes
 	cataloguePageSize    = provider.CataloguePageSize
 	catalogueImageTTL    = 10 * time.Minute
+	imageLinkStep        = 5 * time.Minute
 	catalogueImageMax    = provider.CatalogueImageMax
 )
 
@@ -99,8 +100,17 @@ func (a *App) signCatalogueImage(purpose, session string, id int64, expires int6
 	fmt.Fprintf(mac, "%s|%s|%d|%d", purpose, session, id, expires)
 	return base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
 }
+
+// imageLinkExpiry rounds a link's expiry up to the next imageLinkStep so that
+// repeated reads within one step return the same URL. A changing URL makes the
+// browser reload the picture on every live update, which flickers. Links stay
+// valid for at least catalogueImageTTL and at most catalogueImageTTL+imageLinkStep.
+func imageLinkExpiry(now time.Time) int64 {
+	step := int64(imageLinkStep / time.Second)
+	return now.Unix()/step*step + step + int64(catalogueImageTTL/time.Second)
+}
 func (a *App) signedImageURL(purpose, route, session string, id int64, now time.Time) string {
-	expires := now.Add(catalogueImageTTL).Unix()
+	expires := imageLinkExpiry(now)
 	return fmt.Sprintf("%s/%d?%s", route, id, url.Values{"s": {session}, "e": {strconv.FormatInt(expires, 10)}, "g": {a.signCatalogueImage(purpose, session, id, expires)}}.Encode())
 }
 func (a *App) catalogueImageURL(session string, item int64, now time.Time) string {
@@ -883,7 +893,7 @@ func (a *App) serveSignedImage(w http.ResponseWriter, r *http.Request, param, pu
 	expires, expErr := strconv.ParseInt(query.Get("e"), 10, 64)
 	session, signature := query.Get("s"), query.Get("g")
 	now := time.Now()
-	if err != nil || itemID <= 0 || expErr != nil || session == "" || len(session) > 128 || expires < now.Unix() || expires > now.Add(catalogueImageTTL+time.Minute).Unix() ||
+	if err != nil || itemID <= 0 || expErr != nil || session == "" || len(session) > 128 || expires < now.Unix() || expires > now.Add(catalogueImageTTL+imageLinkStep+time.Minute).Unix() ||
 		!hmac.Equal([]byte(signature), []byte(a.signCatalogueImage(purpose, session, itemID, expires))) {
 		fail(w, 403, "IMAGE_LINK_INVALID", "This image link is invalid or expired")
 		return

@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"math"
 	"strings"
@@ -23,6 +22,7 @@ type activityRow struct {
 	ProfileName      *string  `json:"profile_name"`
 	ProfileID        *string  `json:"profile_id"`
 	Method           string   `json:"play_method"`
+	Decision         *string  `json:"decision_mode"`
 	Paused           *bool    `json:"is_paused"`
 	Position         *int64   `json:"position_ms"`
 	Duration         *int64   `json:"duration_ms"`
@@ -155,7 +155,7 @@ func (s *Server) ActivitySnapshot(ctx context.Context) (provider.ActivitySnapsho
 			title = "Unknown title"
 		}
 		session := provider.ActivitySession{Session: r.Session, User: r.User, Item: itemID, UserName: safeLabel(r.UserName, 128), Title: title, Kind: kind, Paused: *r.Paused, Position: pos, Duration: duration, Client: safeLabel(r.Client, 128), Device: safeLabel(r.Device, 256), Platform: safeLabel(r.Platform, 64), PlayMethod: provider.PlayMethods[r.Method]}
-		display := &provider.ActivityDisplay{PlayerTitle: session.Device, PlayerPlatform: session.Platform, ProfileName: safeLabel(r.ProfileName, 128), Product: session.Client, SourceResolution: safeLabel(r.SourceResolution, 8), StreamResolution: safeLabel(r.Resolution, 8), MediaVideoCodec: safeLabel(r.SourceVideo, 64), MediaAudioCodec: safeLabel(r.SourceAudio, 64)}
+		display := &provider.ActivityDisplay{PlayerTitle: session.Device, PlayerPlatform: session.Platform, ProfileName: safeLabel(r.ProfileName, 128), Product: session.Client, SourceResolution: resolutionLabel(r.SourceResolution), StreamResolution: resolutionLabel(r.Resolution), MediaVideoCodec: safeLabel(r.SourceVideo, 64), MediaAudioCodec: safeLabel(r.SourceAudio, 64)}
 		if r.ProfileID != nil && uuid.MatchString(*r.ProfileID) {
 			avatar, avatarErr := s.profileAvatar(ctx, r.User, *r.ProfileID)
 			if avatarErr != nil {
@@ -230,16 +230,11 @@ func (s *Server) ActivitySnapshot(ctx context.Context) (provider.ActivitySnapsho
 				display.Location = display.LocationType + ": " + display.IP
 			}
 		}
-		video := strings.ToUpper(safeLabel(r.SourceVideo, 64))
-		audio := strings.ToUpper(safeLabel(r.SourceAudio, 64))
-		outVideo := strings.ToUpper(safeLabel(r.OutputVideo, 64))
-		outAudio := strings.ToUpper(safeLabel(r.OutputAudio, 64))
-		if video != "" && display.SourceResolution != "" {
-			video += " " + display.SourceResolution
+		decision := ""
+		if r.Decision != nil {
+			decision = *r.Decision
 		}
-		if outVideo != "" && display.StreamResolution != "" {
-			outVideo += " " + display.StreamResolution
-		}
+		sourceContainer := display.Container
 		switch session.PlayMethod {
 		case "direct_play":
 			display.Stream = "Direct Play"
@@ -248,25 +243,13 @@ func (s *Server) ActivitySnapshot(ctx context.Context) (provider.ActivitySnapsho
 		case "transcode":
 			display.Stream = "Transcode"
 		}
-		if session.PlayMethod == "transcode" && display.Container != "" {
-			display.Container = "Source: " + display.Container
-		}
 		if session.PlayMethod != "" {
 			isTranscode := session.PlayMethod == "transcode"
 			display.IsTranscode = &isTranscode
 		}
-		if video != "" {
-			display.Video = video
-			if outVideo != "" && outVideo != video {
-				display.Video += " → " + outVideo
-			}
-		}
-		if audio != "" {
-			display.Audio = audio
-			if outAudio != "" && outAudio != audio {
-				display.Audio += " → " + outAudio
-			}
-		}
+		display.Container, display.Video, display.Audio = streamDecisions(decision, session.PlayMethod, sourceContainer,
+			trackLabel(r.SourceVideo, r.SourceResolution), trackLabel(r.OutputVideo, r.Resolution),
+			trackLabel(r.SourceAudio, nil), trackLabel(r.OutputAudio, nil))
 		if r.Subtitle != nil {
 			label := safeLabel(r.Subtitle.Title, 128)
 			if label == "" {
@@ -283,15 +266,15 @@ func (s *Server) ActivitySnapshot(ctx context.Context) (provider.ActivitySnapsho
 			}
 			display.Subtitle = label
 		}
-		if r.Bitrate != nil && *r.Bitrate >= 0 && *r.Bitrate <= 100000000 {
-			v := *r.Bitrate
+		rates := streamRates(session.PlayMethod, r.SourceBitrate, r.MaxBitrate, r.Bitrate, r.SourceResolution, r.Resolution)
+		if rates.Bandwidth > 0 {
+			v := rates.Bandwidth
 			display.Bitrate = &v
-			display.Bandwidth = fmt.Sprintf("%.1f Mbps", float64(v)/1000)
+			display.Bandwidth = mbps(v)
 		}
-		if session.PlayMethod == "transcode" && r.MaxBitrate != nil && *r.MaxBitrate > 0 && *r.MaxBitrate < 100000000 {
-			display.Quality = fmt.Sprintf("Up to %.1f Mbps", float64(*r.MaxBitrate)/1000)
-		} else if session.PlayMethod != "transcode" && r.SourceBitrate != nil && *r.SourceBitrate > 0 && *r.SourceBitrate < 100000000 {
-			display.Quality = fmt.Sprintf("Original (%.1f Mbps)", float64(*r.SourceBitrate)/1000)
+		display.Quality = rates.Quality
+		if rates.Measured > 0 {
+			display.Measured = mbps(rates.Measured)
 		}
 		if r.Speed != nil && *r.Speed >= 0 && !math.IsNaN(*r.Speed) && !math.IsInf(*r.Speed, 0) {
 			display.Speed = r.Speed

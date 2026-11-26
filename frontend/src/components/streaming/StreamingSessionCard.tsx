@@ -98,6 +98,41 @@ const StreamInfoDialog = ({ open, onOpenChange }: { open: boolean; onOpenChange:
   );
 };
 
+const BandwidthInfoDialog = ({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) => {
+  return (
+    <ResponsiveDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Bandwidth and Measured"
+      description="Why this stream shows two rates"
+    >
+      <div className="space-y-4 text-sm">
+        <div className="space-y-3">
+          <div className="rounded-lg border p-3 border-green-500/20 bg-green-500/5">
+            <div className="font-semibold text-green-500 mb-1">Bandwidth</div>
+            <p className="text-muted-foreground">
+              The rate this stream is expected to use: the file&apos;s bitrate, or the player&apos;s limit when that is lower.
+              This is the figure added up in the Activity totals, so streams from every media service compare like for like.
+            </p>
+          </div>
+          <div className="rounded-lg border p-3 border-amber-500/20 bg-amber-500/5">
+            <div className="font-semibold text-amber-500 mb-1">Measured</div>
+            <p className="text-muted-foreground mb-2">
+              The rate the media server actually sent over the last moments, as it reports it. It is often lower than Bandwidth:
+            </p>
+            <ul className="list-disc space-y-1 pl-5 text-muted-foreground">
+              <li>The server sends video in bursts and the average includes the pauses between them.</li>
+              <li>Once the player&apos;s buffer is full, the server waits before sending more.</li>
+              <li>A transcode can come out smaller than its target for calm scenes.</li>
+            </ul>
+            <p className="text-muted-foreground mt-2">It is not the viewer&apos;s connection speed.</p>
+          </div>
+        </div>
+      </div>
+    </ResponsiveDialog>
+  );
+};
+
 const formatRawPayload = (payload?: string) => {
   if (!payload) return '';
   try {
@@ -317,6 +352,7 @@ export const StreamingSessionCard = ({
   serviceFeatures
 }: StreamingSessionCardProps) => {
   const [showStreamInfo, setShowStreamInfo] = useState(false);
+  const [showBandwidthInfo, setShowBandwidthInfo] = useState(false);
   const [showSendMessage, setShowSendMessage] = useState(false);
   const [showSourceInfo, setShowSourceInfo] = useState(false);
   const [showPayload, setShowPayload] = useState(false);
@@ -982,6 +1018,23 @@ export const StreamingSessionCard = ({
             <span className="min-w-[40px] font-medium text-muted-foreground">Bandwidth</span>
             <span className="text-foreground/90 font-medium">
               {session.bandwidth_detail || 'Unknown'}
+              {session.measured_bandwidth_detail ? (
+                <span className="text-muted-foreground font-normal">
+                  {' · Measured '}{session.measured_bandwidth_detail}{' '}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowBandwidthInfo(true);
+                    }}
+                    className="hover:text-foreground transition-colors focus:outline-none"
+                    title="What does this mean?"
+                    aria-label="What do Bandwidth and Measured mean?"
+                  >
+                    <FontAwesomeIcon icon={faCircleInfo} className="text-[10px]" />
+                  </button>
+                </span>
+              ) : null}
             </span>
           </div>
 
@@ -1022,7 +1075,7 @@ export const StreamingSessionCard = ({
                       {session.transcode_throttled !== undefined || session.transcode_speed !== undefined ? (
                         <span className="text-gray-500 flex items-center gap-1 ml-1">
                           ({session.transcode_throttled ? 'Throttled' : 'Active'}
-                          {session.transcode_speed !== undefined && session.transcode_speed > 0 ? `, Speed: ${session.transcode_speed}` : ''})
+                          {session.transcode_speed !== undefined && session.transcode_speed > 0 ? `, Speed: ${session.transcode_speed.toFixed(1)}` : ''})
                         </span>
                       ) : null}
                     </span>
@@ -1047,6 +1100,7 @@ export const StreamingSessionCard = ({
             </div>
           </div>
           <StreamInfoDialog open={showStreamInfo} onOpenChange={setShowStreamInfo} />
+          <BandwidthInfoDialog open={showBandwidthInfo} onOpenChange={setShowBandwidthInfo} />
           <PayloadDialog
             open={showPayload}
             onOpenChange={setShowPayload}
@@ -1087,7 +1141,7 @@ export const StreamingSessionCard = ({
                     {session.transcode_throttled !== undefined || session.transcode_speed !== undefined ? (
                       <span className="text-gray-500 flex items-center gap-1 ml-1">
                         ({session.transcode_throttled ? 'Throttled' : 'Active'}
-                        {session.transcode_speed !== undefined && session.transcode_speed > 0 ? `, Speed: ${session.transcode_speed}` : ''})
+                        {session.transcode_speed !== undefined && session.transcode_speed > 0 ? `, Speed: ${session.transcode_speed.toFixed(1)}` : ''})
                       </span>
                     ) : null}
                   </span>

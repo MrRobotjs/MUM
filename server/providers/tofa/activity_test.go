@@ -18,7 +18,7 @@ func TestActivitySnapshotUsesTofaSessions(t *testing.T) {
 		}
 		switch r.URL.Path {
 		case "/api/v1/system/playback/sessions":
-			fmt.Fprint(w, `[{"session_id":"01234567-89ab-4cde-8fab-0123456789ab","user_id":"11234567-89ab-4cde-8fab-0123456789ab","media_id":"21234567-89ab-4cde-8fab-0123456789ab","media_file_id":"31234567-89ab-4cde-8fab-0123456789ab","media_title":"Movie","username":"Viewer","profile_name":"Household member","play_method":"Transcode","position_ms":3000,"duration_ms":9000,"is_paused":false,"video_codec":"hevc","output_video_codec":"h264","observed_bitrate_kbps":5000,"client_ip":"127.0.0.1"}]`)
+			fmt.Fprint(w, `[{"session_id":"01234567-89ab-4cde-8fab-0123456789ab","user_id":"11234567-89ab-4cde-8fab-0123456789ab","media_id":"21234567-89ab-4cde-8fab-0123456789ab","media_file_id":"31234567-89ab-4cde-8fab-0123456789ab","media_title":"Movie","username":"Viewer","profile_name":"Household member","play_method":"Transcode","position_ms":3000,"duration_ms":9000,"is_paused":false,"video_codec":"hevc","output_video_codec":"h264","source_resolution":"3840x2160","resolution":"1920x1080","observed_bitrate_kbps":5000,"client_ip":"127.0.0.1"}]`)
 		case "/api/v1/media/21234567-89ab-4cde-8fab-0123456789ab":
 			fmt.Fprint(w, `{"id":"21234567-89ab-4cde-8fab-0123456789ab","media_type":"movie","title":"Movie","poster_path":"present","files":[{"id":"31234567-89ab-4cde-8fab-0123456789ab","container":"mkv"}]}`)
 		default:
@@ -35,7 +35,7 @@ func TestActivitySnapshotUsesTofaSessions(t *testing.T) {
 	if p.Kind != "Movie" || p.PlayMethod != "transcode" || p.Position == nil || *p.Position != 30000000 || p.Display == nil || p.Display.PosterPath != "poster" {
 		t.Fatal(p)
 	}
-	if p.Display.Container != "Source: MKV" || p.Display.Video != "HEVC → H264" || p.Display.Bandwidth != "5.0 Mbps" || p.Display.LocationType != "LAN" || p.Display.ProfileName != "Household member" {
+	if p.Display.Container != "Converting (MKV → HLS)" || p.Display.Video != "HEVC 4K → H264 1080p" || p.Display.Bandwidth != "5.0 Mbps" || p.Display.LocationType != "LAN" || p.Display.ProfileName != "Household member" || p.Display.SourceResolution != "4K" || p.Display.StreamResolution != "1080p" {
 		t.Fatal("incorrect stream details", p.Display)
 	}
 }

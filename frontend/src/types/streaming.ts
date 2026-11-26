@@ -53,6 +53,7 @@ export type ActiveSession = {
   longitude?: number;
   is_public_ip?: boolean;
   bandwidth_detail?: string;
+  measured_bandwidth_detail?: string;
 
   // Media details for dialogs
   media_path?: string;

@@ -22,8 +22,11 @@ import { watchTime } from '../lib/identityPlayTotals';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Skeleton } from '../components/ui/skeleton';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../components/ui/dropdown-menu';
 import { ActivityTable } from '../components/library/ActivityTable';
 import { ExpandableText } from '../components/common/ExpandableText';
+import { audioChannelsLabel, mediaBitrateLabel, mediaSizeLabel, readMediaInfo } from '../lib/mediaInfo';
+import type { MediaInfo } from '../lib/mediaInfo';
 import { Pagination } from '../components/common/Pagination';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
@@ -60,6 +63,7 @@ import {
   faPlay,
   faUsers,
   faClockRotateLeft,
+  faEllipsis,
 } from '@fortawesome/free-solid-svg-icons';
 
 type ServiceType = 'plex' | 'jellyfin' | 'emby' | 'kavita' | 'audiobookshelf' | 'komga' | 'romm';
@@ -79,6 +83,8 @@ interface MediaItem {
   last_synced?: string;
   stream_count?: number;
   episode_count?: number | null;
+  /** The file's technical details from the last library sync. */
+  media_info?: MediaInfo | null;
   // Every play on the server (readItemPlays checks it).
   plays?: unknown;
   catalogue_supported?: boolean;
@@ -193,6 +199,12 @@ const MediaDetailPageView = () => {
   // An album lists its tracks the way a show lists its episodes; both use the
   // child list state and actions below.
   const isAlbum = mediaItem?.item_type === 'album' && !isEpisode;
+  // Items that are one playable file get the Media info card; books, comics and games don't report file details.
+  const fileType = isEpisode ? 'episode' : mediaItem?.item_type ?? '';
+  const hasFile = ['movie', 'episode', 'video', 'track', 'music_video'].includes(fileType);
+  const isTrack = fileType === 'track';
+  let mediaInfo: MediaInfo | null = null;
+  try { mediaInfo = readMediaInfo(mediaItem?.media_info); } catch { mediaInfo = null; }
   const childNoun = isAlbum ? 'tracks' : 'episodes';
   const childSupported = isAlbum ? mediaItem?.track_catalogue_supported === true : mediaItem?.episode_catalogue_supported === true;
   const episodeCode = isEpisode && mediaItem?.season_number != null && mediaItem?.episode_number != null
@@ -679,11 +691,36 @@ const MediaDetailPageView = () => {
               note={plays?.last_played_at ? [isTVShow || isAlbum ? plays.last_played_title : null, plays.last_viewer].filter(Boolean).join(' · ') || formatTimestamp(plays.last_played_at) : undefined} />
           </div>
 
-          {mediaItem.summary && (
+          {/* The file itself, the way a media info table lists it: shown for items that are a file, not a show or album. */}
+          {hasFile && (
             <Card>
-              <CardHeader><TabHeading icon={faFileLines} title="Summary" description={`From ${mediaItem.library?.server?.server_nickname || 'the server'}.`} /></CardHeader>
+              <CardHeader><TabHeading icon={faFileLines} title="Media info" description={`The file on ${mediaItem.library?.server?.server_nickname || 'the server'}, as of the last library sync.`} /></CardHeader>
               <CardContent>
-                <ExpandableText text={mediaItem.summary} limit={600} className="text-sm text-muted-foreground leading-relaxed" />
+                {mediaInfo ? (
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    {!isTrack && (
+                      <div className="space-y-3">
+                        <p className="text-xs uppercase tracking-wide text-muted-foreground">Video</p>
+                        <Row label="Codec">{mediaInfo.video_codec ?? '—'}</Row>
+                        <Row label="Resolution">{mediaInfo.video_resolution ?? '—'}</Row>
+                        <Row label="Frame rate">{mediaInfo.video_frame_rate ?? '—'}</Row>
+                      </div>
+                    )}
+                    <div className="space-y-3">
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Audio</p>
+                      <Row label="Codec">{mediaInfo.audio_codec ?? '—'}</Row>
+                      <Row label="Channels">{mediaInfo.audio_channels ? audioChannelsLabel(mediaInfo.audio_channels) : '—'}</Row>
+                    </div>
+                    <div className="space-y-3">
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">File</p>
+                      <Row label="Container">{mediaInfo.container ?? '—'}</Row>
+                      <Row label="Bitrate">{mediaInfo.bitrate_kbps ? mediaBitrateLabel(mediaInfo.bitrate_kbps) : '—'}</Row>
+                      <Row label="Size">{mediaInfo.size_bytes ? mediaSizeLabel(mediaInfo.size_bytes) : '—'}</Row>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No file details saved yet. Sync the library to load them.</p>
+                )}
               </CardContent>
             </Card>
           )}
@@ -1035,53 +1072,36 @@ const MediaDetailPageView = () => {
         <TabsContent value="tracks" className="space-y-6">
           {isAlbum && (
             <>
-              {/* Tracks Header */}
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <h3 className="text-lg font-semibold flex items-center">
-                  <FontAwesomeIcon icon={faMusic} className="text-primary mr-2 h-5 w-5" />
-                  Tracks
-                  <span className="text-sm text-muted-foreground ml-2">
-                    ({episodesTotalItems} {episodesTotalItems === 1 ? 'item' : 'items'})
-                  </span>
-                </h3>
-
-                {/* Actions */}
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={handlePurgeEpisodes}
-                    disabled={purgingEpisodes || syncing || needsInspection || !childSupported}
-                    title="Delete cached tracks for this album from the database"
-                  >
-                    {purgingEpisodes ? (
-                      <>
-                        <FontAwesomeIcon icon={faRotate} className="mr-2 h-4 w-4 animate-spin" />
-                        Purging...
-                      </>
-                    ) : (
-                      <>
-                        <FontAwesomeIcon icon={faTrash} className="mr-2 h-4 w-4" />
-                        Purge
-                      </>
-                    )}
-                  </Button>
-                  <Button onClick={refreshSavedState} disabled={syncing || purgingEpisodes || !childSupported} size="sm" variant="outline">Refresh saved state</Button>
-                  {needsInspection && <span>Inspect saved state before another action.</span>}
-                  <Button onClick={handleSyncEpisodes} disabled={syncing || purgingEpisodes || needsInspection || !childSupported} size="sm">
-                    {syncing ? (
-                      <>
-                        <FontAwesomeIcon icon={faRotate} className="mr-2 h-4 w-4 animate-spin" />
-                        Syncing...
-                      </>
-                    ) : (
-                      <>
-                        <FontAwesomeIcon icon={faRotate} className="mr-2 h-4 w-4" />
-                        Sync
-                      </>
-                    )}
-                  </Button>
+              {/* The heading and actions share one panel, the same layout as a library's Media tab. */}
+              <div className="space-y-4 rounded-lg border border-border/70 bg-muted/40 p-4">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <TabHeading icon={faMusic} title="Tracks"
+                    description={episodesLoading && !episodesTotalItems ? `Tracks on ${mediaItem.title}` : `${episodesTotalItems.toLocaleString()} ${episodesTotalItems === 1 ? 'track' : 'tracks'} in MUM’s catalogue`} />
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" onClick={handleSyncEpisodes} disabled={syncing || purgingEpisodes || needsInspection || !childSupported}>
+                      <FontAwesomeIcon icon={faRotate} className={syncing ? 'animate-spin' : undefined} />
+                      {syncing ? 'Syncing…' : 'Sync tracks'}
+                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="outline" size="sm" aria-label="More track actions"><FontAwesomeIcon icon={faEllipsis} /></Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem variant="destructive" onClick={handlePurgeEpisodes} disabled={purgingEpisodes || syncing || needsInspection || !childSupported}>
+                          <FontAwesomeIcon icon={faTrash} />
+                          {purgingEpisodes ? 'Purging…' : 'Purge DB'}
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
                 </div>
+                {/* Shown only when the last sync or purge couldn't be confirmed: Sync stays locked until the saved state is read again. */}
+                {needsInspection && (
+                  <div className="flex flex-wrap items-center gap-3 text-sm">
+                    <span>Inspect saved state before another action.</span>
+                    <Button onClick={refreshSavedState} disabled={syncing || purgingEpisodes} variant="outline" size="sm">Refresh saved state</Button>
+                  </div>
+                )}
               </div>
 
               {/* Track List: in disc and track order, each music video on its own row after its track */}

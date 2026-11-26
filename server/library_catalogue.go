@@ -817,7 +817,12 @@ func (a *App) libraryCatalogueItem(w http.ResponseWriter, r *http.Request) {
 		domainError(w, err)
 		return
 	}
-	respond(w, 200, map[string]any{"id": item.ID, "external_id": item.External, "title": item.Title, "sort_title": item.SortTitle, "item_type": item.Type,
+	media, err := readItemMediaInfo(r.Context(), tx, item.ID)
+	if err != nil {
+		domainError(w, err)
+		return
+	}
+	respond(w, 200, map[string]any{"media_info": media, "id": item.ID, "external_id": item.External, "title": item.Title, "sort_title": item.SortTitle, "item_type": item.Type,
 		"year": item.Year, "rating": item.Rating, "duration": item.DurationMS, "summary": item.Summary, "thumb": item.Thumb, "added_at": item.AddedAt, "last_synced": item.LastSynced, "stream_count": item.StreamCount,
 		"catalogue_revision": library.Revision, "catalogue_supported": catalogueLibrarySupported(library.Provider, library.Kind, library.External),
 		"episode_catalogue_supported": childCatalogueSupported(library.Provider, episodeChildren) && item.Type == episodeChildren.Parent,
@@ -1072,16 +1077,24 @@ func mediaCacheIdentity(provider, external, namespace string) string {
 // A row with the same external ID under a different parent is never
 // overwritten; the whole commit is refused instead.
 func upsertCatalogueItems(ctx context.Context, tx *sql.Tx, library, server int64, parent string, items []catalogueItem, existing map[string]int64, now string) (added, updated int, err error) {
-	upsert, err := tx.PrepareContext(ctx, `INSERT INTO media_items(library_id,server_id,external_id,parent_id,title,sort_title,item_type,summary,year,rating,duration,season_number,episode_number,thumb_path,added_at,updated_at,last_synced)
-	 VALUES(?,?,?,nullif(?,''),?,?,?,nullif(?,''),?,?,?,?,?,nullif(?,''),nullif(?,''),?,?)
-	 ON CONFLICT(library_id,external_id) DO UPDATE SET title=excluded.title,sort_title=excluded.sort_title,item_type=excluded.item_type,summary=excluded.summary,year=excluded.year,rating=excluded.rating,duration=excluded.duration,season_number=excluded.season_number,episode_number=excluded.episode_number,thumb_path=excluded.thumb_path,added_at=excluded.added_at,updated_at=excluded.updated_at,last_synced=excluded.last_synced
-	 WHERE media_items.parent_id IS excluded.parent_id AND (media_items.title IS NOT excluded.title OR media_items.sort_title IS NOT excluded.sort_title OR media_items.item_type IS NOT excluded.item_type OR media_items.summary IS NOT excluded.summary OR media_items.year IS NOT excluded.year OR media_items.rating IS NOT excluded.rating OR media_items.duration IS NOT excluded.duration OR media_items.season_number IS NOT excluded.season_number OR media_items.episode_number IS NOT excluded.episode_number OR media_items.thumb_path IS NOT excluded.thumb_path OR media_items.added_at IS NOT excluded.added_at)`)
+	upsert, err := tx.PrepareContext(ctx, `INSERT INTO media_items(library_id,server_id,external_id,parent_id,title,sort_title,item_type,summary,year,rating,duration,season_number,episode_number,thumb_path,added_at,updated_at,last_synced,media_info)
+	 VALUES(?,?,?,nullif(?,''),?,?,?,nullif(?,''),?,?,?,?,?,nullif(?,''),nullif(?,''),?,?,?)
+	 ON CONFLICT(library_id,external_id) DO UPDATE SET title=excluded.title,sort_title=excluded.sort_title,item_type=excluded.item_type,summary=excluded.summary,year=excluded.year,rating=excluded.rating,duration=excluded.duration,season_number=excluded.season_number,episode_number=excluded.episode_number,thumb_path=excluded.thumb_path,added_at=excluded.added_at,updated_at=excluded.updated_at,last_synced=excluded.last_synced,media_info=excluded.media_info
+	 WHERE media_items.parent_id IS excluded.parent_id AND (media_items.title IS NOT excluded.title OR media_items.sort_title IS NOT excluded.sort_title OR media_items.item_type IS NOT excluded.item_type OR media_items.summary IS NOT excluded.summary OR media_items.year IS NOT excluded.year OR media_items.rating IS NOT excluded.rating OR media_items.duration IS NOT excluded.duration OR media_items.season_number IS NOT excluded.season_number OR media_items.episode_number IS NOT excluded.episode_number OR media_items.thumb_path IS NOT excluded.thumb_path OR media_items.added_at IS NOT excluded.added_at OR media_items.media_info IS NOT excluded.media_info)`)
 	if err != nil {
 		return 0, 0, err
 	}
 	defer upsert.Close()
 	for _, item := range items {
-		result, err := upsert.ExecContext(ctx, library, server, item.ID, parent, item.Title, item.SortTitle, item.Type, item.Summary, item.Year, item.Rating, item.DurationMS, item.Season, item.Episode, item.ImageTag, item.AddedAt, now, now)
+		var media any
+		if m := item.Media.Clean(); m != nil {
+			encoded, err := json.Marshal(m)
+			if err != nil {
+				return 0, 0, err
+			}
+			media = string(encoded)
+		}
+		result, err := upsert.ExecContext(ctx, library, server, item.ID, parent, item.Title, item.SortTitle, item.Type, item.Summary, item.Year, item.Rating, item.DurationMS, item.Season, item.Episode, item.ImageTag, item.AddedAt, now, now, media)
 		if err != nil {
 			return 0, 0, err
 		}

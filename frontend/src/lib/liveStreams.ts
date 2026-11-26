@@ -20,6 +20,7 @@ export async function fetchLiveStreams(actor:string,token:string,signal?:AbortSi
    const session:ActiveSession={session_key:`${row.server_id}:${row.id}`,user:row.service_username??row.owner_name??'Unknown user',mum_user_uuid:row.owner_uuid,service_user_uuid:row.service_uuid,media_title:row.title,media_type:row.media_type.toLowerCase(),library_name:'Unknown library',service_type:source.provider,server_name:sources.data.find(v=>String(v.id)===row.server_id)?.server_nickname??`Server ${row.server_id}`,state:row.paused?'paused':'playing',progress:observationProgress(row.position_ticks,row.duration_ticks)??0,current_time:observationPosition(row.position_ticks),duration:observationPosition(row.duration_ticks),quality_detail:'Unknown',stream_detail:'Unknown',location_detail:'Unknown',source:source.observation_source??'http'};
    // How old the position was when the server answered; both times are server clock.
    session.position_seconds=tickSeconds(row.position_ticks);session.duration_seconds=tickSeconds(row.duration_ticks);session.observed_age_ms=Math.max(0,Date.parse(page.read_at)-Date.parse(row.last_observed_at));
+   if(row.link)session.media_link={server_id:row.server_id,...row.link};
    Object.assign(session,row.display);
    sessions.push(session);
   }

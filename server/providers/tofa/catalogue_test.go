@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"app/server/providers/provider"
@@ -53,13 +54,17 @@ func TestCatalogueRequiresCompleteStableUnrestrictedSnapshot(t *testing.T) {
 			}
 			fmt.Fprintf(w, `{"items":[{"id":%q,"library_id":%q,"media_type":"movie","title":"Fixture","poster_path":"available"}],"page":1,"per_page":200,"total":%d,"total_pages":1}`, item, library, total)
 		default:
+			if id, ok := strings.CutPrefix(r.URL.Path, "/api/v1/media/"); ok && !strings.Contains(id, "/") {
+				fmt.Fprintf(w, `{"id":%q,"files":[{"available":false,"container":"avi"},{"available":true,"container":"mkv","bitrate":8378534,"video_codec":"h264","height":800,"display_frame_rate":23.976,"audio_codec":"eac3","file_size":6395670608,"audio_tracks":[{"codec":"eac3","channels":6}]}]}`, id)
+				return
+			}
 			http.NotFound(w, r)
 		}
 	}))
 	defer srv.Close()
 	s := New(provider.Config{URL: srv.URL, APIKey: "key", Transport: provider.Transport{Client: srv.Client()}})
 	rows, err := s.CatalogueItems(context.Background(), library, "movie", nil)
-	if err != nil || len(rows) != 1 || rows[0].Title != "Fixture" || rows[0].ImageTag == "" {
+	if err != nil || len(rows) != 1 || rows[0].Title != "Fixture" || rows[0].ImageTag == "" || rows[0].Media == nil || rows[0].Media.Container != "MKV" || *rows[0].Media.BitrateKbps != 8378 || rows[0].Media.VideoResolution != "1080p" || rows[0].Media.VideoFrameRate != "24p" || *rows[0].Media.AudioChannels != 6 {
 		t.Fatal(rows, err)
 	}
 	for _, m := range []string{"restricted", "partial"} {
@@ -131,6 +136,10 @@ func TestCatalogueRejectsChangingOrDuplicatePages(t *testing.T) {
 			}
 			fmt.Fprintf(w, `{"items":[{"id":%q,"library_id":%q,"media_type":"movie","title":"Example"}],"page":%s,"per_page":1,"total":2,"total_pages":2}`, id, library, p)
 		default:
+			if id, ok := strings.CutPrefix(r.URL.Path, "/api/v1/media/"); ok && !strings.Contains(id, "/") {
+				fmt.Fprintf(w, `{"id":%q,"files":[{"available":false,"container":"avi"},{"available":true,"container":"mkv","bitrate":8378534,"video_codec":"h264","height":800,"display_frame_rate":23.976,"audio_codec":"eac3","file_size":6395670608,"audio_tracks":[{"codec":"eac3","channels":6}]}]}`, id)
+				return
+			}
 			http.NotFound(w, r)
 		}
 	}))
@@ -178,6 +187,10 @@ func TestCatalogueAcceptsVerifiedMergedVersions(t *testing.T) {
 			}
 			fmt.Fprintf(w, `{"id":%q,"library_id":%q,"media_type":"movie","tmdb_id":%d}`, second, library, id)
 		default:
+			if id, ok := strings.CutPrefix(r.URL.Path, "/api/v1/media/"); ok && !strings.Contains(id, "/") {
+				fmt.Fprintf(w, `{"id":%q,"files":[{"available":false,"container":"avi"},{"available":true,"container":"mkv","bitrate":8378534,"video_codec":"h264","height":800,"display_frame_rate":23.976,"audio_codec":"eac3","file_size":6395670608,"audio_tracks":[{"codec":"eac3","channels":6}]}]}`, id)
+				return
+			}
 			http.NotFound(w, r)
 		}
 	}))

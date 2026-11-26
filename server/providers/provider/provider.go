@@ -231,6 +231,8 @@ type CatalogueItem struct {
 	DurationMS                                             *int64
 	// Season and Episode are set only for episodes.
 	Season, Episode *int64
+	// Media is the file's technical detail when the server reports it.
+	Media *CatalogueMedia
 }
 
 // BandwidthSample is one bin of a server's bandwidth statistics: the bytes

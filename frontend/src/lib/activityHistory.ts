@@ -14,7 +14,16 @@ export type ActivityHistoryRow = {
   // History presentation kept with each play (history rows only).
   parent_title?: string; library_name?: string; client?: string;
   play_method?: 'direct_play'|'direct_stream'|'transcode'; poster_url?: string;
+  // The MUM content page for a current administrator stream, when one matches.
+  link?: MediaLink;
 };
+export type MediaLink = {library_id: number; media_id: number; episode_id: number | null};
+const positiveID = (v: unknown) => Number.isSafeInteger(v) && (v as number) > 0;
+export function readMediaLink(v: unknown): MediaLink {
+  const link = v as Record<string, unknown> | null;
+  if (!link || typeof link !== 'object' || Array.isArray(link) || !positiveID(link.library_id) || !positiveID(link.media_id) || link.episode_id !== null && !positiveID(link.episode_id)) throw Error('Invalid media link.');
+  return {library_id: link.library_id as number, media_id: link.media_id as number, episode_id: link.episode_id as number | null};
+}
 export type ActivityServerStatus = {server_id: string; provider: string; observed_at: string | null;
   observation_source?:'http'|'ws';age_seconds: number | null; freshness: string; pending: string; last_result: string};
 export type ActivityHistoryPage = {actor_uuid: string; scope: ActivityScope; read_at: string;
@@ -48,7 +57,8 @@ async function readActivityPage(kind: 'history'|'current', actor: string, scope:
     if(row.play_method!==undefined){if(kind!=='history'||!['direct_play','direct_stream','transcode'].includes(row.play_method))throw Error('Invalid history record.');presentation.play_method=row.play_method;}
     // Posters are signed administrator links to this exact row.
     if(row.poster_url!==undefined){if(kind!=='history'||scope!=='all'||typeof row.poster_url!=='string'||row.poster_url.length>2048||!(row.poster_url.startsWith(`/api/activity/history-images/${row.id}?`)||row.poster_url.startsWith('/api/media/images/')&&isPlayPoster(row.poster_url,'mum'))||/[#\s]/.test(row.poster_url))throw Error('Invalid history poster.');presentation.poster_url=row.poster_url;}
-    items.push({...(row.display!==undefined?{display:readActivityDisplay(row.display)}:{}),id:row.id,server_id:row.server_id,service_uuid:row.service_uuid,...(row.owner_uuid ? {owner_uuid:row.owner_uuid} : {}),...(row.owner_name ? {owner_name:row.owner_name} : {}),...(row.service_username ? {service_username:row.service_username} : {}),item_id:row.item_id,media_type:row.media_type,title:row.title,first_observed_at:row.first_observed_at,last_observed_at:row.last_observed_at,ended_observation_at:row.ended_observation_at,end_reason:row.end_reason,paused:row.paused,position_ticks:row.position_ticks,duration_ticks:row.duration_ticks,...presentation});
+    if(row.link!==undefined&&(scope!=='all'||kind!=='current'))throw Error('Invalid history record.');
+    items.push({...(row.link!==undefined?{link:readMediaLink(row.link)}:{}),...(row.display!==undefined?{display:readActivityDisplay(row.display)}:{}),id:row.id,server_id:row.server_id,service_uuid:row.service_uuid,...(row.owner_uuid ? {owner_uuid:row.owner_uuid} : {}),...(row.owner_name ? {owner_name:row.owner_name} : {}),...(row.service_username ? {service_username:row.service_username} : {}),item_id:row.item_id,media_type:row.media_type,title:row.title,first_observed_at:row.first_observed_at,last_observed_at:row.last_observed_at,ended_observation_at:row.ended_observation_at,end_reason:row.end_reason,paused:row.paused,position_ticks:row.position_ticks,duration_ticks:row.duration_ticks,...presentation});
   }
   if (p.next_before !== null && (items.length !== 100 || p.next_before !== items[99].id)) throw Error('Invalid history cursor.');
   return {actor_uuid:actor,scope,read_at:p.read_at,items,servers,next_before:p.next_before,...(target?{target_uuid:target}:{})};

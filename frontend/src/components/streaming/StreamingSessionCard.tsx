@@ -17,8 +17,9 @@ import { requestJson } from '@/util/apiClient';
 import { useAlerts } from '@/contexts/AlertContext';
 import { getServiceMeta } from '@/config/mediaServiceMetadata';
 import { Badge } from '@/components/ui/badge';
-import { useNavigate } from '@tanstack/react-router';
-import { buildUserProfilePath } from '@/router/appLinks';
+import { Link, useNavigate } from '@tanstack/react-router';
+import { appLinks, buildUserProfilePath } from '@/router/appLinks';
+import { useServerRoutes } from '@/lib/serverRoutes';
 import type { ActiveSession, MediaServiceFeaturesResponse, StreamCardStyle } from '@/types/streaming';
 import { ServiceIcon } from '@/components/services/ServiceIcon';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -351,6 +352,7 @@ export const StreamingSessionCard = ({
   onTerminate,
   serviceFeatures
 }: StreamingSessionCardProps) => {
+  const routes = useServerRoutes();
   const [showStreamInfo, setShowStreamInfo] = useState(false);
   const [showBandwidthInfo, setShowBandwidthInfo] = useState(false);
   const [showSendMessage, setShowSendMessage] = useState(false);
@@ -412,6 +414,17 @@ export const StreamingSessionCard = ({
   const mediaTypeLabel =
     session.media_type?.toLowerCase() === 'musicvideo' ? 'Music Video' : session.media_type;
   const compactPrimaryTitle = session.media_title || 'Unknown Title';
+  // The title opens MUM's page for the item when the server matched one.
+  const mediaLink = session.media_link;
+  const mediaSlug = mediaLink ? routes.slugFor(mediaLink.server_id) : undefined;
+  const mediaDestination = mediaLink && mediaSlug
+    ? (mediaLink.episode_id === null
+      ? appLinks.media(mediaSlug, mediaLink.library_id, mediaLink.media_id)
+      : appLinks.episode(mediaSlug, mediaLink.library_id, mediaLink.media_id, mediaLink.episode_id))
+    : undefined;
+  const linkedTitle = (text: string) => mediaDestination
+    ? <Link {...mediaDestination} className="underline-offset-4 hover:underline" onClick={(e) => e.stopPropagation()}>{text}</Link>
+    : text;
   const compactSecondaryTitle = isEpisode
     ? [session.grandparent_title, session.parent_title].filter(Boolean).join(' - ')
     : [session.grandparent_title, session.parent_title, session.year, mediaTypeLabel]
@@ -544,7 +557,7 @@ export const StreamingSessionCard = ({
 
           <div className="min-w-0 flex-1 pr-16">
             <h3 className="truncate text-sm font-semibold leading-tight text-card-foreground" title={compactPrimaryTitle}>
-              {compactPrimaryTitle}
+              {linkedTitle(compactPrimaryTitle)}
             </h3>
             <div className="truncate text-[11px] text-muted-foreground" title={compactSecondaryTitle || undefined}>
               {compactSecondaryTitle || [session.year, mediaTypeLabel].filter(Boolean).join(' • ') || '\u00A0'}
@@ -803,7 +816,7 @@ export const StreamingSessionCard = ({
           {/* Title Info */}
           <div className="flex min-w-0 flex-1 flex-col justify-center gap-0.5">
             <h3 className="line-clamp-2 text-lg font-bold leading-tight text-card-foreground sm:text-xl" title={session.media_title || ''}>
-              {session.media_title}
+              {linkedTitle(session.media_title)}
             </h3>
 
             <div className="flex flex-col text-sm text-muted-foreground sm:text-base">

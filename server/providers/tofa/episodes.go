@@ -21,16 +21,14 @@ type tofaShow struct {
 		MediaID  string `json:"media_id"`
 		Number   *int64 `json:"season_number"`
 		Episodes *[]struct {
-			ID       string  `json:"id"`
-			SeasonID string  `json:"season_id"`
-			Number   *int64  `json:"episode_number"`
-			Title    *string `json:"title"`
-			Still    *string `json:"still_path"`
-			Overview *string `json:"overview"`
-			Runtime  *int64  `json:"runtime_minutes"`
-			Files    *[]struct {
-				Available *bool `json:"available"`
-			} `json:"files"`
+			ID       string      `json:"id"`
+			SeasonID string      `json:"season_id"`
+			Number   *int64      `json:"episode_number"`
+			Title    *string     `json:"title"`
+			Still    *string     `json:"still_path"`
+			Overview *string     `json:"overview"`
+			Runtime  *int64      `json:"runtime_minutes"`
+			Files    *[]tofaFile `json:"files"`
 		} `json:"episodes"`
 	} `json:"seasons"`
 }
@@ -243,6 +241,7 @@ func (s *Server) catalogueEpisodesOnce(ctx context.Context, show string) ([]prov
 					ms := *ep.Runtime * 60000
 					row.DurationMS = &ms
 				}
+				row.Media = fileMedia(*ep.Files)
 				result = append(result, row)
 				if len(result) > provider.CatalogueMaxEpisodes {
 					return nil, errors.New("Tofa episode snapshot too large")

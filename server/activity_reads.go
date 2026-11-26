@@ -46,7 +46,10 @@ type activityReadItem struct {
 	Client      *string `json:"client,omitempty"`
 	PlayMethod  *string `json:"play_method,omitempty"`
 	PosterURL   string  `json:"poster_url,omitempty"`
-	hasPoster   bool
+	// Link is the MUM content page for the played item when the item's ID
+	// matches exactly one synced item; administrator scope only.
+	Link      *serverAccountLink `json:"link,omitempty"`
+	hasPoster bool
 	// For its poster (playPosterURL): the server, its show or album, and the
 	// item a stored poster came from.
 	serverID    int64
@@ -341,6 +344,14 @@ func (a *App) activityRead(w http.ResponseWriter, r *http.Request) {
 	result.Servers, fences, err = readActivityStatuses(ctx, tx, actor.UUID, q, now, a.store.activitySocketConnected)
 	if err == nil {
 		result.Items, result.Next, err = readActivityItems(ctx, tx, actor.UUID, q)
+	}
+	if err == nil && q.All && !q.History {
+		for i := range result.Items {
+			it := &result.Items[i]
+			if it.Link, err = readTimelineItemLink(ctx, tx, it.serverID, it.Item); err != nil {
+				break
+			}
+		}
 	}
 	if err == nil {
 		for i := range result.Items {

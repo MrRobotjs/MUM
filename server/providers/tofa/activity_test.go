@@ -35,7 +35,7 @@ func TestActivitySnapshotUsesTofaSessions(t *testing.T) {
 	if p.Kind != "Movie" || p.PlayMethod != "transcode" || p.Position == nil || *p.Position != 30000000 || p.Display == nil || p.Display.PosterPath != "poster" {
 		t.Fatal(p)
 	}
-	if p.Display.Container != "Converting (MKV → HLS)" || p.Display.Video != "HEVC 4K → H264 1080p" || p.Display.Bandwidth != "5.0 Mbps" || p.Display.LocationType != "LAN" || p.Display.ProfileName != "Household member" || p.Display.SourceResolution != "4K" || p.Display.StreamResolution != "1080p" {
+	if p.Display.Container != "Converting (MKV → HLS)" || p.Display.Video != "HEVC 4K → H264 1080p" || p.Display.Bandwidth != "5.0 Mbps" || p.Display.LocationType != "LAN" || p.Display.ProfileName != "Household member" || p.Display.Subtitle != "None" || p.Display.SourceResolution != "4K" || p.Display.StreamResolution != "1080p" {
 		t.Fatal("incorrect stream details", p.Display)
 	}
 }

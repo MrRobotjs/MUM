@@ -108,6 +108,8 @@ type CatalogueEntry struct {
 	SeasonIndex *int64 `xml:"parentIndex,attr"`
 	Index       *int64 `xml:"index,attr"`
 	Video       string `xml:"primaryExtraKey,attr"`
+	// The item's files; the first is the one the media info shows.
+	Media []catalogueMediaEntry `xml:"Media"`
 }
 
 // CataloguePage is one page of a section listing.
@@ -280,6 +282,7 @@ func (s *Server) CatalogueItems(ctx context.Context, section, kind string, progr
 			item.DurationMS = row.Duration
 		}
 		item.AddedAt = addedAt(row.Added)
+		item.Media = catalogueMedia(row)
 		items = append(items, item)
 		return nil
 	})
@@ -415,6 +418,7 @@ func catalogueChild(row CatalogueEntry, kind, title string) provider.CatalogueIt
 		item.Episode = row.Index
 	}
 	item.AddedAt = addedAt(row.Added)
+	item.Media = catalogueMedia(row)
 	return item
 }
 

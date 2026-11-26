@@ -10,6 +10,8 @@ export type ActiveSession = {
 
   // Media info
   media_title: string;
+  /** MUM content page for the played item, when it matches a synced item. */
+  media_link?: { server_id: string; library_id: number; media_id: number; episode_id: number | null };
   grandparent_title?: string;
   parent_title?: string;
   edition?: string;

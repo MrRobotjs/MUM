@@ -172,6 +172,9 @@ func (s *Server) catalogueItemsOnce(ctx context.Context, library, kind string, p
 			return nil, err
 		}
 	}
+	if err := s.addFileMedia(ctx, rows); err != nil {
+		return nil, err
+	}
 	afterCount, afterRevision, err := s.catalogueFence(ctx, library)
 	if err != nil {
 		return nil, err

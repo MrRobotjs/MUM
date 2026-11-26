@@ -84,7 +84,7 @@ func (s *Server) items(ctx context.Context, parent string, child string, progres
 		query := url.Values{
 			"ParentId": {parent}, "Recursive": {"true"},
 			"IncludeItemTypes": {types},
-			"Fields":           {"SortName,Overview,DateCreated"}, "SortBy": {"SortName"}, "SortOrder": {"Ascending"},
+			"Fields":           {"SortName,Overview,DateCreated,MediaSources"}, "SortBy": {"SortName"}, "SortOrder": {"Ascending"},
 			"EnableImageTypes": {"Primary"}, "ImageTypeLimit": {"1"}, "EnableUserData": {"false"},
 			"StartIndex": {strconv.Itoa(start)}, "Limit": {strconv.Itoa(provider.CataloguePageSize)},
 		}
@@ -104,6 +104,7 @@ func (s *Server) items(ctx context.Context, parent string, child string, progres
 				AlbumID         string `json:"AlbumId"`
 				IndexNumber     *int64
 				ParentIndex     *int64 `json:"ParentIndexNumber"`
+				MediaSources    []catalogueSource
 			}
 			TotalRecordCount *int64
 		}
@@ -144,6 +145,7 @@ func (s *Server) items(ctx context.Context, parent string, child string, progres
 			if tag := row.ImageTags["Primary"]; ValidToken(tag) {
 				item.ImageTag = tag
 			}
+			item.Media = catalogueMedia(row.MediaSources)
 			// An episode's season and number; a track's disc and number.
 			if child != "" {
 				if row.ParentIndex != nil && *row.ParentIndex >= 0 && *row.ParentIndex <= 100000 {

@@ -266,6 +266,10 @@ func (s *Server) ActivitySnapshot(ctx context.Context) (provider.ActivitySnapsho
 			}
 			display.Subtitle = label
 		}
+		// The cards show Sub for every stream; Tofa reports no selection as null.
+		if display.Subtitle == "" {
+			display.Subtitle = "None"
+		}
 		rates := streamRates(session.PlayMethod, r.SourceBitrate, r.MaxBitrate, r.Bitrate, r.SourceResolution, r.Resolution)
 		if rates.Bandwidth > 0 {
 			v := rates.Bandwidth

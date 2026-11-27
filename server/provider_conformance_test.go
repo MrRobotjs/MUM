@@ -92,6 +92,9 @@ func TestRegisteredModulesAreWiredEverywhere(t *testing.T) {
 		}
 		settings[id] = true
 	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
 	if err := rows.Close(); err != nil {
 		t.Fatal(err)
 	}

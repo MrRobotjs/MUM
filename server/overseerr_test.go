@@ -160,6 +160,9 @@ func overseerrLinks(t *testing.T, s *Store, server int64) map[string]int64 {
 		rows.Scan(&plex, &user)
 		out[plex] = user
 	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
 	return out
 }
 
@@ -441,6 +444,9 @@ func TestOverseerrRequestActionInspectsWritesOnceAndVerifies(t *testing.T) {
 		var outcome string
 		rows.Scan(&outcome)
 		outcomes = append(outcomes, outcome)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
 	}
 	rows.Close()
 	if strings.Join(outcomes, ",") != "approved,unchanged,unknown,failed" {

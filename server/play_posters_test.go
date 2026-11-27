@@ -11,7 +11,8 @@ import (
 
 // A play's poster: the title's catalogue poster first (the movie, or an
 // episode's show), else the poster stored with the play (MUM's or imported),
-// else none.
+// else none. A stored poster without its source item can only come from the
+// image cache.
 func TestPlayPosterURL(t *testing.T) {
 	f := activityReadFixture(t)
 	activityExec(t, f.store, "INSERT INTO media_libraries(server_id,external_id,name,library_type) VALUES(?,'lib','Video','movie')", f.server)
@@ -41,8 +42,9 @@ func TestPlayPosterURL(t *testing.T) {
 		{"catalogued movie, nothing stored", playPoster{server: f.server, item: "movie"}, "/api/media/images/" + strconv.FormatInt(ids["movie"], 10) + "?"},
 		{"catalogued movie wins over a stored poster", playPoster{server: f.server, item: "movie", row: 9, stored: true}, "/api/media/images/" + strconv.FormatInt(ids["movie"], 10) + "?"},
 		{"episode: its show's poster", playPoster{server: f.server, item: "ep", parent: "show"}, "/api/media/images/" + strconv.FormatInt(ids["show"], 10) + "?"},
-		{"catalogued without a poster: the stored one", playPoster{server: f.server, item: "bare", row: 7, stored: true}, "/api/activity/history-images/7?"},
-		{"not catalogued: the stored imported one", playPoster{server: f.server, item: "elsewhere", row: 5, imported: true, stored: true}, "/api/activity/imported-history-images/5?"},
+		{"catalogued without a poster: the stored one", playPoster{server: f.server, item: "bare", art: "bare", row: 7, stored: true}, "/api/activity/history-images/7?"},
+		{"not catalogued: the stored imported one", playPoster{server: f.server, item: "elsewhere", art: "elsewhere", row: 5, imported: true, stored: true}, "/api/activity/imported-history-images/5?"},
+		{"stored without its source item and not cached: none", playPoster{server: f.server, item: "elsewhere", row: 5, imported: true, stored: true}, ""},
 		{"nothing at all", playPoster{server: f.server, item: "elsewhere"}, ""},
 	}
 	for _, c := range cases {

@@ -7,7 +7,6 @@ import (
 	"time"
 )
 
-const defaultImageCacheLimitMB = 1024
 const maxImageCacheLimitMB = 1048576
 
 type imageCacheServerSetting struct {

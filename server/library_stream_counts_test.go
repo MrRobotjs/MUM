@@ -27,6 +27,9 @@ func TestCatalogueStreamCountsAndItemActivity(t *testing.T) {
 		rows.Scan(&external, &id)
 		ids[external] = id
 	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
 	rows.Close()
 	if w := apiRequest(f.a, "POST", f.path(fmt.Sprintf("/media/%d/episodes/sync", ids["show1"])), f.token, nil, nil); w.Code != 200 {
 		t.Fatal(w.Code, w.Body.String())

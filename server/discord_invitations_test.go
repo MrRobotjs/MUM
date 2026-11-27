@@ -225,6 +225,9 @@ func TestInvitationDiscordSignInBindsVerifiedIdentityToRedemption(t *testing.T) 
 				t.Fatal("Discord secret persisted in", table)
 			}
 		}
+		if err := rows.Err(); err != nil {
+			t.Fatal(err)
+		}
 		rows.Close()
 	}
 	// The same Discord account cannot be bound to a second profile.

@@ -70,6 +70,9 @@ func TestPersonHistoryImport(t *testing.T) {
 		_ = rows.Scan(&account)
 		accounts = append(accounts, account)
 	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
 	rows.Close()
 	if !slices.Equal(accounts, []string{"42", "42"}) {
 		t.Fatal("stored", accounts)

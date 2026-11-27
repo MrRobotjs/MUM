@@ -57,30 +57,28 @@ func (a *App) invitationShareLink(w http.ResponseWriter, r *http.Request) {
 		fail(w, 409, "SHARE_KEY_UNAVAILABLE", "Restore the invitation key in the application data directory. Original issued links remain valid.")
 		return
 	}
-	if err == nil {
-		err = a.store.write(r.Context(), func(tx *sql.Tx) error {
-			if err := requirePermission(r.Context(), tx, p.UUID, "administrator"); err != nil {
-				return err
-			}
-			var digest string
-			var encoded []byte
-			if err := tx.QueryRowContext(r.Context(), `SELECT i.token,s.ciphertext,i.custom_path FROM invites i JOIN invitation_secrets s ON s.invite_id=i.id WHERE i.id=? AND i.archived_at IS NULL`, id).Scan(&digest, &encoded, &customPath); err != nil {
-				return err
-			}
-			if len(encoded) < aead.NonceSize()+aead.Overhead() {
-				return ErrConflict
-			}
-			plain, err := aead.Open(nil, encoded[:aead.NonceSize()], encoded[aead.NonceSize():], []byte("invitation.v1:"+digest))
-			if err != nil {
-				return ErrConflict
-			}
-			token = string(plain)
-			if tokenHash(token) != digest {
-				return ErrConflict
-			}
-			return auditAction(r.Context(), tx, p.UUID, "invitation.share_link.read")
-		})
-	}
+	err = a.store.write(r.Context(), func(tx *sql.Tx) error {
+		if err := requirePermission(r.Context(), tx, p.UUID, "administrator"); err != nil {
+			return err
+		}
+		var digest string
+		var encoded []byte
+		if err := tx.QueryRowContext(r.Context(), `SELECT i.token,s.ciphertext,i.custom_path FROM invites i JOIN invitation_secrets s ON s.invite_id=i.id WHERE i.id=? AND i.archived_at IS NULL`, id).Scan(&digest, &encoded, &customPath); err != nil {
+			return err
+		}
+		if len(encoded) < aead.NonceSize()+aead.Overhead() {
+			return ErrConflict
+		}
+		plain, err := aead.Open(nil, encoded[:aead.NonceSize()], encoded[aead.NonceSize():], []byte("invitation.v1:"+digest))
+		if err != nil {
+			return ErrConflict
+		}
+		token = string(plain)
+		if tokenHash(token) != digest {
+			return ErrConflict
+		}
+		return auditAction(r.Context(), tx, p.UUID, "invitation.share_link.read")
+	})
 	if err != nil {
 		if errors.Is(err, ErrForbidden) {
 			domainError(w, err)
@@ -89,7 +87,7 @@ func (a *App) invitationShareLink(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	// As in Flask, an invitation with a custom path is shared by that path.
+	// An invitation with a custom path is shared by that path.
 	path := "/invite/" + token
 	if customPath.Valid {
 		path = "/invite/" + customPath.String

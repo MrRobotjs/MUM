@@ -74,12 +74,12 @@ func newServiceLoginFixture(t *testing.T) serviceLoginFixture {
 	}
 	up := newServiceLoginUpstream(t, map[string]string{"alice": "5f0e6c4b3c1d4a559f3a0123456789ab", "bob": "b0b", "ghost": "not-synced"})
 	a.ProviderHTTP = up.server.Client()
-	server := addServiceLoginServer(t, a, s, up, "Living Room")
+	server := addServiceLoginServer(t, s, up, "Living Room")
 	setSignInSwitches(t, s, true, false)
 	return serviceLoginFixture{a: a, s: s, owner: token, ownerID: owner.UUID, up: up, server: server}
 }
 
-func addServiceLoginServer(t *testing.T, a *App, s *Store, up *serviceLoginUpstream, name string) int64 {
+func addServiceLoginServer(t *testing.T, s *Store, up *serviceLoginUpstream, name string) int64 {
 	t.Helper()
 	if _, err := s.writer.Exec("UPDATE provider_settings SET enabled=1 WHERE provider_id='jellyfin'"); err != nil {
 		t.Fatal(err)
@@ -304,7 +304,7 @@ func TestServiceSignInConcurrentFirstSignIns(t *testing.T) {
 func TestServiceSignInSameIDOnTwoServers(t *testing.T) {
 	f := newServiceLoginFixture(t)
 	second := newServiceLoginUpstream(t, map[string]string{"alice": "5f0e6c4b3c1d4a559f3a0123456789ab"})
-	other := addServiceLoginServer(t, f.a, f.s, second, "Bedroom")
+	other := addServiceLoginServer(t, f.s, second, "Bedroom")
 	onFirst := seedExternalService(t, f.s, f.server, aliceJellyfinID)
 	onSecond := seedExternalService(t, f.s, other, aliceJellyfinID)
 	// Two separate httptest servers need one client that reaches both.

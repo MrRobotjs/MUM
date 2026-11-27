@@ -180,11 +180,12 @@ func TestAdminRoleHierarchySharedRoleProtectsEveryAffectedAccount(t *testing.T) 
 			if err != nil {
 				t.Fatal(err)
 			}
-			if mode == "peer" {
+			switch mode {
+			case "peer":
 				s.writer.Exec("INSERT INTO admin_privileges VALUES(?,'high')", target)
-			} else if mode == "self" {
+			case "self":
 				target = actor
-			} else if mode == "owner" {
+			case "owner":
 				target = owner.UUID
 			}
 			if _, err := s.writer.Exec("INSERT INTO admin_privileges VALUES(?,'low')", target); err != nil {

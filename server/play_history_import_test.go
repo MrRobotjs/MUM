@@ -179,6 +179,9 @@ func TestPlayHistoryImportStoresOnlyWhatMUMLacks(t *testing.T) {
 		_ = rows.Scan(&key)
 		keys = append(keys, key)
 	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
 	rows.Close()
 	if strings.Join(keys, ",") != "/status/sessions/history/1,/status/sessions/history/3,/status/sessions/history/4,/status/sessions/history/5" {
 		t.Fatal("stored", keys)
@@ -307,6 +310,9 @@ func TestPlayHistoryImportFillsMissingPostersOnly(t *testing.T) {
 			_ = rows.Scan(&key, &item, &path)
 			out = append(out, strings.TrimPrefix(key, "/status/sessions/history/")+"="+item+path)
 		}
+		if err := rows.Err(); err != nil {
+			t.Fatal(err)
+		}
 		return strings.Join(out, ",")
 	}
 	if code := startPlexHistory(a, token, server); code != 202 {
@@ -412,6 +418,9 @@ func TestPlayHistoryJellyfinMatchesDashedUserID(t *testing.T) {
 		var key, value string
 		_ = rows.Scan(&key, &value)
 		got[key] = value
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
 	}
 	rows.Close()
 	if got["a7"] != "ab12cd34ab12cd34ab12cd34ab12cd34 Film tag1" || got["a8"] != "ffff0000ab12cd34ab12cd34ab12cd34  " {

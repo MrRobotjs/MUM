@@ -24,13 +24,10 @@ import (
 // against the catalogue revision and server configuration it started from.
 
 const (
-	catalogueMaxItems = provider.CatalogueMaxItems
-	// One series is capped well below a library.
-	catalogueMaxEpisodes = provider.CatalogueMaxEpisodes
-	cataloguePageSize    = provider.CataloguePageSize
-	catalogueImageTTL    = 10 * time.Minute
-	imageLinkStep        = 5 * time.Minute
-	catalogueImageMax    = provider.CatalogueImageMax
+	cataloguePageSize = provider.CataloguePageSize
+	catalogueImageTTL = 10 * time.Minute
+	imageLinkStep     = 5 * time.Minute
+	catalogueImageMax = provider.CatalogueImageMax
 )
 
 var errCatalogueUnsupported = provider.ErrCatalogueUnsupported
@@ -46,8 +43,6 @@ func catalogueLibrarySupported(kind, libraryKind, external string) bool {
 	}
 	return catalogueSupported(kind)
 }
-
-func truncateRunes(v string, max int) string { return provider.TruncateRunes(v, max) }
 
 // The catalogue reads below dispatch to the server's module.
 
@@ -1067,7 +1062,7 @@ func (a *App) serveSignedImage(w http.ResponseWriter, r *http.Request, param, pu
 }
 
 func mediaCacheIdentity(provider, external, namespace string) string {
-	key := sha256.Sum256([]byte(fmt.Sprintf("%q|%q|%q", provider, external, namespace)))
+	key := sha256.Sum256(fmt.Appendf(nil, "%q|%q|%q", provider, external, namespace))
 	return base64.RawURLEncoding.EncodeToString(key[:])
 }
 

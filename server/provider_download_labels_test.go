@@ -86,7 +86,8 @@ func newDownloadPolicyFixture(t *testing.T, provider string) *downloadPolicyFixt
 			if mode == 9 {
 				rows = append(rows, map[string]any{"Id": "partial", "Name": "Partial", "Policy": nil})
 			}
-			if provider == "komga" {
+			switch provider {
+			case "komga":
 				roles := any([]string{"USER", "FILE_DOWNLOAD"})
 				switch mode {
 				case 1:
@@ -117,7 +118,7 @@ func newDownloadPolicyFixture(t *testing.T, provider string) *downloadPolicyFixt
 					output = append(output, map[string]any{"id": "partial", "email": "partial@example.invalid"})
 				}
 				json.NewEncoder(w).Encode(output)
-			} else if provider == "kavita" {
+			case "kavita":
 				roles := any([]string{"Pleb", "Login", "Download"})
 				switch mode {
 				case 1, 11:
@@ -142,7 +143,7 @@ func newDownloadPolicyFixture(t *testing.T, provider string) *downloadPolicyFixt
 					output = append(output, map[string]any{"id": 8, "username": "Partial"})
 				}
 				json.NewEncoder(w).Encode(output)
-			} else if provider == "audiobookshelf" {
+			case "audiobookshelf":
 				permissions := map[string]any{"accessAllLibraries": true}
 				if value, ok := policy["EnableContentDownloading"]; ok {
 					permissions["download"] = value
@@ -153,7 +154,7 @@ func newDownloadPolicyFixture(t *testing.T, provider string) *downloadPolicyFixt
 					output = append(output, map[string]any{"id": "partial", "username": "Partial"})
 				}
 				json.NewEncoder(w).Encode(map[string]any{"users": output})
-			} else {
+			default:
 				json.NewEncoder(w).Encode(rows)
 			}
 		default:

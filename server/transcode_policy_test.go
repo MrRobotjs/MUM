@@ -185,6 +185,9 @@ func TestTranscodePolicyStopsBlocked4KTranscodes(t *testing.T) {
 			}
 			out = append(out, outcome)
 		}
+		if err := rows.Err(); err != nil {
+			t.Fatal(err)
+		}
 		return strings.Join(out, ",")
 	}
 

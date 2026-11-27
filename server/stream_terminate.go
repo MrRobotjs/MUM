@@ -149,9 +149,10 @@ func (a *App) terminateStream(w http.ResponseWriter, r *http.Request) {
 		fail(w, 409, "STREAM_ENDED", "This stream has already ended.")
 	case "refused":
 		hint := "The server refused to stop this stream."
-		if kind == "plex" {
+		switch kind {
+		case "plex":
 			hint += " Plex only allows this when the server owner has Plex Pass."
-		} else if kind == "tofa" {
+		case "tofa":
 			hint += " Use a full-admin key or a read-only key allowed to stop streams."
 		}
 		fail(w, 409, "TERMINATE_REFUSED", hint)

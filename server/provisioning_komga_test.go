@@ -155,7 +155,7 @@ func newKomgaProvisionFixture(t *testing.T, mode string) *komgaProvisionFixture 
 }
 func komgaInvitation(t *testing.T, a *App, admin string, f *komgaProvisionFixture, all bool) (string, int64) {
 	t.Helper()
-	w := apiRequest(a, "POST", "/api/servers", admin, map[string]any{"server_nickname": "Komga " + f.server.URL, "service_type": "komga", "url": f.server.URL + "/proxy", "api_key": "fixture-secret"}, nil)
+	w := apiRequest(a, "POST", "/api/servers", admin, map[string]any{"server_nickname": "Komga " + strings.TrimPrefix(f.server.URL, "http://127.0.0.1:"), "service_type": "komga", "url": f.server.URL + "/proxy", "api_key": "fixture-secret"}, nil)
 	if w.Code != 201 {
 		t.Fatal(w.Code, w.Body.String())
 	}

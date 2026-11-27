@@ -71,7 +71,7 @@ func newQuickConnectFixture(t *testing.T) quickConnectFixture {
 	}
 	up := newQuickConnectUpstream(t)
 	a.ProviderHTTP = up.server.Client()
-	server := addServiceLoginServer(t, a, s, &serviceLoginUpstream{server: up.server}, "Living Room")
+	server := addServiceLoginServer(t, s, &serviceLoginUpstream{server: up.server}, "Living Room")
 	setSignInSwitches(t, s, true, false)
 	return quickConnectFixture{a: a, s: s, ownerID: owner.UUID, up: up, server: server, alice: seedExternalService(t, s, server, aliceJellyfinID)}
 }

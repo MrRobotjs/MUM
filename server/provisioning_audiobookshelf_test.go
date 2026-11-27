@@ -170,7 +170,7 @@ func newABSProvisionFixture(t *testing.T, mode string) *absProvisionFixture {
 
 func absInvitation(t *testing.T, a *App, admin string, f *absProvisionFixture, all bool) (string, int64) {
 	t.Helper()
-	wServer := apiRequest(a, "POST", "/api/servers", admin, map[string]any{"server_nickname": "ABS fixture " + f.server.URL, "service_type": "audiobookshelf", "url": f.server.URL + "/proxy", "api_key": "fixture-secret"}, nil)
+	wServer := apiRequest(a, "POST", "/api/servers", admin, map[string]any{"server_nickname": "ABS fixture " + strings.TrimPrefix(f.server.URL, "http://127.0.0.1:"), "service_type": "audiobookshelf", "url": f.server.URL + "/proxy", "api_key": "fixture-secret"}, nil)
 	if wServer.Code != 201 {
 		t.Fatal(wServer.Code, wServer.Body.String())
 	}

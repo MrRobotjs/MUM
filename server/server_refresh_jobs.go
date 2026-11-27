@@ -82,9 +82,10 @@ func (a *App) runOneServerRefresh(parent context.Context) error {
 
 func (a *App) runOneServerRefreshScope(parent context.Context, scope string) error {
 	lock := &a.refreshRun
-	if scope == "users" {
+	switch scope {
+	case "users":
 		lock = &a.refreshUsersRun
-	} else if scope == "libraries" {
+	case "libraries":
 		lock = &a.refreshLibrariesRun
 	}
 	if !lock.TryLock() {

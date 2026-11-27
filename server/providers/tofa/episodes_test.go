@@ -79,11 +79,12 @@ func TestEpisodesMergeVersionsWithoutDuplicateNumbers(t *testing.T) {
 		case "/api/v1/libraries":
 			fmt.Fprintf(w, `[{"id":%q,"merge_versions":true,"stats":{"item_count":2}}]`, lib)
 		case "/api/v1/media/files":
-			if mode == "missing_identity" {
+			switch mode {
+			case "missing_identity":
 				fmt.Fprintf(w, `{"items":[{"media_id":%q,"media_type":"tv","tmdb_id":null}],"next_after":null}`, other)
-			} else if mode == "visible_without_tmdb" {
+			case "visible_without_tmdb":
 				fmt.Fprintf(w, `{"items":[{"media_id":"91234567-89ab-4cde-8fab-0123456789ab","media_type":"tv","tmdb_id":null}],"next_after":null}`)
-			} else {
+			default:
 				fmt.Fprintf(w, `{"items":[{"media_id":%q,"media_type":"tv","tmdb_id":5},{"media_id":%q,"media_type":"tv","tmdb_id":5}],"next_after":null}`, show, other)
 			}
 		case "/api/v1/media/" + show:

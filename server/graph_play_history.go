@@ -85,11 +85,6 @@ func parsePlayHistoryQuery(r *http.Request) (playHistoryQuery, error) {
 	return q, err
 }
 
-// playHistoryBuckets splits the window ending today into periods.
-func playHistoryBuckets(today time.Time, days int) (string, []playHistoryBucket) {
-	return playHistoryBucketsInterval(today, days, "")
-}
-
 func playHistoryBucketsInterval(today time.Time, days int, interval string) (string, []playHistoryBucket) {
 	first := today.AddDate(0, 0, 1-days)
 	day := func(t time.Time) string { return t.Format("2006-01-02") }

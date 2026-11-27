@@ -98,6 +98,9 @@ func TestResumeRecordedAccountsCompletesOriginalJobAndPreservesIdentity(t *testi
 			t.Fatal("server password leaked into audit")
 		}
 	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
 	if err := s.CheckIntegrity(t.Context()); err != nil {
 		t.Fatal(err)
 	}

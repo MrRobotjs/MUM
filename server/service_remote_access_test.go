@@ -171,6 +171,9 @@ func TestServiceRemoteDisableVerifiedOnceAndIdempotentObservation(t *testing.T) 
 		rows.Scan(&value)
 		dispatched = append(dispatched, value)
 	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
 	rows.Close()
 	if len(dispatched) != 2 || !dispatched[0] || dispatched[1] {
 		t.Fatal("audit outcomes", dispatched)
@@ -498,6 +501,9 @@ func TestServiceRemoteEnableVerifiedOnceAndPolicyGates(t *testing.T) {
 		var value string
 		rows.Scan(&value)
 		actions = append(actions, value)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
 	}
 	rows.Close()
 	if !slices.Equal(actions, []string{"enabled/1", "enabled/0"}) {

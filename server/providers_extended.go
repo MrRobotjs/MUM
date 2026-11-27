@@ -18,10 +18,6 @@ func (p *serverConnection) plexServer() *plex.Server {
 	return plex.New(provider.Config{URL: p.config.URL, APIKey: p.config.APIKey, Transport: p.transport(), ClientID: p.plexClientID})
 }
 
-func (p *serverConnection) plexXML(ctx context.Context, target string, out any) error {
-	return p.plexServer().XML(ctx, target, out)
-}
-
 // plexLibraries reads the server's library sections as reported, without the
 // synchronization checks (sharing checks compare them as they are).
 func (p *serverConnection) plexLibraries(ctx context.Context) ([]ProviderLibrary, error) {

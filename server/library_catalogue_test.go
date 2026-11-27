@@ -411,7 +411,7 @@ func TestProviderMetadataAdvertisesCompiledProvidersAndCatalogueOnlyWhereImpleme
 		for _, c := range p.Capabilities {
 			advertised = advertised || c == "libraries.items.sync"
 		}
-		if advertised != (p.ID == "jellyfin" || p.ID == "emby" || p.ID == "plex") {
+		if advertised != (p.ID == "jellyfin" || p.ID == "emby" || p.ID == "plex" || p.ID == "tofa") {
 			t.Fatal(p.ID, "catalogue capability", advertised)
 		}
 	}

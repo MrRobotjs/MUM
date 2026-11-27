@@ -192,7 +192,7 @@ func TestTofaInvitationRedemptionAndRevocationReview(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	w = apiRequest(a, "POST", "/api/provisioning-jobs/"+jobID+"/review/disable", token, map[string]any{
+	w = apiRequest(a, "POST", "/api/provisioning-jobs/"+jobID+"/disable-accounts", token, map[string]any{
 		"revision": job.Revision, "reason": "Revoke pending Tofa invite", "acknowledge_in_flight_risk": true,
 	}, nil)
 	if w.Code != 200 || revokes != 1 {
@@ -202,7 +202,7 @@ func TestTofaInvitationRedemptionAndRevocationReview(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	w = apiRequest(a, "POST", "/api/provisioning-jobs/"+jobID+"/review/cancel", token, map[string]any{
+	w = apiRequest(a, "POST", "/api/provisioning-jobs/"+jobID+"/cancel", token, map[string]any{
 		"revision": job.Revision, "reason": "Cancel after Tofa revoke", "acknowledge_in_flight_risk": true,
 	}, nil)
 	if w.Code != 200 || responseData(t, w)["status"] != "cancelled" {

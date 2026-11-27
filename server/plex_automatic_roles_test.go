@@ -29,6 +29,9 @@ func TestAutomaticRolesExistFromTheStart(t *testing.T) {
 		}
 		got = append(got, fmt.Sprintf("%s|%s|%s|%t|%s", name, color, icon, automatic, kind))
 	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
 	want := []string{
 		"Downloads|#3b82f6|fa-solid fa-download|true|downloads",
 		"Home User|#a855f7|fa-solid fa-house|true|home_user",

@@ -96,25 +96,23 @@ func (a *App) activityStatistics(w http.ResponseWriter, r *http.Request) {
 	days, server, order, withImported := 7, int64(0), "plays", false
 	for key, values := range r.URL.Query() {
 		valid := len(values) == 1
-		if key == "order" {
+		switch key {
+		case "order":
 			valid = valid && (values[0] == "plays" || values[0] == "duration")
 			order = values[0]
-		} else if key == "imported" {
+		case "imported":
 			valid = valid && (values[0] == "0" || values[0] == "1")
 			withImported = values[0] == "1"
-		} else {
+		case "days":
 			value, err := strconv.ParseInt(values[0], 10, 64)
-			valid = valid && err == nil
-			switch key {
-			case "days":
-				valid = valid && value >= 0 && value <= maxActivityDays
-				days = int(value)
-			case "server":
-				valid = valid && value >= 1
-				server = value
-			default:
-				valid = false
-			}
+			valid = valid && err == nil && value >= 0 && value <= maxActivityDays
+			days = int(value)
+		case "server":
+			value, err := strconv.ParseInt(values[0], 10, 64)
+			valid = valid && err == nil && value >= 1
+			server = value
+		default:
+			valid = false
 		}
 		if !valid {
 			fail(w, 400, "INVALID_STATISTICS_QUERY", "Use days=0 (all time) or 1â€“3650, optionally server=<a server that reports activity>, order=plays or duration and imported=0 or 1")
@@ -361,6 +359,11 @@ func (a *App) activityStatistics(w http.ResponseWriter, r *http.Request) {
 			used = []int64{}
 		}
 		platforms = append(platforms, map[string]any{"name": name, "plays": plays, "seconds": seconds, "server_ids": used})
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		domainError(w, err)
+		return
 	}
 	rows.Close()
 

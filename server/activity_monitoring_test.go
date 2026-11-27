@@ -269,7 +269,14 @@ func TestActivityMonitorTrackedShutdownAndCheckpointFailure(t *testing.T) {
 					_, _ = w.Write([]byte(`null`))
 					return
 				}
-				entered <- struct{}{}
+				// Only the activity poll means the monitor started; the user and
+				// library syncs that start with the scheduler call other routes.
+				if r.URL.Path == "/Sessions" {
+					select {
+					case entered <- struct{}{}:
+					default:
+					}
+				}
 				<-r.Context().Done()
 			}))
 			defer upstream.Close()

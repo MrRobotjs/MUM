@@ -94,8 +94,7 @@ func (s *Server) fetchAvatar(ctx context.Context, path string) (string, []byte, 
 	}
 	response, err := client.Do(req)
 	if err != nil {
-		var classified *AvatarError
-		if errors.As(err, &classified) {
+		if classified, ok := errors.AsType[*AvatarError](err); ok {
 			return "", nil, classified
 		}
 		return "", nil, &AvatarError{Code: "AVATAR_REQUEST_FAILED"}

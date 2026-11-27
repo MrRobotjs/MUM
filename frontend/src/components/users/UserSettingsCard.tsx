@@ -157,7 +157,7 @@ export const UserSettingsCard = ({ settings, loading, error, onSave }: UserSetti
             <Label htmlFor="notes">Notes</Label>
             <Textarea
               id="notes"
-              className="min-h-[120px]"
+              className="min-h-30"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="e.g., Prefers 1080p remux, invited from Discord, local-only for now..."

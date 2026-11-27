@@ -171,7 +171,7 @@ func TestIdentityTimelinePagesWithoutGapsOrRepeats(t *testing.T) {
 	a, _, token, _, local := timelineFixture(t)
 	var seen []string
 	query := url.Values{"scope": {"all"}}
-	for pages := 0; pages < 5; pages++ {
+	for range 5 {
 		code, page := readTimeline(t, a, token, local, query)
 		if code != 200 || len(page.Items) > 2 {
 			t.Fatal(code, page)

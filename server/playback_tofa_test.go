@@ -38,7 +38,7 @@ func TestTofaEventsRequireUserAndUnbrokenSession(t *testing.T) {
 func TestTofaEventBufferMarksOverflowAndExpiry(t *testing.T) {
 	var b playbackEvents
 	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
-	for i := 0; i < playbackEventLimit+10; i++ {
+	for i := range playbackEventLimit + 10 {
 		b.record(1, []provider.PlaybackEvent{{Session: "s", User: "u", State: "playing"}}, start.Add(time.Duration(i)*time.Millisecond))
 	}
 	events := b.peek(1, start.Add(time.Minute))

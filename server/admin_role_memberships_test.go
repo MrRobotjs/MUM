@@ -221,7 +221,7 @@ func TestAdminRoleCandidatePagesEligibilityAndRevision(t *testing.T) {
 	owner, _ := s.Authenticate(t.Context(), token)
 	initial := roleRevision(t, s)
 	err := s.write(t.Context(), func(tx *sql.Tx) error {
-		for i := 0; i < 101; i++ {
+		for i := range 101 {
 			id := fmt.Sprintf("00000000-0000-4000-8000-%012d", i)
 			if _, err := tx.Exec("INSERT INTO identities(uuid,kind) VALUES(?,'local')", id); err != nil {
 				return err

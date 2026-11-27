@@ -81,7 +81,7 @@ export const EnhancedAppLayout = ({
           </nav>
         </header>
 
-        <main className="mx-auto w-full max-w-7xl flex-grow px-4 py-8 sm:px-6 lg:px-8">
+        <main className="mx-auto w-full max-w-7xl grow px-4 py-8 sm:px-6 lg:px-8">
           {children}
         </main>
 
@@ -125,7 +125,7 @@ export const EnhancedAppLayout = ({
               <BreadcrumbList>
                 <BreadcrumbItem className="hidden md:block">
                   <BreadcrumbLink asChild>
-                    <Link to={HOME_PATH} className="max-w-[200px] truncate">{appName}</Link>
+                    <Link to={HOME_PATH} className="max-w-50 truncate">{appName}</Link>
                   </BreadcrumbLink>
                 </BreadcrumbItem>
                 {breadcrumbs.map((crumb, index) => {
@@ -150,10 +150,10 @@ export const EnhancedAppLayout = ({
                         }
                       >
                         {isLast ? (
-                          <BreadcrumbPage className="max-w-[150px] truncate md:max-w-none">{crumb.label}</BreadcrumbPage>
+                          <BreadcrumbPage className="max-w-37.5 truncate md:max-w-none">{crumb.label}</BreadcrumbPage>
                         ) : (
                           <BreadcrumbLink asChild>
-                            <Link to={crumb.href} search={crumb.search} className="max-w-[150px] truncate md:max-w-none">{crumb.label}</Link>
+                            <Link to={crumb.href} search={crumb.search} className="max-w-37.5 truncate md:max-w-none">{crumb.label}</Link>
                           </BreadcrumbLink>
                         )}
                       </BreadcrumbItem>

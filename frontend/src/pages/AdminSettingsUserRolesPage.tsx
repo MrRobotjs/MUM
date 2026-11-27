@@ -237,7 +237,7 @@ export const AdminSettingsUserRolesPage = () => {
             value={formValues.description}
             onChange={(event) => setFormValues((prev) => ({ ...prev, description: event.target.value }))}
             rows={3}
-            className="min-h-[88px]"
+            className="min-h-22"
             placeholder="Short description shown alongside the badge."
           />
           <p className="mt-1 text-xs text-muted-foreground">Displayed as helper text in role previews</p>

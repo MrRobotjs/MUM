@@ -57,7 +57,7 @@ func seedGraphHistory(t *testing.T, f activityViewFixture, server int64, service
 	err := f.store.write(t.Context(), func(tx *sql.Tx) error {
 		n := 0
 		for ago, count := range startedAgo {
-			for i := 0; i < count; i++ {
+			for range count {
 				at := utcTimestamp(time.Now().Add(-ago))
 				n++
 				if _, err := tx.ExecContext(t.Context(), `INSERT INTO media_activity_history(server_id,external_session_id,service_uuid,owner_uuid,item_id,media_type,title,first_seen_at,last_seen_at,ended_at,end_reason,paused) VALUES(?,?,?,NULL,'graph-item','Movie','Private graph title',?,?,?,'not_observed',0)`, server, fmt.Sprintf("graph-%d-%d", server, n), service, at, at, at); err != nil {

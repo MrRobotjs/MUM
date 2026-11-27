@@ -195,16 +195,14 @@ func TestLinksRolesAndRefreshAreSerialized(t *testing.T) {
 	var winners atomic.Int64
 	var wg sync.WaitGroup
 	for _, target := range []string{first, second} {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			err := s.LinkServiceAccounts(ctx, owner, target, []string{service})
 			if err == nil {
 				winners.Add(1)
 			} else if !errors.Is(err, ErrConflict) {
 				t.Error(err)
 			}
-		}()
+		})
 	}
 	wg.Wait()
 	if winners.Load() != 1 {
@@ -248,16 +246,14 @@ func TestLinksRolesAndRefreshAreSerialized(t *testing.T) {
 	}
 	winners.Store(0)
 	for range 12 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			err := s.ConsumeRefreshJTI(ctx, second, "once-only", time.Now().Add(time.Hour))
 			if err == nil {
 				winners.Add(1)
 			} else if !errors.Is(err, ErrConflict) {
 				t.Error(err)
 			}
-		}()
+		})
 	}
 	wg.Wait()
 	if winners.Load() != 1 {

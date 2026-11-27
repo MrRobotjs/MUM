@@ -365,11 +365,9 @@ func TestConcurrentInvitationConfirmationIsConsentOnly(t *testing.T) {
 	var wg sync.WaitGroup
 	results := make(chan int, 2)
 	for range 2 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			results <- apiRequest(a, "POST", path+"/confirm", "", map[string]any{"invitation_revision": 1, "expected_account_id": "2"}, cookie).Code
-		}()
+		})
 	}
 	wg.Wait()
 	close(results)

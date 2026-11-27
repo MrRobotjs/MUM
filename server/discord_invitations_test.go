@@ -270,7 +270,7 @@ func TestInvitationDiscordRefusalsLeaveNoUsableProof(t *testing.T) {
 				return
 			}
 			cookie, proof, result := signIn(t, a, token, code)
-			location := strings.Split(result, "|")[0]
+			location, _, _ := strings.Cut(result, "|")
 			switch mode {
 			case "guild_page_two":
 				if location != "/invite/"+token+"?discord=connected" {

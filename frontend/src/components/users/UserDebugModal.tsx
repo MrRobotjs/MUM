@@ -133,7 +133,7 @@ export const UserDebugModal = ({ open, onClose, userUuid }: UserDebugModalProps)
             {/* User Info Card */}
             <div className="bg-muted/50 rounded-lg p-4 border border-border">
                 <div className="flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center shrink-0 mt-0.5">
                   <FontAwesomeIcon icon={faUser} className="text-primary text-sm" />
                 </div>
                 <div className="flex-1">
@@ -171,7 +171,7 @@ export const UserDebugModal = ({ open, onClose, userUuid }: UserDebugModalProps)
                 {/* Data Type Info */}
                 <div className="bg-muted/50 rounded-lg p-4 border border-border">
                 <div className="flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center shrink-0 mt-0.5">
                       <FontAwesomeIcon icon={faCircleInfo} className="text-primary text-sm" />
                     </div>
                     <div className="flex-1 text-sm">
@@ -207,7 +207,7 @@ export const UserDebugModal = ({ open, onClose, userUuid }: UserDebugModalProps)
                         </div>
                         <div className="p-3 overflow-hidden">
                           <div className="bg-muted/50 border border-border rounded-lg overflow-auto max-h-96">
-                            <pre className="text-xs text-foreground p-4 overflow-x-auto whitespace-pre-wrap break-words">
+                            <pre className="text-xs text-foreground p-4 overflow-x-auto whitespace-pre-wrap wrap-break-word">
                               <code className="break-all">{JSON.stringify(service.raw_data, null, 2)}</code>
                             </pre>
                           </div>

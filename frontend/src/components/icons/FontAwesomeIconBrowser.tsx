@@ -175,7 +175,7 @@ export const FontAwesomeIconBrowser = ({
           <p className="text-sm text-muted-foreground">Loading full icon library...</p>
         </div>
       ) : (
-        <div className={cn('flex flex-col', isMobile ? 'h-[70vh]' : 'h-[520px]')}>
+        <div className={cn('flex flex-col', isMobile ? 'h-[70vh]' : 'h-130')}>
           <div className={cn('border-b border-border', isMobile ? 'p-3' : 'p-3 space-y-3')}>
             <div className="relative">
               <IconSearch className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />

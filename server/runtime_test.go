@@ -114,9 +114,7 @@ func TestFreshRuntimeAuthSetupRotationAndRevocation(t *testing.T) {
 	var nextCookie *http.Cookie
 	var mu sync.Mutex
 	for range 8 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			w := apiRequest(a, "POST", "/api/auth/refresh", "", nil, cookie)
 			if w.Code == 200 && len(w.Result().Cookies()) == 1 {
 				successes.Add(1)
@@ -129,7 +127,7 @@ func TestFreshRuntimeAuthSetupRotationAndRevocation(t *testing.T) {
 			} else if w.Code != 200 && w.Code != 401 {
 				t.Errorf("refresh status %d", w.Code)
 			}
-		}()
+		})
 	}
 	wg.Wait()
 	if successes.Load() != 1 {

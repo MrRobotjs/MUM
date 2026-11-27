@@ -111,7 +111,7 @@ export const InviteCard = ({
   return (
     <Card
       className={`relative gap-2 py-3 overflow-hidden border transition-all duration-200 ease-in-out group cursor-pointer ${
-        selected ? 'ring-2 ring-primary shadow-xl translate-y-[-2px]' : 'hover:shadow-lg'
+        selected ? 'ring-2 ring-primary shadow-xl -translate-y-0.5' : 'hover:shadow-lg'
       }`}
       onClick={() => onToggleSelect(invite.id)}
     >

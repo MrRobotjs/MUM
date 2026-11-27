@@ -78,8 +78,7 @@ func (c *overseerrClient) get(ctx context.Context, path string, query url.Values
 // overseerrMessage maps upstream failures to fixed text; upstream bodies are
 // never echoed because they can carry configuration details.
 func overseerrMessage(err error) string {
-	var status *providerHTTPError
-	if errors.As(err, &status) {
+	if status, ok := errors.AsType[*providerHTTPError](err); ok {
 		switch status.StatusCode {
 		case 401:
 			return "Invalid Overseerr API key"

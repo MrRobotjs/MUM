@@ -159,12 +159,10 @@ func TestPlexCheckpointLeaseExpiryAndConcurrentClaims(t *testing.T) {
 	var wg sync.WaitGroup
 	results := make(chan error, 2)
 	for range 2 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			_, err := s.claimPlexShare(t.Context(), job, server, p.Revision, "send", checkpointPlan())
 			results <- err
-		}()
+		})
 	}
 	wg.Wait()
 	close(results)

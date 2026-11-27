@@ -43,7 +43,7 @@ export function PlaybackBreakdowns({ days, serverId, tab, separated }: { days: n
       const empty = !points.some(row => chartSeries.some(s => Number(row[s.key as keyof typeof row] || 0) > 0));
       const missing = graph.key === 'source_resolution' ? data?.data?.source_resolution_missing : data?.data?.stream_resolution_missing;
       return <ChartCard key={graph.key} title={graph.title} description={graph.concurrent ? 'Highest observed simultaneous streams per day; partial observations can underestimate peaks.' : graph.resolution ? `Only plays with a recorded resolution are included; ${missing ?? 0} plays have no recorded value.` : 'Recorded playback in the selected period; watch time is estimated from observations.'} icon={faChartColumn} loading={loading}>
-        <div className="relative h-[300px] w-full">
+        <div className="relative h-75 w-full">
           <ResponsiveContainer width="100%" height="100%"><BarChart data={points} margin={{top:10,right:6,left:4,bottom:0}} onMouseLeave={() => setHovered(null)}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" opacity={0.35} />
             <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{fill:'var(--muted-foreground)',fontSize:11}} />

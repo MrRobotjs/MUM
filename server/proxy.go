@@ -5,6 +5,7 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
+	"slices"
 	"strings"
 )
 
@@ -54,8 +55,8 @@ func (a *App) applyForwarded(r *http.Request) *http.Request {
 	}
 	client := peer
 	hops := strings.Split(r.Header.Get("X-Forwarded-For"), ",")
-	for i := len(hops) - 1; i >= 0; i-- {
-		addr, err := netip.ParseAddr(strings.TrimSpace(hops[i]))
+	for _, hop := range slices.Backward(hops) {
+		addr, err := netip.ParseAddr(strings.TrimSpace(hop))
 		if err != nil {
 			break
 		}

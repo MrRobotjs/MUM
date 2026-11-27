@@ -3,6 +3,7 @@ package main
 import (
 	"app/server/providers/romm"
 	"context"
+	"maps"
 
 	"encoding/json"
 	"errors"
@@ -645,9 +646,7 @@ func TestServiceRemoteDeleteRequiresVerifiedDisableAndTypedConfirmation(t *testi
 	// Confirmation fields belong only to delete; delete requires both.
 	for _, body := range []map[string]any{{"confirm_username": "Remote Name"}, {"acknowledge_irreversible": true}} {
 		b := remoteBody(p)
-		for k, v := range body {
-			b[k] = v
-		}
+		maps.Copy(b, body)
 		if w := apiRequest(f.app, "POST", f.path+"/delete", f.ownerToken, b, nil); w.Code != 400 {
 			t.Fatal("partial delete confirmation accepted", w.Code)
 		}

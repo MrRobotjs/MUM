@@ -78,7 +78,7 @@ func TestPlexGeoFailureDoesNotLoseSessionsAndIsCached(t *testing.T) {
 	})})
 	c := p
 	c.locations = &provider.LocationCache{}
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		s, err := c.readActivitySnapshot(t.Context())
 		if err != nil || len(s.Sessions) != 1 || s.Sessions[0].Display.Latitude != nil {
 			t.Fatal("optional GeoIP failure lost session", err)
@@ -110,7 +110,7 @@ func TestPlexWANCoordinatesSkipLANAndUseBoundedCache(t *testing.T) {
 	})})
 	concrete := p
 	concrete.locations = &provider.LocationCache{}
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		s, err := concrete.readActivitySnapshot(t.Context())
 		if err != nil || len(s.Sessions) != 1 {
 			t.Fatal(err)

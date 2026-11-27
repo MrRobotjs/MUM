@@ -429,8 +429,7 @@ func (a *App) saveServer(w http.ResponseWriter, r *http.Request) {
 		return auditAction(r.Context(), tx, p.UUID, "server.save")
 	})
 	if err != nil {
-		var conflict *nicknameConflict
-		if errors.As(err, &conflict) {
+		if conflict, ok := errors.AsType[*nicknameConflict](err); ok {
 			kind := conflict.kind
 			if def, ok := providerDefinition(kind); ok {
 				kind = def.Name

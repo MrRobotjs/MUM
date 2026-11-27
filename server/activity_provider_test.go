@@ -130,7 +130,7 @@ func TestActivityProviderRejectsAmbiguousOrPartialResponses(t *testing.T) {
 				row["PlayState"].(map[string]any)["positionTicks"] = 0
 			case "too-many":
 				rows = []any{}
-				for i := 0; i < 1001; i++ {
+				for i := range 1001 {
 					rows = append(rows, map[string]any{"Id": i})
 				}
 			case "partial-tail":

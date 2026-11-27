@@ -50,10 +50,10 @@ export interface BadgeProps {
 // font size; at 12px the 8.4px capitals cover 9 rows), as measured on drawn
 // pixels in Chrome at every size.
 const sizeClasses: Record<BadgeSize, string> = {
-  xs: 'text-[10px] h-[20px] px-[6px] [--badge-icon:7px] [--badge-gap:4px] border',
-  sm: 'text-xs h-[24px] px-[8px] [--badge-icon:9px] [--badge-gap:4px] border',
-  md: 'text-sm h-[28px] px-[9px] [--badge-icon:10px] [--badge-gap:5px] border',
-  lg: 'text-base h-[32px] px-[10px] [--badge-icon:11px] [--badge-gap:6px] border',
+  xs: 'text-[10px] h-5 px-1.5 [--badge-icon:7px] [--badge-gap:4px] border',
+  sm: 'text-xs h-6 px-2 [--badge-icon:9px] [--badge-gap:4px] border',
+  md: 'text-sm h-7 px-2.25 [--badge-icon:10px] [--badge-gap:5px] border',
+  lg: 'text-base h-8 px-2.5 [--badge-icon:11px] [--badge-gap:6px] border',
 };
 
 // Each icon's drawing sits at its own place inside its canvas (Font Awesome

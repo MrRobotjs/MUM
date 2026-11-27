@@ -181,7 +181,7 @@ const SessionPopupContent = ({ session }: { session: ActiveSession }) => {
     : null;
 
   return (
-    <div className="min-w-[220px] rounded-lg border border-border/70 bg-card p-3 text-card-foreground shadow-xl">
+    <div className="min-w-55 rounded-lg border border-border/70 bg-card p-3 text-card-foreground shadow-xl">
       <div className="flex items-start gap-2">
         <div className="relative h-8 w-8 shrink-0 overflow-hidden rounded-full">
           {session.user_avatar_url && failedAvatar!==session.user_avatar_url ? (
@@ -429,7 +429,7 @@ const CustomZoomControl = ({ isFullscreen, onToggleFullscreen }: CustomZoomContr
   }, [isFullscreen, map]);
 
   return (
-    <div className="absolute right-3 top-3 z-[500] flex flex-col gap-2">
+    <div className="absolute right-3 top-3 z-500 flex flex-col gap-2">
       <button
         type="button"
         onClick={onToggleFullscreen}
@@ -599,7 +599,7 @@ const StreamingSessionsMapComponent = ({ sessions }: StreamingSessionsMapProps) 
 
   return (
     <Card className="pt-0 gap-0 overflow-hidden border border-border/60 shadow-md">
-      <CardHeader className="pt-6 border-b border-border/60 bg-gradient-to-r from-primary/5 via-transparent to-transparent pb-4">
+      <CardHeader className="pt-6 border-b border-border/60 bg-linear-to-r from-primary/5 via-transparent to-transparent pb-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-3">
             <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary shadow-inner">
@@ -621,7 +621,7 @@ const StreamingSessionsMapComponent = ({ sessions }: StreamingSessionsMapProps) 
       <CardContent className="pt-5">
         {tileFailed && mapSettings.data?.configured && <div role="alert" className="mb-3 space-y-2 text-sm text-muted-foreground">Map tiles could not be loaded. Check your CARTO key, quota and server internet connection. <Button variant="outline" onClick={() => setKeyDialogOpen(true)}>Change map key</Button></div>}
         {!mapSettings.data?.configured ? (
-          <div className="relative flex min-h-[280px] items-center justify-center rounded-xl border border-border/60 bg-muted/20 p-6 sm:min-h-[320px]">
+          <div className="relative flex min-h-70 items-center justify-center rounded-xl border border-border/60 bg-muted/20 p-6 sm:min-h-80">
             <div className="space-y-3 text-center">
               <p className="font-semibold">{mapSettings.error ? 'Map settings unavailable' : !mapSettings.canConfigure ? 'Live User Map requires administrator access' : !mapSettings.data ? 'Loading map settings...' : 'CARTO map key missing'}</p>
               <p className="text-sm text-muted-foreground">Add a CARTO basemap key to display the map background. Public stream locations will appear when available.</p>
@@ -629,7 +629,7 @@ const StreamingSessionsMapComponent = ({ sessions }: StreamingSessionsMapProps) 
             </div>
           </div>
         ) : locationCount === 0 ? (
-          <div className="flex min-h-[220px] items-center justify-center rounded-xl border border-dashed border-border/60 bg-muted/20 p-6 text-sm text-muted-foreground">
+          <div className="flex min-h-55 items-center justify-center rounded-xl border border-dashed border-border/60 bg-muted/20 p-6 text-sm text-muted-foreground">
             <div className="flex items-center gap-2">
               <FontAwesomeIcon icon={faLocationDot} className="text-primary" />
               <span>No map points yet. GeoIP will populate as public session IPs are observed.</span>
@@ -638,7 +638,7 @@ const StreamingSessionsMapComponent = ({ sessions }: StreamingSessionsMapProps) 
         ) : (
           <div
             ref={mapFrameRef}
-            className={isPseudoFullscreen ? 'fixed inset-0 z-[1200] bg-background/95 backdrop-blur-sm' : ''}
+            className={isPseudoFullscreen ? 'fixed inset-0 z-1200 bg-background/95 backdrop-blur-sm' : ''}
             style={
               isPseudoFullscreen
                 ? {
@@ -658,7 +658,7 @@ const StreamingSessionsMapComponent = ({ sessions }: StreamingSessionsMapProps) 
               }`}
             >
               {isMapExpanded ? (
-                <div className="pointer-events-none absolute left-3 top-3 z-[550] flex items-center gap-2">
+                <div className="pointer-events-none absolute left-3 top-3 z-550 flex items-center gap-2">
                   <div className="rounded-md border border-border/60 bg-card/95 px-3 py-1.5 shadow-sm backdrop-blur">
                     <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                       Active Streams
@@ -682,7 +682,7 @@ const StreamingSessionsMapComponent = ({ sessions }: StreamingSessionsMapProps) 
                   onClick={() => {
                     exitFullscreen().catch(() => undefined);
                   }}
-                  className="absolute bottom-3 right-3 z-[550] flex h-8 items-center gap-2 rounded-md border border-border/60 bg-card px-3 text-xs font-medium text-primary shadow-sm hover:bg-primary hover:text-primary-foreground transition-colors"
+                  className="absolute bottom-3 right-3 z-550 flex h-8 items-center gap-2 rounded-md border border-border/60 bg-card px-3 text-xs font-medium text-primary shadow-sm hover:bg-primary hover:text-primary-foreground transition-colors"
                   aria-label="Exit fullscreen"
                 >
                   <FontAwesomeIcon icon={faCompress} className="h-3 w-3" />
@@ -690,7 +690,7 @@ const StreamingSessionsMapComponent = ({ sessions }: StreamingSessionsMapProps) 
                 </button>
               ) : null}
 
-              <div className="absolute bottom-3 left-3 z-[550] rounded-md border border-border/60 bg-card/95 px-3 py-1.5 shadow-sm backdrop-blur">
+              <div className="absolute bottom-3 left-3 z-550 rounded-md border border-border/60 bg-card/95 px-3 py-1.5 shadow-sm backdrop-blur">
                 <div className="flex items-center gap-2 text-xs">
                   <span className="font-medium text-muted-foreground">Group</span>
                   <Switch
@@ -701,7 +701,7 @@ const StreamingSessionsMapComponent = ({ sessions }: StreamingSessionsMapProps) 
                 </div>
               </div>
 
-              <div className={isMapExpanded ? 'h-full w-full' : 'h-[280px] w-full sm:h-[320px]'}>
+              <div className={isMapExpanded ? 'h-full w-full' : 'h-70 w-full sm:h-80'}>
                 <LeafletMap
                   center={center}
                   zoom={3}

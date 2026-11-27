@@ -79,7 +79,7 @@ func (s *Server) catalogueFence(ctx context.Context, library string) (int, int64
 }
 
 func (s *Server) CatalogueItems(ctx context.Context, library, kind string, progress func(int, int)) ([]provider.CatalogueItem, error) {
-	for attempt := 0; attempt < catalogueSnapshotAttempts; attempt++ {
+	for attempt := range catalogueSnapshotAttempts {
 		items, err := s.catalogueItemsOnce(ctx, library, kind, progress)
 		if !errors.Is(err, errCatalogueChanged) || ctx.Err() != nil || attempt == catalogueSnapshotAttempts-1 {
 			return items, err

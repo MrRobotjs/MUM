@@ -840,7 +840,7 @@ const SortableRoleRow = ({ role, index, disabled, onEdit, onDelete, themePrimary
                 style={{ color: role.color || themePrimaryHex }}
               />
           </div>
-          <div className="min-w-0 max-w-[200px] md:max-w-none">
+          <div className="min-w-0 max-w-50 md:max-w-none">
             <div className="flex items-center gap-2">
               <div className="truncate font-medium">{role.name}</div>
               {role.is_auto_managed && <Badge variant="secondary">Auto-managed</Badge>}

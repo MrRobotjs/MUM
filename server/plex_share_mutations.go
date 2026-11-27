@@ -4,6 +4,7 @@ import (
 	"app/server/providers/plex"
 	"context"
 	"database/sql"
+	"slices"
 	"strconv"
 	"time"
 )
@@ -99,10 +100,8 @@ func hasPlexSentInviteForServer(invites []plexSentInvitation, account, machine s
 		if invite.Account != account || !invite.Server {
 			continue
 		}
-		for _, target := range invite.Machines {
-			if target == machine {
-				return true
-			}
+		if slices.Contains(invite.Machines, machine) {
+			return true
 		}
 	}
 	return false

@@ -27,7 +27,7 @@ func (u *catalogueUpstream) setItems(n int, prefix string) {
 	u.mu.Lock()
 	defer u.mu.Unlock()
 	u.items = nil
-	for i := 0; i < n; i++ {
+	for i := range n {
 		item := map[string]any{"Id": fmt.Sprintf("%s%04d", prefix, i), "Name": fmt.Sprintf("Movie %04d", i), "SortName": fmt.Sprintf("movie %04d", i), "Type": "Movie", "ProductionYear": 1990 + i%30, "CommunityRating": 7.5, "RunTimeTicks": 72000000000, "Overview": "A disposable fixture film.", "DateCreated": "2026-01-02T03:04:05.0000000Z"}
 		if i%2 == 0 {
 			item["ImageTags"] = map[string]string{"Primary": fmt.Sprintf("tag%04d", i)}
@@ -239,7 +239,7 @@ func TestLibraryCatalogueSyncListDetailImagesAndPurge(t *testing.T) {
 	f.upstream.mu.Lock()
 	f.upstream.items = f.upstream.items[10:]
 	f.upstream.items[0]["Name"] = "Renamed"
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		f.upstream.items = append(f.upstream.items, map[string]any{"Id": fmt.Sprintf("new%d", i), "Name": fmt.Sprintf("New %d", i), "Type": "Series"})
 	}
 	f.upstream.mu.Unlock()

@@ -11,7 +11,7 @@ import (
 func TestLocationCacheCapacityAndExpiry(t *testing.T) {
 	cache := &LocationCache{}
 	ip := netip.MustParseAddr("8.8.8.8")
-	for i := 0; i < 300; i++ {
+	for i := range 300 {
 		cache.Set(strconv.Itoa(i), ip, &Location{Latitude: 1, Longitude: 2})
 	}
 	if len(cache.entries) != locationCacheSize {

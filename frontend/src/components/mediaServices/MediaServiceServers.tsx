@@ -28,7 +28,7 @@ export interface MediaServiceServersProps {
 }
 
 const ExternalLink = ({ href }: { href: string }) => (
-  <a className="text-primary underline-offset-4 hover:underline break-words" href={href} target="_blank" rel="noopener noreferrer">{href}</a>
+  <a className="text-primary underline-offset-4 hover:underline wrap-break-word" href={href} target="_blank" rel="noopener noreferrer">{href}</a>
 )
 
 /**

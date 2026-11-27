@@ -179,7 +179,7 @@ const renderLibraryStatsAreaTooltip = ({
     });
 
   return (
-    <div className="min-w-[220px] rounded-xl border border-border/60 bg-popover/95 px-4 py-3 text-popover-foreground shadow-2xl backdrop-blur">
+    <div className="min-w-55 rounded-xl border border-border/60 bg-popover/95 px-4 py-3 text-popover-foreground shadow-2xl backdrop-blur">
       <div className="text-sm font-semibold">{formatLibraryStatsChartDateFull(String(label || ''))}</div>
       <div className="my-3 h-px bg-border/60" />
       <div className="space-y-2">
@@ -204,7 +204,7 @@ const MediaPosterCard = ({ item, serverId, libraryId }: { item: MediaItem; serve
 
   return (
     <Link {...appLinks.media(serverId, libraryId, item.id)} className="group cursor-pointer">
-      <div className="relative aspect-[2/3] bg-accent rounded-lg overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 group-hover:scale-105">
+      <div className="relative aspect-2/3 bg-accent rounded-lg overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 group-hover:scale-105">
         {item.thumb && !imageError ? (
           <>
             {imageLoading && (
@@ -273,7 +273,7 @@ const CollectionCard = ({ collection }: { collection: LibraryCollection }) => {
 
   return (
     <div className="group cursor-pointer">
-      <div className="relative aspect-[2/3] bg-accent rounded-lg overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 group-hover:scale-105">
+      <div className="relative aspect-2/3 bg-accent rounded-lg overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 group-hover:scale-105">
         {collection.thumb && !imageError ? (
           <>
             {imageLoading && (
@@ -900,10 +900,10 @@ const LibraryDetailPageView = () => {
   return (
     <div className="container mx-auto space-y-6">
       {/* Header Section */}
-      <Card className="bg-gradient-to-r from-primary/10 to-secondary/10">
+      <Card className="bg-linear-to-r from-primary/10 to-secondary/10">
         <CardContent className="p-8">
           <div className="flex flex-col items-center space-y-4">
-            <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold text-center break-words">
+            <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold text-center wrap-break-word">
               {library.name}
             </h1>
             <div className="flex flex-wrap items-center justify-center gap-3 text-sm">
@@ -1012,7 +1012,7 @@ const LibraryDetailPageView = () => {
               </form>
               <div className="flex gap-2">
                 <Select value={sortBy} onValueChange={setSortBy}>
-                  <SelectTrigger className="w-[180px]" aria-label="Sort"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="w-45" aria-label="Sort"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="title_asc">Title (A-Z)</SelectItem>
                     <SelectItem value="title_desc">Title (Z-A)</SelectItem>
@@ -1059,7 +1059,7 @@ const LibraryDetailPageView = () => {
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4">
               {Array.from({ length: pageSize }).map((_, idx) => (
                 <div key={idx} className="space-y-2">
-                  <Skeleton className="aspect-[2/3] w-full rounded-lg" />
+                  <Skeleton className="aspect-2/3 w-full rounded-lg" />
                   <Skeleton className="h-4 w-3/4 mx-auto" />
                   <Skeleton className="h-3 w-1/2 mx-auto" />
                 </div>
@@ -1123,7 +1123,7 @@ const LibraryDetailPageView = () => {
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4">
                   {Array.from({ length: 24 }).map((_, idx) => (
                     <div key={idx} className="space-y-2">
-                      <Skeleton className="aspect-[2/3] w-full rounded-lg" />
+                      <Skeleton className="aspect-2/3 w-full rounded-lg" />
                       <Skeleton className="h-4 w-3/4 mx-auto" />
                       <Skeleton className="h-3 w-1/2 mx-auto" />
                     </div>
@@ -1154,7 +1154,7 @@ const LibraryDetailPageView = () => {
           {/* Time Range Selector */}
           <div className="flex justify-end">
             <Select value={statsDays.toString()} onValueChange={(val) => setStatsDays(Number(val))}>
-              <SelectTrigger className="w-[180px]">
+              <SelectTrigger className="w-45">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -1198,7 +1198,7 @@ const LibraryDetailPageView = () => {
 
                 return (
                   <Card className="pt-0 gap-0 overflow-hidden border border-border/60 shadow-md">
-                    <CardHeader className="pt-6 border-b border-border/60 bg-gradient-to-r from-primary/5 via-transparent to-transparent pb-4">
+                    <CardHeader className="pt-6 border-b border-border/60 bg-linear-to-r from-primary/5 via-transparent to-transparent pb-4">
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <div className="flex items-start gap-3">
                           <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary shadow-inner">
@@ -1216,7 +1216,7 @@ const LibraryDetailPageView = () => {
                       </div>
                     </CardHeader>
                     <CardContent className="px-3 pt-5 pb-6 sm:px-4">
-                      <div className="relative h-[320px]">
+                      <div className="relative h-80">
                         <ResponsiveContainer width="100%" height="100%">
                           <AreaChart data={chartData} margin={{ top: 8, right: 6, left: 4, bottom: 0 }}>
                             <defs>

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -94,28 +95,29 @@ func (a *App) listUsers(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	where := " WHERE 1=1"
+	var where strings.Builder
+	where.WriteString(" WHERE 1=1")
 	args := []any{}
 	if uuid := r.PathValue("user"); uuid != "" {
-		where += " AND i.uuid=?"
+		where.WriteString(" AND i.uuid=?")
 		args = append(args, uuid)
 	}
 	// Accounts removed from their provider stay reachable by direct link (for
 	// their history) but are not listed.
 	if r.PathValue("user") == "" {
-		where += " AND a.removed_at IS NULL AND u.deleted_at IS NULL"
+		where.WriteString(" AND a.removed_at IS NULL AND u.deleted_at IS NULL")
 	}
 	// Without a type or role filter, accounts created by media server sign-in
 	// are shown through their server accounts.
 	query := r.URL.Query()
 	if r.PathValue("user") == "" && query.Get("user_type") == "" && !query.Has("admin_role_id") && !query.Has("user_role_id") {
-		where += " AND NOT " + signInOnlySQL
+		where.WriteString(" AND NOT " + signInOnlySQL)
 	}
 	if r.URL.Query().Get("unlinked") == "true" {
-		where += " AND i.kind='service' AND owner.user_uuid IS NULL"
+		where.WriteString(" AND i.kind='service' AND owner.user_uuid IS NULL")
 	}
 	if parent := r.URL.Query().Get("linked_to"); parent != "" {
-		where += " AND owner.user_uuid=?"
+		where.WriteString(" AND owner.user_uuid=?")
 		args = append(args, parent)
 	}
 	if kind := r.URL.Query().Get("user_type"); kind != "" {
@@ -123,7 +125,7 @@ func (a *App) listUsers(w http.ResponseWriter, r *http.Request) {
 			fail(w, 400, "INVALID_USER_TYPE", "Invalid user type")
 			return
 		}
-		where += " AND i.kind=?"
+		where.WriteString(" AND i.kind=?")
 		args = append(args, kind)
 	}
 	if raw := r.URL.Query().Get("server_id"); raw != "" {
@@ -132,12 +134,12 @@ func (a *App) listUsers(w http.ResponseWriter, r *http.Request) {
 			fail(w, 400, "INVALID_ID", "Invalid server ID")
 			return
 		}
-		where += " AND a.server_id=?"
+		where.WriteString(" AND a.server_id=?")
 		args = append(args, id)
 	}
 	for _, filter := range []struct{ key, expression string }{{"search", userDisplayNameSQL + "||' '||coalesce(u.email,a.external_email,'')||' '||coalesce(u.notes,a.notes,'')"}, {"search_username", userDisplayNameSQL}, {"search_email", "coalesce(u.email,a.external_email,'')"}, {"search_notes", "coalesce(u.notes,a.notes,'')"}} {
 		if value := r.URL.Query().Get(filter.key); value != "" {
-			where += " AND instr(lower(" + filter.expression + "),lower(?))>0"
+			fmt.Fprintf(&where, " AND instr(lower(%s),lower(?))>0", filter.expression)
 			args = append(args, value)
 		}
 	}
@@ -151,7 +153,7 @@ func (a *App) listUsers(w http.ResponseWriter, r *http.Request) {
 				fail(w, 400, "INVALID_ROLE_FILTER", "Select a valid role ID")
 				return
 			}
-			where += " AND EXISTS(SELECT 1 FROM " + filter.table + " assignment WHERE assignment.user_uuid=i.uuid AND assignment.role_id=?)"
+			fmt.Fprintf(&where, " AND EXISTS(SELECT 1 FROM %s assignment WHERE assignment.user_uuid=i.uuid AND assignment.role_id=?)", filter.table)
 			args = append(args, role)
 		}
 	}
@@ -173,12 +175,12 @@ func (a *App) listUsers(w http.ResponseWriter, r *http.Request) {
 	defer tx.Rollback()
 	from := userProjection[strings.Index(userProjection, "\n FROM identities"):]
 	var total int
-	if err := tx.QueryRowContext(r.Context(), "SELECT count(*) "+from+where, args...).Scan(&total); err != nil {
+	if err := tx.QueryRowContext(r.Context(), "SELECT count(*) "+from+where.String(), args...).Scan(&total); err != nil {
 		domainError(w, err)
 		return
 	}
 	queryArgs := append(append([]any{}, args...), size, (page-1)*size)
-	rows, err := tx.QueryContext(r.Context(), userProjection+where+" ORDER BY "+order+" LIMIT ? OFFSET ?", queryArgs...)
+	rows, err := tx.QueryContext(r.Context(), userProjection+where.String()+" ORDER BY "+order+" LIMIT ? OFFSET ?", queryArgs...)
 	if err != nil {
 		domainError(w, err)
 		return

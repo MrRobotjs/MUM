@@ -1,6 +1,7 @@
 package main
 
 import (
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -49,9 +50,7 @@ func TestPublicReceiptIsCredentialBoundAndNeverReserves(t *testing.T) {
 	for _, field := range []string{"job_id", "request_id", "username", "password"} {
 		t.Run(field, func(t *testing.T) {
 			bad := map[string]any{}
-			for k, v := range body {
-				bad[k] = v
-			}
+			maps.Copy(bad, body)
 			switch field {
 			case "job_id":
 				bad[field] = newUUID()
@@ -109,9 +108,7 @@ func TestPublicReceiptStrictBodyOriginAndUnknownReferences(t *testing.T) {
 	for _, mode := range []string{"unknown-field", "invalid-job", "missing-password"} {
 		t.Run(mode, func(t *testing.T) {
 			bad := map[string]any{}
-			for k, v := range body {
-				bad[k] = v
-			}
+			maps.Copy(bad, body)
 			switch mode {
 			case "unknown-field":
 				bad["plex_authorization_id"] = newUUID()

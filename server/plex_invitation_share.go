@@ -41,8 +41,7 @@ func (e *plexShareError) Error() string        { return errPlexShare.Error() }
 func (e *plexShareError) Is(target error) bool { return target == errPlexShare }
 
 func plexShareFailure(err error) error {
-	var status *providerHTTPError
-	if errors.As(err, &status) {
+	if status, ok := errors.AsType[*providerHTTPError](err); ok {
 		return &plexShareError{Status: status.StatusCode}
 	}
 	return &plexShareError{}
@@ -51,15 +50,13 @@ func plexShareFailure(err error) error {
 // invitationFailureLog reduces a provisioning failure to a short code and an
 // upstream HTTP status for the log; no tokens, addresses or bodies.
 func invitationFailureLog(err error) (string, int) {
-	var share *plexShareError
-	if errors.As(err, &share) {
+	if share, ok := errors.AsType[*plexShareError](err); ok {
 		if share.Reason != "" {
 			return "PLEX_SHARE_CHECK_" + share.Reason, 0
 		}
 		return "PLEX_SHARE_FAILED", share.Status
 	}
-	var status *providerHTTPError
-	if errors.As(err, &status) {
+	if status, ok := errors.AsType[*providerHTTPError](err); ok {
 		return "PROVIDER_HTTP_ERROR", status.StatusCode
 	}
 	switch {

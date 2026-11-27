@@ -178,7 +178,7 @@ export const PlexResources = ({ serverId }: { serverId: number }) => {
   ].filter(Boolean).join(', ');
   const viewPicker = (value: ResourceView, onChange: (view: ResourceView) => void, label: string) => (
     <Select value={value} onValueChange={(v) => onChange(v as ResourceView)}>
-      <SelectTrigger className="w-[180px]" aria-label={label}><SelectValue /></SelectTrigger>
+      <SelectTrigger className="w-45" aria-label={label}><SelectValue /></SelectTrigger>
       <SelectContent>
         <SelectItem value="all">All</SelectItem>
         <SelectItem value="plex">Plex Media Server</SelectItem>
@@ -229,14 +229,14 @@ export const PlexResources = ({ serverId }: { serverId: number }) => {
         loading={bandwidth.loading}
         actions={<>
           <Select value={account} onValueChange={setAccount}>
-            <SelectTrigger className="w-[180px]" aria-label="Account"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-45" aria-label="Account"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All accounts</SelectItem>
               {accounts.map((a) => <SelectItem key={a.id} value={a.id}>{a.name || `Account ${a.id}`}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={network} onValueChange={(value) => setNetwork(value as BandwidthNetwork)}>
-            <SelectTrigger className="w-[180px]" aria-label="Network"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-45" aria-label="Network"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All</SelectItem>
               <SelectItem value="remote">Remote</SelectItem>
@@ -244,7 +244,7 @@ export const PlexResources = ({ serverId }: { serverId: number }) => {
             </SelectContent>
           </Select>
           <Select value={rangeValue} onValueChange={setRangeValue}>
-            <SelectTrigger className="w-[180px]" aria-label="Time range"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-45" aria-label="Time range"><SelectValue /></SelectTrigger>
             <SelectContent>
               {BANDWIDTH_RANGES.map((r) => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
             </SelectContent>

@@ -501,7 +501,7 @@ func (s *Server) cataloguePoster(ctx context.Context, path string) (string, []by
 		}
 		if !local && s.token != "" {
 			value := next.URL.String()
-			for i := 0; i < 3; i++ {
+			for range 3 {
 				if strings.Contains(value, s.token) {
 					return errors.New("credential in Plex poster redirect")
 				}

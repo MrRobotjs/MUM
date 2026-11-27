@@ -91,7 +91,7 @@ export const AdminNotificationsPage = () => {
       <Card>
         <CardHeader>
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
+            <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
               <FontAwesomeIcon icon={faFilter} className="text-primary text-sm" />
             </div>
             <div>
@@ -192,7 +192,7 @@ export const AdminNotificationsPage = () => {
                     </div>
 
                     {/* Action buttons */}
-                    <div className="flex items-center gap-2 flex-shrink-0">
+                    <div className="flex items-center gap-2 shrink-0">
                       {!notification.read && (
                         <Button
                           variant="ghost"

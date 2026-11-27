@@ -90,7 +90,7 @@ func (a *App) openAPIDocument(w http.ResponseWriter, r *http.Request) {
 			tags = append(tags, tag)
 		}
 		parameters := []map[string]any{}
-		for _, segment := range strings.Split(route.Path, "/") {
+		for segment := range strings.SplitSeq(route.Path, "/") {
 			if strings.HasPrefix(segment, "{") && strings.HasSuffix(segment, "}") {
 				parameters = append(parameters, map[string]any{"name": strings.Trim(segment, "{}"), "in": "path", "required": true, "schema": map[string]string{"type": "string"}})
 			}

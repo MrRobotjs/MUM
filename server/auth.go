@@ -72,7 +72,7 @@ func parseArgon2id(encoded string) (cost argon2Cost, salt, key []byte, ok bool) 
 		return cost, nil, nil, false
 	}
 	var m, t, p uint64
-	for _, field := range strings.Split(parts[3], ",") {
+	for field := range strings.SplitSeq(parts[3], ",") {
 		name, value, found := strings.Cut(field, "=")
 		n, err := strconv.ParseUint(value, 10, 32)
 		if !found || err != nil {

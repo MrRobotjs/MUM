@@ -261,15 +261,19 @@ func (a *App) prepareEdit(w http.ResponseWriter, r *http.Request) {
 		domainError(w, err)
 		return
 	}
-	stored := editStored{Actor: actor.UUID, AccessHash: tokenHash(bearer(r)), Operation: input.Operation}
-	stored.ID = newUUID()
-	stored.Action = input.Operation.Action
-	stored.State = "prepared"
-	stored.Revision = "1"
-	stored.Results = []editUserResult{}
-	stored.Targets = []editTarget{}
-	stored.Warnings = []string{}
-	stored.Effects = []string{}
+	stored := editStored{
+		Actor:      actor.UUID,
+		AccessHash: tokenHash(bearer(r)),
+		Operation:  input.Operation,
+		ID:         newUUID(),
+		Action:     input.Operation.Action,
+		State:      "prepared",
+		Revision:   "1",
+		Results:    []editUserResult{},
+		Targets:    []editTarget{},
+		Warnings:   []string{},
+		Effects:    []string{},
+	}
 	if err = tx.QueryRowContext(r.Context(), "SELECT revision FROM admin_role_state WHERE singleton=1").Scan(&stored.Role); err != nil {
 		domainError(w, err)
 		return

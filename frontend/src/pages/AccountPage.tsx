@@ -314,7 +314,7 @@ const AccountPage = () => {
         <div aria-hidden="true" className="flex size-16 shrink-0 items-center justify-center rounded-full bg-primary/15 text-2xl font-semibold text-primary sm:size-20 sm:text-3xl">{initials}</div>
         <div className="min-w-0 space-y-2">
           <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
-            <h1 className="max-w-full break-words text-xl font-semibold text-primary sm:text-2xl">{displayName}</h1>
+            <h1 className="max-w-full wrap-break-word text-xl font-semibold text-primary sm:text-2xl">{displayName}</h1>
             {account.user.email && <p className="break-all text-base text-muted-foreground">({account.user.email})</p>}
           </div>
           <p className="text-sm text-muted-foreground">Last signed in {formatIsoDate(account.user.last_login_at)}</p>

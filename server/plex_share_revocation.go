@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"slices"
 	"strconv"
 	"time"
 )
@@ -73,10 +74,8 @@ func (p *serverConnection) inspectPlexShareAbsence(ctx context.Context, claim pl
 		if invite.Account != claim.Account {
 			continue
 		}
-		for _, machine := range invite.Machines {
-			if machine == claim.Machine {
-				return result, ErrConflict
-			}
+		if slices.Contains(invite.Machines, claim.Machine) {
+			return result, ErrConflict
 		}
 	}
 	result.verified = true

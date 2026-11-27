@@ -227,7 +227,7 @@ func TestActivityHistoryPaginationAndStrictQueries(t *testing.T) {
 	f := activityReadFixture(t)
 	// Ended observations remain history but never become current rows.
 	err := f.store.write(t.Context(), func(tx *sql.Tx) error {
-		for i := 0; i < 102; i++ {
+		for i := range 102 {
 			_, err := tx.ExecContext(t.Context(), `INSERT INTO media_activity_history(server_id,external_session_id,service_uuid,owner_uuid,item_id,media_type,title,first_seen_at,last_seen_at,ended_at,end_reason,paused,position_ticks) VALUES(?,?,?,?,'item','Movie','Fixture title',?,?,?,'not_observed',0,9007199254740993)`, f.server, fmt.Sprintf("ended-%d", i), f.service, f.user, utcTimestamp(time.Now()), utcTimestamp(time.Now()), utcTimestamp(time.Now()))
 			if err != nil {
 				return err

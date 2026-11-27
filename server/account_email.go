@@ -32,7 +32,7 @@ func normalizeAccountEmail(value string) (string, error) {
 	if len(local) > 64 {
 		return "", ErrConflict
 	}
-	for _, label := range strings.Split(domain, ".") {
+	for label := range strings.SplitSeq(domain, ".") {
 		if len(label) < 1 || len(label) > 63 || label[0] == '-' || label[len(label)-1] == '-' {
 			return "", ErrConflict
 		}

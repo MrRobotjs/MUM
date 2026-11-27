@@ -68,7 +68,7 @@ func goLinkedModules() ([]thirdParty, error) {
 		if err != nil {
 			return nil, fmt.Errorf("go list for %s/%s: %w\n%s", target.GOOS, target.GOARCH, err, output)
 		}
-		for _, line := range strings.Split(output, "\n") {
+		for line := range strings.SplitSeq(output, "\n") {
 			parts := strings.Split(strings.TrimSpace(line), "\t")
 			if len(parts) != 3 || parts[0] == "" {
 				continue

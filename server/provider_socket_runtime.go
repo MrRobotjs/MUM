@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"maps"
 	"time"
 )
 
@@ -70,9 +71,7 @@ func (a *App) superviseProviderSockets(ctx context.Context) {
 		}
 		r.mu.Lock()
 		existing := make(map[int64]*providerSocketWorker, len(r.workers))
-		for id, w := range r.workers {
-			existing[id] = w
-		}
+		maps.Copy(existing, r.workers)
 		if err != nil {
 			r.code = "STATE_UNAVAILABLE"
 		} else {

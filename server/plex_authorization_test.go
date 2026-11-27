@@ -297,11 +297,9 @@ func TestPlexConcurrentProofConsumptionAndLocalRevoke(t *testing.T) {
 	var wg sync.WaitGroup
 	codes := make(chan int, 2)
 	for range 2 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			codes <- apiRequest(a, "POST", "/api/plex/authorizations/"+id+"/confirm", token, map[string]any{"expected_account_id": "2"}, cookie).Code
-		}()
+		})
 	}
 	wg.Wait()
 	close(codes)

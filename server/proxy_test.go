@@ -49,7 +49,7 @@ func TestTrustedProxyRateLimitsEachClient(t *testing.T) {
 	a, _ := testApp(t)
 	bootstrapOwner(t, a)
 	a.TrustedProxies = []netip.Prefix{netip.MustParsePrefix("10.0.0.0/8")}
-	for i := 0; i < 20; i++ {
+	for i := range 20 {
 		if w := proxiedLogin(a, "10.0.0.1:1", "203.0.113.7", "wrong-password-attempt"); w.Code != 401 {
 			t.Fatal("attempt", i, w.Code, w.Body.String())
 		}

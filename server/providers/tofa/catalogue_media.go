@@ -76,9 +76,7 @@ func (s *Server) addFileMedia(ctx context.Context, rows []provider.CatalogueItem
 	var once sync.Once
 	var failure error
 	for range movieMediaWorkers {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			for i := range jobs {
 				var detail struct {
 					ID    string     `json:"id"`
@@ -94,7 +92,7 @@ func (s *Server) addFileMedia(ctx context.Context, rows []provider.CatalogueItem
 				}
 				rows[i].Media = fileMedia(detail.Files)
 			}
-		}()
+		})
 	}
 	for i := range rows {
 		if rows[i].Type != "movie" && rows[i].Type != "video" {

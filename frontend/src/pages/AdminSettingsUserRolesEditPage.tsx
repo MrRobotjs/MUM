@@ -94,7 +94,7 @@ export const AdminSettingsUserRolesEditPage = () => {
           </TabsTrigger>
         </TabsList>
 
-        <div className="mt-6 min-h-[400px]">
+        <div className="mt-6 min-h-100">
           <TabsContent value="display" className="mt-0">
             <UserRoleDisplayTab key={`${actor}:${sessionToken}:${role.id}:${readEpoch}`} role={role} catalog={catalog} onUpdate={refresh} />
           </TabsContent>

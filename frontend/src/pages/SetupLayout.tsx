@@ -65,7 +65,7 @@ export function SetupLayout({ stepId, title, subtitle, children }: SetupLayoutPr
       <div className="min-h-screen bg-muted/20 px-4 py-8">
         <div className="mx-auto max-w-5xl">
           <Card className="w-full shadow-lg border border-border rounded-xl overflow-hidden pt-0">
-            <CardHeader className="text-center bg-gradient-to-r from-primary/10 to-secondary/10 px-6 py-8">
+            <CardHeader className="text-center bg-linear-to-r from-primary/10 to-secondary/10 px-6 py-8">
               <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/15">
                 <FontAwesomeIcon icon={faShield} className="h-8 w-8 text-primary" />
               </div>

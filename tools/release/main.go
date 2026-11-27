@@ -181,7 +181,7 @@ func run() error {
 	}
 	fmt.Println("collecting third-party licences ...")
 	approved := map[string]bool{}
-	for _, item := range strings.Split(*allowUnlicensed, ",") {
+	for item := range strings.SplitSeq(*allowUnlicensed, ",") {
 		if item = strings.TrimSpace(item); item != "" {
 			approved[item] = true
 			result.UnlicensedApproved = append(result.UnlicensedApproved, item)

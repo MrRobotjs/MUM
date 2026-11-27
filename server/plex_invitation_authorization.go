@@ -71,7 +71,7 @@ func (a *App) startInvitationPlexAuthorization(w http.ResponseWriter, r *http.Re
 	}
 	now := time.Now()
 	browser := randomToken()
-	p := plexInvitationAuthorization{plexAuthorization: plexAuthorization{ID: newUUID(), Browser: tokenHash(browser), Status: "creating", Expires: utcTimestamp(now.Add(15 * time.Minute)), PollAfter: utcTimestamp(now), Revision: 1}, InviteID: scope.ID, InviteRevision: scope.Revision, Digest: scope.Digest, Fingerprint: scope.Fingerprint}
+	p := plexInvitationAuthorization{ID: newUUID(), Browser: tokenHash(browser), Status: "creating", Expires: utcTimestamp(now.Add(15 * time.Minute)), PollAfter: utcTimestamp(now), Revision: 1, InviteID: scope.ID, InviteRevision: scope.Revision, Digest: scope.Digest, Fingerprint: scope.Fingerprint}
 	source, _, splitErr := net.SplitHostPort(r.RemoteAddr)
 	if splitErr != nil {
 		source = r.RemoteAddr

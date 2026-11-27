@@ -127,7 +127,7 @@ export const InvitesTable = ({
         onCheckedChange={() => onToggleSelect(row.original.id)}
       /> }),
     columnHelper.display({ id: 'token', header: 'Token / Path', cell: ({ row }) => <>
-      <div className="font-medium break-words">{row.original.custom_path || row.original.token}</div>
+      <div className="font-medium wrap-break-word">{row.original.custom_path || row.original.token}</div>
       <div className="text-xs text-muted-foreground break-all">{row.original.token}</div>
     </> }),
     columnHelper.display({ id: 'expires', header: 'Expires', meta: { cellClassName: 'text-muted-foreground' },

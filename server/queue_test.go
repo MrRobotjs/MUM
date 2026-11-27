@@ -264,9 +264,7 @@ func TestConcurrentIngestionAdminReadsAndShutdown(t *testing.T) {
 	var wg sync.WaitGroup
 	start := time.Now()
 	for producer := range 16 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			for i := range 400 {
 				for {
 					err := q.Enqueue(event(fmt.Sprintf("%d/%d", producer, i)))
@@ -280,12 +278,10 @@ func TestConcurrentIngestionAdminReadsAndShutdown(t *testing.T) {
 					time.Sleep(time.Millisecond)
 				}
 			}
-		}()
+		})
 	}
 	for admin := range 4 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			for i := range 20 {
 				if _, err := s.CreateAccount(t.Context(), owner, fmt.Sprintf("admin-op-%d-%d", admin, i), "encoded", false); err != nil {
 					t.Error(err)
@@ -297,7 +293,7 @@ func TestConcurrentIngestionAdminReadsAndShutdown(t *testing.T) {
 					return
 				}
 			}
-		}()
+		})
 	}
 	wg.Wait()
 	if err := q.Shutdown(t.Context()); err != nil {
@@ -324,9 +320,7 @@ func TestConcurrentEnqueueShutdown(t *testing.T) {
 	}
 	var wg sync.WaitGroup
 	for producer := range 24 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			for i := range 200 {
 				err := q.Enqueue(event(fmt.Sprintf("%d/%d", producer, i)))
 				if errors.Is(err, ErrQueueClosed) {
@@ -337,7 +331,7 @@ func TestConcurrentEnqueueShutdown(t *testing.T) {
 					return
 				}
 			}
-		}()
+		})
 	}
 	if err := q.Shutdown(t.Context()); err != nil {
 		t.Fatal(err)

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -96,9 +97,7 @@ func newReviewFixtureFor(t *testing.T, kind string, failEnable bool) *reviewFixt
 				return
 			}
 			policy := map[string]any{}
-			for k, v := range f.policy {
-				policy[k] = v
-			}
+			maps.Copy(policy, f.policy)
 			if f.adminPolicy {
 				policy["IsAdministrator"] = true
 			}

@@ -110,7 +110,7 @@ export const AdminSettingsAdminRolesEditPage = () => {
           </TabsTrigger>
         </TabsList>
 
-        <div className="mt-6 min-h-[400px]">
+        <div className="mt-6 min-h-100">
           <TabsContent value="display" className="mt-0">
             <fieldset disabled={!role.mutations_available}><AdminRoleDisplayTab key={`${actor}-${role.id}`} role={role} onUpdate={refresh} /></fieldset>
           </TabsContent>

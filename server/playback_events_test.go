@@ -32,7 +32,7 @@ func TestPlaybackEventsBuffer(t *testing.T) {
 		t.Fatal("another server's events were touched")
 	}
 	// Bounded: the oldest go first, and stale ones are dropped.
-	for i := 0; i < playbackEventLimit+10; i++ {
+	for i := range playbackEventLimit + 10 {
 		b.record(3, []provider.PlaybackEvent{{Session: "s", Item: "1", State: "playing"}}, base.Add(time.Duration(i)*time.Millisecond))
 	}
 	if all := b.peek(3, base.Add(time.Hour)); len(all) != playbackEventLimit || !all[0].At.Equal(base.Add(10*time.Millisecond)) {

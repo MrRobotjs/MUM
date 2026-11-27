@@ -261,25 +261,25 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
 
   const cardGradient = () => {
     if (!isService) {
-      return 'bg-gradient-to-br from-card to-primary/20';
+      return 'bg-linear-to-br from-card to-primary/20';
     }
     switch (serviceType) {
       case 'plex':
-        return 'bg-gradient-to-br from-card to-plex/20';
+        return 'bg-linear-to-br from-card to-plex/20';
       case 'jellyfin':
-        return 'bg-gradient-to-br from-card to-jellyfin/20';
+        return 'bg-linear-to-br from-card to-jellyfin/20';
       case 'emby':
-        return 'bg-gradient-to-br from-card to-emby/20';
+        return 'bg-linear-to-br from-card to-emby/20';
       case 'kavita':
-        return 'bg-gradient-to-br from-card to-kavita/20';
+        return 'bg-linear-to-br from-card to-kavita/20';
       case 'audiobookshelf':
-        return 'bg-gradient-to-br from-card to-audiobookshelf/20';
+        return 'bg-linear-to-br from-card to-audiobookshelf/20';
       case 'komga':
-        return 'bg-gradient-to-br from-card to-komga/20';
+        return 'bg-linear-to-br from-card to-komga/20';
       case 'romm':
-        return 'bg-gradient-to-br from-card to-romm/20';
+        return 'bg-linear-to-br from-card to-romm/20';
       case 'tofa':
-        return 'bg-gradient-to-br from-card to-tofa/20';
+        return 'bg-linear-to-br from-card to-tofa/20';
       default:
         return 'bg-card';
     }
@@ -543,7 +543,7 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
                   {nowPlaying.serverName && (
                     <>
                       <span className="text-[10px] text-muted-foreground/60">•</span>
-                      <span className="text-[10px] text-muted-foreground font-medium truncate max-w-[80px]" title={nowPlaying.serverName}>
+                      <span className="text-[10px] text-muted-foreground font-medium truncate max-w-20" title={nowPlaying.serverName}>
                         {nowPlaying.serverName}
                       </span>
                     </>
@@ -658,7 +658,7 @@ export const UserCard = ({ user, isSelected = false, onToggleSelection, nowPlayi
         )}
 
       </CardContent>
-      <CardFooter className="mt-auto justify-end border-t border-border/90 px-4 py-3 !pt-3">
+      <CardFooter className="mt-auto justify-end border-t border-border/90 px-4 py-3 pt-3!">
         <Button
           variant="ghost"
           size="sm"

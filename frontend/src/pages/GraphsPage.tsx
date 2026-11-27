@@ -124,7 +124,7 @@ export const renderGraphsTooltipCard = (
   title: string,
   rows: Array<{ key: string; label: string; value: string; dotClass?: string; dotColor?: string }>
 ) => (
-  <div className="min-w-[220px] rounded-xl border border-border/60 bg-popover/95 px-4 py-3 text-popover-foreground shadow-2xl backdrop-blur">
+  <div className="min-w-55 rounded-xl border border-border/60 bg-popover/95 px-4 py-3 text-popover-foreground shadow-2xl backdrop-blur">
     <div className="text-sm font-semibold">{title}</div>
     <div className="my-3 h-px bg-border/60" />
     <div className="space-y-2">
@@ -310,7 +310,7 @@ export const ChartCard = ({ title, description, icon, loading, actions, children
   children: React.ReactNode;
 }) => (
     <Card className="pt-0 gap-0 overflow-hidden border border-border/60 shadow-md">
-      <CardHeader className="pt-6 border-b border-border/60 bg-gradient-to-r from-primary/5 via-transparent to-transparent pb-4">
+      <CardHeader className="pt-6 border-b border-border/60 bg-linear-to-r from-primary/5 via-transparent to-transparent pb-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-3">
             <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary shadow-inner">
@@ -327,7 +327,7 @@ export const ChartCard = ({ title, description, icon, loading, actions, children
         </div>
       </CardHeader>
       <CardContent className="px-3 pt-5 pb-6">
-        <div className="relative min-h-[300px]">
+        <div className="relative min-h-75">
           {loading ? (
             <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-background/70 backdrop-blur-sm">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -694,7 +694,7 @@ export const ActivityGraphs = ({ serverId: fixedServerId }: { serverId?: number 
             'Activity by Hour',
             'Play counts grouped by hour across the selected stream history window.',
             faChartLine,
-            <div className="h-[300px] w-full">
+            <div className="h-75 w-full">
               {isSeparatedModeActive ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart
@@ -822,7 +822,7 @@ export const ActivityGraphs = ({ serverId: fixedServerId }: { serverId?: number 
             'Watch Time Activity',
             'Watch time trend across all libraries for the selected server scope.',
             faChartLine,
-            <div className="h-[300px] w-full">
+            <div className="h-75 w-full">
               {isSeparatedModeActive ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart

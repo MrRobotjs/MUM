@@ -87,7 +87,7 @@ func TestSignInUpgradesPasswordHash(t *testing.T) {
 	activityExec(t, s, "UPDATE user_accounts SET password_hash=? WHERE kind='owner'", differentCostHash(t, "a-strong-new-password"))
 	var username string
 	_ = s.reader.QueryRow("SELECT local_username FROM user_accounts WHERE kind='owner'").Scan(&username)
-	for round := 0; round < 2; round++ {
+	for round := range 2 {
 		w := apiRequest(a, "POST", "/api/auth/login", "", map[string]any{"username": username, "password": "a-strong-new-password"}, nil)
 		if w.Code != 200 {
 			t.Fatal(round, w.Code, w.Body.String())

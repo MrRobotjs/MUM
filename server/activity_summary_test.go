@@ -12,7 +12,7 @@ import (
 func seedSummaryHistory(t *testing.T, f activityViewFixture) {
 	t.Helper()
 	err := f.store.write(t.Context(), func(tx *sql.Tx) error {
-		for i := 0; i < 127; i++ {
+		for i := range 127 {
 			var owner any = f.user
 			if i >= 120 {
 				owner = nil

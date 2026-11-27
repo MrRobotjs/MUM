@@ -40,7 +40,7 @@ func TestEditDispatchedUncertaintySurvivesAuthorityLoss(t *testing.T) {
 			return err
 		}
 		target.Stage = "deleting"
-		b = editStored{editReceipt: editReceipt{ID: newUUID(), Revision: "1", Action: "delete_users", State: "prepared", Results: []editUserResult{{UUID: id, Outcome: "unknown"}}, Warnings: []string{}, Effects: []string{}}, Actor: owner.UUID, AccessHash: tokenHash(token), Operation: editOperationInput{Action: "delete_users"}, Targets: []editTarget{target}}
+		b = editStored{ID: newUUID(), Revision: "1", Action: "delete_users", State: "prepared", Results: []editUserResult{{UUID: id, Outcome: "unknown"}}, Warnings: []string{}, Effects: []string{}, Actor: owner.UUID, AccessHash: tokenHash(token), Operation: editOperationInput{Action: "delete_users"}, Targets: []editTarget{target}}
 		if err := tx.QueryRow("SELECT revision FROM admin_role_state WHERE singleton=1").Scan(&b.Role); err != nil {
 			return err
 		}
@@ -240,7 +240,7 @@ func TestEditPlexFriendshipGroupsSelectedServersAndPreservesUnselectedRecords(t 
 	a.ProviderHTTP = provider.client
 	local, _ := s.CreateAccount(t.Context(), owner.UUID, "plex-mixed-local", "fixture-hash", false)
 	var services []string
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		result, err := s.writer.Exec(`INSERT INTO media_servers(server_nickname,service_type,url,api_key) VALUES(?,'plex','http://fixture.invalid','fixture-secret')`, fmt.Sprintf("plex-group-%d", i))
 		if err != nil {
 			t.Fatal(err)

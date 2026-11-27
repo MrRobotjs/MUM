@@ -362,7 +362,7 @@ const AdminSettingsApiDebugPage = () => {
       {/* Info Notice */}
       <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4">
         <div className="flex items-start gap-3">
-          <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+          <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center shrink-0 mt-0.5">
             <FontAwesomeIcon icon={faCircleInfo} className="text-blue-500 text-xs" />
           </div>
           <div>
@@ -378,7 +378,7 @@ const AdminSettingsApiDebugPage = () => {
       <Card>
         <CardHeader>
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center flex-shrink-0">
+            <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center shrink-0">
               <FontAwesomeIcon icon={faTerminal} className="text-blue-500 text-sm" />
             </div>
             <div>
@@ -543,7 +543,7 @@ const AdminSettingsApiDebugPage = () => {
       {error && (
         <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4">
           <div className="flex items-start gap-3">
-            <div className="w-6 h-6 rounded-full bg-destructive/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+            <div className="w-6 h-6 rounded-full bg-destructive/20 flex items-center justify-center shrink-0 mt-0.5">
               <FontAwesomeIcon icon={faTriangleExclamation} className="text-destructive text-xs" />
             </div>
             <div>
@@ -559,7 +559,7 @@ const AdminSettingsApiDebugPage = () => {
         <Card>
           <CardHeader>
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center flex-shrink-0">
+              <div className="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center shrink-0">
                 <FontAwesomeIcon icon={faClipboardList} className="text-green-500 text-sm" />
               </div>
               <div>
@@ -703,7 +703,7 @@ const AdminSettingsApiDebugPage = () => {
       <Card>
         <CardHeader>
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-yellow-500/20 flex items-center justify-center flex-shrink-0">
+            <div className="w-8 h-8 rounded-full bg-yellow-500/20 flex items-center justify-center shrink-0">
               <FontAwesomeIcon icon={faLightbulb} className="text-yellow-500 text-sm" />
             </div>
             <div>
@@ -835,7 +835,7 @@ const AdminSettingsApiDebugPage = () => {
       <Card>
         <CardHeader>
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-amber-500/20 flex items-center justify-center flex-shrink-0">
+            <div className="w-8 h-8 rounded-full bg-amber-500/20 flex items-center justify-center shrink-0">
               <FontAwesomeIcon icon={faTriangleExclamation} className="text-amber-500 text-sm" />
             </div>
             <div>

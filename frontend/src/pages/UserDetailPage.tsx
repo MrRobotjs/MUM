@@ -179,7 +179,7 @@ const ProfileTab = ({ user,target }: { user: UserDetail;target:string }) => {
                     <div className="flex items-center gap-1.5 mt-1">
                       <span className={cn("text-[10px] font-bold uppercase tracking-wider", playbackInfo.color)}>{playing.state}</span>
                       <span className="text-[10px] text-muted-foreground/60">·</span>
-                      <span className="text-[10px] text-muted-foreground font-medium truncate max-w-[140px]" title={playing.serverName}>{playing.serverName}</span>
+                      <span className="text-[10px] text-muted-foreground font-medium truncate max-w-35" title={playing.serverName}>{playing.serverName}</span>
                     </div>
                   </div>
                   {playing.others > 0 && (
@@ -359,7 +359,7 @@ const ProfileTab = ({ user,target }: { user: UserDetail;target:string }) => {
                 {totals.periods.map(period => {
                   const tile=periodTiles[period.period];
                   return (
-                    <div key={period.period} className={cn('rounded-xl border border-border p-4 shadow-sm transition-shadow hover:shadow-md', `bg-gradient-to-br ${tile.gradient}`)}>
+                    <div key={period.period} className={cn('rounded-xl border border-border p-4 shadow-sm transition-shadow hover:shadow-md', `bg-linear-to-br ${tile.gradient}`)}>
                       <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground"><FontAwesomeIcon icon={tile.icon} className={tile.iconColor}/>{tile.title}</div>
                       <div className="mt-3 flex items-baseline gap-1">
                         <span className="text-3xl font-bold text-foreground">{count(period.plays)}</span>
@@ -723,7 +723,7 @@ export const UserDetailPage = () => {
   return (
     <div className="space-y-6">
       <section className="overflow-hidden rounded-xl border border-border bg-background shadow-lg">
-        <div className={cn('bg-gradient-to-r p-8 text-center border-b border-border', heroTheme.gradient)}>
+        <div className={cn('bg-linear-to-r p-8 text-center border-b border-border', heroTheme.gradient)}>
           <div className="flex flex-col items-center space-y-4">
             {/* Avatar */}
             <div className="avatar">

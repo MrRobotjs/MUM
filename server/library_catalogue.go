@@ -401,11 +401,9 @@ func (a *App) startLibraryEpisodes(id int64, actor, access string, library catal
 	run := a.catalogueRuns[id]
 	run.Phase, run.ShowsTotal = "episodes", len(shows)
 	delete(a.episodeOutcomes, id)
-	a.catalogueWG.Add(1)
-	go func() {
-		defer a.catalogueWG.Done()
+	a.catalogueWG.Go(func() {
 		a.runLibraryEpisodes(id, actor, access, library, provider, shows)
-	}()
+	})
 	return true
 }
 
@@ -995,8 +993,7 @@ func (a *App) serveSignedImage(w http.ResponseWriter, r *http.Request, param, pu
 		}
 	}
 	if err != nil {
-		var avatarError *plexAvatarError
-		if errors.As(err, &avatarError) {
+		if avatarError, ok := errors.AsType[*plexAvatarError](err); ok {
 			a.logger.Warn("Plex avatar fetch failed", "server_id", source.Server, "code", avatarError.Code, "upstream_status", avatarError.Status, "redirect_domain", avatarError.Domain, "content_type", avatarError.ContentType)
 			fail(w, 502, avatarError.Code, "The Plex avatar could not be retrieved")
 			return

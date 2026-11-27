@@ -9,7 +9,7 @@ import (
 
 func fixtureEpisodes(series string, n int, prefix string) []map[string]any {
 	out := []map[string]any{}
-	for i := 0; i < n; i++ {
+	for i := range n {
 		e := map[string]any{"Id": fmt.Sprintf("%s%03d", prefix, i), "Name": fmt.Sprintf("Episode %03d", i), "Type": "Episode", "SeriesId": series,
 			"ParentIndexNumber": 1 + i/20, "IndexNumber": 1 + i%20, "ProductionYear": 2020 + i/20, "RunTimeTicks": 26000000000}
 		if i%2 == 0 {

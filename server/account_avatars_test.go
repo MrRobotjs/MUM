@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -37,12 +38,7 @@ func (f *avatarFixture) server(t *testing.T) *httptest.Server {
 func (f *avatarFixture) seen(path string) bool {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	for _, p := range f.requests {
-		if p == path {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(f.requests, path)
 }
 
 // avatarSetup: the owner and a member "viewer"; Plex, Jellyfin and Kavita

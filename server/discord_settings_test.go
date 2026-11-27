@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -64,9 +65,7 @@ func discordBody(revision any, extra map[string]any) map[string]any {
 	body := map[string]any{"revision": revision, "enable_oauth": false, "enable_bot": false, "enable_membership_requirement": false, "default_require_discord_auth": false, "default_require_discord_guild_membership": false,
 		"client_id": "", "client_secret": "", "oauth_auth_url": "", "guild_id": "", "server_invite_url": "", "bot_token": "", "monitored_role_id": "", "thread_channel_id": "", "bot_log_channel_id": "",
 		"whitelist_sharers": false, "redirect_uri_invite": "", "redirect_uri_admin": ""}
-	for k, v := range extra {
-		body[k] = v
-	}
+	maps.Copy(body, extra)
 	return body
 }
 
@@ -252,12 +251,8 @@ func TestDiscordDefaultsAndSignInSwitches(t *testing.T) {
 	on := map[string]any{"enable_oauth": true, "client_id": discordFixtureClient, "client_secret": "valid-discord-secret"}
 	with := func(extra map[string]any) map[string]any {
 		out := map[string]any{}
-		for k, v := range on {
-			out[k] = v
-		}
-		for k, v := range extra {
-			out[k] = v
-		}
+		maps.Copy(out, on)
+		maps.Copy(out, extra)
 		return out
 	}
 	if w := apiRequest(a, "PATCH", "/api/settings/discord", token, discordBody(1, with(map[string]any{"default_require_discord_guild_membership": true})), nil); w.Code != 400 {

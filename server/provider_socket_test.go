@@ -19,7 +19,7 @@ import (
 func TestProviderSocketTargetsIncludeEverySupportedServer(t *testing.T) {
 	a, _ := testApp(t)
 	token, _ := bootstrapOwner(t, a)
-	for i := 0; i < 18; i++ {
+	for i := range 18 {
 		w := apiRequest(a, "POST", "/api/servers", token, map[string]any{"server_nickname": fmt.Sprintf("Plex %d", i), "service_type": "plex", "url": "http://example.invalid", "api_key": "fixture-secret"}, nil)
 		if w.Code != http.StatusCreated {
 			t.Fatal(w.Code, w.Body.String())
@@ -90,7 +90,7 @@ func TestProviderSocketRuntimeQueuesRedactedHintsAndReconcilesCompleteHTTP(t *te
 				if start["MessageType"] != "SessionsStart" || start["Data"] != "0,5000" {
 					t.Error("wrong subscription")
 				}
-				for i := 0; i < 20; i++ {
+				for range 20 {
 					if err = wsjson.Write(r.Context(), c, map[string]any{"MessageType": "Sessions", "Data": []any{}, "Private": "never persist fixture-secret"}); err != nil {
 						return
 					}

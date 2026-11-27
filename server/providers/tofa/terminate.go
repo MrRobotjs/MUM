@@ -18,8 +18,7 @@ func (s *Server) TerminateSession(ctx context.Context, session, message string) 
 		return provider.ErrTerminateRefused
 	}
 	err := s.transport.JSON(ctx, http.MethodDelete, s.url+"/api/v1/system/playback/sessions/"+session, func(h http.Header) { h.Set("Authorization", "Bearer "+s.key) }, nil, nil)
-	var status *provider.HTTPError
-	if errors.As(err, &status) {
+	if status, ok := errors.AsType[*provider.HTTPError](err); ok {
 		switch status.StatusCode {
 		case http.StatusNotFound:
 			return provider.ErrSessionGone

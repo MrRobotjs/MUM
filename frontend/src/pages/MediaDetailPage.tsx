@@ -547,11 +547,11 @@ const MediaDetailPageView = () => {
   return (
     <div className="container mx-auto px-4 py-8 space-y-6">
       {/* Hero Header Section */}
-      <Card className="bg-gradient-to-r from-primary/10 to-secondary/10">
+      <Card className="bg-linear-to-r from-primary/10 to-secondary/10">
         <CardContent className="p-8">
           <div className="flex flex-col lg:flex-row items-center gap-8">
             {/* Media Poster */}
-            <div className="flex-shrink-0">
+            <div className="shrink-0">
               {mediaItem.thumb ? (
                 <div className="w-48 h-72 rounded-lg overflow-hidden shadow-lg bg-accent">
                   <img
@@ -569,7 +569,7 @@ const MediaDetailPageView = () => {
 
             {/* Media Info */}
             <div className="text-center lg:text-left space-y-4 flex-1">
-              <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold break-words">
+              <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold wrap-break-word">
                 {mediaItem.title}
               </h1>
 
@@ -847,7 +847,7 @@ const MediaDetailPageView = () => {
                     <div className="flex items-center gap-2">
                       <Label className="text-sm whitespace-nowrap">Sort by:</Label>
                       <Select value={episodesSortBy} onValueChange={setEpisodesSortBy}>
-                        <SelectTrigger className="w-[240px]">
+                        <SelectTrigger className="w-60">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -875,7 +875,7 @@ const MediaDetailPageView = () => {
                           setEpisodesPage(1);
                         }}
                       >
-                        <SelectTrigger className="w-[100px]">
+                        <SelectTrigger className="w-25">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -896,7 +896,7 @@ const MediaDetailPageView = () => {
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4">
                   {Array.from({ length: 8 }).map((_, idx) => (
                     <div key={idx} className="space-y-2">
-                      <Skeleton className="aspect-[2/3] w-full rounded-lg" />
+                      <Skeleton className="aspect-2/3 w-full rounded-lg" />
                       <Skeleton className="h-4 w-3/4 mx-auto" />
                     </div>
                   ))}
@@ -907,7 +907,7 @@ const MediaDetailPageView = () => {
                     {episodes.map((episode) => (
                       <Link key={episode.id} {...appLinks.episode(serverId, libraryId, mediaId, episode.id)} className="group cursor-pointer block">
                         {/* Episode Poster Container */}
-                        <div className="relative aspect-[2/3] bg-accent rounded-lg overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 group-hover:scale-105">
+                        <div className="relative aspect-2/3 bg-accent rounded-lg overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 group-hover:scale-105">
                           {episode.thumb ? (
                             <img
                               src={episode.thumb || ''}

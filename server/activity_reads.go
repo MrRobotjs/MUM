@@ -179,10 +179,7 @@ func readActivityStatuses(ctx context.Context, tx *sql.Tx, actor string, q activ
 			if err != nil || at.After(now.Add(time.Second)) {
 				return nil, nil, ErrConflict
 			}
-			age := int64(now.Sub(at) / time.Second)
-			if age < 0 {
-				age = 0
-			}
+			age := max(int64(now.Sub(at)/time.Second), 0)
 			item.Observed = &observed.String
 			item.Age = &age
 			item.Freshness = "fresh"

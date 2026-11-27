@@ -34,7 +34,7 @@ type tofaShow struct {
 }
 
 func (s *Server) CatalogueEpisodes(ctx context.Context, show string) ([]provider.CatalogueItem, error) {
-	for attempt := 0; attempt < catalogueSnapshotAttempts; attempt++ {
+	for attempt := range catalogueSnapshotAttempts {
 		items, err := s.catalogueEpisodesOnce(ctx, show)
 		if !errors.Is(err, errCatalogueChanged) || ctx.Err() != nil || attempt == catalogueSnapshotAttempts-1 {
 			return items, err

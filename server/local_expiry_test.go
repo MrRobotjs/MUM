@@ -121,7 +121,7 @@ func TestLocalExpiryBoundedBatchAndCancellation(t *testing.T) {
 	a, s := testApp(t)
 	owner, _ := bootstrapOwner(t, a)
 	if err := s.write(t.Context(), func(tx *sql.Tx) error {
-		for i := 0; i < 105; i++ {
+		for i := range 105 {
 			id := newUUID()
 			if _, err := tx.Exec("INSERT INTO identities(uuid,kind) VALUES(?,'local')", id); err != nil {
 				return err

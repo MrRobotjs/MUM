@@ -337,7 +337,7 @@ func TestServiceSignInRateLimits(t *testing.T) {
 		t.Fatal("a limited attempt reached the server", f.up.logins.Load())
 	}
 	// Other usernames from the same address are limited at 10 per minute.
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		serviceSignIn(f.a, f.server, "user"+string(rune('a'+i)), "wrong-password")
 	}
 	if w := serviceSignIn(f.a, f.server, "another", "wrong-password"); w.Code != 429 {

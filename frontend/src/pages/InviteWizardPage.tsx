@@ -154,7 +154,7 @@ const ServerAccessDetails = ({ server, invite, grantLibraryIds }: ServerAccessDe
       <div className="bg-muted/30 border border-border rounded-lg overflow-hidden">
         <CollapsibleTrigger className="flex items-center justify-between w-full p-4 cursor-pointer hover:bg-muted/50 transition-colors">
           <div className="flex items-center gap-3">
-            <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center flex-shrink-0">
+            <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center shrink-0">
               <FontAwesomeIcon icon={faInfo} className="text-blue-500 text-xs" />
             </div>
             <span className="font-medium text-foreground">{server.name} Access Details</span>
@@ -170,7 +170,7 @@ const ServerAccessDetails = ({ server, invite, grantLibraryIds }: ServerAccessDe
             {/* Server Information */}
             <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4">
               <div className="flex items-start gap-3">
-                <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center shrink-0 mt-0.5">
                   <FontAwesomeIcon icon={faServer} className="text-blue-500 text-xs" />
                 </div>
                 <div>
@@ -192,7 +192,7 @@ const ServerAccessDetails = ({ server, invite, grantLibraryIds }: ServerAccessDe
             {/* Library Access */}
             <div className="bg-primary/10 border border-primary/20 rounded-lg p-4">
               <div className="flex items-start gap-3">
-                <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center shrink-0 mt-0.5">
                   <FontAwesomeIcon icon={faFolder} className="text-primary text-xs" />
                 </div>
                 <div className="flex-1">
@@ -229,7 +229,7 @@ const ServerAccessDetails = ({ server, invite, grantLibraryIds }: ServerAccessDe
             {/* Features & Permissions */}
             <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-4">
               <div className="flex items-start gap-3">
-                <div className="w-6 h-6 rounded-full bg-green-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <div className="w-6 h-6 rounded-full bg-green-500/20 flex items-center justify-center shrink-0 mt-0.5">
                   <FontAwesomeIcon icon={faStar} className="text-green-500 text-xs" />
                 </div>
                 <div>
@@ -294,7 +294,7 @@ const ServerAccessDetails = ({ server, invite, grantLibraryIds }: ServerAccessDe
             {/* Invite Information */}
             <div className="bg-purple-500/10 border border-purple-500/20 rounded-lg p-4">
               <div className="flex items-start gap-3">
-                <div className="w-6 h-6 rounded-full bg-purple-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <div className="w-6 h-6 rounded-full bg-purple-500/20 flex items-center justify-center shrink-0 mt-0.5">
                   <FontAwesomeIcon icon={faCalendar} className="text-purple-500 text-xs" />
                 </div>
                 <div>
@@ -721,7 +721,7 @@ export const InviteWizardPage = () => {
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <div className="w-full max-w-4xl">
           <div className="bg-card border rounded-xl shadow-lg overflow-hidden">
-            <div className="bg-gradient-to-r from-primary/10 to-secondary/10 p-6 text-center border-b border">
+            <div className="bg-linear-to-r from-primary/10 to-secondary/10 p-6 text-center border-b border">
               <div className="flex flex-col items-center gap-3">
                 <Skeleton className="h-16 w-16 rounded-full" />
                 <Skeleton className="h-6 w-48" />
@@ -796,7 +796,7 @@ export const InviteWizardPage = () => {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <div className="w-full max-w-2xl">
-          <div className="bg-gradient-to-br from-success/10 to-primary/10 border border-green-200 dark:border-green-500/20 rounded-xl p-8 shadow-lg">
+          <div className="bg-linear-to-br from-success/10 to-primary/10 border border-green-200 dark:border-green-500/20 rounded-xl p-8 shadow-lg">
             <div className="text-center mb-8">
               <div className="w-20 h-20 rounded-full bg-green-100/20 flex items-center justify-center mx-auto mb-6">
               <FontAwesomeIcon icon={faCircleCheck} className="text-green-600 dark:text-green-400 text-3xl" />
@@ -813,7 +813,7 @@ export const InviteWizardPage = () => {
                 {state.plex.authenticated && state.plex.user && (
                   <div className="bg-[#e5a00d]/10 border border-[#e5a00d]/20 rounded-lg p-4">
                     <div className="flex items-start gap-3">
-                      <div className="w-6 h-6 rounded-full bg-[#e5a00d]/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <div className="w-6 h-6 rounded-full bg-[#e5a00d]/20 flex items-center justify-center shrink-0 mt-0.5">
                         <FontAwesomeIcon icon={faRightToBracket} className="text-[#e5a00d] text-xs" />
                       </div>
                       <div>
@@ -896,7 +896,7 @@ export const InviteWizardPage = () => {
       <div className="w-full max-w-4xl">
         <div className="bg-card border rounded-xl shadow-lg overflow-hidden">
           {/* Header */}
-          <div className="bg-gradient-to-r from-primary/10 to-secondary/10 p-6 text-center border-b border">
+          <div className="bg-linear-to-r from-primary/10 to-secondary/10 p-6 text-center border-b border">
             <div className="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center mx-auto mb-4">
               <FontAwesomeIcon icon={faEnvelopeOpenText} className="text-primary text-2xl" />
             </div>
@@ -1008,7 +1008,7 @@ export const InviteWizardPage = () => {
                         >
                           <div
                             className={cn(
-                              'w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0',
+                              'w-6 h-6 rounded-full flex items-center justify-center shrink-0',
                               step.completed
                                 ? 'bg-primary text-primary-content'
                                 : step.isActive
@@ -1095,7 +1095,7 @@ export const InviteWizardPage = () => {
                                   <div className="flex items-center gap-2 min-w-0">
                                     <div
                                       className={cn(
-                                        'w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0',
+                                        'w-5 h-5 rounded-full flex items-center justify-center shrink-0',
                                         step.completed
                                           ? 'bg-primary text-primary-content'
                                           : isActiveServerStep
@@ -1142,7 +1142,7 @@ export const InviteWizardPage = () => {
               {state.account.allowed && currentStepId === 'user_account' && (
                 <div className="bg-muted/50 border rounded-lg p-6">
                   <div className="flex items-center gap-3 mb-6">
-                    <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
+                    <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
                       <FontAwesomeIcon icon={faUserPlus} className="text-primary text-lg" />
                     </div>
                     <div>
@@ -1220,7 +1220,7 @@ export const InviteWizardPage = () => {
                     {state.servers.some((server) => server.service_type !== 'PLEX' && server.service_type !== 'TOFA') && (
                     <div className="bg-blue-50 dark:bg-blue-400/10 border border-blue-200 dark:border-blue-500/20 rounded-lg p-4 mt-6">
                       <div className="flex items-start gap-3 mb-4">
-                        <div className="w-6 h-6 rounded-full bg-blue-100/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <div className="w-6 h-6 rounded-full bg-blue-100/20 flex items-center justify-center shrink-0 mt-0.5">
                           <FontAwesomeIcon icon={faLink} className="text-blue-600 dark:text-blue-400 text-xs" />
                         </div>
                         <div>
@@ -1334,7 +1334,7 @@ export const InviteWizardPage = () => {
               {state.discord.oauth_enabled && currentStepId === 'discord' && !state.discord.authenticated && (
                 <div className="bg-muted/50 border rounded-lg p-6">
                   <div className="flex items-center gap-3 mb-6">
-                    <div className="w-10 h-10 rounded-full bg-[#5865F2]/20 flex items-center justify-center flex-shrink-0">
+                    <div className="w-10 h-10 rounded-full bg-[#5865F2]/20 flex items-center justify-center shrink-0">
                       <FontAwesomeIcon icon={faDiscord} className="text-[#5865F2] text-lg" />
                     </div>
                     <div>
@@ -1355,7 +1355,7 @@ export const InviteWizardPage = () => {
                   {state.discord.guild_error && (
                     <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4 mb-6">
                       <div className="flex items-start gap-3">
-                        <div className="w-6 h-6 rounded-full bg-destructive/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <div className="w-6 h-6 rounded-full bg-destructive/20 flex items-center justify-center shrink-0 mt-0.5">
                           <FontAwesomeIcon icon={faTriangleExclamation} className="text-destructive text-xs" />
                         </div>
                         <div>
@@ -1369,7 +1369,7 @@ export const InviteWizardPage = () => {
                   {state.discord.requires_guild && (
                     <div className="bg-[#5865F2]/10 border border-[#5865F2]/20 rounded-lg p-4 mb-6">
                       <div className="flex items-start gap-3">
-                        <div className="w-6 h-6 rounded-full bg-[#5865F2]/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <div className="w-6 h-6 rounded-full bg-[#5865F2]/20 flex items-center justify-center shrink-0 mt-0.5">
                           <FontAwesomeIcon icon={faInfo} className="text-[#5865F2] text-xs" />
                         </div>
                         <div>
@@ -1420,7 +1420,7 @@ export const InviteWizardPage = () => {
                 <div className="bg-muted/50 border rounded-lg p-6">
                   {state.plex.authenticated ? (
                     <div className="flex items-center gap-3 mb-6">
-                      <div className="w-10 h-10 rounded-full bg-[#e5a00d]/20 flex items-center justify-center flex-shrink-0">
+                      <div className="w-10 h-10 rounded-full bg-[#e5a00d]/20 flex items-center justify-center shrink-0">
                         <svg className="w-5 h-5 text-[#e5a00d]" viewBox="0 0 192 192" xmlns="http://www.w3.org/2000/svg" fill="currentColor">
                           <path d="M22 25.5h48L116 94l-46 68.5H22L68.5 94Zm109.8 56L108 46l14-20.5h48zm-.3 23.5c10.979 17.625 25.52 38.875 38.5 49.5-11.149 13.635-34.323 32.278-62.5-14z" />
                         </svg>
@@ -1441,7 +1441,7 @@ export const InviteWizardPage = () => {
                   ) : (
                     <>
                       <div className="flex items-center gap-3 mb-6">
-                        <div className="w-10 h-10 rounded-full bg-[#e5a00d]/20 flex items-center justify-center flex-shrink-0">
+                        <div className="w-10 h-10 rounded-full bg-[#e5a00d]/20 flex items-center justify-center shrink-0">
                           <svg className="w-5 h-5 text-[#e5a00d]" viewBox="0 0 192 192" xmlns="http://www.w3.org/2000/svg" fill="currentColor">
                             <path d="M22 25.5h48L116 94l-46 68.5H22L68.5 94Zm109.8 56L108 46l14-20.5h48zm-.3 23.5c10.979 17.625 25.52 38.875 38.5 49.5-11.149 13.635-34.323 32.278-62.5-14z" />
                           </svg>
@@ -1539,7 +1539,7 @@ export const InviteWizardPage = () => {
                 return (
                 <div key={activeServer.id} className="bg-muted/50 border rounded-lg p-6">
                   <div className="flex items-center gap-3 mb-6">
-                    <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
+                    <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
                       <FontAwesomeIcon icon={faServer} className="text-primary text-lg" />
                     </div>
                     <div>
@@ -1663,7 +1663,7 @@ export const InviteWizardPage = () => {
 
               {/* Complete Button */}
               {allStepsComplete && (
-                <div className="bg-gradient-to-br from-success/10 to-primary/10 border border-green-200 dark:border-green-500/20 rounded-lg p-8">
+                <div className="bg-linear-to-br from-success/10 to-primary/10 border border-green-200 dark:border-green-500/20 rounded-lg p-8">
                   <div className="text-center mb-8">
                     <div className="w-20 h-20 rounded-full bg-green-100/20 flex items-center justify-center mx-auto mb-6">
                       <FontAwesomeIcon icon={faCircleCheck} className="text-green-600 dark:text-green-400 text-3xl" />

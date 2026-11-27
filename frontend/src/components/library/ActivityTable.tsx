@@ -89,7 +89,7 @@ export const ActivityTable = ({ days, onDaysChange, page, totalPages, onPageChan
         {loading ? (
           <div className="space-y-3">
             {Array.from({ length: 6 }).map((_, idx) => <div key={idx} className="flex items-center gap-4">
-              <Skeleton className="w-12 h-16 flex-shrink-0" />
+              <Skeleton className="w-12 h-16 shrink-0" />
               <div className="flex-1 space-y-2"><Skeleton className="h-4 w-48" /><Skeleton className="h-3 w-32" /></div>
             </div>)}
           </div>

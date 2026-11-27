@@ -173,7 +173,7 @@ const PayloadDialog = ({
             </Button>
           </div>
           <div className="rounded-lg border border-border/60 bg-muted/40 p-3">
-            <pre className="max-h-[60vh] overflow-auto whitespace-pre-wrap break-words text-xs text-foreground">
+            <pre className="max-h-[60vh] overflow-auto whitespace-pre-wrap wrap-break-word text-xs text-foreground">
               {formattedPayload}
             </pre>
           </div>
@@ -531,10 +531,10 @@ export const StreamingSessionCard = ({
     return (
       <div className="group relative overflow-hidden rounded-xl border border-border/50 bg-card shadow-md transition-all duration-300 hover:shadow-lg">
         <StreamingSourceInfoDialog open={showSourceInfo} onOpenChange={setShowSourceInfo} />
-        <div className={`absolute inset-0 ${serviceMeta.streamingGradient ?? 'bg-gradient-to-r from-muted/40 via-card to-card'} opacity-35 pointer-events-none`} />
+        <div className={`absolute inset-0 ${serviceMeta.streamingGradient ?? 'bg-linear-to-r from-muted/40 via-card to-card'} opacity-35 pointer-events-none`} />
 
-        <div className="relative z-10 flex min-h-[108px] items-center gap-3 p-2.5">
-          <div className="relative h-[92px] w-[62px] shrink-0 overflow-hidden rounded-md bg-muted ring-1 ring-border/60 shadow-sm">
+        <div className="relative z-10 flex min-h-27 items-center gap-3 p-2.5">
+          <div className="relative h-23 w-15.5 shrink-0 overflow-hidden rounded-md bg-muted ring-1 ring-border/60 shadow-sm">
             {session.thumb_url ? (
               <img
                 key={session.thumb_url}
@@ -786,7 +786,7 @@ export const StreamingSessionCard = ({
     >
       <StreamingSourceInfoDialog open={showSourceInfo} onOpenChange={setShowSourceInfo} />
       {/* Background Gradient & Border Helper */}
-      <div className={`absolute inset-0 ${serviceMeta.streamingGradient ?? 'bg-gradient-to-br via-card to-card from-muted/50'} pointer-events-none`} />
+      <div className={`absolute inset-0 ${serviceMeta.streamingGradient ?? 'bg-linear-to-br via-card to-card from-muted/50'} pointer-events-none`} />
 
       {/* Main Content Container */}
       <div className="relative z-10 flex h-full flex-col text-card-foreground">
@@ -1020,7 +1020,7 @@ export const StreamingSessionCard = ({
         <div className="flex flex-1 flex-col gap-2 p-4 backdrop-blur-sm">
           {/* Quality Line */}
           <div className="flex items-start gap-3 text-xs sm:text-sm">
-            <span className="min-w-[40px] font-medium text-muted-foreground">Quality</span>
+            <span className="min-w-10 font-medium text-muted-foreground">Quality</span>
             <span className="text-foreground/90 font-medium">
               {session.quality_detail || 'Unknown'}
             </span>
@@ -1028,7 +1028,7 @@ export const StreamingSessionCard = ({
 
           {/* Bandwidth Line */}
           <div className="flex items-start gap-3 text-xs sm:text-sm">
-            <span className="min-w-[40px] font-medium text-muted-foreground">Bandwidth</span>
+            <span className="min-w-10 font-medium text-muted-foreground">Bandwidth</span>
             <span className="text-foreground/90 font-medium">
               {session.bandwidth_detail || 'Unknown'}
               {session.measured_bandwidth_detail ? (
@@ -1053,7 +1053,7 @@ export const StreamingSessionCard = ({
 
           {/* Container Line */}
           <div className="flex items-start gap-3 text-xs sm:text-sm">
-            <span className="min-w-[40px] font-medium text-muted-foreground">Container</span>
+            <span className="min-w-10 font-medium text-muted-foreground">Container</span>
             <span className="text-foreground/90 font-medium">
               {session.container_detail || 'Unknown'}
             </span>
@@ -1061,7 +1061,7 @@ export const StreamingSessionCard = ({
 
           {/* Video Line */}
           <div className="flex items-start gap-3 text-xs sm:text-sm">
-            <span className="min-w-[40px] font-medium text-muted-foreground">Video</span>
+            <span className="min-w-10 font-medium text-muted-foreground">Video</span>
             <div className="flex flex-col">
               <span className="text-foreground/90 font-medium">
                 {session.video_detail || 'Unknown Video'}
@@ -1130,7 +1130,7 @@ export const StreamingSessionCard = ({
 
           {/* Audio Line */}
           <div className="flex items-start gap-3 text-xs sm:text-sm">
-            <span className="min-w-[40px] font-medium text-muted-foreground">Audio</span>
+            <span className="min-w-10 font-medium text-muted-foreground">Audio</span>
             <div className="flex flex-col">
               <span className="text-foreground/90 font-medium">{resolvedAudioDetail || 'Unknown Audio'}</span>
               {isTranscoding && session.stream_detail?.toLowerCase().includes('audio') && (
@@ -1165,7 +1165,7 @@ export const StreamingSessionCard = ({
           {/* Subtitle Line */}
           {session.subtitle_detail && (
             <div className="flex items-start gap-3 text-xs sm:text-sm">
-              <span className="min-w-[40px] font-medium text-muted-foreground">Sub</span>
+              <span className="min-w-10 font-medium text-muted-foreground">Sub</span>
               <span className="text-foreground/90 font-medium">{session.subtitle_detail}</span>
             </div>
           )}

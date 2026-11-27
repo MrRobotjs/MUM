@@ -314,13 +314,13 @@ export const ServerDetailPage = ({ section = 'overview' }: { section?: ServerTab
 
   return (
     <div className="container mx-auto space-y-6">
-      <Card className={`bg-gradient-to-r ${serviceMeta.detailGradient || serviceMeta.gradient}`}>
+      <Card className={`bg-linear-to-r ${serviceMeta.detailGradient || serviceMeta.gradient}`}>
         <CardContent className="p-8">
           <div className="flex flex-col items-center space-y-4">
             <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-background/90 text-5xl shadow-inner ring-1 ring-black/5 dark:bg-background/70">
               <ServiceIcon serviceType={serviceType} />
             </div>
-            <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold text-center break-words">
+            <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold text-center wrap-break-word">
               {server.server_nickname || `Server ${server.id}`}
             </h1>
             <div className="flex flex-wrap items-center justify-center gap-3 text-sm">

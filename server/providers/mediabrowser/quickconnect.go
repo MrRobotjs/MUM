@@ -19,8 +19,7 @@ func identifyClient(header http.Header) {
 }
 
 func httpStatus(err error) int {
-	var status *provider.HTTPError
-	if errors.As(err, &status) {
+	if status, ok := errors.AsType[*provider.HTTPError](err); ok {
 		return status.StatusCode
 	}
 	return 0

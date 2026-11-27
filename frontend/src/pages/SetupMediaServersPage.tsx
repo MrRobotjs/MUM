@@ -1,8 +1,7 @@
 import { useEffect } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faCircleInfo, faCircleExclamation } from '@fortawesome/free-solid-svg-icons'
-
+import { faCircleExclamation } from '@fortawesome/free-solid-svg-icons'
 import { useMediaServices } from '../hooks/useMediaServices'
 import { MediaServiceList } from '../components/mediaServices'
 import { SetupLayout } from './SetupLayout'
@@ -31,15 +30,7 @@ function SetupMediaServersContent() {
           <AlertTitle>Error Loading Media Services</AlertTitle>
           <AlertDescription>{error instanceof Error ? error.message : 'Failed to load media services. Please try again.'}</AlertDescription>
         </Alert>
-      ) : (
-        <Alert variant="info">
-          <FontAwesomeIcon icon={faCircleInfo} className="h-4 w-4" />
-          <AlertTitle>Media Server Setup</AlertTitle>
-          <AlertDescription>
-            Each media service MUM supports is listed with what it can do. Add a server to a service, then turn it on.
-          </AlertDescription>
-        </Alert>
-      )}
+      ) : null}
 
       {error ? null : <MediaServiceList services={services} loading={loading} setup />}
 

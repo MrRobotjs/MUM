@@ -22,7 +22,7 @@ import {
   faUsers,
   faUsersSlash
 } from '@fortawesome/free-solid-svg-icons'
-
+import { InfoButton } from '../common/InfoButton';
 interface AdminRoleMembersTabProps {
   role: AdminRole
   onUpdate: () => Promise<void>
@@ -103,9 +103,16 @@ export const AdminRoleMembersTab = ({ role, onUpdate }: AdminRoleMembersTabProps
               <FontAwesomeIcon icon={faUsers} className="size-5 text-primary" />
             </div>
             <div>
-              <h2 className="mb-1 text-xl font-semibold">Role Members</h2>
+              <div className="mb-1 flex flex-wrap items-center gap-2">
+                <h2 className="text-xl font-semibold">Role Members</h2>
+                {isAutoManaged && <span className="flex items-center gap-1"><Badge variant="outline">Auto-managed</Badge>
+                  <InfoButton title="Auto-managed membership"><p>Assignments for this role are managed by the system, so members can’t be added or removed here.</p></InfoButton></span>}
+              </div>
               <p className="text-sm text-muted-foreground">
                 Review explicit role assignments. Manage eligible local accounts within your current role hierarchy.
+              </p>
+              <p className="mt-1 text-sm">
+                {membersError ? 'Membership unavailable' : membersLoading ? 'Loading membership…' : `${members.length} explicit assignment${members.length !== 1 ? 's' : ''} to this role`}
               </p>
             </div>
           </div>
@@ -117,24 +124,6 @@ export const AdminRoleMembersTab = ({ role, onUpdate }: AdminRoleMembersTabProps
           )}
         </div>
 
-        {/* Stats Card */}
-        <Alert variant="info">
-          <FontAwesomeIcon icon={faCircleInfo} />
-          <AlertTitle>Current Members</AlertTitle>
-          <AlertDescription>
-            {membersError ? 'Membership unavailable' : membersLoading ? 'Loading membership…' : `${members.length} explicit assignment${members.length !== 1 ? 's' : ''} to this role`}
-          </AlertDescription>
-        </Alert>
-
-        {isAutoManaged && (
-          <Alert variant="info">
-            <FontAwesomeIcon icon={faCircleInfo} />
-            <AlertTitle>Auto-managed membership</AlertTitle>
-            <AlertDescription>
-              Assignments for this role are managed by the system. Membership changes are unavailable here.
-            </AlertDescription>
-          </Alert>
-        )}
       </div>
 
       {/* Members List Section */}

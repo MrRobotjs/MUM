@@ -1,11 +1,10 @@
 import { useState, useRef, useEffect, useMemo, lazy, Suspense } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faCog, faPalette, faCircleInfo, faXmark, faPaintbrush, faGrip, faCheck } from '@fortawesome/free-solid-svg-icons'
+import { faCog, faPalette, faXmark, faPaintbrush, faGrip, faCheck } from '@fortawesome/free-solid-svg-icons'
 import { UserRole } from '../../hooks/useUserRoles'
 import { useAlerts, useTheme } from '../../contexts'
 import {changeUserRoleCatalog,type UserRoleCatalog} from '../../lib/userRoleCatalog'
 import {getAccessToken} from '../../store/authStore'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { UnsavedChangesBar } from '@/components/common/UnsavedChangesBar'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -96,7 +95,7 @@ export const UserRoleDisplayTab = ({ role, catalog, onUpdate }: UserRoleDisplayT
     <div className="space-y-6">
       {/* Display Settings Overview */}
       <div className="rounded-lg border border-border bg-card p-6">
-          <div className="mb-6 flex items-center gap-3">
+          <div className="flex items-center gap-3">
             <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/20">
             <FontAwesomeIcon icon={faPalette} className="size-5 text-primary" />
             </div>
@@ -107,14 +106,6 @@ export const UserRoleDisplayTab = ({ role, catalog, onUpdate }: UserRoleDisplayT
             </p>
           </div>
         </div>
-
-        <Alert variant="info">
-          <FontAwesomeIcon icon={faCircleInfo} className="h-4 w-4" />
-          <AlertTitle>Cosmetic Only</AlertTitle>
-          <AlertDescription>
-            User roles are visual badges only and do not grant any permissions or access.
-          </AlertDescription>
-        </Alert>
       </div>
 
       {/* Settings Form */}

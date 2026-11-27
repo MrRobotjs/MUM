@@ -65,7 +65,7 @@ import {
   faCheck,
 } from '@fortawesome/free-solid-svg-icons';
 import type { FontAwesomeBrowserIcon } from '@/components/icons/FontAwesomeIconBrowser'
-
+import { InfoButton } from '../components/common/InfoButton';
 const FontAwesomeIconBrowser = lazy(() => import('@/components/icons/FontAwesomeIconBrowser'))
 
 type RoleFormValues = {
@@ -191,14 +191,6 @@ export const AdminSettingsUserRolesPage = () => {
 
   const renderRoleForm = () => (
     <form id={formId} onSubmit={handleSubmit} className="space-y-6">
-      <Alert variant="info">
-        <FontAwesomeIcon icon={faCircleInfo} className="h-4 w-4" />
-        <AlertTitle>Role Configuration</AlertTitle>
-        <AlertDescription>
-          Customize the role&apos;s name, description, and visual appearance. User roles are cosmetic and do not grant permissions.
-        </AlertDescription>
-      </Alert>
-
       <div className="space-y-4">
         <h4 className="flex items-center gap-2 text-lg font-medium">
           <FontAwesomeIcon icon={faIdBadge} className="text-sm text-primary" />
@@ -466,15 +458,6 @@ export const AdminSettingsUserRolesPage = () => {
         </Alert>
       )}
 
-      <Alert variant="info">
-        <FontAwesomeIcon icon={faCircleInfo} className="h-4 w-4" />
-        <AlertTitle>Visual roles only</AlertTitle>
-        <AlertDescription>
-          User roles are cosmetic and do not grant permissions. Use Admin Roles to manage access
-          levels.
-        </AlertDescription>
-      </Alert>
-
       <Card>
         <CardHeader>
           <div className="flex items-center gap-3">
@@ -482,7 +465,13 @@ export const AdminSettingsUserRolesPage = () => {
               <FontAwesomeIcon icon={faList} className="size-5 text-primary" />
             </div>
             <div>
-              <CardTitle className="mb-1 text-xl font-semibold">Existing Roles</CardTitle>
+              <div className="mb-1 flex items-center gap-1">
+                <CardTitle className="text-xl font-semibold">Existing Roles</CardTitle>
+                <InfoButton title="Visual roles only">
+                  <p>User roles are badges people see next to a name. They don’t grant any permissions or access.</p>
+                  <p>Use Admin Roles to manage what someone can do.</p>
+                </InfoButton>
+              </div>
               <CardDescription>Badges and colors available to assign to users</CardDescription>
             </div>
           </div>

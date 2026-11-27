@@ -22,7 +22,8 @@ import {
   faUsers,
   faUsersSlash
 } from '@fortawesome/free-solid-svg-icons'
-
+import { Badge } from '../ui/badge';
+import { InfoButton } from '../common/InfoButton';
 type UserRoleMembersTabProps={role:UserRole;onUpdate:()=>Promise<void>}
 export const UserRoleMembersTab=({role,onUpdate}:UserRoleMembersTabProps)=>{
  const {user,isOwner}=useAuth(),session=useSyncExternalStore(subscribeToAuthStore,getAuthSnapshot),actor=isOwner&&session.accessToken?user?.uuid:undefined;
@@ -60,10 +61,15 @@ export const UserRoleMembersTab=({role,onUpdate}:UserRoleMembersTabProps)=>{
               <FontAwesomeIcon icon={faUsers} className="size-5 text-primary" />
             </div>
             <div>
-              <h2 className="mb-1 text-xl font-semibold">Role Members</h2>
+              <div className="mb-1 flex flex-wrap items-center gap-2">
+                <h2 className="text-xl font-semibold">Role Members</h2>
+                {isAutoManagedRole && <span className="flex items-center gap-1"><Badge variant="outline">Auto-managed</Badge>
+                  <InfoButton title="Auto-managed role"><p>Membership of this role is assigned automatically, so it can’t be edited here.</p></InfoButton></span>}
+              </div>
               <p className="text-sm text-muted-foreground">
                 Manage users assigned to this role
               </p>
+              <p className="mt-1 text-sm">{page ? members.length : 'Unknown'} user{members.length !== 1 ? 's' : ''} assigned to this role</p>
             </div>
           </div>
           {!!page?.mutations_available && (
@@ -74,23 +80,6 @@ export const UserRoleMembersTab=({role,onUpdate}:UserRoleMembersTabProps)=>{
           )}
         </div>
 
-        {/* Stats Card */}
-        <Alert variant="info">
-          <FontAwesomeIcon icon={faCircleInfo} />
-          <AlertTitle>Current Members</AlertTitle>
-          <AlertDescription>
-            {page?members.length:'Unknown'} user{members.length !== 1 ? 's' : ''} assigned to this role
-          </AlertDescription>
-        </Alert>
-        {isAutoManagedRole && (
-          <Alert variant="info">
-            <FontAwesomeIcon icon={faCircleInfo} />
-            <AlertTitle>Auto-managed role</AlertTitle>
-            <AlertDescription>
-              Automatic role membership cannot be edited here.
-            </AlertDescription>
-          </Alert>
-        )}
       </div>
 
       {/* Members List Section */}

@@ -10,7 +10,8 @@ import { AdminRoleDisplayTab } from '../components/roles/AdminRoleDisplayTab'
 import { AdminRolePermissionsTab } from '../components/roles/AdminRolePermissionsTab'
 import { AdminRoleMembersTab } from '../components/roles/AdminRoleMembersTab'
 import { Spinner } from '@/components/ui/spinner'
-
+import { Badge } from '../components/ui/badge';
+import { InfoButton } from '../components/common/InfoButton';
 export const AdminSettingsAdminRolesEditPage = () => {
   const { roleId } = useParams({ from: '/admin/settings/admin-roles/$roleId/edit' })
   const navigate = useNavigate()
@@ -74,23 +75,16 @@ export const AdminSettingsAdminRolesEditPage = () => {
             <FontAwesomeIcon icon={faPen} className="size-5 text-primary" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold">Edit Admin Role</h1>
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-2xl font-bold">Edit Admin Role</h1>
+              {isAutoManaged && <span className="flex items-center gap-1"><Badge variant="outline">Auto-managed</Badge>
+                <InfoButton title="Automatically managed role"><p>This role is managed by the system. Effective access comes from its saved permissions, and the role and its members can’t be changed here.</p></InfoButton></span>}
+            </div>
             <p className="text-sm text-muted-foreground">
               Manage display settings, permissions and members for <strong>{role.name}</strong>
             </p>
           </div>
         </div>
-
-        {/* Staff Role Notice */}
-        {isAutoManaged && (
-          <Alert variant="info">
-            <FontAwesomeIcon icon={faCircleInfo} className="h-4 w-4" />
-            <AlertTitle>Automatically Managed Role</AlertTitle>
-            <AlertDescription>
-              This role is managed by the system. Effective access comes from its persisted permissions. Role and membership changes are unavailable here.
-            </AlertDescription>
-          </Alert>
-        )}
       </div>
 
       {/* Tabs */}

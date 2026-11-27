@@ -60,7 +60,7 @@ import {
   faCheck,
 } from '@fortawesome/free-solid-svg-icons'
 import type { FontAwesomeBrowserIcon } from '@/components/icons/FontAwesomeIconBrowser'
-
+import { InfoButton } from '../components/common/InfoButton';
 const FontAwesomeIconBrowser = lazy(() => import('@/components/icons/FontAwesomeIconBrowser'))
 
 type RoleFormValues = {
@@ -347,14 +347,6 @@ export const AdminSettingsAdminRolesPage = () => {
         </Alert>
       ) : null}
 
-      <Alert variant="info">
-        <FontAwesomeIcon icon={faCircleInfo} className="h-4 w-4" />
-        <AlertTitle>Role hierarchy</AlertTitle>
-        <AlertDescription>
-          Higher positions have more authority. Creation, editing and membership changes follow your current hierarchy. Reordering keeps protected and unmanaged roles fixed.
-        </AlertDescription>
-      </Alert>
-
       <Card>
         <CardHeader>
           <div className="flex items-center gap-3">
@@ -362,7 +354,13 @@ export const AdminSettingsAdminRolesPage = () => {
               <FontAwesomeIcon icon={faShield} className="size-5 text-primary" />
             </div>
             <div>
-              <CardTitle className="mb-1 text-xl font-semibold">Existing Roles</CardTitle>
+              <div className="mb-1 flex items-center gap-1">
+                <CardTitle className="text-xl font-semibold">Existing Roles</CardTitle>
+                <InfoButton title="Role hierarchy">
+                  <p>Higher positions have more authority. Creating, editing and changing members of roles follow your place in the hierarchy.</p>
+                  <p>Reordering keeps protected and unmanaged roles where they are.</p>
+                </InfoButton>
+              </div>
               <CardDescription>Admin roles with their permissions and hierarchy</CardDescription>
             </div>
           </div>
@@ -434,15 +432,6 @@ export const AdminSettingsAdminRolesPage = () => {
         contentClassName="max-w-4xl"
       >
         <form id={formId} onSubmit={handleSubmit} className="space-y-6">
-          <Alert variant="info">
-            <FontAwesomeIcon icon={faCircleInfo} className="h-4 w-4" />
-            <AlertTitle>Role Configuration</AlertTitle>
-            <AlertDescription>
-              Customize the role&apos;s name, description, and visual appearance. Changes will be
-              reflected throughout the interface.
-            </AlertDescription>
-          </Alert>
-
           <div className="space-y-4">
             <h4 className="flex items-center gap-2 text-lg font-medium">
               <FontAwesomeIcon icon={faIdBadge} className="text-sm text-primary" />

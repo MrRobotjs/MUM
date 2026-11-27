@@ -268,13 +268,10 @@ export const PurgeUsersModal = ({ onClose, onPurgeComplete }: PurgeUsersModalPro
   const renderPreviewStep = (): { body: ReactNode; footer: ReactNode[] } => ({
     body: (
       <div className="space-y-4">
-        <Alert variant="info">
-          <FontAwesomeIcon icon={faCircleInfo} className="h-4 w-4" />
-          <AlertDescription>
-            Found {eligibleUsers.length} user{eligibleUsers.length !== 1 ? 's' : ''} matching your criteria.
-            Review and select which users to purge.
-          </AlertDescription>
-        </Alert>
+        <p className="text-sm">
+          Found {eligibleUsers.length} user{eligibleUsers.length !== 1 ? 's' : ''} matching your criteria.
+          Review and select which users to purge.
+        </p>
 
         <div className="flex items-center gap-2 border-b pb-3">
           <Checkbox

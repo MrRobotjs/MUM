@@ -78,6 +78,7 @@ type App struct {
 	imageSlots       chan struct{}
 	imageCache       imageCache
 	diskImages       *diskImageCache
+	debugLogs        *debugPayloadLog
 	// statisticsSlots bounds concurrent server statistics reads.
 	statisticsSlots chan struct{}
 }
@@ -113,6 +114,13 @@ func NewApp(store *Store, queue *LogQueue, assets fs.FS) (*App, error) {
 		}
 	}
 	a.statisticsSlots = make(chan struct{}, 4)
+	// Provider HTTP goes through the debug log's transport, which records
+	// responses only while a service's HTTP stream is switched on.
+	a.debugLogs = newDebugPayloadLog(store)
+	if err := a.debugLogs.load(context.Background()); err != nil {
+		a.logger.Warn("Debug logging settings unavailable", "code", consoleErrorCode(err))
+	}
+	a.ProviderHTTP = &http.Client{Timeout: 8 * time.Second, Transport: debugTransport{log: a.debugLogs}}
 	a.imageKey = make([]byte, 32)
 	if _, err := rand.Read(a.imageKey); err != nil {
 		return nil, err
@@ -250,6 +258,11 @@ func NewApp(store *Store, queue *LogQueue, assets fs.FS) (*App, error) {
 	handle("GET /api/settings/scheduled-tasks", a.scheduledTasks)
 	handle("GET /api/servers/{server}/refresh-settings", a.serverRefreshSettings)
 	handle("GET /api/servers/{server}/refresh-runs", a.serverRefreshRuns)
+	handle("GET /api/settings/debug-logging", a.getDebugLogging)
+	handle("PUT /api/settings/debug-logging", a.saveDebugLogging)
+	handle("GET /api/settings/debug-logging/entries", a.debugLogEntries)
+	handle("GET /api/settings/debug-logging/files/{name}", a.downloadDebugLog)
+	handle("DELETE /api/settings/debug-logging/files", a.clearDebugLogs)
 	handle("PUT /api/servers/{server}/refresh-settings", a.serverRefreshSettings)
 	handle("POST /api/events", a.ingestEvents)
 	handle("POST /api/chat", a.postChat)
@@ -393,7 +406,10 @@ func NewApp(store *Store, queue *LogQueue, assets fs.FS) (*App, error) {
 }
 
 func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) { a.handler.ServeHTTP(w, r) }
-func (a *App) CloseRealtime()                                   { a.hub.close() }
+func (a *App) CloseRealtime() {
+	a.hub.close()
+	a.debugLogs.close()
+}
 
 func respond(w http.ResponseWriter, status int, data any) {
 	w.Header().Set("Content-Type", "application/json")

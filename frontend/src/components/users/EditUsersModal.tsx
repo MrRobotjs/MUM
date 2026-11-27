@@ -45,7 +45,7 @@ import {
   faUnlock,
   faUsersGear,
 } from '@fortawesome/free-solid-svg-icons';
-
+import { InfoButton } from '../common/InfoButton';
 interface EditUsersModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -883,14 +883,6 @@ export const EditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplete, i
       case 'modify_libraries':
         return (
           <div className="space-y-4">
-            <Alert variant="info">
-              <FontAwesomeIcon icon={faCircleInfo} className="h-4 w-4" />
-              <AlertTitle>Library Access Control</AlertTitle>
-              <AlertDescription>
-                Configure library access per server for all selected service users. Changes are applied by server in one submit.
-              </AlertDescription>
-            </Alert>
-
             {librarySelectionsError && (
               <Alert variant="warning">
                 <FontAwesomeIcon icon={faTriangleExclamation} className="h-4 w-4" />
@@ -1017,34 +1009,6 @@ export const EditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplete, i
       case 'manage_expiration':
         return (
           <div className="space-y-4">
-            <Alert variant={expirationMode === 'clear' ? 'warning' : 'info'}>
-              <FontAwesomeIcon
-                icon={
-                  expirationMode === 'set'
-                    ? faCircleInfo
-                    : expirationMode === 'extend'
-                      ? faCalendarPlus
-                      : faTriangleExclamation
-                }
-                className="h-4 w-4"
-              />
-              <AlertTitle>
-                {expirationMode === 'set'
-                  ? 'Set Expiration Date'
-                  : expirationMode === 'extend'
-                    ? 'Extend Access Duration'
-                    : 'Clear Expiration Date'}
-              </AlertTitle>
-              <AlertDescription>
-                {expirationMode === 'set'
-                  ? 'Set a specific expiration date for all selected users. This will override any existing expiration dates.'
-                  : expirationMode === 'extend'
-                    ? 'Add days to the current expiration date of selected users. A date that has already passed is extended from today. Users without an expiration date keep unlimited access.'
-                    : 'Remove expiration dates from all selected users. They will have indefinite access until a new expiration date is set.'}
-                {expirationMode !== 'set' && expiryNote && <p className="mt-1">{expiryNote}</p>}
-              </AlertDescription>
-            </Alert>
-
             <div className="space-y-2">
               <Label htmlFor="expiration-mode">Expiration Action</Label>
               <Select
@@ -1069,6 +1033,14 @@ export const EditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplete, i
                   </SelectItem>
                 </SelectContent>
               </Select>
+              <p className="text-sm text-muted-foreground">
+                {expirationMode === 'set'
+                  ? 'Replaces any existing expiration date of the selected users.'
+                  : expirationMode === 'extend'
+                    ? 'Adds days to each expiration date; a date that has already passed is extended from today. Users without an expiration date keep unlimited access.'
+                    : 'Removes expiration dates, so access is unlimited until a new date is set.'}
+                {expirationMode !== 'set' && expiryNote ? ` ${expiryNote}` : ''}
+              </p>
               {noneDated && (
                 <p className="text-sm text-muted-foreground">
                   {expiryOverview?.total === 1 ? 'The selected user has' : 'None of the selected users have'} an expiration date, so one can only be set.
@@ -1148,16 +1120,14 @@ export const EditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplete, i
       case 'manage_4k_transcode':
         return (
           <div className="space-y-4">
-            <Alert variant="info">
-              <FontAwesomeIcon icon={faCircleInfo} className="h-4 w-4" />
-              <AlertTitle>4K Transcoding</AlertTitle>
-              <AlertDescription>
-                When 4K transcoding is blocked, MUM stops a stream once if the server transcodes a 4K video for that user, and shows them a message. Direct play of 4K is never stopped. Applies to Plex, Jellyfin and Emby server accounts; other selected users are skipped.
-              </AlertDescription>
-            </Alert>
-
             <div className="space-y-2">
-              <Label htmlFor="transcode-4k-mode">4K Transcoding</Label>
+              <div className="flex items-center gap-1">
+                <Label htmlFor="transcode-4k-mode">4K Transcoding</Label>
+                <InfoButton title="4K transcoding">
+                  <p>When 4K transcoding is blocked, MUM stops a stream once if the server transcodes a 4K video for that user, and shows them a message. Direct play of 4K is never stopped.</p>
+                  <p>Applies to Plex, Jellyfin and Emby server accounts; other selected users are skipped.</p>
+                </InfoButton>
+              </div>
               <Select
                 value={allow4kTranscode}
                 onValueChange={(value: 'allow' | 'block') => setAllow4kTranscode(value)}
@@ -1183,16 +1153,14 @@ export const EditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplete, i
       case 'manage_purge_protection':
         return (
           <div className="space-y-4">
-            <Alert variant="info">
-              <FontAwesomeIcon icon={faCircleInfo} className="h-4 w-4" />
-              <AlertTitle>Purge Protection</AlertTitle>
-              <AlertDescription>
-                Protected users are left out of inactivity purges. Applies to server accounts; MUM accounts are skipped. Nothing changes on the server.
-              </AlertDescription>
-            </Alert>
-
             <div className="space-y-2">
-              <Label htmlFor="purge-protection-mode">Purge Protection</Label>
+              <div className="flex items-center gap-1">
+                <Label htmlFor="purge-protection-mode">Purge Protection</Label>
+                <InfoButton title="Purge protection">
+                  <p>Protected users are left out of inactivity purges. Nothing changes on the media server.</p>
+                  <p>Applies to server accounts; MUM accounts are skipped.</p>
+                </InfoButton>
+              </div>
               <Select
                 value={purgeProtection}
                 onValueChange={(value: 'protect' | 'unprotect') => setPurgeProtection(value)}
@@ -1218,18 +1186,6 @@ export const EditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplete, i
       case 'manage_local_link':
         return (
           <div className="space-y-4">
-            <Alert variant={localLinkMode === 'unlink' ? 'warning' : 'info'}>
-              <FontAwesomeIcon icon={faCircleInfo} className="h-4 w-4" />
-              <AlertTitle>
-                {localLinkMode === 'link' ? 'Link to Local Account' : 'Unlink from Local Account'}
-              </AlertTitle>
-              <AlertDescription>
-                {localLinkMode === 'link'
-                  ? 'Link all selected service users to a single local account. This is useful for consolidating multiple service accounts under one user.'
-                  : 'Remove local-account links from the selected service users. This only affects linking and does not delete users.'}
-              </AlertDescription>
-            </Alert>
-
             <div className="space-y-2">
               <Label htmlFor="local-link-mode">Link Action</Label>
               <Select
@@ -1250,6 +1206,11 @@ export const EditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplete, i
                   </SelectItem>
                 </SelectContent>
               </Select>
+              <p className="text-sm text-muted-foreground">
+                {localLinkMode === 'link'
+                  ? 'Links every selected service user to one local account.'
+                  : 'Removes the selected service users’ local-account links. No users are deleted.'}
+              </p>
             </div>
 
             {localLinkMode === 'link' ? (
@@ -1476,14 +1437,6 @@ export const EditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplete, i
 
   const modalBody = (
     <div className="space-y-6 py-4">
-      <Alert variant="info">
-        <FontAwesomeIcon icon={faCircleInfo} className="h-4 w-4" />
-        <AlertTitle>Edit Operations</AlertTitle>
-        <AlertDescription>
-          Apply one operation to all selected users at once. Review the action settings carefully before submitting.
-        </AlertDescription>
-      </Alert>
-
       <div className="space-y-4">
         <h4 className="flex items-center gap-2 text-lg font-medium">
           <FontAwesomeIcon icon={faCog} className="text-sm text-primary" />

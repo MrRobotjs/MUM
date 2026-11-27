@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faFloppyDisk, faUsers, faTriangleExclamation, faCircleInfo } from '@fortawesome/free-solid-svg-icons'
+import { faFloppyDisk, faUsers, faTriangleExclamation } from '@fortawesome/free-solid-svg-icons'
 import { requestJson } from '../util/apiClient'
 import { useAlerts } from '../contexts'
 import { PageHeader } from '../components'
@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Switch } from '@/components/ui/switch'
 import { useUserAccountSettings } from '../hooks/useSettings'
 import { Spinner } from '@/components/ui/spinner'
-
+import { InfoButton } from '../components/common/InfoButton';
 type UserAccountSettingsFormProps = {
   initialValue: boolean
   refresh: () => Promise<unknown>
@@ -54,7 +54,12 @@ const UserAccountSettingsForm = ({ initialValue, refresh }: UserAccountSettingsF
                 <FontAwesomeIcon icon={faUsers} className="size-5 text-primary" />
               </div>
               <div>
-                <CardTitle className="mb-1 text-xl font-semibold">User Accounts</CardTitle>
+                <div className="mb-1 flex items-center gap-1">
+                  <CardTitle className="text-xl font-semibold">User Accounts</CardTitle>
+                  <InfoButton title="User accounts and media servers">
+                    <p>MUM user accounts are separate from media service accounts. People still need an invitation to get access to your media servers.</p>
+                  </InfoButton>
+                </div>
                 <CardDescription>Control whether users can create and manage their own accounts.</CardDescription>
               </div>
             </div>
@@ -80,13 +85,6 @@ const UserAccountSettingsForm = ({ initialValue, refresh }: UserAccountSettingsF
             <p className="text-xs text-muted-foreground">
               Self-service account creation is not available in this version of MUM. People join through invitations, and the user sign-in page stays available.
             </p>
-
-            <Alert variant="info">
-              <FontAwesomeIcon icon={faCircleInfo} className="h-4 w-4" />
-              <AlertDescription>
-                <strong>Note:</strong> User accounts are separate from media service accounts. Users will still need to be invited to media servers separately through the invitation system.
-              </AlertDescription>
-            </Alert>
 
             <div className="flex justify-end">
               <Button size="sm" onClick={handleSave} disabled>

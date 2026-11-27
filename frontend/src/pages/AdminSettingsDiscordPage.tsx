@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import {
   faCircleExclamation,
-  faTriangleExclamation,
   faCopy,
   faCircleInfo,
   faKey,
@@ -24,7 +23,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { UnsavedChangesBar } from '@/components/common/UnsavedChangesBar'
 import { Switch } from '@/components/ui/switch'
 import { Spinner } from '@/components/ui/spinner'
-
+import { Badge } from '../components/ui/badge';
+import { InfoButton } from '../components/common/InfoButton';
 // Discord settings: the client ID and secret,
 // the one redirect address to add in Discord, the optional Discord server
 // (found from its invite link), defaults for new invites and Sign in with
@@ -163,6 +163,22 @@ const DiscordSettingsForm = ({ initialState, refresh }: DiscordSettingsFormProps
     { done: formMeta.guild_id !== '', text: formMeta.guild_id ? `Discord server: ${formMeta.guild_name || formMeta.guild_id}` : 'No Discord server yet (only needed to require server membership)' },
   ]
 
+  // The setup steps stay on the page until Discord has checked the client ID
+  // and secret; after that they are behind the (i) beside Discord OAuth.
+  const setupSteps = <>
+    <p>1. Create an application in the{' '}
+    <a
+      href="https://discord.com/developers/applications"
+      target="_blank"
+      rel="noopener noreferrer"
+      className="font-medium underline underline-offset-4 hover:text-blue-600 dark:text-blue-400"
+    >
+      Discord Developer Portal
+    </a>.</p>
+    <p>2. Under OAuth2, copy the Client ID and Client Secret into the fields below, and add the Redirect URL shown below to Redirects.</p>
+    <p>3. Turn on Discord and save: MUM checks the ID and secret with Discord first.</p>
+  </>
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -170,23 +186,13 @@ const DiscordSettingsForm = ({ initialState, refresh }: DiscordSettingsFormProps
         description="Configure Discord OAuth and bot integration"
       />
 
-      <Alert variant="info">
-        <FontAwesomeIcon icon={faCircleInfo} className="h-4 w-4" />
-        <AlertTitle>Discord Integration Setup</AlertTitle>
-        <AlertDescription>
-          <p>1. Create an application in the{' '}
-          <a
-            href="https://discord.com/developers/applications"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="font-medium underline underline-offset-4 hover:text-blue-600 dark:text-blue-400"
-          >
-            Discord Developer Portal
-          </a>.</p>
-          <p>2. Under OAuth2, copy the Client ID and Client Secret into the fields below, and add the Redirect URL shown below to Redirects.</p>
-          <p>3. Turn on Discord and save: MUM checks the ID and secret with Discord first.</p>
-        </AlertDescription>
-      </Alert>
+      {!formMeta.verified && (
+        <Alert variant="info">
+          <FontAwesomeIcon icon={faCircleInfo} className="h-4 w-4" />
+          <AlertTitle>Discord Integration Setup</AlertTitle>
+          <AlertDescription>{setupSteps}</AlertDescription>
+        </Alert>
+      )}
 
       <form id="discord-settings-form" onSubmit={handleSubmit} className="space-y-6">
         <Card className='gap-4'>
@@ -197,7 +203,10 @@ const DiscordSettingsForm = ({ initialState, refresh }: DiscordSettingsFormProps
                   <FontAwesomeIcon icon={faDiscord} className="size-5 text-primary" />
                 </div>
                 <div>
-                  <CardTitle className="mb-1 text-xl font-semibold">Discord OAuth</CardTitle>
+                  <div className="mb-1 flex items-center gap-1">
+                    <CardTitle className="text-xl font-semibold">Discord OAuth</CardTitle>
+                    {formMeta.verified && <InfoButton title="How to set up Discord">{setupSteps}</InfoButton>}
+                  </div>
                   <CardDescription>Discord sign-in on invites, linking Discord accounts and Sign in with Discord.</CardDescription>
                 </div>
               </div>
@@ -416,7 +425,10 @@ const DiscordSettingsForm = ({ initialState, refresh }: DiscordSettingsFormProps
                   <FontAwesomeIcon icon={faRobot} className="size-5 text-primary" />
                 </div>
                 <div>
-                  <CardTitle className="mb-1 text-xl font-semibold">Bot Configuration</CardTitle>
+                  <div className="mb-1 flex flex-wrap items-center gap-2">
+                    <CardTitle className="text-xl font-semibold">Bot Configuration</CardTitle>
+                    <Badge variant="outline">Not available yet</Badge>
+                  </div>
                   <CardDescription>Optional bot automation and moderation tools.</CardDescription>
                 </div>
               </div>
@@ -429,13 +441,6 @@ const DiscordSettingsForm = ({ initialState, refresh }: DiscordSettingsFormProps
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Alert variant="warning">
-              <FontAwesomeIcon icon={faTriangleExclamation} className="h-4 w-4" />
-              <AlertTitle>Not Available Yet</AlertTitle>
-              <AlertDescription>
-                The Discord bot is not available in this version, so its settings cannot be turned on.
-              </AlertDescription>
-            </Alert>
             <div className="space-y-2">
               <Label htmlFor="bot_token">Bot Token</Label>
               <Input id="bot_token" type="password" className="font-mono" value="" disabled placeholder="********" />

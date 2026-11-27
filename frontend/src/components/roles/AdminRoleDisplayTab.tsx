@@ -3,10 +3,9 @@ import {changeAdminRole, valuesFromRole} from '../../lib/adminRoleChanges'
 import {useAuth} from '../../contexts/AuthContext'
 import { useState, useEffect, useRef, useMemo, lazy, Suspense } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faCog, faPalette, faCircleInfo, faXmark, faPaintbrush, faGrip, faCheck } from '@fortawesome/free-solid-svg-icons'
+import { faCog, faPalette, faXmark, faPaintbrush, faGrip, faCheck } from '@fortawesome/free-solid-svg-icons'
 import { AdminRole } from '../../hooks/useAdminRoles'
 import { useAlerts, useTheme } from '../../contexts'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { UnsavedChangesBar } from '@/components/common/UnsavedChangesBar'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -21,7 +20,7 @@ import { getReadableTextColor, resolveCssVarHex } from '@/lib/themeColors'
 import { PRESET_ROLE_COLORS, ROLE_BADGE_STYLE_OPTIONS } from '@/components/roles/roleFormConstants'
 
 import type { FontAwesomeBrowserIcon } from '@/components/icons/FontAwesomeIconBrowser'
-
+import { InfoButton } from '../common/InfoButton';
 const FontAwesomeIconBrowser = lazy(() => import('@/components/icons/FontAwesomeIconBrowser'))
 
 interface AdminRoleDisplayTabProps {
@@ -114,25 +113,22 @@ export const AdminRoleDisplayTab = ({ role, onUpdate }: AdminRoleDisplayTabProps
     <div className="space-y-6">
       {/* Display Settings Overview */}
       <div className="rounded-lg border border-border bg-card p-6">
-          <div className="mb-6 flex items-center gap-3">
+          <div className="flex items-center gap-3">
             <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/20">
             <FontAwesomeIcon icon={faPalette} className="size-5 text-primary" />
             </div>
           <div>
-            <h2 className="mb-1 text-xl font-semibold">Visual Display</h2>
+            <div className="mb-1 flex items-center gap-1">
+              <h2 className="text-xl font-semibold">Visual Display</h2>
+              <InfoButton title="Display only">
+                <p>These settings change how the role badge looks. What the role can do is set on the Permissions tab.</p>
+              </InfoButton>
+            </div>
             <p className="text-sm text-muted-foreground">
               Customize how this role badge appears to users
             </p>
           </div>
         </div>
-
-        <Alert variant="info">
-          <FontAwesomeIcon icon={faCircleInfo} className="h-4 w-4" />
-          <AlertTitle>Display Only</AlertTitle>
-          <AlertDescription>
-            These settings change how the role badge looks. What the role can do is set on the Permissions tab.
-          </AlertDescription>
-        </Alert>
       </div>
 
       {/* Settings Form */}

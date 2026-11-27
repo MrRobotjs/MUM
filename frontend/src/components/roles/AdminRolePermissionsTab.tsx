@@ -24,7 +24,7 @@ import {
   faUserShield,
   faUsersGear
 } from '@fortawesome/free-solid-svg-icons'
-
+import { InfoButton } from '../common/InfoButton';
 interface AdminRolePermissionsTabProps {
   role: AdminRole
   permissions: AdminPermission[]
@@ -211,27 +211,22 @@ export const AdminRolePermissionsTab = ({ role, permissions, onUpdate }: AdminRo
     <form id="admin-role-permissions-form" onSubmit={handleSubmit} className="space-y-6">
       {/* Permissions Overview Section */}
       <div className="rounded-lg border border-border bg-card p-6">
-        <div className="mb-6 flex items-center gap-3">
+        <div className="flex items-center gap-3">
           <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-green-100/20">
             <FontAwesomeIcon icon={faShieldHalved} className="size-5 text-green-600 dark:text-green-400" />
           </div>
           <div>
-            <h2 className="mb-1 text-xl font-semibold">Role Permissions</h2>
+            <div className="mb-1 flex items-center gap-1">
+              <h2 className="text-xl font-semibold">Role Permissions</h2>
+              <InfoButton title="Permission guidelines">
+                <p>Administrator grants full access across the admin dashboard. Other legacy permissions are deprecated and shown for reference only.</p>
+              </InfoButton>
+            </div>
             <p className="text-sm text-muted-foreground">
               Configure what actions members of this role can perform
             </p>
           </div>
         </div>
-
-        {/* Info Card */}
-        <Alert variant="info">
-          <FontAwesomeIcon icon={faCircleInfo} />
-          <AlertTitle>Permission Guidelines</AlertTitle>
-          <AlertDescription>
-            Administrator grants full access across the admin dashboard. Other legacy permissions
-            are deprecated and shown for reference only.
-          </AlertDescription>
-        </Alert>
       </div>
 
       {/* Administrator Permission */}

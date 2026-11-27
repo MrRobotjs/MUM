@@ -3,7 +3,6 @@ import { requestJson } from '../util/apiClient'
 import { useAlerts } from '../contexts'
 import { useAuth } from '../contexts/AuthContext'
 import { PageHeader } from '../components'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -29,7 +28,6 @@ import {
   faKey,
   faUser,
   faShieldHalved,
-  faTriangleExclamation,
   faUsersSlash,
   faUserPlus,
   faPen,
@@ -39,11 +37,10 @@ import {
   faLock,
   faUsers,
   faCheck,
-  faCircleInfo,
   faList,
 } from '@fortawesome/free-solid-svg-icons'
 import { createAppColumnHelper, useAppTable } from '../components/table/DataTable'
-
+import { InfoButton } from '../components/common/InfoButton';
 type AdminRole = {
   id: string
   name: string
@@ -448,22 +445,19 @@ const AdminSettingsAdminManagementPage = () => {
               <FontAwesomeIcon icon={faUsers} className="size-5 text-primary" />
             </div>
             <div>
-              <CardTitle className="mb-1 text-xl font-semibold">System Administrators</CardTitle>
+              <div className="mb-1 flex items-center gap-1">
+                <CardTitle className="text-xl font-semibold">System Administrators</CardTitle>
+                <InfoButton title="Admin guidelines">
+                  <p>The primary owner can’t be edited or deleted.</p>
+                  <p>You can’t modify your own account here, for security.</p>
+                </InfoButton>
+              </div>
               <CardDescription>
                 {admins.length} administrator{admins.length !== 1 ? 's' : ''} configured
               </CardDescription>
             </div>
           </div>
         </CardHeader>
-        <CardContent>
-          <Alert variant="info">
-            <FontAwesomeIcon icon={faCircleInfo} className="h-4 w-4" />
-            <AlertTitle>Admin Guidelines</AlertTitle>
-            <AlertDescription>
-              The primary owner cannot be edited or deleted. You cannot modify your own account for security reasons.
-            </AlertDescription>
-          </Alert>
-        </CardContent>
       </Card>
 
       {/* Admins List */}
@@ -549,15 +543,6 @@ const AdminSettingsAdminManagementPage = () => {
         ]}
       >
         <form id="create-admin-form" onSubmit={handleCreateAdmin} className="space-y-6">
-          <Alert variant="info" className="w-full">
-            <FontAwesomeIcon icon={faCircleInfo} className="h-4 w-4" />
-            <AlertTitle>Administrator Account</AlertTitle>
-            <AlertDescription>
-              Create a new administrator account. The Staff role is assigned automatically.
-              Additional roles can be optionally assigned below.
-            </AlertDescription>
-          </Alert>
-
           <div className="space-y-4">
             <h4 className="flex items-center gap-2 text-lg font-medium">
               <FontAwesomeIcon icon={faUser} className="text-sm text-green-600 dark:text-green-400" />
@@ -612,7 +597,7 @@ const AdminSettingsAdminManagementPage = () => {
                 className="h-11"
               />
               <p className="mt-1 text-xs text-muted-foreground">
-                Create a temporary password (minimum 8 characters).
+                Create a temporary password (minimum 8 characters). They’ll be asked to change it at their first sign-in.
               </p>
             </div>
 
@@ -637,14 +622,6 @@ const AdminSettingsAdminManagementPage = () => {
                 Re-enter the password to confirm.
               </p>
             </div>
-
-            <Alert className="w-full border-amber-500/30 bg-amber-50 dark:bg-amber-400/10">
-              <FontAwesomeIcon icon={faTriangleExclamation} className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-              <AlertTitle>Security Notice</AlertTitle>
-              <AlertDescription>
-                The new administrator will be required to change this temporary password on their first login.
-              </AlertDescription>
-            </Alert>
           </div>
 
           {createAssignableRoles.length > 0 ? (
@@ -675,13 +652,7 @@ const AdminSettingsAdminManagementPage = () => {
               </div>
             </div>
           ) : (
-            <Alert variant="info">
-              <FontAwesomeIcon icon={faCircleInfo} className="h-4 w-4" />
-              <AlertTitle>No Optional Roles</AlertTitle>
-              <AlertDescription>
-                Staff will be assigned automatically. No additional admin roles are currently available.
-              </AlertDescription>
-            </Alert>
+            <p className="text-sm text-muted-foreground">Staff is assigned automatically. No other admin roles are available to add.</p>
           )}
         </form>
       </ResponsiveDialog>

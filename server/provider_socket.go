@@ -100,12 +100,16 @@ func (a *App) runProviderSocket(ctx context.Context, w *providerSocketWorker, se
 			if len(spec.Start) > 0 {
 				write, stop := context.WithTimeout(ctx, 2*time.Second)
 				err = conn.Write(write, websocket.MessageText, spec.Start)
+				a.debugLogs.socketFrame(server, "sent", spec.Start)
 				stop()
 			}
 			if auth, ok := live.(liveAuthenticator); err == nil && ok {
 				read, stop := context.WithTimeout(ctx, 5*time.Second)
 				kind, frame, readErr := conn.Read(read)
 				stop()
+				if readErr == nil {
+					a.debugLogs.socketFrame(server, "received", frame)
+				}
 				if readErr != nil {
 					err = readErr
 				} else if kind != websocket.MessageText {
@@ -134,6 +138,7 @@ func (a *App) runProviderSocket(ctx context.Context, w *providerSocketWorker, se
 				if err != nil {
 					break
 				}
+				a.debugLogs.socketFrame(server, "received", data)
 				if kind != websocket.MessageText && !(spec.Binary && kind == websocket.MessageBinary) {
 					err = errActivitySnapshot
 					break
@@ -164,6 +169,7 @@ func (a *App) runProviderSocket(ctx context.Context, w *providerSocketWorker, se
 				if len(reply) > 0 {
 					write, stop := context.WithTimeout(ctx, 2*time.Second)
 					err = conn.Write(write, websocket.MessageText, reply)
+					a.debugLogs.socketFrame(server, "sent", reply)
 					stop()
 					continue
 				}

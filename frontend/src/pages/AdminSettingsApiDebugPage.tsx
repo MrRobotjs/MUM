@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { requestJson } from '../util/apiClient';
 import { useAlerts } from '../contexts/AlertContext';
 import { PageHeader } from '../components';
+import { DebugLoggingCard } from '../components/settings/DebugLoggingCard';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -9,8 +10,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
-import { Alert, AlertDescription, AlertTitle } from '../components/ui/alert';
-import { Switch } from '../components/ui/switch';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { ServiceIcon } from '@/components/services/ServiceIcon';
 import { Spinner } from '@/components/ui/spinner'
@@ -358,21 +357,6 @@ const AdminSettingsApiDebugPage = () => {
         title="API Debug"
         description="Test API endpoints for your configured media servers"
       />
-
-      {/* Info Notice */}
-      <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4">
-        <div className="flex items-start gap-3">
-          <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center shrink-0 mt-0.5">
-            <FontAwesomeIcon icon={faCircleInfo} className="text-blue-500 text-xs" />
-          </div>
-          <div>
-            <h4 className="font-medium text-blue-500 mb-1">Debug Tool</h4>
-            <p className="text-sm text-foreground/80">
-              This tool allows you to test API endpoints using the stored server credentials. All requests are authenticated automatically using your configured server settings.
-            </p>
-          </div>
-        </div>
-      </div>
 
       {/* API Testing Form */}
       <Card>
@@ -831,95 +815,7 @@ const AdminSettingsApiDebugPage = () => {
         </CardContent>
       </Card>
 
-      {/* Debug Logging */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-amber-500/20 flex items-center justify-center shrink-0">
-              <FontAwesomeIcon icon={faTriangleExclamation} className="text-amber-500 text-sm" />
-            </div>
-            <div>
-              <CardTitle>Debug Logging</CardTitle>
-              <CardDescription>Raw provider payload logging is unavailable</CardDescription>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <Alert variant="warning">
-            <FontAwesomeIcon icon={faTriangleExclamation} className="h-4 w-4" />
-            <AlertTitle>Logging availability</AlertTitle>
-            <AlertDescription>
-              Jellyfin and Emby monitoring records bounded, redacted socket metadata in SQLite. Raw HTTP and WebSocket payload logging is unavailable.
-            </AlertDescription>
-          </Alert>
-
-            <div className="space-y-3">
-              <div className="flex items-center justify-between rounded-lg border border-border/70 bg-muted/40 p-3">
-                <div>
-                  <p className="text-sm font-medium">Plex HTTP logging</p>
-                  <p className="text-xs text-muted-foreground">Raw Plex HTTP logging is unavailable.</p>
-                </div>
-                <Switch
-                  checked={false}
-                  disabled
-                />
-              </div>
-
-              <div className="flex items-center justify-between rounded-lg border border-border/70 bg-muted/40 p-3">
-                <div>
-                  <p className="text-sm font-medium">Plex WebSocket logging</p>
-                  <p className="text-xs text-muted-foreground">Raw Plex socket logging is unavailable.</p>
-                </div>
-                <Switch
-                  checked={false}
-                  disabled
-                />
-              </div>
-
-              <div className="flex items-center justify-between rounded-lg border border-border/70 bg-muted/40 p-3">
-                <div>
-                  <p className="text-sm font-medium">Jellyfin WebSocket logging</p>
-                  <p className="text-xs text-muted-foreground">Redacted monitoring metadata is recorded; raw payload logging is unavailable.</p>
-                </div>
-                <Switch
-                  checked={false}
-                  disabled
-                />
-              </div>
-
-              <div className="flex items-center justify-between rounded-lg border border-border/70 bg-muted/40 p-3">
-                <div>
-                  <p className="text-sm font-medium">Emby WebSocket logging</p>
-                  <p className="text-xs text-muted-foreground">Redacted monitoring metadata is recorded; raw payload logging is unavailable.</p>
-                </div>
-                <Switch
-                  checked={false}
-                  disabled
-                />
-              </div>
-
-              <div className="flex items-center justify-between rounded-lg border border-border/70 bg-muted/40 p-3">
-                <div>
-                  <p className="text-sm font-medium">AudiobookShelf HTTP logging</p>
-                  <p className="text-xs text-muted-foreground">Raw Audiobookshelf HTTP logging is unavailable.</p>
-                </div>
-                <Switch
-                  checked={false}
-                  disabled
-                />
-              </div>
-
-              <div className="flex items-center justify-end gap-3">
-                <Button
-                  type="button"
-                  disabled
-                >
-                  Save Changes
-                </Button>
-              </div>
-            </div>
-        </CardContent>
-      </Card>
+      <DebugLoggingCard />
     </div>
   );
 };

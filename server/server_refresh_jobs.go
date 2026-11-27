@@ -98,34 +98,48 @@ func (a *App) runOneServerRefreshScope(parent context.Context, scope string) err
 	if err != nil || claim == nil {
 		return err
 	}
+	started := utcTimestamp(time.Now())
+	log := &refreshLog{}
 	var server ManagedServer
 	var runErr error
 	select {
 	case a.refreshListSlot <- struct{}{}:
 		server, runErr = a.loadServer(ctx, claim.Server)
 		if runErr == nil {
-			_, runErr = a.syncServerClaimed(ctx, claim.Actor, "", server, claim.Scope == "libraries", claim.Scope == "users", claim)
+			var receipt map[string]int
+			receipt, runErr = a.syncServerClaimed(ctx, claim.Actor, "", server, claim.Scope == "libraries", claim.Scope == "users", claim)
+			if runErr == nil {
+				logListRefresh(log, claim.Scope, receipt)
+			}
 		}
 		<-a.refreshListSlot
 	case <-ctx.Done():
 		runErr = ctx.Err()
 	}
 	if runErr == nil && claim.Scope == "libraries" {
-		runErr = a.refreshServerCatalogues(ctx, server, claim)
+		runErr = a.refreshServerCatalogues(ctx, server, claim, log)
 	}
-	code, state := "SUCCEEDED", "succeeded"
+	code, state, outcome := "SUCCEEDED", "succeeded", "succeeded"
+	if runErr == nil && log.warned {
+		code, outcome = "WARNINGS", "warnings"
+	}
 	if runErr != nil {
-		a.logger.Warn("Server refresh failed", "server_id", claim.Server, "scope", claim.Scope, "code", consoleErrorCode(runErr))
-		code, state = "FAILED", "failed"
+		problem, explanation := refreshProblem(runErr)
+		a.logger.Warn("Server refresh failed", "server_id", claim.Server, "scope", claim.Scope, "code", problem)
+		code, state, outcome = "FAILED", "failed", "failed"
 		if errors.Is(runErr, ErrConflict) || errors.Is(runErr, ErrForbidden) || ctx.Err() != nil {
-			code, state = "CANCELLED", "cancelled"
+			code, state, outcome = "CANCELLED", "cancelled", "cancelled"
 		}
+		if log.failed {
+			explanation = ""
+		}
+		log.add(refreshLogError, "The refresh stopped", explanation)
 	}
 	cleanup, stop := context.WithTimeout(context.Background(), 5*time.Second)
 	defer stop()
 	return a.store.write(cleanup, func(tx *sql.Tx) error {
 		if checkServerRefreshClaim(cleanup, tx, claim) != nil {
-			code, state = "CANCELLED", "cancelled"
+			code, state, outcome = "CANCELLED", "cancelled", "cancelled"
 		}
 		result, err := tx.ExecContext(cleanup, `UPDATE server_refresh_schedules SET run_state=?,last_code=?,finished_at=?,claim_token=NULL,runner_id=NULL,lease_until=NULL,revision=revision+1 WHERE server_id=? AND scope=? AND claim_token=? AND run_state='running'`, state, code, utcTimestamp(time.Now()), claim.Server, claim.Scope, claim.Token)
 		if err != nil {
@@ -133,6 +147,9 @@ func (a *App) runOneServerRefreshScope(parent context.Context, scope string) err
 		}
 		n, err := result.RowsAffected()
 		if err != nil || n == 0 {
+			return err
+		}
+		if err := saveRefreshRun(cleanup, tx, claim, started, utcTimestamp(time.Now()), outcome, log); err != nil {
 			return err
 		}
 		details, _ := json.Marshal(map[string]any{"server_id": claim.Server, "scope": claim.Scope, "code": code})

@@ -75,7 +75,8 @@ type catalogueShow struct {
 	ID, Revision int64
 	External     string
 	// Kind is the parent's item type ("show" or "album").
-	Kind string
+	Kind  string
+	Title string
 }
 
 func loadCatalogueParent(ctx context.Context, tx *sql.Tx, c childCatalogue, library, item int64) (catalogueShow, error) {

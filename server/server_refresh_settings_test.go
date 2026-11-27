@@ -3,9 +3,11 @@ package main
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -74,6 +76,33 @@ func TestServerRefreshUserJobRunsWithoutSignedInSession(t *testing.T) {
 	}
 }
 
+// refreshRunLog reads a refresh task's recent runs through the API, newest first.
+func refreshRunLog(t *testing.T, a *App, token string, server int64, scope string) []refreshRun {
+	t.Helper()
+	w := apiRequest(a, "GET", fmt.Sprintf("/api/servers/%d/refresh-runs?scope=%s", server, scope), token, nil, nil)
+	if w.Code != 200 {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	var out struct {
+		Data struct {
+			Runs []refreshRun `json:"runs"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil {
+		t.Fatal(err)
+	}
+	return out.Data.Runs
+}
+
+func runLogHas(run refreshRun, level, message string) bool {
+	for _, entry := range run.Entries {
+		if entry.Level == level && strings.Contains(entry.Message, message) {
+			return true
+		}
+	}
+	return false
+}
+
 func TestServerRefreshFailureDoesNotReportSuccess(t *testing.T) {
 	a, s := testApp(t)
 	token, _ := bootstrapOwner(t, a)
@@ -87,6 +116,23 @@ func TestServerRefreshFailureDoesNotReportSuccess(t *testing.T) {
 	var state, code string
 	if err := s.reader.QueryRow("SELECT run_state,last_code FROM server_refresh_schedules WHERE server_id=? AND scope='users'", id).Scan(&state, &code); err != nil || state != "failed" || code != "FAILED" {
 		t.Fatal(state, code, err)
+	}
+	// The run log explains the failure in MUM's words, not the server's.
+	runs := refreshRunLog(t, a, token, id, "users")
+	if len(runs) != 1 || runs[0].Outcome != "failed" || len(runs[0].Entries) != 1 || runs[0].Entries[0].Level != "error" ||
+		runs[0].Entries[0].Detail != "The server answered with an error (HTTP 503)." {
+		t.Fatal(runs)
+	}
+	for _, query := range []string{"", "?scope=all", "?scope=users&extra=1"} {
+		if w := apiRequest(a, "GET", fmt.Sprintf("/api/servers/%d/refresh-runs%s", id, query), token, nil, nil); w.Code != 400 {
+			t.Fatal(query, w.Code)
+		}
+	}
+	if w := apiRequest(a, "GET", "/api/servers/999/refresh-runs?scope=users", token, nil, nil); w.Code != 404 {
+		t.Fatal("unknown server", w.Code)
+	}
+	if w := apiRequest(a, "GET", fmt.Sprintf("/api/servers/%d/refresh-runs?scope=users", id), "", nil, nil); w.Code != 401 {
+		t.Fatal("signed out", w.Code)
 	}
 }
 
@@ -325,8 +371,12 @@ func TestServerRefreshFailedTracksPreservePreviousTracks(t *testing.T) {
 	if err := f.s.reader.QueryRow("SELECT run_state FROM server_refresh_schedules WHERE server_id=? AND scope='libraries'", server).Scan(&state); err != nil {
 		t.Fatal(err)
 	}
-	if err := f.s.reader.QueryRow("SELECT count(*) FROM media_items WHERE library_id=? AND parent_id='album1' AND external_id='track1'", f.library).Scan(&count); err != nil || state != "failed" || count != 1 {
+	if err := f.s.reader.QueryRow("SELECT count(*) FROM media_items WHERE library_id=? AND parent_id='album1' AND external_id='track1'", f.library).Scan(&count); err != nil || state != "succeeded" || count != 1 {
 		t.Fatal(state, count, err)
+	}
+	runs := refreshRunLog(t, f.a, f.token, server, "libraries")
+	if len(runs) != 2 || runs[0].Outcome != "warnings" || !runLogHas(runs[0], "warning", `skipped "Record"`) || !runLogHas(runs[0], "success", "tracks synced for 0 of 1 albums") {
+		t.Fatal(runs)
 	}
 }
 
@@ -357,8 +407,21 @@ func TestServerRefreshEpisodeFailurePreservesPreviousEpisodes(t *testing.T) {
 	if err := f.s.reader.QueryRow("SELECT run_state FROM server_refresh_schedules WHERE server_id=? AND scope='libraries'", server).Scan(&state); err != nil {
 		t.Fatal(err)
 	}
-	if err := f.s.reader.QueryRow("SELECT count(*) FROM media_items WHERE library_id=? AND parent_id='series1' AND external_id='episode000'", f.library).Scan(&count); err != nil || state != "failed" || count != 1 {
+	var code string
+	if err := f.s.reader.QueryRow("SELECT last_code FROM server_refresh_schedules WHERE server_id=? AND scope='libraries'", server).Scan(&code); err != nil || code != "WARNINGS" {
+		t.Fatal(code, err)
+	}
+	if err := f.s.reader.QueryRow("SELECT count(*) FROM media_items WHERE library_id=? AND parent_id='series1' AND external_id='episode000'", f.library).Scan(&count); err != nil || state != "succeeded" || count != 1 {
 		t.Fatal(state, count, err)
+	}
+	// The first run logged what it saved; the second skipped the broken show and kept its episodes.
+	runs := refreshRunLog(t, f.a, f.token, server, "libraries")
+	if len(runs) != 2 || runs[1].Outcome != "succeeded" || !runLogHas(runs[1], "success", "Library list refreshed: 1 library") ||
+		!runLogHas(runs[1], "success", "1 item saved") || !runLogHas(runs[1], "success", "episodes synced for 1 of 1 shows") {
+		t.Fatal("first run", runs)
+	}
+	if runs[0].Outcome != "warnings" || !runLogHas(runs[0], "warning", `skipped "Fixture show"`) {
+		t.Fatal("second run", runs)
 	}
 }
 

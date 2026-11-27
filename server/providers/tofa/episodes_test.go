@@ -88,7 +88,11 @@ func TestEpisodesMergeVersionsWithoutDuplicateNumbers(t *testing.T) {
 				fmt.Fprintf(w, `{"items":[{"media_id":%q,"media_type":"tv","tmdb_id":5},{"media_id":%q,"media_type":"tv","tmdb_id":5}],"next_after":null}`, show, other)
 			}
 		case "/api/v1/media/" + show:
-			fmt.Fprintf(w, `{"id":%q,"library_id":%q,"media_type":"tv","tmdb_id":5,"seasons":[{"id":"21234567-89ab-4cde-8fab-0123456789ab","media_id":%q,"season_number":1,"episodes":[{"id":"31234567-89ab-4cde-8fab-0123456789ab","season_id":"21234567-89ab-4cde-8fab-0123456789ab","episode_number":1,"title":"One","files":[{"available":true}]}]}]}`, show, lib, show)
+			tmdb := "5"
+			if mode == "unmatched_show" {
+				tmdb = "null"
+			}
+			fmt.Fprintf(w, `{"id":%q,"library_id":%q,"media_type":"tv","tmdb_id":`+tmdb+`,"seasons":[{"id":"21234567-89ab-4cde-8fab-0123456789ab","media_id":%q,"season_number":1,"episodes":[{"id":"31234567-89ab-4cde-8fab-0123456789ab","season_id":"21234567-89ab-4cde-8fab-0123456789ab","episode_number":1,"title":"One","files":[{"available":true}]}]}]}`, show, lib, show)
 		case "/api/v1/media/" + other:
 			if mode == "missing_identity" {
 				fmt.Fprintf(w, `{"id":%q,"library_id":%q,"media_type":"tv","tmdb_id":null}`, other, lib)
@@ -114,6 +118,11 @@ func TestEpisodesMergeVersionsWithoutDuplicateNumbers(t *testing.T) {
 	mode = "missing_identity"
 	if _, err = s.CatalogueEpisodes(context.Background(), show); err == nil {
 		t.Fatal("accepted incomplete merged identity")
+	}
+	// A show without a TMDB match has no versions to merge: its own seasons.
+	mode = "unmatched_show"
+	if got, err := s.CatalogueEpisodes(context.Background(), show); err != nil || len(got) != 1 || got[0].Title != "One" {
+		t.Fatal("unmatched show not synced on its own", got, err)
 	}
 }
 

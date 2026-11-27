@@ -4,12 +4,13 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"time"
 )
 
 // refreshServerCatalogues uses the same provider readers and transactional
 // catalogue and child-item writers as the Media tab, guarded by the durable job.
-func (a *App) refreshServerCatalogues(ctx context.Context, server ManagedServer, claim *serverRefreshClaim) error {
+func (a *App) refreshServerCatalogues(ctx context.Context, server ManagedServer, claim *serverRefreshClaim, log *refreshLog) error {
 	rows, err := a.store.reader.QueryContext(ctx, `SELECT id FROM media_libraries WHERE server_id=? AND is_available=1 ORDER BY id`, server.ID)
 	if err != nil {
 		return err
@@ -81,18 +82,20 @@ func (a *App) refreshServerCatalogues(ctx context.Context, server ManagedServer,
 			a.catalogueMu.Unlock()
 			return err
 		}
-		err = a.refreshOneCatalogue(ctx, library, provider, claim)
+		err = a.refreshOneCatalogue(ctx, library, provider, claim, log)
 		a.catalogueMu.Lock()
 		delete(a.catalogueRuns, id)
 		a.catalogueMu.Unlock()
 		if err != nil {
+			_, explanation := refreshProblem(err)
+			log.add(refreshLogError, library.Name+": not refreshed", explanation)
 			return err
 		}
 	}
 	return nil
 }
 
-func (a *App) refreshOneCatalogue(ctx context.Context, library catalogueLibrary, provider *serverConnection, claim *serverRefreshClaim) error {
+func (a *App) refreshOneCatalogue(ctx context.Context, library catalogueLibrary, provider *serverConnection, claim *serverRefreshClaim, log *refreshLog) error {
 	items, err := provider.catalogueItems(ctx, library.External, library.Kind, func(int, int) {})
 	if err != nil {
 		return err
@@ -104,7 +107,9 @@ func (a *App) refreshOneCatalogue(ctx context.Context, library catalogueLibrary,
 			return err
 		}
 	}
+	var added, updated, removed int
 	err = a.store.write(ctx, func(tx *sql.Tx) error {
+		added, updated, removed = 0, 0, 0
 		if err := checkServerRefreshClaim(ctx, tx, claim); err != nil {
 			return err
 		}
@@ -133,9 +138,10 @@ func (a *App) refreshOneCatalogue(ctx context.Context, library catalogueLibrary,
 			return err
 		}
 		now := utcTimestamp(time.Now())
-		if _, _, err = upsertCatalogueItems(ctx, tx, library.ID, current.Server, "", items, existing, now); err != nil {
+		if added, updated, err = upsertCatalogueItems(ctx, tx, library.ID, current.Server, "", items, existing, now); err != nil {
 			return err
 		}
+		removed = len(existing)
 		for external, id := range existing {
 			if _, err = tx.ExecContext(ctx, "DELETE FROM media_items WHERE library_id=? AND parent_id=?", library.ID, external); err != nil {
 				return err
@@ -155,6 +161,7 @@ func (a *App) refreshOneCatalogue(ctx context.Context, library catalogueLibrary,
 	if err != nil {
 		return err
 	}
+	log.add(refreshLogSuccess, library.Name+": "+plural(len(items), "item", "items")+" saved", fmt.Sprintf("%d added, %d updated, %d removed", added, updated, removed))
 	if !claim.IncludeEpisodesAndTracks {
 		return nil
 	}
@@ -162,14 +169,42 @@ func (a *App) refreshOneCatalogue(ctx context.Context, library catalogueLibrary,
 	if err != nil {
 		return err
 	}
+	// A show whose episodes can't be read keeps its previous episodes and is
+	// listed in the log; the other shows still refresh.
+	var synced, skipped int
+	var totals episodeSyncResult
+	children := "episodes"
 	for _, show := range shows {
 		child, ok := childrenOf(show.Kind)
 		if !ok || !childCatalogueSupported(library.Provider, child) {
 			continue
 		}
-		if _, err = a.syncChildrenForRefresh(ctx, child, claim.Actor, "", library, provider, show, false, claim); err != nil {
-			return err
+		if show.Kind == "album" {
+			children = "tracks"
 		}
+		result, err := a.syncChildrenForRefresh(ctx, child, claim.Actor, "", library, provider, show, false, claim)
+		if err != nil {
+			if !errors.Is(err, errEpisodeRead) || ctx.Err() != nil {
+				return err
+			}
+			skipped++
+			_, explanation := refreshProblem(err)
+			log.add(refreshLogWarning, fmt.Sprintf("%s: skipped %q", library.Name, show.Title), explanation+" Its previous "+children+" are kept.")
+			continue
+		}
+		synced++
+		totals.Total += result.Total
+		totals.Added += result.Added
+		totals.Updated += result.Updated
+		totals.Removed += result.Removed
+	}
+	if synced+skipped > 0 {
+		parent := "shows"
+		if children == "tracks" {
+			parent = "albums"
+		}
+		log.add(refreshLogSuccess, fmt.Sprintf("%s: %s synced for %d of %d %s", library.Name, children, synced, synced+skipped, parent),
+			fmt.Sprintf("%d %s: %d added, %d updated, %d removed", totals.Total, children, totals.Added, totals.Updated, totals.Removed))
 	}
 	return nil
 }

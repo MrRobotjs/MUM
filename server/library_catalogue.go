@@ -369,7 +369,7 @@ func (a *App) syncLibraryCatalogue(w http.ResponseWriter, r *http.Request) {
 func (a *App) catalogueShows(ctx context.Context, library int64) ([]catalogueShow, error) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-	rows, err := a.store.reader.QueryContext(ctx, "SELECT id,external_id,episode_revision,item_type FROM media_items WHERE library_id=? AND parent_id IS NULL AND item_type IN ('show','album') ORDER BY sort_title COLLATE NOCASE,id", library)
+	rows, err := a.store.reader.QueryContext(ctx, "SELECT id,external_id,episode_revision,item_type,title FROM media_items WHERE library_id=? AND parent_id IS NULL AND item_type IN ('show','album') ORDER BY sort_title COLLATE NOCASE,id", library)
 	if err != nil {
 		return nil, err
 	}
@@ -377,7 +377,7 @@ func (a *App) catalogueShows(ctx context.Context, library int64) ([]catalogueSho
 	shows := []catalogueShow{}
 	for rows.Next() {
 		var show catalogueShow
-		if err := rows.Scan(&show.ID, &show.External, &show.Revision, &show.Kind); err != nil {
+		if err := rows.Scan(&show.ID, &show.External, &show.Revision, &show.Kind, &show.Title); err != nil {
 			return nil, err
 		}
 		shows = append(shows, show)

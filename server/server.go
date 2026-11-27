@@ -249,6 +249,7 @@ func NewApp(store *Store, queue *LogQueue, assets fs.FS) (*App, error) {
 	handle("POST /api/settings/discord/test", a.testDiscordSettings)
 	handle("GET /api/settings/scheduled-tasks", a.scheduledTasks)
 	handle("GET /api/servers/{server}/refresh-settings", a.serverRefreshSettings)
+	handle("GET /api/servers/{server}/refresh-runs", a.serverRefreshRuns)
 	handle("PUT /api/servers/{server}/refresh-settings", a.serverRefreshSettings)
 	handle("POST /api/events", a.ingestEvents)
 	handle("POST /api/chat", a.postChat)

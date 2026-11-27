@@ -97,10 +97,9 @@ func (s *Server) catalogueEpisodesOnce(ctx context.Context, show string) ([]prov
 		return nil, errors.New("Tofa library unavailable")
 	}
 	shows := []tofaShow{primary}
-	if merge {
-		if primary.TMDB == nil || *primary.TMDB <= 0 {
-			return nil, errors.New("Tofa merged show identity unavailable")
-		}
+	// Versions are merged by their TMDB ID, so a show without one has no other
+	// versions to merge: it is shown on its own with its own seasons.
+	if merge && primary.TMDB != nil && *primary.TMDB > 0 {
 		ids := map[string]bool{strings.ToLower(show): true}
 		unknown := map[string]bool{}
 		after := ""

@@ -9,6 +9,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { useScheduledTasks } from '../hooks/useScheduledTasks';
 import { useSystemConfig } from '../hooks/useSystemConfig';
 import { PageHeader } from '../components';
+import { RefreshRunLog } from '../components/settings/RefreshRunLog';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import {
@@ -38,7 +39,7 @@ function TaskState({state,label}:{state:'active'|'inactive'|'unavailable';label?
 }
 
 // Helper function to calculate countdown from next_run_time
-const useCountdown = (nextRunTime: string | null) => {
+const useCountdown = (nextRunTime: string | null, dueLabel = 'Due') => {
   const [countdown, setCountdown] = useState<string>('');
 
   useEffect(() => {
@@ -53,7 +54,7 @@ const useCountdown = (nextRunTime: string | null) => {
       const diff = target - now;
 
       if (diff <= 0) {
-        return 'Due';
+        return dueLabel;
       }
 
       const hours = Math.floor(diff / (1000 * 60 * 60));
@@ -78,15 +79,17 @@ const useCountdown = (nextRunTime: string | null) => {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [nextRunTime]);
+  }, [nextRunTime, dueLabel]);
 
   return countdown;
 };
 
 // A shared pair of cells keeps the countdown and the viewer-local calendar time consistent.
-function NextRunCells({value, display, empty = 'N/A'}:{value:string|null;display:DisplayValues|undefined;empty?:string}) {
-  const countdown = useCountdown(value);
-  return <><TableCell className="font-mono text-sm">{value ? countdown : empty}</TableCell><TableCell className="text-sm">{value ? formatNextRunTime(value,new Date().toISOString(),display) : empty}</TableCell></>;
+// status replaces the countdown while the task is running; dueLabel is shown
+// once the time has passed and the task is waiting for its turn.
+function NextRunCells({value, display, empty = 'N/A', dueLabel, status}:{value:string|null;display:DisplayValues|undefined;empty?:string;dueLabel?:string;status?:string}) {
+  const countdown = useCountdown(value, dueLabel);
+  return <><TableCell className={status ? 'text-sm' : 'font-mono text-sm'}>{status ?? (value ? countdown : empty)}</TableCell><TableCell className="text-sm">{value ? formatNextRunTime(value,new Date().toISOString(),display) : empty}</TableCell></>;
 }
 
 // Function to get detailed task information
@@ -99,7 +102,7 @@ const getTaskDetails = (task: any, formatTimestamp: (value: string) => string) =
   details.push({ label: 'Type', value: task.type });
   details.push({ label: 'State', value: ({active:'Active',inactive:'Inactive',unavailable:'Unavailable'} as const)[scheduledTaskState(task.state)] });
   details.push({ label: 'Side', value: task.side });
-  if(String(task.id).startsWith('provider-sync-')){details.push({label:'Last outcome',value:({NEVER_RUN:'Never run',SUCCEEDED:'Succeeded',FAILED:'Failed',CANCELLED:'Cancelled',INTERRUPTED:'Interrupted'} as Record<string,string>)[task.last_code]??'Unknown'});details.push({label:'Attempts',value:String(task.attempts)});if(task.started_at)details.push({label:'Last started',value:formatTimestamp(task.started_at)});if(task.finished_at)details.push({label:'Last finished',value:formatTimestamp(task.finished_at)});}
+  if(String(task.id).startsWith('provider-sync-')){details.push({label:'Last outcome',value:({NEVER_RUN:'Never run',SUCCEEDED:'Succeeded',WARNINGS:'Succeeded with warnings',FAILED:'Failed',CANCELLED:'Cancelled',INTERRUPTED:'Interrupted'} as Record<string,string>)[task.last_code]??'Unknown'});details.push({label:'Attempts',value:String(task.attempts)});if(task.started_at)details.push({label:'Last started',value:formatTimestamp(task.started_at)});if(task.finished_at)details.push({label:'Last finished',value:formatTimestamp(task.finished_at)});}
 
   // Execution details
   if (task.next_run_time) {
@@ -214,6 +217,7 @@ const ScheduledTaskRow = ({ task, onClick, display }: ScheduledTaskRowProps) => 
     const name: string = task.name || '';
     return name.replace(/\s*\(.*\)$/, '');
   }, [task.name]);
+  const running = task.state === 'running' || task.state === 'recovering';
 
   return (
     <TableRow
@@ -221,9 +225,11 @@ const ScheduledTaskRow = ({ task, onClick, display }: ScheduledTaskRowProps) => 
       onClick={() => onClick(task)}
     >
       <TableCell className="font-medium"><div className="flex flex-wrap items-center gap-2"><span>{displayName}</span><span className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs font-semibold ${getServiceBadgeClass(task.provider)}`}>{getServiceIcon(task.provider, 'size-3')}<span className="sr-only">{task.provider}: </span>{task.server_name}</span></div></TableCell>
-      <TableCell><TaskState state={scheduledTaskState(task.state)} /></TableCell>
+      <TableCell>{running ? <span className="inline-flex items-center gap-1 text-xs text-emerald-600"><Spinner className="size-3" />{task.state === 'running' ? 'Running' : 'Recovering'}</span> : <TaskState state={scheduledTaskState(task.state)} />}</TableCell>
       <TableCell>{task.interval_seconds ? formatTaskInterval(task.interval_seconds) : '—'}</TableCell>
-      <NextRunCells value={task.type === 'WebSocket' ? null : task.next_run_time} display={display} empty={task.type === 'WebSocket' ? 'N/A' : 'Not scheduled'} />
+      {/* Server refreshes run one at a time, so a due task can wait for another server's refresh to finish. */}
+      <NextRunCells value={task.type === 'WebSocket' ? null : task.next_run_time} display={display} empty={task.type === 'WebSocket' ? 'N/A' : 'Not scheduled'}
+        dueLabel="Waiting to start" status={task.state === 'running' ? 'Running now' : task.state === 'recovering' ? 'Finishing an earlier run' : undefined} />
     </TableRow>
   );
 };
@@ -364,8 +370,8 @@ export const AdminSettingsInfoPage = () => {
                     <TableCell><TaskState state={isSocketConnected(task)?'active':'inactive'} label="WebSocket" />{socketMonitoringStatus(task)==='HTTP fallback' && <div className="text-xs text-muted-foreground">HTTP fallback</div>}</TableCell>
                     <TableCell>{task.socket_enabled ? 'N/A' : task.state==='scheduled'||task.state==='running' ? `${formatTaskInterval(task.interval_seconds)} (HTTP)` : 'N/A'}</TableCell><NextRunCells value={!task.socket_enabled && (task.state==='scheduled'||task.state==='running') ? task.next_run_at : null} display={displaySettings?.display} />
                   </TableRow>)}
-                  <TableRow><TableCell>Check local account expiry</TableCell><TableCell><TaskState state={maintenanceState}/></TableCell><TableCell>Scheduler loop</TableCell><TableCell>Not recorded</TableCell><TableCell>Not recorded</TableCell></TableRow>
-                  <TableRow><TableCell>Check service account expiry</TableCell><TableCell><TaskState state={maintenanceState}/></TableCell><TableCell>Scheduler loop</TableCell><TableCell>Not recorded</TableCell><TableCell>Not recorded</TableCell></TableRow>
+                  <TableRow><TableCell>Check local account expiry</TableCell><TableCell><TaskState state={maintenanceState}/></TableCell><TableCell>Every second</TableCell><TableCell>Within a second</TableCell><TableCell>Within a second</TableCell></TableRow>
+                  <TableRow><TableCell>Check service account expiry</TableCell><TableCell><TaskState state={maintenanceState}/></TableCell><TableCell>Every second</TableCell><TableCell>Within a second</TableCell><TableCell>Within a second</TableCell></TableRow>
                   <TableRow><TableCell>Check server health</TableCell><TableCell><TaskState state={maintenanceState}/></TableCell><TableCell>15s sweep</TableCell><TableCell>Not recorded</TableCell><TableCell>Not recorded</TableCell></TableRow>
                   {tasks.map(task => <ScheduledTaskRow key={task.id} task={task} onClick={handleTaskClick} display={displaySettings?.display} />)}
                 </TableBody>
@@ -471,6 +477,8 @@ export const AdminSettingsInfoPage = () => {
                 </div>
               </div>
             </div>
+
+            {String(selectedTask.id).startsWith('provider-sync-') && <RefreshRunLog server={selectedTask.server_id} scope={selectedTask.scope} runningSince={(liveSelectedTask??selectedTask).state === 'running' ? (liveSelectedTask??selectedTask).started_at : null} />}
           </div>
         )}
       </ResponsiveDialog>

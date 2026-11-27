@@ -74,6 +74,20 @@ func TestServerRefreshUserJobRunsWithoutSignedInSession(t *testing.T) {
 	if err := s.reader.QueryRow("SELECT count(*) FROM service_accounts WHERE server_id=?", id).Scan(&count); err != nil || state != "succeeded" || count == 0 {
 		t.Fatal(state, count, err)
 	}
+	// The run log names the accounts the refresh added.
+	var stored string
+	if err := s.reader.QueryRow("SELECT entries FROM server_refresh_runs WHERE server_id=? AND scope='users'", id).Scan(&stored); err != nil {
+		t.Fatal(err)
+	}
+	var entries []refreshLogEntry
+	if err := json.Unmarshal([]byte(stored), &entries); err != nil || len(entries) != 1 || len(entries[0].Items) != min(count, refreshLogEntryItems) {
+		t.Fatal(stored, err)
+	}
+	for _, item := range entries[0].Items {
+		if item.Change != "added" || item.Title == "" || item.ItemID != 0 {
+			t.Fatal("account item", item)
+		}
+	}
 }
 
 // refreshRunLog reads a refresh task's recent runs through the API, newest first.
@@ -422,6 +436,24 @@ func TestServerRefreshEpisodeFailurePreservesPreviousEpisodes(t *testing.T) {
 	}
 	if runs[0].Outcome != "warnings" || !runLogHas(runs[0], "warning", `skipped "Fixture show"`) {
 		t.Fatal("second run", runs)
+	}
+	// Each entry lists the titles it is about, linked to the catalogue row.
+	var saved, skipped *refreshLogEntry
+	for n := range runs[1].Entries {
+		if strings.Contains(runs[1].Entries[n].Message, "item saved") {
+			saved = &runs[1].Entries[n]
+		}
+	}
+	for n := range runs[0].Entries {
+		if runs[0].Entries[n].Level == "warning" {
+			skipped = &runs[0].Entries[n]
+		}
+	}
+	if saved == nil || len(saved.Items) != 1 || saved.Items[0].Title != "Fixture show" || saved.Items[0].Change != "added" || saved.Items[0].ItemID <= 0 || saved.Items[0].LibraryID != f.library {
+		t.Fatal("saved items", saved)
+	}
+	if skipped == nil || len(skipped.Items) != 1 || skipped.Items[0].Change != "skipped" || skipped.Items[0].ItemID != saved.Items[0].ItemID {
+		t.Fatal("skipped items", skipped)
 	}
 }
 

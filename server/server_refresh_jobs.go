@@ -109,7 +109,12 @@ func (a *App) runOneServerRefreshScope(parent context.Context, scope string) err
 			var receipt map[string]int
 			receipt, runErr = a.syncServerClaimed(ctx, claim.Actor, "", server, claim.Scope == "libraries", claim.Scope == "users", claim)
 			if runErr == nil {
-				logListRefresh(log, claim.Scope, receipt)
+				var accounts []refreshLogItem
+				if claim.Scope == "users" {
+					// The list is extra detail: the counts stand if it can't be read.
+					accounts, _ = a.refreshAccountChanges(ctx, claim.Server, started)
+				}
+				logListRefresh(log, claim.Scope, receipt, accounts)
 			}
 		}
 		<-a.refreshListSlot

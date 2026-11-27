@@ -108,8 +108,9 @@ func (a *App) refreshOneCatalogue(ctx context.Context, library catalogueLibrary,
 		}
 	}
 	var added, updated, removed int
+	var changes []refreshLogItem
 	err = a.store.write(ctx, func(tx *sql.Tx) error {
-		added, updated, removed = 0, 0, 0
+		added, updated, removed, changes = 0, 0, 0, nil
 		if err := checkServerRefreshClaim(ctx, tx, claim); err != nil {
 			return err
 		}
@@ -138,11 +139,34 @@ func (a *App) refreshOneCatalogue(ctx context.Context, library catalogueLibrary,
 			return err
 		}
 		now := utcTimestamp(time.Now())
-		if added, updated, err = upsertCatalogueItems(ctx, tx, library.ID, current.Server, "", items, existing, now); err != nil {
+		// The log lists the first changed titles; an added item's row ID is read
+		// back so its poster can be shown.
+		var externals []string
+		note := func(id int64, item catalogueItem, change string) {
+			if len(changes) < refreshLogEntryItems {
+				changes = append(changes, refreshLogItem{Title: item.Title, Change: change, ItemID: id})
+				externals = append(externals, item.ID)
+			}
+		}
+		if added, updated, err = upsertCatalogueItemsNoting(ctx, tx, library.ID, current.Server, "", items, existing, now, note); err != nil {
 			return err
+		}
+		for n := range changes {
+			if changes[n].ItemID == 0 {
+				if err := tx.QueryRowContext(ctx, "SELECT id FROM media_items WHERE library_id=? AND external_id=?", library.ID, externals[n]).Scan(&changes[n].ItemID); err != nil {
+					return err
+				}
+			}
 		}
 		removed = len(existing)
 		for external, id := range existing {
+			if len(changes) < refreshLogEntryItems {
+				var title string
+				if err := tx.QueryRowContext(ctx, "SELECT title FROM media_items WHERE id=?", id).Scan(&title); err != nil {
+					return err
+				}
+				changes = append(changes, refreshLogItem{Title: title, Change: "removed"})
+			}
 			if _, err = tx.ExecContext(ctx, "DELETE FROM media_items WHERE library_id=? AND parent_id=?", library.ID, external); err != nil {
 				return err
 			}
@@ -161,7 +185,7 @@ func (a *App) refreshOneCatalogue(ctx context.Context, library catalogueLibrary,
 	if err != nil {
 		return err
 	}
-	log.add(refreshLogSuccess, library.Name+": "+plural(len(items), "item", "items")+" saved", fmt.Sprintf("%d added, %d updated, %d removed", added, updated, removed))
+	log.addItems(refreshLogSuccess, library.Name+": "+plural(len(items), "item", "items")+" saved", fmt.Sprintf("%d added, %d updated, %d removed", added, updated, removed), changes, added+updated+removed)
 	if !claim.IncludeEpisodesAndTracks {
 		return nil
 	}
@@ -171,8 +195,9 @@ func (a *App) refreshOneCatalogue(ctx context.Context, library catalogueLibrary,
 	}
 	// A show whose episodes can't be read keeps its previous episodes and is
 	// listed in the log; the other shows still refresh.
-	var synced, skipped int
+	var synced, skipped, changedShows int
 	var totals episodeSyncResult
+	var changedItems []refreshLogItem
 	children := "episodes"
 	for _, show := range shows {
 		child, ok := childrenOf(show.Kind)
@@ -189,8 +214,16 @@ func (a *App) refreshOneCatalogue(ctx context.Context, library catalogueLibrary,
 			}
 			skipped++
 			_, explanation := refreshProblem(err)
-			log.add(refreshLogWarning, fmt.Sprintf("%s: skipped %q", library.Name, show.Title), explanation+" Its previous "+children+" are kept.")
+			log.addItems(refreshLogWarning, fmt.Sprintf("%s: skipped %q", library.Name, show.Title), explanation+" Its previous "+children+" are kept.",
+				[]refreshLogItem{{Title: show.Title, Change: "skipped", ItemID: show.ID}}, 1)
 			continue
+		}
+		if result.Added+result.Updated+result.Removed > 0 {
+			changedShows++
+			if len(changedItems) < refreshLogEntryItems {
+				changedItems = append(changedItems, refreshLogItem{Title: show.Title, Change: "updated", ItemID: show.ID,
+					Note: fmt.Sprintf("%d added, %d updated, %d removed", result.Added, result.Updated, result.Removed)})
+			}
 		}
 		synced++
 		totals.Total += result.Total
@@ -203,8 +236,8 @@ func (a *App) refreshOneCatalogue(ctx context.Context, library catalogueLibrary,
 		if children == "tracks" {
 			parent = "albums"
 		}
-		log.add(refreshLogSuccess, fmt.Sprintf("%s: %s synced for %d of %d %s", library.Name, children, synced, synced+skipped, parent),
-			fmt.Sprintf("%d %s: %d added, %d updated, %d removed", totals.Total, children, totals.Added, totals.Updated, totals.Removed))
+		log.addItems(refreshLogSuccess, fmt.Sprintf("%s: %s synced for %d of %d %s", library.Name, children, synced, synced+skipped, parent),
+			fmt.Sprintf("%d %s: %d added, %d updated, %d removed", totals.Total, children, totals.Added, totals.Updated, totals.Removed), changedItems, changedShows)
 	}
 	return nil
 }

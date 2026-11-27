@@ -1069,6 +1069,12 @@ func mediaCacheIdentity(provider, external, namespace string) string {
 // A row with the same external ID under a different parent is never
 // overwritten; the whole commit is refused instead.
 func upsertCatalogueItems(ctx context.Context, tx *sql.Tx, library, server int64, parent string, items []catalogueItem, existing map[string]int64, now string) (added, updated int, err error) {
+	return upsertCatalogueItemsNoting(ctx, tx, library, server, parent, items, existing, now, nil)
+}
+
+// upsertCatalogueItemsNoting is upsertCatalogueItems that also reports each
+// added or changed item to note, with its row ID when it already existed.
+func upsertCatalogueItemsNoting(ctx context.Context, tx *sql.Tx, library, server int64, parent string, items []catalogueItem, existing map[string]int64, now string, note func(id int64, item catalogueItem, change string)) (added, updated int, err error) {
 	upsert, err := tx.PrepareContext(ctx, `INSERT INTO media_items(library_id,server_id,external_id,parent_id,title,sort_title,item_type,summary,year,rating,duration,season_number,episode_number,thumb_path,added_at,updated_at,last_synced,media_info)
 	 VALUES(?,?,?,nullif(?,''),?,?,?,nullif(?,''),?,?,?,?,?,nullif(?,''),nullif(?,''),?,?,?)
 	 ON CONFLICT(library_id,external_id) DO UPDATE SET title=excluded.title,sort_title=excluded.sort_title,item_type=excluded.item_type,summary=excluded.summary,year=excluded.year,rating=excluded.rating,duration=excluded.duration,season_number=excluded.season_number,episode_number=excluded.episode_number,thumb_path=excluded.thumb_path,added_at=excluded.added_at,updated_at=excluded.updated_at,last_synced=excluded.last_synced,media_info=excluded.media_info
@@ -1094,15 +1100,21 @@ func upsertCatalogueItems(ctx context.Context, tx *sql.Tx, library, server int64
 		if err != nil {
 			return 0, 0, err
 		}
-		if _, ok := existing[item.ID]; ok {
+		if id, ok := existing[item.ID]; ok {
 			delete(existing, item.ID)
 			if changed > 0 {
 				updated++
+				if note != nil {
+					note(id, item, "updated")
+				}
 			}
 		} else if changed == 0 {
 			return 0, 0, ErrConflict
 		} else {
 			added++
+			if note != nil {
+				note(0, item, "added")
+			}
 		}
 	}
 	return added, updated, nil

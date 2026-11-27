@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 	"unicode/utf8"
 )
 
@@ -19,6 +20,9 @@ const (
 	refreshRunsKept       = 20
 	refreshLogMaxEntries  = 100
 	refreshLogMaxText     = 300
+	refreshLogEntryItems  = 25
+	refreshLogRunItems    = 300
+	refreshLogMaxBytes    = 65536
 	refreshRunsReturned   = 10
 	refreshLogSuccess     = "success"
 	refreshLogInformation = "info"
@@ -27,9 +31,23 @@ const (
 )
 
 type refreshLogEntry struct {
-	Level   string `json:"level"`
-	Message string `json:"message"`
-	Detail  string `json:"detail,omitempty"`
+	Level   string           `json:"level"`
+	Message string           `json:"message"`
+	Detail  string           `json:"detail,omitempty"`
+	Items   []refreshLogItem `json:"items,omitempty"`
+	More    int              `json:"more_items,omitempty"`
+}
+
+// refreshLogItem is one title or account an entry is about. ItemID names a
+// catalogue row; its library and signed poster link are added when the log is
+// read, for items that still exist.
+type refreshLogItem struct {
+	Title     string `json:"title"`
+	Change    string `json:"change"`
+	Note      string `json:"note,omitempty"`
+	ItemID    int64  `json:"item_id,omitempty"`
+	LibraryID int64  `json:"library_id,omitempty"`
+	PosterURL string `json:"poster_url,omitempty"`
 }
 
 // refreshLog collects a run's entries. Past the cap, the remaining entries
@@ -37,6 +55,7 @@ type refreshLogEntry struct {
 type refreshLog struct {
 	entries []refreshLogEntry
 	dropped int
+	items   int
 	warned  bool
 	failed  bool
 }
@@ -49,6 +68,12 @@ func clipLogText(v string) string {
 }
 
 func (l *refreshLog) add(level, message, detail string) {
+	l.addItems(level, message, detail, nil, 0)
+}
+
+// addItems adds an entry listing the items it is about; total counts every
+// item, including those past the per-entry and per-run caps.
+func (l *refreshLog) addItems(level, message, detail string, items []refreshLogItem, total int) {
 	switch level {
 	case refreshLogWarning:
 		l.warned = true
@@ -59,7 +84,14 @@ func (l *refreshLog) add(level, message, detail string) {
 		l.dropped++
 		return
 	}
-	l.entries = append(l.entries, refreshLogEntry{Level: level, Message: clipLogText(message), Detail: clipLogText(detail)})
+	keep := min(len(items), refreshLogEntryItems, max(refreshLogRunItems-l.items, 0))
+	entry := refreshLogEntry{Level: level, Message: clipLogText(message), Detail: clipLogText(detail), More: max(total-keep, 0)}
+	for _, item := range items[:keep] {
+		item.Title, item.Note = clipLogText(item.Title), clipLogText(item.Note)
+		entry.Items = append(entry.Items, item)
+	}
+	l.items += keep
+	l.entries = append(l.entries, entry)
 }
 
 func (l *refreshLog) encoded() string {
@@ -71,6 +103,16 @@ func (l *refreshLog) encoded() string {
 		entries = []refreshLogEntry{}
 	}
 	out, _ := json.Marshal(entries)
+	// Over the stored size, the item lists go first; the entries stay.
+	if len(out) > refreshLogMaxBytes {
+		trimmed := make([]refreshLogEntry, len(entries))
+		for n, entry := range entries {
+			entry.More += len(entry.Items)
+			entry.Items = nil
+			trimmed[n] = entry
+		}
+		out, _ = json.Marshal(trimmed)
+	}
 	return string(out)
 }
 
@@ -82,14 +124,36 @@ func plural(n int, one, many string) string {
 }
 
 // logListRefresh records the result of refreshing the server's user or
-// library list.
-func logListRefresh(log *refreshLog, scope string, receipt map[string]int) {
+// library list; accounts lists the accounts the user refresh changed.
+func logListRefresh(log *refreshLog, scope string, receipt map[string]int, accounts []refreshLogItem) {
 	if scope == "users" {
-		log.add(refreshLogSuccess, "User list refreshed: "+plural(receipt["users"], "account", "accounts"),
-			fmt.Sprintf("%d added, %d updated, %d removed", receipt["added"], receipt["updated"], receipt["removed"]))
+		log.addItems(refreshLogSuccess, "User list refreshed: "+plural(receipt["users"], "account", "accounts"),
+			fmt.Sprintf("%d added, %d updated, %d removed", receipt["added"], receipt["updated"], receipt["removed"]), accounts, receipt["added"]+receipt["updated"]+receipt["removed"])
 		return
 	}
 	log.add(refreshLogSuccess, "Library list refreshed: "+plural(receipt["libraries"], "library", "libraries"), "")
+}
+
+// refreshAccountChanges reads the accounts a user refresh that started at
+// since added, updated or removed: the sync stamps each account it writes.
+func (a *App) refreshAccountChanges(ctx context.Context, server int64, since string) ([]refreshLogItem, error) {
+	rows, err := a.store.reader.QueryContext(ctx, `SELECT coalesce(nullif(external_username,''),nullif(external_email,''),'Unnamed account'),
+	 CASE WHEN julianday(created_at)>=julianday(?) THEN 'added' WHEN removed_at IS NOT NULL AND julianday(removed_at)>=julianday(?) THEN 'removed' ELSE 'updated' END AS change
+	 FROM service_accounts WHERE server_id=? AND (julianday(updated_at)>=julianday(?) OR (removed_at IS NOT NULL AND julianday(removed_at)>=julianday(?)))
+	 ORDER BY CASE change WHEN 'added' THEN 0 WHEN 'updated' THEN 1 ELSE 2 END,1 COLLATE NOCASE LIMIT ?`, since, since, server, since, since, refreshLogEntryItems)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []refreshLogItem
+	for rows.Next() {
+		var item refreshLogItem
+		if err := rows.Scan(&item.Title, &item.Change); err != nil {
+			return nil, err
+		}
+		out = append(out, item)
+	}
+	return out, rows.Err()
 }
 
 // refreshProblems explains the fixed errors the adapters return, matched by
@@ -221,5 +285,50 @@ func (a *App) serverRefreshRuns(w http.ResponseWriter, r *http.Request) {
 		domainError(w, err)
 		return
 	}
+	rows.Close()
+	// Posters are shown to administrators who can read the catalogue.
+	session, authorityErr := readCatalogueAuthority(r.Context(), tx, actor.UUID, bearer(r))
+	if authorityErr == nil {
+		if err := a.addRefreshLogPosters(r.Context(), tx, server, session, runs); err != nil {
+			domainError(w, err)
+			return
+		}
+	}
 	respond(w, 200, map[string]any{"server_id": server, "scope": scope, "runs": runs})
+}
+
+// addRefreshLogPosters fills in the library and poster link of each logged
+// item that is still in this server's catalogue.
+func (a *App) addRefreshLogPosters(ctx context.Context, tx *sql.Tx, server int64, session string, runs []refreshRun) error {
+	lookup, err := tx.PrepareContext(ctx, "SELECT library_id,coalesce(thumb_path,'')<>'' FROM media_items WHERE id=? AND server_id=?")
+	if err != nil {
+		return err
+	}
+	defer lookup.Close()
+	now := time.Now()
+	for _, run := range runs {
+		for _, entry := range run.Entries {
+			for n := range entry.Items {
+				item := &entry.Items[n]
+				if item.ItemID <= 0 {
+					continue
+				}
+				var library int64
+				var poster bool
+				err := lookup.QueryRowContext(ctx, item.ItemID, server).Scan(&library, &poster)
+				if errors.Is(err, sql.ErrNoRows) {
+					item.ItemID = 0
+					continue
+				}
+				if err != nil {
+					return err
+				}
+				item.LibraryID = library
+				if poster {
+					item.PosterURL = a.catalogueImageURL(session, item.ItemID, now)
+				}
+			}
+		}
+	}
+	return nil
 }

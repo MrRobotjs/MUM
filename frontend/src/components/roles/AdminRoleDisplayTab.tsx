@@ -301,7 +301,7 @@ export const AdminRoleDisplayTab = ({ role, onUpdate }: AdminRoleDisplayTabProps
                     </Button>
                     <Suspense
                       fallback={(
-                        <ResponsiveDialog
+                        <ResponsiveDialog size="lg"
                           open={iconBrowseOpen}
                           onOpenChange={handleBrowseOpenChange}
                           title="Browse icons"
@@ -328,7 +328,7 @@ export const AdminRoleDisplayTab = ({ role, onUpdate }: AdminRoleDisplayTabProps
                     </Button>
                     <Suspense
                       fallback={(
-                        <ResponsiveDialog
+                        <ResponsiveDialog size="lg"
                           open={iconBrowseOpen}
                           onOpenChange={handleBrowseOpenChange}
                           title="Browse icons"

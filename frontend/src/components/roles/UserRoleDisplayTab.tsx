@@ -278,7 +278,7 @@ export const UserRoleDisplayTab = ({ role, catalog, onUpdate }: UserRoleDisplayT
                     </Button>
                     <Suspense
                       fallback={(
-                        <ResponsiveDialog
+                        <ResponsiveDialog size="lg"
                           open={iconBrowseOpen}
                           onOpenChange={handleBrowseOpenChange}
                           title="Browse icons"
@@ -305,7 +305,7 @@ export const UserRoleDisplayTab = ({ role, catalog, onUpdate }: UserRoleDisplayT
                     </Button>
                     <Suspense
                       fallback={(
-                        <ResponsiveDialog
+                        <ResponsiveDialog size="lg"
                           open={iconBrowseOpen}
                           onOpenChange={handleBrowseOpenChange}
                           title="Browse icons"

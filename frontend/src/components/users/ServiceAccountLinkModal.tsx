@@ -117,7 +117,6 @@ export const ServiceAccountLinkModal = ({ open, onClose, accounts, loading, erro
       title="Link a service account"
       description={`Choose a server, then the user to link to ${ownerName || 'this profile'}. This changes ownership in MUM only.`}
       footer={footer}
-      contentClassName="max-w-lg"
     >
       {body}
     </ResponsiveDialog>

@@ -298,7 +298,6 @@ export const ActiveStreamsCard = ({
         onOpenChange={setShowDisplaySettings}
         title="Stream Display Settings"
         description="Choose which options should be the defaults when opening Active Streams."
-        contentClassName="max-w-lg"
         footer={[
           <Button
             key="cancel"

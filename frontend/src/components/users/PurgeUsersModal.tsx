@@ -406,13 +406,12 @@ export const PurgeUsersModal = ({ onClose, onPurgeComplete }: PurgeUsersModalPro
   };
 
   return (
-    <ResponsiveDialog
+    <ResponsiveDialog size="lg"
       open={true}
       onOpenChange={handleOpenChange}
       title={stepTitles[step]}
       description={stepDescriptions[step]}
       footer={footer}
-      contentClassName="max-w-2xl"
     >
       {body}
     </ResponsiveDialog>

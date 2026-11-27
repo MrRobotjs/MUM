@@ -424,12 +424,11 @@ export const AdminSettingsAdminRolesPage = () => {
         </CardContent>
       </Card>
 
-      <ResponsiveDialog
+      <ResponsiveDialog size="lg"
         open={modalOpen}
         onOpenChange={handleOpenChange}
         title={editingRole ? 'Edit Admin Role' : 'Create Admin Role'}
         footer={footerButtons}
-        contentClassName="max-w-4xl"
       >
         <form id={formId} onSubmit={handleSubmit} className="space-y-6">
           <div className="space-y-4">
@@ -624,7 +623,7 @@ export const AdminSettingsAdminRolesPage = () => {
                 </Button>
                 <Suspense
                   fallback={(
-                    <ResponsiveDialog
+                    <ResponsiveDialog size="lg"
                       open={iconBrowseOpen}
                       onOpenChange={handleBrowseOpenChange}
                       title="Browse icons"

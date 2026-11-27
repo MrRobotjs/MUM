@@ -130,11 +130,11 @@ export function MediaDetailsDialog({ open, onOpenChange, session }: MediaDetails
     ];
 
     return (
-        <ResponsiveDialog
+        <ResponsiveDialog size="md"
             open={open}
             onOpenChange={onOpenChange}
             title={<span className="text-base font-bold tracking-wide uppercase text-zinc-100">MEDIA DETAILS</span>}
-            contentClassName="bg-black border-zinc-800 text-zinc-100 max-w-xl p-0 gap-0 overflow-hidden"
+            contentClassName="bg-black border-zinc-800 text-zinc-100 p-0 gap-0 overflow-hidden"
             headerClassName="px-6 py-4 border-b border-zinc-800 bg-black"
             bodyClassName="p-0 bg-black"
         >

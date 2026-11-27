@@ -38,7 +38,6 @@ export const TerminateSessionModal = ({
       }}
       title="Terminate Session"
       description="End an active streaming session."
-      contentClassName="max-w-lg"
       footer={[
         <Button key="cancel" variant="outline" onClick={onClose}>
           Cancel

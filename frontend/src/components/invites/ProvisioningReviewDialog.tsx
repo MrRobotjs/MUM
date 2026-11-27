@@ -64,7 +64,7 @@ export function ProvisioningReviewDialog({ jobId, onClose, onChanged }: { jobId:
   const available = job?.status === 'failed' && job.reservation_held && !job.review_in_progress;
   if (plexJob && plexJob.id === jobId) return <PlexProvisioningDialog key={jobId} jobId={plexJob.id} onClose={onClose} onChanged={onChanged} />;
 
-  return <ResponsiveDialog open={Boolean(jobId)} onOpenChange={open => { if (!open && !busy) onClose(); }} title="Review Provisioning" description="Reconcile upstream access before releasing this invitation reservation." contentClassName="max-w-3xl"
+  return <ResponsiveDialog size="lg" open={Boolean(jobId)} onOpenChange={open => { if (!open && !busy) onClose(); }} title="Review Provisioning" description="Reconcile upstream access before releasing this invitation reservation."
     footer={<>
       <Button variant="outline" onClick={onClose} disabled={busy}>Close</Button>
       <Button variant="outline" onClick={() => void run('disable-accounts')} disabled={!available || busy || !acknowledge}>{job?.steps.some(step => step.cleanup_scope === 'media') ? 'Revoke Recorded Access' : 'Disable Recorded Accounts'}</Button>

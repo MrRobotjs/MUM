@@ -19,7 +19,7 @@ export const StreamingSettingsModal = ({ open, onClose }: StreamingSettingsModal
     title="Streaming Settings"
     description="Manage the Live User Map."
     footer={<Button variant="outline" onClick={onClose}>Close</Button>}
-    contentClassName="max-w-lg" bodyClassName="space-y-4"
+     bodyClassName="space-y-4"
   >
     {isAdministrator && <StreamingMapSettings />}
     {!isAdministrator && <p className="text-sm text-muted-foreground">No streaming settings are available for this account.</p>}

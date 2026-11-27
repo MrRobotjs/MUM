@@ -44,7 +44,7 @@ import {
 
 const StreamInfoDialog = ({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) => {
   return (
-    <ResponsiveDialog
+    <ResponsiveDialog size="md"
       open={open}
       onOpenChange={onOpenChange}
       title="Stream Details"
@@ -157,12 +157,11 @@ const PayloadDialog = ({
 }) => {
   const formattedPayload = formatRawPayload(payload);
   return (
-    <ResponsiveDialog
+    <ResponsiveDialog size="lg"
       open={open}
       onOpenChange={onOpenChange}
       title="Raw Stream Payload"
       description="Provider diagnostics captured for this session; sensitive and unsupported fields are omitted"
-      contentClassName="max-w-3xl"
     >
       {formattedPayload ? (
         <div className="space-y-3">
@@ -702,7 +701,6 @@ export const StreamingSessionCard = ({
           }}
           title="Send Message"
           description={`Send a message to ${session.user}'s player.`}
-          contentClassName="max-w-lg"
           footer={[
             <Button
               key="cancel"
@@ -931,7 +929,6 @@ export const StreamingSessionCard = ({
           }}
           title="Send Message"
           description={`Send a message to ${session.user}'s player.`}
-          contentClassName="max-w-lg"
           footer={[
             <Button
               key="cancel"

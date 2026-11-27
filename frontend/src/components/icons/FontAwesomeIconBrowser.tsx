@@ -161,13 +161,12 @@ export const FontAwesomeIconBrowser = ({
   };
 
   return (
-    <ResponsiveDialog
+    <ResponsiveDialog size="lg"
       open={open}
       onOpenChange={onOpenChange}
       title={title}
       description={description}
       bodyClassName="px-0"
-      contentClassName={isMobile ? 'max-w-none' : 'max-w-4xl'}
     >
       {loadingIcons ? (
         <div className="flex h-64 items-center justify-center flex-col gap-3 px-4">

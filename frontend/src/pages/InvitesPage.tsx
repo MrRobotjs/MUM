@@ -644,7 +644,6 @@ export const InvitesPage = () => {
             )}
           </Button>,
         ]}
-        contentClassName="max-w-lg"
       >
         <div className="space-y-3 text-sm">
           <p>
@@ -683,7 +682,6 @@ export const InvitesPage = () => {
             )}
           </Button>,
         ]}
-        contentClassName="max-w-lg"
       >
         {!discordSettings ? (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">

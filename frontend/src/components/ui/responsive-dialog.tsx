@@ -18,7 +18,23 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 
+/**
+ * Desktop width. On a phone every size is a bottom sheet; on a tablet "lg"
+ * steps down to the "md" width.
+ * - sm: notes, confirmations and short forms (512px)
+ * - md: most forms and detail views (672px)
+ * - lg: large working dialogs (1024px)
+ */
+export type ResponsiveDialogSize = "sm" | "md" | "lg"
+
+const dialogSizes: Record<ResponsiveDialogSize, string> = {
+  sm: "",
+  md: "sm:max-w-2xl",
+  lg: "sm:max-w-2xl lg:max-w-5xl",
+}
+
 type ResponsiveDialogProps = {
+  size?: ResponsiveDialogSize
   open: boolean
   onOpenChange: (open: boolean) => void
   title?: ReactNode
@@ -39,6 +55,7 @@ type ResponsiveDialogProps = {
 export function ResponsiveDialog({
   open,
   onOpenChange,
+  size = "sm",
   title,
   description,
   children,
@@ -120,7 +137,7 @@ export function ResponsiveDialog({
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
-        className={contentClassName}
+        className={cn(dialogSizes[size], contentClassName)}
         onCloseAutoFocus={handleCloseAutoFocus}
       >
         {(title || description) && (

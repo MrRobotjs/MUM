@@ -105,7 +105,7 @@ export const UserDebugModal = ({ open, onClose, userUuid }: UserDebugModalProps)
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-      <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-2xl lg:max-w-5xl max-h-[80vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>User Debug Information</DialogTitle>
           <DialogDescription>

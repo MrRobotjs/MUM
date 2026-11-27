@@ -526,11 +526,10 @@ const AdminSettingsAdminManagementPage = () => {
       </Card>
 
       {/* Create Admin Modal */}
-      <ResponsiveDialog
+      <ResponsiveDialog size="md"
         open={showCreateModal}
         onOpenChange={setShowCreateModal}
         title="Create New Administrator"
-        contentClassName="max-w-4xl"
         footer={[
           <Button key="cancel" variant="outline" onClick={() => setShowCreateModal(false)}>
             Cancel
@@ -658,11 +657,10 @@ const AdminSettingsAdminManagementPage = () => {
       </ResponsiveDialog>
 
       {/* Edit Admin Modal */}
-      <ResponsiveDialog
+      <ResponsiveDialog size="md"
         open={showEditModal}
         onOpenChange={setShowEditModal}
         title={`Edit Admin: ${selectedAdmin?.username || ''}`}
-        contentClassName="max-w-2xl"
         footer={[
           <Button key="cancel" variant="outline" onClick={() => setShowEditModal(false)}>
             Cancel

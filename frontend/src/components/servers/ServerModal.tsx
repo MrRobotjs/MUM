@@ -345,12 +345,11 @@ export const ServerModal = ({
   const isRomm = values.service_type === 'romm';
 
   return (
-    <ResponsiveDialog
+    <ResponsiveDialog size="md"
       open={open}
       onOpenChange={handleOpenChange}
       title={initialValues ? 'Edit Server' : 'Add Server'}
       footer={footer}
-      contentClassName="max-w-3xl"
       bodyClassName="space-y-4"
     >
       <form id={formId} onSubmit={handleSubmit} className="space-y-4">

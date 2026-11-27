@@ -361,7 +361,7 @@ export const AdminSettingsUserRolesPage = () => {
             </Button>
             <Suspense
               fallback={(
-                <ResponsiveDialog
+                <ResponsiveDialog size="lg"
                   open={iconBrowseOpen}
                   onOpenChange={handleBrowseOpenChange}
                   title="Browse icons"
@@ -594,11 +594,10 @@ export const AdminSettingsUserRolesPage = () => {
         </CardContent>
       </Card>
 
-      <ResponsiveDialog
+      <ResponsiveDialog size="lg"
         open={modalOpen}
         onOpenChange={setModalOpen}
         title={editingRole ? 'Edit User Role' : 'Create User Role'}
-        contentClassName="max-w-4xl"
         footer={[
           <Button
             key="cancel"

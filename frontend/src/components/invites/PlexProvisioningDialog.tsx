@@ -30,7 +30,7 @@ export function PlexProvisioningDialog({jobId,onClose,onChanged}:{jobId:string;o
   await operation;
   if(!controller.state.busy)try{await onChanged();}catch{/* Receipt state remains independent from the invitation list. */}
  };
- return <ResponsiveDialog open onOpenChange={open=>{if(!open && !state.busy)onClose();}} title="Review Plex Provisioning" description="Review accepted library access before activating the recipient's local profile." contentClassName="max-w-3xl"
+ return <ResponsiveDialog size="lg" open onOpenChange={open=>{if(!open && !state.busy)onClose();}} title="Review Plex Provisioning" description="Review accepted library access before activating the recipient's local profile."
   footer={<>
    <Button variant="outline" onClick={onClose} disabled={state.busy}>Close</Button>
    <Button variant="outline" onClick={()=>{setRisk(false);setActivation(false);void controller?.reload();}} disabled={state.busy}>Refresh Receipt</Button>

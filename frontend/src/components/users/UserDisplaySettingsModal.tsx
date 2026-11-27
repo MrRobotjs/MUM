@@ -286,13 +286,12 @@ export const UserDisplaySettingsModal = ({ isOpen, onClose }: UserDisplaySetting
   );
 
   return (
-    <ResponsiveDialog
+    <ResponsiveDialog size="md"
       open={isOpen}
       onOpenChange={handleOpenChange}
       title="User Display Settings"
       description="Configure how the user interface displays information and behaves to match your preferences."
       footer={footer}
-      contentClassName="max-w-2xl"
       bodyClassName="px-0"
     >
       {body}

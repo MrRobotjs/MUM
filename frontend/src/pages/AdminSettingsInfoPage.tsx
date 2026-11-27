@@ -397,7 +397,7 @@ export const AdminSettingsInfoPage = () => {
       </ResponsiveDialog>
 
       {/* Task Details Modal */}
-      <ResponsiveDialog
+      <ResponsiveDialog size="md"
         open={isModalOpen}
         onOpenChange={setIsModalOpen}
         title={
@@ -407,7 +407,6 @@ export const AdminSettingsInfoPage = () => {
           </div>
         }
         description="Detailed information about this scheduled task"
-        contentClassName="max-w-2xl"
         footer={
           <Button variant="outline" onClick={handleCloseModal}>
             Close

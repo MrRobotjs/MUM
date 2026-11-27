@@ -174,7 +174,7 @@ export const UserRoleMembersTab=({role,onUpdate}:UserRoleMembersTabProps)=>{
       </Card>
 
       {/* Add Member Modal */}
-      <ResponsiveDialog
+      <ResponsiveDialog size="md"
         open={addModalOpen}
         onOpenChange={setAddModalOpen}
         title="Add Users to Role"

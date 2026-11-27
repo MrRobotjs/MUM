@@ -40,7 +40,7 @@ function RecordsDialog({ stream, onClose }: { stream: DebugStream | null; onClos
   const { data, error, isLoading } = useSWR(stream ? ['debug-records', stream.provider, stream.transport] as const : null,
     ([, provider, transport]) => fetchDebugRecords(provider, transport, 50), { refreshInterval: 5000 });
   return (
-    <ResponsiveDialog open={stream !== null} onOpenChange={open => { if (!open) onClose(); }} contentClassName="max-w-3xl"
+    <ResponsiveDialog size="lg" open={stream !== null} onOpenChange={open => { if (!open) onClose(); }}
       title={stream ? `${stream.provider_name} ${transportLabel[stream.transport]} log` : ''}
       description="The newest 50 records, newest first. Credentials are removed."
       footer={<Button variant="outline" onClick={onClose}>Close</Button>}>

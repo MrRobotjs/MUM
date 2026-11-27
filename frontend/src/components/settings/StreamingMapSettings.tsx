@@ -58,7 +58,7 @@ export function StreamingMapSettings() {
  </CardContent></Card>;
 }
 export function StreamingMapKeyDialog({open,onClose}:{open:boolean;onClose:()=>void}) {
- return <ResponsiveDialog open={open} onOpenChange={value=>{if(!value)onClose();}} title="Set up Live User Map" description="Add your installation’s CARTO basemap key." contentClassName="max-w-lg" footer={<Button variant="outline" onClick={onClose}>Close</Button>}>
+ return <ResponsiveDialog open={open} onOpenChange={value=>{if(!value)onClose();}} title="Set up Live User Map" description="Add your installation’s CARTO basemap key."  footer={<Button variant="outline" onClick={onClose}>Close</Button>}>
   {open&&<StreamingMapSettings/>}
  </ResponsiveDialog>;
 }

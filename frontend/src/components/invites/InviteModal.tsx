@@ -29,11 +29,13 @@ import {
   faServer,
   faShieldHalved,
   faTicketSimple,
+  faTriangleExclamation,
   faTv,
   faUsers
 } from '@fortawesome/free-solid-svg-icons';
 import { faDiscord } from '@fortawesome/free-brands-svg-icons';
 import { Spinner } from '@/components/ui/spinner'
+import { useMediaQuery } from '../../store/mediaQueryStore';
 
 export type InviteFormValues = {
 	all_library_server_ids?: number[];
@@ -154,6 +156,8 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
   const [loadingServers, setLoadingServers] = useState(true);
   const [serverError, setServerError] = useState<string | null>(null);
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [section, setSection] = useState('servers');
+  const desktop = useMediaQuery('(min-width: 1024px)');
   const [librarySearch, setLibrarySearch] = useState<Record<number, string>>({});
   const editingMode = isEditing ?? Boolean(initialValues);
 
@@ -590,6 +594,544 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
     </Button>,
   ];
 
+  const summary = [
+    { label: 'Servers', value: selectedServerCount, icon: faServer, color: 'text-primary' },
+    { label: 'Libraries', value: selectedLibraryCount, icon: faPhotoFilm, color: 'text-blue-400' },
+    { label: 'Expires', value: expiresLabel, icon: faCalendarDays, color: 'text-yellow-400' },
+    { label: 'Max Uses', value: maxUsesLabel, icon: faHashtag, color: 'text-emerald-500' },
+  ];
+
+  const linkFields = (
+    <label className="space-y-1 block">
+      <div className="flex items-center gap-2 text-sm font-medium">
+        <FontAwesomeIcon icon={faLink} className="text-primary" />
+        Custom Path
+        <span className="ml-2 rounded border border-yellow-500/30 bg-yellow-500/10 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-yellow-400">
+          Optional
+        </span>
+      </div>
+      <Input
+        type="text"
+        disabled={editingMode}
+        title={editingMode ? 'The custom path cannot be changed after the invite is created' : undefined}
+        value={form.custom_path ?? ''}
+        onChange={handleChange('custom_path')}
+        placeholder="e.g., besties or vip_access"
+      />
+      <span className="text-xs text-muted-foreground">
+        Leave blank to auto-generate a secure tokenized link.
+      </span>
+    </label>
+  );
+
+  const serverFields = (
+    <>
+      {loadingServers ? (
+        <div className="text-center py-8">
+          <Spinner className="h-8 w-8 text-primary mx-auto mb-2" />
+          <p className="text-sm text-muted-foreground mt-2">Loading servers...</p>
+        </div>
+      ) : Object.keys(groupedServers).length === 0 ? (
+        <div className="text-center py-8 rounded-lg border bg-muted/30">
+          <FontAwesomeIcon icon={faServer} className="text-muted-foreground text-3xl mb-2" />
+          <p className="text-sm text-muted-foreground">No servers available</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {Object.entries(groupedServers).map(([serviceType, serviceServers]) => (
+            <div key={serviceType} className="rounded-md border bg-background/60">
+              <div className="flex items-center justify-between px-4 py-3">
+                <div className="flex items-center gap-2">
+                  <ServiceIcon
+                    serviceType={serviceType}
+                    className={serviceType.toLowerCase() === 'plex' ? 'w-5 h-5' : 'w-4 h-4'}
+                  />
+                  <span className="text-sm font-semibold uppercase tracking-wide">{serviceType}</span>
+                </div>
+                <span className="text-xs text-muted-foreground">
+                  {serviceServers.filter((s) => selectedServerIds.has(s.id)).length} selected
+                </span>
+              </div>
+              <div className="divide-y">
+                {serviceServers.map((server) => {
+                  const isSelected = selectedServerIds.has(server.id);
+                  const isAvailable = isServerEffectivelyActive(server);
+                  const supportsLibraryAccess = supportsPerLibraryAccess(server);
+                  const librariesUnavailable = server.librariesUnavailable || !isAvailable;
+                  const searchTerm = (librarySearch[server.id] || '').toLowerCase().trim();
+                  const allLibraries = server.libraries || [];
+                  const filteredLibraries = searchTerm
+                    ? allLibraries.filter((lib) => (lib.name || '').toLowerCase().includes(searchTerm))
+                    : allLibraries;
+                  const selectedCountForServer = supportsLibraryAccess
+                    ? allLibraries.reduce((acc, lib) => {
+                        const id = getLibraryId(lib);
+                        return id && isLibrarySelectedForServer(server.id, id) ? acc + 1 : acc;
+                      }, 0)
+                    : 0;
+                  const featureState = getServerFeature(server.id);
+
+                  return (
+                    <div key={server.id} className={isSelected ? 'bg-primary/5' : ''}>
+                      <button
+                        type="button"
+                        className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-accent/40 transition-colors"
+                        onClick={() => toggleServer(server.id)}
+                      >
+                        <div className="flex items-center gap-3">
+                          <span className={`inline-flex h-8 w-8 items-center justify-center rounded-full border ${isSelected ? 'border-primary text-primary' : 'border-border text-muted-foreground'}`}>
+                            <ServiceIcon
+                              serviceType={server.service_type}
+                              className={server.service_type.toLowerCase() === 'plex' ? 'text-sm w-4 h-4' : 'text-sm'}
+                            />
+                          </span>
+                          <div>
+                            <p className="font-semibold leading-tight">{server.server_nickname}</p>
+                            <p className="text-xs text-muted-foreground capitalize">{server.service_type}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <span>{supportsLibraryAccess ? `${selectedCountForServer} libraries` : 'No library controls'}</span>
+                          {isSelected ? (
+                            <FontAwesomeIcon icon={faCheck} className="text-primary" />
+                          ) : (
+                            <FontAwesomeIcon icon={faPlus} />
+                          )}
+                        </div>
+                      </button>
+
+                      {isSelected ? (
+                        <div className="space-y-3 border-t px-4 py-3 bg-background/80">
+                          {server.service_type.toLowerCase() === 'romm' ? (
+                            <div className="rounded-md border bg-background px-3 py-2">
+                              <div className="flex items-center justify-between">
+                                <span className="text-sm font-medium">Grant all current and future platforms, including downloads</span>
+                                <Switch checked={Boolean(form.all_library_server_ids?.includes(server.id) && featureState.allow_downloads)} onCheckedChange={checked => {
+                                  setForm(prev => ({ ...prev, all_library_server_ids: checked ? [...(prev.all_library_server_ids ?? []).filter(id => id !== server.id), server.id] : (prev.all_library_server_ids ?? []).filter(id => id !== server.id) }));
+                                  updateServerFeature(server.id, { allow_downloads: checked });
+                                }} />
+                              </div>
+                              <p className="text-[11px] text-muted-foreground mt-1">RomM couples reading with downloads. New accounts start enabled in the default group before restriction; existing sessions may remain after disable.</p>
+                            </div>
+                          ) : supportsLibraryAccess ? (
+                            <>
+                              <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                                <span>{server.service_type.toLowerCase() === 'kavita' ? 'Selected libraries only; future libraries are not included' : 'Library Access'}</span>
+                                <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-1 text-[11px]">
+                                  {selectedCountForServer}/{allLibraries.length || 0} selected
+                                </span>
+                              </div>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <div className="flex items-center gap-1 text-xs">
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => selectAllLibraries(server.id)}
+                                  >
+                                    All
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => deselectAllLibraries(server.id)}
+                                  >
+                                    None
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => loadLibrariesForServer(server.id, true, initialValues?.all_library_server_ids?.includes(server.id) ?? false)}
+                                    disabled={!isAvailable}
+                                    title={
+                                      isAvailable
+                                        ? 'Refresh libraries from server'
+                                        : 'Libraries are unavailable while this server or its media service is disabled'
+                                    }
+                                  >
+                                    <FontAwesomeIcon icon={faRotate} />
+                                  </Button>
+                                </div>
+                                <Input
+                                  className="h-9 w-full md:w-64"
+                                  placeholder="Search libraries..."
+                                  value={librarySearch[server.id] || ''}
+                                  onChange={(e) => handleLibrarySearchChange(server.id, e.target.value)}
+                                />
+                              </div>
+                              <div className={desktop ? 'rounded-md border bg-background/60 p-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2' : 'max-h-44 overflow-y-auto rounded-md border bg-background/60 p-3 grid grid-cols-1 sm:grid-cols-2 gap-2'}>
+                                {server.loadingLibraries ? (
+                                  <div className="col-span-2 flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                                    <Spinner className="h-4 w-4 text-primary" />
+                                    Loading libraries...
+                                  </div>
+                                ) : librariesUnavailable ? (
+                                  <div className="col-span-2 text-center text-xs text-muted-foreground">
+                                    Libraries are unavailable while this server or its media service is disabled.
+                                  </div>
+                                ) : filteredLibraries.length === 0 ? (
+                                  <div className="col-span-2 text-center text-xs text-muted-foreground">
+                                    {allLibraries.length === 0 ? 'No libraries found' : 'No matches'}
+                                  </div>
+                                ) : (
+                                  filteredLibraries.map((library) => {
+                                    const libId = getLibraryId(library);
+                                    return (
+                                      <label key={libId || `${server.id}-${library.name}`} className="flex items-center gap-2 rounded-md border px-2 py-1 text-sm hover:border-primary/50 cursor-pointer">
+                                        <Checkbox
+                                          checked={Boolean(libId && isLibrarySelectedForServer(server.id, libId))}
+                                          onCheckedChange={() => {
+                                            if (libId) toggleLibrary(server.id, libId);
+                                          }}
+                                        />
+                                        <span className="truncate" title={library.name}>
+                                          {library.name}
+                                        </span>
+                                      </label>
+                                    );
+                                  })
+                                )}
+                              </div>
+                            </>
+                          ) : (
+                            <div className="rounded-md border border-dashed bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+                              This service does not support per-user library access management. This invite grants server access only.
+                            </div>
+                          )}
+
+                          <div className="space-y-3">
+                              {server.service_type?.toLowerCase() === 'tofa' ? (
+                                <div className="rounded-md border border-dashed bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+                                  Tofa onboarding invites send by email and configure library access only.
+                                </div>
+                              ) : (
+                              <div className="rounded-md border bg-background px-3 py-2">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-2 text-sm font-medium">
+                                    <FontAwesomeIcon icon={faDownload} className="text-blue-400" />
+                                    Allow Downloads
+                                  </div>
+                                  <Switch
+                                    disabled={server.service_type.toLowerCase() === 'romm'}
+                                    checked={featureState.allow_downloads ?? false}
+                                    onCheckedChange={(checked) => {
+                                      updateServerFeature(server.id, { allow_downloads: checked });
+                                      setForm((prev) => ({ ...prev, allow_downloads: checked }));
+                                    }}
+                                  />
+                                </div>
+                                <p className="text-[11px] text-muted-foreground mt-1">Users can download media.</p>
+                              </div>
+                              )}
+
+                              {server.service_type?.toLowerCase() === 'plex' ? (
+                                <>
+                                  <div className="rounded-md border bg-background px-3 py-2">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2 text-sm font-medium">
+                                      <FontAwesomeIcon icon={faHome} className="text-primary" />
+                                      Plex Home
+                                    </div>
+                                    <Switch
+                                        checked={featureState.invite_to_plex_home ?? false}
+                                        onCheckedChange={(checked) => {
+                                          updateServerFeature(server.id, { invite_to_plex_home: checked });
+                                          setForm((prev) => ({ ...prev, invite_to_plex_home: checked }));
+                                        }}
+                                      />
+                                    </div>
+                                  </div>
+                                  <div className="rounded-md border bg-background px-3 py-2">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2 text-sm font-medium">
+                                      <FontAwesomeIcon icon={faTv} className="text-purple-400" />
+                                      Live TV
+                                    </div>
+                                    <Switch
+                                        checked={featureState.allow_live_tv ?? false}
+                                        onCheckedChange={(checked) => {
+                                          updateServerFeature(server.id, { allow_live_tv: checked });
+                                          setForm((prev) => ({ ...prev, allow_live_tv: checked }));
+                                        }}
+                                      />
+                                    </div>
+                                  </div>
+                                </>
+                              ) : null}
+
+                              {transcodePolicyServiceTypes.includes(server.service_type?.toLowerCase() ?? '') ? (
+                                  <div className="rounded-md border bg-background px-3 py-2">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2 text-sm font-medium">
+                                      <FontAwesomeIcon icon={faFilm} className="text-primary" />
+                                      Allow 4K Transcode
+                                    </div>
+                                    <Switch
+                                        checked={featureState.allow_4k_transcode ?? true}
+                                        onCheckedChange={(checked) => {
+                                          updateServerFeature(server.id, { allow_4k_transcode: checked });
+                                          setForm((prev) => ({ ...prev, allow_4k_transcode: checked }));
+                                        }}
+                                      />
+                                    </div>
+                                  </div>
+                              ) : null}
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  );
+
+  const limitFields = (
+    <div className="space-y-3">
+      <label className="space-y-1 block">
+        <div className="flex items-center gap-2 text-sm font-medium">
+          <FontAwesomeIcon icon={faCalendar} className="text-yellow-400" />
+          Invite Expiration
+        </div>
+        <Input
+          type="date"
+          value={form.expires_at ?? ''}
+          onChange={handleChange('expires_at')}
+        />
+        <span className="text-xs text-muted-foreground">Empty = never expires.</span>
+      </label>
+      <label className="space-y-1 block">
+        <div className="flex items-center gap-2 text-sm font-medium">
+          <FontAwesomeIcon icon={faHashtag} className="text-primary" />
+          Maximum Uses
+        </div>
+        <Input
+          type="number"
+          value={form.max_uses ?? ''}
+          onChange={handleChange('max_uses')}
+          min="0"
+          placeholder="Blank = unlimited"
+        />
+        <span className="text-xs text-muted-foreground">0 or blank means unlimited uses.</span>
+      </label>
+      <label className="space-y-1 block">
+        <div className="flex items-center gap-2 text-sm font-medium">
+          <FontAwesomeIcon icon={faClock} className="text-yellow-400" />
+          Membership Expiration
+        </div>
+        <Input
+          type="date"
+          value={form.membership_expires_at ?? ''}
+          onChange={handleChange('membership_expires_at')}
+        />
+        <span className="text-xs text-muted-foreground">
+          When access to granted libraries should end.
+        </span>
+      </label>
+    </div>
+  );
+
+  const discordFields = (
+    <div className="space-y-3">
+      {!discord?.ready && <p className="text-xs text-muted-foreground">Set up Discord under Settings → Discord to use these.</p>}
+      {discord?.ready && !discord.membership && <p className="text-xs text-muted-foreground">To require server membership, add your Discord server's invite link under Settings → Discord.</p>}
+              <div className="space-y-3">
+                <div className="rounded-lg p-4 border bg-background">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <FontAwesomeIcon icon={faDiscord} className="text-blue-400 text-sm" />
+                      <div>
+                        <p className="font-medium text-sm">Require Discord Authentication</p>
+                        <p className="text-xs text-muted-foreground">Invitees must link a Discord account.</p>
+                      </div>
+                    </div>
+                    <Switch
+                      disabled={!discord?.ready && !form.require_discord_auth}
+                      title={discord?.ready ? undefined : 'Set up Discord under Settings → Discord first'}
+                      checked={form.require_discord_auth ?? false}
+                      onCheckedChange={(checked) => handleDiscordRequirementToggle('require_discord_auth', checked)}
+                    />
+                  </div>
+                </div>
+
+                <div className="rounded-lg p-4 border bg-background">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <FontAwesomeIcon icon={faUsers} className="text-yellow-400 text-sm" />
+                      <div>
+                        <p className="font-medium text-sm">Require Discord Server Membership</p>
+                        <p className="text-xs text-muted-foreground">Invitees must be in your Discord server.</p>
+                      </div>
+                    </div>
+                    <Switch
+                      disabled={!discord?.membership && !form.require_discord_guild_membership}
+                      title={discord?.membership ? undefined : "Add your Discord server's invite link under Settings → Discord first"}
+                      checked={form.require_discord_guild_membership ?? false}
+                      onCheckedChange={(checked) => handleDiscordRequirementToggle('require_discord_guild_membership', checked)}
+                    />
+                  </div>
+                </div>
+              </div>
+    </div>
+  );
+
+  const protectionFields = (
+    <div className="space-y-3">
+      <div className="rounded-lg p-4 border bg-background">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <FontAwesomeIcon icon={faShieldHalved} className="text-blue-400 text-sm" />
+            <div>
+              <p className="font-medium text-sm">Grant Purge Whitelist</p>
+              <p className="text-xs text-muted-foreground">Protect from inactivity purges.</p>
+            </div>
+          </div>
+          <Switch
+                    checked={form.grant_purge_whitelist ?? false}
+            onCheckedChange={(checked) => setForm((prev) => ({ ...prev, grant_purge_whitelist: checked }))}
+          />
+        </div>
+      </div>
+
+      <div className="rounded-lg p-4 border bg-background opacity-60">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <FontAwesomeIcon icon={faRobot} className="text-blue-400 text-sm" />
+            <div>
+              <p className="font-medium text-sm">Grant Bot Whitelist (WIP)</p>
+              <p className="text-xs text-muted-foreground">Coming soon. Not yet applied.</p>
+            </div>
+          </div>
+          <Switch checked={false} disabled />
+        </div>
+      </div>
+    </div>
+  );
+
+  // The desktop sidebar's sections. They are parts of one form: switching
+  // keeps what was entered, and Create or Update saves every section.
+  const sections = [
+    { id: 'link', label: 'Link', hint: 'Custom invite path', icon: faLink, content: linkFields, attention: false },
+    { id: 'servers', label: 'Servers & libraries', hint: 'Select servers, then fine-tune libraries', icon: faServer, content: serverFields, attention: selectedServerCount === 0 },
+    { id: 'limits', label: 'Limits', hint: 'Expiry, uses and membership length', icon: faHashtag, content: limitFields, attention: false },
+    { id: 'discord', label: 'Discord', hint: 'Identity and server membership', icon: faDiscord, content: discordFields, attention: false },
+    { id: 'protection', label: 'Protection', hint: 'Safety defaults for new members', icon: faShieldHalved, content: protectionFields, attention: false },
+  ];
+  const activeSection = sections.find(item => item.id === section) ?? sections[1];
+
+  const errorNotice = serverError ? (
+    <div role="alert" className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{serverError}</div>
+  ) : null;
+
+  const sidebarBody = (
+    <div className="flex gap-6">
+      <div className="w-56 shrink-0 space-y-4 border-r border-border pr-4">
+        <nav aria-label="Invite sections" className="space-y-1">
+          {sections.map(item => {
+            const selected = item.id === activeSection.id;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                aria-current={selected ? 'true' : undefined}
+                onClick={() => setSection(item.id)}
+                className={`flex w-full items-start gap-3 rounded-md px-3 py-2 text-left text-sm transition-colors ${
+                  selected ? 'bg-muted font-medium text-foreground' : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
+                }`}
+              >
+                <FontAwesomeIcon icon={item.icon} className="mt-0.5 w-4 shrink-0" />
+                <span className="min-w-0 flex-1">
+                  <span className="block">{item.label}</span>
+                  <span className="block text-xs font-normal text-muted-foreground">{item.hint}</span>
+                </span>
+                {item.attention && <FontAwesomeIcon icon={faTriangleExclamation} className="mt-0.5 shrink-0 text-amber-500" title="Needs attention" />}
+              </button>
+            );
+          })}
+        </nav>
+        <dl className="space-y-2 border-t border-border pt-4 text-sm">
+          {summary.map(item => (
+            <div key={item.label} className="flex items-center gap-2">
+              <FontAwesomeIcon icon={item.icon} className={`w-4 shrink-0 ${item.color}`} />
+              <dt className="text-muted-foreground">{item.label}</dt>
+              <dd className="ml-auto font-semibold">{item.value}</dd>
+            </div>
+          ))}
+        </dl>
+      </div>
+      <div className="min-w-0 flex-1 max-h-[70vh] overflow-y-auto pr-2 space-y-4">
+        {errorNotice}
+        <div>
+          <h4 className="flex items-center gap-2 text-lg font-medium">
+            <FontAwesomeIcon icon={activeSection.icon} className="text-sm text-primary" />
+            {activeSection.label}
+          </h4>
+          <p className="text-sm text-muted-foreground">{activeSection.hint}</p>
+        </div>
+        {activeSection.content}
+      </div>
+    </div>
+  );
+
+  // Tablets and phones: one scrolling form, with Discord and Protection
+  // under Advanced Options.
+  const stackedBody = (
+    <div className="space-y-6">
+      <div className="rounded-lg border bg-muted/40 p-4 grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+        {summary.map(item => (
+          <div key={item.label} className="flex items-center gap-2">
+            <FontAwesomeIcon icon={item.icon} className={item.color} />
+            <div>
+              <p className="text-xs text-muted-foreground">{item.label}</p>
+              <p className="font-semibold">{item.value}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+      {errorNotice}
+      <div className="rounded-lg border bg-muted/30 p-4 space-y-4">
+        <h4 className="font-medium text-lg">Link</h4>
+        {linkFields}
+      </div>
+      <div className="space-y-3 rounded-lg border bg-muted/30 p-4">
+        <div className="flex items-center justify-between">
+          <h4 className="font-medium text-lg">Servers & libraries</h4>
+          <span className="text-xs text-muted-foreground">Select servers, then fine-tune libraries.</span>
+        </div>
+        {serverFields}
+      </div>
+      <div className="rounded-lg border bg-muted/30 p-4 space-y-4">
+        <h4 className="font-medium text-lg">Limits</h4>
+        {limitFields}
+      </div>
+      <Collapsible
+        open={advancedOpen}
+        onOpenChange={setAdvancedOpen}
+        className="rounded-lg border hover:border-primary/50 transition-colors bg-muted/30"
+      >
+        <CollapsibleTrigger className="flex w-full items-center justify-between p-4 hover:bg-accent/50 transition-colors">
+          <div className="flex items-center gap-2">
+            <FontAwesomeIcon icon={faCog} className="text-blue-400 text-sm" />
+            <span className="text-lg font-medium">Advanced Options</span>
+          </div>
+          <FontAwesomeIcon icon={faChevronDown} className="text-muted-foreground" />
+        </CollapsibleTrigger>
+        <CollapsibleContent className="space-y-4 p-4 pt-2">
+          <h5 className="font-medium text-base">Discord Requirements</h5>
+          {discordFields}
+          <h5 className="font-medium text-base">Protection Grants</h5>
+          {protectionFields}
+        </CollapsibleContent>
+      </Collapsible>
+    </div>
+  );
+
   return (
     <ResponsiveDialog
       open={open}
@@ -597,501 +1139,10 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
       title={editingMode ? 'Edit Invite' : 'Create Invite'}
       description="Configure invite settings, select servers, and set permissions."
       footer={footerButtons}
-      contentClassName="max-w-4xl"
-      bodyClassName="space-y-6"
+      size="lg"
+      bodyClassName={desktop ? 'overflow-hidden' : undefined}
     >
-      <div className="rounded-lg border bg-muted/40 p-4 grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-        <div className="flex items-center gap-2">
-          <FontAwesomeIcon icon={faServer} className="text-primary" />
-          <div>
-            <p className="text-xs text-muted-foreground">Servers</p>
-            <p className="font-semibold">{selectedServerCount}</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <FontAwesomeIcon icon={faPhotoFilm} className="text-blue-400" />
-          <div>
-            <p className="text-xs text-muted-foreground">Libraries</p>
-            <p className="font-semibold">{selectedLibraryCount}</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <FontAwesomeIcon icon={faCalendarDays} className="text-yellow-400" />
-          <div>
-            <p className="text-xs text-muted-foreground">Expires</p>
-            <p className="font-semibold">{expiresLabel}</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <FontAwesomeIcon icon={faHashtag} className="text-emerald-500" />
-          <div>
-            <p className="text-xs text-muted-foreground">Max Uses</p>
-            <p className="font-semibold">{maxUsesLabel}</p>
-          </div>
-        </div>
-      </div>
-
-      <div className="space-y-6">
-        <div className="space-y-4">
-          {/* Basics */}
-          <div className="rounded-lg border bg-muted/30 p-4 space-y-4">
-            <div className="flex items-center justify-between">
-              <h4 className="font-medium text-lg">Basics</h4>
-              <span className="text-xs text-muted-foreground">URL + expiry</span>
-            </div>
-            <div className="space-y-3">
-              <label className="space-y-1 block">
-                <div className="flex items-center gap-2 text-sm font-medium">
-                  <FontAwesomeIcon icon={faLink} className="text-primary" />
-                  Custom Path
-                  <span className="ml-2 rounded border border-yellow-500/30 bg-yellow-500/10 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-yellow-400">
-                    Optional
-                  </span>
-                </div>
-                <Input
-                  type="text"
-                  disabled={editingMode}
-                  title={editingMode ? 'The custom path cannot be changed after the invite is created' : undefined}
-                  value={form.custom_path ?? ''}
-                  onChange={handleChange('custom_path')}
-                  placeholder="e.g., besties or vip_access"
-                />
-                <span className="text-xs text-muted-foreground">
-                  Leave blank to auto-generate a secure tokenized link.
-                </span>
-              </label>
-
-              <label className="space-y-1 block">
-                <div className="flex items-center gap-2 text-sm font-medium">
-                  <FontAwesomeIcon icon={faCalendar} className="text-yellow-400" />
-                  Invite Expiration
-                </div>
-                <Input
-                  type="date"
-                  value={form.expires_at ?? ''}
-                  onChange={handleChange('expires_at')}
-                />
-                <span className="text-xs text-muted-foreground">Empty = never expires.</span>
-              </label>
-            </div>
-          </div>
-
-          {/* Server selection */}
-          <div className="space-y-3 rounded-lg border bg-muted/30 p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <h4 className="font-medium text-lg">Server & Access</h4>
-              </div>
-              <span className="text-xs text-muted-foreground">
-                Select servers, then fine-tune libraries.
-              </span>
-            </div>
-
-            {loadingServers ? (
-              <div className="text-center py-8">
-                <Spinner className="h-8 w-8 text-primary mx-auto mb-2" />
-                <p className="text-sm text-muted-foreground mt-2">Loading servers...</p>
-              </div>
-            ) : Object.keys(groupedServers).length === 0 ? (
-              <div className="text-center py-8 rounded-lg border bg-muted/30">
-                <FontAwesomeIcon icon={faServer} className="text-muted-foreground text-3xl mb-2" />
-                <p className="text-sm text-muted-foreground">No servers available</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {Object.entries(groupedServers).map(([serviceType, serviceServers]) => (
-                  <div key={serviceType} className="rounded-md border bg-background/60">
-                    <div className="flex items-center justify-between px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <ServiceIcon
-                          serviceType={serviceType}
-                          className={serviceType.toLowerCase() === 'plex' ? 'w-5 h-5' : 'w-4 h-4'}
-                        />
-                        <span className="text-sm font-semibold uppercase tracking-wide">{serviceType}</span>
-                      </div>
-                      <span className="text-xs text-muted-foreground">
-                        {serviceServers.filter((s) => selectedServerIds.has(s.id)).length} selected
-                      </span>
-                    </div>
-                    <div className="divide-y">
-                      {serviceServers.map((server) => {
-                        const isSelected = selectedServerIds.has(server.id);
-                        const isAvailable = isServerEffectivelyActive(server);
-                        const supportsLibraryAccess = supportsPerLibraryAccess(server);
-                        const librariesUnavailable = server.librariesUnavailable || !isAvailable;
-                        const searchTerm = (librarySearch[server.id] || '').toLowerCase().trim();
-                        const allLibraries = server.libraries || [];
-                        const filteredLibraries = searchTerm
-                          ? allLibraries.filter((lib) => (lib.name || '').toLowerCase().includes(searchTerm))
-                          : allLibraries;
-                        const selectedCountForServer = supportsLibraryAccess
-                          ? allLibraries.reduce((acc, lib) => {
-                              const id = getLibraryId(lib);
-                              return id && isLibrarySelectedForServer(server.id, id) ? acc + 1 : acc;
-                            }, 0)
-                          : 0;
-                        const featureState = getServerFeature(server.id);
-
-                        return (
-                          <div key={server.id} className={isSelected ? 'bg-primary/5' : ''}>
-                            <button
-                              type="button"
-                              className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-accent/40 transition-colors"
-                              onClick={() => toggleServer(server.id)}
-                            >
-                              <div className="flex items-center gap-3">
-                                <span className={`inline-flex h-8 w-8 items-center justify-center rounded-full border ${isSelected ? 'border-primary text-primary' : 'border-border text-muted-foreground'}`}>
-                                  <ServiceIcon
-                                    serviceType={server.service_type}
-                                    className={server.service_type.toLowerCase() === 'plex' ? 'text-sm w-4 h-4' : 'text-sm'}
-                                  />
-                                </span>
-                                <div>
-                                  <p className="font-semibold leading-tight">{server.server_nickname}</p>
-                                  <p className="text-xs text-muted-foreground capitalize">{server.service_type}</p>
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                <span>{supportsLibraryAccess ? `${selectedCountForServer} libraries` : 'No library controls'}</span>
-                                {isSelected ? (
-                                  <FontAwesomeIcon icon={faCheck} className="text-primary" />
-                                ) : (
-                                  <FontAwesomeIcon icon={faPlus} />
-                                )}
-                              </div>
-                            </button>
-
-                            {isSelected ? (
-                              <div className="space-y-3 border-t px-4 py-3 bg-background/80">
-                                {server.service_type.toLowerCase() === 'romm' ? (
-                                  <div className="rounded-md border bg-background px-3 py-2">
-                                    <div className="flex items-center justify-between">
-                                      <span className="text-sm font-medium">Grant all current and future platforms, including downloads</span>
-                                      <Switch checked={Boolean(form.all_library_server_ids?.includes(server.id) && featureState.allow_downloads)} onCheckedChange={checked => {
-                                        setForm(prev => ({ ...prev, all_library_server_ids: checked ? [...(prev.all_library_server_ids ?? []).filter(id => id !== server.id), server.id] : (prev.all_library_server_ids ?? []).filter(id => id !== server.id) }));
-                                        updateServerFeature(server.id, { allow_downloads: checked });
-                                      }} />
-                                    </div>
-                                    <p className="text-[11px] text-muted-foreground mt-1">RomM couples reading with downloads. New accounts start enabled in the default group before restriction; existing sessions may remain after disable.</p>
-                                  </div>
-                                ) : supportsLibraryAccess ? (
-                                  <>
-                                    <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                                      <span>{server.service_type.toLowerCase() === 'kavita' ? 'Selected libraries only; future libraries are not included' : 'Library Access'}</span>
-                                      <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-1 text-[11px]">
-                                        {selectedCountForServer}/{allLibraries.length || 0} selected
-                                      </span>
-                                    </div>
-                                    <div className="flex flex-wrap items-center gap-2">
-                                      <div className="flex items-center gap-1 text-xs">
-                                        <Button
-                                          type="button"
-                                          variant="outline"
-                                          size="sm"
-                                          onClick={() => selectAllLibraries(server.id)}
-                                        >
-                                          All
-                                        </Button>
-                                        <Button
-                                          type="button"
-                                          variant="outline"
-                                          size="sm"
-                                          onClick={() => deselectAllLibraries(server.id)}
-                                        >
-                                          None
-                                        </Button>
-                                        <Button
-                                          type="button"
-                                          variant="ghost"
-                                          size="sm"
-                                          onClick={() => loadLibrariesForServer(server.id, true, initialValues?.all_library_server_ids?.includes(server.id) ?? false)}
-                                          disabled={!isAvailable}
-                                          title={
-                                            isAvailable
-                                              ? 'Refresh libraries from server'
-                                              : 'Libraries are unavailable while this server or its media service is disabled'
-                                          }
-                                        >
-                                          <FontAwesomeIcon icon={faRotate} />
-                                        </Button>
-                                      </div>
-                                      <Input
-                                        className="h-9 w-full md:w-64"
-                                        placeholder="Search libraries..."
-                                        value={librarySearch[server.id] || ''}
-                                        onChange={(e) => handleLibrarySearchChange(server.id, e.target.value)}
-                                      />
-                                    </div>
-                                    <div className="max-h-44 overflow-y-auto rounded-md border bg-background/60 p-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                      {server.loadingLibraries ? (
-                                        <div className="col-span-2 flex items-center justify-center gap-2 text-sm text-muted-foreground">
-                                          <Spinner className="h-4 w-4 text-primary" />
-                                          Loading libraries...
-                                        </div>
-                                      ) : librariesUnavailable ? (
-                                        <div className="col-span-2 text-center text-xs text-muted-foreground">
-                                          Libraries are unavailable while this server or its media service is disabled.
-                                        </div>
-                                      ) : filteredLibraries.length === 0 ? (
-                                        <div className="col-span-2 text-center text-xs text-muted-foreground">
-                                          {allLibraries.length === 0 ? 'No libraries found' : 'No matches'}
-                                        </div>
-                                      ) : (
-                                        filteredLibraries.map((library) => {
-                                          const libId = getLibraryId(library);
-                                          return (
-                                            <label key={libId || `${server.id}-${library.name}`} className="flex items-center gap-2 rounded-md border px-2 py-1 text-sm hover:border-primary/50 cursor-pointer">
-                                              <Checkbox
-                                                checked={Boolean(libId && isLibrarySelectedForServer(server.id, libId))}
-                                                onCheckedChange={() => {
-                                                  if (libId) toggleLibrary(server.id, libId);
-                                                }}
-                                              />
-                                              <span className="truncate" title={library.name}>
-                                                {library.name}
-                                              </span>
-                                            </label>
-                                          );
-                                        })
-                                      )}
-                                    </div>
-                                  </>
-                                ) : (
-                                  <div className="rounded-md border border-dashed bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-                                    This service does not support per-user library access management. This invite grants server access only.
-                                  </div>
-                                )}
-
-                                <div className="space-y-3">
-                                    {server.service_type?.toLowerCase() === 'tofa' ? (
-                                      <div className="rounded-md border border-dashed bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-                                        Tofa onboarding invites send by email and configure library access only.
-                                      </div>
-                                    ) : (
-                                    <div className="rounded-md border bg-background px-3 py-2">
-                                      <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-2 text-sm font-medium">
-                                          <FontAwesomeIcon icon={faDownload} className="text-blue-400" />
-                                          Allow Downloads
-                                        </div>
-                                        <Switch
-                                          disabled={server.service_type.toLowerCase() === 'romm'}
-                                          checked={featureState.allow_downloads ?? false}
-                                          onCheckedChange={(checked) => {
-                                            updateServerFeature(server.id, { allow_downloads: checked });
-                                            setForm((prev) => ({ ...prev, allow_downloads: checked }));
-                                          }}
-                                        />
-                                      </div>
-                                      <p className="text-[11px] text-muted-foreground mt-1">Users can download media.</p>
-                                    </div>
-                                    )}
-
-                                    {server.service_type?.toLowerCase() === 'plex' ? (
-                                      <>
-                                        <div className="rounded-md border bg-background px-3 py-2">
-                                        <div className="flex items-center justify-between">
-                                          <div className="flex items-center gap-2 text-sm font-medium">
-                                            <FontAwesomeIcon icon={faHome} className="text-primary" />
-                                            Plex Home
-                                          </div>
-                                          <Switch
-                                              checked={featureState.invite_to_plex_home ?? false}
-                                              onCheckedChange={(checked) => {
-                                                updateServerFeature(server.id, { invite_to_plex_home: checked });
-                                                setForm((prev) => ({ ...prev, invite_to_plex_home: checked }));
-                                              }}
-                                            />
-                                          </div>
-                                        </div>
-                                        <div className="rounded-md border bg-background px-3 py-2">
-                                        <div className="flex items-center justify-between">
-                                          <div className="flex items-center gap-2 text-sm font-medium">
-                                            <FontAwesomeIcon icon={faTv} className="text-purple-400" />
-                                            Live TV
-                                          </div>
-                                          <Switch
-                                              checked={featureState.allow_live_tv ?? false}
-                                              onCheckedChange={(checked) => {
-                                                updateServerFeature(server.id, { allow_live_tv: checked });
-                                                setForm((prev) => ({ ...prev, allow_live_tv: checked }));
-                                              }}
-                                            />
-                                          </div>
-                                        </div>
-                                      </>
-                                    ) : null}
-
-                                    {transcodePolicyServiceTypes.includes(server.service_type?.toLowerCase() ?? '') ? (
-                                        <div className="rounded-md border bg-background px-3 py-2">
-                                        <div className="flex items-center justify-between">
-                                          <div className="flex items-center gap-2 text-sm font-medium">
-                                            <FontAwesomeIcon icon={faFilm} className="text-primary" />
-                                            Allow 4K Transcode
-                                          </div>
-                                          <Switch
-                                              checked={featureState.allow_4k_transcode ?? true}
-                                              onCheckedChange={(checked) => {
-                                                updateServerFeature(server.id, { allow_4k_transcode: checked });
-                                                setForm((prev) => ({ ...prev, allow_4k_transcode: checked }));
-                                              }}
-                                            />
-                                          </div>
-                                        </div>
-                                    ) : null}
-                                </div>
-                              </div>
-                            ) : null}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Advanced */}
-        <div className="space-y-4">
-          <Collapsible
-            open={advancedOpen}
-            onOpenChange={setAdvancedOpen}
-            className="rounded-lg border hover:border-primary/50 transition-colors bg-muted/30"
-          >
-            <CollapsibleTrigger className="flex w-full items-center justify-between p-4 hover:bg-accent/50 transition-colors">
-              <div className="flex items-center gap-2">
-                <FontAwesomeIcon icon={faCog} className="text-blue-400 text-sm" />
-                <span className="text-lg font-medium">Advanced Options</span>
-              </div>
-              <FontAwesomeIcon icon={faChevronDown} className="text-muted-foreground" />
-            </CollapsibleTrigger>
-            <CollapsibleContent className="space-y-4 p-4 pt-2">
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <h5 className="font-medium text-base">Usage & Duration</h5>
-                  <span className="text-xs text-muted-foreground">Limits & expiry</span>
-                </div>
-                <div className="rounded-lg p-4 border bg-background space-y-3">
-                  <label className="space-y-1 block">
-                    <div className="flex items-center gap-2 text-sm font-medium">
-                      <FontAwesomeIcon icon={faHashtag} className="text-primary" />
-                      Maximum Uses
-                    </div>
-                    <Input
-                      type="number"
-                      value={form.max_uses ?? ''}
-                      onChange={handleChange('max_uses')}
-                      min="0"
-                      placeholder="Blank = unlimited"
-                    />
-                    <span className="text-xs text-muted-foreground">0 or blank means unlimited uses.</span>
-                  </label>
-
-                  <label className="space-y-1 block">
-                    <div className="flex items-center gap-2 text-sm font-medium">
-                      <FontAwesomeIcon icon={faClock} className="text-yellow-400" />
-                      Membership Expiration
-                    </div>
-                    <Input
-                      type="date"
-                      value={form.membership_expires_at ?? ''}
-                      onChange={handleChange('membership_expires_at')}
-                    />
-                    <span className="text-xs text-muted-foreground">
-                      When access to granted libraries should end.
-                    </span>
-                  </label>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <h5 className="font-medium text-base">Discord Requirements</h5>
-                  <span className="text-xs text-muted-foreground">Identity & membership</span>
-                </div>
-                {!discord?.ready && <p className="text-xs text-muted-foreground">Set up Discord under Settings → Discord to use these.</p>}
-                {discord?.ready && !discord.membership && <p className="text-xs text-muted-foreground">To require server membership, add your Discord server's invite link under Settings → Discord.</p>}
-                        <div className="space-y-3">
-                          <div className="rounded-lg p-4 border bg-background">
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-2">
-                                <FontAwesomeIcon icon={faDiscord} className="text-blue-400 text-sm" />
-                                <div>
-                                  <p className="font-medium text-sm">Require Discord Authentication</p>
-                                  <p className="text-xs text-muted-foreground">Invitees must link a Discord account.</p>
-                                </div>
-                              </div>
-                              <Switch
-                                disabled={!discord?.ready && !form.require_discord_auth}
-                                title={discord?.ready ? undefined : 'Set up Discord under Settings → Discord first'}
-                                checked={form.require_discord_auth ?? false}
-                                onCheckedChange={(checked) => handleDiscordRequirementToggle('require_discord_auth', checked)}
-                              />
-                            </div>
-                          </div>
-
-                          <div className="rounded-lg p-4 border bg-background">
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-2">
-                                <FontAwesomeIcon icon={faUsers} className="text-yellow-400 text-sm" />
-                                <div>
-                                  <p className="font-medium text-sm">Require Discord Server Membership</p>
-                                  <p className="text-xs text-muted-foreground">Invitees must be in your Discord server.</p>
-                                </div>
-                              </div>
-                              <Switch
-                                disabled={!discord?.membership && !form.require_discord_guild_membership}
-                                title={discord?.membership ? undefined : "Add your Discord server's invite link under Settings → Discord first"}
-                                checked={form.require_discord_guild_membership ?? false}
-                                onCheckedChange={(checked) => handleDiscordRequirementToggle('require_discord_guild_membership', checked)}
-                              />
-                            </div>
-                          </div>
-                        </div>
-              </div>
-
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <h5 className="font-medium text-base">Protection Grants</h5>
-                  <span className="text-xs text-muted-foreground">Safety defaults</span>
-                </div>
-                <div className="space-y-3">
-                  <div className="rounded-lg p-4 border bg-background">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <FontAwesomeIcon icon={faShieldHalved} className="text-blue-400 text-sm" />
-                        <div>
-                          <p className="font-medium text-sm">Grant Purge Whitelist</p>
-                          <p className="text-xs text-muted-foreground">Protect from inactivity purges.</p>
-                        </div>
-                      </div>
-                      <Switch
-                                checked={form.grant_purge_whitelist ?? false}
-                        onCheckedChange={(checked) => setForm((prev) => ({ ...prev, grant_purge_whitelist: checked }))}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="rounded-lg p-4 border bg-background opacity-60">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <FontAwesomeIcon icon={faRobot} className="text-blue-400 text-sm" />
-                        <div>
-                          <p className="font-medium text-sm">Grant Bot Whitelist (WIP)</p>
-                          <p className="text-xs text-muted-foreground">Coming soon. Not yet applied.</p>
-                        </div>
-                      </div>
-                      <Switch checked={false} disabled />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </CollapsibleContent>
-          </Collapsible>
-        </div>
-      </div>
+      {desktop ? sidebarBody : stackedBody}
     </ResponsiveDialog>
   );
 };

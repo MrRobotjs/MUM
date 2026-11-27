@@ -239,6 +239,8 @@ type CatalogueItem struct {
 	Season, Episode *int64
 	// Media is the file's technical detail when the server reports it.
 	Media *CatalogueMedia
+	// IDs are the title's TMDB, TVDB and IMDb IDs when the server knows them.
+	IDs ExternalIDs
 }
 
 // BandwidthSample is one bin of a server's bandwidth statistics: the bytes

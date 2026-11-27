@@ -110,6 +110,20 @@ type CatalogueEntry struct {
 	Video       string `xml:"primaryExtraKey,attr"`
 	// The item's files; the first is the one the media info shows.
 	Media []catalogueMediaEntry `xml:"Media"`
+	// The title's IDs in the shared databases, as tmdb://…, tvdb://… and
+	// imdb://…; sent when the request asks for them (includeGuids=1).
+	Guids []struct {
+		ID string `xml:"id,attr"`
+	} `xml:"Guid"`
+}
+
+// externalIDs reads the entry's TMDB, TVDB and IMDb IDs.
+func (e CatalogueEntry) externalIDs() provider.ExternalIDs {
+	var ids provider.ExternalIDs
+	for _, guid := range e.Guids {
+		ids.SetGuid(guid.ID)
+	}
+	return ids
 }
 
 // CataloguePage is one page of a section listing.
@@ -261,7 +275,7 @@ func (s *Server) CatalogueItems(ctx context.Context, section, kind string, progr
 	}
 	items := []provider.CatalogueItem{}
 	seen := map[string]bool{}
-	query := url.Values{"type": {itemType}, "includeCollections": {"0"}, "sort": {"titleSort:asc"}}
+	query := url.Values{"type": {itemType}, "includeCollections": {"0"}, "sort": {"titleSort:asc"}, "includeGuids": {"1"}}
 	err := s.pages(ctx, "/library/sections/"+section+"/all", section, provider.CatalogueMaxItems, query, progress, func(row CatalogueEntry) error {
 		title := provider.TruncateRunes(row.Title, 512)
 		if row.XMLName.Local != element || row.Kind != rowKind || !NumericID(row.ID) || seen[row.ID] || title == "" || row.Poster != "" && !ValidPoster(row.ID, row.Poster) {
@@ -283,6 +297,7 @@ func (s *Server) CatalogueItems(ctx context.Context, section, kind string, progr
 		}
 		item.AddedAt = addedAt(row.Added)
 		item.Media = catalogueMedia(row)
+		item.IDs = row.externalIDs()
 		items = append(items, item)
 		return nil
 	})
@@ -303,7 +318,7 @@ func (s *Server) CatalogueEpisodes(ctx context.Context, show string) ([]provider
 	}
 	items := []provider.CatalogueItem{}
 	seen := map[string]bool{}
-	err := s.pages(ctx, "/library/metadata/"+show+"/allLeaves", "", provider.CatalogueMaxEpisodes, url.Values{}, nil, func(row CatalogueEntry) error {
+	err := s.pages(ctx, "/library/metadata/"+show+"/allLeaves", "", provider.CatalogueMaxEpisodes, url.Values{"includeGuids": {"1"}}, nil, func(row CatalogueEntry) error {
 		title := provider.TruncateRunes(row.Title, 512)
 		if row.XMLName.Local != "Video" || row.Kind != "episode" || !NumericID(row.ID) || seen[row.ID] || row.Show != show || title == "" {
 			return errors.New("invalid, duplicate or mis-scoped Plex episode")
@@ -419,6 +434,7 @@ func catalogueChild(row CatalogueEntry, kind, title string) provider.CatalogueIt
 	}
 	item.AddedAt = addedAt(row.Added)
 	item.Media = catalogueMedia(row)
+	item.IDs = row.externalIDs()
 	return item
 }
 

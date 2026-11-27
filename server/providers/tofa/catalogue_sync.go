@@ -139,6 +139,9 @@ func (s *Server) catalogueItemsOnce(ctx context.Context, library, kind string, p
 				typ = "video"
 			}
 			row := provider.CatalogueItem{ID: id, Title: item.Title, SortTitle: item.Title, Type: typ}
+			if item.TMDBID != nil && *item.TMDBID > 0 && *item.TMDBID <= 1<<31 {
+				row.IDs.TMDB = *item.TMDBID
+			}
 			if item.Overview != nil {
 				row.Summary = provider.TruncateRunes(*item.Overview, 4096)
 			}

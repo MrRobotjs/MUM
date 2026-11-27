@@ -84,7 +84,7 @@ func (s *Server) items(ctx context.Context, parent string, child string, progres
 		query := url.Values{
 			"ParentId": {parent}, "Recursive": {"true"},
 			"IncludeItemTypes": {types},
-			"Fields":           {"SortName,Overview,DateCreated,MediaSources"}, "SortBy": {"SortName"}, "SortOrder": {"Ascending"},
+			"Fields":           {"SortName,Overview,DateCreated,MediaSources,ProviderIds"}, "SortBy": {"SortName"}, "SortOrder": {"Ascending"},
 			"EnableImageTypes": {"Primary"}, "ImageTypeLimit": {"1"}, "EnableUserData": {"false"},
 			"StartIndex": {strconv.Itoa(start)}, "Limit": {strconv.Itoa(provider.CataloguePageSize)},
 		}
@@ -105,6 +105,8 @@ func (s *Server) items(ctx context.Context, parent string, child string, progres
 				IndexNumber     *int64
 				ParentIndex     *int64 `json:"ParentIndexNumber"`
 				MediaSources    []catalogueSource
+				// The title's IDs in the shared databases: "Tmdb", "Tvdb", "Imdb".
+				ProviderIds map[string]string
 			}
 			TotalRecordCount *int64
 		}
@@ -146,6 +148,9 @@ func (s *Server) items(ctx context.Context, parent string, child string, progres
 				item.ImageTag = tag
 			}
 			item.Media = catalogueMedia(row.MediaSources)
+			for database, value := range row.ProviderIds {
+				item.IDs.Set(database, value)
+			}
 			// An episode's season and number; a track's disc and number.
 			if child != "" {
 				if row.ParentIndex != nil && *row.ParentIndex >= 0 && *row.ParentIndex <= 100000 {

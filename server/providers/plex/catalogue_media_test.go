@@ -15,7 +15,7 @@ func TestCatalogueMediaReadsFirstFile(t *testing.T) {
 		t.Fatalf("%+v", m)
 	}
 	old := catalogueMedia(page.Items[1])
-	if old == nil || old.VideoResolution != "SD" || old.VideoFrameRate != "30p" || old.SizeBytes != nil {
+	if old == nil || old.VideoResolution != "SD" || old.VideoFrameRate != "30p (NTSC)" || old.SizeBytes != nil {
 		t.Fatalf("%+v", old)
 	}
 	if catalogueMedia(CatalogueEntry{}) != nil {

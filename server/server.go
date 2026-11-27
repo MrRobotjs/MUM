@@ -278,6 +278,7 @@ func NewApp(store *Store, queue *LogQueue, assets fs.FS) (*App, error) {
 	handle("GET /api/libraries", a.listLibraries)
 	handle("GET /api/libraries/{library}", a.listLibraries)
 	handle("GET /api/libraries/{library}/media", a.libraryCatalogueItems)
+	handle("GET /api/libraries/{library}/media-info", a.libraryMediaInfo)
 	handle("GET /api/libraries/{library}/media/{item}", a.libraryCatalogueItem)
 	// A series' episodes and an album's tracks share one child catalogue.
 	for _, c := range []childCatalogue{episodeChildren, trackChildren} {

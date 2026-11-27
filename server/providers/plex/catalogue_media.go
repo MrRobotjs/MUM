@@ -24,7 +24,8 @@ type catalogueMediaEntry struct {
 
 // catalogueMedia is the first file version's detail, in the labels every media
 // service uses: the resolution class from the frame height, and the frame
-// rate as "24p" (Plex's PAL and NTSC are 25p and 30p).
+// rate as "24p". Plex's PAL and NTSC keep their names beside the rate:
+// "25p (PAL)" and "30p (NTSC)".
 func catalogueMedia(row CatalogueEntry) *provider.CatalogueMedia {
 	if len(row.Media) == 0 {
 		return nil
@@ -48,9 +49,9 @@ func catalogueMedia(row CatalogueEntry) *provider.CatalogueMedia {
 	}
 	switch rate := strings.ToLower(strings.TrimSpace(m.FrameRate)); rate {
 	case "pal":
-		out.VideoFrameRate = "25p"
+		out.VideoFrameRate = "25p (PAL)"
 	case "ntsc":
-		out.VideoFrameRate = "30p"
+		out.VideoFrameRate = "30p (NTSC)"
 	default:
 		if n, err := strconv.Atoi(strings.TrimSuffix(rate, "p")); err == nil && strings.HasSuffix(rate, "p") && n > 0 {
 			out.VideoFrameRate = strconv.Itoa(n) + "p"

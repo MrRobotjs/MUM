@@ -21,6 +21,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { TabHeading } from '../components/users/AccountSettings';
 import { libraryTypeIcon } from '../components/servers/ServerLibrariesCard';
 import { ActivityTable } from '../components/library/ActivityTable';
+import { MediaInfoTable } from '../components/library/MediaInfoTable';
 import { Progress } from '../components/ui/progress';
 import { ResponsiveDialog } from '../components/ui/responsive-dialog';
 import { Spinner } from '@/components/ui/spinner'
@@ -64,10 +65,10 @@ import {
   faClock,
 } from '@fortawesome/free-solid-svg-icons';
 import { LibraryOverview } from '../components/library/LibraryOverview';
-import { Tile } from '../components/library/LibraryOverview';
+import { Poster, PosterCarousel, Tile } from '../components/library/LibraryOverview';
 import { watchTime } from '../lib/identityPlayTotals';
 
-type ServiceType = 'plex' | 'jellyfin' | 'emby' | 'kavita' | 'audiobookshelf' | 'komga' | 'romm';
+type ServiceType = 'plex' | 'jellyfin' | 'emby' | 'tofa' | 'kavita' | 'audiobookshelf' | 'komga' | 'romm';
 
 interface Library {
   id: number;
@@ -140,7 +141,7 @@ type ActivityApi = { data?: any[]; meta?: { pagination?: { total_pages?: number 
 type LibraryApi = { data?: Library };
 type MediaListApi = { data?: MediaItem[]; meta?: { pagination?: { total_pages?: number; total_items?: number } } };
 
-type TabType = 'overview' | 'media' | 'collections' | 'stats' | 'activity';
+type TabType = 'overview' | 'media' | 'media-info' | 'collections' | 'stats' | 'activity';
 
 const formatMinutesCompact = (rawMinutes: number) => {
   const minutes = Math.max(0, Math.round(rawMinutes || 0));
@@ -841,6 +842,8 @@ const LibraryDetailPageView = () => {
   }
 
   const serviceType = library.server?.service_type;
+  // Video and music services report file details; book, comic and game services don't.
+  const hasMediaInfo = serviceType === 'plex' || serviceType === 'jellyfin' || serviceType === 'emby' || serviceType === 'tofa';
 
   // Compute sync display state
   const backendSyncing = Boolean(libSyncStatus?.is_syncing);
@@ -931,6 +934,12 @@ const LibraryDetailPageView = () => {
             <FontAwesomeIcon icon={faFilm} className="mr-2 h-4 w-4" />
             Media
           </TabsTrigger>
+          {hasMediaInfo && (
+            <TabsTrigger value="media-info">
+              <FontAwesomeIcon icon={faCircleInfo} className="mr-2 h-4 w-4" />
+              Media Info
+            </TabsTrigger>
+          )}
           {serviceType === 'plex' && (
             <TabsTrigger value="collections">
               <FontAwesomeIcon icon={faLayerGroup} className="mr-2 h-4 w-4" />
@@ -1080,6 +1089,10 @@ const LibraryDetailPageView = () => {
           )}
 
           <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} loading={mediaLoading} />
+        </TabsContent>
+
+        <TabsContent value="media-info" className="space-y-4 mt-3">
+          {hasMediaInfo && activeTab === 'media-info' && <MediaInfoTable libraryId={Number(libraryId)} libraryName={library.name} serverSlug={serverId} />}
         </TabsContent>
 
         <TabsContent value="collections" className="space-y-4 mt-3">
@@ -1301,26 +1314,19 @@ const LibraryDetailPageView = () => {
                 );
               })()}
 
-              {/* Trending Content */}
-              {statsData.stats.trending_content && statsData.stats.trending_content.length > 0 && (
-                <Card>
-                  <CardContent className="p-6">
-                    <h3 className="text-lg font-semibold mb-4 flex items-center">
-                      <FontAwesomeIcon icon={faStar} className="mr-2 h-5 w-5" />
-                      Most Popular Content
-                    </h3>
-                    <div className="space-y-3">
-                      {statsData.stats.trending_content.slice(0, 10).map((item: any, idx: number) => (
-                        <div key={idx} className="flex justify-between items-center">
-                          <span className="font-medium truncate mr-2">{item.title}</span>
-                          <span className="text-sm bg-primary/20 text-primary px-2 py-1 rounded-full whitespace-nowrap">
-                            {item.streams} plays
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
+              {/* Most played items in the period, as posters: the same row as the Overview's Most played. */}
+              {Array.isArray(statsData.stats.trending_content) && statsData.stats.trending_content.length > 0 && (
+                <PosterCarousel icon={faStar} title="Most Popular Content" description={`The most played items in the last ${statsDays} days, from plays MUM recorded.`} label="most popular content">
+                  {(statsData.stats.trending_content as { item_id: number; title: string; streams: number; poster_url: string | null }[]).slice(0, 10).map(item => (
+                    <Link key={item.item_id} {...appLinks.media(serverId, libraryId, item.item_id)} className="account-recent-item" title={item.title}>
+                      <div className="account-recent-poster">
+                        <Poster url={item.poster_url} title={item.title} className="w-full h-full" />
+                        <div className="account-recent-when">{item.streams.toLocaleString()} {item.streams === 1 ? 'play' : 'plays'}</div>
+                      </div>
+                      <div className="mt-2 text-sm font-medium truncate">{item.title}</div>
+                    </Link>
+                  ))}
+                </PosterCarousel>
               )}
             </>
           ) : (

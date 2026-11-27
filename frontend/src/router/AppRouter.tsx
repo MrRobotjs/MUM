@@ -159,8 +159,8 @@ const adminLibraryDetail = createRoute({
   path: 'servers/$serverType/$serverId/libraries/$libraryId',
   component: LibraryDetailPage,
   // Validate search param "tab" for stronger typing
-  validateSearch: (search): { tab?: 'overview' | 'media' | 'collections' | 'stats' | 'activity' } => {
-    const allowed = ['overview', 'media', 'collections', 'stats', 'activity'] as const
+  validateSearch: (search): { tab?: 'overview' | 'media' | 'media-info' | 'collections' | 'stats' | 'activity' } => {
+    const allowed = ['overview', 'media', 'media-info', 'collections', 'stats', 'activity'] as const
     const tabVal = typeof search.tab === 'string' && allowed.includes(search.tab as any) ? (search.tab as typeof allowed[number]) : undefined
     return { tab: tabVal }
   },

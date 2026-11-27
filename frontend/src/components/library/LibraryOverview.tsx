@@ -58,7 +58,7 @@ export const Row = ({ label, children }: { label: string; children: ReactNode })
 
 // A card whose posters scroll sideways, with left and right buttons; a
 // button is disabled at its end of the row.
-function PosterCarousel({ icon, title, description, label, children, empty }: {
+export function PosterCarousel({ icon, title, description, label, children, empty }: {
   icon: IconDefinition; title: string; description: string; label: string; children: ReactNode; empty?: ReactNode;
 }) {
   const row = useRef<HTMLDivElement>(null);

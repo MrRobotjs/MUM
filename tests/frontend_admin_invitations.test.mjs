@@ -138,7 +138,7 @@ test('current admin invitation adapters', async t => {
       if (url.pathname === '/api/libraries') return Response.json({ data: [library] });
       if (url.pathname === '/api/provisioning-jobs') {
         assert.equal(url.searchParams.get('invite_id'), '20');
-        return Response.json({ data: [{ id: 'job-ref', invite_id: 20, status: 'failed', user_uuid: 'local-profile', error_code: 'REVIEW_REQUIRED', updated_at: '2026-01-01T00:00:00Z' }, {id:'plex-running',invite_id:20,status:'running',plex_progress:{phase:'verification_required'}}], meta: { next_before: null } });
+        return Response.json({ data: [{ id: 'job-ref', invite_id: 20, status: 'failed', user_uuid: 'local-profile', username: 'chosen-name', error_code: 'REVIEW_REQUIRED', updated_at: '2026-01-01T00:00:00Z' }, {id:'plex-running',invite_id:20,status:'running',plex_progress:{phase:'verification_required'}}], meta: { next_before: null } });
       }
       return Response.json({ data: [record()], meta: { next_before: null } });
     };
@@ -151,6 +151,9 @@ test('current admin invitation adapters', async t => {
     assert.match(detail.usage[0].status_message, /Requires review: job-ref/);
     assert.equal(detail.servers[0].libraries[0].selected, true);
     assert.equal(detail.usage_summary.accepted, 0);
+    // The details show who used the invite and each server's settings.
+    assert.equal(detail.usage[0].username, 'chosen-name');assert.equal(detail.usage[0].error_code, 'REVIEW_REQUIRED');assert.equal(detail.usage[1].username, null);
+    assert.equal(detail.servers[0].all_libraries, false);assert.equal(detail.servers[0].allow_downloads, false);assert.equal(detail.servers[0].allow_4k_transcode, true);
   });
 
   await t.test('repeated cursor responses fail instead of silently truncating the catalog', async () => {

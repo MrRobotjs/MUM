@@ -19,7 +19,7 @@ type Library = { id: number; server_id: number; external_id: string; name: strin
 export type RecentInvitationUsage = { id: string; plex_username?: string; discord_username?: string; accepted_invite: boolean; used_at: string | null; status_message?: string };
 export type InvitationCatalog ={ records: InvitationRecord[]; servers: InvitationServer[]; libraries: Library[] };
 type CursorResponse<T> = { data: T[]; meta: { next_before: number | null } };
-type Job = { plex_progress?: { phase: string }; id: string; invite_id: number; status: string; user_uuid: string; error_code: string; created_at: string; updated_at: string };
+type Job = { plex_progress?: { phase: string }; id: string; invite_id: number; status: string; user_uuid: string; username?: string; error_code: string; created_at: string; updated_at: string };
 
 async function cursorRecords<T>(path: string): Promise<T[]> {
   const records: T[] = [];
@@ -205,9 +205,10 @@ export async function invitationDetail(id: number) {
     const server = catalog.servers.find(s => s.id === g.server_id);
     return { ...server, id: g.server_id, service_type: server?.service_type ?? '', is_active: server?.is_active ?? false, effective_active: server?.effective_active ?? false, service_enabled: server?.provider_enabled ?? false,
       member_capacity: readMemberCapacity(server?.member_capacity), invite_to_plex_home: g.invite_to_plex_home === true,
+      all_libraries: g.all_libraries, allow_downloads: g.allow_downloads, allow_4k_transcode: g.allow_4k_transcode !== false,
       libraries: catalog.libraries.filter(l => l.server_id === g.server_id).map(l => ({ id: l.external_id, name: l.name, library_type: l.library_type, selected: g.all_libraries || g.library_ids.includes(l.external_id) })) };
   });
   return { ...row, is_expired: Boolean(row.is_expired), has_reached_max_uses: Boolean(row.has_reached_max_uses), is_usable: Boolean(row.is_usable), servers, disabled_servers: servers.filter(s => !s.effective_active), remaining_uses: record.max_uses === null ? null : Math.max(0, record.max_uses - record.current_uses - record.reserved_uses), library_selection_mode: row.grants_all_libraries ? 'all' as const : 'custom' as const,
-    usage: jobs.map(j => ({ id: j.id, used_at: j.updated_at, accepted_invite: j.status === 'completed', status: j.status, plex_review_available: Boolean(j.plex_progress), user_uuid: j.user_uuid, status_message: j.status === 'failed' ? `Requires review: ${j.id} (${j.error_code})` : j.status, plex_auth_successful: false, discord_auth_successful: false })),
+    usage: jobs.map(j => ({ id: j.id, used_at: j.updated_at, accepted_invite: j.status === 'completed', status: j.status, plex_review_available: Boolean(j.plex_progress), user_uuid: j.user_uuid, username: j.username || null, error_code: j.error_code || null, status_message: j.status === 'failed' ? `Requires review: ${j.id} (${j.error_code})` : j.status, plex_auth_successful: false, discord_auth_successful: false })),
     usage_summary: { total: jobs.length, accepted: jobs.filter(j => j.status === 'completed').length, pending: jobs.filter(j => j.status === 'running' || j.status === 'pending').length, plex_auth_successful: 0, discord_auth_successful: 0, last_used_at: jobs[0]?.updated_at ?? null } };
 }

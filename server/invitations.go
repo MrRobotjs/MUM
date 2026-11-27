@@ -1226,7 +1226,9 @@ func (a *App) listProvisioningJobs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer tx.Rollback()
-	rows, err := tx.QueryContext(r.Context(), "SELECT rowid,id,CASE WHEN resolution='cancelled' THEN 'cancelled' ELSE status END,user_uuid,coalesce(error_code,''),updated_at,created_at,invite_id FROM provisioning_jobs WHERE request_hash IS NOT NULL AND rowid<?"+filter+" ORDER BY rowid DESC LIMIT 101", args...)
+	// The username is the one the invitee chose, or the account's when that
+	// was not recorded.
+	rows, err := tx.QueryContext(r.Context(), "SELECT j.rowid,j.id,CASE WHEN j.resolution='cancelled' THEN 'cancelled' ELSE j.status END,j.user_uuid,coalesce(j.error_code,''),j.updated_at,j.created_at,j.invite_id,coalesce(j.requested_username,u.local_username,'') FROM provisioning_jobs j LEFT JOIN user_accounts u ON u.uuid=j.user_uuid WHERE j.request_hash IS NOT NULL AND j.rowid<?"+strings.ReplaceAll(filter, "invite_id", "j.invite_id")+" ORDER BY j.rowid DESC LIMIT 101", args...)
 	if err != nil {
 		domainError(w, err)
 		return
@@ -1235,12 +1237,12 @@ func (a *App) listProvisioningJobs(w http.ResponseWriter, r *http.Request) {
 	cursors := []int64{}
 	for rows.Next() {
 		var cursor int64
-		var id, status, uuid, code, updated, created string
+		var id, status, uuid, code, updated, created, username string
 		var inviteID int64
-		if err = rows.Scan(&cursor, &id, &status, &uuid, &code, &updated, &created, &inviteID); err != nil {
+		if err = rows.Scan(&cursor, &id, &status, &uuid, &code, &updated, &created, &inviteID, &username); err != nil {
 			break
 		}
-		items = append(items, map[string]any{"id": id, "status": status, "user_uuid": uuid, "error_code": code, "updated_at": updated, "created_at": created, "invite_id": inviteID})
+		items = append(items, map[string]any{"id": id, "status": status, "user_uuid": uuid, "error_code": code, "updated_at": updated, "created_at": created, "invite_id": inviteID, "username": username})
 		cursors = append(cursors, cursor)
 	}
 	err = errors.Join(err, rows.Err(), rows.Close())

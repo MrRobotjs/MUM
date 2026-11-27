@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"testing"
@@ -178,5 +179,25 @@ func TestInvitationWithNoOpenServerIsClosed(t *testing.T) {
 	body["skipped_server_ids"] = []int64{ids[0]}
 	if w := apiRequest(a, "POST", "/api/public/invitations/"+token+"/redeem", "", body, nil); w.Code != 409 {
 		t.Fatal("redeemed an invite with no open server", w.Code, w.Body.String())
+	}
+}
+
+// The invite's usage names who redeemed it.
+func TestProvisioningJobsListTheChosenUsername(t *testing.T) {
+	a, _ := testApp(t)
+	admin, _ := bootstrapOwner(t, a)
+	inviteID, token, _ := prepareInvitation(t, a, admin, newProvisioningFixture(t, ""))
+	if w := apiRequest(a, "POST", "/api/public/invitations/"+token+"/redeem", "", redeemBody("Named Invitee", newUUID()), nil); w.Code != 201 {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	w := apiRequest(a, "GET", fmt.Sprintf("/api/provisioning-jobs?invite_id=%d", inviteID), admin, nil, nil)
+	if w.Code != 200 {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	var out struct {
+		Data []map[string]any `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil || len(out.Data) != 1 || out.Data[0]["username"] != "Named Invitee" {
+		t.Fatal(out, err)
 	}
 }

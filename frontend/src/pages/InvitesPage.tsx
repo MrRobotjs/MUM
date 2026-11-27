@@ -8,7 +8,7 @@ import { useAdminApi } from '../hooks/useAdminApi';
 import { useMediaServices } from '../hooks/useMediaServices';
 import { useInviteSummary } from '../hooks/useInviteSummary';
 import { useDiscordSettings } from '../hooks/useSettings';
-import { InvitesTable, InviteRow, InviteModal, InviteFormValues, InviteDetailDrawer, InviteCard, FeatureMeta } from '../components/invites';
+import { InvitesTable, InviteRow, InviteModal, InviteFormValues, InviteDetailDialog, InviteCard, FeatureMeta } from '../components/invites';
 import { saveInvitation, applyInvitationAction, invitationShareURL, openInvitation, membershipDateFromDays } from '../lib/invitations';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Input } from '../components/ui/input';
@@ -279,7 +279,7 @@ export const InvitesPage = () => {
     setModalOpen(true);
   };
 
-  const openDetailDrawer = (invite: InviteRow) => {
+  const openInviteDetails = (invite: InviteRow) => {
     setDetailInviteId(invite.id);
   };
 
@@ -545,7 +545,7 @@ export const InvitesPage = () => {
           onSelectAll={handleSelectAll}
           loading={loading}
           onEdit={openEditModal}
-          onViewDetail={openDetailDrawer}
+          onViewDetail={openInviteDetails}
           onOpen={handleOpenLink}
         />
       ) : (
@@ -568,7 +568,7 @@ export const InvitesPage = () => {
                 selected={selectedIds.has(invite.id)}
                 onToggleSelect={toggleSelect}
                 onEdit={openEditModal}
-                onViewDetail={openDetailDrawer}
+                onViewDetail={openInviteDetails}
                 onOpen={handleOpenLink}
                 onCopyLink={handleCopyLink}
                 featureMeta={featureMeta}
@@ -621,7 +621,12 @@ export const InvitesPage = () => {
         loading={saving}
       />
 
-      <InviteDetailDrawer inviteId={detailInviteId} onClose={() => setDetailInviteId(null)} />
+      <InviteDetailDialog inviteId={detailInviteId} onClose={() => setDetailInviteId(null)} onEdit={id => {
+        const invite = (invites as InviteRow[]).find(row => row.id === id);
+        if (!invite) return;
+        setDetailInviteId(null);
+        openEditModal(invite);
+      }} />
 
       <ResponsiveDialog
         open={purgeConfirmOpen}

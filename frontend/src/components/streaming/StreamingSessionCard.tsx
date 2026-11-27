@@ -555,35 +555,38 @@ export const StreamingSessionCard = ({
             )}
           </div>
 
-          <div className="min-w-0 flex-1 pr-16">
-            <h3 className="truncate text-sm font-semibold leading-tight text-card-foreground" title={compactPrimaryTitle}>
-              {linkedTitle(compactPrimaryTitle)}
-            </h3>
-            <div className="truncate text-[11px] text-muted-foreground" title={compactSecondaryTitle || undefined}>
-              {compactSecondaryTitle || [session.year, mediaTypeLabel].filter(Boolean).join(' • ') || '\u00A0'}
-            </div>
+          <div className="min-w-0 flex-1">
+            {/* Only the top rows sit beside the badge and menu in the corner. */}
+            <div className="pr-16">
+              <h3 className="truncate text-sm font-semibold leading-tight text-card-foreground" title={compactPrimaryTitle}>
+                {linkedTitle(compactPrimaryTitle)}
+              </h3>
+              <div className="truncate text-[11px] text-muted-foreground" title={compactSecondaryTitle || undefined}>
+                {compactSecondaryTitle || [session.year, mediaTypeLabel].filter(Boolean).join(' • ') || '\u00A0'}
+              </div>
 
-            <div className="mt-0.5 flex items-center gap-1 truncate text-[10px] text-muted-foreground/80">
-              <ServiceIcon serviceType={session.service_type} className="h-3 w-3 shrink-0" />
-              <span className="truncate font-medium">{session.server_name || serviceMeta.label}</span>
-              <span className="text-muted-foreground/50">•</span>
-              {canNavigateToUserProfile ? (
-                <a
-                  href={buildUserProfilePath({
-                    uuid: session.service_user_uuid ?? session.mum_user_uuid ?? '',
-                    username: session.user,
-                    server_nickname: session.server_name,
-                  })}
-                  onClick={(e) => void handleUserProfileClick(e)}
-                  className="truncate text-primary hover:underline"
-                  title="Open user profile"
-                >
-                  {session.user}
-                </a>
-              ) : (
-                <span className="truncate">{session.user}</span>
-              )}
-              {session.profile_name && session.profile_name !== session.user ? <span className="truncate" title="Tofa profile">· {session.profile_name}</span> : null}
+              <div className="mt-0.5 flex items-center gap-1 truncate text-[10px] text-muted-foreground/80">
+                <ServiceIcon serviceType={session.service_type} className="h-3 w-3 shrink-0" />
+                <span className="truncate font-medium">{session.server_name || serviceMeta.label}</span>
+                <span className="text-muted-foreground/50">•</span>
+                {canNavigateToUserProfile ? (
+                  <a
+                    href={buildUserProfilePath({
+                      uuid: session.service_user_uuid ?? session.mum_user_uuid ?? '',
+                      username: session.user,
+                      server_nickname: session.server_name,
+                    })}
+                    onClick={(e) => void handleUserProfileClick(e)}
+                    className="truncate text-primary hover:underline"
+                    title="Open user profile"
+                  >
+                    {session.user}
+                  </a>
+                ) : (
+                  <span className="truncate">{session.user}</span>
+                )}
+                {session.profile_name && session.profile_name !== session.user ? <span className="truncate" title="Tofa profile">· {session.profile_name}</span> : null}
+              </div>
             </div>
 
             <div className="mt-1 flex items-center gap-2 text-[10px]">

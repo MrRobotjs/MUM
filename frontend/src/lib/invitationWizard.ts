@@ -10,14 +10,19 @@ export type PublicInvitation = {
   max_uses: number | null;
   current_uses: number;
   reserved_uses: number;
-  servers: { id: number; name: string; provider: string; access_url: string; libraries: { id: string; name: string }[] }[];
-  grants: { server_id: number; all_libraries: boolean; library_ids: string[]; allow_downloads: boolean; allow_4k_transcode?: boolean }[];
+  // status says whether the server takes new members: "full" and "unavailable" servers list no libraries.
+  servers: { id: number; name: string; provider: string; access_url: string; libraries: { id: string; name: string }[]; status: ServerStatus }[];
+  // At least one invited server is open.
+  accepting: boolean;
+  grants: { server_id: number; all_libraries: boolean; library_ids: string[]; allow_downloads: boolean; allow_4k_transcode?: boolean; invite_to_plex_home?: boolean }[];
   discord: { required: boolean; requires_guild: boolean; available: boolean; invite_url: string | null };
   // Invitees sign in to MUM with their media server login (SERVICE_SIGN_IN).
   service_sign_in?: boolean;
 };
 export type DiscordProof = { authorization_id: string; status: 'pending' | 'exchanging' | 'verified' | 'consumed' | 'failed' | 'expired'; error_code: string | null;
   user: { id: string; username: string; avatar: string | null } | null; guild_verified: boolean | null; invite_url: string | null };
+export type ServerStatus = 'open' | 'full' | 'home_full' | 'unavailable';
+const serverStatuses: readonly ServerStatus[] = ['open', 'full', 'home_full', 'unavailable'];
 type StoragePort = Pick<Storage, 'getItem' | 'setItem'>;
 type DraftAccount = {
   username: string; email: string; password: string; confirm_password: string;
@@ -27,6 +32,7 @@ type Credentials = { username: string; email: string; password: string; password
 export type RedemptionReceipt = {
   id: string; status: 'running' | 'completed' | 'failed' | 'cancelled'; requires_review: boolean;
   steps: { server_id: number; status: string; stage: string; error_code?: string; tofa?: { state: string; requires_review: boolean } }[];
+  skipped_servers?: { server_id: number; reason: string }[];
 };
 type RedemptionRequest = {
   invitation_revision: number;
@@ -34,6 +40,7 @@ type RedemptionRequest = {
   server_credentials: { server_id: number; username: string; password: string }[];
   discord_authorization_id?: string;
   plex_authorization_id?: string;
+  skipped_server_ids?: number[];
 };
 // The invitee's Plex sign-in for this invitation (bound to this browser by an
 // HttpOnly cookie). MUM shares the invited libraries with this Plex account.
@@ -66,7 +73,9 @@ function publicSnapshot(value: unknown): PublicInvitation {
   }
   const seen = new Set<number>();
   const servers = v.servers.map(s => {
-    if (!Number.isSafeInteger(s.id) || s.id < 1 || seen.has(s.id) || typeof s.name !== 'string' || !isServiceType(s.provider) || !Array.isArray(s.libraries)) throw new Error('Unsupported invitation server');
+    // Snapshots saved before servers reported a status were all open.
+    const status = s.status ?? 'open';
+    if (!Number.isSafeInteger(s.id) || s.id < 1 || seen.has(s.id) || typeof s.name !== 'string' || !isServiceType(s.provider) || !Array.isArray(s.libraries) || !serverStatuses.includes(status)) throw new Error('Unsupported invitation server');
     seen.add(s.id);
     let access_url = '';
     if (s.access_url) {
@@ -77,7 +86,7 @@ function publicSnapshot(value: unknown): PublicInvitation {
       if (typeof l.id !== 'string' || !l.id || typeof l.name !== 'string') throw new Error('Invalid invitation library');
       return { id: l.id, name: l.name };
     });
-    return { id: s.id, name: s.name, provider: s.provider, access_url, libraries };
+    return { id: s.id, name: s.name, provider: s.provider, access_url, libraries, status };
   });
   const granted = new Set<number>();
   const grants = v.grants.map(g => {
@@ -87,10 +96,11 @@ function publicSnapshot(value: unknown): PublicInvitation {
     const provider = servers.find(server => server.id === g.server_id)!.provider;
     if (provider === 'romm' && (!g.all_libraries || g.library_ids.length || !g.allow_downloads)) throw new Error('RomM requires explicit all-platform access including downloads');
     if (provider === 'tofa' && g.allow_downloads) throw new Error('Tofa onboarding invites do not support download permissions');
+    if (g.invite_to_plex_home !== undefined && (typeof g.invite_to_plex_home !== 'boolean' || g.invite_to_plex_home && provider !== 'plex')) throw new Error('Invalid invitation grant');
     if (provider === 'kavita' && (g.all_libraries || g.library_ids.some(id => !/^[1-9]\d*$/.test(id) || Number(id) > 2147483647))) throw new Error('Kavita requires selected libraries with valid IDs');
     if (new Set(g.library_ids).size !== g.library_ids.length) throw new Error('Invalid invitation grant');
     granted.add(g.server_id);
-    return { server_id: g.server_id, all_libraries: g.all_libraries, library_ids: [...g.library_ids], allow_downloads: g.allow_downloads, allow_4k_transcode: g.allow_4k_transcode !== false };
+    return { server_id: g.server_id, all_libraries: g.all_libraries, library_ids: [...g.library_ids], allow_downloads: g.allow_downloads, allow_4k_transcode: g.allow_4k_transcode !== false, invite_to_plex_home: g.invite_to_plex_home === true };
   });
   const d = (v as { discord?: unknown }).discord as PublicInvitation['discord'] | undefined;
   if (!d || typeof d.required !== 'boolean' || typeof d.requires_guild !== 'boolean' || typeof d.available !== 'boolean' || d.requires_guild && !d.required ||
@@ -98,7 +108,9 @@ function publicSnapshot(value: unknown): PublicInvitation {
   const discord = { required: d.required, requires_guild: d.requires_guild, available: d.available, invite_url: d.invite_url };
   const serviceSignIn = (v as { service_sign_in?: unknown }).service_sign_in;
   if (serviceSignIn !== undefined && typeof serviceSignIn !== 'boolean') throw new Error('Invalid invitation sign-in setting');
-  return { id: v.id, revision: v.revision, expires_at: v.expires_at, max_uses: v.max_uses, current_uses: v.current_uses, reserved_uses: v.reserved_uses, servers, grants, discord, service_sign_in: serviceSignIn === true };
+  const accepting = (v as { accepting?: unknown }).accepting ?? servers.some(server => server.status === 'open');
+  if (typeof accepting !== 'boolean' || accepting !== servers.some(server => server.status === 'open')) throw new Error('Invalid invitation server status');
+  return { id: v.id, revision: v.revision, expires_at: v.expires_at, max_uses: v.max_uses, current_uses: v.current_uses, reserved_uses: v.reserved_uses, servers, accepting, grants, discord, service_sign_in: serviceSignIn === true };
 }
 
 const discordStatuses = ['pending', 'exchanging', 'verified', 'consumed', 'failed', 'expired'];
@@ -166,8 +178,8 @@ export function serviceSignInNotice(servers: { name: string }[]): string {
   return `Sign in to MUM with your ${list} login.`;
 }
 
-// A custom invite path (Flask feature) is resolved to the invitation's link
-// code; every later request uses the code.
+// A custom invite path is resolved to the invitation's link code; every later
+// request uses the code.
 export async function resolveInvitationToken(value: string): Promise<string> {
   const response = await fetch(`/api/public/invitation-paths/${encodeURIComponent(value)}`, { headers: { Accept: 'application/json' } });
   const payload = await response.json().catch(() => null) as { data?: { token?: unknown } } | null;
@@ -191,7 +203,8 @@ async function loadPublicInvitationByToken(token: string, storage: StoragePort |
   const saved = savedAttempt(token, storage);
   try {
     const current = publicSnapshot(await publicRequest(token));
-    // A resumed attempt keeps its frozen invitation, but the sign-in setting is always the current one.
+    // A resumed attempt keeps its frozen invitation, server statuses included,
+    // so it resends the same request; the sign-in setting is always the current one.
     const draft = new InvitationDraft(token, saved?.invitation.id === current.id ? { ...saved.invitation, service_sign_in: current.service_sign_in } : current, storage, saved?.requestID, Boolean(saved));
     if (current.discord.required) await draft.refreshDiscord();
     return draft;
@@ -212,11 +225,16 @@ export class InvitationDraft {
 	private uncertain: boolean;
   private discord: DiscordProof | null = null;
   private plex: PlexProof | null = null;
+  // The invitee chose to continue without the full or unavailable servers.
+  private skipAgreed = false;
 
   constructor(private token: string, private invitation: PublicInvitation, private storage = storagePort(), requestID?: string, readonly recovering = false) {
     this.invitation = publicSnapshot(invitation);
     this.requestID = requestID ?? newRequestID();
     this.uncertain = recovering;
+    // A saved attempt was only submitted after the invitee chose to go without
+    // its full or unavailable servers.
+    this.skipAgreed = recovering && this.closedServers().length > 0;
   }
 
   // Reads this browser's proof; a missing proof simply means not signed in yet.
@@ -235,12 +253,39 @@ export class InvitationDraft {
     return url.href;
   }
 
+  // The servers taking new members, and those the invitee would go without.
+  private openServers() {
+    return this.invitation.servers.filter(server => server.status === 'open');
+  }
+
+  private closedServers() {
+    return this.invitation.servers.filter(server => server.status !== 'open');
+  }
+
+  // Full or unavailable servers are never skipped silently: the invitee is
+  // told which and why, and chooses to continue with the others.
+  agreeToSkip() {
+    this.mutable();
+    if (!this.invitation.accepting) throw new Error('No server on this invite is taking new members right now');
+    this.skipAgreed = true;
+  }
+
+  // Rereads which servers take new members after the server reported a change;
+  // the account details already entered are kept.
+  async refreshServers() {
+    this.mutable();
+    const current = publicSnapshot(await publicRequest(this.token));
+    if (current.id !== this.invitation.id) throw new Error('The invitation changed. Reload the page.');
+    this.invitation = { ...this.invitation, revision: current.revision, servers: current.servers, grants: current.grants, accepting: current.accepting };
+    this.skipAgreed = false;
+  }
+
   private hasPlex() {
-    return this.invitation.servers.some(server => server.provider === 'plex');
+    return this.openServers().some(server => server.provider === 'plex');
   }
 
   private hasTofa() {
-    return this.invitation.servers.some(server => server.provider === 'tofa');
+    return this.openServers().some(server => server.provider === 'tofa');
   }
 
   private plexConfirmed() {
@@ -307,7 +352,7 @@ export class InvitationDraft {
 
   saveServer(serverID: number, value: Credentials) {
     this.mutable();
-    const server = this.invitation.servers.find(s => s.id === serverID);
+    const server = this.openServers().find(s => s.id === serverID);
     if (!this.account || !server) throw new Error('Choose an invited server after setting up your account');
     const username = server.provider === 'komga' ? value.email.trim() : value.username.trim();
     const error = invitationCredentialError(server.provider, username, value.password);
@@ -318,7 +363,7 @@ export class InvitationDraft {
 
   view(): WizardState {
     const a = this.account;
-    const servers = this.invitation.servers.map(s => {
+    const servers = this.openServers().map(s => {
       const grant = this.invitation.grants.find(g => g.server_id === s.id)!;
       const credentials = this.formFor(s.id);
       // Plex access comes from the invitee's Plex sign-in, not a username/password.
@@ -328,22 +373,22 @@ export class InvitationDraft {
       return { id: s.id, name: s.name, service_type: s.provider.toUpperCase(), access_url: s.access_url,
         completed: plex ? this.plexConfirmed() : tofa ? Boolean(a && validInviteEmail(a.email)) : Boolean(a && !invitationCredentialError(s.provider, credentials.username, credentials.password)), all_libraries: grant.all_libraries,
         credentials: a && !plex && !tofa ? { username: credentials.username, email: ['kavita','audiobookshelf','romm'].includes(s.provider) ? '' : credentials.email } : null, libraries: s.libraries,
-        features: { allow_downloads: grant.allow_downloads, invite_to_plex_home: false, allow_live_tv: false, allow_4k_transcode: grant.allow_4k_transcode !== false } };
+        features: { allow_downloads: grant.allow_downloads, invite_to_plex_home: grant.invite_to_plex_home === true, allow_live_tv: false, allow_4k_transcode: grant.allow_4k_transcode !== false } };
     });
     const discordRequired = this.invitation.discord.required;
     const steps = [...(discordRequired ? [{ id: 'discord', name: 'Discord', icon: 'discord', required: true, completed: this.discordVerified() }] : []),
       { id: 'user_account', name: 'Account', icon: 'user-plus', required: true, completed: Boolean(a) },
-      // One Plex sign-in step covers the invitation's Plex server, as in Flask.
+      // One Plex sign-in step covers the invitation's Plex server.
       ...(this.hasPlex() ? [{ id: 'plex', name: `${servers.find(s => s.service_type === 'PLEX')!.name} Access`, icon: 'plex', required: true, completed: this.plexConfirmed() }] : []),
       ...servers.filter(s => s.service_type !== 'PLEX' && s.service_type !== 'TOFA').map(s => ({ id: `server_access_${s.id}`, name: s.name, icon: 'server', required: true, completed: s.completed, server_id: s.id, server_name: s.name, server_type: s.service_type }))];
     return {
       invite: { id: this.invitation.id, token: this.token, custom_path: null, expires_at: this.invitation.expires_at,
         max_uses: this.invitation.max_uses, current_uses: this.invitation.current_uses + this.invitation.reserved_uses,
-        is_active: true, is_paused: false, allow_downloads: this.invitation.grants.some(g => g.allow_downloads),
-        invite_to_plex_home: false, allow_live_tv: false, allow_4k_transcode: this.invitation.grants.every(g => g.allow_4k_transcode !== false), membership_duration_days: null,
+        is_active: true, is_paused: !this.invitation.accepting, allow_downloads: this.invitation.grants.some(g => g.allow_downloads),
+        invite_to_plex_home: this.invitation.grants.some(g => g.invite_to_plex_home === true), allow_live_tv: false, allow_4k_transcode: this.invitation.grants.every(g => g.allow_4k_transcode !== false), membership_duration_days: null,
         grant_library_ids: this.invitation.grants.flatMap(g => g.library_ids.map(id => `${g.server_id}::${id}`)),
         require_discord_auth: discordRequired, require_discord_guild_membership: this.invitation.discord.requires_guild, server_count: servers.length,
-        effective_server_count: servers.length, disabled_server_count: 0 },
+        effective_server_count: servers.length, disabled_server_count: this.closedServers().length },
       steps, next_step_id: steps.find(s => !s.completed)?.id ?? null,
       plex: { has_plex_servers: this.hasPlex(), authenticated: this.plexConfirmed(), user: this.plexConfirmed() && this.plex?.account ? { username: this.plex.account.username } : null, conflict: null },
       discord: { oauth_enabled: discordRequired && this.invitation.discord.available, requires_auth: discordRequired, requires_guild: this.invitation.discord.requires_guild,
@@ -352,7 +397,10 @@ export class InvitationDraft {
         guild_error: this.discord?.status === 'failed' ? discordMessages[this.discord.error_code ?? ''] ?? 'Discord sign-in failed. Try again.' : this.discord?.status === 'expired' ? 'Discord sign-in expired. Sign in again.' : null },
       account: { allowed: true, completed: Boolean(a), data: a ? { username: a.username, email: a.email } : null,
         preferences: { use_same_username: a?.use_same_username ?? true, use_same_email: a?.use_same_email ?? true, use_same_password: a?.use_same_password ?? true } },
-      servers, disabled_servers: [], meta: { server_label: servers.length === 1 ? 'server' : 'servers', has_multiple_servers: servers.length > 1, service_sign_in: this.invitation.service_sign_in === true },
+      servers,
+      disabled_servers: this.closedServers().map(s => ({ id: s.id, name: s.name, service_type: s.provider.toUpperCase(), is_active: s.status !== 'unavailable', service_enabled: true, effective_active: false, reason: s.status })),
+      meta: { server_label: servers.length === 1 ? 'server' : 'servers', has_multiple_servers: servers.length > 1, service_sign_in: this.invitation.service_sign_in === true,
+        needs_skip_choice: this.invitation.accepting && this.closedServers().length > 0 && !this.skipAgreed, skip_agreed: this.skipAgreed },
     };
   }
 
@@ -360,8 +408,11 @@ export class InvitationDraft {
     if (this.pending) return this.pending;
     if (!this.frozen) {
       if (!this.account || this.view().steps.some(s => s.required && !s.completed)) return Promise.reject(new Error('Complete your account and every server first'));
+      if (!this.invitation.accepting || this.closedServers().length > 0 && !this.skipAgreed) return Promise.reject(new Error('Choose whether to continue without the servers that are full or unavailable'));
+      const skipped = this.closedServers().map(s => s.id);
       this.frozen = { invitation_revision: this.invitation.revision, request_id: this.requestID, username: this.account.username, password: this.account.password, email: this.account.email,
-        server_credentials: this.invitation.servers.filter(s => s.provider !== 'plex' && s.provider !== 'tofa').map(s => { const c = this.formFor(s.id); return { server_id: s.id, username: c.username, password: c.password }; }),
+        server_credentials: this.openServers().filter(s => s.provider !== 'plex' && s.provider !== 'tofa').map(s => { const c = this.formFor(s.id); return { server_id: s.id, username: c.username, password: c.password }; }),
+        ...(skipped.length ? { skipped_server_ids: skipped } : {}),
         ...(this.invitation.discord.required && this.discord ? { discord_authorization_id: this.discord.authorization_id } : {}),
         ...(this.hasPlex() && this.plex ? { plex_authorization_id: this.plex.id } : {}) };
       try { this.storage?.setItem(storageKey(this.token), JSON.stringify({ version: 1, requestID: this.requestID, invitation: publicSnapshot(this.invitation) } satisfies SavedAttempt)); } catch { /* In-tab retries still use the frozen request. */ }
@@ -370,14 +421,15 @@ export class InvitationDraft {
     this.pending = publicRequest<RedemptionReceipt>(this.token, '/redeem', this.frozen, this.invitation.discord.required || this.hasPlex()).then(receipt => {
       if (receipt && typeof receipt === 'object' && ('plex_progress' in receipt || Array.isArray(receipt.steps) && receipt.steps.some(step => step && typeof step === 'object' && 'plex' in step))) throw new Error('Plex receipts require the dedicated pending flow; public Plex provisioning is not enabled.');
       if (!receipt || typeof receipt.id !== 'string' || !['running', 'completed', 'failed', 'cancelled'].includes(receipt.status) || typeof receipt.requires_review !== 'boolean' || !Array.isArray(receipt.steps) ||
-          receipt.steps.length !== this.invitation.servers.length || new Set(receipt.steps.map(s => s.server_id)).size !== receipt.steps.length ||
-          receipt.steps.some(s => !this.invitation.servers.some(server => server.id === s.server_id)) || receipt.status === 'failed' && !receipt.requires_review || receipt.status === 'cancelled' && receipt.requires_review ||
-          receipt.status === 'completed' && (receipt.requires_review || receipt.steps.length !== this.invitation.servers.length || receipt.steps.some(s => s.status !== 'completed'))) throw new Error('Invalid provisioning receipt; keep this tab open and check again');
+          receipt.steps.length !== this.openServers().length || new Set(receipt.steps.map(s => s.server_id)).size !== receipt.steps.length ||
+          receipt.steps.some(s => !this.openServers().some(server => server.id === s.server_id)) || receipt.status === 'failed' && !receipt.requires_review || receipt.status === 'cancelled' && receipt.requires_review ||
+          !Array.isArray(receipt.skipped_servers ?? []) || (receipt.skipped_servers ?? []).map(s => s.server_id).sort((x, y) => x - y).join() !== this.closedServers().map(s => s.id).sort((x, y) => x - y).join() ||
+          receipt.status === 'completed' && (receipt.requires_review || receipt.steps.some(s => s.status !== 'completed'))) throw new Error('Invalid provisioning receipt; keep this tab open and check again');
       this.uncertain=true;
       return receipt;
     }).catch(error => {
       const rejected=error as {status?:number;code?:string};
-      const notReserved = rejected.status===400 && ['INVALID_EMAIL','INVALID_REDEMPTION','INVALID_CREDENTIALS','INVALID_REVISION','INVALID_BODY','INVALID_KAVITA_CREDENTIALS','INVALID_AUDIOBOOKSHELF_CREDENTIALS','INVALID_KOMGA_CREDENTIALS','DISCORD_AUTH_REQUIRED','DISCORD_ACCOUNT_IN_USE','PLEX_AUTH_REQUIRED'].includes(rejected.code ?? '') || rejected.status===409 && rejected.code==='PLEX_ACCOUNT_IN_USE' || rejected.status===409 && rejected.code==='USERNAME_UNAVAILABLE';
+      const notReserved = rejected.status===400 && ['INVALID_EMAIL','INVALID_REDEMPTION','INVALID_CREDENTIALS','INVALID_REVISION','INVALID_BODY','INVALID_KAVITA_CREDENTIALS','INVALID_AUDIOBOOKSHELF_CREDENTIALS','INVALID_KOMGA_CREDENTIALS','DISCORD_AUTH_REQUIRED','DISCORD_ACCOUNT_IN_USE','PLEX_AUTH_REQUIRED'].includes(rejected.code ?? '') || rejected.status===409 && ['PLEX_ACCOUNT_IN_USE','USERNAME_UNAVAILABLE','SERVERS_CHANGED'].includes(rejected.code ?? '');
       if (!this.uncertain && notReserved) {
         this.frozen=undefined;
         try { this.storage?.setItem(storageKey(this.token),'null'); } catch { /* Storage is optional. */ }

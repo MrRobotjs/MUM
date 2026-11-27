@@ -30,6 +30,8 @@ type plexSharePreflight struct {
 	// Friend reports that the account is in the owner's plex.tv user list
 	// (a friend), whether or not it currently shares this server.
 	Friend bool
+	// Home reports that the friend is already a member of the owner's Plex Home.
+	Home bool
 }
 
 func plexNumericID(value string) bool {
@@ -108,6 +110,7 @@ func (p *serverConnection) inspectPlexShare(ctx context.Context, account string,
 		}
 		foundUser = true
 		result.Friend = true
+		result.Home, _ = plex.ExplicitBool(user.Attr("home"))
 		result.AllowDownloads, result.DownloadsKnown = plex.ExplicitBool(user.Attr("allowSync"))
 		for _, server := range user.Servers {
 			if server.Machine != identity.Machine {

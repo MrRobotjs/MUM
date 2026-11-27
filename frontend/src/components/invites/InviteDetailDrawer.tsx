@@ -1,5 +1,6 @@
 import { useAccountDisplay } from '../../hooks/useAccountDisplay';
 import { inviteLinkWarning } from '../../lib/publicAddress';
+import { fullServersWarning, type MemberCapacity } from '../../lib/memberCapacity';
 import { useEffect, useRef, useState } from 'react';
 import { mutate as mutateSWR } from 'swr';
 import { ProvisioningReviewDialog } from './ProvisioningReviewDialog';
@@ -46,6 +47,7 @@ type InviteServer = {
   is_active: boolean;
   service_enabled?: boolean;
   effective_active?: boolean;
+  member_capacity?: MemberCapacity | null;
   libraries: InviteServerLibrary[];
 };
 
@@ -144,7 +146,7 @@ export const InviteDetailDrawer = ({ inviteId, onClose }: InviteDetailDrawerProp
     if (!detail?.share_url) return;
     try {
       await navigator.clipboard.writeText(detail.share_url);
-      const caution = inviteLinkWarning(detail.share_url);
+      const caution = [inviteLinkWarning(detail.share_url), fullServersWarning(detail.servers ?? [])].filter(Boolean).join(' ');
       if (caution) warning(`Link copied. ${caution}`, 10000); else success('Link copied');
     } catch (err) {
       showError('Copy failed: ' + String(err));

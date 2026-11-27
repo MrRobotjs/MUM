@@ -1,5 +1,6 @@
 import { invitationExpiryFields } from '../util/calendarDates';
 import { inviteLinkWarning } from '../lib/publicAddress';
+import { fullServersWarning } from '../lib/memberCapacity';
 import { useState, useMemo, useEffect, type FormEvent, type ReactElement } from 'react';
 import { useAlerts } from '../contexts/AlertContext';
 import { useInvites } from '../hooks/useInvites';
@@ -352,8 +353,9 @@ export const InvitesPage = () => {
     try {
       const link = await invitationShareURL(invite.id);
       await navigator.clipboard.writeText(link);
-      // A link only reachable at home, or showing the server's IP, is copied with a warning.
-      const caution = inviteLinkWarning(link);
+      // A link only reachable at home, or showing the server's IP, or for an
+      // invite with a full server, is copied with a warning.
+      const caution = [inviteLinkWarning(link), fullServersWarning(invite.servers ?? [])].filter(Boolean).join(' ');
       if (caution) warning(`Invite link copied. ${caution}`, 10000); else success('Invite link copied!');
     } catch (error) { showError('Unable to copy invite link: ' + String(error)); }
   };

@@ -1,18 +1,20 @@
 import { invitationServerLimits } from './invitationConstraints';
 import { requestJson } from '../util/apiClient';
 import { invitationExpiryTimestamp } from '../util/calendarDates';
+import { readMemberCapacity } from './memberCapacity';
 import type { InviteRow } from '../components/invites/InvitesTable';
 import type { InviteFormValues } from '../components/invites/InviteModal';
 
 export const INVITATIONS_CACHE_KEY = '/api/invitations';
 // allow_4k_transcode: false has MUM stop streams that transcode 4K (Plex, Jellyfin, Emby).
 // purge_protected: true keeps the created server account out of purges.
-export type InvitationGrant = { server_id: number; all_libraries: boolean; library_ids: string[]; allow_downloads: boolean; allow_4k_transcode?: boolean; purge_protected?: boolean };
+// invite_to_plex_home: true also invites a Plex invitee into the owner's Plex Home.
+export type InvitationGrant = { server_id: number; all_libraries: boolean; library_ids: string[]; allow_downloads: boolean; allow_4k_transcode?: boolean; purge_protected?: boolean; invite_to_plex_home?: boolean };
 // Server types whose 4K transcodes MUM can stop.
 export const transcodePolicyServiceTypes = ['plex', 'jellyfin', 'emby'];
-// Null expiry = never expires, null max_uses = unlimited, null membership = permanent (Flask behaviour).
+// Null expiry = never expires, null max_uses = unlimited, null membership = permanent.
 export type InvitationRecord = { id: number; revision: number; created_at: string; expires_at: string | null; max_uses: number | null; current_uses: number; reserved_uses: number; is_active: boolean; grants: InvitationGrant[]; require_discord_auth?: boolean; require_discord_guild_membership?: boolean; custom_path?: string | null; membership_duration_days?: number | null; token_prefix?: string; archived_at?: string | null };
-export type InvitationServer = { id: number; server_nickname: string; service_type: string; is_active: boolean; provider_enabled: boolean; effective_active: boolean; public_url?: string };
+export type InvitationServer = { id: number; server_nickname: string; service_type: string; is_active: boolean; provider_enabled: boolean; effective_active: boolean; public_url?: string; member_capacity?: unknown };
 type Library = { id: number; server_id: number; external_id: string; name: string; library_type: string };
 export type RecentInvitationUsage = { id: string; plex_username?: string; discord_username?: string; accepted_invite: boolean; used_at: string | null; status_message?: string };
 export type InvitationCatalog ={ records: InvitationRecord[]; servers: InvitationServer[]; libraries: Library[] };
@@ -54,15 +56,18 @@ export function invitationRow(record: InvitationRecord, catalog: InvitationCatal
   const servers = record.grants.map(g => {
     const server = catalog.servers.find(s => s.id === g.server_id);
     return { id: g.server_id, server_nickname: server?.server_nickname ?? `Server #${g.server_id}`, service_type: server?.service_type ?? '',
-      is_active: server?.is_active ?? false, service_enabled: server?.provider_enabled ?? false, effective_active: server?.effective_active ?? false };
+      is_active: server?.is_active ?? false, service_enabled: server?.provider_enabled ?? false, effective_active: server?.effective_active ?? false,
+      member_capacity: readMemberCapacity(server?.member_capacity), invite_to_plex_home: g.invite_to_plex_home === true };
   });
   const selected = catalog.libraries.filter(l => record.grants.some(g => g.server_id === l.server_id && (g.all_libraries || g.library_ids.includes(l.external_id))));
   const expired = record.expires_at !== null && Date.parse(record.expires_at) <= Date.now();
   const maxed = record.max_uses !== null && record.current_uses + record.reserved_uses >= record.max_uses;
-  const paused = servers.some(s => !s.effective_active);
+  // Paused when no invited server can take a new member; invitees can go
+  // without a full or unavailable server and join the others.
+  const paused = servers.every(s => !s.effective_active || s.member_capacity?.state === 'full');
   const archived = Boolean(record.archived_at);
   const usable = !archived && record.is_active && !expired && !maxed && !paused;
-  // The card shows the custom path, else the code's first 12 characters, as in Flask.
+  // The card shows the custom path, else the code's first 12 characters.
   return { id: record.id, revision: record.revision, token: record.token_prefix || `Invitation #${record.id}`, custom_path: record.custom_path ?? undefined,
     membership_duration_days: record.membership_duration_days ?? undefined, is_archived: archived, archived_at: record.archived_at ?? null, created_at: record.created_at,
     expires_at: record.expires_at, max_uses: record.max_uses, current_uses: record.current_uses, reserved_uses: record.reserved_uses,
@@ -73,7 +78,7 @@ export function invitationRow(record: InvitationRecord, catalog: InvitationCatal
     grant_library_ids: selected.map(l => `${l.server_id}::${l.external_id}`),
     libraries: selected.map(l => ({ server_id: l.server_id, id: `${l.server_id}::${l.external_id}`, name: l.name, server_name: servers.find(s => s.id === l.server_id)?.server_nickname ?? '', service_type: servers.find(s => s.id === l.server_id)?.service_type ?? '' })),
     allow_downloads: record.grants.some(g => g.allow_downloads), allow_4k_transcode: record.grants.every(g => g.allow_4k_transcode !== false),
-    server_features: record.grants.map(g => ({ server_id: g.server_id, allow_downloads: g.allow_downloads, allow_4k_transcode: g.allow_4k_transcode !== false })),
+    server_features: record.grants.map(g => ({ server_id: g.server_id, allow_downloads: g.allow_downloads, allow_4k_transcode: g.allow_4k_transcode !== false, invite_to_plex_home: g.invite_to_plex_home === true })),
     grant_purge_whitelist: record.grants.some(g => g.purge_protected === true),
     require_discord_auth: record.require_discord_auth === true, require_discord_guild_membership: record.require_discord_guild_membership === true,
   };
@@ -101,7 +106,7 @@ export function invitationSummary(catalog: InvitationCatalog) {
     recent_usages: null as RecentInvitationUsage[] | null };
 }
 
-// Whole days from now until a chosen membership end date (Flask: at least 1).
+// Whole days from now until a chosen membership end date, at least 1.
 export function membershipDaysUntil(date: string | null | undefined): number | null {
   if (!date?.trim()) return null;
   const end = new Date(`${date}T00:00:00`).getTime();
@@ -118,10 +123,10 @@ export function membershipDateFromDays(days: number | null | undefined): string 
 }
 
 export function invitationPayload(values: InviteFormValues, servers: { id: number; service_type: string }[] = []) {
-  if (values.grant_bot_whitelist || values.invite_to_plex_home || values.allow_live_tv || values.server_features?.some(f => f.invite_to_plex_home || f.allow_live_tv)) throw new Error('Plex Home, Live TV and the bot whitelist are not available yet');
+  if (values.grant_bot_whitelist || values.allow_live_tv || values.server_features?.some(f => f.allow_live_tv)) throw new Error('Live TV and the bot whitelist are not available yet');
   const require_discord_guild_membership = values.require_discord_guild_membership === true;
   const require_discord_auth = values.require_discord_auth === true || require_discord_guild_membership;
-  // Blank or 0 = unlimited uses; blank expiry = never expires (Flask behaviour).
+  // Blank or 0 = unlimited uses; blank expiry = never expires.
   const rawUses = values.max_uses as number | string | null | undefined;
   const maxUses = rawUses === null || rawUses === undefined || rawUses === '' || Number(rawUses) === 0 ? null : Number(rawUses);
   if (maxUses !== null && (!Number.isInteger(maxUses) || maxUses < 1 || maxUses > 1000000)) throw new Error('Maximum uses must be a whole number (0 or blank for unlimited)');
@@ -151,14 +156,17 @@ export function invitationPayload(values: InviteFormValues, servers: { id: numbe
     const allow_4k_transcode = supports4k ? values.server_features?.find(f => f.server_id === server_id)?.allow_4k_transcode ?? values.allow_4k_transcode ?? true : true;
     // The invite form's one purge protection switch applies to every server.
     const purge_protected = values.grant_purge_whitelist === true;
-    return { server_id, all_libraries, library_ids, allow_downloads, allow_4k_transcode, purge_protected };
+    // Plex Home is a Plex choice: the invitee is also invited into the owner's Home.
+    const home = values.server_features?.find(f => f.server_id === server_id)?.invite_to_plex_home ?? false;
+    if (home && server && server.service_type.toLowerCase() !== 'plex') throw new Error('Only Plex servers can invite into Plex Home');
+    return { server_id, all_libraries, library_ids, allow_downloads, allow_4k_transcode, purge_protected, ...(home ? { invite_to_plex_home: true } : {}) };
   });
   return { expires_at: expiresAt, max_uses: maxUses, is_active: values.is_active ?? true, grants, require_discord_auth, require_discord_guild_membership, custom_path: customPath, membership_duration_days: membershipDays };
 }
 
 export async function saveInvitation(values: InviteFormValues, existing?: { id: number; revision: number }) {
   const { custom_path, ...editable } = invitationPayload(values);
-  // The custom path is chosen at creation only, as in Flask.
+  // The custom path is chosen at creation only.
   return requestJson<{ data: { id: number; revision: number; token?: string } }>(existing ? `/api/invitations/${existing.id}` : '/api/invitations', {
     method: existing ? 'PATCH' : 'POST', retryAuthentication: false, body: JSON.stringify(existing ? { ...editable, revision: existing.revision } : { ...editable, custom_path }),
   });
@@ -196,6 +204,7 @@ export async function invitationDetail(id: number) {
   const servers = record.grants.map(g => {
     const server = catalog.servers.find(s => s.id === g.server_id);
     return { ...server, id: g.server_id, service_type: server?.service_type ?? '', is_active: server?.is_active ?? false, effective_active: server?.effective_active ?? false, service_enabled: server?.provider_enabled ?? false,
+      member_capacity: readMemberCapacity(server?.member_capacity), invite_to_plex_home: g.invite_to_plex_home === true,
       libraries: catalog.libraries.filter(l => l.server_id === g.server_id).map(l => ({ id: l.external_id, name: l.name, library_type: l.library_type, selected: g.all_libraries || g.library_ids.includes(l.external_id) })) };
   });
   return { ...row, is_expired: Boolean(row.is_expired), has_reached_max_uses: Boolean(row.has_reached_max_uses), is_usable: Boolean(row.is_usable), servers, disabled_servers: servers.filter(s => !s.effective_active), remaining_uses: record.max_uses === null ? null : Math.max(0, record.max_uses - record.current_uses - record.reserved_uses), library_selection_mode: row.grants_all_libraries ? 'all' as const : 'custom' as const,

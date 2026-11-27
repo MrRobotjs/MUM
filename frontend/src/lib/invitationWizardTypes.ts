@@ -129,6 +129,10 @@ export type WizardState = {
     server_label: string;
     has_multiple_servers: boolean;
     service_sign_in: boolean;
+    /** Some invited servers are full or unavailable and the invitee hasn't chosen to continue without them yet. */
+    needs_skip_choice: boolean;
+    /** The invitee chose to continue without the full or unavailable servers. */
+    skip_agreed: boolean;
   };
 };
 

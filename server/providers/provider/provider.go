@@ -106,7 +106,13 @@ type Grant struct {
 	// PurgeProtected is MUM policy, not sent to the server: true keeps the
 	// created account out of purges. Unset means not protected.
 	PurgeProtected *bool `json:"purge_protected,omitempty"`
+	// InviteToHome also invites a Plex invitee into the owner's Plex Home.
+	// Unset means not invited, and is left out of the encoding.
+	InviteToHome *bool `json:"invite_to_plex_home,omitempty"`
 }
+
+// InvitesToHome reports whether the grant invites into Plex Home.
+func (g Grant) InvitesToHome() bool { return g.InviteToHome != nil && *g.InviteToHome }
 
 // Allows4KTranscode reports the grant's 4K transcoding policy.
 func (g Grant) Allows4KTranscode() bool { return g.Allow4KTranscode == nil || *g.Allow4KTranscode }

@@ -37,8 +37,11 @@ type ManagedServer struct {
 	Overseerr       bool   `json:"overseerr_enabled"`
 	OverseerrURL    string `json:"overseerr_url"`
 	HasOverseerrKey bool   `json:"has_overseerr_api_key"`
-	apiKey          string
-	overseerrKey    string
+	// Capacity is the member count against the service's limit, for services
+	// that have one; set by the server list and detail reads.
+	Capacity     *serverCapacity `json:"member_capacity,omitempty"`
+	apiKey       string
+	overseerrKey string
 }
 
 const serverSelect = `SELECT s.id,s.server_nickname,coalesce(s.server_name,''),s.service_type,s.url,
@@ -188,6 +191,14 @@ func (a *App) listServers(w http.ResponseWriter, r *http.Request) {
 		domainError(w, rows.Err())
 		return
 	}
+	rows.Close()
+	a.refreshPlexCounts(r.Context(), items)
+	for i := range items {
+		if items[i].Capacity, err = a.serverCapacity(r.Context(), a.store.reader, items[i]); err != nil {
+			domainError(w, err)
+			return
+		}
+	}
 	respond(w, 200, items)
 }
 func (a *App) getServer(w http.ResponseWriter, r *http.Request) {
@@ -200,6 +211,11 @@ func (a *App) getServer(w http.ResponseWriter, r *http.Request) {
 	}
 	s, err := a.loadServer(r.Context(), id)
 	if err != nil {
+		domainError(w, err)
+		return
+	}
+	a.refreshPlexCounts(r.Context(), []ManagedServer{s})
+	if s.Capacity, err = a.serverCapacity(r.Context(), a.store.reader, s); err != nil {
 		domainError(w, err)
 		return
 	}
@@ -823,6 +839,10 @@ func (a *App) syncServerClaimed(ctx context.Context, actor, access string, s Man
 					knownDownloads = account.Access.DownloadsKnown
 					allowDownloads = account.Access.AllowDownloads
 				}
+				// Plex Home members count toward Plex's separate Home limit.
+				if s.Type == "plex" && account.Relationship != nil {
+					policy["plex_home"] = account.Relationship.Home
+				}
 				settings, _ := json.Marshal(policy)
 				avatar, joined := "", ""
 				if account.Profile != nil {
@@ -901,6 +921,11 @@ func (a *App) syncServerClaimed(ctx context.Context, actor, access string, s Man
 			// Removed accounts keep their records and history.
 			missing, _ := json.Marshal(seen)
 			if _, err := tx.ExecContext(ctx, `UPDATE service_accounts SET is_active=0,removed_at=CASE WHEN coalesce(json_extract(service_settings,'$.invitation_pending'),0)=1 THEN removed_at ELSE coalesce(removed_at,?) END WHERE server_id=? AND NOT (?='plex' AND coalesce(json_extract(service_settings,'$.activity_observed'),0)=1) AND (external_user_id IS NULL OR external_user_id NOT IN (SELECT value FROM json_each(?))) AND (is_active=1 OR (removed_at IS NULL AND coalesce(json_extract(service_settings,'$.invitation_pending'),0)<>1))`, now, s.ID, s.Type, string(missing)); err != nil {
+				return err
+			}
+			// A complete member list replaces a "full" answer from the server:
+			// the count decides again from here.
+			if _, err := tx.ExecContext(ctx, "UPDATE media_servers SET member_limit_reached=0 WHERE id=? AND member_limit_reached=1", s.ID); err != nil {
 				return err
 			}
 			// A Plex account someone connected on their account page before it

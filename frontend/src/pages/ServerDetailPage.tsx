@@ -42,6 +42,7 @@ import { ServerHistory } from '../components/history/ServerHistory';
 import { HISTORY_SERVICES } from '../components/layout/NavServers';
 import { PlexResources } from '../components/servers/PlexResources';
 import { serverAvailability, connectionLabel } from '../lib/serverOverview';
+import { capacityTone, homeCapacityLabel, memberCapacityLabel, readMemberCapacity, worstCapacityState } from '../lib/memberCapacity';
 import { subscribeToChannel } from '../lib/realtimeSocket';
 import { SettingHeader, SettingIcon, TabHeading } from '../components/users/AccountSettings';
 import '../components/dashboard/ServerHealth.css';
@@ -77,6 +78,7 @@ type ServerDetail = {
   overseerr_enabled?: boolean | null;
   overseerr_url?: string | null;
   status?: ServerStatusPayload;
+  member_capacity?: unknown;
 };
 
 type ServerUser = {
@@ -203,6 +205,7 @@ export const ServerDetailPage = ({ section = 'overview' }: { section?: ServerTab
   const statusOnline = server?.status?.online ?? server?.last_status ?? null;
   const statusVersion = server?.status?.version ?? server?.last_version ?? null;
   const statusError = server?.status?.error_message ?? server?.status?.error ?? null;
+  const capacity = readMemberCapacity(server?.member_capacity);
   const availability = serverAvailability({ provider_enabled: server?.provider_enabled, is_active: server?.is_active }, getServiceMeta(server?.service_type ?? undefined).label);
   // MUM checks servers in the background; re-read this one when it announces a change.
   useEffect(() => subscribeToChannel('system.server_health', envelope => {
@@ -369,7 +372,12 @@ export const ServerDetailPage = ({ section = 'overview' }: { section?: ServerTab
               <div className="dashboard-health-body">
                 <p className="text-xs uppercase tracking-wide text-muted-foreground">Users</p>
                 <p className="text-lg font-semibold">{userCount.toLocaleString()}</p>
-                <span className="dashboard-health-note">Accounts on this server</span>
+                {capacity ? (
+                  <span className={`dashboard-health-note ${capacityTone(worstCapacityState(capacity))}`}
+                    title="Plex counts members across every server this Plex account owns">
+                    {memberCapacityLabel(capacity)} · {homeCapacityLabel(capacity)}
+                  </span>
+                ) : <span className="dashboard-health-note">Accounts on this server</span>}
               </div>
             </div>
             <div className="dashboard-health-tile dashboard-overview-tile">

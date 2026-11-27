@@ -186,7 +186,7 @@ func (a *App) updateInvitation(w http.ResponseWriter, r *http.Request) {
 				g.LibraryIDs = []string{}
 			}
 			ids, _ := json.Marshal(g.LibraryIDs)
-			if _, err := tx.ExecContext(r.Context(), "INSERT INTO invitation_grants(invite_id,server_id,all_libraries,library_ids,allow_downloads,allow_4k_transcode,purge_protected) VALUES(?,?,?,?,?,?,?)", id, g.ServerID, g.AllLibraries, string(ids), g.AllowDownloads, g.Allows4KTranscode(), g.Protected()); err != nil {
+			if _, err := tx.ExecContext(r.Context(), "INSERT INTO invitation_grants(invite_id,server_id,all_libraries,library_ids,allow_downloads,allow_4k_transcode,purge_protected,invite_to_plex_home) VALUES(?,?,?,?,?,?,?,?)", id, g.ServerID, g.AllLibraries, string(ids), g.AllowDownloads, g.Allows4KTranscode(), g.Protected(), g.InvitesToHome()); err != nil {
 				return err
 			}
 		}

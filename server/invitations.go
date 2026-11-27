@@ -6,16 +6,18 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"maps"
 	"net/http"
 	"net/mail"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
 )
 
-// Expiry, maximum uses and membership duration are optional as in Flask:
-// null means never expires, unlimited uses and permanent membership.
+// Expiry, maximum uses and membership duration are optional: null means
+// never expires, unlimited uses and permanent membership.
 type invitationRecord struct {
 	ID             int64             `json:"id"`
 	Expires        *string           `json:"expires_at"`
@@ -126,6 +128,16 @@ func validInvitationPath(path string) bool {
 
 var errInviteUsernameUnavailable = errors.New("invitation username unavailable")
 
+// errInvitedServersChanged: the servers the invitee chose to go without no
+// longer match the invited servers that are full or unavailable.
+var errInvitedServersChanged = errors.New("invited servers changed")
+
+// skippedServer is an invited server the invitee went without, and why.
+type skippedServer struct {
+	ServerID int64  `json:"server_id"`
+	Reason   string `json:"reason"`
+}
+
 // Grants are validated inside the same transaction that creates/reserves work.
 // No provider request is made while the SQLite writer is held.
 func validateInvitationGrant(ctx context.Context, tx *sql.Tx, g InvitationGrant) (ManagedServer, error) {
@@ -136,7 +148,7 @@ func validateInvitationGrant(ctx context.Context, tx *sql.Tx, g InvitationGrant)
 	if rule, ok := moduleRules(s.Type).(grantRule); ok && !rule.ValidGrant(g) {
 		return s, ErrConflict
 	}
-	if !s.EffectiveActive || !supportsProvisioning(s.Type) || len(g.LibraryIDs) > 10000 || g.AllLibraries && len(g.LibraryIDs) != 0 || !g.AllLibraries && len(g.LibraryIDs) == 0 {
+	if !s.EffectiveActive || !supportsProvisioning(s.Type) || len(g.LibraryIDs) > 10000 || g.AllLibraries && len(g.LibraryIDs) != 0 || !g.AllLibraries && len(g.LibraryIDs) == 0 || g.InvitesToHome() && s.Type != "plex" {
 		return s, ErrConflict
 	}
 	seen := map[string]bool{}
@@ -241,7 +253,7 @@ func (a *App) createInvitation(w http.ResponseWriter, r *http.Request) {
 		}
 		for _, g := range input.Grants {
 			ids, _ := json.Marshal(g.LibraryIDs)
-			if _, err := tx.ExecContext(r.Context(), "INSERT INTO invitation_grants(invite_id,server_id,all_libraries,library_ids,allow_downloads,allow_4k_transcode,purge_protected) VALUES(?,?,?,?,?,?,?)", id, g.ServerID, g.AllLibraries, string(ids), g.AllowDownloads, g.Allows4KTranscode(), g.Protected()); err != nil {
+			if _, err := tx.ExecContext(r.Context(), "INSERT INTO invitation_grants(invite_id,server_id,all_libraries,library_ids,allow_downloads,allow_4k_transcode,purge_protected,invite_to_plex_home) VALUES(?,?,?,?,?,?,?,?)", id, g.ServerID, g.AllLibraries, string(ids), g.AllowDownloads, g.Allows4KTranscode(), g.Protected(), g.InvitesToHome()); err != nil {
 				return err
 			}
 		}
@@ -333,7 +345,7 @@ type grantQuerier interface {
 }
 
 func loadInvitationGrants(ctx context.Context, q grantQuerier, id int64) ([]InvitationGrant, error) {
-	rows, err := q.QueryContext(ctx, "SELECT server_id,all_libraries,library_ids,allow_downloads,allow_4k_transcode,purge_protected FROM invitation_grants WHERE invite_id=? ORDER BY server_id", id)
+	rows, err := q.QueryContext(ctx, "SELECT server_id,all_libraries,library_ids,allow_downloads,allow_4k_transcode,purge_protected,invite_to_plex_home FROM invitation_grants WHERE invite_id=? ORDER BY server_id", id)
 	if err != nil {
 		return nil, err
 	}
@@ -342,12 +354,15 @@ func loadInvitationGrants(ctx context.Context, q grantQuerier, id int64) ([]Invi
 	for rows.Next() {
 		var g InvitationGrant
 		var ids string
-		var allow4K, protected bool
-		if err := rows.Scan(&g.ServerID, &g.AllLibraries, &ids, &g.AllowDownloads, &allow4K, &protected); err != nil {
+		var allow4K, protected, home bool
+		if err := rows.Scan(&g.ServerID, &g.AllLibraries, &ids, &g.AllowDownloads, &allow4K, &protected, &home); err != nil {
 			return nil, err
 		}
 		g.Allow4KTranscode = &allow4K
 		g.PurgeProtected = &protected
+		if home {
+			g.InviteToHome = &home
+		}
 		if err := json.Unmarshal([]byte(ids), &g.LibraryIDs); err != nil {
 			return nil, err
 		}
@@ -411,17 +426,33 @@ func (a *App) publicInvitation(w http.ResponseWriter, r *http.Request) {
 	for i := range grants {
 		grants[i].PurgeProtected = nil
 	}
+	// Each server says whether it is taking new members: "open", or "full"
+	// or "unavailable" with no libraries listed. The invitee is told why and
+	// chooses whether to continue with the open servers.
 	servers := []map[string]any{}
+	accepting := false
+	invited := map[int64]ManagedServer{}
 	for _, g := range grants {
 		s, err := a.loadServer(r.Context(), g.ServerID)
 		if err != nil {
 			domainError(w, err)
 			return
 		}
-		if !s.EffectiveActive || !supportsProvisioning(s.Type) {
-			fail(w, 409, "SERVER_UNAVAILABLE", "An invited server is unavailable")
+		invited[g.ServerID] = s
+	}
+	a.refreshPlexCounts(r.Context(), slices.Collect(maps.Values(invited)))
+	for _, g := range grants {
+		s := invited[g.ServerID]
+		closed, err := a.serverClosedReason(r.Context(), a.store.reader, s, g)
+		if err != nil {
+			domainError(w, err)
 			return
 		}
+		if closed != "" {
+			servers = append(servers, map[string]any{"id": s.ID, "name": s.Name, "provider": s.Type, "access_url": s.PublicURL, "libraries": []map[string]string{}, "status": closed})
+			continue
+		}
+		accepting = true
 		rows, err := a.store.reader.QueryContext(r.Context(), "SELECT external_id,name FROM media_libraries WHERE server_id=? AND is_available=1 ORDER BY id", s.ID)
 		if err != nil {
 			domainError(w, err)
@@ -451,7 +482,7 @@ func (a *App) publicInvitation(w http.ResponseWriter, r *http.Request) {
 			fail(w, 409, "LIBRARY_UNAVAILABLE", "An invited library is unavailable")
 			return
 		}
-		servers = append(servers, map[string]any{"id": s.ID, "name": s.Name, "provider": s.Type, "access_url": s.PublicURL, "libraries": libraries})
+		servers = append(servers, map[string]any{"id": s.ID, "name": s.Name, "provider": s.Type, "access_url": s.PublicURL, "libraries": libraries, "status": "open"})
 	}
 	discord := map[string]any{"required": requireDiscord, "requires_guild": requireGuild, "available": false, "invite_url": nil}
 	if requireDiscord {
@@ -466,7 +497,7 @@ func (a *App) publicInvitation(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	serviceSignIn, _ := serviceSignInSettings(r.Context(), a.store.reader)
-	respond(w, 200, map[string]any{"id": id, "revision": revision, "expires_at": nullableText(expires), "max_uses": invitationLimit(maxUses), "current_uses": uses, "reserved_uses": reserved, "servers": servers, "grants": grants, "discord": discord, "service_sign_in": serviceSignIn})
+	respond(w, 200, map[string]any{"id": id, "revision": revision, "expires_at": nullableText(expires), "max_uses": invitationLimit(maxUses), "current_uses": uses, "reserved_uses": reserved, "servers": servers, "accepting": accepting, "grants": grants, "discord": discord, "service_sign_in": serviceSignIn})
 }
 
 type redemptionInput struct {
@@ -478,6 +509,9 @@ type redemptionInput struct {
 	ServerCredentials    []redemptionCredentials `json:"server_credentials,omitempty"`
 	InvitationRevision   *int64                  `json:"invitation_revision,omitempty"`
 	DiscordAuthorization string                  `json:"discord_authorization_id,omitempty"`
+	// SkippedServerIDs are the invited servers the invitee agreed to go
+	// without after being told they are full or unavailable.
+	SkippedServerIDs []int64 `json:"skipped_server_ids,omitempty"`
 }
 
 type redemptionCredentials struct {
@@ -489,21 +523,21 @@ type redemptionStep struct {
 	Plex              *plexShareReceipt  `json:"plex,omitempty"`
 	Tofa              *tofaInviteReceipt `json:"tofa,omitempty"`
 	PasswordASCIIOnly bool               `json:"password_ascii_only"`
-	CleanupScope      string            `json:"cleanup_scope"`
-	PasswordMaxBytes  int               `json:"password_max_bytes"`
-	ServerID          int64             `json:"server_id"`
-	Status            string            `json:"status"`
-	Stage             string            `json:"stage"`
-	RemoteID          string            `json:"remote_id,omitempty"`
-	Error             string            `json:"error_code,omitempty"`
-	RemoteName        string            `json:"remote_username,omitempty"`
-	Cleanup           string            `json:"cleanup_state"`
-	CleanupError      string            `json:"cleanup_error_code,omitempty"`
-	CheckedAt         string            `json:"cleanup_checked_at,omitempty"`
-	ManualRequired    bool              `json:"manual_resolution_required"`
-	ManualAllowed     bool              `json:"manual_resolution_allowed"`
-	ResumeState       string            `json:"resume_state"`
-	ResumeError       string            `json:"resume_error_code,omitempty"`
+	CleanupScope      string             `json:"cleanup_scope"`
+	PasswordMaxBytes  int                `json:"password_max_bytes"`
+	ServerID          int64              `json:"server_id"`
+	Status            string             `json:"status"`
+	Stage             string             `json:"stage"`
+	RemoteID          string             `json:"remote_id,omitempty"`
+	Error             string             `json:"error_code,omitempty"`
+	RemoteName        string             `json:"remote_username,omitempty"`
+	Cleanup           string             `json:"cleanup_state"`
+	CleanupError      string             `json:"cleanup_error_code,omitempty"`
+	CheckedAt         string             `json:"cleanup_checked_at,omitempty"`
+	ManualRequired    bool               `json:"manual_resolution_required"`
+	ManualAllowed     bool               `json:"manual_resolution_allowed"`
+	ResumeState       string             `json:"resume_state"`
+	ResumeError       string             `json:"resume_error_code,omitempty"`
 }
 type redemptionJob struct {
 	Plex            *plexJobProgress `json:"plex_progress,omitempty"`
@@ -518,16 +552,21 @@ type redemptionJob struct {
 	Reviewing       bool             `json:"review_in_progress"`
 	ReviewError     string           `json:"review_error_code,omitempty"`
 	ResumeAvailable bool             `json:"resume_available"`
+	Skipped         []skippedServer  `json:"skipped_servers"`
 }
 
 func (a *App) loadRedemption(ctx context.Context, id string) (redemptionJob, error) {
-	j := redemptionJob{ID: id, Steps: []redemptionStep{}}
+	j := redemptionJob{ID: id, Steps: []redemptionStep{}, Skipped: []skippedServer{}}
 	tx, err := a.store.reader.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
 		return j, err
 	}
 	defer tx.Rollback()
-	if err := tx.QueryRowContext(ctx, "SELECT CASE WHEN resolution='cancelled' THEN 'cancelled' ELSE status END,user_uuid,coalesce(error_code,''),revision,invite_id,reservation_held,review_token IS NOT NULL,coalesce(review_error_code,'') FROM provisioning_jobs WHERE id=?", id).Scan(&j.Status, &j.UserUUID, &j.Error, &j.Revision, &j.InviteID, &j.Reserved, &j.Reviewing, &j.ReviewError); err != nil {
+	var skipped string
+	if err := tx.QueryRowContext(ctx, "SELECT CASE WHEN resolution='cancelled' THEN 'cancelled' ELSE status END,user_uuid,coalesce(error_code,''),revision,invite_id,reservation_held,review_token IS NOT NULL,coalesce(review_error_code,''),coalesce(skipped_servers,'[]') FROM provisioning_jobs WHERE id=?", id).Scan(&j.Status, &j.UserUUID, &j.Error, &j.Revision, &j.InviteID, &j.Reserved, &j.Reviewing, &j.ReviewError, &skipped); err != nil {
+		return j, err
+	}
+	if err := json.Unmarshal([]byte(skipped), &j.Skipped); err != nil {
 		return j, err
 	}
 	rows, err := tx.QueryContext(ctx, "SELECT server_id,status,stage,coalesce(remote_id,''),coalesce(error_code,''),coalesce(remote_username,''),cleanup_state,coalesce(cleanup_error_code,''),coalesce(cleanup_checked_at,''),resume_state,coalesce(resume_error_code,'') FROM provisioning_steps WHERE job_id=? ORDER BY server_id", id)
@@ -665,8 +704,12 @@ func (a *App) redeemInvitation(w http.ResponseWriter, r *http.Request) {
 	}
 	var inviteID int64
 	var grants []InvitationGrant
+	var skipped []skippedServer
 	var plexAccount, plexUsername string
 	servers := map[int64]ManagedServer{}
+	// plex.tv's own member counts are read before the reservation transaction,
+	// which then decides with them.
+	a.refreshPlexCounts(ctx, a.invitedServers(ctx, tokenHash(r.PathValue("token"))))
 	err = a.store.write(ctx, func(tx *sql.Tx) error {
 		if busy, err := editSourceBusy(ctx, tx, 0, ""); err != nil {
 			return err
@@ -716,6 +759,40 @@ func (a *App) redeemInvitation(w http.ResponseWriter, r *http.Request) {
 		if len(grants) == 0 {
 			return ErrConflict
 		}
+		// A full or unavailable server is left out only when the invitee chose
+		// to go without it; any difference means they were shown an outdated
+		// list, and nothing is reserved.
+		skip := map[int64]bool{}
+		for _, id := range input.SkippedServerIDs {
+			if skip[id] {
+				return errInvitedServersChanged
+			}
+			skip[id] = true
+		}
+		kept := make([]InvitationGrant, 0, len(grants))
+		for _, g := range grants {
+			s, err := scanServer(tx.QueryRowContext(ctx, serverSelect+" WHERE s.id=?", g.ServerID))
+			if err != nil {
+				return err
+			}
+			closed, err := a.serverClosedReason(ctx, tx, s, g)
+			if err != nil {
+				return err
+			}
+			if (closed != "") != skip[g.ServerID] {
+				return errInvitedServersChanged
+			}
+			delete(skip, g.ServerID)
+			if closed != "" {
+				skipped = append(skipped, skippedServer{ServerID: g.ServerID, Reason: closed})
+				continue
+			}
+			kept = append(kept, g)
+		}
+		if len(skip) != 0 || len(kept) == 0 {
+			return errInvitedServersChanged
+		}
+		grants = kept
 		hasTofa := false
 		for _, g := range grants {
 			s, err := validateInvitationGrant(ctx, tx, g)
@@ -762,7 +839,12 @@ func (a *App) redeemInvitation(w http.ResponseWriter, r *http.Request) {
 		if _, err := tx.ExecContext(ctx, `INSERT INTO user_accounts(uuid,kind,local_username,password_hash,email,is_active,used_invite_id,created_at,updated_at,discord_user_id,discord_username,discord_avatar_hash) VALUES(?,'local',?,?,nullif(?,''),0,?,?,?,nullif(?,''),nullif(?,''),nullif(?,''))`, userUUID, input.Username, hash, input.Email, inviteID, now, now, identity.ID, identity.Username, identity.Avatar); err != nil {
 			return err
 		}
-		if _, err := tx.ExecContext(ctx, "INSERT INTO provisioning_jobs(id,invite_id,user_uuid,status,created_at,updated_at,request_hash,reservation_held,requested_username) VALUES(?,?,?,'running',?,?,?,1,?)", jobID, inviteID, userUUID, now, now, tokenHash(input.RequestID), input.Username); err != nil {
+		var skippedJSON any
+		if len(skipped) > 0 {
+			encoded, _ := json.Marshal(skipped)
+			skippedJSON = string(encoded)
+		}
+		if _, err := tx.ExecContext(ctx, "INSERT INTO provisioning_jobs(id,invite_id,user_uuid,status,created_at,updated_at,request_hash,reservation_held,requested_username,skipped_servers) VALUES(?,?,?,'running',?,?,?,1,?,?)", jobID, inviteID, userUUID, now, now, tokenHash(input.RequestID), input.Username, skippedJSON); err != nil {
 			return err
 		}
 		for _, g := range grants {
@@ -811,6 +893,10 @@ func (a *App) redeemInvitation(w http.ResponseWriter, r *http.Request) {
 			fail(w, 409, "USERNAME_UNAVAILABLE", "That local username is already in use. No provisioning job was created.")
 			return
 		}
+		if errors.Is(err, errInvitedServersChanged) {
+			fail(w, 409, "SERVERS_CHANGED", "Which invited servers can take new members has changed. Review them and try again. No provisioning job was created.")
+			return
+		}
 		if errors.Is(err, errDiscordRequired) {
 			fail(w, 400, "DISCORD_AUTH_REQUIRED", "Sign in with Discord for this invitation first. No provisioning job was created.")
 			return
@@ -851,6 +937,9 @@ func (a *App) redeemInvitation(w http.ResponseWriter, r *http.Request) {
 				return a.provisionCheckpoint(ctx, jobID, inviteID, s, stage, remoteID)
 			})
 			if err != nil {
+				if plexRefusedAsFull(err) {
+					a.markMemberLimitReached(s.ID)
+				}
 				break
 			}
 			if err = a.commitPlexInvitationStep(ctx, jobID, userUUID, inviteID, s, g, plexUsername, accepted); err != nil {
@@ -921,7 +1010,7 @@ func publicRedemption(j redemptionJob) map[string]any {
 	if j.Plex != nil {
 		review = review || j.Plex.RequiresReview
 	}
-	result := map[string]any{"id": j.ID, "status": j.Status, "error_code": j.Error, "steps": steps, "requires_review": review}
+	result := map[string]any{"id": j.ID, "status": j.Status, "error_code": j.Error, "steps": steps, "requires_review": review, "skipped_servers": j.Skipped}
 	if j.Plex != nil {
 		result["plex_progress"] = j.Plex
 	}

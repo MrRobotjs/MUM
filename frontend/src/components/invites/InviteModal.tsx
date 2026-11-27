@@ -36,6 +36,7 @@ import {
 import { faDiscord } from '@fortawesome/free-brands-svg-icons';
 import { Spinner } from '@/components/ui/spinner'
 import { useMediaQuery } from '../../store/mediaQueryStore';
+import { capacityTone, homeCapacityLabel, memberCapacityLabel, readMemberCapacity, type MemberCapacity } from '../../lib/memberCapacity';
 
 export type InviteFormValues = {
 	all_library_server_ids?: number[];
@@ -84,6 +85,7 @@ type Server = {
   libraries?: Library[];
   loadingLibraries?: boolean;
   librariesUnavailable?: boolean;
+  member_capacity?: MemberCapacity | null;
 };
 
 type ServerFeatureState = {
@@ -279,7 +281,7 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
         requestJson<{ data: { id: string; capabilities: string[] }[] }>('/api/providers'),
       ]);
       const supported = new Set(providers.data.filter(p => p.capabilities.includes('invitations.redeem')).map(p => p.id));
-      setServers(response.data.filter(s => supported.has(s.service_type.toLowerCase())));
+      setServers(response.data.filter(s => supported.has(s.service_type.toLowerCase())).map(s => ({ ...s, member_capacity: readMemberCapacity(s.member_capacity) })));
     } catch (error) {
       console.error('Failed to load servers:', error);
     } finally {
@@ -691,6 +693,11 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
                           </div>
                         </div>
                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          {server.member_capacity && (
+                            <span className={capacityTone(server.member_capacity.state)} title={`${homeCapacityLabel(server.member_capacity)} in Plex Home`}>
+                              {memberCapacityLabel(server.member_capacity)}
+                            </span>
+                          )}
                           <span>{supportsLibraryAccess ? `${selectedCountForServer} libraries` : 'No library controls'}</span>
                           {isSelected ? (
                             <FontAwesomeIcon icon={faCheck} className="text-primary" />
@@ -842,6 +849,8 @@ export const InviteModal = ({ open, onClose, onSubmit, initialValues, isEditing,
                                         }}
                                       />
                                     </div>
+                                    {server.member_capacity && <p className="text-[11px] text-muted-foreground mt-1">Also invites them into your Plex Home ({homeCapacityLabel(server.member_capacity)}).</p>}
+                                    {featureState.invite_to_plex_home && server.member_capacity?.home_state === 'full' && <p className="text-[11px] text-destructive mt-1">Plex Home is full, so invitees can’t join this server while this is on.</p>}
                                   </div>
                                   <div className="rounded-md border bg-background px-3 py-2">
                                   <div className="flex items-center justify-between">

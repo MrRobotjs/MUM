@@ -70,17 +70,22 @@ test('current admin invitation adapters', async t => {
     // Discord sign-in is a supported condition; requiring membership implies sign-in.
     const gated = api.invitationPayload({ ...values(), require_discord_guild_membership: true });
     assert.equal(gated.require_discord_auth, true);assert.equal(gated.require_discord_guild_membership, true);
-    // Flask options: custom path, membership expiry, never-expiring and unlimited.
-    const flask = api.invitationPayload({ ...values(), custom_path: 'besties', membership_expires_at: '2099-01-01', expires_at: '', max_uses: '' });
-    assert.equal(flask.custom_path, 'besties');
-    assert.equal(flask.expires_at, null);
-    assert.equal(flask.max_uses, null);
-    assert.ok(Number.isInteger(flask.membership_duration_days) && flask.membership_duration_days > 1);
+    // Optional settings: custom path, membership expiry, never-expiring and unlimited.
+    const optional = api.invitationPayload({ ...values(), custom_path: 'besties', membership_expires_at: '2099-01-01', expires_at: '', max_uses: '' });
+    assert.equal(optional.custom_path, 'besties');
+    assert.equal(optional.expires_at, null);
+    assert.equal(optional.max_uses, null);
+    assert.ok(Number.isInteger(optional.membership_duration_days) && optional.membership_duration_days > 1);
     assert.equal(api.invitationPayload({ ...values(), max_uses: 0 }).max_uses, null);
     assert.throws(() => api.invitationPayload({ ...values(), custom_path: 'a b' }), /Custom paths/);
-    for (const unsupported of [{ grant_bot_whitelist: true }, { invite_to_plex_home: true }]) {
+    for (const unsupported of [{ grant_bot_whitelist: true }, { allow_live_tv: true }]) {
       assert.throws(() => api.invitationPayload({ ...values(), ...unsupported }), /not available/);
     }
+    // Plex Home is a Plex server's choice, sent only when on.
+    const home = { ...values(), server_features: [{ server_id: 9, allow_downloads: true, invite_to_plex_home: true }] };
+    assert.equal(api.invitationPayload(home, [{ id: 9, service_type: 'plex' }]).grants[0].invite_to_plex_home, true);
+    assert.equal('invite_to_plex_home' in api.invitationPayload(values(), [{ id: 9, service_type: 'plex' }]).grants[0], false);
+    assert.throws(() => api.invitationPayload(home, [{ id: 9, service_type: 'jellyfin' }]), /Only Plex/);
     assert.throws(() => api.invitationPayload({ ...values(), grant_library_ids: [] }), /at least one library/);
   });
 
@@ -190,7 +195,7 @@ test('admin invitations carry the 4K transcoding choice', async () => {
  const catalog = {records:[record({grants:[{server_id:9,all_libraries:false,library_ids:['movies'],allow_downloads:false,allow_4k_transcode:false}]})],servers:[{id:9,server_nickname:'Jelly',service_type:'jellyfin',is_active:true,provider_enabled:true,effective_active:true}],libraries:[]};
  const row = api.invitationRow(catalog.records[0],catalog);
  assert.equal(row.allow_4k_transcode,false);
- assert.deepEqual(row.server_features,[{server_id:9,allow_downloads:false,allow_4k_transcode:false}]);
+ assert.deepEqual(row.server_features,[{server_id:9,allow_downloads:false,allow_4k_transcode:false,invite_to_plex_home:false}]);
  assert.equal(api.invitationRow(record(),catalog).allow_4k_transcode,true);
 });
 

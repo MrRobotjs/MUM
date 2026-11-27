@@ -79,6 +79,7 @@ type App struct {
 	imageCache       imageCache
 	diskImages       *diskImageCache
 	debugLogs        *debugPayloadLog
+	plexCounts       plexCountCache
 	// statisticsSlots bounds concurrent server statistics reads.
 	statisticsSlots chan struct{}
 }

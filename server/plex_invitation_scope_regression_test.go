@@ -42,8 +42,11 @@ func TestPlexInvitationDoesNotAdoptAnotherServersOrFriendOnlyInvite(t *testing.T
 func TestPlexInvitationRefreshesInvalidIDSnapshotBeforeFirstSend(t *testing.T) {
 	for _, recovers := range []bool{false, true} {
 		t.Run(map[bool]string{false: "persistent-invalid", true: "fresh-valid"}[recovers], func(t *testing.T) {
-			a, s, token, proof, cookie, _, f := plexInviteSetup(t, "new", "")
+			a, s, token, proof, cookie, server, f := plexInviteSetup(t, "new", "")
 			base := f.client(t).Transport
+			// The account's member counts were just read, as an invitation page
+			// does; this test counts the share's own reads.
+			primePlexCounts(t, a, server)
 			reads := 0
 			a.ProviderHTTP = &http.Client{Transport: providerTransport(func(r *http.Request) (*http.Response, error) {
 				if r.Method == "GET" && r.URL.Host == "plex.tv" && r.URL.Path == "/api/invites/requested" {

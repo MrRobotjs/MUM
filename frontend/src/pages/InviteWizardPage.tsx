@@ -340,6 +340,11 @@ const ServerAccessDetails = ({ server, invite, grantLibraryIds }: ServerAccessDe
   );
 };
 
+// Why an invited server isn't taking new members, in the invitee's words.
+const closedServerReason = (server: { reason?: string | null }) =>
+  server.reason === 'full' ? 'Too many members, so it isn’t taking new ones'
+    : server.reason === 'home_full' ? 'Plex Home is full, so it isn’t taking new members' : 'Unavailable right now';
+
 export const InviteWizardPage = () => {
   // TanStack Router requires an options object; passing the route ID ensures the hook has context.
   const { token = '' } = useParams({ from: '/invite/$token' as const });
@@ -524,6 +529,17 @@ export const InviteWizardPage = () => {
     }
   };
 
+  const handleAgreeToSkip = () => {
+    const current = draft.current;
+    if (!current) return;
+    try {
+      current.agreeToSkip();
+      setState(current.view());
+    } catch (err) {
+      showError((err as Error).message);
+    }
+  };
+
   const handleComplete = async () => {
     const current = draft.current;
     if (!current) return;
@@ -542,7 +558,20 @@ export const InviteWizardPage = () => {
       setAccountForm(defaultAccountFormState);
       setServerForms({});
     } catch (err) {
-      if (revision === loadRevision.current) showError('Invite not ready: ' + (err as Error).message);
+      if (revision !== loadRevision.current) return;
+      if ((err as { code?: string }).code === 'SERVERS_CHANGED') {
+        // A server filled up or went down since the invitee chose; nothing was
+        // reserved. Show the current list and ask again.
+        try {
+          await current.refreshServers();
+          if (revision === loadRevision.current) setState(current.view());
+          showError('Which servers on this invite are taking new members has changed. Review them above, then continue.');
+        } catch (refreshErr) {
+          showError((refreshErr as Error).message);
+        }
+        return;
+      }
+      showError('Invite not ready: ' + (err as Error).message);
     } finally {
       if (revision === loadRevision.current) setCompleting(false);
     }
@@ -916,8 +945,8 @@ export const InviteWizardPage = () => {
                   </div>
                   <h2 className="text-xl font-semibold text-amber-700 mb-2">Invite Temporarily Unavailable</h2>
                   <p className="text-sm text-foreground/80">
-                    All servers tied to this invite are currently disabled. Your invite is paused until at least one
-                    server is re-enabled.
+                    No server on this invite is taking new members right now. Check again later, or ask the person
+                    who invited you.
                   </p>
                   <Button onClick={() => loadState()} variant="outline" className="mt-4">
                     <FontAwesomeIcon icon={faRotateRight} className="mr-2" />
@@ -928,7 +957,7 @@ export const InviteWizardPage = () => {
                 {hasDisabledServers ? (
                   <div className="rounded-xl border p-4">
                     <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-3">
-                      Disabled Servers
+                      Servers
                     </h3>
                     <div className="space-y-2">
                       {disabledServers.map((server) => (
@@ -938,7 +967,7 @@ export const InviteWizardPage = () => {
                             <div className="text-xs text-muted-foreground uppercase">{server.service_type}</div>
                           </div>
                           <span className="text-xs text-amber-600">
-                            {server.is_active === false ? 'Server disabled' : server.service_enabled === false ? 'Service disabled' : 'Unavailable'}
+                            {closedServerReason(server)}
                           </span>
                         </div>
                       ))}
@@ -955,25 +984,36 @@ export const InviteWizardPage = () => {
                         <FontAwesomeIcon icon={faTriangleExclamation} className="text-amber-600 text-sm" />
                       </div>
                       <div className="flex-1">
-                        <h3 className="text-sm font-semibold text-amber-700">Some servers are unavailable</h3>
+                        <h3 className="text-sm font-semibold text-amber-700">
+                          {disabledServers.length === 1 ? 'A server on this invite isn’t taking new members' : 'Some servers on this invite aren’t taking new members'}
+                        </h3>
                         <p className="text-xs text-foreground/70 mb-3">
-                          You can still continue, but access for the servers below will be skipped.
+                          {state.meta.skip_agreed
+                            ? 'You’re continuing without these servers.'
+                            : `You can continue with the other ${state.servers.length === 1 ? 'server' : 'servers'} on this invite, without the ${disabledServers.length === 1 ? 'one' : 'ones'} below.`}
                         </p>
                         <div className="space-y-1">
                           {disabledServers.map((server) => (
                             <div key={server.id} className="flex items-center justify-between text-xs text-muted-foreground">
                               <span>{server.name} ({server.service_type})</span>
                               <span className="text-amber-600">
-                                {server.is_active === false ? 'Server disabled' : server.service_enabled === false ? 'Service disabled' : 'Unavailable'}
+                                {closedServerReason(server)}
                               </span>
                             </div>
                           ))}
                         </div>
+                        {state.meta.needs_skip_choice && (
+                          <Button onClick={handleAgreeToSkip} className="mt-4">
+                            Continue with the other {state.servers.length === 1 ? 'server' : 'servers'}
+                            <FontAwesomeIcon icon={faArrowRight} className="ml-2" />
+                          </Button>
+                        )}
                       </div>
                     </div>
                   </div>
                 ) : null}
 
+                {state.meta.needs_skip_choice ? null : (<>
                 {/* Progress Steps */}
                 {state.steps.length > 0 && (
                   <div className="mb-8">
@@ -1697,6 +1737,7 @@ export const InviteWizardPage = () => {
                 </div>
               )}
             </div>
+                </>)}
           </>
         )}
           </div>

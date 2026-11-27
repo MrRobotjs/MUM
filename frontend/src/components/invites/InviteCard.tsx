@@ -21,6 +21,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import type { InviteRow, InviteServerFeature } from './InvitesTable';
+import { serverIsFullForInvite } from '../../lib/memberCapacity';
 
 type FeatureKey = 'allow_downloads' | 'invite_to_plex_home' | 'allow_live_tv' | 'allow_4k_transcode';
 
@@ -68,6 +69,9 @@ const getInviteStatusMeta = (invite: InviteRow) => {
   }
   if (isPaused) {
     return { label: 'Paused', className: 'bg-slate-500/10 text-slate-600 border-slate-500/20' };
+  }
+  if (invite.servers?.some(serverIsFullForInvite)) {
+    return { label: 'Server full', className: 'bg-amber-500/10 text-amber-600 border-amber-500/20' };
   }
   return { label: 'Active', className: 'bg-green-500/10 text-green-600 border-green-500/20' };
 };

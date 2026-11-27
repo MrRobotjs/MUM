@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -21,6 +22,15 @@ type plexInviteFixture struct {
 	posts    []map[string]any
 	puts     []string
 	putBody  []map[string]any
+	// Plex Home: members besides the owner and guest, whether account 2 is
+	// already a Home member, and the Home invitations sent.
+	homeMembers int
+	friendHome  bool
+	homePosts   []string
+	// crowded lists 99 other friends, filling the account.
+	crowded bool
+	// order lists the writes as they arrived.
+	order []string
 }
 
 func (f *plexInviteFixture) client(t *testing.T) *http.Client {
@@ -40,8 +50,13 @@ func (f *plexInviteFixture) client(t *testing.T) *http.Client {
 			return body
 		}
 		switch {
+		case r.Method == "POST" && target == "plex.tv/api/home/users":
+			f.homePosts = append(f.homePosts, r.URL.Query().Get("invitedEmail"))
+			f.order = append(f.order, "home")
+			return respond(`<MediaContainer/>`)
 		case r.Method == "POST" && target == "plex.tv/api/servers/fixture-machine/shared_servers":
 			f.posts = append(f.posts, decode())
+			f.order = append(f.order, "share")
 			if f.failPost {
 				if f.recorded {
 					f.mode = "pending-invite" // plex.tv received it; only the response was lost
@@ -66,24 +81,47 @@ func (f *plexInviteFixture) client(t *testing.T) *http.Client {
 		case "plex.tv/api/servers/fixture-machine":
 			return respond(`<MediaContainer><Server machineIdentifier="fixture-machine"><Section id="1001" key="1"/><Section id="1002" key="2"/></Server></MediaContainer>`)
 		case "plex.tv/api/users/":
+			others := ""
+			if f.crowded {
+				for i := range 99 {
+					others += fmt.Sprintf(`<User id="%d" home="0"/>`, 1000+i)
+				}
+			}
+			home := "0"
+			if f.friendHome {
+				home = "1"
+			}
 			switch f.mode {
 			case "accepted":
-				return respond(`<MediaContainer><User id="2" allowSync="0"><Server id="700" machineIdentifier="fixture-machine" pending="0" owned="1"/></User></MediaContainer>`)
+				return respond(`<MediaContainer><User id="2" home="` + home + `" allowSync="0"><Server id="700" machineIdentifier="fixture-machine" pending="0" owned="1"/></User>` + others + `</MediaContainer>`)
 			case "pending":
 				return respond(`<MediaContainer><User id="2" allowSync="0"><Server id="700" machineIdentifier="fixture-machine" pending="1" owned="1"/></User></MediaContainer>`)
 			case "friend":
 				// Still a friend after leaving this server; shares another one.
 				return respond(`<MediaContainer><User id="2" allowSync="0"><Server id="900" machineIdentifier="other-machine" pending="0" owned="0"/></User></MediaContainer>`)
 			}
-			return respond(`<MediaContainer/>`)
+			return respond(`<MediaContainer>` + others + `</MediaContainer>`)
+		case "plex.tv/api/home/users":
+			users := `<User id="1" admin="1" guest="0"/><User id="3" admin="0" guest="1"/>`
+			for i := range f.homeMembers {
+				users += fmt.Sprintf(`<User id="%d" admin="0" guest="0"/>`, 500+i)
+			}
+			return respond(`<MediaContainer>` + users + `</MediaContainer>`)
 		case "plex.tv/api/servers/fixture-machine/shared_servers":
 			if f.mode == "accepted" || f.mode == "pending" {
 				return respond(`<MediaContainer><SharedServer id="700" userID="2" allLibraries="0"><Section key="1" shared="1"/><Section key="2" shared="0"/></SharedServer></MediaContainer>`)
 			}
 			return respond(`<MediaContainer/>`)
 		case "plex.tv/api/invites/requested":
+			home := "0"
+			if len(f.homePosts) > 0 {
+				home = "1"
+			}
 			if f.mode == "sent" || f.mode == "pending-invite" {
-				return respond(`<MediaContainer size="1"><Invite id="2" friend="0" home="0" server="1"><Server machineIdentifier="fixture-machine"/></Invite></MediaContainer>`)
+				return respond(`<MediaContainer size="1"><Invite id="2" friend="0" home="` + home + `" server="1"><Server machineIdentifier="fixture-machine"/></Invite></MediaContainer>`)
+			}
+			if home == "1" {
+				return respond(`<MediaContainer size="1"><Invite id="2" friend="0" home="1" server="0"></Invite></MediaContainer>`)
 			}
 			return respond(`<MediaContainer size="0"/>`)
 		}
@@ -131,8 +169,8 @@ func plexAccountState(t *testing.T, s *Store, server int64) (owner string, activ
 	return
 }
 
-// Flask's inviteFriend: a Plex user who is not a friend gets an invitation for
-// the selected libraries; the share is pending until they accept in Plex.
+// A Plex user who is not a friend gets an invitation for the selected
+// libraries; the share is pending until they accept in Plex.
 func TestPlexInvitationInvitesNewPlexUser(t *testing.T) {
 	a, s, token, proof, cookie, server, f := plexInviteSetup(t, "new", "")
 	receipt := redeemPlexInvite(t, a, token, proof, cookie, "new-reader")
@@ -323,5 +361,101 @@ func TestPlexInvitationReAddsFriendWhoLeftTheServer(t *testing.T) {
 	}
 	if owner, _, _, _ := plexAccountState(t, s, server); owner != "returning-reader" {
 		t.Fatal("owner", owner)
+	}
+}
+
+// primePlexCounts reads the Plex account's member counts now, as loading the
+// invitation does, so a redemption within the minute reuses them.
+func primePlexCounts(t *testing.T, a *App, server int64) {
+	t.Helper()
+	s, err := a.loadServer(t.Context(), server)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.refreshPlexCounts(t.Context(), []ManagedServer{s})
+	if _, ok := a.cachedPlexCounts(s); !ok {
+		t.Fatal("Plex member counts were not read")
+	}
+}
+
+// publicServerStatus reads the invite as the invitee's browser does: the
+// server's status and whether the invite takes new members.
+func publicServerStatus(t *testing.T, a *App, token string, server int64) (string, bool) {
+	t.Helper()
+	w := apiRequest(a, "GET", "/api/public/invitations/"+token, "", nil, nil)
+	if w.Code != 200 {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	data := responseData(t, w)
+	for _, raw := range data["servers"].([]any) {
+		if s := raw.(map[string]any); s["id"] == float64(server) {
+			return s["status"].(string), data["accepting"].(bool)
+		}
+	}
+	t.Fatal("server missing from the invitation")
+	return "", false
+}
+
+// A Plex Home invitation invites the verified account into Plex Home, then
+// shares the libraries; a Home member is not invited again.
+func TestPlexInvitationInvitesIntoPlexHome(t *testing.T) {
+	a, _, token, proof, cookie, _, f := plexInviteSetup(t, "new", `all_libraries=0,library_ids='["1"]',invite_to_plex_home=1`)
+	receipt := redeemPlexInvite(t, a, token, proof, cookie, "home-reader")
+	if receipt["status"] != "completed" || fmt.Sprint(f.homePosts) != "[reader]" || fmt.Sprint(f.order) != "[home share]" {
+		t.Fatal("Home invitation then share", receipt, f.homePosts, f.order)
+	}
+
+	a, _, token, proof, cookie, _, f = plexInviteSetup(t, "accepted", `all_libraries=0,library_ids='["1"]',invite_to_plex_home=1`)
+	f.friendHome = true
+	if receipt := redeemPlexInvite(t, a, token, proof, cookie, "member-reader"); receipt["status"] != "completed" || len(f.homePosts) != 0 {
+		t.Fatal("a Home member was invited again", receipt, f.homePosts)
+	}
+}
+
+// The invitation reads plex.tv's own counts, so members added in Plex since
+// the last sync count: a full Plex Home closes a Home invitation, and a full
+// account closes every invitation, without any stored accounts.
+func TestPlexInvitationUsesLiveMemberCounts(t *testing.T) {
+	a, _, token, proof, cookie, server, f := plexInviteSetup(t, "new", `all_libraries=0,library_ids='["1"]',invite_to_plex_home=1`)
+	f.homeMembers = 14
+	if status, accepting := publicServerStatus(t, a, token, server); status != "home_full" || accepting {
+		t.Fatal("full Plex Home", status, accepting)
+	}
+	w := apiRequest(a, "POST", "/api/public/invitations/"+token+"/redeem", "", plexReservationBody(proof, "home-full", newUUID()), cookie)
+	if w.Code != 409 || len(f.homePosts)+len(f.posts) != 0 {
+		t.Fatal("redeemed into a full Plex Home", w.Code, w.Body.String())
+	}
+
+	a, _, token, _, _, server, f = plexInviteSetup(t, "new", "")
+	f.crowded = true
+	if status, accepting := publicServerStatus(t, a, token, server); status != "full" || accepting {
+		t.Fatal("99 friends on plex.tv", status, accepting)
+	}
+	s, err := a.loadServer(t.Context(), server)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if live, ok := a.cachedPlexCounts(s); !ok || live.members != 99 || live.home != 0 {
+		t.Fatal("live counts", live, ok)
+	}
+}
+
+// Plex Home's limit only matters to invitations into Home, and only Plex
+// grants can invite into Home.
+func TestPlexHomeLimitOnlyForHomeInvitations(t *testing.T) {
+	a, _, token, _, _, server, f := plexInviteSetup(t, "new", "")
+	f.homeMembers = 14
+	if status, accepting := publicServerStatus(t, a, token, server); status != "open" || !accepting {
+		t.Fatal("Plex Home full closed an invitation without Home", status, accepting)
+	}
+
+	b, _ := testApp(t)
+	admin, _ := bootstrapOwner(t, b)
+	upstream := newProvisioningFixture(t, "")
+	_, _, ids := prepareInvitation(t, b, admin, upstream)
+	home := true
+	w := apiRequest(b, "POST", "/api/invitations", admin, map[string]any{"grants": []InvitationGrant{{ServerID: ids[0], LibraryIDs: []string{"movies"}, InviteToHome: &home}}}, nil)
+	if w.Code < 400 {
+		t.Fatal("a Jellyfin grant invited into Plex Home", w.Code, w.Body.String())
 	}
 }

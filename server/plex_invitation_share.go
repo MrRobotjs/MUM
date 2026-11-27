@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"net/http"
 	"strconv"
 	"time"
 )
@@ -54,6 +55,9 @@ func invitationFailureLog(err error) (string, int) {
 		if share.Reason != "" {
 			return "PLEX_SHARE_CHECK_" + share.Reason, 0
 		}
+		if share.Status == http.StatusUnprocessableEntity {
+			return "PLEX_SERVER_FULL", share.Status
+		}
 		return "PLEX_SHARE_FAILED", share.Status
 	}
 	if status, ok := errors.AsType[*providerHTTPError](err); ok {
@@ -100,6 +104,11 @@ func (p *serverConnection) sharePlexInvitation(ctx context.Context, account, use
 	plan, err := p.inspectPlexShare(ctx, account, grant)
 	if err != nil {
 		return false, err
+	}
+	if grant.InvitesToHome() {
+		if err := p.invitePlexHome(ctx, account, username, plan, checkpoint); err != nil {
+			return false, err
+		}
 	}
 	sections := []int64{}
 	for _, section := range plan.Sections {
@@ -177,6 +186,44 @@ func (p *serverConnection) sharePlexInvitation(ctx context.Context, account, use
 		}
 	}
 	return false, checkpoint("remote_completed", account)
+}
+
+// invitePlexHome invites the verified Plex account into the owner's Plex Home
+// before its libraries are shared. A member already in Home, or one with a
+// Home invitation waiting, is not invited again; a lost response is resolved
+// by reading the sent invitations, never by sending a second invitation.
+func (p *serverConnection) invitePlexHome(ctx context.Context, account, username string, plan plexSharePreflight, checkpoint func(stage, remoteID string) error) error {
+	if plan.Home {
+		return nil
+	}
+	sent, err := p.plexSentInvitations(ctx)
+	if err != nil {
+		return err
+	}
+	if hasPlexSentHomeInvite(sent, account) {
+		return nil
+	}
+	// Durable intent before the request, so an interrupted send is inspected
+	// rather than repeated.
+	if err := checkpoint("plex_home_inviting", account); err != nil {
+		return err
+	}
+	if sendErr := p.plexServer().InviteToHome(ctx, username); sendErr != nil {
+		after, err := p.plexSentInvitations(ctx)
+		if err != nil || !hasPlexSentHomeInvite(after, account) {
+			return plexShareFailure(sendErr)
+		}
+	}
+	return nil
+}
+
+func hasPlexSentHomeInvite(invites []plexSentInvitation, account string) bool {
+	for _, invite := range invites {
+		if invite.Account == account && invite.Home {
+			return true
+		}
+	}
+	return false
 }
 
 // consumePlexInvitationShareProof spends the invitee's confirmed Plex sign-in

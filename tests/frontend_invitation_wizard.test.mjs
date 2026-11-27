@@ -458,3 +458,45 @@ test('Tofa invitations require a valid email and omit per-server credentials', a
  assert.equal(result.status, 'completed');
  assert.equal(result.steps[1].tofa.state, 'queued');
 });
+
+// A full or unavailable server is explained and left out only after the
+// invitee chooses to continue without it; that choice is sent with the
+// redemption, and a change reported by the server asks again.
+test('closed servers need the invitee choice before redeeming without them',async t=>{
+ const before=globalThis.fetch;t.after(()=>globalThis.fetch=before);
+ const {InvitationDraft}=await loadModule();
+ const closed=()=>{const v=invitation();v.servers[1]={...v.servers[1],libraries:[],status:'full'};v.servers[0].status='open';v.accepting=true;return v;};
+ const draft=new InvitationDraft('token',closed(),storagePort());draft.saveAccount(account());
+ let view=draft.view();
+ assert.equal(view.meta.needs_skip_choice,true);assert.deepEqual(view.disabled_servers.map(s=>[s.id,s.reason]),[[12,'full']]);
+ assert.deepEqual(view.servers.map(s=>s.id),[11]);assert.ok(!view.steps.some(s=>s.server_id===12));
+ await assert.rejects(draft.redeem(),/continue without/);
+ draft.agreeToSkip();view=draft.view();assert.equal(view.meta.needs_skip_choice,false);assert.equal(view.meta.skip_agreed,true);
+ let sent;globalThis.fetch=async(_path,options)=>{sent=JSON.parse(options.body);return Response.json({data:{id:'job',status:'completed',requires_review:false,steps:[{server_id:11,status:'completed',stage:'finished'}],skipped_servers:[{server_id:12,reason:'full'}]}});};
+ const done=await draft.redeem();assert.equal(done.status,'completed');assert.deepEqual(sent.skipped_server_ids,[12]);assert.deepEqual(sent.server_credentials.map(c=>c.server_id),[11]);
+
+ const changed=new InvitationDraft('token',closed(),storagePort());changed.saveAccount(account());changed.agreeToSkip();
+ globalThis.fetch=async()=>new Response(JSON.stringify({error:{code:'SERVERS_CHANGED',message:'changed'}}),{status:409,headers:{'Content-Type':'application/json'}});
+ await assert.rejects(changed.redeem(),e=>e.code==='SERVERS_CHANGED');
+ const reopened=invitation();reopened.servers.forEach(s=>s.status='open');reopened.accepting=true;
+ globalThis.fetch=async()=>Response.json({data:reopened});
+ await changed.refreshServers();view=changed.view();
+ assert.equal(view.meta.needs_skip_choice,false);assert.equal(view.meta.skip_agreed,false);assert.deepEqual(view.servers.map(s=>s.id),[11,12]);
+
+ const none=invitation();none.servers.forEach(s=>{s.status='unavailable';s.libraries=[];});none.accepting=false;
+ const paused=new InvitationDraft('token',none,storagePort());
+ assert.equal(paused.view().invite.is_paused,true);assert.throws(()=>paused.agreeToSkip(),/No server/);
+ const lying=closed();lying.accepting=false;assert.throws(()=>new InvitationDraft('token',lying,storagePort()),/server status/);
+});
+
+// A Plex Home invite shows Home among the features, a full Plex Home is a
+// closed reason, and only Plex grants may invite into Home.
+test('Plex Home invitations in the wizard',async()=>{
+ const {InvitationDraft}=await loadModule();
+ const plexHome=()=>{const v=invitation();v.servers=[{id:21,name:'Plex',provider:'plex',access_url:'',libraries:[{id:'1',name:'Movies'}],status:'open'},{id:11,name:'First',provider:'jellyfin',access_url:'',libraries:[],status:'home_full'}];
+  v.grants=[{server_id:21,all_libraries:false,library_ids:['1'],allow_downloads:false,invite_to_plex_home:true},{server_id:11,all_libraries:false,library_ids:['movies'],allow_downloads:false}];v.accepting=true;return v;};
+ const draft=new InvitationDraft('token',plexHome(),storagePort());const view=draft.view();
+ assert.equal(view.servers[0].features.invite_to_plex_home,true);assert.equal(view.invite.invite_to_plex_home,true);
+ assert.deepEqual(view.disabled_servers.map(s=>s.reason),['home_full']);
+ const wrong=plexHome();wrong.grants[1].invite_to_plex_home=true;assert.throws(()=>new InvitationDraft('token',wrong,storagePort()),/grant/);
+});

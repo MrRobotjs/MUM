@@ -61,12 +61,22 @@ func (f *plexAuthFixture) verifyJWT(t *testing.T, value, nonce string) {
 		t.Error("invalid assertion headers or bounded claims")
 	}
 }
+// plexMemberCountPaths are the plex.tv lists read for the member counts.
+var plexMemberCountPaths = map[string]bool{"/api/users/": true, "/api/invites/requested": true, "/api/home/users": true}
+
 func newPlexAuthFixture(t *testing.T, mode string) *plexAuthFixture {
 	t.Helper()
 	f := &plexAuthFixture{mode: mode}
 	f.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		f.mu.Lock()
 		defer f.mu.Unlock()
+		// An invitation also reads the account's member counts; this fixture
+		// reports an empty account.
+		if r.Method == "GET" && plexMemberCountPaths[r.URL.Path] {
+			w.Header().Set("Content-Type", "application/xml")
+			fmt.Fprint(w, `<MediaContainer size="0"/>`)
+			return
+		}
 		if r.Header.Get("Accept") != "application/json" || r.Header.Get("X-Plex-Product") != "MUM" || r.Header.Get("X-Plex-Client-Identifier") == "" {
 			t.Error("missing Plex client headers")
 		}
@@ -219,7 +229,7 @@ func newPlexAuthFixture(t *testing.T, mode string) *plexAuthFixture {
 			t.Error("unexpected cloud destination")
 			return nil, fmt.Errorf("blocked")
 		}
-		if (r.URL.Path == "/api/v2/user") != (r.URL.Host == "plex.tv") {
+		if (r.URL.Path == "/api/v2/user" || plexMemberCountPaths[r.URL.Path]) != (r.URL.Host == "plex.tv") {
 			t.Error("incorrect fixed cloud API host")
 		}
 		copy := r.Clone(r.Context())

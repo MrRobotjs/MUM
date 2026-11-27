@@ -4,6 +4,7 @@ import { Checkbox } from '../ui/checkbox';
 import { Badge } from '../ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { useMemo } from 'react';
+import { serverIsFullForInvite, type MemberCapacity } from '../../lib/memberCapacity';
 import type { RowSelectionState } from '@tanstack/react-table';
 import { createAppColumnHelper, useAppTable } from '../table/DataTable';
 
@@ -15,6 +16,8 @@ export type InviteServer = {
   is_active?: boolean;
   service_enabled?: boolean;
   effective_active?: boolean;
+  member_capacity?: MemberCapacity | null;
+  invite_to_plex_home?: boolean;
 };
 
 export type InviteServerFeature = {
@@ -111,6 +114,7 @@ export const InvitesTable = ({
     if (isMaxed) return { label: 'Maxed', variant: 'outline' as const };
     if (invite.is_active === false) return { label: 'Disabled', variant: 'secondary' as const };
     if (invite.is_paused) return { label: 'Paused', variant: 'outline' as const };
+    if (invite.servers?.some(serverIsFullForInvite)) return { label: 'Server full', variant: 'outline' as const };
     return { label: 'Active', variant: 'default' as const };
   };
 

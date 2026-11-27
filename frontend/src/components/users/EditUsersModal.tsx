@@ -21,8 +21,10 @@ import { EditOperationsClient, runEditOperation, editOutcomeMessage, editLibrary
 import { useAlerts } from '../../contexts/AlertContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { getAuthSnapshot, subscribeToAuthStore } from '../../store/authStore';
+import { useMediaQuery } from '../../store/mediaQueryStore';
 import { ResponsiveDialog } from '../ui/responsive-dialog';
 import { UserAvatar } from './UserAvatar';
+import { ServiceIcon } from '../services/ServiceIcon';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { Spinner } from '@/components/ui/spinner'
 import {
@@ -31,15 +33,12 @@ import {
   faCalendarPlus,
   faCheck,
   faCircleInfo,
-  faCog,
   faFilm,
   faFolder,
   faInfinity,
   faLink,
   faListCheck,
-  faServer,
   faShieldHalved,
-  faSliders,
   faTrash,
   faTriangleExclamation,
   faUnlock,
@@ -103,6 +102,7 @@ interface LibraryServerSelection {
 
 export const EditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplete, initialAction = '' }: EditUsersModalProps) => {
   const [action, setAction] = useState<string>(initialAction);
+  const desktop = useMediaQuery('(min-width: 1024px)');
   const { user } = useAuth();
   const actor = user?.uuid ?? '';
   const auth = useSyncExternalStore(subscribeToAuthStore, getAuthSnapshot);
@@ -918,8 +918,8 @@ export const EditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplete, i
                   <div key={serverId} className="space-y-3 rounded-lg border border-border p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <p className="text-sm font-semibold">
-                          <FontAwesomeIcon icon={faServer} className="mr-2 text-primary" />
+                        <p className="flex items-center gap-2 text-sm font-semibold">
+                          <ServiceIcon serviceType={selection.serviceType} className="h-4 w-4 shrink-0" />
                           {selection.serverNickname}
                           <span className="ml-1 text-xs font-normal text-muted-foreground">
                             ({selection.serviceType})
@@ -1435,69 +1435,98 @@ export const EditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplete, i
     }
   };
 
-  const modalBody = (
-    <div className="space-y-6 py-4">
-      <div className="space-y-4">
-        <h4 className="flex items-center gap-2 text-lg font-medium">
-          <FontAwesomeIcon icon={faCog} className="text-sm text-primary" />
-          Select Action
+  // The dropdown and the desktop sidebar list the same actions; Delete is
+  // kept apart at the end.
+  const actions = [
+    { value: 'modify_libraries', label: 'Library access', icon: faFolder, hint: 'Choose which libraries they can see' },
+    { value: 'manage_expiration', label: 'Expiration', icon: faCalendar, hint: 'Set, extend or clear access dates' },
+    { value: 'manage_4k_transcode', label: '4K transcoding', icon: faFilm, hint: 'Allow or block 4K transcodes' },
+    { value: 'manage_purge_protection', label: 'Purge protection', icon: faShieldHalved, hint: 'Keep them out of inactivity purges' },
+    { value: 'manage_local_link', label: 'Local account link', icon: faLink, hint: 'Link or unlink a MUM account' },
+    { value: 'delete', label: 'Delete users', icon: faTrash, hint: 'Remove them and their data' },
+  ];
+  const selectedAction = actions.find(item => item.value === action);
+
+  const actionPanel = selectedAction ? (
+    <div className="space-y-4">
+      <div>
+        <h4 className={`flex items-center gap-2 text-lg font-medium ${action === 'delete' ? 'text-destructive' : ''}`}>
+          <FontAwesomeIcon icon={selectedAction.icon} className={`text-sm ${action === 'delete' ? '' : 'text-primary'}`} />
+          {selectedAction.label}
         </h4>
-
-        <div className="rounded-lg border border-border bg-card p-4 transition-colors hover:border-border/60">
-          <div className="space-y-2">
-            <Label htmlFor="action">
-              <FontAwesomeIcon icon={faListCheck} className="text-primary text-sm mr-2" />
-              Action to Perform
-            </Label>
-            <Select value={action} disabled={submitting} onValueChange={setAction}>
-              <SelectTrigger id="action" className="h-11">
-                <SelectValue placeholder="Choose an action..." />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="modify_libraries">
-                  <FontAwesomeIcon icon={faFolder} className="mr-2" />
-                  Modify Library Access
-                </SelectItem>
-                <SelectItem value="manage_expiration">
-                  <FontAwesomeIcon icon={faCalendar} className="mr-2" />
-                  Manage Expiration
-                </SelectItem>
-                <SelectItem value="manage_4k_transcode">
-                  <FontAwesomeIcon icon={faFilm} className="mr-2" />
-                  Manage 4K Transcoding
-                </SelectItem>
-                <SelectItem value="manage_purge_protection">
-                  <FontAwesomeIcon icon={faShieldHalved} className="mr-2" />
-                  Manage Purge Protection
-                </SelectItem>
-                <SelectItem value="manage_local_link">
-                  <FontAwesomeIcon icon={faLink} className="mr-2" />
-                  Manage Local Account Link
-                </SelectItem>
-                <SelectItem value="delete">
-                  <FontAwesomeIcon icon={faTrash} className="mr-2" />
-                  Delete Users
-                </SelectItem>
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground">
-              Choose what action to perform on the selected users
-            </p>
-          </div>
-        </div>
+        <p className="text-sm text-muted-foreground">{selectedAction.hint}</p>
       </div>
+      <div className="rounded-lg border border-border bg-card p-4">
+        {renderActionContent()}
+      </div>
+    </div>
+  ) : null;
 
-      {action && (
-        <div className="space-y-4">
-          <h4 className="flex items-center gap-2 text-lg font-medium">
-            <FontAwesomeIcon icon={faSliders} className="text-sm text-primary" />
-            Configure Action
-          </h4>
-          <div className="rounded-lg border border-border bg-card p-4 transition-colors hover:border-border/60">
-            {renderActionContent()}
+  // Desktop: the actions are a sidebar beside the chosen action's settings.
+  // Only the settings column scrolls, so the sidebar never moves.
+  const sidebarBody = (
+    <div className="flex gap-6">
+      <nav aria-label="Edit actions" className="w-56 shrink-0 space-y-1 border-r border-border pr-4">
+        {actions.map(item => {
+          const selected = item.value === action;
+          const danger = item.value === 'delete';
+          return (
+            <div key={item.value}>
+              {danger && <div className="my-2 border-t border-border" />}
+              <button
+                type="button"
+                disabled={submitting}
+                aria-current={selected ? 'true' : undefined}
+                onClick={() => setAction(item.value)}
+                className={`flex w-full items-start gap-3 rounded-md px-3 py-2 text-left text-sm transition-colors disabled:pointer-events-none disabled:opacity-50 ${
+                  danger
+                    ? selected ? 'bg-destructive/10 text-destructive' : 'text-destructive hover:bg-muted/60'
+                    : selected ? 'bg-muted font-medium text-foreground' : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
+                }`}
+              >
+                <FontAwesomeIcon icon={item.icon} className="mt-0.5 w-4 shrink-0" />
+                <span className="min-w-0">
+                  <span className="block">{item.label}</span>
+                  <span className="block text-xs font-normal text-muted-foreground">{item.hint}</span>
+                </span>
+              </button>
+            </div>
+          );
+        })}
+      </nav>
+      <div className="min-w-0 flex-1 max-h-[70vh] overflow-y-auto pr-2">
+        {actionPanel ?? (
+          <div className="flex h-full min-h-55 items-center justify-center rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+            Choose an action on the left to change the {selectedUserIds.size} selected user{selectedUserIds.size !== 1 ? 's' : ''}.
           </div>
-        </div>
-      )}
+        )}
+      </div>
+    </div>
+  );
+
+  // Tablets and phones keep the dropdown above the action's settings.
+  const dropdownBody = (
+    <div className="space-y-6 py-4">
+      <div className="space-y-2">
+        <Label htmlFor="action">
+          <FontAwesomeIcon icon={faListCheck} className="text-primary text-sm mr-2" />
+          Action to Perform
+        </Label>
+        <Select value={action} disabled={submitting} onValueChange={setAction}>
+          <SelectTrigger id="action" className="h-11">
+            <SelectValue placeholder="Choose an action..." />
+          </SelectTrigger>
+          <SelectContent>
+            {actions.map(item => (
+              <SelectItem key={item.value} value={item.value}>
+                <FontAwesomeIcon icon={item.icon} className="mr-2" />
+                {item.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      {actionPanel}
     </div>
   );
 
@@ -1558,10 +1587,10 @@ export const EditUsersModal = ({ isOpen, onClose, selectedUserIds, onComplete, i
       }
       description={`Apply changes to ${selectedUserIds.size} selected user${selectedUserIds.size !== 1 ? 's' : ''} at once`}
       footer={footer}
-      contentClassName="max-w-3xl"
-      bodyClassName="pt-2"
+      size="lg"
+      bodyClassName={desktop ? 'overflow-hidden' : 'pt-2'}
     >
-      {modalBody}
+      {desktop ? sidebarBody : dropdownBody}
     </ResponsiveDialog>
   );
 };

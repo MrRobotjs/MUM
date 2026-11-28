@@ -40,6 +40,15 @@ func (a *App) runServerHealth(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			return
+		case id := <-a.healthNow:
+			// A live connection connected or dropped: check that server now
+			// rather than at its next regular check.
+			if written, changed, err := a.checkServerHealth(ctx, id); err != nil && ctx.Err() == nil {
+				a.logger.Warn("Server health check failed", "server_id", id, "code", consoleErrorCode(err))
+			} else if written {
+				a.announceServerHealth(changed)
+			}
+			continue
 		case <-timer.C:
 		}
 		if _, err := a.sweepServerHealth(ctx); err != nil && ctx.Err() == nil {
@@ -181,6 +190,18 @@ func (a *App) markServerReachable(ctx context.Context, id int64) (bool, error) {
 // announceServerHealth tells administrators' dashboards to read the stored
 // status again. The event carries no server details: each dashboard reads
 // them with its own authority.
+// requestHealthCheck asks for a server to be checked straight away. A full
+// queue is fine: the regular check still runs within a minute.
+func (a *App) requestHealthCheck(id int64) {
+	if a.healthNow == nil {
+		return
+	}
+	select {
+	case a.healthNow <- id:
+	default:
+	}
+}
+
 func (a *App) announceServerHealth(changed bool) {
 	if a.hub != nil {
 		a.hub.publish(serverHealthChannel, "ServerHealth", map[string]any{"changed": changed})

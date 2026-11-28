@@ -73,6 +73,9 @@ func (a *App) runProviderSocket(ctx context.Context, w *providerSocketWorker, se
 	clone := *client
 	clone.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 	backoff := time.Second
+	// dropped: the connection was up and then failed, so its reconnect and
+	// its drop each get an immediate health check.
+	connected, dropped := false, false
 	for ctx.Err() == nil {
 		w.status("connecting", "")
 		a.logger.Debug("Provider socket connecting", "server_id", server.ID, "provider", server.Type)
@@ -123,6 +126,11 @@ func (a *App) runProviderSocket(ctx context.Context, w *providerSocketWorker, se
 					a.playback.record(server.ID, []provider.PlaybackEvent{{Barrier: true}}, time.Now().UTC())
 				}
 				w.status("connected", "")
+				if dropped {
+					a.requestHealthCheck(server.ID)
+					dropped = false
+				}
+				connected = true
 				a.logger.Info("Provider socket connected", "server_id", server.ID, "provider", server.Type)
 				w.dirty.Store(true)
 			}
@@ -147,6 +155,13 @@ func (a *App) runProviderSocket(ctx context.Context, w *providerSocketWorker, se
 				hint, reply, eventErr := live.LiveEvent(data)
 				if err = eventErr; err != nil {
 					break
+				}
+				// Announced library changes are read again shortly; a frame
+				// that can't be read only loses that shortcut.
+				if reader, ok := live.(libraryChangeReader); ok {
+					if changes, changeErr := reader.LiveLibraryChanges(data); changeErr == nil {
+						a.noteLibraryChanges(server.ID, changes)
+					}
 				}
 				// Playback state changes keep their arrival time for the next
 				// read. A frame whose states can't be read only loses that
@@ -201,6 +216,10 @@ func (a *App) runProviderSocket(ctx context.Context, w *providerSocketWorker, se
 			break
 		}
 		w.status("backoff", "TRANSPORT_FAILED")
+		if connected {
+			a.requestHealthCheck(server.ID)
+			connected, dropped = false, true
+		}
 		a.logger.Warn("Provider socket unavailable; reconnecting", "server_id", server.ID, "provider", server.Type, "retry_seconds", backoff.Seconds())
 		if errors.Is(err, ErrQueueFull) || errors.Is(err, ErrQueueClosed) || errors.Is(err, ErrQueueFailed) {
 			w.status("backoff", "QUEUE_REJECTED")

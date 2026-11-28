@@ -88,6 +88,12 @@ func (a *App) StartScheduler() error {
 						s.checkpointErr = err
 						s.mu.Unlock()
 					}
+					// Announced library changes run between scheduled refreshes.
+					if scope == "libraries" && s.ctx.Err() == nil {
+						if err := a.runDueLiveLibraryUpdate(s.ctx); err != nil && s.ctx.Err() == nil {
+							a.logger.Warn("Live library update failed", "code", consoleErrorCode(err))
+						}
+					}
 					select {
 					case <-s.ctx.Done():
 						return

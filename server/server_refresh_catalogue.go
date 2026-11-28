@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 )
 
@@ -45,6 +46,9 @@ func (a *App) refreshServerCatalogues(ctx context.Context, server ManagedServer,
 			return readErr
 		}
 		if !catalogueLibrarySupported(library.Provider, library.Kind, library.External) {
+			continue
+		}
+		if _, changed := claim.Live[library.External]; claim.Live != nil && !changed {
 			continue
 		}
 		for {
@@ -112,8 +116,9 @@ func (a *App) refreshOneCatalogue(ctx context.Context, library catalogueLibrary,
 	}
 	var added, updated, removed int
 	var changes []refreshLogItem
+	var addedNow map[string]bool // items new in this run: their episodes are read too
 	err = a.store.write(ctx, func(tx *sql.Tx) error {
-		added, updated, removed, changes = 0, 0, 0, nil
+		added, updated, removed, changes, addedNow = 0, 0, 0, nil, map[string]bool{}
 		if err := checkServerRefreshClaim(ctx, tx, claim); err != nil {
 			return err
 		}
@@ -146,6 +151,9 @@ func (a *App) refreshOneCatalogue(ctx context.Context, library catalogueLibrary,
 		// back so its poster can be shown.
 		var externals []string
 		note := func(id int64, item catalogueItem, change string) {
+			if change == "added" {
+				addedNow[item.ID] = true
+			}
 			if len(changes) < refreshLogEntryItems {
 				changes = append(changes, refreshLogItem{Title: item.Title, Change: change, ItemID: id})
 				externals = append(externals, item.ID)
@@ -202,6 +210,10 @@ func (a *App) refreshOneCatalogue(ctx context.Context, library catalogueLibrary,
 	var totals episodeSyncResult
 	var changedItems []refreshLogItem
 	children := "episodes"
+	// A live run reads only the shows or albums that changed.
+	if parents := claim.Live[library.External]; claim.Live != nil && parents != nil {
+		shows = slices.DeleteFunc(shows, func(show catalogueShow) bool { return !parents[show.External] && !addedNow[show.External] })
+	}
 	for n, show := range shows {
 		child, ok := childrenOf(show.Kind)
 		if !ok || !childCatalogueSupported(library.Provider, child) {

@@ -81,6 +81,8 @@ type App struct {
 	debugLogs        *debugPayloadLog
 	plexCounts       plexCountCache
 	refreshProgress  refreshProgressBoard
+	liveLibraries    liveLibraryBoard
+	healthNow        chan int64 // servers whose live connection connected or dropped
 	// statisticsSlots bounds concurrent server statistics reads.
 	statisticsSlots chan struct{}
 }
@@ -94,6 +96,7 @@ func NewApp(store *Store, queue *LogQueue, assets fs.FS) (*App, error) {
 	schedulerCtx, schedulerCancel := context.WithCancel(context.Background())
 	a.scheduler = &syncScheduler{ctx: schedulerCtx, cancel: schedulerCancel, done: make(chan struct{}), healthDone: make(chan struct{}), refreshDone: make(chan struct{}), runner: newUUID()}
 	a.refreshListSlot = make(chan struct{}, 1)
+	a.healthNow = make(chan int64, 32)
 	a.providerSockets = &providerSocketRuntime{workers: map[int64]*providerSocketWorker{}, done: make(chan struct{}), dialSlots: make(chan struct{}, 8)}
 	store.activitySocketConnected = a.activitySocketConnected
 	a.provisionSlots = make(chan struct{}, 2)

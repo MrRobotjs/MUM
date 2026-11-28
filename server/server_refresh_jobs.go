@@ -12,6 +12,10 @@ type serverRefreshClaim struct {
 	Server, Revision, ConfigRevision, SettingsRevision int64
 	Scope, Actor, Token                                string
 	IncludeEpisodesAndTracks                           bool
+	// Live is set for a run started by changes the server announced: only
+	// these libraries, and in each only the listed shows' or albums'
+	// episodes or tracks (nil = all of them), are read again.
+	Live map[string]map[string]bool
 }
 
 // prepareServerRefreshJobs schedules startup work without requiring a user
@@ -98,6 +102,11 @@ func (a *App) runOneServerRefreshScope(parent context.Context, scope string) err
 	if err != nil || claim == nil {
 		return err
 	}
+	return a.runClaimedServerRefresh(ctx, claim)
+}
+
+// runClaimedServerRefresh runs a claimed refresh and records how it ended.
+func (a *App) runClaimedServerRefresh(ctx context.Context, claim *serverRefreshClaim) error {
 	a.tasksChanged()
 	defer a.tasksChanged() // after the finish below has committed
 	defer a.clearRefreshProgress(claim)
@@ -106,24 +115,31 @@ func (a *App) runOneServerRefreshScope(parent context.Context, scope string) err
 	log := &refreshLog{}
 	var server ManagedServer
 	var runErr error
-	select {
-	case a.refreshListSlot <- struct{}{}:
+	if claim.Live != nil {
+		// Only the announced libraries are read again; the server's list of
+		// libraries is left to the scheduled refresh.
 		server, runErr = a.loadServer(ctx, claim.Server)
-		if runErr == nil {
-			var receipt map[string]int
-			receipt, runErr = a.syncServerClaimed(ctx, claim.Actor, "", server, claim.Scope == "libraries", claim.Scope == "users", claim)
+		log.add(refreshLogInformation, "Started by changes the server announced", "Only the libraries and shows that changed are read again.")
+	} else {
+		select {
+		case a.refreshListSlot <- struct{}{}:
+			server, runErr = a.loadServer(ctx, claim.Server)
 			if runErr == nil {
-				var accounts []refreshLogItem
-				if claim.Scope == "users" {
-					// The list is extra detail: the counts stand if it can't be read.
-					accounts, _ = a.refreshAccountChanges(ctx, claim.Server, started)
+				var receipt map[string]int
+				receipt, runErr = a.syncServerClaimed(ctx, claim.Actor, "", server, claim.Scope == "libraries", claim.Scope == "users", claim)
+				if runErr == nil {
+					var accounts []refreshLogItem
+					if claim.Scope == "users" {
+						// The list is extra detail: the counts stand if it can't be read.
+						accounts, _ = a.refreshAccountChanges(ctx, claim.Server, started)
+					}
+					logListRefresh(log, claim.Scope, receipt, accounts)
 				}
-				logListRefresh(log, claim.Scope, receipt, accounts)
 			}
+			<-a.refreshListSlot
+		case <-ctx.Done():
+			runErr = ctx.Err()
 		}
-		<-a.refreshListSlot
-	case <-ctx.Done():
-		runErr = ctx.Err()
 	}
 	if runErr == nil && claim.Scope == "libraries" {
 		runErr = a.refreshServerCatalogues(ctx, server, claim, log)

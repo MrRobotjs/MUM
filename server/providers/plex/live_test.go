@@ -23,7 +23,9 @@ func TestLiveConnectionAndNotificationBoundaries(t *testing.T) {
 		invalid    bool
 	}{
 		{`{"NotificationContainer":{"type":"playing","private":"never persist"}}`, "playing", false},
-		{`{"NotificationContainer":{"type":"timeline"}}`, "timeline", false},
+		// Library notifications are read by LiveLibraryChanges, not as playback.
+		{`{"NotificationContainer":{"type":"timeline"}}`, "", false},
+		{`{"NotificationContainer":{"type":"activity"}}`, "", false},
 		{`{"NotificationContainer":{"type":"transcodeSession.end"}}`, "transcodeSession.end", false},
 		{`{"NotificationContainer":{"type":"other"}}`, "", false},
 		{`{"NotificationContainer":{"type":"playing","type":"other"}}`, "", true},

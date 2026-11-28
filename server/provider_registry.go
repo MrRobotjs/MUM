@@ -185,6 +185,16 @@ type (
 	playbackEventReader interface {
 		LivePlayback(frame []byte) ([]provider.PlaybackEvent, error)
 	}
+	// libraryChangeReader reads library items a live notification reports as
+	// added, changed or removed.
+	libraryChangeReader interface {
+		LiveLibraryChanges(frame []byte) ([]provider.LibraryChange, error)
+	}
+	// catalogueParentReader finds the show or album an episode, season or
+	// track belongs to.
+	catalogueParentReader interface {
+		CatalogueParent(ctx context.Context, item string) (string, error)
+	}
 	activityReader interface {
 		ActivitySnapshot(ctx context.Context) (provider.ActivitySnapshot, error)
 	}

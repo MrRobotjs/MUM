@@ -40,8 +40,10 @@ func (s *Server) LiveEvent(frame []byte) (hint string, reply []byte, err error) 
 	if raw, ok := fields["NotificationContainer"]; !ok || json.Unmarshal(raw, &notification) != nil || notification.Type == "" {
 		return "", nil, provider.ErrActivitySnapshot
 	}
+	// Library notifications ("timeline", "activity") are read separately by
+	// LiveLibraryChanges and do not mean playback changed.
 	switch notification.Type {
-	case "playing", "timeline", "activity", "transcodeSession.start", "transcodeSession.end":
+	case "playing", "transcodeSession.start", "transcodeSession.end":
 		return notification.Type, nil, nil
 	}
 	return "", nil, nil

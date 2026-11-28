@@ -257,3 +257,12 @@ func uniqueKeys(d *json.Decoder, depth int) error {
 	}
 	return nil
 }
+
+// LibraryChange is one library item a server announced as added, changed or
+// removed: its library, its own ID, its kind ("movie", "show", "season",
+// "episode", "artist", "album" or "track") and whether it was removed. It
+// only says what to read again; nothing else from the announcement is kept.
+type LibraryChange struct {
+	Library, Item, Kind string
+	Removed             bool
+}

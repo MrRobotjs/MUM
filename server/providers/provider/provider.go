@@ -24,6 +24,10 @@ type Definition struct {
 	// DownloadLabels reports that Users fills UserAccess.DownloadsKnown, so
 	// MUM can keep download labels for this service's accounts.
 	DownloadLabels bool
+	// TestedVersion is the server release MUM was last checked against, or
+	// "" when it has not been checked against a real server. Other releases
+	// may work but are unverified.
+	TestedVersion string
 }
 
 // Config is what MUM gives a module for one configured server. Transport
@@ -287,3 +291,19 @@ func TruncateRunes(value string, max int) string {
 
 // Timestamp formats t the way MUM stores times.
 func Timestamp(t time.Time) string { return t.UTC().Format("2006-01-02T15:04:05.000000000Z") }
+
+// CleanVersion returns a version string a server reported when it looks like
+// one (at most 64 letters, digits, dots, hyphens, plus signs and underscores,
+// starting with a digit), or "" otherwise.
+func CleanVersion(v string) string {
+	v = strings.TrimPrefix(strings.TrimSpace(v), "v")
+	if v == "" || len(v) > 64 || v[0] < '0' || v[0] > '9' {
+		return ""
+	}
+	for _, r := range v {
+		if !(r >= '0' && r <= '9' || r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || strings.ContainsRune(".-+_", r)) {
+			return ""
+		}
+	}
+	return v
+}

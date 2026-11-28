@@ -22,6 +22,7 @@ var Definition = provider.Definition{
 	Name:           "Komga",
 	Description:    "Comics and manga on your Komga server. Invites create accounts by email; removing access leaves the sign-in in place.",
 	DownloadLabels: true,
+	TestedVersion:  "1.30.2",
 }
 
 var errCredentials = &provider.CredentialsError{Code: "INVALID_KOMGA_CREDENTIALS", Message: "Komga needs an email address as the username and a password of 12 to 72 characters (accented letters and emoji take up extra space)"}
@@ -491,4 +492,16 @@ func (s *Server) StateWithoutLibraryAccess(user provider.Account) any {
 	slices.Sort(v.Roles)
 	v.Libraries = nil
 	return &v
+}
+
+// ServerVersion reads the Komga release from its build information, which
+// needs an administrator's key.
+func (s *Server) ServerVersion(ctx context.Context) (string, error) {
+	var info struct {
+		Build struct {
+			Version string `json:"version"`
+		} `json:"build"`
+	}
+	err := s.get(ctx, "/actuator/info", &info)
+	return info.Build.Version, err
 }

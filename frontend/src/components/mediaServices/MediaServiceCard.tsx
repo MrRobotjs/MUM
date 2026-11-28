@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { ServiceSettingIcon } from '../users/AccountSettings'
 import { MediaServiceFeatures } from './MediaServiceFeatures'
+import { TestedVersionLine } from './TestedVersion'
 
 export interface MediaServiceCardProps {
   service: MediaService
@@ -50,6 +51,7 @@ export const MediaServiceCard = ({ service, serverNames, busy, onToggle, onManag
       </CardHeader>
       <CardContent className="flex flex-1 flex-col gap-4">
         {service.description ? <p className="text-sm text-muted-foreground">{service.description}</p> : null}
+        <TestedVersionLine service={service} />
         <MediaServiceFeatures features={service.features} />
         {!service.enabled && !hasServers ? <p className="text-xs text-muted-foreground">Add a server to turn {service.name} on.</p> : null}
         <div className="mt-auto flex flex-wrap gap-2">

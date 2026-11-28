@@ -25,6 +25,7 @@ var Definition = provider.Definition{
 	Name:           "Plex",
 	Description:    "Movies, TV shows and music on Plex Media Server. Invites share libraries through Plex.",
 	DownloadLabels: true,
+	TestedVersion:  "1.43.5",
 }
 
 // DefaultClientID identifies MUM to Plex when no per-installation client ID

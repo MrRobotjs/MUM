@@ -190,6 +190,11 @@ type (
 	libraryChangeReader interface {
 		LiveLibraryChanges(frame []byte) ([]provider.LibraryChange, error)
 	}
+	// serverVersionReader reads the release a server runs, for services whose
+	// connection test does not report it.
+	serverVersionReader interface {
+		ServerVersion(ctx context.Context) (string, error)
+	}
 	// catalogueParentReader finds the show or album an episode, season or
 	// track belongs to.
 	catalogueParentReader interface {
@@ -294,7 +299,7 @@ func moduleCapabilities(m mediaModule) []string {
 }
 
 func definitionFromModule(d provider.Definition) ProviderDefinition {
-	return ProviderDefinition{ID: d.ID, Name: d.Name, Description: d.Description}
+	return ProviderDefinition{ID: d.ID, Name: d.Name, Description: d.Description, TestedVersion: d.TestedVersion}
 }
 
 // credentialsFailure writes a module's credentials error with its stable API

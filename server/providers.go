@@ -14,6 +14,8 @@ type ProviderDefinition struct {
 	ID          string
 	Name        string
 	Description string
+	// TestedVersion is the release MUM was last checked against ("" = none).
+	TestedVersion string
 }
 
 // Only implemented adapters enter the compiled registry. No Python manifests or
@@ -98,17 +100,28 @@ func newServerConnection(c ProviderConfig, client *http.Client) (*serverConnecti
 	return &serverConnection{config: c, client: &copyClient}, nil
 }
 func (p *serverConnection) Test(ctx context.Context) (ProviderInfo, error) {
-	if m := p.module(); m != nil {
-		if tester, ok := m.(connectionTester); ok {
-			info, err := tester.Test(ctx)
-			return info, err
-		}
-		// A module without its own test is tested by reading its users.
-		_, err := p.Users(ctx)
-		definition, _ := providerDefinition(p.config.Type)
-		return ProviderInfo{Name: definition.Name}, err
+	m := p.module()
+	if m == nil {
+		return ProviderInfo{}, errors.New("provider is not implemented")
 	}
-	return ProviderInfo{}, errors.New("provider is not implemented")
+	var info ProviderInfo
+	var err error
+	if tester, ok := m.(connectionTester); ok {
+		info, err = tester.Test(ctx)
+	} else {
+		// A module without its own test is tested by reading its users.
+		_, err = p.Users(ctx)
+		definition, _ := providerDefinition(p.config.Type)
+		info = ProviderInfo{Name: definition.Name}
+	}
+	// The release is extra detail: a server that can't say still passes.
+	if reader, ok := m.(serverVersionReader); ok && err == nil && info.Version == "" {
+		if version, versionErr := reader.ServerVersion(ctx); versionErr == nil {
+			info.Version = provider.CleanVersion(version)
+		}
+	}
+	info.Version = provider.CleanVersion(info.Version)
+	return info, err
 }
 func (p *serverConnection) Libraries(ctx context.Context) ([]ProviderLibrary, error) {
 	if m, ok := p.module().(libraryReader); ok {

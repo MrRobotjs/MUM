@@ -21,6 +21,7 @@ var Definition = provider.Definition{
 	Name:           "Audiobookshelf",
 	Description:    "Audiobooks and podcasts on your Audiobookshelf server.",
 	DownloadLabels: true,
+	TestedVersion:  "2.38.0",
 }
 
 var errCredentials = &provider.CredentialsError{Code: "INVALID_AUDIOBOOKSHELF_CREDENTIALS", Message: "Audiobookshelf passwords must be 12 to 72 characters (accented letters and emoji take up extra space)"}
@@ -462,4 +463,13 @@ func (s *Server) StateWithoutLibraryAccess(user provider.Account) any {
 	delete(v.Permissions, "accessAllLibraries")
 	v.Libraries = nil
 	return &v
+}
+
+// ServerVersion reads the Audiobookshelf release from its public status.
+func (s *Server) ServerVersion(ctx context.Context) (string, error) {
+	var status struct {
+		Version string `json:"serverVersion"`
+	}
+	err := s.transport.JSON(ctx, http.MethodGet, s.url+"/status", s.authorize, nil, &status)
+	return status.Version, err
 }

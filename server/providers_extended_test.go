@@ -46,6 +46,10 @@ func extendedProviderFixture(t *testing.T, kind string) (*httptest.Server, *http
 			return
 		}
 		switch r.URL.Path {
+		case "/proxy/status": // Audiobookshelf's release
+			fmt.Fprint(w, `{"serverVersion":"2.38.0"}`)
+		case "/proxy/actuator/info": // Komga's release
+			fmt.Fprint(w, `{"build":{"version":"1.24.1"}}`)
 		case "/proxy/api/v1/libraries":
 			fmt.Fprint(w, `[{"id":"shelf","name":"Comics"}]`)
 		case "/proxy/api/v2/users":

@@ -23,6 +23,7 @@ var Definition = provider.Definition{
 	Name:           "Kavita",
 	Description:    "Comics, manga and books on your Kavita server. Invites create accounts by username.",
 	DownloadLabels: true,
+	TestedVersion:  "0.9.1.4",
 }
 
 var errCredentials = &provider.CredentialsError{Code: "INVALID_KAVITA_CREDENTIALS", Message: "Kavita needs a username without @ and a password of up to 256 characters (accented letters and emoji take up extra space)"}
@@ -617,4 +618,13 @@ func (s *Server) StateWithoutLibraryAccess(user provider.Account) any {
 	slices.Sort(v.Roles)
 	v.Libraries = nil
 	return &v
+}
+
+// ServerVersion reads the Kavita release the server runs.
+func (s *Server) ServerVersion(ctx context.Context) (string, error) {
+	var info struct {
+		Version string `json:"kavitaVersion"`
+	}
+	err := s.api(ctx, http.MethodGet, "/Server/server-info-slim", nil, &info)
+	return info.Version, err
 }

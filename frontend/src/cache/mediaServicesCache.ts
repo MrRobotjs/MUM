@@ -12,6 +12,8 @@ export type MediaService = Readonly<{
   id: string;
   name: string;
   description: string | null;
+  /** The server release MUM was last checked against, or null when it hasn't been checked against a real server. */
+  testedVersion: string | null;
   enabled: boolean;
   serverCount: number;
   capabilities: readonly string[];
@@ -21,7 +23,7 @@ export type MediaService = Readonly<{
 
 export type MediaServiceFeature = Readonly<{ key: string; supported: boolean }>;
 
-type MediaServiceDto = { id?: unknown; name?: unknown; description?: unknown; enabled?: unknown; server_count?: unknown; capabilities?: unknown; features?: unknown };
+type MediaServiceDto = { id?: unknown; name?: unknown; description?: unknown; tested_version?: unknown; enabled?: unknown; server_count?: unknown; capabilities?: unknown; features?: unknown };
 
 const feature = (value: unknown): value is { key: string; supported: boolean } => {
   const v = value as { key?: unknown; supported?: unknown } | null;
@@ -38,6 +40,7 @@ export const fetchMediaServices = async (url: string): Promise<readonly MediaSer
       || !Array.isArray(value.features) || value.features.length > 64 || !value.features.every(feature)) throw new Error('Invalid media services');
     return Object.freeze({
       id: value.id, name: value.name, description: typeof value.description === 'string' && value.description ? value.description : null,
+      testedVersion: typeof value.tested_version === 'string' && /^[0-9][0-9A-Za-z.+_-]{0,63}$/.test(value.tested_version) ? value.tested_version : null,
       enabled: value.enabled, serverCount: value.server_count as number, capabilities: Object.freeze([...value.capabilities as string[]]),
       features: Object.freeze((value.features as { key: string; supported: boolean }[]).map(f => Object.freeze({ key: f.key, supported: f.supported }))),
     });

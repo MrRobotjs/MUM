@@ -20,6 +20,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { ConfirmAction, ServiceSettingIcon, TabHeading } from '../users/AccountSettings'
 import { Row } from '../library/LibraryOverview'
 import { MediaServiceFeatures } from './MediaServiceFeatures'
+import { ServerVersionNote } from './TestedVersion'
 
 export interface MediaServiceServersProps {
   service: MediaService
@@ -163,11 +164,13 @@ export const MediaServiceServers = ({ service, setup = false }: MediaServiceServ
                     <div className="space-y-2 text-sm">
                       <Row label="Address"><ExternalLink href={server.url} /></Row>
                       {server.public_url ? <Row label="Public address"><ExternalLink href={server.public_url} /></Row> : null}
+                      <Row label="Version">{server.last_version || 'Not reported yet'}</Row>
                       <Row label="Last synced">
                         {server.last_sync_at ? <span title={formatTimestamp(server.last_sync_at)}>{formatRelative(server.last_sync_at)}</span> : 'Not synced yet'}
                       </Row>
                       {server.overseerr_enabled ? <Row label="Overseerr">{server.overseerr_url ? <ExternalLink href={server.overseerr_url} /> : 'On'}</Row> : null}
                     </div>
+                    <ServerVersionNote service={service} server={server} />
                     {!service.enabled ? <p className="text-xs text-muted-foreground">Turn {service.name} on to change this server’s switch.</p> : null}
                     <div className="flex flex-wrap gap-2">
                       {!setup ? (

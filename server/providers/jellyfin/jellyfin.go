@@ -20,6 +20,7 @@ var Definition = provider.Definition{
 	Name:           "Jellyfin",
 	Description:    "Movies, TV shows and music on your Jellyfin server.",
 	DownloadLabels: true,
+	TestedVersion:  "12.4.0",
 }
 
 // Server is one configured Jellyfin server.

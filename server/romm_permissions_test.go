@@ -121,6 +121,8 @@ func newRomMPermissionFixture(t *testing.T, variant string) *rommPermissionFixtu
 		}
 		var body any
 		switch r.URL.Path {
+		case "/proxy/api/heartbeat": // the RomM release
+			body = map[string]any{"SYSTEM": map[string]any{"VERSION": "5.4.1"}}
 		case "/proxy/api/platforms":
 			body = platforms
 		case "/proxy/api/users":

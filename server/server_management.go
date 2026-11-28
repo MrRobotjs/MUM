@@ -27,6 +27,9 @@ type ManagedServer struct {
 	EffectiveActive bool   `json:"effective_active"`
 	HasAPIKey       bool   `json:"has_api_key"`
 	Version         string `json:"last_version"`
+	// VersionCheck compares Version with the release MUM was tested against:
+	// "tested", "newer", "older", or empty when either is unknown.
+	VersionCheck    string `json:"version_check"`
 	LastSync        string `json:"last_sync_at"`
 	LastStatus      *bool  `json:"last_status"`
 	LastStatusCheck string `json:"last_status_check"`
@@ -57,6 +60,9 @@ func scanServer(row rowScanner) (ManagedServer, error) {
 	s.HasAPIKey = s.apiKey != ""
 	s.HasOverseerrKey = s.overseerrKey != ""
 	s.EffectiveActive = s.Active && s.ProviderEnabled
+	if definition, ok := providerDefinition(s.Type); ok {
+		s.VersionCheck = versionCheck(definition.TestedVersion, s.Version)
+	}
 	return s, err
 }
 func (a *App) loadServer(ctx context.Context, id int64) (ManagedServer, error) {
@@ -115,7 +121,7 @@ func (a *App) providers(w http.ResponseWriter, r *http.Request) {
 		if m, ok := findMediaModule(def.ID); ok {
 			capabilities, features = moduleCapabilities(m), moduleFeatures(m)
 		}
-		items = append(items, map[string]any{"id": def.ID, "name": def.Name, "description": def.Description, "enabled": enabled, "server_count": count, "capabilities": capabilities, "features": features})
+		items = append(items, map[string]any{"id": def.ID, "name": def.Name, "description": def.Description, "tested_version": def.TestedVersion, "enabled": enabled, "server_count": count, "capabilities": capabilities, "features": features})
 	}
 	respond(w, 200, items)
 }

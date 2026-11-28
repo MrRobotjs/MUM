@@ -21,6 +21,8 @@ export type Server = {
   last_status?: boolean | null;
   last_status_check?: string | null;
   last_version?: string | null;
+  /** How last_version compares with the release MUM was tested against; empty when either is unknown. */
+  version_check?: 'tested' | 'newer' | 'older' | '';
   last_sync_at?: string | null;
   overseerr_enabled?: boolean;
   has_overseerr_api_key?: boolean;

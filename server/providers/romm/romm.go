@@ -23,6 +23,7 @@ var Definition = provider.Definition{
 	Name:           "RomM",
 	Description:    "Retro game collections on your RomM server. A new account starts active in its default group.",
 	DownloadLabels: true,
+	TestedVersion:  "5.4.1",
 }
 
 var errCredentials = &provider.CredentialsError{Code: "INVALID_ROMM_CREDENTIALS", Message: "RomM needs a username of 3 to 255 English letters without capitals, numbers, underscores or hyphens, and a password of 12 to 72 English letters, numbers, spaces and standard symbols (no accents or emoji)"}
@@ -212,6 +213,7 @@ func sameVocabulary(actual, expected []string) bool {
 	slices.Sort(b)
 	return slices.Equal(a, b)
 }
+
 // validGrant: any entity may carry own_only. RomM's coarse scopes ignore it,
 // so an own_only read of ROMs still lists every ROM and counts as access.
 func validGrant(entity, action string) bool {
@@ -419,4 +421,15 @@ func (s *Server) readGroups(ctx context.Context) (map[int64]PermissionGroup, int
 		}
 	}
 	return byGroup, defaultID, nil
+}
+
+// ServerVersion reads the RomM release from its public heartbeat.
+func (s *Server) ServerVersion(ctx context.Context) (string, error) {
+	var beat struct {
+		System struct {
+			Version string `json:"VERSION"`
+		} `json:"SYSTEM"`
+	}
+	err := s.get(ctx, "/api/heartbeat", &beat)
+	return beat.System.Version, err
 }
